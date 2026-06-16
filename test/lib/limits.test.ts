@@ -2,6 +2,9 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import {
   ATTACHMENT_URL_MAX_AGE_S,
+  FORM_STASH_MAX_BYTES,
+  FORM_STASH_MAX_ENTRIES,
+  FORM_STASH_TTL_MS,
   formatBytes,
   formatLimitValue,
   formatMs,
@@ -116,6 +119,9 @@ describe("limits", () => {
         "PRUNE_TOKENS_RETENTION_DAYS",
         "PRUNE_SUMUP_RETENTION_HOURS",
         "PRUNE_INTERVAL_HOURS",
+        "FORM_STASH_TTL_MS",
+        "FORM_STASH_MAX_BYTES",
+        "FORM_STASH_MAX_ENTRIES",
         "SUPPORT_FORM_NAG_DAYS",
       ].sort();
       const entryKeys = LIMIT_ENTRIES.map((e) => e.envKey).sort();
@@ -156,6 +162,13 @@ describe("limits", () => {
       );
       expect(currentByKey.get("PRUNE_SUMUP_RETENTION_HOURS")).toBe(
         PRUNE_SUMUP_RETENTION_HOURS,
+      );
+      expect(currentByKey.get("FORM_STASH_TTL_MS")).toBe(FORM_STASH_TTL_MS);
+      expect(currentByKey.get("FORM_STASH_MAX_BYTES")).toBe(
+        FORM_STASH_MAX_BYTES,
+      );
+      expect(currentByKey.get("FORM_STASH_MAX_ENTRIES")).toBe(
+        FORM_STASH_MAX_ENTRIES,
       );
     });
 

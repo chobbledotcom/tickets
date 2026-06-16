@@ -135,6 +135,23 @@ describe("buildFlashCookie", () => {
     const cookie = buildFlashCookie("abc123", "Saved", true);
     expect(cookie).toContain("Max-Age=10");
   });
+
+  test("embeds the form re-fill token when provided", () => {
+    setEffectiveDomainForTest("localhost");
+    const cookie = buildFlashCookie(
+      "abc123",
+      "Saved",
+      true,
+      undefined,
+      undefined,
+      "stash-token",
+    );
+    expect(cookie).toContain(
+      encodeURIComponent(
+        JSON.stringify({ f: "stash-token", m: "Saved", t: "s" }),
+      ),
+    );
+  });
 });
 
 describe("clearFlashCookie", () => {
@@ -153,6 +170,7 @@ describe("parseFlashValue", () => {
     const encoded = JSON.stringify({ m: "Listing created", t: "s" });
     expect(parseFlashValue(encoded)).toEqual({
       error: undefined,
+      formToken: undefined,
       info: undefined,
       result: undefined,
       success: "Listing created",
@@ -163,6 +181,7 @@ describe("parseFlashValue", () => {
     const encoded = JSON.stringify({ m: "Something went wrong", t: "e" });
     expect(parseFlashValue(encoded)).toEqual({
       error: "Something went wrong",
+      formToken: undefined,
       info: undefined,
       result: undefined,
       success: undefined,
@@ -173,6 +192,7 @@ describe("parseFlashValue", () => {
     const encoded = JSON.stringify({ m: "You've unsubscribed", t: "i" });
     expect(parseFlashValue(encoded)).toEqual({
       error: undefined,
+      formToken: undefined,
       info: "You've unsubscribed",
       result: undefined,
       success: undefined,
@@ -185,6 +205,7 @@ describe("parseFlashValue", () => {
     );
     expect(parseFlashValue(encoded)).toEqual({
       error: undefined,
+      formToken: undefined,
       info: undefined,
       result: undefined,
       success: "Hello world",
@@ -195,10 +216,16 @@ describe("parseFlashValue", () => {
     const encoded = JSON.stringify({ m: "Created", r: "abc123", t: "s" });
     expect(parseFlashValue(encoded)).toEqual({
       error: undefined,
+      formToken: undefined,
       info: undefined,
       result: "abc123",
       success: "Created",
     });
+  });
+
+  test("surfaces the form re-fill token when present", () => {
+    const encoded = JSON.stringify({ f: "stash-token", m: "Failed", t: "e" });
+    expect(parseFlashValue(encoded).formToken).toBe("stash-token");
   });
 
   test("throws for invalid format", () => {

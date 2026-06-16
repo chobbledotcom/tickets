@@ -12,6 +12,12 @@ export type Flash = {
   error?: string;
   info?: string;
   result?: string;
+  /**
+   * Redemption token for the in-memory form re-fill stash. Carried in the
+   * flash cookie and consumed at the read seam; never stored in the flash
+   * context itself.
+   */
+  formToken?: string;
 };
 
 const flashStore = new AsyncLocalStorage<Flash>();
