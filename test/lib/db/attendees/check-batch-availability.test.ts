@@ -2,6 +2,11 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { checkBatchAvailability } from "#shared/db/attendees.ts";
 import {
+  enableQueryLog,
+  getQueryLog,
+  runWithQueryLogContext,
+} from "#shared/db/query-log.ts";
+import {
   bookAttendee,
   createDailyTestListing,
   createTestGroup,
@@ -142,5 +147,21 @@ describeWithEnv("db > attendees > checkBatchAvailability", { db: true }, () => {
     expect(
       await checkBatchAvailability([{ listingId: listing.id, quantity: 1 }]),
     ).toBe(false);
+  });
+
+  test("stays within a constant query budget for a large cart", async () => {
+    // More daily listings than the N+1 read guard threshold (25): a per-listing
+    // fan-out would run the occupancy read once each and trip the guard.
+    const items: { listingId: number; quantity: number }[] = [];
+    for (let i = 0; i < 28; i++) {
+      const listing = await createDailyTestListing({ maxAttendees: 5 });
+      items.push({ listingId: listing.id, quantity: 1 });
+    }
+    await runWithQueryLogContext(async () => {
+      enableQueryLog();
+      expect(await checkBatchAvailability(items, "2026-05-01")).toBe(true);
+      // Listing rows + batched occupancy + group caps — a small constant.
+      expect(getQueryLog().length).toBeLessThanOrEqual(5);
+    });
   });
 });
