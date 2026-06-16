@@ -4,6 +4,7 @@
  * the error page shown when no qualifying renewal tier is configured.
  */
 
+import { t } from "#i18n";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 
 type RenewalErrorPageProps = {
@@ -13,12 +14,14 @@ type RenewalErrorPageProps = {
 /** Render the renewal error page (no qualifying renewal tier exists) */
 export const renewalErrorPage = ({ siteName }: RenewalErrorPageProps): string =>
   String(
-    <Layout title="Renewal Unavailable">
+    <Layout title={t("public_renewal.unavailable")}>
       <div class="prose">
-        <h1>Renewal Unavailable</h1>
+        <h1>{t("public_renewal.unavailable")}</h1>
         <p>
-          This renewal link is no longer valid for{" "}
-          <strong>{escapeHtml(siteName)}</strong>. Please contact support.
+          {t("public_renewal.link_invalid_for", {
+            siteName: escapeHtml(siteName),
+          })}{" "}
+          {t("public_renewal.contact_support")}
         </p>
       </div>
     </Layout>,

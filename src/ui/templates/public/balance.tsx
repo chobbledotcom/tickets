@@ -4,6 +4,7 @@
  * personal details.
  */
 
+import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
 import type { OrderSummary } from "#shared/db/attendees/balance.ts";
 import { CsrfForm } from "#shared/forms.tsx";
@@ -17,16 +18,16 @@ export const balancePaymentPage = (
   summary: OrderSummary,
 ): string =>
   String(
-    <Layout title="Pay your balance">
+    <Layout title={t("public_balance.pay_your_balance")}>
       <div class="prose">
-        <h1>Pay your balance</h1>
-        <p>Here's a summary of your booking. No personal details are shown.</p>
+        <h1>{t("public_balance.pay_your_balance")}</h1>
+        <p>{t("public_balance.booking_summary")}</p>
       </div>
       <table>
         <thead>
           <tr>
-            <th>Item</th>
-            <th>Qty</th>
+            <th>{t("public_balance.item")}</th>
+            <th>{t("common.qty")}</th>
           </tr>
         </thead>
         <tbody>
@@ -39,14 +40,18 @@ export const balancePaymentPage = (
         </tbody>
       </table>
       <p>
-        <strong>Already paid:</strong> {formatCurrency(summary.depositPaid)}
+        <strong>{t("public_balance.already_paid")}:</strong>{" "}
+        {formatCurrency(summary.depositPaid)}
       </p>
       <p>
-        <strong>Balance due:</strong> {formatCurrency(amount)}
+        <strong>{t("public_balance.balance_due")}:</strong>{" "}
+        {formatCurrency(amount)}
       </p>
       <CsrfForm action={`/pay/${token}`}>
         <SubmitButton icon="save">
-          Pay {formatCurrency(amount)} now
+          {t("public_balance.pay_amount_now", {
+            amount: formatCurrency(amount),
+          })}
         </SubmitButton>
       </CsrfForm>
     </Layout>,
@@ -55,10 +60,10 @@ export const balancePaymentPage = (
 /** Shown when the link is valid but there is nothing left to pay. */
 export const balanceSettledPage = (): string =>
   String(
-    <Layout title="Nothing to pay">
+    <Layout title={t("public_balance.nothing_to_pay")}>
       <div class="prose">
-        <h1>Nothing to pay</h1>
-        <p>This booking has no outstanding balance. Thank you!</p>
+        <h1>{t("public_balance.nothing_to_pay")}</h1>
+        <p>{t("public_balance.balance_settled")}</p>
       </div>
     </Layout>,
   );
@@ -66,13 +71,10 @@ export const balanceSettledPage = (): string =>
 /** Shown when the link is invalid or expired. */
 export const balanceInvalidPage = (): string =>
   String(
-    <Layout title="Link not valid">
+    <Layout title={t("public_balance.link_not_valid")}>
       <div class="prose">
-        <h1>This payment link is not valid</h1>
-        <p>
-          The link may have expired or been mistyped. Please ask the organiser
-          for a new one.
-        </p>
+        <h1>{t("public_balance.payment_link_invalid")}</h1>
+        <p>{t("public_balance.link_expired_or_mistyped")}</p>
       </div>
     </Layout>,
   );

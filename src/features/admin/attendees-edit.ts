@@ -7,6 +7,7 @@
  * `refunded` flag when the provider says it has been refunded.
  */
 
+import { t } from "#i18n";
 import { requirePrivateKey } from "#routes/admin/actions.ts";
 import { AUTH_FORM, type AuthSession, withAuth } from "#routes/auth.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
@@ -71,7 +72,7 @@ export const handleRefreshPayment: TypedRouteHandler<
     if (!attendee.payment_id) {
       return redirect(
         `/admin/attendees/${attendeeId}`,
-        "No payment to refresh",
+        t("error.no_payment_to_refresh"),
         false,
         { form },
       );
@@ -91,7 +92,7 @@ export const handleRefreshPayment: TypedRouteHandler<
       );
       return redirect(
         `/admin/attendees/${attendeeId}`,
-        "Payment status updated: refunded",
+        t("success.payment_status_refunded"),
         true,
         { form },
       );
@@ -99,7 +100,7 @@ export const handleRefreshPayment: TypedRouteHandler<
 
     return redirect(
       `/admin/attendees/${attendeeId}`,
-      "Payment status is up to date",
+      t("success.payment_status_current"),
       true,
       { form },
     );

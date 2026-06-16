@@ -5,7 +5,7 @@
  * Usage:
  *   const listingsResource = defineResource({
  *     table: listingsTable,
- *     fields: listingFields,
+ *     fields: getListingFields(),
  *     toInput: extractListingInput,
  *     nameField: 'name', // For delete verification
  *   });

@@ -3,6 +3,7 @@
  */
 
 import { map, pipe } from "#fp";
+import { t } from "#i18n";
 import { formatDateLabel } from "#shared/dates.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
@@ -70,8 +71,8 @@ export const adminCalendarPage = (
     : "/admin/calendar#attendees";
 
   const emptyMessage = dateFilter
-    ? "No attendees for this date"
-    : "Select a date above to view attendees";
+    ? t("admin.calendar.no_attendees")
+    : t("admin.calendar.select_date_prompt");
 
   const agentHref = (f: AgentFilter): string => {
     const params = new URLSearchParams();
@@ -101,7 +102,7 @@ export const adminCalendarPage = (
       : [];
 
   return String(
-    <Layout title="Calendar">
+    <Layout title={t("admin.calendar.title")}>
       <AdminNav active="/admin/calendar" session={session} />
 
       <p class="actions">
@@ -109,7 +110,7 @@ export const adminCalendarPage = (
       </p>
 
       <article>
-        <h2 id="attendees">Attendees by Date</h2>
+        <h2 id="attendees">{t("admin.calendar.attendees_by_date")}</h2>
         <DatePicker
           ariaLabel="Select a date"
           clearHref="/admin/calendar#attendees"
@@ -132,7 +133,7 @@ export const adminCalendarPage = (
         <AvailabilityChecker date={dateFilter} rows={availabilityRows} />
         {dateFilter && attendees.length > 0 && (
           <p>
-            <a href={exportHref}>Export CSV</a>
+            <a href={exportHref}>{t("admin.calendar.export_csv")}</a>
           </p>
         )}
         {sharedRows.length > 0 && (

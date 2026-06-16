@@ -1,0 +1,23 @@
+{
+  "login.title": "Login",
+  "login.submit": "Login",
+  "login.password": "Password",
+  "login.reset_database": "Reset database",
+  "join.set_password.title": "Set Your Password",
+  "join.set_password.welcome": "Welcome, {username}",
+  "join.set_password.instructions": "Set your password to complete your account setup.",
+  "join.set_password.submit": "Set Password",
+  "join.set_password.password": "Password",
+  "join.set_password.confirm_password": "Confirm Password",
+  "join.set_password.min_chars": "Minimum 8 characters",
+  "join.success.title": "Account Created",
+  "join.success.heading": "Password Set",
+  "join.success.message": "Your password has been set successfully.",
+  "join.success.wait_activation": "Please wait for the site owner to activate your account before logging in.",
+  "join.invalid.title": "Invalid Invite",
+  "join.invalid.heading": "Invalid Invite",
+  "password.current": "Current Password",
+  "password.new": "New Password",
+  "password.new_hint": "Minimum 8 characters",
+  "password.confirm": "Confirm New Password"
+}

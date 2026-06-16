@@ -5,6 +5,7 @@
  */
 
 import { map, pipe } from "#fp";
+import { t } from "#i18n";
 import type { TokenEntry } from "#routes/tickets/token-utils.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
@@ -39,14 +40,16 @@ export const checkinAdminPage = (
   )(entries);
 
   const allCheckedIn = entries.every((e) => e.attendee.checked_in);
-  const buttonLabel = allCheckedIn ? "Check Out All" : "Check In All";
+  const buttonLabel = allCheckedIn
+    ? t("admin.checkin.check_out_all")
+    : t("admin.checkin.check_in_all");
   const buttonClass = allCheckedIn ? "bulk-checkout" : "bulk-checkin";
   const nextValue = allCheckedIn ? "false" : "true";
 
   return String(
-    <Layout title="Check-in">
+    <Layout title={t("admin.checkin.title")}>
       <CsrfForm action={checkinPath}>
-        <h1>Check-in</h1>
+        <h1>{t("admin.checkin.heading")}</h1>
         <Flash success={message} />
         <input name="check_in" type="hidden" value={nextValue} />
         <button class={buttonClass} type="submit">
@@ -74,10 +77,10 @@ export const checkinAdminPage = (
  */
 export const checkinPublicPage = (): string =>
   String(
-    <Layout title="Check-in">
+    <Layout title={t("admin.checkin.public_title")}>
       <div class="prose">
-        <h1>Check-in</h1>
-        <p>Please show this QR code to an listing administrator to check in.</p>
+        <h1>{t("admin.checkin.public_heading")}</h1>
+        <p>{t("admin.checkin.public_instructions")}</p>
       </div>
     </Layout>,
   );

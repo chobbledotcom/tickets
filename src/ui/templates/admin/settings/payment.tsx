@@ -2,16 +2,17 @@
  * Payment Provider, Stripe, Square, and Booking Fee forms for settings
  */
 
+import { t } from "#i18n";
 import { MASK_SENTINEL } from "#shared/db/settings.ts";
 import { CsrfForm, renderFields } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import {
-  squareAccessTokenFields,
-  squareWebhookFields,
-  stripeKeyFields,
-  sumupFields,
+  getSquareAccessTokenFields,
+  getSquareWebhookFields,
+  getStripeKeyFields,
+  getSumupFields,
 } from "#templates/fields.ts";
 
 export const PaymentProviderForm = (s: SettingsPageState): JSX.Element => (
@@ -20,8 +21,8 @@ export const PaymentProviderForm = (s: SettingsPageState): JSX.Element => (
     id="settings-payment-provider"
   >
     <div class="prose">
-      <h2>Payment Provider</h2>
-      <p>Choose which payment provider to use for paid listings.</p>
+      <h2>{t("settings.payment_provider")}</h2>
+      <p>{t("settings.payment_provider_hint")}</p>
     </div>
     <fieldset class="radios">
       <label>
@@ -31,7 +32,7 @@ export const PaymentProviderForm = (s: SettingsPageState): JSX.Element => (
           type="radio"
           value="none"
         />
-        None (payments disabled)
+        {t("settings.payment_none")}
       </label>
       <label>
         <input
@@ -40,7 +41,7 @@ export const PaymentProviderForm = (s: SettingsPageState): JSX.Element => (
           type="radio"
           value="stripe"
         />
-        Stripe
+        {t("settings.payment_stripe")}
       </label>
       <label>
         <input
@@ -49,7 +50,7 @@ export const PaymentProviderForm = (s: SettingsPageState): JSX.Element => (
           type="radio"
           value="square"
         />
-        Square
+        {t("settings.payment_square")}
       </label>
       <label>
         <input
@@ -61,7 +62,9 @@ export const PaymentProviderForm = (s: SettingsPageState): JSX.Element => (
         SumUp
       </label>
     </fieldset>
-    <SubmitButton icon="save">Save Payment Provider</SubmitButton>
+    <SubmitButton icon="save">
+      {t("settings.save_payment_provider")}
+    </SubmitButton>
   </CsrfForm>
 );
 
@@ -98,11 +101,11 @@ export const StripeForm = (s: SettingsPageState): JSX.Element | null =>
   s.paymentProvider === "stripe" ? (
     <CsrfForm action="/admin/settings/stripe" id="settings-stripe">
       <div class="prose">
-        <h2>Stripe Settings</h2>
+        <h2>{t("settings.stripe.heading")}</h2>
         <p>
           {s.stripeKeyConfigured
-            ? "A Stripe secret key is currently configured. Enter a new key below to replace it."
-            : "No Stripe key is configured. Enter your Stripe secret key to enable Stripe payments."}
+            ? t("settings.stripe.configured_hint")
+            : t("settings.stripe.not_configured_hint")}
         </p>
       </div>
       {s.stripeKeyConfigured && (
@@ -110,20 +113,24 @@ export const StripeForm = (s: SettingsPageState): JSX.Element | null =>
       )}
       <p>
         <small>
-          <a href="/admin/guide#payment-setup">Where do I find this?</a>
+          <a href="/admin/guide#payment-setup">
+            {t("settings.stripe.where_to_find")}
+          </a>
         </small>
       </p>
       <Raw
         html={renderFields(
-          stripeKeyFields,
+          getStripeKeyFields(),
           s.stripeKeyConfigured ? { stripe_secret_key: MASK_SENTINEL } : {},
         )}
       />
       <footer>
-        <SubmitButton icon="save">Update Stripe Key</SubmitButton>
+        <SubmitButton icon="save">
+          {t("settings.stripe.update_key")}
+        </SubmitButton>
         {s.stripeKeyConfigured && (
           <button class="secondary" id="stripe-test-btn" type="button">
-            Test Connection
+            {t("settings.stripe.test_connection")}
           </button>
         )}
       </footer>
@@ -135,21 +142,23 @@ export const SquareForm = (s: SettingsPageState): JSX.Element | null =>
   s.paymentProvider === "square" ? (
     <CsrfForm action="/admin/settings/square" id="settings-square">
       <div class="prose">
-        <h2>Square Settings</h2>
+        <h2>{t("settings.square.heading")}</h2>
         <p>
           {s.squareTokenConfigured
-            ? "A Square access token is currently configured. Enter new credentials below to replace them."
-            : "No Square access token is configured. Enter your Square credentials to enable Square payments."}
+            ? t("settings.square.configured_hint")
+            : t("settings.square.not_configured_hint")}
         </p>
         <p>
           <small>
-            <a href="/admin/guide#payment-setup">Where do I find these?</a>
+            <a href="/admin/guide#payment-setup">
+              {t("settings.square.where_to_find")}
+            </a>
           </small>
         </p>
       </div>
       <Raw
         html={renderFields(
-          squareAccessTokenFields,
+          getSquareAccessTokenFields(),
           s.squareTokenConfigured ? { square_access_token: MASK_SENTINEL } : {},
         )}
       />
@@ -159,13 +168,15 @@ export const SquareForm = (s: SettingsPageState): JSX.Element | null =>
           name="square_sandbox"
           type="checkbox"
         />
-        Sandbox mode (use Square's test environment)
+        {t("settings.square.sandbox_mode")}
       </label>
       <footer>
-        <SubmitButton icon="save">Update Square Credentials</SubmitButton>
+        <SubmitButton icon="save">
+          {t("settings.square.update_credentials")}
+        </SubmitButton>
         {s.squareTokenConfigured && (
           <button class="secondary" id="square-test-btn" type="button">
-            Test Connection
+            {t("settings.square.test_connection")}
           </button>
         )}
       </footer>
@@ -180,17 +191,16 @@ export const SquareWebhookForm = (s: SettingsPageState): JSX.Element | null =>
       id="settings-square-webhook"
     >
       <div class="prose">
-        <h2>Square Webhook</h2>
+        <h2>{t("settings.square.webhook_heading")}</h2>
         <p>
-          <a href="/admin/guide#payment-setup">See the full setup guide</a>
+          <a href="/admin/guide#payment-setup">
+            {t("settings.square.webhook_guide_link")}
+          </a>
         </p>
       </div>
       <article>
         <aside>
-          <p>
-            To receive payment notifications, set up a webhook in your Square
-            Developer Dashboard:
-          </p>
+          <p>{t("settings.square.webhook_instructions")}</p>
           <ol>
             <li>
               Go to your <strong>Square Developer Dashboard</strong> and select
@@ -219,18 +229,20 @@ export const SquareWebhookForm = (s: SettingsPageState): JSX.Element | null =>
       </article>
       <p>
         {s.squareWebhookConfigured
-          ? "A webhook signature key is currently configured. Enter a new key below to replace it."
-          : "No webhook signature key is configured. Follow the steps above to set one up."}
+          ? t("settings.square.webhook_configured_hint")
+          : t("settings.square.webhook_not_configured_hint")}
       </p>
       <Raw
         html={renderFields(
-          squareWebhookFields,
+          getSquareWebhookFields(),
           s.squareWebhookConfigured
             ? { square_webhook_signature_key: MASK_SENTINEL }
             : {},
         )}
       />
-      <SubmitButton icon="save">Update Webhook Key</SubmitButton>
+      <SubmitButton icon="save">
+        {t("settings.square.update_webhook_key")}
+      </SubmitButton>
     </CsrfForm>
   ) : null;
 
@@ -238,7 +250,7 @@ export const SumUpForm = (s: SettingsPageState): JSX.Element | null =>
   s.paymentProvider === "sumup" ? (
     <CsrfForm action="/admin/settings/sumup" id="settings-sumup">
       <div class="prose">
-        <h2>SumUp Settings</h2>
+        <h2>{t("settings.sumup.heading")}</h2>
         <p>
           {s.sumupKeyConfigured
             ? "A SumUp API key is currently configured. Enter new credentials below to replace them."
@@ -255,7 +267,7 @@ export const SumUpForm = (s: SettingsPageState): JSX.Element | null =>
       </p>
       <Raw
         html={renderFields(
-          sumupFields,
+          getSumupFields(),
           s.sumupKeyConfigured ? { sumup_api_key: MASK_SENTINEL } : {},
         )}
       />
@@ -275,14 +287,11 @@ export const BookingFeeForm = (s: SettingsPageState): JSX.Element | null =>
   s.paymentProvider ? (
     <CsrfForm action="/admin/settings/booking-fee" id="settings-booking-fee">
       <div class="prose">
-        <h2>Booking Fee</h2>
-        <p>
-          Percentage fee added at checkout (e.g. 1.5 for 1.5%). Set to 0 to
-          disable. Max 10.
-        </p>
+        <h2>{t("settings.booking_fee")}</h2>
+        <p>{t("settings.booking_fee_hint")}</p>
       </div>
       <label>
-        Booking Fee (%)
+        {t("settings.booking_fee_label")}
         <input
           max="10"
           min="0"
@@ -293,6 +302,6 @@ export const BookingFeeForm = (s: SettingsPageState): JSX.Element | null =>
           value={s.bookingFee}
         />
       </label>
-      <SubmitButton icon="save">Save Booking Fee</SubmitButton>
+      <SubmitButton icon="save">{t("settings.save_booking_fee")}</SubmitButton>
     </CsrfForm>
   ) : null;

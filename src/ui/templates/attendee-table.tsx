@@ -13,6 +13,7 @@
  */
 
 import { flatMap, joinStrings, map, pipe, sort } from "#fp";
+import { t } from "#i18n";
 import {
   getHeaderText,
   renderCells,
@@ -201,7 +202,9 @@ const CheckinButton = ({
   returnUrl: string | undefined;
 }): string => {
   const isCheckedIn = a.checked_in;
-  const label = isCheckedIn ? "Check out" : "Check in";
+  const label = isCheckedIn
+    ? t("admin.attendee_table.check_out")
+    : t("admin.attendee_table.check_in");
   const buttonClass = isCheckedIn
     ? "link-button checkout"
     : "link-button checkin";
@@ -228,7 +231,11 @@ const createStatusRenderer =
   (opts: AttendeeTableOptions) =>
   (row: AttendeeTableRow): string => {
     if (row.attendee.refunded) {
-      return String(<span class="badge-alert">Refunded</span>);
+      return String(
+        <span class="badge-alert">
+          {t("admin.attendee_table.refunded_badge")}
+        </span>,
+      );
     }
     return CheckinButton({
       a: row.attendee,
@@ -251,21 +258,21 @@ const createActionsRenderer =
             class="danger"
             href={`/admin/listing/${row.listingId}/attendee/${a.id}/refund${suffix}`}
           >
-            Refund
+            {t("admin.attendee_table.refund")}
           </a>
         )}
         {isRefundable(row) && " "}
-        <a href={`/admin/attendees/${a.id}${suffix}`}>Edit</a>{" "}
+        <a href={`/admin/attendees/${a.id}${suffix}`}>{t("common.edit")}</a>{" "}
         <a
           class="danger"
           href={`/admin/listing/${row.listingId}/attendee/${a.id}/delete${suffix}`}
         >
-          Delete
+          {t("common.delete")}
         </a>{" "}
         <a
           href={`/admin/listing/${row.listingId}/attendee/${a.id}/resend-notification${suffix}`}
         >
-          Re-send Notification
+          {t("admin.attendee_table.resend_notification")}
         </a>
       </>,
     );
@@ -332,7 +339,7 @@ export const AttendeeTable = (opts: AttendeeTableOptions): string => {
           joinStrings,
         )(orderedRows)
       : `<tr><td colspan="${colCount}">${
-          opts.emptyMessage ?? "No attendees yet"
+          opts.emptyMessage ?? t("admin.attendee_table.no_attendees")
         }</td></tr>`;
 
   const headers = pipe(

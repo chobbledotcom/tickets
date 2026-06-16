@@ -6,8 +6,9 @@
  * set. Rendered only when the Support feature is enabled (ADMIN_EMAIL_ADDRESS).
  */
 
+import { t } from "#i18n";
 import { CsrfForm, Flash, MessageFields } from "#shared/forms.tsx";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
@@ -23,11 +24,15 @@ const SupportForm = ({
   nagLabel: string | null;
 }): JSX.Element => (
   <CsrfForm action="/admin/support">
-    <h2>Contact support</h2>
+    <h2>{t("support.contact_support")}</h2>
     <MessageFields>
       {nagLabel && (
         <p>
-          You last submitted this form <strong>{nagLabel}</strong>.
+          <Raw
+            html={t("support.last_submitted", {
+              nagLabel: escapeHtml(nagLabel),
+            })}
+          />
         </p>
       )}
     </MessageFields>
@@ -37,8 +42,7 @@ const SupportForm = ({
 /** Fallback shown when the host hasn't set SUPPORT_PAGE_TEXT. */
 const MissingText = (): JSX.Element => (
   <p>
-    Your admin hasn't filled in the <code>SUPPORT_PAGE_TEXT</code> variable,
-    which is why you're seeing this strange message.
+    <Raw html={t("support.missing_text")} />
   </p>
 );
 
@@ -51,7 +55,7 @@ export const adminSupportPage = (opts: {
   error?: string;
 }): string =>
   String(
-    <Layout title="Support">
+    <Layout title={t("support.page_title")}>
       <AdminNav active="/admin/support" session={opts.session} />
       <Flash error={opts.error} success={opts.success} />
       <div class="prose">
