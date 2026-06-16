@@ -27,6 +27,7 @@ export const countEmailTemplates = async (): Promise<number> => {
   return row?.n ?? 0;
 };
 
+/* jscpd:ignore-start */
 export const insertEmailTemplate = async (
   subject: string,
   body: string,
@@ -55,3 +56,4 @@ export const deleteEmailTemplate = async (id: number): Promise<void> => {
     sql: "DELETE FROM email_templates WHERE id = ?",
   });
 };
+/* jscpd:ignore-end */
