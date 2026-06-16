@@ -27,7 +27,13 @@ import {
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { routeStatic } from "#routes/static.ts";
 import type { ServerContext } from "#routes/types.ts";
-import { normalizePath, parseCookies, parseRequest } from "#routes/url.ts";
+import {
+  getClientIp,
+  normalizePath,
+  parseCookies,
+  parseRequest,
+} from "#routes/url.ts";
+import { runWithClientIp } from "#shared/client-context.ts";
 import {
   loadEffectiveDomain,
   seedEffectiveDomainHost,
@@ -237,7 +243,7 @@ const readOnlyGuard = (path: string, method: string): Response | null => {
 
   // Block all JSON API mutations (POST/PUT/DELETE on /api/*)
   if (path.startsWith("/api/") && method !== "GET" && method !== "OPTIONS") {
-    return jsonResponse({ error: true, message: READ_ONLY_MESSAGE }, 403);
+    return jsonResponse({ error: READ_ONLY_MESSAGE }, 403);
   }
 
   // Block GET pages for create/edit forms
@@ -634,12 +640,14 @@ export const handleRequest = async (
   );
 
   return runWithLocale(locale, () =>
-    runWithRequestId(() =>
-      runWithRequestCache(() =>
-        runWithQueryLogContext(() =>
-          runWithFlashContext(() =>
-            runWithSessionContext(() =>
-              processRequest(effectiveRequest, server),
+    runWithClientIp(getClientIp(request, server), () =>
+      runWithRequestId(() =>
+        runWithRequestCache(() =>
+          runWithQueryLogContext(() =>
+            runWithFlashContext(() =>
+              runWithSessionContext(() =>
+                processRequest(effectiveRequest, server),
+              ),
             ),
           ),
         ),

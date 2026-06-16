@@ -225,7 +225,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       });
       expect(response.status).toBe(403);
       const body = await response.json();
-      expect(body.message).toBe("Forbidden");
+      expect(body.error).toBe("Forbidden");
     });
   });
 });

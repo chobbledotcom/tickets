@@ -1,4 +1,5 @@
 import type { Row } from "@libsql/client";
+import { lazyRef } from "#fp";
 
 export const TEST_ADMIN_USERNAME = "testadmin";
 
@@ -17,45 +18,32 @@ type AdminSessionRow = {
 
 type TestSession = { cookie: string; csrfToken: string };
 
-let _cachedSetupSettings: Array<{ key: string; value: string }> | null = null;
-let _cachedSetupUsers: Row[] | null = null;
-let _cachedAdminSession: {
+type AdminSessionCache = {
   cookie: string;
   sessionRow: AdminSessionRow;
-} | null = null;
-let _testSession: TestSession | null = null;
-let _nameCounter = { value: 0 };
+} | null;
 
-export const getCachedSetupSettings = () => _cachedSetupSettings;
-export const setCachedSetupSettings = (
-  v: Array<{ key: string; value: string }> | null,
-) => {
-  _cachedSetupSettings = v;
-};
-export const getCachedSetupUsers = () => _cachedSetupUsers;
-export const setCachedSetupUsers = (v: Row[] | null) => {
-  _cachedSetupUsers = v;
-};
-export const getCachedAdminSession = () => _cachedAdminSession;
-export const setCachedAdminSession = (
-  v: {
-    cookie: string;
-    sessionRow: AdminSessionRow;
-  } | null,
-) => {
-  _cachedAdminSession = v;
-};
-export const getInternalTestSession = (): TestSession | null => _testSession;
-export const setTestSession = (v: TestSession | null) => {
-  _testSession = v;
-};
+// Resettable test caches as lazyRef cells (set(null) clears) — no module-level
+// `let`. Each thunk just yields the empty/null initial state.
+export const [getCachedSetupSettings, setCachedSetupSettings] = lazyRef<Array<{
+  key: string;
+  value: string;
+}> | null>(() => null);
+export const [getCachedSetupUsers, setCachedSetupUsers] = lazyRef<Row[] | null>(
+  () => null,
+);
+export const [getCachedAdminSession, setCachedAdminSession] =
+  lazyRef<AdminSessionCache>(() => null);
+export const [getInternalTestSession, setTestSession] =
+  lazyRef<TestSession | null>(() => null);
 
-export const resetTestSession = (): void => {
-  _testSession = null;
-};
+export const resetTestSession = (): void => setTestSession(null);
+
+// Mutable counter held in a const object (mutated in place, never reassigned).
+const _nameCounter = { value: 0 };
 
 export const resetTestSlugCounter = (): void => {
-  _nameCounter = { value: 0 };
+  _nameCounter.value = 0;
 };
 
 export const generateTestListingName = (): string => {

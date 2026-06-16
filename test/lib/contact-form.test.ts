@@ -15,7 +15,7 @@ import {
   resetHostEmailConfig,
   setHostEmailConfigForTest,
 } from "#shared/email.ts";
-import { setTestEnv } from "#test-utils";
+import { setTestEnv, validEmail } from "#test-utils";
 
 const BOTH_KEYS = {
   BOTPOISON_PUBLIC_KEY: "pk_test_public",
@@ -121,7 +121,9 @@ describe("sendContactMessage", () => {
   test("returns false and sends nothing when no email provider is set", async () => {
     settings.setForTest({ business_email: "owner@example.com" });
     stubFetch(() => Promise.reject(new Error("should not be called")));
-    expect(await sendContactMessage("visitor@example.com", "Hi")).toBe(false);
+    expect(
+      await sendContactMessage(validEmail("visitor@example.com"), "Hi"),
+    ).toBe(false);
     expect(fetchStub?.calls.length).toBe(0);
   });
 
@@ -133,7 +135,9 @@ describe("sendContactMessage", () => {
       email_provider: "resend",
     });
     stubFetch(() => Promise.reject(new Error("should not be called")));
-    expect(await sendContactMessage("visitor@example.com", "Hi")).toBe(false);
+    expect(
+      await sendContactMessage(validEmail("visitor@example.com"), "Hi"),
+    ).toBe(false);
     expect(fetchStub?.calls.length).toBe(0);
   });
 
@@ -147,7 +151,7 @@ describe("sendContactMessage", () => {
     });
 
     const result = await sendContactMessage(
-      "visitor@external.test",
+      validEmail("visitor@external.test"),
       "Hello there",
     );
 
@@ -174,7 +178,10 @@ describe("sendContactMessage", () => {
       return Promise.resolve(new Response(null, { status: 200 }));
     });
 
-    const result = await sendContactMessage("imposter@example.com", "Hi me");
+    const result = await sendContactMessage(
+      validEmail("imposter@example.com"),
+      "Hi me",
+    );
 
     expect(result).toBe(true);
     expect(captured.body.reply_to).toBe("sender@sending.test");
@@ -195,7 +202,10 @@ describe("sendContactMessage", () => {
       return Promise.resolve(new Response(null, { status: 200 }));
     });
 
-    const result = await sendContactMessage("imposter@sending.test", "Hi");
+    const result = await sendContactMessage(
+      validEmail("imposter@sending.test"),
+      "Hi",
+    );
 
     expect(result).toBe(true);
     expect(captured.body.reply_to).toBe("sender@sending.test");
@@ -203,17 +213,12 @@ describe("sendContactMessage", () => {
     expect(String(captured.body.text)).toContain("spoof the host");
   });
 
-  test("returns false and sends nothing when the submitter address is malformed", async () => {
-    configureEmail();
-    stubFetch(() => Promise.reject(new Error("should not be called")));
-    expect(await sendContactMessage("not-an-email", "Hi")).toBe(false);
-    expect(fetchStub?.calls.length).toBe(0);
-  });
-
   test("returns false when the email provider responds with an error", async () => {
     configureEmail();
     stubFetch(() => Promise.resolve(new Response("nope", { status: 422 })));
-    expect(await sendContactMessage("visitor@example.com", "Hi")).toBe(false);
+    expect(
+      await sendContactMessage(validEmail("visitor@example.com"), "Hi"),
+    ).toBe(false);
   });
 
   test("escapes HTML in the message body", async () => {
@@ -224,7 +229,10 @@ describe("sendContactMessage", () => {
       return Promise.resolve(new Response(null, { status: 200 }));
     });
 
-    await sendContactMessage("visitor@example.com", "<script>x</script>");
+    await sendContactMessage(
+      validEmail("visitor@example.com"),
+      "<script>x</script>",
+    );
 
     expect(String(captured.body.html)).not.toContain("<script>x</script>");
     expect(String(captured.body.html)).toContain("&lt;script&gt;");

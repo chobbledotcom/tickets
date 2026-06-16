@@ -33,6 +33,7 @@ import { sessionsRoutes } from "#routes/admin/sessions.ts";
 import { settingsRoutes } from "#routes/admin/settings.ts";
 import { attendeeStatusesRoutes } from "#routes/admin/settings-statuses.ts";
 import { siteRoutes } from "#routes/admin/site.ts";
+import { supportRoutes } from "#routes/admin/support.ts";
 import { updateRoutes } from "#routes/admin/update.ts";
 import { usersRoutes } from "#routes/admin/users.ts";
 import { getAuthenticatedSession } from "#routes/auth.ts";
@@ -69,6 +70,7 @@ const adminRouteModules: Record<string, RouteHandlerFn>[] = [
   builtSitesRoutes,
   updateRoutes,
   backupRoutes,
+  supportRoutes,
 ];
 
 const adminRoutes = reduce(

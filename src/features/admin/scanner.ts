@@ -146,7 +146,7 @@ const performCheckIn = async (
 const handleScanPost: IdRouteHandler = (request, { id }) =>
   withAuth(request, SCANNER_JSON, async (session, body) => {
     if (typeof body.token !== "string") {
-      return jsonResponse({ message: "Missing token", status: "error" }, 400);
+      return jsonResponse({ error: "Missing token" }, 400);
     }
 
     const token = body.token;
@@ -159,10 +159,7 @@ const handleScanPost: IdRouteHandler = (request, { id }) =>
         code: ErrorCode.KEY_DERIVATION,
         detail: "Scanner: private key unavailable",
       });
-      return jsonResponse(
-        { message: "Decryption unavailable", status: "error" },
-        500,
-      );
+      return jsonResponse({ error: "Decryption unavailable" }, 500);
     }
 
     const results = await getAttendeesByTokens([token]);

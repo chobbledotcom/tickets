@@ -106,12 +106,17 @@ describe("limits", () => {
         "MAX_TOKEN_404S",
         "TOKEN_WINDOW_MS",
         "TOKEN_LOCKOUT_MS",
+        "MAX_BOOKING_ATTEMPTS",
+        "BOOKING_LOCKOUT_MS",
+        "MAX_APIKEY_ATTEMPTS",
+        "APIKEY_LOCKOUT_MS",
         "PRUNE_PAYMENTS_RETENTION_DAYS",
         "PRUNE_SESSIONS_RETENTION_DAYS",
         "PRUNE_LOGINS_RETENTION_DAYS",
         "PRUNE_TOKENS_RETENTION_DAYS",
         "PRUNE_SUMUP_RETENTION_HOURS",
         "PRUNE_INTERVAL_HOURS",
+        "SUPPORT_FORM_NAG_DAYS",
       ].sort();
       const entryKeys = LIMIT_ENTRIES.map((e) => e.envKey).sort();
       expect(entryKeys).toEqual(exportedKeys);

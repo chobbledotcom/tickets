@@ -13,6 +13,7 @@ import {
 } from "#shared/env.ts";
 import { CsrfForm } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { isSupportEnabled } from "#shared/support.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { SettingsNagBanner } from "#templates/admin/settings-nag-banner.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
@@ -97,6 +98,9 @@ export const AdminNav = ({ session, active }: AdminNavProps): JSX.Element => (
           isBuilderEnabled() &&
           navLink("/admin/built-sites", t("nav.built_sites"), active)}
         {navLink("/admin/guide", t("nav.guide"), active)}
+        {session.adminLevel === "owner" &&
+          isSupportEnabled() &&
+          navLink("/admin/support", t("nav.support"), active)}
         <li>
           <CsrfForm action="/admin/logout" class="inline">
             <SubmitButton icon="log-out">{t("nav.logout")}</SubmitButton>
