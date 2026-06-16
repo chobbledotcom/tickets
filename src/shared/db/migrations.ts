@@ -960,26 +960,103 @@ const syncCurrentSchema = async (): Promise<void> => {
   await dropDeprecatedAttendeeColumns();
 };
 
-type Migration = {
+/**
+ * The schema objects a single migration is responsible for. Drives that
+ * migration's verify() — so a failure names exactly what the migration was
+ * meant to add, instead of re-checking the whole latest schema (which an
+ * early migration could satisfy only because a later migration's up() already
+ * created everything). It also lets tests drive a precise "restore from this
+ * migration" check by dropping exactly these objects and re-running up().
+ */
+export type SchemaRequirement = {
+  /** Tables this migration creates (verified to have their full SCHEMA columns). */
+  newTables?: string[];
+  /** Columns this migration adds to already-existing tables. */
+  columns?: Record<string, string[]>;
+  /** Indexes this migration creates. */
+  indexes?: string[];
+  /** Legacy tables this migration removes (must be absent afterwards). */
+  absentTables?: string[];
+};
+
+export type Migration = {
   id: string;
   description: string;
   up: () => Promise<void>;
   /** Runs after up(); a failure leaves the migration unrecorded for retry. */
   verify: () => Promise<void>;
+  /** Objects this migration owns; drives verify() and the restore tests. */
+  requires?: SchemaRequirement;
 };
 
-/** Verify the reordered overlap index exists (syncIndexes drops the old
- * (listing_id, start_at, end_at) ordering and creates this one). */
-const verifyOverlapIndex = async (): Promise<void> => {
-  const result = await getDb().execute(
-    "SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_listing_attendees_listing_end_start'",
-  );
-  if (result.rows.length === 0) {
+const assertTableColumns = (
+  live: LiveSchema,
+  name: string,
+  cols: string[],
+): void => {
+  const existing = live.tables.get(name);
+  if (!existing) {
+    throw new Error(`Migration verification failed: missing table ${name}`);
+  }
+  const missing = cols.filter((col) => !existing.has(col));
+  if (missing.length > 0) {
     throw new Error(
-      "Migration verification failed: idx_listing_attendees_listing_end_start missing",
+      `Migration verification failed: ${name} missing column(s): ${missing.join(
+        ", ",
+      )}`,
     );
   }
 };
+
+const assertRequiredTables = (
+  live: LiveSchema,
+  req: SchemaRequirement,
+): void => {
+  for (const name of req.newTables ?? []) {
+    assertTableColumns(live, name, [...getAppSchemaColumns(name)]);
+  }
+  for (const [name, cols] of Object.entries(req.columns ?? {})) {
+    assertTableColumns(live, name, cols);
+  }
+};
+
+const assertRequiredIndexes = (
+  live: LiveSchema,
+  req: SchemaRequirement,
+): void => {
+  for (const index of req.indexes ?? []) {
+    if (!live.indexes.has(index)) {
+      throw new Error(`Migration verification failed: missing index ${index}`);
+    }
+  }
+};
+
+const assertAbsentTables = (live: LiveSchema, req: SchemaRequirement): void => {
+  for (const name of req.absentTables ?? []) {
+    if (live.tables.has(name)) {
+      throw new Error(
+        `Migration verification failed: legacy table ${name} still present`,
+      );
+    }
+  }
+};
+
+/**
+ * Build a verify() that checks only the objects a migration owns, from a single
+ * schema snapshot.
+ */
+const verifyRequirement =
+  (req: SchemaRequirement) => async (): Promise<void> => {
+    const live = await snapshotLiveSchema();
+    assertRequiredTables(live, req);
+    assertRequiredIndexes(live, req);
+    assertAbsentTables(live, req);
+  };
+
+/** Build a migration whose verify() is derived from the objects it owns. */
+const additive = (
+  m: Omit<Migration, "verify"> & { requires: SchemaRequirement },
+): Migration => ({ ...m, verify: verifyRequirement(m.requires) });
 
 /**
  * Rename the legacy "event" domain to "listing".
@@ -1029,43 +1106,103 @@ export const renameEventsToListings = async (): Promise<void> => {
   await syncIndexes();
 };
 
-const MIGRATIONS: Migration[] = [
+// Per-migration object ownership — kept beside each migration so verify() and
+// the restore tests stay in lockstep with what up() actually adds.
+const REQ_SUMUP_CHECKOUTS: SchemaRequirement = {
+  indexes: ["idx_sumup_checkouts_sumup_id"],
+  newTables: ["sumup_checkouts"],
+};
+const REQ_OVERLAP_INDEX: SchemaRequirement = {
+  indexes: ["idx_listing_attendees_listing_end_start"],
+};
+const REQ_RENAME_LISTINGS: SchemaRequirement = {
+  absentTables: ["events", "event_attendees", "event_questions"],
+  columns: {
+    activity_log: ["listing_id"],
+    built_sites: ["assigned_listing_id"],
+    listing_attendees: ["listing_id"],
+    listing_questions: ["listing_id"],
+    listings: ["listing_type"],
+  },
+};
+const REQ_QUESTION_SORT_ORDER: SchemaRequirement = {
+  columns: { questions: ["sort_order"] },
+};
+const REQ_EMAIL_PREFERENCES: SchemaRequirement = {
+  newTables: ["email_preferences"],
+};
+const REQ_CUSTOMISABLE_DAYS: SchemaRequirement = {
+  columns: { listings: ["customisable_days", "day_prices"] },
+};
+const REQ_ATTENDEE_STATUSES: SchemaRequirement = {
+  columns: {
+    activity_log: ["attendee_id"],
+    attendees: ["status_id", "remaining_balance"],
+  },
+  indexes: [
+    "idx_attendee_statuses_sort_order",
+    "idx_attendees_status_id",
+    "idx_activity_log_attendee_id",
+  ],
+  newTables: ["attendee_statuses"],
+};
+const REQ_ACTIVITY_LOG_LISTING_INDEX: SchemaRequirement = {
+  indexes: ["idx_activity_log_listing_id"],
+};
+const REQ_LOGISTICS: SchemaRequirement = {
+  columns: {
+    attendees: ["split_logistics_agents"],
+    listing_attendees: [
+      "start_agent_id",
+      "end_agent_id",
+      "start_time",
+      "end_time",
+    ],
+    listings: ["uses_logistics"],
+  },
+  newTables: ["logistics_agents"],
+};
+
+export const MIGRATIONS: Migration[] = [
   {
+    // The baseline reconcile genuinely brings the WHOLE schema current from any
+    // legacy shape, so it keeps the full-schema verification.
     description:
       "Reconcile legacy databases with the current declarative schema",
     id: "2026-06-11_current_schema",
     up: syncCurrentSchema,
     verify: verifyCurrentAppSchema,
   },
-  {
+  additive({
     description:
       "Add encrypted sumup_checkouts staging table for SumUp metadata",
     id: "2026-06-12_sumup_checkouts",
+    requires: REQ_SUMUP_CHECKOUTS,
     up: async () => {
       await applySchemaChanges();
       await syncIndexes();
     },
-    verify: verifyCurrentAppSchema,
-  },
-  {
+  }),
+  additive({
     description:
       "Reorder listing_attendees overlap index to (listing_id, end_at, start_at) so per-day capacity scans skip historical rows",
     // NB: legacy id retained verbatim — this is a stored marker, not display text
     id: "2026-06-13_event_attendees_overlap_index",
+    requires: REQ_OVERLAP_INDEX,
     up: syncIndexes,
-    verify: verifyOverlapIndex,
-  },
-  {
+  }),
+  additive({
     description:
       "Rename the 'event' domain to 'listing' (tables, columns and indexes)",
     id: "2026-06-14_rename_events_to_listings",
+    requires: REQ_RENAME_LISTINGS,
     up: renameEventsToListings,
-    verify: verifyCurrentAppSchema,
-  },
-  {
+  }),
+  additive({
     description:
       "Add a single global sort_order per question (replacing per-listing ordering); backfill existing questions from their row id to preserve creation order",
     id: "2026-06-14_question_sort_order",
+    requires: REQ_QUESTION_SORT_ORDER,
     up: async () => {
       await applySchemaChanges();
       // One-time backfill: existing rows all default to 0, so seed each from
@@ -1075,54 +1212,53 @@ const MIGRATIONS: Migration[] = [
         "UPDATE questions SET sort_order = id WHERE sort_order = 0",
       );
     },
-    verify: verifyCurrentAppSchema,
-  },
-  {
+  }),
+  additive({
     description:
       "Add email_preferences table for marketing opt-outs and contact history",
     id: "2026-06-14_email_preferences",
+    requires: REQ_EMAIL_PREFERENCES,
     up: async () => {
       await applySchemaChanges();
       await syncIndexes();
     },
-    verify: verifyCurrentAppSchema,
-  },
-  {
+  }),
+  additive({
     description:
       "Add customisable_days and day_prices columns to listings so visitors can choose how many days to book with per-day-count pricing",
     id: "2026-06-14_listing_customisable_days",
+    requires: REQ_CUSTOMISABLE_DAYS,
     up: async () => {
       await applySchemaChanges();
     },
-    verify: verifyCurrentAppSchema,
-  },
-  {
+  }),
+  additive({
     description:
       "Add attendee_statuses table, status_id + remaining_balance on attendees, and attendee_id on activity_log; seed the default status and backfill existing attendees onto it",
     id: "2026-06-14_attendee_statuses",
+    requires: REQ_ATTENDEE_STATUSES,
     up: async () => {
       await applySchemaChanges();
       await syncIndexes();
       await ensureDefaultAttendeeStatus();
     },
-    verify: verifyCurrentAppSchema,
-  },
-  {
+  }),
+  additive({
     description:
       "Add idx_activity_log_listing_id so per-listing activity log lookups use an index range scan instead of a full table scan",
     id: "2026-06-15_activity_log_listing_id_index",
+    requires: REQ_ACTIVITY_LOG_LISTING_INDEX,
     up: syncIndexes,
-    verify: verifyCurrentAppSchema,
-  },
-  {
+  }),
+  additive({
     description:
       "Add logistics_agents table, uses_logistics flag on listings, split_logistics_agents on attendees, and start_agent_id/end_agent_id/start_time/end_time on listing_attendees for the logistics flow",
     id: "2026-06-16_logistics_agents",
+    requires: REQ_LOGISTICS,
     up: async () => {
       await applySchemaChanges();
     },
-    verify: verifyCurrentAppSchema,
-  },
+  }),
 ];
 
 export const MIGRATION_IDS: string[] = MIGRATIONS.map(
