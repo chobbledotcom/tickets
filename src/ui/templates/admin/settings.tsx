@@ -2,6 +2,7 @@
  * Admin settings page template
  */
 
+import { t } from "#i18n";
 import type { SuperuserState } from "#shared/superuser.ts";
 import type { AdminSession, Theme } from "#shared/types.ts";
 import { AdminNav, SettingsSubNav } from "#templates/admin/nav.tsx";
@@ -65,7 +66,7 @@ export const adminSettingsPage = (
   s: SettingsPageState,
 ): string =>
   String(
-    <Layout theme={s.theme} title="Settings">
+    <Layout theme={s.theme} title={t("settings.title")}>
       <AdminNav active="/admin/settings" session={session} />
       <SettingsSubNav />
 
