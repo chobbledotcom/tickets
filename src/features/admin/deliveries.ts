@@ -31,12 +31,13 @@ import {
 } from "#shared/db/logistics-agents.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getUserAgentIds } from "#shared/db/user-agents.ts";
+import { getFlash } from "#shared/flash-context.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import type { Attendee } from "#shared/types.ts";
 import {
   agentDeliveriesPage,
+  type DeliveryBookingView,
   type DeliveryDayGroup,
-  type DeliveryLegView,
 } from "#templates/admin/deliveries.tsx";
 
 /** Lookups used to flesh out a bare run-sheet leg into a display row. */
@@ -46,39 +47,54 @@ type LegLookups = {
   agentNameById: Map<number, string>;
 };
 
-/** Turn a run-sheet leg into a display row, resolving names/PII via lookups.
- * Each leg comes from a real booking for one of the user's real agents, so the
- * attendee, listing and agent lookups always hit (non-null, like calendar.ts). */
-const toLegView = (leg: AgentRunLeg, lookups: LegLookups): DeliveryLegView => {
-  const attendee = lookups.attendeeById.get(leg.attendeeId)!;
-  return {
-    address: attendee.address,
-    agentName: lookups.agentNameById.get(leg.agentId)!,
-    attendeeId: leg.attendeeId,
-    attendeeName: attendee.name,
-    done: leg.done,
-    kind: leg.kind,
-    listingId: leg.listingId,
-    listingName: lookups.listingNameById.get(leg.listingId)!,
-    phone: attendee.phone,
-    time: leg.time,
-  };
-};
+/** Drop-off legs sort ahead of collection legs within a booking. */
+const legOrder = (kind: AgentRunLeg["kind"]): number =>
+  kind === "start" ? 0 : 1;
 
-/** Legs for one date, as display rows ordered by time then listing name. */
-const legsForDate = (
+/** Group one date's legs into bookings, so a listing's drop-off and collection
+ * for the day appear together under a single entry. Bookings are ordered by
+ * their earliest leg time then listing name; within a booking the drop-off
+ * comes before the collection. Each leg comes from a real booking for one of
+ * the user's real agents, so the attendee/listing/agent lookups always hit. */
+const bookingsForDate = (
   legs: AgentRunLeg[],
   date: string,
   lookups: LegLookups,
-): DeliveryLegView[] =>
-  legs
-    .filter((leg) => leg.date === date)
-    .map((leg) => toLegView(leg, lookups))
-    .sort(
-      (a, b) =>
-        a.time.localeCompare(b.time) ||
-        a.listingName.localeCompare(b.listingName),
-    );
+): DeliveryBookingView[] => {
+  const byBooking = new Map<string, DeliveryBookingView>();
+  for (const leg of legs.filter((l) => l.date === date)) {
+    const key = `${leg.attendeeId}|${leg.listingId}`;
+    let booking = byBooking.get(key);
+    if (!booking) {
+      const attendee = lookups.attendeeById.get(leg.attendeeId)!;
+      booking = {
+        address: attendee.address,
+        attendeeId: leg.attendeeId,
+        attendeeName: attendee.name,
+        legs: [],
+        listingId: leg.listingId,
+        listingName: lookups.listingNameById.get(leg.listingId)!,
+        phone: attendee.phone,
+        ticketToken: attendee.ticket_token,
+      };
+      byBooking.set(key, booking);
+    }
+    booking.legs.push({
+      agentName: lookups.agentNameById.get(leg.agentId)!,
+      done: leg.done,
+      kind: leg.kind,
+      time: leg.time,
+    });
+  }
+  for (const booking of byBooking.values()) {
+    booking.legs.sort((a, b) => legOrder(a.kind) - legOrder(b.kind));
+  }
+  return Array.from(byBooking.values()).sort(
+    (a, b) =>
+      a.legs[0]!.time.localeCompare(b.legs[0]!.time) ||
+      a.listingName.localeCompare(b.listingName),
+  );
+};
 
 /** Group the run sheet into Today / Tomorrow sections. */
 const buildGroups = (
@@ -87,10 +103,13 @@ const buildGroups = (
   tomorrow: string,
   lookups: LegLookups,
 ): DeliveryDayGroup[] => [
-  { heading: t("deliveries.today"), legs: legsForDate(legs, today, lookups) },
   {
+    bookings: bookingsForDate(legs, today, lookups),
+    heading: t("deliveries.today"),
+  },
+  {
+    bookings: bookingsForDate(legs, tomorrow, lookups),
     heading: t("deliveries.tomorrow"),
-    legs: legsForDate(legs, tomorrow, lookups),
   },
 ];
 
@@ -119,9 +138,14 @@ const loadLegLookups = async (
 
 /** Handle GET /admin/deliveries — render the agent's run sheet. */
 const handleDeliveriesGet = agentPage(async (session) => {
+  const flash = getFlash();
   const agentIds = await getUserAgentIds(session.userId);
   if (agentIds.length === 0) {
-    return agentDeliveriesPage([], settings.phonePrefix, { noAgents: true });
+    return agentDeliveriesPage([], settings.phonePrefix, {
+      error: flash.error,
+      noAgents: true,
+      success: flash.success,
+    });
   }
 
   const today = todayInTz(settings.timezone);
@@ -131,7 +155,11 @@ const handleDeliveriesGet = agentPage(async (session) => {
   const privateKey = (await getPrivateKey(session))!;
   const lookups = await loadLegLookups(legs, privateKey);
   const groups = buildGroups(legs, today, tomorrow, lookups);
-  return agentDeliveriesPage(groups, settings.phonePrefix, { noAgents: false });
+  return agentDeliveriesPage(groups, settings.phonePrefix, {
+    error: flash.error,
+    noAgents: false,
+    success: flash.success,
+  });
 });
 
 /** Handle POST /admin/deliveries/mark — toggle a leg done, scoped to the

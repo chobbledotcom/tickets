@@ -65,6 +65,8 @@ export const testListingWithCount = (
 ): ListingWithCount => ({
   ...testListing(overrides),
   attendee_count: 0,
+  income: 0,
+  tickets_count: 0,
   ...overrides,
 });
 

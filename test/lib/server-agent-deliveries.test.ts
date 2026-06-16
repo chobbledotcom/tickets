@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
+import { addDays } from "#shared/dates.ts";
 import { getDb } from "#shared/db/client.ts";
 import { setLogisticsAssignments } from "#shared/db/logistics.ts";
 import { logisticsAgentsTable } from "#shared/db/logistics-agents.ts";
@@ -23,10 +24,14 @@ import {
 const makeVan = async (name: string): Promise<number> =>
   (await logisticsAgentsTable.insert({ name })).id;
 
-/** Create a booking for today with the given drop-off/collection agents. */
+/** Create a booking dropped off today with the given drop-off/collection
+ * agents. `durationDays` is the hire length in whole days: `end_at` is the
+ * exclusive end (start + duration), so a 1-day hire is collected the same day
+ * and a 2-day hire the next day. */
 const makeTodayBooking = async (
   startAgent: number,
   endAgent: number,
+  durationDays = 1,
 ): Promise<{ attendeeId: number; listingId: number; listingName: string }> => {
   const listing = await createTestListing({
     maxAttendees: 100,
@@ -56,8 +61,14 @@ const makeTodayBooking = async (
     ]),
   );
   const today = todayInTz(settings.timezone);
+  const endDate = addDays(today, durationDays);
   await getDb().execute({
-    args: [`${today}T00:00:00Z`, `${today}T00:00:00Z`, attendee.id, listing.id],
+    args: [
+      `${today}T00:00:00Z`,
+      `${endDate}T00:00:00Z`,
+      attendee.id,
+      listing.id,
+    ],
     sql: "UPDATE listing_attendees SET start_at = ?, end_at = ? WHERE attendee_id = ? AND listing_id = ?",
   });
   return {
@@ -100,6 +111,44 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
     expect(html).toContain("Drop-off");
     expect(html).toContain("Collection");
     expect(html).toContain("09:00");
+  });
+
+  test("a one-day hire is collected the same day it is dropped off", async () => {
+    const van = await makeVan("Van 1");
+    const { cookie } = await createTestAgentSession({
+      agentIds: [van],
+      token: "a13",
+      username: "agent13",
+    });
+    await makeTodayBooking(van, van, 1);
+
+    const html = await (
+      await awaitTestRequest("/admin/deliveries", { cookie })
+    ).text();
+    // Both legs fall in the Today section, before the Tomorrow heading.
+    const tomorrowIdx = html.indexOf("Tomorrow");
+    expect(html.indexOf("Drop-off")).toBeLessThan(tomorrowIdx);
+    expect(html.indexOf("Collection")).toBeLessThan(tomorrowIdx);
+    // Nothing is scheduled for tomorrow.
+    expect(html).toContain("Nothing scheduled");
+  });
+
+  test("a two-day hire is collected the day after it is dropped off", async () => {
+    const van = await makeVan("Van 1");
+    const { cookie } = await createTestAgentSession({
+      agentIds: [van],
+      token: "a14",
+      username: "agent14",
+    });
+    await makeTodayBooking(van, van, 2);
+
+    const html = await (
+      await awaitTestRequest("/admin/deliveries", { cookie })
+    ).text();
+    // Drop-off is in the Today section; collection moves to the Tomorrow one.
+    const tomorrowIdx = html.indexOf("Tomorrow");
+    expect(html.indexOf("Drop-off")).toBeLessThan(tomorrowIdx);
+    expect(html.indexOf("Collection")).toBeGreaterThan(tomorrowIdx);
   });
 
   test("agent with no assigned agents sees a prompt", async () => {

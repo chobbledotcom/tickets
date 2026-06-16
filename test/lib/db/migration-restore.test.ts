@@ -36,10 +36,22 @@ describeWithEnv("db > migration restore", { db: true }, () => {
     return result.rows.length > 0;
   };
 
-  // Drop a migration's owned objects in an order SQLite accepts: indexes first
-  // (a column can't be dropped while an index references it), then the columns
-  // added to existing tables, then the tables the migration created.
+  const triggerExists = async (name: string): Promise<boolean> => {
+    const result = await getDb().execute({
+      args: [name],
+      sql: "SELECT 1 FROM sqlite_master WHERE type = 'trigger' AND name = ?",
+    });
+    return result.rows.length > 0;
+  };
+
+  // Drop a migration's owned objects in an order SQLite accepts: triggers and
+  // indexes first (a column can't be dropped while a trigger or index
+  // references it), then the columns added to existing tables, then the tables
+  // the migration created.
   const dropOwnedObjects = async (req: SchemaRequirement): Promise<void> => {
+    for (const trigger of req.triggers ?? []) {
+      await getDb().execute(`DROP TRIGGER IF EXISTS ${trigger}`);
+    }
     for (const index of req.indexes ?? []) {
       await getDb().execute(`DROP INDEX IF EXISTS ${index}`);
     }
@@ -116,6 +128,9 @@ describeWithEnv("db > migration restore", { db: true }, () => {
       for (const index of req.indexes ?? []) {
         expect(await indexExists(index)).toBe(true);
       }
+      for (const trigger of req.triggers ?? []) {
+        expect(await triggerExists(trigger)).toBe(true);
+      }
     });
   }
 
@@ -167,6 +182,29 @@ describeWithEnv("db > migration restore", { db: true }, () => {
     await expect(
       migrationById("2026-06-14_attendee_statuses").verify(),
     ).rejects.toThrow("missing table attendee_statuses");
+  });
+
+  test("a migration's verify names a missing trigger it owns", async () => {
+    await getDb().execute(
+      "DROP TRIGGER IF EXISTS trg_listing_attendees_aggregates_insert",
+    );
+    await expect(
+      migrationById("2026-06-16_listing_aggregates").verify(),
+    ).rejects.toThrow(
+      "missing trigger trg_listing_attendees_aggregates_insert",
+    );
+  });
+
+  test("the baseline schema verify names a missing trigger", async () => {
+    // The baseline reconcile verifies the whole schema, triggers included.
+    await getDb().execute(
+      "DROP TRIGGER IF EXISTS trg_listing_attendees_aggregates_delete",
+    );
+    await expect(
+      migrationById("2026-06-11_current_schema").verify(),
+    ).rejects.toThrow(
+      "missing trigger trg_listing_attendees_aggregates_delete",
+    );
   });
 
   describe("rename migration verify", () => {

@@ -7,6 +7,7 @@
  */
 
 import type { ColumnDef, ColumnGenerators } from "#shared/column-order.ts";
+import { formatCurrency } from "#shared/currency.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { escapeHtml } from "#templates/layout.tsx";
 import { renderListingImage } from "#templates/public.tsx";
@@ -41,6 +42,20 @@ const attendees: ListingCol = {
   cell: (e) => `${e.attendee_count} / ${e.max_attendees}`,
   description: "Current attendee count vs maximum capacity",
   label: "Attendees",
+};
+
+const tickets: ListingCol = {
+  cell: (e) => String(e.tickets_count),
+  description: "Number of bookings (ticket rows) sold for this listing",
+  label: "Tickets",
+  rawValue: (e) => e.tickets_count,
+};
+
+const revenue: ListingCol = {
+  cell: (e) => formatCurrency(e.income),
+  description: "Total income taken for this listing (sum of payments)",
+  label: "Revenue",
+  rawValue: (e) => e.income,
 };
 
 const created: ListingCol = {
@@ -93,7 +108,9 @@ export const LISTING_TABLE_COLUMNS: ColumnGenerators<ListingWithCount> = {
   name,
   price,
   renewal,
+  revenue,
   status,
+  tickets,
 };
 
 /** Default column order for the listing table */
@@ -102,5 +119,7 @@ export const LISTING_DEFAULT_ORDER = [
   "description",
   "status",
   "attendees",
+  "tickets",
+  "revenue",
   "created",
 ] as const;
