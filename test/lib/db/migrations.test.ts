@@ -881,9 +881,12 @@ describe("db > migrations > schema change guard", () => {
         "2026-06-14_attendee_statuses",
         "2026-06-15_activity_log_listing_id_index",
         "2026-06-16_logistics_agents",
+        "2026-06-16_email_templates",
+        "2026-06-16_agent_users",
+        "2026-06-16_processed_payments_failure_data",
         "2026-06-16_modifiers",
       ],
-      schemaHash: "xt1pap",
+      schemaHash: "h63oht",
     });
   });
 });

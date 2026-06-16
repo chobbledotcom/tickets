@@ -17,7 +17,7 @@ import {
 } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession, LogisticsAgent } from "#shared/types.ts";
-import { AdminNav } from "#templates/admin/nav.tsx";
+import { AdminNav, SettingsSubNav } from "#templates/admin/nav.tsx";
 import { GuideLink, SubmitButton } from "#templates/components/actions.tsx";
 import { logisticsAgentFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
@@ -109,6 +109,7 @@ export const adminLogisticsPage = (
   String(
     <Layout title="Logistics">
       <AdminNav active="/admin/logistics" session={session} />
+      <SettingsSubNav />
       <Flash success={successMessage} />
       <p class="actions">
         <GuideLink href="/admin/guide#logistics">Logistics guide</GuideLink>

@@ -90,8 +90,6 @@ export const AdminNav = ({ session, active }: AdminNavProps): JSX.Element => (
           navLink("/admin/emails", t("nav.emails"), active)}
         {session.adminLevel === "owner" &&
           navLink("/admin/settings", t("nav.settings"), active)}
-        {session.adminLevel === "owner" &&
-          navLink("/admin/logistics", t("nav.logistics"), active)}
         {navLink("/admin/log", t("nav.log"), active)}
         {navLink("/admin/groups", t("terms.groups"), active)}
         {navLink("/admin/modifiers", t("terms.modifiers"), active)}
@@ -140,6 +138,9 @@ export const SettingsSubNav = (): JSX.Element => (
       </li>
       <li>
         <a href="/admin/settings/statuses">{t("nav.sub.statuses")}</a>
+      </li>
+      <li>
+        <a href="/admin/logistics">{t("nav.logistics")}</a>
       </li>
       <li>
         <a href="/admin/settings-advanced">{t("nav.sub.advanced")}</a>

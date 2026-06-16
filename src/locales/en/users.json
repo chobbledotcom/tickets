@@ -44,5 +44,13 @@
   "api_keys.authentication": "Authentication",
   "api_keys.public_api": "Public API",
   "api_keys.public_api_note": "No API key required. All endpoints support CORS.",
-  "api_keys.admin_api": "Admin API"
+  "api_keys.admin_api": "Admin API",
+  "users.agents.legend": "Assigned logistics agents",
+  "users.agents.hint": "Delivery agents see the run sheet only for the logistics agents ticked here. Ignored for owners and managers.",
+  "users.agents.none_assigned": "No agents assigned",
+  "users.agents.edit_link": "Agents",
+  "users.agents.title": "Agents",
+  "users.agents.heading": "Assigned agents for {username}",
+  "users.agents.none_exist": "No logistics agents exist yet. Add some under",
+  "users.agents.save": "Save Agents"
 }

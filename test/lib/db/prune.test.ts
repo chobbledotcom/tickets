@@ -65,6 +65,21 @@ const insertUnfinalizedPayment = async (
   );
 };
 
+/** Insert a terminal-failure row (attendee_id NULL but failure_data recorded). */
+const insertFailedPayment = async (
+  sessionId: string,
+  processedAtIso: string,
+): Promise<void> => {
+  await getDb().execute(
+    insert("processed_payments", {
+      attendee_id: null,
+      failure_data: '{"error":"sold out","status":409,"refunded":true}',
+      payment_session_id: sessionId,
+      processed_at: processedAtIso,
+    }),
+  );
+};
+
 /** Insert a sumup_checkouts row with the given creation timestamp.
  * Prune filters only on created_at, so index/key/blob contents are inert. */
 const insertSumupCheckout = async (
@@ -196,6 +211,30 @@ describeWithEnv("db > prune", { db: true }, () => {
       await prunePayments();
 
       expect(await paymentExists("sess_unfinalized")).toBe(true);
+    });
+
+    test("deletes recorded terminal failures older than retention window", async () => {
+      // A handled failure (refund issued) is a resolved outcome — once retries
+      // can no longer arrive, the idempotency row can be pruned like a success.
+      const old = new Date(
+        nowMs() - PRUNE_PAYMENTS_RETENTION_MS - 60_000,
+      ).toISOString();
+      await insertFailedPayment("sess_failed_old", old);
+
+      await prunePayments();
+
+      expect(await paymentExists("sess_failed_old")).toBe(false);
+    });
+
+    test("keeps recorded terminal failures within retention window", async () => {
+      // Inside the window a provider retry could still arrive, so the terminal
+      // outcome must remain available to replay.
+      const recent = new Date(nowMs() - 1000).toISOString();
+      await insertFailedPayment("sess_failed_recent", recent);
+
+      await prunePayments();
+
+      expect(await paymentExists("sess_failed_recent")).toBe(true);
     });
   });
 

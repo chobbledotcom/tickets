@@ -1897,6 +1897,12 @@ button.secondary:hover,
   display: none;
 }
 
+/* Email template save controls — checkbox-driven show/hide without JS */
+#bulk-email .save-update { display: none; }
+#bulk-email:has(input[name="update_existing"]:checked) .save-as-new { display: none; }
+#bulk-email:has(input[name="update_existing"]:checked) .save-update { display: inline; }
+#bulk-email:not(:has(input[name="update_existing"]:checked)) .template-update-fields { display: none; }
+
 /* No-transition helper (used by admin nav scroll-hide) */
 .nav-no-transition {
   transition: none !important;

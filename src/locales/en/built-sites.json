@@ -38,6 +38,8 @@
   "built_sites.secrets_count": "This site has <strong>{present}</strong> secret(s) set. We copy <strong>{expected}</strong> secret(s) to freshly built sites.",
   "built_sites.all_secrets_present": "All expected secrets are present on this site.",
   "built_sites.missing_secrets": "Missing from this site (existing secrets are never overwritten):",
+  "built_sites.infra_secrets_heading": "Heads up:",
+  "built_sites.infra_secrets_note": "some of these are host-level infrastructure credentials ({names}). Built sites run on your own infrastructure, so copying them is expected — but be aware this hands the child site host-level access, not just per-site config.",
   "built_sites.set_missing_secrets": "Set {count, number} missing secret(s)",
   "built_sites.secrets_on_site": "Secrets currently on this site",
   "built_sites.delete_this_site": "Delete this site",

@@ -31,11 +31,15 @@ export type ListingPriceValidation =
   | { ok: true; listing: ListingWithCount; expectedPrice: number }
   | { ok: false; error: string; status?: number };
 
-/** Successful payment result with created attendee details */
+/** Successful payment result with created attendee details.
+ * Carries the listing id rather than the loaded listing — the redirect resolves
+ * it lazily only when it needs a thank-you URL, and the listing may since have
+ * been deleted (e.g. a settled balance line for a removed listing) without
+ * changing the fact that the attendee exists and the payment succeeded. */
 type PaymentSuccess = {
   success: true;
   attendee: Pick<Attendee, "id">;
-  listing: ListingWithCount;
+  listingId: number;
   ticketTokens: string[];
 };
 

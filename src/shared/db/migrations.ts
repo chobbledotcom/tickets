@@ -11,11 +11,11 @@
  * LATEST_UPDATE, migrations will still re-run (the hash will differ).
  */
 
-import type { Client } from "@libsql/client";
+import type { Client, InValue } from "@libsql/client";
 import { lazyRef } from "#fp";
 import { ensureDefaultAttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import { createAndUploadBackup, hasRecentBackup } from "#shared/db/backup.ts";
-import { getDb } from "#shared/db/client.ts";
+import { executeBatch, getDb, queryBatchPrimary } from "#shared/db/client.ts";
 import { getEnv } from "#shared/env.ts";
 import { logDebug } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
@@ -39,7 +39,7 @@ type Table = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add email_preferences table for marketing opt-outs and contact history; add customisable_days and day_prices columns to listings for visitor-chosen multi-day bookings with per-day-count pricing; add attendee_statuses table with status_id and remaining_balance on attendees, plus attendee_id on activity_log, for the reservation and balance-payment flow; add idx_activity_log_listing_id so per-listing activity log reads are index scans instead of full-table scans; add a logistics_agents table plus a uses_logistics flag on listings, a split_logistics_agents flag on attendees, and start_agent_id/end_agent_id/start_time/end_time on listing_attendees for the logistics flow; add modifiers table for owner-defined price modifiers (surcharges, discounts, add-ons), with active/trigger/code_index/scope/stock/max_per_order/min_subtotal columns plus modifier_listings, modifier_groups and modifier_usages tables for scoping and stock";
+  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add email_preferences table for marketing opt-outs and contact history; add customisable_days and day_prices columns to listings for visitor-chosen multi-day bookings with per-day-count pricing; add attendee_statuses table with status_id and remaining_balance on attendees, plus attendee_id on activity_log, for the reservation and balance-payment flow; add idx_activity_log_listing_id so per-listing activity log reads are index scans instead of full-table scans; add a logistics_agents table plus a uses_logistics flag on listings, a split_logistics_agents flag on attendees, and start_agent_id/end_agent_id/start_time/end_time on listing_attendees for the logistics flow; add email_templates table for owner-keypair-encrypted reusable email subjects and bodies; add a user_logistics_agents table linking agent users to the logistics agents they drive, plus start_done/end_done flags on listing_attendees so delivery agents can mark drop-offs and collections complete; add failure_data to processed_payments so handled payment failures are recorded as a terminal outcome for idempotent redirect/webhook replay; add modifiers table for owner-defined price modifiers (surcharges, discounts, add-ons), with active/trigger/code_index/scope/stock/max_per_order/min_subtotal columns plus modifier_listings, modifier_groups and modifier_usages tables for scoping and stock";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -168,6 +168,33 @@ const SCHEMA: [name: string, table: Table][] = [
   ],
 
   [
+    // Many-to-many link between agent users and the logistics agents
+    // (vans/crews) they drive. One user may cover several agents and one
+    // agent may be driven by several users. No FKs (see note on
+    // listing_attendees); application logic + the indexes keep it consistent,
+    // and both deleteUser and logistics-agent deletion prune their rows.
+    "user_logistics_agents",
+    {
+      columns: [
+        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+        ["user_id", "INTEGER NOT NULL"],
+        ["agent_id", "INTEGER NOT NULL"],
+      ],
+      indexes: [
+        {
+          columns: ["user_id", "agent_id"],
+          name: "idx_user_logistics_agents_unique",
+          unique: true,
+        },
+        {
+          columns: ["agent_id"],
+          name: "idx_user_logistics_agents_agent_id",
+        },
+      ],
+    },
+  ],
+
+  [
     "login_attempts",
     {
       columns: [
@@ -270,6 +297,8 @@ const SCHEMA: [name: string, table: Table][] = [
         ["end_agent_id", "INTEGER DEFAULT NULL"],
         ["start_time", "TEXT NOT NULL DEFAULT ''"],
         ["end_time", "TEXT NOT NULL DEFAULT ''"],
+        ["start_done", "INTEGER NOT NULL DEFAULT 0"],
+        ["end_done", "INTEGER NOT NULL DEFAULT 0"],
       ],
       // FKs omitted — libsql's FK enforcement causes issues during table
       // recreation migrations. Referential integrity is enforced by application
@@ -305,6 +334,7 @@ const SCHEMA: [name: string, table: Table][] = [
         ["attendee_id", "INTEGER"],
         ["processed_at", "TEXT NOT NULL"],
         ["ticket_tokens", "TEXT NOT NULL DEFAULT ''"],
+        ["failure_data", "TEXT NOT NULL DEFAULT ''"],
       ],
       // FK declarations removed — libsql's FK enforcement breaks table
       // recreation migrations (PRAGMA foreign_keys is connection-scoped and
@@ -610,6 +640,21 @@ const SCHEMA: [name: string, table: Table][] = [
       ],
     },
   ],
+
+  [
+    // Reusable email templates — subject and body stored as owner-keypair-
+    // encrypted blobs so the operator cannot read content without the owner's
+    // password. Encryption/decryption is handled at the route layer (same
+    // approach as bulk_email_draft in settings).
+    "email_templates",
+    {
+      columns: [
+        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+        ["subject", "TEXT NOT NULL"],
+        ["body", "TEXT NOT NULL"],
+      ],
+    },
+  ],
 ];
 
 /** Ordered table names — matches FK dependency order (parents before children) */
@@ -663,12 +708,54 @@ const tableExists = async (table: string): Promise<boolean> => {
   return result.rows.length > 0;
 };
 
-const indexExists = async (indexName: string): Promise<boolean> => {
-  const result = await getDb().execute({
-    args: [indexName],
-    sql: "SELECT name FROM sqlite_master WHERE type = 'index' AND name = ?",
-  });
-  return result.rows.length > 0;
+/** Live schema snapshot: every table's columns plus every index name. */
+type LiveSchema = {
+  /** table name → set of its column names */
+  tables: Map<string, Set<string>>;
+  /** all index names present (including sqlite_autoindex_*) */
+  indexes: Set<string>;
+};
+
+/**
+ * Snapshot the entire live schema in a single batched round-trip.
+ *
+ * Edge requests cap outbound subrequests (each libsql `execute`/`batch` is one
+ * `fetch`), so the per-table `PRAGMA table_info`/`sqlite_master` probes that
+ * schema sync and verification used to fire in loops — dozens of subrequests —
+ * are collapsed into two SELECTs sent as one read batch. The first joins
+ * `sqlite_master` against the `pragma_table_info` table-valued function to read
+ * every column of every table at once; the second lists every index name.
+ *
+ * Pinned to the primary (not a replica): every caller runs inside a migration,
+ * where the snapshot must reflect DDL applied moments earlier in the same run.
+ * A replica that lags behind that write would report a just-created table as
+ * missing, failing verify() spuriously (see queryBatchPrimary).
+ */
+const snapshotLiveSchema = async (): Promise<LiveSchema> => {
+  const [columns, indexRows] = await queryBatchPrimary([
+    {
+      args: [],
+      sql:
+        "SELECT m.name AS tbl, ti.name AS col " +
+        "FROM sqlite_master m JOIN pragma_table_info(m.name) ti " +
+        "WHERE m.type = 'table'",
+    },
+    {
+      args: [],
+      sql: "SELECT name FROM sqlite_master WHERE type = 'index'",
+    },
+  ]);
+
+  const tables = new Map<string, Set<string>>();
+  for (const row of columns!.rows) {
+    const tbl = String(row.tbl);
+    const cols = tables.get(tbl) ?? new Set<string>();
+    cols.add(String(row.col));
+    tables.set(tbl, cols);
+  }
+
+  const indexes = new Set(indexRows!.rows.map((row) => String(row.name)));
+  return { indexes, tables };
 };
 
 type DbState =
@@ -723,18 +810,21 @@ const getDbState = async (): Promise<DbState> => {
   }
 };
 
+/** Build the idempotent CREATE INDEX statement for a declared index. */
+const createIndexSql = (tableName: string, idx: Index): string => {
+  const unique = idx.unique ? "UNIQUE " : "";
+  return `CREATE ${unique}INDEX IF NOT EXISTS ${idx.name} ON ${tableName}(${idx.columns.join(
+    ", ",
+  )})`;
+};
+
 /** Create indexes for a named table from SCHEMA */
 const createIndexesForTable = async (
   tableName: string,
   indexes: Index[],
 ): Promise<void> => {
   for (const idx of indexes) {
-    const unique = idx.unique ? "UNIQUE " : "";
-    await runMigration(
-      `CREATE ${unique}INDEX IF NOT EXISTS ${idx.name} ON ${tableName}(${idx.columns.join(
-        ", ",
-      )})`,
-    );
+    await runMigration(createIndexSql(tableName, idx));
   }
 };
 
@@ -892,46 +982,75 @@ const createTableSql = ([name, table]: [string, Table]): string => {
 };
 
 const applySchemaChanges = async (): Promise<void> => {
+  const live = await snapshotLiveSchema();
+  const statements: { args: InValue[]; sql: string }[] = [];
   for (const entry of SCHEMA) {
     const [name, table] = entry;
-    await runMigration(createTableSql(entry));
-    const existing = await getExistingColumns(name);
+    const existing = live.tables.get(name);
+    if (!existing) {
+      // Missing table: one CREATE carries every column, so no ALTERs follow.
+      statements.push({ args: [], sql: createTableSql(entry) });
+      continue;
+    }
     for (const [col, type] of table.columns) {
       if (!existing.has(col)) {
-        await runMigration(`ALTER TABLE ${name} ADD COLUMN ${col} ${type}`);
+        statements.push({
+          args: [],
+          sql: `ALTER TABLE ${name} ADD COLUMN ${col} ${type}`,
+        });
       }
     }
   }
+  // Single batched write (one subrequest) instead of one execute per
+  // CREATE/ALTER. Pre-filtering against the snapshot means every statement is
+  // genuinely needed, so the batch never hits the "already exists" errors that
+  // runMigration used to swallow; a real failure rolls the batch back as a unit.
+  if (statements.length > 0) await executeBatch(statements);
 };
 
 /** Create missing indexes and drop legacy ones */
 const syncIndexes = async (): Promise<void> => {
-  const declaredIndexNames = new Set<string>();
-  for (const [name, table] of SCHEMA) {
-    const indexes = table.indexes ?? [];
-    for (const idx of indexes) declaredIndexNames.add(idx.name);
-    await createIndexesForTable(name, indexes);
-  }
-  const allIndexes = await getDb().execute(
-    "SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'idx_%'",
+  const live = await snapshotLiveSchema();
+  const declared = SCHEMA.flatMap(([name, table]) =>
+    (table.indexes ?? []).map((idx) => ({
+      name: idx.name,
+      sql: createIndexSql(name, idx),
+    })),
   );
-  for (const row of allIndexes.rows) {
-    const indexName = String(row.name);
-    if (!declaredIndexNames.has(indexName)) {
-      await runMigration(`DROP INDEX IF EXISTS ${indexName}`);
-    }
-  }
+  const declaredNames = new Set(declared.map((d) => d.name));
+
+  const creates = declared
+    .filter((d) => !live.indexes.has(d.name))
+    .map((d): { args: InValue[]; sql: string } => ({ args: [], sql: d.sql }));
+
+  // Drop any project-owned (idx_*) index no longer declared in SCHEMA. The
+  // sqlite_autoindex_* entries backing UNIQUE/PRIMARY KEY constraints never
+  // match this prefix, so they're left untouched.
+  const drops = [...live.indexes]
+    .filter((name) => name.startsWith("idx_") && !declaredNames.has(name))
+    .map((name): { args: InValue[]; sql: string } => ({
+      args: [],
+      sql: `DROP INDEX IF EXISTS ${name}`,
+    }));
+
+  // One batched write (one subrequest) instead of a CREATE/DROP per index.
+  const statements = [...creates, ...drops];
+  if (statements.length > 0) await executeBatch(statements);
 };
 
 const verifyCurrentAppSchema = async (): Promise<void> => {
+  // One snapshot (a single batched round-trip) replaces the per-table
+  // tableExists/getExistingColumns/indexExists probes — dozens of subrequests
+  // that could alone exceed the edge per-request cap.
+  const live = await snapshotLiveSchema();
   for (const [name, table] of APP_SCHEMA) {
-    if (!(await tableExists(name))) {
+    const existing = live.tables.get(name);
+    if (!existing) {
       throw new Error(
         `Database schema verification failed: missing table ${name}`,
       );
     }
 
-    const existing = await getExistingColumns(name);
     const missingColumns = table.columns
       .map(([col]) => col)
       .filter((col) => !existing.has(col));
@@ -944,7 +1063,7 @@ const verifyCurrentAppSchema = async (): Promise<void> => {
     }
 
     for (const index of table.indexes ?? []) {
-      if (!(await indexExists(index.name))) {
+      if (!live.indexes.has(index.name)) {
         throw new Error(
           `Database schema verification failed: missing index ${index.name}`,
         );
@@ -966,26 +1085,103 @@ const syncCurrentSchema = async (): Promise<void> => {
   await dropDeprecatedAttendeeColumns();
 };
 
-type Migration = {
+/**
+ * The schema objects a single migration is responsible for. Drives that
+ * migration's verify() — so a failure names exactly what the migration was
+ * meant to add, instead of re-checking the whole latest schema (which an
+ * early migration could satisfy only because a later migration's up() already
+ * created everything). It also lets tests drive a precise "restore from this
+ * migration" check by dropping exactly these objects and re-running up().
+ */
+export type SchemaRequirement = {
+  /** Tables this migration creates (verified to have their full SCHEMA columns). */
+  newTables?: string[];
+  /** Columns this migration adds to already-existing tables. */
+  columns?: Record<string, string[]>;
+  /** Indexes this migration creates. */
+  indexes?: string[];
+  /** Legacy tables this migration removes (must be absent afterwards). */
+  absentTables?: string[];
+};
+
+export type Migration = {
   id: string;
   description: string;
   up: () => Promise<void>;
   /** Runs after up(); a failure leaves the migration unrecorded for retry. */
   verify: () => Promise<void>;
+  /** Objects this migration owns; drives verify() and the restore tests. */
+  requires?: SchemaRequirement;
 };
 
-/** Verify the reordered overlap index exists (syncIndexes drops the old
- * (listing_id, start_at, end_at) ordering and creates this one). */
-const verifyOverlapIndex = async (): Promise<void> => {
-  const result = await getDb().execute(
-    "SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_listing_attendees_listing_end_start'",
-  );
-  if (result.rows.length === 0) {
+const assertTableColumns = (
+  live: LiveSchema,
+  name: string,
+  cols: string[],
+): void => {
+  const existing = live.tables.get(name);
+  if (!existing) {
+    throw new Error(`Migration verification failed: missing table ${name}`);
+  }
+  const missing = cols.filter((col) => !existing.has(col));
+  if (missing.length > 0) {
     throw new Error(
-      "Migration verification failed: idx_listing_attendees_listing_end_start missing",
+      `Migration verification failed: ${name} missing column(s): ${missing.join(
+        ", ",
+      )}`,
     );
   }
 };
+
+const assertRequiredTables = (
+  live: LiveSchema,
+  req: SchemaRequirement,
+): void => {
+  for (const name of req.newTables ?? []) {
+    assertTableColumns(live, name, [...getAppSchemaColumns(name)]);
+  }
+  for (const [name, cols] of Object.entries(req.columns ?? {})) {
+    assertTableColumns(live, name, cols);
+  }
+};
+
+const assertRequiredIndexes = (
+  live: LiveSchema,
+  req: SchemaRequirement,
+): void => {
+  for (const index of req.indexes ?? []) {
+    if (!live.indexes.has(index)) {
+      throw new Error(`Migration verification failed: missing index ${index}`);
+    }
+  }
+};
+
+const assertAbsentTables = (live: LiveSchema, req: SchemaRequirement): void => {
+  for (const name of req.absentTables ?? []) {
+    if (live.tables.has(name)) {
+      throw new Error(
+        `Migration verification failed: legacy table ${name} still present`,
+      );
+    }
+  }
+};
+
+/**
+ * Build a verify() that checks only the objects a migration owns, from a single
+ * schema snapshot.
+ */
+const verifyRequirement =
+  (req: SchemaRequirement) => async (): Promise<void> => {
+    const live = await snapshotLiveSchema();
+    assertRequiredTables(live, req);
+    assertRequiredIndexes(live, req);
+    assertAbsentTables(live, req);
+  };
+
+/** Build a migration whose verify() is derived from the objects it owns. */
+const additive = (
+  m: Omit<Migration, "verify"> & { requires: SchemaRequirement },
+): Migration => ({ ...m, verify: verifyRequirement(m.requires) });
 
 /**
  * Rename the legacy "event" domain to "listing".
@@ -1035,43 +1231,134 @@ export const renameEventsToListings = async (): Promise<void> => {
   await syncIndexes();
 };
 
-const MIGRATIONS: Migration[] = [
+// Per-migration object ownership — kept beside each migration so verify() and
+// the restore tests stay in lockstep with what up() actually adds.
+const REQ_SUMUP_CHECKOUTS: SchemaRequirement = {
+  indexes: ["idx_sumup_checkouts_sumup_id"],
+  newTables: ["sumup_checkouts"],
+};
+const REQ_OVERLAP_INDEX: SchemaRequirement = {
+  indexes: ["idx_listing_attendees_listing_end_start"],
+};
+const REQ_RENAME_LISTINGS: SchemaRequirement = {
+  absentTables: ["events", "event_attendees", "event_questions"],
+  columns: {
+    activity_log: ["listing_id"],
+    built_sites: ["assigned_listing_id"],
+    listing_attendees: ["listing_id"],
+    listing_questions: ["listing_id"],
+    listings: ["listing_type"],
+  },
+};
+const REQ_QUESTION_SORT_ORDER: SchemaRequirement = {
+  columns: { questions: ["sort_order"] },
+};
+const REQ_EMAIL_PREFERENCES: SchemaRequirement = {
+  newTables: ["email_preferences"],
+};
+const REQ_CUSTOMISABLE_DAYS: SchemaRequirement = {
+  columns: { listings: ["customisable_days", "day_prices"] },
+};
+const REQ_ATTENDEE_STATUSES: SchemaRequirement = {
+  columns: {
+    activity_log: ["attendee_id"],
+    attendees: ["status_id", "remaining_balance"],
+  },
+  indexes: [
+    "idx_attendee_statuses_sort_order",
+    "idx_attendees_status_id",
+    "idx_activity_log_attendee_id",
+  ],
+  newTables: ["attendee_statuses"],
+};
+const REQ_ACTIVITY_LOG_LISTING_INDEX: SchemaRequirement = {
+  indexes: ["idx_activity_log_listing_id"],
+};
+const REQ_LOGISTICS: SchemaRequirement = {
+  columns: {
+    attendees: ["split_logistics_agents"],
+    listing_attendees: [
+      "start_agent_id",
+      "end_agent_id",
+      "start_time",
+      "end_time",
+    ],
+    listings: ["uses_logistics"],
+  },
+  newTables: ["logistics_agents"],
+};
+const REQ_EMAIL_TEMPLATES: SchemaRequirement = {
+  newTables: ["email_templates"],
+};
+const REQ_AGENT_USERS: SchemaRequirement = {
+  columns: { listing_attendees: ["start_done", "end_done"] },
+  indexes: [
+    "idx_user_logistics_agents_unique",
+    "idx_user_logistics_agents_agent_id",
+  ],
+  newTables: ["user_logistics_agents"],
+};
+const REQ_PROCESSED_PAYMENTS_FAILURE_DATA: SchemaRequirement = {
+  columns: { processed_payments: ["failure_data"] },
+};
+const REQ_MODIFIERS: SchemaRequirement = {
+  indexes: [
+    "idx_modifiers_code_index",
+    "idx_modifier_listings_pair",
+    "idx_modifier_listings_listing",
+    "idx_modifier_groups_pair",
+    "idx_modifier_groups_group",
+    "idx_modifier_usages_modifier",
+    "idx_modifier_usages_attendee",
+  ],
+  newTables: [
+    "modifiers",
+    "modifier_listings",
+    "modifier_groups",
+    "modifier_usages",
+  ],
+};
+
+export const MIGRATIONS: Migration[] = [
   {
+    // The baseline reconcile genuinely brings the WHOLE schema current from any
+    // legacy shape, so it keeps the full-schema verification.
     description:
       "Reconcile legacy databases with the current declarative schema",
     id: "2026-06-11_current_schema",
     up: syncCurrentSchema,
     verify: verifyCurrentAppSchema,
   },
-  {
+  additive({
     description:
       "Add encrypted sumup_checkouts staging table for SumUp metadata",
     id: "2026-06-12_sumup_checkouts",
+    requires: REQ_SUMUP_CHECKOUTS,
     up: async () => {
       await applySchemaChanges();
       await syncIndexes();
     },
-    verify: verifyCurrentAppSchema,
-  },
-  {
+  }),
+  additive({
     description:
       "Reorder listing_attendees overlap index to (listing_id, end_at, start_at) so per-day capacity scans skip historical rows",
     // NB: legacy id retained verbatim — this is a stored marker, not display text
     id: "2026-06-13_event_attendees_overlap_index",
+    requires: REQ_OVERLAP_INDEX,
     up: syncIndexes,
-    verify: verifyOverlapIndex,
-  },
-  {
+  }),
+  additive({
     description:
       "Rename the 'event' domain to 'listing' (tables, columns and indexes)",
     id: "2026-06-14_rename_events_to_listings",
+    requires: REQ_RENAME_LISTINGS,
     up: renameEventsToListings,
-    verify: verifyCurrentAppSchema,
-  },
-  {
+  }),
+  additive({
     description:
       "Add a single global sort_order per question (replacing per-listing ordering); backfill existing questions from their row id to preserve creation order",
     id: "2026-06-14_question_sort_order",
+    requires: REQ_QUESTION_SORT_ORDER,
     up: async () => {
       await applySchemaChanges();
       // One-time backfill: existing rows all default to 0, so seed each from
@@ -1081,63 +1368,91 @@ const MIGRATIONS: Migration[] = [
         "UPDATE questions SET sort_order = id WHERE sort_order = 0",
       );
     },
-    verify: verifyCurrentAppSchema,
-  },
-  {
+  }),
+  additive({
     description:
       "Add email_preferences table for marketing opt-outs and contact history",
     id: "2026-06-14_email_preferences",
+    requires: REQ_EMAIL_PREFERENCES,
     up: async () => {
       await applySchemaChanges();
       await syncIndexes();
     },
-    verify: verifyCurrentAppSchema,
-  },
-  {
+  }),
+  additive({
     description:
       "Add customisable_days and day_prices columns to listings so visitors can choose how many days to book with per-day-count pricing",
     id: "2026-06-14_listing_customisable_days",
+    requires: REQ_CUSTOMISABLE_DAYS,
     up: async () => {
       await applySchemaChanges();
     },
-    verify: verifyCurrentAppSchema,
-  },
-  {
+  }),
+  additive({
     description:
       "Add attendee_statuses table, status_id + remaining_balance on attendees, and attendee_id on activity_log; seed the default status and backfill existing attendees onto it",
     id: "2026-06-14_attendee_statuses",
+    requires: REQ_ATTENDEE_STATUSES,
     up: async () => {
       await applySchemaChanges();
       await syncIndexes();
       await ensureDefaultAttendeeStatus();
     },
-    verify: verifyCurrentAppSchema,
-  },
-  {
+  }),
+  additive({
     description:
       "Add idx_activity_log_listing_id so per-listing activity log lookups use an index range scan instead of a full table scan",
     id: "2026-06-15_activity_log_listing_id_index",
+    requires: REQ_ACTIVITY_LOG_LISTING_INDEX,
     up: syncIndexes,
-    verify: verifyCurrentAppSchema,
-  },
-  {
+  }),
+  additive({
     description:
       "Add logistics_agents table, uses_logistics flag on listings, split_logistics_agents on attendees, and start_agent_id/end_agent_id/start_time/end_time on listing_attendees for the logistics flow",
     id: "2026-06-16_logistics_agents",
+    requires: REQ_LOGISTICS,
     up: async () => {
       await applySchemaChanges();
     },
-    verify: verifyCurrentAppSchema,
-  },
-  {
+  }),
+  additive({
+    description:
+      "Add email_templates table for owner-keypair-encrypted reusable email subjects and bodies",
+    id: "2026-06-16_email_templates",
+    requires: REQ_EMAIL_TEMPLATES,
+    up: async () => {
+      await applySchemaChanges();
+    },
+  }),
+  additive({
+    description:
+      "Add user_logistics_agents table (agent users ↔ logistics agents) and start_done/end_done flags on listing_attendees for the delivery-agent run sheet",
+    id: "2026-06-16_agent_users",
+    requires: REQ_AGENT_USERS,
+    up: async () => {
+      await applySchemaChanges();
+      await syncIndexes();
+    },
+  }),
+  additive({
+    description:
+      "Add failure_data to processed_payments so a handled payment failure (refund/sold-out/price-change) is recorded as a terminal outcome and replayed idempotently instead of leaving a stuck reservation",
+    id: "2026-06-16_processed_payments_failure_data",
+    requires: REQ_PROCESSED_PAYMENTS_FAILURE_DATA,
+    up: async () => {
+      await applySchemaChanges();
+    },
+  }),
+  additive({
     description:
       "Add modifiers table for owner-defined price modifiers (surcharges, discounts, add-ons), plus modifier_listings, modifier_groups and modifier_usages for scoping and stock",
     id: "2026-06-16_modifiers",
+    requires: REQ_MODIFIERS,
     up: async () => {
       await applySchemaChanges();
+      await syncIndexes();
     },
-    verify: verifyCurrentAppSchema,
-  },
+  }),
 ];
 
 export const MIGRATION_IDS: string[] = MIGRATIONS.map(

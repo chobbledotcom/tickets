@@ -192,6 +192,23 @@ export const getAttendeeRaw = (id: number): Promise<Attendee | null> => {
 };
 
 /**
+ * Get attendees by ID without decrypting PII, one row per (attendee, booking).
+ * Used by the agent run sheet, which already knows the attendee ids it needs
+ * and only reads each attendee's contact fields. Returns an empty array for no
+ * ids. Decrypt with decryptAttendees before display.
+ */
+export const getAttendeesByIds = (ids: number[]): Promise<Attendee[]> => {
+  if (ids.length === 0) return Promise.resolve([]);
+  return queryAll<Attendee>(
+    `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
+     FROM attendees a
+     LEFT JOIN listing_attendees ea ON ea.attendee_id = a.id
+     WHERE a.id IN (${inPlaceholders(ids)})`,
+    ids,
+  );
+};
+
+/**
  * Get an attendee by ID (decrypted)
  * Requires private key for decryption - only available to authenticated sessions
  */

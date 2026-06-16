@@ -113,6 +113,17 @@ const batchFor =
 export const queryBatch = batchFor("read");
 
 /**
+ * Run read queries pinned to the primary in a single round-trip.
+ *
+ * libsql routes "read"-mode batches to a replica that can lag behind a
+ * just-committed write, so a caller that must read its own writes (the
+ * migrator verifying DDL it just applied) uses "write" mode, which Turso
+ * always serves from the primary. A write-mode transaction may contain only
+ * SELECTs — it just guarantees the primary, read-your-writes connection.
+ */
+export const queryBatchPrimary = batchFor("write");
+
+/**
  * Execute multiple write statements and return their ResultSets.
  * Statements run in order within a single transaction (Turso batch API).
  * Ideal for cascading deletes and multi-step writes.
