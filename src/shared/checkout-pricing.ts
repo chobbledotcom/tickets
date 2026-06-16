@@ -8,7 +8,7 @@
  * providers in lock-step and gives later pricing features one place to plug in.
  */
 
-import { filter, sumOf } from "#fp";
+import { filter, mapNotNullish, sumOf } from "#fp";
 import {
   chargeSubtotal,
   chargeUnitAmount,
@@ -76,6 +76,26 @@ const inScopeSubtotal = (
   return sumOf((i: CheckoutItem) => i.unitPrice * i.quantity)(scoped);
 };
 
+/** The extra line a modifier adds, or null when it is not additive (yet). */
+const modifierExtra = (
+  items: CheckoutItem[],
+  spec: ModifierSpec,
+): ExtraLine | null => {
+  const delta = modifierDelta(
+    inScopeSubtotal(items, spec.listingIds),
+    spec.kind,
+    spec.value,
+  );
+  return delta > 0
+    ? {
+        amount: delta,
+        key: `mod:${spec.id}`,
+        name: spec.name,
+        quantity: spec.quantity,
+      }
+    : null;
+};
+
 /**
  * Apply resolved modifiers to a checkout's items, producing the extra charge
  * lines they add. Each modifier reads the original (pre-modifier) in-scope
@@ -90,22 +110,10 @@ export const applyModifiers = (
   items: CheckoutItem[],
   specs: ModifierSpec[],
 ): ModifierResult => {
-  const extras: ExtraLine[] = [];
-  let modifierTotal = 0;
-  for (const spec of specs) {
-    const base = inScopeSubtotal(items, spec.listingIds);
-    const delta = modifierDelta(base, spec.kind, spec.value);
-    if (delta > 0) {
-      extras.push({
-        amount: delta,
-        key: `mod:${spec.id}`,
-        name: spec.name,
-        quantity: spec.quantity,
-      });
-      modifierTotal += delta * spec.quantity;
-    }
-  }
-  return { extras, modifierTotal };
+  const extras = mapNotNullish((spec: ModifierSpec) =>
+    modifierExtra(items, spec),
+  )(specs);
+  return { extras, modifierTotal: sumOf(extraCharge)(extras) };
 };
 
 /**

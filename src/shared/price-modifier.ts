@@ -8,26 +8,30 @@
  * (`Math.round` to the nearest minor unit) so totals stay consistent across
  * the pricing pipeline.
  *
- * This module is intentionally dependency-free and pure: it knows how a single
- * rule transforms a base amount, nothing about carts, stock, or persistence.
+ * The calc itself is pure: it knows how a single rule transforms a base amount,
+ * nothing about carts, stock, or persistence.
  */
 
+import * as v from "valibot";
+
 /** How a modifier's value is interpreted against the base amount. */
-export type CalcKind = "fixed" | "percent" | "multiply";
+export const CalcKindSchema = v.picklist(["fixed", "percent", "multiply"]);
+export type CalcKind = v.InferOutput<typeof CalcKindSchema>;
 
 /** Whether a modifier adds to the price or reduces it (the owner-facing sign,
  * applied when a modifier is resolved for a checkout). Ignored for `multiply`,
  * whose factor already encodes direction (< 1 reduces, > 1 raises). */
-export type ModifierDirection = "charge" | "discount";
+export const ModifierDirectionSchema = v.picklist(["charge", "discount"]);
+export type ModifierDirection = v.InferOutput<typeof ModifierDirectionSchema>;
 
-/** The calc kinds, for membership checks at the form/validation boundary. */
-export const CALC_KINDS: readonly CalcKind[] = ["fixed", "percent", "multiply"];
+/** Type guard: is the string a valid calc kind? */
+export const isCalcKind = (value: string): value is CalcKind =>
+  v.is(CalcKindSchema, value);
 
-/** The directions, for membership checks at the form/validation boundary. */
-export const MODIFIER_DIRECTIONS: readonly ModifierDirection[] = [
-  "charge",
-  "discount",
-];
+/** Type guard: is the string a valid modifier direction? */
+export const isModifierDirection = (
+  value: string,
+): value is ModifierDirection => v.is(ModifierDirectionSchema, value);
 
 /**
  * The signed price change (minor units) a modifier makes to `base`:

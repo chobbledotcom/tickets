@@ -45,8 +45,8 @@ describe("adminModifiersPage", () => {
     expect(html).toContain("Charge · 500");
     expect(html).toContain("Multiply · ×1.5");
     expect(html).toContain("Add Modifier");
+    // The name links to the edit page; there is no separate actions column.
     expect(html).toContain("/admin/modifiers/1/edit");
-    expect(html).toContain("/admin/modifiers/1/delete");
   });
 
   test("shows an empty state when there are no modifiers", () => {
@@ -59,9 +59,8 @@ describe("adminModifiersPage", () => {
     try {
       const html = adminModifiersPage([mod()], SESSION);
       expect(html).not.toContain("Add Modifier");
-      expect(html).not.toContain("/admin/modifiers/1/edit");
-      // Delete stays available even in read-only mode.
-      expect(html).toContain("/admin/modifiers/1/delete");
+      // The name still links to the edit page for navigation.
+      expect(html).toContain("/admin/modifiers/1/edit");
     } finally {
       restore();
     }
@@ -85,6 +84,9 @@ describe("adminModifierEditPage", () => {
     expect(html).toContain("Edit Modifier");
     expect(html).toContain("Loyalty");
     expect(html).toContain('value="10"');
+    // The delete action lives on the edit page.
+    expect(html).toContain("Delete Modifier");
+    expect(html).toContain("/admin/modifiers/1/delete");
   });
 });
 

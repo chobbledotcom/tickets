@@ -57,22 +57,15 @@ export const adminModifiersPage = (
               <tr>
                 <th>Name</th>
                 <th>Rule</th>
-                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {modifiers.map((m) => (
                 <tr>
-                  <td>{m.name}</td>
-                  <td>{ruleSummary(m)}</td>
                   <td>
-                    {!isReadOnly() && (
-                      <>
-                        <a href={`/admin/modifiers/${m.id}/edit`}>Edit</a>{" "}
-                      </>
-                    )}
-                    <a href={`/admin/modifiers/${m.id}/delete`}>Delete</a>
+                    <a href={`/admin/modifiers/${m.id}/edit`}>{m.name}</a>
                   </td>
+                  <td>{ruleSummary(m)}</td>
                 </tr>
               ))}
             </tbody>
@@ -116,6 +109,11 @@ export const adminModifierEditPage = (
         />
         <SubmitButton icon="save">Save Changes</SubmitButton>
       </CsrfForm>
+      <p class="actions">
+        <a class="danger" href={`/admin/modifiers/${modifier.id}/delete`}>
+          Delete Modifier
+        </a>
+      </p>
     </Layout>,
   );
 

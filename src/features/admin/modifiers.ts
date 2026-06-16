@@ -9,9 +9,9 @@ import {
   modifiersTable,
 } from "#shared/db/modifiers.ts";
 import {
-  CALC_KINDS,
   type CalcKind,
-  MODIFIER_DIRECTIONS,
+  isCalcKind,
+  isModifierDirection,
   type ModifierDirection,
   validateCalcValue,
 } from "#shared/price-modifier.ts";
@@ -39,10 +39,10 @@ const extractModifierInput = (values: ModifierFormValues): ModifierInput => ({
 /** Validate a modifier's kind, direction, and value (the select options can be
  * bypassed by a crafted POST, so re-check membership here). */
 const validateModifier = (input: ModifierInput): Promise<string | null> => {
-  if (!CALC_KINDS.includes(input.calcKind)) {
+  if (!isCalcKind(input.calcKind)) {
     return Promise.resolve("Invalid modifier type");
   }
-  if (!MODIFIER_DIRECTIONS.includes(input.direction)) {
+  if (!isModifierDirection(input.direction)) {
     return Promise.resolve("Invalid direction");
   }
   return Promise.resolve(validateCalcValue(input.calcKind, input.calcValue));
