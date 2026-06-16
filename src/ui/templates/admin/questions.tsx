@@ -33,7 +33,7 @@ export const adminQuestionsPage = (
 
       <CsrfForm action="/admin/questions" id="new-question">
         <Raw html={questionTextForm.render()} />
-        <SubmitButton icon="plus">Add Question</SubmitButton>
+        <SubmitButton icon="plus">{t("questions.add_submit")}</SubmitButton>
       </CsrfForm>
 
       {questions.length === 0 ? (
