@@ -47,10 +47,6 @@ export type BookingIntent = ContactInfo & {
   /** When set, this session settles a reserved attendee's outstanding balance
    * (rather than creating a new attendee). */
   balanceAttendeeId?: number;
-  /** The outstanding balance this checkout was created to clear (smallest
-   * currency unit). The settle clears the balance only if it still equals this,
-   * so an edited/already-settled balance can't be cleared for the wrong amount. */
-  balanceAmount?: number;
   /** Reservation amount snapshot — present when the items are deposit-priced,
    * so the webhook can re-derive the deposit and the remaining balance. */
   reservationAmount?: string;
@@ -70,9 +66,6 @@ export type CheckoutIntent = ContactInfo & {
   siteToken?: string;
   /** Settle this attendee's outstanding balance instead of creating an attendee. */
   balanceAttendeeId?: number;
-  /** The outstanding balance this checkout clears, recorded so the callback can
-   * verify the live balance still matches before settling. */
-  balanceAmount?: number;
   /** Override the subtotal the booking fee is calculated on (defaults to the
    * item subtotal). Used so a deposit charges the fee on the full order, and a
    * balance payment charges no fee (the fee was collected up front). */
@@ -121,8 +114,6 @@ export type SessionMetadata = {
   site_token_index: string;
   /** Attendee id when this session settles an outstanding balance ("" if not). */
   balance_attendee_id: string;
-  /** The balance amount a balance session was created to clear ("" if not). */
-  balance_amount: string;
   /** Reservation-amount snapshot when the items are deposit-priced ("" if not). */
   reservation_amount: string;
 };

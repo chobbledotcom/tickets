@@ -83,7 +83,6 @@ const handleBalancePost = (
 
         const intent: CheckoutIntent = {
           address: "",
-          balanceAmount: amount,
           balanceAttendeeId: attendeeId,
           date: null,
           email: "",

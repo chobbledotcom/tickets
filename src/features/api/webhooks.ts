@@ -451,9 +451,6 @@ const extractIntent = (
   const parsedDayCount = Number.parseInt(metadata.day_count, 10);
   return {
     address: metadata.address,
-    balanceAmount: metadata.balance_amount
-      ? Number(metadata.balance_amount)
-      : undefined,
     balanceAttendeeId: metadata.balance_attendee_id
       ? Number(metadata.balance_attendee_id)
       : undefined,
@@ -671,9 +668,9 @@ const BALANCE_CHANGED_MESSAGE =
 /**
  * Settle a reserved attendee's balance instead of creating a new attendee.
  *
- * The amount this checkout was created for is carried explicitly in metadata
- * (`balanceAmount`); since balance payments add no booking fee, the provider
- * must have charged exactly that (`session.amountTotal`). The settle then clears
+ * The amount this checkout was created for is the single balance line's price
+ * (`items[0].p`); since balance payments add no booking fee, the provider must
+ * have charged exactly that (`session.amountTotal`). The settle then clears
  * the balance only if the live `remaining_balance` still equals that amount — so
  * a balance the owner edited, or one a concurrent/stale checkout already
  * settled, can't be cleared for the wrong figure — and finalizes the session in
@@ -687,9 +684,9 @@ const settleBalanceSession = async (
   intent: BookingIntent,
 ): Promise<PaymentResult> => {
   const attendeeId = intent.balanceAttendeeId as number;
-  // The balance this checkout was created to clear — always set for balance
-  // sessions (see handleBalancePost).
-  const expectedAmount = intent.balanceAmount as number;
+  // A balance checkout is always a single synthetic line whose price is the
+  // outstanding balance it was created to clear.
+  const expectedAmount = intent.items[0]!.p;
   const listingId = intent.items[0]!.e;
 
   const fail = (detail: string): Promise<PaymentResult> =>
