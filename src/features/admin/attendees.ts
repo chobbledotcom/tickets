@@ -70,25 +70,31 @@ const attendeePageRoute = (render: AttendeePageRenderer) =>
 /** Handle GET /admin/listing/:listingId/attendee/:attendeeId/delete */
 const handleAdminAttendeeDeleteGet = attendeePageRoute(adminDeleteAttendeePage);
 
+/** Delete an attendee, log the activity, and redirect back to the listing. */
+const deleteAttendeeAndRedirect = async (
+  attendeeId: number,
+  listingId: number,
+  activityMessage: string,
+  flashMessage: string,
+  opts?: Parameters<typeof redirect>[3],
+): Promise<Response> => {
+  await deleteAttendee(attendeeId);
+  await logActivity(activityMessage, listingId);
+  return redirect(`/admin/listing/${listingId}`, flashMessage, true, opts);
+};
+
 /** Handle POST /admin/listing/:listingId/attendee/:attendeeId/delete */
 const handleAttendeeDelete = verifiedAttendeeForm(
   "delete",
   "deletion",
-  async (data, form, listingId, attendeeId) => {
-    await deleteAttendee(attendeeId);
-    await logActivity(
-      `Attendee deleted from '${data.listing.name}'`,
+  (data, form, listingId, attendeeId) =>
+    deleteAttendeeAndRedirect(
+      attendeeId,
       listingId,
-    );
-    return redirect(
-      `/admin/listing/${listingId}`,
+      `Attendee deleted from '${data.listing.name}'`,
       t("success.attendee_deleted"),
-      true,
-      {
-        form,
-      },
-    );
-  },
+      { form },
+    ),
 );
 
 /**
@@ -112,15 +118,11 @@ const handleDeleteIncomplete = attendeeFormAction(
       );
     }
 
-    await deleteAttendee(attendeeId);
-    await logActivity(
-      `Incomplete attendee deleted from '${data.listing.name}'`,
+    return deleteAttendeeAndRedirect(
+      attendeeId,
       listingId,
-    );
-    return redirect(
-      `/admin/listing/${listingId}`,
+      `Incomplete attendee deleted from '${data.listing.name}'`,
       t("success.incomplete_removed"),
-      true,
     );
   },
 );

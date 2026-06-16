@@ -36,16 +36,20 @@ const runGuardedTask = async (
   return taskResult.value;
 };
 
+/** Guard returning an errorPage response when Bunny CDN isn't configured. */
+const requireBunnyCdn = (
+  errorPage: ErrorPageFn,
+  formId: string,
+): ReturnType<ErrorPageFn> | null =>
+  isBunnyCdnEnabled()
+    ? null
+    : errorPage(t("error.bunny_cdn_not_configured"), 400, formId);
+
 /** Handle POST /admin/settings/custom-domain - save custom domain */
 export const handleCustomDomainPost = advancedSettingsRoute(
   async (form, errorPage) => {
-    if (!isBunnyCdnEnabled()) {
-      return errorPage(
-        t("error.bunny_cdn_not_configured"),
-        400,
-        "settings-custom-domain",
-      );
-    }
+    const cdnError = requireBunnyCdn(errorPage, "settings-custom-domain");
+    if (cdnError) return cdnError;
 
     const raw = form.getString("custom_domain").toLowerCase();
 
@@ -105,13 +109,11 @@ export const handleCustomDomainPost = advancedSettingsRoute(
 /** Handle POST /admin/settings/custom-domain/validate - validate with Bunny CDN */
 export const handleCustomDomainValidatePost = advancedSettingsRoute(
   (_form, errorPage) => {
-    if (!isBunnyCdnEnabled()) {
-      return errorPage(
-        t("error.bunny_cdn_not_configured"),
-        400,
-        "settings-custom-domain-validate",
-      );
-    }
+    const cdnError = requireBunnyCdn(
+      errorPage,
+      "settings-custom-domain-validate",
+    );
+    if (cdnError) return cdnError;
 
     const customDomain = settings.customDomain;
     if (!customDomain) {
