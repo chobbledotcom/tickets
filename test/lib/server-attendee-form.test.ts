@@ -61,6 +61,30 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       expect(html).not.toContain("Add Listing Line");
     });
 
+    test("shows the availability notice on a dateless create form", async () => {
+      await createTestListing({ maxAttendees: 100, name: "L" });
+      const response = await awaitTestRequest("/admin/attendees/new", {
+        cookie: await testCookie(),
+      });
+      const html = await expectHtmlResponse(
+        response,
+        200,
+        "Availability is inaccurate until dates have been saved",
+      );
+      // Visible (not hidden) when no date is known.
+      expect(html).toContain("data-availability-notice>");
+    });
+
+    test("hides the availability notice when a date is pre-filled", async () => {
+      const listing = await createDailyTestListing({ name: "D" });
+      const response = await awaitTestRequest(
+        `/admin/attendees/new?select_${listing.id}=1&start_date=2026-07-01`,
+        { cookie: await testCookie() },
+      );
+      const html = await expectHtmlResponse(response, 200);
+      expect(html).toContain("data-availability-notice hidden>");
+    });
+
     test("pre-fills listings selected from the calendar checker", async () => {
       const a = await createTestListing({ maxAttendees: 100, name: "Kayak" });
       const b = await createTestListing({ maxAttendees: 100, name: "Canoe" });

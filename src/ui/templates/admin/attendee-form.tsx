@@ -222,37 +222,49 @@ const dayCountOptions = (
 };
 
 /** Shared start date + length for every daily listing. The length is a select
- * of day counts (the end date is derived, never edited directly). */
+ * of day counts (the end date is derived, never edited directly). The
+ * "availability inaccurate" notice shows until a date is saved, and a small
+ * progressive-enhancement script (client/admin/attendee-dates.ts) re-shows it
+ * when the dates are changed and reveals the length select once a start date is
+ * set. */
 const SharedDateFields = ({
   data,
 }: {
   data: AttendeeFormTemplateData;
-}): JSX.Element => (
-  <>
-    <h3>Dates</h3>
-    {data.dateError && (
-      <output class="error" role="alert">
-        {data.dateError}
+}): JSX.Element => {
+  // Shown when there's no saved/known date yet (a bare create form); the PE
+  // re-shows it whenever the dates are dirtied so the operator re-saves.
+  const noticeHidden = !(data.mode === "create" && !data.parsed.startDate);
+  return (
+    <>
+      <h3>Dates</h3>
+      {data.dateError && (
+        <output class="error" role="alert">
+          {data.dateError}
+        </output>
+      )}
+      <label for={START_DATE_FIELD}>
+        Start date
+        <input
+          id={START_DATE_FIELD}
+          name={START_DATE_FIELD}
+          required={data.mode === "create"}
+          type="date"
+          value={data.parsed.startDate}
+        />
+      </label>
+      <output class="warning" data-availability-notice hidden={noticeHidden}>
+        Availability is inaccurate until dates have been saved.
       </output>
-    )}
-    <label for={START_DATE_FIELD}>
-      Start date
-      <input
-        id={START_DATE_FIELD}
-        name={START_DATE_FIELD}
-        required={data.mode === "create"}
-        type="date"
-        value={data.parsed.startDate}
-      />
-    </label>
-    <label for={DAY_COUNT_FIELD}>
-      Length
-      <select id={DAY_COUNT_FIELD} name={DAY_COUNT_FIELD}>
-        {dayCountOptions(data.parsed.startDate, data.parsed.dayCount)}
-      </select>
-    </label>
-  </>
-);
+      <label data-day-count-label for={DAY_COUNT_FIELD}>
+        Length
+        <select id={DAY_COUNT_FIELD} name={DAY_COUNT_FIELD}>
+          {dayCountOptions(data.parsed.startDate, data.parsed.dayCount)}
+        </select>
+      </label>
+    </>
+  );
+};
 
 /** Render the bulk-email contact history (edit mode only). */
 const EmailHistory = ({
