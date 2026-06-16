@@ -48,11 +48,13 @@ import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
 import {
   createAttendeeAtomic,
+  deleteAttendee,
   ensureAllBookings,
   getAttendeesByTokens,
 } from "#shared/db/attendees.ts";
 import { getListing, getListingWithCount } from "#shared/db/listings.ts";
 import { specsFromRefs } from "#shared/db/modifier-resolve.ts";
+import { consumeModifierStock } from "#shared/db/modifier-usage.ts";
 import {
   balanceFinalizeStatement,
   clearSessionTokens,
@@ -76,6 +78,7 @@ import {
   type ValidatedPaymentSession,
   type WebhookEvent,
 } from "#shared/payments.ts";
+import { modifierDelta } from "#shared/price-modifier.ts";
 import { reservationDepositForLine } from "#shared/reservation-amount.ts";
 import { dayPriceFor, type ListingWithCount } from "#shared/types.ts";
 import { logAndNotifyRegistration } from "#shared/webhook.ts";
@@ -84,6 +87,10 @@ import { paymentCancelPage, successPage } from "#templates/payment.tsx";
 /** User-facing message when the listing price changed between checkout and payment */
 const PRICE_CHANGED_MESSAGE =
   "The price for this listing changed while you were completing payment.";
+
+/** User-facing message when a chosen add-on/discount sold out during payment. */
+const MODIFIER_SOLD_OUT_MESSAGE =
+  "An extra you selected sold out while you were completing payment.";
 
 /** Parse per-listing answer IDs from metadata JSON string.
  * Returns undefined for empty input. The JSON was serialized by our own
@@ -670,6 +677,31 @@ const createAttendeeForSession = async (
     );
   }
   const created = result as Extract<typeof result, { success: true }>;
+
+  // Consume modifier stock atomically; a sold-out race rolls the order back.
+  const modifierSpecs = await specsFromRefs(intent.modifiers);
+  if (modifierSpecs.length > 0) {
+    const attendeeId = created.attendees[0]!.id;
+    const subtotal = sumOf((v: ValidatedItem) => v.item.p)(validatedItems);
+    const consumed = await consumeModifierStock(
+      attendeeId,
+      modifierSpecs.map((s) => ({
+        amountApplied: Math.abs(modifierDelta(subtotal, s.kind, s.value)),
+        modifierId: s.id,
+        quantity: s.quantity,
+      })),
+    );
+    if (!consumed) {
+      await deleteAttendee(attendeeId);
+      return refundAndFail(
+        session,
+        MODIFIER_SOLD_OUT_MESSAGE,
+        validatedItems[0]!.listing.id,
+        409,
+      );
+    }
+  }
+
   const entries = created.attendees.map((attendee, i) => ({
     attendee,
     listing: validatedItems[i]!.listing,

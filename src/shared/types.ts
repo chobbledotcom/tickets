@@ -415,6 +415,8 @@ export interface Modifier {
   scope: ModifierScope;
   /** Minimum in-scope subtotal (minor units) for the modifier to apply. */
   min_subtotal: number;
+  /** Remaining-stock cap, or null for unlimited. Consumed monotonically. */
+  stock: number | null;
 }
 
 export interface ListingWithCount extends Listing {

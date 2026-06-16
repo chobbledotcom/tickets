@@ -10,6 +10,7 @@
 
 import { mapNotNullish, sumOf } from "#fp";
 import { toMinorUnits } from "#shared/currency.ts";
+import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
 import { getActiveModifiers } from "#shared/db/modifiers.ts";
 import type {
   CheckoutItem,
@@ -54,14 +55,19 @@ export const resolveModifiers = async (
 ): Promise<ModifierSpec[]> => {
   const subtotal = itemsSubtotal(items);
   const active = await getActiveModifiers();
-  return active
-    .filter(
-      (m) =>
-        m.trigger === "automatic" &&
-        m.scope === "all" &&
-        subtotal >= m.min_subtotal,
-    )
-    .map((m) => toSpec(m, 1));
+  const eligible = active.filter(
+    (m) =>
+      m.trigger === "automatic" &&
+      m.scope === "all" &&
+      subtotal >= m.min_subtotal,
+  );
+  // Exclude any stock-limited modifier with nothing left (one unit per order).
+  const used = await modifierUsedQuantities(
+    eligible.filter((m) => m.stock !== null).map((m) => m.id),
+  );
+  const inStock = (m: Modifier): boolean =>
+    m.stock === null || m.stock - (used.get(m.id) ?? 0) >= 1;
+  return eligible.filter(inStock).map((m) => toSpec(m, 1));
 };
 
 /**

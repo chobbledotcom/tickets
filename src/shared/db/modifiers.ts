@@ -30,6 +30,7 @@ export type ModifierInput = {
   direction: ModifierDirection;
   active?: boolean;
   minSubtotal?: number;
+  stock?: number | null;
 };
 
 /** Modifiers table with CRUD operations. Name is encrypted at rest, matching
@@ -47,6 +48,7 @@ export const modifiersTable = defineIdTable<Modifier, ModifierInput>(
     direction: col.simple<ModifierDirection>(),
     min_subtotal: col.withDefault(() => 0),
     scope: col.withDefault<ModifierScope>(() => "all"),
+    stock: col.withDefault<number | null>(() => null),
     trigger: col.withDefault<ModifierTrigger>(() => "automatic"),
   },
 );

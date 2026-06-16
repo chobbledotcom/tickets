@@ -877,6 +877,7 @@ export type ModifierFormValues = {
   direction: string;
   calc_value: number;
   min_subtotal: number;
+  stock: number | null;
   active: string;
 };
 
@@ -939,6 +940,13 @@ export const modifierFields: Field[] = [
         ? null
         : "Minimum order must be a positive number";
     },
+  },
+  {
+    hint: "Total number available across all orders. Leave blank for unlimited.",
+    label: "Stock (optional)",
+    min: 0,
+    name: "stock",
+    type: "number",
   },
   {
     label: "Status",

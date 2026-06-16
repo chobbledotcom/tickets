@@ -37,6 +37,7 @@ const extractModifierInput = (values: ModifierFormValues): ModifierInput => ({
   direction: values.direction as ModifierDirection,
   minSubtotal: toMinorUnits(values.min_subtotal),
   name: values.name,
+  stock: values.stock,
 });
 
 /** Validate a modifier's kind, direction, and value (the select options can be

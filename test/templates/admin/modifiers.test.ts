@@ -21,6 +21,7 @@ const mod = (overrides: Partial<Modifier> = {}): Modifier => ({
   min_subtotal: 0,
   name: "Early bird",
   scope: "all",
+  stock: null,
   trigger: "automatic",
   ...overrides,
 });

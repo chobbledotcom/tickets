@@ -137,6 +137,16 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       )(response);
     });
 
+    test("stores a stock limit", async () => {
+      await adminFormPost("/admin/modifiers", createData({ stock: "5" }));
+      expect((await lastModifier()).stock).toBe(5);
+    });
+
+    test("defaults stock to unlimited (null) when blank", async () => {
+      await adminFormPost("/admin/modifiers", createData());
+      expect((await lastModifier()).stock).toBeNull();
+    });
+
     test("rejects a non-numeric value", async () => {
       const { response } = await adminFormPost(
         "/admin/modifiers",
@@ -226,6 +236,13 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const { id } = await lastModifier();
       const { response } = await adminGet(`/admin/modifiers/${id}/edit`);
       await expectHtmlResponse(response, 200, 'value="50"');
+    });
+
+    test("shows the stock limit on the edit form", async () => {
+      await adminFormPost("/admin/modifiers", createData({ stock: "7" }));
+      const { id } = await lastModifier();
+      const { response } = await adminGet(`/admin/modifiers/${id}/edit`);
+      await expectHtmlResponse(response, 200, 'value="7"');
     });
 
     test("returns 404 for a missing modifier", async () => {

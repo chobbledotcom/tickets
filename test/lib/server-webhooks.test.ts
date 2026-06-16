@@ -552,6 +552,81 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
+    test("refunds when a modifier sold out before the webhook finalized", async () => {
+      await setupStripe();
+      const listing = await createTestListing({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+      const modifier = await modifiersTable.insert({
+        calcKind: "percent",
+        calcValue: 10,
+        direction: "charge",
+        name: "Last one",
+        stock: 1,
+      });
+      // Exhaust the single unit before the webhook arrives.
+      const { consumeModifierStock } = await import(
+        "#shared/db/modifier-usage.ts"
+      );
+      await consumeModifierStock(999, [
+        { amountApplied: 100, modifierId: modifier.id, quantity: 1 },
+      ]);
+
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            listing: {
+              data: {
+                object: {
+                  amount_total: 1100,
+                  id: "cs_modifier_soldout",
+                  metadata: webhookMeta({
+                    email: "mod@example.com",
+                    items: singleItem(listing.id, 1, 1000),
+                    modifiers: JSON.stringify([{ i: modifier.id, q: 1 }]),
+                    name: "Mod Buyer",
+                  }),
+                  payment_intent: "pi_modifier_soldout",
+                  payment_status: "paid",
+                },
+              },
+              id: "evt_modifier_soldout",
+              type: "checkout.session.completed",
+            },
+            valid: true,
+          }),
+      );
+      const mockRefund = stub(stripeApi, "refundPayment", () =>
+        Promise.resolve({ id: "re_soldout" } as unknown as Awaited<
+          ReturnType<typeof stripeApi.refundPayment>
+        >),
+      );
+
+      try {
+        await assertJson(
+          handleRequest(
+            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+          ),
+          200,
+          (json) => {
+            expect(json.processed).toBe(false);
+            expect(json.error).toContain("sold out");
+          },
+        );
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+        expect((await getAttendeesRaw(listing.id)).length).toBe(0);
+      } finally {
+        mockVerify.restore();
+        mockRefund.restore();
+      }
+    });
+
     test("prices a customisable-days webhook booking by the chosen day count", async () => {
       await setupStripe();
 

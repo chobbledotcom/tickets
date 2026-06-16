@@ -6,6 +6,7 @@ import {
   resolveModifiers,
   specsFromRefs,
 } from "#shared/db/modifier-resolve.ts";
+import { consumeModifierStock } from "#shared/db/modifier-usage.ts";
 import { type ModifierInput, modifiersTable } from "#shared/db/modifiers.ts";
 import type { CheckoutItem } from "#shared/payments.ts";
 import { describeWithEnv } from "#test-utils";
@@ -91,6 +92,21 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
 
       const specs = await resolveModifiers([item({ unitPrice: 1000 })]);
       expect(specs.map((s) => s.name)).toEqual([]);
+    });
+
+    test("includes a stock-limited modifier while stock remains", async () => {
+      await insertModifier({ name: "Plenty", stock: 5 });
+      const specs = await resolveModifiers([item()]);
+      expect(specs.map((s) => s.name)).toContain("Plenty");
+    });
+
+    test("excludes a modifier whose stock is used up", async () => {
+      const m = await insertModifier({ name: "Limited", stock: 1 });
+      await consumeModifierStock(1, [
+        { amountApplied: 500, modifierId: m.id, quantity: 1 },
+      ]);
+      const specs = await resolveModifiers([item()]);
+      expect(specs.map((s) => s.name)).not.toContain("Limited");
     });
   });
 
