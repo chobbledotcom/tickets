@@ -75,6 +75,10 @@ export type AttendeeFormTemplateData = {
   /** True when the attendee's existing daily bookings disagree on date/length —
    * saving normalises them onto the one shared range. */
   hasMixedTimings: boolean;
+  /** True when at least one daily listing is in play (active, or already booked
+   * by this attendee). The shared date range only affects daily listings, so the
+   * whole Dates section is hidden when this is false. */
+  hasDailyListings: boolean;
   /** Attendee-level error (e.g. "Name is required"). */
   attendeeError: string | null;
   /** Shared-date error (e.g. missing start date for a booked daily listing). */
@@ -244,18 +248,27 @@ const dayCountOptions = (
  * "availability inaccurate" notice shows until a date is saved, and a small
  * progressive-enhancement script (client/admin/attendee-dates.ts) re-shows it
  * when the dates are changed and reveals the length select once a start date is
- * set. */
+ * set.
+ *
+ * The dates only apply to daily listings, so the whole section is hidden when
+ * there are none in play, and the start date is never HTML-`required` — it's
+ * optional unless a daily listing is actually booked, which the server enforces. */
 const SharedDateFields = ({
   data,
 }: {
   data: AttendeeFormTemplateData;
-}): JSX.Element => {
+}): JSX.Element | null => {
+  if (!data.hasDailyListings) return null;
   // Shown when there's no saved/known date yet (a bare create form); the PE
   // re-shows it whenever the dates are dirtied so the operator re-saves.
   const noticeHidden = !(data.mode === "create" && !data.parsed.startDate);
   return (
     <>
       <h3>Dates</h3>
+      <p class="small">
+        Optional — the date only affects daily listings. A start date is
+        required once you book a daily listing below.
+      </p>
       {data.dateError && (
         <output class="error" role="alert">
           {data.dateError}
@@ -266,7 +279,6 @@ const SharedDateFields = ({
         <input
           id={START_DATE_FIELD}
           name={START_DATE_FIELD}
-          required={data.mode === "create"}
           type="date"
           value={data.parsed.startDate}
         />
@@ -547,11 +559,6 @@ const AttendeeEditForm = ({
           <Icon name="save" />
           <span>{isEdit ? "Save Attendee" : "Create Attendee"}</span>
         </button>
-        {!isEdit && (
-          <a class="button" href={data.returnUrl || "/admin/"}>
-            Back without saving
-          </a>
-        )}
       </p>
     </CsrfForm>
   );
