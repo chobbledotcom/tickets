@@ -2,6 +2,7 @@
  * Public API toggle form for advanced settings
  */
 
+import { t } from "#i18n";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 import { SettingsSection } from "#templates/components/settings-section.tsx";
 
@@ -15,8 +16,8 @@ export const PublicApiForm = (s: AdvancedSettingsPageState): JSX.Element => (
         details.
       </p>
     }
-    submitLabel="Save"
-    title="Enable public API?"
+    submitLabel={t("common.save")}
+    title={t("settings.advanced.public_api")}
   >
     <fieldset class="radios">
       <label>
@@ -26,7 +27,7 @@ export const PublicApiForm = (s: AdvancedSettingsPageState): JSX.Element => (
           type="radio"
           value="true"
         />
-        Yes
+        {t("common.yes")}
       </label>
       <label>
         <input
@@ -35,7 +36,7 @@ export const PublicApiForm = (s: AdvancedSettingsPageState): JSX.Element => (
           type="radio"
           value="false"
         />
-        No
+        {t("common.no")}
       </label>
     </fieldset>
   </SettingsSection>

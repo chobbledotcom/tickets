@@ -2,6 +2,7 @@
  * Confirmation Email Template form for advanced settings
  */
 
+import { t } from "#i18n";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 import { SettingsSection } from "#templates/components/settings-section.tsx";
 import { DEFAULT_TEMPLATES } from "#templates/email/defaults.ts";
@@ -22,11 +23,11 @@ export const ConfirmationEmailTemplateForm = (
       </p>
     }
     id="settings-email-tpl-confirmation"
-    submitLabel="Save Confirmation Template"
-    title="Confirmation Email Template"
+    submitLabel={t("settings.advanced.save_confirmation_template")}
+    title={t("settings.advanced.confirmation_email")}
   >
     <details>
-      <summary>Available variables</summary>
+      <summary>{t("settings.advanced.available_variables")}</summary>
       <table>
         <tr>
           <td>
@@ -44,7 +45,7 @@ export const ConfirmationEmailTemplateForm = (
           <td>
             <code>{"{{ attendee.name }}"}</code>
           </td>
-          <td>Attendee name</td>
+          <td>{t("admin.attendees.delete_label")}</td>
         </tr>
         <tr>
           <td>
@@ -115,7 +116,7 @@ export const ConfirmationEmailTemplateForm = (
       </table>
     </details>
     <label>
-      Subject
+      {t("settings.advanced.subject")}
       <input
         autocomplete="off"
         name="subject"

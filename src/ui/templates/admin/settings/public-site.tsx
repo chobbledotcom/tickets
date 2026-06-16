@@ -2,6 +2,7 @@
  * Show Public Site form for settings
  */
 
+import { t } from "#i18n";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
 import { SettingsSection } from "#templates/components/settings-section.tsx";
 
@@ -14,8 +15,8 @@ export const PublicSiteForm = (s: SettingsPageState): JSX.Element => (
         for Home, Listings, T&amp;Cs and Contact pages.
       </p>
     }
-    submitLabel="Save"
-    title="Show public site?"
+    submitLabel={t("common.save")}
+    title={t("settings.show_public_site")}
   >
     <fieldset class="radios">
       <label>
@@ -25,7 +26,7 @@ export const PublicSiteForm = (s: SettingsPageState): JSX.Element => (
           type="radio"
           value="true"
         />
-        Yes
+        {t("common.yes")}
       </label>
       <label>
         <input
@@ -34,7 +35,7 @@ export const PublicSiteForm = (s: SettingsPageState): JSX.Element => (
           type="radio"
           value="false"
         />
-        No
+        {t("common.no")}
       </label>
     </fieldset>
   </SettingsSection>

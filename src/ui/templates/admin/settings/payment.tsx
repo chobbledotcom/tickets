@@ -229,8 +229,8 @@ export const SquareWebhookForm = (s: SettingsPageState): JSX.Element | null =>
       </article>
       <p>
         {s.squareWebhookConfigured
-          ? "A webhook signature key is currently configured. Enter a new key below to replace it."
-          : "No webhook signature key is configured. Follow the steps above to set one up."}
+          ? t("settings.square.webhook_configured_hint")
+          : t("settings.square.webhook_not_configured_hint")}
       </p>
       <Raw
         html={renderFields(
@@ -240,7 +240,9 @@ export const SquareWebhookForm = (s: SettingsPageState): JSX.Element | null =>
             : {},
         )}
       />
-      <SubmitButton icon="save">Update Webhook Key</SubmitButton>
+      <SubmitButton icon="save">
+        {t("settings.square.update_webhook_key")}
+      </SubmitButton>
     </CsrfForm>
   ) : null;
 
@@ -285,14 +287,11 @@ export const BookingFeeForm = (s: SettingsPageState): JSX.Element | null =>
   s.paymentProvider ? (
     <CsrfForm action="/admin/settings/booking-fee" id="settings-booking-fee">
       <div class="prose">
-        <h2>Booking Fee</h2>
-        <p>
-          Percentage fee added at checkout (e.g. 1.5 for 1.5%). Set to 0 to
-          disable. Max 10.
-        </p>
+        <h2>{t("settings.booking_fee")}</h2>
+        <p>{t("settings.booking_fee_hint")}</p>
       </div>
       <label>
-        Booking Fee (%)
+        {t("settings.booking_fee_label")}
         <input
           max="10"
           min="0"
@@ -303,6 +302,6 @@ export const BookingFeeForm = (s: SettingsPageState): JSX.Element | null =>
           value={s.bookingFee}
         />
       </label>
-      <SubmitButton icon="save">Save Booking Fee</SubmitButton>
+      <SubmitButton icon="save">{t("settings.save_booking_fee")}</SubmitButton>
     </CsrfForm>
   ) : null;
