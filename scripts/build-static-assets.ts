@@ -11,6 +11,22 @@ const denoImports: Record<string, string> = denoConfig.imports;
 
 const projectRoot = fromFileUrl(new URL("..", import.meta.url));
 
+const STATIC_DIR = "./src/ui/static";
+
+/**
+ * Output files produced by {@link buildStaticAssets}, keyed by bundle. These
+ * are generated build artifacts (gitignored), so the test harness uses this
+ * list to clean up any it generates after a run.
+ */
+export const STATIC_ASSET_OUTFILES = {
+  admin: `${STATIC_DIR}/admin.js`,
+  contact: `${STATIC_DIR}/contact.js`,
+  embed: `${STATIC_DIR}/embed.js`,
+  iframeResizerChild: `${STATIC_DIR}/iframe-resizer-child.js`,
+  iframeResizerParent: `${STATIC_DIR}/iframe-resizer-parent.js`,
+  scanner: `${STATIC_DIR}/scanner.js`,
+} as const;
+
 const buildBundle = async (
   label: string,
   options: esbuild.BuildOptions,
@@ -105,7 +121,7 @@ export const buildStaticAssets = async (
     entryPoints: ["./src/ui/client/scanner.js"],
     format: "iife",
     minify: true,
-    outfile: "./src/ui/static/scanner.js",
+    outfile: STATIC_ASSET_OUTFILES.scanner,
     platform: "browser",
     plugins: [denoNpmResolvePlugin],
   });
@@ -115,7 +131,7 @@ export const buildStaticAssets = async (
     entryPoints: ["./src/ui/client/admin.ts"],
     format: "iife",
     minify: true,
-    outfile: "./src/ui/static/admin.js",
+    outfile: STATIC_ASSET_OUTFILES.admin,
     platform: "browser",
     plugins: [denoImportMapPlugin],
   });
@@ -125,7 +141,7 @@ export const buildStaticAssets = async (
     entryPoints: ["./src/ui/client/embed.ts"],
     format: "iife",
     minify: true,
-    outfile: "./src/ui/static/embed.js",
+    outfile: STATIC_ASSET_OUTFILES.embed,
     platform: "browser",
   });
 
@@ -134,7 +150,7 @@ export const buildStaticAssets = async (
     entryPoints: ["./src/ui/client/contact.ts"],
     format: "iife",
     minify: true,
-    outfile: "./src/ui/static/contact.js",
+    outfile: STATIC_ASSET_OUTFILES.contact,
     platform: "browser",
     plugins: [botpoisonResolvePlugin],
   });
@@ -144,7 +160,7 @@ export const buildStaticAssets = async (
     entryPoints: ["./src/ui/client/iframe-resizer-parent.ts"],
     format: "iife",
     minify: true,
-    outfile: "./src/ui/static/iframe-resizer-parent.js",
+    outfile: STATIC_ASSET_OUTFILES.iframeResizerParent,
     platform: "browser",
     plugins: [iframeResizerResolvePlugin],
   });
@@ -155,7 +171,7 @@ export const buildStaticAssets = async (
     entryPoints: ["./src/ui/client/iframe-resizer-child.ts"],
     format: "iife",
     minify: true,
-    outfile: "./src/ui/static/iframe-resizer-child.js",
+    outfile: STATIC_ASSET_OUTFILES.iframeResizerChild,
     platform: "browser",
     plugins: [iframeResizerResolvePlugin],
   });

@@ -76,8 +76,9 @@ the `pipe`-based code.
 ## Scripts
 
 - `deno task start` - Run the server
-- `deno task test` - Run tests
-- `deno task test:coverage` - Run tests with coverage
+- `deno task test` - Run the full suite
+- `deno task test:coverage` - Run the full suite with coverage
+- `deno task test:files <file>...` - Run only the given test files with the same setup as the full runner (builds static assets, starts stripe-mock, cleans up after)
 - `deno task lint` - Format and lint all code with Biome (`check --write`; auto-fixes in place). Biome is the sole formatter and linter.
 - `deno task build:edge` - Build for Bunny Edge deployment
 - `deno task precommit` - Run all checks (typecheck, lint, tests)
@@ -86,19 +87,28 @@ the `pipe`-based code.
 
 **Do NOT use `deno task test -- --filter`** to debug a specific test — it still loads the entire test suite and is very slow.
 
-Instead, run `deno test` directly on the specific file:
+Instead, use `deno task test:files`, which runs only the files you pass but reuses the full runner's setup — it builds the static client assets the app reads at import time, starts stripe-mock with `STRIPE_MOCK_HOST/PORT` exported, and removes any assets it generated afterwards. This means a fresh checkout can run a subset of the suite without manual preparation or leftover build artifacts:
+
+```bash
+deno task test:files test/lib/dates.test.ts
+```
+
+Arguments are forwarded verbatim to `deno test`, so multiple files, directories, and flags such as `--filter` all work:
+
+```bash
+deno task test:files test/lib/dates.test.ts --filter "formats date"
+deno task test:files test/lib/server-balance.test.ts test/lib/server-webhooks.test.ts
+```
+
+#### Lower-level alternative
+
+For a pure unit test that imports neither the app nor Stripe, you can skip the harness and run `deno test` directly on the file (fastest, but it fails on a missing `src/ui/static/*.js` asset or an unstarted stripe-mock if the test does import them):
 
 ```bash
 deno test --no-check --allow-all test/lib/dates.test.ts
 ```
 
-To filter to a specific test case within that file, add `--filter`:
-
-```bash
-deno test --no-check --allow-all test/lib/dates.test.ts --filter "formats date"
-```
-
-For tests that depend on stripe-mock (anything importing Stripe), ensure stripe-mock is running first by running `deno task test` once, or start it manually from `.bin/stripe-mock -http-port 12111`. Then set the env vars:
+To do this for a test that depends on stripe-mock (anything importing Stripe), start the mock first (`deno task test:files` or `deno task test` does this for you, or run `.bin/stripe-mock -http-port 12111` manually) and set the env vars:
 
 ```bash
 STRIPE_MOCK_HOST=localhost STRIPE_MOCK_PORT=12111 deno test --no-check --allow-all test/lib/stripe-mock.test.ts
