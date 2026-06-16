@@ -100,6 +100,16 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
       await assertAdminHtml("/admin/guide", "test or live credentials");
     });
 
+    test("contains SumUp setup with the API keys link and 401 guidance", async () => {
+      await assertAdminHtml(
+        "/admin/guide",
+        "How do I set up SumUp?",
+        "me.sumup.com/en-gb/settings/api-keys",
+        "same SumUp account",
+        "401 Unauthorized",
+      );
+    });
+
     test("contains public site section", async () => {
       await assertAdminHtml(
         "/admin/guide",

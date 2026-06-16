@@ -1121,18 +1121,18 @@ export const squareWebhookFields: Field[] = [
  */
 export const sumupFields: Field[] = [
   {
-    hint: "Your SumUp secret API key (sk_live_... or sk_test_...)",
+    hint: "Your SumUp secret API key, from me.sumup.com → For Developers → API Keys",
     label: "SumUp API Key",
     name: "sumup_api_key",
-    placeholder: "sk_live_... or sk_test_...",
+    placeholder: "Paste your SumUp API key",
     required: true,
     type: "password",
   },
   {
-    hint: "Your SumUp merchant code (found in the SumUp dashboard, e.g. MC...)",
+    hint: "Your SumUp merchant code, shown in your SumUp account profile (must match the API key's account)",
     label: "Merchant Code",
     name: "sumup_merchant_code",
-    placeholder: "MC...",
+    placeholder: "M...",
     required: true,
     type: "text",
   },

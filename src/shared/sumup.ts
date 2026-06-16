@@ -111,6 +111,23 @@ const getMerchantCode = (): string | null => {
 };
 
 /**
+ * Turn a failed merchant lookup into an actionable connection-test message.
+ *
+ * SumUp answers the merchant lookup with a 401 whenever it rejects the
+ * credentials — most often because the API key was truncated on paste, or
+ * because the API key and merchant code belong to different accounts (e.g. a
+ * sandbox key with a live merchant code). The raw SumUp body is just an opaque
+ * trace id, so for a 401 we replace it with guidance and pass other errors
+ * (network failures, 5xx, etc.) through unchanged.
+ */
+const sumupKeyError = (err: unknown): string => {
+  const message = errorMessage(err);
+  return message.startsWith("401")
+    ? "401 Unauthorized — SumUp rejected these credentials. Check the API key was copied in full, and that the API key and Merchant Code belong to the same SumUp account (a sandbox key will not work with a live merchant code, or vice-versa)."
+    : message;
+};
+
+/**
  * Normalize a SumUp checkout resource into our internal shape.
  * amount and checkout_reference are always present on checkouts we created
  * (webhook ids are pre-filtered against our staging rows before fetching),
@@ -253,7 +270,7 @@ export const sumupApi: {
       result.merchant = { configured: true, merchantCode };
       result.ok = result.currency.supported;
     } catch (err) {
-      result.apiKey = { error: errorMessage(err), valid: false };
+      result.apiKey = { error: sumupKeyError(err), valid: false };
     }
     return result;
   },
