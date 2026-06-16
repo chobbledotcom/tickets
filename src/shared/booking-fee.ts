@@ -3,6 +3,7 @@
  * Used by Stripe, Square, and webhook validation.
  */
 
+import { sumOf } from "#fp";
 import { getBookingFee } from "#shared/config.ts";
 import { reservationDepositPerUnit } from "#shared/reservation-amount.ts";
 
@@ -22,7 +23,10 @@ export const getBookingFeeAmount = (subtotalMinorUnits: number): number =>
 /** Calculate cart subtotal from items with unitPrice and quantity. */
 export const itemsSubtotal = (
   items: ReadonlyArray<{ unitPrice: number; quantity: number }>,
-): number => items.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
+): number =>
+  sumOf(
+    (i: { unitPrice: number; quantity: number }) => i.unitPrice * i.quantity,
+  )(items);
 
 /**
  * The subtotal the booking fee is charged on: an explicit `feeSubtotal`
@@ -36,7 +40,7 @@ export const feeSubtotalFor = (intent: {
 
 /** Total quantity across all checkout items. */
 const totalQuantity = (items: ReadonlyArray<{ quantity: number }>): number =>
-  items.reduce((sum, i) => sum + i.quantity, 0);
+  sumOf((i: { quantity: number }) => i.quantity)(items);
 
 /** Shape a checkout intent must satisfy for deposit-aware charging. */
 type ChargeableIntent = {
@@ -64,7 +68,7 @@ export const chargeUnitAmount = (
 
 /** Sum of the per-line charges (deposits for a reservation, else full prices). */
 export const chargeSubtotal = (intent: ChargeableIntent): number =>
-  intent.items.reduce(
-    (sum, item) => sum + chargeUnitAmount(intent, item) * item.quantity,
-    0,
-  );
+  sumOf(
+    (item: { unitPrice: number; quantity: number }) =>
+      chargeUnitAmount(intent, item) * item.quantity,
+  )(intent.items);

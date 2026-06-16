@@ -16,6 +16,8 @@ import {
   pipe,
   reduce,
   sort,
+  sum,
+  sumOf,
   ttlCache,
   unique,
   uniqueBy,
@@ -184,6 +186,35 @@ describe("fp", () => {
         return acc;
       };
       expect(reduce(collect, [] as number[])([1, 2, 3])).toEqual([3, 6, 9]);
+    });
+  });
+
+  describe("sumOf", () => {
+    test("sums the numbers produced by the selector", () => {
+      const items = [{ n: 1 }, { n: 2 }, { n: 3 }];
+      expect(sumOf((x: { n: number }) => x.n)(items)).toBe(6);
+    });
+
+    test("returns 0 for an empty array", () => {
+      expect(sumOf((x: { n: number }) => x.n)([])).toBe(0);
+    });
+
+    test("works inside a pipe as a terminal reducer", () => {
+      const result = pipe(
+        filter((x: number) => x % 2 === 0),
+        sumOf((x: number) => x * 10),
+      )([1, 2, 3, 4]);
+      expect(result).toBe(60); // (2 + 4) * 10
+    });
+  });
+
+  describe("sum", () => {
+    test("adds an array of numbers", () => {
+      expect(sum([1, 2, 3, 4])).toBe(10);
+    });
+
+    test("returns 0 for an empty array", () => {
+      expect(sum([])).toBe(0);
     });
   });
 

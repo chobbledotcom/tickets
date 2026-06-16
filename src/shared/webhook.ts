@@ -3,7 +3,7 @@
  * Sends consolidated registration data to configured webhook URLs
  */
 
-import { compact, unique } from "#fp";
+import { compact, sumOf, unique } from "#fp";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getBuiltSiteByRenewalTokenIndex } from "#shared/db/built-sites.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -91,10 +91,9 @@ export const buildWebhookPayload = (
   currency: string,
 ): WebhookPayload => {
   const first = entries[0]!;
-  const totalPricePaid = entries.reduce(
-    (sum, { attendee }) => sum + Number.parseInt(attendee.price_paid, 10),
-    0,
-  );
+  const totalPricePaid = sumOf((e: RegistrationEntry) =>
+    Number.parseInt(e.attendee.price_paid, 10),
+  )(entries);
 
   const hasPaidListing = entries.some(({ listing }) => isPaidListing(listing));
   return {
@@ -226,9 +225,8 @@ export const applyRenewalsForEntries = async (
       months: entry.attendee.quantity * entry.listing.months_per_unit,
     }))
     .filter(({ months }) => months > 0);
-  const totalMonths = renewalEntries.reduce(
-    (sum, { months }) => sum + months,
-    0,
+  const totalMonths = sumOf((r: { months: number }) => r.months)(
+    renewalEntries,
   );
 
   const result = await syncReadOnlyFrom(

@@ -9,7 +9,7 @@
  * list, validates drafts, and builds the send payload + unsubscribe footer.
  */
 
-import { compact, filter, map, pipe, sort, unique, uniqueBy } from "#fp";
+import { compact, filter, map, pipe, sort, sum, unique, uniqueBy } from "#fp";
 import {
   type BulkEmailTarget,
   isBulkEmailTarget,
@@ -225,7 +225,7 @@ export const buildBulkPayload = async (params: {
  */
 export const contactFrequencySummary = (counts: number[]): string => {
   if (counts.length === 0) return "";
-  const total = counts.reduce((sum, n) => sum + n, 0);
+  const total = sum(counts);
   if (total === 0) {
     return "These attendees have never been contacted through this page.";
   }

@@ -49,6 +49,14 @@ const result = reduce((acc, item) => {
 
 ### Available FP Functions
 
+These are the curried helpers actually exported from `#fp`. Several are thin
+adapters over `@std/collections` (noted below) so the standard library does the
+work while the project keeps its pipe-friendly calling convention. For
+collection operations not covered here (grouping, partitioning, keying, picking
+object keys, etc.), reach for `@std/collections` directly rather than
+hand-rolling — wrap it in a curried `#fp` adapter if it will be reused across
+the `pipe`-based code.
+
 | Function           | Purpose                         |
 | ------------------ | ------------------------------- |
 | `pipe(...fns)`     | Compose functions left-to-right |
@@ -57,14 +65,12 @@ const result = reduce((acc, item) => {
 | `flatMap(fn)`      | Curried array flatMap           |
 | `reduce(fn, init)` | Curried array reduce            |
 | `sort(cmp)`        | Non-mutating sort               |
-| `sortBy(key)`      | Sort by property/getter         |
-| `unique(arr)`      | Remove duplicates               |
-| `uniqueBy(fn)`     | Dedupe by key                   |
+| `unique(arr)`      | Remove duplicates (std distinct)   |
+| `uniqueBy(fn)`     | Dedupe by key (std distinctBy)     |
 | `compact(arr)`     | Remove null/undefined           |
-| `chunk(size)`      | Split array into chunks         |
-| `pick(keys)`       | Extract object keys             |
-
-| `groupBy(fn)` | Group array items |
+| `chunk(size)`      | Split array into chunks (std chunk) |
+| `sumOf(selector)`  | Sum by selector (std sumOf)        |
+| `sum(arr)`         | Sum an array of numbers         |
 
 ## Scripts
 

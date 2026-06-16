@@ -9,7 +9,7 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { filter, map, pipe, reduce, unique } from "#fp";
+import { filter, map, pipe, sumOf, unique } from "#fp";
 import { addDays } from "#shared/dates.ts";
 import type {
   BatchAvailabilityItem,
@@ -180,10 +180,7 @@ const daySpan = (days: string[]): { startAt: string; endAt: string } => {
 type IntervalRow = { start_at: string; end_at: string; quantity: number };
 
 /** Sum the quantity column of a set of rows */
-const sumQuantity = reduce(
-  (sum: number, row: { quantity: number }) => sum + row.quantity,
-  0,
-);
+const sumQuantity = sumOf((row: { quantity: number }) => row.quantity);
 
 /** Curried day-overlap predicate. String comparison mirrors SQLite TEXT
  * comparison byte-for-byte, so this reproduces the SQL overlap predicate
