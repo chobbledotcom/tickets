@@ -5,7 +5,11 @@
 import { t } from "#i18n";
 import { ConfirmForm, CsrfForm, Flash, renderFields } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import type { AdminLevel, AdminSession } from "#shared/types.ts";
+import type {
+  AdminLevel,
+  AdminSession,
+  LogisticsAgent,
+} from "#shared/types.ts";
 import { AdminNav, UsersSubNav } from "#templates/admin/nav.tsx";
 import {
   ActionButton,
@@ -18,12 +22,42 @@ import { Layout } from "#templates/layout.tsx";
 /** Displayable user info (decrypted) */
 export interface DisplayUser {
   adminLevel: AdminLevel;
+  /** For agent users: the names of the logistics agents they're assigned to. */
+  agentNames?: string[];
   hasDataKey: boolean;
   hasPassword: boolean;
   id: number;
   inviteExpired: boolean;
   username: string;
 }
+
+/** Checkbox list for picking the logistics agents an agent user drives.
+ * Submits the chosen ids under the repeated `agent_ids` field. */
+const AgentSelector = ({
+  agents,
+  selected,
+}: {
+  agents: LogisticsAgent[];
+  selected: ReadonlySet<number>;
+}): JSX.Element => (
+  <fieldset class="checkboxes">
+    <legend>{t("users.agents.legend")}</legend>
+    <p>
+      <small>{t("users.agents.hint")}</small>
+    </p>
+    {agents.map((agent) => (
+      <label>
+        <input
+          checked={selected.has(agent.id) || undefined}
+          name="agent_ids"
+          type="checkbox"
+          value={String(agent.id)}
+        />
+        {` ${agent.name}`}
+      </label>
+    ))}
+  </fieldset>
+);
 
 /** Status label for a user */
 const userStatus = (user: DisplayUser): string => {
@@ -90,7 +124,19 @@ export const adminUsersPage = (
             {users.map((user) => (
               <tr>
                 <td>{user.username}</td>
-                <td>{user.adminLevel}</td>
+                <td>
+                  {user.adminLevel}
+                  {user.adminLevel === "agent" && (
+                    <>
+                      <br />
+                      <small>
+                        {user.agentNames && user.agentNames.length > 0
+                          ? user.agentNames.join(", ")
+                          : t("users.agents.none_assigned")}
+                      </small>
+                    </>
+                  )}
+                </td>
                 <td>{userStatus(user)}</td>
                 <td>
                   {user.hasPassword && !user.hasDataKey && (
@@ -102,6 +148,11 @@ export const adminUsersPage = (
                         {t("users.activate")}
                       </SubmitButton>
                     </CsrfForm>
+                  )}
+                  {user.adminLevel === "agent" && (
+                    <a href={`/admin/users/${user.id}/agents`}>
+                      {t("users.agents.edit_link")}
+                    </a>
                   )}
                 </td>
                 <td>
@@ -157,6 +208,7 @@ export const adminUserDeletePage = (
  */
 export const adminUserNewPage = (
   session: AdminSession,
+  agents: LogisticsAgent[],
   error?: string,
 ): string =>
   String(
@@ -167,7 +219,42 @@ export const adminUserNewPage = (
         <h1>{t("users.invite.heading")}</h1>
         <Flash error={error} />
         <Raw html={renderFields(getInviteUserFields())} />
+        {agents.length > 0 && (
+          <AgentSelector agents={agents} selected={new Set()} />
+        )}
         <SubmitButton icon="user-plus">{t("users.invite.submit")}</SubmitButton>
       </CsrfForm>
+    </Layout>,
+  );
+
+/**
+ * Admin page for editing which logistics agents an agent user drives.
+ */
+export const adminUserAgentsPage = (
+  user: DisplayUser,
+  agents: LogisticsAgent[],
+  selectedIds: ReadonlySet<number>,
+  session: AdminSession,
+  error?: string,
+): string =>
+  String(
+    <Layout title={`${t("users.agents.title")}: ${user.username}`}>
+      <AdminNav active="/admin/users" session={session} />
+
+      <h1>{t("users.agents.heading", { username: user.username })}</h1>
+      <Flash error={error} />
+      {agents.length === 0 ? (
+        <p>
+          <em>
+            {t("users.agents.none_exist")}{" "}
+            <a href="/admin/logistics">{t("nav.logistics")}</a>.
+          </em>
+        </p>
+      ) : (
+        <CsrfForm action={`/admin/users/${user.id}/agents`}>
+          <AgentSelector agents={agents} selected={selectedIds} />
+          <SubmitButton icon="save">{t("users.agents.save")}</SubmitButton>
+        </CsrfForm>
+      )}
     </Layout>,
   );

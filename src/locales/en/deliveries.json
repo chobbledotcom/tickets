@@ -1,0 +1,16 @@
+{
+  "deliveries.title": "Deliveries",
+  "deliveries.no_agents": "You have no logistics agents assigned yet. Ask the site owner to assign you.",
+  "deliveries.none_scheduled": "No deliveries scheduled for today or tomorrow.",
+  "deliveries.nothing_scheduled": "Nothing scheduled.",
+  "deliveries.dropoff": "Drop-off",
+  "deliveries.collection": "Collection",
+  "deliveries.mark_done": "Mark done",
+  "deliveries.mark_not_done": "Mark not done",
+  "deliveries.today": "Today",
+  "deliveries.tomorrow": "Tomorrow",
+  "deliveries.marked_done": "Marked done",
+  "deliveries.marked_not_done": "Marked not done",
+  "deliveries.not_yours": "That delivery is not assigned to you",
+  "deliveries.invalid_request": "Invalid request"
+}

@@ -15,10 +15,10 @@ import { formatDatetimeShort } from "#shared/dates.ts";
 import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import type { Child } from "#shared/jsx/jsx-runtime.ts";
-import { phoneLinks } from "#shared/phone.ts";
 import type { Attendee } from "#shared/types.ts";
 import { ActivityLogTable } from "#templates/admin/activityLog.tsx";
 import { MapsLinks } from "#templates/components/maps-links.tsx";
+import { PhoneLinks } from "#templates/components/phone-links.tsx";
 
 /** One key/value row of a detail table. */
 const DetailTableRow = ({
@@ -38,35 +38,6 @@ const DetailTableRow = ({
 const Multiline = ({ text }: { text: string }): JSX.Element => (
   <span style="white-space:pre-wrap">{text}</span>
 );
-
-/** The phone number followed by small `tel:` and WhatsApp links. The number is
- * normalised (e.g. `07700 900000` → `+447700900000`) for the link hrefs while
- * the display keeps whatever the attendee entered. */
-const PhoneCell = ({
-  phone,
-  phonePrefix,
-}: {
-  phone: string;
-  phonePrefix: string;
-}): JSX.Element => {
-  const links = phoneLinks(phone, phonePrefix);
-  return (
-    <>
-      {phone}
-      {links && (
-        <>
-          {" "}
-          <small>
-            <a href={links.tel}>{t("attendee_detail.tel")}</a>{" "}
-            <a href={links.whatsapp} rel="noopener" target="_blank">
-              {t("attendee_detail.whatsapp")}
-            </a>
-          </small>
-        </>
-      )}
-    </>
-  );
-};
 
 /**
  * The main read-only details table for a single attendee. Optional contact
@@ -90,7 +61,7 @@ export const AttendeeDetail = ({
     ) : null,
     attendee.phone ? (
       <DetailTableRow label={t("common.phone")}>
-        <PhoneCell phone={attendee.phone} phonePrefix={phonePrefix} />
+        <PhoneLinks phone={attendee.phone} phonePrefix={phonePrefix} />
       </DetailTableRow>
     ) : null,
     attendee.address ? (

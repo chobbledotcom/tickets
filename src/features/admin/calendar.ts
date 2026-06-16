@@ -36,7 +36,10 @@ import {
   bookingAssignmentKey,
   getLogisticsAssignmentsForAttendees,
 } from "#shared/db/logistics.ts";
-import { getAllLogisticsAgents } from "#shared/db/logistics-agents.ts";
+import {
+  agentNameMap,
+  getAllLogisticsAgents,
+} from "#shared/db/logistics-agents.ts";
 import { loadAttendeeQuestionData } from "#shared/db/questions.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
@@ -205,7 +208,7 @@ const buildLogisticsCsvContext = async (
     attendeeIds(attendees),
   );
   return {
-    agentNames: new Map(agents.map((a) => [a.id, a.name])),
+    agentNames: agentNameMap(agents),
     assignments: new Map(
       rows.map((r) => [bookingAssignmentKey(r.attendeeId, r.listingId), r]),
     ),

@@ -17,6 +17,7 @@ import {
   logisticsAgentsTable,
 } from "#shared/db/logistics-agents.ts";
 import { settings } from "#shared/db/settings.ts";
+import { clearUserAgentLinksForAgent } from "#shared/db/user-agents.ts";
 import { defineNamedResource } from "#shared/rest/resource.ts";
 import {
   adminLogisticsAgentDeletePage,
@@ -49,6 +50,7 @@ const logisticsAgentsResource = defineNamedResource({
   nameField: "name",
   onDelete: async (id: InValue): Promise<void> => {
     await clearLogisticsAgentReferences(Number(id));
+    await clearUserAgentLinksForAgent(Number(id));
     await logisticsAgentsTable.deleteById(id);
   },
   table: logisticsAgentsTable,
