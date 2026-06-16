@@ -848,6 +848,16 @@ const settingsBase = {
     return snap("show_public_site");
   },
 
+  // --- SMS gateway ---
+  smsGateway: {
+    get hasPassphrase(): boolean {
+      return snap("sms_gateway_passphrase") !== "";
+    },
+    get hasPassword(): boolean {
+      return snap("sms_gateway_password") !== "";
+    },
+  },
+
   // --- Square ---
   square: {
     get accessToken(): string {
