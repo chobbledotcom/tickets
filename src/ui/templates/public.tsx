@@ -515,15 +515,14 @@ export const notFoundPage = (): string =>
  */
 export const qrBookErrorPage = (slug: string): string =>
   String(
-    <Layout title="QR code expired">
+    <Layout title={t("public.qr_book_error.title")}>
       <div class="prose">
-        <h1>QR code expired or invalid</h1>
+        <h1>{t("public.qr_book_error.heading")}</h1>
+        <p>{t("public.qr_book_error.message")}</p>
         <p>
-          This QR code has expired or the link has been tampered with. Ask the
-          organiser to generate a new one, or use the normal booking page below.
-        </p>
-        <p>
-          <a href={`/ticket/${escapeHtml(slug)}`}>Go to booking page</a>
+          <a href={`/ticket/${escapeHtml(slug)}`}>
+            {t("public.qr_book_error.booking_link")}
+          </a>
         </p>
       </div>
     </Layout>,
@@ -534,13 +533,10 @@ export const qrBookErrorPage = (slug: string): string =>
  */
 export const rateLimitedPage = (): string =>
   String(
-    <Layout title="Too Many Requests">
+    <Layout title={t("public.rate_limited.title")}>
       <div class="prose">
-        <h1>Too Many Requests</h1>
-        <p>
-          You've hit too many invalid ticket links. Please wait a few minutes
-          and try again.
-        </p>
+        <h1>{t("public.rate_limited.heading")}</h1>
+        <p>{t("public.rate_limited.message")}</p>
       </div>
     </Layout>,
   );
@@ -566,12 +562,10 @@ ${ERROR_DIALOG_STYLE}`;
 
 export const temporaryErrorPage = (): string =>
   String(
-    <Layout headExtra={TEMPORARY_ERROR_HEAD} title="Temporary Error">
+    <Layout headExtra={TEMPORARY_ERROR_HEAD} title={t("public.temporary_error.title")}>
       <div class="prose">
-        <h1>Temporary Error</h1>
-        <p>
-          Something went wrong loading this page. Retrying automatically&hellip;
-        </p>
+        <h1>{t("public.temporary_error.heading")}</h1>
+        <p>{t("public.temporary_error.message")}</p>
         <p>
           <small>
             Check{" "}
@@ -596,12 +590,14 @@ ${ERROR_DIALOG_STYLE}`;
 
 export const migrationInProgressPage = (): string =>
   String(
-    <Layout headExtra={MIGRATION_IN_PROGRESS_HEAD} title="Update In Progress">
+    <Layout
+      headExtra={MIGRATION_IN_PROGRESS_HEAD}
+      title={t("public.migration_in_progress.title")}
+    >
       <div class="prose">
-        <h1>Update In Progress</h1>
+        <h1>{t("public.migration_in_progress.heading")}</h1>
         <p>
-          We&rsquo;re backing up and updating the database. This usually only
-          takes a few seconds. This page will reload automatically&hellip;
+          <Raw html={t("public.migration_in_progress.message")} />
         </p>
       </div>
     </Layout>,
@@ -614,10 +610,10 @@ export const migrationInProgressPage = (): string =>
  */
 export const siteNotActivatedPage = (): string =>
   String(
-    <Layout headExtra={ERROR_DIALOG_STYLE} title="Not Activated">
+    <Layout headExtra={ERROR_DIALOG_STYLE} title={t("public.not_activated.title")}>
       <div class="prose">
-        <h1>Not Activated</h1>
-        <p>This site has not been activated yet.</p>
+        <h1>{t("public.not_activated.heading")}</h1>
+        <p>{t("public.not_activated.message")}</p>
       </div>
     </Layout>,
   );
@@ -628,9 +624,9 @@ export const siteNotActivatedPage = (): string =>
 export const readOnlyPage = (): string => {
   const renewalUrl = getRenewalUrl();
   return String(
-    <Layout title="Read Only">
+    <Layout title={t("public.read_only.title")}>
       <p>
-        This site is in read-only mode.
+        {t("public.read_only.message")}
         {renewalUrl && <Raw html={` <a href="${renewalUrl}">Renew now</a>`} />}
       </p>
     </Layout>,
