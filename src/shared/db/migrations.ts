@@ -15,7 +15,7 @@ import type { Client, InValue } from "@libsql/client";
 import { lazyRef } from "#fp";
 import { ensureDefaultAttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import { createAndUploadBackup, hasRecentBackup } from "#shared/db/backup.ts";
-import { executeBatch, getDb, queryBatch } from "#shared/db/client.ts";
+import { executeBatch, getDb, queryBatchPrimary } from "#shared/db/client.ts";
 import { getEnv } from "#shared/env.ts";
 import { logDebug } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
@@ -649,9 +649,14 @@ type LiveSchema = {
  * are collapsed into two SELECTs sent as one read batch. The first joins
  * `sqlite_master` against the `pragma_table_info` table-valued function to read
  * every column of every table at once; the second lists every index name.
+ *
+ * Pinned to the primary (not a replica): every caller runs inside a migration,
+ * where the snapshot must reflect DDL applied moments earlier in the same run.
+ * A replica that lags behind that write would report a just-created table as
+ * missing, failing verify() spuriously (see queryBatchPrimary).
  */
 const snapshotLiveSchema = async (): Promise<LiveSchema> => {
-  const [columns, indexRows] = await queryBatch([
+  const [columns, indexRows] = await queryBatchPrimary([
     {
       args: [],
       sql:

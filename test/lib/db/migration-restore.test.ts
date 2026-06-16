@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { spy } from "@std/testing/mock";
 import { getDb, insert } from "#shared/db/client.ts";
 import {
   MIGRATIONS,
@@ -117,6 +118,30 @@ describeWithEnv("db > migration restore", { db: true }, () => {
       }
     });
   }
+
+  test("verify reads the live schema from the primary, not a replica", async () => {
+    // A replica can lag behind the DDL a migration just committed, so verify()
+    // must read its own writes from the primary or it reports a freshly-created
+    // table as missing. libsql routes "write"-mode batches to the primary and
+    // "read"-mode batches to a (possibly stale) replica.
+    const client = getDb();
+    const batchSpy = spy(client, "batch");
+    try {
+      await migrationById("2026-06-16_email_templates").verify();
+    } finally {
+      batchSpy.restore();
+    }
+
+    const schemaReads = batchSpy.calls.filter(({ args }) =>
+      (args[0] as Array<{ sql: string }>).some((stmt) =>
+        stmt.sql.includes("pragma_table_info"),
+      ),
+    );
+    expect(schemaReads.length).toBeGreaterThan(0);
+    for (const call of schemaReads) {
+      expect(call.args[1]).toBe("write");
+    }
+  });
 
   test("a fully-migrated database satisfies every migration's verify()", async () => {
     for (const migration of MIGRATIONS) {
