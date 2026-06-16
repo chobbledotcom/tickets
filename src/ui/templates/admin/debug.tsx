@@ -302,7 +302,7 @@ const EmailSection = ({
   email: DebugPageState["email"];
 }): JSX.Element => (
   <article>
-    <h2>{t("debug.section.email")}</h2>
+    <h2>{t("common.email")}</h2>
     <table>
       <tbody>
         <tr>

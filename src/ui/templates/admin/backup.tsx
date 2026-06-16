@@ -126,9 +126,9 @@ export const adminBackupPage = (
                 <table>
                   <thead>
                     <tr>
-                      <th>{t("backup.table_created")}</th>
+                      <th>{t("common.created")}</th>
                       <th>{t("backup.table_size")}</th>
-                      <th>{t("backup.table_actions")}</th>
+                      <th>{t("common.actions")}</th>
                     </tr>
                   </thead>
                   <tbody>

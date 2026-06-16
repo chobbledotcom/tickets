@@ -32,7 +32,7 @@ const ApiKeyRow = ({ apiKey }: { apiKey: ApiKeyDisplay }): string =>
       </td>
       <td>
         <a class="danger small" href={`/admin/api-keys/${apiKey.id}/delete`}>
-          {t("api_keys.delete")}
+          {t("common.delete")}
         </a>
       </td>
     </tr>,
@@ -82,8 +82,8 @@ export const adminApiKeysPage = (
         <table>
           <thead>
             <tr>
-              <th>{t("api_keys.col.name")}</th>
-              <th>{t("api_keys.col.created")}</th>
+              <th>{t("common.name")}</th>
+              <th>{t("common.created")}</th>
               <th>{t("api_keys.col.last_used")}</th>
               <th></th>
             </tr>

@@ -91,9 +91,7 @@ const multiBookingSection = (activeListings: ListingWithCount[]): string => {
         readonly
         type="text"
       />
-      <label for="multi-booking-embed-script">
-        {t("admin.dashboard.embed_script")}
-      </label>
+      <label for="multi-booking-embed-script">{t("common.embed_script")}</label>
       <input
         data-multi-booking-embed-script
         data-select-on-click
@@ -102,9 +100,7 @@ const multiBookingSection = (activeListings: ListingWithCount[]): string => {
         readonly
         type="text"
       />
-      <label for="multi-booking-embed-iframe">
-        {t("admin.dashboard.embed_iframe")}
-      </label>
+      <label for="multi-booking-embed-iframe">{t("common.embed_iframe")}</label>
       <input
         data-multi-booking-embed-iframe
         data-select-on-click

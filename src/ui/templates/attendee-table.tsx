@@ -263,14 +263,12 @@ const createActionsRenderer =
           </a>
         )}
         {isRefundable(row) && " "}
-        <a href={`/admin/attendees/${a.id}${suffix}`}>
-          {t("admin.attendee_table.edit")}
-        </a>{" "}
+        <a href={`/admin/attendees/${a.id}${suffix}`}>{t("common.edit")}</a>{" "}
         <a
           class="danger"
           href={`/admin/listing/${row.listingId}/attendee/${a.id}/delete${suffix}`}
         >
-          {t("admin.attendee_table.delete")}
+          {t("common.delete")}
         </a>{" "}
         <a
           href={`/admin/listing/${row.listingId}/attendee/${a.id}/resend-notification${suffix}`}

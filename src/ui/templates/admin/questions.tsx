@@ -145,7 +145,7 @@ export const adminQuestionPage = (
                 class="danger small"
                 href={`/admin/questions/${question.id}/answers/${a.id}/delete`}
               >
-                {t("questions.edit.delete_answer")}
+                {t("common.delete")}
               </a>
             </li>
           ))}
@@ -286,7 +286,7 @@ export const adminListingQuestionsPage = (
               </label>
             ))(allQuestions)}
           </fieldset>
-          <SubmitButton icon="save">{t("questions.listing.save")}</SubmitButton>
+          <SubmitButton icon="save">{t("common.save")}</SubmitButton>
         </CsrfForm>
       )}
       <p>

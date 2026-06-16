@@ -48,10 +48,10 @@ export const adminHolidaysPage = (
           <table>
             <thead>
               <tr>
-                <th>{t("holidays.col.name")}</th>
+                <th>{t("common.name")}</th>
                 <th>{t("holidays.col.start_date")}</th>
                 <th>{t("holidays.col.end_date")}</th>
-                <th>{t("holidays.col.actions")}</th>
+                <th>{t("common.actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -62,10 +62,10 @@ export const adminHolidaysPage = (
                   <td>{holiday.end_date}</td>
                   <td>
                     <a href={`/admin/holidays/${holiday.id}/edit`}>
-                      {t("holidays.edit")}
+                      {t("common.edit")}
                     </a>{" "}
                     <a href={`/admin/holidays/${holiday.id}/delete`}>
-                      {t("holidays.delete")}
+                      {t("common.delete")}
                     </a>
                   </td>
                 </tr>
@@ -121,7 +121,7 @@ export const adminHolidayEditPage = (
         <Raw
           html={renderFields(getHolidayFields(), holidayToFieldValues(holiday))}
         />
-        <SubmitButton icon="save">{t("holidays.edit.submit")}</SubmitButton>
+        <SubmitButton icon="save">{t("common.save_changes")}</SubmitButton>
       </CsrfForm>
     </Layout>,
   );

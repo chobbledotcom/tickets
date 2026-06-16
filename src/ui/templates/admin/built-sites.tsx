@@ -107,9 +107,9 @@ export const adminBuiltSitesPage = (
             <table>
               <thead>
                 <tr>
-                  <th>{t("built_sites.table_name")}</th>
+                  <th>{t("common.name")}</th>
                   <th>{t("built_sites.table_bunny_url")}</th>
-                  <th>{t("built_sites.table_status")}</th>
+                  <th>{t("common.status")}</th>
                   <th>{t("built_sites.table_read_only")}</th>
                 </tr>
               </thead>
@@ -420,9 +420,7 @@ export const adminBuiltSiteEditPage = (
             builtSiteToFieldValues(site),
           )}
         />
-        <SubmitButton icon="save">
-          {t("built_sites.save_changes_button")}
-        </SubmitButton>
+        <SubmitButton icon="save">{t("common.save_changes")}</SubmitButton>
       </CsrfForm>
 
       <h2>{t("built_sites.renewal_title")}</h2>
@@ -435,7 +433,7 @@ export const adminBuiltSiteEditPage = (
       <h2>{t("built_sites.secrets_title")}</h2>
       <SecretsPanel site={site} view={secretsView} />
 
-      <h2>{t("built_sites.delete_title")}</h2>
+      <h2>{t("common.delete")}</h2>
       <p class="prose">
         <ActionButton
           href={`/admin/built-sites/${site.id}/delete`}

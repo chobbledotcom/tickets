@@ -13,7 +13,6 @@
   "questions.edit.new_answer_placeholder": "e.g. Medium",
   "questions.edit.add_answer": "Add Answer",
   "questions.edit.no_answers": "No answers yet. Add at least 2 answer options.",
-  "questions.edit.delete_answer": "Delete",
   "questions.delete.link": "Delete Question",
   "questions.delete.heading": "Delete Question",
   "questions.delete.warning": "This will permanently delete the question, all its answers, and all attendee responses.",
@@ -28,6 +27,5 @@
   "questions.delete_answer.submit": "Delete Answer",
   "questions.listing.heading": "Questions for {listing}",
   "questions.listing.no_questions": "No questions created yet. Create questions first.",
-  "questions.listing.manage": "Manage Questions",
-  "questions.listing.save": "Save"
+  "questions.listing.manage": "Manage Questions"
 }

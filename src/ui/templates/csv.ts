@@ -44,16 +44,16 @@ const formatCheckedIn = (checkedIn: boolean): string =>
 /** Translated, CSV-escaped standard attendee header columns. */
 const attendeeHeaders = (): string[] =>
   [
-    t("csv.col.name"),
-    t("csv.col.email"),
-    t("csv.col.phone"),
-    t("csv.col.address"),
-    t("csv.col.special_instructions"),
-    t("csv.col.quantity"),
-    t("csv.col.registered"),
+    t("common.name"),
+    t("common.email"),
+    t("common.phone"),
+    t("common.address"),
+    t("common.special_instructions"),
+    t("common.quantity"),
+    t("common.registered"),
     t("csv.col.price_paid"),
     t("csv.col.transaction_id"),
-    t("csv.col.checked_in"),
+    t("common.checked_in"),
     t("csv.col.ticket_token"),
     t("csv.col.ticket_url"),
   ].map(escapeCsvValue);
@@ -168,7 +168,7 @@ export const generateAttendeesCsv = (
 
   const questionHeaders = questions.map((q) => escapeCsvValue(q.text));
   const headerParts = [
-    ...(includeDate ? [escapeCsvValue(t("csv.col.date"))] : []),
+    ...(includeDate ? [escapeCsvValue(t("common.date"))] : []),
     ...listingInfoHeaders(showListingDate, showListingLocation),
     ...attendeeHeaders(),
     ...questionHeaders,
@@ -202,7 +202,7 @@ export const generateCalendarCsv = (attendees: CalendarAttendee[]): string => {
   const headerParts = [
     escapeCsvValue(t("terms.listing")),
     ...listingInfoHeaders(showListingDate, showListingLocation),
-    escapeCsvValue(t("csv.col.date")),
+    escapeCsvValue(t("common.date")),
     ...attendeeHeaders(),
   ];
   return buildCsv(

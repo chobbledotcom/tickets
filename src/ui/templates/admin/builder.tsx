@@ -54,7 +54,7 @@ const BuiltSitesTable = ({
     <table>
       <thead>
         <tr>
-          <th>{t("builder.table_name")}</th>
+          <th>{t("common.name")}</th>
           <th>{t("builder.table_url")}</th>
           <th>{t("builder.table_built")}</th>
         </tr>

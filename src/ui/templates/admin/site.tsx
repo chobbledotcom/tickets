@@ -58,7 +58,7 @@ export const adminSiteHomePage = (
             website_title: websiteTitle,
           })}
         />
-        <SubmitButton icon="save">{t("site.home.save")}</SubmitButton>
+        <SubmitButton icon="save">{t("common.save")}</SubmitButton>
       </CsrfForm>
     </Layout>,
   );
@@ -152,7 +152,7 @@ export const adminSiteContactPage = (
             contact_page_text: contactPageText,
           })}
         />
-        <SubmitButton icon="save">{t("site.contact.save")}</SubmitButton>
+        <SubmitButton icon="save">{t("common.save")}</SubmitButton>
       </CsrfForm>
 
       <ContactFormToggle

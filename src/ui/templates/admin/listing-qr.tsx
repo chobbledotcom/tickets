@@ -93,7 +93,7 @@ const DateSelect = ({
   value: string;
 }): JSX.Element => (
   <label>
-    {t("listing_qr.date")}
+    {t("common.date")}
     <select name="date" required>
       <option value="">{t("listing_qr.date_select_placeholder")}</option>
       {dates.map((d) => (
@@ -191,7 +191,7 @@ export const adminListingQrPage = ({
           </label>
           <PriceInput listing={listing} value={values.value} />
           <label>
-            {t("listing_qr.quantity")}
+            {t("common.quantity")}
             <input
               max={listing.max_quantity}
               min="1"

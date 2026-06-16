@@ -3,17 +3,8 @@
   "csv.no": "No",
   "csv.col.listing_date": "Listing Date",
   "csv.col.listing_location": "Listing Location",
-  "csv.col.date": "Date",
-  "csv.col.name": "Name",
-  "csv.col.email": "Email",
-  "csv.col.phone": "Phone",
-  "csv.col.address": "Address",
-  "csv.col.special_instructions": "Special Instructions",
-  "csv.col.quantity": "Quantity",
-  "csv.col.registered": "Registered",
   "csv.col.price_paid": "Price Paid",
   "csv.col.transaction_id": "Transaction ID",
-  "csv.col.checked_in": "Checked In",
   "csv.col.ticket_token": "Ticket Token",
   "csv.col.ticket_url": "Ticket URL"
 }

@@ -13,8 +13,6 @@
   "listing_qr.price_input_title": "A non-negative number (e.g. 10.00)",
   "listing_qr.price_hint_can_pay_more": "Minimum {min}, maximum {max}",
   "listing_qr.price_hint_fixed": "Overrides the ticket price of {price} for this booking",
-  "listing_qr.date": "Date",
   "listing_qr.date_select_placeholder": "— Select a date —",
-  "listing_qr.quantity": "Quantity",
   "listing_qr.generate_button": "Generate QR code"
 }

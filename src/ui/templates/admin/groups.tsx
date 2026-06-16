@@ -69,9 +69,9 @@ export const adminGroupsPage = (
           <table>
             <thead>
               <tr>
-                <th>{t("groups.col.name")}</th>
-                <th>{t("groups.col.slug")}</th>
-                <th>{t("groups.col.actions")}</th>
+                <th>{t("common.name")}</th>
+                <th>{t("common.slug")}</th>
+                <th>{t("common.actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -85,12 +85,12 @@ export const adminGroupsPage = (
                     {!isReadOnly() && (
                       <>
                         <a href={`/admin/groups/${g.id}/edit`}>
-                          {t("groups.edit")}
+                          {t("common.edit")}
                         </a>{" "}
                       </>
                     )}
                     <a href={`/admin/groups/${g.id}/delete`}>
-                      {t("groups.delete")}
+                      {t("common.delete")}
                     </a>
                   </td>
                 </tr>
@@ -149,7 +149,7 @@ export const adminGroupEditPage = (
         <h1>{t("groups.edit.heading")}</h1>
         <Flash error={error} />
         <Raw html={renderFields(getGroupFields(), groupToFieldValues(group))} />
-        <SubmitButton icon="save">{t("groups.edit.submit")}</SubmitButton>
+        <SubmitButton icon="save">{t("common.save_changes")}</SubmitButton>
       </CsrfForm>
     </Layout>,
   );
@@ -328,7 +328,7 @@ export const adminGroupDetailPage = (
                 <th colspan="2">{group.name}</th>
               </tr>
               <tr>
-                <th>{t("groups.detail.public_url")}</th>
+                <th>{t("common.public_url")}</th>
                 <td>
                   <a href={ticketUrl}>
                     {`${allowedDomain}/ticket/${group.slug}`}
@@ -337,7 +337,7 @@ export const adminGroupDetailPage = (
                     {" "}
                     (
                     <a href={`/ticket/${group.slug}/qr`}>
-                      {t("groups.detail.qr_code")}
+                      {t("common.qr_code")}
                     </a>
                     )
                   </small>
@@ -346,7 +346,7 @@ export const adminGroupDetailPage = (
               <tr>
                 <th>
                   <label for={`embed-script-${group.id}`}>
-                    {t("groups.detail.embed_script")}
+                    {t("common.embed_script")}
                   </label>
                 </th>
                 <td>
@@ -362,7 +362,7 @@ export const adminGroupDetailPage = (
               <tr>
                 <th>
                   <label for={`embed-iframe-${group.id}`}>
-                    {t("groups.detail.embed_iframe")}
+                    {t("common.embed_iframe")}
                   </label>
                 </th>
                 <td>

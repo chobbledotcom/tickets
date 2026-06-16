@@ -79,10 +79,10 @@ export const adminUsersPage = (
         <table>
           <thead>
             <tr>
-              <th>{t("users.col.username")}</th>
+              <th>{t("common.username")}</th>
               <th>{t("users.col.role")}</th>
-              <th>{t("users.col.status")}</th>
-              <th>{t("users.col.actions")}</th>
+              <th>{t("common.status")}</th>
+              <th>{t("common.actions")}</th>
               <th></th>
             </tr>
           </thead>
@@ -107,7 +107,7 @@ export const adminUsersPage = (
                 <td>
                   {user.id !== opts.currentUserId && (
                     <a href={`/admin/users/${user.id}/delete`}>
-                      {t("users.delete")}
+                      {t("common.delete")}
                     </a>
                   )}
                 </td>
@@ -134,7 +134,7 @@ export const adminUserDeletePage = (
       <ConfirmForm
         action={`/admin/users/${user.id}/delete`}
         buttonText={t("users.delete_user.submit")}
-        label={t("users.delete_user.confirm_label")}
+        label={t("common.username")}
         name={user.username}
       >
         <h1>{t("users.delete_user.heading")}</h1>

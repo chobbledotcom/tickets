@@ -81,26 +81,24 @@ export const AttendeeDetail = ({
   phonePrefix: string;
 }): JSX.Element => {
   const rows = compact([
-    <DetailTableRow label={t("attendee_detail.name")}>
-      {attendee.name}
-    </DetailTableRow>,
+    <DetailTableRow label={t("common.name")}>{attendee.name}</DetailTableRow>,
     attendee.email ? (
-      <DetailTableRow label={t("attendee_detail.email")}>
+      <DetailTableRow label={t("common.email")}>
         <a href={`mailto:${attendee.email}`}>{attendee.email}</a>
       </DetailTableRow>
     ) : null,
     attendee.phone ? (
-      <DetailTableRow label={t("attendee_detail.phone")}>
+      <DetailTableRow label={t("common.phone")}>
         <PhoneCell phone={attendee.phone} phonePrefix={phonePrefix} />
       </DetailTableRow>
     ) : null,
     attendee.address ? (
-      <DetailTableRow label={t("attendee_detail.address")}>
+      <DetailTableRow label={t("common.address")}>
         <Multiline text={attendee.address} />
       </DetailTableRow>
     ) : null,
     attendee.special_instructions ? (
-      <DetailTableRow label={t("attendee_detail.special_instructions")}>
+      <DetailTableRow label={t("common.special_instructions")}>
         <Multiline text={attendee.special_instructions} />
       </DetailTableRow>
     ) : null,
@@ -109,7 +107,7 @@ export const AttendeeDetail = ({
         {attendee.ticket_token}
       </a>
     </DetailTableRow>,
-    <DetailTableRow label={t("attendee_detail.registered")}>
+    <DetailTableRow label={t("common.registered")}>
       {formatDatetimeShort(attendee.created)}
     </DetailTableRow>,
   ]);

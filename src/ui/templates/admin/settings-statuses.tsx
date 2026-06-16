@@ -91,9 +91,9 @@ export const adminAttendeeStatusesPage = (
         <thead>
           <tr>
             <th>{t("statuses.order_header")}</th>
-            <th>{t("statuses.name_header")}</th>
+            <th>{t("common.name")}</th>
             <th>{t("statuses.flags_header")}</th>
-            <th>{t("statuses.actions_header")}</th>
+            <th>{t("common.actions")}</th>
           </tr>
         </thead>
         <tbody>
@@ -105,12 +105,10 @@ export const adminAttendeeStatusesPage = (
               </td>
               <td>{statusBadges(s)}</td>
               <td>
-                <a href={`${LIST_PATH}/${s.id}/edit`}>
-                  {t("statuses.edit_link")}
-                </a>{" "}
+                <a href={`${LIST_PATH}/${s.id}/edit`}>{t("common.edit")}</a>{" "}
                 <CsrfForm action={`${LIST_PATH}/${s.id}/delete`} class="inline">
                   <button class="link-button danger small" type="submit">
-                    {t("statuses.delete_link")}
+                    {t("common.delete")}
                   </button>
                 </CsrfForm>
               </td>
@@ -153,7 +151,7 @@ export const adminAttendeeStatusFormPage = (
       <Flash error={error} />
       <CsrfForm action={action}>
         <label>
-          {t("statuses.form_name_label")}
+          {t("common.name")}
           <input name="name" required type="text" value={status?.name ?? ""} />
         </label>
         <fieldset class="checkboxes">

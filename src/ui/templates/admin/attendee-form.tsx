@@ -254,8 +254,8 @@ const LineEditor = ({
         <thead>
           <tr>
             <th>{t("terms.listing")}</th>
-            <th>{t("attendee_form.date_header")}</th>
-            <th>{t("attendee_form.qty_header")}</th>
+            <th>{t("common.date")}</th>
+            <th>{t("common.qty")}</th>
             <th></th>
             <th style="width:1%"></th>
           </tr>
@@ -475,7 +475,7 @@ const StatusAndBalanceFields = ({
         <input name={STATUS_FIELD} type="hidden" value={selectedId} />
       ) : (
         <label for={STATUS_FIELD}>
-          {t("attendee_form.status_label")}
+          {t("common.status")}
           <select id={STATUS_FIELD} name={STATUS_FIELD}>
             {data.statuses.map((s) => (
               <option selected={s.id === selectedId} value={s.id}>
@@ -529,7 +529,7 @@ const AttendeeEditForm = ({
       {!isEdit && <h3>{t("attendee_form.attendee_details_heading")}</h3>}
 
       <label for="name">
-        {t("attendee_form.name_label")}
+        {t("common.name")}
         <input
           autofocus
           id="name"
@@ -543,7 +543,7 @@ const AttendeeEditForm = ({
       <StatusAndBalanceFields data={data} />
 
       <label for="email">
-        {t("attendee_form.email_label")}
+        {t("common.email")}
         <input
           id="email"
           name="email"
@@ -553,7 +553,7 @@ const AttendeeEditForm = ({
       </label>
 
       <label for="phone">
-        {t("attendee_form.phone_label")}
+        {t("common.phone")}
         <input
           id="phone"
           name="phone"
@@ -565,14 +565,14 @@ const AttendeeEditForm = ({
       </label>
 
       <label for="address">
-        {t("attendee_form.address_label")}
+        {t("common.address")}
         <textarea id="address" maxlength={250} name="address" rows={3}>
           {data.parsed.address || ""}
         </textarea>
       </label>
 
       <label for="special_instructions">
-        {t("attendee_form.special_instructions_label")}
+        {t("common.special_instructions")}
         <textarea
           id="special_instructions"
           maxlength={250}

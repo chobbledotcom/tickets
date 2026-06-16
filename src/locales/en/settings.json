@@ -110,7 +110,6 @@
   "settings.advanced.domain_not_validated": "Your custom domain is not yet validated. It will not work until validation is complete.",
   "settings.advanced.domain_cname_instructions": "To use your custom domain, create a CNAME record:",
   "settings.advanced.domain_col_type": "Type",
-  "settings.advanced.domain_col_name": "Name",
   "settings.advanced.domain_col_value": "Value",
   "settings.advanced.domain_dns_hint": "Once the DNS record is in place, click the button below to validate and enable SSL.",
   "settings.advanced.domain_last_validated": "Last validated:",

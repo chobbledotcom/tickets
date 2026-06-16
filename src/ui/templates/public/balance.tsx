@@ -27,7 +27,7 @@ export const balancePaymentPage = (
         <thead>
           <tr>
             <th>{t("public_balance.item")}</th>
-            <th>{t("public_balance.qty")}</th>
+            <th>{t("common.qty")}</th>
           </tr>
         </thead>
         <tbody>

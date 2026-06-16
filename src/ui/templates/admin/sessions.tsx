@@ -67,7 +67,7 @@ export const adminSessionsPage = (
             <tr>
               <th>{t("sessions.col.token")}</th>
               <th>{t("sessions.col.expires")}</th>
-              <th>{t("sessions.col.status")}</th>
+              <th>{t("common.status")}</th>
             </tr>
           </thead>
           <tbody>

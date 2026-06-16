@@ -128,7 +128,7 @@ const FailedPaymentRow = ({
           class="inline"
         >
           <button class="link-button danger" type="submit">
-            {t("listings_table.delete")}
+            {t("common.delete")}
           </button>
         </CsrfForm>
       </td>
@@ -147,9 +147,9 @@ const FailedPaymentsTable = ({
     <table>
       <thead>
         <tr>
-          <th>{t("listings_table.name")}</th>
-          <th>{t("listings_table.qty")}</th>
-          <th>{t("listings_table.registered")}</th>
+          <th>{t("common.name")}</th>
+          <th>{t("common.qty")}</th>
+          <th>{t("common.registered")}</th>
           <th></th>
         </tr>
       </thead>
@@ -274,9 +274,7 @@ const ListingActionNav = ({
       <ul>
         {!readOnly && (
           <li>
-            <a href={`/admin/listing/${listing.id}/edit`}>
-              {t("listings_table.edit")}
-            </a>
+            <a href={`/admin/listing/${listing.id}/edit`}>{t("common.edit")}</a>
           </li>
         )}
         {!readOnly && (
@@ -324,7 +322,7 @@ const ListingActionNav = ({
                   : t("listings_table.no_email_attendees")
               }
             >
-              {t("listings_table.email")}
+              {t("common.email")}
             </MaybeButtonLink>
           </li>
         )}
@@ -359,7 +357,7 @@ const ListingActionNav = ({
         )}
         <li>
           <a class="danger" href={`/admin/listing/${listing.id}/delete`}>
-            {t("listings_table.delete")}
+            {t("common.delete")}
           </a>
         </li>
       </ul>
@@ -655,7 +653,7 @@ const ListingDetailsTable = ({
             </td>
           </tr>
           <tr>
-            <th>{t("listings_table.public_url")}</th>
+            <th>{t("common.public_url")}</th>
             <td>
               <a href={ticketUrl}>
                 {`${allowedDomain}/ticket/${listing.slug}`}
@@ -663,9 +661,7 @@ const ListingDetailsTable = ({
               <small>
                 {" "}
                 (
-                <a href={`/ticket/${listing.slug}/qr`}>
-                  {t("listings_table.qr_code")}
-                </a>
+                <a href={`/ticket/${listing.slug}/qr`}>{t("common.qr_code")}</a>
                 )
               </small>
             </td>
@@ -709,7 +705,7 @@ const ListingDetailsTable = ({
           <tr>
             <th>
               <label for={`embed-script-${listing.id}`}>
-                {t("listings_table.embed_script")}
+                {t("common.embed_script")}
               </label>
             </th>
             <td>
@@ -725,7 +721,7 @@ const ListingDetailsTable = ({
           <tr>
             <th>
               <label for={`embed-iframe-${listing.id}`}>
-                {t("listings_table.embed_iframe")}
+                {t("common.embed_iframe")}
               </label>
             </th>
             <td>
@@ -783,7 +779,7 @@ const AttendeesFilterLinks = ({
       html={FilterLink({
         active: activeFilter === "in",
         href: `${basePath}/in${dateQs}#attendees`,
-        label: t("listings_table.checked_in"),
+        label: t("common.checked_in"),
       })}
     />
     {" / "}
@@ -1494,7 +1490,7 @@ export const adminListingEditPage = (
           values={listingToFieldValues(listing)}
         />
         <SubmitButton icon="save" id="listing-edit-submit">
-          {t("listings_table.save_changes")}
+          {t("common.save_changes")}
         </SubmitButton>
       </CsrfForm>
       {storageEnabled && listing.image_url && (

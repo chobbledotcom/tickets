@@ -97,7 +97,7 @@ const buildCheckedInRows = (
       ]
     : [
         {
-          key: `${t("detail_rows.checked_in")}${suffix}`,
+          key: `${t("common.checked_in")}${suffix}`,
           value: formatProgress(stats.ticketsCheckedIn, stats.ticketsTotal),
         },
       ];

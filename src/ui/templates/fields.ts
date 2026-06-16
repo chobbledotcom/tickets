@@ -330,7 +330,7 @@ export const validateUsername = (value: string): string | null => {
 
 /** Base username field shared across login and invite forms */
 const getUsernameFieldBase = (): Field => ({
-  label: t("fields.login.username"),
+  label: t("common.username"),
   maxlength: 32,
   minlength: 2,
   name: "username",
@@ -557,11 +557,11 @@ export const getListingFields = (): Field[] => [
     label: t("fields.listing.contact_fields"),
     name: "fields",
     options: [
-      { label: t("fields.listing.contact_email"), value: "email" },
+      { label: t("common.email"), value: "email" },
       { label: t("fields.listing.contact_phone"), value: "phone" },
-      { label: t("fields.listing.contact_address"), value: "address" },
+      { label: t("common.address"), value: "address" },
       {
-        label: t("fields.listing.contact_special"),
+        label: t("common.special_instructions"),
         value: "special_instructions",
       },
     ],
@@ -764,7 +764,7 @@ export const getAttachmentField = (): Field => ({
 /** Slug field for listing/group edit pages */
 export const getSlugField = (): Field => ({
   hint: t("fields.listing.slug_hint_field"),
-  label: t("fields.listing.slug"),
+  label: t("common.slug"),
   name: "slug",
   pattern: "[a-z0-9_-]+",
   required: true,

@@ -22,5 +22,19 @@
   "common.configured": "Configured",
   "common.not_configured": "Not configured",
   "common.login": "Login",
-  "common.logout": "Logout"
+  "common.logout": "Logout",
+  "common.created": "Created",
+  "common.date": "Date",
+  "common.username": "Username",
+  "common.qty": "Qty",
+  "common.special_instructions": "Special Instructions",
+  "common.registered": "Registered",
+  "common.checked_in": "Checked In",
+  "common.public_url": "Public URL",
+  "common.qr_code": "QR Code",
+  "common.embed_script": "Embed Script",
+  "common.embed_iframe": "Embed Iframe",
+  "common.description": "Description",
+  "common.slug": "Slug",
+  "common.quantity": "Quantity"
 }
