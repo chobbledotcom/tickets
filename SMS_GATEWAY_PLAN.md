@@ -1,234 +1,192 @@
-# SMS Gateway — Minimal First-Party Android App (Feasibility & Design)
+# SMS Gateway — Design (built on SMS Gate / sms-gate.app)
 
 ## Decision
 
-Build a **minimal, first-party Android APK** (produced as part of our build
-process) that turns an owner's spare Android phone into an SMS gateway for
-Chobble Tickets. The phone authenticates with a **scoped API key** created
-through the normal admin UI, **polls our Bunny edge server** for queued
-messages, sends them with the system `SmsManager`, and reports status back.
+Add an SMS gateway to Chobble Tickets by using **[SMS Gateway for Android™
+(SMS Gate)](https://sms-gate.app/)** — an existing, open-source
+([Apache-2.0](https://github.com/android-sms-gateway/server)), actively
+maintained app — as the on-phone radio, and building **only the server side on
+our existing Bunny + libsql stack**.
 
-**No Firebase. No MongoDB. No Redis. No queues. No third party at all** — just
-our existing Deno/libsql edge app plus one tiny Kotlin app talking HTTPS to it.
+**We do not build, fork, or maintain an Android app, and we do not use
+Firebase.** We run SMS Gate in **Local Server mode** (the phone runs its own
+HTTP server, no Google dependency) and make the phone reachable from our cloud
+edge through a **tunnel**. Our Bunny app owns the queue, retries, admin UI, and
+status/inbound webhooks; the phone is a dumb endpoint we `POST` to.
 
-[textbee](https://github.com/vernu/textbee) (MIT licensed) is used purely as a
-reference for the parts that are genuinely hard — the Android `SmsManager`
-send/multipart/delivery-receipt code — and we discard everything else.
+> Supersedes the earlier "fork textbee / build our own minimal APK" idea.
+> textbee is dropped entirely: its server→phone path is Firebase-only, and
+> building/maintaining any Android app (Kotlin or JS) is avoided by adopting
+> SMS Gate's official signed app.
 
-## Why polling, not push
+## Why SMS Gate, and why Local mode specifically
 
-textbee's server reaches the phone exclusively through **Firebase Cloud
-Messaging** (`firebaseAdmin.messaging().sendEach(...)` in
-`api/src/gateway/gateway.service.ts`, received by `FCMService.onMessageReceived`
-in the app). Adopting that would tie us to a Google Firebase project forever and
-pull the `firebase-admin` Node SDK into a runtime (Bunny edge / Deno) that can't
-run it.
+SMS Gate ships four wiring modes. None satisfies *all* of our constraints at
+once, so we pick the one that satisfies the three that matter (no app building,
+no Firebase, our-servers-only):
 
-Polling removes Google from the picture entirely. The tradeoff is latency and a
-little battery: the phone checks in every N seconds instead of being pushed to.
-For our use cases (booking confirmations, reminders, low volume, latency-
-tolerant) that is the right call, and it matches the app's "our servers only"
-philosophy.
+| Mode | No app build | No Firebase | Our servers only | Reuses Bunny/libsql |
+| ---- | :----------: | :---------: | :--------------: | :-----------------: |
+| **Cloud** (their SaaS relay) | ✅ | ✅ (their FCM) | ❌ their cloud | ❌ |
+| **Private server** (self-host their Go+MySQL) | ✅ | ✅ (no FCM setup) | ⚠️ push hops via `api.sms-gate.app` | ❌ separate VPS |
+| **Local mode + tunnel** ← chosen | ✅ | ✅ **none at all** | ✅ **fully** | ⚠️ Bunny calls phone |
+| **Fully independent** | ❌ fork+rebuild | ❌ your own Firebase | ✅ | ⚠️ reimplement mobile API |
 
-## Architecture
+Two facts (from the maintainer and the server repo) rule out the "obvious"
+paths:
+
+- **There is no out-of-the-box, Firebase-free *pull* mode.** In Private Server
+  mode the phone still receives push wake-ups via `api.sms-gate.app` → FCM (the
+  relayed payload contains no phone numbers or message text, but it is still a
+  dependency on their server). Making the official app *pull* from our Bunny
+  server with no Firebase would require **forking + rebuilding the app with our
+  own Firebase project** — exactly the app-maintenance burden we are avoiding.
+- **Local mode uses no Firebase at all**, because the phone *is* the server: the
+  app runs an HTTP server on `:8080` and we send by POSTing to it. Official,
+  unmodified app.
+
+The only cost of Local mode is reachability (phone is on its LAN, behind carrier
+NAT). A tunnel solves it.
+
+## Architecture (Local mode + tunnel)
 
 ```
-Admin UI ──"send SMS to booking"──▶ Bunny edge (Deno + libsql)
-                                         │  writes row to sms_outbox (status=queued)
-                                         ▼
-                                    [ sms_outbox table ]
-                                         ▲
-   Owner's phone (our APK) ──poll every Ns, x-api-key (scoped)──┘
-        │   GET  /api/sms/poll        → claims queued rows (status=sending)
-        │   SmsManager.sendMultipartTextMessage(...)
-        └── POST /api/sms/status      → reports sent / delivered / failed
+Admin "Send SMS to booking" ─▶ Bunny edge (Deno + libsql)
+                                  │  1. write sms_outbox row  (status=queued)
+                                  │  2. POST /message  { textMessage, phoneNumbers }
+                                  │     Basic Auth, over HTTPS
+                                  ▼
+                      Tailscale Funnel public HTTPS URL
+                                  │
+                                  ▼
+                      Phone :8080  (SMS Gate local server)
+                                  │  SmsManager sends the SMS
+                                  ▼
+        webhook (sms:sent / sms:delivered / sms:received)
+                                  │  POST back
+                                  ▼
+                      Bunny  POST /api/sms/webhook  → update sms_outbox / sms_inbox
 ```
 
-Everything server-side is request-driven, which is exactly what Bunny edge
-supports. There is no background worker on the server — the phone is the worker,
-and it drives the loop.
+### What runs where
 
-## Server side (Bunny edge — reuse existing stack)
+- **Phone**: the official SMS Gate app in Local Server mode (foreground service)
+  + a tunnel client (Tailscale app with **Funnel**, or Cloudflare Tunnel /
+  ngrok) exposing `localhost:8080` as a public HTTPS URL. Both apps exempted
+  from battery optimisation (Doze).
+- **Bunny edge (our app)**: owns the queue, retry/backoff, the admin send UI,
+  and the inbound/status webhook receiver. Calls out to the phone's tunnel URL
+  exactly like we already call Stripe / email providers via `fetch`
+  (`src/shared/fetch.ts`, `src/shared/email.ts`).
 
-### 1. Scoped credential ("device key")
+### The phone-side protocol (we consume it, we don't build it)
 
-Our current API keys are **deliberately over-powered for a phone in someone's
-pocket**: each key wraps the master `DATA_KEY`, so holding one grants full
-admin-level access *and* the ability to decrypt all attendee PII
-(`src/shared/db/api-keys.ts`, `src/features/auth.ts` `authenticateApiKey`). We
-must **not** put that on an SMS gateway device.
+- **Send**: `POST http://<tunnel-host>/message`, Basic Auth, body
+  `{"textMessage":{"text":"…"},"phoneNumbers":["+44…"]}`.
+- **Status + inbound**: SMS Gate posts webhooks (`sms:sent`, `sms:delivered`,
+  `sms:failed`, `sms:received`) to a URL we register; we receive them at
+  `POST /api/sms/webhook` and reconcile.
 
-Introduce a **scoped key** that can reach only the SMS gateway endpoints and
-carries **no PII-decryption capability**:
+## Server side on Bunny (what we actually build — reuses our stack)
 
-- Add a `scope` column to `api_keys` (default `admin`, new value `sms_device`),
-  or a dedicated `sms_device_keys` table — a `scope` column reuses the existing
-  create/list/delete/auth plumbing with the least churn.
-- A `sms_device` key has **no `wrapped_data_key`** (or a wrapped key for a
-  separate, PII-free data scope). It cannot call `getPrivateKey()` and therefore
-  cannot decrypt attendees.
-- Extend the auth layer: today `withAuth` + the `ADMIN_API` policy
-  (`src/features/auth.ts`) gates Bearer keys for `/api/*`. Add an `SMS_DEVICE`
-  policy / capability check so the new endpoints accept *only* `sms_device`
-  keys, and the existing admin endpoints reject them.
-- Keys are still created "through the usual users bit": the API-keys admin page
-  (`src/features/admin/api-keys.ts`, `src/ui/templates/admin/api-keys.tsx`)
-  gains a "device key" type. Inherit/record which user owns it for audit
-  (`last_used`, name).
+### 1. Connection settings (encrypted, admin-managed)
 
-The message body the phone receives *is* the SMS text (not encrypted at rest in
-a way the device must unwrap), so the device never needs the PII key — it only
-needs the already-rendered recipient number + message, which the **admin**
-session produced when queuing.
+Store the gateway endpoint + Basic Auth creds in our existing encrypted settings
+mechanism (`src/shared/db/settings.ts`, like the Stripe/email secrets), set on
+an admin settings page. No new secret-handling code — reuse the pattern.
 
 ### 2. Tables (libsql)
 
-- `sms_devices` — `id`, `key_id` (FK to the scoped api key), `name`,
-  `last_seen`, `enabled`. Optional; a key alone can act as the device identity
-  for v1.
 - `sms_outbox` — `id`, `recipient`, `body`, `status`
-  (`queued|sending|sent|delivered|failed`), `claimed_by`, `claimed_at`,
-  `attempts`, `error`, `created`, `updated`, plus a link back to the
-  attendee/booking that triggered it (for the admin view).
-- `sms_inbox` — only if we want inbound SMS later. **Skip for v1.**
+  (`queued|sending|sent|delivered|failed`), `attempts`, `provider_message_id`,
+  `error`, link to the triggering attendee/booking, `created`, `updated`.
+- `sms_inbox` — only if/when we want to act on replies. Optional for v1.
 
-Follow the existing `src/shared/db/*.ts` module pattern (curried `#fp`,
-`getDb()`, `insert`, `queryOne`, `queryAll`) and add a migration in
+Follow the existing db-module pattern (`src/shared/db/*.ts`: curried `#fp`,
+`getDb()`, `insert`, `queryOne`, `queryAll`) + a migration in
 `src/shared/db/migrations.ts`.
 
-### 3. Endpoints (the polling protocol)
+### 3. Routes / flow
 
-All under `/api/sms/*`, mounted like the existing `apiRoutes`
-(`src/features/api/index.ts` → `defineRoutes`/`createRouter`), authenticated
-with the new `SMS_DEVICE` policy.
+- **Enqueue**: an admin action ("send SMS to this attendee/booking", or
+  automatic booking-confirmation/reminder hooks) writes a `queued` row.
+- **Dispatch**: because Bunny edge has **no cron/background worker**, dispatch is
+  triggered inline at enqueue time (POST to the phone immediately) and, for
+  retries of rows the phone couldn't take (offline), opportunistically on the
+  next request or via an external uptime pinger hitting a dispatch endpoint.
+  `sms_outbox` *is* the queue; the phone has no store-and-forward in Local mode,
+  so Bunny owning retry/backoff is required and natural.
+- **Webhook receiver**: `POST /api/sms/webhook` (mounted like the existing
+  `apiRoutes` in `src/features/api/index.ts`) verifies the shared secret /
+  signature and moves rows to `sent`/`delivered`/`failed`; inbound SMS land in
+  `sms_inbox`.
+- **Admin UI**: a "Send SMS" affordance on attendee/booking views, an outbox
+  list with status, a gateway-health indicator (last successful send /
+  last webhook), and the settings page for endpoint + creds.
 
-| Method & path          | Purpose |
-| ---------------------- | ------- |
-| `GET  /api/sms/poll`   | Atomically claim up to N `queued` rows → flip to `sending`, stamp `claimed_by`/`claimed_at`, return `[{id, recipient, body}]`. Also updates device `last_seen`. |
-| `POST /api/sms/status` | Body `[{id, status, error?, sentAt?, deliveredAt?}]`. Move rows to `sent`/`delivered`/`failed`. |
-| `POST /api/sms/heartbeat` *(optional)* | Lightweight liveness ping + config echo (poll interval, send delay). Lets the admin UI show "gateway online". |
+### Edge constraints — all satisfied
 
-Claiming must be race-safe (a single `UPDATE ... WHERE status='queued' ...
-RETURNING` or a transaction) so two isolates / a double-poll can't double-send.
-A reaper isn't a cron job: any `poll` can opportunistically reclaim `sending`
-rows whose `claimed_at` is older than a timeout (re-queue for retry), since the
-phone is the only thing that ever calls in.
+- **No cron / no queue infra needed** — `sms_outbox` is the queue; dispatch is
+  request-driven; retries are opportunistic.
+- **No Firebase / no `firebase-admin`** — irrelevant in Local mode.
+- **Outbound HTTPS only** — already a solved pattern in our codebase.
 
-### Edge constraints — all handled by this design
+## Security
 
-- **No cron** → textbee's hourly heartbeat-check and 5-min status-reconcile
-  crons are gone; liveness is derived from `last_seen` on each poll, retries are
-  handled opportunistically on poll.
-- **No Redis/BullMQ** → `sms_outbox` *is* the queue; large batches are just many
-  rows the phone drains over successive polls.
-- **No `firebase-admin`** → no push at all.
-- **Outbound HTTPS** isn't even needed server→phone (phone initiates), so we
-  don't touch the `fetch` path the email senders use.
+- The tunnel exposes the phone's SMS API publicly: protect with **Basic Auth
+  over HTTPS + a hard-to-guess Funnel hostname**, and where possible an
+  allowlist / Tailscale ACL / Cloudflare Access so only our Bunny egress can
+  reach it.
+- Gateway creds + webhook secret stored **encrypted** via the existing settings
+  crypto.
+- Webhook endpoint verifies a shared secret before mutating `sms_outbox`.
+- No attendee PII ever needs to leave our system except the single recipient
+  number + body of each message, produced by an authenticated admin action.
 
-## Android app (minimal — built by us)
+## Reliability realities (independent of our code)
 
-### What we keep from textbee (the only genuinely valuable part)
+- Phone must stay powered, online, and running **two** foreground apps (SMS Gate
+  + tunnel). Document the Doze/battery-optimisation exemptions for both.
+- Local mode has no on-phone retry — Bunny must retry, which it does.
+- A dead/unreachable phone surfaces as `sms_outbox` rows stuck `queued` past a
+  threshold → drives the gateway-health indicator and (optionally) an alert.
+- Carrier SMS limits / costs still apply; throttle sends (a small per-message
+  delay) to avoid carrier throttling.
 
-The ~100 lines that correctly handle Android SMS sending, adapted from
-`android/.../helpers/SMSHelper.kt` and `workers/SmsSendWorker.kt`:
-
-- `SmsManager.divideMessage()` + `sendMultipartTextMessage()` for long SMS.
-- `PendingIntent`-based **sent / delivered** receipts → maps to our
-  `sent`/`delivered`/`failed` statuses.
-- Permission handling for `SEND_SMS` (+ `READ_PHONE_STATE` only if we keep
-  multi-SIM selection — probably drop for v1).
-
-### What we drop (the "crap we don't need")
-
-- **All of Firebase**: `firebase-messaging`, `google-services.json`,
-  `FCMService`, crashlytics, the `com.google.gms` Gradle plugins.
-- The Next.js **web dashboard** (our admin UI replaces it).
-- **Billing / plans / Polar**, webhooks, mail, support modules.
-- QR onboarding, multi-device, the entire Compose UI suite. Our app is **one
-  screen**: paste/scan host URL + API key, grant SMS permission, toggle
-  "gateway on", show last-sync + counters.
-- Inbound SMS receiving (v1).
-
-### Components (tiny)
-
-- A **foreground service** (or periodic `WorkManager`, ≥15-min floor) running
-  the poll loop with a sticky notification ("SMS gateway active") — required for
-  Android to keep us alive and for Play Store transparency.
-- A `Retrofit`/`OkHttp` (or plain `HttpURLConnection`) client with three calls
-  matching the protocol above; `x-api-key` header.
-- `SharedPreferences` for host + key + enabled flag (textbee's
-  `SharedPreferenceHelper` pattern).
-- One config/setup `Activity`.
-
-Realistically **a few hundred lines of Kotlin**, versus textbee's ~6,500.
-
-### Build & distribution ("part of our build process")
-
-Important reality check: **our current build is Deno + esbuild for the edge**
-(`scripts/build-edge.ts`, `deno task build:edge`). It cannot produce an APK — an
-Android build needs the Android SDK + Gradle/JDK, which is a different toolchain.
-So "part of our build process" means a **separate CI job**, not the Deno build:
-
-- A new `.github/workflows/android.yml` (we already have CI workflows like
-  `bunny-deploy.yml`, `release.yml`) that runs `./gradlew assembleRelease` on a
-  runner with the Android SDK, signs the APK, and attaches it to a GitHub
-  release / our `release.yml` flow.
-- The app source lives in a subdirectory (e.g. `android/`) or a sibling repo.
-  Keeping it in-repo means the host URL can be injected at build time as a
-  `buildConfigField` (textbee already does exactly this:
-  `API_BASE_URL` in `android/app/build.gradle`), so each release is pinned to
-  our domain by default while still allowing a custom host at setup.
-- The owner installs the signed APK by side-load/download link from their admin
-  area. **Publishing to the Play Store is optional and carries real cost**:
-  Google's `SEND_SMS` permission policy review is strict (apps using SMS perms
-  face extra scrutiny/justification). Side-loading a signed APK avoids that
-  entirely for a self-hosted operator.
-
-## Security model
-
-- The device key is **scoped and PII-blind** — worst case if a phone is stolen
-  is enumerating/sending the *queued* outbound messages, not reading the
-  attendee database. Revoke the key in the admin UI to kill the device.
-- Recipient numbers + bodies are produced by an authenticated **admin** action
-  when queued; the phone only ever sees what it must send.
-- Rate-limit `poll`/`status` per key (we already have
-  `src/shared/db/api-key-attempts.ts` patterns and `src/shared/limits.ts`).
-- Audit via existing `last_used`/`last_seen` and the named-key UI.
-
-## Effort estimate
+## Effort & phasing
 
 | Piece | Effort | Notes |
 | ----- | ------ | ----- |
-| `sms_outbox` (+`sms_devices`) tables + migration | Low | Existing db-module pattern |
-| Scoped `sms_device` key type + auth policy | Low–Med | Touches `api-keys.ts`, `auth.ts`, admin UI |
-| `/api/sms/{poll,status,heartbeat}` routes | Low | CRUD + atomic claim |
-| Admin UI: "send SMS", gateway status, device-key management | Med | New templates + actions |
-| Minimal Kotlin app (poll loop + SmsManager send) | Med | ~Few hundred LOC, adapt textbee send code |
-| Android CI job + signing + release wiring | Med | New toolchain in CI |
-| Play Store `SEND_SMS` review | Optional/High | Avoid by side-loading |
+| Encrypted gateway settings + admin settings page | Low | Reuse settings crypto pattern |
+| `sms_outbox` table + migration + db module | Low | Existing pattern |
+| Dispatch (POST to phone) + retry/backoff | Low–Med | Inline + opportunistic |
+| `POST /api/sms/webhook` receiver + status reconcile | Low | Mounted like `apiRoutes` |
+| Admin "Send SMS" UI + outbox + health indicator | Med | New templates/actions |
+| Phone setup runbook (SMS Gate + Tailscale Funnel + Doze) | Low | Docs, not code |
+| `sms_inbox` + reply handling | Optional | Defer to v2 |
 
-Nothing here is blocked. The server side reuses our stack almost wholesale; the
-only genuinely new surface is the Kotlin app and its CI, which is the smallest
-possible Android footprint that does the job.
+**No Android toolchain, no Gradle, no signing keystore, no Play Store review, no
+Kotlin/JS app to maintain.** All new code is Deno/libsql in our existing repo.
 
-## Phasing
+### Phasing
 
-1. **Server spike** — `sms_outbox` table + `poll`/`status` routes + scoped key,
-   driven by `curl` standing in for the phone. Proves the protocol end-to-end
-   with zero Android work.
-2. **Admin UX** — "send SMS to this booking/attendee", outbox view, device-key
-   management page, gateway-online indicator.
-3. **The APK** — minimal Kotlin app + signing + CI job + in-app setup.
-4. **(Later, optional)** inbound SMS (`sms_inbox` + receive endpoint),
-   multi-SIM, delivery-receipt surfacing in the UI.
+1. **Spike**: stand up SMS Gate Local mode on a test phone + Tailscale Funnel;
+   `curl` the `/message` endpoint to confirm end-to-end send + webhook shape.
+2. **Server core**: settings, `sms_outbox`, dispatch + retry, webhook receiver.
+3. **Admin UX**: send action, outbox view, health indicator.
+4. **Automation**: booking-confirmation / reminder SMS hooks.
+5. **(Optional v2)**: inbound replies (`sms_inbox`), multi-phone, or migrate to
+   **Private Server mode** if we outgrow a single tunneled phone (same
+   `POST /api/3rdparty/v1/message` integration, minimal server-side change).
 
 ## Open questions
 
-- **Scope storage**: `scope` column on `api_keys` vs a separate
-  `sms_device_keys` table. (Recommend: column — least churn.)
-- **Poll cadence vs latency/battery**: default interval (e.g. 10–30s while the
-  service is foregrounded) and whether to expose it in setup.
-- **App home**: in-repo `android/` subdir (build-time host pinning, single repo)
-  vs separate repo (cleaner toolchain split). Recommend in-repo subdir.
-- **Distribution**: side-load signed APK only, or also pursue Play Store
-  (triggers `SEND_SMS` policy review).
+- **Tunnel choice**: Tailscale Funnel (first-class Android app, public HTTPS) vs
+  Cloudflare Tunnel vs ngrok. Recommend **Tailscale Funnel**.
+- **Dispatch trigger for retries**: purely opportunistic (on next request) vs an
+  external uptime-cron pinging a dispatch endpoint every minute. Recommend an
+  external pinger for predictable retry latency.
+- **When to graduate to Private Server mode**: multiple phones / higher volume /
+  wanting a gateway-side queue — accept the content-free push hop through
+  `api.sms-gate.app` at that point.
+- **Send throttle default** (per-message delay) to stay under carrier limits.
