@@ -379,11 +379,10 @@ const SecretsPanel = ({
           </ul>
           {infraMissing.length > 0 && (
             <p role="note">
-              <strong>Heads up:</strong> some of these are host-level
-              infrastructure credentials ({infraMissing.join(", ")}). Built
-              sites run on your own infrastructure, so copying them is expected
-              — but be aware this hands the child site host-level access, not
-              just per-site config.
+              <strong>{t("built_sites.infra_secrets_heading")}</strong>{" "}
+              {t("built_sites.infra_secrets_note", {
+                names: infraMissing.join(", "),
+              })}
             </p>
           )}
           <SubmitButton icon="plus">
