@@ -87,6 +87,12 @@ const Q = ({ q, children }: { q: string; children?: Child }): JSX.Element => (
 /**
  * Admin guide page
  */
+const Faq = ({ id }: { id: string }): JSX.Element => (
+  <Q q={t(`guide.q.${id}`)}>
+    <Raw html={t(`guide.a.${id}`)} />
+  </Q>
+);
+
 export const adminGuidePage = (
   adminSession: AdminSession,
   hostConfig?: GuideHostConfig,
@@ -117,15 +123,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q={t("guide.q.setup_payments")}>
-          <p>
-            Go to <strong>Settings</strong> and choose Stripe, Square, or SumUp
-            as your payment provider. Paste in your API key and save. For Stripe
-            and SumUp the webhook is configured automatically. For Square,
-            you'll need to copy the webhook URL shown and add it in your Square
-            Developer Dashboard.
-          </p>
-        </Q>
+        <Faq id="setup_payments" />
       </Section>
 
       <Section title={t("guide.sections.dashboard")}>
@@ -142,15 +140,7 @@ export const adminGuidePage = (
       </Section>
 
       <Section title={t("guide.sections.testing_your_system")}>
-        <Q q={t("guide.q.test_after_changing_settings")}>
-          <p>
-            Yes. After changing any setting &mdash; especially payment
-            configuration, listing capacity, or booking fields &mdash; you
-            should test the full booking process to make sure everything works
-            as expected. Create a test listing (or use test payment credentials)
-            and complete a booking from start to finish.
-          </p>
-        </Q>
+        <Faq id="test_after_changing_settings" />
 
         <Q q={t("guide.q.report_bug")}>
           <p>
@@ -216,26 +206,9 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q={t("guide.q.listing_date_and_location")}>
-          <p>
-            These are optional fields you can fill in when creating or editing a
-            listing. The date is when the listing takes place (in your
-            configured timezone) and the location is where it's held. Both are
-            displayed on the attendee's ticket page so they know when and where
-            to go. For daily listings, attendees already pick a date when
-            booking, so the listing date field is more useful for standard
-            (one-off) listings.
-          </p>
-        </Q>
+        <Faq id="listing_date_and_location" />
 
-        <Q q={t("guide.q.max_tickets_per_purchase")}>
-          <p>
-            It controls how many tickets one person can book in a single
-            transaction. For example, setting it to 4 lets someone book up to 4
-            places at once. The quantity dropdown on the booking form won't
-            exceed this number or the remaining capacity, whichever is lower.
-          </p>
-        </Q>
+        <Faq id="max_tickets_per_purchase" />
 
         <Q q={t("guide.q.allow_pay_more")}>
           <p>
@@ -249,31 +222,9 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="What is 'Purchase Only' mode?">
-          <p>
-            When you enable <strong>Purchase Only</strong> on a listing, it
-            becomes a non-attendance purchase &mdash; ideal for raffles,
-            fundraisers, donations, or merchandise. The booking button changes
-            from &ldquo;Reserve&rdquo; to &ldquo;Buy now&rdquo;, and after
-            purchase attendees see &ldquo;Your Purchase&rdquo; instead of
-            &ldquo;Your Tickets&rdquo;.
-          </p>
-          <p>
-            Because there is nothing to attend, QR codes, the check-in scanner,
-            and wallet passes (Apple &amp; Google) are all hidden. The listing
-            is also excluded from the ICS and RSS feeds. Non-transferable ID
-            notices are suppressed too, since there is no door to check at.
-          </p>
-        </Q>
+        <Faq id="what_is_purchase_only_mode" />
 
-        <Q q={t("guide.q.registration_deadlines")}>
-          <p>
-            Set a "closes at" date and time on your listing. After that moment,
-            the booking form shows a "registration closed" message and no
-            further bookings are accepted. If someone loaded the form before the
-            deadline but submits after, their booking is also rejected.
-          </p>
-        </Q>
+        <Faq id="registration_deadlines" />
 
         <Q q={t("guide.q.embed_booking_form")}>
           <p>
@@ -309,24 +260,9 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q={t("guide.q.custom_redirect_after_booking")}>
-          <p>
-            When creating or editing a listing, enter a URL in the "thank you
-            URL" field. After a successful booking or payment, attendees are
-            redirected to that address instead of seeing the default
-            confirmation page. The URL must use HTTPS, or you can use a relative
-            path starting with <code>/</code>.
-          </p>
-        </Q>
+        <Faq id="custom_redirect_after_booking" />
 
-        <Q q={t("guide.q.add_listing_image")}>
-          <p>
-            When creating or editing a listing, use the image upload field to
-            attach a picture. The image is displayed on the booking page and in
-            the public listings list. Supported formats are JPEG, PNG, GIF, and
-            WebP.
-          </p>
-        </Q>
+        <Faq id="add_listing_image" />
 
         <Q q={t("guide.q.add_file_attachment")}>
           <p>
@@ -347,24 +283,9 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q={t("guide.q.listing_qr_code")}>
-          <p>
-            On the admin listing page, click the <strong>QR code</strong> link
-            next to the public URL. This opens an SVG image of the QR code that
-            links to your listing's registration page. You can save or print it
-            for posters, flyers, or other materials.
-          </p>
-        </Q>
+        <Faq id="listing_qr_code" />
 
-        <Q q={t("guide.q.duplicate_listing")}>
-          <p>
-            Open the listing and click <strong>Duplicate</strong>. This creates
-            a new listing pre-filled with the same capacity, price, fields,
-            group, and other settings so you can adjust what you need without
-            starting from scratch. The name is left blank for you to fill in,
-            and the image, attachment, and assigned questions are not copied.
-          </p>
-        </Q>
+        <Faq id="duplicate_listing" />
 
         <Q q={t("guide.q.deactivate_listing")}>
           <p>
@@ -375,15 +296,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q={t("guide.q.non_transferable_tickets")}>
-          <p>
-            When you enable <strong>Non-Transferable</strong> on a listing,
-            attendees see a notice on their ticket saying "Non-transferable — ID
-            required at entry". At check-in, the QR scanner prompts door staff
-            to verify the attendee's ID matches the name on the ticket before
-            completing check-in. This helps prevent ticket touting.
-          </p>
-        </Q>
+        <Faq id="non_transferable_tickets" />
 
         <Q q={t("guide.q.edit_attendee")}>
           <p>
@@ -445,22 +358,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do I merge duplicate attendees?">
-          <p>
-            If the same person booked separately and ended up with two attendee
-            records, you can merge them. Open one attendee's edit page and find
-            the <strong>Merge</strong> section. Enter the other attendee's
-            ticket token to start the merge.
-          </p>
-          <p>
-            You'll see a comparison of their contact details, custom question
-            answers, and listing registrations. For each conflict &mdash; where
-            the two records differ &mdash; choose which value to keep. Non-
-            conflicting data (e.g. an answer only one of them provided) is
-            adopted automatically. Once confirmed, the source attendee is
-            deleted and all chosen data is merged into the target.
-          </p>
-        </Q>
+        <Faq id="how_do_i_merge_duplicate_attendees" />
 
         <Q q="How do I resend a confirmation email?">
           <p>
@@ -473,35 +371,13 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q={t("guide.q.add_terms_and_conditions")}>
-          <p>
-            In <strong>Settings</strong>, enter your terms in the "Terms and
-            Conditions" box. When set, attendees must tick an agreement checkbox
-            before they can reserve tickets. Clear the box to remove the
-            requirement.
-          </p>
-        </Q>
+        <Faq id="add_terms_and_conditions" />
       </Section>
 
       <Section id="questions" title={t("guide.sections.booking_questions")}>
-        <Q q={t("guide.q.what_are_custom_booking_questions")}>
-          <p>
-            Custom booking questions let you ask attendees a multiple-choice
-            question during the booking process. Each question has a set of
-            answers you define, and the attendee must select one before they can
-            complete their booking.
-          </p>
-        </Q>
+        <Faq id="what_are_custom_booking_questions" />
 
-        <Q q={t("guide.q.create_question")}>
-          <p>
-            Open any listing and click <strong>Questions</strong> in the listing
-            menu, then follow the <strong>Manage Questions</strong> link. Type
-            your question text and click <strong>Add Question</strong>. Then
-            open the question and add your answer options. You can reorder
-            answers using the move-up and move-down buttons.
-          </p>
-        </Q>
+        <Faq id="create_question" />
 
         <Q q={t("guide.q.add_question_to_listing")}>
           <p>
@@ -513,23 +389,9 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q={t("guide.q.share_questions_between_listings")}>
-          <p>
-            Yes. Questions are created independently and then assigned to
-            listings, so a single question can appear on as many listings as you
-            like. Updating the question text or answers updates it everywhere
-            it's used.
-          </p>
-        </Q>
+        <Faq id="share_questions_between_listings" />
 
-        <Q q={t("guide.q.where_to_see_answers")}>
-          <p>
-            Answers appear in the attendee table on listing and group pages, so
-            you can see at a glance what each attendee chose. They're also shown
-            on the individual attendee detail page and included in the CSV
-            export.
-          </p>
-        </Q>
+        <Faq id="where_to_see_answers" />
       </Section>
 
       <Section title={t("guide.sections.public_links")}>
@@ -627,18 +489,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q={t("guide.q.recommended_payment_provider")}>
-          <p>
-            <strong>Stripe</strong>. The setup is a fair bit easier &mdash; you
-            just paste in your secret key and the webhook is created
-            automatically. <strong>SumUp</strong> is similarly quick (an API key
-            and merchant code, with the webhook handled for you), but it's
-            limited to certain currencies. With <strong>Square</strong> you need
-            to create a developer application, find your location ID, and
-            manually configure the webhook yourself. All three work well once
-            set up, but Stripe gets you going faster.
-          </p>
-        </Q>
+        <Faq id="recommended_payment_provider" />
 
         <Q q={t("guide.q.paid_ticket_booking_flow")}>
           <p>
@@ -651,51 +502,11 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="Why don't we hold places during checkout?">
-          <p>
-            When someone clicks &ldquo;Buy&rdquo;, we don't reserve their place
-            while they're paying. A place only counts as taken once the payment
-            goes through. This might sound backwards, so here's why.
-          </p>
-          <p>
-            Imagine if we <em>did</em> hold places during checkout. A sneaky
-            person could write a small program that opens the checkout page over
-            and over, grabbing every place, without ever paying. Real visitors
-            would see &ldquo;sold out&rdquo; even though nobody had actually
-            bought anything. When the holds expired, the program could grab them
-            all again. This is how ticket scalpers cause problems on bigger
-            sites.
-          </p>
-          <p>
-            Because places only count once payment is finished, the only way to
-            &ldquo;hold&rdquo; a place is to actually pay for it. Real money has
-            to change hands &mdash; so the trick above doesn't work, and real
-            visitors get a fair chance at the tickets.
-          </p>
-          <p>
-            The trade-off: very rarely, two people can finish paying for the
-            last place at almost the same moment. The first payment to arrive
-            wins; the second person is automatically refunded. See the next
-            question.
-          </p>
-        </Q>
+        <Faq id="why_don_t_we_hold_places_during" />
 
-        <Q q={t("guide.q.listing_sells_out_while_paying")}>
-          <p>
-            If someone completes payment but the listing has since sold out,
-            they are automatically refunded. They'll see a message explaining
-            the listing is full and that their payment has been returned. This
-            is rare but possible &mdash; it's the trade-off described in the
-            previous question.
-          </p>
-        </Q>
+        <Faq id="listing_sells_out_while_paying" />
 
-        <Q q={t("guide.q.how_refunds_work")}>
-          <p>
-            See the <strong>Refunds</strong> section below for full details on
-            automatic refunds, admin-issued refunds, and bulk refunds.
-          </p>
-        </Q>
+        <Faq id="how_refunds_work" />
 
         <Q q={t("guide.q.what_is_booking_fee")}>
           <p>
@@ -1028,97 +839,28 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q={t("guide.q.refund_all_attendees")}>
-          <p>
-            On the listing page, click <strong>Refund All</strong> in the
-            navigation bar. Type the listing name to confirm. Each attendee with
-            a recorded payment is refunded one by one. If some refunds fail
-            (e.g. a payment was already refunded via the provider dashboard),
-            you'll see a summary of how many succeeded and how many failed.
-          </p>
-        </Q>
+        <Faq id="refund_all_attendees" />
 
-        <Q q={t("guide.q.partial_refunds")}>
-          <p>
-            No. The system always issues a full refund for the total amount
-            paid. If you need to issue a partial refund, do it directly through
-            your payment provider's dashboard (Stripe, Square, or SumUp).
-          </p>
-        </Q>
+        <Faq id="partial_refunds" />
 
-        <Q q="Is the booking fee refunded too?">
-          <p>
-            Yes. Refunds reverse the full charge taken from the attendee,
-            including any booking fee that was added at checkout. Your payment
-            provider's own processing fee is a separate matter &mdash; Stripe
-            and Square each have their own policy on whether processing fees are
-            returned on a refund, so check your provider for details.
-          </p>
-        </Q>
+        <Faq id="is_the_booking_fee_refunded_too" />
 
-        <Q q={t("guide.q.attendee_after_refund")}>
-          <p>
-            The attendee <strong>remains registered</strong>. A refund only
-            clears their payment record &mdash; it does not remove them from the
-            listing. If you also want to remove them, delete the attendee
-            separately after refunding.
-          </p>
-          <p>
-            Refunds are per-listing. If the attendee is registered for multiple
-            listings, refunding one listing does not affect their other
-            registrations.
-          </p>
-        </Q>
+        <Faq id="attendee_after_refund" />
 
-        <Q q={t("guide.q.refund_free_listing")}>
-          <p>
-            No. The Refund button only appears for attendees who have a recorded
-            payment. Free-listing attendees have no payment to refund.
-          </p>
-        </Q>
+        <Faq id="refund_free_listing" />
 
-        <Q q={t("guide.q.refund_fails")}>
-          <p>
-            The most common reason is that the payment was already refunded
-            directly through Stripe, Square, or SumUp. You'll see an error
-            message like "Refund failed. The payment may have already been
-            refunded." If your payment provider is no longer configured, refunds
-            will also fail because there's no provider to process them through.
-          </p>
-        </Q>
+        <Faq id="refund_fails" />
 
-        <Q q={t("guide.q.refund_same_attendee_twice")}>
-          <p>
-            No. After a successful refund the attendee's payment record is
-            cleared, so the Refund button no longer appears. If you attempt to
-            refund a payment that was already refunded via the provider
-            dashboard, the provider will reject it and you'll see a failure
-            message.
-          </p>
-        </Q>
+        <Faq id="refund_same_attendee_twice" />
       </Section>
 
       <Section
         id="holidays"
         title={t("guide.sections.daily_listings_and_holidays")}
       >
-        <Q q={t("guide.q.how_daily_listings_work")}>
-          <p>
-            Daily listings let attendees choose a specific date when booking.
-            You set which days of the week are available (e.g. Monday to
-            Friday), the minimum number of days before a date can be booked, and
-            the maximum number of days into the future to show. The capacity
-            limit applies independently to each date.
-          </p>
-        </Q>
+        <Faq id="how_daily_listings_work" />
 
-        <Q q={t("guide.q.what_are_bookable_days")}>
-          <p>
-            These are the days of the week your daily listing runs on. If you
-            only tick Monday and Wednesday, those are the only days that appear
-            in the date picker. Weekends and unticked days are skipped.
-          </p>
-        </Q>
+        <Faq id="what_are_bookable_days" />
 
         <Q q="What is the Booking Duration field?">
           <p>
@@ -1144,40 +886,13 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q={t("guide.q.what_are_holidays")}>
-          <p>
-            Holidays are date ranges when no daily listings can be booked. Add
-            them from the <strong>Holidays</strong> page. Any dates falling
-            within a holiday range are removed from the booking calendar for all
-            daily listings.
-          </p>
-        </Q>
+        <Faq id="what_are_holidays" />
       </Section>
 
       <Section id="checkin" title={t("guide.sections.check_in_and_qr_scanner")}>
-        <Q q={t("guide.q.how_checkin_works")}>
-          <p>
-            Each ticket has a unique QR code. When an attendee arrives, they
-            show their QR code to a member of staff. The staff member scans it
-            (or opens the link), which takes them to the check-in page. If
-            logged in as an admin, they'll see the attendee's details and ticket
-            quantity, with a button to check them in or out.
-          </p>
-          <p>
-            Check-in is per-listing. If an attendee is registered for multiple
-            listings, checking them in at one listing doesn't affect their
-            status at other listings.
-          </p>
-        </Q>
+        <Faq id="how_checkin_works" />
 
-        <Q q={t("guide.q.qr_code_purpose")}>
-          <p>
-            The QR code links to the ticket's check-in page. Scanning it opens
-            the page in a browser. Non-admin visitors see a message to show the
-            code to staff. Admin visitors see the attendee's details and a
-            check-in button.
-          </p>
-        </Q>
+        <Faq id="qr_code_purpose" />
 
         <Q q={t("guide.q.use_qr_scanner")}>
           <p>
@@ -1198,15 +913,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q={t("guide.q.qr_different_listing")}>
-          <p>
-            The scanner checks all of the attendee's listing registrations. If
-            they're registered for the listing you're scanning, check-in
-            proceeds normally. If they're only registered for other listings,
-            you'll be prompted to confirm before checking them in. This lets you
-            handle last-minute listing changes without turning anyone away.
-          </p>
-        </Q>
+        <Faq id="qr_different_listing" />
 
         <Q q={t("guide.q.scanner_status_messages")}>
           <p>
@@ -1305,15 +1012,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q={t("guide.q.wallet_passes_update")}>
-          <p>
-            Yes. Apple Wallet periodically polls the server (roughly once a day)
-            and re-downloads the pass with the latest details. There are no push
-            notifications &mdash; updates arrive on Apple's polling schedule.
-            Attendees can also pull down on the pass in Wallet to force an
-            immediate refresh.
-          </p>
-        </Q>
+        <Faq id="wallet_passes_update" />
       </Section>
 
       <Section id="google-wallet" title="Google Wallet">
@@ -1366,48 +1065,18 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="Do Google Wallet passes update automatically?">
-          <p>
-            No. Unlike Apple Wallet, Google Wallet passes are generated as a
-            one-time snapshot when the attendee adds them. If listing details
-            change later, the pass in the attendee&apos;s wallet won&apos;t
-            update. The attendee can remove and re-add the pass from their
-            ticket page to get the latest details.
-          </p>
-        </Q>
+        <Faq id="do_google_wallet_passes_update_automatically" />
       </Section>
 
       <Section
         id="user-classes"
         title={t("guide.sections.users_and_permissions")}
       >
-        <Q q={t("guide.q.owner_vs_manager")}>
-          <p>
-            <strong>Owners</strong> have full access: listings, calendar,
-            groups, questions, holidays, users, site pages, settings, API keys,
-            sessions, and the activity log. <strong>Managers</strong> can manage
-            listings, view the calendar, manage groups, issue refunds, and view
-            the activity log. They cannot change settings, manage users, manage
-            questions or holidays, create API keys, edit site pages, or view
-            sessions.
-          </p>
-        </Q>
+        <Faq id="owner_vs_manager" />
 
-        <Q q={t("guide.q.invite_admin")}>
-          <p>
-            Go to <strong>Users</strong>, enter a username and choose their role
-            (owner or manager). You'll receive an invite link to send them. They
-            use the link to set their password and activate their account.
-          </p>
-        </Q>
+        <Faq id="invite_admin" />
 
-        <Q q={t("guide.q.invite_link_expiry")}>
-          <p>
-            Invite links expire after <strong>7 days</strong>. If the link
-            expires before the person uses it, you'll need to delete the pending
-            user and create a new invite.
-          </p>
-        </Q>
+        <Faq id="invite_link_expiry" />
       </Section>
 
       <Section id="login-security" title="Login &amp; Security">
@@ -1421,56 +1090,17 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="Why am I locked out even though my password is correct?">
-          <p>
-            You've likely hit the rate limit from previous failed attempts. The
-            lockout applies to your IP address, not your account, so other
-            admins logging in from different locations are not affected. Wait 15
-            minutes and try again.
-          </p>
-        </Q>
+        <Faq id="why_am_i_locked_out_even_though" />
 
-        <Q q="Is there a way to recover a lost password?">
-          <p>
-            No. There is <strong>no password recovery</strong> mechanism. All
-            attendee data is encrypted with keys derived from admin passwords,
-            so a reset would make existing data unreadable. If you lose your
-            password, another owner can delete your account and send a fresh
-            invite &mdash; all existing attendee data remains accessible to
-            other admins. Keep your password somewhere safe.
-          </p>
-        </Q>
+        <Faq id="is_there_a_way_to_recover_a" />
 
-        <Q q="How are admin sessions secured?">
-          <p>
-            Sessions use HttpOnly cookies that cannot be read by JavaScript.
-            Each session expires after <strong>24 hours</strong>, after which
-            you must log in again. You can view all active sessions and log out
-            all other sessions from the <strong>Sessions</strong> page if you
-            suspect your account has been compromised.
-          </p>
-        </Q>
+        <Faq id="how_are_admin_sessions_secured" />
       </Section>
 
       <Section title={t("guide.sections.data_and_privacy")}>
-        <Q q={t("guide.q.attendee_data_protection")}>
-          <p>
-            All personal information (names, email addresses, phone numbers,
-            postal addresses) is encrypted before being stored. Even if the
-            database were compromised, the data cannot be read without the
-            encryption keys. Data is only decrypted when an authenticated admin
-            views it.
-          </p>
-        </Q>
+        <Faq id="attendee_data_protection" />
 
-        <Q q={t("guide.q.lost_password")}>
-          <p>
-            There is <strong>no password recovery</strong>. If you lose your
-            password, you cannot log in or decrypt any data. Keep your password
-            safe. Another owner can delete your account and send a fresh invite,
-            and all existing attendee data remains accessible to other admins.
-          </p>
-        </Q>
+        <Faq id="lost_password" />
 
         <Q q={t("guide.q.export_attendee_data")}>
           <p>
@@ -1487,34 +1117,13 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q={t("guide.q.reset_database")}>
-          <p>
-            It permanently deletes <strong>everything</strong>: all listings,
-            attendees, groups, questions, users, holidays, API keys, activity
-            logs, payment configuration, and sessions. The system returns to its
-            initial setup state. You must type a confirmation phrase to proceed.
-            This cannot be undone.
-          </p>
-        </Q>
+        <Faq id="reset_database" />
       </Section>
 
       <Section id="webhooks" title={t("guide.sections.webhooks")}>
-        <Q q={t("guide.q.what_are_webhooks")}>
-          <p>
-            Webhooks send an automatic notification to a URL of your choice
-            whenever someone registers for a listing. You can use them to
-            connect to other services, e.g. sending a Slack message or updating
-            a spreadsheet.
-          </p>
-        </Q>
+        <Faq id="what_are_webhooks" />
 
-        <Q q={t("guide.q.setup_webhook")}>
-          <p>
-            Add a webhook URL when creating or editing a listing. Every time
-            someone books that listing, a POST request is sent to your URL with
-            the attendee's details.
-          </p>
-        </Q>
+        <Faq id="setup_webhook" />
 
         <Q q={t("guide.q.webhook_json_format")}>
           <p>
@@ -1556,14 +1165,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do I log out other users?">
-          <p>
-            On the <strong>Sessions</strong> page, click "Log out of all other
-            sessions". This ends every session except your own, forcing all
-            other admins to log in again. Useful if you suspect an account has
-            been compromised.
-          </p>
-        </Q>
+        <Faq id="how_do_i_log_out_other_users" />
 
         <Q q="What happens after too many failed login attempts?">
           <p>
@@ -1586,70 +1188,17 @@ export const adminGuidePage = (
       </Section>
 
       <Section id="calendar" title={t("guide.sections.calendar")}>
-        <Q q={t("guide.q.what_is_calendar")}>
-          <p>
-            The <strong>Calendar</strong> page lets you pick a date and see
-            every attendee booked across all listings on that day. This is
-            especially useful for daily listings. You can export a CSV of the
-            day's attendees and manage check-ins, edits, and deletions from the
-            same view.
-          </p>
-        </Q>
+        <Faq id="what_is_calendar" />
       </Section>
 
       <Section id="activity-log" title={t("guide.sections.activity_log")}>
-        <Q q={t("guide.q.what_is_activity_log")}>
-          <p>
-            The <strong>Log</strong> page shows a chronological list of admin
-            actions such as listing creation, listing updates, attendee changes,
-            and question changes. Both owners and managers can view the log.
-            Each listing also has its own log, accessible from the listing page,
-            showing only actions related to that listing.
-          </p>
-        </Q>
+        <Faq id="what_is_activity_log" />
       </Section>
 
       <Section id="email" title={t("guide.sections.email_notifications")}>
-        <Q q={t("guide.q.what_are_email_notifications")}>
-          <p>
-            When configured, the system can send up to two emails after each
-            successful registration: a <strong>confirmation email</strong> to
-            the attendee (if they provided an email address) with their ticket
-            details and link, and a <strong>notification email</strong> to the
-            business email address (if one is set) letting you know someone has
-            booked. Emails are sent in the background and won't delay the
-            booking process.
-          </p>
-        </Q>
+        <Faq id="what_are_email_notifications" />
 
-        <Q q={t("guide.q.supported_email_providers")}>
-          <p>
-            Five providers are supported, all using HTTP APIs (no SMTP
-            required):
-          </p>
-          <ul>
-            <li>
-              <strong>Resend</strong>
-            </li>
-            <li>
-              <strong>Postmark</strong>
-            </li>
-            <li>
-              <strong>SendGrid</strong>
-            </li>
-            <li>
-              <strong>Mailgun (US)</strong>
-            </li>
-            <li>
-              <strong>Mailgun (EU)</strong>
-            </li>
-          </ul>
-          <p>
-            All providers work the same way &mdash; choose whichever you already
-            have an account with or whichever offers a free tier that suits your
-            volume.
-          </p>
-        </Q>
+        <Faq id="supported_email_providers" />
 
         <Q q={t("guide.q.setup_email")}>
           {hostConfig?.hostEmailProvider && (
@@ -1696,13 +1245,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q={t("guide.q.email_not_configured")}>
-          <p>
-            Email is entirely optional. If no provider is selected, the system
-            skips sending emails silently. Registrations, payments, webhooks,
-            and everything else continue to work normally.
-          </p>
-        </Q>
+        <Faq id="email_not_configured" />
 
         <Q q={t("guide.q.confirmation_email_content")}>
           <p>
@@ -1718,14 +1261,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q={t("guide.q.admin_notification_email_content")}>
-          <p>
-            You receive an email showing the attendee's name, email, phone,
-            address, and any special instructions, along with the listing
-            name(s), quantity, and price. The attendee's email is set as the
-            reply-to address so you can reply directly to them.
-          </p>
-        </Q>
+        <Faq id="admin_notification_email_content" />
       </Section>
 
       <Section id="email-templates" title={t("guide.sections.email_templates")}>
@@ -1793,52 +1329,13 @@ export const adminGuidePage = (
           </ul>
         </Q>
 
-        <Q q={t("guide.q.template_error")}>
-          <p>
-            If a custom template fails to render, the system falls back to the
-            built-in default template automatically. The email is still sent
-            &mdash; your attendees won't miss their confirmation.
-          </p>
-        </Q>
+        <Faq id="template_error" />
       </Section>
 
       <Section id="bulk-email" title="Bulk Email">
-        <Q q="How do I email a group of attendees?">
-          <p>
-            Open <strong>Emails</strong> in the top navigation (owners only), or
-            click <strong>Email Attendees</strong> on a listing page to message
-            that listing's attendees. Choose who receives it, write your message
-            in Markdown, tick <strong>marketing</strong> if it's promotional,
-            then click <strong>Preview</strong>. The preview shows the rendered
-            email, the exact recipient count, and what kind of message it is
-            before you send.
-          </p>
-        </Q>
+        <Faq id="how_do_i_email_a_group_of" />
 
-        <Q q="Who can I send to?">
-          <p>
-            From a listing page, the recipients are that listing's attendees.
-            From the <strong>Emails</strong> page you pick an audience:
-          </p>
-          <ul>
-            <li>
-              <strong>Active listing attendees</strong> &mdash; everyone booked
-              onto a currently-active listing (the default).
-            </li>
-            <li>
-              <strong>Upcoming listing attendees</strong> &mdash; everyone
-              booked onto an active listing that hasn't happened yet.
-            </li>
-            <li>
-              <strong>All attendees</strong> &mdash; everyone who has ever
-              registered.
-            </li>
-          </ul>
-          <p>
-            In every case, only attendees who gave an email address are
-            included, and duplicate addresses are removed automatically.
-          </p>
-        </Q>
+        <Faq id="who_can_i_send_to" />
 
         <Q q="Why do I need my own email provider to send?">
           <p>
@@ -1875,35 +1372,9 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How does unsubscribing work?">
-          <p>
-            Every marketing email includes an unsubscribe link. It opens a page
-            where the recipient can unsubscribe (or resubscribe) with a single
-            click &mdash; no login needed. The link identifies them by a one-way
-            hash of their address, so the page never reveals or exposes the
-            email address itself, and the action only happens on a button press,
-            never just by opening the link.
-          </p>
-          <p>
-            Unsubscribes apply to <strong>marketing</strong> emails only.
-            Transactional/service messages about a booking still reach everyone.
-          </p>
-        </Q>
+        <Faq id="how_does_unsubscribing_work" />
 
-        <Q q="What is the BCC email-app option?">
-          <p>
-            On the preview page there's always an option to open the email in
-            your own mail app with the subject and body pre-filled. When it's
-            going to several people they all go in <strong>BCC</strong> (with
-            the draft addressed from your business email) so they can't see each
-            other; a single recipient is simply addressed directly. It needs no
-            provider setup, so it works even when system sending is disabled.
-            Use it sparingly though &mdash; sending lots of mail this way,
-            especially marketing, is a quick way to get your personal email
-            account rate-limited or blocked. It's best for small, genuinely
-            transactional messages.
-          </p>
-        </Q>
+        <Faq id="what_is_the_bcc_email_app_option" />
 
         <Q q="Can I see how often I've contacted someone?">
           <p>
@@ -1964,12 +1435,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="Can I use both a subdomain and a custom domain?">
-          <p>
-            Yes. Your host subdomain and custom domain can be active at the same
-            time. Attendees can reach your site through either address.
-          </p>
-        </Q>
+        <Faq id="can_i_use_both_a_subdomain_and" />
       </Section>
 
       <Section id="custom-domain" title={t("guide.sections.custom_domain")}>
@@ -1985,13 +1451,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q={t("guide.q.what_does_validation_do")}>
-          <p>
-            Validation registers the hostname with the Bunny CDN pull zone,
-            requests a free SSL certificate, and enables HTTPS. You can
-            re-validate at any time if you change your DNS.
-          </p>
-        </Q>
+        <Faq id="what_does_validation_do" />
 
         <Q q="What if validation fails?">
           <p>
@@ -2042,52 +1502,7 @@ export const adminGuidePage = (
       </Section>
 
       <Section title={t("guide.sections.settings_overview")}>
-        <Q q={t("guide.q.available_settings")}>
-          <p>
-            The <strong>Settings</strong> page (owners only) lets you configure:
-          </p>
-          <ul>
-            <li>
-              <strong>Country</strong> &mdash; sets your timezone, currency, and
-              phone prefix in one step
-            </li>
-            <li>
-              <strong>Business email</strong> &mdash; receives admin
-              notification emails, used as reply-to on attendee confirmations,
-              and included in webhook payloads
-            </li>
-            <li>
-              <strong>Payment provider</strong> &mdash; Stripe, Square, SumUp,
-              or none
-            </li>
-            <li>
-              <strong>Booking fee</strong> &mdash; percentage-based fee added to
-              ticket prices (requires a payment provider)
-            </li>
-            <li>
-              <strong>Header image</strong> &mdash; upload a logo or banner
-              shown at the top of every page
-            </li>
-            <li>
-              <strong>Embed hosts</strong> &mdash; restrict which websites can
-              embed your booking forms
-            </li>
-            <li>
-              <strong>Terms and conditions</strong> &mdash; attendees must agree
-              before booking
-            </li>
-            <li>
-              <strong>Show public site</strong> &mdash; enable or disable the
-              public-facing website
-            </li>
-            <li>
-              <strong>Site theme</strong> &mdash; light or dark
-            </li>
-            <li>
-              <strong>Admin password</strong> &mdash; change your login password
-            </li>
-          </ul>
-        </Q>
+        <Faq id="available_settings" />
 
         <Q q="How does the header image work?">
           <p>
@@ -2156,71 +1571,16 @@ export const adminGuidePage = (
           </ul>
         </Q>
 
-        <Q q={t("guide.q.what_is_debug_page")}>
-          <p>
-            The debug page at <code>/admin/debug</code> shows the configuration
-            status of all integrated services (payments, email, Apple Wallet,
-            Google Wallet, storage, CDN, notifications, database) without
-            revealing any secrets or API keys. It's useful for troubleshooting
-            setup issues &mdash; you can quickly see which services are
-            configured and which are missing.
-          </p>
-          <p>
-            The page also lists every tunable system limit (file-size caps,
-            session and URL expiry windows, login lockout, database pruning
-            retention) alongside its default and current value. Any limit can be
-            overridden by setting the matching environment variable to a
-            positive integer; overridden values are highlighted. A
-            &quot;Database pruning&quot; table at the bottom shows when each
-            short-lived table was last cleaned up.
-          </p>
-        </Q>
+        <Faq id="what_is_debug_page" />
 
-        <Q q="What is the debug footer?">
-          <p>
-            The debug footer appears at the bottom of every admin page you view
-            while signed in. It reports how long the page took to render and
-            summarises the database work done for that request: the total number
-            of SQL queries, the time they consumed, and how many of them were
-            served from the in-memory query cache.
-          </p>
-          <p>
-            Click the summary line to expand it. The details panel lists every
-            SQL statement that ran to build the page (with its execution time)
-            and, where relevant, the current cache contents. The footer is only
-            injected into authenticated admin page loads &mdash; it never
-            appears on the public site, on form submissions, or on file
-            downloads such as CSV exports, and signed-out visitors never see it.
-          </p>
-          <p>
-            Use it to spot slow pages or unexpectedly large numbers of queries
-            without leaving the page you're debugging.
-          </p>
-        </Q>
+        <Faq id="what_is_the_debug_footer" />
       </Section>
 
       {hostConfig?.builderEnabled && (
         <Section id="built-sites" title="Built Sites">
-          <Q q="What are built sites?">
-            <p>
-              The <strong>Built Sites</strong> page (owners only) keeps a
-              registry of Tickets instances you've deployed. Each entry records
-              the site name and its Bunny CDN URL. You can add, edit, and delete
-              entries to keep track of all the instances you manage.
-            </p>
-          </Q>
+          <Faq id="what_are_built_sites" />
 
-          <Q q="How do I create a new Tickets instance?">
-            <p>
-              Visit <code>/admin/builder</code> to deploy a new instance. Enter
-              a site name, database URL (libsql format), and database token. The
-              builder will fetch the latest release code from GitHub, create a
-              Bunny edge script, configure secrets (including a generated
-              encryption key), test the database connection, and publish the
-              site. Host-level configuration such as email, wallet, and storage
-              settings are copied automatically.
-            </p>
-          </Q>
+          <Faq id="how_do_i_create_a_new_tickets" />
 
           <Q q="What do I need before building a site?">
             <p>
@@ -2296,16 +1656,7 @@ export const adminGuidePage = (
       </Section>
 
       <Section id="api" title={t("guide.sections.public_api")}>
-        <Q q={t("guide.q.what_is_public_api")}>
-          <p>
-            The system includes a JSON API that exposes the same data and
-            booking functionality as the web interface. It lets you build custom
-            frontends, integrate with other services, or automate bookings. The
-            public endpoints below need no authentication. There is also an
-            admin API for managing listings, groups, and holidays &mdash; see
-            the <a href="#admin-api">Admin API</a> section below for details.
-          </p>
-        </Q>
+        <Faq id="what_is_public_api" />
 
         <Q q={t("guide.q.available_endpoints")}>
           <p>
@@ -2414,25 +1765,11 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="Where can I find the full API reference?">
-          <p>
-            The <a href="/admin/api-keys/docs">API documentation page</a> has a
-            complete reference for both public and admin API endpoints, with
-            example request and response payloads for each.
-          </p>
-        </Q>
+        <Faq id="where_can_i_find_the_full_api" />
       </Section>
 
       <Section id="admin-api" title="Admin API">
-        <Q q="What is the admin API?">
-          <p>
-            The admin API exposes the same management operations as the web
-            admin area as JSON endpoints. Use it to script bulk changes, build
-            internal tooling, or sync listings from another system. Unlike the
-            public API, it requires authentication with an API key and is
-            available to <strong>owners only</strong>.
-          </p>
-        </Q>
+        <Faq id="what_is_the_admin_api" />
 
         <Q q="How do I create an API key?">
           <p>
@@ -2520,16 +1857,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="What happens to API keys if their owner is deleted?">
-          <p>
-            Each API key is tied to the owner who created it, because the key
-            wraps that owner's data encryption key. When you delete an owner
-            from the <strong>Users</strong> page, all of their API keys are
-            deleted at the same time and any integration using one of those keys
-            will stop working immediately. If a previous owner had keys in use,
-            create new keys under another owner before removing the old account.
-          </p>
-        </Q>
+        <Faq id="what_happens_to_api_keys_if_their" />
       </Section>
 
       <Section id="backups" title="Backups">
@@ -2553,27 +1881,9 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="How do I restore from a backup?">
-          <p>
-            On the Backups page, upload a .zip backup file using the restore
-            form. You'll see a summary of how many SQL statements it contains
-            and whether the schema version matches. Type the full confirmation
-            phrase to proceed. <strong>Warning:</strong> restoring drops all
-            existing tables and replaces them with the backup contents. This
-            cannot be undone.
-          </p>
-        </Q>
+        <Faq id="how_do_i_restore_from_a_backup" />
 
-        <Q q="Are old backups deleted automatically?">
-          <p>
-            Yes. Only the most recent backups are kept (30 by default,
-            configurable via <code>MAX_BACKUPS</code>). When a new backup is
-            created beyond that limit, the oldest is purged automatically. The
-            Backups page shows how many you have and when the oldest will be
-            removed. Automatic pre-migration backups count towards this limit
-            too.
-          </p>
-        </Q>
+        <Faq id="are_old_backups_deleted_automatically" />
 
         <Q q="What is the encryption key shown on the backup page?">
           <p>
@@ -2585,52 +1895,17 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q="Do backups require any special configuration?">
-          <p>
-            Yes. Backups require CDN storage to be configured (
-            <code>STORAGE_ZONE_NAME</code> and <code>STORAGE_ZONE_KEY</code>).
-            The feature is designed for remote databases (<code>libsql://</code>
-            ). If storage is not configured, the backup page will show a message
-            explaining this.
-          </p>
-        </Q>
+        <Faq id="do_backups_require_any_special_configuration" />
       </Section>
 
       <Section id="read-only-mode" title="Read-only Mode">
-        <Q q="Why does my site say it's in read-only mode?">
-          <p>
-            Read-only mode is switched on by the host (not from inside the
-            admin) and is used for two things: sites that have fallen behind on
-            billing, and sites undergoing maintenance. While it's on, bookings
-            are refused and the create/edit pages for listings and groups are
-            blocked, but everything else stays viewable. If you think your site
-            shouldn't be in read-only mode, get in touch with whoever hosts it
-            for you.
-          </p>
-        </Q>
+        <Faq id="why_does_my_site_say_it_s" />
       </Section>
 
       <Section title="Software Updates">
-        <Q q="How do I check for updates?">
-          <p>
-            Go to <code>/admin/update</code> to see your current build date and
-            commit. Click <strong>Check for Updates</strong> to query GitHub for
-            the latest release. If a newer version is available, you'll see its
-            name and version number.
-          </p>
-        </Q>
+        <Faq id="how_do_i_check_for_updates" />
 
-        <Q q="What does the version number mean?">
-          <p>
-            Versions use the format <code>vYYYY-MM-DD-HHMMSS</code> &mdash; the
-            UTC date and time the release was built, to the second. Larger
-            timestamps are newer, and your installation compares its own build
-            time against the latest release tag to decide whether an update is
-            available. Because the tag is generated at build time and pushed as
-            the git tag, the version on the update page always matches the
-            release on GitHub.
-          </p>
-        </Q>
+        <Faq id="what_does_the_version_number_mean" />
 
         <Q q="How do I install an update?">
           <p>
@@ -2680,14 +1955,7 @@ export const adminGuidePage = (
           </p>
         </Q>
 
-        <Q q={t("guide.q.hosting_and_images")}>
-          <p>
-            Yes to both. I can set you up on your own Bunny CDN account (or
-            another host) and handle the technical configuration. I also design
-            listing images if you need them. Get in touch and we'll figure out
-            exactly what you need.
-          </p>
-        </Q>
+        <Faq id="hosting_and_images" />
       </Section>
       <Section id="column-order" title="Column Order">
         <Q q="How do I customise which columns appear in tables?">
