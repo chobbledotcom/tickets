@@ -114,6 +114,13 @@ describe("adminBuiltSiteEditPage — provisioned site", () => {
     expect(html).toContain("/renew/?t=real-customer-renewal-token");
     expect(html).not.toContain("?t=<token>");
   });
+
+  test("labels the shared bump/override forms inline (no headings)", () => {
+    const html = adminBuiltSiteEditPage(provisionedSite, TEST_SESSION);
+    expect(html).toContain('<label for="bump_months">Bump deadline by months');
+    expect(html).toContain('<label for="override_date">Override deadline');
+    expect(html).not.toContain("<h3>Bump deadline</h3>");
+  });
 });
 
 describe("adminBuiltSiteEditPage — unprovisioned site", () => {
@@ -131,6 +138,14 @@ describe("adminBuiltSiteEditPage — unprovisioned site", () => {
     expect(html).not.toContain("rotate-renewal-token");
     expect(html).not.toContain("re-sync-deadline");
     expect(html).not.toContain("tier_listing_id");
+  });
+
+  test("labels the shared bump/override forms with headings (no inline labels)", () => {
+    const html = adminBuiltSiteEditPage(unprovisionedSite, TEST_SESSION);
+    expect(html).toContain("<h3>Bump deadline</h3>");
+    expect(html).toContain("<h3>Override deadline</h3>");
+    expect(html).not.toContain('for="bump_months"');
+    expect(html).not.toContain('for="override_date"');
   });
 
   test("links to the delete page from the edit page", () => {

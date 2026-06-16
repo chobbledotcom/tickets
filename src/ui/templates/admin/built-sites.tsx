@@ -11,7 +11,7 @@ import {
   Flash,
   renderFields,
 } from "#shared/forms.tsx";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
 import { formatDeadlineLabel, isProvisioned } from "#shared/renewal-helpers.ts";
 import { renewalUrlFor } from "#shared/site-assignment.ts";
 import type { SiteSecretsView } from "#shared/site-secrets.ts";
@@ -184,7 +184,7 @@ export const adminBuiltSiteNewPage = (
 type SiteActionProps = {
   siteId: number;
   action: string;
-  children: JSX.Element | JSX.Element[];
+  children: Child;
 };
 
 /** Standard built-site action form wrapper — CSRF + path scoping in one place. */
@@ -215,6 +215,39 @@ const MonthsInput = ({
   />
 );
 
+type DeadlineFormProps = { site: BuiltSite; inputId?: string };
+
+/**
+ * Bump-deadline form, shared by the provisioned and unprovisioned panels.
+ * Pass `inputId` to render an inline label (provisioned); omit it when a
+ * surrounding heading already labels the field (unprovisioned).
+ */
+const BumpDeadlineForm = ({
+  site,
+  inputId,
+}: DeadlineFormProps): JSX.Element => (
+  <SiteActionForm action="bump-deadline" siteId={site.id}>
+    {inputId ? <label for={inputId}>Bump deadline by months</label> : null}
+    <MonthsInput id={inputId} />
+    <SubmitButton icon="save">Bump</SubmitButton>
+  </SiteActionForm>
+);
+
+/**
+ * Override-deadline form, shared by both panels. See {@link BumpDeadlineForm}
+ * for the `inputId` labelling convention.
+ */
+const OverrideDeadlineForm = ({
+  site,
+  inputId,
+}: DeadlineFormProps): JSX.Element => (
+  <SiteActionForm action="override-deadline" siteId={site.id}>
+    {inputId ? <label for={inputId}>Override deadline</label> : null}
+    <input id={inputId} name="date" type="date" />
+    <SubmitButton icon="save">Override</SubmitButton>
+  </SiteActionForm>
+);
+
 const ProvisionedPanel = ({ site }: { site: BuiltSite }): JSX.Element => {
   const renewalUrl = renewalUrlFor(site.renewalToken!);
   return (
@@ -242,17 +275,9 @@ const ProvisionedPanel = ({ site }: { site: BuiltSite }): JSX.Element => {
         </button>
       </SiteActionForm>
 
-      <SiteActionForm action="bump-deadline" siteId={site.id}>
-        <label for="bump_months">Bump deadline by months</label>
-        <MonthsInput id="bump_months" />
-        <SubmitButton icon="save">Bump</SubmitButton>
-      </SiteActionForm>
+      <BumpDeadlineForm inputId="bump_months" site={site} />
 
-      <SiteActionForm action="override-deadline" siteId={site.id}>
-        <label for="override_date">Override deadline</label>
-        <input id="override_date" name="date" type="date" />
-        <SubmitButton icon="save">Override</SubmitButton>
-      </SiteActionForm>
+      <OverrideDeadlineForm inputId="override_date" site={site} />
 
       <SiteActionForm action="re-sync-deadline" siteId={site.id}>
         <SubmitButton icon="rotate-ccw">Re-sync deadline</SubmitButton>
@@ -276,16 +301,10 @@ const UnprovisionedPanel = ({ site }: { site: BuiltSite }): JSX.Element => (
     </SiteActionForm>
 
     <h3>Bump deadline</h3>
-    <SiteActionForm action="bump-deadline" siteId={site.id}>
-      <MonthsInput />
-      <SubmitButton icon="save">Bump</SubmitButton>
-    </SiteActionForm>
+    <BumpDeadlineForm site={site} />
 
     <h3>Override deadline</h3>
-    <SiteActionForm action="override-deadline" siteId={site.id}>
-      <input name="date" type="date" />
-      <SubmitButton icon="save">Override</SubmitButton>
-    </SiteActionForm>
+    <OverrideDeadlineForm site={site} />
   </div>
 );
 
