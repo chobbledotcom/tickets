@@ -104,13 +104,15 @@ const handleContactPost = attendeeFormAction(
       await logActivity(
         `Text message sent to attendee '${data.attendee.name}'`,
         listingId,
+        attendeeId,
       );
       return redirect(backUrl, "Text message sent", true);
     } catch (e) {
       await markSmsFailed(id, String(e));
       await logActivity(
-        `Text message to attendee '${data.attendee.name}' failed to send`,
+        `Text message to attendee '${data.attendee.name}' failed to send: ${String(e)}`,
         listingId,
+        attendeeId,
       );
       return redirect(backUrl, "Message queued but failed to send", false);
     }

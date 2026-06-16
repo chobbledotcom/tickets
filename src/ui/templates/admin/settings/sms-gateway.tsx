@@ -14,7 +14,8 @@ export const SmsGatewayForm = (s: AdvancedSettingsPageState): JSX.Element => (
         Send text messages to attendees using an Android phone running the free{" "}
         <a href="https://sms-gate.app">SMS Gateway</a> app. Message text and
         recipient numbers are end-to-end encrypted with your passphrase before
-        they leave this server — enter the same passphrase in the phone app.
+        they leave this server — enter the same passphrase in the phone app.{" "}
+        <a href="/admin/guide#sms">Setup guide</a>.
       </p>
     }
     submitLabel="Save SMS Gateway"

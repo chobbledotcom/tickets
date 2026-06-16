@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { getAttendeeActivityLog } from "#shared/db/activityLog.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getSmsOutboxForAttendee } from "#shared/db/sms-outbox.ts";
 import {
@@ -112,6 +113,36 @@ describeWithEnv("admin attendee contact", { db: true }, () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]!.status).toBe("failed");
     expect(rows[0]!.error).not.toBe("");
+  });
+
+  it("logs a successful send against the attendee", async () => {
+    await configureGateway();
+    const { attendee, contactUrl } = await setup();
+    const fetchStub = okFetch();
+    try {
+      await adminFormPost(contactUrl, { message: "Hi" });
+    } finally {
+      fetchStub.restore();
+    }
+
+    const log = await getAttendeeActivityLog(attendee.id);
+    expect(log.some((e) => e.message.includes("Text message sent"))).toBe(true);
+  });
+
+  it("logs a failed send against the attendee, with the error", async () => {
+    await configureGateway();
+    const { attendee, contactUrl } = await setup();
+    const fetchStub = stub(globalThis, "fetch", () =>
+      Promise.resolve(new Response("boom", { status: 500 })),
+    );
+    try {
+      await adminFormPost(contactUrl, { message: "Hi" });
+    } finally {
+      fetchStub.restore();
+    }
+
+    const log = await getAttendeeActivityLog(attendee.id);
+    expect(log.some((e) => e.message.includes("failed to send"))).toBe(true);
   });
 
   it("POST rejects an empty message without enqueuing", async () => {
