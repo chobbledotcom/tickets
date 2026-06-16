@@ -13,7 +13,10 @@ import { isPaymentsEnabled } from "#shared/config.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
 import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
-import type { CreateAttendeeResult } from "#shared/db/attendee-types.ts";
+import type {
+  CreateAttendeeResult,
+  LineBooking,
+} from "#shared/db/attendee-types.ts";
 import {
   checkBatchAvailability,
   createAttendeeAtomic,
@@ -220,12 +223,7 @@ const buildBookings = (
   selected: ListingQty[],
   date: string | null,
   dayCount = 1,
-): {
-  listingId: number;
-  quantity: number;
-  date: string | null;
-  durationDays: number;
-}[] =>
+): LineBooking[] =>
   selected.map(({ listing, qty }) => ({
     listingId: listing.id,
     quantity: qty,

@@ -9,10 +9,11 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { filter, map, mapParallel, pipe, reduce, unique } from "#fp";
+import { filter, map, pipe, reduce, unique } from "#fp";
 import { addDays } from "#shared/dates.ts";
 import type {
   BatchAvailabilityItem,
+  LineBooking,
   ListingBooking,
 } from "#shared/db/attendee-types.ts";
 import {
@@ -36,6 +37,10 @@ export const dateToStartEnd = (
 
 type RemainingMap = Map<number, number>;
 
+/** Distinct group ids worth a cap lookup — positive only (0 = ungrouped). */
+const uniquePositiveGroupIds = (groupIds: number[]): number[] =>
+  unique(groupIds.filter((id) => id > 0));
+
 /**
  * Per-group remaining capacity. Groups with `max_attendees <= 0` (no cap)
  * are omitted from the map. With `date = null`, daily-listing attendees count
@@ -49,7 +54,7 @@ export const getGroupRemainingByGroupId = async (
   groupIds: number[],
   date: string | null = null,
 ): Promise<RemainingMap> => {
-  const ids = unique(groupIds.filter((id) => id > 0));
+  const ids = uniquePositiveGroupIds(groupIds);
   if (ids.length === 0) return new Map();
   const predicate = buildGroupAttendeePredicate("e", "ea", date);
   const rows = await queryAll<{
@@ -521,86 +526,178 @@ export type ListingCapacityRow = ListingRow;
  * "negatively available" even when it has been overbooked. */
 const atLeastZero = (n: number): number => Math.max(0, n);
 
-/** Remaining bookable units for one listing over `[date, date + durationDays)`.
- * Daily listings report the tightest day; standard listings (and any listing
- * with a null date) use their cumulative total. A group cap can only shrink the
- * figure, never enlarge it. */
-const remainingForListing = async (
-  listing: ListingCapacityRow,
-  date: string | null,
-  durationDays: number,
-): Promise<number> => {
-  if (listing.listing_type !== "daily" || !date) {
-    const base = listing.max_attendees - listing.attendee_count;
-    if (listing.group_id <= 0) return atLeastZero(base);
-    const groupRemaining = await groupRemainingTotal(listing.group_id);
-    return atLeastZero(
-      groupRemaining === undefined ? base : Math.min(base, groupRemaining),
+/** All overlapping interval rows for several listings in one query, grouped by
+ * listing id — so per-day loads come from one round trip, not one per listing. */
+const overlappingRowsByListing = async (
+  listingIds: number[],
+  days: string[],
+): Promise<Map<number, IntervalRow[]>> => {
+  const byListing = new Map<number, IntervalRow[]>();
+  if (listingIds.length === 0) return byListing;
+  const { startAt, endAt } = daySpan(days);
+  const rows = await queryAll<IntervalRow & { listing_id: number }>(
+    `SELECT listing_id, start_at, end_at, quantity FROM listing_attendees
+     WHERE listing_id IN (${inPlaceholders(listingIds)}) AND start_at < ? AND end_at > ?`,
+    [...listingIds, endAt, startAt],
+  );
+  for (const row of rows) {
+    const list = byListing.get(row.listing_id);
+    if (list) list.push(row);
+    else byListing.set(row.listing_id, [row]);
+  }
+  return byListing;
+};
+
+/** Per-day group remaining for several groups in two queries (caps + occupancy
+ * rows), keyed by group id. Uncapped/absent groups are omitted, matching
+ * `getGroupRemainingByGroupId`. */
+const groupPerDayRemainingByGroup = async (
+  groupIds: number[],
+  days: string[],
+): Promise<Map<number, Map<string, number>>> => {
+  const result = new Map<number, Map<string, number>>();
+  const ids = uniquePositiveGroupIds(groupIds);
+  if (ids.length === 0) return result;
+  const caps = await queryAll<{ id: number; max_attendees: number }>(
+    `SELECT id, max_attendees FROM groups
+     WHERE id IN (${inPlaceholders(ids)}) AND max_attendees > 0`,
+    ids,
+  );
+  if (caps.length === 0) return result;
+  const cappedIds = caps.map((c) => c.id);
+  const { startAt, endAt } = daySpan(days);
+  type GroupRow = IntervalRow & { group_id: number; listing_type: ListingType };
+  const rows = await queryAll<GroupRow>(
+    `SELECT e.group_id, ea.start_at, ea.end_at, ea.quantity, e.listing_type
+     FROM listing_attendees ea
+     JOIN listings e ON e.id = ea.listing_id
+     WHERE e.group_id IN (${inPlaceholders(cappedIds)})
+       AND (e.listing_type != 'daily' OR (ea.start_at < ? AND ea.end_at > ?))`,
+    [...cappedIds, endAt, startAt],
+  );
+  const rowsByGroup = new Map<number, GroupRow[]>();
+  for (const row of rows) {
+    const list = rowsByGroup.get(row.group_id);
+    if (list) list.push(row);
+    else rowsByGroup.set(row.group_id, [row]);
+  }
+  for (const { id, max_attendees } of caps) {
+    const groupRows = rowsByGroup.get(id) ?? [];
+    // Non-daily rows count on every day; daily rows count per overlapping day.
+    const base = sumQuantity(
+      filter((r: GroupRow) => r.listing_type !== "daily")(groupRows),
+    );
+    const loads = perDayLoads(
+      filter((r: GroupRow) => r.listing_type === "daily")(groupRows),
+      days,
+    );
+    result.set(
+      id,
+      new Map(
+        days.map((day) => [
+          day,
+          atLeastZero(max_attendees - base - loads.get(day)!),
+        ]),
+      ),
     );
   }
-
-  const days = expandDailyRange(date, durationDays);
-  const loads = perDayLoads(await getOverlappingRows(listing.id, days), days);
-  const listingRemaining = Math.min(
-    ...days.map((day) => listing.max_attendees - loads.get(day)!),
-  );
-  if (listing.group_id <= 0) return atLeastZero(listingRemaining);
-  const groupPerDay = await getGroupRemainingPerDay(listing.group_id, days);
-  if (!groupPerDay) return atLeastZero(listingRemaining);
-  const groupRemaining = Math.min(...days.map((day) => groupPerDay.get(day)!));
-  return atLeastZero(Math.min(listingRemaining, groupRemaining));
+  return result;
 };
 
 /**
  * Remaining bookable units per listing for an anchor date + duration, as a
  * `Map<listingId, number>` (clamped at 0).
  *
- * This is the read-side mirror of the booking-time caps in
- * `checkListingAvailability`: same per-day expansion and group-cap rules, but it
- * returns the actual count for display ("X/Y remaining") and overbooking
- * warnings instead of a yes/no. Daily listings are evaluated per day across the
- * whole range and report the tightest day; standard listings — and every
+ * The read-side mirror of the booking-time caps in `checkListingAvailability`:
+ * same per-day expansion and group-cap rules, returning the count for display
+ * ("X/Y remaining") and overbooking warnings. Daily listings (with a date) are
+ * evaluated per day and report the tightest day; standard listings — and every
  * listing when `date` is null — use their cumulative totals.
+ *
+ * Batched into a constant ≤4 queries regardless of how many listings are passed,
+ * so a large catalogue can't blow the per-request query budget.
  */
 export const getListingRemainingForRange = async (
   listings: ListingCapacityRow[],
   date: string | null,
   durationDays = 1,
 ): Promise<Map<number, number>> => {
-  const entries = await mapParallel(
-    async (listing: ListingCapacityRow): Promise<[number, number]> => [
-      listing.id,
-      await remainingForListing(listing, date, durationDays),
-    ],
-  )(listings);
-  return new Map(entries);
+  const usesRange = (l: ListingCapacityRow): boolean =>
+    l.listing_type === "daily" && date !== null;
+  const daily = filter(usesRange)(listings);
+  const totals = filter((l: ListingCapacityRow) => !usesRange(l))(listings);
+  const days = date ? expandDailyRange(date, durationDays) : [];
+
+  const [totalGroupRemaining, overlapByListing, dailyGroupPerDay] =
+    await Promise.all([
+      getGroupRemainingByGroupId(
+        totals.map((l) => l.group_id),
+        null,
+      ),
+      overlappingRowsByListing(
+        daily.map((l) => l.id),
+        days,
+      ),
+      groupPerDayRemainingByGroup(
+        daily.map((l) => l.group_id),
+        days,
+      ),
+    ]);
+
+  const result = new Map<number, number>();
+  for (const l of totals) {
+    const base = l.max_attendees - l.attendee_count;
+    const group =
+      l.group_id > 0 ? totalGroupRemaining.get(l.group_id) : undefined;
+    result.set(
+      l.id,
+      atLeastZero(group === undefined ? base : Math.min(base, group)),
+    );
+  }
+  for (const l of daily) {
+    const loads = perDayLoads(overlapByListing.get(l.id) ?? [], days);
+    const listingRemaining = Math.min(
+      ...days.map((day) => l.max_attendees - loads.get(day)!),
+    );
+    const groupPerDay = dailyGroupPerDay.get(l.group_id);
+    const remaining = groupPerDay
+      ? Math.min(
+          listingRemaining,
+          Math.min(...days.map((day) => groupPerDay.get(day)!)),
+        )
+      : listingRemaining;
+    result.set(l.id, atLeastZero(remaining));
+  }
+  return result;
 };
 
 /**
- * Whether one booking fits within capacity, using the same self-excluding
- * condition the atomic write uses. Pass `excludeAttendeeId` to ignore that
- * attendee's own rows so an unchanged edit doesn't count against itself. Drives
- * the admin form's overbooking warning; the save itself is allowed to overbook.
+ * Batched capacity check: whether each booking fits, in a single query. The
+ * per-booking self-excluding conditions (the same ones the atomic write uses)
+ * become separate columns of one SELECT, so N lines cost one round trip instead
+ * of N. Pass `excludeAttendeeId` to ignore that attendee's own rows, so an
+ * unchanged edit doesn't count against itself. Drives the admin overbooking
+ * warning and the edit preflight; the save itself is allowed to overbook.
  */
-export const checkLineCapacity = async (
-  booking: {
-    listingId: number;
-    quantity: number;
-    date: string | null;
-    durationDays: number;
-  },
+export const checkLinesCapacity = async (
+  bookings: LineBooking[],
   excludeAttendeeId?: number,
-): Promise<boolean> => {
-  const condition = buildCapacityCondition(
-    booking.listingId,
-    booking.quantity,
-    booking.date,
-    excludeAttendeeId,
-    booking.durationDays,
+): Promise<boolean[]> => {
+  if (bookings.length === 0) return [];
+  const conditions = bookings.map((b) =>
+    buildCapacityCondition(
+      b.listingId,
+      b.quantity,
+      b.date,
+      excludeAttendeeId,
+      b.durationDays,
+    ),
   );
-  const row = (await queryOne<{ ok: number }>(
-    `SELECT (${condition.sql}) AS ok`,
-    condition.args,
+  const columns = conditions.map((c, i) => `(${c.sql}) AS ok${i}`).join(", ");
+  const args = conditions.flatMap((c) => c.args);
+  const row = (await queryOne<Record<string, number>>(
+    `SELECT ${columns}`,
+    args,
   ))!;
-  return row.ok === 1;
+  return conditions.map((_, i) => row[`ok${i}`] === 1);
 };

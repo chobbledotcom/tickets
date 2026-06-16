@@ -40,7 +40,7 @@ export {
   type UpdateAttendeeAtomicResult,
 } from "#shared/db/attendees/atomic-update.ts";
 export {
-  checkLineCapacity,
+  checkLinesCapacity,
   getGroupRemainingByGroupId,
   getGroupRemainingByListingId,
   getGroupRemainingForListing,

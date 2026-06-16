@@ -48,7 +48,7 @@ import {
   applyAttendeeAtomicEdit,
   buildPiiBlob,
   type CreateAttendeeResult,
-  checkLineCapacity,
+  checkLinesCapacity,
   createAttendeeAtomic,
   type ExistingLine,
   encryptPiiBlob,
@@ -210,47 +210,67 @@ const overDurationWarning = (
   return `${listing.name} is designed for up to ${max} day${max === 1 ? "" : "s"}, but the booking spans ${dayCount}.`;
 };
 
-/** A booked line whose quantity exceeds capacity, judged with the same
- * self-excluding check the save uses. A daily line with no valid shared date is
- * already blocked by the date error, so it is skipped here. */
-const overbookWarning = async (
-  line: AttendeeFormLine,
+/** The capacity-check booking shape for a booked line on the shared range
+ * (daily) or no date (standard). */
+const lineBookingFor = (line: AttendeeFormLine, parsed: ParsedAttendeeForm) => {
+  const isDaily = line.listing!.listing_type === "daily";
+  return {
+    date: isDaily ? parsed.startDate : null,
+    durationDays: isDaily ? parsed.dayCount : 1,
+    listingId: line.listingId,
+    quantity: line.quantity!,
+  };
+};
+
+/** The set of booked listing ids that overbook capacity, judged with one
+ * batched self-excluding check (the same one the save uses). A daily line with
+ * no valid shared date is skipped — the date error already blocks saving. */
+const overbookedListingIds = async (
+  booked: AttendeeFormLine[],
   parsed: ParsedAttendeeForm,
   excludeAttendeeId: number | undefined,
-): Promise<string | null> => {
-  const listing = line.listing!;
-  const isDaily = listing.listing_type === "daily";
-  const date = isDaily && isIsoDate(parsed.startDate) ? parsed.startDate : null;
-  if (isDaily && !date) return null;
-  const fits = await checkLineCapacity(
-    {
-      date,
-      durationDays: isDaily ? parsed.dayCount : 1,
-      listingId: listing.id,
-      quantity: line.quantity!,
-    },
+): Promise<Set<number>> => {
+  const checkable = booked.filter(
+    (line) =>
+      line.listing!.listing_type !== "daily" || isIsoDate(parsed.startDate),
+  );
+  const fits = await checkLinesCapacity(
+    checkable.map((line) => lineBookingFor(line, parsed)),
     excludeAttendeeId,
   );
-  return fits
-    ? null
-    : `${listing.name} is overbooked — there isn't capacity for ${line.quantity} on these dates.`;
+  const overbooked = new Set<number>();
+  checkable.forEach((line, i) => {
+    if (!fits[i]) overbooked.add(line.listingId);
+  });
+  return overbooked;
 };
+
+/** Overbooking message for a booked line. */
+const overbookMessage = (line: AttendeeFormLine): string =>
+  `${line.listing!.name} is overbooked — there isn't capacity for ${line.quantity} on these dates.`;
 
 /**
  * Over-duration + overbooking warnings for every booked line, keyed by listing
  * id plus a flat list for the top-of-page summary. Both are allowed for admin
- * saves, so they surface as warnings, not errors.
+ * saves, so they surface as warnings, not errors. The capacity side is one
+ * batched query for the whole form, not one per line.
  */
 const computeWarnings = async (
   parsed: ParsedAttendeeForm,
   excludeAttendeeId: number | undefined,
 ): Promise<{ byListing: Map<number, string[]>; top: string[] }> => {
+  const booked = parsed.lines.filter(isBookedLine);
+  const overbooked = await overbookedListingIds(
+    booked,
+    parsed,
+    excludeAttendeeId,
+  );
   const byListing = new Map<number, string[]>();
   const top: string[] = [];
-  for (const line of parsed.lines.filter(isBookedLine)) {
+  for (const line of booked) {
     const warns = compact([
       overDurationWarning(line, parsed.dayCount),
-      await overbookWarning(line, parsed, excludeAttendeeId),
+      overbooked.has(line.listingId) ? overbookMessage(line) : null,
     ]);
     if (warns.length > 0) {
       byListing.set(line.listingId, warns);

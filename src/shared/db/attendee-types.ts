@@ -56,6 +56,15 @@ export type ListingBooking = {
   durationDays?: number;
 };
 
+/** A concrete booking line — every field resolved (unlike the optional-field
+ * `ListingBooking` cart input). Used by capacity checks and the booking builder. */
+export type LineBooking = {
+  listingId: number;
+  quantity: number;
+  date: string | null;
+  durationDays: number;
+};
+
 /** Input for creating an attendee atomically (one or more listings) */
 export type AttendeeInput = ContactFields & {
   paymentId?: string;

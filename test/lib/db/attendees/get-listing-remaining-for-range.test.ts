@@ -3,6 +3,11 @@ import { it as test } from "@std/testing/bdd";
 import { getListingRemainingForRange } from "#shared/db/attendees.ts";
 import { getDb } from "#shared/db/client.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
+import {
+  enableQueryLog,
+  getQueryLog,
+  runWithQueryLogContext,
+} from "#shared/db/query-log.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import {
   bookAttendee,
@@ -141,6 +146,19 @@ describeWithEnv(
       expect(await remaining(listing.id, "2026-05-02")).toBe(4);
     });
 
+    test("aggregates multiple bookings on the same listing and group", async () => {
+      const group = await createTestGroup({ maxAttendees: 10 });
+      const listing = await createDailyTestListing({
+        groupId: group.id,
+        maxAttendees: 5,
+      });
+      // Two separate attendees book the same listing + day → two interval rows.
+      await bookAttendee(listing, { date: "2026-05-02", quantity: 1 });
+      await bookAttendee(listing, { date: "2026-05-02", quantity: 2 });
+      // Listing load 3 → 5 - 3 = 2; group load 3 → 10 - 3 = 7; the tighter wins.
+      expect(await remaining(listing.id, "2026-05-02")).toBe(2);
+    });
+
     test("resolves several listings in one call", async () => {
       const standard = await createTestListing({ maxAttendees: 5 });
       const daily = await createDailyTestListing({ maxAttendees: 3 });
@@ -151,6 +169,23 @@ describeWithEnv(
       );
       expect(map.get(standard.id)).toBe(5);
       expect(map.get(daily.id)).toBe(2);
+    });
+
+    test("stays within a constant query budget for a large catalogue", async () => {
+      // More daily listings than the N+1 read guard threshold (25): a per-listing
+      // fan-out would run the same overlap read once each and trip the guard.
+      const listings: ListingWithCount[] = [];
+      for (let i = 0; i < 28; i++) {
+        const listing = await createDailyTestListing({ maxAttendees: 5 });
+        listings.push(await row(listing.id));
+      }
+      await runWithQueryLogContext(async () => {
+        enableQueryLog();
+        const map = await getListingRemainingForRange(listings, "2026-05-01");
+        expect(map.size).toBe(28);
+        // Batched: a small constant number of round trips, not one per listing.
+        expect(getQueryLog().length).toBeLessThanOrEqual(4);
+      });
     });
   },
 );

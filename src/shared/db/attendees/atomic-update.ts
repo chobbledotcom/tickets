@@ -35,7 +35,7 @@ import type {
 import { hasDuplicateBookingSlot } from "#shared/db/attendees/booking-slot.ts";
 import {
   buildCapacityCheckedInsert,
-  checkLineCapacity,
+  checkLinesCapacity,
   dateToStartEnd,
 } from "#shared/db/attendees/capacity.ts";
 import { buildCapacityCondition } from "#shared/db/capacity.ts";
@@ -126,10 +126,8 @@ const allLinesFit = async (
   attendeeId: number,
   desired: AtomicDesiredLine[],
 ): Promise<boolean> => {
-  for (const line of desired) {
-    if (!(await checkLineCapacity(lineBooking(line), attendeeId))) return false;
-  }
-  return true;
+  const fits = await checkLinesCapacity(desired.map(lineBooking), attendeeId);
+  return fits.every((ok) => ok);
 };
 
 /**
