@@ -26,6 +26,14 @@ import {
   SHOW_ALL_FIELD,
   STATUS_FIELD,
 } from "#routes/admin/attendee-form-model.ts";
+import {
+  type AttendeeLogisticsData,
+  endAgentField,
+  endTimeField,
+  SPLIT_AGENTS_FIELD,
+  startAgentField,
+  startTimeField,
+} from "#routes/admin/attendee-logistics.ts";
 import { targetQuery } from "#shared/bulk-email.ts";
 import { toMajorUnits } from "#shared/currency.ts";
 import {
@@ -106,6 +114,8 @@ export type AttendeeFormTemplateData = {
   lineWarnings: Map<number, string[]>;
   /** All warnings flattened, for the top-of-page summary. */
   topWarnings: string[];
+  /** Logistics selectors data, or undefined when logistics doesn't apply. */
+  logistics?: AttendeeLogisticsData;
 };
 
 /** Status badges for an existing booking — "Checked in" and/or "Refunded". */
@@ -222,6 +232,143 @@ const ListingEditor = ({
     </div>
   </div>
 );
+
+/** A single agent dropdown with a "none" option, pre-selecting `selected`. */
+const AgentSelect = ({
+  name,
+  label,
+  agents,
+  selected,
+}: {
+  name: string;
+  label: string;
+  agents: AttendeeLogisticsData["agents"];
+  selected: number | null;
+}): JSX.Element => (
+  <label>
+    {label}
+    <select name={name}>
+      <option selected={selected === null} value="">
+        — None —
+      </option>
+      {agents.map((agent) => (
+        <option selected={agent.id === selected} value={agent.id}>
+          {agent.name}
+        </option>
+      ))}
+    </select>
+  </label>
+);
+
+/** A short time-of-day input (logistics metadata only; never availability). */
+const TimeInput = ({
+  name,
+  label,
+  value,
+}: {
+  name: string;
+  label: string;
+  value: string;
+}): JSX.Element => (
+  <label>
+    {label}
+    <input name={name} type="time" value={value} />
+  </label>
+);
+
+/** One leg (start or end): an agent select plus its time, for the single
+ * shared fields (listingId omitted) or a specific listing (split mode). */
+const LogisticsLeg = ({
+  agents,
+  leg,
+  assignment,
+  listingId,
+}: {
+  agents: AttendeeLogisticsData["agents"];
+  leg: "start" | "end";
+  assignment: AttendeeLogisticsData["single"];
+  listingId?: number;
+}): JSX.Element => {
+  const isStart = leg === "start";
+  const agentField = isStart ? startAgentField : endAgentField;
+  const timeField = isStart ? startTimeField : endTimeField;
+  const label = isStart ? "Start" : "End";
+  return (
+    <div class="logistics-leg">
+      <AgentSelect
+        agents={agents}
+        label={`${label} agent`}
+        name={agentField(listingId)}
+        selected={isStart ? assignment.startAgentId : assignment.endAgentId}
+      />
+      <TimeInput
+        label={`${label} time`}
+        name={timeField(listingId)}
+        value={isStart ? assignment.startTime : assignment.endTime}
+      />
+    </div>
+  );
+};
+
+/**
+ * Logistics agent + time selectors for logistics listings. A "different agents
+ * per item" checkbox switches (pure CSS) between one shared start/end pair and
+ * a pair per logistics listing. Only rendered when logistics applies.
+ */
+const LogisticsSection = ({
+  data,
+}: {
+  data: AttendeeFormTemplateData;
+}): JSX.Element | null => {
+  const logistics = data.logistics;
+  if (!logistics) return null;
+  return (
+    <div class="logistics-agents">
+      <h3>Logistics</h3>
+      <label class="split-agents">
+        <input
+          checked={logistics.split}
+          class="split-agents-toggle"
+          name={SPLIT_AGENTS_FIELD}
+          type="checkbox"
+          value="1"
+        />
+        Use different agents per item
+      </label>
+      <div class="logistics-single">
+        <LogisticsLeg
+          agents={logistics.agents}
+          assignment={logistics.single}
+          leg="start"
+        />
+        <LogisticsLeg
+          agents={logistics.agents}
+          assignment={logistics.single}
+          leg="end"
+        />
+      </div>
+      <div class="logistics-split">
+        {logistics.lines.map((line) => (
+          <fieldset class="logistics-line">
+            <legend>{line.name}</legend>
+            <LogisticsLeg
+              agents={logistics.agents}
+              assignment={line.assignment}
+              leg="start"
+              listingId={line.listingId}
+            />
+            <LogisticsLeg
+              agents={logistics.agents}
+              assignment={line.assignment}
+              leg="end"
+              listingId={line.listingId}
+            />
+          </fieldset>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 /** Option list for the day-count select: 1…horizon, each labelled with the
  * resulting end date when a start date is known. */
@@ -551,6 +698,8 @@ const AttendeeEditForm = ({
         </output>
       )}
       <ListingEditor data={data} />
+
+      <LogisticsSection data={data} />
 
       <hr />
 

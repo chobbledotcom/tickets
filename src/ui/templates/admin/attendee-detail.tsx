@@ -17,6 +17,7 @@ import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { phoneLinks } from "#shared/phone.ts";
 import type { Attendee } from "#shared/types.ts";
 import { ActivityLogTable } from "#templates/admin/activityLog.tsx";
+import { MapsLinks } from "#templates/components/maps-links.tsx";
 
 /** One key/value row of a detail table. */
 const DetailTableRow = ({
@@ -94,6 +95,7 @@ export const AttendeeDetail = ({
     attendee.address ? (
       <DetailTableRow label="Address">
         <Multiline text={attendee.address} />
+        <MapsLinks query={attendee.address} />
       </DetailTableRow>
     ) : null,
     attendee.special_instructions ? (

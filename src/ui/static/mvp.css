@@ -2358,3 +2358,26 @@ a.cal-day-selected:hover {
 .listing-editor:not(:has(.show-all-toggle:checked)) .attendee-line-empty {
   display: none;
 }
+
+/* Attendee form: logistics agent selectors. The "different agents per item"
+   toggle switches (pure CSS) between one shared pair and a pair per listing. */
+.logistics-agents .split-agents {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-s);
+  margin-bottom: var(--space-s);
+  font-weight: normal;
+  cursor: pointer;
+}
+
+.logistics-agents:has(.split-agents-toggle:checked) .logistics-single {
+  display: none;
+}
+
+.logistics-agents:not(:has(.split-agents-toggle:checked)) .logistics-split {
+  display: none;
+}
+
+.logistics-line {
+  margin-bottom: var(--space-s);
+}

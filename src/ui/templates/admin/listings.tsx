@@ -57,6 +57,7 @@ import {
   imageField,
   initialSiteMonthsField,
   listingFields,
+  logisticsField,
   monthsPerUnitField,
   slugField,
 } from "#templates/fields.ts";
@@ -1071,10 +1072,12 @@ const listingFieldFormatters: Partial<
   non_transferable: (e) => booleanToCheckbox(e.non_transferable),
   purchase_only: (e) => booleanToCheckbox(e.purchase_only),
   unit_price: (e) => (e.unit_price > 0 ? toMajorUnits(e.unit_price) : ""),
+  uses_logistics: (e) => booleanToCheckbox(e.uses_logistics),
 };
 
 const allListingFields: Field[] = [
   ...listingFields,
+  logisticsField,
   monthsPerUnitField,
   initialSiteMonthsField,
   assignBuiltSiteField,
@@ -1136,6 +1139,7 @@ const OPTION_FIELDS = [
   "fields",
   "non_transferable",
   "purchase_only",
+  "uses_logistics",
   "hidden",
 ] as const;
 
@@ -1287,6 +1291,7 @@ export const adminListingNewPage = (
   const builderEnabled = isBuilderEnabled();
   const fields = [
     ...listingFields,
+    ...(settings.hasLogistics ? [logisticsField] : []),
     ...(builderEnabled
       ? [monthsPerUnitField, initialSiteMonthsField, assignBuiltSiteField]
       : []),
@@ -1328,6 +1333,7 @@ export const adminDuplicateListingPage = (
   const storageEnabled = isStorageEnabled();
   const dupFields = [
     ...listingFieldsWithAutofocus,
+    ...(settings.hasLogistics ? [logisticsField] : []),
     ...(builderEnabled
       ? [monthsPerUnitField, initialSiteMonthsField, assignBuiltSiteField]
       : []),
@@ -1375,6 +1381,7 @@ export const adminListingEditPage = (
   // edit form's field list rather than the shared definitions.
   const fields = [
     ...listingFields,
+    ...(settings.hasLogistics ? [logisticsField] : []),
     ...(builderEnabled
       ? [monthsPerUnitField, initialSiteMonthsField, assignBuiltSiteField]
       : []),

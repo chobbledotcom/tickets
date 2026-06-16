@@ -635,6 +635,19 @@ export const listingFields: Field[] = [
   },
 ];
 
+/**
+ * "Needs logistics" listing toggle. Only assembled into the listing form when
+ * the logistics feature is enabled (see the listing page builders); attendees
+ * of a logistics listing carry start and end agents.
+ */
+export const logisticsField: Field = {
+  hint: "Handled by an agent at the customer's location. Attendees gain start and end agent selectors (e.g. delivery/collection, set-up/teardown, or pickup/drop-off).",
+  label: "Needs logistics",
+  name: "uses_logistics",
+  options: [{ label: "Assign agents to this listing's bookings", value: "1" }],
+  type: "checkbox-group",
+};
+
 export const monthsPerUnitField: Field = {
   hint: "How many months one ticket buys. Leave 0 for non-renewal listings.",
   label: "Months Per Unit (renewal tiers only)",
@@ -682,6 +695,19 @@ export const holidayFields: Field[] = [
     required: true,
     type: "date",
     validate: validateDate,
+  },
+];
+
+/**
+ * Logistics agent form field definitions
+ */
+export const logisticsAgentFields: Field[] = [
+  {
+    label: "Agent Name",
+    name: "name",
+    placeholder: "Van 1",
+    required: true,
+    type: "text",
   },
 ];
 

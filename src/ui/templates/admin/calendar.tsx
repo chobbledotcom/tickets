@@ -5,7 +5,12 @@
 import { map, pipe } from "#fp";
 import { formatDateLabel } from "#shared/dates.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import type { AdminSession, Attendee } from "#shared/types.ts";
+import {
+  type AgentFilter,
+  agentFilterParam,
+  renderAgentFilter,
+} from "#shared/logistics-filter.ts";
+import type { AdminSession, Attendee, LogisticsAgent } from "#shared/types.ts";
 import {
   AvailabilityChecker,
   type AvailabilityRow,
@@ -47,6 +52,8 @@ export const adminCalendarPage = (
   questionData?: TableQuestionData,
   hasPaidListing = false,
   availabilityRows: AvailabilityRow[] = [],
+  agents: LogisticsAgent[] = [],
+  agentFilter: AgentFilter = "all",
 ): string => {
   const tableRows: AttendeeTableRow[] = pipe(
     map(
@@ -65,6 +72,22 @@ export const adminCalendarPage = (
   const emptyMessage = dateFilter
     ? "No attendees for this date"
     : "Select a date above to view attendees";
+
+  const agentHref = (f: AgentFilter): string => {
+    const params = new URLSearchParams();
+    if (dateFilter) params.set("date", dateFilter);
+    const param = agentFilterParam(f);
+    if (param) params.set("agent", param);
+    const query = params.toString();
+    return `/admin/calendar${query ? `?${query}` : ""}#attendees`;
+  };
+
+  // The export carries the active agent filter so it matches the on-screen
+  // list — i.e. a per-agent run sheet.
+  const agentParam = agentFilterParam(agentFilter);
+  const exportHref = `/admin/calendar/export?date=${dateFilter}${
+    agentParam ? `&agent=${agentParam}` : ""
+  }`;
 
   const sharedRows =
     dateFilter && attendees.length > 0
@@ -109,7 +132,7 @@ export const adminCalendarPage = (
         <AvailabilityChecker date={dateFilter} rows={availabilityRows} />
         {dateFilter && attendees.length > 0 && (
           <p>
-            <a href={`/admin/calendar/export?date=${dateFilter}`}>Export CSV</a>
+            <a href={exportHref}>Export CSV</a>
           </p>
         )}
         {sharedRows.length > 0 && (
@@ -120,6 +143,9 @@ export const adminCalendarPage = (
               </tbody>
             </table>
           </div>
+        )}
+        {agents.length > 0 && (
+          <Raw html={renderAgentFilter(agentFilter, agents, agentHref)} />
         )}
         <div class="table-scroll">
           <Raw

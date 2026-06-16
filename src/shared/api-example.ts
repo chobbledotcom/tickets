@@ -48,6 +48,7 @@ export const API_EXAMPLE_LISTING: ListingWithCount = {
   slug_index: EXAMPLE_LISTING.slug,
   thank_you_url: "",
   unit_price: EXAMPLE_LISTING.unit_price,
+  uses_logistics: false,
   webhook_url: "",
 };
 
