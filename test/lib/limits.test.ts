@@ -14,6 +14,7 @@ import {
   LOGIN_LOCKOUT_MS,
   MAX_ATTACHMENT_SIZE,
   MAX_BACKUPS,
+  MAX_EMAIL_TEMPLATES,
   MAX_IMAGE_SIZE,
   MAX_LOGIN_ATTEMPTS,
   MAX_TEXTAREA_LENGTH,
@@ -150,6 +151,7 @@ describe("limits", () => {
         "FORM_STASH_TTL_MS",
         "FORM_STASH_MAX_BYTES",
         "FORM_STASH_MAX_ENTRIES",
+        "MAX_EMAIL_TEMPLATES",
         "SUPPORT_FORM_NAG_DAYS",
       ].sort();
       const entryKeys = LIMIT_ENTRIES.map((e) => e.envKey).sort();
@@ -198,6 +200,7 @@ describe("limits", () => {
       expect(currentByKey.get("FORM_STASH_MAX_ENTRIES")).toBe(
         FORM_STASH_MAX_ENTRIES,
       );
+      expect(currentByKey.get("MAX_EMAIL_TEMPLATES")).toBe(MAX_EMAIL_TEMPLATES);
     });
 
     test("every entry renders to a non-empty string via formatLimitValue", () => {

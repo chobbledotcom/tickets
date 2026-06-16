@@ -40,6 +40,12 @@ export type BulkEmailComposeState = {
   disabledReason: string;
   /** Existing saved draft, used to repopulate the form. */
   draft: BulkEmailDraft | null;
+  /** Saved templates available to load (decrypted subjects). */
+  templates: { id: number; subject: string }[];
+  /** Which template is currently loaded (null = using a saved draft). */
+  selectedTemplateId: number | null;
+  /** Base URL for template load links (includes target query params). */
+  templateLinkBase: string;
 };
 
 /**
@@ -97,7 +103,7 @@ export const bulkEmailComposePage = (
   session: AdminSession,
   state: BulkEmailComposeState,
 ): string => {
-  const { copy, draft, single } = state;
+  const { copy, draft, single, templateLinkBase } = state;
   return String(
     <Layout title={copy.heading}>
       <AdminNav active={NAV_ACTIVE} session={session} />
@@ -120,6 +126,33 @@ export const bulkEmailComposePage = (
             </a>
           </p>
         </div>
+      )}
+
+      {state.templates.length > 0 && (
+        <details>
+          <summary>{t("bulk_email.load_template_summary")}</summary>
+          <div class="prose">
+            <ul>
+              {state.templates.map((tpl) => (
+                <li>
+                  <a href={`${templateLinkBase}&template=${tpl.id}`}>
+                    {tpl.subject}
+                  </a>
+                  {state.selectedTemplateId === tpl.id &&
+                    ` ${t("bulk_email.template_loaded_marker")}`}{" "}
+                  <CsrfForm
+                    action={`/admin/emails/templates/${tpl.id}/delete`}
+                    class="inline"
+                  >
+                    <button class="link-button danger small" type="submit">
+                      {t("common.delete")}
+                    </button>
+                  </CsrfForm>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </details>
       )}
 
       <CsrfForm action="/admin/emails/preview" id="bulk-email">
@@ -177,6 +210,42 @@ export const bulkEmailComposePage = (
         </div>
 
         <button type="submit">{t("bulk_email.preview_button")}</button>
+
+        {state.templates.length > 0 && (
+          <fieldset class="checkboxes">
+            <label>
+              <input name="update_existing" type="checkbox" value="1" />{" "}
+              {t("bulk_email.update_existing_checkbox")}
+            </label>
+          </fieldset>
+        )}
+
+        {state.templates.length > 0 && (
+          <div class="template-update-fields">
+            <label>
+              {t("bulk_email.template_to_update_label")}
+              <select name="template_id">
+                {state.templates.map((tpl) => (
+                  <option
+                    selected={tpl.id === state.selectedTemplateId}
+                    value={String(tpl.id)}
+                  >
+                    {tpl.subject}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        )}
+
+        <button formaction="/admin/emails/templates" type="submit">
+          <span class="save-as-new">
+            {t("bulk_email.save_as_new_template")}
+          </span>
+          <span class="save-update">
+            {t("bulk_email.update_template_button")}
+          </span>
+        </button>
       </CsrfForm>
     </Layout>,
   );
