@@ -42,6 +42,9 @@ const ALLOWED_FILES_STATE = [
   "shared/db/settings.ts",
   // Test override flags (lazyRef state for test isolation)
   "shared/test-overrides.ts",
+  // Short-TTL warm-isolate stash for re-filling forms after a redirect;
+  // one-shot, size/count-capped, with a cookie-flash fallback when cold.
+  "shared/form-stash.ts",
 ];
 
 /**
@@ -561,6 +564,8 @@ describe("code quality", () => {
       "shared/test-overrides.ts:getTouchOverride",
       "shared/test-overrides.ts:setTouchOverride",
       "shared/test-overrides.ts:setTouchOverrideForTest",
+      // Reset the in-memory form re-fill stash between tests
+      "shared/form-stash.ts:clearFormStash",
     ];
 
     /**
