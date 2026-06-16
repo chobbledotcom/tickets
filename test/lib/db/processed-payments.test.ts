@@ -4,6 +4,8 @@ import { getDb, insert } from "#shared/db/client.ts";
 import {
   finalizeSession as finalizePaymentSession,
   isSessionProcessed,
+  markSessionFailed,
+  parseSessionFailure,
   reserveSession,
   STALE_RESERVATION_MS,
 } from "#shared/db/processed-payments.ts";
@@ -70,6 +72,93 @@ describeWithEnv("db > processed payments", { db: true }, () => {
       expect(processed).not.toBeNull();
     });
 
+    test("records and replays a terminal failure round-trip", async () => {
+      await reserveSession("sess_failrt");
+      await markSessionFailed("sess_failrt", {
+        error: "Sold out",
+        refunded: true,
+        status: 409,
+      });
+      const row = await isSessionProcessed("sess_failrt");
+      expect(await parseSessionFailure(row!.failure_data)).toEqual({
+        error: "Sold out",
+        refunded: true,
+        status: 409,
+      });
+    });
+
+    test("stores failure_data encrypted at rest, not as plaintext", async () => {
+      await reserveSession("sess_failenc");
+      await markSessionFailed("sess_failenc", {
+        error: "Private Listing Name sold out",
+        status: 409,
+      });
+      const row = await isSessionProcessed("sess_failenc");
+      // The raw column is ciphertext: the user-facing message can embed an
+      // encrypted-at-rest listing name, so it must not be stored in the clear.
+      expect(row!.failure_data).not.toContain("Private Listing Name");
+      expect(row!.failure_data).not.toBe(
+        '{"error":"Private Listing Name sold out","status":409}',
+      );
+      // ...but it still round-trips back to the original via decrypt.
+      expect(await parseSessionFailure(row!.failure_data)).toEqual({
+        error: "Private Listing Name sold out",
+        status: 409,
+      });
+    });
+
+    test("does not overwrite an already-recorded failure (first outcome wins)", async () => {
+      await reserveSession("sess_failtwice");
+      await markSessionFailed("sess_failtwice", {
+        error: "First",
+        status: 410,
+      });
+      await markSessionFailed("sess_failtwice", {
+        error: "Second",
+        status: 409,
+      });
+      const row = await isSessionProcessed("sess_failtwice");
+      expect((await parseSessionFailure(row!.failure_data))?.error).toBe(
+        "First",
+      );
+    });
+
+    test("never stamps a failure onto a finalized (successful) session", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+      const attendee = await bookAttendee(listing, {
+        email: "f@example.com",
+        name: "F",
+      });
+      if (!attendee.success) throw new Error("setup failed");
+      await reserveSession("sess_finalized_nofail");
+      await finalizePaymentSession(
+        "sess_finalized_nofail",
+        attendee.attendees[0]!.id,
+      );
+
+      await markSessionFailed("sess_finalized_nofail", { error: "late fail" });
+
+      const row = await isSessionProcessed("sess_finalized_nofail");
+      // The success is preserved: attendee_id intact, no failure recorded.
+      expect(row!.attendee_id).toBe(attendee.attendees[0]!.id);
+      expect(row!.failure_data).toBe("");
+    });
+
+    test("parseSessionFailure returns null when no failure is recorded", async () => {
+      expect(await parseSessionFailure("")).toBeNull();
+    });
+
+    test("parseSessionFailure degrades undecryptable data to a terminal failure instead of throwing", async () => {
+      const result = await parseSessionFailure("not valid ciphertext{");
+      // A value that won't decrypt/parse must not crash the replay path; it
+      // resolves to a generic terminal failure (non-empty message, 500 status).
+      expect(result?.status).toBe(500);
+      expect((result?.error.length ?? 0) > 0).toBe(true);
+    });
+
     test("re-throws non-unique-constraint errors", async () => {
       await getDb().execute("DROP TABLE processed_payments");
 
@@ -88,6 +177,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
           attendee_id INTEGER,
           processed_at TEXT NOT NULL,
           ticket_tokens TEXT NOT NULL DEFAULT '',
+          failure_data TEXT NOT NULL DEFAULT '',
           FOREIGN KEY (attendee_id) REFERENCES attendees(id)
         )
       `);

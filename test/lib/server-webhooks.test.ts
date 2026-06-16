@@ -2264,7 +2264,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
-    test("webhook with already-processed session where listing was deleted", async () => {
+    test("webhook replays an already-processed session as success even if its listing was deleted", async () => {
       await setupStripe();
 
       // Create a real listing and attendee to satisfy FK constraints for finalization
@@ -2292,7 +2292,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       const { stripePaymentProvider } = await import(
         "#shared/stripe-provider.ts"
       );
-      // Use a non-existent listing_id in metadata to trigger "Listing not found" in alreadyProcessedResult
+      // The metadata points at a since-deleted listing (99999). Because the
+      // session is already finalized (the attendee exists), the retry is an
+      // idempotent success replay — a missing listing only means no thank-you
+      // URL, not a "Listing not found" error for a payment that succeeded.
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -2326,7 +2329,8 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           ),
           200,
           (json) => {
-            expect(json.error).toContain("Listing not found");
+            expect(json.processed).toBe(true);
+            expect(json.error).toBeUndefined();
           },
         );
       } finally {

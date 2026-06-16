@@ -168,6 +168,7 @@
   "fields.listing.duration_days_hint": "How many days each booking reserves. With Customisable Days on, this is the maximum a visitor can choose. Only applies to daily listings unless Customisable Days is on.",
   "fields.user.manager": "Manager",
   "fields.user.owner": "Owner",
+  "fields.user.agent": "Delivery agent",
   "fields.validation.price_min": "Price must be 0 or greater",
   "fields.validation.email": "Please enter a valid email address",
   "fields.validation.phone": "Please enter a valid phone number",

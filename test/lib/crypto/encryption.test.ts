@@ -5,10 +5,13 @@ import {
   decryptWithKey,
   encrypt,
   encryptWithKey,
+  getEncryptionKeyBytes,
+  parseEncryptedPayload,
   setEncryptionKeyForTest,
   validateEncryptionKey,
 } from "#shared/crypto/encryption.ts";
 import { generateDataKey } from "#shared/crypto/keys.ts";
+import { toBase64 } from "#shared/crypto/utils.ts";
 import {
   clearTestEncryptionKey,
   describeWithEnv,
@@ -102,6 +105,54 @@ describeWithEnv("encryption", { encryptionKey: true }, () => {
       }
       const tampered = parts.join(":");
       await expect(decrypt(tampered)).rejects.toThrow();
+    });
+  });
+
+  // Encryption was migrated from Web Crypto to node:crypto for speed. Both emit
+  // standard AES-256-GCM with the auth tag appended, so existing data must stay
+  // decryptable and new data must remain readable by the Web Crypto primitives.
+  describe("Web Crypto interoperability", () => {
+    it("decrypts ciphertext produced by the Web Crypto path (backward compatibility)", async () => {
+      const plaintext = "value-encrypted-before-the-migration";
+      const key = await crypto.subtle.importKey(
+        "raw",
+        getEncryptionKeyBytes() as BufferSource,
+        { name: "AES-GCM" },
+        false,
+        ["encrypt"],
+      );
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const ciphertext = new Uint8Array(
+        await crypto.subtle.encrypt(
+          { iv, name: "AES-GCM" },
+          key,
+          new TextEncoder().encode(plaintext),
+        ),
+      );
+      const legacy = `enc:1:${toBase64(iv)}:${toBase64(ciphertext)}`;
+      expect(await decrypt(legacy)).toBe(plaintext);
+    });
+
+    it("produces ciphertext the Web Crypto path can decrypt", async () => {
+      const plaintext = "value-encrypted-after-the-migration";
+      const { ciphertext, iv } = parseEncryptedPayload(
+        await encrypt(plaintext),
+        "enc:1:",
+        "encrypted data",
+      );
+      const key = await crypto.subtle.importKey(
+        "raw",
+        getEncryptionKeyBytes() as BufferSource,
+        { name: "AES-GCM" },
+        false,
+        ["decrypt"],
+      );
+      const decrypted = await crypto.subtle.decrypt(
+        { iv: iv as BufferSource, name: "AES-GCM" },
+        key,
+        ciphertext as BufferSource,
+      );
+      expect(new TextDecoder().decode(decrypted)).toBe(plaintext);
     });
   });
 

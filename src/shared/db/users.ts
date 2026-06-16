@@ -225,6 +225,7 @@ export const deleteUser = async (userId: number): Promise<void> => {
   await deleteByFieldBatch([
     { field: "user_id", table: "api_keys", value: userId },
     { field: "user_id", table: "sessions", value: userId },
+    { field: "user_id", table: "user_logistics_agents", value: userId },
     { field: "id", table: "users", value: userId },
   ]);
   invalidateUsersCache();

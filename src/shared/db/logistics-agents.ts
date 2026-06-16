@@ -53,3 +53,8 @@ export const invalidateLogisticsAgentsCache = (): void => {
 /** Get all logistics agents, decrypted, ordered by id (from cache). */
 export const getAllLogisticsAgents = (): Promise<LogisticsAgent[]> =>
   logisticsAgentsCache.getAll();
+
+/** A lookup from logistics-agent id to name, for run sheets and CSV exports. */
+export const agentNameMap = (
+  agents: readonly LogisticsAgent[],
+): Map<number, string> => new Map(agents.map((a) => [a.id, a.name]));

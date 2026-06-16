@@ -7,6 +7,7 @@ import type { BuiltSite } from "#shared/db/built-sites.ts";
 import {
   addMissingSiteSecrets,
   expectedSiteSecrets,
+  hostInfraSecretNames,
   loadSiteSecretsStatus,
 } from "#shared/site-secrets.ts";
 import { describeWithEnv, testBuiltSite, withMocks } from "#test-utils";
@@ -35,6 +36,30 @@ const buildSite = (overrides: Partial<BuiltSite> = {}): BuiltSite =>
 /** Names we'd copy to a fresh build of the standard test site. */
 const expectedNamesFor = (site: BuiltSite): string[] =>
   expectedSiteSecrets(site).map(([name]) => name);
+
+describeWithEnv("hostInfraSecretNames", {}, () => {
+  test("keeps only host-level infrastructure credential names", () => {
+    expect(
+      hostInfraSecretNames([
+        "NTFY_URL",
+        "BUNNY_API_KEY",
+        "DB_URL",
+        "STORAGE_ZONE_KEY",
+        "GOOGLE_WALLET_SERVICE_ACCOUNT_KEY",
+      ]),
+    ).toEqual([
+      "BUNNY_API_KEY",
+      "STORAGE_ZONE_KEY",
+      "GOOGLE_WALLET_SERVICE_ACCOUNT_KEY",
+    ]);
+  });
+
+  test("returns an empty list when only low-privilege names are present", () => {
+    expect(
+      hostInfraSecretNames(["NTFY_URL", "DB_URL", "BUNNY_SCRIPT_ID"]),
+    ).toEqual([]);
+  });
+});
 
 describeWithEnv(
   "collectHostSecrets",
