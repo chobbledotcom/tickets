@@ -323,6 +323,40 @@ describeWithEnv("API Keys", { db: true }, () => {
       const html = await response.text();
       expect(html).toContain("Visible Key");
       expect(html).not.toContain("Never");
+      // The name links to the per-key manage page, not an inline delete link.
+      expect(html).toContain(`href="/admin/api-keys/${id}"`);
+    });
+
+    test("GET /admin/api-keys/:id shows the manage page with a delete link", async () => {
+      const { id } = await createTestApiKeyFull("Managed Key");
+      const cookie = await testCookie();
+
+      // A never-used key shows the "Never" placeholder for last used.
+      const first = await handleRequest(
+        mockRequest(`/admin/api-keys/${id}`, { headers: { cookie } }),
+      );
+      expect(first.status).toBe(200);
+      const firstHtml = await first.text();
+      expect(firstHtml).toContain("Managed Key");
+      expect(firstHtml).toContain(`/admin/api-keys/${id}/delete`);
+      expect(firstHtml).toContain("Never");
+
+      // Once used, the manage page renders the formatted last-used date.
+      await touchApiKeyLastUsed(id);
+      const second = await handleRequest(
+        mockRequest(`/admin/api-keys/${id}`, { headers: { cookie } }),
+      );
+      const secondHtml = await second.text();
+      expect(secondHtml).not.toContain("Never");
+    });
+
+    test("GET /admin/api-keys/:id returns 404 for a nonexistent key", async () => {
+      const cookie = await testCookie();
+      const response = await handleRequest(
+        mockRequest("/admin/api-keys/99999", { headers: { cookie } }),
+      );
+
+      expect(response.status).toBe(404);
     });
 
     test("GET /admin/api-keys shows success message from flash cookie", async () => {

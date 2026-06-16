@@ -7,7 +7,7 @@ import { createActionHandler } from "#routes/admin/actions.ts";
 import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
 import { requireOwnerOr } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
-import { htmlResponse } from "#routes/response.ts";
+import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
   ADMIN_API_ENDPOINTS,
@@ -24,6 +24,7 @@ import {
 import { defineForm } from "#shared/forms.tsx";
 import {
   adminApiDocsPage,
+  adminApiKeyManagePage,
   adminApiKeysPage,
   adminDeleteApiKeyPage,
 } from "#templates/admin/api-keys.tsx";
@@ -123,6 +124,25 @@ const apiKeyDelete = createConfirmedHandlers<{ id: number; name: string }>({
 });
 
 /**
+ * Handle GET /admin/api-keys/:apiKeyId — per-key management page
+ */
+const handleApiKeyManageGet: TypedRouteHandler<
+  "GET /admin/api-keys/:apiKeyId"
+> = (request, { apiKeyId }) =>
+  requireOwnerOr(request, async (session) => {
+    const keys = await getApiKeysForUser(session.userId);
+    const apiKey = keys.find((k) => k.id === apiKeyId);
+    if (!apiKey) return notFoundResponse();
+    const flash = applyFlash(request);
+    return htmlResponse(
+      adminApiKeyManagePage(apiKey, session, {
+        error: flash.error,
+        success: flash.success,
+      }),
+    );
+  });
+
+/**
  * Handle GET /admin/api-keys/docs — API documentation page
  */
 const handleApiDocsGet: TypedRouteHandler<"GET /admin/api-keys/docs"> = (
@@ -138,6 +158,7 @@ export const apiKeysRoutes = {
   ...apiKeyDelete.routes,
   ...defineRoutes({
     "GET /admin/api-keys": handleApiKeysGet,
+    "GET /admin/api-keys/:apiKeyId": handleApiKeyManageGet,
     "GET /admin/api-keys/docs": handleApiDocsGet,
     "POST /admin/api-keys": handleApiKeysPost,
   }),

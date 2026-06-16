@@ -64,6 +64,7 @@ import {
 import { EditQuestions, PaymentDetails } from "#templates/admin/attendees.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import {
+  ActionButton,
   Icon,
   MaybeButtonLink,
   SubmitButton,
@@ -519,6 +520,52 @@ const EmailHistory = ({
   );
 };
 
+/** An attendee is refundable when they have a captured payment that has not
+ * already been refunded. */
+const isRefundable = (attendee: Attendee): boolean =>
+  !!attendee.payment_id && !attendee.refunded;
+
+/**
+ * Per-attendee actions (edit mode only) — refund, re-send notification, and
+ * delete. These used to live in the attendee table's "Actions" column; they now
+ * sit on the edit page, each routed through its own typed-name confirmation
+ * page. The booking-scoped routes are keyed on the attendee's home listing.
+ */
+const AttendeeActions = ({ attendee }: { attendee: Attendee }): JSX.Element => {
+  const base = `/admin/listing/${attendee.listing_id}/attendee/${attendee.id}`;
+  const ret = `?return_url=${encodeURIComponent(`/admin/attendees/${attendee.id}`)}`;
+  return (
+    <article>
+      <h3>Actions</h3>
+      <p class="actions">
+        {isRefundable(attendee) && (
+          <ActionButton
+            href={`${base}/refund${ret}`}
+            icon="credit-card"
+            variant="secondary"
+          >
+            Refund
+          </ActionButton>
+        )}
+        <ActionButton
+          href={`${base}/resend-notification${ret}`}
+          icon="rotate-ccw"
+          variant="secondary"
+        >
+          Re-send notification
+        </ActionButton>
+        <ActionButton
+          href={`${base}/delete`}
+          icon="trash-2"
+          variant="secondary"
+        >
+          Delete attendee
+        </ActionButton>
+      </p>
+    </article>
+  );
+};
+
 /** Render the "Merge Attendee" section (edit mode only). */
 const MergeSection = ({ attendee }: { attendee: Attendee }): JSX.Element => (
   <article>
@@ -783,6 +830,8 @@ export const attendeeFormPage = (
       )}
 
       {isEdit && a && <Raw html={PaymentDetails({ attendee: a })} />}
+
+      {isEdit && a && <AttendeeActions attendee={a} />}
 
       {isEdit && <AttendeeLogSection entries={data.activityLog} />}
 

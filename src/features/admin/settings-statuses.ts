@@ -7,6 +7,7 @@
  */
 
 /* jscpd:ignore-start */
+import { verifyOrRedirect } from "#routes/admin/confirmation.ts";
 import { OWNER_FORM, ownerPage, requireOwnerOr } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import {
@@ -38,6 +39,7 @@ import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { validateReservationAmount } from "#shared/reservation-amount.ts";
 import {
+  adminAttendeeStatusDeletePage,
   adminAttendeeStatusesPage,
   adminAttendeeStatusFormPage,
 } from "#templates/admin/settings-statuses.tsx";
@@ -175,22 +177,41 @@ const editPost = ownerFormById(async (id, _session, form) => {
   return redirect(LIST_PATH, "Status updated", true);
 });
 
-const deletePost = ownerFormById(async (id) => {
+const deleteGet: IdRouteHandler = (request, { id }) =>
+  requireOwnerOr(request, (session) => {
+    applyFlash(request);
+    return withEntity<AttendeeStatus>((status) =>
+      htmlResponse(
+        adminAttendeeStatusDeletePage(status, session, getFlash().error),
+      ),
+    )(() => getAttendeeStatus(id));
+  });
+
+const deletePost = ownerFormById(async (id, _session, form) => {
   const status = await getAttendeeStatus(id);
   if (!status) return notFoundResponse();
+  const confirmPath = `${LIST_PATH}/${id}/delete`;
+  const mismatch = verifyOrRedirect(
+    form,
+    status.name,
+    confirmPath,
+    "Name",
+    "deletion",
+  );
+  if (mismatch) return mismatch;
   const all = await getAllAttendeeStatuses();
   if (all.length <= 1) {
-    return errorRedirect(LIST_PATH, "You must keep at least one status");
+    return errorRedirect(confirmPath, "You must keep at least one status");
   }
   if (status.is_public_default) {
     return errorRedirect(
-      LIST_PATH,
+      confirmPath,
       "Choose another public default before deleting this status",
     );
   }
   if (status.is_paid_default) {
     return errorRedirect(
-      LIST_PATH,
+      confirmPath,
       "Choose another paid default before deleting this status",
     );
   }
@@ -199,7 +220,7 @@ const deletePost = ownerFormById(async (id) => {
     sql: "SELECT 1 FROM attendees WHERE status_id = ? LIMIT 1",
   });
   if (inUse.rows.length > 0) {
-    return errorRedirect(LIST_PATH, "This status is in use by attendees");
+    return errorRedirect(confirmPath, "This status is in use by attendees");
   }
   await attendeeStatusesTable.deleteById(id);
   await logActivity(`Attendee status '${status.name}' deleted`);
@@ -219,6 +240,7 @@ const moveHandler = (direction: -1 | 1) =>
 
 export const attendeeStatusesRoutes = defineRoutes({
   "GET /admin/settings/statuses": listGet,
+  "GET /admin/settings/statuses/:id/delete": deleteGet,
   "GET /admin/settings/statuses/:id/edit": editGet,
   "GET /admin/settings/statuses/new": newGet,
   "POST /admin/settings/statuses": createPost,

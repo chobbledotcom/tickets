@@ -45,6 +45,7 @@ import type { LogisticsAgent, User } from "#shared/types.ts";
 import {
   adminUserAgentsPage,
   adminUserDeletePage,
+  adminUserManagePage,
   adminUserNewPage,
   adminUsersPage,
   type DisplayUser,
@@ -163,6 +164,32 @@ const handleUsersGet: TypedRouteHandler<"GET /admin/users"> = (request) =>
       }),
     );
   });
+
+/** Build a DisplayUser with its assigned logistics-agent names resolved. */
+const toDisplayUserWithAgents = async (user: User): Promise<DisplayUser> => {
+  const agents = await loadAssignableAgents();
+  const agentNameById = new Map(agents.map((a) => [a.id, a.name]));
+  return toDisplayUser(user, agentNameById);
+};
+
+/** Handle GET /admin/users/:id - per-user management page */
+const handleUserManageGet: TypedRouteHandler<"GET /admin/users/:id"> = (
+  request,
+  { id },
+) =>
+  requireOwnerOr(request, (session) =>
+    withLoadedUser(session, id, async (user) => {
+      const displayUser = await toDisplayUserWithAgents(user);
+      const flash = getFlash();
+      return htmlResponse(
+        adminUserManagePage(displayUser, session, {
+          currentUserId: session.userId,
+          error: flash.error,
+          success: flash.success,
+        }),
+      );
+    }),
+  );
 
 /**
  * Handle GET /admin/user/new - show invite user form
@@ -398,6 +425,7 @@ export const usersRoutes = {
   ...defineRoutes({
     "GET /admin/user/new": handleUserNewGet,
     "GET /admin/users": handleUsersGet,
+    "GET /admin/users/:id": handleUserManageGet,
     "GET /admin/users/:id/agents": handleUserAgentsGet,
     "POST /admin/users": handleUsersPost,
     "POST /admin/users/:id/activate": handleUserActivatePost,

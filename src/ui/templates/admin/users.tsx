@@ -13,6 +13,7 @@ import type {
 import { AdminNav, UsersSubNav } from "#templates/admin/nav.tsx";
 import {
   ActionButton,
+  DeleteSection,
   GuideLink,
   SubmitButton,
 } from "#templates/components/actions.tsx";
@@ -116,14 +117,14 @@ export const adminUsersPage = (
               <th>{t("common.username")}</th>
               <th>{t("users.col.role")}</th>
               <th>{t("common.status")}</th>
-              <th>{t("common.actions")}</th>
-              <th></th>
             </tr>
           </thead>
           <tbody>
             {users.map((user) => (
               <tr>
-                <td>{user.username}</td>
+                <td>
+                  <a href={`/admin/users/${user.id}`}>{user.username}</a>
+                </td>
                 <td>
                   {user.adminLevel}
                   {user.adminLevel === "agent" && (
@@ -138,35 +139,80 @@ export const adminUsersPage = (
                   )}
                 </td>
                 <td>{userStatus(user)}</td>
-                <td>
-                  {user.hasPassword && !user.hasDataKey && (
-                    <CsrfForm
-                      action={`/admin/users/${user.id}/activate`}
-                      class="inline"
-                    >
-                      <SubmitButton icon="check">
-                        {t("users.activate")}
-                      </SubmitButton>
-                    </CsrfForm>
-                  )}
-                  {user.adminLevel === "agent" && (
-                    <a href={`/admin/users/${user.id}/agents`}>
-                      {t("users.agents.edit_link")}
-                    </a>
-                  )}
-                </td>
-                <td>
-                  {user.id !== opts.currentUserId && (
-                    <a href={`/admin/users/${user.id}/delete`}>
-                      {t("common.delete")}
-                    </a>
-                  )}
-                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+    </Layout>,
+  );
+
+/**
+ * Per-user management page — the destination for the username link in the
+ * users table. Consolidates the activate, edit-agents, and delete actions that
+ * used to sit inline in the table's "Actions" columns.
+ */
+export const adminUserManagePage = (
+  user: DisplayUser,
+  session: AdminSession,
+  opts: { currentUserId: number; error?: string; success?: string },
+): string =>
+  String(
+    <Layout title={`${t("terms.users")}: ${user.username}`}>
+      <AdminNav active="/admin/users" session={session} />
+      <UsersSubNav />
+      <h1>{user.username}</h1>
+      <Flash error={opts.error} success={opts.success} />
+
+      <div class="table-scroll">
+        <table class="listing-details-table">
+          <tbody>
+            <tr>
+              <th>{t("users.col.role")}</th>
+              <td>{user.adminLevel}</td>
+            </tr>
+            <tr>
+              <th>{t("common.status")}</th>
+              <td>{userStatus(user)}</td>
+            </tr>
+            {user.adminLevel === "agent" && (
+              <tr>
+                <th>{t("users.agents.legend")}</th>
+                <td>
+                  {user.agentNames && user.agentNames.length > 0
+                    ? user.agentNames.join(", ")
+                    : t("users.agents.none_assigned")}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <p class="actions">
+        {user.hasPassword && !user.hasDataKey && (
+          <CsrfForm action={`/admin/users/${user.id}/activate`} class="inline">
+            <SubmitButton icon="check">{t("users.activate")}</SubmitButton>
+          </CsrfForm>
+        )}
+        {user.adminLevel === "agent" && (
+          <ActionButton
+            href={`/admin/users/${user.id}/agents`}
+            variant="secondary"
+          >
+            {t("users.agents.edit_link")}
+          </ActionButton>
+        )}
+      </p>
+
+      {user.id !== opts.currentUserId && (
+        <DeleteSection
+          heading={t("common.delete")}
+          href={`/admin/users/${user.id}/delete`}
+        >
+          {t("users.delete_user.submit")}
+        </DeleteSection>
+      )}
     </Layout>,
   );
 

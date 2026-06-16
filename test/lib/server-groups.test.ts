@@ -58,14 +58,14 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       });
 
       const { response } = await adminGet("/admin/groups");
+      // The name links to the group detail page; edit/delete live there now,
+      // not inline in the list table.
       await expectHtmlResponse(
         response,
         200,
         "Group One",
         "group-one",
         `/admin/groups/${group.id}">`,
-        `/admin/groups/${group.id}/edit`,
-        `/admin/groups/${group.id}/delete`,
       );
     });
   });
