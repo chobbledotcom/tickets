@@ -42,10 +42,7 @@ import {
   targetQuery,
   validateDraftInput,
 } from "#shared/bulk-email.ts";
-import {
-  decryptAttendeePII,
-  encryptAttendeePII,
-} from "#shared/crypto/keys.ts";
+import { decryptAttendeePII, encryptAttendeePII } from "#shared/crypto/keys.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
   getContactCounts,
@@ -122,7 +119,9 @@ const parseSavedDraft = async (
 };
 
 /** Serialize and encrypt a draft using the owner's public key. */
-const saveDraft = (draft: Parameters<typeof serializeDraft>[0]): Promise<void> =>
+const saveDraft = (
+  draft: Parameters<typeof serializeDraft>[0],
+): Promise<void> =>
   encryptAttendeePII(serializeDraft(draft), settings.publicKey).then(
     (encrypted) => settings.update.bulkEmailDraft(encrypted),
   );
