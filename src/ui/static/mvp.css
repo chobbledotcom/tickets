@@ -2038,21 +2038,36 @@ a.cal-day-selected:hover {
 
 /* Guide page */
 
-/* Attendees browser filter/sort form */
-.attendees-filter {
+/* Filter/sort form row */
+.filter-row {
   display: flex;
   flex-wrap: wrap;
+  flex-direction: row;
   align-items: flex-end;
   gap: 1rem;
   margin: 1rem 0;
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+  background: none;
+  max-width: 100%;
 }
 
-.attendees-filter label {
+/* Override dark-mode form box-shadow which would otherwise apply */
+[data-theme="dark"] .filter-row {
+  box-shadow: none;
+}
+
+.filter-row label {
   margin: 0;
 }
 
-.attendees-filter button {
+.filter-row button {
   margin: 0;
+}
+
+.filter-row select {
+  max-width: 15rem;
 }
 
 /* Previous/next pagination */
