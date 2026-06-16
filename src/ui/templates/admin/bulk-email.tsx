@@ -10,7 +10,7 @@ import {
   MAX_BULK_EMAIL_SUBJECT_LENGTH,
   targetQuery,
 } from "#shared/bulk-email.ts";
-import { CsrfForm, Flash } from "#shared/forms.tsx";
+import { ConfirmForm, CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
@@ -140,14 +140,12 @@ export const bulkEmailComposePage = (
                   </a>
                   {state.selectedTemplateId === tpl.id &&
                     ` ${t("bulk_email.template_loaded_marker")}`}{" "}
-                  <CsrfForm
-                    action={`/admin/emails/templates/${tpl.id}/delete`}
-                    class="inline"
+                  <a
+                    class="danger small"
+                    href={`/admin/emails/templates/${tpl.id}/delete`}
                   >
-                    <button class="link-button danger small" type="submit">
-                      {t("common.delete")}
-                    </button>
-                  </CsrfForm>
+                    {t("common.delete")}
+                  </a>
                 </li>
               ))}
             </ul>
@@ -250,6 +248,36 @@ export const bulkEmailComposePage = (
     </Layout>,
   );
 };
+
+/**
+ * Confirmation page for deleting a saved bulk-email template. The owner must
+ * re-type the template's subject, matching the typed-identifier delete flow used
+ * for other named resources.
+ */
+export const bulkEmailTemplateDeletePage = (
+  session: AdminSession,
+  template: { id: number; subject: string },
+  error?: string,
+): string =>
+  String(
+    <Layout title={t("bulk_email.delete_template_heading")}>
+      <AdminNav active={NAV_ACTIVE} session={session} />
+      <ConfirmForm
+        action={`/admin/emails/templates/${template.id}/delete`}
+        buttonText={t("bulk_email.delete_template_submit")}
+        label={t("bulk_email.subject_label")}
+        name={template.subject}
+      >
+        <h1>{t("bulk_email.delete_template_heading")}</h1>
+        <Flash error={error} />
+        <p>
+          {t("bulk_email.delete_template_intro")}{" "}
+          <strong>{template.subject}</strong>
+        </p>
+        <p>{t("bulk_email.delete_template_prompt")}</p>
+      </ConfirmForm>
+    </Layout>,
+  );
 
 export type BulkEmailPreviewState = {
   draft: BulkEmailDraft;
