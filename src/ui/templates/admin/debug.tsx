@@ -2,6 +2,7 @@
  * Admin debug page template - shows configuration status for troubleshooting
  */
 
+import { t } from "#i18n";
 import { formatLimitValue, type LIMIT_ENTRIES } from "#shared/limits.ts";
 import type { RuntimeInfo } from "#shared/runtime.ts";
 import type { AdminSession, Theme } from "#shared/types.ts";
@@ -89,9 +90,9 @@ export type DebugPageState = {
 
 const StatusBadge = ({ ok }: { ok: boolean }): JSX.Element =>
   ok ? (
-    <span class="badge-ok">Configured</span>
+    <span class="badge-ok">{t("common.configured")}</span>
   ) : (
-    <span class="badge-missing">Not configured</span>
+    <span class="badge-missing">{t("common.not_configured")}</span>
   );
 
 /** Badge with caller-chosen labels for a two-state (on/off) value. */
@@ -116,15 +117,15 @@ const BuildSection = ({
   build: DebugPageState["build"];
 }): JSX.Element => (
   <article>
-    <h2>Build</h2>
+    <h2>{t("debug.section.build")}</h2>
     <table>
       <tbody>
         <tr>
-          <td>Timestamp</td>
+          <td>{t("debug.field.timestamp")}</td>
           <td>{build.timestamp || "—"}</td>
         </tr>
         <tr>
-          <td>Commit</td>
+          <td>{t("debug.field.commit")}</td>
           <td>{build.commit || "—"}</td>
         </tr>
       </tbody>
@@ -138,38 +139,38 @@ const RuntimeSection = ({
   runtime: DebugPageState["runtime"];
 }): JSX.Element => (
   <article>
-    <h2>Runtime</h2>
+    <h2>{t("debug.section.runtime")}</h2>
     <table>
       <tbody>
         <tr>
-          <td>Host runtime</td>
+          <td>{t("debug.field.host_runtime")}</td>
           <td>{runtime.runtime}</td>
         </tr>
         <tr>
-          <td>Deno version</td>
+          <td>{t("debug.field.deno_version")}</td>
           <td>{runtime.denoVersion || "—"}</td>
         </tr>
         <tr>
-          <td>V8 version</td>
+          <td>{t("debug.field.v8_version")}</td>
           <td>{runtime.v8Version || "—"}</td>
         </tr>
         <tr>
-          <td>TypeScript version</td>
+          <td>{t("debug.field.typescript_version")}</td>
           <td>{runtime.typescriptVersion || "—"}</td>
         </tr>
         <tr>
-          <td>Node compatibility</td>
+          <td>{t("debug.field.node_compatibility")}</td>
           <td>{runtime.nodeCompatVersion || "—"}</td>
         </tr>
         <tr>
-          <td>OS / architecture</td>
+          <td>{t("debug.field.os_architecture")}</td>
           <td>
             {runtime.os || "—"}
             {runtime.arch ? ` / ${runtime.arch}` : ""}
           </td>
         </tr>
         <tr>
-          <td>User agent</td>
+          <td>{t("debug.field.user_agent")}</td>
           <td>{runtime.userAgent || "—"}</td>
         </tr>
       </tbody>
@@ -183,39 +184,39 @@ const AppleWalletSection = ({
   appleWallet: DebugPageState["appleWallet"];
 }): JSX.Element => (
   <article>
-    <h2>Apple Wallet</h2>
+    <h2>{t("debug.section.apple_wallet")}</h2>
     <table>
       <tbody>
         <tr>
-          <td>DB config</td>
+          <td>{t("debug.field.db_config")}</td>
           <td>
             <StatusBadge ok={appleWallet.dbConfigured} />
           </td>
         </tr>
         <tr>
-          <td>Env var config</td>
+          <td>{t("debug.field.env_var_config")}</td>
           <td>
             <StatusBadge ok={appleWallet.envConfigured} />
           </td>
         </tr>
         <tr>
-          <td>Active source</td>
-          <td>{appleWallet.source || "None"}</td>
+          <td>{t("debug.field.active_source")}</td>
+          <td>{appleWallet.source || t("common.none")}</td>
         </tr>
         <tr>
-          <td>Pass Type ID</td>
+          <td>{t("debug.field.pass_type_id")}</td>
           <td>{appleWallet.passTypeId || "—"}</td>
         </tr>
         <tr>
-          <td>Signing certificate</td>
+          <td>{t("debug.field.signing_certificate")}</td>
           <td>{appleWallet.certValidation.signingCert}</td>
         </tr>
         <tr>
-          <td>Signing key</td>
+          <td>{t("debug.field.signing_key")}</td>
           <td>{appleWallet.certValidation.signingKey}</td>
         </tr>
         <tr>
-          <td>WWDR certificate</td>
+          <td>{t("debug.field.wwdr_certificate")}</td>
           <td>{appleWallet.certValidation.wwdrCert}</td>
         </tr>
       </tbody>
@@ -229,31 +230,31 @@ const GoogleWalletSection = ({
   googleWallet: DebugPageState["googleWallet"];
 }): JSX.Element => (
   <article>
-    <h2>Google Wallet</h2>
+    <h2>{t("debug.section.google_wallet")}</h2>
     <table>
       <tbody>
         <tr>
-          <td>DB config</td>
+          <td>{t("debug.field.db_config")}</td>
           <td>
             <StatusBadge ok={googleWallet.dbConfigured} />
           </td>
         </tr>
         <tr>
-          <td>Env var config</td>
+          <td>{t("debug.field.env_var_config")}</td>
           <td>
             <StatusBadge ok={googleWallet.envConfigured} />
           </td>
         </tr>
         <tr>
-          <td>Active source</td>
-          <td>{googleWallet.source || "None"}</td>
+          <td>{t("debug.field.active_source")}</td>
+          <td>{googleWallet.source || t("common.none")}</td>
         </tr>
         <tr>
-          <td>Issuer ID</td>
+          <td>{t("debug.field.issuer_id")}</td>
           <td>{googleWallet.issuerId || "—"}</td>
         </tr>
         <tr>
-          <td>Private key</td>
+          <td>{t("debug.field.private_key")}</td>
           <td>{googleWallet.privateKeyValid}</td>
         </tr>
       </tbody>
@@ -267,25 +268,25 @@ const PaymentsSection = ({
   payment: DebugPageState["payment"];
 }): JSX.Element => (
   <article>
-    <h2>Payments</h2>
+    <h2>{t("debug.section.payments")}</h2>
     <table>
       <tbody>
         <tr>
-          <td>Provider</td>
-          <td>{payment.provider || "None"}</td>
+          <td>{t("debug.field.provider")}</td>
+          <td>{payment.provider || t("common.none")}</td>
         </tr>
         <tr>
-          <td>Mode</td>
+          <td>{t("debug.field.mode")}</td>
           <td>{payment.mode || "—"}</td>
         </tr>
         <tr>
-          <td>API key</td>
+          <td>{t("debug.field.api_key")}</td>
           <td>
             <StatusBadge ok={payment.keyConfigured} />
           </td>
         </tr>
         <tr>
-          <td>Webhook</td>
+          <td>{t("debug.field.webhook")}</td>
           <td>
             <StatusBadge ok={payment.webhookConfigured} />
           </td>
@@ -301,26 +302,26 @@ const EmailSection = ({
   email: DebugPageState["email"];
 }): JSX.Element => (
   <article>
-    <h2>Email</h2>
+    <h2>{t("common.email")}</h2>
     <table>
       <tbody>
         <tr>
-          <td>Provider (DB)</td>
-          <td>{email.provider || "None"}</td>
+          <td>{t("debug.field.provider_db")}</td>
+          <td>{email.provider || t("common.none")}</td>
         </tr>
         <tr>
-          <td>API key</td>
+          <td>{t("debug.field.api_key")}</td>
           <td>
             <StatusBadge ok={email.apiKeyConfigured} />
           </td>
         </tr>
         <tr>
-          <td>From address</td>
+          <td>{t("debug.field.from_address")}</td>
           <td>{email.fromAddress || "—"}</td>
         </tr>
         <tr>
-          <td>Host provider (env)</td>
-          <td>{email.hostProvider || "None"}</td>
+          <td>{t("debug.field.host_provider_env")}</td>
+          <td>{email.hostProvider || t("common.none")}</td>
         </tr>
       </tbody>
     </table>
@@ -333,11 +334,11 @@ const NtfySection = ({
   ntfy: DebugPageState["ntfy"];
 }): JSX.Element => (
   <article>
-    <h2>Notifications (ntfy)</h2>
+    <h2>{t("debug.section.notifications")}</h2>
     <table>
       <tbody>
         <tr>
-          <td>NTFY URL</td>
+          <td>{t("debug.field.ntfy_url")}</td>
           <td>
             <StatusBadge ok={ntfy.configured} />
           </td>
@@ -353,11 +354,11 @@ const SiteSection = ({
   site: DebugPageState["site"];
 }): JSX.Element => (
   <article>
-    <h2>Site</h2>
+    <h2>{t("debug.section.site")}</h2>
     <table>
       <tbody>
         <tr>
-          <td>Public site</td>
+          <td>{t("debug.field.public_site")}</td>
           <td>
             <OnOffBadge
               offLabel="Hidden"
@@ -367,7 +368,7 @@ const SiteSection = ({
           </td>
         </tr>
         <tr>
-          <td>Public API</td>
+          <td>{t("debug.field.public_api")}</td>
           <td>
             <OnOffBadge
               offLabel="Disabled"
@@ -377,7 +378,7 @@ const SiteSection = ({
           </td>
         </tr>
         <tr>
-          <td>Contact form</td>
+          <td>{t("debug.field.contact_form")}</td>
           <td>
             <OnOffBadge
               offLabel="Disabled"
@@ -387,25 +388,25 @@ const SiteSection = ({
           </td>
         </tr>
         <tr>
-          <td>Spam protection</td>
+          <td>{t("debug.field.spam_protection")}</td>
           <td>
             <StatusBadge ok={site.spamProtection} />
           </td>
         </tr>
         <tr>
-          <td>Country</td>
+          <td>{t("debug.field.country")}</td>
           <td>{site.country || "—"}</td>
         </tr>
         <tr>
-          <td>Currency</td>
+          <td>{t("debug.field.currency")}</td>
           <td>{site.currency || "—"}</td>
         </tr>
         <tr>
-          <td>Timezone</td>
+          <td>{t("debug.field.timezone")}</td>
           <td>{site.timezone || "—"}</td>
         </tr>
         <tr>
-          <td>Booking fee</td>
+          <td>{t("debug.field.booking_fee")}</td>
           <td>{site.bookingFee}%</td>
         </tr>
       </tbody>
@@ -433,27 +434,27 @@ const AvailabilitySection = ({
   availability: DebugPageState["availability"];
 }): JSX.Element => (
   <article>
-    <h2>Availability</h2>
+    <h2>{t("debug.section.availability")}</h2>
     <table>
       <tbody>
         <tr>
-          <td>Write access</td>
+          <td>{t("debug.field.write_access")}</td>
           <td>
             <AvailabilityStateBadge state={availability.state} />
           </td>
         </tr>
         <tr>
-          <td>Read-only from</td>
+          <td>{t("debug.field.read_only_from")}</td>
           <td>{availability.cutoff || "—"}</td>
         </tr>
         <tr>
-          <td>Renewal URL</td>
+          <td>{t("debug.field.renewal_url")}</td>
           <td>
             <StatusBadge ok={availability.renewalConfigured} />
           </td>
         </tr>
         <tr>
-          <td>Server time (UTC)</td>
+          <td>{t("debug.field.server_time_utc")}</td>
           <td>{availability.serverTime}</td>
         </tr>
       </tbody>
@@ -479,41 +480,41 @@ const BunnySection = ({
   bunny: DebugPageState["bunny"];
 }): JSX.Element => (
   <article>
-    <h2>Bunny</h2>
+    <h2>{t("debug.section.bunny")}</h2>
     <table>
       <tbody>
         <tr>
-          <td>File storage (images)</td>
+          <td>{t("debug.field.file_storage_images")}</td>
           <td>
             <StorageBackendBadge backend={bunny.storageBackend} />
           </td>
         </tr>
         <tr>
-          <td>CDN management</td>
+          <td>{t("debug.field.cdn_management")}</td>
           <td>
             <StatusBadge ok={bunny.cdnEnabled} />
           </td>
         </tr>
         <tr>
-          <td>CDN hostname</td>
+          <td>{t("debug.field.cdn_hostname")}</td>
           <td>{bunny.cdnHostname || "—"}</td>
         </tr>
         <tr>
-          <td>Custom domain</td>
+          <td>{t("debug.field.custom_domain")}</td>
           <td>{bunny.customDomain || "—"}</td>
         </tr>
         <tr>
-          <td>DNS subdomain</td>
+          <td>{t("debug.field.dns_subdomain")}</td>
           <td>
             <StatusBadge ok={bunny.dnsEnabled} />
           </td>
         </tr>
         <tr>
-          <td>Subdomain suffix</td>
+          <td>{t("debug.field.subdomain_suffix")}</td>
           <td>{bunny.subdomainSuffix || "—"}</td>
         </tr>
         <tr>
-          <td>Registered subdomain</td>
+          <td>{t("debug.field.registered_subdomain")}</td>
           <td>{bunny.registeredSubdomain || "—"}</td>
         </tr>
       </tbody>
@@ -529,7 +530,7 @@ const DatabaseDomainSection = ({
   domain: string;
 }): JSX.Element => (
   <article>
-    <h2>Database &amp; Domain</h2>
+    <h2>{t("debug.section.database_domain")}</h2>
     <table>
       <tbody>
         <tr>
@@ -539,11 +540,11 @@ const DatabaseDomainSection = ({
           </td>
         </tr>
         <tr>
-          <td>Effective domain</td>
+          <td>{t("debug.field.effective_domain")}</td>
           <td>{domain}</td>
         </tr>
         <tr>
-          <td>Schema status</td>
+          <td>{t("debug.field.schema_status")}</td>
           <td>
             <OnOffBadge
               offLabel="Out of sync"
@@ -553,7 +554,7 @@ const DatabaseDomainSection = ({
           </td>
         </tr>
         <tr>
-          <td>Schema hash</td>
+          <td>{t("debug.field.schema_hash")}</td>
           <td>
             <code>{database.schemaHash}</code>
           </td>
@@ -571,7 +572,9 @@ const LimitValueCell = ({
   limit.current === limit.defaultValue ? (
     <span>{formatLimitValue(limit.current, limit.unit)}</span>
   ) : (
-    <strong>{formatLimitValue(limit.current, limit.unit)} (overridden)</strong>
+    <strong>
+      {formatLimitValue(limit.current, limit.unit)} {t("debug.overridden")}
+    </strong>
   );
 
 const LimitsSection = ({
@@ -581,19 +584,16 @@ const LimitsSection = ({
 }): JSX.Element => (
   <article>
     <div class="prose">
-      <h2>Limits</h2>
-      <p>
-        Override any limit with the corresponding environment variable. Values
-        must be positive integers.
-      </p>
+      <h2>{t("debug.section.limits")}</h2>
+      <p>{t("debug.limits_hint")}</p>
     </div>
     <table>
       <thead>
         <tr>
-          <th>Setting</th>
-          <th>Env var</th>
-          <th>Default</th>
-          <th>Current</th>
+          <th>{t("debug.col.setting")}</th>
+          <th>{t("debug.col.env_var")}</th>
+          <th>{t("debug.col.default")}</th>
+          <th>{t("debug.col.current")}</th>
         </tr>
       </thead>
       <tbody>
@@ -621,7 +621,7 @@ const PruneSection = ({
 }): JSX.Element => (
   <article>
     <div class="prose">
-      <h2>Database pruning</h2>
+      <h2>{t("debug.section.database_pruning")}</h2>
       <p>
         Automatic cleanup of short-lived rows. Runs in the background on
         incoming requests; frequency controlled by{" "}
@@ -631,8 +631,8 @@ const PruneSection = ({
     <table>
       <thead>
         <tr>
-          <th>Table</th>
-          <th>Last pruned (UTC)</th>
+          <th>{t("debug.field.table")}</th>
+          <th>{t("debug.field.last_pruned_utc")}</th>
         </tr>
       </thead>
       <tbody>
@@ -661,16 +661,13 @@ export const adminDebugPage = (
   s: DebugPageState,
 ): string =>
   String(
-    <Layout theme={s.theme} title="Debug Info">
+    <Layout theme={s.theme} title={t("debug.title")}>
       <AdminNav active="/admin/settings" session={session} />
       <SettingsSubNav />
 
       <div class="prose">
-        <h1>Debug Info</h1>
-        <p>
-          Configuration status overview for troubleshooting. No secrets or keys
-          are shown.
-        </p>
+        <h1>{t("debug.heading")}</h1>
+        <p>{t("debug.description")}</p>
       </div>
 
       <BuildSection build={s.build} />

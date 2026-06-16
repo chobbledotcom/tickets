@@ -2,6 +2,7 @@
  * Confirmation Email Template form for advanced settings
  */
 
+import { t } from "#i18n";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 import { SettingsSection } from "#templates/components/settings-section.tsx";
 import { DEFAULT_TEMPLATES } from "#templates/email/defaults.ts";
@@ -22,11 +23,11 @@ export const ConfirmationEmailTemplateForm = (
       </p>
     }
     id="settings-email-tpl-confirmation"
-    submitLabel="Save Confirmation Template"
-    title="Confirmation Email Template"
+    submitLabel={t("settings.advanced.save_confirmation_template")}
+    title={t("settings.advanced.confirmation_email")}
   >
     <details>
-      <summary>Available variables</summary>
+      <summary>{t("settings.advanced.available_variables")}</summary>
       <table>
         <tr>
           <td>
@@ -44,7 +45,7 @@ export const ConfirmationEmailTemplateForm = (
           <td>
             <code>{"{{ attendee.name }}"}</code>
           </td>
-          <td>Attendee name</td>
+          <td>{t("admin.attendees.delete_label")}</td>
         </tr>
         <tr>
           <td>
@@ -115,7 +116,7 @@ export const ConfirmationEmailTemplateForm = (
       </table>
     </details>
     <label>
-      Subject
+      {t("settings.advanced.subject")}
       <input
         autocomplete="off"
         name="subject"
@@ -125,34 +126,34 @@ export const ConfirmationEmailTemplateForm = (
       />
     </label>
     <label>
-      HTML Body
+      {t("settings.advanced.html_body")}
       <textarea
         data-default-tpl={DEFAULT_TEMPLATES.confirmation.html}
         id="confirmation_html"
         name="html"
-        placeholder="Leave blank to use default template"
+        placeholder={t("settings.advanced.leave_blank_default")}
         rows="8"
       >
         {s.confirmationTemplates.html}
       </textarea>
     </label>
     <a data-fill-default="confirmation_html" href="#">
-      <small>Edit default template</small>
+      <small>{t("settings.advanced.edit_default_template")}</small>
     </a>
     <label>
-      Plain Text Body
+      {t("settings.advanced.plain_text_body")}
       <textarea
         data-default-tpl={DEFAULT_TEMPLATES.confirmation.text}
         id="confirmation_text"
         name="text"
-        placeholder="Leave blank to use default template"
+        placeholder={t("settings.advanced.leave_blank_default")}
         rows="6"
       >
         {s.confirmationTemplates.text}
       </textarea>
     </label>
     <a data-fill-default="confirmation_text" href="#">
-      <small>Edit default template</small>
+      <small>{t("settings.advanced.edit_default_template")}</small>
     </a>
     <br />
   </SettingsSection>

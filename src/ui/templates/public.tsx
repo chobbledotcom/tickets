@@ -3,6 +3,7 @@
  */
 
 import { map, pipe } from "#fp";
+import { t } from "#i18n";
 import { CONTACT_JS_PATH } from "#shared/asset-paths.ts";
 import { isContactFormActive } from "#shared/contact-form.ts";
 import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
@@ -55,14 +56,14 @@ const PublicNav = ({
   <nav>
     <ul>
       <li>
-        <a href="/">Home</a>
+        <a href="/">{t("nav.public.home")}</a>
       </li>
       <li>
-        <a href="/listings">Listings</a>
+        <a href="/listings">{t("terms.listings")}</a>
       </li>
       {hasOrder && (
         <li>
-          <a href="/order">Order</a>
+          <a href="/order">{t("nav.public.order")}</a>
         </li>
       )}
       {hasTerms && (
@@ -72,7 +73,7 @@ const PublicNav = ({
       )}
       {hasContact && (
         <li>
-          <a href="/contact">Contact</a>
+          <a href="/contact">{t("nav.public.contact")}</a>
         </li>
       )}
     </ul>
@@ -101,9 +102,9 @@ export const publicSitePage = (
   content?: string | null,
 ): string => {
   const titles: Record<PublicPageType, string> = {
-    contact: "Contact",
-    home: "Home",
-    terms: "Terms & Conditions",
+    contact: t("public.contact"),
+    home: t("public.home"),
+    terms: t("public.terms_and_conditions"),
   };
   const pageTitle = websiteTitle
     ? `${titles[pageType]} - ${websiteTitle}`
@@ -118,13 +119,13 @@ export const publicSitePage = (
           <Raw html={renderMarkdown(content)} />
         ) : (
           <p>
-            <em>No content.</em>
+            <em>{t("public.no_content")}</em>
           </p>
         )}
       </div>
       <footer class="homepage-footer">
         <p>
-          <a href="/admin/login">Login</a>
+          <a href="/admin/login">{t("common.login")}</a>
         </p>
       </footer>
     </Layout>,
@@ -145,7 +146,7 @@ const ContactForm = ({
     : {};
   return (
     <CsrfForm action="/contact" {...botpoisonAttr}>
-      <h2>Send us a message</h2>
+      <h2>{t("public.send_us_a_message")}</h2>
       <label>
         Your email address
         <input autocomplete="email" name="email" required type="email" />
@@ -188,7 +189,7 @@ export const contactPage = (options: {
       {formActive && <ContactForm botpoisonPublicKey={botpoisonPublicKey} />}
       <footer class="homepage-footer">
         <p>
-          <a href="/admin/login">Login</a>
+          <a href="/admin/login">{t("common.login")}</a>
         </p>
       </footer>
     </Layout>,
@@ -261,11 +262,11 @@ export const homepagePage = (
         {websiteTitle && <h1>{websiteTitle}</h1>}
         <PublicNav {...navFlags()} />
         <p>
-          <em>No listings listed.</em>
+          <em>{t("public.no_listings_listed")}</em>
         </p>
         <footer class="homepage-footer">
           <p>
-            <a href="/admin/login">Login</a>
+            <a href="/admin/login">{t("common.login")}</a>
           </p>
         </footer>
       </Layout>,
@@ -284,12 +285,12 @@ export const homepagePage = (
     <Layout headExtra={FEED_DISCOVERY_TAGS} title={title}>
       {websiteTitle && <h1>{websiteTitle}</h1>}
       <PublicNav {...navFlags()} />
-      <h2>All bookable listings</h2>
+      <h2>{t("public.all_bookable_listings")}</h2>
       <Raw html={groupListings} />
       <Raw html={listingListings} />
       <footer class="homepage-footer">
         <p>
-          <a href="/admin/login">Login</a>
+          <a href="/admin/login">{t("common.login")}</a>
         </p>
       </footer>
     </Layout>,
@@ -420,8 +421,10 @@ const renderPayMoreInput = (
   const maxPrice = listing.max_price;
   const rangeHint =
     minPrice > 0
-      ? `Price per ticket (${formatCurrency(minPrice)} minimum)`
-      : `Price per ticket (optional, up to ${formatCurrency(maxPrice)})`;
+      ? t("public.ticket.your_price_min", { min: formatCurrency(minPrice) })
+      : t("public.ticket.your_price_optional", {
+          max: formatCurrency(maxPrice),
+        });
   const prefillValue =
     prefillMinor !== undefined && prefillMinor >= minPrice
       ? prefillMinor
@@ -488,8 +491,8 @@ export const renderQuestions = (
  */
 export const notFoundPage = (): string =>
   String(
-    <Layout title="Not Found">
-      <h1>Not Found</h1>
+    <Layout title={t("public.not_found.title")}>
+      <h1>{t("public.not_found.heading")}</h1>
     </Layout>,
   );
 
@@ -499,15 +502,14 @@ export const notFoundPage = (): string =>
  */
 export const qrBookErrorPage = (slug: string): string =>
   String(
-    <Layout title="QR code expired">
+    <Layout title={t("public.qr_book_error.title")}>
       <div class="prose">
-        <h1>QR code expired or invalid</h1>
+        <h1>{t("public.qr_book_error.heading")}</h1>
+        <p>{t("public.qr_book_error.message")}</p>
         <p>
-          This QR code has expired or the link has been tampered with. Ask the
-          organiser to generate a new one, or use the normal booking page below.
-        </p>
-        <p>
-          <a href={`/ticket/${escapeHtml(slug)}`}>Go to booking page</a>
+          <a href={`/ticket/${escapeHtml(slug)}`}>
+            {t("public.qr_book_error.booking_link")}
+          </a>
         </p>
       </div>
     </Layout>,
@@ -518,13 +520,10 @@ export const qrBookErrorPage = (slug: string): string =>
  */
 export const rateLimitedPage = (): string =>
   String(
-    <Layout title="Too Many Requests">
+    <Layout title={t("public.rate_limited.title")}>
       <div class="prose">
-        <h1>Too Many Requests</h1>
-        <p>
-          You've hit too many invalid ticket links. Please wait a few minutes
-          and try again.
-        </p>
+        <h1>{t("public.rate_limited.heading")}</h1>
+        <p>{t("public.rate_limited.message")}</p>
       </div>
     </Layout>,
   );
@@ -550,12 +549,13 @@ ${ERROR_DIALOG_STYLE}`;
 
 export const temporaryErrorPage = (): string =>
   String(
-    <Layout headExtra={TEMPORARY_ERROR_HEAD} title="Temporary Error">
+    <Layout
+      headExtra={TEMPORARY_ERROR_HEAD}
+      title={t("public.temporary_error.title")}
+    >
       <div class="prose">
-        <h1>Temporary Error</h1>
-        <p>
-          Something went wrong loading this page. Retrying automatically&hellip;
-        </p>
+        <h1>{t("public.temporary_error.heading")}</h1>
+        <p>{t("public.temporary_error.message")}</p>
         <p>
           <small>
             Check{" "}
@@ -580,12 +580,14 @@ ${ERROR_DIALOG_STYLE}`;
 
 export const migrationInProgressPage = (): string =>
   String(
-    <Layout headExtra={MIGRATION_IN_PROGRESS_HEAD} title="Update In Progress">
+    <Layout
+      headExtra={MIGRATION_IN_PROGRESS_HEAD}
+      title={t("public.migration_in_progress.title")}
+    >
       <div class="prose">
-        <h1>Update In Progress</h1>
+        <h1>{t("public.migration_in_progress.heading")}</h1>
         <p>
-          We&rsquo;re backing up and updating the database. This usually only
-          takes a few seconds. This page will reload automatically&hellip;
+          <Raw html={t("public.migration_in_progress.message")} />
         </p>
       </div>
     </Layout>,
@@ -598,10 +600,13 @@ export const migrationInProgressPage = (): string =>
  */
 export const siteNotActivatedPage = (): string =>
   String(
-    <Layout headExtra={ERROR_DIALOG_STYLE} title="Not Activated">
+    <Layout
+      headExtra={ERROR_DIALOG_STYLE}
+      title={t("public.not_activated.title")}
+    >
       <div class="prose">
-        <h1>Not Activated</h1>
-        <p>This site has not been activated yet.</p>
+        <h1>{t("public.not_activated.heading")}</h1>
+        <p>{t("public.not_activated.message")}</p>
       </div>
     </Layout>,
   );
@@ -612,9 +617,9 @@ export const siteNotActivatedPage = (): string =>
 export const readOnlyPage = (): string => {
   const renewalUrl = getRenewalUrl();
   return String(
-    <Layout title="Read Only">
+    <Layout title={t("public.read_only.title")}>
       <p>
-        This site is in read-only mode.
+        {t("public.read_only.message")}
         {renewalUrl && <Raw html={` <a href="${renewalUrl}">Renew now</a>`} />}
       </p>
     </Layout>,
@@ -826,10 +831,10 @@ const unavailableMessage = (
   allClosed: boolean,
   isSingleListing: boolean,
 ): string => {
-  if (isReadOnly() || allClosed) return "Registration closed.";
+  if (isReadOnly() || allClosed) return t("public.ticket.registration_closed");
   return isSingleListing
-    ? "Sorry, this listing is full."
-    : "Sorry, all listings are sold out.";
+    ? t("public.ticket.listing_full")
+    : t("public.multi.all_sold_out");
 };
 
 /** Header block shown above the form with listing/group details */
@@ -934,7 +939,7 @@ const TicketPageForm = ({
         <Raw html={listingRows} />
       ) : (
         <fieldset class="ticket-listings">
-          <legend>Select Tickets</legend>
+          <legend>{t("public.multi.select_tickets")}</legend>
           <Raw html={listingRows} />
         </fieldset>
       )}
@@ -943,7 +948,7 @@ const TicketPageForm = ({
         <Raw html={renderQuestions(questions, questionListingMap)} />
       )}
       {terms && <Raw html={renderTermsAndCheckbox(terms)} />}
-      <button type="submit">Continue</button>
+      <button type="submit">{t("common.continue")}</button>
     </CsrfForm>
   );
 };
@@ -1160,7 +1165,9 @@ export const orderGalleryPage = (
       ) : (
         <form action="/order" class="order-gallery" method="get">
           <fieldset class="order-grid">
-            <legend class="visually-hidden">Select items to order</legend>
+            <legend class="visually-hidden">
+              {t("public.select_items_to_order")}
+            </legend>
             <Raw html={cards} />
           </fieldset>
           <button class="order-cart" type="submit">
@@ -1172,7 +1179,7 @@ export const orderGalleryPage = (
       )}
       <footer class="homepage-footer">
         <p>
-          <a href="/admin/login">Login</a>
+          <a href="/admin/login">{t("common.login")}</a>
         </p>
       </footer>
     </Layout>,

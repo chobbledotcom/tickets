@@ -2,6 +2,7 @@
  * Join (invite) page templates
  */
 
+import { t } from "#i18n";
 import { joinForm } from "#routes/join.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
@@ -16,15 +17,15 @@ export const joinPage = (
   error?: string,
 ): string =>
   String(
-    <Layout title="Set Your Password">
+    <Layout title={t("join.set_password.title")}>
       <CsrfForm action={`/join/${code}`}>
         <div class="prose">
-          <h1>Welcome, {username}</h1>
-          <p>Set your password to complete your account setup.</p>
+          <h1>{t("join.set_password.welcome", { username })}</h1>
+          <p>{t("join.set_password.instructions")}</p>
         </div>
         <Flash error={error} />
         <Raw html={joinForm.render()} />
-        <button type="submit">Set Password</button>
+        <button type="submit">{t("join.set_password.submit")}</button>
       </CsrfForm>
     </Layout>,
   );
@@ -34,14 +35,11 @@ export const joinPage = (
  */
 export const joinCompletePage = (): string =>
   String(
-    <Layout title="Account Created">
-      <h1>Password Set</h1>
+    <Layout title={t("join.success.title")}>
+      <h1>{t("join.success.heading")}</h1>
       <div class="success" role="alert">
-        <p>Your password has been set successfully.</p>
-        <p>
-          Please wait for the site owner to activate your account before logging
-          in.
-        </p>
+        <p>{t("join.success.message")}</p>
+        <p>{t("join.success.wait_activation")}</p>
       </div>
     </Layout>,
   );
@@ -51,8 +49,8 @@ export const joinCompletePage = (): string =>
  */
 export const joinErrorPage = (message: string): string =>
   String(
-    <Layout title="Invalid Invite">
-      <h1>Invalid Invite</h1>
+    <Layout title={t("join.invalid.title")}>
+      <h1>{t("join.invalid.heading")}</h1>
       <Flash error={message} />
     </Layout>,
   );

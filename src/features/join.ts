@@ -2,6 +2,7 @@
  * Join routes - public invite acceptance flow
  */
 
+import { t } from "#i18n";
 import { applyFlash } from "#routes/csrf.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
@@ -27,8 +28,7 @@ export const joinForm = defineForm({
       name: "password" as const,
       required: true,
       type: "password" as const,
-      validate: (v: string) =>
-        v.length < 8 ? "Password must be at least 8 characters" : null,
+      validate: (v: string) => (v.length < 8 ? t("error.password_min") : null),
     },
     {
       autocomplete: "new-password" as const,
@@ -47,15 +47,12 @@ const validateInvite = async (
 ): Promise<{ user: User; username: string } | Response> => {
   const user = await getUserByInviteCode(code);
   if (!user) {
-    return htmlResponse(
-      joinErrorPage("This invite link is invalid or has already been used."),
-      404,
-    );
+    return htmlResponse(joinErrorPage(t("error.invite_invalid")), 404);
   }
 
   const valid = await isInviteValid(user);
   if (!valid) {
-    return htmlResponse(joinErrorPage("This invite link has expired."), 410);
+    return htmlResponse(joinErrorPage(t("error.invite_expired")), 410);
   }
 
   return { user, username: await decryptUsername(user) };
@@ -109,7 +106,7 @@ const setPasswordRoute = (code: string, user: User) =>
     onInvalid: ({ error }) => errorRedirect(`/join/${code}`, error),
     onValid: async ({ values }) => {
       if (values.password !== values.password_confirm) {
-        return errorRedirect(`/join/${code}`, "Passwords do not match");
+        return errorRedirect(`/join/${code}`, t("error.passwords_mismatch"));
       }
       await setUserPassword(user.id, values.password);
       return redirect("/join/complete", "Password set successfully", true);

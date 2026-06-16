@@ -2,6 +2,7 @@
  * Admin attendee management routes
  */
 
+import { t } from "#i18n";
 import { handleAttendeeBalanceGet } from "#routes/admin/attendee-balance.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, redirect, redirectResponse } from "#routes/response.ts";
@@ -69,20 +70,31 @@ const attendeePageRoute = (render: AttendeePageRenderer) =>
 /** Handle GET /admin/listing/:listingId/attendee/:attendeeId/delete */
 const handleAdminAttendeeDeleteGet = attendeePageRoute(adminDeleteAttendeePage);
 
+/** Delete an attendee, log the activity, and redirect back to the listing. */
+const deleteAttendeeAndRedirect = async (
+  attendeeId: number,
+  listingId: number,
+  activityMessage: string,
+  flashMessage: string,
+  opts?: Parameters<typeof redirect>[3],
+): Promise<Response> => {
+  await deleteAttendee(attendeeId);
+  await logActivity(activityMessage, listingId);
+  return redirect(`/admin/listing/${listingId}`, flashMessage, true, opts);
+};
+
 /** Handle POST /admin/listing/:listingId/attendee/:attendeeId/delete */
 const handleAttendeeDelete = verifiedAttendeeForm(
   "delete",
   "deletion",
-  async (data, form, listingId, attendeeId) => {
-    await deleteAttendee(attendeeId);
-    await logActivity(
-      `Attendee deleted from '${data.listing.name}'`,
+  (data, form, listingId, attendeeId) =>
+    deleteAttendeeAndRedirect(
+      attendeeId,
       listingId,
-    );
-    return redirect(`/admin/listing/${listingId}`, "Attendee deleted", true, {
-      form,
-    });
-  },
+      `Attendee deleted from '${data.listing.name}'`,
+      t("success.attendee_deleted"),
+      { form },
+    ),
 );
 
 /**
@@ -101,20 +113,16 @@ const handleDeleteIncomplete = attendeeFormAction(
     if (!isIncomplete) {
       return redirect(
         `/admin/listing/${listingId}`,
-        "Attendee does not have an incomplete payment",
+        t("error.attendee_no_incomplete_payment"),
         false,
       );
     }
 
-    await deleteAttendee(attendeeId);
-    await logActivity(
-      `Incomplete attendee deleted from '${data.listing.name}'`,
+    return deleteAttendeeAndRedirect(
+      attendeeId,
       listingId,
-    );
-    return redirect(
-      `/admin/listing/${listingId}`,
-      "Incomplete registration removed",
-      true,
+      `Incomplete attendee deleted from '${data.listing.name}'`,
+      t("success.incomplete_removed"),
     );
   },
 );
@@ -202,8 +210,8 @@ const handleCreateAttendeeFailure = (
   }
   const errorMsg =
     result.reason === "capacity_exceeded"
-      ? "Not enough spots available"
-      : "Encryption error — check that DB_ENCRYPTION_KEY is configured";
+      ? t("error.not_enough_spots")
+      : t("error.encryption_error");
   return redirect(`/admin/listing/${listingId}`, errorMsg, false);
 };
 
@@ -271,7 +279,7 @@ const handleResendNotification = verifiedAttendeeForm(
     ]);
     return redirect(
       `/admin/listing/${listingId}`,
-      "Notification re-sent",
+      t("success.notification_resent"),
       true,
       {
         form,

@@ -11,7 +11,7 @@ import {
   isIncompletePayment,
   nearCapacity,
 } from "#templates/admin/listings.tsx";
-import { listingFields } from "#templates/fields.ts";
+import { getListingFields } from "#templates/fields.ts";
 import {
   describeWithEnv,
   hasSelectedOption,
@@ -1362,8 +1362,8 @@ describe("adminListingEditPage max_price field", () => {
   });
 });
 
-describe("datetime validation via listingFields date field", () => {
-  const dateField = listingFields.find((f) => f.name === "date")!;
+describe("datetime validation via getListingFields() date field", () => {
+  const dateField = getListingFields().find((f) => f.name === "date")!;
 
   test("accepts valid datetime value", () => {
     const result = dateField.validate?.("2026-06-15T14:00");

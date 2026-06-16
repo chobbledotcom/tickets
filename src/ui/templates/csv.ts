@@ -3,6 +3,7 @@
  */
 
 import { map, pipe, reduce } from "#fp";
+import { t } from "#i18n";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { toMajorUnits } from "#shared/currency.ts";
 import { addDays } from "#shared/dates.ts";
@@ -43,7 +44,24 @@ const formatPrice = (pricePaid: string): string =>
 
 /** Format checked_in value as Yes/No */
 const formatCheckedIn = (checkedIn: boolean): string =>
-  checkedIn ? "Yes" : "No";
+  checkedIn ? t("csv.yes") : t("csv.no");
+
+/** Translated, CSV-escaped standard attendee header columns. */
+const attendeeHeaders = (): string[] =>
+  [
+    t("common.name"),
+    t("common.email"),
+    t("common.phone"),
+    t("common.address"),
+    t("common.special_instructions"),
+    t("common.quantity"),
+    t("common.registered"),
+    t("csv.col.price_paid"),
+    t("csv.col.transaction_id"),
+    t("common.checked_in"),
+    t("csv.col.ticket_token"),
+    t("csv.col.ticket_url"),
+  ].map(escapeCsvValue);
 
 /** Build standard attendee CSV columns (shared by all CSV generators) */
 const attendeeCols = (a: Attendee, domain: string): string[] => [
@@ -66,8 +84,8 @@ const listingInfoHeaders = (
   showDate: boolean,
   showLocation: boolean,
 ): string[] => [
-  ...(showDate ? ["Listing Date"] : []),
-  ...(showLocation ? ["Listing Location"] : []),
+  ...(showDate ? [escapeCsvValue(t("csv.col.listing_date"))] : []),
+  ...(showLocation ? [escapeCsvValue(t("csv.col.listing_location"))] : []),
 ];
 
 /** Conditionally include Listing Date and/or Listing Location row values */
@@ -155,9 +173,9 @@ export const generateAttendeesCsv = (
 
   const questionHeaders = questions.map((q) => escapeCsvValue(q.text));
   const headerParts = [
-    ...(includeDate ? ["Date"] : []),
+    ...(includeDate ? [escapeCsvValue(t("common.date"))] : []),
     ...listingInfoHeaders(showListingDate, showListingLocation),
-    "Name,Email,Phone,Address,Special Instructions,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL",
+    ...attendeeHeaders(),
     ...questionHeaders,
   ];
   return buildCsv(
@@ -237,9 +255,10 @@ export const generateCalendarCsv = (
     logistics && attendees.some((a) => logistics.listingIds.has(a.listing_id)),
   );
   const headerParts = [
-    "Listing",
+    escapeCsvValue(t("terms.listing")),
     ...listingInfoHeaders(showListingDate, showListingLocation),
-    "Date,Name,Email,Phone,Address,Special Instructions,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL",
+    escapeCsvValue(t("common.date")),
+    ...attendeeHeaders(),
     ...(showLogistics ? [LOGISTICS_HEADERS] : []),
   ];
   return buildCsv(

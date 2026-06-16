@@ -8,6 +8,7 @@
  */
 
 import { unique } from "#fp";
+import { t } from "#i18n";
 import {
   AGENT_FORM,
   agentPage,
@@ -86,8 +87,11 @@ const buildGroups = (
   tomorrow: string,
   lookups: LegLookups,
 ): DeliveryDayGroup[] => [
-  { heading: "Today", legs: legsForDate(legs, today, lookups) },
-  { heading: "Tomorrow", legs: legsForDate(legs, tomorrow, lookups) },
+  { heading: t("deliveries.today"), legs: legsForDate(legs, today, lookups) },
+  {
+    heading: t("deliveries.tomorrow"),
+    legs: legsForDate(legs, tomorrow, lookups),
+  },
 ];
 
 /** Build the per-attendee, per-listing and per-agent lookups for a leg set. */
@@ -139,10 +143,16 @@ const handleDeliveriesMark = (request: Request): Promise<Response> =>
     const kind = form.getString("kind");
     const done = form.getString("done") === "1";
     if (attendeeId === null || listingId === null) {
-      return errorRedirect("/admin/deliveries", "Invalid request");
+      return errorRedirect(
+        "/admin/deliveries",
+        t("deliveries.invalid_request"),
+      );
     }
     if (kind !== "start" && kind !== "end") {
-      return errorRedirect("/admin/deliveries", "Invalid request");
+      return errorRedirect(
+        "/admin/deliveries",
+        t("deliveries.invalid_request"),
+      );
     }
 
     const agentIds = await getUserAgentIds(session.userId);
@@ -154,14 +164,11 @@ const handleDeliveriesMark = (request: Request): Promise<Response> =>
       agentIds,
     );
     if (!updated) {
-      return errorRedirect(
-        "/admin/deliveries",
-        "That delivery is not assigned to you",
-      );
+      return errorRedirect("/admin/deliveries", t("deliveries.not_yours"));
     }
     return redirect(
       "/admin/deliveries",
-      done ? "Marked done" : "Marked not done",
+      done ? t("deliveries.marked_done") : t("deliveries.marked_not_done"),
       true,
     );
   });

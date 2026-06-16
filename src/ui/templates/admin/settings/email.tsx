@@ -2,6 +2,7 @@
  * Email Notifications form for advanced settings
  */
 
+import { t } from "#i18n";
 import { MASK_SENTINEL } from "#shared/db/settings.ts";
 import { EMAIL_PROVIDER_LABELS, VALID_EMAIL_PROVIDERS } from "#shared/email.ts";
 import { CsrfForm } from "#shared/forms.tsx";
@@ -17,18 +18,18 @@ export const EmailNotificationsForm = (
       action="/admin/settings/email"
       description={
         <p>
-          Send confirmation emails to attendees and admin notifications when
-          registrations come in. <a href="/admin/guide#email">Setup guide</a>.
+          {t("settings.advanced.email_notifications_hint")}{" "}
+          <a href="/admin/guide#email">Setup guide</a>.
         </p>
       }
-      submitLabel="Save Email Settings"
-      title="Email Notifications"
+      submitLabel={t("settings.advanced.save_email_settings")}
+      title={t("settings.advanced.email_notifications")}
     >
       <label>
-        Email Provider
+        {t("settings.advanced.email_provider")}
         <select name="email_provider">
           <option selected={!s.emailProvider} value="">
-            {s.hostEmailLabel || "None (disabled)"}
+            {s.hostEmailLabel || t("settings.advanced.email_none")}
           </option>
           {VALID_EMAIL_PROVIDERS.map((p) => (
             <option selected={s.emailProvider === p} value={p}>
@@ -38,17 +39,17 @@ export const EmailNotificationsForm = (
         </select>
       </label>
       <label>
-        API Key
+        {t("settings.advanced.api_key")}
         <input
           autocomplete="off"
           name="email_api_key"
-          placeholder="Enter API key"
+          placeholder={t("settings.advanced.api_key_placeholder")}
           type="password"
           value={s.emailApiKeyConfigured ? MASK_SENTINEL : undefined}
         />
       </label>
       <label>
-        From Address
+        {t("settings.advanced.from_address")}
         <input
           autocomplete="off"
           name="email_from_address"
@@ -61,7 +62,7 @@ export const EmailNotificationsForm = (
     {s.emailProvider && (
       <CsrfForm action="/admin/settings/email/test" id="settings-email-test">
         <SubmitButton class="secondary" icon="arrow-right">
-          Send Test Email
+          {t("settings.advanced.send_test_email")}
         </SubmitButton>
       </CsrfForm>
     )}

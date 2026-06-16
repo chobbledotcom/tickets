@@ -6,6 +6,7 @@
  * callable digits. Generic — usable anywhere a phone number is shown.
  */
 
+import { t } from "#i18n";
 import { phoneLinks } from "#shared/phone.ts";
 
 export const PhoneLinks = ({
@@ -24,9 +25,9 @@ export const PhoneLinks = ({
         <>
           {" "}
           <small>
-            <a href={links.tel}>tel</a>{" "}
+            <a href={links.tel}>{t("attendee_detail.tel")}</a>{" "}
             <a href={links.whatsapp} rel="noopener" target="_blank">
-              whatsapp
+              {t("attendee_detail.whatsapp")}
             </a>
           </small>
         </>

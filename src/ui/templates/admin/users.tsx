@@ -2,6 +2,7 @@
  * Admin user management page template
  */
 
+import { t } from "#i18n";
 import { ConfirmForm, CsrfForm, Flash, renderFields } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type {
@@ -15,7 +16,7 @@ import {
   GuideLink,
   SubmitButton,
 } from "#templates/components/actions.tsx";
-import { inviteUserFields } from "#templates/fields.ts";
+import { getInviteUserFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
 /** Displayable user info (decrypted) */
@@ -40,12 +41,9 @@ const AgentSelector = ({
   selected: ReadonlySet<number>;
 }): JSX.Element => (
   <fieldset class="checkboxes">
-    <legend>Assigned logistics agents</legend>
+    <legend>{t("users.agents.legend")}</legend>
     <p>
-      <small>
-        Delivery agents see the run sheet only for the logistics agents ticked
-        here. Ignored for owners and managers.
-      </small>
+      <small>{t("users.agents.hint")}</small>
     </p>
     {agents.map((agent) => (
       <label>
@@ -63,10 +61,10 @@ const AgentSelector = ({
 
 /** Status label for a user */
 const userStatus = (user: DisplayUser): string => {
-  if (user.hasDataKey && user.hasPassword) return "Active";
-  if (user.hasPassword && !user.hasDataKey) return "Pending Activation";
-  if (user.inviteExpired) return "Invite Expired";
-  return "Invited";
+  if (user.hasDataKey && user.hasPassword) return t("users.status.active");
+  if (user.hasPassword && !user.hasDataKey) return t("users.status.pending");
+  if (user.inviteExpired) return t("users.status.expired");
+  return t("users.status.invited");
 };
 
 /**
@@ -85,29 +83,29 @@ export const adminUsersPage = (
   opts: UsersPageOpts,
 ): string =>
   String(
-    <Layout title="Users">
+    <Layout title={t("terms.users")}>
       <AdminNav active="/admin/users" session={session} />
       <UsersSubNav />
       <p class="actions">
         <GuideLink href="/admin/guide#user-classes">
-          User roles and permissions
+          {t("users.roles_link")}
         </GuideLink>
       </p>
       <Flash error={opts.error} success={opts.success} />
 
       {opts.inviteLink && (
         <div class="success" role="alert">
-          <p>Invite link (share this with the new user):</p>
+          <p>{t("users.invite_link_label")}</p>
           <code>{opts.inviteLink}</code>
           <p>
-            <small>This link expires in 7 days.</small>
+            <small>{t("users.invite_expires")}</small>
           </p>
         </div>
       )}
 
       <p class="actions">
         <ActionButton href="/admin/user/new" icon="user-plus">
-          Invite User
+          {t("users.invite_user")}
         </ActionButton>
       </p>
 
@@ -115,10 +113,10 @@ export const adminUsersPage = (
         <table>
           <thead>
             <tr>
-              <th>Username</th>
-              <th>Role</th>
-              <th>Status</th>
-              <th>Actions</th>
+              <th>{t("common.username")}</th>
+              <th>{t("users.col.role")}</th>
+              <th>{t("common.status")}</th>
+              <th>{t("common.actions")}</th>
               <th></th>
             </tr>
           </thead>
@@ -134,7 +132,7 @@ export const adminUsersPage = (
                       <small>
                         {user.agentNames && user.agentNames.length > 0
                           ? user.agentNames.join(", ")
-                          : "No agents assigned"}
+                          : t("users.agents.none_assigned")}
                       </small>
                     </>
                   )}
@@ -146,16 +144,22 @@ export const adminUsersPage = (
                       action={`/admin/users/${user.id}/activate`}
                       class="inline"
                     >
-                      <SubmitButton icon="check">Activate</SubmitButton>
+                      <SubmitButton icon="check">
+                        {t("users.activate")}
+                      </SubmitButton>
                     </CsrfForm>
                   )}
                   {user.adminLevel === "agent" && (
-                    <a href={`/admin/users/${user.id}/agents`}>Agents</a>
+                    <a href={`/admin/users/${user.id}/agents`}>
+                      {t("users.agents.edit_link")}
+                    </a>
                   )}
                 </td>
                 <td>
                   {user.id !== opts.currentUserId && (
-                    <a href={`/admin/users/${user.id}/delete`}>Delete</a>
+                    <a href={`/admin/users/${user.id}/delete`}>
+                      {t("common.delete")}
+                    </a>
                   )}
                 </td>
               </tr>
@@ -175,25 +179,25 @@ export const adminUserDeletePage = (
   error?: string,
 ): string =>
   String(
-    <Layout title={`Delete User: ${user.username}`}>
+    <Layout title={`${t("users.delete_user.heading")}: ${user.username}`}>
       <AdminNav active="/admin/users" session={session} />
 
       <ConfirmForm
         action={`/admin/users/${user.id}/delete`}
-        buttonText="Delete User"
-        label="Username"
+        buttonText={t("users.delete_user.submit")}
+        label={t("common.username")}
         name={user.username}
       >
-        <h1>Delete User</h1>
+        <h1>{t("users.delete_user.heading")}</h1>
         <Flash error={error} />
         <p>
-          <strong>Warning:</strong> This will permanently delete the user{" "}
-          <strong>{user.username}</strong> ({user.adminLevel}) and all their
-          sessions.
+          {t("users.delete_user.warning", {
+            level: user.adminLevel,
+            username: user.username,
+          })}
         </p>
         <p>
-          To delete this user, type their username "{user.username}" into the
-          box below:
+          {t("users.delete_user.confirm_prompt", { username: user.username })}
         </p>
       </ConfirmForm>
     </Layout>,
@@ -208,17 +212,17 @@ export const adminUserNewPage = (
   error?: string,
 ): string =>
   String(
-    <Layout title="Invite User">
+    <Layout title={t("users.invite.title")}>
       <AdminNav active="/admin/users" session={session} />
 
       <CsrfForm action="/admin/users">
-        <h1>Invite User</h1>
+        <h1>{t("users.invite.heading")}</h1>
         <Flash error={error} />
-        <Raw html={renderFields(inviteUserFields)} />
+        <Raw html={renderFields(getInviteUserFields())} />
         {agents.length > 0 && (
           <AgentSelector agents={agents} selected={new Set()} />
         )}
-        <SubmitButton icon="user-plus">Create Invite</SubmitButton>
+        <SubmitButton icon="user-plus">{t("users.invite.submit")}</SubmitButton>
       </CsrfForm>
     </Layout>,
   );
@@ -234,22 +238,22 @@ export const adminUserAgentsPage = (
   error?: string,
 ): string =>
   String(
-    <Layout title={`Agents: ${user.username}`}>
+    <Layout title={`${t("users.agents.title")}: ${user.username}`}>
       <AdminNav active="/admin/users" session={session} />
 
-      <h1>Assigned agents for {user.username}</h1>
+      <h1>{t("users.agents.heading", { username: user.username })}</h1>
       <Flash error={error} />
       {agents.length === 0 ? (
         <p>
           <em>
-            No logistics agents exist yet. Add some under{" "}
-            <a href="/admin/logistics">Logistics</a>.
+            {t("users.agents.none_exist")}{" "}
+            <a href="/admin/logistics">{t("nav.logistics")}</a>.
           </em>
         </p>
       ) : (
         <CsrfForm action={`/admin/users/${user.id}/agents`}>
           <AgentSelector agents={agents} selected={selectedIds} />
-          <SubmitButton icon="save">Save Agents</SubmitButton>
+          <SubmitButton icon="save">{t("users.agents.save")}</SubmitButton>
         </CsrfForm>
       )}
     </Layout>,

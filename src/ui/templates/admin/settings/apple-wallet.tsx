@@ -2,6 +2,7 @@
  * Apple Wallet form for advanced settings
  */
 
+import { t } from "#i18n";
 import { MASK_SENTINEL } from "#shared/db/settings.ts";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 import { SettingsSection } from "#templates/components/settings-section.tsx";
@@ -21,11 +22,11 @@ export const AppleWalletForm = (s: AdvancedSettingsPageState): JSX.Element => (
             : ""}
       </p>
     }
-    submitLabel="Save Apple Wallet Settings"
-    title="Apple Wallet"
+    submitLabel={t("settings.advanced.save_apple_wallet")}
+    title={t("tickets.apple_wallet")}
   >
     <label>
-      Pass Type ID
+      {t("settings.advanced.apple_pass_type_id")}
       <input
         autocomplete="off"
         name="apple_wallet_pass_type_id"
@@ -35,7 +36,7 @@ export const AppleWalletForm = (s: AdvancedSettingsPageState): JSX.Element => (
       />
     </label>
     <label>
-      Team ID
+      {t("settings.advanced.apple_team_id")}
       <input
         autocomplete="off"
         name="apple_wallet_team_id"
@@ -45,7 +46,7 @@ export const AppleWalletForm = (s: AdvancedSettingsPageState): JSX.Element => (
       />
     </label>
     <label>
-      Signing Certificate (PEM)
+      {t("settings.advanced.apple_signing_cert")}
       <textarea
         name="apple_wallet_signing_cert"
         placeholder="-----BEGIN CERTIFICATE-----"
@@ -55,7 +56,7 @@ export const AppleWalletForm = (s: AdvancedSettingsPageState): JSX.Element => (
       </textarea>
     </label>
     <label>
-      Signing Private Key (PEM)
+      {t("settings.advanced.apple_signing_key")}
       <textarea
         name="apple_wallet_signing_key"
         placeholder="-----BEGIN PRIVATE KEY-----"
@@ -65,7 +66,7 @@ export const AppleWalletForm = (s: AdvancedSettingsPageState): JSX.Element => (
       </textarea>
     </label>
     <label>
-      WWDR Certificate (PEM)
+      {t("settings.advanced.apple_wwdr_cert")}
       <textarea
         name="apple_wallet_wwdr_cert"
         placeholder="-----BEGIN CERTIFICATE-----"

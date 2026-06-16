@@ -4,6 +4,7 @@
  */
 
 import { lazyRef } from "#fp";
+import { t } from "#i18n";
 import {
   DEFAULT_BAND_SEED,
   DEFAULT_DESCRIPTION_SEED,
@@ -582,5 +583,4 @@ export const wrapResourceForDemo = <R, I, V extends FieldValues = FieldValues>(
 });
 
 /** Demo mode banner HTML */
-export const DEMO_BANNER =
-  '<div class="demo-banner">Demo Mode &mdash; entered text is replaced with sample data</div>';
+export const DEMO_BANNER = `<div class="demo-banner">${t("guide.demo_mode_notice")}</div>`;

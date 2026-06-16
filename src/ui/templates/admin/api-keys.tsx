@@ -3,6 +3,7 @@
  */
 
 import { joinStrings, map, pipe } from "#fp";
+import { t } from "#i18n";
 import { apiKeyForm } from "#routes/admin/api-keys.ts";
 import type { EndpointDoc } from "#shared/admin-api-example.ts";
 import { ConfirmForm, CsrfForm, Flash } from "#shared/forms.tsx";
@@ -27,11 +28,11 @@ const ApiKeyRow = ({ apiKey }: { apiKey: ApiKeyDisplay }): string =>
       <td>
         {apiKey.lastUsed
           ? new Date(apiKey.lastUsed).toLocaleDateString()
-          : "Never"}
+          : t("api_keys.never")}
       </td>
       <td>
         <a class="danger small" href={`/admin/api-keys/${apiKey.id}/delete`}>
-          Delete
+          {t("common.delete")}
         </a>
       </td>
     </tr>,
@@ -51,10 +52,10 @@ export const adminApiKeysPage = (
           map((k: ApiKeyDisplay) => ApiKeyRow({ apiKey: k })),
           joinStrings,
         )(keys)
-      : '<tr><td colspan="4">No API keys</td></tr>';
+      : `<tr><td colspan="4">${t("api_keys.no_keys")}</td></tr>`;
 
   return String(
-    <Layout title="API Keys">
+    <Layout title={t("api_keys.title")}>
       <AdminNav active="/admin/users" session={adminSession} />
       <UsersSubNav />
 
@@ -62,7 +63,7 @@ export const adminApiKeysPage = (
 
       {opts.newKey && (
         <div class="warning">
-          <strong>Copy your API key now — it won't be shown again:</strong>
+          <strong>{t("api_keys.copy_notice")}</strong>
           <pre>
             <code>{opts.newKey}</code>
           </pre>
@@ -81,9 +82,9 @@ export const adminApiKeysPage = (
         <table>
           <thead>
             <tr>
-              <th>Name</th>
-              <th>Created</th>
-              <th>Last used</th>
+              <th>{t("common.name")}</th>
+              <th>{t("common.created")}</th>
+              <th>{t("api_keys.col.last_used")}</th>
               <th></th>
             </tr>
           </thead>
@@ -96,9 +97,9 @@ export const adminApiKeysPage = (
       <br />
 
       <CsrfForm action="/admin/api-keys">
-        <h2>Create API key</h2>
+        <h2>{t("api_keys.create_legend")}</h2>
         <Raw html={apiKeyForm.render()} />
-        <SubmitButton icon="plus">Create key</SubmitButton>
+        <SubmitButton icon="plus">{t("api_keys.create_submit")}</SubmitButton>
       </CsrfForm>
     </Layout>,
   );
@@ -117,18 +118,12 @@ export const adminDeleteApiKeyPage = (
 
       <ConfirmForm
         action={`/admin/api-keys/${apiKey.id}/delete`}
-        buttonText="Delete API Key"
-        label="API key name"
+        buttonText={t("api_keys.delete_submit")}
+        label={t("api_keys.delete_label")}
         name={apiKey.name}
       >
-        <p>
-          <strong>Warning:</strong> This will permanently delete this API key.
-          Any integrations using it will stop working immediately.
-        </p>
-        <p>
-          To delete this API key, type its name "{apiKey.name}" into the box
-          below:
-        </p>
+        <p>{t("api_keys.delete_warning")}</p>
+        <p>{t("api_keys.delete_confirm", { name: apiKey.name })}</p>
       </ConfirmForm>
     </Layout>,
   );
@@ -176,13 +171,13 @@ export const adminApiDocsPage = (
   adminEndpoints: EndpointDoc[],
 ): string =>
   String(
-    <Layout title="API Documentation">
+    <Layout title={t("api_keys.docs_title")}>
       <AdminNav active="/admin/users" session={session} />
       <UsersSubNav />
 
       <div class="stack-md column">
         <div class="prose">
-          <h3>Authentication</h3>
+          <h3>{t("api_keys.authentication")}</h3>
           <p>
             Admin API endpoints require authentication via API key or session
             cookie:
@@ -199,15 +194,15 @@ export const adminApiDocsPage = (
 
       <div class="stack-md column">
         <div class="prose">
-          <h3>Public API</h3>
-          <p>No API key required. All endpoints support CORS.</p>
+          <h3>{t("api_keys.public_api")}</h3>
+          <p>{t("api_keys.public_api_note")}</p>
         </div>
         <Raw html={EndpointList({ endpoints: publicEndpoints })} />
       </div>
 
       <div class="stack-md column">
         <div class="prose">
-          <h3>Admin API</h3>
+          <h3>{t("api_keys.admin_api")}</h3>
           <p>
             Requires <code>Authorization: Bearer YOUR_API_KEY</code> header.
           </p>

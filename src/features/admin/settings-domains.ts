@@ -3,6 +3,7 @@
  * Owner-only access enforced via advancedSettingsRoute
  */
 
+import { t } from "#i18n";
 import {
   advancedSettingsRoute,
   type ErrorPageFn,
@@ -35,30 +36,42 @@ const runGuardedTask = async (
   return taskResult.value;
 };
 
+/** Guard returning an errorPage response when Bunny CDN isn't configured. */
+const requireBunnyCdn = (
+  errorPage: ErrorPageFn,
+  formId: string,
+): ReturnType<ErrorPageFn> | null =>
+  isBunnyCdnEnabled()
+    ? null
+    : errorPage(t("error.bunny_cdn_not_configured"), 400, formId);
+
 /** Handle POST /admin/settings/custom-domain - save custom domain */
 export const handleCustomDomainPost = advancedSettingsRoute(
   async (form, errorPage) => {
-    if (!isBunnyCdnEnabled()) {
-      return errorPage(
-        "Bunny CDN is not configured",
-        400,
-        "settings-custom-domain",
-      );
-    }
+    const cdnError = requireBunnyCdn(errorPage, "settings-custom-domain");
+    if (cdnError) return cdnError;
 
     const raw = form.getString("custom_domain").toLowerCase();
 
     if (raw === "") {
       await settings.update.customDomain("");
       await logActivity("Custom domain cleared");
-      return ok("/admin/settings-advanced", "Custom domain cleared", {
-        formId: "settings-custom-domain",
-      });
+      return ok(
+        "/admin/settings-advanced",
+        t("success.custom_domain_cleared"),
+        {
+          formId: "settings-custom-domain",
+        },
+      );
     }
 
     // Basic domain validation: must look like a hostname
     if (!DOMAIN_PATTERN.test(raw)) {
-      return errorPage("Invalid domain format", 400, "settings-custom-domain");
+      return errorPage(
+        t("error.invalid_domain_format"),
+        400,
+        "settings-custom-domain",
+      );
     }
 
     return runGuardedTask(
@@ -76,7 +89,7 @@ export const handleCustomDomainPost = advancedSettingsRoute(
           await logActivity(`Custom domain validated: ${raw}`);
           return ok(
             "/admin/settings-advanced",
-            "Custom domain saved and validated",
+            t("success.custom_domain_saved_validated"),
             {
               formId: "settings-custom-domain",
             },
@@ -96,18 +109,16 @@ export const handleCustomDomainPost = advancedSettingsRoute(
 /** Handle POST /admin/settings/custom-domain/validate - validate with Bunny CDN */
 export const handleCustomDomainValidatePost = advancedSettingsRoute(
   (_form, errorPage) => {
-    if (!isBunnyCdnEnabled()) {
-      return errorPage(
-        "Bunny CDN is not configured",
-        400,
-        "settings-custom-domain-validate",
-      );
-    }
+    const cdnError = requireBunnyCdn(
+      errorPage,
+      "settings-custom-domain-validate",
+    );
+    if (cdnError) return cdnError;
 
     const customDomain = settings.customDomain;
     if (!customDomain) {
       return errorPage(
-        "No custom domain is configured",
+        t("error.no_custom_domain"),
         400,
         "settings-custom-domain-validate",
       );
@@ -131,7 +142,7 @@ export const handleCustomDomainValidatePost = advancedSettingsRoute(
         await logActivity(`Custom domain validated: ${customDomain}`);
         return ok(
           "/admin/settings-advanced",
-          "Custom domain validated successfully",
+          t("success.custom_domain_validated"),
           {
             formId: "settings-custom-domain-validate",
           },

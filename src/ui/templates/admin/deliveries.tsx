@@ -7,6 +7,7 @@
  * time. Each leg can be toggled done so a driver can tick off their round.
  */
 
+import { t } from "#i18n";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import { MapsLinks } from "#templates/components/maps-links.tsx";
@@ -39,9 +40,9 @@ export type DeliveryDayGroup = {
  * staff navigation, since agents may only ever reach this page. */
 const AgentHeader = (): JSX.Element => (
   <header class="agent-header">
-    <h1>Deliveries</h1>
+    <h1>{t("deliveries.title")}</h1>
     <CsrfForm action="/admin/logout" class="inline">
-      <SubmitButton icon="log-out">Logout</SubmitButton>
+      <SubmitButton icon="log-out">{t("nav.logout")}</SubmitButton>
     </CsrfForm>
   </header>
 );
@@ -56,7 +57,9 @@ const LegCard = ({
 }): JSX.Element => (
   <li class={leg.done ? "delivery-leg done" : "delivery-leg"}>
     <p class="delivery-kind">
-      {leg.kind === "start" ? "Drop-off" : "Collection"}
+      {leg.kind === "start"
+        ? t("deliveries.dropoff")
+        : t("deliveries.collection")}
       {leg.time ? ` · ${leg.time}` : ""} · {leg.agentName}
     </p>
     <p class="delivery-listing">{leg.listingName}</p>
@@ -78,7 +81,7 @@ const LegCard = ({
       <input name="kind" type="hidden" value={leg.kind} />
       <input name="done" type="hidden" value={leg.done ? "0" : "1"} />
       <SubmitButton icon={leg.done ? "rotate-ccw" : "check"}>
-        {leg.done ? "Mark not done" : "Mark done"}
+        {leg.done ? t("deliveries.mark_not_done") : t("deliveries.mark_done")}
       </SubmitButton>
     </CsrfForm>
   </li>
@@ -100,19 +103,16 @@ export const agentDeliveriesPage = (
   opts: DeliveriesPageOpts,
 ): string =>
   String(
-    <Layout title="Deliveries">
+    <Layout title={t("deliveries.title")}>
       <AgentHeader />
       <Flash error={opts.error} success={opts.success} />
       {opts.noAgents ? (
         <p>
-          <em>
-            You have no logistics agents assigned yet. Ask the site owner to
-            assign you.
-          </em>
+          <em>{t("deliveries.no_agents")}</em>
         </p>
       ) : groups.every((group) => group.legs.length === 0) ? (
         <p>
-          <em>No deliveries scheduled for today or tomorrow.</em>
+          <em>{t("deliveries.none_scheduled")}</em>
         </p>
       ) : (
         groups.map((group) => (
@@ -120,7 +120,7 @@ export const agentDeliveriesPage = (
             <h2>{group.heading}</h2>
             {group.legs.length === 0 ? (
               <p>
-                <em>Nothing scheduled.</em>
+                <em>{t("deliveries.nothing_scheduled")}</em>
               </p>
             ) : (
               <ul class="delivery-legs">

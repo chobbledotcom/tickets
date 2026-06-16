@@ -10,6 +10,7 @@
  */
 
 import { compact, map } from "#fp";
+import { t } from "#i18n";
 import {
   calendarGridDates,
   formatMonthLabel,
@@ -114,7 +115,7 @@ const renderSelect = (
     insertAt,
     0,
     <option selected={!selected} value={clearHref}>
-      Select a date
+      {t("datepicker.select_date")}
     </option>,
   );
   return (
@@ -145,13 +146,13 @@ export const DatePicker = ({
       <div class="calendar" id="calendar">
         <div class="calendar-nav">
           <a
-            aria-label="Previous month"
+            aria-label={t("datepicker.previous_month")}
             href={monthHref(shiftMonth(month, -1))}
           >
             ←
           </a>
           <select
-            aria-label="Jump to month"
+            aria-label={t("datepicker.jump_to_month")}
             class="calendar-month-select"
             data-nav-select
           >
@@ -163,7 +164,10 @@ export const DatePicker = ({
               ),
             )(monthsAround(month, 5))}
           </select>
-          <a aria-label="Next month" href={monthHref(shiftMonth(month, 1))}>
+          <a
+            aria-label={t("datepicker.next_month")}
+            href={monthHref(shiftMonth(month, 1))}
+          >
             →
           </a>
         </div>

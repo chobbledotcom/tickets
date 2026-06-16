@@ -3,6 +3,7 @@
  * header image. Owner-only access enforced via settingsRoute / OWNER_MULTIPART.
  */
 
+import { t } from "#i18n";
 import { settingsRoute } from "#routes/admin/settings-helpers.ts";
 import { OWNER_MULTIPART, withAuth } from "#routes/auth.ts";
 import { errorRedirect } from "#routes/response.ts";
@@ -25,7 +26,7 @@ export const handleHeaderImagePost = (request: Request): Promise<Response> =>
     if (!isStorageEnabled()) {
       return errorRedirect(
         "/admin/settings",
-        "Image storage is not configured",
+        t("error.image_storage_not_configured"),
         "settings-header-image",
       );
     }
@@ -34,7 +35,7 @@ export const handleHeaderImagePost = (request: Request): Promise<Response> =>
     if (!(entry instanceof File) || entry.size === 0) {
       return errorRedirect(
         "/admin/settings",
-        "No image file provided",
+        t("error.no_image_provided"),
         "settings-header-image",
       );
     }
@@ -65,7 +66,7 @@ export const handleHeaderImagePost = (request: Request): Promise<Response> =>
     if (uploadResult.status === "fulfilled") {
       await settings.update.headerImageUrl(uploadResult.value);
       await logActivity("Header image uploaded");
-      return ok("/admin/settings", "Header image uploaded", {
+      return ok("/admin/settings", t("success.header_image_uploaded"), {
         formId: "settings-header-image",
       });
     }
@@ -73,7 +74,7 @@ export const handleHeaderImagePost = (request: Request): Promise<Response> =>
       uploadResult.reason,
     )}`;
     logError({ code: ErrorCode.STORAGE_UPLOAD, detail: uploadDetail });
-    return fail("/admin/settings", "Header image upload failed", {
+    return fail("/admin/settings", t("success.header_image_upload_failed"), {
       formId: "settings-header-image",
     });
   });
@@ -84,7 +85,7 @@ export const handleHeaderImageDeletePost = settingsRoute(
     if (!settings.headerImageUrl) {
       return errorRedirect(
         "/admin/settings",
-        "No header image to remove",
+        t("error.no_header_image"),
         "settings-header-image",
       );
     }
@@ -95,7 +96,7 @@ export const handleHeaderImageDeletePost = settingsRoute(
     if (deleteResult.status === "fulfilled") {
       await settings.update.headerImageUrl("");
       await logActivity("Header image removed");
-      return ok("/admin/settings", "Header image removed", {
+      return ok("/admin/settings", t("success.header_image_removed"), {
         formId: "settings-header-image-delete",
       });
     }
@@ -103,7 +104,7 @@ export const handleHeaderImageDeletePost = settingsRoute(
       deleteResult.reason,
     )}`;
     logError({ code: ErrorCode.STORAGE_DELETE, detail: deleteDetail });
-    return fail("/admin/settings", "Header image removal failed", {
+    return fail("/admin/settings", t("success.header_image_removal_failed"), {
       formId: "settings-header-image-delete",
     });
   },
