@@ -143,7 +143,11 @@ export const adminRefundAllAttendeesPage = (
         name={listing.name}
       >
         <p>
-          {t("admin.attendees.refund_all_warning", { count: refundableCount })}
+          <Raw
+            html={t("admin.attendees.refund_all_warning", {
+              count: refundableCount,
+            })}
+          />
         </p>
         <p>{t("admin.attendees.refund_all_confirm", { name: listing.name })}</p>
       </ConfirmForm>

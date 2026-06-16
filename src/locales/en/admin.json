@@ -104,7 +104,7 @@
   "admin.attendees.amount_paid": "Amount Paid:",
   "admin.attendees.refund_confirm": "To refund this attendee, you must type their name \"{name}\" into the box below:",
   "admin.attendees.refund_submit": "Refund Attendee",
-  "admin.attendees.refund_all_warning": "Warning: This will issue a full refund for all {count, plural, one {1 attendee} other {{count} attendees}} with payments. Attendees will remain registered.",
+  "admin.attendees.refund_all_warning": "<strong>Warning:</strong> This will issue a full refund for all {count} attendee(s) with payments. Attendees will remain registered.",
   "admin.attendees.refund_all_confirm": "To refund all attendees, you must type the listing name \"{name}\" into the box below:",
   "admin.attendees.refund_all_label": "Listing name",
   "admin.attendees.refund_all_submit": "Refund All Attendees",
