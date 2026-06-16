@@ -30,6 +30,7 @@ import { modifierFields } from "#templates/fields.ts";
  * positive magnitude the owner typed; converting it to the signed engine value
  * happens where modifiers are applied to a checkout. */
 const extractModifierInput = (values: ModifierFormValues): ModifierInput => ({
+  active: values.active === "1",
   calcKind: values.calc_kind as CalcKind,
   calcValue: values.calc_value,
   direction: values.direction as ModifierDirection,

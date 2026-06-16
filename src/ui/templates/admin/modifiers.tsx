@@ -5,6 +5,7 @@
 import { t } from "#i18n";
 import { isReadOnly } from "#shared/env.ts";
 import {
+  booleanToCheckbox,
   ConfirmForm,
   CsrfForm,
   entityToFieldValues,
@@ -36,11 +37,16 @@ const ruleSummary = (m: Modifier): string => {
   );
 };
 
-/** Pre-fill form values from a modifier (or blanks for the create form). */
+/** Pre-fill form values from a modifier; new modifiers default to active. */
 export const modifierToFieldValues = (
   modifier?: Modifier,
 ): Record<string, string | number | null> =>
-  entityToFieldValues(modifier, modifierFields, {});
+  entityToFieldValues(
+    modifier,
+    modifierFields,
+    { active: (m) => booleanToCheckbox(m.active) },
+    modifier ? undefined : { active: "1" },
+  );
 
 /** Admin modifiers list page */
 export const adminModifiersPage = (

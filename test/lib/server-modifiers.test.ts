@@ -16,6 +16,7 @@ import {
 
 /** Default valid create payload; override per test. */
 const createData = (overrides: Record<string, string> = {}) => ({
+  active: "1",
   calc_kind: "percent",
   calc_value: "10",
   direction: "discount",
@@ -79,6 +80,19 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       expect(modifier.calc_kind).toBe("percent");
       expect(modifier.calc_value).toBe(10);
       expect(modifier.direction).toBe("discount");
+    });
+
+    test("creates an active modifier when the toggle is checked", async () => {
+      await adminFormPost("/admin/modifiers", createData());
+      expect((await lastModifier()).active).toBe(true);
+    });
+
+    test("creates an inactive modifier when the toggle is cleared", async () => {
+      const data = createData();
+      // Omitting `active` mirrors an unchecked checkbox.
+      const { active: _omit, ...withoutActive } = data;
+      await adminFormPost("/admin/modifiers", withoutActive);
+      expect((await lastModifier()).active).toBe(false);
     });
 
     test("creates a fixed charge modifier", async () => {
@@ -200,6 +214,16 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const updated = (await getAllModifiers()).find((m) => m.id === id)!;
       expect(updated.name).toBe("After");
       expect(updated.calc_value).toBe(20);
+    });
+
+    test("deactivates a modifier when the toggle is cleared on edit", async () => {
+      await adminFormPost("/admin/modifiers", createData({ name: "Toggle" }));
+      const { id } = await lastModifier();
+      const data = createData({ name: "Toggle" });
+      const { active: _omit, ...withoutActive } = data;
+      await adminFormPost(`/admin/modifiers/${id}/edit`, withoutActive);
+      const updated = (await getAllModifiers()).find((m) => m.id === id)!;
+      expect(updated.active).toBe(false);
     });
 
     test("rejects an invalid update", async () => {

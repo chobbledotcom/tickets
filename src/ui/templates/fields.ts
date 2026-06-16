@@ -876,6 +876,7 @@ export type ModifierFormValues = {
   calc_kind: string;
   direction: string;
   calc_value: number;
+  active: string;
 };
 
 /** Modifier form fields (same for create and edit — no slug). */
@@ -920,6 +921,12 @@ export const modifierFields: Field[] = [
     type: "text",
     validate: (value: string) =>
       Number.isFinite(Number.parseFloat(value)) ? null : "Enter a valid number",
+  },
+  {
+    label: "Status",
+    name: "active",
+    options: [{ label: "Active (apply at checkout)", value: "1" }],
+    type: "checkbox-group",
   },
 ];
 

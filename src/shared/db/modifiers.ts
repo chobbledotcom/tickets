@@ -28,6 +28,7 @@ export type ModifierInput = {
   calcKind: CalcKind;
   calcValue: number;
   direction: ModifierDirection;
+  active?: boolean;
 };
 
 /** Modifiers table with CRUD operations. Name is encrypted at rest, matching
