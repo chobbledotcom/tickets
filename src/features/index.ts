@@ -96,6 +96,10 @@ const loadTicketRoutes = lazyExport(
   () => import("#routes/public/ticket-routes.ts"),
   "routeTicket",
 );
+const loadOrderRoutes = lazyExport(
+  () => import("#routes/public/order.ts"),
+  "routeOrder",
+);
 const loadPaymentRoutes = lazyExport(
   () => import("#routes/api/webhooks.ts"),
   "routePayment",
@@ -272,7 +276,9 @@ const publicPagePath = (prefix: string): string =>
 
 type PublicGetPageSpec = {
   prefix: string;
-  pick: (pages: PublicPagesModule) => () => Response | Promise<Response>;
+  pick: (
+    pages: PublicPagesModule,
+  ) => (request: Request) => Response | Promise<Response>;
 };
 
 const PUBLIC_GET_PAGES: PublicGetPageSpec[] = [
@@ -295,9 +301,9 @@ const publicPageHandlers = reduce(
   (acc: Record<string, RouterFn>, spec: PublicGetPageSpec) => {
     const { prefix, pick } = spec;
     const path = publicPagePath(prefix);
-    acc[prefix] = async (_request, reqPath, method) => {
+    acc[prefix] = async (request, reqPath, method) => {
       if (reqPath !== path || method !== "GET") return null;
-      return pick(await loadPublicPages())();
+      return pick(await loadPublicPages())(request);
     };
     return acc;
   },
@@ -338,6 +344,7 @@ const prefixHandlers: Record<string, RouterFn> = {
   gwallet: lazyRoute(loadGoogleWalletRoutes),
   image: lazyRoute(loadImageRoutes),
   join: lazyRoute(loadJoinRoutes),
+  order: lazyRoute(loadOrderRoutes),
   pay: lazyRoute(loadBalanceRoutes),
   payment: lazyRoute(loadPaymentRoutes),
   "read-only": (_request, path, method) =>

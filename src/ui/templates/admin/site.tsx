@@ -2,7 +2,11 @@
  * Admin site page editor templates
  */
 
-import { siteContactForm, siteHomeForm } from "#routes/admin/site.ts";
+import {
+  siteContactForm,
+  siteHomeForm,
+  siteOrderForm,
+} from "#routes/admin/site.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
@@ -19,6 +23,9 @@ const SiteSubNav = (): JSX.Element => (
       </li>
       <li>
         <a href="/admin/site/contact">Contact</a>
+      </li>
+      <li>
+        <a href="/admin/site/order">Order</a>
       </li>
     </ul>
   </nav>
@@ -152,5 +159,82 @@ export const adminSiteContactPage = (
         enabled={contactForm.enabled}
         hasBusinessEmail={contactForm.hasBusinessEmail}
       />
+    </Layout>,
+  );
+
+/** State of the optional public order page feature */
+interface OrderPageState {
+  /** Whether the owner has enabled the order page */
+  enabled: boolean;
+  /** Number of active, visible listings that appear on the order page */
+  listingCount: number;
+}
+
+/** Note about how many listings will appear on the order page (or a warning
+ * when there are none, since the page would render empty). */
+const OrderListingsNote = ({
+  listingCount,
+}: {
+  listingCount: number;
+}): JSX.Element =>
+  listingCount === 0 ? (
+    <p class="error" role="alert">
+      You have no bookable listings yet. <a href="/admin/">Create a listing</a>{" "}
+      for it to appear on the order page.
+    </p>
+  ) : (
+    <p>
+      <small>
+        {listingCount} {listingCount === 1 ? "listing" : "listings"} will be
+        shown on the order page.
+      </small>
+    </p>
+  );
+
+/**
+ * Order page editor — toggle the public `/order` gallery on/off and edit the
+ * intro text shown above the item grid.
+ */
+export const adminSiteOrderPage = (
+  session: AdminSession,
+  introText: string,
+  state: OrderPageState,
+  error?: string,
+  success?: string,
+): string =>
+  String(
+    <Layout title="Site - Order">
+      <AdminNav active="/admin/site" session={session} />
+      <SiteSubNav />
+
+      <Flash error={error} success={success} />
+
+      <div class="prose">
+        <h2>Order Page</h2>
+        <p>
+          Publish an <code>/order</code> page that shows your bookable listings
+          in a gallery. Visitors tick the items they want and continue to a
+          booking page pre-filled with their selection.
+        </p>
+        <OrderListingsNote listingCount={state.listingCount} />
+      </div>
+
+      <CsrfForm action="/admin/site/order/toggle">
+        <label>
+          <input
+            checked={state.enabled}
+            name="order_enabled"
+            type="checkbox"
+            value="true"
+          />{" "}
+          Enable order page
+        </label>
+        <SubmitButton icon="save">Save</SubmitButton>
+      </CsrfForm>
+
+      <CsrfForm action="/admin/site/order">
+        <Raw html={siteOrderForm.render({ order_intro_text: introText })} />
+        <SubmitButton icon="save">Save</SubmitButton>
+      </CsrfForm>
     </Layout>,
   );

@@ -19,6 +19,8 @@ const buildProps = (
   overrides: Partial<AttendeesListPageProps> = {},
 ): AttendeesListPageProps => ({
   allowedDomain: "tickets.example.com",
+  categories: ["standard"],
+  count: 0,
   hasNext: false,
   listingId: null,
   listings: [testListingWithCount({ id: 1, name: "Gala Night" })],
@@ -27,6 +29,7 @@ const buildProps = (
   rows: [],
   session: TEST_SESSION,
   sort: "newest",
+  type: "all",
   ...overrides,
 });
 

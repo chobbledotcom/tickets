@@ -557,6 +557,15 @@ export const clearSavedFormData = (): void => {
  */
 export const getSavedFormData = (): FormParams | null => _savedFormData.form;
 
+/**
+ * Read a raw saved form value by name, or "" when nothing was restored. Lets the
+ * non-Field booking controls (quantity selectors, the date and day-count
+ * pickers, question radios, the terms checkbox) re-fill from the form-stash
+ * after a failed booking redirect, alongside renderFields for the normal inputs.
+ */
+export const savedFormValue = (name: string): string =>
+  _savedFormData.form?.getString(name) ?? "";
+
 /** Get a saved value for a field, or empty string if not available */
 const getSavedValue = (field: Field): string => {
   if (!_savedFormData.form || SENSITIVE_FIELD_TYPES.has(field.type)) return "";

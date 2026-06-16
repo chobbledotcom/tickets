@@ -139,13 +139,13 @@ const dispatchVerified = async (
     await getGroupRemainingForListing(listing),
   );
   const prefill = buildPrefill(listing, payload, token);
-  return handleTicket(
-    request,
-    [slug],
-    [ticketListing],
-    getTicketContext,
+  return handleTicket({
+    getContext: getTicketContext,
+    listings: [ticketListing],
     prefill,
-  );
+    request,
+    slugs: [slug],
+  });
 };
 
 /** GET /ticket/:slug/qr-book */

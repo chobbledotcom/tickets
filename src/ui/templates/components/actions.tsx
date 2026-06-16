@@ -29,6 +29,7 @@ export type IconName =
   | "trash-2"
   | "log-in"
   | "log-out"
+  | "shopping-cart"
   | "x";
 
 /** Visual variants for a button-styled link */

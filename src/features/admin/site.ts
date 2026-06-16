@@ -12,6 +12,7 @@ import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { isBotpoisonEnabled } from "#shared/config.ts";
+import { getAllListings } from "#shared/db/listings.ts";
 import { MAX_WEBSITE_TITLE_LENGTH, settings } from "#shared/db/settings.ts";
 import {
   applyDemoOverrides,
@@ -23,6 +24,7 @@ import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
   adminSiteContactPage,
   adminSiteHomePage,
+  adminSiteOrderPage,
 } from "#templates/admin/site.tsx";
 import { FORMATTING_HINT } from "#templates/fields.ts";
 
@@ -66,6 +68,28 @@ export const siteContactForm = defineForm({
   ] as const,
   id: "siteContact",
 });
+
+export const siteOrderForm = defineForm({
+  fields: [
+    {
+      hintHtml: `Shown at the top of the public order page (max ${MAX_TEXTAREA_LENGTH} characters). ${FORMATTING_HINT}`,
+      id: "order_intro_text",
+      label: "Order Page Intro",
+      markdown: true,
+      maxlength: MAX_TEXTAREA_LENGTH,
+      name: "order_intro_text",
+      placeholder: "Pick the items you're interested in...",
+      type: "textarea" as const,
+    },
+  ] as const,
+  id: "siteOrder",
+});
+
+/** Count active, visible listings — every one appears on the order page. */
+const countOrderListings = async (): Promise<number> => {
+  const listings = await getAllListings();
+  return listings.filter((e) => e.active && !e.hidden).length;
+};
 
 type PageRenderer = (
   session: AuthSession,
@@ -160,11 +184,53 @@ const handleSiteContactPost = settingsHandler({
       : null,
 });
 
+/** Handle GET /admin/site/order - order page editor (owner only).
+ * Loads the live listing count so the editor can warn when there is nothing to
+ * show, then renders the toggle + intro-text forms. */
+const handleSiteOrderGet = (request: Request): Promise<Response> =>
+  requireOwnerOr(request, async (session) => {
+    const flash = applyFlash(request);
+    const listingCount = await countOrderListings();
+    return htmlResponse(
+      adminSiteOrderPage(
+        session,
+        settings.orderIntroText,
+        { enabled: settings.orderEnabled, listingCount },
+        flash.error,
+        flash.success,
+      ),
+    );
+  });
+
+/** Handle POST /admin/site/order/toggle - enable/disable the public order page */
+const handleSiteOrderTogglePost = settingsToggle({
+  field: "order_enabled",
+  label: "Order page",
+  redirectTo: "/admin/site/order",
+  save: (v) => settings.update.orderEnabled(v),
+});
+
+/** Handle POST /admin/site/order - save the order page intro text */
+const handleSiteOrderPost = settingsHandler({
+  extract: (form) => form.getString("order_intro_text"),
+  label: "Order page",
+  log: () => "Order page updated",
+  redirectTo: "/admin/site/order",
+  save: (v) => settings.update.orderIntroText(v),
+  validate: (v) =>
+    v.length > MAX_TEXTAREA_LENGTH
+      ? `Order intro must be ${MAX_TEXTAREA_LENGTH} characters or fewer (currently ${v.length})`
+      : null,
+});
+
 /** Site editor routes */
 export const siteRoutes = defineRoutes({
   "GET /admin/site": siteGetRoute(renderHomePage),
   "GET /admin/site/contact": siteGetRoute(renderContactPage),
+  "GET /admin/site/order": handleSiteOrderGet,
   "POST /admin/site": handleSiteHomePost,
   "POST /admin/site/contact": handleSiteContactPost,
   "POST /admin/site/contact/form": handleSiteContactFormTogglePost,
+  "POST /admin/site/order": handleSiteOrderPost,
+  "POST /admin/site/order/toggle": handleSiteOrderTogglePost,
 });
