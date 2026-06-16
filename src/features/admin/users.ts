@@ -77,6 +77,16 @@ const parseAssignedAgentIds = (
   return form.getNumberArray("agent_ids").filter((id) => valid.has(id));
 };
 
+/** Persist a user's logistics-agent links from a submitted form, keeping only
+ * ids that are real assignable agents. */
+const saveAgentSelection = async (
+  userId: number,
+  form: FormParams,
+): Promise<void> => {
+  const agentIds = parseAssignedAgentIds(form, await loadAssignableAgents());
+  await setUserAgentIds(userId, agentIds);
+};
+
 /**
  * Decrypt user data for display. When an agent-name lookup is supplied, agent
  * users also get the names of their assigned logistics agents.
@@ -192,11 +202,7 @@ const handleUsersPost = createAuthedFormRoute<InviteUserFormValues>({
 
     // Agent users carry the logistics agents they drive; ignored for staff.
     if (adminLevel === "agent") {
-      const agentIds = parseAssignedAgentIds(
-        form,
-        await loadAssignableAgents(),
-      );
-      await setUserAgentIds(user.id, agentIds);
+      await saveAgentSelection(user.id, form);
     }
 
     const inviteLink = `https://${getEffectiveDomain()}/join/${inviteCode}`;
@@ -284,11 +290,7 @@ const handleUserAgentsPost: TypedRouteHandler<
     withLoadedUser(session, id, async (user, errorPage) => {
       const notAgent = await ensureAgentUser(user, errorPage);
       if (notAgent) return notAgent;
-      const agentIds = parseAssignedAgentIds(
-        form,
-        await loadAssignableAgents(),
-      );
-      await setUserAgentIds(user.id, agentIds);
+      await saveAgentSelection(user.id, form);
       await logActivity(
         `Agents updated for user '${await decryptUsername(user)}'`,
       );
