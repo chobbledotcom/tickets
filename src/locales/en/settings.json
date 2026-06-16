@@ -133,5 +133,22 @@
   "settings.domain_warning.title": "Changing your domain changes your payment webhook URL.",
   "settings.domain_warning.body": "Your payment provider sends booking confirmations to a webhook at your current domain. After you change or set your domain here, you must update your webhook or new payments will stop being confirmed:",
   "settings.domain_warning.square": "In your <strong>Square Developer Dashboard</strong>, update your webhook subscription's Notification URL to the new address, then paste the Signature Key back into the <a href=\"/admin/settings#settings-square-webhook\">Square settings</a>.",
-  "settings.domain_warning.stripe": "Re-save your key on the <a href=\"/admin/settings#settings-stripe\">Stripe settings</a> page to point the webhook at the new domain."
+  "settings.domain_warning.stripe": "Re-save your key on the <a href=\"/admin/settings#settings-stripe\">Stripe settings</a> page to point the webhook at the new domain.",
+  "settings.nag_banner_heading": "Finish setting up your site:",
+  "settings.subdomain.heading": "Host Subdomain",
+  "settings.subdomain.intro": "You can choose a prettier domain name for your tickets site. Enter a subdomain into the box below to preview the full URL — you can change your mind before saving, but once set this cannot be changed. <a href=\"/admin/guide#host-subdomain\">Learn more</a>.",
+  "settings.subdomain.available_at": "Your site is available at",
+  "settings.subdomain.also_custom": "You can also set a custom domain below.",
+  "settings.subdomain.permanent": "This subdomain is permanent and cannot be changed.",
+  "settings.subdomain.is_available": "is available.",
+  "settings.subdomain.confirm_registration": "Confirm registration (cannot be undone)",
+  "settings.subdomain.register_button": "Register Subdomain",
+  "settings.subdomain.subdomain_label": "Subdomain",
+  "settings.subdomain.subdomain_placeholder": "my-business-name",
+  "settings.subdomain.check_button": "Check Availability & Preview Complete Domain",
+  "settings.superuser.heading": "Superuser Recovery",
+  "settings.superuser.activated": "Superuser {username} is already activated. You can delete them from your <a href=\"/admin/users\">users page</a>.",
+  "settings.superuser.intro": "Your attendee data is encrypted with your password, and admins cannot view your password. With that in mind, please select:",
+  "settings.superuser.self_managed": "I understand that my attendee information cannot be decrypted without my password, and that I am responsible for storing my password securely. If I forget it, I will be locked out of my attendee records.",
+  "settings.superuser.enable_super": "I wish to enable a \"super user\" account on this platform for my admin, {email}. This user will be able to log in, decrypt attendee data, and invite a replacement owner account if I lose access."
 }

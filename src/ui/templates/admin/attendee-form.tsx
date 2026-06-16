@@ -10,6 +10,7 @@
  */
 
 import { compact } from "#fp";
+import { t } from "#i18n";
 import {
   ACTION_FIELD,
   ADD_LINE_ACTION,
@@ -114,8 +115,12 @@ const bookingStatusBadges = (
   booking: AttendeeFormLine["existingBooking"],
 ): JSX.Element | null => {
   const badges = compact([
-    booking?.checked_in ? <span class="badge">Checked in</span> : null,
-    booking?.refunded ? <span class="badge danger">Refunded</span> : null,
+    booking?.checked_in ? (
+      <span class="badge">{t("attendee_form.checked_in")}</span>
+    ) : null,
+    booking?.refunded ? (
+      <span class="badge danger">{t("attendee_form.refunded")}</span>
+    ) : null,
   ]);
   return badges.length > 0 ? (
     <div class="muted small">
@@ -145,7 +150,9 @@ const LineRow = ({
     ? availableDayCounts(line.listing)
     : [];
   const selectedDayCount = isCustomisable ? lineDayCount(line) : 0;
-  const removeLabel = line.existingBooking ? "Remove" : "Drop";
+  const removeLabel = line.existingBooking
+    ? t("attendee_form.remove")
+    : t("attendee_form.drop");
   return (
     <tr data-line-row>
       <td>
@@ -155,7 +162,7 @@ const LineRow = ({
           name={`${LINE_EVENT_ID_PREFIX}${index}`}
         >
           <option selected={line.listingId === 0} value="">
-            Select listing…
+            {t("attendee_form.select_listing")}
           </option>
           {allListings.map((listing) => (
             <option selected={listing.id === line.listingId} value={listing.id}>
@@ -183,7 +190,7 @@ const LineRow = ({
         >
           {dayCounts.map((n) => (
             <option selected={n === selectedDayCount} value={n}>
-              {n} day{n === 1 ? "" : "s"}
+              {t("attendee_form.day_count", { count: n })}
             </option>
           ))}
         </select>
@@ -246,9 +253,9 @@ const LineEditor = ({
       <table class="line-editor">
         <thead>
           <tr>
-            <th>Listing</th>
-            <th>Date</th>
-            <th>Qty</th>
+            <th>{t("attendee_form.listing_header")}</th>
+            <th>{t("attendee_form.date_header")}</th>
+            <th>{t("attendee_form.qty_header")}</th>
             <th></th>
             <th style="width:1%"></th>
           </tr>
@@ -284,24 +291,26 @@ const EmailHistory = ({
   const hasEmail = Boolean(attendee.email);
   return (
     <article>
-      <h3>Email History</h3>
+      <h3>{t("attendee_form.email_history")}</h3>
       {!hasEmail ? (
-        <p>No email address on file.</p>
+        <p>{t("attendee_form.no_email_on_file")}</p>
       ) : emailStats && emailStats.contactCount > 0 ? (
         <ul>
           <li>
-            <strong>Total messages:</strong> {emailStats.contactCount}
+            <strong>{t("attendee_form.total_messages")}:</strong>{" "}
+            {emailStats.contactCount}
           </li>
           <li>
-            <strong>Last contacted:</strong>{" "}
+            <strong>{t("attendee_form.last_contacted")}:</strong>{" "}
             {formatDatetimeShort(emailStats.lastContact)}
           </li>
           <li>
-            <strong>Last subject:</strong> {emailStats.lastSubject}
+            <strong>{t("attendee_form.last_subject")}:</strong>{" "}
+            {emailStats.lastSubject}
           </li>
         </ul>
       ) : (
-        <p>Never contacted by bulk email.</p>
+        <p>{t("attendee_form.never_contacted")}</p>
       )}
       {isOwner && (
         <p>
@@ -313,12 +322,10 @@ const EmailHistory = ({
               token: attendee.ticket_token,
             })}`}
             title={
-              hasEmail
-                ? undefined
-                : "This attendee has no email address on file"
+              hasEmail ? undefined : t("attendee_form.no_email_disabled_title")
             }
           >
-            Send an email to this attendee
+            {t("attendee_form.send_email_to_attendee")}
           </MaybeButtonLink>
         </p>
       )}
@@ -330,11 +337,8 @@ const EmailHistory = ({
 const MergeSection = ({ attendee }: { attendee: Attendee }): JSX.Element => (
   <article>
     <div class="prose">
-      <h3>Merge Attendee</h3>
-      <p>
-        Search for another attendee by their ticket token and merge their
-        listing registrations into this attendee.
-      </p>
+      <h3>{t("attendee_form.merge_attendee_title")}</h3>
+      <p>{t("attendee_form.merge_attendee_description")}</p>
     </div>
     <form
       action={`/admin/attendees/${attendee.id}/merge`}
@@ -342,23 +346,27 @@ const MergeSection = ({ attendee }: { attendee: Attendee }): JSX.Element => (
       method="get"
     >
       <label for="merge_token">
-        Ticket token
+        {t("attendee_form.ticket_token_label")}
         <input
           id="merge_token"
           name="token"
-          placeholder="Enter ticket token…"
+          placeholder={t("attendee_form.enter_ticket_token_placeholder")}
           required
           type="text"
         />
       </label>
-      <SubmitButton icon="search">Search</SubmitButton>
+      <SubmitButton icon="search">
+        {t("attendee_form.search_button")}
+      </SubmitButton>
     </form>
   </article>
 );
 
 /** Page title for the layout. */
 const pageTitle = (data: AttendeeFormTemplateData): string =>
-  data.mode === "create" ? "Add Attendee" : `Attendee: ${data.attendee!.name}`;
+  data.mode === "create"
+    ? t("attendee_form.add_attendee_title")
+    : t("attendee_form.attendee_detail_title", { name: data.attendee!.name });
 
 /**
  * The attendee's current status as an `<h2>`, shown only when the site has more
@@ -373,7 +381,13 @@ const StatusHeading = ({
     return null;
   }
   const status = data.statuses.find((s) => s.id === data.attendee!.status_id);
-  return <h2>Status: {status ? status.name : "None"}</h2>;
+  return (
+    <h2>
+      {t("attendee_form.status_heading", {
+        status: status ? status.name : "None",
+      })}
+    </h2>
+  );
 };
 
 /** Tiny progressive-enhancement script: hide the date field on non-daily
@@ -449,7 +463,7 @@ const StatusAndBalanceFields = ({
   const selectedId = resolveStatusId(statusId, data.statuses);
   return (
     <>
-      <h3>Status &amp; Balance</h3>
+      <h3>{t("attendee_form.status_and_balance_heading")}</h3>
       {data.balanceNotice && (
         <output class={data.balanceNotice.tone}>
           {data.balanceNotice.message}
@@ -461,7 +475,7 @@ const StatusAndBalanceFields = ({
         <input name={STATUS_FIELD} type="hidden" value={selectedId} />
       ) : (
         <label for={STATUS_FIELD}>
-          Status
+          {t("attendee_form.status_label")}
           <select id={STATUS_FIELD} name={STATUS_FIELD}>
             {data.statuses.map((s) => (
               <option selected={s.id === selectedId} value={s.id}>
@@ -472,7 +486,7 @@ const StatusAndBalanceFields = ({
         </label>
       )}
       <label for={REMAINING_BALANCE_FIELD}>
-        Outstanding balance
+        {t("attendee_form.outstanding_balance_label")}
         <input
           id={REMAINING_BALANCE_FIELD}
           inputmode="decimal"
@@ -482,10 +496,7 @@ const StatusAndBalanceFields = ({
           type="number"
           value={toMajorUnits(remainingBalance)}
         />
-        <small>
-          What the attendee still owes. Set to 0 when fully paid; the public
-          payment link clears it automatically when they pay.
-        </small>
+        <small>{t("attendee_form.outstanding_balance_help")}</small>
       </label>
     </>
   );
@@ -515,10 +526,10 @@ const AttendeeEditForm = ({
         <input name="return_url" type="hidden" value={data.returnUrl} />
       )}
 
-      {!isEdit && <h3>Attendee Details</h3>}
+      {!isEdit && <h3>{t("attendee_form.attendee_details_heading")}</h3>}
 
       <label for="name">
-        Name
+        {t("attendee_form.name_label")}
         <input
           autofocus
           id="name"
@@ -532,7 +543,7 @@ const AttendeeEditForm = ({
       <StatusAndBalanceFields data={data} />
 
       <label for="email">
-        Email
+        {t("attendee_form.email_label")}
         <input
           id="email"
           name="email"
@@ -542,26 +553,26 @@ const AttendeeEditForm = ({
       </label>
 
       <label for="phone">
-        Phone
+        {t("attendee_form.phone_label")}
         <input
           id="phone"
           name="phone"
           pattern="[+\d][\d\s\-()]{5,}"
-          title="Phone number (digits, spaces, hyphens, parentheses, optional leading +)"
+          title={t("attendee_form.phone_pattern_title")}
           type="text"
           value={data.parsed.phone || ""}
         />
       </label>
 
       <label for="address">
-        Address
+        {t("attendee_form.address_label")}
         <textarea id="address" maxlength={250} name="address" rows={3}>
           {data.parsed.address || ""}
         </textarea>
       </label>
 
       <label for="special_instructions">
-        Special Instructions
+        {t("attendee_form.special_instructions_label")}
         <textarea
           id="special_instructions"
           maxlength={250}
@@ -574,7 +585,7 @@ const AttendeeEditForm = ({
 
       {data.questions.length > 0 && (
         <>
-          <h3>Custom Questions</h3>
+          <h3>{t("attendee_form.custom_questions_heading")}</h3>
           <EditQuestions
             questions={data.questions}
             selectedAnswerIds={data.selectedAnswerIds}
@@ -582,7 +593,7 @@ const AttendeeEditForm = ({
         </>
       )}
 
-      <h3>Listing Registrations</h3>
+      <h3>{t("attendee_form.listing_registrations_heading")}</h3>
       <LineEditor data={data} />
       <p>
         <button
@@ -592,7 +603,7 @@ const AttendeeEditForm = ({
           value={ADD_LINE_ACTION}
         >
           <Icon name="plus" />
-          <span>Add Listing Line</span>
+          <span>{t("attendee_form.add_listing_line_button")}</span>
         </button>
       </p>
 
@@ -606,11 +617,15 @@ const AttendeeEditForm = ({
           value={SAVE_ACTION}
         >
           <Icon name="save" />
-          <span>{isEdit ? "Save Attendee" : "Create Attendee"}</span>
+          <span>
+            {isEdit
+              ? t("attendee_form.save_attendee_button")
+              : t("attendee_form.create_attendee_button")}
+          </span>
         </button>
         {!isEdit && (
           <a class="button" href={data.returnUrl || "/admin/"}>
-            Back without saving
+            {t("attendee_form.back_without_saving_link")}
           </a>
         )}
       </p>
@@ -672,15 +687,13 @@ export const attendeeFormPage = (
 
       {data.dailyDefaults.hasMixedTimings && (
         <output class="warning">
-          This attendee's existing daily listings have different start dates or
-          durations. You can still add daily lines, but they won't inherit a
-          shared default — pick the date explicitly for each new line.
+          {t("attendee_form.mixed_timings_warning")}
         </output>
       )}
 
       {isEdit ? (
         <details>
-          <summary>Edit Attendee Details</summary>
+          <summary>{t("attendee_form.edit_attendee_details_summary")}</summary>
           {editForm}
         </details>
       ) : (

@@ -1,3 +1,4 @@
+import { t } from "#i18n";
 import { getSettingsNagItems } from "#shared/settings-nags.ts";
 import type { NagItem } from "#shared/types.ts";
 
@@ -12,7 +13,7 @@ export const SettingsNagBanner = ({
   return (
     <output class="settings-nag-banner">
       <p>
-        <strong>Finish setting up your site:</strong>
+        <strong>{t("settings.nag_banner_heading")}</strong>
       </p>
       <ul>
         {items.map((item) => (

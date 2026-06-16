@@ -40,5 +40,7 @@
   "groups.fields.max_attendees": "Max Attendees (optional)",
   "groups.fields.max_attendees_hint": "Limits total attendees across all listings in this group. Leave blank for no limit. Works best when all listings in the group are the same type (daily or standard).",
   "groups.fields.terms": "Terms and Conditions (optional)",
-  "groups.fields.terms_hint": "If set, overrides the global terms and conditions for this group ticket page"
+  "groups.fields.terms_hint": "If set, overrides the global terms and conditions for this group ticket page",
+  "groups.select.label": "Group",
+  "groups.select.none": "No Group"
 }

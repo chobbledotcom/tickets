@@ -1,0 +1,14 @@
+{
+  "public_balance.pay_your_balance": "Pay your balance",
+  "public_balance.booking_summary": "Here's a summary of your booking. No personal details are shown.",
+  "public_balance.item": "Item",
+  "public_balance.qty": "Qty",
+  "public_balance.already_paid": "Already paid",
+  "public_balance.balance_due": "Balance due",
+  "public_balance.pay_amount_now": "Pay {amount} now",
+  "public_balance.nothing_to_pay": "Nothing to pay",
+  "public_balance.balance_settled": "This booking has no outstanding balance. Thank you!",
+  "public_balance.link_not_valid": "Link not valid",
+  "public_balance.payment_link_invalid": "This payment link is not valid",
+  "public_balance.link_expired_or_mistyped": "The link may have expired or been mistyped. Please ask the organiser for a new one."
+}

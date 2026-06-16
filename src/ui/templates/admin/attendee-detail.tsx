@@ -10,6 +10,7 @@
  */
 
 import { compact } from "#fp";
+import { t } from "#i18n";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
@@ -55,9 +56,9 @@ const PhoneCell = ({
         <>
           {" "}
           <small>
-            <a href={links.tel}>tel</a>{" "}
+            <a href={links.tel}>{t("attendee_detail.tel")}</a>{" "}
             <a href={links.whatsapp} rel="noopener" target="_blank">
-              whatsapp
+              {t("attendee_detail.whatsapp")}
             </a>
           </small>
         </>
@@ -80,33 +81,35 @@ export const AttendeeDetail = ({
   phonePrefix: string;
 }): JSX.Element => {
   const rows = compact([
-    <DetailTableRow label="Name">{attendee.name}</DetailTableRow>,
+    <DetailTableRow label={t("attendee_detail.name")}>
+      {attendee.name}
+    </DetailTableRow>,
     attendee.email ? (
-      <DetailTableRow label="Email">
+      <DetailTableRow label={t("attendee_detail.email")}>
         <a href={`mailto:${attendee.email}`}>{attendee.email}</a>
       </DetailTableRow>
     ) : null,
     attendee.phone ? (
-      <DetailTableRow label="Phone">
+      <DetailTableRow label={t("attendee_detail.phone")}>
         <PhoneCell phone={attendee.phone} phonePrefix={phonePrefix} />
       </DetailTableRow>
     ) : null,
     attendee.address ? (
-      <DetailTableRow label="Address">
+      <DetailTableRow label={t("attendee_detail.address")}>
         <Multiline text={attendee.address} />
       </DetailTableRow>
     ) : null,
     attendee.special_instructions ? (
-      <DetailTableRow label="Special Instructions">
+      <DetailTableRow label={t("attendee_detail.special_instructions")}>
         <Multiline text={attendee.special_instructions} />
       </DetailTableRow>
     ) : null,
-    <DetailTableRow label="Ticket">
+    <DetailTableRow label={t("attendee_detail.ticket")}>
       <a href={`https://${allowedDomain}/t/${attendee.ticket_token}`}>
         {attendee.ticket_token}
       </a>
     </DetailTableRow>,
-    <DetailTableRow label="Registered">
+    <DetailTableRow label={t("attendee_detail.registered")}>
       {formatDatetimeShort(attendee.created)}
     </DetailTableRow>,
   ]);
@@ -143,7 +146,7 @@ export const AttendeeAnswersTable = ({
   if (answered.length === 0) return null;
   return (
     <>
-      <h3>Answers</h3>
+      <h3>{t("attendee_detail.answers")}</h3>
       <div class="table-scroll">
         <table class="listing-details-table">
           <tbody>
@@ -167,7 +170,7 @@ export const AttendeeLogSection = ({
   entries: ActivityLogEntry[];
 }): JSX.Element => (
   <details>
-    <summary>Activity Log</summary>
+    <summary>{t("attendee_detail.activity_log")}</summary>
     <ActivityLogTable entries={entries} />
   </details>
 );

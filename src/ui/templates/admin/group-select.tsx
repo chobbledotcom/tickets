@@ -2,6 +2,7 @@
  * Group selector for listing forms (only shown when groups exist)
  */
 
+import { t } from "#i18n";
 import type { Group } from "#shared/types.ts";
 
 interface ListingGroupSelectProps {
@@ -17,10 +18,10 @@ export const ListingGroupSelect = ({
 
   return (
     <label>
-      Group
+      {t("groups.select.label")}
       <select id="group_id" name="group_id">
         <option selected={selectedGroupId === 0} value="0">
-          No Group
+          {t("groups.select.none")}
         </option>
         {groups.map((g) => (
           <option selected={g.id === selectedGroupId} value={String(g.id)}>
