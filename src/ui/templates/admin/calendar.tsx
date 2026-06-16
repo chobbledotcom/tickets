@@ -7,6 +7,10 @@ import { formatDateLabel } from "#shared/dates.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession, Attendee } from "#shared/types.ts";
 import {
+  AvailabilityChecker,
+  type AvailabilityRow,
+} from "#templates/admin/availability-checker.tsx";
+import {
   buildSharedDetailRows,
   renderDetailRows,
 } from "#templates/admin/detail-rows.tsx";
@@ -42,6 +46,7 @@ export const adminCalendarPage = (
   phonePrefix?: string,
   questionData?: TableQuestionData,
   hasPaidListing = false,
+  availabilityRows: AvailabilityRow[] = [],
 ): string => {
   const tableRows: AttendeeTableRow[] = pipe(
     map(
@@ -101,6 +106,7 @@ export const adminCalendarPage = (
             <strong>{formatDateLabel(dateFilter)}</strong>
           </p>
         )}
+        <AvailabilityChecker date={dateFilter} rows={availabilityRows} />
         {dateFilter && attendees.length > 0 && (
           <p>
             <a href={`/admin/calendar/export?date=${dateFilter}`}>Export CSV</a>

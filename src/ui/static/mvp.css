@@ -2249,3 +2249,76 @@ a.cal-day-selected:hover {
 .order-gallery:not(:has(.order-select:checked)) .order-cart {
   display: none;
 }
+
+/* Calendar availability checker — reuses the order page's hidden-checkbox
+   selection and floating cart button, but lays the listings out as a table. */
+.availability-checker {
+  margin-bottom: var(--space-m);
+}
+
+.availability-checker > summary {
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.availability-checker-body {
+  padding-top: var(--space-s);
+}
+
+/* The selection form resets the shared cart counter and hides the floating
+   create button until at least one listing is ticked (mirrors .order-gallery). */
+.selectable-form {
+  counter-reset: cart;
+}
+
+.selectable-form:not(:has(.order-select:checked)) .order-cart {
+  display: none;
+}
+
+.availability-table th:first-child,
+.availability-table td:first-child {
+  width: 1%;
+  white-space: nowrap;
+}
+
+/* A row's tick box: the .order-select checkbox itself is visually hidden
+   (1px, opacity 0) and absolutely positioned, so anchor it here. */
+.row-select {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  cursor: pointer;
+}
+
+.row-select-tick {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  border: 2px solid var(--color-bg-secondary);
+  border-radius: var(--border-radius);
+}
+
+.order-select:checked + .row-select-tick {
+  border-color: var(--color-secondary);
+  background: var(--color-secondary);
+  color: #fff;
+}
+
+.order-select:checked + .row-select-tick::after {
+  content: "\2713";
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.order-select:focus-visible + .row-select-tick {
+  outline: 2px solid var(--color-secondary);
+  outline-offset: 2px;
+}
+
+.availability-table tr:has(.order-select:checked) {
+  background: var(--color-secondary-accent);
+}

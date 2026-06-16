@@ -43,6 +43,8 @@ export {
   getGroupRemainingByGroupId,
   getGroupRemainingByListingId,
   getGroupRemainingForListing,
+  getListingRemainingForRange,
+  type ListingCapacityRow,
 } from "#shared/db/attendees/capacity.ts";
 export {
   buildAttendeeInsert,

@@ -19,7 +19,10 @@ import {
   listingDateToCalendarDate,
 } from "#shared/dates.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { decryptAttendees } from "#shared/db/attendees.ts";
+import {
+  decryptAttendees,
+  getListingRemainingForRange,
+} from "#shared/db/attendees.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {
   getAllDailyListings,
@@ -36,6 +39,7 @@ import {
   isPaidListing,
   type ListingWithCount,
 } from "#shared/types.ts";
+import type { AvailabilityRow } from "#templates/admin/availability-checker.tsx";
 import {
   adminCalendarPage,
   type CalendarAttendeeRow,
@@ -177,6 +181,27 @@ const loadStandardListingAttendees = async (
   return decryptAttendees(rawStandardAttendees, privateKey);
 };
 
+/** Build availability-checker rows: every active listing with its remaining
+ * capacity for the selected date (or overall, when no date is selected). */
+const buildAvailabilityRows = async (
+  listings: ListingWithCount[],
+  dateFilter: string | null,
+): Promise<AvailabilityRow[]> => {
+  const bookable = filter((l: ListingWithCount) => l.active)(listings);
+  const remaining = await getListingRemainingForRange(bookable, dateFilter, 1);
+  return map(
+    (l: ListingWithCount): AvailabilityRow => ({
+      canPayMore: l.can_pay_more,
+      id: l.id,
+      name: l.name,
+      // getListingRemainingForRange returns an entry for every listing passed.
+      remaining: remaining.get(l.id)!,
+      total: l.max_attendees,
+      unitPrice: l.unit_price,
+    }),
+  )(bookable);
+};
+
 /**
  * Handle GET /admin/calendar
  */
@@ -229,6 +254,10 @@ const handleAdminCalendarGet = (request: Request) =>
     );
 
     const hasPaidListing = allListings.some(isPaidListing);
+    const availabilityRows = await buildAvailabilityRows(
+      allListings,
+      dateFilter,
+    );
 
     return htmlResponse(
       adminCalendarPage(
@@ -242,6 +271,7 @@ const handleAdminCalendarGet = (request: Request) =>
         settings.phonePrefix,
         questionData,
         hasPaidListing,
+        availabilityRows,
       ),
     );
   });

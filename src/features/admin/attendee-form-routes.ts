@@ -16,7 +16,7 @@
  *   6. Redirect with a success/failure flash.
  */
 
-import { filter, map, pipe, unique } from "#fp";
+import { compact, filter, map, pipe, unique } from "#fp";
 import { requirePrivateKey } from "#routes/admin/actions.ts";
 import {
   ATTENDEE_FORM_ID,
@@ -79,6 +79,10 @@ import {
 import { settings } from "#shared/db/settings.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import {
+  parseSelectedListingIds,
+  START_DATE_FIELD,
+} from "#shared/order-select.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import {
   type Attendee,
@@ -86,6 +90,7 @@ import {
   type Holiday,
   type ListingWithCount,
 } from "#shared/types.ts";
+import { isIsoDate } from "#shared/validation/date.ts";
 import {
   type AttendeeFormTemplateData,
   attendeeFormPage,
@@ -166,13 +171,14 @@ const emptyLine = (
   quantity: 1,
 });
 
-/** Build the empty create-mode form shell: one blank line with the
- * default daily date pre-filled (so the operator sees a concrete date). */
-const buildEmptyCreateForm = (): ParsedAttendeeForm => ({
+/** A blank create-mode form shell carrying the given listing lines and empty
+ * contact fields — the shared shape behind both the empty form and the
+ * calendar deep-link form. */
+const createFormShell = (lines: AttendeeFormLine[]): ParsedAttendeeForm => ({
   action: { kind: "save" },
   address: "",
   email: "",
-  lines: [emptyLine(todayInTz(settings.timezone), null)],
+  lines,
   name: "",
   phone: "",
   remainingBalance: 0,
@@ -180,6 +186,56 @@ const buildEmptyCreateForm = (): ParsedAttendeeForm => ({
   special_instructions: "",
   statusId: null,
 });
+
+/** Build the empty create-mode form shell: one blank line with the
+ * default daily date pre-filled (so the operator sees a concrete date). */
+const buildEmptyCreateForm = (): ParsedAttendeeForm =>
+  createFormShell([emptyLine(todayInTz(settings.timezone), null)]);
+
+/** Build a create-mode line for a listing chosen on the calendar availability
+ * checker: daily listings inherit the calendar's selected date, standard
+ * listings take none. */
+const prefilledLine = (
+  listing: ListingWithCount,
+  startDate: string,
+  todayIso: string,
+): AttendeeFormLine => ({
+  date:
+    listing.listing_type === "daily"
+      ? isIsoDate(startDate)
+        ? startDate
+        : defaultNewDailyDate(todayIso)
+      : "",
+  dayCount: null,
+  error: null,
+  existingBooking: null,
+  key: "",
+  listing,
+  listingId: listing.id,
+  quantity: 1,
+});
+
+/**
+ * Build the create form from a `?select_<id>=1&start_date=…` deep link (the
+ * calendar availability checker's "Create Attendee" button). Unknown or
+ * inactive listing ids are ignored; with no resolvable selection it falls back
+ * to the empty one-line form so a bare `/admin/attendees/new` still works.
+ */
+const buildCreateFormFromQuery = (
+  request: Request,
+  listingsById: Map<number, ListingWithCount>,
+): ParsedAttendeeForm => {
+  const params = new URL(request.url).searchParams;
+  const startDate = params.get(START_DATE_FIELD) ?? "";
+  const todayIso = todayInTz(settings.timezone);
+  const resolved = compact(
+    parseSelectedListingIds(params).map((id) => listingsById.get(id)),
+  );
+  const lines = resolved.map((listing) =>
+    prefilledLine(listing, startDate, todayIso),
+  );
+  return lines.length === 0 ? buildEmptyCreateForm() : createFormShell(lines);
+};
 
 /** Build the edit-mode form shell from a loaded attendee + its bookings. */
 const buildEditFormFromAttendee = (
@@ -338,7 +394,11 @@ export const handleAttendeeNewGet: TypedRouteHandler<
   "GET /admin/attendees/new"
 > = (request) =>
   requireSessionOr(request, async (session) => {
-    const parsed = buildEmptyCreateForm();
+    const allListings = await getListingsForSelector(null);
+    const parsed = buildCreateFormFromQuery(
+      request,
+      listingsByIdMap(allListings),
+    );
     const data = await buildTemplateData("create", parsed, null, {
       returnUrl: getSearchParam(request, "return_url"),
     });

@@ -20,6 +20,7 @@ import {
   awaitTestRequest,
   bookAttendee,
   buildAttendeeEditForm,
+  createDailyTestListing,
   createTestAttendee,
   createTestListing,
   describeWithEnv,
@@ -54,6 +55,50 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       );
       // One blank line is rendered
       expect(html).toContain('name="line_event_id_0"');
+      expect(html).toContain('name="line_count" type="hidden" value="1"');
+    });
+
+    test("pre-fills listings selected from the calendar checker", async () => {
+      const a = await createTestListing({ maxAttendees: 100, name: "Kayak" });
+      const b = await createTestListing({ maxAttendees: 100, name: "Canoe" });
+      const response = await awaitTestRequest(
+        `/admin/attendees/new?select_${a.id}=1&select_${b.id}=1`,
+        { cookie: await testCookie() },
+      );
+      const html = await expectHtmlResponse(response, 200);
+      expect(html).toContain('name="line_count" type="hidden" value="2"');
+      expect(hasSelectedOption(html, String(a.id))).toBe(true);
+      expect(hasSelectedOption(html, String(b.id))).toBe(true);
+    });
+
+    test("pre-fills a daily listing's date from start_date", async () => {
+      const listing = await createDailyTestListing({ name: "Daily Pick" });
+      const response = await awaitTestRequest(
+        `/admin/attendees/new?select_${listing.id}=1&start_date=2026-07-01`,
+        { cookie: await testCookie() },
+      );
+      const html = await expectHtmlResponse(response, 200);
+      expect(hasSelectedOption(html, String(listing.id))).toBe(true);
+      expect(html).toContain('value="2026-07-01"');
+    });
+
+    test("defaults a daily listing's date when start_date is absent", async () => {
+      const listing = await createDailyTestListing({ name: "No Date Daily" });
+      const response = await awaitTestRequest(
+        `/admin/attendees/new?select_${listing.id}=1`,
+        { cookie: await testCookie() },
+      );
+      const html = await expectHtmlResponse(response, 200);
+      expect(hasSelectedOption(html, String(listing.id))).toBe(true);
+      expect(html).toContain('name="line_date_0"');
+    });
+
+    test("falls back to a blank form when no selection resolves", async () => {
+      const response = await awaitTestRequest(
+        "/admin/attendees/new?select_999999=1",
+        { cookie: await testCookie() },
+      );
+      const html = await expectHtmlResponse(response, 200);
       expect(html).toContain('name="line_count" type="hidden" value="1"');
     });
 

@@ -9,7 +9,7 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { filter, map, pipe, reduce, unique } from "#fp";
+import { filter, map, mapParallel, pipe, reduce, unique } from "#fp";
 import { addDays } from "#shared/dates.ts";
 import type {
   BatchAvailabilityItem,
@@ -279,6 +279,14 @@ const getGroupRemainingPerDay = async (
   );
 };
 
+/** Date-less remaining capacity for a listing's group, or `undefined` when no
+ * cap applies (ungrouped or uncapped group). Shared by the boolean preflight
+ * and the count lookup so both read the group cap the same way. */
+const groupRemainingTotal = async (
+  groupId: number,
+): Promise<number | undefined> =>
+  (await getGroupRemainingByGroupId([groupId], null)).get(groupId);
+
 /**
  * Per-day availability check for a single-listing booking. Used by
  * `hasAvailableSpots` (public availability API) and as the preflight in
@@ -299,9 +307,7 @@ export const checkListingAvailability = async (
   if (listing.listing_type !== "daily" || !date) {
     if (listing.attendee_count + quantity > listing.max_attendees) return false;
     if (listing.group_id <= 0) return true;
-    const remaining = (
-      await getGroupRemainingByGroupId([listing.group_id], null)
-    ).get(listing.group_id);
+    const remaining = await groupRemainingTotal(listing.group_id);
     return remaining === undefined || quantity <= remaining;
   }
 
@@ -499,4 +505,71 @@ export const checkBatchAvailabilityImpl = async (
     (ev) => (ev.group_id > 0 ? ev.group_id : null),
     groupBucketPasses,
   );
+};
+
+// ---------------------------------------------------------------------------
+// Remaining-capacity lookup (display + overbooking warnings)
+// ---------------------------------------------------------------------------
+
+/** A listing's identity + the capacity inputs a remaining-units lookup needs —
+ * the same shape the batch check uses. `ListingWithCount` satisfies it. */
+export type ListingCapacityRow = ListingRow;
+
+/** Clamp a possibly-negative remaining figure to zero — a listing is never
+ * "negatively available" even when it has been overbooked. */
+const atLeastZero = (n: number): number => Math.max(0, n);
+
+/** Remaining bookable units for one listing over `[date, date + durationDays)`.
+ * Daily listings report the tightest day; standard listings (and any listing
+ * with a null date) use their cumulative total. A group cap can only shrink the
+ * figure, never enlarge it. */
+const remainingForListing = async (
+  listing: ListingCapacityRow,
+  date: string | null,
+  durationDays: number,
+): Promise<number> => {
+  if (listing.listing_type !== "daily" || !date) {
+    const base = listing.max_attendees - listing.attendee_count;
+    if (listing.group_id <= 0) return atLeastZero(base);
+    const groupRemaining = await groupRemainingTotal(listing.group_id);
+    return atLeastZero(
+      groupRemaining === undefined ? base : Math.min(base, groupRemaining),
+    );
+  }
+
+  const days = expandDailyRange(date, durationDays);
+  const loads = perDayLoads(await getOverlappingRows(listing.id, days), days);
+  const listingRemaining = Math.min(
+    ...days.map((day) => listing.max_attendees - loads.get(day)!),
+  );
+  if (listing.group_id <= 0) return atLeastZero(listingRemaining);
+  const groupPerDay = await getGroupRemainingPerDay(listing.group_id, days);
+  if (!groupPerDay) return atLeastZero(listingRemaining);
+  const groupRemaining = Math.min(...days.map((day) => groupPerDay.get(day)!));
+  return atLeastZero(Math.min(listingRemaining, groupRemaining));
+};
+
+/**
+ * Remaining bookable units per listing for an anchor date + duration, as a
+ * `Map<listingId, number>` (clamped at 0).
+ *
+ * This is the read-side mirror of the booking-time caps in
+ * `checkListingAvailability`: same per-day expansion and group-cap rules, but it
+ * returns the actual count for display ("X/Y remaining") and overbooking
+ * warnings instead of a yes/no. Daily listings are evaluated per day across the
+ * whole range and report the tightest day; standard listings — and every
+ * listing when `date` is null — use their cumulative totals.
+ */
+export const getListingRemainingForRange = async (
+  listings: ListingCapacityRow[],
+  date: string | null,
+  durationDays = 1,
+): Promise<Map<number, number>> => {
+  const entries = await mapParallel(
+    async (listing: ListingCapacityRow): Promise<[number, number]> => [
+      listing.id,
+      await remainingForListing(listing, date, durationDays),
+    ],
+  )(listings);
+  return new Map(entries);
 };

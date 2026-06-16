@@ -207,10 +207,13 @@ describeWithEnv(
         );
       });
 
-      test("excludes standard listings without a date", async () => {
+      test("excludes standard listings without a date from the date picker", async () => {
         await createTestListing({ name: "Standard Listing" });
         const html = await fetchCalendarHtml();
-        expect(html).not.toContain("Standard Listing");
+        // A dateless standard listing contributes no selectable date…
+        expect(html).not.toContain("?date=");
+        // …but it is still bookable, so the availability checker lists it.
+        expect(html).toContain("Standard Listing");
       });
 
       test("shows standard listing date in dropdown", async () => {
@@ -471,6 +474,46 @@ describeWithEnv(
         expect(csv).toContain("Standard CSV");
         expect(csv).toContain(dailyListing.name);
         expect(csv).toContain("Workshop");
+      });
+    });
+
+    describe("availability checker", () => {
+      test("lists bookable listings with remaining and a create form", async () => {
+        const listing = await createTestListing({
+          maxAttendees: 5,
+          name: "Avail Listing",
+        });
+        const html = await fetchCalendarHtml();
+        expect(html).toContain("Check availability");
+        expect(html).toContain("data-availability-checker");
+        expect(html).toContain("Avail Listing");
+        expect(html).toContain("5/5");
+        expect(html).toContain('action="/admin/attendees/new"');
+        expect(html).toContain(`name="select_${listing.id}"`);
+      });
+
+      test("reflects bookings in the remaining count", async () => {
+        await createTestListing({ maxAttendees: 5, name: "Half Full" });
+        const listing = await createTestListing({
+          maxAttendees: 5,
+          name: "Booked Up",
+        });
+        await bookAttendee(listing, { quantity: 2 });
+        const html = await fetchCalendarHtml();
+        expect(html).toContain("3/5");
+      });
+
+      test("passes the selected calendar date to the create form", async () => {
+        const date = tomorrow();
+        const listing = await createDailyTestListing({ name: "Daily Avail" });
+        await bookDailyTicket(listing.slug, {
+          date,
+          email: "a@test.com",
+          name: "A",
+        });
+        const html = await fetchCalendarHtml(`/admin/calendar?date=${date}`);
+        expect(html).toContain('name="start_date"');
+        expect(html).toContain(`value="${date}"`);
       });
     });
   },

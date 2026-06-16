@@ -32,6 +32,7 @@ import {
   renderTypeFilter,
 } from "#shared/listing-filter.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
+import { SELECT_PREFIX } from "#shared/order-select.ts";
 import { getImageProxyUrl } from "#shared/storage.ts";
 import {
   availableDayCounts,
@@ -1126,7 +1127,7 @@ const renderOrderCard = (info: TicketListing): string => {
       </div>`;
   }
 
-  const fieldName = `select_${listing.id}`;
+  const fieldName = `${SELECT_PREFIX}${listing.id}`;
   return `<label class="order-card" for="${fieldName}">
       <input class="order-select" id="${fieldName}" name="${fieldName}" type="checkbox" value="1" />
       ${imageHtml}
