@@ -39,18 +39,17 @@ const invalidateAllCaches = (): void => {
 };
 
 /**
- * Extract the listing ID for a named listing from a select option in the current page HTML.
- * Used to find the listing id value needed to fill a line's <select> in the unified edit form.
+ * Extract the listing ID for a named listing from its editor-row link in the
+ * current page HTML. The unified form renders `<a href="/admin/listing/N">Name</a>`
+ * for each listing, alongside its quantity box.
  */
-const extractListingIdFromSelect = (
+const extractListingIdFromLink = (
   html: string,
   listingName: string,
 ): string | null => {
   const escaped = listingName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const match = html.match(
-    new RegExp(
-      `<option[^>]*\\bvalue="(\\d+)"[^>]*>\\s*${escaped}\\s*<\\/option>`,
-    ),
+    new RegExp(`/admin/listing/(\\d+)"[^>]*>${escaped}<`),
   );
   return match?.[1] ?? null;
 };
@@ -291,32 +290,29 @@ describe("e2e: ticket editing flow", () => {
     await visitFirstAttendeeEditPage(browser);
     expect(browser.containsText("Alice Smith")).toBe(true);
 
-    // The Listing Registrations line editor shows Alice's existing booking as a
-    // <select> with Morning Workshop pre-selected (the new form edits the listing
-    // via a dropdown rather than linking out to the listing page).
-    expect(browser.currentHtml).toMatch(
-      /<option selected\b[^>]*>Morning Workshop<\/option>/,
-    );
+    // The Listing Registrations editor shows one quantity box per listing —
+    // Alice's existing Morning Workshop booking plus an empty Evening Seminar row.
     expect(browser.containsText("Morning Workshop")).toBe(true);
+    expect(browser.containsText("Evening Seminar")).toBe(true);
 
-    // 8. Extract the Evening Seminar listing ID from the line select options.
-    //    The unified edit form renders an <option> per active listing inside
-    //    each line's <select>; the option value is the numeric listing id.
-    const eveningSeminarId = extractListingIdFromSelect(
+    // 8. Extract both listing ids from their editor-row links.
+    const morningWorkshopId = extractListingIdFromLink(
+      browser.currentHtml,
+      "Morning Workshop",
+    );
+    const eveningSeminarId = extractListingIdFromLink(
       browser.currentHtml,
       "Evening Seminar",
     );
+    expect(morningWorkshopId).toBeTruthy();
     expect(eveningSeminarId).toBeTruthy();
 
-    // 9. Add Alice to Evening Seminar via the unified form. The form
-    //    already has one existing line (Morning Workshop) plus a trailing
-    //    blank line at index 1. Fill in the blank slot's listing id and
-    //    quantity, then submit "Save Attendee".
+    // 9. Add Alice to Evening Seminar by setting its quantity. submitForm also
+    //    re-submits the visible Morning Workshop quantity, so that booking stays.
     await browser.submitForm(
       {
-        line_event_id_1: eveningSeminarId!,
-        line_quantity_1: "1",
         name: "Alice Smith",
+        [`qty_${eveningSeminarId}`]: "1",
       },
       "Save Attendee",
     );
@@ -327,13 +323,15 @@ describe("e2e: ticket editing flow", () => {
     expect(browser.containsText("Morning Workshop")).toBe(true);
     expect(browser.containsText("Evening Seminar")).toBe(true);
 
-    // 10. Remove Alice from Morning Workshop. The first "Remove" button
-    //     targets the first existing line (Morning Workshop, lower listing id).
-    //     Removal is now a pure form-state edit — it drops the line and
-    //     re-renders; the deletion is committed when the whole attendee is
-    //     saved, so no other in-progress edits are lost to a mid-edit write.
-    await browser.submitForm({}, "Remove");
-    await browser.submitForm({ name: "Alice Smith" }, "Save Attendee");
+    // 10. Remove Alice from Morning Workshop by zeroing its quantity; the save
+    //     deletes that booking while keeping the Evening Seminar one.
+    await browser.submitForm(
+      {
+        name: "Alice Smith",
+        [`qty_${morningWorkshopId}`]: "0",
+      },
+      "Save Attendee",
+    );
     expect(browser.containsText("Updated Alice Smith")).toBe(true);
 
     // 11. Navigate back to Morning Workshop and confirm Alice is no longer there.
@@ -360,9 +358,8 @@ describe("e2e: ticket editing flow", () => {
     // 13. Add Bob to Evening Seminar using the same listing ID extracted earlier
     await browser.submitForm(
       {
-        line_event_id_1: eveningSeminarId!,
-        line_quantity_1: "1",
         name: "Bob Jones",
+        [`qty_${eveningSeminarId}`]: "1",
       },
       "Save Attendee",
     );
@@ -372,10 +369,14 @@ describe("e2e: ticket editing flow", () => {
     expect(browser.containsText("Morning Workshop")).toBe(true);
     expect(browser.containsText("Evening Seminar")).toBe(true);
 
-    // 14. Remove Bob from Morning Workshop (first "Remove" button = Morning
-    //     Workshop), then save to commit the removal.
-    await browser.submitForm({}, "Remove");
-    await browser.submitForm({ name: "Bob Jones" }, "Save Attendee");
+    // 14. Remove Bob from Morning Workshop by zeroing its quantity, then save.
+    await browser.submitForm(
+      {
+        name: "Bob Jones",
+        [`qty_${morningWorkshopId}`]: "0",
+      },
+      "Save Attendee",
+    );
     expect(browser.containsText("Updated Bob Jones")).toBe(true);
 
     // 15. Verify Morning Workshop is now empty — neither Alice nor Bob appear

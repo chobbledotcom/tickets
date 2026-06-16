@@ -9,7 +9,7 @@
  * details/summary disclosure.
  */
 
-import { compact } from "#fp";
+import { compact, mapNotNullish } from "#fp";
 import { t } from "#i18n";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
@@ -18,6 +18,7 @@ import type { Child } from "#shared/jsx/jsx-runtime.ts";
 import { phoneLinks } from "#shared/phone.ts";
 import type { Attendee } from "#shared/types.ts";
 import { ActivityLogTable } from "#templates/admin/activityLog.tsx";
+import { MapsLinks } from "#templates/components/maps-links.tsx";
 
 /** One key/value row of a detail table. */
 const DetailTableRow = ({
@@ -95,6 +96,7 @@ export const AttendeeDetail = ({
     attendee.address ? (
       <DetailTableRow label={t("common.address")}>
         <Multiline text={attendee.address} />
+        <MapsLinks query={attendee.address} />
       </DetailTableRow>
     ) : null,
     attendee.special_instructions ? (
@@ -133,14 +135,12 @@ export const AttendeeAnswersTable = ({
   selectedAnswerIds: number[];
 }): JSX.Element | null => {
   const selected = new Set(selectedAnswerIds);
-  const answered = compact(
-    questions.map((q) => {
-      const picks = q.answers.filter((a) => selected.has(a.id));
-      return picks.length > 0
-        ? { answer: picks.map((a) => a.text).join(", "), question: q.text }
-        : null;
-    }),
-  );
+  const answered = mapNotNullish((q: QuestionWithAnswers) => {
+    const picks = q.answers.filter((a) => selected.has(a.id));
+    return picks.length > 0
+      ? { answer: picks.map((a) => a.text).join(", "), question: q.text }
+      : null;
+  })(questions);
   if (answered.length === 0) return null;
   return (
     <>

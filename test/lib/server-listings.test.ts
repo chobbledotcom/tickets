@@ -1590,7 +1590,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       expectRedirectWithFlash("/admin", "Listing deleted")(response);
     });
 
-    test("deletes listing and all attendees", async () => {
+    test("deletes the listing and unlinks its attendees", async () => {
       const { listing, cookie, csrfToken } = await setupListingAndLogin({
         maxAttendees: 100,
         name: "Test Listing",
@@ -1621,7 +1621,8 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
 
-      // Verify listing and attendees were deleted
+      // The listing is gone and no attendees remain linked to it (the attendee
+      // rows themselves are orphaned, not purged).
       const { getListing } = await import("#shared/db/listings.ts");
       const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       const deleted = await getListing(listing.id);
@@ -2094,10 +2095,10 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
   });
 
   describe("POST /admin/listing/:id/delete with custom onDelete", () => {
-    test("deletes listing and cascades to attendees", async () => {
+    test("deletes the listing when identifier verification is skipped", async () => {
       const { listing, cookie, csrfToken } = await setupListingAndLogin({
         maxAttendees: 50,
-        name: "Cascade Delete",
+        name: "Skip Verify Delete",
       });
       await createTestAttendee(
         listing.id,
@@ -2151,10 +2152,10 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       await expectHtmlResponse(response, 400, "Listing Name is required");
     });
 
-    test("listing delete cascades to attendees using custom onDelete", async () => {
+    test("unlinks the listing's attendees when deleted with verification skipped", async () => {
       const { listing, cookie, csrfToken } = await setupListingAndLogin({
         maxAttendees: 50,
-        name: "Cascade Del Test",
+        name: "Skip Verify Del Test",
       });
       await createTestAttendee(
         listing.id,

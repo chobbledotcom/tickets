@@ -2,7 +2,7 @@
  * Admin group management page templates
  */
 
-import { joinStrings, map, pipe, reduce } from "#fp";
+import { joinStrings, map, pipe, sumOf } from "#fp";
 import { t } from "#i18n";
 import { resolveColumnLayout } from "#shared/column-order.ts";
 import {
@@ -209,10 +209,7 @@ const buildAttendeeRows = (
   )(attendees);
 };
 
-const totalAttendeeCount = reduce(
-  (sum: number, e: ListingWithCount) => sum + e.attendee_count,
-  0,
-);
+const totalAttendeeCount = sumOf((e: ListingWithCount) => e.attendee_count);
 
 /** Render the group-attendees row. The cap fragment is omitted when the
  * group is uncapped so the displayed total isn't conflated with a fake

@@ -640,6 +640,19 @@ export const getListingFields = (): Field[] => [
   },
 ];
 
+/**
+ * "Needs logistics" listing toggle. Only assembled into the listing form when
+ * the logistics feature is enabled (see the listing page builders); attendees
+ * of a logistics listing carry start and end agents.
+ */
+export const logisticsField: Field = {
+  hint: "Handled by an agent at the customer's location. Attendees gain start and end agent selectors (e.g. delivery/collection, set-up/teardown, or pickup/drop-off).",
+  label: "Needs logistics",
+  name: "uses_logistics",
+  options: [{ label: "Assign agents to this listing's bookings", value: "1" }],
+  type: "checkbox-group",
+};
+
 export const getMonthsPerUnitField = (): Field => ({
   hint: t("fields.listing.months_per_unit_hint"),
   label: t("fields.listing.months_per_unit"),
@@ -687,6 +700,19 @@ export const getHolidayFields = (): Field[] => [
     required: true,
     type: "date",
     validate: validateDate,
+  },
+];
+
+/**
+ * Logistics agent form field definitions
+ */
+export const logisticsAgentFields: Field[] = [
+  {
+    label: "Agent Name",
+    name: "name",
+    placeholder: "Van 1",
+    required: true,
+    type: "text",
   },
 ];
 
@@ -1139,6 +1165,7 @@ export const getSquareWebhookFields = (): Field[] => [
  */
 export const getSumupFields = (): Field[] => [
   {
+    autocomplete: "off",
     hint: t("fields.sumup.api_key_hint"),
     label: t("fields.sumup.api_key"),
     name: "sumup_api_key",
@@ -1147,6 +1174,7 @@ export const getSumupFields = (): Field[] => [
     type: "password",
   },
   {
+    autocomplete: "off",
     hint: t("fields.sumup.merchant_code_hint"),
     label: t("fields.sumup.merchant_code"),
     name: "sumup_merchant_code",

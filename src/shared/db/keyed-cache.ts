@@ -19,7 +19,7 @@
  * read that started before it.
  */
 
-import { lazyRef, ttlCache } from "#fp";
+import { lazyRef, ttlCache, unique } from "#fp";
 import { nowMs } from "#shared/now.ts";
 
 /** Reads over a keyed entity cache. */
@@ -123,7 +123,7 @@ export const createKeyedCache = <T>(
       await getAll(); // whole-set load warms byKey
       return keys.map((k) => byKey.get(k) ?? null);
     }
-    const missing = [...new Set(keys)].filter((k) => !byKey.get(k));
+    const missing = unique(keys).filter((k) => !byKey.get(k));
     if (missing.length > 0) {
       const gen = generation;
       const rows = await fetchByKeys(missing);

@@ -28,11 +28,8 @@ import {
 } from "#shared/forms.tsx";
 import { getIframeMode } from "#shared/iframe.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import {
-  type ListingFilter,
-  renderTypeFilter,
-} from "#shared/listing-filter.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
+import { SELECT_PREFIX } from "#shared/order-select.ts";
 import { getImageProxyUrl } from "#shared/storage.ts";
 import {
   availableDayCounts,
@@ -256,23 +253,14 @@ export const homepagePage = (
   listings: TicketListing[],
   websiteTitle: string | null | undefined,
   groups: Group[],
-  filter: { active: ListingFilter; categories: readonly ListingFilter[] },
 ): string => {
   const title = websiteTitle ? `Listings - ${websiteTitle}` : "Listings";
-  // Offer the type filter only when more than one listing type is on the page.
-  const filterHtml =
-    filter.categories.length > 1
-      ? renderTypeFilter(filter.active, filter.categories, (f) =>
-          f === "all" ? "/listings" : `/listings?filter=${f}`,
-        )
-      : "";
 
   if (listings.length === 0 && groups.length === 0) {
     return String(
       <Layout headExtra={FEED_DISCOVERY_TAGS} title={title}>
         {websiteTitle && <h1>{websiteTitle}</h1>}
         <PublicNav {...navFlags()} />
-        <Raw html={filterHtml} />
         <p>
           <em>{t("public.no_listings_listed")}</em>
         </p>
@@ -298,7 +286,6 @@ export const homepagePage = (
       {websiteTitle && <h1>{websiteTitle}</h1>}
       <PublicNav {...navFlags()} />
       <h2>{t("public.all_bookable_listings")}</h2>
-      <Raw html={filterHtml} />
       <Raw html={groupListings} />
       <Raw html={listingListings} />
       <footer class="homepage-footer">
@@ -1131,7 +1118,7 @@ const renderOrderCard = (info: TicketListing): string => {
       </div>`;
   }
 
-  const fieldName = `select_${listing.id}`;
+  const fieldName = `${SELECT_PREFIX}${listing.id}`;
   return `<label class="order-card" for="${fieldName}">
       <input class="order-select" id="${fieldName}" name="${fieldName}" type="checkbox" value="1" />
       ${imageHtml}

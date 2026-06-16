@@ -6,7 +6,16 @@ import { map, pipe } from "#fp";
 import { t } from "#i18n";
 import { formatDateLabel } from "#shared/dates.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import type { AdminSession, Attendee } from "#shared/types.ts";
+import {
+  type AgentFilter,
+  agentFilterParam,
+  renderAgentFilter,
+} from "#shared/logistics-filter.ts";
+import type { AdminSession, Attendee, LogisticsAgent } from "#shared/types.ts";
+import {
+  AvailabilityChecker,
+  type AvailabilityRow,
+} from "#templates/admin/availability-checker.tsx";
 import {
   buildSharedDetailRows,
   renderDetailRows,
@@ -43,6 +52,9 @@ export const adminCalendarPage = (
   phonePrefix?: string,
   questionData?: TableQuestionData,
   hasPaidListing = false,
+  availabilityRows: AvailabilityRow[] = [],
+  agents: LogisticsAgent[] = [],
+  agentFilter: AgentFilter = "all",
 ): string => {
   const tableRows: AttendeeTableRow[] = pipe(
     map(
@@ -61,6 +73,22 @@ export const adminCalendarPage = (
   const emptyMessage = dateFilter
     ? t("admin.calendar.no_attendees")
     : t("admin.calendar.select_date_prompt");
+
+  const agentHref = (f: AgentFilter): string => {
+    const params = new URLSearchParams();
+    if (dateFilter) params.set("date", dateFilter);
+    const param = agentFilterParam(f);
+    if (param) params.set("agent", param);
+    const query = params.toString();
+    return `/admin/calendar${query ? `?${query}` : ""}#attendees`;
+  };
+
+  // The export carries the active agent filter so it matches the on-screen
+  // list — i.e. a per-agent run sheet.
+  const agentParam = agentFilterParam(agentFilter);
+  const exportHref = `/admin/calendar/export?date=${dateFilter}${
+    agentParam ? `&agent=${agentParam}` : ""
+  }`;
 
   const sharedRows =
     dateFilter && attendees.length > 0
@@ -102,11 +130,10 @@ export const adminCalendarPage = (
             <strong>{formatDateLabel(dateFilter)}</strong>
           </p>
         )}
+        <AvailabilityChecker date={dateFilter} rows={availabilityRows} />
         {dateFilter && attendees.length > 0 && (
           <p>
-            <a href={`/admin/calendar/export?date=${dateFilter}`}>
-              {t("admin.calendar.export_csv")}
-            </a>
+            <a href={exportHref}>{t("admin.calendar.export_csv")}</a>
           </p>
         )}
         {sharedRows.length > 0 && (
@@ -117,6 +144,9 @@ export const adminCalendarPage = (
               </tbody>
             </table>
           </div>
+        )}
+        {agents.length > 0 && (
+          <Raw html={renderAgentFilter(agentFilter, agents, agentHref)} />
         )}
         <div class="table-scroll">
           <Raw

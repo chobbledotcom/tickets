@@ -2,7 +2,7 @@
  * Core ticket submission orchestrator
  */
 
-import { reduce } from "#fp";
+import { sum } from "#fp";
 import { applyFlash, withCsrfForm } from "#routes/csrf.ts";
 import { errorRedirect, redirectResponse } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
@@ -286,10 +286,7 @@ const processSubmission = async (
   const values = validated;
 
   const quantities = parseQuantities(form, ctx.listings);
-  const totalQuantity = reduce(
-    (sum: number, qty: number) => sum + qty,
-    0,
-  )(Array.from(quantities.values()));
+  const totalQuantity = sum(Array.from(quantities.values()));
   if (totalQuantity === 0) {
     return errorResponse("Please select at least one ticket");
   }

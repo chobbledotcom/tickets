@@ -7,6 +7,8 @@
     "jsr:@std/async@^1.1.0": "1.2.0",
     "jsr:@std/bytes@^1.0.2": "1.0.6",
     "jsr:@std/cli@^1.0.30": "1.0.30",
+    "jsr:@std/collections@^1.1.3": "1.2.0",
+    "jsr:@std/collections@^1.2.0": "1.2.0",
     "jsr:@std/data-structures@^1.0.10": "1.0.10",
     "jsr:@std/encoding@^1.0.10": "1.0.10",
     "jsr:@std/encoding@^1.0.5": "1.0.10",
@@ -78,6 +80,9 @@
     },
     "@std/cli@1.0.30": {
       "integrity": "769446536522d0417d7127ebcabcafac1ab0ce6766d0eb3fca1d36326fe98d13"
+    },
+    "@std/collections@1.2.0": {
+      "integrity": "47627a21d3a13138b77fd0e4d790ba9d2e603c3510b686cde6b132fe9aa98a88"
     },
     "@std/data-structures@1.0.10": {
       "integrity": "f574f86b0e07c69b9edc555fcc814b57d29258bad39fd5a34ba8a80ecf033cfe"
@@ -1570,6 +1575,7 @@
     "dependencies": [
       "jsr:@luca/esbuild-deno-loader@~0.11.1",
       "jsr:@std/assert@^1.0.19",
+      "jsr:@std/collections@^1.2.0",
       "jsr:@std/expect@^1.0.18",
       "jsr:@std/http@^1.1.1",
       "jsr:@std/media-types@^1.1.0",

@@ -9,7 +9,7 @@
  * so it works equally for bookings, availability, or any other rule.
  */
 
-import { compact, map, reduce } from "#fp";
+import { compact, map } from "#fp";
 import { t } from "#i18n";
 import {
   calendarGridDates,
@@ -136,11 +136,9 @@ export const DatePicker = ({
   monthHref,
   ariaLabel,
 }: DatePickerProps): SafeHtml => {
-  const byValue = reduce(
-    (acc: Map<string, DatePickerDate>, d: DatePickerDate) =>
-      acc.set(d.value, d),
-    new Map<string, DatePickerDate>(),
-  )(dates);
+  const byValue = new Map(
+    map((d: DatePickerDate) => [d.value, d] as const)(dates),
+  );
   const month = viewMonth ?? (selected ?? today).slice(0, 7);
   const day = renderDay(byValue, month, selected, today, dayHref);
   return (

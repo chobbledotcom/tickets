@@ -2,7 +2,7 @@
  * Admin dashboard page template
  */
 
-import { filter, joinStrings, map, pipe, reduce } from "#fp";
+import { filter, joinStrings, map, pipe, reduce, unique } from "#fp";
 import { t } from "#i18n";
 import {
   getHeaderText,
@@ -19,6 +19,11 @@ import type { ActiveListingStats } from "#shared/db/attendees.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import {
+  type ListingFilter,
+  listingCategory,
+  renderTypeFilter,
+} from "#shared/listing-filter.ts";
 import type {
   AdminSession,
   Attendee,
@@ -199,6 +204,7 @@ export const adminDashboardPage = (
   successMessage?: string,
   stats?: ActiveListingStats | null,
   listingColumnTemplate?: string,
+  activeType: ListingFilter = "all",
 ): string => {
   const { columnKeys, filters } = resolveColumnLayout(
     listingColumnTemplate ?? "",
@@ -206,12 +212,30 @@ export const adminDashboardPage = (
     LISTING_DEFAULT_ORDER,
   );
 
+  // Type filter narrows the listing table only; the stats, multi-booking, and
+  // newest-attendee sections below stay based on the full set. Offer the bar
+  // (same control as the public/attendee filters) only when more than one
+  // listing type is present.
+  const categories = unique(listings.map(listingCategory));
+  const shownListings =
+    activeType === "all"
+      ? listings
+      : filter((e: ListingWithCount) => listingCategory(e) === activeType)(
+          listings,
+        );
+  const typeFilterHtml =
+    categories.length > 1
+      ? renderTypeFilter(activeType, categories, (f) =>
+          f === "all" ? "/admin/" : `/admin/?type=${f}`,
+        )
+      : "";
+
   const listingRows =
-    listings.length > 0
+    shownListings.length > 0
       ? pipe(
           map((e: ListingWithCount) => ListingRow({ columnKeys, e, filters })),
           joinStrings,
-        )(listings)
+        )(shownListings)
       : `<tr><td colspan="${columnKeys.length}">${t("admin.dashboard.no_listings")}</td></tr>`;
 
   const activeListings = filter((e: ListingWithCount) => e.active)(listings);
@@ -227,11 +251,13 @@ export const adminDashboardPage = (
           <ActionButton href="/admin/listing/new" icon="plus">
             {t("admin.dashboard.add_listing")}
           </ActionButton>
-          <ActionButton href="/admin/attendee/new" icon="plus">
+          <ActionButton href="/admin/attendees/new" icon="plus">
             Add Attendee
           </ActionButton>
         </p>
       )}
+
+      <Raw html={typeFilterHtml} />
 
       <div class="table-scroll">
         <Raw html={renderListingTable(columnKeys, listingRows)} />

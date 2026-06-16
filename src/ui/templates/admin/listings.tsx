@@ -2,7 +2,7 @@
  * Admin listing page templates - detail, edit, delete
  */
 
-import { compact, filter, joinStrings, map, pipe } from "#fp";
+import { filter, joinStrings, map, mapNotNullish, pipe } from "#fp";
 import { t } from "#i18n";
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { formatCountdown } from "#routes/format.ts";
@@ -60,6 +60,7 @@ import {
   getListingFields,
   getMonthsPerUnitField,
   getSlugField,
+  logisticsField,
 } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 import { renderListingImage } from "#templates/public.tsx";
@@ -1125,10 +1126,12 @@ const listingFieldFormatters: Partial<
   non_transferable: (e) => booleanToCheckbox(e.non_transferable),
   purchase_only: (e) => booleanToCheckbox(e.purchase_only),
   unit_price: (e) => (e.unit_price > 0 ? toMajorUnits(e.unit_price) : ""),
+  uses_logistics: (e) => booleanToCheckbox(e.uses_logistics),
 };
 
 const getAllListingFields = (): Field[] => [
   ...getListingFields(),
+  logisticsField,
   getMonthsPerUnitField(),
   getInitialSiteMonthsField(),
   getAssignBuiltSiteField(),
@@ -1193,6 +1196,7 @@ const OPTION_FIELDS = [
   "fields",
   "non_transferable",
   "purchase_only",
+  "uses_logistics",
   "hidden",
 ] as const;
 
@@ -1277,7 +1281,7 @@ const ListingFormSections = ({
 }): JSX.Element => {
   const fieldMap = new Map<string, Field>(fields.map((f) => [f.name, f]));
   const sec = (names: readonly string[]): string =>
-    renderFields(compact(names.map((n) => fieldMap.get(n))), values);
+    renderFields(mapNotNullish((n: string) => fieldMap.get(n))(names), values);
   return (
     <>
       <fieldset class="listing-section">
@@ -1345,6 +1349,7 @@ export const adminListingNewPage = (
   const builderEnabled = isBuilderEnabled();
   const fields = [
     ...getListingFields(),
+    ...(settings.hasLogistics ? [logisticsField] : []),
     ...(builderEnabled
       ? [
           getMonthsPerUnitField(),
@@ -1392,6 +1397,7 @@ export const adminDuplicateListingPage = (
   const storageEnabled = isStorageEnabled();
   const dupFields = [
     ...getListingFieldsWithAutofocus(),
+    ...(settings.hasLogistics ? [logisticsField] : []),
     ...(builderEnabled
       ? [
           getMonthsPerUnitField(),
@@ -1451,6 +1457,7 @@ export const adminListingEditPage = (
   // edit form's field list rather than the shared definitions.
   const fields = [
     ...getListingFields(),
+    ...(settings.hasLogistics ? [logisticsField] : []),
     ...(builderEnabled
       ? [
           getMonthsPerUnitField(),

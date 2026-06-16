@@ -8,6 +8,7 @@ import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse } from "#routes/response.ts";
 /* jscpd:ignore-start */
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import { getSearchParam } from "#routes/url.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { getAllActivityLog } from "#shared/db/activityLog.ts";
 import {
@@ -19,6 +20,7 @@ import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getFlash } from "#shared/flash-context.ts";
+import { isListingFilter, type ListingFilter } from "#shared/listing-filter.ts";
 import { sortListings } from "#shared/sort-listings.ts";
 /* jscpd:ignore-end */
 import { adminGlobalActivityLogPage } from "#templates/admin/activityLog.tsx";
@@ -55,6 +57,10 @@ const handleAdminGet = (request: Request): Promise<Response> =>
       const newestAttendees = await decryptAttendees(newestRaw, privateKey);
       const sortedListings = sortListings(listings, holidays);
       const stats = await getActiveListingStats(sortedListings);
+      const rawType = getSearchParam(request, "type");
+      const activeType: ListingFilter = isListingFilter(rawType)
+        ? rawType
+        : "all";
       return htmlResponse(
         adminDashboardPage(
           sortedListings,
@@ -64,6 +70,7 @@ const handleAdminGet = (request: Request): Promise<Response> =>
           successMessage,
           stats,
           settings.listingColumnOrder,
+          activeType,
         ),
       );
     },

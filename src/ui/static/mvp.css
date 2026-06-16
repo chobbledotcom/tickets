@@ -834,7 +834,7 @@ textarea[readonly] {
 label {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-m);
+  gap: var(--space-s);
   align-items: baseline;
   font-weight: bold;
   font-size: inherit;
@@ -871,6 +871,15 @@ label > input[type="time"] {
 label > select[name="quantity"],
 label > select[name^="quantity_"] {
   width: 8ch;
+  flex: 0 0 auto;
+}
+
+/* Attendee form length select: widen to 20rem. The default `label > select`
+   rule is `flex: 1`, which would stretch it to fill the row and ignore the
+   width, so opt out of growing/shrinking here for the width to take effect. */
+#attendee-form label > select[name="day_count"] {
+  width: 20rem;
+  max-width: 100%;
   flex: 0 0 auto;
 }
 
@@ -1294,6 +1303,11 @@ fieldset {
   display: inline-block;
   font-weight: normal;
   max-width: none;
+}
+
+.checkboxes label input,
+.radios label input {
+  margin-right: 0.5rem;
 }
 
 label.terms-agree {
@@ -1788,9 +1802,10 @@ button.secondary:hover,
   text-decoration: underline;
 }
 
-/* Stripe/Square test result */
+/* Stripe/Square/SumUp test result */
 .stripe-test-result,
-.square-test-result {
+.square-test-result,
+.sumup-test-result {
   white-space: pre-wrap;
 }
 
@@ -2248,4 +2263,128 @@ a.cal-day-selected:hover {
 
 .order-gallery:not(:has(.order-select:checked)) .order-cart {
   display: none;
+}
+
+/* Calendar availability checker — reuses the order page's hidden-checkbox
+   selection and floating cart button, but lays the listings out as a table. */
+.availability-checker {
+  margin-bottom: var(--space-m);
+}
+
+.availability-checker > summary {
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.availability-checker-body {
+  padding-top: var(--space-s);
+}
+
+/* The selection form resets the shared cart counter and hides the floating
+   create button until at least one listing is ticked (mirrors .order-gallery). */
+.selectable-form {
+  counter-reset: cart;
+}
+
+.selectable-form:not(:has(.order-select:checked)) .order-cart {
+  display: none;
+}
+
+.availability-table th:first-child,
+.availability-table td:first-child {
+  width: 1%;
+  white-space: nowrap;
+}
+
+/* A row's tick box: the .order-select checkbox itself is visually hidden
+   (1px, opacity 0) and absolutely positioned, so anchor it here. */
+.row-select {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  cursor: pointer;
+  /* Align by the box's middle, not its baseline: an empty tick box has no text
+     baseline but a ticked one does, and letting that shift the line box made the
+     row jiggle in height as it was selected/deselected. */
+  vertical-align: middle;
+}
+
+.row-select-tick {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  border: 2px solid var(--color-bg-secondary);
+  border-radius: var(--border-radius);
+}
+
+/* In dark mode the unchecked tick border (--color-bg-secondary) is the same
+   colour as the striped alternate rows, hiding the box until it's ticked. Use
+   the accent colour (which also fills the checked box) so the outline reads on
+   every row. */
+[data-theme="dark"] .row-select-tick {
+  border-color: var(--color-secondary);
+}
+
+.order-select:checked + .row-select-tick {
+  border-color: var(--color-secondary);
+  background: var(--color-secondary);
+  color: #fff;
+}
+
+.order-select:checked + .row-select-tick::after {
+  content: "\2713";
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.order-select:focus-visible + .row-select-tick {
+  outline: 2px solid var(--color-secondary);
+  outline-offset: 2px;
+}
+
+.availability-table tr:has(.order-select:checked) {
+  background: var(--color-secondary-accent);
+}
+
+/* Attendee form: fixed listing editor with quantity boxes + a "Show all
+   listings" toggle that reveals the not-booked rows (pure CSS). */
+.listing-editor .show-all {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-s);
+  margin-bottom: var(--space-s);
+  font-weight: normal;
+  cursor: pointer;
+}
+
+.listing-editor:not(.show-all-listings):not(:has(.show-all-toggle:checked))
+  .attendee-line-empty {
+  display: none;
+}
+
+/* Attendee form: logistics agent selectors. The "different agents per item"
+   toggle switches (pure CSS) between one shared pair and a pair per listing. */
+.logistics-agents .split-agents {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-s);
+  margin-bottom: var(--space-s);
+  font-weight: normal;
+  cursor: pointer;
+}
+
+.logistics-agents:has(.split-agents-toggle:checked) .logistics-single {
+  display: none;
+}
+
+.logistics-agents:not(:has(.split-agents-toggle:checked)) .logistics-split {
+  display: none;
+}
+
+.logistics-line {
+  margin-bottom: var(--space-s);
 }

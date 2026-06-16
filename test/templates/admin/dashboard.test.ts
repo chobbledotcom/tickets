@@ -47,6 +47,14 @@ describe("adminDashboardPage", () => {
     expect(html).toContain("Add Listing");
   });
 
+  test("renders add attendee link to the create-attendee route", () => {
+    // The "Add Attendee" button must point at the registered create route
+    // (plural /admin/attendees/new); a singular typo here 404s the page.
+    const html = adminDashboardPage([], TEST_SESSION);
+    expect(html).toContain('href="/admin/attendees/new"');
+    expect(html).toContain("Add Attendee");
+  });
+
   test("includes logout link", () => {
     const html = adminDashboardPage([], TEST_SESSION);
     expect(html).toContain("/admin/logout");
@@ -362,6 +370,90 @@ describe("adminDashboardPage multi-booking link", () => {
     const html = adminDashboardPage(listings, TEST_SESSION);
     expect(html).toContain('data-fields="email"');
     expect(html).toContain('data-fields="email,phone"');
+  });
+});
+
+describe("adminDashboardPage type filter", () => {
+  const standard = testListingWithCount({
+    id: 1,
+    listing_type: "standard",
+    name: "Standard Listing",
+    slug: "std01",
+  });
+  const daily = testListingWithCount({
+    id: 2,
+    listing_type: "daily",
+    name: "Daily Listing",
+    slug: "day01",
+  });
+
+  test("shows the filter bar when more than one type is present", () => {
+    const html = adminDashboardPage([standard, daily], TEST_SESSION);
+    expect(html).toContain("Showing:");
+    expect(html).toContain('href="/admin/?type=standard"');
+    expect(html).toContain('href="/admin/?type=daily"');
+  });
+
+  test("hides the filter bar when only one type is present", () => {
+    const onlyStandard = testListingWithCount({
+      id: 3,
+      listing_type: "standard",
+      slug: "std02",
+    });
+    const html = adminDashboardPage([standard, onlyStandard], TEST_SESSION);
+    expect(html).not.toContain("Showing:");
+  });
+
+  test("shows every type and marks 'All' active on the default view", () => {
+    const html = adminDashboardPage([standard, daily], TEST_SESSION);
+    expect(html).toContain("Standard Listing");
+    expect(html).toContain("Daily Listing");
+    expect(html).toContain("<strong><u>All</u></strong>");
+  });
+
+  test("filters the listing table to the active type", () => {
+    // Standard is inactive so the multi-booking builder (active listings only)
+    // doesn't render and the only place its name could appear is the table.
+    const standardInactive = testListingWithCount({
+      active: false,
+      id: 1,
+      listing_type: "standard",
+      name: "Standard Listing",
+      slug: "std01",
+    });
+    const html = adminDashboardPage(
+      [standardInactive, daily],
+      TEST_SESSION,
+      undefined,
+      [],
+      undefined,
+      null,
+      undefined,
+      "daily",
+    );
+    expect(html).toContain("Daily Listing");
+    expect(html).not.toContain("Standard Listing");
+    expect(html).toContain("<strong><u>Daily</u></strong>");
+    // The "All" option links back to the unfiltered dashboard.
+    expect(html).toContain('<a href="/admin/">All</a>');
+  });
+
+  test("keeps the multi-booking builder based on every active listing", () => {
+    // Filtering the table to one type must not drop the others from the
+    // multi-booking builder, which reflects all active listings.
+    const html = adminDashboardPage(
+      [standard, daily],
+      TEST_SESSION,
+      undefined,
+      [],
+      undefined,
+      null,
+      undefined,
+      "daily",
+    );
+    expect(html).toContain("Multi-booking link");
+    expect(html).toContain('data-multi-booking-slug="std01"');
+    expect(html).toContain('data-multi-booking-slug="day01"');
   });
 });
 

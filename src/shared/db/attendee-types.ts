@@ -56,6 +56,15 @@ export type ListingBooking = {
   durationDays?: number;
 };
 
+/** A concrete booking line — every field resolved (unlike the optional-field
+ * `ListingBooking` cart input). Used by capacity checks and the booking builder. */
+export type LineBooking = {
+  listingId: number;
+  quantity: number;
+  date: string | null;
+  durationDays: number;
+};
+
 /** Input for creating an attendee atomically (one or more listings) */
 export type AttendeeInput = ContactFields & {
   paymentId?: string;
@@ -64,6 +73,10 @@ export type AttendeeInput = ContactFields & {
   remainingBalance?: number;
   /** Owner-defined status id assigned to the new attendee. */
   statusId?: number | null;
+  /** When true the per-booking capacity guard is dropped so the bookings are
+   * inserted unconditionally. Admin manual add only — public/webhook callers
+   * leave it false so capacity is always enforced. */
+  allowOverbook?: boolean;
 };
 
 /** Row from listing_attendees — per-listing booking data */

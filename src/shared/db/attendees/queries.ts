@@ -2,7 +2,7 @@
  * Read queries for attendees and their per-listing bookings.
  */
 
-import { map } from "#fp";
+import { map, unique } from "#fp";
 import { computeTicketTokenIndex } from "#shared/crypto/hashing.ts";
 import type {
   AttendeeWithBookings,
@@ -17,7 +17,7 @@ import type { Attendee } from "#shared/types.ts";
  * All PII is read from the encrypted pii_blob; per-listing status lives on listing_attendees.
  */
 const ATTENDEE_COLS =
-  "a.id, a.created, a.ticket_token_index, a.pii_blob, a.status_id, a.remaining_balance";
+  "a.id, a.created, a.ticket_token_index, a.pii_blob, a.status_id, a.remaining_balance, a.split_logistics_agents";
 
 /** Columns sourced from listing_attendees (per-listing data) */
 const EA_COLS =
@@ -213,7 +213,7 @@ export const getAttendeesByTokens = async (
   tokens: string[],
 ): Promise<(AttendeeWithBookings | null)[]> => {
   // Dedupe tokens to prevent double processing
-  const uniqueTokens = [...new Set(tokens)];
+  const uniqueTokens = unique(tokens);
   const tokenIndexes = await Promise.all(
     map((t: string) => computeTicketTokenIndex(t))(uniqueTokens),
   );

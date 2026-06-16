@@ -11,11 +11,14 @@ import {
   flatMap,
   lazyRef,
   map,
+  mapNotNullish,
   mapParallel,
   once,
   pipe,
   reduce,
   sort,
+  sum,
+  sumOf,
   ttlCache,
   unique,
   uniqueBy,
@@ -172,6 +175,24 @@ describe("fp", () => {
     });
   });
 
+  describe("mapNotNullish", () => {
+    test("maps and drops null/undefined results in one pass", () => {
+      const result = mapNotNullish((x: number) =>
+        x % 2 === 0 ? x * 10 : null,
+      )([1, 2, 3, 4]);
+      expect(result).toEqual([20, 40]);
+    });
+
+    test("keeps falsy-but-defined results (0, empty string, false)", () => {
+      const result = mapNotNullish((x: number) => x - 1)([1, 2]);
+      expect(result).toEqual([0, 1]);
+    });
+
+    test("works with empty array", () => {
+      expect(mapNotNullish((x: number) => x)([])).toEqual([]);
+    });
+  });
+
   describe("reduce", () => {
     test("reduces array to single value", () => {
       const sum = (acc: number, x: number) => acc + x;
@@ -184,6 +205,35 @@ describe("fp", () => {
         return acc;
       };
       expect(reduce(collect, [] as number[])([1, 2, 3])).toEqual([3, 6, 9]);
+    });
+  });
+
+  describe("sumOf", () => {
+    test("sums the numbers produced by the selector", () => {
+      const items = [{ n: 1 }, { n: 2 }, { n: 3 }];
+      expect(sumOf((x: { n: number }) => x.n)(items)).toBe(6);
+    });
+
+    test("returns 0 for an empty array", () => {
+      expect(sumOf((x: { n: number }) => x.n)([])).toBe(0);
+    });
+
+    test("works inside a pipe as a terminal reducer", () => {
+      const result = pipe(
+        filter((x: number) => x % 2 === 0),
+        sumOf((x: number) => x * 10),
+      )([1, 2, 3, 4]);
+      expect(result).toBe(60); // (2 + 4) * 10
+    });
+  });
+
+  describe("sum", () => {
+    test("adds an array of numbers", () => {
+      expect(sum([1, 2, 3, 4])).toBe(10);
+    });
+
+    test("returns 0 for an empty array", () => {
+      expect(sum([])).toBe(0);
     });
   });
 

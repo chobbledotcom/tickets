@@ -523,6 +523,7 @@ describe("code quality", () => {
       // have no production caller (groups/holidays have no raw-SQL writers).
       "shared/db/groups.ts:invalidateGroupsCache",
       "shared/db/holidays.ts:invalidateHolidaysCache",
+      "shared/db/logistics-agents.ts:invalidateLogisticsAgentsCache",
       // Reset cached effective domain between tests
       "shared/config.ts:resetEffectiveDomain",
       "shared/config.ts:setEffectiveDomainForTest",

@@ -6,6 +6,8 @@
  * themselves against missing DOM elements so they are safe to run on
  * every admin page. */
 
+import { initAttendeeDates } from "./admin/attendee-dates.ts";
+import { initAvailabilityChecker } from "./admin/availability-checker.ts";
 import { initCharCounters } from "./admin/char-counter.ts";
 import { initCheckoutPopup } from "./admin/checkout-popup.ts";
 import { initClosesAtAutofill } from "./admin/closes-at-autofill.ts";
@@ -29,6 +31,8 @@ import { initTicketQuantityRequired } from "./admin/ticket-quantity-required.ts"
 
 initSelectOnClick();
 initNavSelect();
+initAvailabilityChecker();
+initAttendeeDates();
 initMultiBookingBuilder();
 initFillDefaultTemplate();
 initClosesAtAutofill();
