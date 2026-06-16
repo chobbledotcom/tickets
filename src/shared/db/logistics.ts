@@ -8,6 +8,7 @@
  * that in one place, separate from the core attendee create/edit machinery.
  */
 
+import { compact, flatMap } from "#fp";
 import {
   executeBatch,
   getDb,
@@ -136,17 +137,35 @@ export type AgentRunLeg = {
   done: boolean;
 };
 
-type RunSheetRow = {
-  attendee_id: number;
-  listing_id: number;
-  start_agent_id: number | null;
-  end_agent_id: number | null;
-  start_time: string;
-  end_time: string;
+type RunSheetRow = AssignmentRow & {
   start_done: number;
   end_done: number;
   start_date: string | null;
   end_date: string | null;
+};
+
+/** Build the run-sheet leg of one `kind` for a row, or null when that leg's
+ * agent or date falls outside the requested sets. */
+const buildLeg = (
+  row: RunSheetRow,
+  kind: DeliveryLegKind,
+  agentSet: Set<number>,
+  dateSet: Set<string>,
+): AgentRunLeg | null => {
+  const isStart = kind === "start";
+  const agentId = isStart ? row.start_agent_id : row.end_agent_id;
+  const date = isStart ? row.start_date : row.end_date;
+  if (agentId === null || !agentSet.has(agentId)) return null;
+  if (date === null || !dateSet.has(date)) return null;
+  return {
+    agentId,
+    attendeeId: row.attendee_id,
+    date,
+    done: (isStart ? row.start_done : row.end_done) === 1,
+    kind,
+    listingId: row.listing_id,
+    time: isStart ? row.start_time : row.end_time,
+  };
 };
 
 /**
@@ -173,42 +192,13 @@ export const getAgentRunSheet = async (
   );
   const agentSet = new Set(agentIds);
   const dateSet = new Set(dates);
-  const legs: AgentRunLeg[] = [];
-  for (const row of rows) {
-    if (
-      row.start_agent_id !== null &&
-      agentSet.has(row.start_agent_id) &&
-      row.start_date !== null &&
-      dateSet.has(row.start_date)
-    ) {
-      legs.push({
-        agentId: row.start_agent_id,
-        attendeeId: row.attendee_id,
-        date: row.start_date,
-        done: row.start_done === 1,
-        kind: "start",
-        listingId: row.listing_id,
-        time: row.start_time,
-      });
-    }
-    if (
-      row.end_agent_id !== null &&
-      agentSet.has(row.end_agent_id) &&
-      row.end_date !== null &&
-      dateSet.has(row.end_date)
-    ) {
-      legs.push({
-        agentId: row.end_agent_id,
-        attendeeId: row.attendee_id,
-        date: row.end_date,
-        done: row.end_done === 1,
-        kind: "end",
-        listingId: row.listing_id,
-        time: row.end_time,
-      });
-    }
-  }
-  return legs;
+  // Each booking row can yield a drop-off leg, a collection leg, or both.
+  return flatMap((row: RunSheetRow) =>
+    compact([
+      buildLeg(row, "start", agentSet, dateSet),
+      buildLeg(row, "end", agentSet, dateSet),
+    ]),
+  )(rows);
 };
 
 /**

@@ -24,7 +24,10 @@ import {
   getAgentRunSheet,
   setLegDone,
 } from "#shared/db/logistics.ts";
-import { getAllLogisticsAgents } from "#shared/db/logistics-agents.ts";
+import {
+  agentNameMap,
+  getAllLogisticsAgents,
+} from "#shared/db/logistics-agents.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getUserAgentIds } from "#shared/db/user-agents.ts";
 import { todayInTz } from "#shared/timezone.ts";
@@ -104,7 +107,7 @@ const loadLegLookups = async (
     if (!attendeeById.has(attendee.id)) attendeeById.set(attendee.id, attendee);
   }
   return {
-    agentNameById: new Map(agents.map((a) => [a.id, a.name])),
+    agentNameById: agentNameMap(agents),
     attendeeById,
     listingNameById: new Map(listings.map((l) => [l.id, l.name])),
   };

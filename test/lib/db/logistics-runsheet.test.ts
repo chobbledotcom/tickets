@@ -154,6 +154,23 @@ describeWithEnv("db getAgentRunSheet", { db: true }, () => {
     expect(await getAgentRunSheet([van], [D1, D2])).toEqual([]);
   });
 
+  test("ignores a collection leg when the booking has no end date", async () => {
+    const { attendeeId, listingId } = await makeBooking({
+      endAgentId: van,
+      endDate: D1,
+      startAgentId: van,
+      startDate: D1,
+    });
+    // Null out end_at so the collection leg's date is null even though its
+    // agent is in the set.
+    await getDb().execute({
+      args: [attendeeId, listingId],
+      sql: "UPDATE listing_attendees SET end_at = NULL WHERE attendee_id = ? AND listing_id = ?",
+    });
+    const legs = await getAgentRunSheet([van], [D1]);
+    expect(legs.map((l) => l.kind)).toEqual(["start"]);
+  });
+
   test("reflects the done flags", async () => {
     await makeBooking({
       endAgentId: van,

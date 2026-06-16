@@ -360,17 +360,17 @@ export const requireSessionOr = async (
   return isResponse(result) ? result : handler(result);
 };
 
+/** Build a session guard that requires an exact role. */
+const requireRoleOr =
+  (role: AdminLevel) =>
+  (request: Request, handler: SessionHandler): Promise<Response> =>
+    requireSessionOr(request, handler, role);
+
 /** Require owner session — shorthand for requireSessionOr with owner role */
-export const requireOwnerOr = (
-  request: Request,
-  handler: SessionHandler,
-): Promise<Response> => requireSessionOr(request, handler, "owner");
+export const requireOwnerOr = requireRoleOr("owner");
 
 /** Require agent session — shorthand for requireSessionOr with agent role */
-export const requireAgentOr = (
-  request: Request,
-  handler: SessionHandler,
-): Promise<Response> => requireSessionOr(request, handler, "agent");
+export const requireAgentOr = requireRoleOr("agent");
 
 /** Session guard: require auth and call handler with session */
 export type SessionGuard<TSession> = (

@@ -208,6 +208,36 @@ const handleUsersPost = createAuthedFormRoute<InviteUserFormValues>({
   },
 });
 
+/** Re-renders the users list with a flash error at the given status. */
+type UserErrorPageFn = (error: string, status: number) => Promise<Response>;
+
+/** Owner-route helper: build the error-page renderer, load the user by id, and
+ * 404 when missing — the shared front half of every per-user owner route. */
+const withLoadedUser = async (
+  session: AuthSession,
+  userId: number,
+  found: (
+    user: User,
+    errorPage: UserErrorPageFn,
+  ) => Response | Promise<Response>,
+): Promise<Response> => {
+  const errorPage: UserErrorPageFn = (error, status) =>
+    usersErrorResponse(session, error, status);
+  const user = await getUserById(userId);
+  if (!user) return errorPage("User not found", 404);
+  return found(user, errorPage);
+};
+
+/** Null when the user is a delivery agent; otherwise the error response to
+ * return (agent assignments only apply to delivery agents). */
+const ensureAgentUser = async (
+  user: User,
+  errorPage: UserErrorPageFn,
+): Promise<Response | null> =>
+  (await decryptAdminLevel(user)) === "agent"
+    ? null
+    : errorPage("Only delivery agents have assigned agents", 400);
+
 /** Render the edit-agents page for an agent user (or an error response). */
 const renderUserAgentsPage = async (
   session: AuthSession,
@@ -215,10 +245,8 @@ const renderUserAgentsPage = async (
   errorPage: UserErrorPageFn,
   error?: string,
 ): Promise<Response> => {
-  const adminLevel = await decryptAdminLevel(user);
-  if (adminLevel !== "agent") {
-    return errorPage("Only delivery agents have assigned agents", 400);
-  }
+  const notAgent = await ensureAgentUser(user, errorPage);
+  if (notAgent) return notAgent;
   const [agents, selectedIds, username] = await Promise.all([
     loadAssignableAgents(),
     getUserAgentIds(user.id),
@@ -241,34 +269,32 @@ const handleUserAgentsGet: TypedRouteHandler<"GET /admin/users/:id/agents"> = (
   request,
   { id },
 ) =>
-  requireOwnerOr(request, async (session) => {
-    const errorPage: UserErrorPageFn = (error, status) =>
-      usersErrorResponse(session, error, status);
-    const user = await getUserById(id);
-    if (!user) return errorPage("User not found", 404);
-    return renderUserAgentsPage(session, user, errorPage);
-  });
+  requireOwnerOr(request, (session) =>
+    withLoadedUser(session, id, (user, errorPage) =>
+      renderUserAgentsPage(session, user, errorPage),
+    ),
+  );
 
 /** Handle POST /admin/users/:id/agents - save an agent user's logistics agents */
 const handleUserAgentsPost: TypedRouteHandler<
   "POST /admin/users/:id/agents"
 > = (request, { id }) =>
-  withAuth(request, OWNER_FORM, async (session, form) => {
-    const errorPage: UserErrorPageFn = (error, status) =>
-      usersErrorResponse(session, error, status);
-    const user = await getUserById(id);
-    if (!user) return errorPage("User not found", 404);
-    if ((await decryptAdminLevel(user)) !== "agent") {
-      return errorPage("Only delivery agents have assigned agents", 400);
-    }
-    const agentIds = parseAssignedAgentIds(form, await loadAssignableAgents());
-    await setUserAgentIds(user.id, agentIds);
-    const username = await decryptUsername(user);
-    await logActivity(`Agents updated for user '${username}'`);
-    return redirect("/admin/users", "Agents updated", true);
-  });
+  withAuth(request, OWNER_FORM, (session, form) =>
+    withLoadedUser(session, id, async (user, errorPage) => {
+      const notAgent = await ensureAgentUser(user, errorPage);
+      if (notAgent) return notAgent;
+      const agentIds = parseAssignedAgentIds(
+        form,
+        await loadAssignableAgents(),
+      );
+      await setUserAgentIds(user.id, agentIds);
+      await logActivity(
+        `Agents updated for user '${await decryptUsername(user)}'`,
+      );
+      return redirect("/admin/users", "Agents updated", true);
+    }),
+  );
 
-type UserErrorPageFn = (error: string, status: number) => Promise<Response>;
 type UserActionHandler = (
   user: User,
   session: AuthSession,
@@ -281,13 +307,11 @@ const withUserAction = (
   userId: number,
   handler: UserActionHandler,
 ): Promise<Response> =>
-  withAuth(request, OWNER_FORM, async (session) => {
-    const errorPage: UserErrorPageFn = (error, status) =>
-      usersErrorResponse(session, error, status);
-    const user = await getUserById(userId);
-    if (!user) return errorPage("User not found", 404);
-    return handler(user, session, errorPage);
-  });
+  withAuth(request, OWNER_FORM, (session) =>
+    withLoadedUser(session, userId, (user, errorPage) =>
+      handler(user, session, errorPage),
+    ),
+  );
 
 /**
  * Handle POST /admin/users/:id/activate

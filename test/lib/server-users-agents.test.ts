@@ -2,10 +2,13 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { getSessionCookieName } from "#shared/cookies.ts";
-import { logisticsAgentsTable } from "#shared/db/logistics-agents.ts";
+import {
+  getAllLogisticsAgents,
+  logisticsAgentsTable,
+} from "#shared/db/logistics-agents.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getUserAgentIds } from "#shared/db/user-agents.ts";
-import { getUserByUsername } from "#shared/db/users.ts";
+import { deleteUser, getUserByUsername } from "#shared/db/users.ts";
 import {
   adminFormPost,
   awaitTestRequest,
@@ -124,6 +127,23 @@ describeWithEnv("server (agent user management)", { db: true }, () => {
       agent_ids: "1",
     });
     expect(response.status).toBe(400);
+  });
+
+  test("deleting an agent user removes their links but keeps the agents", async () => {
+    await settings.update.hasLogistics(true);
+    const van = await logisticsAgentsTable.insert({ name: "Van 1" });
+    const { userId } = await createTestAgentSession({
+      agentIds: [van.id],
+      token: "ua6",
+      username: "driverdel",
+    });
+    expect(await getUserAgentIds(userId)).toEqual([van.id]);
+
+    await deleteUser(userId);
+
+    expect(await getUserAgentIds(userId)).toEqual([]);
+    const agents = await getAllLogisticsAgents();
+    expect(agents.some((a) => a.id === van.id)).toBe(true);
   });
 
   test("agents cannot reach the user management page", async () => {
