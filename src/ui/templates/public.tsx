@@ -66,7 +66,7 @@ const PublicNav = ({
       </li>
       {hasOrder && (
         <li>
-          <a href="/order">Order</a>
+          <a href="/order">{t("nav.public.order")}</a>
         </li>
       )}
       {hasTerms && (
@@ -149,7 +149,7 @@ const ContactForm = ({
     : {};
   return (
     <CsrfForm action="/contact" {...botpoisonAttr}>
-      <h2>Send us a message</h2>
+      <h2>{t("public.send_us_a_message")}</h2>
       <label>
         Your email address
         <input autocomplete="email" name="email" required type="email" />
@@ -192,7 +192,7 @@ export const contactPage = (options: {
       {formActive && <ContactForm botpoisonPublicKey={botpoisonPublicKey} />}
       <footer class="homepage-footer">
         <p>
-          <a href="/admin/login">Login</a>
+          <a href="/admin/login">{t("common.login")}</a>
         </p>
       </footer>
     </Layout>,
@@ -961,7 +961,7 @@ const TicketPageForm = ({
         <Raw html={renderQuestions(questions, questionListingMap)} />
       )}
       {terms && <Raw html={renderTermsAndCheckbox(terms)} />}
-      <button type="submit">Continue</button>
+      <button type="submit">{t("common.continue")}</button>
     </CsrfForm>
   );
 };
@@ -1178,7 +1178,9 @@ export const orderGalleryPage = (
       ) : (
         <form action="/order" class="order-gallery" method="get">
           <fieldset class="order-grid">
-            <legend class="visually-hidden">Select items to order</legend>
+            <legend class="visually-hidden">
+              {t("public.select_items_to_order")}
+            </legend>
             <Raw html={cards} />
           </fieldset>
           <button class="order-cart" type="submit">
@@ -1190,7 +1192,7 @@ export const orderGalleryPage = (
       )}
       <footer class="homepage-footer">
         <p>
-          <a href="/admin/login">Login</a>
+          <a href="/admin/login">{t("common.login")}</a>
         </p>
       </footer>
     </Layout>,

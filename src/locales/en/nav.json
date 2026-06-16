@@ -22,5 +22,6 @@
   "nav.sub.debug": "Debug",
   "nav.public.home": "Home",
   "nav.public.terms": "T&amp;Cs",
-  "nav.public.contact": "Contact"
+  "nav.public.contact": "Contact",
+  "nav.public.order": "Order"
 }

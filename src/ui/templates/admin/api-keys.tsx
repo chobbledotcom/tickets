@@ -171,13 +171,13 @@ export const adminApiDocsPage = (
   adminEndpoints: EndpointDoc[],
 ): string =>
   String(
-    <Layout title="API Documentation">
+    <Layout title={t("api_keys.docs_title")}>
       <AdminNav active="/admin/users" session={session} />
       <UsersSubNav />
 
       <div class="stack-md column">
         <div class="prose">
-          <h3>Authentication</h3>
+          <h3>{t("api_keys.authentication")}</h3>
           <p>
             Admin API endpoints require authentication via API key or session
             cookie:
@@ -194,15 +194,15 @@ export const adminApiDocsPage = (
 
       <div class="stack-md column">
         <div class="prose">
-          <h3>Public API</h3>
-          <p>No API key required. All endpoints support CORS.</p>
+          <h3>{t("api_keys.public_api")}</h3>
+          <p>{t("api_keys.public_api_note")}</p>
         </div>
         <Raw html={EndpointList({ endpoints: publicEndpoints })} />
       </div>
 
       <div class="stack-md column">
         <div class="prose">
-          <h3>Admin API</h3>
+          <h3>{t("api_keys.admin_api")}</h3>
           <p>
             Requires <code>Authorization: Bearer YOUR_API_KEY</code> header.
           </p>

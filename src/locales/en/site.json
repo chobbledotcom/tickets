@@ -10,5 +10,11 @@
   "site.contact.heading": "Contact Page",
   "site.contact.text_label": "Contact Page Text",
   "site.contact.text_hint": "Text displayed on the public contact page (max 2048 characters).",
-  "site.contact.text_placeholder": "Get in touch with us..."
+  "site.contact.text_placeholder": "Get in touch with us...",
+  "site.home_title": "Site - Home",
+  "site.contact_title": "Site - Contact",
+  "site.order_title": "Site - Order",
+  "site.contact_form_heading": "Contact Form",
+  "site.order_page_heading": "Order Page",
+  "site.sub_nav.order": "Order"
 }

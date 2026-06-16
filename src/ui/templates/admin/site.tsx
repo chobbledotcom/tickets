@@ -26,7 +26,7 @@ const SiteSubNav = (): JSX.Element => (
         <a href="/admin/site/contact">{t("site.sub_nav.contact")}</a>
       </li>
       <li>
-        <a href="/admin/site/order">Order</a>
+        <a href="/admin/site/order">{t("site.sub_nav.order")}</a>
       </li>
     </ul>
   </nav>
@@ -43,7 +43,7 @@ export const adminSiteHomePage = (
   success?: string,
 ): string =>
   String(
-    <Layout title="Site - Home">
+    <Layout title={t("site.home_title")}>
       <AdminNav active="/admin/site" session={session} />
       <SiteSubNav />
 
@@ -101,7 +101,7 @@ const ContactFormToggle = ({
 }: ContactFormState): JSX.Element => (
   <CsrfForm action="/admin/site/contact/form">
     <div class="prose">
-      <h2>Contact Form</h2>
+      <h2>{t("site.contact_form_heading")}</h2>
       <p>
         Add a contact form to the public contact page. Visitors enter their
         email address and a message, which is sent to your business email.
@@ -123,7 +123,7 @@ const ContactFormToggle = ({
       />{" "}
       Enable contact form
     </label>
-    <SubmitButton icon="save">Save</SubmitButton>
+    <SubmitButton icon="save">{t("common.save")}</SubmitButton>
   </CsrfForm>
 );
 
@@ -138,7 +138,7 @@ export const adminSiteContactPage = (
   success?: string,
 ): string =>
   String(
-    <Layout title="Site - Contact">
+    <Layout title={t("site.contact_title")}>
       <AdminNav active="/admin/site" session={session} />
       <SiteSubNav />
 
@@ -204,14 +204,14 @@ export const adminSiteOrderPage = (
   success?: string,
 ): string =>
   String(
-    <Layout title="Site - Order">
+    <Layout title={t("site.order_title")}>
       <AdminNav active="/admin/site" session={session} />
       <SiteSubNav />
 
       <Flash error={error} success={success} />
 
       <div class="prose">
-        <h2>Order Page</h2>
+        <h2>{t("site.order_page_heading")}</h2>
         <p>
           Publish an <code>/order</code> page that shows your bookable listings
           in a gallery. Visitors tick the items they want and continue to a
@@ -230,12 +230,12 @@ export const adminSiteOrderPage = (
           />{" "}
           Enable order page
         </label>
-        <SubmitButton icon="save">Save</SubmitButton>
+        <SubmitButton icon="save">{t("common.save")}</SubmitButton>
       </CsrfForm>
 
       <CsrfForm action="/admin/site/order">
         <Raw html={siteOrderForm.render({ order_intro_text: introText })} />
-        <SubmitButton icon="save">Save</SubmitButton>
+        <SubmitButton icon="save">{t("common.save")}</SubmitButton>
       </CsrfForm>
     </Layout>,
   );

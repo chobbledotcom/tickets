@@ -70,5 +70,7 @@
   "unsubscribe.changed_mind": "Changed your mind?",
   "unsubscribe.resubscribe_button": "Resubscribe",
   "unsubscribe.subscribed_message": "You're currently subscribed to our marketing emails.",
-  "unsubscribe.unsubscribe_button": "Unsubscribe"
+  "unsubscribe.unsubscribe_button": "Unsubscribe",
+  "public.send_us_a_message": "Send us a message",
+  "public.select_items_to_order": "Select items to order"
 }

@@ -315,15 +315,15 @@ const MergeAnswersDecisionTable = ({
   if (diff.answerItems.length === 0) return "";
   return String(
     <div>
-      <h4>Custom Question Answers</h4>
+      <h4>{t("admin.attendees.custom_question_answers")}</h4>
       <div class="table-scroll">
         <table>
           <thead>
             <tr>
-              <th>Question</th>
+              <th>{t("terms.question")}</th>
               <th>Keep ({targetName})</th>
               <th>Take from ({sourceName})</th>
-              <th>Clear</th>
+              <th>{t("admin.attendees.th_clear")}</th>
             </tr>
           </thead>
           <tbody>
@@ -386,16 +386,16 @@ const MergeBookingsDecisionTable = ({
 
   return String(
     <div>
-      <h4>Listing Registrations</h4>
+      <h4>{t("admin.attendees.listing_registrations")}</h4>
       <div class="table-scroll">
         <table>
           <thead>
             <tr>
-              <th>Listing</th>
-              <th>Date</th>
-              <th>Source (qty)</th>
-              <th>Status</th>
-              {hasConflicts && <th>Decision</th>}
+              <th>{t("terms.listing")}</th>
+              <th>{t("common.date")}</th>
+              <th>{t("admin.attendees.source_qty")}</th>
+              <th>{t("common.status")}</th>
+              {hasConflicts && <th>{t("admin.attendees.decision")}</th>}
             </tr>
           </thead>
           <tbody>
@@ -481,7 +481,7 @@ export const adminMergeAttendeePage = (
       <AdminNav active="/admin/" session={session} />
       <Flash error={error} />
 
-      <h2>Merge Attendee</h2>
+      <h2>{t("admin.attendees.merge_attendee")}</h2>
       <p>
         <BackButton href={`/admin/attendees/${target.id}`}>
           Back to {target.name}
@@ -489,7 +489,7 @@ export const adminMergeAttendeePage = (
       </p>
 
       {/* Token search form */}
-      <h3>Search by Ticket Token</h3>
+      <h3>{t("admin.attendees.search_by_token")}</h3>
       <form
         action={`/admin/attendees/${target.id}/merge`}
         class="inline-row"
@@ -501,19 +501,21 @@ export const adminMergeAttendeePage = (
             autofocus={!source}
             id="token"
             name="token"
-            placeholder="Enter ticket token…"
+            placeholder={t("attendee_form.enter_ticket_token_placeholder")}
             required
             type="text"
             value={searchToken || ""}
           />
         </label>
-        <SubmitButton icon="search">Search</SubmitButton>
+        <SubmitButton icon="search">
+          {t("attendee_form.search_button")}
+        </SubmitButton>
       </form>
 
       {source && mergeDiff && (
         <div>
           <div class="prose">
-            <h3>Merge Preview</h3>
+            <h3>{t("admin.attendees.merge_preview")}</h3>
             <p>
               Choose which value to keep for each field. Resolve any conflicts
               below. The source attendee will then be deleted.
@@ -537,7 +539,7 @@ export const adminMergeAttendeePage = (
               <table>
                 <thead>
                   <tr>
-                    <th>Field</th>
+                    <th>{t("admin.attendees.field")}</th>
                     <th>
                       Keep (current): <strong>{target.name}</strong>
                     </th>

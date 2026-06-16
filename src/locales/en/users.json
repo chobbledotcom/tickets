@@ -39,5 +39,10 @@
   "api_keys.delete_warning": "Warning: This will permanently delete this API key. Any integrations using it will stop working immediately.",
   "api_keys.delete_confirm": "To delete this API key, type its name \"{name}\" into the box below:",
   "api_keys.delete_label": "API key name",
-  "api_keys.delete_submit": "Delete API Key"
+  "api_keys.delete_submit": "Delete API Key",
+  "api_keys.docs_title": "API Documentation",
+  "api_keys.authentication": "Authentication",
+  "api_keys.public_api": "Public API",
+  "api_keys.public_api_note": "No API key required. All endpoints support CORS.",
+  "api_keys.admin_api": "Admin API"
 }

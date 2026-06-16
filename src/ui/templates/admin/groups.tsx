@@ -169,7 +169,7 @@ export const adminGroupDeletePage = (
         action={`/admin/groups/${group.id}/delete`}
         buttonText={t("groups.delete.submit")}
         danger={false}
-        label="Group name"
+        label={t("groups.name_label")}
         name={group.name}
       >
         <h1>{t("groups.delete.heading")}</h1>
@@ -227,7 +227,7 @@ const GroupAttendeesRow = ({
   if (group.max_attendees <= 0) {
     return (
       <tr>
-        <th>Group Attendees</th>
+        <th>{t("groups.group_attendees")}</th>
         <td>
           {attendeeCount} <small>(no group cap)</small>
         </td>
@@ -239,7 +239,7 @@ const GroupAttendeesRow = ({
   const nearCap = attendeeCount >= group.max_attendees * 0.9;
   return (
     <tr>
-      <th>Group Attendees</th>
+      <th>{t("groups.group_attendees")}</th>
       <td>
         <span class={overCap || nearCap ? "danger-text" : ""}>
           {attendeeCount} / {group.max_attendees} &mdash; {remaining} remain
@@ -377,7 +377,7 @@ export const adminGroupDetailPage = (
               </tr>
               {group.hidden && (
                 <tr>
-                  <th>Hidden</th>
+                  <th>{t("listings_table.hidden")}</th>
                   <td>Yes &mdash; not shown in public listings list</td>
                 </tr>
               )}

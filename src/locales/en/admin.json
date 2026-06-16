@@ -133,5 +133,14 @@
   "admin.seeds.heading": "Seed Data",
   "admin.seeds.intro": "Create sample listings and attendees from demo data. Useful for testing and development.",
   "admin.seeds.submit": "Create Seed Data",
-  "admin.seeds.back": "Back to dashboard"
+  "admin.seeds.back": "Back to dashboard",
+  "admin.attendees.custom_question_answers": "Custom Question Answers",
+  "admin.attendees.th_clear": "Clear",
+  "admin.attendees.listing_registrations": "Listing Registrations",
+  "admin.attendees.source_qty": "Source (qty)",
+  "admin.attendees.decision": "Decision",
+  "admin.attendees.merge_attendee": "Merge Attendee",
+  "admin.attendees.search_by_token": "Search by Ticket Token",
+  "admin.attendees.merge_preview": "Merge Preview",
+  "admin.attendees.field": "Field"
 }

@@ -37,5 +37,6 @@
   "common.description": "Description",
   "common.slug": "Slug",
   "common.quantity": "Quantity",
-  "common.close": "Close"
+  "common.close": "Close",
+  "common.continue": "Continue"
 }
