@@ -882,7 +882,7 @@ describe("db > migrations > schema change guard", () => {
         "2026-06-15_activity_log_listing_id_index",
         "2026-06-16_logistics_agents",
       ],
-      schemaHash: "cya0y9",
+      schemaHash: "m6h096",
     });
   });
 });

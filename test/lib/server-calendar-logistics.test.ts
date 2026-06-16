@@ -43,7 +43,15 @@ describeWithEnv(
         attendees[0]!.id,
         false,
         new Map([
-          [listing.id, { endAgentId: null, startAgentId: assigned.id }],
+          [
+            listing.id,
+            {
+              endAgentId: null,
+              endTime: "",
+              startAgentId: assigned.id,
+              startTime: "",
+            },
+          ],
         ]),
       );
       return { assigned, d, other };

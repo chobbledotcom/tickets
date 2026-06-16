@@ -171,7 +171,12 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       await setLogisticsAssignments(
         attendee.id,
         false,
-        new Map([[listing.id, { endAgentId: id, startAgentId: id }]]),
+        new Map([
+          [
+            listing.id,
+            { endAgentId: id, endTime: "", startAgentId: id, startTime: "" },
+          ],
+        ]),
       );
 
       await adminFormPost(`/admin/logistics/${id}/delete`, {
@@ -181,7 +186,9 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       const got = await getLogisticsAssignments(attendee.id);
       expect(got.get(listing.id)).toEqual({
         endAgentId: null,
+        endTime: "",
         startAgentId: null,
+        startTime: "",
       });
     });
 

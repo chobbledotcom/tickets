@@ -5,9 +5,11 @@ import type { AttendeeFormLine } from "#routes/admin/attendee-form-model.ts";
 import {
   buildAttendeeLogisticsData,
   endAgentField,
+  endTimeField,
   parseLogisticsPlan,
   SPLIT_AGENTS_FIELD,
   startAgentField,
+  startTimeField,
 } from "#routes/admin/attendee-logistics.ts";
 import { listingsTable } from "#shared/db/listings.ts";
 import { getLogisticsAssignments } from "#shared/db/logistics.ts";
@@ -63,24 +65,32 @@ describe("parseLogisticsPlan", () => {
     expect(plan.split).toBe(false);
     expect(plan.perListing.get(10)).toEqual({
       endAgentId: 2,
+      endTime: "",
       startAgentId: 1,
+      startTime: "",
     });
     expect(plan.perListing.get(11)).toEqual({
       endAgentId: 2,
+      endTime: "",
       startAgentId: 1,
+      startTime: "",
     });
   });
 
-  test("split mode reads per-listing fields", () => {
+  test("split mode reads per-listing agent + time fields", () => {
     const form = new FormParams();
     form.set(SPLIT_AGENTS_FIELD, "1");
     form.set(startAgentField(10), "1");
     form.set(endAgentField(10), "2");
+    form.set(startTimeField(10), "09:00");
+    form.set(endTimeField(10), "17:30");
     const plan = parseLogisticsPlan(form, [bookedLine(10, true)], agentIds);
     expect(plan.split).toBe(true);
     expect(plan.perListing.get(10)).toEqual({
       endAgentId: 2,
+      endTime: "17:30",
       startAgentId: 1,
+      startTime: "09:00",
     });
   });
 
@@ -95,7 +105,9 @@ describe("parseLogisticsPlan", () => {
     expect([...plan.perListing.keys()]).toEqual([10]);
     expect(plan.perListing.get(10)).toEqual({
       endAgentId: null,
+      endTime: "",
       startAgentId: null,
+      startTime: "",
     });
   });
 });
@@ -131,7 +143,9 @@ describeWithEnv("buildAttendeeLogisticsData", { db: true }, () => {
     expect(data!.split).toBe(false);
     expect(data!.single).toEqual({
       endAgentId: null,
+      endTime: "",
       startAgentId: null,
+      startTime: "",
     });
     expect(data!.lines.map((l) => l.listingId)).toEqual([5]);
   });
@@ -162,8 +176,9 @@ describeWithEnv("attendee form logistics (HTTP)", { db: true }, () => {
     expect(html).toContain('name="logistics_start"');
     expect(html).toContain('name="logistics_end"');
     expect(html).toContain(`name="${SPLIT_AGENTS_FIELD}"`);
-    // Per-listing (split mode) selectors are rendered too.
+    // Per-listing (split mode) selectors and the time inputs are rendered too.
     expect(html).toContain(`name="${startAgentField(listing.id)}"`);
+    expect(html).toContain('name="logistics_start_time"');
     expect(html).toContain("Drop Van");
   });
 
@@ -176,7 +191,9 @@ describeWithEnv("attendee form logistics (HTTP)", { db: true }, () => {
         {
           csrf_token: csrfToken,
           [endAgentField()]: String(coll.id),
+          [endTimeField()]: "16:45",
           [startAgentField()]: String(drop.id),
+          [startTimeField()]: "08:30",
           name: "Jane",
           [`qty_${listing.id}`]: "1",
         },
@@ -188,7 +205,9 @@ describeWithEnv("attendee form logistics (HTTP)", { db: true }, () => {
     const assignments = await getLogisticsAssignments(attendees[0]!.id);
     expect(assignments.get(listing.id)).toEqual({
       endAgentId: coll.id,
+      endTime: "16:45",
       startAgentId: drop.id,
+      startTime: "08:30",
     });
   });
 
@@ -212,7 +231,9 @@ describeWithEnv("attendee form logistics (HTTP)", { db: true }, () => {
     const assignments = await getLogisticsAssignments(attendees[0]!.id);
     expect(assignments.get(listing.id)).toEqual({
       endAgentId: null,
+      endTime: "",
       startAgentId: null,
+      startTime: "",
     });
   });
 
@@ -252,7 +273,9 @@ describeWithEnv("attendee form logistics (HTTP)", { db: true }, () => {
     const assignments = await getLogisticsAssignments(attendeeId);
     expect(assignments.get(listing.id)).toEqual({
       endAgentId: coll.id,
+      endTime: "",
       startAgentId: coll.id,
+      startTime: "",
     });
   });
 

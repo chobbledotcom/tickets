@@ -3,7 +3,7 @@
  *
  * Kept separate from the core attendee form model so the (common) non-logistics
  * flow is untouched. Provides the field-name scheme, parsing of the submitted
- * drop-off/collection choices into a per-listing plan, and the data the
+ * start/end agent + time choices into a per-listing plan, and the data the
  * template needs to render the selectors (pre-filled from saved assignments).
  */
 
@@ -18,19 +18,31 @@ import { settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { Attendee, LogisticsAgent } from "#shared/types.ts";
 
-/** Checkbox field: when "1", each delivered listing carries its own agents. */
+/** Checkbox field: when "1", each logistics listing carries its own agents. */
 export const SPLIT_AGENTS_FIELD = "split_logistics_agents";
 
-/** Drop-off select field name. With a listing id it is the split (per-listing)
- * field; without, the single field that applies to every delivered listing. */
+/** Suffix for the per-listing (split) field, or "" for the single shared field. */
+const suffix = (listingId?: number): string =>
+  listingId === undefined ? "" : `_${listingId}`;
+
+/** Start-agent select field name. With a listing id it is the split
+ * (per-listing) field; without, the single field applied to every listing. */
 export const startAgentField = (listingId?: number): string =>
-  listingId === undefined ? "logistics_start" : `logistics_start_${listingId}`;
+  `logistics_start${suffix(listingId)}`;
 
-/** Collection select field name (see {@link startAgentField}). */
+/** End-agent select field name (see {@link startAgentField}). */
 export const endAgentField = (listingId?: number): string =>
-  listingId === undefined ? "logistics_end" : `logistics_end_${listingId}`;
+  `logistics_end${suffix(listingId)}`;
 
-/** A delivered listing the attendee books, with its current assignment. */
+/** Start-time field name. */
+export const startTimeField = (listingId?: number): string =>
+  `logistics_start_time${suffix(listingId)}`;
+
+/** End-time field name. */
+export const endTimeField = (listingId?: number): string =>
+  `logistics_end_time${suffix(listingId)}`;
+
+/** A logistics listing the attendee books, with its current assignment. */
 export type LogisticsLine = {
   listingId: number;
   name: string;
@@ -41,15 +53,15 @@ export type LogisticsLine = {
 export type AttendeeLogisticsData = {
   /** Selectable agents. */
   agents: LogisticsAgent[];
-  /** Whether each delivered listing has its own agents. */
+  /** Whether each logistics listing has its own agents. */
   split: boolean;
-  /** Single-mode assignment, applied to every delivered listing. */
+  /** Single-mode assignment, applied to every logistics listing. */
   single: LogisticsAssignment;
   /** One row per delivered booked listing (split mode). */
   lines: LogisticsLine[];
 };
 
-/** The delivered listings an attendee actually books (booked lines only). */
+/** The logistics listings an attendee actually books (booked lines only). */
 const deliveredBookedLines = (lines: AttendeeFormLine[]): AttendeeFormLine[] =>
   lines.filter(
     (line) =>
@@ -58,7 +70,7 @@ const deliveredBookedLines = (lines: AttendeeFormLine[]): AttendeeFormLine[] =>
   );
 
 /** The submitted logistics plan: split flag plus a per-listing assignment for
- * every delivered booked line. Agent ids not in `agentIds` (or blank) become
+ * every logistics booked line. Agent ids not in `agentIds` (or blank) become
  * null. In single mode all delivered lines share the one submitted pair. */
 export const parseLogisticsPlan = (
   form: FormParams,
@@ -73,11 +85,12 @@ export const parseLogisticsPlan = (
   const perListing = new Map<number, LogisticsAssignment>();
   for (const line of deliveredBookedLines(lines)) {
     const id = line.listingId;
+    const key = split ? id : undefined;
     perListing.set(id, {
-      endAgentId: valid(form.getString(endAgentField(split ? id : undefined))),
-      startAgentId: valid(
-        form.getString(startAgentField(split ? id : undefined)),
-      ),
+      endAgentId: valid(form.getString(endAgentField(key))),
+      endTime: form.getString(endTimeField(key)),
+      startAgentId: valid(form.getString(startAgentField(key))),
+      startTime: form.getString(startTimeField(key)),
     });
   }
   return { perListing, split };
@@ -85,13 +98,15 @@ export const parseLogisticsPlan = (
 
 const EMPTY_ASSIGNMENT: LogisticsAssignment = {
   endAgentId: null,
+  endTime: "",
   startAgentId: null,
+  startTime: "",
 };
 
 /**
  * Build the logistics render data, or undefined when logistics is disabled, no
- * agents exist, or the attendee books no delivered listing. For an edit the
- * single-mode pair is seeded from the first delivered booked line's saved
+ * agents exist, or the attendee books no logistics listing. For an edit the
+ * single-mode pair is seeded from the first logistics booked line's saved
  * assignment (they all share one pair when not split).
  */
 export const buildAttendeeLogisticsData = async (

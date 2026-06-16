@@ -29,8 +29,10 @@ import {
 import {
   type AttendeeLogisticsData,
   endAgentField,
+  endTimeField,
   SPLIT_AGENTS_FIELD,
   startAgentField,
+  startTimeField,
 } from "#routes/admin/attendee-logistics.ts";
 import { targetQuery } from "#shared/bulk-email.ts";
 import { toMajorUnits } from "#shared/currency.ts";
@@ -254,10 +256,60 @@ const AgentSelect = ({
   </label>
 );
 
+/** A short time-of-day input (logistics metadata only; never availability). */
+const TimeInput = ({
+  name,
+  label,
+  value,
+}: {
+  name: string;
+  label: string;
+  value: string;
+}): JSX.Element => (
+  <label>
+    {label}
+    <input name={name} type="time" value={value} />
+  </label>
+);
+
+/** One leg (start or end): an agent select plus its time, for the single
+ * shared fields (listingId omitted) or a specific listing (split mode). */
+const LogisticsLeg = ({
+  agents,
+  leg,
+  assignment,
+  listingId,
+}: {
+  agents: AttendeeLogisticsData["agents"];
+  leg: "start" | "end";
+  assignment: AttendeeLogisticsData["single"];
+  listingId?: number;
+}): JSX.Element => {
+  const isStart = leg === "start";
+  const agentField = isStart ? startAgentField : endAgentField;
+  const timeField = isStart ? startTimeField : endTimeField;
+  const label = isStart ? "Start" : "End";
+  return (
+    <div class="logistics-leg">
+      <AgentSelect
+        agents={agents}
+        label={`${label} agent`}
+        name={agentField(listingId)}
+        selected={isStart ? assignment.startAgentId : assignment.endAgentId}
+      />
+      <TimeInput
+        label={`${label} time`}
+        name={timeField(listingId)}
+        value={isStart ? assignment.startTime : assignment.endTime}
+      />
+    </div>
+  );
+};
+
 /**
- * Logistics agent selectors for delivered listings. A "different agents per
- * item" checkbox switches (pure CSS) between one shared drop-off/collection
- * pair and a pair per delivered listing. Only rendered when logistics applies.
+ * Logistics agent + time selectors for logistics listings. A "different agents
+ * per item" checkbox switches (pure CSS) between one shared start/end pair and
+ * a pair per logistics listing. Only rendered when logistics applies.
  */
 const LogisticsSection = ({
   data,
@@ -280,34 +332,32 @@ const LogisticsSection = ({
         Use different agents per item
       </label>
       <div class="logistics-single">
-        <AgentSelect
+        <LogisticsLeg
           agents={logistics.agents}
-          label="Start agent"
-          name={startAgentField()}
-          selected={logistics.single.startAgentId}
+          assignment={logistics.single}
+          leg="start"
         />
-        <AgentSelect
+        <LogisticsLeg
           agents={logistics.agents}
-          label="End agent"
-          name={endAgentField()}
-          selected={logistics.single.endAgentId}
+          assignment={logistics.single}
+          leg="end"
         />
       </div>
       <div class="logistics-split">
         {logistics.lines.map((line) => (
           <fieldset class="logistics-line">
             <legend>{line.name}</legend>
-            <AgentSelect
+            <LogisticsLeg
               agents={logistics.agents}
-              label="Start agent"
-              name={startAgentField(line.listingId)}
-              selected={line.assignment.startAgentId}
+              assignment={line.assignment}
+              leg="start"
+              listingId={line.listingId}
             />
-            <AgentSelect
+            <LogisticsLeg
               agents={logistics.agents}
-              label="End agent"
-              name={endAgentField(line.listingId)}
-              selected={line.assignment.endAgentId}
+              assignment={line.assignment}
+              leg="end"
+              listingId={line.listingId}
             />
           </fieldset>
         ))}

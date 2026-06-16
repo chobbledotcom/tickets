@@ -10,10 +10,14 @@
 
 import { executeBatch, inPlaceholders, queryAll } from "#shared/db/client.ts";
 
-/** A drop-off + collection agent pair (null = unassigned). */
+/** A start/end agent pair (null = unassigned) plus optional start/end times
+ * ("" when unset). Times are logistics-only metadata — never used for
+ * availability or capacity. */
 export type LogisticsAssignment = {
   startAgentId: number | null;
   endAgentId: number | null;
+  startTime: string;
+  endTime: string;
 };
 
 /** A booking's logistics assignment, keyed by listing. */
@@ -27,7 +31,17 @@ type AssignmentRow = {
   listing_id: number;
   start_agent_id: number | null;
   end_agent_id: number | null;
+  start_time: string;
+  end_time: string;
 };
+
+/** Map a DB row to the assignment shape (shared by the read helpers). */
+const rowToAssignment = (row: AssignmentRow): LogisticsAssignment => ({
+  endAgentId: row.end_agent_id,
+  endTime: row.end_time,
+  startAgentId: row.start_agent_id,
+  startTime: row.start_time,
+});
 
 /** Build the stable key used to look up a booking's assignment. */
 export const bookingAssignmentKey = (
@@ -54,11 +68,13 @@ export const setLogisticsAssignments = async (
       args: [
         assignment.startAgentId,
         assignment.endAgentId,
+        assignment.startTime,
+        assignment.endTime,
         attendeeId,
         listingId,
       ],
       sql: `UPDATE listing_attendees
-            SET start_agent_id = ?, end_agent_id = ?
+            SET start_agent_id = ?, end_agent_id = ?, start_time = ?, end_time = ?
             WHERE attendee_id = ? AND listing_id = ?`,
     })),
   ];
@@ -70,19 +86,11 @@ export const getLogisticsAssignments = async (
   attendeeId: number,
 ): Promise<Map<number, LogisticsAssignment>> => {
   const rows = await queryAll<AssignmentRow>(
-    `SELECT listing_id, start_agent_id, end_agent_id
+    `SELECT listing_id, start_agent_id, end_agent_id, start_time, end_time
      FROM listing_attendees WHERE attendee_id = ?`,
     [attendeeId],
   );
-  return new Map(
-    rows.map((row) => [
-      row.listing_id,
-      {
-        endAgentId: row.end_agent_id,
-        startAgentId: row.start_agent_id,
-      },
-    ]),
-  );
+  return new Map(rows.map((row) => [row.listing_id, rowToAssignment(row)]));
 };
 
 /**
@@ -95,15 +103,14 @@ export const getLogisticsAssignmentsForAttendees = async (
 ): Promise<BookingLogisticsAssignment[]> => {
   if (attendeeIds.length === 0) return [];
   const rows = await queryAll<AssignmentRow>(
-    `SELECT attendee_id, listing_id, start_agent_id, end_agent_id
+    `SELECT attendee_id, listing_id, start_agent_id, end_agent_id, start_time, end_time
      FROM listing_attendees WHERE attendee_id IN (${inPlaceholders(attendeeIds)})`,
     attendeeIds,
   );
   return rows.map((row) => ({
     attendeeId: row.attendee_id,
-    endAgentId: row.end_agent_id,
     listingId: row.listing_id,
-    startAgentId: row.start_agent_id,
+    ...rowToAssignment(row),
   }));
 };
 
