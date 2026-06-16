@@ -18,7 +18,11 @@ import {
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession, LogisticsAgent } from "#shared/types.ts";
 import { AdminNav, SettingsSubNav } from "#templates/admin/nav.tsx";
-import { GuideLink, SubmitButton } from "#templates/components/actions.tsx";
+import {
+  DeleteSection,
+  GuideLink,
+  SubmitButton,
+} from "#templates/components/actions.tsx";
 import { logisticsAgentFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
@@ -72,16 +76,13 @@ const AgentsSection = (agents: LogisticsAgent[]): JSX.Element => (
           <thead>
             <tr>
               <th>Name</th>
-              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {agents.map((agent) => (
               <tr>
-                <td>{agent.name}</td>
                 <td>
-                  <a href={`/admin/logistics/${agent.id}/edit`}>Edit</a>{" "}
-                  <a href={`/admin/logistics/${agent.id}/delete`}>Delete</a>
+                  <a href={`/admin/logistics/${agent.id}/edit`}>{agent.name}</a>
                 </td>
               </tr>
             ))}
@@ -162,6 +163,12 @@ export const adminLogisticsAgentEditPage = (
         />
         <SubmitButton icon="save">Save Changes</SubmitButton>
       </CsrfForm>
+      <DeleteSection
+        heading="Delete"
+        href={`/admin/logistics/${agent.id}/delete`}
+      >
+        Delete Agent
+      </DeleteSection>
     </Layout>,
   );
 

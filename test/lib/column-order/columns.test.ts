@@ -157,7 +157,6 @@ describe("ATTENDEE_TABLE_COLUMNS cell renderers", () => {
     answerQuestionMap: new Map(),
     answerTextMap: new Map(),
     phonePrefix: "44",
-    renderActions: () => "",
     renderStatus: () => "",
   };
   const makeRow = (

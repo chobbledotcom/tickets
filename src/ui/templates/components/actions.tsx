@@ -87,6 +87,33 @@ export const SubmitButton = ({
 );
 
 /**
+ * The "Delete" affordance shown at the bottom of an entity's edit page. Renders
+ * a heading plus a secondary, button-styled link to the delete-confirmation
+ * page, so every edit page exposes deletion the same way (and the destructive
+ * action always goes through the typed-name confirmation round trip rather than
+ * sitting inline in a list table). Pass the confirmation-page `href`, the
+ * section `heading`, and the link label as children.
+ */
+export const DeleteSection = ({
+  href,
+  heading,
+  children,
+}: {
+  href: string;
+  heading: string;
+  children?: Child;
+}): SafeHtml => (
+  <>
+    <h2>{heading}</h2>
+    <p class="prose">
+      <ActionButton href={href} icon="trash-2" variant="secondary">
+        {children}
+      </ActionButton>
+    </p>
+  </>
+);
+
+/**
  * A link that can be disabled. When enabled, renders an `<a>` pointing at
  * `href`. When `disabled`, renders a non-interactive `<span>` carrying
  * `.btn--disabled` (greyed out, not clickable) so the affordance stays visible

@@ -99,7 +99,8 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
         "Logistics agent created",
       )(response);
       const list = await adminGet("/admin/logistics");
-      await expectHtmlResponse(list.response, 200, "Van 1", "/edit", "/delete");
+      // The agent name links to its edit page; delete lives on that page now.
+      await expectHtmlResponse(list.response, 200, "Van 1", "/edit");
     });
 
     test("rejects an empty agent name", async () => {
@@ -128,6 +129,8 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       expect(editHtml).toContain(`action="/admin/logistics/${id}/edit"`);
       expect(editHtml).toContain("Edit Logistics Agent");
       expect(editHtml).toContain("Van A");
+      // Delete moved off the agents list onto the edit page.
+      expect(editHtml).toContain(`/admin/logistics/${id}/delete`);
       const { response } = await adminFormPost(`/admin/logistics/${id}/edit`, {
         name: "Van B",
       });

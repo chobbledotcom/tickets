@@ -71,7 +71,6 @@ export const adminGroupsPage = (
               <tr>
                 <th>{t("common.name")}</th>
                 <th>{t("common.slug")}</th>
-                <th>{t("common.actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -81,18 +80,6 @@ export const adminGroupsPage = (
                     <a href={`/admin/groups/${g.id}`}>{g.name}</a>
                   </td>
                   <td>{g.slug}</td>
-                  <td>
-                    {!isReadOnly() && (
-                      <>
-                        <a href={`/admin/groups/${g.id}/edit`}>
-                          {t("common.edit")}
-                        </a>{" "}
-                      </>
-                    )}
-                    <a href={`/admin/groups/${g.id}/delete`}>
-                      {t("common.delete")}
-                    </a>
-                  </td>
                 </tr>
               ))}
             </tbody>

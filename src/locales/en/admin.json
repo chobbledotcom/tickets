@@ -102,8 +102,6 @@
   "admin.attendee_table.check_out": "Check out",
   "admin.attendee_table.check_in": "Check in",
   "admin.attendee_table.refunded_badge": "Refunded",
-  "admin.attendee_table.refund": "Refund",
-  "admin.attendee_table.resend_notification": "Re-send Notification",
   "admin.checkin.title": "Check-in",
   "admin.checkin.heading": "Check-in",
   "admin.checkin.check_out_all": "Check Out All",
