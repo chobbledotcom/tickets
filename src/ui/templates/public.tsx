@@ -562,7 +562,10 @@ ${ERROR_DIALOG_STYLE}`;
 
 export const temporaryErrorPage = (): string =>
   String(
-    <Layout headExtra={TEMPORARY_ERROR_HEAD} title={t("public.temporary_error.title")}>
+    <Layout
+      headExtra={TEMPORARY_ERROR_HEAD}
+      title={t("public.temporary_error.title")}
+    >
       <div class="prose">
         <h1>{t("public.temporary_error.heading")}</h1>
         <p>{t("public.temporary_error.message")}</p>
@@ -610,7 +613,10 @@ export const migrationInProgressPage = (): string =>
  */
 export const siteNotActivatedPage = (): string =>
   String(
-    <Layout headExtra={ERROR_DIALOG_STYLE} title={t("public.not_activated.title")}>
+    <Layout
+      headExtra={ERROR_DIALOG_STYLE}
+      title={t("public.not_activated.title")}
+    >
       <div class="prose">
         <h1>{t("public.not_activated.heading")}</h1>
         <p>{t("public.not_activated.message")}</p>
