@@ -2,8 +2,10 @@
  * Admin templates for managing attendee statuses (owner-only settings page).
  */
 
+import { t } from "#i18n";
 import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
+import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { RESERVATION_AMOUNT_HINT } from "#shared/reservation-amount.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { AdminNav, SettingsSubNav } from "#templates/admin/nav.tsx";
@@ -20,10 +22,16 @@ const Badge = ({ label }: { label: string }): JSX.Element => (
 /** Render one row's flag badges. */
 const statusBadges = (s: AttendeeStatus): JSX.Element => (
   <>
-    {s.is_public_default && <Badge label="Public default" />}
-    {s.is_paid_default && <Badge label="Paid" />}
+    {s.is_public_default && (
+      <Badge label={t("statuses.badge_public_default")} />
+    )}
+    {s.is_paid_default && <Badge label={t("statuses.badge_paid")} />}
     {s.is_reservation && (
-      <Badge label={`Reservation: ${s.reservation_amount}`} />
+      <Badge
+        label={t("statuses.badge_reservation", {
+          amount: s.reservation_amount,
+        })}
+      />
     )}
   </>
 );
@@ -33,14 +41,22 @@ const moveControls = (s: AttendeeStatus, i: number, count: number) => (
   <>
     {i > 0 && (
       <CsrfForm action={`${LIST_PATH}/${s.id}/move-up`} class="inline">
-        <button class="link-button small" title="Move up" type="submit">
+        <button
+          class="link-button small"
+          title={t("statuses.move_up_title")}
+          type="submit"
+        >
           &#9650;
         </button>
       </CsrfForm>
     )}{" "}
     {i < count - 1 && (
       <CsrfForm action={`${LIST_PATH}/${s.id}/move-down`} class="inline">
-        <button class="link-button small" title="Move down" type="submit">
+        <button
+          class="link-button small"
+          title={t("statuses.move_down_title")}
+          type="submit"
+        >
           &#9660;
         </button>
       </CsrfForm>
@@ -56,32 +72,28 @@ export const adminAttendeeStatusesPage = (
   success?: string,
 ): string =>
   String(
-    <Layout title="Attendee Statuses">
+    <Layout title={t("statuses.attendee_statuses_page_title")}>
       <AdminNav active="/admin/settings" session={session} />
       <SettingsSubNav />
       <div class="prose">
-        <h1>Attendee Statuses</h1>
+        <h1>{t("statuses.attendee_statuses_page_title")}</h1>
         <p>
-          Statuses track where an attendee is in your workflow. The{" "}
-          <strong>public default</strong> is the status new public bookings
-          start in; if it is a <strong>reservation</strong>, bookings pay a
-          deposit now and the balance later. When a balance is paid the attendee
-          moves to the <strong>paid</strong> status.
+          <Raw html={t("statuses.attendee_statuses_description")} />
         </p>
       </div>
       <Flash error={error} success={success} />
       <p class="actions">
         <ActionButton href={`${LIST_PATH}/new`} icon="plus">
-          Add status
+          {t("statuses.add_status_button")}
         </ActionButton>
       </p>
       <table>
         <thead>
           <tr>
-            <th>Order</th>
-            <th>Name</th>
-            <th>Flags</th>
-            <th>Actions</th>
+            <th>{t("statuses.order_header")}</th>
+            <th>{t("statuses.name_header")}</th>
+            <th>{t("statuses.flags_header")}</th>
+            <th>{t("statuses.actions_header")}</th>
           </tr>
         </thead>
         <tbody>
@@ -93,10 +105,12 @@ export const adminAttendeeStatusesPage = (
               </td>
               <td>{statusBadges(s)}</td>
               <td>
-                <a href={`${LIST_PATH}/${s.id}/edit`}>Edit</a>{" "}
+                <a href={`${LIST_PATH}/${s.id}/edit`}>
+                  {t("statuses.edit_link")}
+                </a>{" "}
                 <CsrfForm action={`${LIST_PATH}/${s.id}/delete`} class="inline">
                   <button class="link-button danger small" type="submit">
-                    Delete
+                    {t("statuses.delete_link")}
                   </button>
                 </CsrfForm>
               </td>
@@ -126,44 +140,55 @@ export const adminAttendeeStatusFormPage = (
   const editing = status !== undefined;
   const action = editing ? `${LIST_PATH}/${status.id}/edit` : LIST_PATH;
   return String(
-    <Layout title={editing ? "Edit Attendee Status" : "Add Attendee Status"}>
+    <Layout
+      title={
+        editing ? t("statuses.form_title_edit") : t("statuses.form_title_add")
+      }
+    >
       <AdminNav active="/admin/settings" session={session} />
       <SettingsSubNav />
-      <h1>{editing ? "Edit Attendee Status" : "Add Attendee Status"}</h1>
+      <h1>
+        {editing ? t("statuses.form_title_edit") : t("statuses.form_title_add")}
+      </h1>
       <Flash error={error} />
       <CsrfForm action={action}>
         <label>
-          Name
+          {t("statuses.form_name_label")}
           <input name="name" required type="text" value={status?.name ?? ""} />
         </label>
         <fieldset class="checkboxes">
           {checkbox(
             "is_reservation",
-            "This is a reservation — collect a deposit now, balance later",
+            t("statuses.form_reservation_checkbox"),
             status?.is_reservation ?? false,
           )}
           {checkbox(
             "is_public_default",
-            "Default status for new public bookings",
+            t("statuses.form_public_default_checkbox"),
             status?.is_public_default ?? false,
           )}
           {checkbox(
             "is_paid_default",
-            "Status an attendee moves to when their balance is paid",
+            t("statuses.form_paid_default_checkbox"),
             status?.is_paid_default ?? false,
           )}
         </fieldset>
         <label>
-          Reservation amount
+          {t("statuses.form_reservation_amount_label")}
           <input
             name="reservation_amount"
             type="text"
             value={status?.reservation_amount ?? "0"}
           />
-          <small>{RESERVATION_AMOUNT_HINT}. Only used for reservations.</small>
+          <small>
+            {RESERVATION_AMOUNT_HINT}
+            {t("statuses.form_reservation_amount_hint")}
+          </small>
         </label>
         <SubmitButton icon={editing ? "save" : "plus"}>
-          {editing ? "Save status" : "Create status"}
+          {editing
+            ? t("statuses.form_save_button")
+            : t("statuses.form_create_button")}
         </SubmitButton>
       </CsrfForm>
     </Layout>,

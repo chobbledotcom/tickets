@@ -3,6 +3,7 @@
  */
 
 import { joinStrings, map, reduce } from "#fp";
+import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
 import type { Attendee } from "#shared/types.ts";
 import type { TableQuestionData } from "#templates/attendee-table.tsx";
@@ -76,7 +77,7 @@ const getCheckedInStats = (attendees: Attendee[]): CheckedInStats => {
 
 /** Format "done / total — remaining remain" */
 const formatProgress = (done: number, total: number): string =>
-  `${done} / ${total} &mdash; ${total - done} remain`;
+  `${done} / ${total} ${t("detail_rows.mdash")} ${total - done} ${t("detail_rows.remain")}`;
 
 /** Build the checked-in detail row(s) — splits into two when multi-quantity */
 const buildCheckedInRows = (
@@ -86,17 +87,17 @@ const buildCheckedInRows = (
   stats.hasMultiQuantity
     ? [
         {
-          key: `Tickets Checked In${suffix}`,
+          key: `${t("detail_rows.tickets_checked_in")}${suffix}`,
           value: formatProgress(stats.rowsCheckedIn, stats.rowsTotal),
         },
         {
-          key: `Attendees Checked In${suffix}`,
+          key: `${t("detail_rows.attendees_checked_in")}${suffix}`,
           value: formatProgress(stats.ticketsCheckedIn, stats.ticketsTotal),
         },
       ]
     : [
         {
-          key: `Checked In${suffix}`,
+          key: `${t("detail_rows.checked_in")}${suffix}`,
           value: formatProgress(stats.ticketsCheckedIn, stats.ticketsTotal),
         },
       ];
@@ -170,17 +171,17 @@ const buildAttendeeRow = (
 ): DetailRow => {
   const display =
     maxCapacity > 0
-      ? `${count} / ${maxCapacity} &mdash; ${maxCapacity - count} remain`
+      ? `${count} / ${maxCapacity} ${t("detail_rows.mdash")} ${maxCapacity - count} ${t("detail_rows.remain")}`
       : String(count);
   return {
-    key: `Attendees${suffix}`,
+    key: `${t("detail_rows.attendees")}${suffix}`,
     value: wrapDanger(display, isNearCapacity(count, maxCapacity)),
   };
 };
 
 /** Build a revenue detail row */
 const buildRevenueRow = (attendees: Attendee[]): DetailRow => ({
-  key: "Total Revenue",
+  key: t("detail_rows.total_revenue"),
   value: formatCurrency(calculateTotalRevenue(attendees)),
 });
 

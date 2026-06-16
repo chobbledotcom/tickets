@@ -7,6 +7,7 @@
  * generation.
  */
 
+import { t } from "#i18n";
 import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
 import { formatDateLabel } from "#shared/dates.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
@@ -54,26 +55,27 @@ const PriceInput = ({
   value: string;
 }): JSX.Element => {
   const hint = listing.can_pay_more
-    ? `Minimum ${formatCurrency(listing.unit_price)}, maximum ${formatCurrency(
-        listing.max_price,
-      )}`
-    : `Overrides the ticket price of ${formatCurrency(
-        listing.unit_price,
-      )} for this booking`;
+    ? t("listing_qr.price_hint_can_pay_more", {
+        max: formatCurrency(listing.max_price),
+        min: formatCurrency(listing.unit_price),
+      })
+    : t("listing_qr.price_hint_fixed", {
+        price: formatCurrency(listing.unit_price),
+      });
   const min = listing.can_pay_more ? toMajorUnits(listing.unit_price) : "0";
   const max = listing.can_pay_more
     ? toMajorUnits(listing.max_price)
     : undefined;
   return (
     <label>
-      Price
+      {t("listing_qr.price")}
       <input
         inputmode="decimal"
         max={max}
         min={min}
         name="value"
         pattern="\d+(\.\d{1,2})?"
-        title="A non-negative number (e.g. 10.00)"
+        title={t("listing_qr.price_input_title")}
         type="text"
         value={value}
       />
@@ -91,9 +93,9 @@ const DateSelect = ({
   value: string;
 }): JSX.Element => (
   <label>
-    Date
+    {t("listing_qr.date")}
     <select name="date" required>
-      <option value="">— Select a date —</option>
+      <option value="">{t("listing_qr.date_select_placeholder")}</option>
       {dates.map((d) => (
         <option selected={d === value} value={d}>
           {formatDateLabel(d)}
@@ -122,18 +124,15 @@ const QrResultPanel = ({
     data-qr-refresh={refreshUrl}
     data-qr-refresh-form={formAction}
   >
-    <h2>QR code</h2>
+    <h2>{t("listing_qr.qr_code")}</h2>
     <div class="qr-code" data-qr-svg>
       <Raw html={result.svg} />
     </div>
     <p>
-      <small>
-        Refreshes every minute. Each code expires {EXPIRY_LABEL} after it was
-        generated.
-      </small>
+      <small>{t("listing_qr.qr_expiry_note", { time: EXPIRY_LABEL })}</small>
     </p>
     <label>
-      Link
+      {t("listing_qr.link")}
       <input
         data-qr-link
         data-select-on-click
@@ -159,38 +158,40 @@ export const adminListingQrPage = ({
   const formAction = `/admin/listing/${listing.id}/qr`;
   const refreshUrl = `/admin/listing/${listing.id}/qr.json`;
   return String(
-    <Layout title={`QR Code: ${listing.name}`}>
+    <Layout title={t("listing_qr.title", { name: listing.name })}>
       <AdminNav active="/admin/" session={session} />
       <article>
         <div class="prose">
           <h1>
-            Booking QR code &mdash;{" "}
+            {t("listing_qr.page_title")}{" "}
             <a href={`/admin/listing/${listing.id}`}>{listing.name}</a>
           </h1>
           <p>
-            Generate a signed link that pre-fills the booking form. If name and
-            price are both set and the listing has no extra required fields{" "}
+            {t("listing_qr.page_description_start")}{" "}
             <span class={canDirectCheckout ? "success-text" : "danger-text"}>
-              (this <strong>{canDirectCheckout ? "is" : "is not"}</strong> the
-              case)
+              (
+              {t("listing_qr.page_description_condition", {
+                state: canDirectCheckout ? "is" : "is not",
+              })}
+              )
             </span>
-            , the scanner is taken straight to payment.
+            {t("listing_qr.page_description_end")}
           </p>
         </div>
         <Flash error={error} />
         <CsrfForm action={formAction}>
           <label>
-            Customer name
+            {t("listing_qr.customer_name")}
             <input
               name="customer_name"
               type="text"
               value={values.customer_name}
             />
-            <small>Optional &mdash; pre-fills the name field.</small>
+            <small>{t("listing_qr.customer_name_help")}</small>
           </label>
           <PriceInput listing={listing} value={values.value} />
           <label>
-            Quantity
+            {t("listing_qr.quantity")}
             <input
               max={listing.max_quantity}
               min="1"
@@ -201,7 +202,9 @@ export const adminListingQrPage = ({
             />
           </label>
           {isDaily && <DateSelect dates={bookableDates} value={values.date} />}
-          <SubmitButton icon="plus">Generate QR code</SubmitButton>
+          <SubmitButton icon="plus">
+            {t("listing_qr.generate_button")}
+          </SubmitButton>
         </CsrfForm>
         {result && (
           <QrResultPanel
