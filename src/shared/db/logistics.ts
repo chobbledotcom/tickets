@@ -8,7 +8,12 @@
  * that in one place, separate from the core attendee create/edit machinery.
  */
 
-import { executeBatch, inPlaceholders, queryAll } from "#shared/db/client.ts";
+import {
+  executeBatch,
+  getDb,
+  inPlaceholders,
+  queryAll,
+} from "#shared/db/client.ts";
 
 /** A start/end agent pair (null = unassigned) plus optional start/end times
  * ("" when unset). Times are logistics-only metadata — never used for
@@ -112,6 +117,122 @@ export const getLogisticsAssignmentsForAttendees = async (
     listingId: row.listing_id,
     ...rowToAssignment(row),
   }));
+};
+
+/** Which leg of a delivery a run-sheet entry represents. */
+export type DeliveryLegKind = "start" | "end";
+
+/** One leg of a booking on an agent's run sheet: a drop-off (`start`) or a
+ * collection (`end`) for a single logistics agent on a single calendar date. */
+export type AgentRunLeg = {
+  kind: DeliveryLegKind;
+  attendeeId: number;
+  listingId: number;
+  agentId: number;
+  /** Calendar date of this leg (YYYY-MM-DD, from start_at/end_at). */
+  date: string;
+  /** Logistics time label ("" when unset). */
+  time: string;
+  done: boolean;
+};
+
+type RunSheetRow = {
+  attendee_id: number;
+  listing_id: number;
+  start_agent_id: number | null;
+  end_agent_id: number | null;
+  start_time: string;
+  end_time: string;
+  start_done: number;
+  end_done: number;
+  start_date: string | null;
+  end_date: string | null;
+};
+
+/**
+ * Load the run-sheet legs for a set of logistics agents on the given calendar
+ * dates. A booking contributes a `start` leg when its drop-off agent is one of
+ * `agentIds` and its drop-off date is in `dates`, and likewise an `end` leg for
+ * collection. Empty input yields no query.
+ */
+export const getAgentRunSheet = async (
+  agentIds: number[],
+  dates: string[],
+): Promise<AgentRunLeg[]> => {
+  if (agentIds.length === 0 || dates.length === 0) return [];
+  const agentPlaceholders = inPlaceholders(agentIds);
+  const datePlaceholders = inPlaceholders(dates);
+  const rows = await queryAll<RunSheetRow>(
+    `SELECT attendee_id, listing_id, start_agent_id, end_agent_id,
+            start_time, end_time, start_done, end_done,
+            DATE(start_at) AS start_date, DATE(end_at) AS end_date
+     FROM listing_attendees
+     WHERE (start_agent_id IN (${agentPlaceholders}) AND DATE(start_at) IN (${datePlaceholders}))
+        OR (end_agent_id IN (${agentPlaceholders}) AND DATE(end_at) IN (${datePlaceholders}))`,
+    [...agentIds, ...dates, ...agentIds, ...dates],
+  );
+  const agentSet = new Set(agentIds);
+  const dateSet = new Set(dates);
+  const legs: AgentRunLeg[] = [];
+  for (const row of rows) {
+    if (
+      row.start_agent_id !== null &&
+      agentSet.has(row.start_agent_id) &&
+      row.start_date !== null &&
+      dateSet.has(row.start_date)
+    ) {
+      legs.push({
+        agentId: row.start_agent_id,
+        attendeeId: row.attendee_id,
+        date: row.start_date,
+        done: row.start_done === 1,
+        kind: "start",
+        listingId: row.listing_id,
+        time: row.start_time,
+      });
+    }
+    if (
+      row.end_agent_id !== null &&
+      agentSet.has(row.end_agent_id) &&
+      row.end_date !== null &&
+      dateSet.has(row.end_date)
+    ) {
+      legs.push({
+        agentId: row.end_agent_id,
+        attendeeId: row.attendee_id,
+        date: row.end_date,
+        done: row.end_done === 1,
+        kind: "end",
+        listingId: row.listing_id,
+        time: row.end_time,
+      });
+    }
+  }
+  return legs;
+};
+
+/**
+ * Mark a booking leg done/undone, but only when the leg's logistics agent is
+ * one of `agentIds` — this enforces that an agent user can only update their
+ * own runs. Returns true when a row was updated (i.e. the agent owns the leg).
+ */
+export const setLegDone = async (
+  attendeeId: number,
+  listingId: number,
+  kind: DeliveryLegKind,
+  done: boolean,
+  agentIds: number[],
+): Promise<boolean> => {
+  if (agentIds.length === 0) return false;
+  const doneColumn = kind === "start" ? "start_done" : "end_done";
+  const agentColumn = kind === "start" ? "start_agent_id" : "end_agent_id";
+  const result = await getDb().execute({
+    args: [done ? 1 : 0, attendeeId, listingId, ...agentIds],
+    sql: `UPDATE listing_attendees SET ${doneColumn} = ?
+          WHERE attendee_id = ? AND listing_id = ?
+            AND ${agentColumn} IN (${inPlaceholders(agentIds)})`,
+  });
+  return result.rowsAffected > 0;
 };
 
 /** Clear every booking reference to an agent (used before deleting it). */

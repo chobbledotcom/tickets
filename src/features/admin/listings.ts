@@ -711,7 +711,7 @@ const listingToggleHandlers = (opts: {
   action: string;
   renderPage: (
     listing: ListingWithCount,
-    session: { readonly adminLevel: "owner" | "manager" },
+    session: AdminSession,
     error?: string,
   ) => string;
 }) =>

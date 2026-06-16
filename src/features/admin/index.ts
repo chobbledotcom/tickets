@@ -20,6 +20,7 @@ import { bulkEmailRoutes } from "#routes/admin/bulk-email.ts";
 import { calendarRoutes } from "#routes/admin/calendar.ts";
 import { dashboardRoutes } from "#routes/admin/dashboard.ts";
 import { debugRoutes } from "#routes/admin/debug.ts";
+import { deliveriesRoutes } from "#routes/admin/deliveries.ts";
 import { groupsRoutes } from "#routes/admin/groups.ts";
 import { guideRoutes } from "#routes/admin/guide.ts";
 import { holidaysRoutes } from "#routes/admin/holidays.ts";
@@ -46,6 +47,7 @@ import { settings } from "#shared/db/settings.ts";
 const adminRouteModules: Record<string, RouteHandlerFn>[] = [
   dashboardRoutes,
   authRoutes,
+  deliveriesRoutes,
   apiKeysRoutes,
   settingsRoutes,
   logisticsRoutes,
@@ -90,10 +92,11 @@ type RouterFn = ReturnType<typeof createRouter>;
  * Layout template renders the debug footer inline.
  */
 export const routeAdmin: RouterFn = async (request, path, method, server) => {
-  // Check admin status before tracking so the auth queries aren't logged
+  // Check admin status before tracking so the auth queries aren't logged.
+  // Only staff get the query-log debug footer — delivery agents never see it.
   const session = await getAuthenticatedSession(request);
 
-  if (method === "GET" && session) {
+  if (method === "GET" && session && session.adminLevel !== "agent") {
     enableQueryLog();
     await settings.loadAll();
   }

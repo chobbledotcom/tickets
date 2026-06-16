@@ -4,7 +4,11 @@
 
 import { ConfirmForm, CsrfForm, Flash, renderFields } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import type { AdminLevel, AdminSession } from "#shared/types.ts";
+import type {
+  AdminLevel,
+  AdminSession,
+  LogisticsAgent,
+} from "#shared/types.ts";
 import { AdminNav, UsersSubNav } from "#templates/admin/nav.tsx";
 import {
   ActionButton,
@@ -17,12 +21,45 @@ import { Layout } from "#templates/layout.tsx";
 /** Displayable user info (decrypted) */
 export interface DisplayUser {
   adminLevel: AdminLevel;
+  /** For agent users: the names of the logistics agents they're assigned to. */
+  agentNames?: string[];
   hasDataKey: boolean;
   hasPassword: boolean;
   id: number;
   inviteExpired: boolean;
   username: string;
 }
+
+/** Checkbox list for picking the logistics agents an agent user drives.
+ * Submits the chosen ids under the repeated `agent_ids` field. */
+const AgentSelector = ({
+  agents,
+  selected,
+}: {
+  agents: LogisticsAgent[];
+  selected: ReadonlySet<number>;
+}): JSX.Element => (
+  <fieldset class="checkboxes">
+    <legend>Assigned logistics agents</legend>
+    <p>
+      <small>
+        Delivery agents see the run sheet only for the logistics agents ticked
+        here. Ignored for owners and managers.
+      </small>
+    </p>
+    {agents.map((agent) => (
+      <label>
+        <input
+          checked={selected.has(agent.id) || undefined}
+          name="agent_ids"
+          type="checkbox"
+          value={String(agent.id)}
+        />
+        {` ${agent.name}`}
+      </label>
+    ))}
+  </fieldset>
+);
 
 /** Status label for a user */
 const userStatus = (user: DisplayUser): string => {
@@ -89,7 +126,19 @@ export const adminUsersPage = (
             {users.map((user) => (
               <tr>
                 <td>{user.username}</td>
-                <td>{user.adminLevel}</td>
+                <td>
+                  {user.adminLevel}
+                  {user.adminLevel === "agent" && (
+                    <>
+                      <br />
+                      <small>
+                        {user.agentNames && user.agentNames.length > 0
+                          ? user.agentNames.join(", ")
+                          : "No agents assigned"}
+                      </small>
+                    </>
+                  )}
+                </td>
                 <td>{userStatus(user)}</td>
                 <td>
                   {user.hasPassword && !user.hasDataKey && (
@@ -99,6 +148,9 @@ export const adminUsersPage = (
                     >
                       <SubmitButton icon="check">Activate</SubmitButton>
                     </CsrfForm>
+                  )}
+                  {user.adminLevel === "agent" && (
+                    <a href={`/admin/users/${user.id}/agents`}>Agents</a>
                   )}
                 </td>
                 <td>
@@ -152,6 +204,7 @@ export const adminUserDeletePage = (
  */
 export const adminUserNewPage = (
   session: AdminSession,
+  agents: LogisticsAgent[],
   error?: string,
 ): string =>
   String(
@@ -162,7 +215,42 @@ export const adminUserNewPage = (
         <h1>Invite User</h1>
         <Flash error={error} />
         <Raw html={renderFields(inviteUserFields)} />
+        {agents.length > 0 && (
+          <AgentSelector agents={agents} selected={new Set()} />
+        )}
         <SubmitButton icon="user-plus">Create Invite</SubmitButton>
       </CsrfForm>
+    </Layout>,
+  );
+
+/**
+ * Admin page for editing which logistics agents an agent user drives.
+ */
+export const adminUserAgentsPage = (
+  user: DisplayUser,
+  agents: LogisticsAgent[],
+  selectedIds: ReadonlySet<number>,
+  session: AdminSession,
+  error?: string,
+): string =>
+  String(
+    <Layout title={`Agents: ${user.username}`}>
+      <AdminNav active="/admin/users" session={session} />
+
+      <h1>Assigned agents for {user.username}</h1>
+      <Flash error={error} />
+      {agents.length === 0 ? (
+        <p>
+          <em>
+            No logistics agents exist yet. Add some under{" "}
+            <a href="/admin/logistics">Logistics</a>.
+          </em>
+        </p>
+      ) : (
+        <CsrfForm action={`/admin/users/${user.id}/agents`}>
+          <AgentSelector agents={agents} selected={selectedIds} />
+          <SubmitButton icon="save">Save Agents</SubmitButton>
+        </CsrfForm>
+      )}
     </Layout>,
   );
