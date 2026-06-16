@@ -6,9 +6,11 @@
  * start date plus a length — applied to every daily listing they book. The
  * listing editor is a fixed table with one quantity box per bookable listing
  * (plus any inactive listing the attendee already booked); quantity ≥ 1 books
- * it, 0 leaves it out, so there are no add/remove-line buttons. Not-booked rows
- * are hidden behind a "Show all listings" toggle (pure CSS). The form works
- * without JavaScript.
+ * it, 0 leaves it out, so there are no add/remove-line buttons. When something
+ * is already booked (an edit, or a create pre-filled from the calendar) the
+ * not-booked rows hide behind a "Show all listings" toggle (pure CSS); a bare
+ * create form has nothing booked, so it drops the toggle and shows every
+ * listing. The form works without JavaScript.
  */
 
 import { compact } from "#fp";
@@ -198,40 +200,59 @@ const ListingRow = ({
   );
 };
 
-/** The fixed listing editor: one quantity box per listing, with a "Show all
- * listings" toggle that reveals the not-booked rows (pure CSS). */
+/** The fixed listing editor: one quantity box per listing. When at least one
+ * line is already booked — an edit, or a create deep-linked from the calendar
+ * with pre-selected listings — the not-booked rows tuck behind an un-ticked
+ * "Show all listings" toggle (pure CSS). A bare create form has nothing booked,
+ * so every row would hide behind that toggle; there we drop it and show every
+ * listing instead. */
 const ListingEditor = ({
   data,
 }: {
   data: AttendeeFormTemplateData;
-}): JSX.Element => (
-  <div class="listing-editor">
-    <label class="show-all">
-      <input class="show-all-toggle" name={SHOW_ALL_FIELD} type="checkbox" />
-      Show all listings
-    </label>
-    <div class="table-scroll">
-      <table class="line-editor">
-        <thead>
-          <tr>
-            <th>Listing</th>
-            <th>Dates</th>
-            <th>Qty</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.parsed.lines.map((line) => (
-            <ListingRow
-              line={line}
-              warnings={data.lineWarnings.get(line.listingId) ?? []}
-            />
-          ))}
-        </tbody>
-      </table>
+}): JSX.Element => {
+  const hasBookedLines = data.parsed.lines.some(
+    (line) => isBookedLine(line) || Boolean(line.existingBooking),
+  );
+  return (
+    <div
+      class={
+        hasBookedLines ? "listing-editor" : "listing-editor show-all-listings"
+      }
+    >
+      {hasBookedLines && (
+        <label class="show-all">
+          <input
+            class="show-all-toggle"
+            name={SHOW_ALL_FIELD}
+            type="checkbox"
+          />
+          Show all listings
+        </label>
+      )}
+      <div class="table-scroll">
+        <table class="line-editor">
+          <thead>
+            <tr>
+              <th>Listing</th>
+              <th>Dates</th>
+              <th>Qty</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.parsed.lines.map((line) => (
+              <ListingRow
+                line={line}
+                warnings={data.lineWarnings.get(line.listingId) ?? []}
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 /** A single agent dropdown with a "none" option, pre-selecting `selected`. */
 const AgentSelect = ({

@@ -2361,7 +2361,8 @@ a.cal-day-selected:hover {
   cursor: pointer;
 }
 
-.listing-editor:not(:has(.show-all-toggle:checked)) .attendee-line-empty {
+.listing-editor:not(.show-all-listings):not(:has(.show-all-toggle:checked))
+  .attendee-line-empty {
   display: none;
 }
 
