@@ -80,9 +80,29 @@ describeWithEnv("db > processed payments", { db: true }, () => {
         status: 409,
       });
       const row = await isSessionProcessed("sess_failrt");
-      expect(parseSessionFailure(row!.failure_data)).toEqual({
+      expect(await parseSessionFailure(row!.failure_data)).toEqual({
         error: "Sold out",
         refunded: true,
+        status: 409,
+      });
+    });
+
+    test("stores failure_data encrypted at rest, not as plaintext", async () => {
+      await reserveSession("sess_failenc");
+      await markSessionFailed("sess_failenc", {
+        error: "Private Listing Name sold out",
+        status: 409,
+      });
+      const row = await isSessionProcessed("sess_failenc");
+      // The raw column is ciphertext: the user-facing message can embed an
+      // encrypted-at-rest listing name, so it must not be stored in the clear.
+      expect(row!.failure_data).not.toContain("Private Listing Name");
+      expect(row!.failure_data).not.toBe(
+        '{"error":"Private Listing Name sold out","status":409}',
+      );
+      // ...but it still round-trips back to the original via decrypt.
+      expect(await parseSessionFailure(row!.failure_data)).toEqual({
+        error: "Private Listing Name sold out",
         status: 409,
       });
     });
@@ -98,7 +118,9 @@ describeWithEnv("db > processed payments", { db: true }, () => {
         status: 409,
       });
       const row = await isSessionProcessed("sess_failtwice");
-      expect(parseSessionFailure(row!.failure_data)?.error).toBe("First");
+      expect((await parseSessionFailure(row!.failure_data))?.error).toBe(
+        "First",
+      );
     });
 
     test("never stamps a failure onto a finalized (successful) session", async () => {
@@ -125,14 +147,14 @@ describeWithEnv("db > processed payments", { db: true }, () => {
       expect(row!.failure_data).toBe("");
     });
 
-    test("parseSessionFailure returns null when no failure is recorded", () => {
-      expect(parseSessionFailure("")).toBeNull();
+    test("parseSessionFailure returns null when no failure is recorded", async () => {
+      expect(await parseSessionFailure("")).toBeNull();
     });
 
-    test("parseSessionFailure degrades corrupt data to a terminal failure instead of throwing", () => {
-      const result = parseSessionFailure("not valid json{");
-      // Corrupt failure_data must not crash the replay path; it resolves to a
-      // generic terminal failure (non-empty message, server-error status).
+    test("parseSessionFailure degrades undecryptable data to a terminal failure instead of throwing", async () => {
+      const result = await parseSessionFailure("not valid ciphertext{");
+      // A value that won't decrypt/parse must not crash the replay path; it
+      // resolves to a generic terminal failure (non-empty message, 500 status).
       expect(result?.status).toBe(500);
       expect((result?.error.length ?? 0) > 0).toBe(true);
     });

@@ -42,10 +42,12 @@ export type ProcessedPayment = {
   attendee_id: number | null;
   processed_at: string;
   ticket_tokens: string;
-  /** JSON-encoded {@link StoredPaymentFailure} once a session reaches a handled
-   * terminal failure (refund issued, sold out, price changed, …); "" while a
-   * row is in-progress or finalized. Lets a later redirect/webhook replay the
-   * same outcome instead of re-running refund logic. */
+  /** Encrypted JSON-encoded {@link StoredPaymentFailure} once a session reaches a
+   * handled terminal failure (refund issued, sold out, price changed, …); "" while
+   * a row is in-progress or finalized. Encrypted at rest (like ticket_tokens)
+   * because the stored message can embed an encrypted-at-rest listing name. Lets a
+   * later redirect/webhook replay the same outcome instead of re-running refund
+   * logic. */
   failure_data: string;
 };
 
@@ -54,6 +56,11 @@ export type ProcessedPayment = {
  * webhook retry replays the same terminal result (user-facing message, HTTP
  * status, and whether a refund was already issued) without re-validating the
  * listing or re-attempting the refund.
+ *
+ * Persisted encrypted (see {@link markSessionFailed} / failure_data): `error`
+ * can embed an encrypted-at-rest listing name, so it must never be stored in the
+ * clear. Keep this shape free of any field that shouldn't round-trip through the
+ * DB encryption key.
  */
 export type StoredPaymentFailure = {
   error: string;
@@ -204,7 +211,7 @@ export const markSessionFailed = async (
   failure: StoredPaymentFailure,
 ): Promise<void> => {
   await getDb().execute({
-    args: [JSON.stringify(failure), sessionId],
+    args: [await encrypt(JSON.stringify(failure)), sessionId],
     sql: `UPDATE processed_payments SET failure_data = ? WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION}`,
   });
 };
@@ -217,16 +224,17 @@ const CORRUPT_FAILURE: StoredPaymentFailure = {
 
 /**
  * Parse a stored terminal failure, or null when the row carries none. We only
- * ever write valid JSON (via {@link markSessionFailed}), but a corrupt value
- * (restore, manual edit) must not crash the replay path — it degrades to a
- * generic terminal failure so the session still resolves instead of looping.
+ * ever write valid encrypted JSON (via {@link markSessionFailed}), but a value
+ * that won't decrypt or parse (restore, manual edit, rotated key) must not crash
+ * the replay path — it degrades to a generic terminal failure so the session
+ * still resolves instead of looping.
  */
-export const parseSessionFailure = (
+export const parseSessionFailure = async (
   failureData: string,
-): StoredPaymentFailure | null => {
+): Promise<StoredPaymentFailure | null> => {
   if (!failureData) return null;
   try {
-    return JSON.parse(failureData) as StoredPaymentFailure;
+    return JSON.parse(await decrypt(failureData)) as StoredPaymentFailure;
   } catch {
     return CORRUPT_FAILURE;
   }

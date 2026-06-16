@@ -485,10 +485,10 @@ type ValidatedItem = {
 };
 
 /** Handle the "already reserved" branch of reserveSession */
-const handleReservationConflict = (
+const handleReservationConflict = async (
   intent: BookingIntent,
   existing: ProcessedPayment,
-): Promise<PaymentResult> | PaymentResult => {
+): Promise<PaymentResult> => {
   if (existing.attendee_id !== null) {
     return alreadyProcessedResult(intent.items[0]!.e, {
       ...existing,
@@ -497,8 +497,8 @@ const handleReservationConflict = (
   }
   // A recorded terminal failure replays the same handled outcome (refund
   // already issued, sold out, price changed) without re-validating or
-  // re-refunding.
-  const failure = parseSessionFailure(existing.failure_data);
+  // re-refunding. failure_data is encrypted, so this read is async.
+  const failure = await parseSessionFailure(existing.failure_data);
   if (failure) return { ...failure, success: false };
   // Otherwise reserved but not finalized — another request is mid-flight.
   return {
