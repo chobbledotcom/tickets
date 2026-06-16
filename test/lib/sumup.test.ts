@@ -346,7 +346,10 @@ describe("sumup", () => {
         expect(result.ok).toBe(false);
         expect(result.apiKey.valid).toBe(false);
         expect(result.apiKey.error).toContain("401");
-        // The opaque SumUp body is replaced with a hint about the likely cause.
+        // The opaque SumUp body is replaced with a hint about the likely causes:
+        // the public-vs-secret key mix-up first, then the cross-account mismatch.
+        expect(result.apiKey.error).toContain("Public API key");
+        expect(result.apiKey.error).toContain("secret API key");
         expect(result.apiKey.error).toContain("same SumUp account");
         expect(result.apiKey.error).not.toContain("detail");
       });

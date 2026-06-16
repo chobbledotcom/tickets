@@ -113,17 +113,19 @@ const getMerchantCode = (): string | null => {
 /**
  * Turn a failed merchant lookup into an actionable connection-test message.
  *
- * SumUp answers the merchant lookup with a 401 whenever it rejects the
- * credentials — most often because the API key was truncated on paste, or
- * because the API key and merchant code belong to different accounts (e.g. a
- * sandbox key with a live merchant code). The raw SumUp body is just an opaque
- * trace id, so for a 401 we replace it with guidance and pass other errors
- * (network failures, 5xx, etc.) through unchanged.
+ * SumUp answers the merchant lookup with a 401 whenever it rejects the API key.
+ * The most common cause is pasting the wrong key: the dashboard prominently
+ * shows a "Public API key", but checkouts need a *secret* API key created under
+ * For Developers → API Keys (shown only once). Less commonly the key was
+ * truncated on paste, or the key and merchant code belong to different accounts
+ * (e.g. a sandbox key with a live merchant code). The raw SumUp body is just an
+ * opaque trace id, so for a 401 we replace it with guidance and pass other
+ * errors (network failures, 5xx, etc.) through unchanged.
  */
 const sumupKeyError = (err: unknown): string => {
   const message = errorMessage(err);
   return message.startsWith("401")
-    ? "401 Unauthorized — SumUp rejected these credentials. Check the API key was copied in full, and that the API key and Merchant Code belong to the same SumUp account (a sandbox key will not work with a live merchant code, or vice-versa)."
+    ? '401 Unauthorized — SumUp rejected this API key. The most common cause is using the wrong key: the "Public API key" shown on the SumUp dashboard will not work here. You need a secret API key — create one under For Developers → API Keys (https://me.sumup.com/en-gb/settings/api-keys), then copy the key it shows you, which is only displayed once. If you are already using a secret key, check it was copied in full and that the API key and Merchant Code belong to the same SumUp account (a sandbox key will not work with a live merchant code, or vice-versa).'
     : message;
 };
 

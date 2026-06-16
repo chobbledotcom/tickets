@@ -1797,9 +1797,10 @@ button.secondary:hover,
   text-decoration: underline;
 }
 
-/* Stripe/Square test result */
+/* Stripe/Square/SumUp test result */
 .stripe-test-result,
-.square-test-result {
+.square-test-result,
+.sumup-test-result {
   white-space: pre-wrap;
 }
 
