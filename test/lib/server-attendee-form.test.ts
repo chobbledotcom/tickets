@@ -132,6 +132,40 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       expect(html).toMatch(new RegExp(`name="qty_${b.id}"[^>]*value="1"`));
     });
 
+    test("omits the 'Show all listings' toggle on a bare create form", async () => {
+      // Nothing is booked yet, so an un-ticked toggle would hide every row.
+      // Instead the form drops the toggle and shows every listing.
+      await createTestListing({ maxAttendees: 100, name: "Pick Me" });
+      const response = await awaitTestRequest("/admin/attendees/new", {
+        cookie: await testCookie(),
+      });
+      const html = await expectHtmlResponse(response, 200);
+      expect(html).not.toContain("Show all listings");
+      expect(html).not.toContain('name="show_all"');
+      // The editor carries the show-all modifier so the not-booked rows stay
+      // visible despite the CSS that hides them under the toggle.
+      expect(html).toContain("listing-editor show-all-listings");
+    });
+
+    test("keeps the un-ticked 'Show all listings' toggle when listings are pre-filled", async () => {
+      // A calendar deep link pre-selects a listing; the other rows stay tucked
+      // behind the toggle, which starts un-ticked.
+      const picked = await createTestListing({
+        maxAttendees: 100,
+        name: "Kayak",
+      });
+      await createTestListing({ maxAttendees: 100, name: "Canoe" });
+      const response = await awaitTestRequest(
+        `/admin/attendees/new?select_${picked.id}=1`,
+        { cookie: await testCookie() },
+      );
+      const html = await expectHtmlResponse(response, 200, "Show all listings");
+      expect(html).toContain('name="show_all"');
+      // Un-ticked: the checkbox carries no `checked` attribute.
+      expect(html).not.toMatch(/name="show_all"[^>]*checked/);
+      expect(html).not.toContain("listing-editor show-all-listings");
+    });
+
     test("pre-fills the shared start date from the deep link", async () => {
       const listing = await createDailyTestListing({ name: "Daily Pick" });
       const response = await awaitTestRequest(
@@ -192,6 +226,24 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       // The shared day-count select preselects the booking's current 2-day span.
       expect(html).toContain('id="day_count"');
       expect(hasSelectedOption(html, "2")).toBe(true);
+    });
+
+    test("keeps the 'Show all listings' toggle on the edit form", async () => {
+      // An existing attendee always has a booked line, so the toggle stays to
+      // tuck the not-booked rows away — the show-all modifier is not applied.
+      const listing = await createTestListing({
+        maxAttendees: 100,
+        name: "Booked",
+      });
+      const result = await bookAttendee(listing);
+      const attendeeId = result.success ? result.attendees[0]!.id : 0;
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendeeId}`,
+        { cookie: await testCookie() },
+      );
+      const html = await expectHtmlResponse(response, 200, "Show all listings");
+      expect(html).toContain('name="show_all"');
+      expect(html).not.toContain("listing-editor show-all-listings");
     });
 
     test("preserves return_url as a hidden field when provided", async () => {
