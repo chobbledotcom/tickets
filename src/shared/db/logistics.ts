@@ -130,7 +130,8 @@ export type AgentRunLeg = {
   attendeeId: number;
   listingId: number;
   agentId: number;
-  /** Calendar date of this leg (YYYY-MM-DD, from start_at/end_at). */
+  /** Calendar date of this leg (YYYY-MM-DD): the drop-off date for a `start`
+   * leg, and the last booked day (`end_at - 1 day`) for an `end` leg. */
   date: string;
   /** Logistics time label ("" when unset). */
   time: string;
@@ -173,6 +174,12 @@ const buildLeg = (
  * dates. A booking contributes a `start` leg when its drop-off agent is one of
  * `agentIds` and its drop-off date is in `dates`, and likewise an `end` leg for
  * collection. Empty input yields no query.
+ *
+ * `end_at` is the exclusive end of the booked window (the first midnight after
+ * it), so the collection happens on the *last booked day*, `end_at - 1 day`.
+ * That makes a one-day hire collected the same day it is dropped off, a two-day
+ * hire collected the next day, and so on. (Availability is unaffected: a hire
+ * still occupies the listing for its whole `[start_at, end_at)` span.)
  */
 export const getAgentRunSheet = async (
   agentIds: number[],
@@ -184,10 +191,10 @@ export const getAgentRunSheet = async (
   const rows = await queryAll<RunSheetRow>(
     `SELECT attendee_id, listing_id, start_agent_id, end_agent_id,
             start_time, end_time, start_done, end_done,
-            DATE(start_at) AS start_date, DATE(end_at) AS end_date
+            DATE(start_at) AS start_date, DATE(end_at, '-1 day') AS end_date
      FROM listing_attendees
      WHERE (start_agent_id IN (${agentPlaceholders}) AND DATE(start_at) IN (${datePlaceholders}))
-        OR (end_agent_id IN (${agentPlaceholders}) AND DATE(end_at) IN (${datePlaceholders}))`,
+        OR (end_agent_id IN (${agentPlaceholders}) AND DATE(end_at, '-1 day') IN (${datePlaceholders}))`,
     [...agentIds, ...dates, ...agentIds, ...dates],
   );
   const agentSet = new Set(agentIds);
