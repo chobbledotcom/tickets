@@ -39,14 +39,18 @@ describeWithEnv("server (admin built sites)", { db: true }, () => {
         name: "My Site",
       });
       const { response } = await adminGet("/admin/built-sites");
-      await expectHtmlResponse(
+      const html = await expectHtmlResponse(
         response,
         200,
         "My Site",
         "https://mysite.b-cdn.net",
         `/admin/built-sites/${site.id}/edit`,
-        `/admin/built-sites/${site.id}/delete`,
       );
+      // The site name links to the edit page; delete moved to that page.
+      expect(html).toContain(
+        `href="/admin/built-sites/${site.id}/edit">My Site</a>`,
+      );
+      expect(html).not.toContain(`/admin/built-sites/${site.id}/delete`);
     });
 
     test("shows Not assignable status for default sites", async () => {
@@ -233,6 +237,18 @@ describeWithEnv("server (admin built sites)", { db: true }, () => {
         "https://editme.b-cdn.net",
         "54321",
       );
+    });
+
+    test("renders the Secrets and Delete sections", async () => {
+      const site = await createTestBuiltSite({
+        bunnyScriptId: "8000",
+        name: "Sections",
+      });
+      const { response } = await adminGet(`/admin/built-sites/${site.id}/edit`);
+      const html = await expectHtmlResponse(response, 200, "Edit Built Site");
+      expect(html).toContain("Secrets");
+      expect(html).toContain(`/admin/built-sites/${site.id}/delete`);
+      expect(html).toContain("Delete this site");
     });
 
     test("returns 404 for non-existent built site", async () => {

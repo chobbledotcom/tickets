@@ -30,6 +30,10 @@ import {
   rotateRenewalToken,
   syncReadOnlyFrom,
 } from "#shared/site-assignment.ts";
+import {
+  addMissingSiteSecrets,
+  loadSiteSecretsStatus,
+} from "#shared/site-secrets.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
 import {
   adminBuiltSiteDeletePage,
@@ -147,11 +151,16 @@ const ownerPost =
 
 /** GET /admin/built-sites/:id/edit */
 const handleEditGet = (request: Request, params: RouteParams) =>
-  withOwnerAndSite(request, params, ({ site }, session) => {
+  withOwnerAndSite(request, params, async ({ site }, session) => {
     const flash = applyFlash(request);
-    return Promise.resolve(
-      htmlResponse(
-        adminBuiltSiteEditPage(site, session, flash.error, flash.success),
+    const secrets = await loadSiteSecretsStatus(site);
+    return htmlResponse(
+      adminBuiltSiteEditPage(
+        site,
+        session,
+        flash.error,
+        flash.success,
+        secrets,
       ),
     );
   });
@@ -174,6 +183,25 @@ const handleRotateToken = ownerPost(async (site, _form, id) => {
     "Renewal token rotated",
     "Renewal token could not be pushed to the site",
   );
+});
+
+/** POST /admin/built-sites/:id/add-secrets
+ *
+ * Backfills the secrets we copy to freshly built sites onto an existing site.
+ * Re-verifies the live secrets first, then sets only the ones still missing —
+ * an existing secret is never overwritten (it may have been changed for a
+ * reason). */
+const handleAddSecrets = ownerPost(async (site, _form, id) => {
+  const result = await addMissingSiteSecrets(site);
+  if (!result.ok) {
+    return editError(id, `Secrets could not be set: ${result.error}`);
+  }
+  if (result.added.length === 0) {
+    return editSuccess(id, "No missing secrets — nothing to set");
+  }
+  const summary = `${result.added.length} missing secret(s): ${result.added.join(", ")}`;
+  await logActivity(`Set ${summary} on '${site.name}'`);
+  return editSuccess(id, `Set ${summary}`);
 });
 
 /** POST /admin/built-sites/:id/bump-deadline */
@@ -271,6 +299,7 @@ export const builtSitesRoutes = {
   "GET /admin/built-sites": handleBuiltSitesListGet,
   // Override the CRUD-provided edit GET to pick up flash messages.
   "GET /admin/built-sites/:id/edit": handleEditGet,
+  "POST /admin/built-sites/:id/add-secrets": handleAddSecrets,
   "POST /admin/built-sites/:id/bump-deadline": handleBumpDeadline,
   "POST /admin/built-sites/:id/override-deadline": handleOverrideDeadline,
   "POST /admin/built-sites/:id/provision-renewal": handleProvisionRenewal,

@@ -11,6 +11,7 @@ import {
   getAllBuiltSites,
   updateBuiltSiteRenewalState,
 } from "#shared/db/built-sites.ts";
+import { expectedSiteSecrets } from "#shared/site-secrets.ts";
 import {
   adminFormPost,
   createTestBuiltSite,
@@ -592,3 +593,157 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
     });
   });
 });
+
+describeWithEnv(
+  "admin built-sites add-secrets",
+  {
+    db: true,
+    env: { BUNNY_API_KEY: "k", NTFY_URL: "https://ntfy.example.com/t" },
+  },
+  () => {
+    /** Stub the live secret list + a recording setEdgeScriptSecret. */
+    const stubSecrets = (present: string[]) => {
+      const setCalls: { name: string; value: string }[] = [];
+      const listStub = stub(bunnyCdnApi, "listEdgeScriptSecrets", () =>
+        Promise.resolve({
+          ok: true as const,
+          secrets: present.map((Name) => ({
+            Id: 1,
+            LastModified: "2026-01-01T00:00:00Z",
+            Name,
+          })),
+        }),
+      );
+      const setStub = stub(
+        bunnyCdnApi,
+        "setEdgeScriptSecret",
+        (_id: number, name: string, value: string) => {
+          setCalls.push({ name, value });
+          return Promise.resolve({ ok: true as const });
+        },
+      );
+      return {
+        restore: () => {
+          listStub.restore();
+          setStub.restore();
+        },
+        setCalls,
+      };
+    };
+
+    test("backfills secrets missing from the live list and logs the change", async () => {
+      const site = await createTestBuiltSite({
+        bunnyScriptId: "7100",
+        dbToken: "tok",
+        dbUrl: "libsql://u",
+        name: "Backfill Site",
+      });
+      const secrets = stubSecrets([]); // nothing live yet — everything is missing
+      try {
+        const { response } = await adminFormPost(
+          `/admin/built-sites/${site.id}/add-secrets`,
+        );
+        expectRedirectWithFlash(
+          `/admin/built-sites/${site.id}/edit`,
+          expect.stringContaining("missing secret(s)"),
+        )(response);
+
+        const setNames = secrets.setCalls.map((c) => c.name);
+        expect(setNames).toContain("NTFY_URL");
+        expect(setNames).toContain("DB_URL");
+        // The unreproducible encryption key is never set.
+        expect(setNames).not.toContain("DB_ENCRYPTION_KEY");
+
+        const logs = await getAllActivityLog();
+        expect(logs.some((l) => l.message.includes("missing secret"))).toBe(
+          true,
+        );
+      } finally {
+        secrets.restore();
+      }
+    });
+
+    test("never overwrites a secret that already exists on the site", async () => {
+      const site = await createTestBuiltSite({
+        bunnyScriptId: "7101",
+        dbToken: "tok",
+        dbUrl: "libsql://u",
+        name: "No Overwrite Site",
+      });
+      // Live list already has everything expected except NTFY_URL.
+      const present = expectedSiteSecrets(site)
+        .map(([name]) => name)
+        .filter((name) => name !== "NTFY_URL");
+      const secrets = stubSecrets(present);
+      try {
+        const { response } = await adminFormPost(
+          `/admin/built-sites/${site.id}/add-secrets`,
+        );
+        expectRedirectWithFlash(
+          `/admin/built-sites/${site.id}/edit`,
+          "Set 1 missing secret(s): NTFY_URL",
+        )(response);
+        // Only the genuinely-missing secret is written.
+        expect(secrets.setCalls.map((c) => c.name)).toEqual(["NTFY_URL"]);
+      } finally {
+        secrets.restore();
+      }
+    });
+
+    test("reports nothing to do when every expected secret is present", async () => {
+      const site = await createTestBuiltSite({
+        bunnyScriptId: "7102",
+        dbToken: "tok",
+        dbUrl: "libsql://u",
+        name: "All Present Site",
+      });
+      const present = expectedSiteSecrets(site).map(([name]) => name);
+      const secrets = stubSecrets(present);
+      try {
+        const { response } = await adminFormPost(
+          `/admin/built-sites/${site.id}/add-secrets`,
+        );
+        expectRedirectWithFlash(
+          `/admin/built-sites/${site.id}/edit`,
+          "No missing secrets — nothing to set",
+        )(response);
+        expect(secrets.setCalls.length).toBe(0);
+      } finally {
+        secrets.restore();
+      }
+    });
+
+    test("surfaces an error when a secret cannot be set", async () => {
+      const site = await createTestBuiltSite({
+        bunnyScriptId: "7103",
+        name: "Push Fail Site",
+      });
+      const listStub = stub(bunnyCdnApi, "listEdgeScriptSecrets", () =>
+        Promise.resolve({ ok: true as const, secrets: [] }),
+      );
+      const setStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
+        Promise.resolve({ error: "edge push failed", ok: false as const }),
+      );
+      try {
+        const { response } = await adminFormPost(
+          `/admin/built-sites/${site.id}/add-secrets`,
+        );
+        expectRedirectWithFlash(
+          `/admin/built-sites/${site.id}/edit`,
+          expect.stringContaining("Secrets could not be set"),
+          false,
+        )(response);
+      } finally {
+        listStub.restore();
+        setStub.restore();
+      }
+    });
+
+    test("returns 404 for a non-existent built site", async () => {
+      const { response } = await adminFormPost(
+        "/admin/built-sites/999999/add-secrets",
+      );
+      expect(response.status).toBe(404);
+    });
+  },
+);
