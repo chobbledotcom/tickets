@@ -203,6 +203,37 @@ const check = (file: string, expect: string[]): Result => {
     lines.push("  [C] ok    no obvious leftover literals");
   }
 
+  // E. Entity double-escape (HARD). A value holding an HTML entity rendered as a
+  // plain {t()} child/attr gets escaped AGAIN by the runtime (&amp; -> &amp;amp;):
+  // JSX source decodes &amp; to "&" at compile, so the message value must store
+  // the literal character. Such a value must either use the decoded character,
+  // or — if it is genuinely HTML — render via <Raw html={t(...)} />. Flag entity
+  // values whose t("key") call here is not in a Raw html={…} position.
+  const ENTITY = /&(?:amp|lt|gt|quot|apos|#39);/;
+  const esc = (k: string): string => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const entityHits: string[] = [];
+  for (const k of keySet) {
+    const v = messages[k];
+    if (v === undefined || !ENTITY.test(v)) continue;
+    const callRe = new RegExp(`t\\(\\s*(["'\`])${esc(k)}\\1`, "g");
+    for (const m of src.matchAll(callRe)) {
+      const before = src.slice(Math.max(0, m.index - 30), m.index);
+      if (!/Raw\s+html=\{\s*$/.test(before)) {
+        entityHits.push(`        ${k}: ${JSON.stringify(v).slice(0, 70)}`);
+        break;
+      }
+    }
+  }
+  if (entityHits.length) {
+    hardFail = true;
+    lines.push(
+      `  [E] FAIL ${entityHits.length} entity value(s) rendered as escaped child (decode the entity to its character, or use <Raw html={t(...)} />):`,
+    );
+    lines.push(...entityHits.slice(0, 10));
+  } else {
+    lines.push("  [E] ok    no double-escaped entities");
+  }
+
   return { file, hardFail, lines };
 };
 

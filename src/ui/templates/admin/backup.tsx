@@ -2,7 +2,9 @@
  * Admin backup/restore page template
  */
 
+import { t } from "#i18n";
 import { ConfirmForm, CsrfForm, Flash } from "#shared/forms.tsx";
+import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { AdminNav, SettingsSubNav } from "#templates/admin/nav.tsx";
 import { GuideLink, SubmitButton } from "#templates/components/actions.tsx";
@@ -39,11 +41,11 @@ const RetentionNote = ({
   return (
     <div class="prose">
       <p>
-        {count === 1 ? "There is 1 backup" : `There are ${count} backups`},
-        shown newest first. Up to {maxBackups} are kept —{" "}
+        {t("backup.retention_count", { count })}
+        {t("backup.retention_kept", { maxBackups })}
         {remaining > 0
-          ? `${remaining} more can be created before the oldest is purged.`
-          : `the next will purge the oldest (${oldest}).`}
+          ? t("backup.retention_remaining", { remaining })
+          : t("backup.retention_purge", { oldest })}
       </p>
     </div>
   );
@@ -56,42 +58,35 @@ export const adminBackupPage = (
   success?: string,
 ): string =>
   String(
-    <Layout title="Database Backup">
+    <Layout title={t("backup.page_title")}>
       <AdminNav active="/admin/settings" session={session} />
       <SettingsSubNav />
       <div class="prose">
-        <h1>Database Backup &amp; Restore</h1>
+        <h1>{t("backup.heading")}</h1>
         <p class="actions">
-          <GuideLink href="/admin/guide#backups">Backup guide</GuideLink>
+          <GuideLink href="/admin/guide#backups">
+            {t("backup.guide_link")}
+          </GuideLink>
         </p>
       </div>
       <Flash error={error} success={success} />
 
       {!state.isRemote && (
         <p>
-          <em>
-            Backup and restore is designed for remote databases (libsql://). You
-            are currently using a local database.
-          </em>
+          <em>{t("backup.local_database_warning")}</em>
         </p>
       )}
 
       {!state.storageEnabled && (
         <p>
-          <em>
-            Storage is not configured. Backups require Bunny CDN or local
-            storage to be enabled.
-          </em>
+          <em>{t("backup.storage_not_configured")}</em>
         </p>
       )}
 
       <section>
         <div class="prose">
-          <h2>Encryption Key</h2>
-          <p>
-            You will need this key to restore a backup to a different site.
-            Store it securely — it cannot be recovered.
-          </p>
+          <h2>{t("backup.encryption_key_heading")}</h2>
+          <p>{t("backup.encryption_key_description")}</p>
         </div>
         <pre>
           <code>{state.encryptionKey}</code>
@@ -102,27 +97,25 @@ export const adminBackupPage = (
         <>
           <section>
             <div class="prose">
-              <h2>Create Backup</h2>
-              <p>
-                Creates a .zip archive containing a .sql file for each database
-                table. Backups are not encrypted (the sensitive contents are
-                already encrypted at the field level).
-              </p>
+              <h2>{t("backup.create_backup_heading")}</h2>
+              <p>{t("backup.create_backup_description")}</p>
             </div>
             <CsrfForm
               action="/admin/backup/create"
               class="no-bg"
               id="backup-create"
             >
-              <SubmitButton icon="plus">Create Backup Now</SubmitButton>
+              <SubmitButton icon="plus">
+                {t("backup.create_button")}
+              </SubmitButton>
             </CsrfForm>
           </section>
 
           <section>
-            <h2>Existing Backups</h2>
+            <h2>{t("backup.existing_backups_heading")}</h2>
             {state.backups.length === 0 ? (
               <p>
-                <em>No backups found.</em>
+                <em>{t("backup.no_backups_found")}</em>
               </p>
             ) : (
               <>
@@ -133,9 +126,9 @@ export const adminBackupPage = (
                 <table>
                   <thead>
                     <tr>
-                      <th>Created</th>
-                      <th>Size</th>
-                      <th>Actions</th>
+                      <th>{t("backup.table_created")}</th>
+                      <th>{t("backup.table_size")}</th>
+                      <th>{t("backup.table_actions")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -145,7 +138,7 @@ export const adminBackupPage = (
                         <td>{b.sizeLabel}</td>
                         <td>
                           <a href={`/admin/backup/download/${b.filename}`}>
-                            Download
+                            {t("backup.download_link")}
                           </a>
                         </td>
                       </tr>
@@ -158,10 +151,9 @@ export const adminBackupPage = (
 
           <section>
             <div class="prose">
-              <h2>Restore from Backup</h2>
+              <h2>{t("backup.restore_heading")}</h2>
               <p>
-                <strong>Warning:</strong> Restoring will delete all current data
-                and replace it with the backup contents. This cannot be undone.
+                <Raw html={t("backup.restore_warning")} />
               </p>
             </div>
             <CsrfForm
@@ -170,10 +162,12 @@ export const adminBackupPage = (
               id="backup-restore"
             >
               <label>
-                Backup file (.zip)
+                {t("backup.backup_file_label")}
                 <input accept=".zip" name="backup_file" required type="file" />
               </label>
-              <SubmitButton icon="rotate-ccw">Upload &amp; Review</SubmitButton>
+              <SubmitButton icon="rotate-ccw">
+                {t("backup.upload_button")}
+              </SubmitButton>
             </CsrfForm>
           </section>
         </>
@@ -192,40 +186,37 @@ export const adminRestoreConfirmPage = (
   schemaMismatch?: boolean,
 ): string =>
   String(
-    <Layout title="Confirm Restore">
+    <Layout title={t("backup.confirm_restore_title")}>
       <AdminNav active="/admin/settings" session={session} />
       <SettingsSubNav />
 
       <ConfirmForm
         action="/admin/backup/restore/confirm"
-        buttonText="Restore Database"
+        buttonText={t("backup.restore_button")}
         hiddenFields={{ backup_filename: filename }}
         id="backup-restore-confirm"
-        label="Confirmation phrase"
+        label={t("backup.confirmation_label")}
         name={RESTORE_CONFIRM_PHRASE}
       >
-        <h1>Confirm Database Restore</h1>
+        <h1>{t("backup.confirm_restore_heading")}</h1>
         <Flash error={error} />
 
         {schemaMismatch && (
           <div class="error" role="alert">
-            <strong>Schema mismatch:</strong> This backup was created with a
-            different database schema version. The restore will apply current
-            migrations after importing data, but some data may be incompatible.
+            <Raw html={t("backup.schema_mismatch_warning")} />
           </div>
         )}
         <p>
-          You are about to restore from an uploaded backup containing{" "}
-          <strong>{lineCount}</strong> SQL statements. This will:
+          <Raw html={t("backup.restore_confirmation_intro", { lineCount })} />
         </p>
         <ul>
-          <li>Drop all existing tables</li>
-          <li>Recreate the database schema</li>
-          <li>Import all data from the backup</li>
+          <li>{t("backup.restore_step_drop_tables")}</li>
+          <li>{t("backup.restore_step_recreate_schema")}</li>
+          <li>{t("backup.restore_step_import_data")}</li>
         </ul>
         <p>
-          <strong>This action cannot be undone.</strong> Type{" "}
-          <code>{RESTORE_CONFIRM_PHRASE}</code> below to confirm.
+          <Raw html={t("backup.restore_cannot_undo")} />{" "}
+          <code>{RESTORE_CONFIRM_PHRASE}</code> {t("backup.restore_type_below")}
         </p>
       </ConfirmForm>
     </Layout>,
