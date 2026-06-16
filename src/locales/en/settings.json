@@ -56,7 +56,7 @@
   "settings.change_password": "Change Password",
   "settings.change_password_hint": "Changing your password will log you out of all sessions.",
   "settings.show_public_site": "Show public site?",
-  "settings.show_public_site_hint": "When enabled, the homepage will show a public website with navigation for Home, Listings, T&Cs and Contact pages.",
+  "settings.show_public_site_hint": "When enabled, the homepage will show a public website with navigation for Home, Listings, T&amp;Cs and Contact pages.",
   "settings.theme": "Site Theme",
   "settings.theme_hint": "Choose between light and dark themes for the site interface.",
   "settings.theme_light": "Light",
