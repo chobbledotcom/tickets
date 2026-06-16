@@ -17,7 +17,7 @@ import {
   adminHolidayNewPage,
   adminHolidaysPage,
 } from "#templates/admin/holidays.tsx";
-import { holidayFields } from "#templates/fields.ts";
+import { getHolidayFields } from "#templates/fields.ts";
 
 /** Extract holiday input from validated form values */
 const extractHolidayInput = (
@@ -38,7 +38,7 @@ export const validateDateRange = (
 
 /** Holidays resource for REST create/update operations */
 const holidaysResource = defineNamedResource({
-  fields: holidayFields,
+  fields: getHolidayFields(),
   nameField: "name",
   table: holidaysTable,
   toInput: extractHolidayInput,

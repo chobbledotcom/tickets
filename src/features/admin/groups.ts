@@ -46,8 +46,8 @@ import {
 import {
   type GroupCreateFormValues,
   type GroupFormValues,
-  groupCreateFields,
-  groupFields,
+  getGroupCreateFields,
+  getGroupFields,
 } from "#templates/fields.ts";
 import { withEntityLoader } from "./entity-handlers.ts";
 
@@ -116,7 +116,7 @@ const crudConfig = {
 
 /** Groups resource for REST create operations (auto-generated slug) */
 const groupsCreateResource = defineNamedResource({
-  fields: groupCreateFields,
+  fields: getGroupCreateFields(),
   nameField: "name",
   onDelete: deleteGroup,
   table: groupsTable,
@@ -125,7 +125,7 @@ const groupsCreateResource = defineNamedResource({
 
 /** Groups resource for REST update operations (user-provided slug) */
 const groupsResource = defineNamedResource({
-  fields: groupFields,
+  fields: getGroupFields(),
   nameField: "name",
   onDelete: deleteGroup,
   table: groupsTable,

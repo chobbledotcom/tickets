@@ -17,7 +17,7 @@ import { settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { validateForm } from "#shared/forms.tsx";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
-import { type SetupFormValues, setupFields } from "#templates/fields.ts";
+import { getSetupFields, type SetupFormValues } from "#templates/fields.ts";
 import { setupCompletePage, setupPage } from "#templates/setup.tsx";
 
 /** Response helper - renders setup page with current stored CSRF token */
@@ -39,7 +39,7 @@ const validateSetupForm = (form: FormParams): SetupValidation => {
   logDebug("Setup", "Validating form data...");
   logDebug("Setup", `Form keys: ${Array.from(form.keys()).join(", ")}`);
 
-  const validation = validateForm<SetupFormValues>(form, setupFields);
+  const validation = validateForm<SetupFormValues>(form, getSetupFields());
   if (!validation.valid) {
     logDebug("Setup", `Form framework validation failed: ${validation.error}`);
     return validation;

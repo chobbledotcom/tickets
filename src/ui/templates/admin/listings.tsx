@@ -52,14 +52,14 @@ import {
   SubmitButton,
 } from "#templates/components/actions.tsx";
 import {
-  assignBuiltSiteField,
-  attachmentField,
   getAddAttendeeFields,
-  imageField,
-  initialSiteMonthsField,
-  listingFields,
-  monthsPerUnitField,
-  slugField,
+  getAssignBuiltSiteField,
+  getAttachmentField,
+  getImageField,
+  getInitialSiteMonthsField,
+  getListingFields,
+  getMonthsPerUnitField,
+  getSlugField,
 } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 import { renderListingImage } from "#templates/public.tsx";
@@ -1131,22 +1131,25 @@ const listingFieldFormatters: Partial<
   unit_price: (e) => (e.unit_price > 0 ? toMajorUnits(e.unit_price) : ""),
 };
 
-const allListingFields: Field[] = [
-  ...listingFields,
-  monthsPerUnitField,
-  initialSiteMonthsField,
-  assignBuiltSiteField,
+const getAllListingFields = (): Field[] => [
+  ...getListingFields(),
+  getMonthsPerUnitField(),
+  getInitialSiteMonthsField(),
+  getAssignBuiltSiteField(),
 ];
 
 const listingToFieldValues = (listing: ListingWithCount): FieldValues =>
-  entityToFieldValues(listing, allListingFields, listingFieldFormatters, {
+  entityToFieldValues(listing, getAllListingFields(), listingFieldFormatters, {
     slug: listing.slug,
   });
 
 /** Listing fields with autofocus on the name field */
-const listingFieldsWithAutofocus: Field[] = pipe(
-  map((f: Field): Field => (f.name === "name" ? { ...f, autofocus: true } : f)),
-)(listingFields);
+const getListingFieldsWithAutofocus = (): Field[] =>
+  pipe(
+    map(
+      (f: Field): Field => (f.name === "name" ? { ...f, autofocus: true } : f),
+    ),
+  )(getListingFields());
 
 // ---------------------------------------------------------------------------
 // Sectioned listing form
@@ -1345,11 +1348,15 @@ export const adminListingNewPage = (
   const storageEnabled = isStorageEnabled();
   const builderEnabled = isBuilderEnabled();
   const fields = [
-    ...listingFields,
+    ...getListingFields(),
     ...(builderEnabled
-      ? [monthsPerUnitField, initialSiteMonthsField, assignBuiltSiteField]
+      ? [
+          getMonthsPerUnitField(),
+          getInitialSiteMonthsField(),
+          getAssignBuiltSiteField(),
+        ]
       : []),
-    ...(storageEnabled ? [imageField, attachmentField] : []),
+    ...(storageEnabled ? [getImageField(), getAttachmentField()] : []),
   ];
   return String(
     <Layout title={t("listings_table.add_listing")}>
@@ -1388,11 +1395,15 @@ export const adminDuplicateListingPage = (
   const builderEnabled = isBuilderEnabled();
   const storageEnabled = isStorageEnabled();
   const dupFields = [
-    ...listingFieldsWithAutofocus,
+    ...getListingFieldsWithAutofocus(),
     ...(builderEnabled
-      ? [monthsPerUnitField, initialSiteMonthsField, assignBuiltSiteField]
+      ? [
+          getMonthsPerUnitField(),
+          getInitialSiteMonthsField(),
+          getAssignBuiltSiteField(),
+        ]
       : []),
-    ...(storageEnabled ? [imageField, attachmentField] : []),
+    ...(storageEnabled ? [getImageField(), getAttachmentField()] : []),
   ];
 
   return String(
@@ -1443,12 +1454,16 @@ export const adminListingEditPage = (
   // Slug is editable only here (auto-generated on create), so it lives in the
   // edit form's field list rather than the shared definitions.
   const fields = [
-    ...listingFields,
+    ...getListingFields(),
     ...(builderEnabled
-      ? [monthsPerUnitField, initialSiteMonthsField, assignBuiltSiteField]
+      ? [
+          getMonthsPerUnitField(),
+          getInitialSiteMonthsField(),
+          getAssignBuiltSiteField(),
+        ]
       : []),
-    ...(storageEnabled ? [imageField, attachmentField] : []),
-    slugField,
+    ...(storageEnabled ? [getImageField(), getAttachmentField()] : []),
+    getSlugField(),
   ];
   const imagePreview =
     storageEnabled && listing.image_url

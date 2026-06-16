@@ -18,7 +18,7 @@ import {
   GuideLink,
   SubmitButton,
 } from "#templates/components/actions.tsx";
-import { holidayFields } from "#templates/fields.ts";
+import { getHolidayFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
 /**
@@ -83,7 +83,7 @@ export const adminHolidaysPage = (
 export const holidayToFieldValues = (
   holiday?: Holiday,
 ): Record<string, string | number | null> =>
-  entityToFieldValues(holiday, holidayFields, {});
+  entityToFieldValues(holiday, getHolidayFields(), {});
 
 /**
  * Admin holiday create page
@@ -98,7 +98,7 @@ export const adminHolidayNewPage = (
       <CsrfForm action="/admin/holidays">
         <h1>{t("holidays.add.heading")}</h1>
         <Flash error={error} />
-        <Raw html={renderFields(holidayFields)} />
+        <Raw html={renderFields(getHolidayFields())} />
         <SubmitButton icon="plus">{t("holidays.add.submit")}</SubmitButton>
       </CsrfForm>
     </Layout>,
@@ -119,7 +119,7 @@ export const adminHolidayEditPage = (
         <h1>{t("holidays.edit.heading")}</h1>
         <Flash error={error} />
         <Raw
-          html={renderFields(holidayFields, holidayToFieldValues(holiday))}
+          html={renderFields(getHolidayFields(), holidayToFieldValues(holiday))}
         />
         <SubmitButton icon="save">{t("holidays.edit.submit")}</SubmitButton>
       </CsrfForm>

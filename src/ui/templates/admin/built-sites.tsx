@@ -23,7 +23,7 @@ import {
   Icon,
   SubmitButton,
 } from "#templates/components/actions.tsx";
-import { builtSiteFields } from "#templates/fields.ts";
+import { getBuiltSiteFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
 /** Renewal tier summary row rendered beneath the built-sites table. */
@@ -176,7 +176,7 @@ export const adminBuiltSiteNewPage = (
       <CsrfForm action="/admin/built-sites">
         <h1>{t("built_sites.add_site_title")}</h1>
         <Flash error={error} />
-        <Raw html={renderFields(builtSiteFields)} />
+        <Raw html={renderFields(getBuiltSiteFields())} />
         <SubmitButton icon="plus">
           {t("built_sites.create_built_site_button")}
         </SubmitButton>
@@ -415,7 +415,10 @@ export const adminBuiltSiteEditPage = (
         <h1>{t("built_sites.edit_site_title")}</h1>
         <Flash error={error} success={success} />
         <Raw
-          html={renderFields(builtSiteFields, builtSiteToFieldValues(site))}
+          html={renderFields(
+            getBuiltSiteFields(),
+            builtSiteToFieldValues(site),
+          )}
         />
         <SubmitButton icon="save">
           {t("built_sites.save_changes_button")}

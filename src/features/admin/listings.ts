@@ -101,12 +101,12 @@ import type {
   ListingFormValues,
 } from "#templates/fields.ts";
 import {
-  assignBuiltSiteField,
-  groupIdField,
-  initialSiteMonthsField,
-  listingFields,
-  monthsPerUnitField,
-  slugField,
+  getAssignBuiltSiteField,
+  getGroupIdField,
+  getInitialSiteMonthsField,
+  getListingFields,
+  getMonthsPerUnitField,
+  getSlugField,
   splitCsv,
 } from "#templates/fields.ts";
 import { withEntityFromParam } from "./entity-handlers.ts";
@@ -197,13 +197,13 @@ const extractListingUpdateInput = async (
   return { ...extractCommonFields(values, form), slug, slugIndex };
 };
 
-/** Fields parsed for every listing create/update (slug added for updates). */
-const listingResourceFields: Field[] = [
-  ...listingFields,
-  monthsPerUnitField,
-  initialSiteMonthsField,
-  assignBuiltSiteField,
-  groupIdField,
+/** Build listing resource fields for every create/update. */
+const buildListingResourceFields = (): Field[] => [
+  ...getListingFields(),
+  getMonthsPerUnitField(),
+  getInitialSiteMonthsField(),
+  getAssignBuiltSiteField(),
+  getGroupIdField(),
 ];
 
 /**
@@ -213,7 +213,7 @@ const listingResourceFields: Field[] = [
  */
 const buildCreateListingResource = (form: FormParams) =>
   defineResource({
-    fields: listingResourceFields,
+    fields: buildListingResourceFields(),
     nameField: "name",
     table: listingsTable,
     toInput: (values: ListingFormValues) => extractListingInput(values, form),
@@ -223,7 +223,7 @@ const buildCreateListingResource = (form: FormParams) =>
 /** Build a per-request listings update resource (includes the slug field). */
 const buildUpdateListingResource = (form: FormParams) =>
   defineResource({
-    fields: [...listingResourceFields, slugField],
+    fields: [...buildListingResourceFields(), getSlugField()],
     nameField: "name",
     table: listingsTable,
     toInput: (values: ListingEditFormValues) =>

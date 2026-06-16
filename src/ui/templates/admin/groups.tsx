@@ -40,7 +40,7 @@ import {
   type TableQuestionData,
 } from "#templates/attendee-table.tsx";
 import { ActionButton, SubmitButton } from "#templates/components/actions.tsx";
-import { groupCreateFields, groupFields } from "#templates/fields.ts";
+import { getGroupCreateFields, getGroupFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
 /**
@@ -108,7 +108,7 @@ export const adminGroupsPage = (
 export const groupToFieldValues = (
   group?: Group,
 ): Record<string, string | number | null> =>
-  entityToFieldValues(group, groupFields, {
+  entityToFieldValues(group, getGroupFields(), {
     hidden: (g) => booleanToCheckbox(g.hidden),
     max_attendees: (g) => g.max_attendees || null,
   });
@@ -126,7 +126,9 @@ export const adminGroupNewPage = (
       <CsrfForm action="/admin/groups">
         <h1>{t("groups.add.heading")}</h1>
         <Flash error={error} />
-        <Raw html={renderFields(groupCreateFields, groupToFieldValues())} />
+        <Raw
+          html={renderFields(getGroupCreateFields(), groupToFieldValues())}
+        />
         <SubmitButton icon="plus">{t("groups.add.submit")}</SubmitButton>
       </CsrfForm>
     </Layout>,
@@ -146,7 +148,7 @@ export const adminGroupEditPage = (
       <CsrfForm action={`/admin/groups/${group.id}/edit`}>
         <h1>{t("groups.edit.heading")}</h1>
         <Flash error={error} />
-        <Raw html={renderFields(groupFields, groupToFieldValues(group))} />
+        <Raw html={renderFields(getGroupFields(), groupToFieldValues(group))} />
         <SubmitButton icon="save">{t("groups.edit.submit")}</SubmitButton>
       </CsrfForm>
     </Layout>,

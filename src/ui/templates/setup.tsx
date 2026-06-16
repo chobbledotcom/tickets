@@ -7,7 +7,7 @@ import { COUNTRIES, DEFAULT_COUNTRY } from "#shared/countries.ts";
 import { CsrfForm, Flash, renderFields } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { ActionButton } from "#templates/components/actions.tsx";
-import { setupFields } from "#templates/fields.ts";
+import { getSetupFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
 /**
@@ -74,7 +74,7 @@ export const setupPage = (error?: string): string =>
           <p>{t("setup.welcome")}</p>
         </div>
         <Flash error={error} />
-        <Raw html={renderFields(setupFields)} />
+        <Raw html={renderFields(getSetupFields())} />
         <div class="field">
           <label>
             {t("setup.country_label")}

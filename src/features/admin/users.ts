@@ -46,8 +46,8 @@ import {
   type UsersPageOpts,
 } from "#templates/admin/users.tsx";
 import {
+  getInviteUserFields,
   type InviteUserFormValues,
-  inviteUserFields,
 } from "#templates/fields.ts";
 
 /* jscpd:ignore-end */
@@ -127,7 +127,7 @@ const handleUsersPost = createAuthedFormRoute<InviteUserFormValues>({
   auth: OWNER_FORM,
   form: {
     validate: (form) =>
-      validateForm<InviteUserFormValues>(form, inviteUserFields),
+      validateForm<InviteUserFormValues>(form, getInviteUserFields()),
   },
   onInvalid: ({ error }) => errorRedirect("/admin/user/new", error),
   onValid: async ({ values }) => {

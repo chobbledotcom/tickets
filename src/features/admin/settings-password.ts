@@ -13,7 +13,7 @@ import { validateForm } from "#shared/forms.tsx";
 import { ok } from "#shared/response.ts";
 import {
   type ChangePasswordFormValues,
-  changePasswordFields,
+  getChangePasswordFields,
 } from "#templates/fields.ts";
 
 /**
@@ -28,7 +28,7 @@ const validateChangePasswordForm = (
 ): ChangePasswordValidation => {
   const validation = validateForm<ChangePasswordFormValues>(
     form,
-    changePasswordFields,
+    getChangePasswordFields(),
   );
   if (!validation.valid) {
     return validation;

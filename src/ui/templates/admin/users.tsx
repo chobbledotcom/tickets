@@ -12,7 +12,7 @@ import {
   GuideLink,
   SubmitButton,
 } from "#templates/components/actions.tsx";
-import { inviteUserFields } from "#templates/fields.ts";
+import { getInviteUserFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
 /** Displayable user info (decrypted) */
@@ -166,7 +166,7 @@ export const adminUserNewPage = (
       <CsrfForm action="/admin/users">
         <h1>{t("users.invite.heading")}</h1>
         <Flash error={error} />
-        <Raw html={renderFields(inviteUserFields)} />
+        <Raw html={renderFields(getInviteUserFields())} />
         <SubmitButton icon="user-plus">{t("users.invite.submit")}</SubmitButton>
       </CsrfForm>
     </Layout>,

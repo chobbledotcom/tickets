@@ -33,7 +33,7 @@ import { validateForm } from "#shared/forms.tsx";
 import { nowMs } from "#shared/now.ts";
 import { fail, ok } from "#shared/response.ts";
 import { getSkipLoginDelay } from "#shared/test-overrides.ts";
-import { type LoginFormValues, loginFields } from "#templates/fields.ts";
+import { getLoginFields, type LoginFormValues } from "#templates/fields.ts";
 
 /** Random delay between 100-200ms to prevent timing attacks */
 const randomDelay = (): Promise<void> =>
@@ -94,7 +94,7 @@ const handleAdminLogin = async (
     });
   };
 
-  const validation = validateForm<LoginFormValues>(form, loginFields);
+  const validation = validateForm<LoginFormValues>(form, getLoginFields());
 
   if (!validation.valid) {
     return fail("/admin", validation.error);

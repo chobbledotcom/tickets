@@ -9,10 +9,10 @@ import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import {
-  squareAccessTokenFields,
-  squareWebhookFields,
-  stripeKeyFields,
-  sumupFields,
+  getSquareAccessTokenFields,
+  getSquareWebhookFields,
+  getStripeKeyFields,
+  getSumupFields,
 } from "#templates/fields.ts";
 
 export const PaymentProviderForm = (s: SettingsPageState): JSX.Element => (
@@ -120,7 +120,7 @@ export const StripeForm = (s: SettingsPageState): JSX.Element | null =>
       </p>
       <Raw
         html={renderFields(
-          stripeKeyFields,
+          getStripeKeyFields(),
           s.stripeKeyConfigured ? { stripe_secret_key: MASK_SENTINEL } : {},
         )}
       />
@@ -158,7 +158,7 @@ export const SquareForm = (s: SettingsPageState): JSX.Element | null =>
       </div>
       <Raw
         html={renderFields(
-          squareAccessTokenFields,
+          getSquareAccessTokenFields(),
           s.squareTokenConfigured ? { square_access_token: MASK_SENTINEL } : {},
         )}
       />
@@ -234,7 +234,7 @@ export const SquareWebhookForm = (s: SettingsPageState): JSX.Element | null =>
       </p>
       <Raw
         html={renderFields(
-          squareWebhookFields,
+          getSquareWebhookFields(),
           s.squareWebhookConfigured
             ? { square_webhook_signature_key: MASK_SENTINEL }
             : {},
@@ -267,7 +267,7 @@ export const SumUpForm = (s: SettingsPageState): JSX.Element | null =>
       </p>
       <Raw
         html={renderFields(
-          sumupFields,
+          getSumupFields(),
           s.sumupKeyConfigured ? { sumup_api_key: MASK_SENTINEL } : {},
         )}
       />
