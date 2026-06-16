@@ -7,6 +7,11 @@
 import { sort } from "#fp";
 import type { AttendeeSort } from "#shared/db/attendees.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import {
+  type ListingFilter,
+  listingFilterLabel,
+  renderTypeFilter,
+} from "#shared/listing-filter.ts";
 import type {
   AdminSession,
   AttendeeTableRow,
@@ -24,6 +29,12 @@ export type AttendeesListPageProps = {
   listings: ListingWithCount[];
   /** Currently-selected listing filter, or null for "all listings" */
   listingId: number | null;
+  /** Active listing-type filter ("all" when not type-filtering) */
+  type: ListingFilter;
+  /** Distinct listing categories present, for the type filter bar */
+  categories: readonly ListingFilter[];
+  /** Number of attendee rows shown on this page */
+  count: number;
   sort: AttendeeSort;
   /** Zero-based current page index */
   page: number;
@@ -33,19 +44,26 @@ export type AttendeesListPageProps = {
   phonePrefix: string;
 };
 
-/** Build a /admin/attendees URL preserving the filter + sort for a given page */
+/** Build a /admin/attendees URL preserving the filters + sort for a given page */
 const pageHref = (
   listingId: number | null,
+  type: ListingFilter,
   sortOrder: AttendeeSort,
   page: number,
 ): string => {
   const params = new URLSearchParams();
   if (listingId !== null) params.set("listing", String(listingId));
+  if (type !== "all") params.set("type", type);
   if (sortOrder === "oldest") params.set("sort", "oldest");
   if (page > 0) params.set("page", String(page));
   const query = params.toString();
   return query ? `/admin/attendees?${query}` : "/admin/attendees";
 };
+
+/** A type-filter bar link: select a type (or "all"), keep the sort, reset the
+ * specific-listing filter and the page. */
+const typeFilterHref = (type: ListingFilter, sortOrder: AttendeeSort): string =>
+  pageHref(null, type, sortOrder, 0);
 
 /** Listing <option>s sorted by name, deactivated listings flagged inline */
 const ListingOptions = ({
@@ -107,11 +125,13 @@ const FilterForm = ({
 /** Previous/next paging controls (hidden entirely when only one page exists) */
 const Pagination = ({
   listingId,
+  type,
   sortOrder,
   page,
   hasNext,
 }: {
   listingId: number | null;
+  type: ListingFilter;
   sortOrder: AttendeeSort;
   page: number;
   hasNext: boolean;
@@ -120,7 +140,7 @@ const Pagination = ({
   return (
     <nav class="pagination">
       {page > 0 ? (
-        <a href={pageHref(listingId, sortOrder, page - 1)} rel="prev">
+        <a href={pageHref(listingId, type, sortOrder, page - 1)} rel="prev">
           ← Previous
         </a>
       ) : (
@@ -128,7 +148,7 @@ const Pagination = ({
       )}
       <span>Page {page + 1}</span>
       {hasNext ? (
-        <a href={pageHref(listingId, sortOrder, page + 1)} rel="next">
+        <a href={pageHref(listingId, type, sortOrder, page + 1)} rel="next">
           Next →
         </a>
       ) : (
@@ -145,6 +165,21 @@ export const adminAttendeesListPage = (props: AttendeesListPageProps): string =>
       <AdminNav active={NAV_ACTIVE} session={props.session} />
 
       <h1>Attendees</h1>
+
+      {props.categories.length > 1 && (
+        <Raw
+          html={renderTypeFilter(props.type, props.categories, (f) =>
+            typeFilterHref(f, props.sort),
+          )}
+        />
+      )}
+
+      {props.type !== "all" && (
+        <p>
+          Showing {props.count} attendee{props.count === 1 ? "" : "s"} for{" "}
+          <strong>{listingFilterLabel(props.type)}</strong>
+        </p>
+      )}
 
       <FilterForm
         listingId={props.listingId}
@@ -172,6 +207,7 @@ export const adminAttendeesListPage = (props: AttendeesListPageProps): string =>
         listingId={props.listingId}
         page={props.page}
         sortOrder={props.sort}
+        type={props.type}
       />
     </Layout>,
   );

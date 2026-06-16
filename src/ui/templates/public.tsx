@@ -27,6 +27,10 @@ import {
 } from "#shared/forms.tsx";
 import { getIframeMode } from "#shared/iframe.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import {
+  type ListingFilter,
+  renderTypeFilter,
+} from "#shared/listing-filter.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import { getImageProxyUrl } from "#shared/storage.ts";
 import {
@@ -247,50 +251,6 @@ export const ICS_DISCOVERY_TAG =
 
 export const FEED_DISCOVERY_TAGS = `${RSS_DISCOVERY_TAG}\n${ICS_DISCOVERY_TAG}`;
 
-/** Listing-type filter values for the public listings page. */
-export const LISTING_FILTERS = [
-  "all",
-  "standard",
-  "daily",
-  "purchase-only",
-] as const;
-export type ListingFilter = (typeof LISTING_FILTERS)[number];
-
-const LISTING_FILTER_LABELS: Record<ListingFilter, string> = {
-  all: "All",
-  daily: "Daily",
-  "purchase-only": "Purchase Only",
-  standard: "Standard",
-};
-
-/** Type guard for a `?filter=` value. */
-export const isListingFilter = (s: string | null): s is ListingFilter =>
-  s !== null && (LISTING_FILTERS as readonly string[]).includes(s);
-
-/**
- * Render the "Showing: All / Standard / …" type filter as a plain paragraph of
- * links. Only the categories actually present are offered; the active one is
- * bold + underlined, the rest link to `/listings?filter=…`.
- */
-const renderListingFilter = (
-  active: ListingFilter,
-  categories: readonly ListingFilter[],
-): string => {
-  const options: ListingFilter[] = [
-    "all",
-    ...LISTING_FILTERS.filter((f) => f !== "all" && categories.includes(f)),
-  ];
-  const links = options
-    .map((f) => {
-      const label = LISTING_FILTER_LABELS[f];
-      if (f === active) return `<strong><u>${label}</u></strong>`;
-      const href = f === "all" ? "/listings" : `/listings?filter=${f}`;
-      return `<a href="${href}">${label}</a>`;
-    })
-    .join(" / ");
-  return `<p class="listing-filter">Showing: ${links}</p>`;
-};
-
 export const homepagePage = (
   listings: TicketListing[],
   websiteTitle: string | null | undefined,
@@ -301,7 +261,9 @@ export const homepagePage = (
   // Offer the type filter only when more than one listing type is on the page.
   const filterHtml =
     filter.categories.length > 1
-      ? renderListingFilter(filter.active, filter.categories)
+      ? renderTypeFilter(filter.active, filter.categories, (f) =>
+          f === "all" ? "/listings" : `/listings?filter=${f}`,
+        )
       : "";
 
   if (listings.length === 0 && groups.length === 0) {

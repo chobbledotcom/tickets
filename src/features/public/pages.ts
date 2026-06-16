@@ -24,14 +24,17 @@ import { getAllGroups } from "#shared/db/groups.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { MESSAGE_SEND_FAILED } from "#shared/inbound-message.ts";
+import {
+  isListingFilter,
+  type ListingFilter,
+  listingCategory,
+} from "#shared/listing-filter.ts";
 import { loadSortedListings } from "#shared/sort-listings.ts";
 import type { Group, ListingWithCount } from "#shared/types.ts";
 import { parseEmail } from "#shared/validation/email.ts";
 import {
   contactPage,
   homepagePage,
-  isListingFilter,
-  type ListingFilter,
   type PublicPageType,
   publicSitePage,
 } from "#templates/public.tsx";
@@ -39,14 +42,6 @@ import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 
 /** Active+visible filter for public listing listings */
 const isPublicListing = (e: ListingWithCount): boolean => e.active && !e.hidden;
-
-/** The type category a listing falls under for the public listings filter. */
-const listingCategory = (e: ListingWithCount): ListingFilter =>
-  e.purchase_only
-    ? "purchase-only"
-    : e.listing_type === "daily"
-      ? "daily"
-      : "standard";
 
 /** Load non-hidden groups (for public listing) */
 const loadPublicGroups = async (): Promise<Group[]> => {

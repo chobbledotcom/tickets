@@ -87,22 +87,27 @@ export type AttendeesPage = {
  * PII stays encrypted — decrypt with decryptAttendees before display.
  */
 export const getAttendeesPage = async ({
-  listingId,
+  listingIds,
   sort,
   page,
 }: {
-  listingId: number | null;
+  /** Restrict to these listings (a single selected listing, or every listing of
+   * a chosen type); null is the unfiltered "all listings" view. */
+  listingIds: number[] | null;
   sort: AttendeeSort;
   page: number;
 }): Promise<AttendeesPage> => {
+  // An empty filter set matches nothing — e.g. a type with no listings yet.
+  if (listingIds?.length === 0) return { hasNext: false, rows: [] };
   // `dir` is derived from the AttendeeSort enum and the WHERE clause is fixed
   // text, so neither is user-controlled — only the bound args are.
   const dir = sort === "oldest" ? "ASC" : "DESC";
-  const where = listingId === null ? "" : "WHERE ea.listing_id = ?";
+  const where = listingIds
+    ? `WHERE ea.listing_id IN (${inPlaceholders(listingIds)})`
+    : "";
   const limit = ATTENDEES_PAGE_SIZE + 1;
   const offset = page * ATTENDEES_PAGE_SIZE;
-  const args =
-    listingId === null ? [limit, offset] : [listingId, limit, offset];
+  const args = listingIds ? [...listingIds, limit, offset] : [limit, offset];
   const rows = await queryAll<Attendee>(
     `SELECT ${ATTENDEE_JOIN_SELECT}
      FROM attendees a
