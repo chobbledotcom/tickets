@@ -162,6 +162,13 @@ describe("reservation-amount", () => {
   });
 
   describe("allocateReservationDeposit", () => {
+    testWithSetting("returns no allocation when there are no items", {
+      currency: "GBP",
+    }, () => {
+      const allocation = allocateReservationDeposit("10", []);
+      expect(allocation).toEqual({ lines: [], perItemTotals: [], total: 0 });
+    });
+
     testWithSetting(
       "flat 10 across 3 equal tickets allocates exactly 1000 minor units",
       { currency: "GBP" },
