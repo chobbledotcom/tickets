@@ -30,6 +30,7 @@ export const STATIC_ASSET_OUTFILES = {
 const buildBundle = async (
   label: string,
   options: esbuild.BuildOptions,
+  quiet = false,
 ): Promise<void> => {
   const result = await esbuild.build(options);
   if (result.errors.length > 0) {
@@ -39,6 +40,7 @@ const buildBundle = async (
     }
     Deno.exit(1);
   }
+  if (quiet) return;
   if (options.outfile) {
     console.log(`${label} build complete: ${options.outfile}`);
   } else {
@@ -114,8 +116,9 @@ const botpoisonResolvePlugin: Plugin = {
 };
 
 export const buildStaticAssets = async (
-  options: { stop?: boolean } = {},
+  options: { quiet?: boolean; stop?: boolean } = {},
 ): Promise<void> => {
+  const quiet = options.quiet ?? false;
   await Promise.all([
     buildBundle("Scanner", {
       bundle: true,
@@ -125,7 +128,7 @@ export const buildStaticAssets = async (
       outfile: STATIC_ASSET_OUTFILES.scanner,
       platform: "browser",
       plugins: [denoNpmResolvePlugin],
-    }),
+    }, quiet),
 
     buildBundle("Admin", {
       bundle: true,
@@ -135,7 +138,7 @@ export const buildStaticAssets = async (
       outfile: STATIC_ASSET_OUTFILES.admin,
       platform: "browser",
       plugins: [denoImportMapPlugin],
-    }),
+    }, quiet),
 
     buildBundle("Embed", {
       bundle: true,
@@ -144,7 +147,7 @@ export const buildStaticAssets = async (
       minify: true,
       outfile: STATIC_ASSET_OUTFILES.embed,
       platform: "browser",
-    }),
+    }, quiet),
 
     buildBundle("Contact", {
       bundle: true,
@@ -154,7 +157,7 @@ export const buildStaticAssets = async (
       outfile: STATIC_ASSET_OUTFILES.contact,
       platform: "browser",
       plugins: [botpoisonResolvePlugin],
-    }),
+    }, quiet),
 
     buildBundle("iframe-resizer-parent", {
       bundle: true,
@@ -164,7 +167,7 @@ export const buildStaticAssets = async (
       outfile: STATIC_ASSET_OUTFILES.iframeResizerParent,
       platform: "browser",
       plugins: [iframeResizerResolvePlugin],
-    }),
+    }, quiet),
 
     buildBundle("iframe-resizer-child", {
       banner: { js: "window.iframeResizer={license:'GPLv3'};" },
@@ -175,7 +178,7 @@ export const buildStaticAssets = async (
       outfile: STATIC_ASSET_OUTFILES.iframeResizerChild,
       platform: "browser",
       plugins: [iframeResizerResolvePlugin],
-    }),
+    }, quiet),
   ]);
 
   if (options.stop) {
