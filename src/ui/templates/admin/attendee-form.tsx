@@ -670,6 +670,7 @@ const AttendeeEditForm = ({
       <label for="name">
         Name
         <input
+          autocomplete="off"
           autofocus
           id="name"
           name="name"
@@ -684,6 +685,7 @@ const AttendeeEditForm = ({
       <label for="email">
         Email
         <input
+          autocomplete="off"
           id="email"
           name="email"
           type="email"
@@ -694,6 +696,7 @@ const AttendeeEditForm = ({
       <label for="phone">
         Phone
         <input
+          autocomplete="off"
           id="phone"
           name="phone"
           pattern="[+\d][\d\s\-()]{5,}"
@@ -705,7 +708,13 @@ const AttendeeEditForm = ({
 
       <label for="address">
         Address
-        <textarea id="address" maxlength={250} name="address" rows={3}>
+        <textarea
+          autocomplete="off"
+          id="address"
+          maxlength={250}
+          name="address"
+          rows={3}
+        >
           {data.parsed.address || ""}
         </textarea>
       </label>
@@ -713,6 +722,7 @@ const AttendeeEditForm = ({
       <label for="special_instructions">
         Special Instructions
         <textarea
+          autocomplete="off"
           id="special_instructions"
           maxlength={250}
           name="special_instructions"

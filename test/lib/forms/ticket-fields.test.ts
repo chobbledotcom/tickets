@@ -4,6 +4,7 @@ import { stub } from "@std/testing/mock";
 import { renderFields } from "#shared/forms.tsx";
 import {
   fieldsApi,
+  getAddAttendeeFields,
   getTicketFields,
   mergeListingFields,
   validateAddress,
@@ -95,6 +96,26 @@ describe("getTicketFields — field validation", () => {
     expect(html).toContain('autocomplete="email"');
     expect(html).toContain('autocomplete="tel"');
     expect(html).toContain('autocomplete="street-address"');
+  });
+});
+
+describe("getAddAttendeeFields — autocomplete", () => {
+  test("disables native autofill on the admin contact fields", () => {
+    // Admin enters another person's PII here; the browser must not store or
+    // suggest it, so every contact field is forced to autocomplete="off"
+    // (unlike the public ticket form, which keeps semantic autocomplete).
+    const fields = getAddAttendeeFields("email,phone,address", false);
+    const contactFields = fields.filter((f) =>
+      ["name", "email", "phone", "address"].includes(f.name),
+    );
+    expect(contactFields).toHaveLength(4);
+    for (const field of contactFields) {
+      expect(field.autocomplete).toBe("off");
+    }
+    const html = renderFields(fields);
+    expect(html).not.toContain('autocomplete="email"');
+    expect(html).not.toContain('autocomplete="tel"');
+    expect(html).not.toContain('autocomplete="street-address"');
   });
 });
 

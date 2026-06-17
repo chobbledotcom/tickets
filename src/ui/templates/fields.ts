@@ -1164,7 +1164,14 @@ export const getAddAttendeeFields = (
   isDaily: boolean,
   dayCounts?: number[],
 ): Field[] => {
-  const result = [...getTicketFields(fields, false), addAttendeeQuantityField];
+  // Admin enters a customer's details here, so disable native autofill: we don't
+  // want the operator's browser to store or suggest other customers' PII. The
+  // shared ticket fields keep their semantic autocomplete for the public form,
+  // so override on copies rather than mutating the originals.
+  const contactFields = getTicketFields(fields, false).map(
+    (f): Field => ({ ...f, autocomplete: "off" }),
+  );
+  const result = [...contactFields, addAttendeeQuantityField];
   if (isDaily) result.push(addAttendeeDateField);
   if (dayCounts && dayCounts.length > 0) {
     result.push(addAttendeeDayCountField(dayCounts));
@@ -1236,6 +1243,7 @@ export const getChangePasswordFields = (): Field[] => [
  */
 export const getStripeKeyFields = (): Field[] => [
   {
+    autocomplete: "off",
     hint: t("fields.stripe.secret_key_hint"),
     label: t("fields.stripe.secret_key"),
     name: "stripe_secret_key",
@@ -1250,6 +1258,7 @@ export const getStripeKeyFields = (): Field[] => [
  */
 export const getSquareAccessTokenFields = (): Field[] => [
   {
+    autocomplete: "off",
     hint: t("fields.square.access_token_hint"),
     label: t("fields.square.access_token"),
     name: "square_access_token",
@@ -1258,6 +1267,7 @@ export const getSquareAccessTokenFields = (): Field[] => [
     type: "password",
   },
   {
+    autocomplete: "off",
     hint: t("fields.square.location_id_hint"),
     label: t("fields.square.location_id"),
     name: "square_location_id",
@@ -1272,6 +1282,7 @@ export const getSquareAccessTokenFields = (): Field[] => [
  */
 export const getSquareWebhookFields = (): Field[] => [
   {
+    autocomplete: "off",
     hint: t("fields.square.webhook_key_hint"),
     label: t("fields.square.webhook_key"),
     name: "square_webhook_signature_key",
