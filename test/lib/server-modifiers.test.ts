@@ -2,10 +2,12 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { toMinorUnits } from "#shared/currency.ts";
+import { getDb } from "#shared/db/client.ts";
 import {
   getAllModifiers,
   getModifierGroupIds,
   getModifierListingIds,
+  updateModifierAggregateValues,
 } from "#shared/db/modifiers.ts";
 import { normalizeCode } from "#shared/price-modifier.ts";
 import type { Modifier } from "#shared/types.ts";
@@ -37,6 +39,17 @@ const lastModifier = async (): Promise<Modifier> => {
   const all = await getAllModifiers();
   return all[all.length - 1]!;
 };
+
+const insertUsage = (
+  modifierId: number,
+  attendeeId: number,
+  quantity: number,
+  amountApplied: number,
+): Promise<unknown> =>
+  getDb().execute({
+    args: [modifierId, attendeeId, quantity, amountApplied, "2026-06-17"],
+    sql: "INSERT INTO modifier_usages (modifier_id, attendee_id, quantity, amount_applied, created) VALUES (?, ?, ?, ?, ?)",
+  });
 
 describeWithEnv("server (admin modifiers)", { db: true }, () => {
   describe("GET /admin/modifiers", () => {
@@ -277,6 +290,42 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       expect(updated.calc_value).toBe(20);
     });
 
+    test("updates modifier running totals from the edit form", async () => {
+      await adminFormPost("/admin/modifiers", createData({ name: "Totals" }));
+      const { id } = await lastModifier();
+      const { response } = await adminFormPost(`/admin/modifiers/${id}/edit`, {
+        ...createData({ name: "Totals" }),
+        total_revenue: "123.45",
+        total_uses: "12",
+        usage_count: "4",
+      });
+      expectRedirectWithFlash(
+        "/admin/modifiers",
+        "Modifier updated",
+        true,
+      )(response);
+      const updated = (await getAllModifiers()).find((m) => m.id === id)!;
+      expect(updated.total_revenue).toBe(12345);
+      expect(updated.total_uses).toBe(12);
+      expect(updated.usage_count).toBe(4);
+    });
+
+    test("rejects invalid modifier running totals", async () => {
+      await adminFormPost("/admin/modifiers", createData({ name: "Bad" }));
+      const { id } = await lastModifier();
+      const { response } = await adminFormPost(`/admin/modifiers/${id}/edit`, {
+        ...createData({ name: "Bad" }),
+        total_revenue: "10.00",
+        total_uses: "-1",
+        usage_count: "4",
+      });
+      expectRedirectWithFlash(
+        `/admin/modifiers/${id}/edit`,
+        "Total Uses must be 0 or greater",
+        false,
+      )(response);
+    });
+
     test("deactivates a modifier when the toggle is cleared on edit", async () => {
       await adminFormPost("/admin/modifiers", createData({ name: "Toggle" }));
       const { id } = await lastModifier();
@@ -307,6 +356,78 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         createData(),
       );
       expectStatus(404)(response);
+    });
+  });
+
+  describe("modifier aggregate recalculation routes", () => {
+    testRequiresAuth("/admin/modifiers/recalculate/1", {
+      setup: async () => {
+        await adminFormPost("/admin/modifiers", createData());
+      },
+    });
+
+    test("shows current and usage-derived modifier totals", async () => {
+      await adminFormPost("/admin/modifiers", createData({ name: "Usage" }));
+      const { id } = await lastModifier();
+      await insertUsage(id, 1, 2, 1000);
+      await updateModifierAggregateValues(id, {
+        total_revenue: 9000,
+        total_uses: 9,
+        usage_count: 5,
+      });
+
+      const { response } = await adminGet(`/admin/modifiers/recalculate/${id}`);
+      await expectHtmlResponse(
+        response,
+        200,
+        "Recalculate:",
+        "Current",
+        "From attendee data",
+        'value="total_uses"',
+        ">9<",
+        ">2<",
+      );
+    });
+
+    test("resets selected modifier totals", async () => {
+      await adminFormPost("/admin/modifiers", createData({ name: "Reset" }));
+      const { id } = await lastModifier();
+      await insertUsage(id, 1, 2, 1000);
+      await updateModifierAggregateValues(id, {
+        total_revenue: 9000,
+        total_uses: 9,
+        usage_count: 5,
+      });
+
+      const { response } = await adminFormPost(
+        `/admin/modifiers/recalculate/${id}`,
+        { recalculate_fields: "total_uses" },
+      );
+      expectRedirectWithFlash(
+        `/admin/modifiers/recalculate/${id}`,
+        "Modifier totals recalculated",
+        true,
+      )(response);
+
+      const updated = (await getAllModifiers()).find((m) => m.id === id)!;
+      expect(updated.total_uses).toBe(2);
+      expect(updated.total_revenue).toBe(9000);
+      expect(updated.usage_count).toBe(5);
+    });
+
+    test("rejects modifier recalculation with no selected totals", async () => {
+      await adminFormPost("/admin/modifiers", createData({ name: "Empty" }));
+      const { id } = await lastModifier();
+
+      const { response } = await adminFormPost(
+        `/admin/modifiers/recalculate/${id}`,
+        {},
+      );
+      await expectHtmlResponse(
+        response,
+        400,
+        "Choose at least one total to recalculate",
+      );
     });
   });
 

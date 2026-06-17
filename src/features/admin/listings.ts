@@ -9,6 +9,10 @@ import {
   getDateFilter,
   listingAttendeesLoader,
 } from "#routes/admin/actions.ts";
+import {
+  parseEditableAggregateForm,
+  selectedRecalculationFields,
+} from "#routes/admin/aggregate-recalculation.ts";
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
 import {
@@ -17,7 +21,7 @@ import {
   requireSessionOr,
   withAuth,
 } from "#routes/auth.ts";
-import { formDataToParams } from "#routes/csrf.ts";
+import { applyFlash, formDataToParams } from "#routes/csrf.ts";
 import { authenticatedGetById } from "#routes/entity.ts";
 import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
@@ -38,9 +42,14 @@ import {
 import { getAllGroups, groupsTable } from "#shared/db/groups.ts";
 import {
   computeSlugIndex,
+  getListingAggregateRecalculation,
   getListingWithCount,
+  LISTING_AGGREGATE_FIELDS,
+  type ListingAggregateValues,
   type ListingInput,
   listingsTable,
+  resetListingAggregateFields,
+  updateListingAggregateValues,
 } from "#shared/db/listings.ts";
 import { deleteAllStaleReservations } from "#shared/db/processed-payments.ts";
 import {
@@ -81,6 +90,7 @@ import {
   type Attendee,
   type DayPrices,
   type Group,
+  type Listing,
   type ListingWithCount,
   parseDayPrices,
 } from "#shared/types.ts";
@@ -93,11 +103,13 @@ import {
   adminListingEditPage,
   adminListingNewPage,
   adminListingPage,
+  adminListingRecalculatePage,
   adminReactivateListingPage,
   type GroupContext,
 } from "#templates/admin/listings.tsx";
 import { type CsvQuestionData, generateAttendeesCsv } from "#templates/csv.ts";
 import type {
+  ListingAggregateFormValues,
   ListingEditFormValues,
   ListingFormValues,
 } from "#templates/fields.ts";
@@ -108,6 +120,7 @@ import {
   getListingFields,
   getMonthsPerUnitField,
   getSlugField,
+  listingAggregateFields,
   splitCsv,
 } from "#templates/fields.ts";
 import { withEntityFromParam } from "./entity-handlers.ts";
@@ -199,6 +212,14 @@ const extractListingUpdateInput = async (
   const slugIndex = await computeSlugIndex(slug);
   return { ...extractCommonFields(values, form), slug, slugIndex };
 };
+
+const extractListingAggregateValues = (
+  values: ListingAggregateFormValues,
+): ListingAggregateValues => ({
+  booked_quantity: values.booked_quantity,
+  income: toMinorUnits(Number.parseFloat(values.income)),
+  tickets_count: values.tickets_count,
+});
 
 /** Build listing resource fields for every create/update. */
 const buildListingResourceFields = (): Field[] => [
@@ -604,6 +625,45 @@ const reconcileDurationChange = async (
   return ` Warning: group capacity exceeded on ${overDay}`;
 };
 
+const renderListingEditError = async (
+  id: number,
+  session: AdminSession,
+  error: string,
+): Promise<Response> => {
+  const ctx = await getListingAndGroups(id);
+  return ctx
+    ? htmlResponse(
+        adminListingEditPage(ctx.listing, ctx.groups, session, error),
+        400,
+      )
+    : notFoundResponse();
+};
+
+const handleListingEditSuccess = async (
+  row: Listing,
+  existing: ListingWithCount,
+  aggregateValues: ListingAggregateValues | null,
+  formData: FormData,
+  id: number,
+): Promise<Response> => {
+  if (aggregateValues) {
+    await updateListingAggregateValues(id, aggregateValues);
+  }
+  const durationWarning = await reconcileDurationChange(
+    row,
+    existing.duration_days,
+  );
+  await logActivity(`Listing '${row.name}' updated`, row);
+  return processUploadsAndRedirect(
+    formData,
+    id,
+    `/admin/listing/${row.id}`,
+    `Listing updated${durationWarning}`,
+    existing.image_url,
+    existing.attachment_url,
+  );
+};
+
 /** Handle POST /admin/listing/:id/edit */
 const handleAdminListingEditPost: TypedRouteHandler<
   "POST /admin/listing/:id/edit"
@@ -612,39 +672,90 @@ const handleAdminListingEditPost: TypedRouteHandler<
     withEntityFromParam(id, getListingWithCount, async (existing) => {
       const form = formDataToParams(formData);
       applyDemoOverrides(form, LISTING_DEMO_FIELDS);
+      const aggregates = parseEditableAggregateForm<
+        ListingAggregateFormValues,
+        ListingAggregateValues
+      >(form, listingAggregateFields, extractListingAggregateValues);
+      if (!aggregates.ok) {
+        return renderListingEditError(id, session, aggregates.error);
+      }
 
       // Build a resource that includes the slug field; uniqueness is enforced
       // by validateListingInput when existingId is set.
       const result = await buildUpdateListingResource(form).update(id, form);
       if (result.ok) {
-        const durationWarning = await reconcileDurationChange(
+        return handleListingEditSuccess(
           result.row,
-          existing.duration_days,
-        );
-        await logActivity(`Listing '${result.row.name}' updated`, result.row);
-        return processUploadsAndRedirect(
+          existing,
+          aggregates.input,
           formData,
           id,
-          `/admin/listing/${result.row.id}`,
-          `Listing updated${durationWarning}`,
-          existing.image_url,
-          existing.attachment_url,
         );
       }
       if ("notFound" in result) return notFoundResponse();
+      return renderListingEditError(id, session, result.error);
+    }),
+  );
 
-      const ctx = await getListingAndGroups(id);
-      return ctx
-        ? htmlResponse(
-            adminListingEditPage(
-              ctx.listing,
-              ctx.groups,
-              session,
-              result.error,
-            ),
-            400,
-          )
-        : notFoundResponse();
+const renderListingRecalculatePage = async (
+  listing: ListingWithCount,
+  session: AdminSession,
+  error?: string,
+  success?: string,
+): Promise<Response> =>
+  htmlResponse(
+    adminListingRecalculatePage(
+      listing,
+      await getListingAggregateRecalculation(listing),
+      session,
+      error,
+      success,
+    ),
+    error ? 400 : 200,
+  );
+
+const handleListingRecalculateGet: TypedRouteHandler<
+  "GET /admin/listings/recalculate/:listingId"
+> = (request, { listingId }) =>
+  requireSessionOr(request, (session) =>
+    withEntityFromParam(listingId, getListingWithCount, (listing) => {
+      applyFlash(request);
+      const flash = getFlash();
+      return renderListingRecalculatePage(
+        listing,
+        session,
+        flash.error,
+        flash.success,
+      );
+    }),
+  );
+
+const handleListingRecalculatePost: TypedRouteHandler<
+  "POST /admin/listings/recalculate/:listingId"
+> = (request, { listingId }) =>
+  withAuth(request, AUTH_FORM, (session, form) =>
+    withEntityFromParam(listingId, getListingWithCount, async (listing) => {
+      const selected = selectedRecalculationFields(
+        form,
+        LISTING_AGGREGATE_FIELDS,
+      );
+      if (selected.length === 0) {
+        return renderListingRecalculatePage(
+          listing,
+          session,
+          t("listings_table.recalculate_choose"),
+        );
+      }
+      await resetListingAggregateFields(listing.id, selected);
+      await logActivity(
+        `Listing '${listing.name}' totals recalculated`,
+        listing,
+      );
+      return redirect(
+        `/admin/listings/recalculate/${listing.id}`,
+        t("listings_table.recalculate_success"),
+        true,
+      );
     }),
   );
 
@@ -862,10 +973,12 @@ export const listingsRoutes = {
     "GET /admin/listing/:id/log": handleAdminListingLog,
     "GET /admin/listing/:id/out": handleAdminListingGetOut,
     "GET /admin/listing/new": handleNewListingGet,
+    "GET /admin/listings/recalculate/:listingId": handleListingRecalculateGet,
     "POST /admin/listing": handleCreateListing,
     "POST /admin/listing/:id/attachment/delete": handleAttachmentDelete,
     "POST /admin/listing/:id/delete": handleAdminListingDelete,
     "POST /admin/listing/:id/edit": handleAdminListingEditPost,
     "POST /admin/listing/:id/image/delete": handleImageDelete,
+    "POST /admin/listings/recalculate/:listingId": handleListingRecalculatePost,
   }),
 };

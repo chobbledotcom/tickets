@@ -13,6 +13,10 @@ import {
   formatDatetimeLabel,
   formatDatetimeShort,
 } from "#shared/dates.ts";
+import type {
+  ListingAggregateField,
+  ListingAggregateRecalculation,
+} from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
 import { buildEmbedSnippets } from "#shared/embed.ts";
 import { isReadOnly } from "#shared/env.ts";
@@ -43,6 +47,10 @@ import { buildSharedDetailRows } from "#templates/admin/detail-rows.tsx";
 import { ListingGroupSelect } from "#templates/admin/group-select.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import {
+  adminRecalculatePage,
+  type RecalculateRow,
+} from "#templates/admin/recalculate.tsx";
+import {
   AttendeeTable,
   type AttendeeTableRow,
   type TableQuestionData,
@@ -60,6 +68,7 @@ import {
   getListingFields,
   getMonthsPerUnitField,
   getSlugField,
+  listingAggregateFields,
   logisticsField,
 } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
@@ -1142,6 +1151,86 @@ const listingToFieldValues = (listing: ListingWithCount): FieldValues =>
     slug: listing.slug,
   });
 
+export const listingAggregateToFieldValues = (
+  listing: ListingWithCount,
+): FieldValues => ({
+  booked_quantity: listing.attendee_count,
+  income: toMajorUnits(listing.income),
+  tickets_count: listing.tickets_count,
+});
+
+const ListingRunningTotalsSection = ({
+  listing,
+}: {
+  listing: ListingWithCount;
+}): JSX.Element => (
+  <fieldset class="listing-section">
+    <legend>{t("listings_table.running_totals")}</legend>
+    <div class="stack">
+      <p>
+        <small>{t("listings_table.running_totals_note")}</small>
+      </p>
+      <Raw
+        html={renderFields(
+          listingAggregateFields,
+          listingAggregateToFieldValues(listing),
+        )}
+      />
+      <p>
+        <a href={`/admin/listings/recalculate/${listing.id}`}>
+          {t("listings_table.recalculate_totals")}
+        </a>
+      </p>
+    </div>
+  </fieldset>
+);
+
+const listingAggregateFormatters: Record<
+  ListingAggregateField,
+  (value: number) => string
+> = {
+  booked_quantity: String,
+  income: formatCurrency,
+  tickets_count: String,
+};
+
+const listingRecalculateRows = (
+  snapshot: ListingAggregateRecalculation,
+): RecalculateRow[] =>
+  listingAggregateFields.map((field) => {
+    const name = field.name as ListingAggregateField;
+    return {
+      current: listingAggregateFormatters[name](snapshot[name].current),
+      label: field.label,
+      name,
+      recalculated: listingAggregateFormatters[name](
+        snapshot[name].recalculated,
+      ),
+    };
+  });
+
+export const adminListingRecalculatePage = (
+  listing: ListingWithCount,
+  snapshot: ListingAggregateRecalculation,
+  session: AdminSession,
+  error?: string,
+  success?: string,
+): string =>
+  adminRecalculatePage({
+    action: `/admin/listings/recalculate/${listing.id}`,
+    active: "/admin/",
+    currentLabel: t("listings_table.recalculate_current"),
+    error,
+    recalculatedLabel: t("listings_table.recalculate_from_attendees"),
+    rows: listingRecalculateRows(snapshot),
+    session,
+    submitLabel: t("listings_table.recalculate_save"),
+    success,
+    title: t("listings_table.recalculate_listing_title", {
+      name: listing.name,
+    }),
+  });
+
 /** Listing fields with autofocus on the name field */
 const getListingFieldsWithAutofocus = (): Field[] =>
   pipe(
@@ -1496,6 +1585,7 @@ export const adminListingEditPage = (
           selectedGroupId={listing.group_id}
           values={listingToFieldValues(listing)}
         />
+        <ListingRunningTotalsSection listing={listing} />
         <SubmitButton icon="save" id="listing-edit-submit">
           {t("common.save_changes")}
         </SubmitButton>

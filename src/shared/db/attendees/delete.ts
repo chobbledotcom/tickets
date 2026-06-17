@@ -5,7 +5,7 @@
 import { executeBatch } from "#shared/db/client.ts";
 import { invalidateListingsCache } from "#shared/db/listings.ts";
 
-/** Delete an attendee and all dependent data (payments, answers, listing links) */
+/** Delete an attendee and all dependent data tied to the attendee record. */
 const purgeAttendee = (attendeeId: number): Promise<void> =>
   executeBatch([
     {

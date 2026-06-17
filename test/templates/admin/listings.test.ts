@@ -8,6 +8,7 @@ import {
   adminListingEditPage,
   adminListingNewPage,
   adminListingPage,
+  adminListingRecalculatePage,
   isIncompletePayment,
   nearCapacity,
 } from "#templates/admin/listings.tsx";
@@ -127,6 +128,48 @@ describe("adminListingEditPage form sections", () => {
     expect(advancedIdx).toBeLessThan(html.indexOf('name="webhook_url"'));
     expect(advancedIdx).toBeLessThan(html.indexOf('name="thank_you_url"'));
     expect(advancedIdx).toBeLessThan(html.indexOf('name="slug"'));
+  });
+
+  test("renders editable running totals with a recalculation link", () => {
+    const listing = testListingWithCount({
+      attendee_count: 7,
+      income: 2500,
+      tickets_count: 3,
+    });
+    const html = adminListingEditPage(listing, [], TEST_SESSION);
+    expect(html).toContain("<legend>Running totals</legend>");
+    expect(html).toContain("Accuracy is not guaranteed");
+    expect(html).toContain('name="booked_quantity"');
+    expect(html).toContain('value="7"');
+    expect(html).toContain('name="tickets_count"');
+    expect(html).toContain('value="3"');
+    expect(html).toContain('name="income"');
+    expect(html).toContain('value="25.00"');
+    expect(html).toContain(`/admin/listings/recalculate/${listing.id}`);
+  });
+});
+
+describe("adminListingRecalculatePage", () => {
+  test("shows current and attendee-derived totals with checkboxes", () => {
+    const listing = testListingWithCount({ name: "Workshop" });
+    const html = adminListingRecalculatePage(
+      listing,
+      {
+        booked_quantity: { current: 9, recalculated: 4 },
+        income: { current: 5500, recalculated: 2500 },
+        tickets_count: { current: 5, recalculated: 2 },
+      },
+      TEST_SESSION,
+    );
+    expect(html).toContain("Recalculate: Workshop");
+    expect(html).toContain("Current");
+    expect(html).toContain("From attendee data");
+    expect(html).toContain('name="recalculate_fields"');
+    expect(html).toContain('value="booked_quantity"');
+    expect(html).toContain(">9<");
+    expect(html).toContain(">4<");
+    expect(html).toContain(">£55<");
+    expect(html).toContain(">£25<");
   });
 });
 

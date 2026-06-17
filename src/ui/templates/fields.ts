@@ -80,6 +80,12 @@ export type ListingEditFormValues = ListingFormValues & {
   slug: string;
 };
 
+export type ListingAggregateFormValues = {
+  booked_quantity: number;
+  tickets_count: number;
+  income: string;
+};
+
 /** Typed values from group create form validation (no slug - auto-generated) */
 export type GroupCreateFormValues = {
   name: string;
@@ -290,6 +296,15 @@ const validateNonNegativePrice = (value: string): string | null => {
   }
   return null;
 };
+
+const validateNonNegativeInteger =
+  (label: string) =>
+  (value: string): string | null => {
+    const n = Number(value);
+    return Number.isInteger(n) && n >= 0
+      ? null
+      : `${label} must be 0 or greater`;
+  };
 
 /**
  * Validate email format
@@ -883,6 +898,44 @@ export type ModifierFormValues = {
   stock: number | null;
   active: string;
 };
+
+export type ModifierAggregateFormValues = {
+  total_uses: number;
+  usage_count: number;
+  total_revenue: string;
+};
+
+const aggregateMoneyField = (name: string, label: string): Field => ({
+  inputmode: "decimal",
+  label,
+  name,
+  pattern: "\\d+(\\.\\d{1,2})?",
+  required: true,
+  title: t("fields.listing.price_title"),
+  type: "text",
+  validate: validateNonNegativePrice,
+});
+
+const aggregateIntegerField = (name: string, label: string): Field => ({
+  label,
+  min: 0,
+  name,
+  required: true,
+  type: "number",
+  validate: validateNonNegativeInteger(label),
+});
+
+export const listingAggregateFields: Field[] = [
+  aggregateIntegerField("booked_quantity", t("fields.listing.booked_quantity")),
+  aggregateIntegerField("tickets_count", t("fields.listing.tickets_count")),
+  aggregateMoneyField("income", t("fields.listing.income")),
+];
+
+export const modifierAggregateFields: Field[] = [
+  aggregateIntegerField("total_uses", t("fields.modifier.total_uses")),
+  aggregateIntegerField("usage_count", t("fields.modifier.usage_count")),
+  aggregateMoneyField("total_revenue", t("fields.modifier.total_revenue")),
+];
 
 /** Modifier form fields (same for create and edit — no slug). */
 export const modifierFields: Field[] = [

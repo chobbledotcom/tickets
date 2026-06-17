@@ -2,7 +2,12 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#shared/db/client.ts";
 import { MIGRATIONS } from "#shared/db/migrations.ts";
-import { modifiersTable } from "#shared/db/modifiers.ts";
+import {
+  getModifierAggregateRecalculation,
+  modifiersTable,
+  resetModifierAggregateFields,
+  updateModifierAggregateValues,
+} from "#shared/db/modifiers.ts";
 import { describeWithEnv } from "#test-utils";
 
 /**
@@ -146,6 +151,49 @@ describeWithEnv("db > modifiers aggregate triggers", { db: true }, () => {
     });
 
     expect(await aggregates(m.id)).toEqual(before);
+  });
+
+  test("manual aggregate edits override the trigger-maintained values", async () => {
+    const m = await makeModifier();
+    await insertUsage(m.id, 1, 3, 1500);
+
+    await updateModifierAggregateValues(m.id, {
+      total_revenue: 9999,
+      total_uses: 8,
+      usage_count: 4,
+    });
+
+    expect(await aggregates(m.id)).toEqual({
+      total_revenue: 9999,
+      total_uses: 8,
+      usage_count: 4,
+    });
+  });
+
+  test("selected aggregate reset fields are rebuilt from usage rows", async () => {
+    const m = await makeModifier();
+    await insertUsage(m.id, 1, 3, 1500);
+    await insertUsage(m.id, 2, 2, 1000);
+    await updateModifierAggregateValues(m.id, {
+      total_revenue: 9999,
+      total_uses: 8,
+      usage_count: 4,
+    });
+
+    const stale = (await modifiersTable.findById(m.id))!;
+    expect(await getModifierAggregateRecalculation(stale)).toEqual({
+      total_revenue: { current: 9999, recalculated: 2500 },
+      total_uses: { current: 8, recalculated: 5 },
+      usage_count: { current: 4, recalculated: 2 },
+    });
+
+    await resetModifierAggregateFields(m.id, ["total_revenue", "total_uses"]);
+
+    expect(await aggregates(m.id)).toEqual({
+      total_revenue: 2500,
+      total_uses: 5,
+      usage_count: 4,
+    });
   });
 
   test("the migration's backfill recomputes stale aggregates from scratch", async () => {
