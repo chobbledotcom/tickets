@@ -125,8 +125,9 @@ function extractImports(
   // Dynamic imports:
   //   const { a, b } = await import("specifier")
   //   await import("specifier")
+  //   () => import("specifier")
   const dynamicRegex =
-    /(?:const\s+\{([^}]*)\}\s*=\s*)?await\s+import\(\s*["']([^"']+)["']\s*\)/g;
+    /(?:const\s+\{([^}]*)\}\s*=\s*(?:await\s+)?)?import\(\s*["']([^"']+)["']\s*\)/g;
 
   for (const match of content.matchAll(dynamicRegex)) {
     const namedImports = match[1] || "";

@@ -213,6 +213,26 @@ describeWithEnv("server (admin built sites)", { db: true }, () => {
         false,
       );
     });
+
+    test("rejects http, localhost and IP bunny URLs", async () => {
+      for (const bunnyUrl of [
+        "http://test.b-cdn.net",
+        "https://localhost",
+        "https://1.1.1.1",
+        "https://[::1]/",
+      ]) {
+        const { response } = await adminFormPost("/admin/built-sites", {
+          bunny_url: bunnyUrl,
+          name: "Test",
+        });
+        expect(response.status).toBe(302);
+        expectFlash(
+          response,
+          expect.stringContaining("URL must use https://"),
+          false,
+        );
+      }
+    });
   });
 
   describe("GET /admin/built-sites/:id/edit", () => {
