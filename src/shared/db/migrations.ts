@@ -1530,14 +1530,27 @@ export const MIGRATIONS: Migration[] = [
       await syncIndexes();
     },
   }),
-  additive({
+  {
     description:
       "Reorder listing_attendees overlap index to (listing_id, end_at, start_at) so per-day capacity scans skip historical rows",
     // NB: legacy id retained verbatim — this is a stored marker, not display text
     id: "2026-06-13_event_attendees_overlap_index",
     requires: REQ_OVERLAP_INDEX,
-    up: syncIndexes,
-  }),
+    up: async () => {
+      // Pre-rename databases still have the "events" table; "listings" doesn't
+      // exist yet, so syncIndexes() would fail trying to create indexes on it.
+      // The rename_events_to_listings migration that follows calls syncIndexes()
+      // after renaming the tables, which creates the reordered index there.
+      if (await tableExists("events")) return;
+      await syncIndexes();
+    },
+    verify: async () => {
+      // On pre-rename databases the index doesn't exist yet — it lands via the
+      // rename migration's syncIndexes() call. Nothing to verify here.
+      if (await tableExists("events")) return;
+      await verifyRequirement(REQ_OVERLAP_INDEX)();
+    },
+  },
   additive({
     description:
       "Rename the 'event' domain to 'listing' (tables, columns and indexes)",
