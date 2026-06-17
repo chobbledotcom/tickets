@@ -150,10 +150,40 @@ export const APIKEY_LOCKOUT_MS = readLimit("APIKEY_LOCKOUT_MS", 15 * 60 * 1000);
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** Retention (days) for finalized processed_payments rows (default: 90) */
-export const PRUNE_PAYMENTS_RETENTION_DAYS = readLimit(
-  "PRUNE_PAYMENTS_RETENTION_DAYS",
-  90,
+/**
+ * The longest a payment provider keeps retrying a webhook before giving up
+ * (Stripe and Square both retry for up to ~3 days). The processed_payments
+ * idempotency row MUST outlive this window: if it is pruned while a retry can
+ * still arrive, that retry re-processes the paid session and could re-issue a
+ * refund. See prune.ts (prunePayments) and processed-payments.ts.
+ */
+export const WEBHOOK_RETRY_WINDOW_DAYS = 3;
+
+/**
+ * Validate the payments-retention config: reject a value that would let the
+ * idempotency ledger be pruned while a provider could still retry the webhook.
+ * Throws (failing startup) rather than silently risking a duplicate refund.
+ * Extracted from the constant below so the invariant is unit-testable without
+ * having to construct a broken live environment.
+ */
+export const assertPaymentsRetentionSafe = (days: number): number => {
+  if (days < WEBHOOK_RETRY_WINDOW_DAYS) {
+    throw new Error(
+      `PRUNE_PAYMENTS_RETENTION_DAYS=${days} is below the ${WEBHOOK_RETRY_WINDOW_DAYS}-day ` +
+        "provider webhook-retry window. A shorter retention can prune a payment's " +
+        "idempotency row while the provider is still retrying its webhook, which would " +
+        "re-process the session and risk a duplicate refund. Set it to at least " +
+        `${WEBHOOK_RETRY_WINDOW_DAYS} (the default is 90).`,
+    );
+  }
+  return days;
+};
+
+/** Retention (days) for resolved processed_payments rows (default: 90). Floored
+ * at WEBHOOK_RETRY_WINDOW_DAYS so the idempotency ledger always outlives the
+ * provider webhook-retry window (a too-short value throws at startup). */
+export const PRUNE_PAYMENTS_RETENTION_DAYS = assertPaymentsRetentionSafe(
+  readLimit("PRUNE_PAYMENTS_RETENTION_DAYS", 90),
 );
 
 /** Retention (days) past expiry for sessions rows (default: 90) */
@@ -193,6 +223,13 @@ export const PRUNE_SUMUP_RETENTION_HOURS = readLimit(
 
 /** How often (hours) to re-run each prune task (default: 24 = daily) */
 export const PRUNE_INTERVAL_HOURS = readLimit("PRUNE_INTERVAL_HOURS", 24);
+
+// ---------------------------------------------------------------------------
+// Email templates
+// ---------------------------------------------------------------------------
+
+/** Maximum number of saved email templates (default: 1000) */
+export const MAX_EMAIL_TEMPLATES = readLimit("MAX_EMAIL_TEMPLATES", 1000);
 
 // ---------------------------------------------------------------------------
 // Support form
@@ -508,5 +545,12 @@ export const LIMIT_ENTRIES: readonly LimitEntry[] = [
     envKey: "SUPPORT_FORM_NAG_DAYS",
     label: "Support form repeat-submit notice",
     unit: "days",
+  },
+  {
+    current: MAX_EMAIL_TEMPLATES,
+    defaultValue: 1000,
+    envKey: "MAX_EMAIL_TEMPLATES",
+    label: "Max saved email templates",
+    unit: "templates",
   },
 ];

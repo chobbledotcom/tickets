@@ -16,7 +16,10 @@
  */
 
 import { hmacHash } from "#shared/crypto/hashing.ts";
-import { decryptAttendeePII, encryptAttendeePII } from "#shared/crypto/keys.ts";
+import {
+  decryptWithOwnerKey,
+  encryptWithOwnerKey,
+} from "#shared/crypto/keys.ts";
 import {
   executeBatch,
   getDb,
@@ -96,7 +99,7 @@ const parseStats = async (
 ): Promise<EmailStats> => {
   if (!blob) return EMPTY_STATS;
   const { c, t, s } = JSON.parse(
-    await decryptAttendeePII(blob, privateKey),
+    await decryptWithOwnerKey(blob, privateKey),
   ) as StatsBlob;
   return { contactCount: c, lastContact: t, lastSubject: s };
 };
@@ -168,7 +171,7 @@ export const recordContacts = async (
         s: subject,
         t: now,
       };
-      const encrypted = await encryptAttendeePII(
+      const encrypted = await encryptWithOwnerKey(
         JSON.stringify(blob),
         settings.publicKey,
       );

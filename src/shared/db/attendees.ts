@@ -76,6 +76,7 @@ export {
   getAttendee,
   getAttendeePiiBlobsForListings,
   getAttendeeRaw,
+  getAttendeesByIds,
   getAttendeesByTokens,
   getAttendeesPage,
   getAttendeesRaw,

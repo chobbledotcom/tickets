@@ -213,6 +213,23 @@ article > * {
   margin-bottom: 0;
 }
 
+/* Agent run sheet: the top-level booking list has no bullets or indent; the
+   nested job/detail lists drop their bullets but keep their padding so they
+   still read as indented sub-lists. */
+.delivery-bookings {
+  list-style-type: none;
+  padding: 0;
+}
+
+.delivery-bookings ul {
+  list-style-type: none;
+}
+
+/* Space the inline "mark done" toggle away from the job it belongs to. */
+.delivery-mark {
+  margin-left: 1rem;
+}
+
 /* Outlines a rendered email body so it reads as a preview, not page content.
    Constrained to a typical email column width so it reads like a real email. */
 .email-preview {
@@ -834,7 +851,7 @@ textarea[readonly] {
 label {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-m);
+  gap: var(--space-s);
   align-items: baseline;
   font-weight: bold;
   font-size: inherit;
@@ -1305,6 +1322,11 @@ fieldset {
   max-width: none;
 }
 
+.checkboxes label input,
+.radios label input {
+  margin-right: 0.5rem;
+}
+
 label.terms-agree {
   display: block;
 }
@@ -1531,14 +1553,43 @@ button.secondary:hover,
   box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.3);
 }
 
-/* Owner debug footer */
-.debug-footer {
+/* Admin footer: a top row with the Chobble link (growing to fill) and the
+   logout button (sized to its content), then an optional debug menu below. */
+.admin-footer {
   margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-s);
   font-size: smaller;
+}
+
+.admin-footer-top {
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-s);
+}
+
+/* The Chobble link grows to fill, the logout form stays its natural width. */
+.admin-footer-top > a {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.admin-footer-top > .inline {
+  flex: 0 0 auto;
+}
+
+.admin-footer-info {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-m);
   opacity: 0.6;
 }
 
-.debug-footer ul {
+.admin-footer-info ul {
   font-family: monospace;
   font-size: small;
 }
@@ -1797,9 +1848,10 @@ button.secondary:hover,
   text-decoration: underline;
 }
 
-/* Stripe/Square test result */
+/* Stripe/Square/SumUp test result */
 .stripe-test-result,
-.square-test-result {
+.square-test-result,
+.sumup-test-result {
   white-space: pre-wrap;
 }
 
@@ -1870,7 +1922,7 @@ button.secondary:hover,
     max-width: 100%;
   }
 
-  .debug-footer {
+  .admin-footer {
     display: none;
   }
 
@@ -1890,6 +1942,12 @@ button.secondary:hover,
 #email_provider:has(option[value=""]:checked) ~ #email_from_address {
   display: none;
 }
+
+/* Email template save controls — checkbox-driven show/hide without JS */
+#bulk-email .save-update { display: none; }
+#bulk-email:has(input[name="update_existing"]:checked) .save-as-new { display: none; }
+#bulk-email:has(input[name="update_existing"]:checked) .save-update { display: inline; }
+#bulk-email:not(:has(input[name="update_existing"]:checked)) .template-update-fields { display: none; }
 
 /* No-transition helper (used by admin nav scroll-hide) */
 .nav-no-transition {
@@ -2355,6 +2413,54 @@ a.cal-day-selected:hover {
   cursor: pointer;
 }
 
-.listing-editor:not(:has(.show-all-toggle:checked)) .attendee-line-empty {
+.listing-editor:not(.show-all-listings):not(:has(.show-all-toggle:checked))
+  .attendee-line-empty {
   display: none;
+}
+
+/* Attendee form: logistics agent selectors. The "different agents per item"
+   toggle switches (pure CSS) between one shared pair and a pair per listing. */
+.logistics-agents .split-agents {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-s);
+  margin-bottom: var(--space-s);
+  font-weight: normal;
+  cursor: pointer;
+}
+
+.logistics-agents:has(.split-agents-toggle:checked) .logistics-single {
+  display: none;
+}
+
+.logistics-agents:not(:has(.split-agents-toggle:checked)) .logistics-split {
+  display: none;
+}
+
+.logistics-line {
+  margin-bottom: var(--space-s);
+}
+
+/* Each leg is one row: a label, the time, then the agent (capped at 20rem),
+   wrapping onto the next line when there isn't room. */
+.logistics-leg {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-s);
+  margin-bottom: var(--space-s);
+}
+
+.logistics-leg-label {
+  font-weight: bold;
+}
+
+.logistics-leg input[type="time"] {
+  flex: 0 0 auto;
+  width: auto;
+}
+
+.logistics-leg-agent {
+  flex: 1;
+  max-width: 20rem;
 }

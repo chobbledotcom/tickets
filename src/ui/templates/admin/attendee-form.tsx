@@ -6,9 +6,11 @@
  * start date plus a length — applied to every daily listing they book. The
  * listing editor is a fixed table with one quantity box per bookable listing
  * (plus any inactive listing the attendee already booked); quantity ≥ 1 books
- * it, 0 leaves it out, so there are no add/remove-line buttons. Not-booked rows
- * are hidden behind a "Show all listings" toggle (pure CSS). The form works
- * without JavaScript.
+ * it, 0 leaves it out, so there are no add/remove-line buttons. When something
+ * is already booked (an edit, or a create pre-filled from the calendar) the
+ * not-booked rows hide behind a "Show all listings" toggle (pure CSS); a bare
+ * create form has nothing booked, so it drops the toggle and shows every
+ * listing. The form works without JavaScript.
  */
 
 import { compact } from "#fp";
@@ -26,6 +28,14 @@ import {
   SHOW_ALL_FIELD,
   STATUS_FIELD,
 } from "#routes/admin/attendee-form-model.ts";
+import {
+  type AttendeeLogisticsData,
+  endAgentField,
+  endTimeField,
+  SPLIT_AGENTS_FIELD,
+  startAgentField,
+  startTimeField,
+} from "#routes/admin/attendee-logistics.ts";
 import { targetQuery } from "#shared/bulk-email.ts";
 import { toMajorUnits } from "#shared/currency.ts";
 import {
@@ -54,6 +64,7 @@ import {
 import { EditQuestions, PaymentDetails } from "#templates/admin/attendees.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import {
+  ActionButton,
   Icon,
   MaybeButtonLink,
   SubmitButton,
@@ -106,6 +117,8 @@ export type AttendeeFormTemplateData = {
   lineWarnings: Map<number, string[]>;
   /** All warnings flattened, for the top-of-page summary. */
   topWarnings: string[];
+  /** Logistics selectors data, or undefined when logistics doesn't apply. */
+  logistics?: AttendeeLogisticsData;
 };
 
 /** Status badges for an existing booking — "Checked in" and/or "Refunded". */
@@ -188,40 +201,165 @@ const ListingRow = ({
   );
 };
 
-/** The fixed listing editor: one quantity box per listing, with a "Show all
- * listings" toggle that reveals the not-booked rows (pure CSS). */
+/** The fixed listing editor: one quantity box per listing. When at least one
+ * line is already booked — an edit, or a create deep-linked from the calendar
+ * with pre-selected listings — the not-booked rows tuck behind an un-ticked
+ * "Show all listings" toggle (pure CSS). A bare create form has nothing booked,
+ * so every row would hide behind that toggle; there we drop it and show every
+ * listing instead. */
 const ListingEditor = ({
   data,
 }: {
   data: AttendeeFormTemplateData;
-}): JSX.Element => (
-  <div class="listing-editor">
-    <label class="show-all">
-      <input class="show-all-toggle" name={SHOW_ALL_FIELD} type="checkbox" />
-      Show all listings
-    </label>
-    <div class="table-scroll">
-      <table class="line-editor">
-        <thead>
-          <tr>
-            <th>Listing</th>
-            <th>Dates</th>
-            <th>Qty</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.parsed.lines.map((line) => (
-            <ListingRow
-              line={line}
-              warnings={data.lineWarnings.get(line.listingId) ?? []}
-            />
-          ))}
-        </tbody>
-      </table>
+}): JSX.Element => {
+  const hasBookedLines = data.parsed.lines.some(
+    (line) => isBookedLine(line) || Boolean(line.existingBooking),
+  );
+  return (
+    <div
+      class={
+        hasBookedLines ? "listing-editor" : "listing-editor show-all-listings"
+      }
+    >
+      {hasBookedLines && (
+        <label class="show-all">
+          <input
+            class="show-all-toggle"
+            name={SHOW_ALL_FIELD}
+            type="checkbox"
+          />
+          Show all listings
+        </label>
+      )}
+      <div class="table-scroll">
+        <table class="line-editor">
+          <thead>
+            <tr>
+              <th>Listing</th>
+              <th>Dates</th>
+              <th>Qty</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.parsed.lines.map((line) => (
+              <ListingRow
+                line={line}
+                warnings={data.lineWarnings.get(line.listingId) ?? []}
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
-  </div>
-);
+  );
+};
+
+/** One leg (start or end) as a single tidy row: a label, the time-of-day input
+ * (logistics metadata only; never availability) and the agent select. Used for
+ * the shared single pair (listingId omitted) or a specific listing (split). */
+const LogisticsLeg = ({
+  agents,
+  leg,
+  assignment,
+  listingId,
+}: {
+  agents: AttendeeLogisticsData["agents"];
+  leg: "start" | "end";
+  assignment: AttendeeLogisticsData["single"];
+  listingId?: number;
+}): JSX.Element => {
+  const isStart = leg === "start";
+  const label = isStart ? "Start time & agent:" : "End time & agent:";
+  const time = isStart ? assignment.startTime : assignment.endTime;
+  const agentId = isStart ? assignment.startAgentId : assignment.endAgentId;
+  return (
+    <div class="logistics-leg">
+      <span class="logistics-leg-label">{label}</span>
+      <input
+        aria-label={isStart ? "Start time" : "End time"}
+        name={(isStart ? startTimeField : endTimeField)(listingId)}
+        type="time"
+        value={time}
+      />
+      <select
+        aria-label={isStart ? "Start agent" : "End agent"}
+        class="logistics-leg-agent"
+        name={(isStart ? startAgentField : endAgentField)(listingId)}
+      >
+        <option selected={agentId === null} value="">
+          — None —
+        </option>
+        {agents.map((agent) => (
+          <option selected={agent.id === agentId} value={agent.id}>
+            {agent.name}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+};
+
+/**
+ * Logistics agent + time selectors for logistics listings. A "different agents
+ * per item" checkbox switches (pure CSS) between one shared start/end pair and
+ * a pair per logistics listing. Grouped in a fieldset/legend like the listing
+ * editor. Only rendered when logistics applies.
+ */
+const LogisticsSection = ({
+  data,
+}: {
+  data: AttendeeFormTemplateData;
+}): JSX.Element | null => {
+  const logistics = data.logistics;
+  if (!logistics) return null;
+  return (
+    <fieldset class="logistics-agents listing-section">
+      <legend>Logistics</legend>
+      <label class="split-agents">
+        <input
+          checked={logistics.split}
+          class="split-agents-toggle"
+          name={SPLIT_AGENTS_FIELD}
+          type="checkbox"
+          value="1"
+        />
+        Use different agents per item
+      </label>
+      <div class="logistics-single">
+        <LogisticsLeg
+          agents={logistics.agents}
+          assignment={logistics.single}
+          leg="start"
+        />
+        <LogisticsLeg
+          agents={logistics.agents}
+          assignment={logistics.single}
+          leg="end"
+        />
+      </div>
+      <div class="logistics-split">
+        {logistics.lines.map((line) => (
+          <fieldset class="logistics-line">
+            <legend>{line.name}</legend>
+            <LogisticsLeg
+              agents={logistics.agents}
+              assignment={line.assignment}
+              leg="start"
+              listingId={line.listingId}
+            />
+            <LogisticsLeg
+              agents={logistics.agents}
+              assignment={line.assignment}
+              leg="end"
+              listingId={line.listingId}
+            />
+          </fieldset>
+        ))}
+      </div>
+    </fieldset>
+  );
+};
 
 /** Option list for the day-count select: 1…horizon, each labelled with the
  * resulting end date when a start date is known. */
@@ -347,6 +485,59 @@ const EmailHistory = ({
           </MaybeButtonLink>
         </p>
       )}
+    </article>
+  );
+};
+
+/** An attendee is refundable when they have a captured payment that has not
+ * already been refunded. */
+const isRefundable = (attendee: Attendee): boolean =>
+  !!attendee.payment_id && !attendee.refunded;
+
+/**
+ * Per-attendee actions (edit mode only) — refund, re-send notification, and
+ * delete. These used to live in the attendee table's "Actions" column; they now
+ * sit on the edit page, each routed through its own typed-name confirmation
+ * page. The booking-scoped routes are keyed on the attendee's home listing.
+ */
+const AttendeeActions = ({ attendee }: { attendee: Attendee }): JSX.Element => {
+  const base = `/admin/listing/${attendee.listing_id}/attendee/${attendee.id}`;
+  const ret = `?return_url=${encodeURIComponent(`/admin/attendees/${attendee.id}`)}`;
+  return (
+    <article>
+      <h3>Actions</h3>
+      <p class="actions">
+        {isRefundable(attendee) && (
+          <ActionButton
+            href={`${base}/refund${ret}`}
+            icon="credit-card"
+            variant="secondary"
+          >
+            Refund
+          </ActionButton>
+        )}
+        <ActionButton
+          href={`${base}/resend-notification${ret}`}
+          icon="rotate-ccw"
+          variant="secondary"
+        >
+          Re-send notification
+        </ActionButton>
+        <ActionButton
+          href={`${base}/contact`}
+          icon="arrow-right"
+          variant="secondary"
+        >
+          Send text
+        </ActionButton>
+        <ActionButton
+          href={`${base}/delete`}
+          icon="trash-2"
+          variant="secondary"
+        >
+          Delete attendee
+        </ActionButton>
+      </p>
     </article>
   );
 };
@@ -552,6 +743,8 @@ const AttendeeEditForm = ({
       )}
       <ListingEditor data={data} />
 
+      <LogisticsSection data={data} />
+
       <hr />
 
       <p class="form-actions">
@@ -579,7 +772,7 @@ export const attendeeFormPage = (
 
   return String(
     <Layout title={pageTitle(data)}>
-      <AdminNav active="/admin/" session={session} />
+      <AdminNav active="/admin/attendees" session={session} />
 
       <div class="prose">
         <h1>{pageTitle(data)}</h1>
@@ -613,6 +806,8 @@ export const attendeeFormPage = (
       )}
 
       {isEdit && a && <Raw html={PaymentDetails({ attendee: a })} />}
+
+      {isEdit && a && <AttendeeActions attendee={a} />}
 
       {isEdit && <AttendeeLogSection entries={data.activityLog} />}
 

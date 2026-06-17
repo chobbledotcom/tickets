@@ -2,6 +2,7 @@
  * Admin advanced settings page template
  */
 
+import { t } from "#i18n";
 import type { AdminSession, Theme } from "#shared/types.ts";
 import { ResetDatabaseForm } from "#templates/admin/database-reset.tsx";
 import { AdminNav, SettingsSubNav } from "#templates/admin/nav.tsx";
@@ -70,17 +71,13 @@ export const adminAdvancedSettingsPage = (
   s: AdvancedSettingsPageState,
 ): string =>
   String(
-    <Layout theme={s.theme} title="Advanced Settings">
+    <Layout theme={s.theme} title={t("settings.advanced.title")}>
       <AdminNav active="/admin/settings" session={session} />
       <SettingsSubNav />
 
       <article>
         <aside>
-          <p>
-            Be careful changing settings on this page. You can break your site
-            in ways that can be hard to diagnose. Test your booking process
-            after making a change.
-          </p>
+          <p>{t("settings.advanced.warning")}</p>
         </aside>
       </article>
 

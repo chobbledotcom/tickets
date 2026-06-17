@@ -398,7 +398,7 @@ const validateSingleField = (
  * Parse and validate form data against field definitions.
  *
  * Supply a type parameter to get strongly-typed values back:
- *   validateForm<ListingFormValues>(form, listingFields)
+ *   validateForm<ListingFormValues>(form, getListingFields())
  *
  * Without a type parameter, values default to the loose FieldValues dict.
  */

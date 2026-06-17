@@ -17,7 +17,7 @@ import type { Attendee } from "#shared/types.ts";
  * All PII is read from the encrypted pii_blob; per-listing status lives on listing_attendees.
  */
 const ATTENDEE_COLS =
-  "a.id, a.created, a.ticket_token_index, a.pii_blob, a.status_id, a.remaining_balance";
+  "a.id, a.created, a.ticket_token_index, a.pii_blob, a.status_id, a.remaining_balance, a.split_logistics_agents";
 
 /** Columns sourced from listing_attendees (per-listing data) */
 const EA_COLS =
@@ -188,6 +188,23 @@ export const getAttendeeRaw = (id: number): Promise<Attendee | null> => {
      LEFT JOIN listing_attendees ea ON ea.attendee_id = a.id
      WHERE a.id = ?`,
     [id],
+  );
+};
+
+/**
+ * Get attendees by ID without decrypting PII, one row per (attendee, booking).
+ * Used by the agent run sheet, which already knows the attendee ids it needs
+ * and only reads each attendee's contact fields. Returns an empty array for no
+ * ids. Decrypt with decryptAttendees before display.
+ */
+export const getAttendeesByIds = (ids: number[]): Promise<Attendee[]> => {
+  if (ids.length === 0) return Promise.resolve([]);
+  return queryAll<Attendee>(
+    `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
+     FROM attendees a
+     LEFT JOIN listing_attendees ea ON ea.attendee_id = a.id
+     WHERE a.id IN (${inPlaceholders(ids)})`,
+    ids,
   );
 };
 

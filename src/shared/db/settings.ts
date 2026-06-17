@@ -87,6 +87,7 @@ export const CONFIG_KEYS = {
   GOOGLE_WALLET_ISSUER_ID: "google_wallet_issuer_id",
   GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL: "google_wallet_service_account_email",
   GOOGLE_WALLET_SERVICE_ACCOUNT_KEY: "google_wallet_service_account_key",
+  HAS_LOGISTICS: "has_logistics",
   HEADER_IMAGE_URL: "header_image_url",
   HOMEPAGE_TEXT: "homepage_text",
   LAST_PRUNED_LOGINS: "last_pruned_logins",
@@ -275,6 +276,7 @@ type SpecificFields = {
   show_public_api: boolean;
   contact_form_enabled: boolean;
   order_enabled: boolean;
+  has_logistics: boolean;
   payment_provider: PaymentProviderType | null;
   payment_provider_setting: PaymentProviderSetting | null;
   booking_fee: string;
@@ -294,6 +296,7 @@ const data: SettingsData = {
   contact_form_enabled: false,
   country: DEFAULT_COUNTRY,
   currency: "GBP",
+  has_logistics: false,
   order_enabled: false,
   payment_provider: null,
   payment_provider_setting: null,
@@ -543,6 +546,7 @@ const buildSnapshot = async (raw: Map<string, string>): Promise<void> => {
   data.contact_form_enabled =
     raw.get(CONFIG_KEYS.CONTACT_FORM_ENABLED) === "true";
   data.order_enabled = raw.get(CONFIG_KEYS.ORDER_ENABLED) === "true";
+  data.has_logistics = raw.get(CONFIG_KEYS.HAS_LOGISTICS) === "true";
   const rawProvider = raw.get(CONFIG_KEYS.PAYMENT_PROVIDER);
   data.payment_provider =
     rawProvider && isPaymentProvider(rawProvider) ? rawProvider : null;
@@ -810,10 +814,13 @@ const settingsBase = {
 
   // --- Google Wallet ---
   googleWallet: createGoogleWalletReadSettings(snap as (k: string) => string),
+
+  get hasLogistics(): boolean {
+    return snap("has_logistics");
+  },
   invalidateCache,
   // --- Core ---
   loadAll,
-
   get orderEnabled(): boolean {
     return snap("order_enabled");
   },
@@ -978,6 +985,7 @@ const settingsBase = {
     },
     // --- Google Wallet writes ---
     googleWallet: createGoogleWalletUpdateSettings(encryptedUpdate),
+    hasLogistics: boolUpdate(CONFIG_KEYS.HAS_LOGISTICS, "has_logistics"),
     orderEnabled: boolUpdate(CONFIG_KEYS.ORDER_ENABLED, "order_enabled"),
     paymentProvider: async (v: PaymentProviderType): Promise<void> => {
       await writeRaw(CONFIG_KEYS.PAYMENT_PROVIDER, v);

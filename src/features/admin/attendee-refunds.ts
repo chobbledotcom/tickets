@@ -3,6 +3,7 @@
  */
 
 import { chunk, filter } from "#fp";
+import { t } from "#i18n";
 import {
   withDecryptedAttendees,
   withListingAttendeesAuth,
@@ -31,13 +32,6 @@ import {
   verifiedAttendeeForm,
 } from "./attendees-route-helpers.ts";
 
-/** Refund error messages */
-const NO_PAYMENT_ERROR = "This attendee has no payment to refund.";
-const NO_REFUNDABLE_ERROR = "No attendees have payments to refund.";
-const REFUND_FAILED_ERROR =
-  "Refund failed. The payment may have already been refunded.";
-const ALREADY_REFUNDED_ERROR = "This attendee has already been refunded.";
-
 /** Max refunds per request to stay within Bunny Edge fetch limits */
 const REFUND_BATCH_LIMIT = 30;
 
@@ -59,7 +53,12 @@ const handleAdminAttendeeRefundGet = attendeeGetRoute(
     const returnUrl = getReturnUrl(request);
     if (!data.attendee.payment_id) {
       return htmlResponse(
-        adminRefundAttendeePage(data, session, NO_PAYMENT_ERROR, returnUrl),
+        adminRefundAttendeePage(
+          data,
+          session,
+          t("error.no_payment_to_refund"),
+          returnUrl,
+        ),
         400,
       );
     }
@@ -68,7 +67,7 @@ const handleAdminAttendeeRefundGet = attendeeGetRoute(
         adminRefundAttendeePage(
           data,
           session,
-          ALREADY_REFUNDED_ERROR,
+          t("error.already_refunded"),
           returnUrl,
         ),
         400,
@@ -86,10 +85,14 @@ const handleAttendeeRefund = verifiedAttendeeForm(
   "refund",
   async (data, _form, listingId, attendeeId) => {
     if (!data.attendee.payment_id) {
-      return refundError(listingId, attendeeId, NO_PAYMENT_ERROR);
+      return refundError(
+        listingId,
+        attendeeId,
+        t("error.no_payment_to_refund"),
+      );
     }
     if (data.attendee.refunded) {
-      return refundError(listingId, attendeeId, ALREADY_REFUNDED_ERROR);
+      return refundError(listingId, attendeeId, t("error.already_refunded"));
     }
 
     const provider = await getActivePaymentProvider();
@@ -102,7 +105,7 @@ const handleAttendeeRefund = verifiedAttendeeForm(
         detail: `Admin refund failed for attendee ${data.attendee.id}, payment ${data.attendee.payment_id}`,
         listingId,
       });
-      return refundError(listingId, attendeeId, REFUND_FAILED_ERROR);
+      return refundError(listingId, attendeeId, t("error.refund_failed"));
     }
 
     await markRefunded(data.attendee.id, listingId);
@@ -110,7 +113,7 @@ const handleAttendeeRefund = verifiedAttendeeForm(
       `Refund issued for attendee '${data.attendee.name}'`,
       listingId,
     );
-    return ok(`/admin/listing/${listingId}`, "Refund issued");
+    return ok(`/admin/listing/${listingId}`, t("success.refund_issued"));
   },
 );
 
@@ -129,7 +132,12 @@ const handleAdminRefundAllGet = (
     const count = getRefundable(attendees).length;
     return count === 0
       ? htmlResponse(
-          adminRefundAllAttendeesPage(listing, 0, session, NO_REFUNDABLE_ERROR),
+          adminRefundAllAttendeesPage(
+            listing,
+            0,
+            session,
+            t("error.no_attendees_to_refund"),
+          ),
           400,
         )
       : htmlResponse(adminRefundAllAttendeesPage(listing, count, session));
@@ -257,7 +265,7 @@ const buildRefundAllResponse = async (
     `Bulk refund: all ${refundedCount} attendee(s) refunded for '${listing.name}'`,
     listing.id,
   );
-  return ok(`/admin/listing/${listing.id}`, "All attendees refunded");
+  return ok(`/admin/listing/${listing.id}`, t("success.all_refunded"));
 };
 
 /** Process bulk refund for all refundable attendees */
@@ -278,7 +286,7 @@ const processRefundAll = async (
   if (error) return error;
 
   if (refundable.length === 0) {
-    return fail(refundAllUrl, NO_REFUNDABLE_ERROR);
+    return fail(refundAllUrl, t("error.no_attendees_to_refund"));
   }
 
   const provider = await getActivePaymentProvider();

@@ -147,6 +147,83 @@ export const createTestManagerSession = async (
   return `${getSessionCookieName()}=${token}`;
 };
 
+/**
+ * Create a delivery-agent user that shares the test data key, plus a live
+ * session for it. Returns the session cookie and the new user's id. When a
+ * password is given the user's wrapped key is derived from it (so the real
+ * login flow works); otherwise a placeholder wrapping is used. Optionally links
+ * the user to logistics agents.
+ */
+export const createTestAgentSession = async (
+  opts: {
+    token?: string;
+    username?: string;
+    password?: string;
+    agentIds?: number[];
+  } = {},
+): Promise<{ cookie: string; userId: number }> => {
+  const token = opts.token ?? "agent-session";
+  const username = opts.username ?? "testagent";
+  const { encrypt: enc } = await import("#shared/crypto/encryption.ts");
+  const { hashPassword, hmacHash } = await import("#shared/crypto/hashing.ts");
+  const { deriveKEK, unwrapKey, wrapKey, wrapKeyWithToken } = await import(
+    "#shared/crypto/keys.ts"
+  );
+  const { getDb, insert } = await import("#shared/db/client.ts");
+  const { createSession } = await import("#shared/db/sessions.ts");
+  const {
+    getUserByUsername,
+    verifyUserPassword,
+    invalidateUsersCache: invalidateUsers,
+  } = await import("#shared/db/users.ts");
+
+  const owner = await getUserByUsername(TEST_ADMIN_USERNAME);
+  if (!owner?.wrapped_data_key) throw new Error("Admin user not set up");
+  const ownerHash = await verifyUserPassword(owner, TEST_ADMIN_PASSWORD);
+  if (!ownerHash) throw new Error("Admin password verification failed");
+  const dataKey = await unwrapKey(
+    owner.wrapped_data_key,
+    await deriveKEK(ownerHash),
+  );
+
+  let passwordHashEnc = "";
+  let userWrappedKey: string;
+  if (opts.password) {
+    const passwordHash = await hashPassword(opts.password);
+    passwordHashEnc = await enc(passwordHash);
+    userWrappedKey = await wrapKey(dataKey, await deriveKEK(passwordHash));
+  } else {
+    userWrappedKey = await wrapKeyWithToken(dataKey, "user-key-placeholder");
+  }
+
+  await getDb().execute(
+    insert("users", {
+      admin_level: await enc("agent"),
+      password_hash: passwordHashEnc,
+      username_hash: await enc(username),
+      username_index: await hmacHash(username),
+      wrapped_data_key: userWrappedKey,
+    }),
+  );
+  invalidateUsers();
+  const userId = (await getUserByUsername(username))!.id;
+
+  if (opts.agentIds && opts.agentIds.length > 0) {
+    const { setUserAgentIds } = await import("#shared/db/user-agents.ts");
+    await setUserAgentIds(userId, opts.agentIds);
+  }
+
+  const wrappedDataKey = await wrapKeyWithToken(dataKey, token);
+  await createSession(
+    token,
+    "agent-csrf",
+    Date.now() + 60_000,
+    wrappedDataKey,
+    userId,
+  );
+  return { cookie: `${getSessionCookieName()}=${token}`, userId };
+};
+
 export const createTestApiKeyToken = async (): Promise<string> => {
   const dataKey = await getTestDataKey();
   const { apiKey } = await createApiKey(

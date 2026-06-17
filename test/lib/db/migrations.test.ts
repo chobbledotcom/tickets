@@ -391,6 +391,32 @@ describeWithEnv("db > migrations", { db: true }, () => {
       );
       expect(after.rows.length).toBe(0);
     });
+
+    test("named legacy migration drops legacy triggers not in declarative schema", async () => {
+      await getDb().execute(
+        `CREATE TRIGGER IF NOT EXISTS trg_legacy_noop
+         AFTER INSERT ON attendees
+         FOR EACH ROW BEGIN SELECT 1; END`,
+      );
+
+      const before = await getDb().execute(
+        `SELECT name FROM sqlite_master
+         WHERE type = 'trigger' AND name = 'trg_legacy_noop'`,
+      );
+      expect(before.rows.length).toBe(1);
+
+      await getDb().execute(
+        "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
+      );
+      await markCurrentSchemaMigrationPending();
+      await initDb();
+
+      const after = await getDb().execute(
+        `SELECT name FROM sqlite_master
+         WHERE type = 'trigger' AND name = 'trg_legacy_noop'`,
+      );
+      expect(after.rows.length).toBe(0);
+    });
   });
 
   describe("renameEventsToListings (legacy event → listing upgrade)", () => {
@@ -880,10 +906,16 @@ describe("db > migrations > schema change guard", () => {
         "2026-06-14_listing_customisable_days",
         "2026-06-14_attendee_statuses",
         "2026-06-15_activity_log_listing_id_index",
+        "2026-06-16_logistics_agents",
+        "2026-06-16_email_templates",
+        "2026-06-16_agent_users",
+        "2026-06-16_processed_payments_failure_data",
+        "2026-06-16_listing_aggregates",
+        "2026-06-16_modifiers",
         "2026-06-16_sms_messages",
         "2026-06-16_attendee_phone_index",
       ],
-      schemaHash: "1ekec0n",
+      schemaHash: "1skmvfc",
     });
   });
 });

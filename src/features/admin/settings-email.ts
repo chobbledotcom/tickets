@@ -3,6 +3,7 @@
  * Owner-only access enforced via settingsHandler / advancedSettingsRoute.
  */
 
+import { t } from "#i18n";
 import {
   advancedSettingsRoute,
   processSecretField,
@@ -35,7 +36,9 @@ export const handleEmailPost = settingsHandler<EmailFormData>({
   formId: "settings-email",
   label: "Email settings",
   log: ({ provider }) =>
-    provider === "" ? "Email provider disabled" : "Email settings updated",
+    provider === ""
+      ? t("success.email_provider_disabled")
+      : t("success.email_settings_updated"),
   save: async ({ provider, apiKey, fromAddress }) => {
     if (provider === "") {
       await settings.update.email.provider("");
@@ -51,9 +54,9 @@ export const handleEmailPost = settingsHandler<EmailFormData>({
   },
   validate: ({ provider, fromAddress }) => {
     if (provider === "") return null;
-    if (!isEmailProvider(provider)) return "Invalid email provider";
+    if (!isEmailProvider(provider)) return t("error.invalid_email_provider");
     if (fromAddress && !isValidEmail(fromAddress)) {
-      return "Invalid from-address format. Please use format: name@domain.com";
+      return t("error.from_address_format");
     }
     return null;
   },
@@ -64,16 +67,20 @@ export const handleEmailTestPost = advancedSettingsRoute(
   async (_form, errorPage) => {
     const config = await getEmailConfig();
     if (!config) {
-      return errorPage("Email not configured", 400, "settings-email");
+      return errorPage(t("error.email_not_configured"), 400, "settings-email");
     }
     const businessEmail = parseEmail(settings.businessEmail);
     if (!businessEmail) {
-      return errorPage("No business email set", 400, "settings-email-test");
+      return errorPage(
+        t("error.no_business_email"),
+        400,
+        "settings-email-test",
+      );
     }
     const status = await sendTestEmail(config, businessEmail);
     if (!status) {
       return errorPage(
-        "Test email failed (no response)",
+        t("error.test_email_no_response"),
         502,
         "settings-email-test",
       );

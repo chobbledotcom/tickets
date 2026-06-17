@@ -21,17 +21,20 @@ import { bulkEmailRoutes } from "#routes/admin/bulk-email.ts";
 import { calendarRoutes } from "#routes/admin/calendar.ts";
 import { dashboardRoutes } from "#routes/admin/dashboard.ts";
 import { debugRoutes } from "#routes/admin/debug.ts";
+import { deliveriesRoutes } from "#routes/admin/deliveries.ts";
 import { groupsRoutes } from "#routes/admin/groups.ts";
 import { guideRoutes } from "#routes/admin/guide.ts";
 import { holidaysRoutes } from "#routes/admin/holidays.ts";
 import { listingQrRoutes } from "#routes/admin/listing-qr.ts";
 import { listingsRoutes } from "#routes/admin/listings.ts";
 import { markdownPreviewRoutes } from "#routes/admin/markdown-preview.ts";
+import { modifiersRoutes } from "#routes/admin/modifiers.ts";
 import { questionsRoutes } from "#routes/admin/questions.ts";
 import { scannerRoutes } from "#routes/admin/scanner.ts";
 import { seedsRoutes } from "#routes/admin/seeds.ts";
 import { sessionsRoutes } from "#routes/admin/sessions.ts";
 import { settingsRoutes } from "#routes/admin/settings.ts";
+import { logisticsRoutes } from "#routes/admin/settings-logistics.ts";
 import { attendeeStatusesRoutes } from "#routes/admin/settings-statuses.ts";
 import { siteRoutes } from "#routes/admin/site.ts";
 import { supportRoutes } from "#routes/admin/support.ts";
@@ -46,8 +49,10 @@ import { settings } from "#shared/db/settings.ts";
 const adminRouteModules: Record<string, RouteHandlerFn>[] = [
   dashboardRoutes,
   authRoutes,
+  deliveriesRoutes,
   apiKeysRoutes,
   settingsRoutes,
+  logisticsRoutes,
   attendeeStatusesRoutes,
   debugRoutes,
   siteRoutes,
@@ -62,6 +67,7 @@ const adminRouteModules: Record<string, RouteHandlerFn>[] = [
   usersRoutes,
   guideRoutes,
   groupsRoutes,
+  modifiersRoutes,
   bulkActionsRoutes,
   bulkEmailRoutes,
   holidaysRoutes,
@@ -90,10 +96,11 @@ type RouterFn = ReturnType<typeof createRouter>;
  * Layout template renders the debug footer inline.
  */
 export const routeAdmin: RouterFn = async (request, path, method, server) => {
-  // Check admin status before tracking so the auth queries aren't logged
+  // Check admin status before tracking so the auth queries aren't logged.
+  // Only staff get the query-log debug footer — delivery agents never see it.
   const session = await getAuthenticatedSession(request);
 
-  if (method === "GET" && session) {
+  if (method === "GET" && session && session.adminLevel !== "agent") {
     enableQueryLog();
     await settings.loadAll();
   }

@@ -3,7 +3,7 @@
  */
 
 import type { InValue, ResultSet } from "@libsql/client";
-import { mapParallel, reduce, sort, sumOf, unique } from "#fp";
+import { mapParallel, reduce, sort, unique } from "#fp";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { addDays } from "#shared/dates.ts";
@@ -79,6 +79,7 @@ export type ListingInput = {
   durationDays?: number;
   customisableDays?: boolean;
   dayPrices?: DayPrices;
+  usesLogistics?: boolean;
 };
 
 /** Compute slug index from slug for blind index lookup */
@@ -187,19 +188,22 @@ const rawListingsTable = defineIdTable<Listing, ListingInput>("listings", {
   purchase_only: col.boolean(false),
   thank_you_url: col.encryptedText(encrypt, decrypt),
   unit_price: col.withDefault(() => 0),
+  uses_logistics: col.boolean(false),
   webhook_url: col.encryptedText(encrypt, decrypt),
 });
 
 /** SELECT projecting each listing plus its booked-quantity count. Callers
  * append their own WHERE and {@link LISTING_COUNT_GROUP_BY}. Shared by the
  * cache's fetchers and by the filtered group / ungrouped / activity-log queries
- * so the count semantics (SUM of quantity, 0 when unbooked) live in one place. */
-export const LISTING_COUNT_SELECT = `SELECT e.*, COALESCE(SUM(ea.quantity), 0) AS attendee_count
-     FROM listings e
-     LEFT JOIN listing_attendees ea ON e.id = ea.listing_id`;
+ * so the count source lives in one place. The count reads the precomputed
+ * `booked_quantity` column (maintained by triggers on listing_attendees), so
+ * this no longer joins or scans the attendee rows. */
+export const LISTING_COUNT_SELECT = `SELECT e.*, e.booked_quantity AS attendee_count
+     FROM listings e`;
 
-/** GROUP BY clause that pairs with {@link LISTING_COUNT_SELECT}. */
-export const LISTING_COUNT_GROUP_BY = "GROUP BY e.id";
+/** GROUP BY clause that pairs with {@link LISTING_COUNT_SELECT}. Empty now that
+ * the count comes from a column rather than an aggregate over a join. */
+export const LISTING_COUNT_GROUP_BY = "";
 
 /**
  * Decrypt a listing row and attach its attendee count — the single
@@ -215,7 +219,12 @@ export const decryptListingWithCount = async (
   row: ListingWithCount,
 ): Promise<ListingWithCount> => {
   const listing = await rawListingsTable.fromDb(row);
-  return { ...listing, attendee_count: row.attendee_count };
+  return {
+    ...listing,
+    attendee_count: row.attendee_count,
+    income: Number(row.income),
+    tickets_count: Number(row.tickets_count),
+  };
 };
 
 /**
@@ -317,14 +326,26 @@ export const deleteListing = async (listingId: number): Promise<void> => {
   invalidateListingsCache();
 };
 
-/** Extract listing row from batch result, returning null if not found */
-const extractListingRow = (result: ResultSet): Listing | null =>
-  resultRows<Listing>(result)[0] ?? null;
+/** The precomputed aggregate columns every `SELECT * FROM listings` row carries. */
+type ListingAggregateColumns = {
+  booked_quantity: number;
+  income: number;
+  tickets_count: number;
+};
 
-/** Extract listing from batch result, decrypt and attach count. Returns null if listing not found. */
+/** Extract listing row from batch result, returning null if not found. The raw
+ * `SELECT *` row carries the precomputed aggregate columns. */
+const extractListingRow = (
+  result: ResultSet,
+): (Listing & ListingAggregateColumns) | null =>
+  resultRows<Listing & ListingAggregateColumns>(result)[0] ?? null;
+
+/** Extract listing from batch result, decrypt and attach the aggregate columns.
+ * The count is the precomputed booked_quantity column (trigger-maintained SUM of
+ * quantity), so callers no longer pass or compute it. Returns null if listing
+ * not found. */
 const withBatchListing = async <T>(
   listingResult: ResultSet,
-  getCount: () => number,
   build: (listing: ListingWithCount) => T,
 ): Promise<T | null> => {
   const listingRow = extractListingRow(listingResult);
@@ -332,7 +353,7 @@ const withBatchListing = async <T>(
   return build(
     await decryptListingWithCount({
       ...listingRow,
-      attendee_count: getCount(),
+      attendee_count: listingRow.booked_quantity,
     }),
   );
 };
@@ -379,7 +400,7 @@ export type ListingWithAttendees = {
  * Get listing and all attendees in a single database round-trip.
  * Uses batch API to execute both queries together, reducing latency
  * for remote databases like Turso from 2 RTTs to 1.
- * Computes attendee_count from the attendees array.
+ * attendee_count comes from the listing's precomputed booked_quantity column.
  */
 export const getListingWithAttendeesRaw = async (
   id: number,
@@ -397,11 +418,10 @@ export const getListingWithAttendeesRaw = async (
   ]);
 
   const attendeesRaw = resultRows<Attendee>(attendeesResult!);
-  return withBatchListing(
-    listingResult!,
-    () => sumOf((a: Attendee) => a.quantity)(attendeesRaw),
-    (listing) => ({ attendeesRaw, listing }),
-  );
+  return withBatchListing(listingResult!, (listing) => ({
+    attendeesRaw,
+    listing,
+  }));
 };
 
 /**
@@ -498,7 +518,7 @@ export const getListingWithAttendeeRaw = async (
   listingId: number,
   attendeeId: number,
 ): Promise<ListingWithAttendeeRaw | null> => {
-  const [listingResult, attendeeResult, countResult] = await queryBatch([
+  const [listingResult, attendeeResult] = await queryBatch([
     { args: [listingId], sql: "SELECT * FROM listings WHERE id = ?" },
     {
       args: [attendeeId],
@@ -507,20 +527,12 @@ export const getListingWithAttendeeRaw = async (
             LEFT JOIN listing_attendees ea ON ea.attendee_id = a.id
             WHERE a.id = ?`,
     },
-    {
-      args: [listingId],
-      sql: "SELECT COALESCE(SUM(quantity), 0) as count FROM listing_attendees WHERE listing_id = ?",
-    },
   ]);
 
-  return withBatchListing(
-    listingResult!,
-    () => resultRows<{ count: number }>(countResult!)[0]!.count,
-    (listing) => ({
-      attendeeRaw: resultRows<Attendee>(attendeeResult!)[0] ?? null,
-      listing,
-    }),
-  );
+  return withBatchListing(listingResult!, (listing) => ({
+    attendeeRaw: resultRows<Attendee>(attendeeResult!)[0] ?? null,
+    listing,
+  }));
 };
 
 /**

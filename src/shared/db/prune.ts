@@ -3,8 +3,10 @@
  * but whose contents are only useful for a short window.
  *
  * Tables pruned:
- * - processed_payments: idempotency ledger. Only needed while webhook
- *   retries could still arrive (Stripe retries for ~3 days). Defaults to 7 days.
+ * - processed_payments: idempotency ledger. Only needed while webhook retries
+ *   could still arrive (Stripe/Square retry for up to ~3 days). Retention
+ *   defaults to 90 days and is floored at WEBHOOK_RETRY_WINDOW_DAYS (enforced in
+ *   limits.ts) so a row is never pruned while a retry could still re-process it.
  * - sessions: once expires < now, the row is dead. Small grace window so
  *   expired-but-present sessions have a recognisable identity briefly.
  * - login_attempts: rows with an expired lockout are dead. (Rows with NULL
@@ -17,6 +19,7 @@
  */
 
 import { getDb } from "#shared/db/client.ts";
+import { RESOLVED_OUTCOME } from "#shared/db/processed-payments.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   PRUNE_INTERVAL_MS,
@@ -42,12 +45,15 @@ const isoAgePruner =
   };
 
 /**
- * Delete finalized processed_payments rows older than the retention window.
- * Unfinalized (attendee_id IS NULL) rows are handled by deleteAllStaleReservations
- * in processed-payments.ts — we leave them alone here.
+ * Delete resolved processed_payments rows older than the retention window: both
+ * finalized successes (attendee_id set) and recorded terminal failures
+ * (failure_data set). By the time the window elapses no provider retry can
+ * still arrive, so dropping the idempotency row is safe. Genuinely abandoned,
+ * outcome-less reservations (attendee_id NULL and no failure_data) are left for
+ * deleteAllStaleReservations in processed-payments.ts.
  */
 export const prunePayments = isoAgePruner(
-  "DELETE FROM processed_payments WHERE attendee_id IS NOT NULL AND processed_at < ?",
+  `DELETE FROM processed_payments WHERE ${RESOLVED_OUTCOME} AND processed_at < ?`,
   PRUNE_PAYMENTS_RETENTION_MS,
 );
 

@@ -1,0 +1,12 @@
+{
+  "tickets.title": "Your Tickets",
+  "tickets.count": "{count, plural, one {1 Ticket} other {{count} Tickets}}",
+  "tickets.booking_date": "Booking Date:",
+  "tickets.price": "Price:",
+  "tickets.quantity": "Quantity:",
+  "tickets.non_transferable": "Non-transferable \u2014 ID required at entry",
+  "tickets.add_to": "Add to:",
+  "tickets.apple_wallet": "Apple Wallet",
+  "tickets.google_wallet": "Google Wallet",
+  "tickets.download": "Download:"
+}

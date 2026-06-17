@@ -2,11 +2,12 @@
  * Admin API key management routes
  */
 
+import { t } from "#i18n";
 import { createActionHandler } from "#routes/admin/actions.ts";
 import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
 import { requireOwnerOr } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
-import { htmlResponse } from "#routes/response.ts";
+import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
   ADMIN_API_ENDPOINTS,
@@ -21,8 +22,10 @@ import {
   getApiKeysForUser,
 } from "#shared/db/api-keys.ts";
 import { defineForm } from "#shared/forms.tsx";
+import type { AdminSession } from "#shared/types.ts";
 import {
   adminApiDocsPage,
+  adminApiKeyManagePage,
   adminApiKeysPage,
   adminDeleteApiKeyPage,
 } from "#templates/admin/api-keys.tsx";
@@ -41,12 +44,23 @@ export const apiKeyForm = defineForm({
   id: "apiKey",
 });
 
+/** Owner-guarded handler that loads the caller's API keys up front. */
+const withOwnerApiKeys = (
+  request: Request,
+  handle: (
+    session: AdminSession,
+    keys: Awaited<ReturnType<typeof getApiKeysForUser>>,
+  ) => Response | Promise<Response>,
+): Promise<Response> =>
+  requireOwnerOr(request, async (session) =>
+    handle(session, await getApiKeysForUser(session.userId)),
+  );
+
 /**
  * Handle GET /admin/api-keys
  */
 const handleApiKeysGet: TypedRouteHandler<"GET /admin/api-keys"> = (request) =>
-  requireOwnerOr(request, async (session) => {
-    const keys = await getApiKeysForUser(session.userId);
+  withOwnerApiKeys(request, (session, keys) => {
     const flash = applyFlash(request);
     // The API key is embedded in the flash success message after a newline
     const newLineIdx = flash.success?.indexOf("\n") ?? -1;
@@ -72,7 +86,7 @@ const handleApiKeysPost: TypedRouteHandler<"POST /admin/api-keys"> =
     execute: async (session, form) => {
       const name = form.getString("name");
       if (!name) {
-        throw new Error("Name is required");
+        throw new Error(t("error.name_required"));
       }
       if (name.length > 100) {
         throw new Error("Name must be under 100 characters");
@@ -122,6 +136,24 @@ const apiKeyDelete = createConfirmedHandlers<{ id: number; name: string }>({
 });
 
 /**
+ * Handle GET /admin/api-keys/:apiKeyId — per-key management page
+ */
+const handleApiKeyManageGet: TypedRouteHandler<
+  "GET /admin/api-keys/:apiKeyId"
+> = (request, { apiKeyId }) =>
+  withOwnerApiKeys(request, (session, keys) => {
+    const apiKey = keys.find((k) => k.id === apiKeyId);
+    if (!apiKey) return notFoundResponse();
+    const flash = applyFlash(request);
+    return htmlResponse(
+      adminApiKeyManagePage(apiKey, session, {
+        error: flash.error,
+        success: flash.success,
+      }),
+    );
+  });
+
+/**
  * Handle GET /admin/api-keys/docs — API documentation page
  */
 const handleApiDocsGet: TypedRouteHandler<"GET /admin/api-keys/docs"> = (
@@ -137,6 +169,7 @@ export const apiKeysRoutes = {
   ...apiKeyDelete.routes,
   ...defineRoutes({
     "GET /admin/api-keys": handleApiKeysGet,
+    "GET /admin/api-keys/:apiKeyId": handleApiKeyManageGet,
     "GET /admin/api-keys/docs": handleApiDocsGet,
     "POST /admin/api-keys": handleApiKeysPost,
   }),

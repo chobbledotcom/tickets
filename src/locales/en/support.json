@@ -1,0 +1,6 @@
+{
+  "support.page_title": "Support",
+  "support.contact_support": "Contact support",
+  "support.last_submitted": "You last submitted this form <strong>{nagLabel}</strong>.",
+  "support.missing_text": "Your admin hasn't filled in the <code>SUPPORT_PAGE_TEXT</code> variable, which is why you're seeing this strange message."
+}

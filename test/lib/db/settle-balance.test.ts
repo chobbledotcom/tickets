@@ -42,7 +42,7 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     const { attendeeId, listingId } = await createReservedAttendee(1500);
     const paid = await getPaidDefaultStatus();
 
-    const result = await settleAttendeeBalance(attendeeId);
+    const result = await settleAttendeeBalance(attendeeId, 1500);
     expect(result).toEqual({ amount: 1500, listingId, settled: true });
 
     const state = await getAttendeeBalanceState(attendeeId);
@@ -56,7 +56,7 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
 
   test("folds the balance into the recorded price_paid", async () => {
     const { attendeeId } = await createReservedAttendee(1500);
-    await settleAttendeeBalance(attendeeId);
+    await settleAttendeeBalance(attendeeId, 1500);
     const { getDb } = await import("#shared/db/client.ts");
     const row = await getDb().execute({
       args: [attendeeId],
@@ -68,25 +68,57 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
 
   test("is idempotent once the balance is cleared", async () => {
     const { attendeeId } = await createReservedAttendee(1500);
-    await settleAttendeeBalance(attendeeId);
-    expect(await settleAttendeeBalance(attendeeId)).toEqual({
+    await settleAttendeeBalance(attendeeId, 1500);
+    expect(await settleAttendeeBalance(attendeeId, 1500)).toEqual({
       reason: "nothing_owed",
       settled: false,
     });
   });
 
   test("reports not_found for a missing attendee", async () => {
-    expect(await settleAttendeeBalance(9999)).toEqual({
+    expect(await settleAttendeeBalance(9999, 1500)).toEqual({
       reason: "not_found",
       settled: false,
     });
+  });
+
+  test("refuses to settle when the live balance no longer matches what was paid", async () => {
+    const { attendeeId } = await createReservedAttendee(1500);
+    // The checkout was created for 1000, but the live balance is 1500 (e.g. the
+    // owner raised it after checkout). Settling must be refused rather than
+    // clearing the wrong 1500 for a 1000 payment.
+    expect(await settleAttendeeBalance(attendeeId, 1000)).toEqual({
+      reason: "amount_mismatch",
+      settled: false,
+    });
+    // The attendee is left untouched — balance intact, nothing folded in.
+    const state = await getAttendeeBalanceState(attendeeId);
+    expect(state?.remainingBalance).toBe(1500);
+  });
+
+  test("settles exactly once when two callbacks race for the same amount", async () => {
+    const { attendeeId } = await createReservedAttendee(1500);
+    const [a, b] = await Promise.all([
+      settleAttendeeBalance(attendeeId, 1500),
+      settleAttendeeBalance(attendeeId, 1500),
+    ]);
+    // One settles; the other finds the balance already cleared.
+    expect([a, b].filter((r) => r.settled)).toHaveLength(1);
+    const state = await getAttendeeBalanceState(attendeeId);
+    expect(state?.remainingBalance).toBe(0);
+    // price_paid reflects a single settlement (100 deposit + 1500), not 3000.
+    const row = await getDb().execute({
+      args: [attendeeId],
+      sql: "SELECT price_paid FROM listing_attendees WHERE attendee_id = ?",
+    });
+    expect(Number(row.rows[0]!.price_paid)).toBe(1600);
   });
 
   test("settles even when no paid-default status is configured", async () => {
     const { attendeeId } = await createReservedAttendee(1500);
     await getDb().execute("UPDATE attendee_statuses SET is_paid_default = 0");
     invalidateAttendeeStatusesCache();
-    const result = await settleAttendeeBalance(attendeeId);
+    const result = await settleAttendeeBalance(attendeeId, 1500);
     expect(result.settled).toBe(true);
     // No paid default: COALESCE keeps the existing status.
     const state = await getAttendeeBalanceState(attendeeId);
@@ -101,7 +133,7 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
       "SELECT id FROM attendees ORDER BY id DESC LIMIT 1",
     );
     const attendeeId = Number(rows[0]!.id);
-    const result = await settleAttendeeBalance(attendeeId);
+    const result = await settleAttendeeBalance(attendeeId, 900);
     // No bookings → the log entry has no listing attributed.
     expect(result).toEqual({ amount: 900, listingId: null, settled: true });
   });

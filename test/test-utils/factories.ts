@@ -55,6 +55,7 @@ export const testListing = (overrides: Partial<Listing> = {}): Listing => ({
   slug_index: "test-listing-index",
   thank_you_url: "https://example.com/thanks",
   unit_price: 0,
+  uses_logistics: false,
   webhook_url: "",
   ...overrides,
 });
@@ -64,6 +65,8 @@ export const testListingWithCount = (
 ): ListingWithCount => ({
   ...testListing(overrides),
   attendee_count: 0,
+  income: 0,
+  tickets_count: 0,
   ...overrides,
 });
 
@@ -86,6 +89,7 @@ export const testAttendee = (overrides: Partial<Attendee> = {}): Attendee => ({
   refunded: false,
   remaining_balance: 0,
   special_instructions: "",
+  split_logistics_agents: false,
   status_id: null,
   ticket_token: "test-token-1",
   ticket_token_index: "test-token-index-1",
@@ -159,6 +163,7 @@ export const webhookMeta = (
   day_count: "",
   email: "",
   items: "",
+  modifiers: "",
   phone: "",
   reservation_amount: "",
   site_token_index: "",

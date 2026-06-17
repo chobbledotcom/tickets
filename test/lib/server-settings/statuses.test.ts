@@ -170,7 +170,13 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
     test("renders the edit form for an existing status", async () => {
       const seed = await seedStatus();
       const { response } = await adminGet(`${PATH}/${seed.id}/edit`);
-      await expectHtmlResponse(response, 200, "Edit Attendee Status");
+      // The edit page hosts the delete control (the list table no longer does).
+      await expectHtmlResponse(
+        response,
+        200,
+        "Edit Attendee Status",
+        `${PATH}/${seed.id}/delete`,
+      );
     });
 
     test("pre-fills a reservation status's fields when editing", async () => {
@@ -219,12 +225,48 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
     });
   });
 
+  describe("GET /admin/settings/statuses/:id/delete", () => {
+    testRequiresAuth(`${PATH}/1/delete`);
+
+    test("renders the typed-name confirmation page", async () => {
+      const seed = await seedStatus();
+      const { response } = await adminGet(`${PATH}/${seed.id}/delete`);
+      await expectHtmlResponse(
+        response,
+        200,
+        "Delete Attendee Status",
+        "confirm_identifier",
+        seed.name,
+      );
+    });
+
+    test("returns 404 for a missing status", async () => {
+      const { response } = await adminGet(`${PATH}/9999/delete`);
+      expect(response.status).toBe(404);
+    });
+  });
+
   describe("POST /admin/settings/statuses/:id/delete", () => {
+    test("rejects a mismatched confirmation name", async () => {
+      const spare = await attendeeStatusesTable.insert({ name: "Disposable" });
+      const { response } = await adminFormPost(`${PATH}/${spare.id}/delete`, {
+        confirm_identifier: "wrong",
+      });
+      expectRedirectWithFlash(
+        `${PATH}/${spare.id}/delete`,
+        "Name does not match. Please type the exact name to confirm deletion.",
+        false,
+      )(response);
+      expect(await getAttendeeStatus(spare.id)).not.toBeNull();
+    });
+
     test("refuses to delete the last status", async () => {
       const seed = await seedStatus();
-      const { response } = await adminFormPost(`${PATH}/${seed.id}/delete`);
+      const { response } = await adminFormPost(`${PATH}/${seed.id}/delete`, {
+        confirm_identifier: seed.name,
+      });
       expectRedirectWithFlash(
-        PATH,
+        `${PATH}/${seed.id}/delete`,
         "You must keep at least one status",
         false,
       )(response);
@@ -233,9 +275,11 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
     test("refuses to delete the public default", async () => {
       const seed = await seedStatus();
       await attendeeStatusesTable.insert({ name: "Spare" });
-      const { response } = await adminFormPost(`${PATH}/${seed.id}/delete`);
+      const { response } = await adminFormPost(`${PATH}/${seed.id}/delete`, {
+        confirm_identifier: seed.name,
+      });
       expectRedirectWithFlash(
-        PATH,
+        `${PATH}/${seed.id}/delete`,
         "Choose another public default before deleting this status",
         false,
       )(response);
@@ -247,9 +291,11 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
         args: [inUse.id],
         sql: "INSERT INTO attendees (created, pii_blob, status_id) VALUES ('2024-01-01T00:00:00Z', '', ?)",
       });
-      const { response } = await adminFormPost(`${PATH}/${inUse.id}/delete`);
+      const { response } = await adminFormPost(`${PATH}/${inUse.id}/delete`, {
+        confirm_identifier: "Active",
+      });
       expectRedirectWithFlash(
-        PATH,
+        `${PATH}/${inUse.id}/delete`,
         "This status is in use by attendees",
         false,
       )(response);
@@ -257,13 +303,17 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
 
     test("deletes a spare, unused status", async () => {
       const spare = await attendeeStatusesTable.insert({ name: "Disposable" });
-      const { response } = await adminFormPost(`${PATH}/${spare.id}/delete`);
+      const { response } = await adminFormPost(`${PATH}/${spare.id}/delete`, {
+        confirm_identifier: "Disposable",
+      });
       expectRedirectWithFlash(PATH, "Status deleted")(response);
       expect(await getAttendeeStatus(spare.id)).toBeNull();
     });
 
     test("returns 404 deleting a missing status", async () => {
-      const { response } = await adminFormPost(`${PATH}/9999/delete`);
+      const { response } = await adminFormPost(`${PATH}/9999/delete`, {
+        confirm_identifier: "anything",
+      });
       expect(response.status).toBe(404);
     });
 
@@ -273,9 +323,11 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
       const settled = (await getAllAttendeeStatuses()).find(
         (s) => s.name === "Settled",
       )!;
-      const { response } = await adminFormPost(`${PATH}/${settled.id}/delete`);
+      const { response } = await adminFormPost(`${PATH}/${settled.id}/delete`, {
+        confirm_identifier: "Settled",
+      });
       expectRedirectWithFlash(
-        PATH,
+        `${PATH}/${settled.id}/delete`,
         "Choose another paid default before deleting this status",
         false,
       )(response);

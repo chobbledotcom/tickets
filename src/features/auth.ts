@@ -32,7 +32,12 @@ import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowMs } from "#shared/now.ts";
 import { getCachedSession, setCachedSession } from "#shared/session-context.ts";
 import { getSettingsNagItemsForOwner } from "#shared/settings-nags.ts";
-import { type AdminLevel, isRecord, type NagItem } from "#shared/types.ts";
+import {
+  type AdminLevel,
+  isRecord,
+  type NagItem,
+  STAFF_ADMIN_LEVELS,
+} from "#shared/types.ts";
 
 // Re-export for callers that need it
 export { generateSecureToken };
@@ -116,6 +121,12 @@ export const getAuthenticatedSession = async (
   setCachedSession(result);
   return result;
 };
+
+/** Where a user should land after authenticating, based on their role.
+ * Delivery agents go straight to their run sheet (the only page they may see);
+ * staff go to the dashboard. */
+export const adminLandingPath = (adminLevel: AdminLevel): string =>
+  adminLevel === "agent" ? "/admin/deliveries" : "/admin";
 
 /**
  * Extract Bearer token from Authorization header.
@@ -236,15 +247,44 @@ type ParsedBody<T extends BodyMode> = T extends "form"
 /** Policy controlling authentication, CSRF, role, and body parsing */
 export type AuthPolicy<T extends BodyMode = BodyMode> = {
   body: T;
+  /** Require exactly this role. */
   role?: AdminLevel;
+  /** Allow any of these roles (use instead of `role` for multi-role gates). */
+  roles?: readonly AdminLevel[];
   allowApiKey?: boolean;
   /** Override the CSRF token max-age (seconds). Defaults to the standard 1 hour. */
   csrfMaxAge?: number;
 };
 
+/**
+ * Whether a session's role satisfies a gate.
+ * - `roles` given: membership test.
+ * - single `role` given: exact match (owner-only or agent-only gates).
+ * - neither: any back-office staff (owner|manager). Delivery agents are
+ *   excluded by default so introducing the agent class can never widen access
+ *   to an existing staff page that didn't explicitly opt them in.
+ */
+const sessionRoleAllowed = (
+  level: AdminLevel,
+  role: AdminLevel | undefined,
+  roles: readonly AdminLevel[] | undefined,
+): boolean => {
+  if (roles) return roles.includes(level);
+  if (role) return level === role;
+  return (STAFF_ADMIN_LEVELS as readonly AdminLevel[]).includes(level);
+};
+
 /** Auth policy presets — use with withAuth to avoid repeating policy objects */
 export const OWNER_FORM: AuthPolicy<"form"> = { body: "form", role: "owner" };
 export const AUTH_FORM: AuthPolicy<"form"> = { body: "form" };
+/** Agent-only form gate (delivery run-sheet actions). */
+export const AGENT_FORM: AuthPolicy<"form"> = { body: "form", role: "agent" };
+/** Form gate that admits any authenticated user, agents included — used for
+ * actions every logged-in user must reach, like logout. */
+export const ANY_USER_FORM: AuthPolicy<"form"> = {
+  body: "form",
+  roles: ["owner", "manager", "agent"],
+};
 export const AUTH_MULTIPART: AuthPolicy<"multipart"> = { body: "multipart" };
 export const OWNER_MULTIPART: AuthPolicy<"multipart"> = {
   body: "multipart",
@@ -286,7 +326,7 @@ const requireSessionFor = async (
 ): Promise<AuthSession | Response> => {
   const session = await getAuthenticatedSession(request);
   if (!session) return authFailure(channel, "not-authenticated");
-  if (role && session.adminLevel !== role) {
+  if (!sessionRoleAllowed(session.adminLevel, role, undefined)) {
     return authFailure(channel, "forbidden");
   }
   return session;
@@ -320,11 +360,17 @@ export const requireSessionOr = async (
   return isResponse(result) ? result : handler(result);
 };
 
+/** Build a session guard that requires an exact role. */
+const requireRoleOr =
+  (role: AdminLevel) =>
+  (request: Request, handler: SessionHandler): Promise<Response> =>
+    requireSessionOr(request, handler, role);
+
 /** Require owner session — shorthand for requireSessionOr with owner role */
-export const requireOwnerOr = (
-  request: Request,
-  handler: SessionHandler,
-): Promise<Response> => requireSessionOr(request, handler, "owner");
+export const requireOwnerOr = requireRoleOr("owner");
+
+/** Require agent session — shorthand for requireSessionOr with agent role */
+export const requireAgentOr = requireRoleOr("agent");
 
 /** Session guard: require auth and call handler with session */
 export type SessionGuard<TSession> = (
@@ -350,6 +396,26 @@ export const ownerPage = authPage(requireOwnerOr);
 
 /** Authenticated GET page: authenticate, apply flash, render HTML */
 export const sessionPage = authPage(requireSessionOr);
+
+/** Agent-only GET page: authenticate, apply flash, render HTML */
+export const agentPage = authPage(requireAgentOr);
+
+/** Require any authenticated user (owner, manager or agent). Used for pages
+ * that staff and delivery agents alike must reach, like the deliveries run
+ * sheet — agents are sent here, staff opt in via the Calendar submenu. Every
+ * valid session already holds one of the three roles, so authentication is the
+ * only gate. */
+export const requireAnyUserOr = async (
+  request: Request,
+  handler: SessionHandler,
+): Promise<Response> => {
+  const session = await getAuthenticatedSession(request);
+  if (!session) return authFailure("html", "not-authenticated");
+  return handler(session);
+};
+
+/** Any-authenticated-user GET page: authenticate, apply flash, render HTML */
+export const anyUserPage = authPage(requireAnyUserOr);
 
 /** Shared auth failure response factories (avoids jscpd duplication) */
 const htmlForbidden = () => htmlResponse("Forbidden", 403);
@@ -496,7 +562,7 @@ export async function withAuth<T extends BodyMode>(
   const channel = channelFor(policy.body);
   const auth = await resolveSession(request, channel, policy.allowApiKey);
   if (isResponse(auth)) return auth;
-  if (policy.role && auth.session.adminLevel !== policy.role) {
+  if (!sessionRoleAllowed(auth.session.adminLevel, policy.role, policy.roles)) {
     return authFailure(channel, "forbidden");
   }
   const body = await parseCsrfBody(

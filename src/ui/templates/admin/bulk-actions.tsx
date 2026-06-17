@@ -8,6 +8,7 @@
  * the preview as the user types.
  */
 
+import { t } from "#i18n";
 import {
   buildDuplicatePreview,
   type DuplicatePreviewRow,
@@ -44,42 +45,43 @@ export const adminBulkActionsPage = (
   const hasActive = listings.some((e) => e.active);
   const allDeactivated = listings.length > 0 && !hasActive;
   return String(
-    <Layout title={`Bulk Actions: ${group.name}`}>
+    <Layout title={t("bulk_actions.title_bulk", { name: group.name })}>
       <AdminNav active="/admin/groups" session={session} />
       <p>
         <a href={`/admin/groups/${group.id}`}>&larr; {group.name}</a>
       </p>
       <div class="prose">
-        <h1>Bulk Actions</h1>
+        <h1>{t("bulk_actions.page_title")}</h1>
         <p>
-          Apply an operation across all {listings.length} listing
-          {listings.length === 1 ? "" : "s"} in <strong>{group.name}</strong>.
+          {t("bulk_actions.landing_description", { count: listings.length })}{" "}
+          <strong>{group.name}</strong>.
         </p>
       </div>
 
       <ul>
         <li>
           <a href={`/admin/groups/${group.id}/bulk-actions/duplicate`}>
-            Duplicate Group
+            {t("bulk_actions.action_duplicate_group")}
           </a>
-          {" — "}Create a new group with a copy of each listing, optionally
-          replacing a substring in listing names and shifting listing dates by a
-          fixed number of days.
+          {" — "}
+          {t("bulk_actions.action_duplicate_group_desc")}
         </li>
         {hasActive && (
           <li>
             <a href={`/admin/groups/${group.id}/bulk-actions/deactivate`}>
-              Deactivate Group
+              {t("bulk_actions.action_deactivate_group")}
             </a>
-            {" — "}Deactivate every active listing in this group.
+            {" — "}
+            {t("bulk_actions.action_deactivate_group_desc")}
           </li>
         )}
         {allDeactivated && (
           <li>
             <a href={`/admin/groups/${group.id}/bulk-actions/reactivate`}>
-              Reactivate Group
+              {t("bulk_actions.action_reactivate_group")}
             </a>
-            {" — "}Reactivate every listing in this group.
+            {" — "}
+            {t("bulk_actions.action_reactivate_group_desc")}
           </li>
         )}
       </ul>
@@ -134,20 +136,19 @@ export const adminDuplicateGroupPage = (
   );
 
   return String(
-    <Layout title={`Duplicate Group: ${group.name}`}>
+    <Layout title={t("bulk_actions.title_duplicate", { name: group.name })}>
       <AdminNav active="/admin/groups" session={session} />
       <p>
         <a href={`/admin/groups/${group.id}/bulk-actions`}>
-          &larr; Bulk Actions
+          &larr; {t("bulk_actions.page_title")}
         </a>
       </p>
       <div class="prose">
-        <h1>Duplicate Group</h1>
+        <h1>{t("bulk_actions.duplicate_form_title")}</h1>
         <p>
-          Creating a new group based on <strong>{group.name}</strong>. Each
-          listing in the group will be duplicated into the new group with the
-          same settings. Use the fields below to apply a name replacement and/or
-          a date shift across all duplicates.
+          {t("bulk_actions.duplicate_form_description", {
+            groupName: group.name,
+          })}
         </p>
       </div>
       <Flash error={error} />
@@ -159,7 +160,7 @@ export const adminDuplicateGroupPage = (
         id="duplicate-group-form"
       >
         <label>
-          New group name
+          {t("bulk_actions.form_new_group_name")}
           <input
             autofocus
             data-duplicate-field
@@ -170,17 +171,17 @@ export const adminDuplicateGroupPage = (
           />
         </label>
         <label>
-          Find in listing names
+          {t("bulk_actions.form_find_in_names")}
           <input
             data-duplicate-field="name_find"
             name="name_find"
-            placeholder="(leave blank to keep names unchanged)"
+            placeholder={t("bulk_actions.form_find_placeholder")}
             type="text"
             value={values.nameFind || undefined}
           />
         </label>
         <label>
-          Replace with
+          {t("bulk_actions.form_replace_with")}
           <input
             data-duplicate-field="name_replace"
             name="name_replace"
@@ -189,14 +190,10 @@ export const adminDuplicateGroupPage = (
           />
         </label>
         <p>
-          <small>
-            Enter a reference date that appears in the current listings and the
-            date you want it to become. All listing dates (and closing times)
-            will be shifted by the same number of days.
-          </small>
+          <small>{t("bulk_actions.form_date_shift_help")}</small>
         </p>
         <label>
-          Reference date
+          {t("bulk_actions.form_reference_date")}
           <input
             data-duplicate-field="date_find"
             name="date_find"
@@ -205,7 +202,7 @@ export const adminDuplicateGroupPage = (
           />
         </label>
         <label>
-          Target date
+          {t("bulk_actions.form_target_date")}
           <input
             data-duplicate-field="date_replace"
             name="date_replace"
@@ -214,20 +211,20 @@ export const adminDuplicateGroupPage = (
           />
         </label>
 
-        <h2>Preview</h2>
+        <h2>{t("bulk_actions.preview_heading")}</h2>
         {listings.length === 0 ? (
           <p>
-            <em>This group has no listings — the new group will be empty.</em>
+            <em>{t("bulk_actions.preview_empty")}</em>
           </p>
         ) : (
           <div class="table-scroll">
             <table>
               <thead>
                 <tr>
-                  <th>Original name</th>
-                  <th>New name</th>
-                  <th>Original date</th>
-                  <th>New date</th>
+                  <th>{t("bulk_actions.preview_col_original_name")}</th>
+                  <th>{t("bulk_actions.preview_col_new_name")}</th>
+                  <th>{t("bulk_actions.preview_col_original_date")}</th>
+                  <th>{t("bulk_actions.preview_col_new_date")}</th>
                 </tr>
               </thead>
               <tbody data-duplicate-preview-rows>
@@ -243,7 +240,9 @@ export const adminDuplicateGroupPage = (
           <Raw html={listingsJson} />
         </script>
 
-        <SubmitButton icon="plus">Duplicate Group</SubmitButton>
+        <SubmitButton icon="plus">
+          {t("bulk_actions.submit_duplicate")}
+        </SubmitButton>
       </CsrfForm>
     </Layout>,
   );
@@ -258,35 +257,37 @@ export const adminDeactivateGroupPage = (
 ): string => {
   const activeCount = listings.filter((e) => e.active).length;
   return String(
-    <Layout title={`Deactivate Group: ${group.name}`}>
+    <Layout title={t("bulk_actions.title_deactivate", { name: group.name })}>
       <AdminNav active="/admin/groups" session={session} />
       <p>
         <a href={`/admin/groups/${group.id}/bulk-actions`}>
-          &larr; Bulk Actions
+          &larr; {t("bulk_actions.page_title")}
         </a>
       </p>
       <Flash error={error} />
 
       <ConfirmForm
         action={`/admin/groups/${group.id}/bulk-actions/deactivate`}
-        buttonText="Deactivate Group"
-        label="Group name"
+        buttonText={t("bulk_actions.deactivate_confirm_button")}
+        label={t("bulk_actions.confirm_form_label")}
         name={group.name}
       >
         <p>
-          <strong>Warning:</strong> Deactivating this group will deactivate{" "}
-          {activeCount} active listing{activeCount === 1 ? "" : "s"} in{" "}
-          <strong>{group.name}</strong>. For each deactivated listing:
+          <strong>{t("bulk_actions.deactivate_warning")}</strong>{" "}
+          {t("bulk_actions.deactivate_impact", { count: activeCount })}{" "}
+          <strong>{group.name}</strong>.{" "}
+          {t("bulk_actions.deactivate_consequences_intro")}
         </p>
         <ul>
-          <li>The public ticket page will return a 404 error</li>
-          <li>New registrations will be prevented</li>
-          <li>Any pending payments will be rejected</li>
+          <li>{t("bulk_actions.deactivate_consequence_404")}</li>
+          <li>{t("bulk_actions.deactivate_consequence_registrations")}</li>
+          <li>{t("bulk_actions.deactivate_consequence_payments")}</li>
         </ul>
-        <p>Existing attendees will not be affected.</p>
+        <p>{t("bulk_actions.deactivate_existing_attendees")}</p>
         <p>
-          To deactivate this group, type its name "{group.name}" into the box
-          below:
+          {t("bulk_actions.deactivate_confirm_prompt", {
+            groupName: group.name,
+          })}
         </p>
       </ConfirmForm>
     </Layout>,
@@ -302,33 +303,31 @@ export const adminReactivateGroupPage = (
 ): string => {
   const inactiveCount = listings.filter((e) => !e.active).length;
   return String(
-    <Layout title={`Reactivate Group: ${group.name}`}>
+    <Layout title={t("bulk_actions.title_reactivate", { name: group.name })}>
       <AdminNav active="/admin/groups" session={session} />
       <p>
         <a href={`/admin/groups/${group.id}/bulk-actions`}>
-          &larr; Bulk Actions
+          &larr; {t("bulk_actions.page_title")}
         </a>
       </p>
       <Flash error={error} />
 
       <ConfirmForm
         action={`/admin/groups/${group.id}/bulk-actions/reactivate`}
-        buttonText="Reactivate Group"
+        buttonText={t("bulk_actions.reactivate_confirm_button")}
         danger={false}
-        label="Group name"
+        label={t("bulk_actions.confirm_form_label")}
         name={group.name}
       >
         <p>
-          Reactivating this group will reactivate {inactiveCount} listing
-          {inactiveCount === 1 ? "" : "s"} in <strong>{group.name}</strong>.
+          {t("bulk_actions.reactivate_impact", { count: inactiveCount })}{" "}
+          <strong>{group.name}</strong>.
         </p>
+        <p>{t("bulk_actions.reactivate_benefits")}</p>
         <p>
-          Their public ticket pages will be accessible and new attendees can
-          register again.
-        </p>
-        <p>
-          To reactivate this group, type its name "{group.name}" into the box
-          below:
+          {t("bulk_actions.reactivate_confirm_prompt", {
+            groupName: group.name,
+          })}
         </p>
       </ConfirmForm>
     </Layout>,

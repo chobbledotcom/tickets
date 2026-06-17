@@ -2,79 +2,69 @@
  * SMS Gateway form for advanced settings.
  */
 
+import { t } from "#i18n";
 import { MASK_SENTINEL } from "#shared/db/settings.ts";
+import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 import { SettingsSection } from "#templates/components/settings-section.tsx";
 
 export const SmsGatewayForm = (s: AdvancedSettingsPageState): JSX.Element => (
   <SettingsSection
     action="/admin/settings/sms-gateway"
-    description={
-      <p>
-        Send text messages to attendees using an Android phone running the free{" "}
-        <a href="https://sms-gate.app">SMS Gateway</a> app. Message text and
-        recipient numbers are end-to-end encrypted with your passphrase before
-        they leave this server — enter the same passphrase in the phone app.{" "}
-        <a href="/admin/guide#sms">Setup guide</a>.
-      </p>
-    }
-    submitLabel="Save SMS Gateway"
-    title="SMS Gateway"
+    description={<Raw html={t("sms.settings.description")} />}
+    submitLabel={t("sms.settings.save")}
+    title={t("sms.settings.title")}
   >
     <label>
-      API Username
+      {t("sms.settings.username")}
       <input
         autocomplete="off"
         name="sms_gateway_username"
-        placeholder="Account username"
+        placeholder={t("sms.settings.username_placeholder")}
         type="text"
         value={s.smsGatewayUsername}
       />
     </label>
     <label>
-      API Password
+      {t("sms.settings.password")}
       <input
         autocomplete="off"
         name="sms_gateway_password"
-        placeholder="Account password"
+        placeholder={t("sms.settings.password_placeholder")}
         type="password"
         value={s.smsGatewayPasswordConfigured ? MASK_SENTINEL : undefined}
       />
     </label>
     <label>
-      End-to-end key (passphrase)
+      {t("sms.settings.passphrase")}
       <input
         autocomplete="off"
         name="sms_gateway_passphrase"
-        placeholder="Shared passphrase"
+        placeholder={t("sms.settings.passphrase_placeholder")}
         type="password"
         value={s.smsGatewayPassphraseConfigured ? MASK_SENTINEL : undefined}
       />
     </label>
     <label>
-      Server URL (optional)
+      {t("sms.settings.base_url")}
       <input
         autocomplete="off"
         name="sms_gateway_base_url"
-        placeholder="https://api.sms-gate.app"
+        placeholder={t("sms.settings.base_url_placeholder")}
         type="url"
         value={s.smsGatewayBaseUrl}
       />
     </label>
     <label>
-      Webhook signing secret (optional)
+      {t("sms.settings.webhook_secret")}
       <input
         autocomplete="off"
         name="sms_gateway_webhook_secret"
-        placeholder="For delivery reports + replies"
+        placeholder={t("sms.settings.webhook_secret_placeholder")}
         type="password"
         value={s.smsGatewayWebhookConfigured ? MASK_SENTINEL : undefined}
       />
     </label>
-    <p class="prose">
-      To receive delivery reports and replies, set this secret to match the
-      app's webhook signing key and point the app's webhook at{" "}
-      <code>/api/sms/webhook</code> on this site.
-    </p>
+    <Raw html={t("sms.settings.webhook_note")} />
   </SettingsSection>
 );

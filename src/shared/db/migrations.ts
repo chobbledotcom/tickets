@@ -11,11 +11,11 @@
  * LATEST_UPDATE, migrations will still re-run (the hash will differ).
  */
 
-import type { Client } from "@libsql/client";
+import type { Client, InValue } from "@libsql/client";
 import { lazyRef } from "#fp";
 import { ensureDefaultAttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import { createAndUploadBackup, hasRecentBackup } from "#shared/db/backup.ts";
-import { getDb } from "#shared/db/client.ts";
+import { executeBatch, getDb, queryBatchPrimary } from "#shared/db/client.ts";
 import { getEnv } from "#shared/env.ts";
 import { logDebug } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
@@ -36,10 +36,24 @@ type Table = {
   indexes?: Index[];
 };
 
+/**
+ * A SQLite trigger that maintains a precomputed aggregate. Unlike indexes,
+ * triggers aren't part of a single table's definition (they fire on one table
+ * and write to another), so they live in their own list. `table` is the table
+ * the trigger fires ON — used to re-create the trigger after that table is
+ * rebuilt by {@link recreateTable}, which silently drops attached triggers.
+ * `sql` is the full idempotent `CREATE TRIGGER IF NOT EXISTS …` statement.
+ */
+type Trigger = {
+  name: string;
+  table: string;
+  sql: string;
+};
+
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add email_preferences table for marketing opt-outs and contact history; add customisable_days and day_prices columns to listings for visitor-chosen multi-day bookings with per-day-count pricing; add attendee_statuses table with status_id and remaining_balance on attendees, plus attendee_id on activity_log, for the reservation and balance-payment flow; add idx_activity_log_listing_id so per-listing activity log reads are index scans instead of full-table scans; add sms_messages table mapping gateway message ids to attendees for SMS status webhooks (content lives in the encrypted activity log)";
+  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add email_preferences table for marketing opt-outs and contact history; add customisable_days and day_prices columns to listings for visitor-chosen multi-day bookings with per-day-count pricing; add attendee_statuses table with status_id and remaining_balance on attendees, plus attendee_id on activity_log, for the reservation and balance-payment flow; add idx_activity_log_listing_id so per-listing activity log reads are index scans instead of full-table scans; add a logistics_agents table plus a uses_logistics flag on listings, a split_logistics_agents flag on attendees, and start_agent_id/end_agent_id/start_time/end_time on listing_attendees for the logistics flow; add email_templates table for owner-keypair-encrypted reusable email subjects and bodies; add a user_logistics_agents table linking agent users to the logistics agents they drive, plus start_done/end_done flags on listing_attendees so delivery agents can mark drop-offs and collections complete; add failure_data to processed_payments so handled payment failures are recorded as a terminal outcome for idempotent redirect/webhook replay; add booked_quantity, tickets_count and income aggregate columns to listings, maintained by triggers on listing_attendees so listing reads and active-listing stats avoid scanning the attendee rows; add modifiers table for owner-defined price modifiers (surcharges, discounts, add-ons), with active/trigger/code_index/scope/stock/max_per_order/min_subtotal columns plus modifier_listings, modifier_groups and modifier_usages tables for scoping and stock; add sms_messages table mapping gateway message ids to attendees for SMS status webhooks (content lives in the encrypted activity log); add phone_index to attendees so inbound SMS replies can be matched to an attendee";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -109,6 +123,15 @@ const SCHEMA: [name: string, table: Table][] = [
         ["duration_days", "INTEGER NOT NULL DEFAULT 1"],
         ["customisable_days", "INTEGER NOT NULL DEFAULT 0"],
         ["day_prices", "TEXT NOT NULL DEFAULT '{}'"],
+        ["uses_logistics", "INTEGER NOT NULL DEFAULT 0"],
+        // Precomputed aggregates over listing_attendees, maintained by the
+        // LISTING_AGGREGATE_TRIGGERS so listing reads and the active-listing
+        // stats never SUM/COUNT the listing_attendees table. booked_quantity
+        // is SUM(quantity), tickets_count is COUNT(*), income is
+        // SUM(price_paid) — all scoped to this listing.
+        ["booked_quantity", "INTEGER NOT NULL DEFAULT 0"],
+        ["tickets_count", "INTEGER NOT NULL DEFAULT 0"],
+        ["income", "INTEGER NOT NULL DEFAULT 0"],
       ],
       indexes: [
         {
@@ -116,6 +139,16 @@ const SCHEMA: [name: string, table: Table][] = [
           name: "idx_listings_slug_index",
           unique: true,
         },
+      ],
+    },
+  ],
+
+  [
+    "logistics_agents",
+    {
+      columns: [
+        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+        ["name", "TEXT NOT NULL"],
       ],
     },
   ],
@@ -152,6 +185,33 @@ const SCHEMA: [name: string, table: Table][] = [
         ["expires", "INTEGER NOT NULL"],
         ["wrapped_data_key", "TEXT"],
         ["user_id", "INTEGER"],
+      ],
+    },
+  ],
+
+  [
+    // Many-to-many link between agent users and the logistics agents
+    // (vans/crews) they drive. One user may cover several agents and one
+    // agent may be driven by several users. No FKs (see note on
+    // listing_attendees); application logic + the indexes keep it consistent,
+    // and both deleteUser and logistics-agent deletion prune their rows.
+    "user_logistics_agents",
+    {
+      columns: [
+        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+        ["user_id", "INTEGER NOT NULL"],
+        ["agent_id", "INTEGER NOT NULL"],
+      ],
+      indexes: [
+        {
+          columns: ["user_id", "agent_id"],
+          name: "idx_user_logistics_agents_unique",
+          unique: true,
+        },
+        {
+          columns: ["agent_id"],
+          name: "idx_user_logistics_agents_agent_id",
+        },
       ],
     },
   ],
@@ -225,6 +285,7 @@ const SCHEMA: [name: string, table: Table][] = [
         ["pii_blob", "TEXT NOT NULL DEFAULT ''"],
         ["status_id", "INTEGER DEFAULT NULL"],
         ["remaining_balance", "INTEGER NOT NULL DEFAULT 0"],
+        ["split_logistics_agents", "INTEGER NOT NULL DEFAULT 0"],
         // HMAC blind-index of the attendee's phone, populated lazily the first
         // time an admin texts them, so inbound SMS replies can be matched back
         // to the attendee without storing the number in the clear.
@@ -262,6 +323,12 @@ const SCHEMA: [name: string, table: Table][] = [
         ["refunded", "INTEGER NOT NULL DEFAULT 0"],
         ["price_paid", "INTEGER NOT NULL DEFAULT 0"],
         ["attachment_downloads", "INTEGER NOT NULL DEFAULT 0"],
+        ["start_agent_id", "INTEGER DEFAULT NULL"],
+        ["end_agent_id", "INTEGER DEFAULT NULL"],
+        ["start_time", "TEXT NOT NULL DEFAULT ''"],
+        ["end_time", "TEXT NOT NULL DEFAULT ''"],
+        ["start_done", "INTEGER NOT NULL DEFAULT 0"],
+        ["end_done", "INTEGER NOT NULL DEFAULT 0"],
       ],
       // FKs omitted — libsql's FK enforcement causes issues during table
       // recreation migrations. Referential integrity is enforced by application
@@ -297,6 +364,7 @@ const SCHEMA: [name: string, table: Table][] = [
         ["attendee_id", "INTEGER"],
         ["processed_at", "TEXT NOT NULL"],
         ["ticket_tokens", "TEXT NOT NULL DEFAULT ''"],
+        ["failure_data", "TEXT NOT NULL DEFAULT ''"],
       ],
       // FK declarations removed — libsql's FK enforcement breaks table
       // recreation migrations (PRAGMA foreign_keys is connection-scoped and
@@ -382,6 +450,81 @@ const SCHEMA: [name: string, table: Table][] = [
           name: "idx_groups_slug_index",
           unique: true,
         },
+      ],
+    },
+  ],
+
+  [
+    "modifiers",
+    {
+      columns: [
+        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+        ["name", "TEXT NOT NULL"],
+        ["calc_kind", "TEXT NOT NULL"],
+        ["calc_value", "REAL NOT NULL"],
+        ["direction", "TEXT NOT NULL"],
+        ["active", "INTEGER NOT NULL DEFAULT 1"],
+        ["trigger", "TEXT NOT NULL DEFAULT 'automatic'"],
+        ["code_index", "TEXT"],
+        ["scope", "TEXT NOT NULL DEFAULT 'all'"],
+        ["stock", "INTEGER"],
+        ["max_per_order", "INTEGER"],
+        ["min_subtotal", "INTEGER NOT NULL DEFAULT 0"],
+      ],
+      indexes: [{ columns: ["code_index"], name: "idx_modifiers_code_index" }],
+    },
+  ],
+
+  [
+    "modifier_listings",
+    {
+      columns: [
+        ["modifier_id", "INTEGER NOT NULL"],
+        ["listing_id", "INTEGER NOT NULL"],
+      ],
+      indexes: [
+        {
+          columns: ["modifier_id", "listing_id"],
+          name: "idx_modifier_listings_pair",
+          unique: true,
+        },
+        { columns: ["listing_id"], name: "idx_modifier_listings_listing" },
+      ],
+    },
+  ],
+
+  [
+    "modifier_groups",
+    {
+      columns: [
+        ["modifier_id", "INTEGER NOT NULL"],
+        ["group_id", "INTEGER NOT NULL"],
+      ],
+      indexes: [
+        {
+          columns: ["modifier_id", "group_id"],
+          name: "idx_modifier_groups_pair",
+          unique: true,
+        },
+        { columns: ["group_id"], name: "idx_modifier_groups_group" },
+      ],
+    },
+  ],
+
+  [
+    "modifier_usages",
+    {
+      columns: [
+        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+        ["modifier_id", "INTEGER NOT NULL"],
+        ["attendee_id", "INTEGER NOT NULL"],
+        ["quantity", "INTEGER NOT NULL"],
+        ["amount_applied", "INTEGER NOT NULL"],
+        ["created", "TEXT NOT NULL"],
+      ],
+      indexes: [
+        { columns: ["modifier_id"], name: "idx_modifier_usages_modifier" },
+        { columns: ["attendee_id"], name: "idx_modifier_usages_attendee" },
       ],
     },
   ],
@@ -529,6 +672,21 @@ const SCHEMA: [name: string, table: Table][] = [
   ],
 
   [
+    // Reusable email templates — subject and body stored as owner-keypair-
+    // encrypted blobs so the operator cannot read content without the owner's
+    // password. Encryption/decryption is handled at the route layer (same
+    // approach as bulk_email_draft in settings).
+    "email_templates",
+    {
+      columns: [
+        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+        ["subject", "TEXT NOT NULL"],
+        ["body", "TEXT NOT NULL"],
+      ],
+    },
+  ],
+
+  [
     // Lean, PII-free map from the gateway's message id to the attendee it was
     // sent to, so delivery/failure webhooks can be logged against the right
     // attendee. Message content and recipient numbers live only in the
@@ -551,6 +709,75 @@ const SCHEMA: [name: string, table: Table][] = [
   ],
 ];
 
+/**
+ * Triggers that keep the listings aggregate columns (booked_quantity,
+ * tickets_count, income) in lockstep with listing_attendees, so the hot
+ * listing reads and the active-listing stats cost one row read instead of
+ * scanning every attendee row.
+ *
+ * The UPDATE trigger is scoped to `OF quantity, price_paid, listing_id` so the
+ * frequent check-in / refund / attachment-download writes (which touch other
+ * columns) don't fire it. It subtracts the OLD row's contribution from its old
+ * listing and adds the NEW row's to its new listing, so a row moving between
+ * listings stays correct and a same-listing edit nets out to the delta.
+ *
+ * Semantics mirror the previous SUM(quantity) / COUNT(*) / SUM(price_paid)
+ * queries exactly: refunded rows still count (refunds set `refunded`, not
+ * `quantity`), matching the capacity and stats behaviour they replace.
+ */
+const LISTING_AGGREGATE_TRIGGERS: Trigger[] = [
+  {
+    name: "trg_listing_attendees_aggregates_insert",
+    sql: `CREATE TRIGGER IF NOT EXISTS trg_listing_attendees_aggregates_insert
+AFTER INSERT ON listing_attendees
+FOR EACH ROW
+BEGIN
+  UPDATE listings SET
+    booked_quantity = booked_quantity + NEW.quantity,
+    tickets_count = tickets_count + 1,
+    income = income + NEW.price_paid
+  WHERE id = NEW.listing_id;
+END`,
+    table: "listing_attendees",
+  },
+  {
+    name: "trg_listing_attendees_aggregates_delete",
+    sql: `CREATE TRIGGER IF NOT EXISTS trg_listing_attendees_aggregates_delete
+AFTER DELETE ON listing_attendees
+FOR EACH ROW
+BEGIN
+  UPDATE listings SET
+    booked_quantity = booked_quantity - OLD.quantity,
+    tickets_count = tickets_count - 1,
+    income = income - OLD.price_paid
+  WHERE id = OLD.listing_id;
+END`,
+    table: "listing_attendees",
+  },
+  {
+    name: "trg_listing_attendees_aggregates_update",
+    sql: `CREATE TRIGGER IF NOT EXISTS trg_listing_attendees_aggregates_update
+AFTER UPDATE OF quantity, price_paid, listing_id ON listing_attendees
+FOR EACH ROW
+BEGIN
+  UPDATE listings SET
+    booked_quantity = booked_quantity - OLD.quantity,
+    tickets_count = tickets_count - 1,
+    income = income - OLD.price_paid
+  WHERE id = OLD.listing_id;
+  UPDATE listings SET
+    booked_quantity = booked_quantity + NEW.quantity,
+    tickets_count = tickets_count + 1,
+    income = income + NEW.price_paid
+  WHERE id = NEW.listing_id;
+END`,
+    table: "listing_attendees",
+  },
+];
+
+/** Every declared trigger, across all aggregate relationships. */
+const TRIGGERS: Trigger[] = [...LISTING_AGGREGATE_TRIGGERS];
+
 /** Ordered table names — matches FK dependency order (parents before children) */
 export const SCHEMA_TABLE_NAMES: string[] = SCHEMA.map(([name]) => name);
 
@@ -567,7 +794,9 @@ const djb2 = (str: string): string => {
 
 const APP_SCHEMA = SCHEMA.filter(([name]) => name !== SCHEMA_MIGRATIONS_TABLE);
 
-export const SCHEMA_HASH = djb2(JSON.stringify(APP_SCHEMA));
+// Triggers join the hash input so changing a trigger's SQL re-runs migrations
+// even if no column/index changed (the same safety net columns already have).
+export const SCHEMA_HASH = djb2(JSON.stringify([APP_SCHEMA, TRIGGERS]));
 
 // ─── Helpers ────────────────────────────────────────────────────
 
@@ -602,12 +831,61 @@ const tableExists = async (table: string): Promise<boolean> => {
   return result.rows.length > 0;
 };
 
-const indexExists = async (indexName: string): Promise<boolean> => {
-  const result = await getDb().execute({
-    args: [indexName],
-    sql: "SELECT name FROM sqlite_master WHERE type = 'index' AND name = ?",
-  });
-  return result.rows.length > 0;
+/** Live schema snapshot: every table's columns, every index, every trigger. */
+type LiveSchema = {
+  /** table name → set of its column names */
+  tables: Map<string, Set<string>>;
+  /** all index names present (including sqlite_autoindex_*) */
+  indexes: Set<string>;
+  /** all trigger names present */
+  triggers: Set<string>;
+};
+
+/**
+ * Snapshot the entire live schema in a single batched round-trip.
+ *
+ * Edge requests cap outbound subrequests (each libsql `execute`/`batch` is one
+ * `fetch`), so the per-table `PRAGMA table_info`/`sqlite_master` probes that
+ * schema sync and verification used to fire in loops — dozens of subrequests —
+ * are collapsed into two SELECTs sent as one read batch. The first joins
+ * `sqlite_master` against the `pragma_table_info` table-valued function to read
+ * every column of every table at once; the second lists every index name.
+ *
+ * Pinned to the primary (not a replica): every caller runs inside a migration,
+ * where the snapshot must reflect DDL applied moments earlier in the same run.
+ * A replica that lags behind that write would report a just-created table as
+ * missing, failing verify() spuriously (see queryBatchPrimary).
+ */
+const snapshotLiveSchema = async (): Promise<LiveSchema> => {
+  const [columns, indexRows, triggerRows] = await queryBatchPrimary([
+    {
+      args: [],
+      sql:
+        "SELECT m.name AS tbl, ti.name AS col " +
+        "FROM sqlite_master m JOIN pragma_table_info(m.name) ti " +
+        "WHERE m.type = 'table'",
+    },
+    {
+      args: [],
+      sql: "SELECT name FROM sqlite_master WHERE type = 'index'",
+    },
+    {
+      args: [],
+      sql: "SELECT name FROM sqlite_master WHERE type = 'trigger'",
+    },
+  ]);
+
+  const tables = new Map<string, Set<string>>();
+  for (const row of columns!.rows) {
+    const tbl = String(row.tbl);
+    const cols = tables.get(tbl) ?? new Set<string>();
+    cols.add(String(row.col));
+    tables.set(tbl, cols);
+  }
+
+  const indexes = new Set(indexRows!.rows.map((row) => String(row.name)));
+  const triggers = new Set(triggerRows!.rows.map((row) => String(row.name)));
+  return { indexes, tables, triggers };
 };
 
 type DbState =
@@ -662,18 +940,33 @@ const getDbState = async (): Promise<DbState> => {
   }
 };
 
+/** Build the idempotent CREATE INDEX statement for a declared index. */
+const createIndexSql = (tableName: string, idx: Index): string => {
+  const unique = idx.unique ? "UNIQUE " : "";
+  return `CREATE ${unique}INDEX IF NOT EXISTS ${idx.name} ON ${tableName}(${idx.columns.join(
+    ", ",
+  )})`;
+};
+
 /** Create indexes for a named table from SCHEMA */
 const createIndexesForTable = async (
   tableName: string,
   indexes: Index[],
 ): Promise<void> => {
   for (const idx of indexes) {
-    const unique = idx.unique ? "UNIQUE " : "";
-    await runMigration(
-      `CREATE ${unique}INDEX IF NOT EXISTS ${idx.name} ON ${tableName}(${idx.columns.join(
-        ", ",
-      )})`,
-    );
+    await runMigration(createIndexSql(tableName, idx));
+  }
+};
+
+/**
+ * (Re)create every declared trigger that fires on a named table. Called after
+ * {@link recreateTable} rebuilds a table, since dropping the old table also
+ * drops its triggers. Statements are `CREATE TRIGGER IF NOT EXISTS`, so this is
+ * idempotent.
+ */
+const createTriggersForTable = async (tableName: string): Promise<void> => {
+  for (const trg of TRIGGERS) {
+    if (trg.table === tableName) await runMigration(trg.sql);
   }
 };
 
@@ -717,6 +1010,8 @@ const recreateTable = async (tableName: string): Promise<void> => {
   );
 
   await createIndexesForTable(tableName, tableSchema[1].indexes ?? []);
+  // Triggers on this table were dropped with the old table — re-create them.
+  await createTriggersForTable(tableName);
 };
 
 const getAppSchemaColumns = (tableName: string): Set<string> =>
@@ -831,46 +1126,110 @@ const createTableSql = ([name, table]: [string, Table]): string => {
 };
 
 const applySchemaChanges = async (): Promise<void> => {
+  const live = await snapshotLiveSchema();
+  const statements: { args: InValue[]; sql: string }[] = [];
   for (const entry of SCHEMA) {
     const [name, table] = entry;
-    await runMigration(createTableSql(entry));
-    const existing = await getExistingColumns(name);
+    const existing = live.tables.get(name);
+    if (!existing) {
+      // Missing table: one CREATE carries every column, so no ALTERs follow.
+      statements.push({ args: [], sql: createTableSql(entry) });
+      continue;
+    }
     for (const [col, type] of table.columns) {
       if (!existing.has(col)) {
-        await runMigration(`ALTER TABLE ${name} ADD COLUMN ${col} ${type}`);
+        statements.push({
+          args: [],
+          sql: `ALTER TABLE ${name} ADD COLUMN ${col} ${type}`,
+        });
       }
     }
   }
+  // Single batched write (one subrequest) instead of one execute per
+  // CREATE/ALTER. Pre-filtering against the snapshot means every statement is
+  // genuinely needed, so the batch never hits the "already exists" errors that
+  // runMigration used to swallow; a real failure rolls the batch back as a unit.
+  if (statements.length > 0) await executeBatch(statements);
 };
 
 /** Create missing indexes and drop legacy ones */
 const syncIndexes = async (): Promise<void> => {
-  const declaredIndexNames = new Set<string>();
-  for (const [name, table] of SCHEMA) {
-    const indexes = table.indexes ?? [];
-    for (const idx of indexes) declaredIndexNames.add(idx.name);
-    await createIndexesForTable(name, indexes);
-  }
-  const allIndexes = await getDb().execute(
-    "SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'idx_%'",
+  const live = await snapshotLiveSchema();
+  const declared = SCHEMA.flatMap(([name, table]) =>
+    (table.indexes ?? []).map((idx) => ({
+      name: idx.name,
+      sql: createIndexSql(name, idx),
+    })),
   );
-  for (const row of allIndexes.rows) {
-    const indexName = String(row.name);
-    if (!declaredIndexNames.has(indexName)) {
-      await runMigration(`DROP INDEX IF EXISTS ${indexName}`);
+  const declaredNames = new Set(declared.map((d) => d.name));
+
+  const creates = declared
+    .filter((d) => !live.indexes.has(d.name))
+    .map((d): { args: InValue[]; sql: string } => ({ args: [], sql: d.sql }));
+
+  // Drop any project-owned (idx_*) index no longer declared in SCHEMA. The
+  // sqlite_autoindex_* entries backing UNIQUE/PRIMARY KEY constraints never
+  // match this prefix, so they're left untouched.
+  const drops = [...live.indexes]
+    .filter((name) => name.startsWith("idx_") && !declaredNames.has(name))
+    .map((name): { args: InValue[]; sql: string } => ({
+      args: [],
+      sql: `DROP INDEX IF EXISTS ${name}`,
+    }));
+
+  // One batched write (one subrequest) instead of a CREATE/DROP per index.
+  const statements = [...creates, ...drops];
+  if (statements.length > 0) await executeBatch(statements);
+};
+
+/**
+ * Create missing declared triggers and drop legacy project-owned (trg_*) ones.
+ * Run sequentially (not batched) because a compound CREATE TRIGGER … BEGIN …
+ * END carries internal semicolons that some batch transports mis-split.
+ */
+const syncTriggers = async (): Promise<void> => {
+  const live = await snapshotLiveSchema();
+  const declaredNames = new Set(TRIGGERS.map((t) => t.name));
+  for (const trg of TRIGGERS) {
+    if (!live.triggers.has(trg.name)) await runMigration(trg.sql);
+  }
+  for (const name of live.triggers) {
+    if (name.startsWith("trg_") && !declaredNames.has(name)) {
+      await runMigration(`DROP TRIGGER IF EXISTS ${name}`);
     }
   }
 };
 
+/**
+ * Recompute the listings aggregate columns from listing_attendees in a single
+ * statement. One-time on migration; afterwards the triggers keep them current.
+ * Idempotent (absolute recompute, not a delta), so it's safe to re-run.
+ */
+const backfillListingAggregates = async (): Promise<void> => {
+  await getDb().execute(
+    `UPDATE listings SET
+       booked_quantity = COALESCE(
+         (SELECT SUM(quantity) FROM listing_attendees WHERE listing_id = listings.id), 0),
+       tickets_count = COALESCE(
+         (SELECT COUNT(*) FROM listing_attendees WHERE listing_id = listings.id), 0),
+       income = COALESCE(
+         (SELECT SUM(price_paid) FROM listing_attendees WHERE listing_id = listings.id), 0)`,
+  );
+};
+
 const verifyCurrentAppSchema = async (): Promise<void> => {
+  // One snapshot (a single batched round-trip) replaces the per-table
+  // tableExists/getExistingColumns/indexExists probes — dozens of subrequests
+  // that could alone exceed the edge per-request cap.
+  const live = await snapshotLiveSchema();
   for (const [name, table] of APP_SCHEMA) {
-    if (!(await tableExists(name))) {
+    const existing = live.tables.get(name);
+    if (!existing) {
       throw new Error(
         `Database schema verification failed: missing table ${name}`,
       );
     }
 
-    const existing = await getExistingColumns(name);
     const missingColumns = table.columns
       .map(([col]) => col)
       .filter((col) => !existing.has(col));
@@ -883,11 +1242,19 @@ const verifyCurrentAppSchema = async (): Promise<void> => {
     }
 
     for (const index of table.indexes ?? []) {
-      if (!(await indexExists(index.name))) {
+      if (!live.indexes.has(index.name)) {
         throw new Error(
           `Database schema verification failed: missing index ${index.name}`,
         );
       }
+    }
+  }
+
+  for (const trigger of TRIGGERS) {
+    if (!live.triggers.has(trigger.name)) {
+      throw new Error(
+        `Database schema verification failed: missing trigger ${trigger.name}`,
+      );
     }
   }
 };
@@ -903,28 +1270,127 @@ const syncCurrentSchema = async (): Promise<void> => {
 
   logDebug("Migration", "Step 4: dropping deprecated attendee columns...");
   await dropDeprecatedAttendeeColumns();
+
+  logDebug("Migration", "Step 5: syncing triggers...");
+  await syncTriggers();
+
+  logDebug("Migration", "Step 6: backfilling listing aggregates...");
+  await backfillListingAggregates();
 };
 
-type Migration = {
+/**
+ * The schema objects a single migration is responsible for. Drives that
+ * migration's verify() — so a failure names exactly what the migration was
+ * meant to add, instead of re-checking the whole latest schema (which an
+ * early migration could satisfy only because a later migration's up() already
+ * created everything). It also lets tests drive a precise "restore from this
+ * migration" check by dropping exactly these objects and re-running up().
+ */
+export type SchemaRequirement = {
+  /** Tables this migration creates (verified to have their full SCHEMA columns). */
+  newTables?: string[];
+  /** Columns this migration adds to already-existing tables. */
+  columns?: Record<string, string[]>;
+  /** Indexes this migration creates. */
+  indexes?: string[];
+  /** Triggers this migration creates. */
+  triggers?: string[];
+  /** Legacy tables this migration removes (must be absent afterwards). */
+  absentTables?: string[];
+};
+
+export type Migration = {
   id: string;
   description: string;
   up: () => Promise<void>;
   /** Runs after up(); a failure leaves the migration unrecorded for retry. */
   verify: () => Promise<void>;
+  /** Objects this migration owns; drives verify() and the restore tests. */
+  requires?: SchemaRequirement;
 };
 
-/** Verify the reordered overlap index exists (syncIndexes drops the old
- * (listing_id, start_at, end_at) ordering and creates this one). */
-const verifyOverlapIndex = async (): Promise<void> => {
-  const result = await getDb().execute(
-    "SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_listing_attendees_listing_end_start'",
-  );
-  if (result.rows.length === 0) {
+const assertTableColumns = (
+  live: LiveSchema,
+  name: string,
+  cols: string[],
+): void => {
+  const existing = live.tables.get(name);
+  if (!existing) {
+    throw new Error(`Migration verification failed: missing table ${name}`);
+  }
+  const missing = cols.filter((col) => !existing.has(col));
+  if (missing.length > 0) {
     throw new Error(
-      "Migration verification failed: idx_listing_attendees_listing_end_start missing",
+      `Migration verification failed: ${name} missing column(s): ${missing.join(
+        ", ",
+      )}`,
     );
   }
 };
+
+const assertRequiredTables = (
+  live: LiveSchema,
+  req: SchemaRequirement,
+): void => {
+  for (const name of req.newTables ?? []) {
+    assertTableColumns(live, name, [...getAppSchemaColumns(name)]);
+  }
+  for (const [name, cols] of Object.entries(req.columns ?? {})) {
+    assertTableColumns(live, name, cols);
+  }
+};
+
+const assertRequiredIndexes = (
+  live: LiveSchema,
+  req: SchemaRequirement,
+): void => {
+  for (const index of req.indexes ?? []) {
+    if (!live.indexes.has(index)) {
+      throw new Error(`Migration verification failed: missing index ${index}`);
+    }
+  }
+};
+
+const assertRequiredTriggers = (
+  live: LiveSchema,
+  req: SchemaRequirement,
+): void => {
+  for (const trigger of req.triggers ?? []) {
+    if (!live.triggers.has(trigger)) {
+      throw new Error(
+        `Migration verification failed: missing trigger ${trigger}`,
+      );
+    }
+  }
+};
+
+const assertAbsentTables = (live: LiveSchema, req: SchemaRequirement): void => {
+  for (const name of req.absentTables ?? []) {
+    if (live.tables.has(name)) {
+      throw new Error(
+        `Migration verification failed: legacy table ${name} still present`,
+      );
+    }
+  }
+};
+
+/**
+ * Build a verify() that checks only the objects a migration owns, from a single
+ * schema snapshot.
+ */
+const verifyRequirement =
+  (req: SchemaRequirement) => async (): Promise<void> => {
+    const live = await snapshotLiveSchema();
+    assertRequiredTables(live, req);
+    assertRequiredIndexes(live, req);
+    assertRequiredTriggers(live, req);
+    assertAbsentTables(live, req);
+  };
+
+/** Build a migration whose verify() is derived from the objects it owns. */
+const additive = (
+  m: Omit<Migration, "verify"> & { requires: SchemaRequirement },
+): Migration => ({ ...m, verify: verifyRequirement(m.requires) });
 
 /**
  * Rename the legacy "event" domain to "listing".
@@ -974,43 +1440,150 @@ export const renameEventsToListings = async (): Promise<void> => {
   await syncIndexes();
 };
 
-const MIGRATIONS: Migration[] = [
+// Per-migration object ownership — kept beside each migration so verify() and
+// the restore tests stay in lockstep with what up() actually adds.
+const REQ_SUMUP_CHECKOUTS: SchemaRequirement = {
+  indexes: ["idx_sumup_checkouts_sumup_id"],
+  newTables: ["sumup_checkouts"],
+};
+const REQ_OVERLAP_INDEX: SchemaRequirement = {
+  indexes: ["idx_listing_attendees_listing_end_start"],
+};
+const REQ_RENAME_LISTINGS: SchemaRequirement = {
+  absentTables: ["events", "event_attendees", "event_questions"],
+  columns: {
+    activity_log: ["listing_id"],
+    built_sites: ["assigned_listing_id"],
+    listing_attendees: ["listing_id"],
+    listing_questions: ["listing_id"],
+    listings: ["listing_type"],
+  },
+};
+const REQ_QUESTION_SORT_ORDER: SchemaRequirement = {
+  columns: { questions: ["sort_order"] },
+};
+const REQ_EMAIL_PREFERENCES: SchemaRequirement = {
+  newTables: ["email_preferences"],
+};
+const REQ_CUSTOMISABLE_DAYS: SchemaRequirement = {
+  columns: { listings: ["customisable_days", "day_prices"] },
+};
+const REQ_ATTENDEE_STATUSES: SchemaRequirement = {
+  columns: {
+    activity_log: ["attendee_id"],
+    attendees: ["status_id", "remaining_balance"],
+  },
+  indexes: [
+    "idx_attendee_statuses_sort_order",
+    "idx_attendees_status_id",
+    "idx_activity_log_attendee_id",
+  ],
+  newTables: ["attendee_statuses"],
+};
+const REQ_ACTIVITY_LOG_LISTING_INDEX: SchemaRequirement = {
+  indexes: ["idx_activity_log_listing_id"],
+};
+const REQ_LOGISTICS: SchemaRequirement = {
+  columns: {
+    attendees: ["split_logistics_agents"],
+    listing_attendees: [
+      "start_agent_id",
+      "end_agent_id",
+      "start_time",
+      "end_time",
+    ],
+    listings: ["uses_logistics"],
+  },
+  newTables: ["logistics_agents"],
+};
+const REQ_EMAIL_TEMPLATES: SchemaRequirement = {
+  newTables: ["email_templates"],
+};
+const REQ_AGENT_USERS: SchemaRequirement = {
+  columns: { listing_attendees: ["start_done", "end_done"] },
+  indexes: [
+    "idx_user_logistics_agents_unique",
+    "idx_user_logistics_agents_agent_id",
+  ],
+  newTables: ["user_logistics_agents"],
+};
+const REQ_PROCESSED_PAYMENTS_FAILURE_DATA: SchemaRequirement = {
+  columns: { processed_payments: ["failure_data"] },
+};
+const REQ_MODIFIERS: SchemaRequirement = {
+  indexes: [
+    "idx_modifiers_code_index",
+    "idx_modifier_listings_pair",
+    "idx_modifier_listings_listing",
+    "idx_modifier_groups_pair",
+    "idx_modifier_groups_group",
+    "idx_modifier_usages_modifier",
+    "idx_modifier_usages_attendee",
+  ],
+  newTables: [
+    "modifiers",
+    "modifier_listings",
+    "modifier_groups",
+    "modifier_usages",
+  ],
+};
+const REQ_SMS_MESSAGES: SchemaRequirement = {
+  indexes: ["idx_sms_messages_provider_id", "idx_sms_messages_created"],
+  newTables: ["sms_messages"],
+};
+const REQ_ATTENDEE_PHONE_INDEX: SchemaRequirement = {
+  columns: { attendees: ["phone_index"] },
+  indexes: ["idx_attendees_phone_index"],
+};
+const REQ_LISTING_AGGREGATES: SchemaRequirement = {
+  columns: { listings: ["booked_quantity", "tickets_count", "income"] },
+  triggers: [
+    "trg_listing_attendees_aggregates_insert",
+    "trg_listing_attendees_aggregates_delete",
+    "trg_listing_attendees_aggregates_update",
+  ],
+};
+
+export const MIGRATIONS: Migration[] = [
   {
+    // The baseline reconcile genuinely brings the WHOLE schema current from any
+    // legacy shape, so it keeps the full-schema verification.
     description:
       "Reconcile legacy databases with the current declarative schema",
     id: "2026-06-11_current_schema",
     up: syncCurrentSchema,
     verify: verifyCurrentAppSchema,
   },
-  {
+  additive({
     description:
       "Add encrypted sumup_checkouts staging table for SumUp metadata",
     id: "2026-06-12_sumup_checkouts",
+    requires: REQ_SUMUP_CHECKOUTS,
     up: async () => {
       await applySchemaChanges();
       await syncIndexes();
     },
-    verify: verifyCurrentAppSchema,
-  },
-  {
+  }),
+  additive({
     description:
       "Reorder listing_attendees overlap index to (listing_id, end_at, start_at) so per-day capacity scans skip historical rows",
     // NB: legacy id retained verbatim — this is a stored marker, not display text
     id: "2026-06-13_event_attendees_overlap_index",
+    requires: REQ_OVERLAP_INDEX,
     up: syncIndexes,
-    verify: verifyOverlapIndex,
-  },
-  {
+  }),
+  additive({
     description:
       "Rename the 'event' domain to 'listing' (tables, columns and indexes)",
     id: "2026-06-14_rename_events_to_listings",
+    requires: REQ_RENAME_LISTINGS,
     up: renameEventsToListings,
-    verify: verifyCurrentAppSchema,
-  },
-  {
+  }),
+  additive({
     description:
       "Add a single global sort_order per question (replacing per-listing ordering); backfill existing questions from their row id to preserve creation order",
     id: "2026-06-14_question_sort_order",
+    requires: REQ_QUESTION_SORT_ORDER,
     up: async () => {
       await applySchemaChanges();
       // One-time backfill: existing rows all default to 0, so seed each from
@@ -1020,65 +1593,125 @@ const MIGRATIONS: Migration[] = [
         "UPDATE questions SET sort_order = id WHERE sort_order = 0",
       );
     },
-    verify: verifyCurrentAppSchema,
-  },
-  {
+  }),
+  additive({
     description:
       "Add email_preferences table for marketing opt-outs and contact history",
     id: "2026-06-14_email_preferences",
+    requires: REQ_EMAIL_PREFERENCES,
     up: async () => {
       await applySchemaChanges();
       await syncIndexes();
     },
-    verify: verifyCurrentAppSchema,
-  },
-  {
+  }),
+  additive({
     description:
       "Add customisable_days and day_prices columns to listings so visitors can choose how many days to book with per-day-count pricing",
     id: "2026-06-14_listing_customisable_days",
+    requires: REQ_CUSTOMISABLE_DAYS,
     up: async () => {
       await applySchemaChanges();
     },
-    verify: verifyCurrentAppSchema,
-  },
-  {
+  }),
+  additive({
     description:
       "Add attendee_statuses table, status_id + remaining_balance on attendees, and attendee_id on activity_log; seed the default status and backfill existing attendees onto it",
     id: "2026-06-14_attendee_statuses",
+    requires: REQ_ATTENDEE_STATUSES,
     up: async () => {
       await applySchemaChanges();
       await syncIndexes();
       await ensureDefaultAttendeeStatus();
     },
-    verify: verifyCurrentAppSchema,
-  },
-  {
+  }),
+  additive({
     description:
       "Add idx_activity_log_listing_id so per-listing activity log lookups use an index range scan instead of a full table scan",
     id: "2026-06-15_activity_log_listing_id_index",
+    requires: REQ_ACTIVITY_LOG_LISTING_INDEX,
     up: syncIndexes,
-    verify: verifyCurrentAppSchema,
-  },
-  {
+  }),
+  additive({
+    description:
+      "Add logistics_agents table, uses_logistics flag on listings, split_logistics_agents on attendees, and start_agent_id/end_agent_id/start_time/end_time on listing_attendees for the logistics flow",
+    id: "2026-06-16_logistics_agents",
+    requires: REQ_LOGISTICS,
+    up: async () => {
+      await applySchemaChanges();
+    },
+  }),
+  additive({
+    description:
+      "Add email_templates table for owner-keypair-encrypted reusable email subjects and bodies",
+    id: "2026-06-16_email_templates",
+    requires: REQ_EMAIL_TEMPLATES,
+    up: async () => {
+      await applySchemaChanges();
+    },
+  }),
+  additive({
+    description:
+      "Add user_logistics_agents table (agent users ↔ logistics agents) and start_done/end_done flags on listing_attendees for the delivery-agent run sheet",
+    id: "2026-06-16_agent_users",
+    requires: REQ_AGENT_USERS,
+    up: async () => {
+      await applySchemaChanges();
+      await syncIndexes();
+    },
+  }),
+  additive({
+    description:
+      "Add failure_data to processed_payments so a handled payment failure (refund/sold-out/price-change) is recorded as a terminal outcome and replayed idempotently instead of leaving a stuck reservation",
+    id: "2026-06-16_processed_payments_failure_data",
+    requires: REQ_PROCESSED_PAYMENTS_FAILURE_DATA,
+    up: async () => {
+      await applySchemaChanges();
+    },
+  }),
+  additive({
+    description:
+      "Add booked_quantity, tickets_count and income aggregate columns to listings, maintained by triggers on listing_attendees, so listing reads and active-listing stats avoid scanning the attendee rows; backfill from existing data",
+    id: "2026-06-16_listing_aggregates",
+    requires: REQ_LISTING_AGGREGATES,
+    up: async () => {
+      await applySchemaChanges();
+      // Triggers first, then an absolute recompute: any attendee write that
+      // slips in between is counted by the trigger and then overwritten by the
+      // fresh backfill total, so no insert can be lost.
+      await syncTriggers();
+      await backfillListingAggregates();
+    },
+  }),
+  additive({
+    description:
+      "Add modifiers table for owner-defined price modifiers (surcharges, discounts, add-ons), plus modifier_listings, modifier_groups and modifier_usages for scoping and stock",
+    id: "2026-06-16_modifiers",
+    requires: REQ_MODIFIERS,
+    up: async () => {
+      await applySchemaChanges();
+      await syncIndexes();
+    },
+  }),
+  additive({
     description:
       "Add sms_messages table mapping gateway message ids to attendees for status webhooks (PII-free; content lives in the activity log)",
     id: "2026-06-16_sms_messages",
+    requires: REQ_SMS_MESSAGES,
     up: async () => {
       await applySchemaChanges();
       await syncIndexes();
     },
-    verify: verifyCurrentAppSchema,
-  },
-  {
+  }),
+  additive({
     description:
       "Add phone_index to attendees so inbound SMS replies can be matched to an attendee",
     id: "2026-06-16_attendee_phone_index",
+    requires: REQ_ATTENDEE_PHONE_INDEX,
     up: async () => {
       await applySchemaChanges();
       await syncIndexes();
     },
-    verify: verifyCurrentAppSchema,
-  },
+  }),
 ];
 
 export const MIGRATION_IDS: string[] = MIGRATIONS.map(

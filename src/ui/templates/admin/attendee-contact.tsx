@@ -3,6 +3,7 @@
  */
 
 import { joinStrings, map, pipe } from "#fp";
+import { t } from "#i18n";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type {
@@ -30,14 +31,14 @@ const HistoryRow = ({ item }: { item: SmsHistoryItem }): string =>
 
 const historyTable = (history: SmsHistoryItem[]): string =>
   history.length === 0
-    ? "<p>No text messages yet.</p>"
+    ? `<p>${t("sms.contact.no_messages")}</p>`
     : String(
         <div class="table-scroll">
           <table>
             <thead>
               <tr>
-                <th>When</th>
-                <th>Message</th>
+                <th>{t("sms.contact.col_when")}</th>
+                <th>{t("sms.contact.col_message")}</th>
               </tr>
             </thead>
             <tbody>
@@ -59,35 +60,30 @@ export const attendeeContactPage = (
   opts: { configured: boolean; success?: string; error?: string },
 ): string =>
   String(
-    <Layout title={`Contact: ${attendee.name}`}>
+    <Layout title={t("sms.contact.title", { name: attendee.name })}>
       <AdminNav active="/admin/" session={session} />
       <Flash error={opts.error} success={opts.success} />
 
       <p>
         <a href={`/admin/listing/${listing.id}/attendee/${attendee.id}/edit`}>
-          &larr; Back to attendee
+          {t("sms.contact.back")}
         </a>
       </p>
 
-      <h1>Contact {attendee.name}</h1>
+      <h1>{t("sms.contact.heading", { name: attendee.name })}</h1>
       <p>
-        <strong>Phone:</strong> {attendee.phone || "(none on file)"}
+        <strong>{t("sms.contact.phone_label")}</strong>{" "}
+        {attendee.phone || t("sms.contact.no_phone")}
       </p>
 
-      {!opts.configured && (
-        <div class="warning">
-          The SMS gateway is not configured. An owner must set the gateway
-          credentials and end-to-end key in{" "}
-          <a href="/admin/settings">settings</a> before texts can be sent.
-        </div>
-      )}
+      {!opts.configured && <Raw html={t("sms.contact.not_configured")} />}
 
       {attendee.phone && opts.configured && (
         <CsrfForm
           action={`/admin/listing/${listing.id}/attendee/${attendee.id}/contact`}
         >
-          <h2>Send a text message</h2>
-          <label for="sms-message">Message</label>
+          <h2>{t("sms.contact.compose_heading")}</h2>
+          <label for="sms-message">{t("sms.contact.message_label")}</label>
           <textarea
             id="sms-message"
             maxlength="1000"
@@ -95,11 +91,11 @@ export const attendeeContactPage = (
             required
             rows="4"
           />
-          <SubmitButton icon="check">Send text</SubmitButton>
+          <SubmitButton icon="check">{t("sms.contact.send")}</SubmitButton>
         </CsrfForm>
       )}
 
-      <h2>Message history</h2>
+      <h2>{t("sms.contact.history_heading")}</h2>
       <Raw html={historyTable(history)} />
     </Layout>,
   );

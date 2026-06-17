@@ -3,13 +3,14 @@
  */
 
 import { joinStrings, map, pipe } from "#fp";
+import { t } from "#i18n";
 import { apiKeyForm } from "#routes/admin/api-keys.ts";
 import type { EndpointDoc } from "#shared/admin-api-example.ts";
 import { ConfirmForm, CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { AdminNav, UsersSubNav } from "#templates/admin/nav.tsx";
-import { SubmitButton } from "#templates/components/actions.tsx";
+import { DeleteSection, SubmitButton } from "#templates/components/actions.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 type ApiKeyDisplay = {
@@ -22,17 +23,14 @@ type ApiKeyDisplay = {
 const ApiKeyRow = ({ apiKey }: { apiKey: ApiKeyDisplay }): string =>
   String(
     <tr>
-      <td>{apiKey.name}</td>
+      <td>
+        <a href={`/admin/api-keys/${apiKey.id}`}>{apiKey.name}</a>
+      </td>
       <td>{new Date(apiKey.created).toLocaleDateString()}</td>
       <td>
         {apiKey.lastUsed
           ? new Date(apiKey.lastUsed).toLocaleDateString()
-          : "Never"}
-      </td>
-      <td>
-        <a class="danger small" href={`/admin/api-keys/${apiKey.id}/delete`}>
-          Delete
-        </a>
+          : t("api_keys.never")}
       </td>
     </tr>,
   );
@@ -51,10 +49,10 @@ export const adminApiKeysPage = (
           map((k: ApiKeyDisplay) => ApiKeyRow({ apiKey: k })),
           joinStrings,
         )(keys)
-      : '<tr><td colspan="4">No API keys</td></tr>';
+      : `<tr><td colspan="3">${t("api_keys.no_keys")}</td></tr>`;
 
   return String(
-    <Layout title="API Keys">
+    <Layout title={t("api_keys.title")}>
       <AdminNav active="/admin/users" session={adminSession} />
       <UsersSubNav />
 
@@ -62,7 +60,7 @@ export const adminApiKeysPage = (
 
       {opts.newKey && (
         <div class="warning">
-          <strong>Copy your API key now — it won't be shown again:</strong>
+          <strong>{t("api_keys.copy_notice")}</strong>
           <pre>
             <code>{opts.newKey}</code>
           </pre>
@@ -81,10 +79,9 @@ export const adminApiKeysPage = (
         <table>
           <thead>
             <tr>
-              <th>Name</th>
-              <th>Created</th>
-              <th>Last used</th>
-              <th></th>
+              <th>{t("common.name")}</th>
+              <th>{t("common.created")}</th>
+              <th>{t("api_keys.col.last_used")}</th>
             </tr>
           </thead>
           <tbody>
@@ -96,13 +93,57 @@ export const adminApiKeysPage = (
       <br />
 
       <CsrfForm action="/admin/api-keys">
-        <h2>Create API key</h2>
+        <h2>{t("api_keys.create_legend")}</h2>
         <Raw html={apiKeyForm.render()} />
-        <SubmitButton icon="plus">Create key</SubmitButton>
+        <SubmitButton icon="plus">{t("api_keys.create_submit")}</SubmitButton>
       </CsrfForm>
     </Layout>,
   );
 };
+
+/**
+ * Per-key management page — the destination for the name link in the API keys
+ * table. API keys aren't editable, so this read-only summary exists mainly to
+ * host the delete action (moved off the table and behind a typed-name
+ * confirmation).
+ */
+export const adminApiKeyManagePage = (
+  apiKey: ApiKeyDisplay,
+  session: AdminSession,
+  opts: { error?: string; success?: string } = {},
+): string =>
+  String(
+    <Layout title={`${t("api_keys.title")}: ${apiKey.name}`}>
+      <AdminNav active="/admin/users" session={session} />
+      <UsersSubNav />
+      <h1>{apiKey.name}</h1>
+      <Flash error={opts.error} success={opts.success} />
+      <div class="table-scroll">
+        <table class="listing-details-table">
+          <tbody>
+            <tr>
+              <th>{t("common.created")}</th>
+              <td>{new Date(apiKey.created).toLocaleDateString()}</td>
+            </tr>
+            <tr>
+              <th>{t("api_keys.col.last_used")}</th>
+              <td>
+                {apiKey.lastUsed
+                  ? new Date(apiKey.lastUsed).toLocaleDateString()
+                  : t("api_keys.never")}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <DeleteSection
+        heading={t("common.delete")}
+        href={`/admin/api-keys/${apiKey.id}/delete`}
+      >
+        {t("api_keys.delete_submit")}
+      </DeleteSection>
+    </Layout>,
+  );
 
 /**
  * Admin API key delete confirmation page
@@ -117,18 +158,12 @@ export const adminDeleteApiKeyPage = (
 
       <ConfirmForm
         action={`/admin/api-keys/${apiKey.id}/delete`}
-        buttonText="Delete API Key"
-        label="API key name"
+        buttonText={t("api_keys.delete_submit")}
+        label={t("api_keys.delete_label")}
         name={apiKey.name}
       >
-        <p>
-          <strong>Warning:</strong> This will permanently delete this API key.
-          Any integrations using it will stop working immediately.
-        </p>
-        <p>
-          To delete this API key, type its name "{apiKey.name}" into the box
-          below:
-        </p>
+        <p>{t("api_keys.delete_warning")}</p>
+        <p>{t("api_keys.delete_confirm", { name: apiKey.name })}</p>
       </ConfirmForm>
     </Layout>,
   );
@@ -176,13 +211,13 @@ export const adminApiDocsPage = (
   adminEndpoints: EndpointDoc[],
 ): string =>
   String(
-    <Layout title="API Documentation">
+    <Layout title={t("api_keys.docs_title")}>
       <AdminNav active="/admin/users" session={session} />
       <UsersSubNav />
 
       <div class="stack-md column">
         <div class="prose">
-          <h3>Authentication</h3>
+          <h3>{t("api_keys.authentication")}</h3>
           <p>
             Admin API endpoints require authentication via API key or session
             cookie:
@@ -199,15 +234,15 @@ export const adminApiDocsPage = (
 
       <div class="stack-md column">
         <div class="prose">
-          <h3>Public API</h3>
-          <p>No API key required. All endpoints support CORS.</p>
+          <h3>{t("api_keys.public_api")}</h3>
+          <p>{t("api_keys.public_api_note")}</p>
         </div>
         <Raw html={EndpointList({ endpoints: publicEndpoints })} />
       </div>
 
       <div class="stack-md column">
         <div class="prose">
-          <h3>Admin API</h3>
+          <h3>{t("api_keys.admin_api")}</h3>
           <p>
             Requires <code>Authorization: Bearer YOUR_API_KEY</code> header.
           </p>

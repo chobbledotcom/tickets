@@ -41,21 +41,28 @@ import { createRouter, defineRoutes } from "#routes/router.ts";
 import { parseTokens } from "#routes/tickets/token-utils.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { calculateBookingFee } from "#shared/booking-fee.ts";
-import { getBookingFee, getEffectiveDomain } from "#shared/config.ts";
+import { priceCheckout } from "#shared/checkout-pricing.ts";
+import { getEffectiveDomain } from "#shared/config.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
 import {
   createAttendeeAtomic,
+  deleteAttendee,
   ensureAllBookings,
   getAttendeesByTokens,
 } from "#shared/db/attendees.ts";
 import { getListing, getListingWithCount } from "#shared/db/listings.ts";
+import { specsFromRefs } from "#shared/db/modifier-resolve.ts";
+import { consumeModifierStock } from "#shared/db/modifier-usage.ts";
 import {
+  balanceFinalizeStatement,
   clearSessionTokens,
   decryptSessionTokens,
   finalizeSession,
+  markSessionFailed,
   type ProcessedPayment,
+  parseSessionFailure,
   reserveSession,
 } from "#shared/db/processed-payments.ts";
 import {
@@ -65,10 +72,14 @@ import {
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
 import {
   type BookingItem,
+  type CheckoutIntent,
   getActivePaymentProvider,
+  type ModifierRef,
+  type ModifierSpec,
   type ValidatedPaymentSession,
   type WebhookEvent,
 } from "#shared/payments.ts";
+import { modifierDelta } from "#shared/price-modifier.ts";
 import { reservationDepositForLine } from "#shared/reservation-amount.ts";
 import { dayPriceFor, type ListingWithCount } from "#shared/types.ts";
 import { logAndNotifyRegistration } from "#shared/webhook.ts";
@@ -77,6 +88,10 @@ import { paymentCancelPage, successPage } from "#templates/payment.tsx";
 /** User-facing message when the listing price changed between checkout and payment */
 const PRICE_CHANGED_MESSAGE =
   "The price for this listing changed while you were completing payment.";
+
+/** User-facing message when a chosen add-on/discount sold out during payment. */
+const MODIFIER_SOLD_OUT_MESSAGE =
+  "An extra you selected sold out while you were completing payment.";
 
 /** Parse per-listing answer IDs from metadata JSON string.
  * Returns undefined for empty input. The JSON was serialized by our own
@@ -239,16 +254,33 @@ const refundAndLog = async (
 };
 
 /**
+ * Refund the session and return a handled-failure PaymentResult. The single
+ * refund-and-fail shape shared by post-payment failures (validation, price
+ * mismatch, balance mismatch) so the refundAndLog + 409/410 result block isn't
+ * re-spelled at each site.
+ */
+const refundAndFail = async (
+  session: ValidatedPaymentSession,
+  message: string,
+  listingId: number,
+  status: number | undefined,
+  detail?: string,
+): Promise<PaymentResult> => {
+  const refunded = await refundAndLog(session, message, listingId);
+  return { detail, error: message, refunded, status, success: false };
+};
+
+/**
  * Handle listing validation failure: skip refund for unknown listings (404)
  * since the webhook may be intended for a different instance sharing the same
  * payment provider account. For known-listing failures (inactive, closed),
  * refund so the customer gets their money back.
  */
-const validationFailure = async (
+const validationFailure = (
   session: ValidatedPaymentSession,
   validation: { error: string; status?: number },
   listingId: number,
-): Promise<PaymentResult> => {
+): Promise<PaymentResult> | PaymentResult => {
   if (validation.status === 404) {
     return {
       detail: `Post-payment listing not found (session=${session.id})`,
@@ -257,29 +289,22 @@ const validationFailure = async (
       success: false,
     };
   }
-  const refunded = await refundAndLog(session, validation.error, listingId);
-  return {
-    error: validation.error,
-    refunded,
-    status: validation.status,
-    success: false,
-  };
+  return refundAndFail(session, validation.error, listingId, validation.status);
 };
 
-/** Load an listing by ID or return a 404 "Listing not found" error payload. */
-const loadListingOr404 = async <Extra extends Record<string, unknown>>(
+/** Load a listing by ID or return a 404 "Listing not found" error payload. */
+const loadListingOr404 = async (
   listingId: number,
-  extra: Extra,
 ): Promise<
   | {
       ok: true;
       listing: NonNullable<Awaited<ReturnType<typeof getListingWithCount>>>;
     }
-  | ({ ok: false; error: string; status: 404 } & Extra)
+  | { ok: false; error: string; status: 404 }
 > => {
   const listing = await getListingWithCount(listingId);
   if (!listing) {
-    return { error: "Listing not found", ok: false, status: 404, ...extra };
+    return { error: "Listing not found", ok: false, status: 404 };
   }
   return { listing, ok: true };
 };
@@ -288,7 +313,7 @@ const validateListingForPayment = async (
   listingId: number,
   includeListingName = false,
 ): Promise<ListingValidation> => {
-  const loaded = await loadListingOr404(listingId, {});
+  const loaded = await loadListingOr404(listingId);
   if (!loaded.ok) return loaded;
   const listing = loaded.listing;
   const name = includeListingName ? listing.name : undefined;
@@ -365,21 +390,19 @@ const formatPostPaymentError = capacityErrorFormatter({
 });
 
 /** Return success result for an already-processed session.
- * Accepts a finalized payment record where attendee_id is guaranteed non-null. */
+ * Accepts a finalized payment record where attendee_id is guaranteed non-null.
+ * Carries the listing id (not the loaded listing): the redirect resolves it
+ * lazily only when it needs a thank-you URL, and a since-deleted listing is
+ * still a success replay because the attendee already exists. */
 const alreadyProcessedResult = async (
   listingId: number,
   existing: ProcessedPayment & { attendee_id: number },
 ): Promise<PaymentResult> => {
-  const loaded = await loadListingOr404(listingId, { success: false as const });
-  if (!loaded.ok) {
-    const { ok: _ok, ...rest } = loaded;
-    return rest;
-  }
   const decrypted = await decryptSessionTokens(existing.ticket_tokens);
   const ticketTokens = decrypted ? decrypted.split("+") : [];
   return {
     attendee: { id: existing.attendee_id },
-    listing: loaded.listing,
+    listingId,
     success: true,
     ticketTokens,
   };
@@ -426,6 +449,11 @@ const parseBookingItems = (itemsJson: string): BookingItem[] | null => {
   return parsed as BookingItem[];
 };
 
+/** Parse the compact modifier references from session metadata. Our own JSON,
+ * round-tripped through the provider; absent (empty) means no modifiers. */
+const parseModifierRefs = (json: string): ModifierRef[] =>
+  json ? (JSON.parse(json) as ModifierRef[]) : [];
+
 /**
  * Extract booking intent from session metadata.
  * Converts date from metadata's "" convention to null for domain use.
@@ -451,6 +479,7 @@ const extractIntent = (
     email: metadata.email,
     items,
     listingAnswerIds: parseListingAnswerIds(metadata.answer_ids),
+    modifiers: parseModifierRefs(metadata.modifiers),
     name: metadata.name,
     phone: metadata.phone,
     reservationAmount: metadata.reservation_amount || undefined,
@@ -460,24 +489,12 @@ const extractIntent = (
 };
 
 /** Log a price mismatch and refund the session */
-const priceMismatchRefund = async (
+const priceMismatchRefund = (
   session: ValidatedPaymentSession,
   detail: string,
   listingId: number,
-): Promise<PaymentResult> => {
-  const refunded = await refundAndLog(
-    session,
-    PRICE_CHANGED_MESSAGE,
-    listingId,
-  );
-  return {
-    detail,
-    error: PRICE_CHANGED_MESSAGE,
-    refunded,
-    status: 409,
-    success: false,
-  };
-};
+): Promise<PaymentResult> =>
+  refundAndFail(session, PRICE_CHANGED_MESSAGE, listingId, 409, detail);
 
 type ValidatedItem = {
   item: BookingItem;
@@ -486,17 +503,22 @@ type ValidatedItem = {
 };
 
 /** Handle the "already reserved" branch of reserveSession */
-const handleReservationConflict = (
+const handleReservationConflict = async (
   intent: BookingIntent,
   existing: ProcessedPayment,
-): Promise<PaymentResult> | PaymentResult => {
+): Promise<PaymentResult> => {
   if (existing.attendee_id !== null) {
     return alreadyProcessedResult(intent.items[0]!.e, {
       ...existing,
       attendee_id: existing.attendee_id,
     });
   }
-  // Session reserved but not finalized — another request is processing
+  // A recorded terminal failure replays the same handled outcome (refund
+  // already issued, sold out, price changed) without re-validating or
+  // re-refunding. failure_data is encrypted, so this read is async.
+  const failure = await parseSessionFailure(existing.failure_data);
+  if (failure) return { ...failure, success: false };
+  // Otherwise reserved but not finalized — another request is mid-flight.
   return {
     error: "Payment is being processed. Please wait a moment and refresh.",
     status: 409,
@@ -550,6 +572,7 @@ const verifyPaidPricing = async (
   session: ValidatedPaymentSession,
   intent: BookingIntent,
   validatedItems: ValidatedItem[],
+  modifierSpecs: ModifierSpec[],
 ): Promise<PaymentResult | null> => {
   const hasPaidItems = intent.items.some((item) => item.p > 0);
   if (!hasPaidItems) return null;
@@ -565,14 +588,30 @@ const verifyPaidPricing = async (
     }
   }
 
-  // The booking fee is always charged on the full order. The charged ticket
-  // amount is the deposit subtotal for a reservation, or the full subtotal
-  // otherwise. metadata `p` always holds the full line price.
-  const bookingFeePercent = getBookingFee();
-  const fullTotal = sumOf((v: ValidatedItem) => v.item.p)(validatedItems);
-  const chargedTickets = reservationDeposits(intent).total ?? fullTotal;
-  const expectedTotal =
-    chargedTickets + calculateBookingFee(fullTotal, bookingFeePercent);
+  // Re-derive the expected total with the same pricing pipeline the checkout
+  // used: deposit-aware ticket charges, modifiers (re-fetched from the database
+  // by id, never trusting metadata amounts), and the booking fee on top.
+  const pricingIntent: CheckoutIntent = {
+    address: intent.address,
+    date: intent.date,
+    email: intent.email,
+    items: validatedItems.map((v) => ({
+      listingId: v.item.e,
+      name: v.listing.name,
+      quantity: v.item.q,
+      slug: v.listing.slug,
+      unitPrice: v.item.p / v.item.q,
+    })),
+    modifiers: modifierSpecs,
+    name: intent.name,
+    phone: intent.phone,
+    special_instructions: intent.special_instructions,
+    ...(intent.dayCount ? { dayCount: intent.dayCount } : {}),
+    ...(intent.reservationAmount
+      ? { reservationAmount: intent.reservationAmount }
+      : {}),
+  };
+  const expectedTotal = priceCheckout(pricingIntent).total;
   if (session.amountTotal !== expectedTotal) {
     return await priceMismatchRefund(
       session,
@@ -599,6 +638,7 @@ const createAttendeeForSession = async (
   session: ValidatedPaymentSession,
   intent: BookingIntent,
   validatedItems: ValidatedItem[],
+  modifierSpecs: ModifierSpec[],
 ): Promise<{ ok: true; entries: CreatedEntry[] } | PaymentResult> => {
   // A reservation charges only the per-line deposit up front; the rest of the
   // full order price is recorded as the attendee's outstanding balance.
@@ -632,18 +672,41 @@ const createAttendeeForSession = async (
       bookingCheck.reason,
       validatedItems[0]!.listing.name,
     );
-    return {
+    return refundAndFail(
+      session,
       error,
-      refunded: await refundAndLog(
-        session,
-        error,
-        validatedItems[0]!.listing.id,
-      ),
-      status: bookingCheck.reason === "encryption_error" ? 500 : 409,
-      success: false,
-    };
+      validatedItems[0]!.listing.id,
+      bookingCheck.reason === "encryption_error" ? 500 : 409,
+    );
   }
   const created = result as Extract<typeof result, { success: true }>;
+
+  // Consume modifier stock atomically; a sold-out race rolls the order back.
+  // amount_applied is recorded against the order subtotal — the same base the
+  // pricing engine uses for today's whole-order ("all" scope) modifiers. When
+  // listing/group-scoped modifiers become creatable, this should use the
+  // in-scope subtotal to stay exact.
+  if (modifierSpecs.length > 0) {
+    const attendeeId = created.attendees[0]!.id;
+    const consumed = await consumeModifierStock(
+      attendeeId,
+      modifierSpecs.map((s) => ({
+        amountApplied: Math.abs(modifierDelta(fullTotal, s.kind, s.value)),
+        modifierId: s.id,
+        quantity: s.quantity,
+      })),
+    );
+    if (!consumed) {
+      await deleteAttendee(attendeeId);
+      return refundAndFail(
+        session,
+        MODIFIER_SOLD_OUT_MESSAGE,
+        validatedItems[0]!.listing.id,
+        409,
+      );
+    }
+  }
+
   const entries = created.attendees.map((attendee, i) => ({
     attendee,
     listing: validatedItems[i]!.listing,
@@ -661,46 +724,89 @@ const createAttendeeForSession = async (
  * 2. Validate listings and create attendees atomically (with rollback on failure)
  * 3. Finalize session (records attendee ID)
  */
+/** User-facing message when the outstanding balance changed mid-payment. */
+const BALANCE_CHANGED_MESSAGE =
+  "The outstanding balance for this booking changed while you were paying.";
+
 /**
  * Settle a reserved attendee's balance instead of creating a new attendee.
- * The per-item price checks are skipped (the single line is the balance, not a
- * ticket); the amount the provider actually charged is the trust boundary.
+ *
+ * The amount this checkout was created for is the single balance line's price
+ * (`items[0].p`); since balance payments add no booking fee, the provider must
+ * have charged exactly that (`session.amountTotal`). The settle then clears
+ * the balance only if the live `remaining_balance` still equals that amount — so
+ * a balance the owner edited, or one a concurrent/stale checkout already
+ * settled, can't be cleared for the wrong figure — and finalizes the session in
+ * the SAME transaction so a crash between settle and finalize can't leave a
+ * paid-but-unfinalized row (which a later stale-replay would wrongly refund). A
+ * mismatch refunds and returns a terminal failure rather than mutating anything.
  */
 const settleBalanceSession = async (
   sessionId: string,
+  session: ValidatedPaymentSession,
   intent: BookingIntent,
 ): Promise<PaymentResult> => {
   const attendeeId = intent.balanceAttendeeId as number;
-  await settleAttendeeBalance(attendeeId);
-  // extractIntent guarantees a non-empty items array.
-  const listing = await getListingWithCount(intent.items[0]!.e);
-  if (!listing) {
-    return { error: "Listing not found", status: 404, success: false };
+  // A balance checkout is always a single synthetic line whose price is the
+  // outstanding balance it was created to clear.
+  const expectedAmount = intent.items[0]!.p;
+  const listingId = intent.items[0]!.e;
+
+  const fail = (detail: string): Promise<PaymentResult> =>
+    refundAndFail(session, BALANCE_CHANGED_MESSAGE, listingId, 409, detail);
+
+  // Enforce the single-line invariant the amount above relies on (see
+  // handleBalancePost). A balance session with more than one line is malformed
+  // or foreign; settling items[0].p would clear a guessed amount, so refund and
+  // record a terminal failure instead.
+  if (intent.items.length !== 1) {
+    return fail(
+      `Balance session for attendee ${attendeeId} has ${intent.items.length} line(s); expected exactly one`,
+    );
   }
-  await finalizeSession(sessionId, attendeeId, []);
+
+  if (session.amountTotal !== expectedAmount) {
+    return fail(
+      `Balance amount mismatch (attendee ${attendeeId}): provider charged ${session.amountTotal} but checkout was for ${expectedAmount}`,
+    );
+  }
+
+  const settled = await settleAttendeeBalance(attendeeId, expectedAmount, [
+    balanceFinalizeStatement(sessionId, attendeeId, expectedAmount),
+  ]);
+  if (!settled.settled) {
+    return fail(
+      `Balance not settled (${settled.reason}) for attendee ${attendeeId}; paid ${session.amountTotal}`,
+    );
+  }
+
+  // Settle + finalize already committed atomically above. The listing (which
+  // may since be deleted) is resolved lazily by the redirect for its thank-you
+  // link, so we carry only its id here.
   return {
     attendee: { id: attendeeId },
-    listing,
+    listingId,
     success: true,
     ticketTokens: [],
   };
 };
 
-const processPaymentSession = async (
+/**
+ * Process a session we have just reserved (holding the lock). Every failure
+ * returned here is a handled terminal outcome; processPaymentSession records it
+ * so a later redirect/webhook replays the same result instead of re-running
+ * refunds or stalling behind the idempotency lock.
+ */
+const processReservedSession = async (
   sessionId: string,
   data: ValidatedSession,
   options?: { storeTokens?: boolean },
 ): Promise<PaymentResult> => {
   const { session, intent } = data;
-  // Phase 1: Reserve the session (claim the lock)
-  const reservation = await reserveSession(sessionId);
-  if (!reservation.reserved) {
-    return handleReservationConflict(intent, reservation.existing);
-  }
 
   // Balance payment: settle the existing attendee rather than create one.
   if (intent.balanceAttendeeId) {
-    return settleBalanceSession(sessionId, intent);
+    return settleBalanceSession(sessionId, session, intent);
   }
 
   // Phase 2: Validate listings and create attendees atomically
@@ -708,13 +814,23 @@ const processPaymentSession = async (
   if ("success" in validated) return validated;
   const validatedItems = validated.items;
 
-  const pricingError = await verifyPaidPricing(session, intent, validatedItems);
+  // Resolve the applied modifiers once (re-fetched by id from the database);
+  // both the price re-derivation and the stock consumption use the same specs.
+  const modifierSpecs = await specsFromRefs(intent.modifiers);
+
+  const pricingError = await verifyPaidPricing(
+    session,
+    intent,
+    validatedItems,
+    modifierSpecs,
+  );
   if (pricingError) return pricingError;
 
   const created = await createAttendeeForSession(
     session,
     intent,
     validatedItems,
+    modifierSpecs,
   );
   if ("success" in created) return created;
   const createdEntries = created.entries;
@@ -738,10 +854,55 @@ const processPaymentSession = async (
 
   return {
     attendee: firstAttendee.attendee,
-    listing: firstAttendee.listing,
+    listingId: firstAttendee.listing.id,
     success: true,
     ticketTokens: [ticketToken],
   };
+};
+
+const processPaymentSession = async (
+  sessionId: string,
+  data: ValidatedSession,
+  options?: { storeTokens?: boolean },
+): Promise<PaymentResult> => {
+  // Phase 1: Reserve the session (claim the lock)
+  const reservation = await reserveSession(sessionId);
+  if (!reservation.reserved) {
+    return handleReservationConflict(data.intent, reservation.existing);
+  }
+
+  const result = await processReservedSession(sessionId, data, options);
+
+  // Record a handled failure as the session's terminal outcome so a later
+  // redirect/webhook for the same paid session replays it (same message and
+  // refund status) instead of re-refunding or getting stuck behind the lock.
+  // A refund that FAILED (refunded === false) is deliberately left unrecorded:
+  // the reservation stays retryable so a later attempt can re-issue the refund
+  // and self-heal, rather than freezing a "contact support" outcome forever.
+  // The transient "another request is processing" conflict returns above and
+  // never reaches here, so it stays retryable too.
+  //
+  // The refund (issued inside processReservedSession) and this write are NOT
+  // atomic — an external refund can't be transactional with a local DB write.
+  // If the process crashes in between, the row stays reserved with no recorded
+  // outcome; once it goes stale (STALE_RESERVATION_MS) a retry deletes it and
+  // re-processes, re-attempting the refund. This CANNOT double-pay: every
+  // provider refunds the full charge amount and rejects a refund that exceeds
+  // the already-refunded balance (Stripe errors on an already-refunded intent;
+  // Square caps at the refundable amount — its idempotency key is a fresh UUID,
+  // so the amount cap, not the key, is the safeguard; SumUp rejects a
+  // re-refund). Worst case is a declined retry that shows the customer a
+  // misleading "contact support for a refund" even though the money was already
+  // returned — never a duplicate payout.
+  if (!result.success && result.refunded !== false) {
+    await markSessionFailed(sessionId, {
+      error: result.error,
+      refunded: result.refunded,
+      status: result.status,
+    });
+  }
+
+  return result;
 };
 
 /**
@@ -798,11 +959,14 @@ const processSessionAndRedirect = async (
     );
   }
 
-  // Already-processed session (no tokens available) - render directly
-  const thankYouUrl =
-    validation.data.intent.items.length === 1
-      ? result.listing.thank_you_url
-      : "";
+  // Already-processed session (no tokens available) - render directly. Resolve
+  // the listing lazily here (the only place a thank-you URL is needed) so the
+  // webhook path never loads it; a since-deleted listing simply yields no URL.
+  let thankYouUrl = "";
+  if (validation.data.intent.items.length === 1) {
+    const listing = await getListing(result.listingId);
+    thankYouUrl = listing?.thank_you_url ?? "";
+  }
   return htmlResponse(
     successPage({ paid: true, thankYouUrl, ticketUrl: null }),
   );

@@ -2,8 +2,9 @@
  * Password hashing (PBKDF2), session token hashing, HMAC, and ticket token indexing
  */
 
+import { createHash, createHmac } from "node:crypto";
 import { lazyRef } from "#fp";
-import { importHmacKey } from "./encryption.ts";
+import { getEncryptionKeyBytes } from "./encryption.ts";
 import { fromBase64, getRandomBytes, toBase64 } from "./utils.ts";
 
 /**
@@ -119,10 +120,9 @@ export const verifyPassword = async (
  * Used to store session lookups without exposing the actual token
  */
 export const hashSessionToken = async (token: string): Promise<string> => {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(token);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  return toBase64(new Uint8Array(hashBuffer));
+  const hash = createHash("sha256");
+  hash.update(new TextEncoder().encode(token));
+  return toBase64(new Uint8Array(hash.digest()));
 };
 
 /**
@@ -131,16 +131,9 @@ export const hashSessionToken = async (token: string): Promise<string> => {
  * Returns deterministic output for same input (unlike encrypt)
  */
 export const hmacHash = async (value: string): Promise<string> => {
-  const hmacKey = await importHmacKey();
-
-  const encoder = new TextEncoder();
-  const signature = await crypto.subtle.sign(
-    "HMAC",
-    hmacKey,
-    encoder.encode(value),
-  );
-
-  return toBase64(new Uint8Array(signature));
+  const mac = createHmac("sha256", getEncryptionKeyBytes());
+  mac.update(new TextEncoder().encode(value));
+  return toBase64(new Uint8Array(mac.digest()));
 };
 
 /**

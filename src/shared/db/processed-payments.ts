@@ -13,6 +13,7 @@
  *   - Fresh → return conflict error (still being processed)
  */
 
+import type { InValue } from "@libsql/client";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { getDb, insert, queryOne } from "#shared/db/client.ts";
 import { STALE_RESERVATION_MS } from "#shared/limits.ts";
@@ -20,12 +21,51 @@ import { nowIso, nowMs } from "#shared/now.ts";
 
 export { STALE_RESERVATION_MS };
 
+/**
+ * A processed_payments row is in exactly one of three lifecycle states, encoded
+ * across two columns: **reserved** (in-progress: attendee_id NULL, no
+ * failure_data), **finalized** (success: attendee_id set), **failed** (terminal
+ * handled failure: attendee_id NULL, failure_data set). These two predicates are
+ * the single source of truth for that shape — every query/branch that
+ * distinguishes the states derives from them (or {@link isUnresolvedReservation})
+ * so the encoding can't drift between call sites.
+ */
+const UNRESOLVED_RESERVATION = "attendee_id IS NULL AND failure_data = ''";
+/** Complement of {@link UNRESOLVED_RESERVATION}: a finalized success or a
+ * recorded terminal failure. Exported for the pruner, which reaps resolved rows. */
+export const RESOLVED_OUTCOME =
+  "(attendee_id IS NOT NULL OR failure_data != '')";
+
 /** Processed payment record */
 export type ProcessedPayment = {
   payment_session_id: string;
   attendee_id: number | null;
   processed_at: string;
   ticket_tokens: string;
+  /** Encrypted JSON-encoded {@link StoredPaymentFailure} once a session reaches a
+   * handled terminal failure (refund issued, sold out, price changed, …); "" while
+   * a row is in-progress or finalized. Encrypted at rest (like ticket_tokens)
+   * because the stored message can embed an encrypted-at-rest listing name. Lets a
+   * later redirect/webhook replay the same outcome instead of re-running refund
+   * logic. */
+  failure_data: string;
+};
+
+/**
+ * The subset of a handled payment failure we persist so a later redirect or
+ * webhook retry replays the same terminal result (user-facing message, HTTP
+ * status, and whether a refund was already issued) without re-validating the
+ * listing or re-attempting the refund.
+ *
+ * Persisted encrypted (see {@link markSessionFailed} / failure_data): `error`
+ * can embed an encrypted-at-rest listing name, so it must never be stored in the
+ * clear. Keep this shape free of any field that shouldn't round-trip through the
+ * DB encryption key.
+ */
+export type StoredPaymentFailure = {
+  error: string;
+  status?: number;
+  refunded?: boolean;
 };
 
 /** Result of session reservation attempt */
@@ -40,7 +80,7 @@ export const isSessionProcessed = (
   sessionId: string,
 ): Promise<ProcessedPayment | null> =>
   queryOne<ProcessedPayment>(
-    "SELECT payment_session_id, attendee_id, processed_at, ticket_tokens FROM processed_payments WHERE payment_session_id = ?",
+    "SELECT payment_session_id, attendee_id, processed_at, ticket_tokens, failure_data FROM processed_payments WHERE payment_session_id = ?",
     [sessionId],
   );
 
@@ -52,31 +92,40 @@ export const isReservationStale = (processedAt: string): boolean => {
   return nowMs() - reservedAt > STALE_RESERVATION_MS;
 };
 
+/** True when a row is an in-progress reservation with no recorded outcome — the
+ * in-memory mirror of the {@link UNRESOLVED_RESERVATION} SQL predicate. */
+export const isUnresolvedReservation = (row: ProcessedPayment): boolean =>
+  row.attendee_id === null && row.failure_data === "";
+
 /** Execute a SQL statement parameterized by a single payment session ID */
 const execWithSessionId = (sessionId: string, sql: string): Promise<unknown> =>
   getDb().execute({ args: [sessionId], sql });
 
 /**
- * Delete a stale reservation to allow retry
+ * Delete a stale reservation to allow retry. Only abandoned, outcome-less rows
+ * qualify — a recorded terminal failure (failure_data set) is an outcome, not
+ * an in-progress reservation, so it is left for idempotent replay.
  */
 export const deleteStaleReservation = async (
   sessionId: string,
 ): Promise<void> => {
   await execWithSessionId(
     sessionId,
-    "DELETE FROM processed_payments WHERE payment_session_id = ? AND attendee_id IS NULL",
+    `DELETE FROM processed_payments WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION}`,
   );
 };
 
 /**
- * Delete all stale reservations (unfinalized and older than STALE_RESERVATION_MS).
- * Called from admin listing views to clean up abandoned checkouts.
+ * Delete all stale reservations (unfinalized, outcome-less, and older than
+ * STALE_RESERVATION_MS). Called from admin listing views to clean up abandoned
+ * checkouts. Rows carrying a recorded terminal failure are kept so a late
+ * redirect/webhook replays the handled outcome rather than re-refunding.
  */
 export const deleteAllStaleReservations = async (): Promise<number> => {
   const cutoff = new Date(nowMs() - STALE_RESERVATION_MS).toISOString();
   const result = await getDb().execute({
     args: [cutoff],
-    sql: "DELETE FROM processed_payments WHERE attendee_id IS NULL AND processed_at < ?",
+    sql: `DELETE FROM processed_payments WHERE ${UNRESOLVED_RESERVATION} AND processed_at < ?`,
   });
   return result.rowsAffected;
 };
@@ -111,11 +160,18 @@ export const reserveSession = async (
       // Session already claimed - get existing record (must exist: UNIQUE error proves it)
       const existing = (await isSessionProcessed(sessionId))!;
 
-      // Check if reservation is stale (abandoned by crashed process)
+      // Check if reservation is stale (abandoned by crashed process). A row
+      // carrying a recorded terminal failure is never stale — it is replayed
+      // by the caller instead of being deleted and re-processed.
       if (
-        existing.attendee_id === null &&
+        isUnresolvedReservation(existing) &&
         isReservationStale(existing.processed_at)
       ) {
+        // Delete the abandoned row and retry the claim. This recurses at most
+        // one extra level: any row present after the delete must have been
+        // inserted at ~now (by this retry or a racing request), so it is fresh
+        // — isReservationStale is false for it and we fall through to the
+        // conflict return rather than looping.
         await deleteStaleReservation(sessionId);
         return reserveSession(sessionId);
       }
@@ -141,6 +197,65 @@ export const finalizeSession = async (
     sql: "UPDATE processed_payments SET attendee_id = ?, ticket_tokens = ? WHERE payment_session_id = ?",
   });
 };
+
+/**
+ * Record a handled terminal failure on a still-unresolved session. A later
+ * redirect/webhook for the same session reads this back via
+ * {@link parseSessionFailure} and returns the same outcome, so refunds and
+ * validation never run twice. Guarded on {@link UNRESOLVED_RESERVATION}, so it
+ * never clobbers a finalized success and never overwrites an already-recorded
+ * failure (the first outcome wins); a no-op if the row was pruned away.
+ */
+export const markSessionFailed = async (
+  sessionId: string,
+  failure: StoredPaymentFailure,
+): Promise<void> => {
+  await getDb().execute({
+    args: [await encrypt(JSON.stringify(failure)), sessionId],
+    sql: `UPDATE processed_payments SET failure_data = ? WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION}`,
+  });
+};
+
+/** Generic terminal failure used when stored failure_data can't be parsed. */
+const CORRUPT_FAILURE: StoredPaymentFailure = {
+  error: "This payment could not be completed. Please contact support.",
+  status: 500,
+};
+
+/**
+ * Parse a stored terminal failure, or null when the row carries none. We only
+ * ever write valid encrypted JSON (via {@link markSessionFailed}), but a value
+ * that won't decrypt or parse (restore, manual edit, rotated key) must not crash
+ * the replay path — it degrades to a generic terminal failure so the session
+ * still resolves instead of looping.
+ */
+export const parseSessionFailure = async (
+  failureData: string,
+): Promise<StoredPaymentFailure | null> => {
+  if (!failureData) return null;
+  try {
+    return JSON.parse(await decrypt(failureData)) as StoredPaymentFailure;
+  } catch {
+    return CORRUPT_FAILURE;
+  }
+};
+
+/**
+ * Build the finalize UPDATE for a balance-payment session, guarded so it only
+ * applies while the attendee's balance still equals the amount being settled.
+ * Returned rather than executed so the caller can commit it in the SAME batch as
+ * the balance settle — closing the crash window between settle and finalize that
+ * would otherwise leave a paid-but-unfinalized row (which a stale-replay could
+ * then wrongly refund). Balance sessions carry no ticket tokens.
+ */
+export const balanceFinalizeStatement = (
+  sessionId: string,
+  attendeeId: number,
+  expectedAmount: number,
+): { sql: string; args: InValue[] } => ({
+  args: [attendeeId, sessionId, attendeeId, expectedAmount],
+  sql: "UPDATE processed_payments SET attendee_id = ?, ticket_tokens = '' WHERE payment_session_id = ? AND (SELECT remaining_balance FROM attendees WHERE id = ?) = ?",
+});
 
 /**
  * Decrypt the ticket_tokens field from a processed payment record.

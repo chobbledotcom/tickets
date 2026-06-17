@@ -3,6 +3,12 @@
  */
 
 import * as v from "valibot";
+import type {
+  CalcKind,
+  ModifierDirection,
+  ModifierScope,
+  ModifierTrigger,
+} from "#shared/price-modifier.ts";
 
 /** Type guard: a non-null, non-array object (a Record shape). */
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -257,6 +263,24 @@ export interface Listing {
   months_per_unit: number;
   initial_site_months: number;
   duration_days: number;
+  /** When true (and logistics is enabled) this listing is dropped off and
+   * collected from the customer, so its attendees carry logistics agents. */
+  uses_logistics: boolean;
+}
+
+/** A logistics agent (typically a van) used for drop-off and collection. */
+export interface LogisticsAgent {
+  id: number;
+  name: string;
+}
+
+/** A link between an agent user and a logistics agent (van/crew) they drive.
+ * Many-to-many: a user may cover several agents and an agent may have several
+ * users. */
+export interface UserLogisticsAgent {
+  id: number;
+  user_id: number;
+  agent_id: number;
 }
 
 export interface Attendee extends ContactInfo {
@@ -281,6 +305,9 @@ export interface Attendee extends ContactInfo {
   remaining_balance: number;
   /** Owner-defined status id (plaintext); null for legacy/default. */
   status_id: number | null;
+  /** When true, each delivered listing this attendee books carries its own
+   * drop-off/collection agents; when false a single pair applies to them all. */
+  split_logistics_agents: boolean;
   ticket_token: string;
   ticket_token_index: string;
 }
@@ -310,8 +337,17 @@ export interface Session {
   wrapped_data_key: string | null;
 }
 
-/** Schema for admin role levels */
-export const AdminLevelSchema = v.picklist(["owner", "manager"]);
+/** Schema for admin role levels.
+ *
+ * - `owner`/`manager` are staff who share full back-office access (gated
+ *   per-page; managers are denied a subset).
+ * - `agent` is a restricted delivery-driver login that can only ever reach its
+ *   own logistics run sheet (`/admin/deliveries`). Auth gates exclude agents
+ *   from every staff page by default — see `sessionRoleAllowed` in auth.ts. */
+export const AdminLevelSchema = v.picklist(["owner", "manager", "agent"]);
+
+/** Admin role levels that are back-office staff (not delivery agents). */
+export const STAFF_ADMIN_LEVELS = ["owner", "manager"] as const;
 
 /** Admin role levels */
 export type AdminLevel = v.InferOutput<typeof AdminLevelSchema>;
@@ -327,7 +363,7 @@ export type AdminSession = {
 };
 
 export interface User {
-  admin_level: string; // encrypted "owner" or "manager"
+  admin_level: string; // encrypted "owner", "manager" or "agent"
   id: number;
   invite_code_hash: string | null; // encrypted SHA-256 of invite token, null after password set
   invite_expiry: string | null; // encrypted ISO 8601, null after password set
@@ -365,8 +401,30 @@ export interface Group {
   terms_and_conditions: string;
 }
 
+/** An owner-defined price modifier (surcharge / discount / add-on). `calc_value`
+ * is the positive magnitude the owner entered (a fixed amount in major currency
+ * units, a percentage, or a multiplier); `direction` chooses charge vs discount. */
+export interface Modifier {
+  id: number;
+  name: string;
+  calc_kind: CalcKind;
+  calc_value: number;
+  direction: ModifierDirection;
+  active: boolean;
+  trigger: ModifierTrigger;
+  scope: ModifierScope;
+  /** Minimum in-scope subtotal (minor units) for the modifier to apply. */
+  min_subtotal: number;
+  /** Remaining-stock cap, or null for unlimited. Consumed monotonically. */
+  stock: number | null;
+}
+
 export interface ListingWithCount extends Listing {
   attendee_count: number;
+  /** Trigger-maintained SUM(price_paid) over this listing's bookings, in minor units. */
+  income: number;
+  /** Trigger-maintained COUNT of this listing's booking rows. */
+  tickets_count: number;
 }
 
 /**

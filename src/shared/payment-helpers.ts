@@ -4,7 +4,11 @@
  */
 
 import { lazyRef, map } from "#fp";
-import { getBookingFeeAmount } from "#shared/booking-fee.ts";
+import type {
+  ExtraLine,
+  PricedLine,
+  PricedOrder,
+} from "#shared/checkout-pricing.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { ErrorCodeType, LogCategory } from "#shared/logger.ts";
@@ -14,6 +18,7 @@ import type {
   BookingItem,
   CheckoutIntent,
   CheckoutSessionResult,
+  ModifierRef,
   SessionMetadata,
   ValidatedPaymentSession,
 } from "#shared/payments.ts";
@@ -93,17 +98,22 @@ export const cachedClientFactory = <Config, Client>(opts: {
 };
 
 /**
- * Build a provider fee line-item array from the configured booking fee.
- * Returns [] when the fee is zero, else a single item shaped by `build`.
+ * Render a priced order into a provider's line-item array: each ticket line via
+ * `line`, each extra (booking fee, …) via `extra`. Providers supply the two
+ * shape callbacks; the ordering (tickets, then extras) matches what Stripe and
+ * Square built by hand before.
  */
-export const feeLineItems = <Item>(
-  subtotal: number,
+export const buildProviderLineItems = <Item>(
+  order: PricedOrder,
   currency: string,
-  build: (amount: number, currency: string) => Item,
-): Item[] => {
-  const amount = getBookingFeeAmount(subtotal);
-  return amount > 0 ? [build(amount, currency)] : [];
-};
+  render: {
+    line: (line: PricedLine, currency: string) => Item;
+    extra: (extra: ExtraLine, currency: string) => Item;
+  },
+): Item[] => [
+  ...order.lines.map((line) => render.line(line, currency)),
+  ...order.extras.map((extra) => render.extra(extra, currency)),
+];
 
 /**
  * Create a withClient helper that runs an operation with a lazily-resolved client.
@@ -177,10 +187,19 @@ export const buildItemsMetadata = async (
   buildMetadata({
     ...intent,
     items: toBookingItems(intent.items),
+    modifiers: toModifierRefs(intent.modifiers),
     siteTokenIndex: intent.siteToken
       ? await hmacHash(intent.siteToken)
       : undefined,
   });
+
+/** Compact the resolved modifier specs to id/quantity references for metadata. */
+export const toModifierRefs = (
+  specs: CheckoutIntent["modifiers"],
+): ModifierRef[] | undefined =>
+  specs && specs.length > 0
+    ? specs.map((s) => ({ i: s.id, q: s.quantity }))
+    : undefined;
 
 /** Input for buildMetadata — like BookingIntent but with optional contact fields */
 type MetadataInput = Pick<BookingIntent, "name" | "email" | "items" | "date"> &
@@ -195,6 +214,7 @@ type MetadataInput = Pick<BookingIntent, "name" | "email" | "items" | "date"> &
       | "siteTokenIndex"
       | "balanceAttendeeId"
       | "reservationAmount"
+      | "modifiers"
     >
   >;
 
@@ -216,6 +236,9 @@ export const buildMetadata = (
     : {}),
   ...(intent.reservationAmount
     ? { reservation_amount: intent.reservationAmount }
+    : {}),
+  ...(intent.modifiers?.length
+    ? { modifiers: JSON.stringify(intent.modifiers) }
     : {}),
 });
 
@@ -313,6 +336,7 @@ export const extractSessionMetadata = (
   day_count: metadata.day_count || "",
   email: metadata.email || "",
   items: metadata.items || "",
+  modifiers: metadata.modifiers || "",
   name: metadata.name,
   phone: metadata.phone || "",
   reservation_amount: metadata.reservation_amount || "",

@@ -5,6 +5,7 @@
  */
 
 import { sort } from "#fp";
+import { t } from "#i18n";
 import type { AttendeeSort } from "#shared/db/attendees.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
@@ -79,11 +80,11 @@ const ListingOptions = ({
   return (
     <>
       <option selected={selectedId === null} value="">
-        All listings
+        {t("attendees_list.all_listings")}
       </option>
       {sorted.map((e) => (
         <option selected={e.id === selectedId} value={String(e.id)}>
-          {e.active ? e.name : `${e.name} (deactivated)`}
+          {e.active ? e.name : `${e.name} ${t("attendees_list.deactivated")}`}
         </option>
       ))}
     </>
@@ -102,23 +103,23 @@ const FilterForm = ({
 }): JSX.Element => (
   <form action="/admin/attendees" class="filter-row" method="get">
     <label>
-      Listing
+      {t("terms.listing")}
       <select name="listing">
         <ListingOptions listings={listings} selectedId={listingId} />
       </select>
     </label>
     <label>
-      Sort
+      {t("attendees_list.sort")}
       <select name="sort">
         <option selected={sortOrder === "newest"} value="newest">
-          Newest first
+          {t("attendees_list.newest_first")}
         </option>
         <option selected={sortOrder === "oldest"} value="oldest">
-          Oldest first
+          {t("attendees_list.oldest_first")}
         </option>
       </select>
     </label>
-    <button type="submit">Apply</button>
+    <button type="submit">{t("attendees_list.apply")}</button>
   </form>
 );
 
@@ -141,15 +142,15 @@ const Pagination = ({
     <nav class="pagination">
       {page > 0 ? (
         <a href={pageHref(listingId, type, sortOrder, page - 1)} rel="prev">
-          ← Previous
+          {t("attendees_list.previous")}
         </a>
       ) : (
         <span />
       )}
-      <span>Page {page + 1}</span>
+      <span>{t("attendees_list.page_number", { number: page + 1 })}</span>
       {hasNext ? (
         <a href={pageHref(listingId, type, sortOrder, page + 1)} rel="next">
-          Next →
+          {t("attendees_list.next")}
         </a>
       ) : (
         <span />
@@ -161,10 +162,10 @@ const Pagination = ({
 /** Admin attendees browser page */
 export const adminAttendeesListPage = (props: AttendeesListPageProps): string =>
   String(
-    <Layout title="Attendees">
+    <Layout title={t("terms.attendees")}>
       <AdminNav active={NAV_ACTIVE} session={props.session} />
 
-      <h1>Attendees</h1>
+      <h1>{t("terms.attendees")}</h1>
 
       {props.categories.length > 1 && (
         <Raw
@@ -176,7 +177,7 @@ export const adminAttendeesListPage = (props: AttendeesListPageProps): string =>
 
       {props.type !== "all" && (
         <p>
-          Showing {props.count} attendee{props.count === 1 ? "" : "s"} for{" "}
+          {t("attendees_list.showing_count", { count: props.count })}{" "}
           <strong>{listingFilterLabel(props.type)}</strong>
         </p>
       )}
@@ -191,11 +192,11 @@ export const adminAttendeesListPage = (props: AttendeesListPageProps): string =>
         <Raw
           html={AttendeeTable({
             allowedDomain: props.allowedDomain,
-            emptyMessage: "No attendees yet",
+            emptyMessage: t("attendees_list.no_attendees_yet"),
             phonePrefix: props.phonePrefix,
             presorted: true,
             rows: props.rows,
-            showActions: false,
+            showCheckin: false,
             showDate: false,
             showListing: true,
           })}

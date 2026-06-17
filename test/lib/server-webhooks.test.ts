@@ -3,6 +3,7 @@ import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { setEffectiveDomainForTest } from "#shared/config.ts";
+import { modifiersTable } from "#shared/db/modifiers.ts";
 import {
   answersTable,
   getAttendeeAnswersBatch,
@@ -421,6 +422,208 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         expect(record?.ticket_tokens).not.toBe("");
       } finally {
         mockVerify.restore();
+      }
+    });
+
+    test("accepts a webhook whose total includes an applied modifier", async () => {
+      await setupStripe();
+      const listing = await createTestListing({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+      const modifier = await modifiersTable.insert({
+        calcKind: "percent",
+        calcValue: 10,
+        direction: "charge",
+        name: "Service charge",
+      });
+
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            listing: {
+              data: {
+                object: {
+                  // £10 ticket + 10% service charge = £11.00.
+                  amount_total: 1100,
+                  id: "cs_modifier_ok",
+                  metadata: webhookMeta({
+                    email: "mod@example.com",
+                    items: singleItem(listing.id, 1, 1000),
+                    modifiers: JSON.stringify([{ i: modifier.id, q: 1 }]),
+                    name: "Mod Buyer",
+                  }),
+                  payment_intent: "pi_modifier_ok",
+                  payment_status: "paid",
+                },
+              },
+              id: "evt_modifier_ok",
+              type: "checkout.session.completed",
+            },
+            valid: true,
+          }),
+      );
+
+      try {
+        await assertJson(
+          handleRequest(
+            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+          ),
+          200,
+          (json) => {
+            expect(json.processed).toBe(true);
+          },
+        );
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+        expect((await getAttendeesRaw(listing.id)).length).toBe(1);
+      } finally {
+        mockVerify.restore();
+      }
+    });
+
+    test("refunds a webhook whose total omits an applied modifier", async () => {
+      await setupStripe();
+      const listing = await createTestListing({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+      const modifier = await modifiersTable.insert({
+        calcKind: "percent",
+        calcValue: 10,
+        direction: "charge",
+        name: "Service charge",
+      });
+
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            listing: {
+              data: {
+                object: {
+                  // Paid only the ticket, not the surcharge the metadata records.
+                  amount_total: 1000,
+                  id: "cs_modifier_mismatch",
+                  metadata: webhookMeta({
+                    email: "mod@example.com",
+                    items: singleItem(listing.id, 1, 1000),
+                    modifiers: JSON.stringify([{ i: modifier.id, q: 1 }]),
+                    name: "Mod Buyer",
+                  }),
+                  payment_intent: "pi_modifier_mismatch",
+                  payment_status: "paid",
+                },
+              },
+              id: "evt_modifier_mismatch",
+              type: "checkout.session.completed",
+            },
+            valid: true,
+          }),
+      );
+      const mockRefund = stub(stripeApi, "refundPayment", () =>
+        Promise.resolve({ id: "re_modifier" } as unknown as Awaited<
+          ReturnType<typeof stripeApi.refundPayment>
+        >),
+      );
+
+      try {
+        await assertJson(
+          handleRequest(
+            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+          ),
+          200,
+          (json) => {
+            expect(json.processed).toBe(false);
+            expect(json.error).toContain("price");
+          },
+        );
+      } finally {
+        mockVerify.restore();
+        mockRefund.restore();
+      }
+    });
+
+    test("refunds when a modifier sold out before the webhook finalized", async () => {
+      await setupStripe();
+      const listing = await createTestListing({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+      const modifier = await modifiersTable.insert({
+        calcKind: "percent",
+        calcValue: 10,
+        direction: "charge",
+        name: "Last one",
+        stock: 1,
+      });
+      // Exhaust the single unit before the webhook arrives.
+      const { consumeModifierStock } = await import(
+        "#shared/db/modifier-usage.ts"
+      );
+      await consumeModifierStock(999, [
+        { amountApplied: 100, modifierId: modifier.id, quantity: 1 },
+      ]);
+
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            listing: {
+              data: {
+                object: {
+                  amount_total: 1100,
+                  id: "cs_modifier_soldout",
+                  metadata: webhookMeta({
+                    email: "mod@example.com",
+                    items: singleItem(listing.id, 1, 1000),
+                    modifiers: JSON.stringify([{ i: modifier.id, q: 1 }]),
+                    name: "Mod Buyer",
+                  }),
+                  payment_intent: "pi_modifier_soldout",
+                  payment_status: "paid",
+                },
+              },
+              id: "evt_modifier_soldout",
+              type: "checkout.session.completed",
+            },
+            valid: true,
+          }),
+      );
+      const mockRefund = stub(stripeApi, "refundPayment", () =>
+        Promise.resolve({ id: "re_soldout" } as unknown as Awaited<
+          ReturnType<typeof stripeApi.refundPayment>
+        >),
+      );
+
+      try {
+        await assertJson(
+          handleRequest(
+            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+          ),
+          200,
+          (json) => {
+            expect(json.processed).toBe(false);
+            expect(json.error).toContain("sold out");
+          },
+        );
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+        expect((await getAttendeesRaw(listing.id)).length).toBe(0);
+      } finally {
+        mockVerify.restore();
+        mockRefund.restore();
       }
     });
 
@@ -2264,7 +2467,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
-    test("webhook with already-processed session where listing was deleted", async () => {
+    test("webhook replays an already-processed session as success even if its listing was deleted", async () => {
       await setupStripe();
 
       // Create a real listing and attendee to satisfy FK constraints for finalization
@@ -2292,7 +2495,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       const { stripePaymentProvider } = await import(
         "#shared/stripe-provider.ts"
       );
-      // Use a non-existent listing_id in metadata to trigger "Listing not found" in alreadyProcessedResult
+      // The metadata points at a since-deleted listing (99999). Because the
+      // session is already finalized (the attendee exists), the retry is an
+      // idempotent success replay — a missing listing only means no thank-you
+      // URL, not a "Listing not found" error for a payment that succeeded.
       const mockVerify = stub(
         stripePaymentProvider,
         "verifyWebhookSignature",
@@ -2326,7 +2532,8 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           ),
           200,
           (json) => {
-            expect(json.error).toContain("Listing not found");
+            expect(json.processed).toBe(true);
+            expect(json.error).toBeUndefined();
           },
         );
       } finally {

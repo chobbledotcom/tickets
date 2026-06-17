@@ -47,6 +47,14 @@ describe("adminDashboardPage", () => {
     expect(html).toContain("Add Listing");
   });
 
+  test("renders add attendee link to the create-attendee route", () => {
+    // The "Add Attendee" button must point at the registered create route
+    // (plural /admin/attendees/new); a singular typo here 404s the page.
+    const html = adminDashboardPage([], TEST_SESSION);
+    expect(html).toContain('href="/admin/attendees/new"');
+    expect(html).toContain("Add Attendee");
+  });
+
   test("includes logout link", () => {
     const html = adminDashboardPage([], TEST_SESSION);
     expect(html).toContain("/admin/logout");
