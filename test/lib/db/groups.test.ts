@@ -29,7 +29,7 @@ import {
   describeWithEnv,
 } from "#test-utils";
 
-describeWithEnv("db > groups", { db: true }, () => {
+describeWithEnv("db > groups", { db: true, triggers: true }, () => {
   describe("CRUD", () => {
     test("groupsTable create, update, findById, deleteById", async () => {
       const created = await createTestGroup({

@@ -49,7 +49,7 @@ const lowerMaxAttendees = (id: number, max: number): Promise<unknown> =>
 
 describeWithEnv(
   "db > attendees > getListingRemainingForRange",
-  { db: true },
+  { db: true, triggers: true },
   () => {
     test("empty list yields an empty map", async () => {
       const map = await getListingRemainingForRange([], null);

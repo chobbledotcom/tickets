@@ -84,6 +84,20 @@ describeWithEnv("server (admin attendees list)", { db: true }, () => {
       expect(html).toContain("BobTwo");
     });
 
+    test("falls back to all listings for a malformed listing filter", async () => {
+      const first = await makeListing("First Listing");
+      const second = await makeListing("Second Listing");
+      await createTestAttendeeDirect(first.id, "AliceOne", "a1@example.com");
+      await createTestAttendeeDirect(second.id, "BobTwo", "b2@example.com");
+
+      const { response } = await adminGet(
+        `/admin/attendees?listing=${first.id}x`,
+      );
+      const html = await response.text();
+      expect(html).toContain("AliceOne");
+      expect(html).toContain("BobTwo");
+    });
+
     test("flags a deactivated listing in the filter dropdown", async () => {
       const listing = await makeListing("Retired Show");
       await deactivateTestListing(listing.id);

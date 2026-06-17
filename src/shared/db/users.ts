@@ -33,6 +33,11 @@ const USER_DISPLAY_SELECT =
 
 const USER_ID_SELECT = "SELECT id FROM users ORDER BY id ASC";
 
+const USER_AUTH_SELECT =
+  "SELECT id, admin_level FROM users WHERE id = ? LIMIT 1";
+
+export type UserAuthFields = Pick<User, "admin_level" | "id">;
+
 /**
  * Users change rarely and there are few of them, so the cache loads the whole
  * set and answers by-id / by-username reads from it. The TTL is shorter than
@@ -145,6 +150,12 @@ export const getUserByUsername = async (
  */
 export const getUserById = (id: number): Promise<User | null> =>
   usersCache.getById(id);
+
+/** Get the minimal encrypted user fields needed to authenticate a session. */
+export const getUserAuthFieldsById = async (
+  id: number,
+): Promise<UserAuthFields | null> =>
+  (await queryAll<UserAuthFields>(USER_AUTH_SELECT, [id]))[0] ?? null;
 
 /**
  * Check if a username is already taken
