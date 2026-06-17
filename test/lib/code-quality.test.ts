@@ -486,6 +486,8 @@ describe("code quality", () => {
       "shared/stripe.ts:resetStripeClient",
       // TTL constant used by page-cache tests to verify caching behaviour
       "shared/db/settings.ts:SETTINGS_CACHE_TTL_MS",
+      // Dev/test-only switch for the settings read audit (no-op in production)
+      "shared/db/settings-audit.ts:setSettingsAuditEnabled",
       // (settings.ts functions now accessed via settings namespace, not individual exports)
       // Reset cached sessions between tests
       "shared/db/sessions.ts:resetSessionCache",

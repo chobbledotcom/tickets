@@ -28,6 +28,10 @@ import {
 } from "#shared/crypto/keys.ts";
 import { getDb, queryAll } from "#shared/db/client.ts";
 import { deleteAllSessions } from "#shared/db/sessions.ts";
+import {
+  recordSettingRead,
+  recordSettingsLoaded,
+} from "#shared/db/settings-audit.ts";
 import { createUser, invalidateUsersCache } from "#shared/db/users.ts";
 import { nowMs } from "#shared/now.ts";
 import { DEFAULT_TIMEZONE } from "#shared/timezone.ts";
@@ -343,10 +347,30 @@ const [getTestOverrides, setTestOverrides] = lazyRef<Record<string, unknown>>(
   () => ({}),
 );
 
+/**
+ * Snapshot fields that derive from a different config key, for the read audit.
+ * Country drives currency/timezone/phone_prefix; the payment-provider setting
+ * shares PAYMENT_PROVIDER's row. Every other field's name equals its config key.
+ */
+const AUDIT_KEY_OVERRIDES: Record<string, string> = {
+  currency: CONFIG_KEYS.COUNTRY,
+  payment_provider_setting: CONFIG_KEYS.PAYMENT_PROVIDER,
+  phone_prefix: CONFIG_KEYS.COUNTRY,
+  timezone: CONFIG_KEYS.COUNTRY,
+};
+
+/** Map a snapshot field name to the config key whose load satisfies it. */
+const auditKeyFor = (field: string): string =>
+  AUDIT_KEY_OVERRIDES[field] ?? field;
+
 /** Read a snapshot value, checking test overrides first. */
 const snap = <K extends keyof SettingsData>(key: K): SettingsData[K] => {
   const overrides = getTestOverrides();
-  return key in overrides ? (overrides[key] as SettingsData[K]) : data[key];
+  // A test override supplies the value directly, so the read doesn't depend on
+  // a declared load — skip the audit (production never has overrides).
+  if (key in overrides) return overrides[key] as SettingsData[K];
+  recordSettingRead(auditKeyFor(key as string));
+  return data[key];
 };
 
 // ---------------------------------------------------------------------------
@@ -354,8 +378,10 @@ const snap = <K extends keyof SettingsData>(key: K): SettingsData[K] => {
 // ---------------------------------------------------------------------------
 
 /** Read a raw string from the cache. Returns null if missing or cache not loaded. */
-const getRawCached = (key: string): string | null =>
-  getCacheState().values.get(key) ?? null;
+const getRawCached = (key: string): string | null => {
+  recordSettingRead(key);
+  return getCacheState().values.get(key) ?? null;
+};
 
 /** Mutate the raw cache if it's currently fresh; no-op otherwise. */
 const syncCache = (mutate: (state: CacheState) => void): void => {
@@ -368,6 +394,9 @@ const writeRaw = async (key: string, value: string): Promise<void> => {
     args: [key, value],
     sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
   });
+  // A write makes the key's value known this request, so reading it back is
+  // safe in production too — record it as available for the read audit.
+  recordSettingsLoaded([key]);
   syncCache((s) => {
     s.values.set(key, value);
     s.loaded.add(key);
@@ -380,6 +409,7 @@ const deleteRaw = async (key: string): Promise<void> => {
     args: [key],
     sql: "DELETE FROM settings WHERE key = ?",
   });
+  recordSettingsLoaded([key]);
   syncCache((s) => {
     s.values.delete(key);
     s.loaded.add(key);
@@ -667,6 +697,9 @@ const resetCache = (): CacheState => {
  * only those.
  */
 const loadKeys = async (keys: readonly string[]): Promise<void> => {
+  // Record everything declared this request, regardless of cache state, so the
+  // read audit compares against the full declared set (not just cache misses).
+  recordSettingsLoaded(keys);
   const s = isCacheFresh() ? getCacheState() : resetCache();
   const missing = unique([...keys]).filter((k) => !s.loaded.has(k));
   if (missing.length === 0) return;

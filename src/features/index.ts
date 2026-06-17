@@ -54,6 +54,10 @@ import {
   runWithQueryLogContext,
 } from "#shared/db/query-log.ts";
 import { CONFIG_KEYS, SNAPSHOT_KEYS, settings } from "#shared/db/settings.ts";
+import {
+  assertSettingsReadsDeclared,
+  runWithSettingsAudit,
+} from "#shared/db/settings-audit.ts";
 import { isReadOnly } from "#shared/env.ts";
 import {
   hasFlash,
@@ -232,6 +236,8 @@ const getPrefix = (path: string): string => {
  * - routing gates on setup_complete / show_public_*
  * - the bare `Layout` (rendered by the universal `notFoundResponse` fallback
  *   and every HTML error page) reads theme + header_image_url
+ * - `applySecurityHeaders` rebuilds the CSP on every routed response, reading
+ *   the payment provider (and square_sandbox when the provider is Square)
  * - pruning self-guards on last_pruned_*
  * - session auth + PII decryption read the key material
  */
@@ -244,6 +250,8 @@ const INFRA_SETTINGS: readonly string[] = [
   CONFIG_KEYS.SHOW_PUBLIC_API,
   CONFIG_KEYS.THEME,
   CONFIG_KEYS.HEADER_IMAGE_URL,
+  CONFIG_KEYS.PAYMENT_PROVIDER,
+  CONFIG_KEYS.SQUARE_SANDBOX,
   CONFIG_KEYS.LAST_PRUNED_PAYMENTS,
   CONFIG_KEYS.LAST_PRUNED_SESSIONS,
   CONFIG_KEYS.LAST_PRUNED_SUMUP,
@@ -365,7 +373,8 @@ const PREFIX_SETTINGS: Record<string, readonly string[]> = {
     CONFIG_KEYS.ATTENDEE_COLUMN_ORDER,
     ...OWNER_AUTH_SETTINGS,
   ],
-  contact: [...PUBLIC_NAV_SETTINGS, CONFIG_KEYS.COUNTRY],
+  // Contact form submission sends an email to the business address.
+  contact: [...PUBLIC_NAV_SETTINGS, CONFIG_KEYS.COUNTRY, ...EMAIL_SETTINGS],
   demo: [],
   events: [],
   // --- Feeds (ICS/RSS): website title + country (timezone) ---
@@ -375,7 +384,11 @@ const PREFIX_SETTINGS: Record<string, readonly string[]> = {
   image: [],
   join: [],
   listings: [...PUBLIC_NAV_SETTINGS, CONFIG_KEYS.COUNTRY],
-  order: [...PUBLIC_NAV_SETTINGS, CONFIG_KEYS.ORDER_INTRO_TEXT],
+  order: [
+    ...PUBLIC_NAV_SETTINGS,
+    CONFIG_KEYS.ORDER_INTRO_TEXT,
+    CONFIG_KEYS.COUNTRY,
+  ],
   // --- Checkout / payment (bare layout, no public nav) ---
   pay: PAYMENT_SETTINGS,
   payment: [...PAYMENT_SETTINGS, ...EMAIL_SETTINGS],
@@ -391,7 +404,8 @@ const PREFIX_SETTINGS: Record<string, readonly string[]> = {
   t: [CONFIG_KEYS.COUNTRY, ...APPLE_WALLET_SETTINGS, ...GOOGLE_WALLET_SETTINGS],
   terms: PUBLIC_NAV_SETTINGS,
   // --- Booking flows (form + checkout + emails) ---
-  ticket: BOOKING_FLOW_SETTINGS,
+  // Ticket pages are embeddable, so applySecurityHeaders reads embed_hosts.
+  ticket: [...BOOKING_FLOW_SETTINGS, CONFIG_KEYS.EMBED_HOSTS],
   // --- Unsubscribe page (bare layout + page title) ---
   unsubscribe: [CONFIG_KEYS.WEBSITE_TITLE],
   v1: [...APPLE_WALLET_SETTINGS, CONFIG_KEYS.COUNTRY],
@@ -835,6 +849,9 @@ const processRequest = async (
       path,
       getElapsed,
     );
+    // Dev/test safety net: prove this route declared every setting it read.
+    // No-op in production (audit scope is never entered).
+    assertSettingsReadsDeclared(`${method} ${path}`);
   } catch (error) {
     response = logAndReturn(
       handleRoutingError(error, method, path),
@@ -867,7 +884,9 @@ export const handleRequest = async (
           runWithQueryLogContext(() =>
             runWithFlashContext(() =>
               runWithSessionContext(() =>
-                processRequest(effectiveRequest, server),
+                runWithSettingsAudit(() =>
+                  processRequest(effectiveRequest, server),
+                ),
               ),
             ),
           ),
