@@ -183,7 +183,8 @@ const validateNonNegativePrice = (value: string): string | null => {
 };
 
 const validateNonNegativeInteger =
-  (label: string) => (value: string): string | null => {
+  (label: string) =>
+  (value: string): string | null => {
     const n = Number(value);
     return Number.isInteger(n) && n >= 0
       ? null
@@ -307,12 +308,14 @@ const validateDatetime = (value: string): string | null =>
 
 /** Build a "hidden" visibility checkbox field for a listing or group. */
 const buildHiddenField = (kind: "Listing" | "Group"): Field => ({
-  hint: kind === "Listing"
-    ? t("fields.listing.hidden_hint")
-    : t("fields.listing.hidden_hint_group"),
-  label: kind === "Listing"
-    ? t("fields.listing.hidden")
-    : t("fields.listing.hidden_group"),
+  hint:
+    kind === "Listing"
+      ? t("fields.listing.hidden_hint")
+      : t("fields.listing.hidden_hint_group"),
+  label:
+    kind === "Listing"
+      ? t("fields.listing.hidden")
+      : t("fields.listing.hidden_group"),
   name: "hidden",
   options: [{ label: t("fields.listing.hidden_label"), value: "1" }],
   type: "checkbox-group",
@@ -543,8 +546,7 @@ export const getListingFields = (): Field[] => [
  * of a logistics listing carry start and end agents.
  */
 export const logisticsField: Field = {
-  hint:
-    "Handled by an agent at the customer's location. Attendees gain start and end agent selectors (e.g. delivery/collection, set-up/teardown, or pickup/drop-off).",
+  hint: "Handled by an agent at the customer's location. Attendees gain start and end agent selectors (e.g. delivery/collection, set-up/teardown, or pickup/drop-off).",
   label: "Needs logistics",
   name: "uses_logistics",
   options: [{ label: "Assign agents to this listing's bookings", value: "1" }],
@@ -853,8 +855,7 @@ export const modifierFields: Field[] = [
     type: "select",
   },
   {
-    hint:
-      "Fixed: an amount in your currency. Percentage: e.g. 10 for 10%. Multiplier: e.g. 1.5. Direction is ignored for multipliers (the factor sets it).",
+    hint: "Fixed: an amount in your currency. Percentage: e.g. 10 for 10%. Multiplier: e.g. 1.5. Direction is ignored for multipliers (the factor sets it).",
     inputmode: "decimal",
     label: "Value",
     name: "calc_value",
@@ -868,8 +869,7 @@ export const modifierFields: Field[] = [
   },
   {
     defaultValue: "automatic",
-    hint:
-      "When this applies. Promo codes are entered by the buyer at checkout; optional add-ons are chosen by the buyer.",
+    hint: "When this applies. Promo codes are entered by the buyer at checkout; optional add-ons are chosen by the buyer.",
     label: "Trigger",
     name: "trigger",
     options: [
@@ -880,8 +880,7 @@ export const modifierFields: Field[] = [
     type: "select",
   },
   {
-    hint:
-      "The code buyers enter at checkout. Required for promo-code modifiers; ignored otherwise.",
+    hint: "The code buyers enter at checkout. Required for promo-code modifiers; ignored otherwise.",
     label: "Promo code",
     name: "code",
     placeholder: "SUMMER20",
@@ -889,8 +888,7 @@ export const modifierFields: Field[] = [
   },
   {
     defaultValue: "all",
-    hint:
-      "Which items this applies to. For specific listings or groups, choose the listings/groups on the edit page after saving.",
+    hint: "Which items this applies to. For specific listings or groups, choose the listings/groups on the edit page after saving.",
     label: "Applies to",
     name: "scope",
     options: [
@@ -901,8 +899,7 @@ export const modifierFields: Field[] = [
     type: "select",
   },
   {
-    hint:
-      "Only apply when the order subtotal is at least this amount (in your currency). Leave blank for no minimum.",
+    hint: "Only apply when the order subtotal is at least this amount (in your currency). Leave blank for no minimum.",
     inputmode: "decimal",
     label: "Minimum order (optional)",
     name: "min_subtotal",
@@ -919,8 +916,7 @@ export const modifierFields: Field[] = [
     },
   },
   {
-    hint:
-      "Total number available across all orders. Leave blank for unlimited.",
+    hint: "Total number available across all orders. Leave blank for unlimited.",
     label: "Stock (optional)",
     min: 0,
     name: "stock",
@@ -999,8 +995,8 @@ export const validateSpecialInstructions = (value: string): string | null =>
   v.safeParse(SpecialInstructionsSchema, value).success
     ? null
     : t("fields.validation.special_instructions_max", {
-      max: MAX_SPECIAL_INSTRUCTIONS_LENGTH,
-    });
+        max: MAX_SPECIAL_INSTRUCTIONS_LENGTH,
+      });
 
 /** Special instructions field for ticket forms (textarea) */
 const specialInstructionsField: Field = {
@@ -1035,10 +1031,11 @@ export const getTicketFields = (
   fields: ListingFields,
   isPaid: boolean,
 ): Field[] => {
-  const effective = isPaid &&
-      fieldsApi.getSettingCached(CONFIG_KEYS.PAYMENT_PROVIDER) === "square"
-    ? withRequiredEmail(fields)
-    : fields;
+  const effective =
+    isPaid &&
+    fieldsApi.getSettingCached(CONFIG_KEYS.PAYMENT_PROVIDER) === "square"
+      ? withRequiredEmail(fields)
+      : fields;
   const parsed = parseListingFields(effective);
   return [nameField, ...parsed.map((f) => contactFieldMap[f])];
 };

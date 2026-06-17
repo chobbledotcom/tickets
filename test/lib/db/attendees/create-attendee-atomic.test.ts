@@ -290,9 +290,7 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
       tickets_count: 0,
     });
     const result = await createAttendeeAtomic({
-      bookings: [
-        { date: "2026-05-01", listingId: listing.id, quantity: 1 },
-      ],
+      bookings: [{ date: "2026-05-01", listingId: listing.id, quantity: 1 }],
       email: "dated-standard-full@example.com",
       name: "Dated Standard Full",
     });

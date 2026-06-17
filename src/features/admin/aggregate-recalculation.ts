@@ -1,6 +1,6 @@
 import type { FormParams } from "#shared/form-data.ts";
 import type { Field } from "#shared/forms.tsx";
-import { validateForm, type ValidationResult } from "#shared/forms.tsx";
+import { type ValidationResult, validateForm } from "#shared/forms.tsx";
 import { RECALCULATE_FIELD_NAME } from "#shared/recalculate-fields.ts";
 
 type AggregateParseResult<T> =
