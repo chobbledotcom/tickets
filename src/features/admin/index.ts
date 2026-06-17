@@ -42,8 +42,7 @@ import { updateRoutes } from "#routes/admin/update.ts";
 import { usersRoutes } from "#routes/admin/users.ts";
 import { getAuthenticatedSession } from "#routes/auth.ts";
 import { createRouter, type RouteHandlerFn } from "#routes/router.ts";
-import { enableQueryLog } from "#shared/db/query-log.ts";
-import { settings } from "#shared/db/settings.ts";
+import { enableFooterDebug } from "#shared/db/query-log.ts";
 
 /** Route maps merged in order (later keys override earlier on conflict) */
 const adminRouteModules: Record<string, RouteHandlerFn>[] = [
@@ -96,13 +95,13 @@ type RouterFn = ReturnType<typeof createRouter>;
  * Layout template renders the debug footer inline.
  */
 export const routeAdmin: RouterFn = async (request, path, method, server) => {
-  // Check admin status before tracking so the auth queries aren't logged.
-  // Only staff get the query-log debug footer — delivery agents never see it.
+  // Query recording is turned on earlier (prepareRequestEnvironment) for admin
+  // GETs, so the route's settings load is captured. Here we only unlock the
+  // footer for staff — delivery agents never see the debug footer.
   const session = await getAuthenticatedSession(request);
 
   if (method === "GET" && session && session.adminLevel !== "agent") {
-    enableQueryLog();
-    await settings.loadAll();
+    enableFooterDebug();
   }
 
   return innerRouter(request, path, method, server);

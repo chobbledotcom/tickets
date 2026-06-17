@@ -13,7 +13,7 @@ import {
   resetEffectiveDomain,
   setEffectiveDomainForTest,
 } from "#shared/config.ts";
-import { settings } from "#shared/db/settings.ts";
+import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import { detectIframeMode } from "#shared/iframe.ts";
 import { runWithRequestId } from "#shared/logger.ts";
 import {
@@ -772,7 +772,7 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
       const { settings: s } = await import("#shared/db/settings.ts");
       const db = getDbFn();
       invalidateListingsCache();
-      await s.loadAll();
+      await s.loadKeys(ALL_SETTINGS_KEYS);
       const hadExpectError = Deno.env.get("TEST_EXPECT_ERROR");
       Deno.env.delete("TEST_EXPECT_ERROR");
       const executeStub = stub(db, "execute", () => {

@@ -37,7 +37,8 @@ import {
 import {
   decryptAdminLevel,
   decryptUsername,
-  getAllUsers,
+  getAllUserIds,
+  getUserDisplayFields,
 } from "#shared/db/users.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { defineNamedResource } from "#shared/rest/resource.ts";
@@ -85,10 +86,6 @@ const crud = createOwnerCrudHandlers({
   getName: (a) => a.name,
   listPath: "/admin/logistics",
   renderDelete: adminLogisticsAgentDeletePage,
-  // The edit GET/POST routes are overridden below to load/save user
-  // assignments; this adapter only keeps the CRUD config types satisfied.
-  renderEdit: (agent, session) =>
-    adminLogisticsAgentEditPage(agent, [], new Set(), session),
   renderList: adminLogisticsPage,
   renderNew: adminLogisticsAgentNewPage,
   resource: logisticsAgentsResource,
@@ -99,7 +96,7 @@ const crud = createOwnerCrudHandlers({
  * user class can drive an agent — agents only ever see the deliveries page,
  * while owners and managers reach it from the Calendar menu. */
 const loadAgentUserOptions = async (): Promise<AgentUserOption[]> => {
-  const users = await getAllUsers();
+  const users = await getUserDisplayFields();
   return Promise.all(
     users.map(async (user) => ({
       adminLevel: await decryptAdminLevel(user),
@@ -111,7 +108,7 @@ const loadAgentUserOptions = async (): Promise<AgentUserOption[]> => {
 
 /** The chosen `user_ids` reduced to ids that are real users. */
 const parseAssignedUserIds = async (form: FormParams): Promise<number[]> => {
-  const valid = new Set((await getAllUsers()).map((u) => u.id));
+  const valid = new Set(await getAllUserIds());
   return form.getNumberArray("user_ids").filter((id) => valid.has(id));
 };
 

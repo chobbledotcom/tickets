@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { Liquid } from "liquidjs";
 import { map } from "#fp";
-import { settings } from "#shared/db/settings.ts";
+import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import type { TemplateData } from "#shared/email-renderer.ts";
 import {
   buildTemplateData,
@@ -327,7 +327,7 @@ describeWithEnv("email-renderer", { db: true }, () => {
         "Custom text for {{ attendee.name }}",
       );
       settings.invalidateCache();
-      await settings.loadAll();
+      await settings.loadKeys(ALL_SETTINGS_KEYS);
 
       const entries = [makeEntry()];
       const data = buildTemplateData(
@@ -349,7 +349,7 @@ describeWithEnv("email-renderer", { db: true }, () => {
         "{{ invalid | nonexistent_filter }}",
       );
       settings.invalidateCache();
-      await settings.loadAll();
+      await settings.loadKeys(ALL_SETTINGS_KEYS);
 
       const errorSpy = spy(console, "error");
       try {
@@ -474,7 +474,7 @@ describeWithEnv("email-renderer", { db: true }, () => {
       );
       // html and text remain default
       settings.invalidateCache();
-      await settings.loadAll();
+      await settings.loadKeys(ALL_SETTINGS_KEYS);
 
       const entries = [makeEntry()];
       const data = buildTemplateData(
@@ -497,7 +497,7 @@ describeWithEnv("email-renderer", { db: true }, () => {
         "Custom {{ listing_names }}",
       );
       settings.invalidateCache();
-      await settings.loadAll();
+      await settings.loadKeys(ALL_SETTINGS_KEYS);
 
       // Stub parseAndRender to throw a non-Error value on first call, then succeed
       let callCount = 0;
@@ -540,11 +540,11 @@ describeWithEnv("email-renderer", { db: true }, () => {
         "Custom Subject",
       );
       settings.invalidateCache();
-      await settings.loadAll();
+      await settings.loadKeys(ALL_SETTINGS_KEYS);
 
       await settings.update.email.template("confirmation", "subject", "");
       settings.invalidateCache();
-      await settings.loadAll();
+      await settings.loadKeys(ALL_SETTINGS_KEYS);
 
       const entries = [makeEntry()];
       const data = buildTemplateData(
