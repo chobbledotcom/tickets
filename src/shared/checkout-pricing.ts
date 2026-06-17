@@ -41,10 +41,22 @@ export type ExtraLine = {
   quantity: number;
 };
 
+/** One modifier's exact contribution to a priced checkout. `amountApplied` is
+ * the positive absolute impact for reporting/ledger compatibility; `delta` is
+ * the signed net checkout change. */
+export type ModifierApplication = {
+  modifierId: number;
+  quantity: number;
+  amountApplied: number;
+  delta: number;
+  scopedSubtotal: number;
+};
+
 /** A fully-priced checkout: ticket lines, extra lines, and the resulting total. */
 export type PricedOrder = {
   lines: PricedLine[];
   extras: ExtraLine[];
+  modifierApplications: ModifierApplication[];
   /** Sum of all line and extra charges, in minor units. */
   total: number;
   /** The pre-extras item subtotal the booking fee is charged on. */
@@ -94,6 +106,7 @@ export const allocateDiscount = (units: number[], amount: number): number[] => {
 type ModifierResult = {
   lines: PricedLine[];
   extras: ExtraLine[];
+  applications: ModifierApplication[];
   modifierTotal: number;
 };
 
@@ -146,22 +159,36 @@ const toLines = (units: WorkUnit[]): PricedLine[] => {
 type ModifierPass = {
   units: WorkUnit[];
   extras: ExtraLine[];
+  applications: ModifierApplication[];
   discountTotal: number;
 };
 
 /** Apply one modifier: an additive delta becomes an extra line; a negative
  * delta is allocated across the in-scope units as a discount (clamped to what
- * those units can absorb). A zero delta is a no-op. */
+ * those units can absorb). A zero delta still records an application so the
+ * ledger and stock consumption stay aligned with the chosen quantity. */
 const applyOne = (pass: ModifierPass, spec: ModifierSpec): ModifierPass => {
   const scoped = pass.units.filter((u) => inScope(spec, u));
+  const scopedSubtotal = sum(scoped.map((u) => u.orig));
   const delta = modifierDelta(
-    sum(scoped.map((u) => u.orig)),
+    scopedSubtotal,
     spec.kind,
     spec.value,
   );
+  const appliedDelta = delta * spec.quantity;
   if (delta > 0) {
     return {
       ...pass,
+      applications: [
+        ...pass.applications,
+        {
+          amountApplied: appliedDelta,
+          delta: appliedDelta,
+          modifierId: spec.id,
+          quantity: spec.quantity,
+          scopedSubtotal,
+        },
+      ],
       extras: [
         ...pass.extras,
         {
@@ -173,18 +200,46 @@ const applyOne = (pass: ModifierPass, spec: ModifierSpec): ModifierPass => {
       ],
     };
   }
-  if (delta === 0) return pass;
+  if (delta === 0) {
+    return {
+      ...pass,
+      applications: [
+        ...pass.applications,
+        {
+          amountApplied: 0,
+          delta: 0,
+          modifierId: spec.id,
+          quantity: spec.quantity,
+          scopedSubtotal,
+        },
+      ],
+    };
+  }
 
   const reduced = allocateDiscount(
     scoped.map((u) => u.price),
-    -delta,
+    -appliedDelta,
   );
   let next = 0;
   const units = pass.units.map((u) =>
     inScope(spec, u) ? { ...u, price: reduced[next++]! } : u,
   );
   const applied = sum(scoped.map((u) => u.price)) - sum(reduced);
-  return { ...pass, discountTotal: pass.discountTotal + applied, units };
+  return {
+    ...pass,
+    applications: [
+      ...pass.applications,
+      {
+        amountApplied: applied,
+        delta: -applied,
+        modifierId: spec.id,
+        quantity: spec.quantity,
+        scopedSubtotal,
+      },
+    ],
+    discountTotal: pass.discountTotal + applied,
+    units,
+  };
 };
 
 /**
@@ -199,11 +254,13 @@ export const applyModifiers = (
   specs: ModifierSpec[],
 ): ModifierResult => {
   const pass = specs.reduce(applyOne, {
+    applications: [],
     discountTotal: 0,
     extras: [],
     units: toUnits(lines),
   });
   return {
+    applications: pass.applications,
     extras: pass.extras,
     lines: toLines(pass.units),
     modifierTotal: sumOf(extraCharge)(pass.extras) - pass.discountTotal,
@@ -230,6 +287,7 @@ export const priceCheckout = (intent: CheckoutIntent): PricedOrder => {
     extras,
     fullSubtotal,
     lines: modifiers.lines,
+    modifierApplications: modifiers.applications,
     total: sumOf(lineCharge)(modifiers.lines) + sumOf(extraCharge)(extras),
   };
 };

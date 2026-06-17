@@ -1,6 +1,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#shared/db/client.ts";
+import {
+  getListingWithCount,
+  invalidateListingsCache,
+} from "#shared/db/listings.ts";
 import { MIGRATIONS } from "#shared/db/migrations.ts";
 import { createTestListing, describeWithEnv } from "#test-utils";
 
@@ -49,6 +53,18 @@ describeWithEnv("db > listings aggregate triggers", { db: true }, () => {
       booked_quantity: 0,
       income: 0,
       tickets_count: 0,
+    });
+  });
+
+  test("listingsTable read exposes the trigger-maintained aggregates", async () => {
+    const listing = await createTestListing({ maxAttendees: 50 });
+    await insertAttendee(listing.id, 1, 3, 1500);
+    invalidateListingsCache();
+    const reread = await getListingWithCount(listing.id);
+    expect(reread).toMatchObject({
+      attendee_count: 3,
+      income: 1500,
+      tickets_count: 1,
     });
   });
 

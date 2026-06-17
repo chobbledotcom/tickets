@@ -41,7 +41,11 @@ import { createRouter, defineRoutes } from "#routes/router.ts";
 import { parseTokens } from "#routes/tickets/token-utils.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { calculateBookingFee } from "#shared/booking-fee.ts";
-import { priceCheckout } from "#shared/checkout-pricing.ts";
+import {
+  type ModifierApplication,
+  type PricedOrder,
+  priceCheckout,
+} from "#shared/checkout-pricing.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
@@ -80,7 +84,6 @@ import {
   type ValidatedPaymentSession,
   type WebhookEvent,
 } from "#shared/payments.ts";
-import { modifierDelta } from "#shared/price-modifier.ts";
 import { reservationDepositForLine } from "#shared/reservation-amount.ts";
 import { dayPriceFor, type ListingWithCount } from "#shared/types.ts";
 import { logAndNotifyRegistration } from "#shared/webhook.ts";
@@ -568,14 +571,39 @@ const reservationDeposits = (
   return { perLine, total: sum(perLine) };
 };
 
-/** Verify per-item and total prices for paid sessions. Returns null on success. */
-const verifyPaidPricing = async (
-  session: ValidatedPaymentSession,
+/** Rebuild the checkout intent used by the provider pricing layer. */
+const checkoutPricingIntent = (
   intent: BookingIntent,
   validatedItems: ValidatedItem[],
   modifierSpecs: ModifierSpec[],
+): CheckoutIntent => ({
+  address: intent.address,
+  date: intent.date,
+  email: intent.email,
+  items: validatedItems.map((v) => ({
+      listingId: v.item.e,
+      name: v.listing.name,
+      quantity: v.item.q,
+      slug: v.listing.slug,
+      unitPrice: v.item.p / v.item.q,
+  })),
+  modifiers: modifierSpecs,
+  name: intent.name,
+  phone: intent.phone,
+  special_instructions: intent.special_instructions,
+  ...(intent.dayCount ? { dayCount: intent.dayCount } : {}),
+  ...(intent.reservationAmount
+    ? { reservationAmount: intent.reservationAmount }
+    : {}),
+});
+
+/** Verify per-item and total prices for paid sessions. */
+const verifyPaidPricing = async (
+  session: ValidatedPaymentSession,
+  validatedItems: ValidatedItem[],
+  pricedOrder: PricedOrder,
 ): Promise<PaymentResult | null> => {
-  const hasPaidItems = intent.items.some((item) => item.p > 0);
+  const hasPaidItems = validatedItems.some((v) => v.item.p > 0);
   if (!hasPaidItems) return null;
 
   // Per-item prices are ticket-only (no fee), so validate without booking fee
@@ -589,30 +617,7 @@ const verifyPaidPricing = async (
     }
   }
 
-  // Re-derive the expected total with the same pricing pipeline the checkout
-  // used: deposit-aware ticket charges, modifiers (re-fetched from the database
-  // by id, never trusting metadata amounts), and the booking fee on top.
-  const pricingIntent: CheckoutIntent = {
-    address: intent.address,
-    date: intent.date,
-    email: intent.email,
-    items: validatedItems.map((v) => ({
-      listingId: v.item.e,
-      name: v.listing.name,
-      quantity: v.item.q,
-      slug: v.listing.slug,
-      unitPrice: v.item.p / v.item.q,
-    })),
-    modifiers: modifierSpecs,
-    name: intent.name,
-    phone: intent.phone,
-    special_instructions: intent.special_instructions,
-    ...(intent.dayCount ? { dayCount: intent.dayCount } : {}),
-    ...(intent.reservationAmount
-      ? { reservationAmount: intent.reservationAmount }
-      : {}),
-  };
-  const expectedTotal = priceCheckout(pricingIntent).total;
+  const expectedTotal = pricedOrder.total;
   if (session.amountTotal !== expectedTotal) {
     return await priceMismatchRefund(
       session,
@@ -639,7 +644,7 @@ const createAttendeeForSession = async (
   session: ValidatedPaymentSession,
   intent: BookingIntent,
   validatedItems: ValidatedItem[],
-  modifierSpecs: ModifierSpec[],
+  modifierApplications: ModifierApplication[],
 ): Promise<{ ok: true; entries: CreatedEntry[] } | PaymentResult> => {
   // A reservation charges only the per-line deposit up front; the rest of the
   // full order price is recorded as the attendee's outstanding balance.
@@ -682,19 +687,16 @@ const createAttendeeForSession = async (
   }
   const created = result as Extract<typeof result, { success: true }>;
 
-  // Consume modifier stock atomically; a sold-out race rolls the order back.
-  // amount_applied is recorded against the order subtotal — the same base the
-  // pricing engine uses for today's whole-order ("all" scope) modifiers. When
-  // listing/group-scoped modifiers become creatable, this should use the
-  // in-scope subtotal to stay exact.
-  if (modifierSpecs.length > 0) {
+  // Consume modifier stock atomically; amount_applied comes from the priced
+  // order that was already verified against the provider charge.
+  if (modifierApplications.length > 0) {
     const attendeeId = created.attendees[0]!.id;
     const consumed = await consumeModifierStock(
       attendeeId,
-      modifierSpecs.map((s) => ({
-        amountApplied: Math.abs(modifierDelta(fullTotal, s.kind, s.value)),
-        modifierId: s.id,
-        quantity: s.quantity,
+      modifierApplications.map((a) => ({
+        amountApplied: a.amountApplied,
+        modifierId: a.modifierId,
+        quantity: a.quantity,
       })),
     );
     if (!consumed) {
@@ -794,12 +796,13 @@ const settleBalanceSession = async (
 
 const logPromoCodeModifiers = async (
   specs: ModifierSpec[],
-  fullTotal: number,
+  applications: ModifierApplication[],
   listing: ListingWithCount,
   attendeeId: number,
 ): Promise<void> => {
+  const byId = new Map(applications.map((a) => [a.modifierId, a]));
   for (const spec of specs) {
-    const delta = modifierDelta(fullTotal, spec.kind, spec.value);
+    const delta = byId.get(spec.id)?.delta ?? 0;
     const effect =
       delta < 0 ? `${formatCurrency(-delta)} off` : `+${formatCurrency(delta)}`;
     await logActivity(
@@ -836,12 +839,14 @@ const processReservedSession = async (
   // Resolve the applied modifiers once (re-fetched by id from the database);
   // both the price re-derivation and the stock consumption use the same specs.
   const modifierSpecs = await specsFromRefs(intent.modifiers);
+  const pricedOrder = priceCheckout(
+    checkoutPricingIntent(intent, validatedItems, modifierSpecs),
+  );
 
   const pricingError = await verifyPaidPricing(
     session,
-    intent,
     validatedItems,
-    modifierSpecs,
+    pricedOrder,
   );
   if (pricingError) return pricingError;
 
@@ -849,7 +854,7 @@ const processReservedSession = async (
     session,
     intent,
     validatedItems,
-    modifierSpecs,
+    pricedOrder.modifierApplications,
   );
   if ("success" in created) return created;
   const createdEntries = created.entries;
@@ -871,10 +876,9 @@ const processReservedSession = async (
 
   const codeSpecs = modifierSpecs.filter((s) => s.trigger === "code");
   if (codeSpecs.length > 0) {
-    const fullTotal = sumOf((v: ValidatedItem) => v.item.p)(validatedItems);
     await logPromoCodeModifiers(
       codeSpecs,
-      fullTotal,
+      pricedOrder.modifierApplications,
       firstAttendee.listing,
       firstAttendee.attendee.id,
     );
