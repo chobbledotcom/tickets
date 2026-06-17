@@ -43,6 +43,7 @@ import { getSearchParam } from "#routes/url.ts";
 import { calculateBookingFee } from "#shared/booking-fee.ts";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
+import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
@@ -791,6 +792,24 @@ const settleBalanceSession = async (
   };
 };
 
+const logPromoCodeModifiers = async (
+  specs: ModifierSpec[],
+  fullTotal: number,
+  listing: ListingWithCount,
+  attendeeId: number,
+): Promise<void> => {
+  for (const spec of specs) {
+    const delta = modifierDelta(fullTotal, spec.kind, spec.value);
+    const effect =
+      delta < 0 ? `${formatCurrency(-delta)} off` : `+${formatCurrency(delta)}`;
+    await logActivity(
+      `Promo code '${spec.name}' used: ${effect}`,
+      listing,
+      attendeeId,
+    );
+  }
+};
+
 /**
  * Process a session we have just reserved (holding the lock). Every failure
  * returned here is a handled terminal outcome; processPaymentSession records it
@@ -849,6 +868,17 @@ const processReservedSession = async (
     firstAttendee.attendee.id,
     options?.storeTokens === false ? [] : [ticketToken],
   );
+
+  const codeSpecs = modifierSpecs.filter((s) => s.trigger === "code");
+  if (codeSpecs.length > 0) {
+    const fullTotal = sumOf((v: ValidatedItem) => v.item.p)(validatedItems);
+    await logPromoCodeModifiers(
+      codeSpecs,
+      fullTotal,
+      firstAttendee.listing,
+      firstAttendee.attendee.id,
+    );
+  }
 
   await logAndNotifyRegistration(createdEntries, intent.siteTokenIndex);
 
