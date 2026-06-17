@@ -306,7 +306,7 @@ export const pruneContacts = async (): Promise<number> => {
 };
 ```
 
-- Add `PRUNE_CONTACTS_RETENTION_MS` to `limits.ts` (default e.g. 18–24 months,
+- Add `PRUNE_CONTACTS_RETENTION_MS` to `limits.ts` (default 5 years / 1825 days,
   `DAY_MS`-based like the others) and a `last_pruned_contacts` setting.
 - Register it in `PRUNE_TASKS` alongside the rest.
 - Optionally two-tier: prune `unsubscribed = 1` rows sooner (you only need to
@@ -400,7 +400,7 @@ which is the whole point.
    little production data, and the system auto-migrates.
 3. **Spend tiers?** — only add `lifetime_spend_minor` as a second plaintext gate
    if spend-based discounts at keyless checkout are actually wanted.
-4. **Retention window** default for `PRUNE_CONTACTS_RETENTION_MS`.
+4. ~~**Retention window** default for `PRUNE_CONTACTS_RETENTION_MS`.~~ Decided: **5 years** (1825 days), env-overridable via `PRUNE_CONTACTS_RETENTION_DAYS`.
 
 ---
 

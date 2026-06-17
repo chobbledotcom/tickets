@@ -13,6 +13,7 @@ import { hmacHash } from "#shared/crypto/hashing.ts";
 import { getDb, insert } from "#shared/db/client.ts";
 import {
   maybeRunPrunes,
+  pruneContacts,
   pruneLoginAttempts,
   prunePayments,
   pruneSessions,
@@ -22,6 +23,7 @@ import {
 import { createSession, getAllSessions } from "#shared/db/sessions.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
+  PRUNE_CONTACTS_RETENTION_MS,
   PRUNE_INTERVAL_MS,
   PRUNE_LOGINS_RETENTION_MS,
   PRUNE_PAYMENTS_RETENTION_MS,
@@ -144,6 +146,29 @@ const tokenAttemptExists = async (ipHash: string): Promise<boolean> => {
   return rows.length > 0;
 };
 
+/** Insert a contact_preferences row with the given last_activity (ms-epoch).
+ * Prune filters only on last_activity, so the hash/visits values are inert. */
+const insertContactPreference = async (
+  contactHash: string,
+  lastActivityMs: number,
+): Promise<void> => {
+  await getDb().execute({
+    args: [contactHash, lastActivityMs],
+    sql: "INSERT INTO contact_preferences (contact_hash, last_activity, visits) VALUES (?, ?, 1)",
+  });
+};
+
+/** Is a contact_preferences row with this hash still in the DB? */
+const contactPreferenceExists = async (
+  contactHash: string,
+): Promise<boolean> => {
+  const { rows } = await getDb().execute({
+    args: [contactHash],
+    sql: "SELECT 1 FROM contact_preferences WHERE contact_hash = ?",
+  });
+  return rows.length > 0;
+};
+
 /** Is a processed_payments row with this session ID still in the DB? */
 const paymentExists = async (sessionId: string): Promise<boolean> => {
   const { rows } = await getDb().execute({
@@ -169,6 +194,7 @@ const clearAllLastPruned = async (): Promise<void> => {
   await settings.update.lastPrunedLogins("");
   await settings.update.lastPrunedTokens("");
   await settings.update.lastPrunedSumup("");
+  await settings.update.lastPrunedContacts("");
 };
 
 /** Set all last_pruned_* timestamps to the same value. */
@@ -178,6 +204,7 @@ const setAllLastPruned = async (value: string): Promise<void> => {
   await settings.update.lastPrunedLogins(value);
   await settings.update.lastPrunedTokens(value);
   await settings.update.lastPrunedSumup(value);
+  await settings.update.lastPrunedContacts(value);
 };
 
 describeWithEnv("db > prune", { db: true }, () => {
@@ -370,6 +397,55 @@ describeWithEnv("db > prune", { db: true }, () => {
     });
   });
 
+  describe("pruneContacts", () => {
+    test("deletes rows whose last_activity is past the retention window", async () => {
+      const stale = nowMs() - PRUNE_CONTACTS_RETENTION_MS - 60_000;
+      await insertContactPreference("contact_stale", stale);
+
+      await pruneContacts();
+
+      expect(await contactPreferenceExists("contact_stale")).toBe(false);
+    });
+
+    test("keeps rows with recent activity within the retention window", async () => {
+      await insertContactPreference("contact_recent", nowMs() - 1_000);
+
+      await pruneContacts();
+
+      expect(await contactPreferenceExists("contact_recent")).toBe(true);
+    });
+
+    test("keeps a row whose last_activity is exactly at the cutoff", async () => {
+      // The query deletes last_activity < cutoff (strict), so a row exactly at
+      // the cutoff survives — the boundary belongs to "keep".
+      const time = new FakeTime(1_700_000_000_000);
+      try {
+        const cutoff = nowMs() - PRUNE_CONTACTS_RETENTION_MS;
+        await insertContactPreference("contact_boundary", cutoff);
+
+        await pruneContacts();
+
+        expect(await contactPreferenceExists("contact_boundary")).toBe(true);
+      } finally {
+        time.restore();
+      }
+    });
+
+    test("deletes a row one ms past the cutoff", async () => {
+      const time = new FakeTime(1_700_000_000_000);
+      try {
+        const cutoff = nowMs() - PRUNE_CONTACTS_RETENTION_MS;
+        await insertContactPreference("contact_just_past", cutoff - 1);
+
+        await pruneContacts();
+
+        expect(await contactPreferenceExists("contact_just_past")).toBe(false);
+      } finally {
+        time.restore();
+      }
+    });
+  });
+
   describe("maybeRunPrunes scheduler", () => {
     test("records fresh payments timestamp after running", async () => {
       await clearAllLastPruned();
@@ -424,6 +500,20 @@ describeWithEnv("db > prune", { db: true }, () => {
       const ts = Number.parseInt(settings.lastPrunedTokens, 10);
       expect(ts).toBeGreaterThanOrEqual(before);
       expect(ts).toBeLessThanOrEqual(nowMs());
+    });
+
+    test("records fresh contacts timestamp and prunes stale contacts", async () => {
+      await clearAllLastPruned();
+      const stale = nowMs() - PRUNE_CONTACTS_RETENTION_MS - 60_000;
+      await insertContactPreference("contact_scheduled", stale);
+      const before = nowMs();
+
+      await maybeRunPrunes();
+
+      const ts = Number.parseInt(settings.lastPrunedContacts, 10);
+      expect(ts).toBeGreaterThanOrEqual(before);
+      expect(ts).toBeLessThanOrEqual(nowMs());
+      expect(await contactPreferenceExists("contact_scheduled")).toBe(false);
     });
 
     test("skips tasks not yet due since last run", async () => {

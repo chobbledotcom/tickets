@@ -53,7 +53,7 @@ import {
   getAttendeesByTokens,
 } from "#shared/db/attendees.ts";
 import { getListing, getListingWithCount } from "#shared/db/listings.ts";
-import { specsFromRefs } from "#shared/db/modifier-resolve.ts";
+import { buyerVisits, specsFromRefs } from "#shared/db/modifier-resolve.ts";
 import { consumeModifierStock } from "#shared/db/modifier-usage.ts";
 import {
   balanceFinalizeStatement,
@@ -816,7 +816,13 @@ const processReservedSession = async (
 
   // Resolve the applied modifiers once (re-fetched by id from the database);
   // both the price re-derivation and the stock consumption use the same specs.
-  const modifierSpecs = await specsFromRefs(intent.modifiers);
+  // Re-read the buyer's visit count server-side (keyless) so the min_visits gate
+  // is enforced against a trusted count: a crafted checkout can't claim a
+  // returning-customer discount it isn't entitled to. A dropped ref makes the
+  // re-derived total disagree, and the existing mismatch-refund path covers it.
+  const modifierSpecs = await specsFromRefs(intent.modifiers, {
+    visits: await buyerVisits(intent.email, intent.phone),
+  });
 
   const pricingError = await verifyPaidPricing(
     session,

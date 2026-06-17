@@ -19,9 +19,10 @@ import {
 } from "#shared/db/attendees/pii.ts";
 import { executeBatchWithResults, insert } from "#shared/db/client.ts";
 import {
-  ensureEmailPreference,
   hashEmail,
-} from "#shared/db/email-preferences.ts";
+  hashPhone,
+  recordVisit,
+} from "#shared/db/contact-preferences.ts";
 import { invalidateListingsCache } from "#shared/db/listings.ts";
 import { type Attendee, normalizeDurationDays } from "#shared/types.ts";
 
@@ -221,10 +222,15 @@ export const createAttendeeAtomicImpl = async (
     return { reason: "capacity_exceeded", success: false };
   }
 
-  // Seed an email-preferences record (count 0) so the attendee shows up in
-  // contact history before any bulk email goes out.
+  // Record a keyless visit (bumps `visits` + `last_activity`, never the
+  // encrypted blob) once per order for each contact identifier present, so the
+  // attendee shows up in contact history and can be recognised as returning on
+  // a later booking. Email and phone hash to separate single-channel rows.
   if (typeof email === "string" && email.trim()) {
-    await ensureEmailPreference(await hashEmail(email));
+    await recordVisit(await hashEmail(email));
+  }
+  if (phone.trim()) {
+    await recordVisit(await hashPhone(phone));
   }
 
   invalidateListingsCache();

@@ -221,6 +221,20 @@ export const PRUNE_SUMUP_RETENTION_HOURS = readLimit(
   24,
 );
 
+/**
+ * Retention (days) for contact_preferences rows (default: 1825 = 5 years).
+ * Pruned by `last_activity`, which is bumped on every booking and outreach, so
+ * a row only ages out once the contact has been silent for the whole window.
+ * Generous because the table is the privacy-preserving residue (opaque hashes +
+ * a few scalars), and pruning a row resets "returning customer" recognition —
+ * making loyalty status recency-bounded, which is both privacy-positive and a
+ * reasonable policy.
+ */
+export const PRUNE_CONTACTS_RETENTION_DAYS = readLimit(
+  "PRUNE_CONTACTS_RETENTION_DAYS",
+  1825,
+);
+
 /** How often (hours) to re-run each prune task (default: 24 = daily) */
 export const PRUNE_INTERVAL_HOURS = readLimit("PRUNE_INTERVAL_HOURS", 24);
 
@@ -252,6 +266,8 @@ export const PRUNE_SESSIONS_RETENTION_MS =
   PRUNE_SESSIONS_RETENTION_DAYS * DAY_MS;
 export const PRUNE_LOGINS_RETENTION_MS = PRUNE_LOGINS_RETENTION_DAYS * DAY_MS;
 export const PRUNE_TOKENS_RETENTION_MS = PRUNE_TOKENS_RETENTION_DAYS * DAY_MS;
+export const PRUNE_CONTACTS_RETENTION_MS =
+  PRUNE_CONTACTS_RETENTION_DAYS * DAY_MS;
 export const PRUNE_SUMUP_RETENTION_MS =
   PRUNE_SUMUP_RETENTION_HOURS * 60 * 60 * 1000;
 
@@ -502,6 +518,13 @@ export const LIMIT_ENTRIES: readonly LimitEntry[] = [
     defaultValue: 7,
     envKey: "PRUNE_TOKENS_RETENTION_DAYS",
     label: "Prune: token-attempts retention",
+    unit: "days",
+  },
+  {
+    current: PRUNE_CONTACTS_RETENTION_DAYS,
+    defaultValue: 540,
+    envKey: "PRUNE_CONTACTS_RETENTION_DAYS",
+    label: "Prune: contact-preferences retention",
     unit: "days",
   },
   {

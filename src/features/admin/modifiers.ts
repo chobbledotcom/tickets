@@ -56,6 +56,7 @@ const extractModifierInput = (values: ModifierFormValues): ModifierInput => ({
   calcValue: values.calc_value,
   direction: values.direction as ModifierDirection,
   minSubtotal: toMinorUnits(values.min_subtotal),
+  minVisits: values.min_visits,
   name: values.name,
   scope: values.scope as ModifierScope,
   stock: values.stock,

@@ -53,7 +53,7 @@ type Trigger = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add email_preferences table for marketing opt-outs and contact history; add customisable_days and day_prices columns to listings for visitor-chosen multi-day bookings with per-day-count pricing; add attendee_statuses table with status_id and remaining_balance on attendees, plus attendee_id on activity_log, for the reservation and balance-payment flow; add idx_activity_log_listing_id so per-listing activity log reads are index scans instead of full-table scans; add a logistics_agents table plus a uses_logistics flag on listings, a split_logistics_agents flag on attendees, and start_agent_id/end_agent_id/start_time/end_time on listing_attendees for the logistics flow; add email_templates table for owner-keypair-encrypted reusable email subjects and bodies; add a user_logistics_agents table linking agent users to the logistics agents they drive, plus start_done/end_done flags on listing_attendees so delivery agents can mark drop-offs and collections complete; add failure_data to processed_payments so handled payment failures are recorded as a terminal outcome for idempotent redirect/webhook replay; add booked_quantity, tickets_count and income aggregate columns to listings, maintained by triggers on listing_attendees so listing reads and active-listing stats avoid scanning the attendee rows; add modifiers table for owner-defined price modifiers (surcharges, discounts, add-ons), with active/trigger/code_index/scope/stock/max_per_order/min_subtotal columns plus modifier_listings, modifier_groups and modifier_usages tables for scoping and stock";
+  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add email_preferences table for marketing opt-outs and contact history; add customisable_days and day_prices columns to listings for visitor-chosen multi-day bookings with per-day-count pricing; add attendee_statuses table with status_id and remaining_balance on attendees, plus attendee_id on activity_log, for the reservation and balance-payment flow; add idx_activity_log_listing_id so per-listing activity log reads are index scans instead of full-table scans; add a logistics_agents table plus a uses_logistics flag on listings, a split_logistics_agents flag on attendees, and start_agent_id/end_agent_id/start_time/end_time on listing_attendees for the logistics flow; add email_templates table for owner-keypair-encrypted reusable email subjects and bodies; add a user_logistics_agents table linking agent users to the logistics agents they drive, plus start_done/end_done flags on listing_attendees so delivery agents can mark drop-offs and collections complete; add failure_data to processed_payments so handled payment failures are recorded as a terminal outcome for idempotent redirect/webhook replay; add booked_quantity, tickets_count and income aggregate columns to listings, maintained by triggers on listing_attendees so listing reads and active-listing stats avoid scanning the attendee rows; add modifiers table for owner-defined price modifiers (surcharges, discounts, add-ons), with active/trigger/code_index/scope/stock/max_per_order/min_subtotal columns plus modifier_listings, modifier_groups and modifier_usages tables for scoping and stock; generalise email_preferences into a channel-agnostic contact_preferences table (rename email_hash to contact_hash, add last_activity and visits, backfill last_activity from created then drop created) with idx_contact_prefs_unsubscribed and idx_contact_prefs_last_activity indexes; add a min_visits column to modifiers for returning-customer (repeat-booking) discounts gated on a keyless visit count";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -462,6 +462,7 @@ const SCHEMA: [name: string, table: Table][] = [
         ["stock", "INTEGER"],
         ["max_per_order", "INTEGER"],
         ["min_subtotal", "INTEGER NOT NULL DEFAULT 0"],
+        ["min_visits", "INTEGER NOT NULL DEFAULT 0"],
       ],
       indexes: [{ columns: ["code_index"], name: "idx_modifiers_code_index" }],
     },
@@ -646,19 +647,35 @@ const SCHEMA: [name: string, table: Table][] = [
   ],
 
   [
-    // Per-email marketing preferences + contact history, keyed by the HMAC of
-    // the address (same blind-index approach as ticket_token_index, so a DB
-    // dump never reveals which address a row belongs to). `unsubscribed` is
-    // plaintext so the public, key-less /unsubscribe page can toggle it;
-    // `stats_blob` is a hybrid-encrypted {c,t,s} (contact count, last contact,
+    // Channel-agnostic per-contact preferences, visit history and contact
+    // history, keyed by the HMAC of a channel-namespaced identifier (an email
+    // OR a phone) — the same blind-index approach as ticket_token_index, so a
+    // DB dump never reveals which contact a row belongs to, and the channel
+    // (email/sms) lives in the hash prefix rather than a column. `unsubscribed`
+    // is plaintext so the public, key-less /unsubscribe page can toggle it;
+    // `visits` is the plaintext booking count the keyless checkout reads to gate
+    // a returning-customer modifier; `last_activity` (ms-epoch) is bumped on
+    // booking and outreach and is the key the pruner deletes stale rows by;
+    // `stats_blob` is a hybrid-encrypted {c,t,s} (outreach count, last contact,
     // last subject) only the admin private key can read.
-    "email_preferences",
+    "contact_preferences",
     {
       columns: [
-        ["email_hash", "TEXT PRIMARY KEY"],
+        ["contact_hash", "TEXT PRIMARY KEY"],
+        ["last_activity", "INTEGER NOT NULL DEFAULT 0"],
         ["unsubscribed", "INTEGER NOT NULL DEFAULT 0"],
+        ["visits", "INTEGER NOT NULL DEFAULT 0"],
         ["stats_blob", "TEXT NOT NULL DEFAULT ''"],
-        ["created", "TEXT NOT NULL"],
+      ],
+      indexes: [
+        {
+          columns: ["unsubscribed"],
+          name: "idx_contact_prefs_unsubscribed",
+        },
+        {
+          columns: ["last_activity"],
+          name: "idx_contact_prefs_last_activity",
+        },
       ],
     },
   ],
@@ -1410,6 +1427,55 @@ export const renameEventsToListings = async (): Promise<void> => {
   await syncIndexes();
 };
 
+/**
+ * Generalise the legacy "email_preferences" table to the channel-agnostic
+ * "contact_preferences".
+ *
+ * Guarded so this is a no-op on fresh databases (where the declarative schema
+ * already created `contact_preferences`) and only rewrites a genuine legacy
+ * table. Steps, in order:
+ *  1. Rename the table and its PK column (email_hash → contact_hash).
+ *  2. Ensure `last_activity` exists before the backfill — independent of
+ *     whether applySchemaChanges() ran first — so a legacy table missing the
+ *     column still gets backfilled rather than throwing on the UPDATE.
+ *  3. Backfill `last_activity` from the old `created` ISO timestamp so existing
+ *     unsubscribe history isn't pruned immediately, then drop `created`.
+ * Index (re)creation is left to syncIndexes(), which drops any index not in
+ * SCHEMA and creates the contact-prefs ones.
+ */
+export const renameEmailPrefsToContactPrefs = async (): Promise<void> => {
+  await renameTableIfLegacy("email_preferences", "contact_preferences");
+  await renameColumnIfLegacy(
+    "contact_preferences",
+    "email_hash",
+    "contact_hash",
+  );
+
+  // Only operate on a real (post-rename) table; on a fresh DB the table already
+  // has its final shape and there is nothing legacy to migrate.
+  if (await tableExists("contact_preferences")) {
+    const cols = await getExistingColumns("contact_preferences");
+    // Robustly ensure last_activity exists before the backfill reads/writes it,
+    // regardless of whether applySchemaChanges() has run yet.
+    if (!cols.has("last_activity")) {
+      await runMigration(
+        "ALTER TABLE contact_preferences ADD COLUMN last_activity INTEGER NOT NULL DEFAULT 0",
+      );
+    }
+    // Backfill from the legacy `created` ISO timestamp (only if it survives) so
+    // pre-existing rows keep a realistic last-activity and aren't pruned at once.
+    if (cols.has("created")) {
+      await runMigration(
+        "UPDATE contact_preferences SET last_activity = CAST(strftime('%s', created) AS INTEGER) * 1000 WHERE created IS NOT NULL AND last_activity = 0",
+      );
+      await runMigration("ALTER TABLE contact_preferences DROP COLUMN created");
+    }
+  }
+
+  await applySchemaChanges();
+  await syncIndexes();
+};
+
 // Per-migration object ownership — kept beside each migration so verify() and
 // the restore tests stay in lockstep with what up() actually adds.
 const REQ_SUMUP_CHECKOUTS: SchemaRequirement = {
@@ -1433,7 +1499,20 @@ const REQ_QUESTION_SORT_ORDER: SchemaRequirement = {
   columns: { questions: ["sort_order"] },
 };
 const REQ_EMAIL_PREFERENCES: SchemaRequirement = {
-  newTables: ["email_preferences"],
+  newTables: ["contact_preferences"],
+};
+const REQ_RENAME_CONTACT_PREFS: SchemaRequirement = {
+  absentTables: ["email_preferences"],
+  columns: {
+    contact_preferences: ["contact_hash", "last_activity", "visits"],
+  },
+  indexes: [
+    "idx_contact_prefs_unsubscribed",
+    "idx_contact_prefs_last_activity",
+  ],
+};
+const REQ_MODIFIER_MIN_VISITS: SchemaRequirement = {
+  columns: { modifiers: ["min_visits"] },
 };
 const REQ_CUSTOMISABLE_DAYS: SchemaRequirement = {
   columns: { listings: ["customisable_days", "day_prices"] },
@@ -1557,8 +1636,12 @@ export const MIGRATIONS: Migration[] = [
     },
   }),
   additive({
+    // Historically created the email_preferences table; that table is now
+    // generalised to contact_preferences (see the 2026-06-17 migration below),
+    // which is the table applySchemaChanges() creates on a fresh database, so
+    // this migration's ownership points at the current name.
     description:
-      "Add email_preferences table for marketing opt-outs and contact history",
+      "Add the per-contact preferences/contact-history table (originally email_preferences, now contact_preferences) for marketing opt-outs and contact history",
     id: "2026-06-14_email_preferences",
     requires: REQ_EMAIL_PREFERENCES,
     up: async () => {
@@ -1652,6 +1735,22 @@ export const MIGRATIONS: Migration[] = [
     up: async () => {
       await applySchemaChanges();
       await syncIndexes();
+    },
+  }),
+  additive({
+    description:
+      "Generalise email_preferences into a channel-agnostic contact_preferences table: rename email_hash to contact_hash, add last_activity (ms-epoch) and visits, backfill last_activity from the old created timestamp then drop created, and add the unsubscribed/last_activity indexes",
+    id: "2026-06-17_contact_preferences",
+    requires: REQ_RENAME_CONTACT_PREFS,
+    up: renameEmailPrefsToContactPrefs,
+  }),
+  additive({
+    description:
+      "Add a min_visits column to modifiers so a returning-customer discount can be gated on a buyer's keyless visit count (0 = applies to everyone, as before)",
+    id: "2026-06-17_modifier_min_visits",
+    requires: REQ_MODIFIER_MIN_VISITS,
+    up: async () => {
+      await applySchemaChanges();
     },
   }),
 ];

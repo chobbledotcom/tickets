@@ -8,7 +8,7 @@ import { errorRedirect, redirectResponse } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { getPublicDefaultStatus } from "#shared/db/attendee-statuses.ts";
-import { resolveModifiers } from "#shared/db/modifier-resolve.ts";
+import { buyerVisits, resolveModifiers } from "#shared/db/modifier-resolve.ts";
 import {
   groupListingAnswers,
   parseQuestionAnswers,
@@ -214,8 +214,14 @@ const handlePaidPath = async (
   }
   const listingAnswerIds = computeListingAnswerMap(ctx, info);
   // Modifiers apply only to full-payment orders for now; reservations (deposits)
-  // compose with modifiers in a later step.
-  const modifiers = reservationAmount ? [] : await resolveModifiers(items);
+  // compose with modifiers in a later step. The visit count for the
+  // returning-customer gate is re-derived server-side here (keyless) from the
+  // contact details entered on the form, so it can't be claimed by the client.
+  const modifiers = reservationAmount
+    ? []
+    : await resolveModifiers(items, {
+        visits: await buyerVisits(contact.email, contact.phone),
+      });
   const intent = {
     ...contact,
     date,

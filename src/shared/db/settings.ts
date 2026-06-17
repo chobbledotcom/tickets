@@ -90,6 +90,7 @@ export const CONFIG_KEYS = {
   HAS_LOGISTICS: "has_logistics",
   HEADER_IMAGE_URL: "header_image_url",
   HOMEPAGE_TEXT: "homepage_text",
+  LAST_PRUNED_CONTACTS: "last_pruned_contacts",
   LAST_PRUNED_LOGINS: "last_pruned_logins",
   LAST_PRUNED_PAYMENTS: "last_pruned_payments",
   LAST_PRUNED_SESSIONS: "last_pruned_sessions",
@@ -207,6 +208,7 @@ const PLAINTEXT_KEYS = [
   CONFIG_KEYS.LAST_PRUNED_SUMUP,
   CONFIG_KEYS.LAST_PRUNED_LOGINS,
   CONFIG_KEYS.LAST_PRUNED_TOKENS,
+  CONFIG_KEYS.LAST_PRUNED_CONTACTS,
 ] as const;
 
 /** Encrypted string config keys (decrypted during loadAll, default ""). */
@@ -409,6 +411,7 @@ const STRING_ACCESSORS = {
   embedHosts: { key: CONFIG_KEYS.EMBED_HOSTS },
   headerImageUrl: { key: CONFIG_KEYS.HEADER_IMAGE_URL },
   homepageText: { key: CONFIG_KEYS.HOMEPAGE_TEXT },
+  lastPrunedContacts: { key: CONFIG_KEYS.LAST_PRUNED_CONTACTS },
   lastPrunedLogins: { key: CONFIG_KEYS.LAST_PRUNED_LOGINS },
   lastPrunedPayments: { key: CONFIG_KEYS.LAST_PRUNED_PAYMENTS },
   lastPrunedSessions: { key: CONFIG_KEYS.LAST_PRUNED_SESSIONS },

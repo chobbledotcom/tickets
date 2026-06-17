@@ -2,11 +2,14 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
+import { queryOne } from "#shared/db/client.ts";
 import {
+  getVisits,
   hashEmail,
   isHashUnsubscribed,
+  recordVisit,
   unsubscribeHash,
-} from "#shared/db/email-preferences.ts";
+} from "#shared/db/contact-preferences.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   describeWithEnv,
@@ -58,6 +61,21 @@ describeWithEnv("routes (unsubscribe)", { db: true }, () => {
     test("explains an invalid link with no hash", async () => {
       const response = await getUnsubscribe();
       await expectHtmlResponse(response, 200, "invalid or incomplete");
+    });
+
+    test("offers the delete-my-data action for a valid link", async () => {
+      const hash = await hashEmail("erasable@example.com");
+      const response = await getUnsubscribe(
+        `?email=${encodeURIComponent(hash)}`,
+      );
+      const html = await expectHtmlResponse(response, 200, "Delete my data");
+      // The forget action posts back with action=forget.
+      expect(html).toContain('value="forget"');
+    });
+
+    test("does not offer delete-my-data without a hash", async () => {
+      const html = await expectHtmlResponse(await getUnsubscribe(), 200);
+      expect(html).not.toContain('value="forget"');
     });
 
     test("includes the website title when one is set", async () => {
@@ -124,6 +142,37 @@ describeWithEnv("routes (unsubscribe)", { db: true }, () => {
       );
       expect(html).toContain('class="success"');
       expect(html).not.toContain('class="info"');
+    });
+
+    test("forgets (deletes) the contact's row", async () => {
+      const hash = await hashEmail("forgetme@example.com");
+      // Seed a row so there is something to erase.
+      await recordVisit(hash);
+      expect(await getVisits(hash)).toBe(1);
+
+      const response = await postUnsubscribe({ action: "forget", email: hash });
+      expectRedirect(response, "/unsubscribe");
+
+      // The row is gone entirely (not just suppressed).
+      const row = await queryOne<{ contact_hash: string }>(
+        "SELECT contact_hash FROM contact_preferences WHERE contact_hash = ?",
+        [hash],
+      );
+      expect(row).toBeNull();
+      expect(await getVisits(hash)).toBe(0);
+    });
+
+    test("confirms deletion with a success flash on the bare page", async () => {
+      const hash = await hashEmail("erased@example.com");
+      await recordVisit(hash);
+      const response = await postUnsubscribe({ action: "forget", email: hash });
+      const followed = await followRedirectWithFlash(response, handleRequest);
+      const html = await expectHtmlResponse(
+        followed,
+        200,
+        "Your contact record has been deleted",
+      );
+      expect(html).toContain('class="success"');
     });
 
     test("redirects with an error when the hash is missing", async () => {

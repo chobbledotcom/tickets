@@ -143,6 +143,28 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       )(response);
     });
 
+    test("stores the minimum previous bookings (min_visits)", async () => {
+      await adminFormPost("/admin/modifiers", createData({ min_visits: "3" }));
+      expect((await lastModifier()).min_visits).toBe(3);
+    });
+
+    test("defaults min_visits to zero when blank", async () => {
+      await adminFormPost("/admin/modifiers", createData());
+      expect((await lastModifier()).min_visits).toBe(0);
+    });
+
+    test("rejects a negative min_visits", async () => {
+      const { response } = await adminFormPost(
+        "/admin/modifiers",
+        createData({ min_visits: "-1" }),
+      );
+      expectRedirectWithFlash(
+        "/admin/modifiers/new",
+        "Minimum previous bookings must be a whole number of 0 or more",
+        false,
+      )(response);
+    });
+
     test("stores a stock limit", async () => {
       await adminFormPost("/admin/modifiers", createData({ stock: "5" }));
       expect((await lastModifier()).stock).toBe(5);
@@ -249,6 +271,23 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const { id } = await lastModifier();
       const { response } = await adminGet(`/admin/modifiers/${id}/edit`);
       await expectHtmlResponse(response, 200, 'value="7"');
+    });
+
+    test("shows min_visits on the edit form, blank when zero", async () => {
+      // A configured value round-trips...
+      await adminFormPost("/admin/modifiers", createData({ min_visits: "2" }));
+      const set = await lastModifier();
+      const { response } = await adminGet(`/admin/modifiers/${set.id}/edit`);
+      await expectHtmlResponse(response, 200, 'name="min_visits"', 'value="2"');
+
+      // ...while the default (0) shows as an empty field, not value="0".
+      await adminFormPost("/admin/modifiers", createData({ name: "NoGate" }));
+      const zero = await lastModifier();
+      const { response: zeroResponse } = await adminGet(
+        `/admin/modifiers/${zero.id}/edit`,
+      );
+      const html = await expectHtmlResponse(zeroResponse, 200, "NoGate");
+      expect(html).not.toContain('name="min_visits" type="number" value="0"');
     });
 
     test("returns 404 for a missing modifier", async () => {

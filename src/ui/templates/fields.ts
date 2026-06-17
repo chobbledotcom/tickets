@@ -878,6 +878,7 @@ export type ModifierFormValues = {
   calc_value: number;
   scope: string;
   min_subtotal: number;
+  min_visits: number;
   stock: number | null;
   active: string;
 };
@@ -952,6 +953,24 @@ export const modifierFields: Field[] = [
       return Number.isFinite(n) && n >= 0
         ? null
         : "Minimum order must be a positive number";
+    },
+  },
+  {
+    hint: "Only apply to a returning customer with at least this many previous bookings. 0 (or blank) applies to everyone; 1 means seen at least once before.",
+    label: "Minimum previous bookings (optional)",
+    min: 0,
+    name: "min_visits",
+    // Optional integer count: blank means no requirement (0). A provided value
+    // must be a non-negative whole number; `validateSingleField` only runs
+    // `validate` when non-empty, and `parse` maps blank to 0 (the column's
+    // default) so the field always yields a number, never null.
+    parse: (value: string) => (value ? Number.parseInt(value, 10) : 0),
+    type: "number",
+    validate: (value: string) => {
+      const n = Number.parseInt(value, 10);
+      return Number.isInteger(n) && n >= 0
+        ? null
+        : "Minimum previous bookings must be a whole number of 0 or more";
     },
   },
   {

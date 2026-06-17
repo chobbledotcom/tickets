@@ -32,13 +32,15 @@ export type ModifierInput = {
   active?: boolean;
   scope?: ModifierScope;
   minSubtotal?: number;
+  minVisits?: number;
   stock?: number | null;
 };
 
 /** Modifiers table with CRUD operations. Name is encrypted at rest, matching
  * the other owner-defined entities. Behavioural columns (active, trigger,
- * scope, min_subtotal) have sensible defaults so the base create form need
- * only supply the pricing rule; later admin fields populate the rest. */
+ * scope, min_subtotal, min_visits) have sensible defaults so the base create
+ * form need only supply the pricing rule; later admin fields populate the
+ * rest. */
 export const modifiersTable = defineIdTable<Modifier, ModifierInput>(
   "modifiers",
   {
@@ -49,6 +51,7 @@ export const modifiersTable = defineIdTable<Modifier, ModifierInput>(
     calc_value: col.simple<number>(),
     direction: col.simple<ModifierDirection>(),
     min_subtotal: col.withDefault(() => 0),
+    min_visits: col.withDefault(() => 0),
     scope: col.withDefault<ModifierScope>(() => "all"),
     stock: col.withDefault<number | null>(() => null),
     trigger: col.withDefault<ModifierTrigger>(() => "automatic"),

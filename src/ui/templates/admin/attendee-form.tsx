@@ -46,7 +46,7 @@ import {
 } from "#shared/dates.ts";
 import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
 import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
-import type { EmailStats } from "#shared/db/email-preferences.ts";
+import type { EmailStats } from "#shared/db/contact-preferences.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";

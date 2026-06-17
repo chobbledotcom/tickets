@@ -18,6 +18,7 @@ import {
   MIGRATION_LOCK_TTL_MS,
   MigrationInProgressError,
   MissingSettingsTableError,
+  renameEmailPrefsToContactPrefs,
   renameEventsToListings,
   resetDatabase,
   SCHEMA_HASH,
@@ -504,6 +505,138 @@ describeWithEnv("db > migrations", { db: true }, () => {
     });
   });
 
+  describe("renameEmailPrefsToContactPrefs (email_preferences → contact_preferences)", () => {
+    const columnNames = async (table: string): Promise<string[]> => {
+      const result = await getDb().execute(
+        `SELECT name FROM pragma_table_info('${table}')`,
+      );
+      return result.rows.map((r) => String(r.name));
+    };
+
+    const tableNames = async (): Promise<Set<string>> => {
+      const result = await getDb().execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table'",
+      );
+      return new Set(result.rows.map((r) => String(r.name)));
+    };
+
+    const indexNames = async (): Promise<Set<string>> => {
+      const result = await getDb().execute(
+        "SELECT name FROM sqlite_master WHERE type = 'index'",
+      );
+      return new Set(result.rows.map((r) => String(r.name)));
+    };
+
+    /**
+     * Recreate the legacy email_preferences table shape (PK email_hash,
+     * unsubscribed, stats_blob, created) by dropping the current table and
+     * building the historical one, so the migration has a genuine legacy table
+     * to upgrade rather than a fresh one.
+     */
+    const downgradeToLegacyTable = async (seed?: {
+      emailHash: string;
+      createdIso: string;
+      unsubscribed: number;
+    }): Promise<void> => {
+      await getDb().execute("DROP TABLE IF EXISTS contact_preferences");
+      await getDb().execute(
+        "CREATE TABLE email_preferences (email_hash TEXT PRIMARY KEY, unsubscribed INTEGER NOT NULL DEFAULT 0, stats_blob TEXT NOT NULL DEFAULT '', created TEXT NOT NULL)",
+      );
+      if (seed) {
+        await getDb().execute({
+          args: [seed.emailHash, seed.unsubscribed, seed.createdIso],
+          sql: "INSERT INTO email_preferences (email_hash, unsubscribed, created) VALUES (?, ?, ?)",
+        });
+      }
+    };
+
+    test("renames the table and PK column and adds the new columns", async () => {
+      await downgradeToLegacyTable();
+
+      await renameEmailPrefsToContactPrefs();
+
+      const tables = await tableNames();
+      expect(tables.has("contact_preferences")).toBe(true);
+      expect(tables.has("email_preferences")).toBe(false);
+
+      const cols = await columnNames("contact_preferences");
+      expect(cols).toContain("contact_hash");
+      expect(cols).toContain("last_activity");
+      expect(cols).toContain("visits");
+      expect(cols).not.toContain("email_hash");
+      // The legacy created column is dropped once last_activity is backfilled.
+      expect(cols).not.toContain("created");
+    });
+
+    test("backfills last_activity from the legacy created timestamp", async () => {
+      const createdIso = "2025-01-02T03:04:05Z";
+      const expectedMs = Date.parse(createdIso);
+      await downgradeToLegacyTable({
+        createdIso,
+        emailHash: "legacy-hash",
+        unsubscribed: 1,
+      });
+
+      await renameEmailPrefsToContactPrefs();
+
+      const row = await getDb().execute({
+        args: ["legacy-hash"],
+        sql: "SELECT last_activity, unsubscribed FROM contact_preferences WHERE contact_hash = ?",
+      });
+      // last_activity is the created instant in ms (so the pre-existing
+      // unsubscribe history isn't pruned immediately), and unsubscribe survives.
+      expect(Number(row.rows[0]?.last_activity)).toBe(expectedMs);
+      expect(Number(row.rows[0]?.unsubscribed)).toBe(1);
+    });
+
+    test("creates the contact-preferences indexes", async () => {
+      await downgradeToLegacyTable();
+
+      await renameEmailPrefsToContactPrefs();
+
+      const indexes = await indexNames();
+      expect(indexes.has("idx_contact_prefs_unsubscribed")).toBe(true);
+      expect(indexes.has("idx_contact_prefs_last_activity")).toBe(true);
+    });
+
+    test("is a no-op on a fresh database that already has the final schema", async () => {
+      // A migrated DB has no legacy email_preferences table: the rename is
+      // skipped and the already-current contact_preferences is left intact.
+      await renameEmailPrefsToContactPrefs();
+
+      const tables = await tableNames();
+      expect(tables.has("email_preferences")).toBe(false);
+      expect(tables.has("contact_preferences")).toBe(true);
+      const cols = await columnNames("contact_preferences");
+      expect(cols).toContain("contact_hash");
+      expect(cols).toContain("visits");
+      expect(cols).not.toContain("created");
+    });
+
+    test("backfills last_activity even when the legacy table lacks the column entirely", async () => {
+      // Guards the "ensure last_activity exists before backfill" path: a legacy
+      // table missing the column must get it added and backfilled, not throw.
+      const createdIso = "2024-06-01T00:00:00Z";
+      await downgradeToLegacyTable({
+        createdIso,
+        emailHash: "no-col-hash",
+        unsubscribed: 0,
+      });
+      // Confirm the precondition: no last_activity column on the legacy table.
+      expect(await columnNames("email_preferences")).not.toContain(
+        "last_activity",
+      );
+
+      await renameEmailPrefsToContactPrefs();
+
+      const row = await getDb().execute({
+        args: ["no-col-hash"],
+        sql: "SELECT last_activity FROM contact_preferences WHERE contact_hash = ?",
+      });
+      expect(Number(row.rows[0]?.last_activity)).toBe(Date.parse(createdIso));
+    });
+  });
+
   describe("initDb ready cache", () => {
     test("initDb runs no queries once the client is confirmed ready", async () => {
       await initDb();
@@ -912,8 +1045,10 @@ describe("db > migrations > schema change guard", () => {
         "2026-06-16_processed_payments_failure_data",
         "2026-06-16_listing_aggregates",
         "2026-06-16_modifiers",
+        "2026-06-17_contact_preferences",
+        "2026-06-17_modifier_min_visits",
       ],
-      schemaHash: "16t49nl",
+      schemaHash: "1iw4a1g",
     });
   });
 });

@@ -3,6 +3,12 @@ import { describe, it as test } from "@std/testing/bdd";
 import { toMinorUnits } from "#shared/currency.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
+  hashEmail,
+  hashPhone,
+  recordVisit,
+} from "#shared/db/contact-preferences.ts";
+import {
+  buyerVisits,
   resolveModifiers,
   specsFromRefs,
 } from "#shared/db/modifier-resolve.ts";
@@ -161,6 +167,65 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
         listing.id,
       ]);
     });
+
+    test("excludes a min_visits modifier for a buyer below the threshold", async () => {
+      const m = await insertModifier({ name: "WelcomeBack" });
+      await patchModifier(m.id, { min_visits: 1 });
+
+      // Default context = 0 visits (a first-time buyer): the gate excludes it.
+      const firstTime = await resolveModifiers([item()]);
+      expect(firstTime.map((s) => s.name)).not.toContain("WelcomeBack");
+
+      // A returning buyer (>= the threshold) gets it.
+      const returning = await resolveModifiers([item()], { visits: 1 });
+      expect(returning.map((s) => s.name)).toContain("WelcomeBack");
+    });
+
+    test("applies a min_visits modifier once the buyer meets the threshold exactly", async () => {
+      const m = await insertModifier({ name: "Loyalty5" });
+      await patchModifier(m.id, { min_visits: 5 });
+
+      expect(
+        (await resolveModifiers([item()], { visits: 4 })).map((s) => s.name),
+      ).not.toContain("Loyalty5");
+      expect(
+        (await resolveModifiers([item()], { visits: 5 })).map((s) => s.name),
+      ).toContain("Loyalty5");
+    });
+  });
+
+  describe("buyerVisits", () => {
+    test("returns 0 for an unknown buyer and when no identifiers are given", async () => {
+      expect(await buyerVisits("unknown@example.com")).toBe(0);
+      expect(await buyerVisits()).toBe(0);
+      expect(await buyerVisits("", "")).toBe(0);
+    });
+
+    test("reads the visit count for a known email", async () => {
+      await recordVisit(await hashEmail("seen@example.com"));
+      await recordVisit(await hashEmail("seen@example.com"));
+      expect(await buyerVisits("seen@example.com")).toBe(2);
+    });
+
+    test("takes the max across the email and phone identifiers", async () => {
+      await recordVisit(await hashEmail("max@example.com"));
+      await recordVisit(await hashPhone("07700 900333"));
+      await recordVisit(await hashPhone("07700 900333"));
+      await recordVisit(await hashPhone("07700 900333"));
+      // email=1, phone=3 → max is 3.
+      expect(await buyerVisits("max@example.com", "07700 900333")).toBe(3);
+    });
+
+    test("treats a non-string identifier (malformed metadata) as absent", async () => {
+      // Provider metadata is adversarial; a non-string email/phone must be
+      // ignored rather than throwing on .trim().
+      expect(
+        await buyerVisits(
+          12345 as unknown as string,
+          true as unknown as string,
+        ),
+      ).toBe(0);
+    });
   });
 
   describe("specsFromRefs", () => {
@@ -201,6 +266,21 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
       await patchModifier(created.id, { active: 0 });
       expect(await specsFromRefs([{ i: created.id, q: 1 }])).toEqual([]);
       expect(await specsFromRefs([{ i: 9999, q: 1 }])).toEqual([]);
+    });
+
+    test("drops a min_visits reference for a buyer below the threshold (anti-spoof)", async () => {
+      // A crafted checkout could reference a returning-customer modifier the
+      // buyer isn't entitled to; the webhook re-check drops it so the re-derived
+      // total no longer matches and the refund path fires.
+      const m = await insertModifier({ name: "ReturningOnly" });
+      await patchModifier(m.id, { min_visits: 1 });
+
+      // Default context = 0 visits: the ref is dropped.
+      expect(await specsFromRefs([{ i: m.id, q: 1 }])).toEqual([]);
+
+      // A genuinely returning buyer keeps it.
+      const kept = await specsFromRefs([{ i: m.id, q: 1 }], { visits: 1 });
+      expect(kept.map((s) => s.name)).toEqual(["ReturningOnly"]);
     });
   });
 });

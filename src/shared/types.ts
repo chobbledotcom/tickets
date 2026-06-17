@@ -415,6 +415,9 @@ export interface Modifier {
   scope: ModifierScope;
   /** Minimum in-scope subtotal (minor units) for the modifier to apply. */
   min_subtotal: number;
+  /** Minimum prior bookings (the buyer's keyless visit count) for the modifier
+   * to apply automatically. 0 = applies to everyone (the default). */
+  min_visits: number;
   /** Remaining-stock cap, or null for unlimited. Consumed monotonically. */
   stock: number | null;
 }

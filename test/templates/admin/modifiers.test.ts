@@ -19,6 +19,7 @@ const mod = (overrides: Partial<Modifier> = {}): Modifier => ({
   direction: "discount",
   id: 1,
   min_subtotal: 0,
+  min_visits: 0,
   name: "Early bird",
   scope: "all",
   stock: null,

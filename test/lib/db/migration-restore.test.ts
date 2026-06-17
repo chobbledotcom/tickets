@@ -82,16 +82,17 @@ describeWithEnv("db > migration restore", { db: true }, () => {
   };
 
   // Additive migrations own concrete objects and can be reconstructed by
-  // re-running up(). The baseline reconcile (no `requires`) and the rename
-  // (which removes legacy tables rather than adding objects) are covered
-  // separately below.
+  // re-running up(). The baseline reconcile (no `requires`) and the two renames
+  // (events→listings and email_preferences→contact_preferences, which remove a
+  // legacy table rather than adding objects) are covered separately below.
   const additiveMigrations = MIGRATIONS.filter(
     (m) => m.requires && !m.requires.absentTables,
   );
 
   test("every additive migration is covered by a restore case", () => {
     // Guards against a future migration slipping through with no restore test.
-    expect(additiveMigrations.length).toBe(MIGRATIONS.length - 2);
+    // The 3 excluded migrations are the baseline reconcile and the two renames.
+    expect(additiveMigrations.length).toBe(MIGRATIONS.length - 3);
   });
 
   for (const migration of additiveMigrations) {
@@ -238,6 +239,35 @@ describeWithEnv("db > migration restore", { db: true }, () => {
       await downgradeToLegacyNames();
       await rename().up();
       await rename().verify();
+    });
+  });
+
+  describe("contact-preferences rename migration verify", () => {
+    const rename = () => migrationById("2026-06-17_contact_preferences");
+
+    // Recreate the legacy email_preferences shape on disk so the rename
+    // migration has a genuine legacy table to upgrade.
+    const downgradeToLegacyTable = async (): Promise<void> => {
+      await getDb().execute("DROP TABLE IF EXISTS contact_preferences");
+      await getDb().execute(
+        "CREATE TABLE email_preferences (email_hash TEXT PRIMARY KEY, unsubscribed INTEGER NOT NULL DEFAULT 0, stats_blob TEXT NOT NULL DEFAULT '', created TEXT NOT NULL)",
+      );
+    };
+
+    test("rejects while the legacy email_preferences table is still present", async () => {
+      await downgradeToLegacyTable();
+      await expect(rename().verify()).rejects.toThrow(
+        "Migration verification failed",
+      );
+    });
+
+    test("resolves after up() renames email_preferences to contact_preferences", async () => {
+      await downgradeToLegacyTable();
+      await rename().up();
+      await rename().verify();
+      // The sentinel row in another table is untouched by the rename.
+      await seedSentinelListing();
+      expect(await sentinelListingExists()).toBe(true);
     });
   });
 });

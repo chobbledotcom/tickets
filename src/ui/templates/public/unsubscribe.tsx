@@ -21,21 +21,40 @@ export type UnsubscribeState = {
   info?: string;
 };
 
-/** The toggle form — carries the hash and the action, never the address. */
+/** The action form — carries the hash and the action, never the address. */
 const ToggleForm = ({
   hash,
   action,
   label,
+  danger,
 }: {
   hash: string;
-  action: "unsubscribe" | "resubscribe";
+  action: "unsubscribe" | "resubscribe" | "forget";
   label: string;
+  danger?: boolean;
 }): JSX.Element => (
-  <CsrfForm action="/unsubscribe" class="inline" id="unsubscribe">
+  <CsrfForm action="/unsubscribe" class="inline" id={`action-${action}`}>
     <input name="email" type="hidden" value={hash} />
     <input name="action" type="hidden" value={action} />
-    <button type="submit">{label}</button>
+    <button class={danger ? "danger" : undefined} type="submit">
+      {label}
+    </button>
   </CsrfForm>
+);
+
+/** The right-to-erasure section: deletes the whole contact record. Shown
+ * regardless of subscribe state, since erasure is independent of suppression. */
+const ForgetSection = ({ hash }: { hash: string }): JSX.Element => (
+  <div class="prose">
+    <h2>{t("unsubscribe.forget_heading")}</h2>
+    <p>{t("unsubscribe.forget_explainer")}</p>
+    <ToggleForm
+      action="forget"
+      danger
+      hash={hash}
+      label={t("unsubscribe.forget_button")}
+    />
+  </div>
 );
 
 export const unsubscribePage = (state: UnsubscribeState): string => {
@@ -50,27 +69,32 @@ export const unsubscribePage = (state: UnsubscribeState): string => {
         <div class="prose">
           <p>{t("unsubscribe.invalid_link")}</p>
         </div>
-      ) : state.unsubscribed ? (
-        <div class="prose">
-          <p>
-            <Raw html={t("unsubscribe.unsubscribed_message")} />
-          </p>
-          <p>{t("unsubscribe.changed_mind")}</p>
-          <ToggleForm
-            action="resubscribe"
-            hash={state.hash}
-            label={t("unsubscribe.resubscribe_button")}
-          />
-        </div>
       ) : (
-        <div class="prose">
-          <p>{t("unsubscribe.subscribed_message")}</p>
-          <ToggleForm
-            action="unsubscribe"
-            hash={state.hash}
-            label={t("unsubscribe.unsubscribe_button")}
-          />
-        </div>
+        <>
+          {state.unsubscribed ? (
+            <div class="prose">
+              <p>
+                <Raw html={t("unsubscribe.unsubscribed_message")} />
+              </p>
+              <p>{t("unsubscribe.changed_mind")}</p>
+              <ToggleForm
+                action="resubscribe"
+                hash={state.hash}
+                label={t("unsubscribe.resubscribe_button")}
+              />
+            </div>
+          ) : (
+            <div class="prose">
+              <p>{t("unsubscribe.subscribed_message")}</p>
+              <ToggleForm
+                action="unsubscribe"
+                hash={state.hash}
+                label={t("unsubscribe.unsubscribe_button")}
+              />
+            </div>
+          )}
+          <ForgetSection hash={state.hash} />
+        </>
       )}
     </Layout>,
   );
