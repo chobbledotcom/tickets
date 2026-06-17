@@ -61,6 +61,29 @@ const feeExtras = (fullSubtotal: number): ExtraLine[] => {
     : [];
 };
 
+/** Allocate an amount across positive weights by largest remainder. */
+const allocateByLargestRemainder = (
+  weights: number[],
+  amount: number,
+): number[] => {
+  const total = sum(weights);
+  if (amount <= 0 || total <= 0) return weights.map(() => 0);
+  const shares = weights.map((weight) => (amount * weight) / total);
+  const floors = shares.map((share) => Math.floor(share));
+  const leftover = amount - sum(floors);
+  const bumped = new Set(
+    shares
+      .map((share, index) => ({
+        frac: share - Math.floor(share),
+        index,
+      }))
+      .sort((a, b) => b.frac - a.frac || a.index - b.index)
+      .slice(0, leftover)
+      .map(({ index }) => index),
+  );
+  return floors.map((value, index) => value + (bumped.has(index) ? 1 : 0));
+};
+
 /**
  * Spread a discount across per-unit prices by largest remainder: each unit
  * loses its proportional share, and the leftover minor units (from rounding
@@ -72,17 +95,17 @@ export const allocateDiscount = (units: number[], amount: number): number[] => {
   const total = sum(units);
   const discount = Math.min(Math.max(amount, 0), total);
   if (discount === 0) return units;
-  const shares = units.map((u) => (discount * u) / total);
-  const floors = shares.map((s) => Math.floor(s));
-  const leftover = discount - sum(floors);
-  const bumped = new Set(
-    shares
-      .map((s, i) => ({ frac: s - Math.floor(s), i }))
-      .sort((a, b) => b.frac - a.frac || a.i - b.i)
-      .slice(0, leftover)
-      .map(({ i }) => i),
-  );
-  return units.map((u, i) => u - floors[i]! - (bumped.has(i) ? 1 : 0));
+  const allocations = allocateByLargestRemainder(units, discount);
+  return units.map((unit, index) => unit - allocations[index]!);
+};
+
+/** Allocate an amount across positive-weight units by largest remainder.
+ * Unlike allocateDiscount, this can allocate more than the original unit
+ * weights because reservation deposits may include separate add-on charges. */
+const allocateAmount = (weights: number[], amount: number): number[] => {
+  const positiveTotal = sum(weights);
+  const effectiveWeights = positiveTotal > 0 ? weights : weights.map(() => 1);
+  return allocateByLargestRemainder(effectiveWeights, amount);
 };
 
 /** The result of applying modifiers: the (possibly split/discounted) ticket
@@ -137,27 +160,6 @@ const toLines = (units: WorkUnit[]): PricedLine[] => {
       quantity: group.filter((u) => u.price === price).length,
     }));
   });
-};
-
-/** Allocate an amount across positive-weight units by largest remainder.
- * Unlike allocateDiscount, this can allocate more than the original unit
- * weights because reservation deposits may include separate add-on charges. */
-const allocateAmount = (weights: number[], amount: number): number[] => {
-  const total = sum(weights);
-  if (amount <= 0) return weights.map(() => 0);
-  const effectiveWeights = total > 0 ? weights : weights.map(() => 1);
-  const effectiveTotal = sum(effectiveWeights);
-  const shares = effectiveWeights.map((w) => (amount * w) / effectiveTotal);
-  const floors = shares.map((s) => Math.floor(s));
-  const leftover = amount - sum(floors);
-  const bumped = new Set(
-    shares
-      .map((s, i) => ({ frac: s - Math.floor(s), i }))
-      .sort((a, b) => b.frac - a.frac || a.i - b.i)
-      .slice(0, leftover)
-      .map(({ i }) => i),
-  );
-  return floors.map((v, i) => v + (bumped.has(i) ? 1 : 0));
 };
 
 /** Convert a modified full-price order into the ticket lines charged up front

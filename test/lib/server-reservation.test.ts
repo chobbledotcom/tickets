@@ -86,8 +86,7 @@ const attendeeCount = async (): Promise<number> => {
 const modifierUsageCount = async (modifierId: number): Promise<number> => {
   const { rows } = await getDb().execute({
     args: [modifierId],
-    sql:
-      "SELECT COALESCE(SUM(quantity), 0) AS c FROM modifier_usages WHERE modifier_id = ?",
+    sql: "SELECT COALESCE(SUM(quantity), 0) AS c FROM modifier_usages WHERE modifier_id = ?",
   });
   return Number(rows[0]!.c);
 };
