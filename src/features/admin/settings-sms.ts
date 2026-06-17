@@ -13,6 +13,7 @@ import {
 } from "#routes/admin/settings-helpers.ts";
 import { settings } from "#shared/db/settings.ts";
 import { SMS_PASSPHRASE_MIN_LENGTH } from "#shared/sms/e2e.ts";
+import { validateSafeServerFetchUrl } from "#shared/url-safety.ts";
 
 type SmsGatewayFormData = {
   username: string;
@@ -20,15 +21,6 @@ type SmsGatewayFormData = {
   password: SecretFieldResult;
   passphrase: SecretFieldResult;
   webhookSecret: SecretFieldResult;
-};
-
-/** Accept only http(s) URLs (or empty). */
-const isHttpUrl = (raw: string): boolean => {
-  try {
-    return ["http:", "https:"].includes(new URL(raw).protocol);
-  } catch {
-    return false;
-  }
 };
 
 /** Apply a masked-secret field: provided → set, cleared → empty, unchanged → skip. */
@@ -59,7 +51,11 @@ export const handleSmsGatewayPost = settingsHandler<SmsGatewayFormData>({
     await saveSecret(webhookSecret, settings.update.smsGatewayWebhookSecret);
   },
   validate: ({ baseUrl, passphrase }) => {
-    if (baseUrl && !isHttpUrl(baseUrl)) return "Invalid server URL";
+    const baseUrlError = validateSafeServerFetchUrl(
+      baseUrl,
+      "Invalid server URL",
+    );
+    if (baseUrlError) return baseUrlError;
     if (
       passphrase.action === "provided" &&
       passphrase.value.length < SMS_PASSPHRASE_MIN_LENGTH

@@ -1,8 +1,10 @@
 import * as v from "valibot";
 
 /**
- * A positive integer in plain decimal form — digits only, so no sign, no
- * leading `+`, no surrounding whitespace, and not zero.
+ * Plain decimal integer strings. The schemas accept digits only, so no signs,
+ * fractions, exponent notation, or trailing junk. Public helpers trim before
+ * validating, so callers can pass raw form/query values without repeating that
+ * at every boundary.
  *
  * The app reads listing ids out of dynamic form keys like `select_<id>` and
  * `qty_<id>`, where a lenient `Number.parseInt` would otherwise accept junk
@@ -11,15 +13,36 @@ import * as v from "valibot";
  * Mirrors the schema + parse-helper shape of validation/email.ts and
  * validation/date.ts as the rest of the app's validation migrates to valibot.
  */
-const PositiveIntIdSchema = v.pipe(
-  v.string(),
-  v.digits(),
-  v.transform(Number),
-  v.minValue(1),
-);
+const createIntSchema = (minimum: number) =>
+  v.pipe(
+    v.string(),
+    v.nonEmpty(),
+    v.digits(),
+    v.transform(Number),
+    v.minValue(minimum),
+  );
 
-/** Parse a strict positive-integer id from a string, or null when it isn't one. */
-export const parsePositiveIntId = (value: string): number | null => {
-  const result = v.safeParse(PositiveIntIdSchema, value);
+type IntSchema = ReturnType<typeof createIntSchema>;
+
+const NonNegativeIntSchema = createIntSchema(0);
+const PositiveIntSchema = createIntSchema(1);
+
+const parseIntWithSchema = (
+  schema: IntSchema,
+  value: string,
+): number | null => {
+  const result = v.safeParse(schema, value.trim());
   return result.success ? result.output : null;
 };
+
+/** Parse a strict positive-integer id from a string, or null when it isn't one. */
+export const parsePositiveIntId = (value: string): number | null =>
+  parseIntWithSchema(PositiveIntSchema, value);
+
+/** Parse a strict non-negative decimal integer, or null when it isn't one. */
+export const parseNonNegativeInt = (value: string): number | null =>
+  parseIntWithSchema(NonNegativeIntSchema, value);
+
+/** Parse a strict positive decimal integer, or null when it isn't one. */
+export const parsePositiveInt = (value: string): number | null =>
+  parseIntWithSchema(PositiveIntSchema, value);

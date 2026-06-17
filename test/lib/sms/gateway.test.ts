@@ -64,9 +64,11 @@ describe("sms gateway send", () => {
   it("posts to the messages endpoint with Basic auth and returns the id", async () => {
     let seenUrl = "";
     let seenAuth: string | null = null;
+    let seenRedirect: RequestRedirect | undefined;
     const fetchImpl = fakeFetch(result(), (url, init) => {
       seenUrl = url;
       seenAuth = new Headers(init?.headers).get("authorization");
+      seenRedirect = init?.redirect;
     });
 
     const { providerId } = await sendEncryptedMessage(
@@ -78,6 +80,69 @@ describe("sms gateway send", () => {
     expect(providerId).toBe("msg-1");
     expect(seenUrl).toBe(`${DEFAULT_SMS_BASE_URL}/3rdparty/v1/messages`);
     expect(seenAuth).toBe(`Basic ${btoa("user:pw")}`);
+    expect(seenRedirect).toBe("manual");
+  });
+
+  it("follows a safe redirect with each hop validated manually", async () => {
+    const calls: Array<[string, RequestInit | undefined]> = [];
+    const fetchImpl = (
+      url: string,
+      init?: RequestInit,
+    ): Promise<FetchResult> => {
+      calls.push([url, init]);
+      return Promise.resolve(
+        calls.length === 1
+          ? result({
+              headers: new Headers({
+                location: "https://sms.example.com/final",
+              }),
+              ok: false,
+              status: 307,
+              text: "",
+            })
+          : result(),
+      );
+    };
+
+    const { providerId } = await sendEncryptedMessage(
+      config,
+      await buildMessagePayload("+1", "hi", PASS),
+      fetchImpl,
+    );
+
+    expect(providerId).toBe("msg-1");
+    expect(calls.map(([url]) => url)).toEqual([
+      `${DEFAULT_SMS_BASE_URL}/3rdparty/v1/messages`,
+      "https://sms.example.com/final",
+    ]);
+    expect(calls.every(([, init]) => init?.redirect === "manual")).toBe(true);
+  });
+
+  it("refuses to follow an unsafe redirect target", async () => {
+    const calls: Array<[string, RequestInit | undefined]> = [];
+    const fetchImpl = (
+      url: string,
+      init?: RequestInit,
+    ): Promise<FetchResult> => {
+      calls.push([url, init]);
+      return Promise.resolve(
+        result({
+          headers: new Headers({ location: "https://127.0.0.1/final" }),
+          ok: false,
+          status: 307,
+          text: "",
+        }),
+      );
+    };
+
+    await expect(
+      sendEncryptedMessage(
+        config,
+        await buildMessagePayload("+1", "hi", PASS),
+        fetchImpl,
+      ),
+    ).rejects.toThrow("Unsafe redirect URL");
+    expect(calls.length).toBe(1);
   });
 
   it("transmits only ciphertext, never the plaintext", async () => {
@@ -132,6 +197,24 @@ describe("sms gateway send", () => {
       ),
     ).rejects.toThrow("missing message id");
   });
+
+  it("refuses an unsafe stored base URL before fetching", async () => {
+    let called = false;
+    const fetchImpl = fakeFetch(result(), () => {
+      called = true;
+    });
+    await expect(
+      sendEncryptedMessage(
+        {
+          ...config,
+          baseUrl: "https://1.1.1.1",
+        },
+        await buildMessagePayload("+1", "x", PASS),
+        fetchImpl,
+      ),
+    ).rejects.toThrow("public https:// domain");
+    expect(called).toBe(false);
+  });
 });
 
 describeWithEnv("sms gateway config", { db: true }, () => {
@@ -157,7 +240,15 @@ describeWithEnv("sms gateway config", { db: true }, () => {
     await settings.update.smsGatewayPassphrase("p");
     await settings.update.smsGatewayUsername("u");
     await settings.update.smsGatewayPassword("pw");
-    await settings.update.smsGatewayBaseUrl("https://sms.example.com");
+    await settings.update.smsGatewayBaseUrl("https://sms.example.com/");
     expect(getSmsGatewayConfig()!.baseUrl).toBe("https://sms.example.com");
+  });
+
+  it("returns null for an unsafe stored base URL", async () => {
+    await settings.update.smsGatewayPassphrase("p");
+    await settings.update.smsGatewayUsername("u");
+    await settings.update.smsGatewayPassword("pw");
+    await settings.update.smsGatewayBaseUrl("http://sms.example.com");
+    expect(getSmsGatewayConfig()).toBeNull();
   });
 });

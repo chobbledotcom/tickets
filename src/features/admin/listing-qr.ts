@@ -25,6 +25,7 @@ import { FormParams } from "#shared/form-data.ts";
 import { generateQrSvg, listingSupportsDirectCheckout } from "#shared/qr.ts";
 import { buildQrBookPayload, signQrBookToken } from "#shared/qr-token.ts";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
+import { parsePositiveInt } from "#shared/validation/number.ts";
 import type {
   AdminListingQrResult,
   AdminListingQrValues,
@@ -105,8 +106,8 @@ const createQrFormValidator = (
   validate: (form) => {
     const values = extractRawValues(form);
 
-    const quantity = Number.parseInt(values.quantity, 10);
-    if (Number.isNaN(quantity) || quantity < 1) {
+    const quantity = parsePositiveInt(values.quantity);
+    if (quantity === null) {
       return { error: "Quantity must be at least 1", valid: false };
     }
     if (quantity > listing.max_quantity) {
@@ -144,7 +145,7 @@ const parsedFromValues = (
   values: AdminListingQrValues,
   listing: ListingWithCount,
 ): ParsedValues => {
-  const quantity = Number.parseInt(values.quantity, 10);
+  const quantity = parsePositiveInt(values.quantity)!;
   let valueMinor: number | undefined;
   if (values.value) {
     const { minPrice, maxPrice } = getPriceBounds(listing);

@@ -43,6 +43,7 @@ import {
   type Group,
   normalizeDurationDays,
 } from "#shared/types.ts";
+import { parsePositiveInt } from "#shared/validation/number.ts";
 import { logAndNotifyRegistration } from "#shared/webhook.ts";
 import type { TicketListing } from "#templates/public.tsx";
 import { formatAtomicError, listingsWithQuantity } from "./ticket-form.ts";
@@ -242,8 +243,8 @@ export const resolveDayCount = async (
   );
   if (customisable.length === 0) return { dayCount: 1 };
 
-  const raw = Number.parseInt(form.getString("day_count"), 10);
-  if (!Number.isInteger(raw) || raw < 1) {
+  const raw = parsePositiveInt(form.getString("day_count"));
+  if (raw === null) {
     return { error: "Please choose how many days to book" };
   }
   for (const { listing } of customisable) {

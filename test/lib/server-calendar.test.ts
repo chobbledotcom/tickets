@@ -84,7 +84,7 @@ async function setupMixedBookings(
 
 describeWithEnv(
   "admin calendar",
-  { db: true, env: { NTFY_URL: undefined } },
+  { db: true, env: { NTFY_URL: undefined }, triggers: true },
   () => {
     describe("GET /admin/calendar", () => {
       testRequiresAuth("/admin/calendar");

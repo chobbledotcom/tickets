@@ -8,11 +8,11 @@ import { logActivity } from "#shared/db/activityLog.ts";
 import { getBuiltSiteByRenewalTokenIndex } from "#shared/db/built-sites.ts";
 import { settings } from "#shared/db/settings.ts";
 import { type EmailEntry, sendRegistrationEmails } from "#shared/email.ts";
-import { fetchText } from "#shared/fetch.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
+import { fetchTextFollowingSafeRedirects } from "#shared/safe-fetch.ts";
 import {
   addMonthsToRenewalDeadline,
   assignAndNotifyBuiltSites,
@@ -25,7 +25,7 @@ import {
   type DayPrices,
   isPaidListing,
 } from "#shared/types.ts";
-import { isSafeWebhookUrl } from "#shared/url-safety.ts";
+import { isSafeServerFetchUrl } from "#shared/url-safety.ts";
 
 /** Single ticket in the webhook payload */
 export type WebhookTicket = {
@@ -131,7 +131,7 @@ export const sendWebhook = async (
 ): Promise<void> => {
   // Defense-in-depth against SSRF: never fetch an internal/non-https URL, even
   // if one was stored before write-time validation existed.
-  if (!isSafeWebhookUrl(webhookUrl)) {
+  if (!isSafeServerFetchUrl(webhookUrl)) {
     logError({
       code: ErrorCode.WEBHOOK_SEND,
       detail: "Refused to send webhook to an unsafe URL",
@@ -140,7 +140,7 @@ export const sendWebhook = async (
     return;
   }
   try {
-    const { ok, status } = await fetchText(webhookUrl, {
+    const { ok, status } = await fetchTextFollowingSafeRedirects(webhookUrl, {
       body: JSON.stringify(payload),
       headers: { "Content-Type": "application/json" },
       method: "POST",

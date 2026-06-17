@@ -122,5 +122,42 @@ describeWithEnv("server (admin settings: sms gateway)", { db: true }, () => {
       // Nothing persisted on a validation failure
       expect(settings.smsGatewayUsername).toBe("");
     });
+
+    test("rejects a plaintext http URL", async () => {
+      const { response } = await post({
+        sms_gateway_base_url: "http://sms.example.com",
+        sms_gateway_username: "user",
+      });
+
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Invalid server URL"),
+        false,
+      );
+    });
+
+    test("rejects localhost, internal hosts and IP addresses", async () => {
+      for (const url of [
+        "https://localhost",
+        "https://api.localhost",
+        "https://example.local",
+        "https://1.1.1.1",
+        "https://[::1]/",
+        "https://[::ffff:10.0.0.1]/",
+      ]) {
+        const { response } = await post({
+          sms_gateway_base_url: url,
+          sms_gateway_username: "user",
+        });
+
+        expect(response.status).toBe(302);
+        expectFlash(
+          response,
+          expect.stringContaining("Invalid server URL"),
+          false,
+        );
+      }
+    });
   });
 });
