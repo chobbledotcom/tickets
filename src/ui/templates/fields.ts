@@ -32,6 +32,7 @@ import {
   type ListingType,
   MAX_DURATION_DAYS,
 } from "#shared/types.ts";
+import { validateSafeServerFetchUrl } from "#shared/url-safety.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
 import { EmailFormatSchema } from "#shared/validation/email.ts";
 
@@ -165,126 +166,10 @@ export type InviteUserFormValues = {
 };
 
 /**
- * Validate URL is safe (https or relative path, no javascript: etc.)
+ * Validate a user-saved URL that must point at a public https:// domain.
  */
-const validateSafeUrl = (value: string): string | null => {
-  // Allow relative URLs starting with /
-  if (value.startsWith("/")) return null;
-
-  try {
-    const url = new URL(value);
-    if (url.protocol !== "https:") {
-      return t("fields.validation.url_https");
-    }
-    return null;
-  } catch {
-    return t("fields.validation.url_format");
-  }
-};
-
-/** True if the four IPv4 octets fall in a private/reserved range. */
-const isPrivateIPv4 = (a: number, b: number, c: number, d: number): boolean => {
-  // 127.0.0.0/8  (loopback)
-  if (a === 127) return true;
-  // 10.0.0.0/8   (private)
-  if (a === 10) return true;
-  // 172.16.0.0/12 (private)
-  if (a === 172 && b >= 16 && b <= 31) return true;
-  // 192.168.0.0/16 (private)
-  if (a === 192 && b === 168) return true;
-  // 169.254.0.0/16 (link-local — including cloud IMDS at 169.254.169.254)
-  if (a === 169 && b === 254) return true;
-  // 0.0.0.0/8
-  if (a === 0) return true;
-  // 255.255.255.255
-  if (a === 255 && b === 255 && c === 255 && d === 255) return true;
-  return false;
-};
-
-/**
- * Extract the IPv4 octets from an IPv4-mapped IPv6 address as normalized by
- * the URL parser (e.g. "[::ffff:7f00:1]" → [127, 0, 0, 1]). Returns null
- * for any string that isn't a well-formed ::ffff:<ipv4> form.
- */
-const extractMappedIPv4 = (
-  ipv6: string,
-): [number, number, number, number] | null => {
-  if (!ipv6.toLowerCase().startsWith("::ffff:")) return null;
-  // URL parser normalizes the embedded IPv4 to 1 or 2 hex groups
-  // (e.g. "7f00:1" for 127.0.0.1, "0" for 0.0.0.0).
-  const tail = ipv6.slice("::ffff:".length);
-  const groups = tail.split(":");
-  const hi = groups.length >= 2 ? Number.parseInt(groups[0]!, 16) : 0;
-  const lo = Number.parseInt(groups[groups.length - 1]!, 16);
-  return [(hi >> 8) & 0xff, hi & 0xff, (lo >> 8) & 0xff, lo & 0xff];
-};
-
-/**
- * Classify a bracketed-IPv6 hostname (without brackets) as private/internal.
- * Recognizes the unspecified/loopback, IPv4-mapped, link-local, and unique-
- * local ranges that the URL parser can hand us.
- */
-const isPrivateIPv6 = (ipv6: string): boolean => {
-  // :: (unspecified — equivalent to 0.0.0.0) and ::1 (loopback)
-  if (ipv6 === "::" || ipv6 === "::1") return true;
-  // IPv4-mapped IPv6 (::ffff:127.0.0.1 normalizes to [::ffff:7f00:1])
-  const mapped = extractMappedIPv4(ipv6);
-  if (mapped) return isPrivateIPv4(...mapped);
-  // fe80::/10 — link-local (first 10 bits: 1111111010 → first group 0xfe80..0xfebf)
-  // fc00::/7  — unique local (first 7 bits: 1111110  → first group 0xfc00..0xfdff)
-  // A short or empty first group (e.g. "1" of 1::, or "" of ::2) parses to a
-  // value below 0xfc00 — or to NaN, whose range comparisons are all false — so
-  // non-private addresses fall through to false with no explicit guard needed.
-  const n = Number.parseInt(ipv6.split(":")[0]!, 16);
-  return (n >= 0xfe80 && n <= 0xfebf) || (n >= 0xfc00 && n <= 0xfdff);
-};
-
-/** Check if a hostname is a private/internal IP or localhost */
-const isPrivateHostname = (hostname: string): boolean => {
-  if (hostname === "localhost") return true;
-
-  // IPv6 hostnames from the URL parser arrive wrapped in brackets.
-  if (hostname.startsWith("[") && hostname.endsWith("]")) {
-    return isPrivateIPv6(hostname.slice(1, -1));
-  }
-
-  const parts = hostname.split(".");
-  if (
-    parts.length === 4 &&
-    parts.every((p) => p !== "" && !Number.isNaN(Number(p)))
-  ) {
-    return isPrivateIPv4(
-      Number(parts[0]),
-      Number(parts[1]),
-      Number(parts[2]),
-      Number(parts[3]),
-    );
-  }
-
-  return false;
-};
-
-/**
- * Validate webhook URL — must be an externally routable HTTPS URL.
- * Rejects relative paths, localhost, and private IP ranges (SSRF protection).
- */
-const validateWebhookUrl = (value: string): string | null => {
-  // Reject relative URLs — webhook must be absolute and externally routable
-  if (value.startsWith("/")) return t("fields.validation.url_https");
-
-  try {
-    const url = new URL(value);
-    if (url.protocol !== "https:") {
-      return t("fields.validation.url_https");
-    }
-    if (isPrivateHostname(url.hostname)) {
-      return t("fields.validation.url_https");
-    }
-    return null;
-  } catch {
-    return t("fields.validation.url_format");
-  }
-};
+const validateHttpsDomainUrl = (value: string): string | null =>
+  validateSafeServerFetchUrl(value, t("fields.validation.url_https"));
 
 /**
  * Validate price is non-negative
@@ -625,7 +510,7 @@ export const getListingFields = (): Field[] => [
     name: "thank_you_url",
     placeholder: "https://example.com/thank-you",
     type: "url",
-    validate: validateSafeUrl,
+    validate: validateHttpsDomainUrl,
   },
   {
     hint: t("fields.listing.webhook_url_hint"),
@@ -633,7 +518,7 @@ export const getListingFields = (): Field[] => [
     name: "webhook_url",
     placeholder: "https://example.com/webhook",
     type: "url",
-    validate: validateWebhookUrl,
+    validate: validateHttpsDomainUrl,
   },
   {
     hint: t("fields.listing.non_transferable_hint"),
@@ -748,6 +633,7 @@ export const getBuiltSiteFields = (): Field[] => [
     placeholder: t("fields.built_site.bunny_url_placeholder"),
     required: true,
     type: "url",
+    validate: validateHttpsDomainUrl,
   },
   {
     label: t("fields.built_site.db_url"),

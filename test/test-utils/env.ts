@@ -2,6 +2,7 @@ import { lazyRef } from "#fp";
 import { setEncryptionKeyForTest } from "#shared/crypto/encryption.ts";
 import { setFastPbkdf2ForTest } from "#shared/crypto/hashing.ts";
 import { setRsaKeySizeForTest } from "#shared/crypto/keys.ts";
+import { setSettingsAuditEnabled } from "#shared/db/settings-audit.ts";
 import {
   setSuppressDebugLogs,
   setSuppressRequestLogs,
@@ -17,6 +18,8 @@ export const setupTestEncryptionKey = (): void => {
   setSuppressRequestLogs(true);
   setSuppressDebugLogs(true);
   setRethrowErrors(true);
+  // Prove every routed request declares the settings it reads (settings §2c).
+  setSettingsAuditEnabled(true);
 };
 
 export const clearTestEncryptionKey = (): void => {
@@ -27,6 +30,7 @@ export const clearTestEncryptionKey = (): void => {
   setSuppressRequestLogs(null);
   setSuppressDebugLogs(null);
   setRethrowErrors(null);
+  setSettingsAuditEnabled(null);
 };
 
 const _realGet = Deno.env.get.bind(Deno.env);
