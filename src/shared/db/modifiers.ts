@@ -150,11 +150,12 @@ export const resetModifierAggregateFields = async (
   modifierId: number,
   fields: ModifierAggregateField[],
 ): Promise<void> => {
+  const resetAssignments = fields
+    .map((field) => modifierAggregateResetSql[field])
+    .join(", ");
   await getDb().execute({
-    args: [...fields.map(() => modifierId), modifierId],
-    sql: `UPDATE modifiers SET ${fields
-      .map((field) => modifierAggregateResetSql[field])
-      .join(", ")} WHERE id = ?`,
+    args: Array.from({ length: fields.length + 1 }, () => modifierId),
+    sql: `UPDATE modifiers SET ${resetAssignments} WHERE id = ?`,
   });
 };
 
