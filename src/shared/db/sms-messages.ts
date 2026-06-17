@@ -48,6 +48,15 @@ export const getSmsMessageByProviderId = (
         [providerId],
       );
 
+/** Count messages still in flight (sent, awaiting a delivery/failure webhook). */
+export const countSmsMessages = async (): Promise<number> => {
+  const row = await queryOne<{ n: number }>(
+    "SELECT COUNT(*) AS n FROM sms_messages",
+    [],
+  );
+  return Number(row!.n);
+};
+
 /** Delete a row once its message reaches a terminal state. */
 export const deleteSmsMessage = (id: number): Promise<void> =>
   deleteByField("sms_messages", "id", id);

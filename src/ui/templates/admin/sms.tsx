@@ -1,5 +1,6 @@
 /**
- * Admin attendee "contact" page — send a text message via the SMS gateway.
+ * Admin SMS page — queue summary plus, when an attendee is targeted, a compose
+ * form and the conversation history.
  */
 
 import { joinStrings, map, pipe } from "#fp";
@@ -19,6 +20,14 @@ import { Layout } from "#templates/layout.tsx";
 export type SmsHistoryItem = {
   created: string;
   message: string;
+};
+
+type SmsPageOptions = {
+  configured: boolean;
+  queueCount: number;
+  flash: { success?: string; error?: string };
+  target?: { attendee: Attendee; listing: ListingWithCount };
+  history: SmsHistoryItem[];
 };
 
 const HistoryRow = ({ item }: { item: SmsHistoryItem }): string =>
@@ -53,36 +62,36 @@ const historyTable = (history: SmsHistoryItem[]): string =>
         </div>,
       );
 
-export const attendeeContactPage = (
-  { attendee, listing }: { attendee: Attendee; listing: ListingWithCount },
-  session: AdminSession,
-  history: SmsHistoryItem[],
-  opts: { configured: boolean; success?: string; error?: string },
-): string =>
+const ComposeForm = ({
+  attendee,
+  listing,
+  configured,
+  history,
+}: {
+  attendee: Attendee;
+  listing: ListingWithCount;
+  configured: boolean;
+  history: SmsHistoryItem[];
+}): string =>
   String(
-    <Layout title={t("sms.contact.title", { name: attendee.name })}>
-      <AdminNav active="/admin/" session={session} />
-      <Flash error={opts.error} success={opts.success} />
-
+    <>
       <p>
-        <a href={`/admin/listing/${listing.id}/attendee/${attendee.id}/edit`}>
-          {t("sms.contact.back")}
-        </a>
+        <a href={`/admin/attendees/${attendee.id}`}>{t("sms.contact.back")}</a>
       </p>
 
-      <h1>{t("sms.contact.heading", { name: attendee.name })}</h1>
+      <h2>{t("sms.contact.heading", { name: attendee.name })}</h2>
       <p>
         <strong>{t("sms.contact.phone_label")}</strong>{" "}
         {attendee.phone || t("sms.contact.no_phone")}
       </p>
 
-      {!opts.configured && <Raw html={t("sms.contact.not_configured")} />}
+      {!configured && <Raw html={t("sms.contact.not_configured")} />}
 
-      {attendee.phone && opts.configured && (
-        <CsrfForm
-          action={`/admin/listing/${listing.id}/attendee/${attendee.id}/contact`}
-        >
-          <h2>{t("sms.contact.compose_heading")}</h2>
+      {attendee.phone && configured && (
+        <CsrfForm action="/admin/sms">
+          <input name="listing" type="hidden" value={String(listing.id)} />
+          <input name="attendee" type="hidden" value={String(attendee.id)} />
+          <h3>{t("sms.contact.compose_heading")}</h3>
           <label for="sms-message">{t("sms.contact.message_label")}</label>
           <textarea
             id="sms-message"
@@ -95,7 +104,35 @@ export const attendeeContactPage = (
         </CsrfForm>
       )}
 
-      <h2>{t("sms.contact.history_heading")}</h2>
+      <h3>{t("sms.contact.history_heading")}</h3>
       <Raw html={historyTable(history)} />
+    </>,
+  );
+
+export const smsPage = (session: AdminSession, opts: SmsPageOptions): string =>
+  String(
+    <Layout
+      title={
+        opts.target
+          ? t("sms.contact.title", { name: opts.target.attendee.name })
+          : t("sms.page.title")
+      }
+    >
+      <AdminNav active="/admin/" session={session} />
+      <Flash error={opts.flash.error} success={opts.flash.success} />
+
+      <h1>{t("sms.page.title")}</h1>
+      <p>{t("sms.queue.awaiting", { count: opts.queueCount })}</p>
+
+      {opts.target && (
+        <Raw
+          html={ComposeForm({
+            attendee: opts.target.attendee,
+            configured: opts.configured,
+            history: opts.history,
+            listing: opts.target.listing,
+          })}
+        />
+      )}
     </Layout>,
   );

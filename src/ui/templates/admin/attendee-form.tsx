@@ -524,7 +524,7 @@ const AttendeeActions = ({ attendee }: { attendee: Attendee }): JSX.Element => {
           Re-send notification
         </ActionButton>
         <ActionButton
-          href={`${base}/contact`}
+          href={`/admin/sms?listing=${attendee.listing_id}&attendee=${attendee.id}`}
           icon="arrow-right"
           variant="secondary"
         >

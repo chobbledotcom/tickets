@@ -194,7 +194,7 @@ describeWithEnv("api > sms webhook", { db: true }, () => {
     });
     expect(res.status).toBe(200);
     const all = await getAllActivityLog();
-    expect(all.some((e) => e.message === "Text message received: ")).toBe(true);
+    expect(all.some((e) => e.message === "SMS received: ")).toBe(true);
   });
 
   test("failed for an unknown id is a no-op; a missing reason defaults", async () => {

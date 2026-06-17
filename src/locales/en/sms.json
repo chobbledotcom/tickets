@@ -13,6 +13,8 @@
   "sms.settings.webhook_secret": "Webhook signing secret (optional)",
   "sms.settings.webhook_secret_placeholder": "For delivery reports + replies",
   "sms.settings.webhook_note": "<p class=\"prose\">To receive delivery reports and replies, set this secret to match the app's webhook signing key and point the app's webhook at <code>/sms/webhook</code> on this site.</p>",
+  "sms.page.title": "Text messages",
+  "sms.queue.awaiting": "Messages awaiting delivery: {count}",
   "sms.contact.title": "Contact: {name}",
   "sms.contact.back": "← Back to attendee",
   "sms.contact.heading": "Contact {name}",

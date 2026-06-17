@@ -3,7 +3,10 @@ import { it } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { getAttendeeActivityLog } from "#shared/db/activityLog.ts";
 import { settings } from "#shared/db/settings.ts";
-import { getSmsMessageByProviderId } from "#shared/db/sms-messages.ts";
+import {
+  getSmsMessageByProviderId,
+  recordSmsMessage,
+} from "#shared/db/sms-messages.ts";
 import {
   adminFormPost,
   adminGet,
@@ -34,7 +37,8 @@ const setup = async (phone = PHONE) => {
   );
   return {
     attendee,
-    contactUrl: `/admin/listing/${listing.id}/attendee/${attendee.id}/contact`,
+    form: { attendee: String(attendee.id), listing: String(listing.id) },
+    smsUrl: `/admin/sms?listing=${listing.id}&attendee=${attendee.id}`,
   };
 };
 
@@ -43,16 +47,27 @@ const okFetch = () =>
     Promise.resolve(new Response('{"id":"msg-9"}', { status: 200 })),
   );
 
-const sentLog = async (attendeeId: number) =>
+const queuedLog = async (attendeeId: number) =>
   (await getAttendeeActivityLog(attendeeId)).some((e) =>
-    e.message.includes("Text message sent"),
+    e.message.includes("SMS queued"),
   );
 
-describeWithEnv("admin attendee contact", { db: true }, () => {
+describeWithEnv("admin sms", { db: true }, () => {
+  it("GET without a target shows the queue count", async () => {
+    await recordSmsMessage({ attendeeId: 1, listingId: 1, providerId: "a" });
+    await recordSmsMessage({ attendeeId: 1, listingId: 1, providerId: "b" });
+    const { response } = await adminGet("/admin/sms");
+    const html = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(html).toContain("Messages awaiting delivery: 2");
+    expect(html).not.toContain("Send a text message");
+  });
+
   it("GET shows the compose form when configured", async () => {
     await configureGateway();
-    const { contactUrl } = await setup();
-    const { response } = await adminGet(contactUrl);
+    const { smsUrl } = await setup();
+    const { response } = await adminGet(smsUrl);
     const html = await response.text();
 
     expect(response.status).toBe(200);
@@ -62,8 +77,8 @@ describeWithEnv("admin attendee contact", { db: true }, () => {
   });
 
   it("GET warns and hides the form when not configured", async () => {
-    const { contactUrl } = await setup();
-    const { response } = await adminGet(contactUrl);
+    const { smsUrl } = await setup();
+    const { response } = await adminGet(smsUrl);
     const html = await response.text();
 
     expect(html).toContain("not configured");
@@ -72,20 +87,26 @@ describeWithEnv("admin attendee contact", { db: true }, () => {
 
   it("GET shows '(none on file)' and no form when the attendee has no phone", async () => {
     await configureGateway();
-    const { contactUrl } = await setup("");
-    const { response } = await adminGet(contactUrl);
+    const { smsUrl } = await setup("");
+    const { response } = await adminGet(smsUrl);
     const html = await response.text();
 
     expect(html).toContain("(none on file)");
     expect(html).not.toContain("Send a text message");
   });
 
-  it("POST sends a text: records the id→attendee map and logs the message", async () => {
+  it("GET returns 404 for an unknown attendee", async () => {
+    const { response } = await adminGet("/admin/sms?listing=1&attendee=999");
+    expect(response.status).toBe(404);
+  });
+
+  it("POST queues a text: records the id→attendee map and logs it", async () => {
     await configureGateway();
-    const { attendee, contactUrl } = await setup();
+    const { attendee, form } = await setup();
     const fetchStub = okFetch();
     try {
-      const { response } = await adminFormPost(contactUrl, {
+      const { response } = await adminFormPost("/admin/sms", {
+        ...form,
         message: "Hello Jane",
       });
       expect(response.status).toBe(302);
@@ -99,75 +120,89 @@ describeWithEnv("admin attendee contact", { db: true }, () => {
 
     const log = await getAttendeeActivityLog(attendee.id);
     expect(
-      log.some((e) => e.message.includes("sent to Jane Doe: Hello Jane")),
+      log.some((e) => e.message.includes("queued for Jane Doe: Hello Jane")),
     ).toBe(true);
   });
 
   it("POST on a gateway error logs the failure and records no row", async () => {
     await configureGateway();
-    const { attendee, contactUrl } = await setup();
+    const { attendee, form } = await setup();
     const fetchStub = stub(globalThis, "fetch", () =>
       Promise.resolve(new Response("boom", { status: 500 })),
     );
     try {
-      await adminFormPost(contactUrl, { message: "Hi" });
+      await adminFormPost("/admin/sms", { ...form, message: "Hi" });
     } finally {
       fetchStub.restore();
     }
 
     const log = await getAttendeeActivityLog(attendee.id);
-    expect(log.some((e) => e.message.includes("failed to send"))).toBe(true);
-    expect(await sentLog(attendee.id)).toBe(false);
+    expect(log.some((e) => e.message.includes("could not be queued"))).toBe(
+      true,
+    );
+    expect(await queuedLog(attendee.id)).toBe(false);
   });
 
   it("POST rejects an empty message", async () => {
     await configureGateway();
-    const { attendee, contactUrl } = await setup();
-    await adminFormPost(contactUrl, { message: "   " });
-    expect(await sentLog(attendee.id)).toBe(false);
+    const { attendee, form } = await setup();
+    await adminFormPost("/admin/sms", { ...form, message: "   " });
+    expect(await queuedLog(attendee.id)).toBe(false);
   });
 
   it("POST refuses to send when the gateway is unconfigured", async () => {
-    const { attendee, contactUrl } = await setup();
-    await adminFormPost(contactUrl, { message: "Hi" });
-    expect(await sentLog(attendee.id)).toBe(false);
+    const { attendee, form } = await setup();
+    await adminFormPost("/admin/sms", { ...form, message: "Hi" });
+    expect(await queuedLog(attendee.id)).toBe(false);
   });
 
   it("POST refuses when the attendee has no phone number", async () => {
     await configureGateway();
-    const { attendee, contactUrl } = await setup("");
-    await adminFormPost(contactUrl, { message: "Hi" });
-    expect(await sentLog(attendee.id)).toBe(false);
+    const { attendee, form } = await setup("");
+    await adminFormPost("/admin/sms", { ...form, message: "Hi" });
+    expect(await queuedLog(attendee.id)).toBe(false);
+  });
+
+  it("POST 404s for an unknown attendee", async () => {
+    const { response } = await adminFormPost("/admin/sms", {
+      attendee: "999",
+      listing: "1",
+      message: "Hi",
+    });
+    expect(response.status).toBe(404);
   });
 
   it("GET renders the conversation history from the activity log", async () => {
     await configureGateway();
-    const { contactUrl } = await setup();
+    const { smsUrl, form } = await setup();
     const fetchStub = okFetch();
     try {
-      await adminFormPost(contactUrl, { message: "History line" });
+      await adminFormPost("/admin/sms", { ...form, message: "History line" });
     } finally {
       fetchStub.restore();
     }
 
-    const { response } = await adminGet(contactUrl);
+    const { response } = await adminGet(smsUrl);
     const html = await response.text();
     expect(html).toContain("History line");
   });
 
   it("GET still shows history (and the warning) when unconfigured", async () => {
     await configureGateway();
-    const { contactUrl } = await setup();
+    const { smsUrl, form } = await setup();
     const fetchStub = okFetch();
     try {
-      await adminFormPost(contactUrl, { message: "Earlier message" });
+      await adminFormPost("/admin/sms", {
+        ...form,
+        message: "Earlier message",
+      });
     } finally {
       fetchStub.restore();
     }
     // Remove the passphrase so the gateway reads as unconfigured
     await settings.update.smsGatewayPassphrase("");
 
-    const { response } = await adminGet(contactUrl);
+    const { response } = await adminGet(smsUrl);
     const html = await response.text();
     expect(html).toContain("not configured");
     expect(html).toContain("Earlier message");

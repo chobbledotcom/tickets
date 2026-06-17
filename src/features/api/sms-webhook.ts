@@ -95,8 +95,8 @@ const handleStatus = (
   withReferencedRow(payload, async (row) => {
     const note =
       event === "sms:delivered"
-        ? "Text message delivered"
-        : `Text message failed: ${str(payload.reason) || "unknown"}`;
+        ? "SMS delivered"
+        : `SMS failed: ${str(payload.reason) || "unknown"}`;
     await logActivity(note, row.listing_id, row.attendee_id);
     await deleteSmsMessage(row.id);
   });
@@ -110,7 +110,7 @@ const handleReceived = async (
   const attendeeId = await findAttendeeIdByPhoneIndex(
     await computePhoneIndex(sender),
   );
-  await logActivity(`Text message received: ${message}`, null, attendeeId);
+  await logActivity(`SMS received: ${message}`, null, attendeeId);
 };
 
 /** Handle POST /sms/webhook */

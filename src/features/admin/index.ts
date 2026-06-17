@@ -9,7 +9,6 @@
 
 import { reduce } from "#fp";
 import { apiKeysRoutes } from "#routes/admin/api-keys.ts";
-import { attendeeContactRoutes } from "#routes/admin/attendee-contact.ts";
 import { attendeeRefundRoutes } from "#routes/admin/attendee-refunds.ts";
 import { attendeesRoutes } from "#routes/admin/attendees.ts";
 import { authRoutes } from "#routes/admin/auth.ts";
@@ -37,6 +36,7 @@ import { settingsRoutes } from "#routes/admin/settings.ts";
 import { logisticsRoutes } from "#routes/admin/settings-logistics.ts";
 import { attendeeStatusesRoutes } from "#routes/admin/settings-statuses.ts";
 import { siteRoutes } from "#routes/admin/site.ts";
+import { smsRoutes } from "#routes/admin/sms.ts";
 import { supportRoutes } from "#routes/admin/support.ts";
 import { updateRoutes } from "#routes/admin/update.ts";
 import { usersRoutes } from "#routes/admin/users.ts";
@@ -62,7 +62,7 @@ const adminRouteModules: Record<string, RouteHandlerFn>[] = [
   listingQrRoutes,
   markdownPreviewRoutes,
   attendeesRoutes,
-  attendeeContactRoutes,
+  smsRoutes,
   attendeeRefundRoutes,
   usersRoutes,
   guideRoutes,
