@@ -104,22 +104,3 @@ export const reservationDepositPerUnit = (
         ? toMinorUnits(parsed.value)
         : Math.round(toMinorUnits(parsed.value) / Math.max(1, totalQuantity)),
   );
-
-/**
- * Re-derive the deposit (minor units) charged for one booking line from its
- * metadata, given the full line price `fullLinePrice` (unit price × quantity),
- * the line `quantity`, and the order's `totalQuantity`. Mirrors the per-unit
- * deposit charged at checkout so the webhook validates the same number and can
- * compute the remaining balance.
- */
-export const reservationDepositForLine = (
-  raw: string,
-  fullLinePrice: number,
-  quantity: number,
-  totalQuantity: number,
-): number =>
-  reservationDepositPerUnit(
-    raw,
-    fullLinePrice / Math.max(1, quantity),
-    totalQuantity,
-  ) * quantity;

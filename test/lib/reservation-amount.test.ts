@@ -4,7 +4,6 @@ import {
   computeReservationDeposit,
   parseReservationAmount,
   RESERVATION_AMOUNT_HINT,
-  reservationDepositForLine,
   reservationDepositPerUnit,
   validateReservationAmount,
 } from "#shared/reservation-amount.ts";
@@ -208,27 +207,5 @@ describe("reservation-amount", () => {
     testWithSetting("malformed amount yields zero", { currency: "GBP" }, () => {
       expect(reservationDepositPerUnit("nope", 1000, 1)).toBe(0);
     });
-  });
-
-  describe("reservationDepositForLine", () => {
-    // A line's deposit re-derived from its full line price (unit × quantity).
-    testWithSetting(
-      "scales the per-unit deposit by quantity",
-      { currency: "GBP" },
-      () => {
-        // £10.00 unit × 2 = £20.00 line; 10% per unit = £1.00 × 2 = £2.00.
-        expect(reservationDepositForLine("10%", 2000, 2, 4)).toBe(200);
-      },
-    );
-
-    testWithSetting(
-      "matches a per-unit charge times the quantity",
-      { currency: "GBP" },
-      () => {
-        // Flat "20" over 4 units = £5.00/unit; this line has 2 of them.
-        const perUnit = reservationDepositPerUnit("20", 1000, 4);
-        expect(reservationDepositForLine("20", 2000, 2, 4)).toBe(perUnit * 2);
-      },
-    );
   });
 });

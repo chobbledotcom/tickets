@@ -55,6 +55,7 @@ export type OrderLine = {
 export type OrderSummary = {
   lines: OrderLine[];
   fullPrice: number;
+  listedFullPrice: number;
   totalQuantity: number;
   depositPaid: number;
 };
@@ -95,10 +96,14 @@ export const getAttendeeOrderSummary = async (
   );
 
   const depositPaid = sumOf((l: OrderLine) => l.pricePaid)(lines);
+  const listedFullPrice = sumOf((l: OrderLine) => l.unitPrice * l.quantity)(
+    lines,
+  );
   return {
     depositPaid,
     fullPrice: depositPaid + (state?.remainingBalance ?? 0),
     lines,
+    listedFullPrice,
     totalQuantity: sumOf((l: OrderLine) => l.quantity)(lines),
   };
 };

@@ -414,6 +414,7 @@ export const attendeeBalanceNotice = (
   remainingBalance: number,
   fullPrice: number,
   amountPaid: number,
+  listedFullPrice = fullPrice,
 ): BalanceNotice | null => {
   if (!status) return null;
   if (status.is_paid_default) {
@@ -427,7 +428,7 @@ export const attendeeBalanceNotice = (
       : null;
   }
   if (status.is_reservation && remainingBalance <= 0) {
-    const owed = fullPrice - amountPaid;
+    const owed = Math.max(fullPrice, listedFullPrice) - amountPaid;
     if (owed > 0) {
       return {
         message: `This reservation has no balance recorded, but ${formatCurrency(

@@ -95,8 +95,9 @@ const startStripeMock = async (): Promise<Deno.ChildProcess | null> => {
   });
   const process = cmd.spawn();
 
-  // Wait for it to be ready
-  for (let i = 0; i < 30; i++) {
+  // Wait for it to be ready. On busy machines or immediately after a previous
+  // run shuts down, stripe-mock can take longer than a few seconds to bind.
+  for (let i = 0; i < 100; i++) {
     if (await isStripeMockRunning()) {
       console.log("stripe-mock started");
       return process;
@@ -104,6 +105,12 @@ const startStripeMock = async (): Promise<Deno.ChildProcess | null> => {
     await new Promise((r) => setTimeout(r, 100));
   }
 
+  try {
+    process.kill();
+  } catch {
+    // It may already have exited.
+  }
+  await process.status.catch(() => undefined);
   throw new Error("stripe-mock failed to start");
 };
 
@@ -209,7 +216,12 @@ export const withTestHarness = async <T>(
   } finally {
     if (stripeMockProcess) {
       console.log("Stopping stripe-mock...");
-      stripeMockProcess.kill();
+      try {
+        stripeMockProcess.kill();
+      } catch {
+        // It may already have exited.
+      }
+      await stripeMockProcess.status.catch(() => undefined);
     }
     await cleanupStaticAssets();
   }
