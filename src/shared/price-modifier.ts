@@ -30,7 +30,12 @@ export type ModifierTrigger = "automatic" | "code" | "optional";
 
 /** Which cart items a modifier is charged on: the whole order, specific
  * listings, or every listing in specific groups. */
-export type ModifierScope = "all" | "listings" | "groups";
+export const ModifierScopeSchema = v.picklist(["all", "listings", "groups"]);
+export type ModifierScope = v.InferOutput<typeof ModifierScopeSchema>;
+
+/** Type guard: is the string a valid modifier scope? */
+export const isModifierScope = (value: string): value is ModifierScope =>
+  v.is(ModifierScopeSchema, value);
 
 /** Type guard: is the string a valid calc kind? */
 export const isCalcKind = (value: string): value is CalcKind =>

@@ -20,6 +20,51 @@ import { ActionButton, SubmitButton } from "#templates/components/actions.tsx";
 import { modifierFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
+/** Candidate listings/groups and current links for the scope editor. */
+export type ScopeLinks = {
+  kind: "listings" | "groups";
+  options: { id: number; name: string }[];
+  selected: number[];
+};
+
+/** The listing/group link editor shown on the edit page for a scoped modifier. */
+const ScopeLinksForm = ({
+  modifier,
+  links,
+}: {
+  modifier: Modifier;
+  links: ScopeLinks;
+}): JSX.Element => {
+  const field = links.kind === "listings" ? "listing_ids" : "group_ids";
+  const heading =
+    links.kind === "listings"
+      ? t("modifiers.scope.listings_heading")
+      : t("modifiers.scope.groups_heading");
+  return (
+    <CsrfForm action={`/admin/modifiers/${modifier.id}/links`}>
+      <h2>{heading}</h2>
+      {links.options.length === 0 ? (
+        <p>{t("modifiers.scope.none")}</p>
+      ) : (
+        <fieldset class="checkboxes">
+          {links.options.map((o) => (
+            <label>
+              <input
+                checked={links.selected.includes(o.id) || undefined}
+                name={field}
+                type="checkbox"
+                value={String(o.id)}
+              />
+              {` ${o.name}`}
+            </label>
+          ))}
+        </fieldset>
+      )}
+      <SubmitButton icon="save">{t("modifiers.scope.save")}</SubmitButton>
+    </CsrfForm>
+  );
+};
+
 /** Human-readable summary of a modifier's rule, e.g. "Discount · 10%". */
 const ruleSummary = (m: Modifier): string => {
   const value = String(m.calc_value);
@@ -115,11 +160,13 @@ export const adminModifierNewPage = (
     </Layout>,
   );
 
-/** Admin modifier edit page */
+/** Admin modifier edit page. `links` carries the scope editor for a
+ * listing/group-scoped modifier (null for a whole-order modifier). */
 export const adminModifierEditPage = (
   modifier: Modifier,
   session: AdminSession,
   error?: string,
+  links?: ScopeLinks | null,
 ): string =>
   String(
     <Layout title={t("modifiers.edit.heading")}>
@@ -132,6 +179,7 @@ export const adminModifierEditPage = (
         />
         <SubmitButton icon="save">{t("common.save_changes")}</SubmitButton>
       </CsrfForm>
+      {links && <ScopeLinksForm links={links} modifier={modifier} />}
       <p class="actions">
         <a class="danger" href={`/admin/modifiers/${modifier.id}/delete`}>
           {t("modifiers.delete.submit")}
