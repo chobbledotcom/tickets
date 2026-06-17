@@ -75,6 +75,7 @@ import {
   type CheckoutIntent,
   getActivePaymentProvider,
   type ModifierRef,
+  type ModifierSpec,
   type ValidatedPaymentSession,
   type WebhookEvent,
 } from "#shared/payments.ts";
@@ -571,6 +572,7 @@ const verifyPaidPricing = async (
   session: ValidatedPaymentSession,
   intent: BookingIntent,
   validatedItems: ValidatedItem[],
+  modifierSpecs: ModifierSpec[],
 ): Promise<PaymentResult | null> => {
   const hasPaidItems = intent.items.some((item) => item.p > 0);
   if (!hasPaidItems) return null;
@@ -600,7 +602,7 @@ const verifyPaidPricing = async (
       slug: v.listing.slug,
       unitPrice: v.item.p / v.item.q,
     })),
-    modifiers: await specsFromRefs(intent.modifiers),
+    modifiers: modifierSpecs,
     name: intent.name,
     phone: intent.phone,
     special_instructions: intent.special_instructions,
@@ -636,6 +638,7 @@ const createAttendeeForSession = async (
   session: ValidatedPaymentSession,
   intent: BookingIntent,
   validatedItems: ValidatedItem[],
+  modifierSpecs: ModifierSpec[],
 ): Promise<{ ok: true; entries: CreatedEntry[] } | PaymentResult> => {
   // A reservation charges only the per-line deposit up front; the rest of the
   // full order price is recorded as the attendee's outstanding balance.
@@ -679,14 +682,16 @@ const createAttendeeForSession = async (
   const created = result as Extract<typeof result, { success: true }>;
 
   // Consume modifier stock atomically; a sold-out race rolls the order back.
-  const modifierSpecs = await specsFromRefs(intent.modifiers);
+  // amount_applied is recorded against the order subtotal — the same base the
+  // pricing engine uses for today's whole-order ("all" scope) modifiers. When
+  // listing/group-scoped modifiers become creatable, this should use the
+  // in-scope subtotal to stay exact.
   if (modifierSpecs.length > 0) {
     const attendeeId = created.attendees[0]!.id;
-    const subtotal = sumOf((v: ValidatedItem) => v.item.p)(validatedItems);
     const consumed = await consumeModifierStock(
       attendeeId,
       modifierSpecs.map((s) => ({
-        amountApplied: Math.abs(modifierDelta(subtotal, s.kind, s.value)),
+        amountApplied: Math.abs(modifierDelta(fullTotal, s.kind, s.value)),
         modifierId: s.id,
         quantity: s.quantity,
       })),
@@ -809,13 +814,23 @@ const processReservedSession = async (
   if ("success" in validated) return validated;
   const validatedItems = validated.items;
 
-  const pricingError = await verifyPaidPricing(session, intent, validatedItems);
+  // Resolve the applied modifiers once (re-fetched by id from the database);
+  // both the price re-derivation and the stock consumption use the same specs.
+  const modifierSpecs = await specsFromRefs(intent.modifiers);
+
+  const pricingError = await verifyPaidPricing(
+    session,
+    intent,
+    validatedItems,
+    modifierSpecs,
+  );
   if (pricingError) return pricingError;
 
   const created = await createAttendeeForSession(
     session,
     intent,
     validatedItems,
+    modifierSpecs,
   );
   if ("success" in created) return created;
   const createdEntries = created.entries;

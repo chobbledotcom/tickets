@@ -8,7 +8,7 @@
  * rebuilds the same specs, so provider metadata amounts are never trusted.
  */
 
-import { sumOf } from "#fp";
+import { itemsSubtotal } from "#shared/booking-fee.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
 import {
@@ -63,29 +63,18 @@ const inScopeSubtotal = (
   items: CheckoutItem[],
   listingIds: number[] | null,
 ): number =>
-  sumOf((i: CheckoutItem) => i.unitPrice * i.quantity)(
+  itemsSubtotal(
     listingIds === null
       ? items
       : items.filter((i) => listingIds.includes(i.listingId)),
   );
 
-/** Resolve a modifier against a cart into a spec, or null when it does not
- * apply (scoped to items not present, below its minimum, or out of stock). */
-const resolveOne = async (
-  modifier: Modifier,
-  items: CheckoutItem[],
-): Promise<ModifierSpec | null> => {
-  const listingIds = await listingIdsFor(modifier);
-  const base = inScopeSubtotal(items, listingIds);
-  // A scoped modifier only applies alongside its listings/groups.
-  if (listingIds !== null && base === 0) return null;
-  if (base < modifier.min_subtotal) return null;
-  if (modifier.stock !== null) {
-    const used = await modifierUsedQuantities([modifier.id]);
-    if (modifier.stock - (used.get(modifier.id) ?? 0) < 1) return null;
-  }
-  return toSpec(modifier, 1, listingIds);
-};
+/** A modifier eligible by scope and minimum subtotal (stock checked after). */
+type Candidate = { modifier: Modifier; listingIds: number[] | null };
+
+/** Whether a stock-limited modifier still has a unit left. */
+const hasStock = (modifier: Modifier, used: Map<number, number>): boolean =>
+  modifier.stock === null || modifier.stock - (used.get(modifier.id) ?? 0) >= 1;
 
 /**
  * The modifiers that automatically apply to a cart: active, automatic, in
@@ -97,10 +86,27 @@ export const resolveModifiers = async (
   const automatic = (await getActiveModifiers()).filter(
     (m) => m.trigger === "automatic",
   );
-  const resolved = await Promise.all(
-    automatic.map((m) => resolveOne(m, items)),
+  const candidates = (
+    await Promise.all(
+      automatic.map(async (modifier): Promise<Candidate | null> => {
+        const listingIds = await listingIdsFor(modifier);
+        const base = inScopeSubtotal(items, listingIds);
+        // A scoped modifier only applies alongside its listings/groups.
+        if (listingIds !== null && base === 0) return null;
+        return base >= modifier.min_subtotal ? { listingIds, modifier } : null;
+      }),
+    )
+  ).filter((c): c is Candidate => c !== null);
+
+  // One batched usage lookup for every stock-limited candidate.
+  const used = await modifierUsedQuantities(
+    candidates
+      .filter((c) => c.modifier.stock !== null)
+      .map((c) => c.modifier.id),
   );
-  return resolved.filter((s): s is ModifierSpec => s !== null);
+  return candidates
+    .filter((c) => hasStock(c.modifier, used))
+    .map((c) => toSpec(c.modifier, 1, c.listingIds));
 };
 
 /**
