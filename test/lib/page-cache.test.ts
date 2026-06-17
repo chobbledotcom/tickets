@@ -4,6 +4,7 @@ import { FakeTime } from "@std/testing/time";
 import { encrypt } from "#shared/crypto/encryption.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
+  ALL_SETTINGS_KEYS,
   CONFIG_KEYS,
   SETTINGS_CACHE_TTL_MS,
   settings,
@@ -135,7 +136,7 @@ describeWithEnv("page content cache", { db: true }, () => {
       // Advance past TTL
       fakeTime!.now = startTime + SETTINGS_CACHE_TTL_MS + 1;
       // Cache expired — loadAll() re-fetches from DB and picks up new value
-      await settings.loadAll();
+      await settings.loadKeys(ALL_SETTINGS_KEYS);
       expect(settings.terms).toBe("Changed");
     });
 
@@ -179,7 +180,7 @@ describeWithEnv("page content cache", { db: true }, () => {
 
       // Clear all and reload
       settings.invalidateCache();
-      await settings.loadAll();
+      await settings.loadKeys(ALL_SETTINGS_KEYS);
 
       // Values should still be correct (reloaded from DB)
       expectAllPages();
@@ -194,7 +195,7 @@ describeWithEnv("page content cache", { db: true }, () => {
 
       // invalidateCache clears the snapshot; loadAll re-populates
       settings.invalidateCache();
-      await settings.loadAll();
+      await settings.loadKeys(ALL_SETTINGS_KEYS);
 
       // Returns correct value after reload
       expect(settings.websiteTitle).toBe("Title");
@@ -207,7 +208,7 @@ describeWithEnv("page content cache", { db: true }, () => {
 
       // Load settings to populate cache
       const { settings: s } = await import("#shared/db/settings.ts");
-      await s.loadAll();
+      await s.loadKeys(ALL_SETTINGS_KEYS);
 
       const before = getAllCacheStats().find((s) => s.name === "settings");
       expect(before!.entries).toBeGreaterThan(0);
