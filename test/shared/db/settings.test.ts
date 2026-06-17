@@ -2,7 +2,11 @@ import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { encrypt } from "#shared/crypto/encryption.ts";
 import { getDb } from "#shared/db/client.ts";
-import { ALL_SETTINGS_KEYS, CONFIG_KEYS, settings } from "#shared/db/settings.ts";
+import {
+  ALL_SETTINGS_KEYS,
+  CONFIG_KEYS,
+  settings,
+} from "#shared/db/settings.ts";
 import { getUserByUsername, verifyUserPassword } from "#shared/db/users.ts";
 import {
   describeWithEnv,

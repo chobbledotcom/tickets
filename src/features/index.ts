@@ -53,7 +53,7 @@ import {
   enableQueryLog,
   runWithQueryLogContext,
 } from "#shared/db/query-log.ts";
-import { CONFIG_KEYS, settings, SNAPSHOT_KEYS } from "#shared/db/settings.ts";
+import { CONFIG_KEYS, SNAPSHOT_KEYS, settings } from "#shared/db/settings.ts";
 import { isReadOnly } from "#shared/env.ts";
 import {
   hasFlash,
@@ -275,31 +275,35 @@ const ADMIN_SETTINGS_BUNDLE: readonly string[] = [
 /** Per-prefix settings bundle. Every prefix in prefixHandlers must be listed. */
 const PREFIX_SETTINGS: Record<string, readonly string[]> = {
   // --- Migrated public pages (small focused bundles) ---
-  "": [...PUBLIC_LAYOUT_SETTINGS, CONFIG_KEYS.HOMEPAGE_TEXT, CONFIG_KEYS.COUNTRY],
-  listings: [...PUBLIC_LAYOUT_SETTINGS, CONFIG_KEYS.COUNTRY],
-  terms: PUBLIC_LAYOUT_SETTINGS,
-  contact: [...PUBLIC_LAYOUT_SETTINGS, CONFIG_KEYS.COUNTRY],
-  events: PUBLIC_LAYOUT_SETTINGS,
-  "read-only": INFRA_SETTINGS,
-  // --- Setup path (only needs infra; routes handle their own loads) ---
-  setup: INFRA_SETTINGS,
+  "": [
+    ...PUBLIC_LAYOUT_SETTINGS,
+    CONFIG_KEYS.HOMEPAGE_TEXT,
+    CONFIG_KEYS.COUNTRY,
+  ],
   // --- Admin ---
   admin: ADMIN_SETTINGS_BUNDLE,
   // --- All remaining routes get the full bundle ---
   api: FULL_SETTINGS_BUNDLE,
   attachment: FULL_SETTINGS_BUNDLE,
   checkin: FULL_SETTINGS_BUNDLE,
+  contact: [...PUBLIC_LAYOUT_SETTINGS, CONFIG_KEYS.COUNTRY],
   demo: FULL_SETTINGS_BUNDLE,
+  events: PUBLIC_LAYOUT_SETTINGS,
   feeds: FULL_SETTINGS_BUNDLE,
   gwallet: FULL_SETTINGS_BUNDLE,
   image: FULL_SETTINGS_BUNDLE,
   join: FULL_SETTINGS_BUNDLE,
+  listings: [...PUBLIC_LAYOUT_SETTINGS, CONFIG_KEYS.COUNTRY],
   order: FULL_SETTINGS_BUNDLE,
   pay: FULL_SETTINGS_BUNDLE,
   payment: FULL_SETTINGS_BUNDLE,
+  "read-only": INFRA_SETTINGS,
   renew: FULL_SETTINGS_BUNDLE,
+  // --- Setup path (only needs infra; routes handle their own loads) ---
+  setup: INFRA_SETTINGS,
   sms: FULL_SETTINGS_BUNDLE,
   t: FULL_SETTINGS_BUNDLE,
+  terms: PUBLIC_LAYOUT_SETTINGS,
   ticket: FULL_SETTINGS_BUNDLE,
   unsubscribe: FULL_SETTINGS_BUNDLE,
   v1: FULL_SETTINGS_BUNDLE,
