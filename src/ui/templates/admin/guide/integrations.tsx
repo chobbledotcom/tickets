@@ -77,7 +77,9 @@ export const Integrations = (): JSX.Element => (
           <li>
             Install the{" "}
             <a href="https://sms-gate.app">SMS Gateway for Android</a> app on a
-            phone and register for the free cloud account it offers.
+            phone and register for the free cloud account it offers. The app
+            then shows you a <strong>username and password</strong> for that
+            cloud account.
           </li>
           <li>
             In the app, enable <strong>end-to-end encryption</strong> and set a
@@ -88,8 +90,10 @@ export const Integrations = (): JSX.Element => (
             <a href="/admin/settings-advanced#settings-sms-gateway">
               Advanced Settings &rarr; SMS Gateway
             </a>
-            , enter the app's API username and password, and the{" "}
-            <strong>same passphrase</strong> you set on the phone.
+            , enter that username and password from the phone app (these are the
+            app's own credentials, not your login here or this site's API keys),
+            along with the <strong>same passphrase</strong> you set on the
+            phone.
           </li>
           <li>
             Open any attendee and choose <strong>Send Text</strong> to message
