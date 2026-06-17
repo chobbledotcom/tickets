@@ -3,8 +3,8 @@ import { executeBatch, getDb, queryBatchPrimary } from "#shared/db/client.ts";
 import { logDebug } from "#shared/logger.ts";
 import {
   APP_SCHEMA,
-  SCHEMA,
   type Index,
+  SCHEMA,
   type Table,
   TRIGGERS,
 } from "./schema.ts";
@@ -27,7 +27,9 @@ export const runMigration = async (sql: string): Promise<void> => {
 };
 
 /** Get the set of existing column names for a table */
-export const getExistingColumns = async (table: string): Promise<Set<string>> => {
+export const getExistingColumns = async (
+  table: string,
+): Promise<Set<string>> => {
   const result = await getDb().execute(`PRAGMA table_info(${table})`);
   return new Set(result.rows.map((row) => String(row.name)));
 };
@@ -467,4 +469,3 @@ export const syncCurrentSchema = async (
   logDebug("Migration", "Step 7: backfilling modifier aggregates...");
   await backfillModifierAggregates();
 };
-

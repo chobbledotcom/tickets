@@ -102,7 +102,9 @@ export const adminBuiltSitesPage = (
           {t("built_sites.build_new_site")}
         </ActionButton>
       </p>
-      {sites.length === 0 ? <p>{t("built_sites.no_built_sites")}</p> : (
+      {sites.length === 0 ? (
+        <p>{t("built_sites.no_built_sites")}</p>
+      ) : (
         <div>
           <div class="table-scroll">
             <table>
@@ -130,11 +132,11 @@ export const adminBuiltSitesPage = (
                     <td>
                       {site.assignedAttendeeId
                         ? t("built_sites.status_assigned", {
-                          id: site.assignedAttendeeId,
-                        })
+                            id: site.assignedAttendeeId,
+                          })
                         : site.assignable
-                        ? t("built_sites.status_available")
-                        : t("built_sites.status_not_assignable")}
+                          ? t("built_sites.status_available")
+                          : t("built_sites.status_not_assignable")}
                     </td>
                     <td>{formatDeadlineLabel(site.readOnlyFrom)}</td>
                   </tr>
@@ -231,9 +233,9 @@ const BumpDeadlineForm = ({
   inputId,
 }: DeadlineFormProps): JSX.Element => (
   <SiteActionForm action="bump-deadline" siteId={site.id}>
-    {inputId
-      ? <label for={inputId}>{t("built_sites.bump_deadline_label")}</label>
-      : null}
+    {inputId ? (
+      <label for={inputId}>{t("built_sites.bump_deadline_label")}</label>
+    ) : null}
     <MonthsInput id={inputId} />
     <SubmitButton icon="save">
       {t("built_sites.bump_deadline_button")}
@@ -250,9 +252,9 @@ const OverrideDeadlineForm = ({
   inputId,
 }: DeadlineFormProps): JSX.Element => (
   <SiteActionForm action="override-deadline" siteId={site.id}>
-    {inputId
-      ? <label for={inputId}>{t("built_sites.override_deadline_label")}</label>
-      : null}
+    {inputId ? (
+      <label for={inputId}>{t("built_sites.override_deadline_label")}</label>
+    ) : null}
     <input id={inputId} name="date" type="date" />
     <SubmitButton icon="save">
       {t("built_sites.override_deadline_button")}
@@ -269,9 +271,9 @@ const ProvisionedPanel = ({ site }: { site: BuiltSite }): JSX.Element => {
         {formatDeadlineLabel(site.readOnlyFrom)}
         {site.readOnlyFrom && (
           <Raw
-            html={`<details><summary>${
-              t("built_sites.raw_iso")
-            }</summary><code>${site.readOnlyFrom}</code></details>`}
+            html={`<details><summary>${t(
+              "built_sites.raw_iso",
+            )}</summary><code>${site.readOnlyFrom}</code></details>`}
           />
         )}
       </p>
@@ -363,37 +365,33 @@ const SecretsPanel = ({
           })}
         />
       </p>
-      {view.missing.length === 0
-        ? (
-          <output class="success">
-            {t("built_sites.all_secrets_present")}
-          </output>
-        )
-        : (
-          <SiteActionForm action="add-secrets" siteId={site.id}>
-            <p>{t("built_sites.missing_secrets")}</p>
-            <ul>
-              {view.missing.map((name) => (
-                <li>
-                  <code>{name}</code>
-                </li>
-              ))}
-            </ul>
-            {infraMissing.length > 0 && (
-              <p role="note">
-                <strong>{t("built_sites.infra_secrets_heading")}</strong>{" "}
-                {t("built_sites.infra_secrets_note", {
-                  names: infraMissing.join(", "),
-                })}
-              </p>
-            )}
-            <SubmitButton icon="plus">
-              {t("built_sites.set_missing_secrets", {
-                count: String(view.missing.length),
+      {view.missing.length === 0 ? (
+        <output class="success">{t("built_sites.all_secrets_present")}</output>
+      ) : (
+        <SiteActionForm action="add-secrets" siteId={site.id}>
+          <p>{t("built_sites.missing_secrets")}</p>
+          <ul>
+            {view.missing.map((name) => (
+              <li>
+                <code>{name}</code>
+              </li>
+            ))}
+          </ul>
+          {infraMissing.length > 0 && (
+            <p role="note">
+              <strong>{t("built_sites.infra_secrets_heading")}</strong>{" "}
+              {t("built_sites.infra_secrets_note", {
+                names: infraMissing.join(", "),
               })}
-            </SubmitButton>
-          </SiteActionForm>
-        )}
+            </p>
+          )}
+          <SubmitButton icon="plus">
+            {t("built_sites.set_missing_secrets", {
+              count: String(view.missing.length),
+            })}
+          </SubmitButton>
+        </SiteActionForm>
+      )}
       {view.present.length > 0 && (
         <details>
           <summary>{t("built_sites.secrets_on_site")}</summary>
@@ -438,9 +436,11 @@ export const adminBuiltSiteEditPage = (
       </CsrfForm>
 
       <h2>{t("built_sites.renewal_title")}</h2>
-      {provisioned
-        ? <ProvisionedPanel site={site} />
-        : <UnprovisionedPanel site={site} />}
+      {provisioned ? (
+        <ProvisionedPanel site={site} />
+      ) : (
+        <UnprovisionedPanel site={site} />
+      )}
 
       <h2>{t("built_sites.secrets_title")}</h2>
       <SecretsPanel site={site} view={secretsView} />

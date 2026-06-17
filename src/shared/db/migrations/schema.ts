@@ -845,9 +845,10 @@ const djb2 = (str: string): string => {
   return (hash >>> 0).toString(36);
 };
 
-export const APP_SCHEMA = SCHEMA.filter(([name]) => name !== SCHEMA_MIGRATIONS_TABLE);
+export const APP_SCHEMA = SCHEMA.filter(
+  ([name]) => name !== SCHEMA_MIGRATIONS_TABLE,
+);
 
 // Triggers join the hash input so changing a trigger's SQL re-runs migrations
 // even if no column/index changed (the same safety net columns already have).
 export const SCHEMA_HASH = djb2(JSON.stringify([APP_SCHEMA, TRIGGERS]));
-

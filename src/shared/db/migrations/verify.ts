@@ -1,9 +1,13 @@
-import type { AdditiveMigration, Migration, SchemaRequirement } from "./types.ts";
 import {
   getAppSchemaColumns,
   type LiveSchema,
   snapshotLiveSchema,
 } from "./schema-sync.ts";
+import type {
+  AdditiveMigration,
+  Migration,
+  SchemaRequirement,
+} from "./types.ts";
 
 const assertTableColumns = (
   live: LiveSchema,
@@ -88,4 +92,3 @@ export const additive = (m: AdditiveMigration): Migration => ({
   ...m,
   verify: verifyRequirement(m.requires),
 });
-

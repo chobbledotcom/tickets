@@ -155,7 +155,9 @@ const repairLegacyColumnRename = async (
  * older run that created empty targets can be retried without dropping legacy
  * data.
  */
-export const repairLegacyRenames = async (plan: LegacyRenamePlan): Promise<void> => {
+export const repairLegacyRenames = async (
+  plan: LegacyRenamePlan,
+): Promise<void> => {
   for (const [legacy, target] of plan.tableRenames) {
     await repairLegacyTableRename(legacy, target);
   }
@@ -163,4 +165,3 @@ export const repairLegacyRenames = async (plan: LegacyRenamePlan): Promise<void>
     await repairLegacyColumnRename(table, legacy, target);
   }
 };
-
