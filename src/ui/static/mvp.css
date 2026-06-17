@@ -1553,16 +1553,32 @@ button.secondary:hover,
   box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.3);
 }
 
-/* Admin footer: Chobble link (+ optional debug menu) on the left, logout on
-   the right. */
+/* Admin footer: a top row with the Chobble link (growing to fill) and the
+   logout button (sized to its content), then an optional debug menu below. */
 .admin-footer {
   margin-top: auto;
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: var(--space-s);
+  font-size: smaller;
+}
+
+.admin-footer-top {
+  display: flex;
+  flex-wrap: nowrap;
   justify-content: space-between;
   align-items: center;
   gap: var(--space-s);
-  font-size: smaller;
+}
+
+/* The Chobble link grows to fill, the logout form stays its natural width. */
+.admin-footer-top > a {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.admin-footer-top > .inline {
+  flex: 0 0 auto;
 }
 
 .admin-footer-info {

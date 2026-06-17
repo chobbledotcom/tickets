@@ -1,9 +1,11 @@
 /**
  * Admin footer.
  *
- * Rendered at the bottom of every admin page: the Chobble Tickets link and,
- * when query logging is active, a debug menu (render time, SQL queries, cache
- * stats) on the left; the logout button on the right (flex, space-between).
+ * Rendered at the bottom of every admin page: a top row with the Chobble
+ * Tickets link (growing to fill the space) on the left and the logout button
+ * (sized to its content) on the right, both always on one line; and, when query
+ * logging is active, a debug menu (render time, SQL queries, cache stats) on a
+ * row below them.
  *
  * The footer only renders on admin pages — `markAdminFooter()` is called while
  * the page's nav/header renders, and `renderAdminFooter()` (called once from
@@ -107,11 +109,13 @@ const logoutFormHtml = (): string =>
  * the left, the logout button on the right. */
 export const adminFooterHtml = (debug: DebugFooterData | null): string =>
   `<footer class="admin-footer">` +
-  `<div class="admin-footer-info">` +
+  `<div class="admin-footer-top">` +
   `<a href="https://github.com/chobbledotcom/tickets">${t("admin.footer.chobble_tickets")}</a>` +
-  (debug ? debugDetailsHtml(debug) : "") +
-  "</div>" +
   logoutFormHtml() +
+  "</div>" +
+  (debug
+    ? `<div class="admin-footer-info">${debugDetailsHtml(debug)}</div>`
+    : "") +
   "</footer>";
 
 /**
