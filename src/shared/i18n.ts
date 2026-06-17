@@ -16,18 +16,18 @@ type Messages = Record<string, string>;
 const locales: Record<string, Messages> = { en };
 
 /** ICU parsing is non-trivial, so cache compiled formats by locale + key. */
-const formatCache = new Map<string, IntlMessageFormat | null>();
+const formatCache: Record<string, IntlMessageFormat | null | undefined> = {};
 
 /** Get the list of registered locale codes */
 export const getRegisteredLocales = (): string[] => Object.keys(locales);
 
 const getFormat = (locale: string, key: string): IntlMessageFormat | null => {
   const cacheKey = `${locale}\0${key}`;
-  if (formatCache.has(cacheKey)) return formatCache.get(cacheKey)!;
+  if (cacheKey in formatCache) return formatCache[cacheKey]!;
 
   const msg = locales[locale]?.[key] ?? locales.en?.[key];
   if (msg === undefined) {
-    formatCache.set(cacheKey, null);
+    formatCache[cacheKey] = null;
     return null;
   }
 
@@ -36,7 +36,7 @@ const getFormat = (locale: string, key: string): IntlMessageFormat | null => {
   const fmt = new IntlMessageFormat(msg, locale, undefined, {
     ignoreTag: true,
   });
-  formatCache.set(cacheKey, fmt);
+  formatCache[cacheKey] = fmt;
   return fmt;
 };
 
