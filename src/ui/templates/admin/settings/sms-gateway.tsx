@@ -5,6 +5,7 @@
 import { t } from "#i18n";
 import { MASK_SENTINEL } from "#shared/db/settings.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { SMS_PASSPHRASE_MIN_LENGTH } from "#shared/sms/e2e.ts";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
 import { SettingsSection } from "#templates/components/settings-section.tsx";
 
@@ -39,11 +40,13 @@ export const SmsGatewayForm = (s: AdvancedSettingsPageState): JSX.Element => (
       {t("sms.settings.passphrase")}
       <input
         autocomplete="off"
+        minlength={SMS_PASSPHRASE_MIN_LENGTH}
         name="sms_gateway_passphrase"
         placeholder={t("sms.settings.passphrase_placeholder")}
         type="password"
         value={s.smsGatewayPassphraseConfigured ? MASK_SENTINEL : undefined}
       />
+      <Raw html={t("sms.settings.passphrase_help")} />
     </label>
     <label>
       {t("sms.settings.base_url")}

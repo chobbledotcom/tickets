@@ -12,6 +12,7 @@ import {
   settingsHandler,
 } from "#routes/admin/settings-helpers.ts";
 import { settings } from "#shared/db/settings.ts";
+import { SMS_PASSPHRASE_MIN_LENGTH } from "#shared/sms/e2e.ts";
 
 type SmsGatewayFormData = {
   username: string;
@@ -57,6 +58,14 @@ export const handleSmsGatewayPost = settingsHandler<SmsGatewayFormData>({
     await saveSecret(passphrase, settings.update.smsGatewayPassphrase);
     await saveSecret(webhookSecret, settings.update.smsGatewayWebhookSecret);
   },
-  validate: ({ baseUrl }) =>
-    baseUrl && !isHttpUrl(baseUrl) ? "Invalid server URL" : null,
+  validate: ({ baseUrl, passphrase }) => {
+    if (baseUrl && !isHttpUrl(baseUrl)) return "Invalid server URL";
+    if (
+      passphrase.action === "provided" &&
+      passphrase.value.length < SMS_PASSPHRASE_MIN_LENGTH
+    ) {
+      return `End-to-end passphrase must be at least ${SMS_PASSPHRASE_MIN_LENGTH} characters`;
+    }
+    return null;
+  },
 });

@@ -127,7 +127,8 @@ export const CONFIG_KEYS = {
   WRAPPED_PRIVATE_KEY: "wrapped_private_key",
 } as const;
 
-export const MASK_SENTINEL = "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022";
+export const MASK_SENTINEL =
+  "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022";
 export const isMaskSentinel = (value: string): boolean =>
   value === MASK_SENTINEL;
 
