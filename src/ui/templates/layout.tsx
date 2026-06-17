@@ -12,7 +12,7 @@ import { settings } from "#shared/db/settings.ts";
 import { DEMO_BANNER, isDemoMode } from "#shared/demo.ts";
 import { getImageProxyUrl } from "#shared/storage.ts";
 import type { Theme } from "#shared/types.ts";
-import { renderDebugFooter } from "#templates/admin/footer.tsx";
+import { renderAdminFooter } from "#templates/admin/footer.tsx";
 
 export const escapeHtml = (str: string): string =>
   str
@@ -75,7 +75,7 @@ export const Layout = ({
             <script src={IFRAME_RESIZER_CHILD_JS_PATH}></script>
           )}
           <script defer src={JS_PATH}></script>
-          <Raw html={renderDebugFooter()} />
+          <Raw html={renderAdminFooter()} />
         </body>
       </html>
     ),

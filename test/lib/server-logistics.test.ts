@@ -9,6 +9,8 @@ import {
   logisticsAgentsTable,
 } from "#shared/db/logistics-agents.ts";
 import { settings } from "#shared/db/settings.ts";
+import { getAgentUserIds } from "#shared/db/user-agents.ts";
+import { getAllUsers } from "#shared/db/users.ts";
 import {
   adminFormPost,
   adminGet,
@@ -142,6 +144,35 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       expect(agents.find((a) => a.id === id)!.name).toBe("Van B");
     });
 
+    test("assigns users to an agent, drops unknown ids, and pre-checks them", async () => {
+      const id = await createAgent("Crewed Van");
+      const userId = (await getAllUsers())[0]!.id;
+
+      // Assigning a real user persists the link.
+      const assigned = await adminFormPost(`/admin/logistics/${id}/edit`, {
+        name: "Crewed Van",
+        user_ids: String(userId),
+      });
+      expectRedirectWithFlash(
+        "/admin/logistics",
+        "Logistics agent updated",
+      )(assigned.response);
+      expect(await getAgentUserIds(id)).toEqual([userId]);
+
+      // The edit form pre-checks the assigned user.
+      const editHtml = await (
+        await adminGet(`/admin/logistics/${id}/edit`)
+      ).response.text();
+      expect(editHtml).toMatch(new RegExp(`checked[^>]*value="${userId}"`));
+
+      // Submitting an unknown user id clears the links (it is dropped).
+      await adminFormPost(`/admin/logistics/${id}/edit`, {
+        name: "Crewed Van",
+        user_ids: "999999",
+      });
+      expect(await getAgentUserIds(id)).toEqual([]);
+    });
+
     test("shows a delete confirmation and deletes the agent", async () => {
       const id = await createAgent("Doomed Van");
       const confirm = await adminGet(`/admin/logistics/${id}/delete`);
@@ -198,6 +229,26 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
     test("returns 404 editing a missing agent", async () => {
       const { response } = await adminGet("/admin/logistics/999/edit");
       expectStatus(404)(response);
+    });
+
+    test("returns 404 posting an edit to a missing agent", async () => {
+      const { response } = await adminFormPost("/admin/logistics/999/edit", {
+        name: "Ghost Van",
+      });
+      expectStatus(404)(response);
+    });
+
+    test("rejects an empty name on edit, keeping the old name", async () => {
+      const id = await createAgent("Keep Me");
+      const { response } = await adminFormPost(`/admin/logistics/${id}/edit`, {
+        name: "   ",
+      });
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toContain(
+        `/admin/logistics/${id}/edit`,
+      );
+      const kept = (await getAllLogisticsAgents()).find((a) => a.id === id);
+      expect(kept!.name).toBe("Keep Me");
     });
   });
 });
