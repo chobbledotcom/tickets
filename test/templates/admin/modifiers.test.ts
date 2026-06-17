@@ -16,6 +16,8 @@ const mod = (overrides: Partial<Modifier> = {}): Modifier => ({
   active: true,
   calc_kind: "percent",
   calc_value: 10,
+  code: "",
+  code_index: null,
   direction: "discount",
   id: 1,
   min_subtotal: 0,

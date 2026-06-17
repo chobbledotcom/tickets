@@ -37,6 +37,7 @@ import {
   extractContact,
   getTicketFieldsSetting,
   listingsWithQuantity,
+  parseAddOnSelections,
   parseCustomPrice,
   parseQuantities,
   ticketFormErrorResponse,
@@ -188,6 +189,8 @@ const handlePaidPath = async (
   params: PathParams & {
     items: ReturnType<typeof buildRegistrationItems>;
     reservationAmount?: string;
+    promoCode?: string;
+    addOns?: Map<number, number>;
   },
 ): Promise<Response> => {
   const {
@@ -200,6 +203,8 @@ const handlePaidPath = async (
     items,
     info,
     reservationAmount,
+    promoCode,
+    addOns,
   } = params;
   const available = await checkAvailability(
     ctx.listings,
@@ -215,7 +220,9 @@ const handlePaidPath = async (
   const listingAnswerIds = computeListingAnswerMap(ctx, info);
   // Modifiers apply only to full-payment orders for now; reservations (deposits)
   // compose with modifiers in a later step.
-  const modifiers = reservationAmount ? [] : await resolveModifiers(items);
+  const modifiers = reservationAmount
+    ? []
+    : await resolveModifiers(items, { addOns, code: promoCode });
   const intent = {
     ...contact,
     date,
@@ -352,6 +359,7 @@ const processSubmission = async (
 
   if (await anyRequiresPayment(items)) {
     return handlePaidPath(request, {
+      addOns: parseAddOnSelections(form, ctx.addOns),
       contact,
       ctx,
       date,
@@ -359,6 +367,7 @@ const processSubmission = async (
       hasCustomisable,
       info,
       items,
+      promoCode: form.getString("promo_code"),
       quantities,
       reservationAmount: await publicReservationAmount(),
     });

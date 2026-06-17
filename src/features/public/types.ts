@@ -2,6 +2,7 @@
  * Shared types, constants, and tiny utilities for public ticket routes
  */
 
+import type { AddOnOption } from "#shared/db/modifier-resolve.ts";
 import type {
   QuestionListingMap,
   QuestionWithAnswers,
@@ -27,6 +28,10 @@ export type TicketCtx = {
   /** When set, threaded into paid/free registration completion so renewals can
    * bump a built site's READ_ONLY_FROM after successful reservation. */
   siteToken?: string;
+  /** Whether a promo-code field should be offered (any active code modifier). */
+  promoCodesEnabled?: boolean;
+  /** Opt-in add-ons offered for the page's listings (empty when none apply). */
+  addOns: AddOnOption[];
 };
 
 /** Possibly-async response handler */
@@ -44,6 +49,9 @@ export type TicketSharedContext = {
   groupDescription?: string;
   actionUrl?: string;
   siteToken?: string;
+  promoCodesEnabled?: boolean;
+  /** Opt-in add-ons offered for the page's listings (empty when none apply). */
+  addOns: AddOnOption[];
 };
 
 /** Shared context provider for ticket pages */

@@ -30,6 +30,9 @@ export type ModifierInput = {
   calcValue: number;
   direction: ModifierDirection;
   active?: boolean;
+  trigger?: ModifierTrigger;
+  code?: string;
+  codeIndex?: string | null;
   scope?: ModifierScope;
   minSubtotal?: number;
   stock?: number | null;
@@ -47,6 +50,8 @@ export const modifiersTable = defineIdTable<Modifier, ModifierInput>(
     active: col.boolean(true),
     calc_kind: col.simple<CalcKind>(),
     calc_value: col.simple<number>(),
+    code: col.encryptedText(encrypt, decrypt),
+    code_index: col.withDefault<string | null>(() => null),
     direction: col.simple<ModifierDirection>(),
     min_subtotal: col.withDefault(() => 0),
     scope: col.withDefault<ModifierScope>(() => "all"),

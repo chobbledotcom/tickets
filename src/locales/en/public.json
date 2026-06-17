@@ -72,5 +72,10 @@
   "unsubscribe.subscribed_message": "You're currently subscribed to our marketing emails.",
   "unsubscribe.unsubscribe_button": "Unsubscribe",
   "public.send_us_a_message": "Send us a message",
-  "public.select_items_to_order": "Select items to order"
+  "public.select_items_to_order": "Select items to order",
+  "public.addons.heading": "Add-ons",
+  "public.addons.quantity": "Quantity",
+  "public.promo.heading": "Promo code",
+  "public.promo.hint": "Have a promo code? Enter it to apply it at checkout.",
+  "public.promo.placeholder": "Promo code"
 }

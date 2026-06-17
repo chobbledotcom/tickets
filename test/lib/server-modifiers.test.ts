@@ -1,11 +1,13 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { hmacHash } from "#shared/crypto/hashing.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import {
   getAllModifiers,
   getModifierGroupIds,
   getModifierListingIds,
 } from "#shared/db/modifiers.ts";
+import { normalizeCode } from "#shared/price-modifier.ts";
 import type { Modifier } from "#shared/types.ts";
 import {
   adminFormPost,
@@ -440,6 +442,62 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         {},
       );
       expectStatus(404)(response);
+    });
+  });
+
+  describe("trigger and promo code", () => {
+    test("stores the chosen trigger", async () => {
+      await adminFormPost(
+        "/admin/modifiers",
+        createData({ trigger: "optional" }),
+      );
+      expect((await lastModifier()).trigger).toBe("optional");
+    });
+
+    test("rejects an unknown trigger", async () => {
+      const { response } = await adminFormPost(
+        "/admin/modifiers",
+        createData({ trigger: "magic" }),
+      );
+      expectRedirectWithFlash(
+        "/admin/modifiers/new",
+        "Invalid trigger",
+        false,
+      )(response);
+    });
+
+    test("requires a code when the trigger is a promo code", async () => {
+      const { response } = await adminFormPost(
+        "/admin/modifiers",
+        createData({ code: "", trigger: "code" }),
+      );
+      expectRedirectWithFlash(
+        "/admin/modifiers/new",
+        "A promo-code modifier needs a code",
+        false,
+      )(response);
+    });
+
+    test("stores a promo code and its blind index", async () => {
+      await adminFormPost(
+        "/admin/modifiers",
+        createData({ code: "Summer25", trigger: "code" }),
+      );
+      const modifier = await lastModifier();
+      expect(modifier.code).toBe("Summer25");
+      expect(modifier.code_index).toBe(
+        await hmacHash(normalizeCode("Summer25")),
+      );
+    });
+
+    test("ignores a code entered for a non-code trigger", async () => {
+      await adminFormPost(
+        "/admin/modifiers",
+        createData({ code: "LEFTOVER", trigger: "automatic" }),
+      );
+      const modifier = await lastModifier();
+      expect(modifier.code).toBe("");
+      expect(modifier.code_index).toBeNull();
     });
   });
 });
