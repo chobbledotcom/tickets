@@ -412,14 +412,22 @@ export interface Modifier {
   direction: ModifierDirection;
   active: boolean;
   trigger: ModifierTrigger;
+  /** Promo code (trigger = "code"), shown to the owner; "" for other triggers. */
+  code: string;
+  /** Blind index (HMAC) of the normalised code, for public code lookup; null
+   * when the modifier has no code. */
+  code_index: string | null;
   scope: ModifierScope;
   /** Minimum in-scope subtotal (minor units) for the modifier to apply. */
   min_subtotal: number;
-  /** Minimum prior bookings (the buyer's keyless visit count) for the modifier
-   * to apply automatically. 0 = applies to everyone (the default). */
-  min_visits: number;
   /** Remaining-stock cap, or null for unlimited. Consumed monotonically. */
   stock: number | null;
+  /** Trigger-maintained SUM(quantity) over this modifier's usage rows. */
+  total_uses: number;
+  /** Trigger-maintained COUNT of this modifier's usage rows. */
+  usage_count: number;
+  /** Trigger-maintained SUM(amount_applied) over this modifier's usages, in minor units. */
+  total_revenue: number;
 }
 
 export interface ListingWithCount extends Listing {

@@ -27,7 +27,7 @@ import {
   resetEffectiveDomain,
   setEffectiveDomainForTest,
 } from "#shared/config.ts";
-import { hashEmail } from "#shared/db/contact-preferences.ts";
+import { hashEmail } from "#shared/db/email-preferences.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { describeWithEnv, getTestPrivateKey } from "#test-utils";
 import {

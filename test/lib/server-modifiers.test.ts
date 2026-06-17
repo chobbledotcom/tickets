@@ -1,11 +1,13 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { hmacHash } from "#shared/crypto/hashing.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import {
   getAllModifiers,
   getModifierGroupIds,
   getModifierListingIds,
 } from "#shared/db/modifiers.ts";
+import { normalizeCode } from "#shared/price-modifier.ts";
 import type { Modifier } from "#shared/types.ts";
 import {
   adminFormPost,
@@ -143,28 +145,6 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       )(response);
     });
 
-    test("stores the minimum previous bookings (min_visits)", async () => {
-      await adminFormPost("/admin/modifiers", createData({ min_visits: "3" }));
-      expect((await lastModifier()).min_visits).toBe(3);
-    });
-
-    test("defaults min_visits to zero when blank", async () => {
-      await adminFormPost("/admin/modifiers", createData());
-      expect((await lastModifier()).min_visits).toBe(0);
-    });
-
-    test("rejects a negative min_visits", async () => {
-      const { response } = await adminFormPost(
-        "/admin/modifiers",
-        createData({ min_visits: "-1" }),
-      );
-      expectRedirectWithFlash(
-        "/admin/modifiers/new",
-        "Minimum previous bookings must be a whole number of 0 or more",
-        false,
-      )(response);
-    });
-
     test("stores a stock limit", async () => {
       await adminFormPost("/admin/modifiers", createData({ stock: "5" }));
       expect((await lastModifier()).stock).toBe(5);
@@ -271,23 +251,6 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const { id } = await lastModifier();
       const { response } = await adminGet(`/admin/modifiers/${id}/edit`);
       await expectHtmlResponse(response, 200, 'value="7"');
-    });
-
-    test("shows min_visits on the edit form, blank when zero", async () => {
-      // A configured value round-trips...
-      await adminFormPost("/admin/modifiers", createData({ min_visits: "2" }));
-      const set = await lastModifier();
-      const { response } = await adminGet(`/admin/modifiers/${set.id}/edit`);
-      await expectHtmlResponse(response, 200, 'name="min_visits"', 'value="2"');
-
-      // ...while the default (0) shows as an empty field, not value="0".
-      await adminFormPost("/admin/modifiers", createData({ name: "NoGate" }));
-      const zero = await lastModifier();
-      const { response: zeroResponse } = await adminGet(
-        `/admin/modifiers/${zero.id}/edit`,
-      );
-      const html = await expectHtmlResponse(zeroResponse, 200, "NoGate");
-      expect(html).not.toContain('name="min_visits" type="number" value="0"');
     });
 
     test("returns 404 for a missing modifier", async () => {
@@ -479,6 +442,62 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         {},
       );
       expectStatus(404)(response);
+    });
+  });
+
+  describe("trigger and promo code", () => {
+    test("stores the chosen trigger", async () => {
+      await adminFormPost(
+        "/admin/modifiers",
+        createData({ trigger: "optional" }),
+      );
+      expect((await lastModifier()).trigger).toBe("optional");
+    });
+
+    test("rejects an unknown trigger", async () => {
+      const { response } = await adminFormPost(
+        "/admin/modifiers",
+        createData({ trigger: "magic" }),
+      );
+      expectRedirectWithFlash(
+        "/admin/modifiers/new",
+        "Invalid trigger",
+        false,
+      )(response);
+    });
+
+    test("requires a code when the trigger is a promo code", async () => {
+      const { response } = await adminFormPost(
+        "/admin/modifiers",
+        createData({ code: "", trigger: "code" }),
+      );
+      expectRedirectWithFlash(
+        "/admin/modifiers/new",
+        "A promo-code modifier needs a code",
+        false,
+      )(response);
+    });
+
+    test("stores a promo code and its blind index", async () => {
+      await adminFormPost(
+        "/admin/modifiers",
+        createData({ code: "Summer25", trigger: "code" }),
+      );
+      const modifier = await lastModifier();
+      expect(modifier.code).toBe("Summer25");
+      expect(modifier.code_index).toBe(
+        await hmacHash(normalizeCode("Summer25")),
+      );
+    });
+
+    test("ignores a code entered for a non-code trigger", async () => {
+      await adminFormPost(
+        "/admin/modifiers",
+        createData({ code: "LEFTOVER", trigger: "automatic" }),
+      );
+      const modifier = await lastModifier();
+      expect(modifier.code).toBe("");
+      expect(modifier.code_index).toBeNull();
     });
   });
 });

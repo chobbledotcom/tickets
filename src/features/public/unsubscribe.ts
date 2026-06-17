@@ -10,11 +10,10 @@ import { applyFlash, withCsrfForm } from "#routes/csrf.ts";
 import { htmlResponse, infoRedirect, redirect } from "#routes/response.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import {
-  forgetContact,
   isHashUnsubscribed,
   resubscribeHash,
   unsubscribeHash,
-} from "#shared/db/contact-preferences.ts";
+} from "#shared/db/email-preferences.ts";
 import { unsubscribePage } from "#templates/public/unsubscribe.tsx";
 
 const pagePath = (hash: string): string =>
@@ -58,17 +57,6 @@ export const handleUnsubscribePost = (request: Request): Promise<Response> =>
         return redirect(
           pagePath(hash),
           "You've resubscribed to our marketing emails.",
-          true,
-        );
-      }
-      if (form.getString("action") === "forget") {
-        // Right-to-erasure: delete the whole row for this contact. The hash is
-        // one-way and the record is gone, so we redirect to the bare page
-        // (no hash) with a confirmation rather than back to a now-empty record.
-        await forgetContact(hash);
-        return redirect(
-          "/unsubscribe",
-          "Your contact record has been deleted.",
           true,
         );
       }

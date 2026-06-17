@@ -82,17 +82,16 @@ describeWithEnv("db > migration restore", { db: true }, () => {
   };
 
   // Additive migrations own concrete objects and can be reconstructed by
-  // re-running up(). The baseline reconcile (no `requires`) and the two renames
-  // (events→listings and email_preferences→contact_preferences, which remove a
-  // legacy table rather than adding objects) are covered separately below.
+  // re-running up(). The baseline reconcile (no `requires`) and the rename
+  // (which removes legacy tables rather than adding objects) are covered
+  // separately below.
   const additiveMigrations = MIGRATIONS.filter(
     (m) => m.requires && !m.requires.absentTables,
   );
 
   test("every additive migration is covered by a restore case", () => {
     // Guards against a future migration slipping through with no restore test.
-    // The 3 excluded migrations are the baseline reconcile and the two renames.
-    expect(additiveMigrations.length).toBe(MIGRATIONS.length - 3);
+    expect(additiveMigrations.length).toBe(MIGRATIONS.length - 2);
   });
 
   for (const migration of additiveMigrations) {
@@ -208,25 +207,25 @@ describeWithEnv("db > migration restore", { db: true }, () => {
     );
   });
 
+  // Rename the current listing-named tables/columns back to their historical
+  // "event" names, reproducing the pre-rename shape on disk.
+  const downgradeToLegacyNames = () =>
+    getDb().batch(
+      [
+        "ALTER TABLE listings RENAME COLUMN listing_type TO event_type",
+        "ALTER TABLE listings RENAME TO events",
+        "ALTER TABLE listing_attendees RENAME COLUMN listing_id TO event_id",
+        "ALTER TABLE listing_attendees RENAME TO event_attendees",
+        "ALTER TABLE listing_questions RENAME COLUMN listing_id TO event_id",
+        "ALTER TABLE listing_questions RENAME TO event_questions",
+        "ALTER TABLE activity_log RENAME COLUMN listing_id TO event_id",
+        "ALTER TABLE built_sites RENAME COLUMN assigned_listing_id TO assigned_event_id",
+      ],
+      "write",
+    );
+
   describe("rename migration verify", () => {
     const rename = () => migrationById("2026-06-14_rename_events_to_listings");
-
-    // Rename the current listing-named tables/columns back to their historical
-    // "event" names, reproducing the pre-rename shape on disk.
-    const downgradeToLegacyNames = () =>
-      getDb().batch(
-        [
-          "ALTER TABLE listings RENAME COLUMN listing_type TO event_type",
-          "ALTER TABLE listings RENAME TO events",
-          "ALTER TABLE listing_attendees RENAME COLUMN listing_id TO event_id",
-          "ALTER TABLE listing_attendees RENAME TO event_attendees",
-          "ALTER TABLE listing_questions RENAME COLUMN listing_id TO event_id",
-          "ALTER TABLE listing_questions RENAME TO event_questions",
-          "ALTER TABLE activity_log RENAME COLUMN listing_id TO event_id",
-          "ALTER TABLE built_sites RENAME COLUMN assigned_listing_id TO assigned_event_id",
-        ],
-        "write",
-      );
 
     test("rejects while legacy event tables are still present", async () => {
       await downgradeToLegacyNames();
@@ -242,32 +241,20 @@ describeWithEnv("db > migration restore", { db: true }, () => {
     });
   });
 
-  describe("contact-preferences rename migration verify", () => {
-    const rename = () => migrationById("2026-06-17_contact_preferences");
+  describe("overlap index migration on pre-rename database", () => {
+    const overlapIdx = () =>
+      migrationById("2026-06-13_event_attendees_overlap_index");
 
-    // Recreate the legacy email_preferences shape on disk so the rename
-    // migration has a genuine legacy table to upgrade.
-    const downgradeToLegacyTable = async (): Promise<void> => {
-      await getDb().execute("DROP TABLE IF EXISTS contact_preferences");
-      await getDb().execute(
-        "CREATE TABLE email_preferences (email_hash TEXT PRIMARY KEY, unsubscribed INTEGER NOT NULL DEFAULT 0, stats_blob TEXT NOT NULL DEFAULT '', created TEXT NOT NULL)",
-      );
-    };
-
-    test("rejects while the legacy email_preferences table is still present", async () => {
-      await downgradeToLegacyTable();
-      await expect(rename().verify()).rejects.toThrow(
-        "Migration verification failed",
-      );
+    test("up() is a no-op when legacy 'events' table exists", async () => {
+      await downgradeToLegacyNames();
+      // Must not throw (would fail with "no such table: main.listings" before fix)
+      await overlapIdx().up();
     });
 
-    test("resolves after up() renames email_preferences to contact_preferences", async () => {
-      await downgradeToLegacyTable();
-      await rename().up();
-      await rename().verify();
-      // The sentinel row in another table is untouched by the rename.
-      await seedSentinelListing();
-      expect(await sentinelListingExists()).toBe(true);
+    test("verify() passes when legacy 'events' table exists", async () => {
+      await downgradeToLegacyNames();
+      // Defers to rename migration — nothing to verify yet
+      await overlapIdx().verify();
     });
   });
 });

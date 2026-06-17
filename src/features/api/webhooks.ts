@@ -43,6 +43,7 @@ import { getSearchParam } from "#routes/url.ts";
 import { calculateBookingFee } from "#shared/booking-fee.ts";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
+import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
@@ -53,7 +54,7 @@ import {
   getAttendeesByTokens,
 } from "#shared/db/attendees.ts";
 import { getListing, getListingWithCount } from "#shared/db/listings.ts";
-import { buyerVisits, specsFromRefs } from "#shared/db/modifier-resolve.ts";
+import { specsFromRefs } from "#shared/db/modifier-resolve.ts";
 import { consumeModifierStock } from "#shared/db/modifier-usage.ts";
 import {
   balanceFinalizeStatement,
@@ -791,6 +792,24 @@ const settleBalanceSession = async (
   };
 };
 
+const logPromoCodeModifiers = async (
+  specs: ModifierSpec[],
+  fullTotal: number,
+  listing: ListingWithCount,
+  attendeeId: number,
+): Promise<void> => {
+  for (const spec of specs) {
+    const delta = modifierDelta(fullTotal, spec.kind, spec.value);
+    const effect =
+      delta < 0 ? `${formatCurrency(-delta)} off` : `+${formatCurrency(delta)}`;
+    await logActivity(
+      `Promo code '${spec.name}' used: ${effect}`,
+      listing,
+      attendeeId,
+    );
+  }
+};
+
 /**
  * Process a session we have just reserved (holding the lock). Every failure
  * returned here is a handled terminal outcome; processPaymentSession records it
@@ -816,13 +835,7 @@ const processReservedSession = async (
 
   // Resolve the applied modifiers once (re-fetched by id from the database);
   // both the price re-derivation and the stock consumption use the same specs.
-  // Re-read the buyer's visit count server-side (keyless) so the min_visits gate
-  // is enforced against a trusted count: a crafted checkout can't claim a
-  // returning-customer discount it isn't entitled to. A dropped ref makes the
-  // re-derived total disagree, and the existing mismatch-refund path covers it.
-  const modifierSpecs = await specsFromRefs(intent.modifiers, {
-    visits: await buyerVisits(intent.email, intent.phone),
-  });
+  const modifierSpecs = await specsFromRefs(intent.modifiers);
 
   const pricingError = await verifyPaidPricing(
     session,
@@ -855,6 +868,17 @@ const processReservedSession = async (
     firstAttendee.attendee.id,
     options?.storeTokens === false ? [] : [ticketToken],
   );
+
+  const codeSpecs = modifierSpecs.filter((s) => s.trigger === "code");
+  if (codeSpecs.length > 0) {
+    const fullTotal = sumOf((v: ValidatedItem) => v.item.p)(validatedItems);
+    await logPromoCodeModifiers(
+      codeSpecs,
+      fullTotal,
+      firstAttendee.listing,
+      firstAttendee.attendee.id,
+    );
+  }
 
   await logAndNotifyRegistration(createdEntries, intent.siteTokenIndex);
 

@@ -26,7 +26,7 @@ import {
 } from "#shared/bulk-email-targets.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { decryptPiiBlob } from "#shared/db/attendees/pii.ts";
-import { hashEmail } from "#shared/db/contact-preferences.ts";
+import { hashEmail } from "#shared/db/email-preferences.ts";
 import {
   BULK_UNSUBSCRIBE_PLACEHOLDER,
   type BulkBatchResponse,

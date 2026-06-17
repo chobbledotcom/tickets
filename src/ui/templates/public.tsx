@@ -12,6 +12,7 @@ import {
   formatDateLabel,
   formatDatetimeLabel,
 } from "#shared/dates.ts";
+import type { AddOnOption } from "#shared/db/modifier-resolve.ts";
 import type {
   QuestionListingMap,
   QuestionWithAnswers,
@@ -824,6 +825,10 @@ export type TicketPageOptions = {
   prefill?: BookingPrefill;
   /** Override the <form action="…"> URL. Defaults to `/ticket/<slugs>`. */
   actionUrl?: string;
+  /** Opt-in add-ons to offer below the questions. */
+  addOns?: AddOnOption[];
+  /** Whether to offer a promo-code field. */
+  promoCodesEnabled?: boolean;
 };
 
 /** Unavailability message shown when all listings are sold out or closed */
@@ -878,6 +883,50 @@ const TicketPageHeader = ({
   </>
 );
 
+/** Opt-in add-on selectors: one quantity input per add-on, defaulting to 0
+ * (not selected) and restored on validation error. */
+const AddOnsFieldset = ({ addOns }: { addOns: AddOnOption[] }): JSX.Element => (
+  <fieldset class="ticket-addons">
+    <legend>{t("public.addons.heading")}</legend>
+    {addOns.map((addOn) => {
+      const field = `addon_${addOn.id}`;
+      return (
+        <label class="addon-row">
+          <span class="addon-name">
+            {addOn.name} <span class="addon-price">({addOn.priceLabel})</span>
+          </span>
+          <input
+            aria-label={`${addOn.name} — ${t("public.addons.quantity")}`}
+            max={String(addOn.maxQuantity)}
+            min="0"
+            name={field}
+            placeholder="0"
+            type="number"
+            value={savedFormValue(field)}
+          />
+        </label>
+      );
+    })}
+  </fieldset>
+);
+
+/** Promo-code text input, shown when any active modifier is unlocked by a code.
+ * The entered value is restored on a validation-error re-render. */
+const PromoCodeField = (): JSX.Element => (
+  <div class="promo-code">
+    <label>
+      {t("public.promo.heading")}
+      <input
+        name="promo_code"
+        placeholder={t("public.promo.placeholder")}
+        type="text"
+        value={savedFormValue("promo_code")}
+      />
+    </label>
+    <p class="hint">{t("public.promo.hint")}</p>
+  </div>
+);
+
 /** Form body with fields, date selector, listing rows, questions, terms, and submit */
 const TicketPageForm = ({
   slugs,
@@ -896,6 +945,8 @@ const TicketPageForm = ({
   questionListingMap,
   terms,
   prefill,
+  addOns,
+  promoCodesEnabled,
 }: {
   slugs: string[];
   actionUrl?: string;
@@ -913,6 +964,8 @@ const TicketPageForm = ({
   questionListingMap: QuestionListingMap | undefined;
   terms: string | null | undefined;
   prefill?: BookingPrefill;
+  addOns: AddOnOption[] | undefined;
+  promoCodesEnabled: boolean | undefined;
 }): JSX.Element => {
   const fieldValues: Record<string, string> = {};
   if (prefill?.name) fieldValues.name = prefill.name;
@@ -947,6 +1000,8 @@ const TicketPageForm = ({
       {questions && questions.length > 0 && (
         <Raw html={renderQuestions(questions, questionListingMap)} />
       )}
+      {addOns && addOns.length > 0 && <AddOnsFieldset addOns={addOns} />}
+      {promoCodesEnabled && <PromoCodeField />}
       {terms && <Raw html={renderTermsAndCheckbox(terms)} />}
       <button type="submit">{t("common.continue")}</button>
     </CsrfForm>
@@ -997,6 +1052,8 @@ export const ticketPage = ({
   groupDescription,
   prefill,
   actionUrl,
+  addOns,
+  promoCodesEnabled,
 }: TicketPageOptions): string => {
   const inIframe = getIframeMode();
   const allUnavailable = listings.every((e) => e.isSoldOut || e.isClosed);
@@ -1070,6 +1127,7 @@ export const ticketPage = ({
       ) : (
         <TicketPageForm
           actionUrl={actionUrl}
+          addOns={addOns}
           dates={dates}
           dayCountPriceFor={dayCountPriceFor}
           dayCounts={dayCounts}
@@ -1081,6 +1139,7 @@ export const ticketPage = ({
           isSingleListing={isSingleListing}
           listingRows={listingRows}
           prefill={prefill}
+          promoCodesEnabled={promoCodesEnabled}
           questionListingMap={questionListingMap}
           questions={questions}
           slugs={slugs}

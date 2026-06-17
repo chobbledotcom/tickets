@@ -30,17 +30,18 @@ export type ModifierInput = {
   calcValue: number;
   direction: ModifierDirection;
   active?: boolean;
+  trigger?: ModifierTrigger;
+  code?: string;
+  codeIndex?: string | null;
   scope?: ModifierScope;
   minSubtotal?: number;
-  minVisits?: number;
   stock?: number | null;
 };
 
 /** Modifiers table with CRUD operations. Name is encrypted at rest, matching
  * the other owner-defined entities. Behavioural columns (active, trigger,
- * scope, min_subtotal, min_visits) have sensible defaults so the base create
- * form need only supply the pricing rule; later admin fields populate the
- * rest. */
+ * scope, min_subtotal) have sensible defaults so the base create form need
+ * only supply the pricing rule; later admin fields populate the rest. */
 export const modifiersTable = defineIdTable<Modifier, ModifierInput>(
   "modifiers",
   {
@@ -49,12 +50,19 @@ export const modifiersTable = defineIdTable<Modifier, ModifierInput>(
     active: col.boolean(true),
     calc_kind: col.simple<CalcKind>(),
     calc_value: col.simple<number>(),
+    code: col.encryptedText(encrypt, decrypt),
+    code_index: col.withDefault<string | null>(() => null),
     direction: col.simple<ModifierDirection>(),
     min_subtotal: col.withDefault(() => 0),
-    min_visits: col.withDefault(() => 0),
     scope: col.withDefault<ModifierScope>(() => "all"),
     stock: col.withDefault<number | null>(() => null),
+    // Trigger-maintained aggregates over modifier_usages — read-only here
+    // (generated), so insert/update never write them and the DB default / the
+    // triggers keep them current.
+    total_revenue: col.generated<number>(),
+    total_uses: col.generated<number>(),
     trigger: col.withDefault<ModifierTrigger>(() => "automatic"),
+    usage_count: col.generated<number>(),
   },
 );
 

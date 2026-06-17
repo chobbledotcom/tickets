@@ -1,6 +1,8 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
+import { MASK_SENTINEL } from "#shared/db/settings.ts";
+import { SMS_PASSPHRASE_MIN_LENGTH } from "#shared/sms/e2e.ts";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
 import { adminSettingsPage } from "#templates/admin/settings.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
@@ -458,10 +460,41 @@ describe("adminAdvancedSettingsPage", () => {
     listingColumnOrder: "",
     paymentProvider: "",
     showPublicApi: false,
+    smsGatewayBaseUrl: "",
+    smsGatewayPassphraseConfigured: false,
+    smsGatewayPasswordConfigured: false,
+    smsGatewayUsername: "",
+    smsGatewayWebhookConfigured: false,
     subdomainPreview: "",
     subdomainPreviewFullDomain: "",
     theme: "light",
   };
+
+  test("renders the SMS gateway card with current values", () => {
+    const html = adminAdvancedSettingsPage(TEST_SESSION, {
+      ...advancedDefaultState,
+      smsGatewayBaseUrl: "https://sms.example.com",
+      smsGatewayUsername: "myuser",
+    });
+    expect(html).toContain("SMS Gateway");
+    expect(html).toContain('name="sms_gateway_username"');
+    expect(html).toContain("myuser");
+    expect(html).toContain("https://sms.example.com");
+    expect(html).toContain(`minlength="${SMS_PASSPHRASE_MIN_LENGTH}"`);
+  });
+
+  test("masks the SMS gateway secrets when configured", () => {
+    const html = adminAdvancedSettingsPage(TEST_SESSION, {
+      ...advancedDefaultState,
+      smsGatewayPassphraseConfigured: true,
+      smsGatewayPasswordConfigured: true,
+      smsGatewayWebhookConfigured: true,
+    });
+    expect(html).toContain('name="sms_gateway_password"');
+    expect(html).toContain('name="sms_gateway_passphrase"');
+    expect(html).toContain('name="sms_gateway_webhook_secret"');
+    expect(html).toContain(MASK_SENTINEL);
+  });
 
   test("shows email provider selection when configured", () => {
     const html = adminAdvancedSettingsPage(TEST_SESSION, {

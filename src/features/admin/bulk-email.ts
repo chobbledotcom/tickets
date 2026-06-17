@@ -59,7 +59,7 @@ import {
   getUnsubscribedHashSet,
   hashEmail,
   recordContacts,
-} from "#shared/db/contact-preferences.ts";
+} from "#shared/db/email-preferences.ts";
 import {
   countEmailTemplates,
   deleteEmailTemplate,

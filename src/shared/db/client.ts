@@ -69,6 +69,16 @@ export const queryAll = async <T>(
   return resultRows<T>(result);
 };
 
+/** Count all rows in a table. `table` must be a trusted constant, not input. */
+export const countRows = async (table: string): Promise<number> => {
+  // COUNT(*) always returns exactly one row, so the result is never null.
+  const row = await queryOne<{ n: number }>(
+    `SELECT COUNT(*) AS n FROM ${table}`,
+    [],
+  );
+  return row!.n;
+};
+
 /** Delete rows matching a field value */
 export const deleteByField = async (
   table: string,

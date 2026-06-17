@@ -13,7 +13,7 @@ import {
   seedEffectiveDomainHost,
   setEffectiveDomainForTest,
 } from "#shared/config.ts";
-import { settings } from "#shared/db/settings.ts";
+import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import { describeWithEnv, setTestEnv, setupStripe } from "#test-utils";
 
 describeWithEnv("isPaymentsEnabled", { db: true }, () => {
@@ -63,7 +63,7 @@ describeWithEnv("isPaymentsEnabled", { db: true }, () => {
     await settings.setRaw("payment_provider", "paypal");
     await settings.update.stripe.secretKey("sk_test_123");
     settings.invalidateCache();
-    await settings.loadAll();
+    await settings.loadKeys(ALL_SETTINGS_KEYS);
     expect(isPaymentsEnabled()).toBe(false);
   });
 });

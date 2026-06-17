@@ -65,7 +65,7 @@ import {
   type EmailStats,
   getEmailStats,
   hashEmail,
-} from "#shared/db/contact-preferences.ts";
+} from "#shared/db/email-preferences.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import {
   type LogisticsAssignment,
