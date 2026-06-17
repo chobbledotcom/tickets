@@ -9,7 +9,7 @@ import { invalidateListingsCache } from "#shared/db/listings.ts";
 import { invalidateLogisticsAgentsCache } from "#shared/db/logistics-agents.ts";
 import { initDb } from "#shared/db/migrations.ts";
 import { resetSessionCache } from "#shared/db/sessions.ts";
-import { settings } from "#shared/db/settings.ts";
+import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import { invalidateUsersCache } from "#shared/db/users.ts";
 import { setDemoModeForTest } from "#shared/demo.ts";
 import {
@@ -32,7 +32,7 @@ import {
   TEST_ADMIN_USERNAME,
 } from "#test-utils/internal.ts";
 
-const prepareTestClient = async (): Promise<void> => {
+const prepareTestClient = async (triggers = false): Promise<void> => {
   setupTestEncryptionKey();
   settings.setup.clearCache();
   resetSessionCache();
@@ -42,19 +42,25 @@ const prepareTestClient = async (): Promise<void> => {
   invalidateGroupsCache();
   invalidateLogisticsAgentsCache();
 
-  setTestEnv({ DB_URL: ":memory:" });
+  setTestEnv({
+    DB_URL: ":memory:",
+    DISABLE_AGGREGATE_TRIGGERS_FOR_TEST: triggers ? undefined : "1",
+  });
   const client = createClient({ url: ":memory:" });
   setDb(client);
   await initDb({ allowMissingSettings: true });
 };
 
-export const createTestDb = async (): Promise<void> => {
-  await prepareTestClient();
+export const createTestDb = async (triggers = false): Promise<void> => {
+  await prepareTestClient(triggers);
   resetTestSession();
 };
 
-export const createTestDbWithSetup = async (country = "GB"): Promise<void> => {
-  await prepareTestClient();
+export const createTestDbWithSetup = async (
+  country = "GB",
+  triggers = false,
+): Promise<void> => {
+  await prepareTestClient(triggers);
   resetTestSession();
 
   if (getCachedSetupSettings()) {
@@ -84,7 +90,7 @@ export const createTestDbWithSetup = async (country = "GB"): Promise<void> => {
       }
     }
     settings.invalidateCache();
-    await settings.loadAll();
+    await settings.loadKeys(ALL_SETTINGS_KEYS);
 
     settings.setForTest({ timezone: "UTC" });
     return;
@@ -95,7 +101,7 @@ export const createTestDbWithSetup = async (country = "GB"): Promise<void> => {
     TEST_ADMIN_PASSWORD,
     country,
   );
-  await settings.loadAll();
+  await settings.loadKeys(ALL_SETTINGS_KEYS);
 
   settings.setForTest({ timezone: "UTC" });
 
@@ -210,7 +216,7 @@ export const describeWithEnv = (
         setHostEmailConfigForTest(null);
         settings.appleWallet.setHostConfigForTest(null);
         settings.googleWallet.setHostConfigForTest(null);
-        await createTestDbWithSetup();
+        await createTestDbWithSetup("GB", options.triggers ?? false);
       }
       if (options.env) restoreEnv = setTestEnv(options.env);
     });

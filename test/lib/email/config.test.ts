@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
-import { settings } from "#shared/db/settings.ts";
+import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import { getEmailConfig, getHostEmailConfig } from "#shared/email.ts";
 import { updateBusinessEmail } from "#shared/validation/email.ts";
 import { describeWithEnv } from "#test-utils";
@@ -9,7 +9,7 @@ import { describeWithEnv } from "#test-utils";
 describeWithEnv("getEmailConfig", { db: true }, () => {
   test("returns null when no provider configured", async () => {
     settings.invalidateCache();
-    await settings.loadAll();
+    await settings.loadKeys(ALL_SETTINGS_KEYS);
     const config = await getEmailConfig();
     expect(config).toBeNull();
   });
@@ -19,7 +19,7 @@ describeWithEnv("getEmailConfig", { db: true }, () => {
     await settings.update.email.apiKey("test-key");
     await settings.update.email.fromAddress("from@test.com");
     settings.invalidateCache();
-    await settings.loadAll();
+    await settings.loadKeys(ALL_SETTINGS_KEYS);
 
     const config = await getEmailConfig();
     expect(config).toEqual({
@@ -33,7 +33,7 @@ describeWithEnv("getEmailConfig", { db: true }, () => {
     await settings.update.email.provider("resend");
     await settings.update.email.fromAddress("from@test.com");
     settings.invalidateCache();
-    await settings.loadAll();
+    await settings.loadKeys(ALL_SETTINGS_KEYS);
 
     const config = await getEmailConfig();
     expect(config).toBeNull();
@@ -44,7 +44,7 @@ describeWithEnv("getEmailConfig", { db: true }, () => {
     await settings.update.email.apiKey("test-key");
     await updateBusinessEmail("biz@example.com");
     settings.invalidateCache();
-    await settings.loadAll();
+    await settings.loadKeys(ALL_SETTINGS_KEYS);
 
     const config = await getEmailConfig();
     expect(config).toEqual({
@@ -58,7 +58,7 @@ describeWithEnv("getEmailConfig", { db: true }, () => {
     await settings.update.email.provider("resend");
     await settings.update.email.apiKey("test-key");
     settings.invalidateCache();
-    await settings.loadAll();
+    await settings.loadKeys(ALL_SETTINGS_KEYS);
 
     const config = await getEmailConfig();
     expect(config).toBeNull();

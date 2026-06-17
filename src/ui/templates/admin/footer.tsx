@@ -19,7 +19,7 @@ import { type CacheStat, getAllCacheStats } from "#shared/cache-registry.ts";
 import {
   getQueryLog,
   getQueryLogStartTime,
-  isQueryLogEnabled,
+  isFooterDebugEnabled,
   type QueryLogEntry,
 } from "#shared/db/query-log.ts";
 import { CsrfForm } from "#shared/forms.tsx";
@@ -128,7 +128,7 @@ export const renderAdminFooter = (): string => {
   const show = _adminFooterStore.show;
   _adminFooterStore.show = false;
   if (!show) return "";
-  const debug = isQueryLogEnabled()
+  const debug = isFooterDebugEnabled()
     ? {
         cacheStats: getAllCacheStats(),
         queries: getQueryLog(),

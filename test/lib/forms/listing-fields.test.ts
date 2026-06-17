@@ -45,17 +45,21 @@ describe("getListingFields() — description", () => {
 });
 
 describe("getListingFields() — thank_you_url", () => {
-  test("accepts relative URLs", () => {
+  test("accepts public https URLs", () => {
     expectValid(
       getListingFields(),
-      listingForm({ thank_you_url: "/thank-you" }),
+      listingForm({ thank_you_url: "https://example.com/thank-you" }),
     );
   });
 
-  test("rejects http and javascript protocols", () => {
+  test("rejects http, IPs and javascript protocols", () => {
     expectInvalid("URL must use https://")(
       getListingFields(),
       listingForm({ thank_you_url: "http://example.com" }),
+    );
+    expectInvalid("URL must use https://")(
+      getListingFields(),
+      listingForm({ thank_you_url: "https://1.1.1.1/thank-you" }),
     );
     expectInvalid("URL must use https://")(
       getListingFields(),
@@ -63,8 +67,8 @@ describe("getListingFields() — thank_you_url", () => {
     );
   });
 
-  test("rejects invalid URL format", () => {
-    expectInvalid("Invalid URL format")(
+  test("rejects malformed URLs", () => {
+    expectInvalid("URL must use https://")(
       getListingFields(),
       listingForm({ thank_you_url: "not-a-valid-url" }),
     );
@@ -80,7 +84,6 @@ describe("getListingFields() — webhook_url", () => {
   });
 
   const rejected: Array<{ expected: string; url: string; label: string }> = [
-    { expected: "URL must use https://", label: "relative", url: "/internal" },
     {
       expected: "URL must use https://",
       label: "http",
@@ -93,6 +96,11 @@ describe("getListingFields() — webhook_url", () => {
     },
     {
       expected: "URL must use https://",
+      label: "single-label",
+      url: "https://example/webhook",
+    },
+    {
+      expected: "URL must use https://",
       label: "localhost",
       url: "https://localhost/webhook",
     },
@@ -100,6 +108,11 @@ describe("getListingFields() — webhook_url", () => {
       expected: "URL must use https://",
       label: "loopback",
       url: "https://127.0.0.1/webhook",
+    },
+    {
+      expected: "URL must use https://",
+      label: "public IPv4",
+      url: "https://8.8.8.8/webhook",
     },
     {
       expected: "URL must use https://",
@@ -182,7 +195,7 @@ describe("getListingFields() — webhook_url", () => {
       url: "https://[fd12:3456:789a::1]/webhook",
     },
     {
-      expected: "Invalid URL format",
+      expected: "URL must use https://",
       label: "malformed",
       url: "not-a-valid-url",
     },
@@ -197,37 +210,21 @@ describe("getListingFields() — webhook_url", () => {
     });
   }
 
-  test("accepts non-private IPs that look similar", () => {
+  test("accepts public domains", () => {
     expectValid(
       getListingFields(),
-      listingForm({ webhook_url: "https://169.0.0.0/webhook" }),
+      listingForm({ webhook_url: "https://app.example.net/webhook" }),
     );
     expectValid(
       getListingFields(),
-      listingForm({ webhook_url: "https://255.0.0.0/webhook" }),
-    );
-  });
-
-  test("accepts public IPv6 addresses", () => {
-    expectValid(
-      getListingFields(),
-      listingForm({ webhook_url: "https://[2001:db8::1]/webhook" }),
-    );
-    expectValid(
-      getListingFields(),
-      listingForm({
-        webhook_url: "https://[2607:f8b0:4004:800::200e]/webhook",
-      }),
+      listingForm({ webhook_url: "https://hooks.example.org/webhook" }),
     );
   });
 
-  test("accepts a public IPv6 with a short first group", () => {
-    // "ab::1" has a 2-char first group, which is too short to fall in the
-    // fe80::/10 or fc00::/7 private ranges (both 4 hex digits), so it must be
-    // treated as public rather than rejected.
-    expectValid(
+  test("rejects URLs without a proper domain", () => {
+    expectInvalid("URL must use https://")(
       getListingFields(),
-      listingForm({ webhook_url: "https://[ab::1]/webhook" }),
+      listingForm({ webhook_url: "https://example/webhook" }),
     );
   });
 });

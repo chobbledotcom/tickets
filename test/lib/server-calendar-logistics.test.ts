@@ -91,13 +91,12 @@ describeWithEnv(
       expect(html).toContain("Agent User");
     });
 
-    test("renders the agent filter bar even with no date selected", async () => {
+    test("does not load the agent filter bar until a date is selected", async () => {
       await setup();
-      // With a non-default agent active and no date, the "All" link carries
-      // neither a date nor an agent param.
       const html = await calendarHtml("/admin/calendar?agent=none");
-      expect(html).toContain("Agent:");
-      expect(html).toContain('href="/admin/calendar#attendees"');
+      expect(html).not.toContain("Agent:");
+      expect(html).not.toContain("SELECT * FROM logistics_agents");
+      expect(html).toContain('href="/admin/deliveries"');
     });
 
     test("filtering to the assigned agent keeps the attendee", async () => {

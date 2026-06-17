@@ -24,6 +24,10 @@ import {
   type ListingWithCount,
 } from "#shared/types.ts";
 import {
+  parseNonNegativeInt,
+  parsePositiveInt,
+} from "#shared/validation/number.ts";
+import {
   type TicketFormValues,
   tryValidateTicketFields,
 } from "#templates/fields.ts";
@@ -93,10 +97,8 @@ const validateFormAndAvailability = (
   }
 
   for (const { listing, isClosed } of ctx.listings) {
-    const selectedQty = Number.parseInt(
-      form.get(`quantity_${listing.id}`) || "0",
-      10,
-    );
+    const selectedQty =
+      parseNonNegativeInt(form.get(`quantity_${listing.id}`) ?? "0") ?? 0;
     if (isClosed && selectedQty > 0) {
       return errorResponse(REGISTRATION_CLOSED_SUBMIT_MESSAGE);
     }
@@ -459,8 +461,8 @@ const parseQuantityPrefill = (
   const params = new URL(request.url).searchParams;
   const map = new Map<number, TicketPrefill>();
   for (const { listing } of listings) {
-    const qty = Number.parseInt(params.get(`q_${listing.id}`) ?? "", 10);
-    if (Number.isInteger(qty) && qty > 0) {
+    const qty = parsePositiveInt(params.get(`q_${listing.id}`) ?? "");
+    if (qty !== null) {
       map.set(listing.id, { quantity: qty });
     }
   }

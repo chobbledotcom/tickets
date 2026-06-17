@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { settings } from "#shared/db/settings.ts";
+import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import { updateBusinessEmail } from "#shared/validation/email.ts";
 import { describeWithEnv } from "#test-utils";
 
@@ -79,7 +79,7 @@ describeWithEnv("business-email", { db: true }, () => {
     test("invalidateSettingsCache forces decrypt from database", async () => {
       await updateBusinessEmail("encrypted@example.com");
       settings.invalidateCache();
-      await settings.loadAll();
+      await settings.loadKeys(ALL_SETTINGS_KEYS);
 
       const result = settings.businessEmail ?? "";
       expect(result).toBe("encrypted@example.com");

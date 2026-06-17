@@ -23,6 +23,21 @@ import { type AdminLevel, isAdminLevel, type User } from "#shared/types.ts";
 const USER_SELECT =
   "SELECT id, username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry FROM users ORDER BY id ASC";
 
+export type UserDisplayFields = Pick<
+  User,
+  "admin_level" | "id" | "username_hash"
+>;
+
+const USER_DISPLAY_SELECT =
+  "SELECT id, username_hash, admin_level FROM users ORDER BY id ASC";
+
+const USER_ID_SELECT = "SELECT id FROM users ORDER BY id ASC";
+
+const USER_AUTH_SELECT =
+  "SELECT id, admin_level FROM users WHERE id = ? LIMIT 1";
+
+export type UserAuthFields = Pick<User, "admin_level" | "id">;
+
 /**
  * Users change rarely and there are few of them, so the cache loads the whole
  * set and answers by-id / by-username reads from it. The TTL is shorter than
@@ -136,6 +151,12 @@ export const getUserByUsername = async (
 export const getUserById = (id: number): Promise<User | null> =>
   usersCache.getById(id);
 
+/** Get the minimal encrypted user fields needed to authenticate a session. */
+export const getUserAuthFieldsById = async (
+  id: number,
+): Promise<UserAuthFields | null> =>
+  (await queryAll<UserAuthFields>(USER_AUTH_SELECT, [id]))[0] ?? null;
+
 /**
  * Check if a username is already taken
  */
@@ -148,6 +169,14 @@ export const isUsernameTaken = async (username: string): Promise<boolean> => {
  * Get all users (for admin user management page, from cache)
  */
 export const getAllUsers = (): Promise<User[]> => loadAllUsers();
+
+/** Get the minimal encrypted user fields needed to show assignable users. */
+export const getUserDisplayFields = (): Promise<UserDisplayFields[]> =>
+  queryAll<UserDisplayFields>(USER_DISPLAY_SELECT);
+
+/** Get all user ids, ordered by id, for validating submitted user links. */
+export const getAllUserIds = async (): Promise<number[]> =>
+  (await queryAll<{ id: number }>(USER_ID_SELECT)).map((row) => row.id);
 
 /**
  * Verify a user's password (decrypt stored hash, then verify)
@@ -166,7 +195,9 @@ export const verifyUserPassword = async (
 /**
  * Decrypt a user's admin level
  */
-export const decryptAdminLevel = async (user: User): Promise<AdminLevel> => {
+export const decryptAdminLevel = async (
+  user: Pick<User, "admin_level">,
+): Promise<AdminLevel> => {
   const level = await decrypt(user.admin_level);
   if (!isAdminLevel(level)) {
     throw new Error(`Invalid admin level: ${level}`);
@@ -177,8 +208,9 @@ export const decryptAdminLevel = async (user: User): Promise<AdminLevel> => {
 /**
  * Decrypt a user's username
  */
-export const decryptUsername = (user: User): Promise<string> =>
-  decrypt(user.username_hash);
+export const decryptUsername = (
+  user: Pick<User, "username_hash">,
+): Promise<string> => decrypt(user.username_hash);
 
 /**
  * Set a user's password (for invite flow)
@@ -298,10 +330,12 @@ export const usersApi = {
   decryptAdminLevel,
   decryptUsername,
   deleteUser,
+  getAllUserIds,
   getAllUsers,
   getUserById,
   getUserByInviteCode,
   getUserByUsername,
+  getUserDisplayFields,
   hashInviteCode,
   hasPassword,
   invalidateUsersCache,

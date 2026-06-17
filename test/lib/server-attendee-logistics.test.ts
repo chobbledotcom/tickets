@@ -97,6 +97,7 @@ describe("parseLogisticsPlan", () => {
   test("unknown agent ids and non-delivered/unbooked lines are dropped", () => {
     const form = new FormParams();
     form.set(startAgentField(), "999"); // not a known agent
+    form.set(endAgentField(), "2x");
     const plan = parseLogisticsPlan(
       form,
       [bookedLine(10, true), bookedLine(11, false), bookedLine(12, true, 0)],
