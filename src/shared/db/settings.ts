@@ -710,8 +710,8 @@ const loadKeys = async (keys: readonly string[]): Promise<void> => {
     missing,
   );
   for (const row of rows) s.values.set(row.key, row.value);
-  for (const key of missing) s.loaded.add(key);
   await applyKeys(missing, s.values);
+  for (const key of missing) s.loaded.add(key);
 };
 
 /** Full invalidation — clears raw cache AND resets snapshot to defaults. */

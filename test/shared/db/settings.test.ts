@@ -79,6 +79,26 @@ describeWithEnv("db > settings", { db: true }, () => {
       expect(settings.businessEmail).toBe("owner@example.com");
     });
 
+    test("retries a key when snapshot application fails", async () => {
+      await getDb().execute({
+        args: [CONFIG_KEYS.BUSINESS_EMAIL, "not encrypted"],
+        sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+      });
+      settings.invalidateCache();
+
+      await expect(
+        settings.loadKeys([CONFIG_KEYS.BUSINESS_EMAIL]),
+      ).rejects.toThrow("Invalid encrypted data format");
+
+      await getDb().execute({
+        args: [CONFIG_KEYS.BUSINESS_EMAIL, await encrypt("fixed@example.com")],
+        sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+      });
+      await settings.loadKeys([CONFIG_KEYS.BUSINESS_EMAIL]);
+
+      expect(settings.businessEmail).toBe("fixed@example.com");
+    });
+
     test("applies country-derived fields", async () => {
       await settings.setRaw(CONFIG_KEYS.COUNTRY, "US");
       settings.invalidateCache();
