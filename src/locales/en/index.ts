@@ -23,6 +23,7 @@ import holidays from "./holidays.json" with { type: "json" };
 import listingQr from "./listing-qr.json" with { type: "json" };
 import listingsTable from "./listings-table.json" with { type: "json" };
 import login from "./login.json" with { type: "json" };
+import modifiers from "./modifiers.json" with { type: "json" };
 import nav from "./nav.json" with { type: "json" };
 import payment from "./payment.json" with { type: "json" };
 import publicMessages from "./public.json" with { type: "json" };
@@ -59,6 +60,7 @@ const en: Record<string, string> = {
   ...listingQr,
   ...listingsTable,
   ...login,
+  ...modifiers,
   ...nav,
   ...payment,
   ...publicMessages,

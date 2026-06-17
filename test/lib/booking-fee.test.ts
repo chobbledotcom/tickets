@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   calculateBookingFee,
-  chargeSubtotal,
   chargeUnitAmount,
   feeSubtotalFor,
   getBookingFeeAmount,
@@ -96,26 +95,6 @@ describe("chargeUnitAmount", () => {
       expect(
         chargeUnitAmount({ items: [item], reservationAmount: "10%" }, item),
       ).toBe(100);
-    },
-  );
-});
-
-describe("chargeSubtotal", () => {
-  const items = [
-    { quantity: 2, unitPrice: 1000 },
-    { quantity: 1, unitPrice: 2000 },
-  ];
-
-  test("sums the full prices when there is no reservation", () => {
-    expect(chargeSubtotal({ items })).toBe(4000);
-  });
-
-  testWithSetting(
-    "sums the per-unit deposits for a reservation",
-    { currency: "GBP" },
-    () => {
-      // 10% of each line: (1000×2)×10% + (2000×1)×10% = 200 + 200 = 400.
-      expect(chargeSubtotal({ items, reservationAmount: "10%" })).toBe(400);
     },
   );
 });

@@ -10,8 +10,7 @@
  * - Retrieving session data requires fetching the Order by ID
  */
 
-import { map } from "#fp";
-import { chargeUnitAmount, feeSubtotalFor } from "#shared/booking-fee.ts";
+import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { settings } from "#shared/db/settings.ts";
 import { fetchText } from "#shared/fetch.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
@@ -22,11 +21,11 @@ import {
 } from "#shared/payment-crypto.ts";
 import {
   buildItemsMetadata,
+  buildProviderLineItems,
   cachedClientFactory,
   createWithClient,
   enforceMetadataLimits,
   errorMessage,
-  feeLineItems,
   PaymentUserError,
   SQUARE_METADATA_MAX_VALUE_LENGTH,
 } from "#shared/payment-helpers.ts";
@@ -483,30 +482,19 @@ const normalizeCheckoutPhone = (
   return normalizePhone(phone, settings.phonePrefix);
 };
 
-/** Build a Square fee line item array (empty when fee is zero). */
-const squareFeeItems = (subtotal: number, currency: string): SquareLineItem[] =>
-  feeLineItems(subtotal, currency, (amount, cur) => ({
-    basePriceMoney: { amount: BigInt(amount), currency: cur },
-    name: "Booking fee",
-    note: "Booking fee",
-    quantity: "1",
-  }));
-
 type PreparedLink = {
   config: NonNullable<Awaited<ReturnType<typeof getPaymentLinkConfig>>>;
   metadata: Record<string, string>;
 };
 
-/** Append booking fee, submit the payment link, and log the result. */
+/** Submit the payment link and log the result. */
 const submitPaymentLink = async (
   prep: PreparedLink,
   lineItems: SquareLineItem[],
-  feeSubtotal: number,
   intent: { email: string; phone?: string },
   baseUrl: string,
   label: string,
 ): Promise<PaymentLinkResult> => {
-  lineItems.push(...squareFeeItems(feeSubtotal, prep.config.currency));
   const result = await createPaymentLinkImpl({
     ...prep.config,
     lineItems,
@@ -579,26 +567,29 @@ export const squareApi: {
     );
     if (!prep) return null;
 
-    const lineItems: SquareLineItem[] = map(
-      (item: CheckoutIntent["items"][number]) => ({
-        basePriceMoney: {
-          amount: BigInt(chargeUnitAmount(intent, item)),
-          currency: prep.config.currency,
-        },
-        name: `Ticket: ${item.name}`,
-        note: item.quantity > 1 ? `${item.quantity} Tickets` : "Ticket",
-        quantity: String(item.quantity),
-      }),
-    )(intent.items);
-
-    return submitPaymentLink(
-      prep,
-      lineItems,
-      feeSubtotalFor(intent),
-      intent,
-      baseUrl,
-      "Payment link",
+    const lineItems = buildProviderLineItems<SquareLineItem>(
+      priceCheckout(intent),
+      prep.config.currency,
+      {
+        extra: (extra, cur) => ({
+          basePriceMoney: { amount: BigInt(extra.amount), currency: cur },
+          name: extra.name,
+          note: extra.name,
+          quantity: String(extra.quantity),
+        }),
+        line: (line, cur) => ({
+          basePriceMoney: {
+            amount: BigInt(line.chargedUnitAmount),
+            currency: cur,
+          },
+          name: `Ticket: ${line.item.name}`,
+          note: line.quantity > 1 ? `${line.quantity} Tickets` : "Ticket",
+          quantity: String(line.quantity),
+        }),
+      },
     );
+
+    return submitPaymentLink(prep, lineItems, intent, baseUrl, "Payment link");
   },
   getSquareClient: getClientImpl,
 

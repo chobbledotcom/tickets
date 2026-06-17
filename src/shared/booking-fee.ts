@@ -65,10 +65,3 @@ export const chargeUnitAmount = (
         totalQuantity(intent.items),
       )
     : item.unitPrice;
-
-/** Sum of the per-line charges (deposits for a reservation, else full prices). */
-export const chargeSubtotal = (intent: ChargeableIntent): number =>
-  sumOf(
-    (item: { unitPrice: number; quantity: number }) =>
-      chargeUnitAmount(intent, item) * item.quantity,
-  )(intent.items);

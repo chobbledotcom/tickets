@@ -15,6 +15,7 @@ import {
   singleListingAnswerIds,
   toBookingItems,
   toCheckoutResult,
+  toModifierRefs,
 } from "#shared/payment-helpers.ts";
 import {
   type CheckoutIntent,
@@ -24,6 +25,55 @@ import {
 import { describeWithEnv } from "#test-utils";
 
 describe("payment-helpers", () => {
+  describe("modifier metadata", () => {
+    const spec = {
+      id: 7,
+      kind: "fixed" as const,
+      listingIds: null,
+      name: "Parking",
+      quantity: 2,
+      value: 500,
+    };
+
+    test("toModifierRefs compacts specs to id/quantity references", () => {
+      expect(toModifierRefs([spec])).toEqual([{ i: 7, q: 2 }]);
+    });
+
+    test("toModifierRefs returns undefined for no modifiers", () => {
+      expect(toModifierRefs(undefined)).toBeUndefined();
+      expect(toModifierRefs([])).toBeUndefined();
+    });
+
+    test("buildMetadata serializes modifier references and round-trips them", () => {
+      const metadata = buildMetadata({
+        date: null,
+        email: "a@example.com",
+        items: [{ e: 1, p: 1000, q: 1 }],
+        modifiers: [{ i: 7, q: 2 }],
+        name: "Alice",
+      });
+      expect(JSON.parse(metadata.modifiers!)).toEqual([{ i: 7, q: 2 }]);
+      const extracted = extractSessionMetadata(
+        metadata as unknown as SessionMetadata,
+      );
+      expect(JSON.parse(extracted.modifiers)).toEqual([{ i: 7, q: 2 }]);
+    });
+
+    test("buildMetadata omits modifiers when none apply", () => {
+      const metadata = buildMetadata({
+        date: null,
+        email: "a@example.com",
+        items: [{ e: 1, p: 1000, q: 1 }],
+        name: "Alice",
+      });
+      expect(metadata.modifiers).toBeUndefined();
+      expect(
+        extractSessionMetadata(metadata as unknown as SessionMetadata)
+          .modifiers,
+      ).toBe("");
+    });
+  });
+
   describe("metadata round-trip: build → validate → extract", () => {
     test("single-listing metadata survives full pipeline", () => {
       const metadata = buildMetadata({

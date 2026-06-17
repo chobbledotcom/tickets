@@ -911,8 +911,9 @@ describe("db > migrations > schema change guard", () => {
         "2026-06-16_agent_users",
         "2026-06-16_processed_payments_failure_data",
         "2026-06-16_listing_aggregates",
+        "2026-06-16_modifiers",
       ],
-      schemaHash: "z6j0oq",
+      schemaHash: "16t49nl",
     });
   });
 });

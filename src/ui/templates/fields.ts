@@ -870,6 +870,92 @@ export const getGroupFields = (): Field[] => {
   ];
 };
 
+/** Form values for the modifier create/edit form. */
+export type ModifierFormValues = {
+  name: string;
+  calc_kind: string;
+  direction: string;
+  calc_value: number;
+  min_subtotal: number;
+  stock: number | null;
+  active: string;
+};
+
+/** Modifier form fields (same for create and edit — no slug). */
+export const modifierFields: Field[] = [
+  {
+    label: "Name",
+    name: "name",
+    placeholder: "Early bird",
+    required: true,
+    type: "text",
+  },
+  {
+    defaultValue: "fixed",
+    label: "Type",
+    name: "calc_kind",
+    options: [
+      { label: "Fixed amount", value: "fixed" },
+      { label: "Percentage", value: "percent" },
+      { label: "Multiplier", value: "multiply" },
+    ],
+    type: "select",
+  },
+  {
+    defaultValue: "charge",
+    label: "Direction",
+    name: "direction",
+    options: [
+      { label: "Charge (adds to the price)", value: "charge" },
+      { label: "Discount (reduces the price)", value: "discount" },
+    ],
+    type: "select",
+  },
+  {
+    hint: "Fixed: an amount in your currency. Percentage: e.g. 10 for 10%. Multiplier: e.g. 1.5. Direction is ignored for multipliers (the factor sets it).",
+    inputmode: "decimal",
+    label: "Value",
+    name: "calc_value",
+    // Required, so `validateSingleField` rejects empty input before `parse`
+    // runs; `parse` therefore only ever sees a value the validator accepted.
+    parse: (value: string) => Number.parseFloat(value),
+    required: true,
+    type: "text",
+    validate: (value: string) =>
+      Number.isFinite(Number.parseFloat(value)) ? null : "Enter a valid number",
+  },
+  {
+    hint: "Only apply when the order subtotal is at least this amount (in your currency). Leave blank for no minimum.",
+    inputmode: "decimal",
+    label: "Minimum order (optional)",
+    name: "min_subtotal",
+    // Optional: blank means no minimum (0). A provided value must be a
+    // non-negative number; `validateSingleField` only runs `validate` when the
+    // field is non-empty, and `parse` maps blank to 0.
+    parse: (value: string) => (value ? Number.parseFloat(value) : 0),
+    type: "text",
+    validate: (value: string) => {
+      const n = Number.parseFloat(value);
+      return Number.isFinite(n) && n >= 0
+        ? null
+        : "Minimum order must be a positive number";
+    },
+  },
+  {
+    hint: "Total number available across all orders. Leave blank for unlimited.",
+    label: "Stock (optional)",
+    min: 0,
+    name: "stock",
+    type: "number",
+  },
+  {
+    label: "Status",
+    name: "active",
+    options: [{ label: "Active (apply at checkout)", value: "1" }],
+    type: "checkbox-group",
+  },
+];
+
 /** Name field shown on all ticket forms */
 const nameField: Field = {
   autocomplete: "name",

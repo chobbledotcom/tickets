@@ -41,16 +41,20 @@ import { createRouter, defineRoutes } from "#routes/router.ts";
 import { parseTokens } from "#routes/tickets/token-utils.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { calculateBookingFee } from "#shared/booking-fee.ts";
-import { getBookingFee, getEffectiveDomain } from "#shared/config.ts";
+import { priceCheckout } from "#shared/checkout-pricing.ts";
+import { getEffectiveDomain } from "#shared/config.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
 import {
   createAttendeeAtomic,
+  deleteAttendee,
   ensureAllBookings,
   getAttendeesByTokens,
 } from "#shared/db/attendees.ts";
 import { getListing, getListingWithCount } from "#shared/db/listings.ts";
+import { specsFromRefs } from "#shared/db/modifier-resolve.ts";
+import { consumeModifierStock } from "#shared/db/modifier-usage.ts";
 import {
   balanceFinalizeStatement,
   clearSessionTokens,
@@ -68,10 +72,14 @@ import {
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
 import {
   type BookingItem,
+  type CheckoutIntent,
   getActivePaymentProvider,
+  type ModifierRef,
+  type ModifierSpec,
   type ValidatedPaymentSession,
   type WebhookEvent,
 } from "#shared/payments.ts";
+import { modifierDelta } from "#shared/price-modifier.ts";
 import { reservationDepositForLine } from "#shared/reservation-amount.ts";
 import { dayPriceFor, type ListingWithCount } from "#shared/types.ts";
 import { logAndNotifyRegistration } from "#shared/webhook.ts";
@@ -80,6 +88,10 @@ import { paymentCancelPage, successPage } from "#templates/payment.tsx";
 /** User-facing message when the listing price changed between checkout and payment */
 const PRICE_CHANGED_MESSAGE =
   "The price for this listing changed while you were completing payment.";
+
+/** User-facing message when a chosen add-on/discount sold out during payment. */
+const MODIFIER_SOLD_OUT_MESSAGE =
+  "An extra you selected sold out while you were completing payment.";
 
 /** Parse per-listing answer IDs from metadata JSON string.
  * Returns undefined for empty input. The JSON was serialized by our own
@@ -437,6 +449,11 @@ const parseBookingItems = (itemsJson: string): BookingItem[] | null => {
   return parsed as BookingItem[];
 };
 
+/** Parse the compact modifier references from session metadata. Our own JSON,
+ * round-tripped through the provider; absent (empty) means no modifiers. */
+const parseModifierRefs = (json: string): ModifierRef[] =>
+  json ? (JSON.parse(json) as ModifierRef[]) : [];
+
 /**
  * Extract booking intent from session metadata.
  * Converts date from metadata's "" convention to null for domain use.
@@ -462,6 +479,7 @@ const extractIntent = (
     email: metadata.email,
     items,
     listingAnswerIds: parseListingAnswerIds(metadata.answer_ids),
+    modifiers: parseModifierRefs(metadata.modifiers),
     name: metadata.name,
     phone: metadata.phone,
     reservationAmount: metadata.reservation_amount || undefined,
@@ -554,6 +572,7 @@ const verifyPaidPricing = async (
   session: ValidatedPaymentSession,
   intent: BookingIntent,
   validatedItems: ValidatedItem[],
+  modifierSpecs: ModifierSpec[],
 ): Promise<PaymentResult | null> => {
   const hasPaidItems = intent.items.some((item) => item.p > 0);
   if (!hasPaidItems) return null;
@@ -569,14 +588,30 @@ const verifyPaidPricing = async (
     }
   }
 
-  // The booking fee is always charged on the full order. The charged ticket
-  // amount is the deposit subtotal for a reservation, or the full subtotal
-  // otherwise. metadata `p` always holds the full line price.
-  const bookingFeePercent = getBookingFee();
-  const fullTotal = sumOf((v: ValidatedItem) => v.item.p)(validatedItems);
-  const chargedTickets = reservationDeposits(intent).total ?? fullTotal;
-  const expectedTotal =
-    chargedTickets + calculateBookingFee(fullTotal, bookingFeePercent);
+  // Re-derive the expected total with the same pricing pipeline the checkout
+  // used: deposit-aware ticket charges, modifiers (re-fetched from the database
+  // by id, never trusting metadata amounts), and the booking fee on top.
+  const pricingIntent: CheckoutIntent = {
+    address: intent.address,
+    date: intent.date,
+    email: intent.email,
+    items: validatedItems.map((v) => ({
+      listingId: v.item.e,
+      name: v.listing.name,
+      quantity: v.item.q,
+      slug: v.listing.slug,
+      unitPrice: v.item.p / v.item.q,
+    })),
+    modifiers: modifierSpecs,
+    name: intent.name,
+    phone: intent.phone,
+    special_instructions: intent.special_instructions,
+    ...(intent.dayCount ? { dayCount: intent.dayCount } : {}),
+    ...(intent.reservationAmount
+      ? { reservationAmount: intent.reservationAmount }
+      : {}),
+  };
+  const expectedTotal = priceCheckout(pricingIntent).total;
   if (session.amountTotal !== expectedTotal) {
     return await priceMismatchRefund(
       session,
@@ -603,6 +638,7 @@ const createAttendeeForSession = async (
   session: ValidatedPaymentSession,
   intent: BookingIntent,
   validatedItems: ValidatedItem[],
+  modifierSpecs: ModifierSpec[],
 ): Promise<{ ok: true; entries: CreatedEntry[] } | PaymentResult> => {
   // A reservation charges only the per-line deposit up front; the rest of the
   // full order price is recorded as the attendee's outstanding balance.
@@ -644,6 +680,33 @@ const createAttendeeForSession = async (
     );
   }
   const created = result as Extract<typeof result, { success: true }>;
+
+  // Consume modifier stock atomically; a sold-out race rolls the order back.
+  // amount_applied is recorded against the order subtotal — the same base the
+  // pricing engine uses for today's whole-order ("all" scope) modifiers. When
+  // listing/group-scoped modifiers become creatable, this should use the
+  // in-scope subtotal to stay exact.
+  if (modifierSpecs.length > 0) {
+    const attendeeId = created.attendees[0]!.id;
+    const consumed = await consumeModifierStock(
+      attendeeId,
+      modifierSpecs.map((s) => ({
+        amountApplied: Math.abs(modifierDelta(fullTotal, s.kind, s.value)),
+        modifierId: s.id,
+        quantity: s.quantity,
+      })),
+    );
+    if (!consumed) {
+      await deleteAttendee(attendeeId);
+      return refundAndFail(
+        session,
+        MODIFIER_SOLD_OUT_MESSAGE,
+        validatedItems[0]!.listing.id,
+        409,
+      );
+    }
+  }
+
   const entries = created.attendees.map((attendee, i) => ({
     attendee,
     listing: validatedItems[i]!.listing,
@@ -751,13 +814,23 @@ const processReservedSession = async (
   if ("success" in validated) return validated;
   const validatedItems = validated.items;
 
-  const pricingError = await verifyPaidPricing(session, intent, validatedItems);
+  // Resolve the applied modifiers once (re-fetched by id from the database);
+  // both the price re-derivation and the stock consumption use the same specs.
+  const modifierSpecs = await specsFromRefs(intent.modifiers);
+
+  const pricingError = await verifyPaidPricing(
+    session,
+    intent,
+    validatedItems,
+    modifierSpecs,
+  );
   if (pricingError) return pricingError;
 
   const created = await createAttendeeForSession(
     session,
     intent,
     validatedItems,
+    modifierSpecs,
   );
   if ("success" in created) return created;
   const createdEntries = created.entries;

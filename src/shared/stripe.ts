@@ -5,7 +5,7 @@
 
 import type Stripe from "stripe";
 import { lazyRef, once } from "#fp";
-import { chargeUnitAmount, feeSubtotalFor } from "#shared/booking-fee.ts";
+import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getEnv } from "#shared/env.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
@@ -17,12 +17,12 @@ import {
 } from "#shared/payment-crypto.ts";
 import {
   buildItemsMetadata,
+  buildProviderLineItems,
   type CredentialCheck,
   cachedClientFactory,
   createWithClient,
   enforceMetadataLimits,
   errorMessage,
-  feeLineItems,
   STRIPE_METADATA_MAX_VALUE_LENGTH,
 } from "#shared/payment-helpers.ts";
 import type {
@@ -174,20 +174,6 @@ type StripeCheckoutLineItem = NonNullable<
   Stripe.Checkout.SessionCreateParams["line_items"]
 >[number];
 
-/** Build a Stripe fee line item array (empty when fee is zero). */
-const stripeFeeItems = (
-  subtotal: number,
-  currency: string,
-): StripeCheckoutLineItem[] =>
-  feeLineItems(subtotal, currency, (amount, cur) => ({
-    price_data: {
-      currency: cur,
-      product_data: { name: "Booking fee" },
-      unit_amount: amount,
-    },
-    quantity: 1,
-  }));
-
 /**
  * Internal implementation of webhook endpoint setup.
  * Defined before stripeApi so it can be assigned directly.
@@ -268,21 +254,34 @@ export const stripeApi: {
     );
     const currency = settings.currency.toLowerCase();
 
-    // Build line items for each listing
-    const lineItems: StripeCheckoutLineItem[] = intent.items.map((item) => ({
-      price_data: {
-        currency,
-        product_data: {
-          description:
-            item.quantity > 1 ? `${item.quantity} Tickets` : "Ticket",
-          name: `Ticket: ${item.name}`,
-        },
-        unit_amount: chargeUnitAmount(intent, item),
+    // Build line items (tickets + extras like the booking fee) from the
+    // provider-agnostic priced order.
+    const lineItems = buildProviderLineItems<StripeCheckoutLineItem>(
+      priceCheckout(intent),
+      currency,
+      {
+        extra: (extra, cur) => ({
+          price_data: {
+            currency: cur,
+            product_data: { name: extra.name },
+            unit_amount: extra.amount,
+          },
+          quantity: extra.quantity,
+        }),
+        line: (line, cur) => ({
+          price_data: {
+            currency: cur,
+            product_data: {
+              description:
+                line.quantity > 1 ? `${line.quantity} Tickets` : "Ticket",
+              name: `Ticket: ${line.item.name}`,
+            },
+            unit_amount: line.chargedUnitAmount,
+          },
+          quantity: line.quantity,
+        }),
       },
-      quantity: item.quantity,
-    }));
-
-    lineItems.push(...stripeFeeItems(feeSubtotalFor(intent), currency));
+    );
 
     const params: Stripe.Checkout.SessionCreateParams = {
       cancel_url: `${baseUrl}/payment/cancel?session_id={CHECKOUT_SESSION_ID}`,
