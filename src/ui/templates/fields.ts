@@ -1164,7 +1164,14 @@ export const getAddAttendeeFields = (
   isDaily: boolean,
   dayCounts?: number[],
 ): Field[] => {
-  const result = [...getTicketFields(fields, false), addAttendeeQuantityField];
+  // Admin enters a customer's details here, so disable native autofill: we don't
+  // want the operator's browser to store or suggest other customers' PII. The
+  // shared ticket fields keep their semantic autocomplete for the public form,
+  // so override on copies rather than mutating the originals.
+  const contactFields = getTicketFields(fields, false).map(
+    (f): Field => ({ ...f, autocomplete: "off" }),
+  );
+  const result = [...contactFields, addAttendeeQuantityField];
   if (isDaily) result.push(addAttendeeDateField);
   if (dayCounts && dayCounts.length > 0) {
     result.push(addAttendeeDayCountField(dayCounts));
