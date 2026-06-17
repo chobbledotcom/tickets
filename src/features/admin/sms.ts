@@ -13,14 +13,20 @@
  * gateway ids to attendees for status webhooks.
  */
 
-import { AUTH_FORM, requireSessionOr, withAuth } from "#routes/auth.ts";
-import { applyFlash } from "#routes/csrf.ts";
-import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
+import {
+  AUTH_FORM,
+  type AuthSession,
+  requireSessionOr,
+  withAuth,
+} from "#routes/auth.ts";
+import { htmlResponse, redirect } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { getAttendeeActivityLog, logActivity } from "#shared/db/activityLog.ts";
 import { setAttendeePhoneIndexIfEmpty } from "#shared/db/attendee-phone-index.ts";
 import { countSmsMessages, recordSmsMessage } from "#shared/db/sms-messages.ts";
+import { getFlash } from "#shared/flash-context.ts";
+import type { FormParams } from "#shared/form-data.ts";
 import {
   buildMessagePayload,
   getSmsGatewayConfig,
@@ -28,7 +34,7 @@ import {
 } from "#shared/sms/gateway.ts";
 import { computePhoneIndex } from "#shared/sms/phone-index.ts";
 import { type SmsHistoryItem, smsPage } from "#templates/admin/sms.tsx";
-import { loadAttendeeForListing } from "./attendees-route-helpers.ts";
+import { withAttendee } from "./attendees-route-helpers.ts";
 
 /** SMS-related activity-log entries all start with this. */
 const SMS_LOG_PREFIX = "SMS";
@@ -47,7 +53,7 @@ const handleSmsGet = (request: Request): Promise<Response> =>
   requireSessionOr(request, async (session) => {
     const listingId = Number(getSearchParam(request, "listing"));
     const attendeeId = Number(getSearchParam(request, "attendee"));
-    const flash = applyFlash(request);
+    const flash = getFlash();
     const queueCount = await countSmsMessages();
     const configured = getSmsGatewayConfig() !== null;
 
@@ -57,30 +63,34 @@ const handleSmsGet = (request: Request): Promise<Response> =>
       );
     }
 
-    const data = await loadAttendeeForListing(session, listingId, attendeeId);
-    if (!data) return notFoundResponse();
-
-    return htmlResponse(
-      smsPage(session, {
-        configured,
-        flash,
-        history: await historyFor(attendeeId),
-        queueCount,
-        target: data,
-      }),
+    return withAttendee(
+      session,
+      listingId,
+      attendeeId,
+    )(async (data) =>
+      htmlResponse(
+        smsPage(session, {
+          configured,
+          flash,
+          history: await historyFor(attendeeId),
+          queueCount,
+          target: data,
+        }),
+      ),
     );
   });
 
-/** POST /admin/sms */
-const handleSmsPost = (request: Request): Promise<Response> =>
-  withAuth(request, AUTH_FORM, async (session, form) => {
-    const listingId = Number(form.getString("listing"));
-    const attendeeId = Number(form.getString("attendee"));
-    const backUrl = smsUrl(listingId, attendeeId);
+/** Send the composed text to the targeted attendee. */
+const sendSms = (session: AuthSession, form: FormParams): Promise<Response> => {
+  const listingId = Number(form.getString("listing"));
+  const attendeeId = Number(form.getString("attendee"));
+  const backUrl = smsUrl(listingId, attendeeId);
 
-    const data = await loadAttendeeForListing(session, listingId, attendeeId);
-    if (!data) return notFoundResponse();
-
+  return withAttendee(
+    session,
+    listingId,
+    attendeeId,
+  )(async (data) => {
     const config = getSmsGatewayConfig();
     if (!config) {
       return redirect(backUrl, "SMS gateway is not configured", false);
@@ -127,6 +137,11 @@ const handleSmsPost = (request: Request): Promise<Response> =>
       return redirect(backUrl, "Message could not be queued", false);
     }
   });
+};
+
+/** POST /admin/sms */
+const handleSmsPost = (request: Request): Promise<Response> =>
+  withAuth(request, AUTH_FORM, sendSms);
 
 export const smsRoutes = defineRoutes({
   "GET /admin/sms": handleSmsGet,

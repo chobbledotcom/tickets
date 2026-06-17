@@ -50,11 +50,12 @@ export const getSmsMessageByProviderId = (
 
 /** Count messages still in flight (sent, awaiting a delivery/failure webhook). */
 export const countSmsMessages = async (): Promise<number> => {
-  const row = await queryOne<{ n: number }>(
-    "SELECT COUNT(*) AS n FROM sms_messages",
+  // COUNT(*) always returns exactly one row, so the result is never null.
+  const row = await queryOne<{ c: number }>(
+    "SELECT COUNT(*) AS c FROM sms_messages",
     [],
   );
-  return Number(row!.n);
+  return Number(row!.c);
 };
 
 /** Delete a row once its message reaches a terminal state. */

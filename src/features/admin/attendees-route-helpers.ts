@@ -47,7 +47,7 @@ export const loadAttendeeForListing = async (
 };
 
 /** Load attendee with auth, returning 404 if not found */
-const withAttendee = withEntityLoader(loadAttendeeForListing);
+export const withAttendee = withEntityLoader(loadAttendeeForListing);
 
 /** Route params for listing-scoped routes */
 export type ListingRouteParams = { id: number };
