@@ -9,7 +9,6 @@ import {
   notFoundResponse,
 } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
-import { isPaymentsEnabled } from "#shared/config.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
 import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
@@ -200,13 +199,6 @@ export const buildRegistrationItems = (
   }));
 };
 
-/** Check if any selected listing requires payment */
-export const anyRequiresPayment = (items: CheckoutItem[]): boolean => {
-  const paymentsEnabled = isPaymentsEnabled();
-  if (!paymentsEnabled) return false;
-  return items.some((item) => item.unitPrice > 0);
-};
-
 /** Handle payment flow for ticket purchase */
 export const handlePaymentFlow = (
   request: Request,
@@ -275,12 +267,11 @@ export const resolveDayCount = async (
   return { dayCount: raw };
 };
 
-export const processFreeReservation = async (
+export const createFreeReservation = async (
   listings: TicketListing[],
   quantities: Map<number, number>,
   contact: ContactInfo,
   date: string | null,
-  siteToken?: string,
   dayCount = 1,
 ): Promise<
   | { success: true; token: string; entries: EmailEntry[] }
@@ -312,16 +303,41 @@ export const processFreeReservation = async (
     attendee,
     listing: selected[i]!.listing,
   }));
-
-  // Hash before passing on so the renewal lookup uses the same blind index
-  // the paid path would carry through Stripe session metadata.
-  const siteTokenIndex = siteToken ? await hmacHash(siteToken) : undefined;
-  await logAndNotifyRegistration(entries, siteTokenIndex);
   return {
     entries,
     success: true,
     token: attendees[0]!.ticket_token,
   };
+};
+
+export const processFreeReservation = async (
+  listings: TicketListing[],
+  quantities: Map<number, number>,
+  contact: ContactInfo,
+  date: string | null,
+  siteToken?: string,
+  dayCount = 1,
+): Promise<
+  | { success: true; token: string; entries: EmailEntry[] }
+  | { success: false; error: string }
+> => {
+  const result = await createFreeReservation(
+    listings,
+    quantities,
+    contact,
+    date,
+    dayCount,
+  );
+  if (!result.success) return result;
+
+  // Hash before passing on so the renewal lookup uses the same blind index
+  // the paid path would carry through Stripe session metadata. Notification
+  // is the caller's responsibility for paths that may roll the order back
+  // (zero-total-with-modifiers); this wrapper keeps it for the plain free
+  // path so existing callers still notify on success.
+  const siteTokenIndex = siteToken ? await hmacHash(siteToken) : undefined;
+  await logAndNotifyRegistration(result.entries, siteTokenIndex);
+  return result;
 };
 
 /** Load and validate active listings, return 404 if none */

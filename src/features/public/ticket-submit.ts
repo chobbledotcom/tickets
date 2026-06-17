@@ -6,9 +6,13 @@ import { sum } from "#fp";
 import { applyFlash, withCsrfForm } from "#routes/csrf.ts";
 import { errorRedirect, redirectResponse } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
+import { isPaymentsEnabled } from "#shared/config.ts";
+import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
+import { hmacHash } from "#shared/crypto/hashing.ts";
 import { getPublicDefaultStatus } from "#shared/db/attendee-statuses.ts";
 import { resolveModifiers } from "#shared/db/modifier-resolve.ts";
+import { consumeModifierStockOrRollback } from "#shared/db/modifier-usage.ts";
 import {
   groupListingAnswers,
   parseQuestionAnswers,
@@ -16,6 +20,11 @@ import {
 } from "#shared/db/questions.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import type {
+  CheckoutIntent,
+  CheckoutItem,
+  ModifierSpec,
+} from "#shared/payments.ts";
 import { verifyQrBookToken } from "#shared/qr-token.ts";
 import { validateSiteAssignmentConfig } from "#shared/site-assignment.ts";
 import {
@@ -23,6 +32,7 @@ import {
   isPaidListing,
   type ListingWithCount,
 } from "#shared/types.ts";
+import { logAndNotifyRegistration } from "#shared/webhook.ts";
 import {
   type TicketFormValues,
   tryValidateTicketFields,
@@ -46,12 +56,11 @@ import {
 } from "./ticket-form.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 import {
-  anyRequiresPayment,
   buildRegistrationItems,
   checkAvailability,
+  createFreeReservation,
   getTicketContext,
   handlePaymentFlow,
-  processFreeReservation,
   resolveDayCount,
   withActiveListings,
 } from "./ticket-payment.ts";
@@ -183,62 +192,6 @@ type PathParams = {
   info: AnswerInfo;
 };
 
-/** Handle the paid registration path */
-const handlePaidPath = async (
-  request: Request,
-  params: PathParams & {
-    items: ReturnType<typeof buildRegistrationItems>;
-    reservationAmount?: string;
-    promoCode?: string;
-    addOns?: Map<number, number>;
-  },
-): Promise<Response> => {
-  const {
-    ctx,
-    quantities,
-    date,
-    dayCount,
-    hasCustomisable,
-    contact,
-    items,
-    info,
-    reservationAmount,
-    promoCode,
-    addOns,
-  } = params;
-  const available = await checkAvailability(
-    ctx.listings,
-    quantities,
-    date,
-    dayCount,
-  );
-  if (!available) {
-    return ticketFormErrorResponse(ctx)(
-      "Sorry, some tickets are no longer available",
-    );
-  }
-  const listingAnswerIds = computeListingAnswerMap(ctx, info);
-  // Modifiers apply only to full-payment orders for now; reservations (deposits)
-  // compose with modifiers in a later step.
-  const modifiers = reservationAmount
-    ? []
-    : await resolveModifiers(items, { addOns, code: promoCode });
-  const intent = {
-    ...contact,
-    date,
-    items,
-    listingAnswerIds,
-    // Carry the chosen span only when a customisable listing is involved, so
-    // the webhook re-prices and dates the booking by day count, not the
-    // listing's fixed duration.
-    ...(hasCustomisable ? { dayCount } : {}),
-    ...(ctx.siteToken ? { siteToken: ctx.siteToken } : {}),
-    ...(reservationAmount ? { reservationAmount } : {}),
-    ...(modifiers.length > 0 ? { modifiers } : {}),
-  };
-  return handlePaymentFlow(request, intent, ctx);
-};
-
 /**
  * The reservation-amount the public-default status charges as a deposit, or
  * undefined when public bookings are paid in full. Drives the deposit pricing
@@ -252,18 +205,67 @@ const publicReservationAmount = async (): Promise<string | undefined> => {
     : undefined;
 };
 
-/** Handle the free registration path */
-const handleFreePath = async (params: PathParams): Promise<Response> => {
-  const { ctx, quantities, date, dayCount, contact, info } = params;
-  const result = await processFreeReservation(
+/** User-facing message when a chosen add-on or discount sold out during a
+ * zero-total completion (no provider in the loop, so it didn't sell out
+ * "while completing payment" as the webhook path phrases it). */
+const MODIFIER_SOLD_OUT_MESSAGE =
+  "An extra you selected sold out while you were checking out. Please try again.";
+
+/**
+ * Complete a reservation without a payment provider: create the attendee
+ * atomically, consume any resolved modifier stock (rolling the order back on
+ * a sold-out race), record answers, then notify and redirect.
+ *
+ * Used for every cart whose final priced total is zero — a free listing, a
+ * paid listing discounted to zero, or a zero-price listing with a positive
+ * add-on whose `priceCheckout` total is the modifier alone — and for every
+ * cart when payments are disabled (the existing disabled-is-free behaviour).
+ * The same pricing engine that decided "no provider needed" also produced the
+ * modifiers that this path must persist, so a zero-total order still records
+ * modifier usage and respects stock limits.
+ */
+const handleFreePath = async (
+  params: PathParams & {
+    items: CheckoutItem[];
+    modifiers: ModifierSpec[];
+  },
+): Promise<Response> => {
+  const { ctx, quantities, date, dayCount, contact, info, items, modifiers } =
+    params;
+  const result = await createFreeReservation(
     ctx.listings,
     quantities,
     contact,
     date,
-    ctx.siteToken,
     dayCount,
   );
   if (!result.success) return ticketFormErrorResponse(ctx)(result.error);
+
+  // Consume modifier stock against the same pre-modifier item subtotal the
+  // pricing engine used. A stock-limited modifier that sold out between
+  // resolution and consumption rolls the new attendee back so the buyer
+  // isn't granted a free order they shouldn't have.
+  if (modifiers.length > 0) {
+    const attendeeId = result.entries[0]!.attendee.id;
+    const fullTotal = sum(items.map((i) => i.unitPrice * i.quantity));
+    const consumed = await consumeModifierStockOrRollback(
+      attendeeId,
+      modifiers,
+      fullTotal,
+    );
+    if (!consumed) {
+      return ticketFormErrorResponse(ctx)(MODIFIER_SOLD_OUT_MESSAGE);
+    }
+  }
+
+  // Notify only after stock is committed; a rolled-back order should not
+  // trigger a registration notification. The hash before passing on so the
+  // renewal lookup uses the same blind index the paid path would carry
+  // through Stripe session metadata.
+  const siteTokenIndex = ctx.siteToken
+    ? await hmacHash(ctx.siteToken)
+    : undefined;
+  await logAndNotifyRegistration(result.entries, siteTokenIndex);
 
   if (info.answerIds.length > 0) {
     const listingAnswerMap = buildListingAnswerMap(
@@ -357,20 +359,52 @@ const processSubmission = async (
     selectedListingIds,
   };
 
-  if (await anyRequiresPayment(items)) {
-    return handlePaidPath(request, {
-      addOns: parseAddOnSelections(form, ctx.addOns),
-      contact,
-      ctx,
+  // Resolve modifiers and price the cart in full *before* choosing between the
+  // provider checkout and the no-provider completion path. The previous gate
+  // (anyRequiresPayment on raw unitPrice) checked listing prices only: a
+  // zero-price cart with a positive add-on went free, and a paid cart
+  // discounted to zero still hit a payment provider for a zero-amount charge.
+  const addOns = parseAddOnSelections(form, ctx.addOns);
+  const promoCode = form.getString("promo_code");
+  const reservationAmount = await publicReservationAmount();
+  const paymentsEnabled = isPaymentsEnabled();
+  // Resolve modifiers before routing so the final priced total reflects the
+  // full cart, including reservation/deposit orders.
+  const modifiers = paymentsEnabled
+    ? await resolveModifiers(items, { addOns, code: promoCode })
+    : [];
+
+  const listingAnswerIds = computeListingAnswerMap(ctx, info);
+  const draftIntent: CheckoutIntent = {
+    ...contact,
+    date,
+    items,
+    listingAnswerIds,
+    // Carry the chosen span only when a customisable listing is involved, so
+    // the webhook re-prices and dates the booking by day count, not the
+    // listing's fixed duration.
+    ...(hasCustomisable ? { dayCount } : {}),
+    ...(ctx.siteToken ? { siteToken: ctx.siteToken } : {}),
+    ...(reservationAmount ? { reservationAmount } : {}),
+    ...(modifiers.length > 0 ? { modifiers } : {}),
+  };
+  const total = priceCheckout(draftIntent).total;
+
+  // Route by the final priced total. A positive total with payments enabled
+  // goes to the provider; a zero total (a discount applied, or zero-price
+  // listings with stock-consuming modifiers) completes without a provider,
+  // recording modifier usage if any was resolved.
+  if (paymentsEnabled && total > 0) {
+    const available = await checkAvailability(
+      ctx.listings,
+      quantities,
       date,
       dayCount,
-      hasCustomisable,
-      info,
-      items,
-      promoCode: form.getString("promo_code"),
-      quantities,
-      reservationAmount: await publicReservationAmount(),
-    });
+    );
+    if (!available) {
+      return errorResponse("Sorry, some tickets are no longer available");
+    }
+    return handlePaymentFlow(request, draftIntent, ctx);
   }
   return handleFreePath({
     contact,
@@ -379,6 +413,8 @@ const processSubmission = async (
     dayCount,
     hasCustomisable,
     info,
+    items,
+    modifiers,
     quantities,
   });
 };

@@ -9,6 +9,7 @@
  */
 
 import type { InValue } from "@libsql/client";
+import { deleteAttendee } from "#shared/db/attendees/delete.ts";
 import {
   executeBatchWithResults,
   getDb,
@@ -16,6 +17,8 @@ import {
   queryAll,
 } from "#shared/db/client.ts";
 import { nowIso } from "#shared/now.ts";
+import type { ModifierSpec } from "#shared/payments.ts";
+import { modifierDelta } from "#shared/price-modifier.ts";
 
 /** One modifier consumed by an order: the modifier, how many, and the amount
  * it changed the order by (recorded for reporting). */
@@ -86,5 +89,39 @@ export const consumeModifierStock = async (
     args: [attendeeId],
     sql: "DELETE FROM modifier_usages WHERE attendee_id = ?",
   });
+  return false;
+};
+
+/**
+ * Consume stock for a checkout's resolved modifiers and roll back the order
+ * when a stock-limited modifier sold out between resolution and consumption.
+ *
+ * Returns true when every usage was recorded. Returns false after deleting the
+ * newly-created attendee (and the partial `modifier_usages` rows it would have
+ * owned) when consumption failed — so the caller only has to surface the
+ * failure; the partially-created order is gone as if it never happened.
+ *
+ * `fullTotal` is the pre-modifier item subtotal the deltas are computed
+ * against — the same base `priceCheckout` uses — so the recorded
+ * `amount_applied` matches what the pricing engine charged. With no specs to
+ * apply this is a no-op (the caller may have resolved nothing for a cart with
+ * no eligible modifiers).
+ */
+export const consumeModifierStockOrRollback = async (
+  attendeeId: number,
+  specs: ModifierSpec[],
+  fullTotal: number,
+): Promise<boolean> => {
+  if (specs.length === 0) return true;
+  const consumed = await consumeModifierStock(
+    attendeeId,
+    specs.map((s) => ({
+      amountApplied: Math.abs(modifierDelta(fullTotal, s.kind, s.value)),
+      modifierId: s.id,
+      quantity: s.quantity,
+    })),
+  );
+  if (consumed) return true;
+  await deleteAttendee(attendeeId);
   return false;
 };

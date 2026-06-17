@@ -49,13 +49,12 @@ import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
 import {
   createAttendeeAtomic,
-  deleteAttendee,
   ensureAllBookings,
   getAttendeesByTokens,
 } from "#shared/db/attendees.ts";
 import { getListing, getListingWithCount } from "#shared/db/listings.ts";
 import { specsFromRefs } from "#shared/db/modifier-resolve.ts";
-import { consumeModifierStock } from "#shared/db/modifier-usage.ts";
+import { consumeModifierStockOrRollback } from "#shared/db/modifier-usage.ts";
 import {
   balanceFinalizeStatement,
   clearSessionTokens,
@@ -682,30 +681,25 @@ const createAttendeeForSession = async (
   }
   const created = result as Extract<typeof result, { success: true }>;
 
-  // Consume modifier stock atomically; a sold-out race rolls the order back.
-  // amount_applied is recorded against the order subtotal — the same base the
-  // pricing engine uses for today's whole-order ("all" scope) modifiers. When
-  // listing/group-scoped modifiers become creatable, this should use the
-  // in-scope subtotal to stay exact.
-  if (modifierSpecs.length > 0) {
-    const attendeeId = created.attendees[0]!.id;
-    const consumed = await consumeModifierStock(
-      attendeeId,
-      modifierSpecs.map((s) => ({
-        amountApplied: Math.abs(modifierDelta(fullTotal, s.kind, s.value)),
-        modifierId: s.id,
-        quantity: s.quantity,
-      })),
+  // Consume modifier stock atomically; on a sold-out race the helper rolls the
+  // order back (deleting the attendee + its usage rows) and the session is
+  // refunded below. amount_applied is recorded against the order subtotal —
+  // the same base the pricing engine uses for today's whole-order ("all"
+  // scope) modifiers. When listing/group-scoped modifiers become creatable,
+  // this should use the in-scope subtotal to stay exact.
+  const attendeeId = created.attendees[0]!.id;
+  const consumed = await consumeModifierStockOrRollback(
+    attendeeId,
+    modifierSpecs,
+    fullTotal,
+  );
+  if (!consumed) {
+    return refundAndFail(
+      session,
+      MODIFIER_SOLD_OUT_MESSAGE,
+      validatedItems[0]!.listing.id,
+      409,
     );
-    if (!consumed) {
-      await deleteAttendee(attendeeId);
-      return refundAndFail(
-        session,
-        MODIFIER_SOLD_OUT_MESSAGE,
-        validatedItems[0]!.listing.id,
-        409,
-      );
-    }
   }
 
   const entries = created.attendees.map((attendee, i) => ({

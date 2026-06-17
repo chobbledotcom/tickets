@@ -194,6 +194,47 @@ describeWithEnv(
       }
     });
 
+    test("a reservation public-default still resolves modifiers before checkout", async () => {
+      await setupStripe();
+      await setPublicReservation("10%");
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        thankYouUrl: "https://example.com",
+        unitPrice: 1000,
+      });
+      await modifiersTable.insert({
+        calcKind: "percent",
+        calcValue: 10,
+        direction: "charge",
+        name: "Service charge",
+      });
+      let captured: CheckoutIntent | undefined;
+      const checkout = stub(
+        stripePaymentProvider,
+        "createCheckoutSession",
+        (intent: CheckoutIntent) => {
+          captured = intent;
+          return Promise.resolve({
+            checkoutUrl: "https://stripe.example/checkout",
+            sessionId: "cs_test",
+          });
+        },
+      );
+      try {
+        const response = await submitTicketForm(listing.slug, {
+          [`quantity_${listing.id}`]: "1",
+          email: "buyer@example.com",
+          name: "Buyer",
+        });
+        expect([302, 303]).toContain(response.status);
+        expect(captured?.reservationAmount).toBe("10%");
+        expect(captured?.modifiers).toHaveLength(1);
+        expect(captured?.modifiers?.[0]?.value).toBe(10);
+      } finally {
+        checkout.restore();
+      }
+    });
+
     test("a non-reservation public-default carries no deposit amount", async () => {
       await setupStripe();
       const listing = await createTestListing({
