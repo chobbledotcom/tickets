@@ -36,6 +36,7 @@ import { settingsRoutes } from "#routes/admin/settings.ts";
 import { logisticsRoutes } from "#routes/admin/settings-logistics.ts";
 import { attendeeStatusesRoutes } from "#routes/admin/settings-statuses.ts";
 import { siteRoutes } from "#routes/admin/site.ts";
+import { smsRoutes } from "#routes/admin/sms.ts";
 import { supportRoutes } from "#routes/admin/support.ts";
 import { updateRoutes } from "#routes/admin/update.ts";
 import { usersRoutes } from "#routes/admin/users.ts";
@@ -61,6 +62,7 @@ const adminRouteModules: Record<string, RouteHandlerFn>[] = [
   listingQrRoutes,
   markdownPreviewRoutes,
   attendeesRoutes,
+  smsRoutes,
   attendeeRefundRoutes,
   usersRoutes,
   guideRoutes,

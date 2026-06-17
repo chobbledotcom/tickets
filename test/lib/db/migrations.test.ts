@@ -913,8 +913,10 @@ describe("db > migrations > schema change guard", () => {
         "2026-06-16_listing_aggregates",
         "2026-06-16_modifiers",
         "2026-06-17_modifier_code",
+        "2026-06-16_sms_messages",
+        "2026-06-16_attendee_phone_index",
       ],
-      schemaHash: "8fe2m0",
+      schemaHash: "1xgolfz",
     });
   });
 });

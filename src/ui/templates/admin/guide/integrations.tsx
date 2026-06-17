@@ -48,6 +48,68 @@ export const Integrations = (): JSX.Element => (
       </Q>
     </Section>
 
+    <Section id="sms" title="SMS Gateway">
+      <Q q="What is the SMS gateway?">
+        <p>
+          The SMS gateway lets you send text messages to attendees from an
+          attendee's <strong>Contact</strong> page, using a spare Android phone
+          as the sender. It uses the free, open-source{" "}
+          <a href="https://sms-gate.app">SMS Gateway for Android</a> app: you
+          install the app on a phone, and this site sends messages through it.
+          There is no per-message cost beyond your phone's normal SMS allowance.
+        </p>
+      </Q>
+
+      <Q q="How is my data kept private?">
+        <p>
+          Message text and recipient phone numbers are{" "}
+          <strong>end-to-end encrypted</strong> with a passphrase you choose,
+          before they ever leave this server. The relay only ever sees
+          ciphertext &mdash; only your phone, which holds the same passphrase,
+          can decrypt and send. Attendee phone numbers are decrypted briefly
+          under your login, re-encrypted with the gateway key, and never stored
+          in plain text.
+        </p>
+      </Q>
+
+      <Q q="How do I set it up?">
+        <ol>
+          <li>
+            Install the{" "}
+            <a href="https://sms-gate.app">SMS Gateway for Android</a> app on a
+            phone and register for the free cloud account it offers.
+          </li>
+          <li>
+            In the app, enable <strong>end-to-end encryption</strong> and set a
+            passphrase.
+          </li>
+          <li>
+            In{" "}
+            <a href="/admin/settings-advanced#settings-sms-gateway">
+              Advanced Settings &rarr; SMS Gateway
+            </a>
+            , enter the app's API username and password, and the{" "}
+            <strong>same passphrase</strong> you set on the phone.
+          </li>
+          <li>
+            Open any attendee and choose <strong>Send Text</strong> to message
+            them.
+          </li>
+        </ol>
+      </Q>
+
+      <Q q="Can I receive replies and delivery updates?">
+        <p>
+          Yes. When you set a webhook signing secret and point the app's webhook
+          at <code>/sms/webhook</code> on this site, delivery confirmations,
+          failures, and incoming replies are recorded in the{" "}
+          <a href="/admin/log">activity log</a> against the relevant attendee,
+          so you have a full history of the conversation. Each message is stored
+          encrypted and only readable by signed-in admins.
+        </p>
+      </Q>
+    </Section>
+
     <Section id="api" title={t("guide.sections.public_api")}>
       <Faq id="what_is_public_api" />
 
