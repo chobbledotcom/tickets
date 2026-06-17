@@ -478,7 +478,7 @@ export const adminMergeAttendeePage = (
 ): string =>
   String(
     <Layout title={`Merge Attendee: ${target.name}`}>
-      <AdminNav active="/admin/" session={session} />
+      <AdminNav active="/admin/attendees" session={session} />
       <Flash error={error} />
 
       <h2>{t("admin.attendees.merge_attendee")}</h2>

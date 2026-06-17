@@ -30,7 +30,7 @@ export const attendeeBalancePage = (view: AttendeeBalanceView): string => {
   const outstanding = remainingBalance > 0;
   return String(
     <Layout title={t("attendee_balance.page_title")}>
-      <AdminNav active="/admin/" session={view.session} />
+      <AdminNav active="/admin/attendees" session={view.session} />
       <p>
         <BackButton href={`/admin/attendees/${view.attendeeId}`}>
           {t("attendee_balance.back_to_attendee")}
