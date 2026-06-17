@@ -52,10 +52,12 @@ const result = reduce((acc, item) => {
 These are the curried helpers actually exported from `#fp`. Several are thin
 adapters over `@std/collections` (noted below) so the standard library does the
 work while the project keeps its pipe-friendly calling convention. For
-collection operations not covered here (grouping, partitioning, keying, picking
+collection operations not covered here (partitioning, keying, picking
 object keys, etc.), reach for `@std/collections` directly rather than
 hand-rolling — wrap it in a curried `#fp` adapter if it will be reused across
-the `pipe`-based code.
+the `pipe`-based code. Note `@std/collections` has **no** `groupBy` export
+(it was removed in favour of the runtime built-ins) — use native
+`Object.groupBy` / `Map.groupBy` for grouping.
 
 | Function           | Purpose                         |
 | ------------------ | ------------------------------- |
