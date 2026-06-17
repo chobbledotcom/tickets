@@ -35,7 +35,7 @@ import {
   withFetchMock,
 } from "#test-utils";
 
-describeWithEnv("db > migrations", { db: true }, () => {
+describeWithEnv("db > migrations", { db: true, triggers: true }, () => {
   const markCurrentSchemaMigrationPending = () => {
     // Clearing recorded history must also clear the per-isolate ready cache,
     // otherwise initDb never re-inspects this client.

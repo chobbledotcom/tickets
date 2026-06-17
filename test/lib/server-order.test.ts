@@ -19,7 +19,7 @@ const selectOrder = (ids: number[]): Promise<Response> => {
   return handleRequest(mockRequest(`/order?${query}`));
 };
 
-describeWithEnv("server (public order)", { db: true }, () => {
+describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
   describe("availability guard", () => {
     test("redirects to admin login when the public site is disabled", async () => {
       await settings.update.orderEnabled(true);

@@ -56,7 +56,7 @@ const expectCorsHeaders = (response: Response): void => {
   expect(response.headers.get("access-control-allow-origin")).toBe("*");
 };
 
-describeWithEnv("Public API", { db: true }, () => {
+describeWithEnv("Public API", { db: true, triggers: true }, () => {
   beforeEach(async () => {
     await settings.update.showPublicApi(true);
   });

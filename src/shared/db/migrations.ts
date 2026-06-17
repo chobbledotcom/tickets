@@ -1039,10 +1039,14 @@ const createIndexesForTable = async (
  * idempotent.
  */
 const createTriggersForTable = async (tableName: string): Promise<void> => {
+  if (areAggregateTriggersDisabledForTest()) return;
   for (const trg of TRIGGERS) {
     if (trg.table === tableName) await runMigration(trg.sql);
   }
 };
+
+const areAggregateTriggersDisabledForTest = (): boolean =>
+  getEnv("DISABLE_AGGREGATE_TRIGGERS_FOR_TEST") === "1";
 
 /**
  * Recreate a table from its SCHEMA definition, preserving data for matching columns.
@@ -1264,8 +1268,10 @@ const syncIndexes = async (): Promise<void> => {
 const syncTriggers = async (): Promise<void> => {
   const live = await snapshotLiveSchema();
   const declaredNames = new Set(TRIGGERS.map((t) => t.name));
-  for (const trg of TRIGGERS) {
-    if (!live.triggers.has(trg.name)) await runMigration(trg.sql);
+  if (!areAggregateTriggersDisabledForTest()) {
+    for (const trg of TRIGGERS) {
+      if (!live.triggers.has(trg.name)) await runMigration(trg.sql);
+    }
   }
   for (const name of live.triggers) {
     if (name.startsWith("trg_") && !declaredNames.has(name)) {
@@ -1341,6 +1347,7 @@ const verifyCurrentAppSchema = async (): Promise<void> => {
     }
   }
 
+  if (areAggregateTriggersDisabledForTest()) return;
   for (const trigger of TRIGGERS) {
     if (!live.triggers.has(trigger.name)) {
       throw new Error(
@@ -1449,6 +1456,7 @@ const assertRequiredTriggers = (
   live: LiveSchema,
   req: SchemaRequirement,
 ): void => {
+  if (areAggregateTriggersDisabledForTest()) return;
   for (const trigger of req.triggers ?? []) {
     if (!live.triggers.has(trigger)) {
       throw new Error(
