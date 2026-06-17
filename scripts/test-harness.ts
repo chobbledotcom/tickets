@@ -51,7 +51,8 @@ const downloadStripeMock = async (): Promise<void> => {
 
   const platform = Deno.build.os === "darwin" ? "darwin" : "linux";
   const arch = Deno.build.arch === "aarch64" ? "arm64" : "amd64";
-  const url = `https://github.com/stripe/stripe-mock/releases/download/v${STRIPE_MOCK_VERSION}/stripe-mock_${STRIPE_MOCK_VERSION}_${platform}_${arch}.tar.gz`;
+  const url =
+    `https://github.com/stripe/stripe-mock/releases/download/v${STRIPE_MOCK_VERSION}/stripe-mock_${STRIPE_MOCK_VERSION}_${platform}_${arch}.tar.gz`;
 
   const curlCmd = new Deno.Command("curl", {
     args: ["-sL", url, "-o", "-"],
