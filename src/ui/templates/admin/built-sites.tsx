@@ -364,9 +364,7 @@ const SecretsPanel = ({
         />
       </p>
       {view.missing.length === 0 ? (
-        <div class="success" role="status">
-          {t("built_sites.all_secrets_present")}
-        </div>
+        <output class="success">{t("built_sites.all_secrets_present")}</output>
       ) : (
         <SiteActionForm action="add-secrets" siteId={site.id}>
           <p>{t("built_sites.missing_secrets")}</p>

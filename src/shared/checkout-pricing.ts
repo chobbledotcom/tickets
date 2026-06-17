@@ -170,11 +170,7 @@ type ModifierPass = {
 const applyOne = (pass: ModifierPass, spec: ModifierSpec): ModifierPass => {
   const scoped = pass.units.filter((u) => inScope(spec, u));
   const scopedSubtotal = sum(scoped.map((u) => u.orig));
-  const delta = modifierDelta(
-    scopedSubtotal,
-    spec.kind,
-    spec.value,
-  );
+  const delta = modifierDelta(scopedSubtotal, spec.kind, spec.value);
   const appliedDelta = delta * spec.quantity;
   if (delta > 0) {
     return {
