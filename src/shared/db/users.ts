@@ -214,8 +214,7 @@ export const setUserPassword = async (
 
   await getDb().execute({
     args: [encryptedHash, encryptedNull, encryptedNull, userId],
-    sql:
-      "UPDATE users SET password_hash = ?, invite_code_hash = ?, invite_expiry = ? WHERE id = ?",
+    sql: "UPDATE users SET password_hash = ?, invite_code_hash = ?, invite_expiry = ? WHERE id = ?",
   });
   invalidateUsersCache();
 
@@ -323,9 +322,9 @@ export const usersApi = {
   getAllUserIds,
   getAllUsers,
   getUserById,
-  getUserDisplayFields,
   getUserByInviteCode,
   getUserByUsername,
+  getUserDisplayFields,
   hashInviteCode,
   hasPassword,
   invalidateUsersCache,

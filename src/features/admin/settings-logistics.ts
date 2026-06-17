@@ -43,11 +43,11 @@ import {
 import type { FormParams } from "#shared/form-data.ts";
 import { defineNamedResource } from "#shared/rest/resource.ts";
 import {
+  type AgentUserOption,
   adminLogisticsAgentDeletePage,
   adminLogisticsAgentEditPage,
   adminLogisticsAgentNewPage,
   adminLogisticsPage,
-  type AgentUserOption,
 } from "#templates/admin/logistics.tsx";
 import { logisticsAgentFields } from "#templates/fields.ts";
 
