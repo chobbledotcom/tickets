@@ -39,6 +39,7 @@ import {
   handleAdminSettingsGet,
 } from "#routes/admin/settings-page.ts";
 import { handleAdminSettingsPost } from "#routes/admin/settings-password.ts";
+import { handleSmsGatewayPost } from "#routes/admin/settings-sms.ts";
 import {
   handleAdminSquarePost,
   handleAdminSquareWebhookPost,
@@ -89,6 +90,7 @@ export const settingsRoutes = defineRoutes({
   "POST /admin/settings/reset-database": handleResetDatabasePost,
   "POST /admin/settings/show-public-api": handleShowPublicApiPost,
   "POST /admin/settings/show-public-site": handleShowPublicSitePost,
+  "POST /admin/settings/sms-gateway": handleSmsGatewayPost,
   "POST /admin/settings/square": handleAdminSquarePost,
   "POST /admin/settings/square-webhook": handleAdminSquareWebhookPost,
   "POST /admin/settings/square/test": handleSquareTestPost,

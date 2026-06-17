@@ -105,6 +105,11 @@ export const CONFIG_KEYS = {
   SETUP_COMPLETE: "setup_complete",
   SHOW_PUBLIC_API: "show_public_api",
   SHOW_PUBLIC_SITE: "show_public_site",
+  SMS_GATEWAY_BASE_URL: "sms_gateway_base_url",
+  SMS_GATEWAY_PASSPHRASE: "sms_gateway_passphrase",
+  SMS_GATEWAY_PASSWORD: "sms_gateway_password",
+  SMS_GATEWAY_USERNAME: "sms_gateway_username",
+  SMS_GATEWAY_WEBHOOK_SECRET: "sms_gateway_webhook_secret",
   SQUARE_ACCESS_TOKEN: "square_access_token",
   SQUARE_LOCATION_ID: "square_location_id",
   SQUARE_SANDBOX: "square_sandbox",
@@ -207,6 +212,7 @@ const PLAINTEXT_KEYS = [
   CONFIG_KEYS.LAST_PRUNED_SUMUP,
   CONFIG_KEYS.LAST_PRUNED_LOGINS,
   CONFIG_KEYS.LAST_PRUNED_TOKENS,
+  CONFIG_KEYS.SMS_GATEWAY_BASE_URL,
 ] as const;
 
 /** Encrypted string config keys (decrypted during loadAll, default ""). */
@@ -239,6 +245,10 @@ const ENCRYPTED_KEYS = [
   CONFIG_KEYS.GOOGLE_WALLET_ISSUER_ID,
   CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL,
   CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_KEY,
+  CONFIG_KEYS.SMS_GATEWAY_PASSPHRASE,
+  CONFIG_KEYS.SMS_GATEWAY_USERNAME,
+  CONFIG_KEYS.SMS_GATEWAY_PASSWORD,
+  CONFIG_KEYS.SMS_GATEWAY_WEBHOOK_SECRET,
 ] as const;
 
 /** Union of all string-setting snapshot keys. */
@@ -420,6 +430,11 @@ const STRING_ACCESSORS = {
   orderIntroText: { key: CONFIG_KEYS.ORDER_INTRO_TEXT },
   // readOnly: key material is only written by setup/password flows
   publicKey: { key: CONFIG_KEYS.PUBLIC_KEY, readOnly: true },
+  smsGatewayBaseUrl: { key: CONFIG_KEYS.SMS_GATEWAY_BASE_URL },
+  smsGatewayPassphrase: { key: CONFIG_KEYS.SMS_GATEWAY_PASSPHRASE },
+  smsGatewayPassword: { key: CONFIG_KEYS.SMS_GATEWAY_PASSWORD },
+  smsGatewayUsername: { key: CONFIG_KEYS.SMS_GATEWAY_USERNAME },
+  smsGatewayWebhookSecret: { key: CONFIG_KEYS.SMS_GATEWAY_WEBHOOK_SECRET },
   // readOnly: settings.update.supportFormLastSubmitted writes a timestamp
   supportFormLastSubmitted: {
     key: CONFIG_KEYS.SUPPORT_FORM_LAST_SUBMITTED,
@@ -841,6 +856,19 @@ const settingsBase = {
   },
   get showPublicSite(): boolean {
     return snap("show_public_site");
+  },
+
+  // --- SMS gateway ---
+  smsGateway: {
+    get hasPassphrase(): boolean {
+      return snap("sms_gateway_passphrase") !== "";
+    },
+    get hasPassword(): boolean {
+      return snap("sms_gateway_password") !== "";
+    },
+    get hasWebhookSecret(): boolean {
+      return snap("sms_gateway_webhook_secret") !== "";
+    },
   },
 
   // --- Square ---

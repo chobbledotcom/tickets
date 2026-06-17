@@ -31,7 +31,7 @@ export const NO_PROVIDER_ERROR = "No payment provider configured.";
  * Uses batched query to fetch listing + attendee in a single DB round-trip.
  * Decrypts attendee PII using the admin private key.
  */
-const loadAttendeeForListing = async (
+export const loadAttendeeForListing = async (
   session: AuthSession,
   listingId: number,
   attendeeId: number,
@@ -47,7 +47,7 @@ const loadAttendeeForListing = async (
 };
 
 /** Load attendee with auth, returning 404 if not found */
-const withAttendee = withEntityLoader(loadAttendeeForListing);
+export const withAttendee = withEntityLoader(loadAttendeeForListing);
 
 /** Route params for listing-scoped routes */
 export type ListingRouteParams = { id: number };
