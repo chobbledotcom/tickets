@@ -192,6 +192,11 @@ type PathParams = {
   info: AnswerInfo;
 };
 
+type PreparedSubmission = PathParams & {
+  items: CheckoutItem[];
+  listingAnswerIds: CheckoutIntent["listingAnswerIds"];
+};
+
 /**
  * The reservation-amount the public-default status charges as a deposit, or
  * undefined when public bookings are paid in full. Drives the deposit pricing
@@ -232,13 +237,13 @@ const handleFreePath = async (
 ): Promise<Response> => {
   const { ctx, quantities, date, dayCount, contact, info, items, modifiers } =
     params;
-  const result = await createFreeReservation(
-    ctx.listings,
-    quantities,
+  const result = await createFreeReservation({
     contact,
     date,
     dayCount,
-  );
+    listings: ctx.listings,
+    quantities,
+  });
   if (!result.success) return ticketFormErrorResponse(ctx)(result.error);
 
   // Consume modifier stock against the same pre-modifier item subtotal the
@@ -287,12 +292,19 @@ const handleFreePath = async (
   return redirectResponse(`/ticket/reserved?tokens=${token}`);
 };
 
-/** Process submitted form after CSRF and demo overrides. */
-const processSubmission = async (
-  request: Request,
+const parseBookingDate = (
+  form: FormParams,
+  ctx: TicketCtx,
+): Response | string | null => {
+  if (ctx.dates.length === 0) return null;
+  const date = validateSubmittedDate(form, ctx.dates);
+  return date ?? ticketFormErrorResponse(ctx)("Please select a valid date");
+};
+
+const prepareSubmission = async (
   ctx: TicketCtx,
   form: FormParams,
-): Promise<Response> => {
+): Promise<Response | PreparedSubmission> => {
   const errorResponse = ticketFormErrorResponse(ctx);
 
   const validated = validateFormAndAvailability(form, ctx);
@@ -305,10 +317,9 @@ const processSubmission = async (
     return errorResponse("Please select at least one ticket");
   }
 
+  const selected = listingsWithQuantity(ctx.listings, quantities);
   const selectedListingIds = new Set(quantities.keys());
-  const siteAssignmentCheck = await validateSiteAssignmentConfig(
-    listingsWithQuantity(ctx.listings, quantities),
-  );
+  const siteAssignmentCheck = await validateSiteAssignmentConfig(selected);
   if (!siteAssignmentCheck.ok) {
     return errorResponse(siteAssignmentCheck.message);
   }
@@ -322,18 +333,14 @@ const processSubmission = async (
     activeQuestions,
   );
   if (!answersResult.ok) {
-    return ticketFormErrorResponse(ctx)(answersResult.error);
+    return errorResponse(answersResult.error);
   }
 
   const contact = extractContact(values);
 
-  let date: string | null = null;
-  if (ctx.dates.length > 0) {
-    date = validateSubmittedDate(form, ctx.dates);
-    if (!date) return errorResponse("Please select a valid date");
-  }
+  const date = parseBookingDate(form, ctx);
+  if (date instanceof Response) return date;
 
-  const selected = listingsWithQuantity(ctx.listings, quantities);
   const hasCustomisable = selected.some(
     ({ listing }) => listing.customisable_days,
   );
@@ -358,6 +365,41 @@ const processSubmission = async (
     answerIds: answersResult.answerIds,
     selectedListingIds,
   };
+  const listingAnswerIds = computeListingAnswerMap(ctx, info);
+
+  return {
+    contact,
+    ctx,
+    date,
+    dayCount,
+    hasCustomisable,
+    info,
+    items,
+    listingAnswerIds,
+    quantities,
+  };
+};
+
+/** Process submitted form after CSRF and demo overrides. */
+const processSubmission = async (
+  request: Request,
+  ctx: TicketCtx,
+  form: FormParams,
+): Promise<Response> => {
+  const errorResponse = ticketFormErrorResponse(ctx);
+
+  const prepared = await prepareSubmission(ctx, form);
+  if (prepared instanceof Response) return prepared;
+  const {
+    contact,
+    date,
+    dayCount,
+    hasCustomisable,
+    info,
+    items,
+    listingAnswerIds,
+    quantities,
+  } = prepared;
 
   // Resolve modifiers and price the cart in full *before* choosing between the
   // provider checkout and the no-provider completion path. The previous gate
@@ -374,7 +416,6 @@ const processSubmission = async (
     ? await resolveModifiers(items, { addOns, code: promoCode })
     : [];
 
-  const listingAnswerIds = computeListingAnswerMap(ctx, info);
   const draftIntent: CheckoutIntent = {
     ...contact,
     date,

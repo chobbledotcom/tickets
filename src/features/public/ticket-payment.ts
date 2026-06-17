@@ -267,16 +267,25 @@ export const resolveDayCount = async (
   return { dayCount: raw };
 };
 
-export const createFreeReservation = async (
-  listings: TicketListing[],
-  quantities: Map<number, number>,
-  contact: ContactInfo,
-  date: string | null,
-  dayCount = 1,
-): Promise<
+type FreeReservationParams = {
+  listings: TicketListing[];
+  quantities: Map<number, number>;
+  contact: ContactInfo;
+  date: string | null;
+  dayCount?: number;
+};
+
+type FreeReservationResult =
   | { success: true; token: string; entries: EmailEntry[] }
-  | { success: false; error: string }
-> => {
+  | { success: false; error: string };
+
+export const createFreeReservation = async ({
+  listings,
+  quantities,
+  contact,
+  date,
+  dayCount = 1,
+}: FreeReservationParams): Promise<FreeReservationResult> => {
   const selected = listingsWithQuantity(listings, quantities);
   const bookings = buildBookings(selected, date, dayCount);
   const result = await createAttendeeAtomic({
@@ -310,24 +319,13 @@ export const createFreeReservation = async (
   };
 };
 
-export const processFreeReservation = async (
-  listings: TicketListing[],
-  quantities: Map<number, number>,
-  contact: ContactInfo,
-  date: string | null,
-  siteToken?: string,
-  dayCount = 1,
-): Promise<
-  | { success: true; token: string; entries: EmailEntry[] }
-  | { success: false; error: string }
-> => {
-  const result = await createFreeReservation(
-    listings,
-    quantities,
-    contact,
-    date,
-    dayCount,
-  );
+export const processFreeReservation = async ({
+  siteToken,
+  ...reservation
+}: FreeReservationParams & {
+  siteToken?: string;
+}): Promise<FreeReservationResult> => {
+  const result = await createFreeReservation(reservation);
   if (!result.success) return result;
 
   // Hash before passing on so the renewal lookup uses the same blind index
