@@ -308,13 +308,35 @@ describeWithEnv("server (agent deliveries)", { db: true }, () => {
     expect(response.status).toBe(302);
   });
 
-  test("staff cannot view the agent run sheet", async () => {
+  test("unauthenticated visitors are redirected away from the run sheet", async () => {
+    const response = await handleRequest(mockRequest("/admin/deliveries"));
+    expect(response.status).toBe(302);
+  });
+
+  test("staff can view the run sheet and see the staff nav and Calendar submenu", async () => {
+    await settings.update.hasLogistics(true);
     const response = await handleRequest(
       mockRequest("/admin/deliveries", {
         headers: { cookie: await testCookie() },
       }),
     );
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    // Staff (unlike agents) get the full navigation and the Calendar submenu
+    // link to the deliveries page.
+    expect(html).toContain('id="main-nav"');
+    expect(html).toContain('href="/admin/deliveries"');
+  });
+
+  test("staff with no assigned agents see the no-agents prompt", async () => {
+    const response = await handleRequest(
+      mockRequest("/admin/deliveries", {
+        headers: { cookie: await testCookie() },
+      }),
+    );
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(html).toContain("no logistics agents assigned");
   });
 
   test("logging in as an agent lands on the run sheet", async () => {

@@ -1,17 +1,18 @@
 /**
- * Delivery agent run sheet routes — agent-only.
+ * Delivery run sheet routes.
  *
- * An agent user sees only `/admin/deliveries`: the drop-offs and collections
- * for the logistics agents they drive, today and tomorrow. They can toggle each
- * leg done. Every other admin route is closed to agents by the default auth
- * gate (see auth.ts), so this module is their whole world.
+ * `/admin/deliveries` shows the drop-offs and collections for the logistics
+ * agents a user drives, today and tomorrow, with a per-leg done toggle. An
+ * agent-class user is sent here as their only page (every other admin route is
+ * closed to agents by the default auth gate); owners and managers reach it from
+ * the Calendar submenu and, unlike agents, keep the full staff navigation.
  */
 
 import { unique } from "#fp";
 import { t } from "#i18n";
 import {
-  AGENT_FORM,
-  agentPage,
+  ANY_USER_FORM,
+  anyUserPage,
   getPrivateKey,
   withAuth,
 } from "#routes/auth.ts";
@@ -136,16 +137,18 @@ const loadLegLookups = async (
   };
 };
 
-/** Handle GET /admin/deliveries — render the agent's run sheet. */
-const handleDeliveriesGet = agentPage(async (session) => {
+/** Handle GET /admin/deliveries — render the run sheet. Agents are sent here as
+ * their only page; staff (owner/manager) reach it from the Calendar submenu. */
+const handleDeliveriesGet = anyUserPage(async (session) => {
   const flash = getFlash();
   const agentIds = await getUserAgentIds(session.userId);
   if (agentIds.length === 0) {
-    return agentDeliveriesPage([], settings.phonePrefix, {
-      error: flash.error,
-      noAgents: true,
-      success: flash.success,
-    });
+    return agentDeliveriesPage(
+      [],
+      settings.phonePrefix,
+      { error: flash.error, noAgents: true, success: flash.success },
+      session,
+    );
   }
 
   const today = todayInTz(settings.timezone);
@@ -155,17 +158,18 @@ const handleDeliveriesGet = agentPage(async (session) => {
   const privateKey = (await getPrivateKey(session))!;
   const lookups = await loadLegLookups(legs, privateKey);
   const groups = buildGroups(legs, today, tomorrow, lookups);
-  return agentDeliveriesPage(groups, settings.phonePrefix, {
-    error: flash.error,
-    noAgents: false,
-    success: flash.success,
-  });
+  return agentDeliveriesPage(
+    groups,
+    settings.phonePrefix,
+    { error: flash.error, noAgents: false, success: flash.success },
+    session,
+  );
 });
 
 /** Handle POST /admin/deliveries/mark — toggle a leg done, scoped to the
  * agent's own logistics agents. */
 const handleDeliveriesMark = (request: Request): Promise<Response> =>
-  withAuth(request, AGENT_FORM, async (session, form) => {
+  withAuth(request, ANY_USER_FORM, async (session, form) => {
     const attendeeId = form.getOptionalInt("attendee_id");
     const listingId = form.getOptionalInt("listing_id");
     const kind = form.getString("kind");

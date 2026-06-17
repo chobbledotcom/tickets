@@ -1553,14 +1553,27 @@ button.secondary:hover,
   box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.3);
 }
 
-/* Owner debug footer */
-.debug-footer {
+/* Admin footer: Chobble link (+ optional debug menu) on the left, logout on
+   the right. */
+.admin-footer {
   margin-top: auto;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-s);
   font-size: smaller;
+}
+
+.admin-footer-info {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-m);
   opacity: 0.6;
 }
 
-.debug-footer ul {
+.admin-footer-info ul {
   font-family: monospace;
   font-size: small;
 }
@@ -1893,7 +1906,7 @@ button.secondary:hover,
     max-width: 100%;
   }
 
-  .debug-footer {
+  .admin-footer {
     display: none;
   }
 
@@ -2410,4 +2423,28 @@ a.cal-day-selected:hover {
 
 .logistics-line {
   margin-bottom: var(--space-s);
+}
+
+/* Each leg is one row: a label, the time, then the agent (capped at 20rem),
+   wrapping onto the next line when there isn't room. */
+.logistics-leg {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-s);
+  margin-bottom: var(--space-s);
+}
+
+.logistics-leg-label {
+  font-weight: bold;
+}
+
+.logistics-leg input[type="time"] {
+  flex: 0 0 auto;
+  width: auto;
+}
+
+.logistics-leg-agent {
+  flex: 1;
+  max-width: 20rem;
 }

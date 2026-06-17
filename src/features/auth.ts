@@ -400,6 +400,23 @@ export const sessionPage = authPage(requireSessionOr);
 /** Agent-only GET page: authenticate, apply flash, render HTML */
 export const agentPage = authPage(requireAgentOr);
 
+/** Require any authenticated user (owner, manager or agent). Used for pages
+ * that staff and delivery agents alike must reach, like the deliveries run
+ * sheet — agents are sent here, staff opt in via the Calendar submenu. Every
+ * valid session already holds one of the three roles, so authentication is the
+ * only gate. */
+export const requireAnyUserOr = async (
+  request: Request,
+  handler: SessionHandler,
+): Promise<Response> => {
+  const session = await getAuthenticatedSession(request);
+  if (!session) return authFailure("html", "not-authenticated");
+  return handler(session);
+};
+
+/** Any-authenticated-user GET page: authenticate, apply flash, render HTML */
+export const anyUserPage = authPage(requireAnyUserOr);
+
 /** Shared auth failure response factories (avoids jscpd duplication) */
 const htmlForbidden = () => htmlResponse("Forbidden", 403);
 const jsonForbidden = () => jsonResponse({ error: "Forbidden" }, 403);
