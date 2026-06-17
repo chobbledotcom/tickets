@@ -105,7 +105,7 @@ export const isEmbeddablePath = (path: string): boolean =>
  * Check if path is a webhook endpoint that accepts JSON
  */
 export const isWebhookPath = (path: string): boolean =>
-  path === "/payment/webhook";
+  path === "/payment/webhook" || path === "/sms/webhook";
 
 /** Pattern for public API paths */
 const API_PATH_PATTERN = /^\/api\//;

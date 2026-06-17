@@ -6,6 +6,7 @@ import { filter, map } from "#fp";
 import { capacityErrorFormatter } from "#routes/format.ts";
 import { errorRedirect, htmlResponse } from "#routes/response.ts";
 import { validatePrice } from "#shared/currency.ts";
+import type { AddOnOption } from "#shared/db/modifier-resolve.ts";
 import type {
   QuestionListingMap,
   QuestionWithAnswers,
@@ -123,6 +124,25 @@ export const listingsWithQuantity = (
     qty: quantities.get(listing.id) ?? 0,
   }))(listings);
   return filter(({ qty }: ListingQty) => qty > 0)(withQty);
+};
+
+/** Parse opt-in add-on selections from the form into a modifier-id → quantity
+ * map. Only add-ons offered on the page are read, each clamped to its quantity
+ * ceiling; zero or invalid entries are dropped so they don't apply. */
+export const parseAddOnSelections = (
+  form: FormParams,
+  addOns: AddOnOption[],
+): Map<number, number> => {
+  const selections = new Map<number, number>();
+  for (const addOn of addOns) {
+    const quantity = parseQuantityValue(
+      form.get(`addon_${addOn.id}`) || "0",
+      addOn.maxQuantity,
+      0,
+    );
+    if (quantity > 0) selections.set(addOn.id, quantity);
+  }
+  return selections;
 };
 
 /** Determine merged fields setting for selected listings */

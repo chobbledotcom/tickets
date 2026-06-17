@@ -409,7 +409,8 @@ export const formatDatetimeShort = (iso: string): string =>
  */
 export const daysAgo = (utcIso: string): number | null => {
   if (!utcIso) return null;
-  const calDate = listingDateToCalendarDate(utcIso)!;
+  const calDate = listingDateToCalendarDate(utcIso);
+  if (!calDate) return null;
   const todayStr = todayInTz(settings.timezone);
   if (calDate >= todayStr) return null;
   const listingMs = new Date(`${calDate}T00:00:00Z`).getTime();

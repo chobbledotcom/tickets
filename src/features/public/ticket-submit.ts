@@ -8,7 +8,7 @@ import { errorRedirect, redirectResponse } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { getPublicDefaultStatus } from "#shared/db/attendee-statuses.ts";
-import { buyerVisits, resolveModifiers } from "#shared/db/modifier-resolve.ts";
+import { resolveModifiers } from "#shared/db/modifier-resolve.ts";
 import {
   groupListingAnswers,
   parseQuestionAnswers,
@@ -37,6 +37,7 @@ import {
   extractContact,
   getTicketFieldsSetting,
   listingsWithQuantity,
+  parseAddOnSelections,
   parseCustomPrice,
   parseQuantities,
   ticketFormErrorResponse,
@@ -188,6 +189,8 @@ const handlePaidPath = async (
   params: PathParams & {
     items: ReturnType<typeof buildRegistrationItems>;
     reservationAmount?: string;
+    promoCode?: string;
+    addOns?: Map<number, number>;
   },
 ): Promise<Response> => {
   const {
@@ -200,6 +203,8 @@ const handlePaidPath = async (
     items,
     info,
     reservationAmount,
+    promoCode,
+    addOns,
   } = params;
   const available = await checkAvailability(
     ctx.listings,
@@ -214,14 +219,10 @@ const handlePaidPath = async (
   }
   const listingAnswerIds = computeListingAnswerMap(ctx, info);
   // Modifiers apply only to full-payment orders for now; reservations (deposits)
-  // compose with modifiers in a later step. The visit count for the
-  // returning-customer gate is re-derived server-side here (keyless) from the
-  // contact details entered on the form, so it can't be claimed by the client.
+  // compose with modifiers in a later step.
   const modifiers = reservationAmount
     ? []
-    : await resolveModifiers(items, {
-        visits: await buyerVisits(contact.email, contact.phone),
-      });
+    : await resolveModifiers(items, { addOns, code: promoCode });
   const intent = {
     ...contact,
     date,
@@ -358,6 +359,7 @@ const processSubmission = async (
 
   if (await anyRequiresPayment(items)) {
     return handlePaidPath(request, {
+      addOns: parseAddOnSelections(form, ctx.addOns),
       contact,
       ctx,
       date,
@@ -365,6 +367,7 @@ const processSubmission = async (
       hasCustomisable,
       info,
       items,
+      promoCode: form.getString("promo_code"),
       quantities,
       reservationAmount: await publicReservationAmount(),
     });

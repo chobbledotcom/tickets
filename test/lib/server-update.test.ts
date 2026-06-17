@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
-import { settings } from "#shared/db/settings.ts";
+import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import { setBuildTimestampForTest } from "#shared/update.ts";
 import {
   adminFormPost,
@@ -50,7 +50,7 @@ const setupForDeploy = async () => {
   simulateProductionBuild();
   await settings.update.latestScriptVersion("v2099-01-01-120000");
   settings.invalidateCache();
-  await settings.loadAll();
+  await settings.loadKeys(ALL_SETTINGS_KEYS);
 };
 
 /**
@@ -112,7 +112,7 @@ describeWithEnv("server (admin update)", { db: true }, () => {
       await settings.update.latestScriptVersion("v2099-01-01-120000");
       await settings.update.latestScriptVersionName("2099-01-01 - Big Update");
       settings.invalidateCache();
-      await settings.loadAll();
+      await settings.loadKeys(ALL_SETTINGS_KEYS);
 
       const response = await awaitTestRequest("/admin/update", {
         cookie: await testCookie(),
@@ -127,7 +127,7 @@ describeWithEnv("server (admin update)", { db: true }, () => {
       await settings.update.latestScriptVersion("v2025-01-01-000000");
       await settings.update.latestScriptVersionName("2025-01-01 - Old");
       settings.invalidateCache();
-      await settings.loadAll();
+      await settings.loadKeys(ALL_SETTINGS_KEYS);
 
       const response = await awaitTestRequest("/admin/update", {
         cookie: await testCookie(),
@@ -188,7 +188,7 @@ describeWithEnv("server (admin update)", { db: true }, () => {
         async () => {
           await adminFormPost("/admin/update/check");
           settings.invalidateCache();
-          await settings.loadAll();
+          await settings.loadKeys(ALL_SETTINGS_KEYS);
           expect(settings.latestScriptVersion).toBe("v2099-01-01-120000");
           expect(settings.latestScriptVersionName).toBe(
             "2099-01-01 - Big Update",
@@ -263,7 +263,7 @@ describeWithEnv("server (admin update)", { db: true }, () => {
       setBuildTimestampForTest("2099-12-31T23:59:59Z");
       await settings.update.latestScriptVersion("v2026-01-01-000000");
       settings.invalidateCache();
-      await settings.loadAll();
+      await settings.loadKeys(ALL_SETTINGS_KEYS);
 
       const { response } = await adminFormPost("/admin/update");
       expectFlash(
@@ -382,7 +382,7 @@ describeWithEnv("server (admin update)", { db: true }, () => {
       await setupForDeploy();
       await settings.update.currentTask("other-task");
       settings.invalidateCache();
-      await settings.loadAll();
+      await settings.loadKeys(ALL_SETTINGS_KEYS);
 
       await withMocks(
         () =>

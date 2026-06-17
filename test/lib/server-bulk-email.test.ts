@@ -11,7 +11,7 @@ import {
   getEmailStats,
   hashEmail,
   unsubscribeHash,
-} from "#shared/db/contact-preferences.ts";
+} from "#shared/db/email-preferences.ts";
 import { settings } from "#shared/db/settings.ts";
 import { MAX_EMAIL_TEMPLATES } from "#shared/limits.ts";
 import {

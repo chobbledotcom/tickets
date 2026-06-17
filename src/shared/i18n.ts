@@ -15,16 +15,29 @@ type Messages = Record<string, string>;
 /** Registered locale message maps — English is built-in as the default fallback */
 const locales: Record<string, Messages> = { en };
 
+/** ICU parsing is non-trivial, so cache compiled formats by locale + key. */
+const formatCache = new Map<string, IntlMessageFormat | null>();
+
 /** Get the list of registered locale codes */
 export const getRegisteredLocales = (): string[] => Object.keys(locales);
 
 const getFormat = (locale: string, key: string): IntlMessageFormat | null => {
+  const cacheKey = `${locale}\0${key}`;
+  if (formatCache.has(cacheKey)) return formatCache.get(cacheKey)!;
+
   const msg = locales[locale]?.[key] ?? locales.en?.[key];
-  if (msg === undefined) return null;
+  if (msg === undefined) {
+    formatCache.set(cacheKey, null);
+    return null;
+  }
 
   // ignoreTag: treat <tags> in messages as literal text (locale values may
   // contain HTML rendered via <Raw>), not ICU rich-text tag syntax.
-  return new IntlMessageFormat(msg, locale, undefined, { ignoreTag: true });
+  const fmt = new IntlMessageFormat(msg, locale, undefined, {
+    ignoreTag: true,
+  });
+  formatCache.set(cacheKey, fmt);
+  return fmt;
 };
 
 /** Translate a key with optional ICU MessageFormat parameters */

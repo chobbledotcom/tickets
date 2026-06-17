@@ -8,14 +8,9 @@
  * rebuilds the same specs, so provider metadata amounts are never trusted.
  */
 
-import { compact } from "#fp";
 import { itemsSubtotal } from "#shared/booking-fee.ts";
-import { toMinorUnits } from "#shared/currency.ts";
-import {
-  getVisits,
-  hashEmail,
-  hashPhone,
-} from "#shared/db/contact-preferences.ts";
+import { hmacHash } from "#shared/crypto/hashing.ts";
+import { formatCurrency, toMinorUnits } from "#shared/currency.ts";
 import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
 import {
   getActiveModifiers,
@@ -27,6 +22,7 @@ import type {
   ModifierRef,
   ModifierSpec,
 } from "#shared/payments.ts";
+import { normalizeCode } from "#shared/price-modifier.ts";
 import type { Modifier } from "#shared/types.ts";
 
 /** The signed pricing value the engine applies, from a modifier's stored
@@ -60,6 +56,7 @@ const toSpec = (
   listingIds,
   name: modifier.name,
   quantity,
+  trigger: modifier.trigger,
   value: signedValue(modifier),
 });
 
@@ -75,75 +72,72 @@ const inScopeSubtotal = (
       : items.filter((i) => listingIds.includes(i.listingId)),
   );
 
-/** A modifier eligible by scope and minimum subtotal (stock checked after). */
-type Candidate = { modifier: Modifier; listingIds: number[] | null };
+/** A modifier eligible by scope and minimum subtotal, with the quantity the
+ * buyer asked for (1 for automatic/code modifiers; the chosen count for an
+ * opt-in add-on). Stock is clamped after candidates are gathered. */
+type Candidate = {
+  modifier: Modifier;
+  listingIds: number[] | null;
+  quantity: number;
+};
 
-/** Whether a stock-limited modifier still has a unit left. */
-const hasStock = (modifier: Modifier, used: Map<number, number>): boolean =>
-  modifier.stock === null || modifier.stock - (used.get(modifier.id) ?? 0) >= 1;
+/** How many units of a modifier can actually be applied, capping the requested
+ * quantity at the remaining stock. Unlimited stock grants the full request. */
+const stockedQuantity = (
+  modifier: Modifier,
+  requested: number,
+  used: Map<number, number>,
+): number => {
+  if (modifier.stock === null) return requested;
+  const remaining = modifier.stock - (used.get(modifier.id) ?? 0);
+  return Math.max(0, Math.min(requested, remaining));
+};
 
-/**
- * Pricing context for resolving automatic modifiers: the buyer's keyless visit
- * count (their prior bookings), used to gate a returning-customer discount.
- * Defaults to 0 (a first-time / unknown buyer), so an absent context behaves as
- * "no prior bookings".
- */
-export type PricingContext = { visits: number };
-
-/** Context for a buyer we know nothing about (no prior bookings). */
-const NO_VISITS: PricingContext = { visits: 0 };
-
-/**
- * The buyer's visit count, read keyless from contact_preferences by hashing the
- * email/phone they entered on the form. Takes the max across the identifiers
- * present (a buyer who gave both gets the higher recognition); 0 when neither is
- * present or neither has been seen before. Re-derived server-side at the
- * authoritative pricing point so a crafted checkout can't claim returning
- * status.
- */
-export const buyerVisits = async (
-  email?: string,
-  phone?: string,
-): Promise<number> => {
-  // Tolerate non-string / blank identifiers: provider metadata is adversarial
-  // input, so a malformed value is treated as absent rather than throwing (the
-  // same robustness createAttendeeAtomic applies before hashing).
-  const usable = (v: string | undefined): v is string =>
-    typeof v === "string" && v.trim() !== "";
-  const hashes = await Promise.all(
-    compact([
-      usable(email) ? hashEmail(email) : null,
-      usable(phone) ? hashPhone(phone) : null,
-    ]),
-  );
-  if (hashes.length === 0) return 0;
-  const counts = await Promise.all(hashes.map(getVisits));
-  return Math.max(0, ...counts);
+/** How many times a modifier is requested for a cart: automatic modifiers
+ * apply once, a "code" modifier applies once when the entered code matches, and
+ * an opt-in add-on applies as many times as the buyer chose (0 = not selected).
+ * A result below 1 means the modifier doesn't trigger at all. */
+const triggerQuantity = (
+  modifier: Modifier,
+  codeIndex: string | null,
+  addOns: Map<number, number>,
+): number => {
+  if (modifier.trigger === "code")
+    return codeIndex !== null && modifier.code_index === codeIndex ? 1 : 0;
+  if (modifier.trigger === "optional") return addOns.get(modifier.id) ?? 0;
+  return 1;
 };
 
 /**
- * The modifiers that automatically apply to a cart: active, automatic, in
- * scope, past their minimum subtotal and minimum visit count, and with stock
- * remaining. The visit gate (`min_visits`) reads the buyer's prior-booking
- * count from `ctx`, exactly parallel to the `min_subtotal` gate.
+ * The modifiers that apply to a cart: active, triggered, in scope, past their
+ * minimum subtotal, and with stock remaining. Automatic modifiers always
+ * trigger; a "code" modifier triggers only when the buyer entered its matching
+ * code; an "optional" add-on triggers only when the buyer selected it
+ * (`opts.addOns` maps modifier id → chosen quantity), and is applied that many
+ * times.
  */
 export const resolveModifiers = async (
   items: CheckoutItem[],
-  ctx: PricingContext = NO_VISITS,
+  opts: { code?: string; addOns?: Map<number, number> } = {},
 ): Promise<ModifierSpec[]> => {
-  const automatic = (await getActiveModifiers())
-    .filter((m) => m.trigger === "automatic")
-    // Drop modifiers that need more prior bookings than this buyer has, the
-    // same shape of gate as min_subtotal below.
-    .filter((m) => m.min_visits <= ctx.visits);
+  const addOns = opts.addOns ?? new Map<number, number>();
+  const codeIndex = opts.code?.trim()
+    ? await hmacHash(normalizeCode(opts.code))
+    : null;
   const candidates = (
     await Promise.all(
-      automatic.map(async (modifier): Promise<Candidate | null> => {
+      (
+        await getActiveModifiers()
+      ).map(async (modifier): Promise<Candidate | null> => {
+        const quantity = triggerQuantity(modifier, codeIndex, addOns);
+        if (quantity < 1) return null;
         const listingIds = await listingIdsFor(modifier);
         const base = inScopeSubtotal(items, listingIds);
         // A scoped modifier only applies alongside its listings/groups.
         if (listingIds !== null && base === 0) return null;
-        return base >= modifier.min_subtotal ? { listingIds, modifier } : null;
+        return base >= modifier.min_subtotal
+          ? { listingIds, modifier, quantity }
+          : null;
       }),
     )
   ).filter((c): c is Candidate => c !== null);
@@ -155,8 +149,83 @@ export const resolveModifiers = async (
       .map((c) => c.modifier.id),
   );
   return candidates
-    .filter((c) => hasStock(c.modifier, used))
-    .map((c) => toSpec(c.modifier, 1, c.listingIds));
+    .map((c) => ({
+      candidate: c,
+      quantity: stockedQuantity(c.modifier, c.quantity, used),
+    }))
+    .filter(({ quantity }) => quantity >= 1)
+    .map(({ candidate, quantity }) =>
+      toSpec(candidate.modifier, quantity, candidate.listingIds),
+    );
+};
+
+/** Whether any active modifier is unlocked by a promo code, so the public
+ * order form knows to offer a code field. */
+export const hasPromoCodeModifiers = async (): Promise<boolean> =>
+  (await getActiveModifiers()).some((m) => m.trigger === "code");
+
+/** Display details for an opt-in add-on offered on the public order form. */
+export type AddOnOption = {
+  id: number;
+  name: string;
+  /** Buyer-facing price effect, e.g. "+£5", "−10%", "×1.5". */
+  priceLabel: string;
+  /** The most units a buyer may select, capped by remaining stock. */
+  maxQuantity: number;
+};
+
+/** Default ceiling on the add-on quantity selector when stock is unlimited. */
+export const ADDON_MAX_QUANTITY = 20;
+
+/** The buyer-facing price label for an add-on: a signed amount or percentage,
+ * or a bare multiplier (whose factor already encodes its direction). */
+const addOnPriceLabel = (modifier: Modifier): string => {
+  if (modifier.calc_kind === "multiply") return `×${modifier.calc_value}`;
+  const sign = modifier.direction === "discount" ? "−" : "+";
+  const amount =
+    modifier.calc_kind === "fixed"
+      ? formatCurrency(toMinorUnits(modifier.calc_value))
+      : `${modifier.calc_value}%`;
+  return `${sign}${amount}`;
+};
+
+/**
+ * The opt-in add-ons offered for a page's listings: active "optional"
+ * modifiers whose scope covers the whole order or overlaps the page, with
+ * stock left. Each carries the quantity ceiling the selector should allow.
+ */
+export const getOptionalAddOns = async (
+  pageListingIds: number[],
+): Promise<AddOnOption[]> => {
+  const optional = (await getActiveModifiers()).filter(
+    (m) => m.trigger === "optional",
+  );
+  const pageIds = new Set(pageListingIds);
+  const scoped = (
+    await Promise.all(
+      optional.map(async (modifier) => {
+        const listingIds = await listingIdsFor(modifier);
+        const inScope =
+          listingIds === null || listingIds.some((id) => pageIds.has(id));
+        return inScope ? modifier : null;
+      }),
+    )
+  ).filter((m): m is Modifier => m !== null);
+  const used = await modifierUsedQuantities(
+    scoped.filter((m) => m.stock !== null).map((m) => m.id),
+  );
+  return scoped
+    .map((modifier) => ({
+      maxQuantity: stockedQuantity(modifier, ADDON_MAX_QUANTITY, used),
+      modifier,
+    }))
+    .filter(({ maxQuantity }) => maxQuantity >= 1)
+    .map(({ maxQuantity, modifier }) => ({
+      id: modifier.id,
+      maxQuantity,
+      name: modifier.name,
+      priceLabel: addOnPriceLabel(modifier),
+    }));
 };
 
 /**
@@ -164,28 +233,18 @@ export const resolveModifiers = async (
  * re-fetching each modifier's current values (and scope) from the database.
  * References to modifiers that have since been removed or deactivated are
  * dropped (the webhook then sees a total mismatch and refunds).
- *
- * `ctx` carries the buyer's visit count, re-read server-side in the webhook so
- * the `min_visits` gate is honoured against a trusted count rather than the
- * provider metadata: a crafted checkout that references a returning-customer
- * discount the buyer doesn't qualify for has that ref dropped here, so the
- * re-resolved total no longer matches and the existing mismatch-refund path
- * fires. Defaults to 0 visits (a first-time buyer), so any visit-gated modifier
- * is excluded unless the buyer is genuinely returning.
  */
 export const specsFromRefs = async (
   refs: ModifierRef[],
-  ctx: PricingContext = NO_VISITS,
 ): Promise<ModifierSpec[]> => {
   if (refs.length === 0) return [];
   const byId = new Map((await getActiveModifiers()).map((m) => [m.id, m]));
   const specs = await Promise.all(
     refs.map(async (ref) => {
       const modifier = byId.get(ref.i);
-      // Re-check the visit gate server-side; a metadata ref can't unlock a
-      // returning-customer modifier for a buyer who isn't returning.
-      if (!modifier || modifier.min_visits > ctx.visits) return null;
-      return toSpec(modifier, ref.q, await listingIdsFor(modifier));
+      return modifier
+        ? toSpec(modifier, ref.q, await listingIdsFor(modifier))
+        : null;
     }),
   );
   return specs.filter((s): s is ModifierSpec => s !== null);

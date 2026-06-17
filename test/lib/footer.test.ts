@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
 import {
-  enableQueryLog,
+  enableFooterDebug,
   runWithQueryLogContext,
 } from "#shared/db/query-log.ts";
 import {
@@ -239,9 +239,9 @@ describe("renderAdminFooter", () => {
     });
   });
 
-  test("includes the debug menu and uptime when query logging is active", () => {
+  test("includes the debug menu and uptime when footer debug is enabled", () => {
     runWithQueryLogContext(() => {
-      enableQueryLog();
+      enableFooterDebug();
       markAdminFooter();
       const html = renderAdminFooter();
       expect(html).toContain("debug-menu");

@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { settings } from "#shared/db/settings.ts";
+import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import type { EmailConfig } from "#shared/email.ts";
 import { sendRegistrationEmails, sendTestEmail } from "#shared/email.ts";
 import { updateBusinessEmail } from "#shared/validation/email.ts";
@@ -27,7 +27,7 @@ const setupDbEmailConfig = async (
     await updateBusinessEmail(opts.businessEmail);
   }
   settings.invalidateCache();
-  await settings.loadAll();
+  await settings.loadKeys(ALL_SETTINGS_KEYS);
 };
 
 const setupAndSendRegistration = async (
@@ -76,7 +76,7 @@ describeWithEnv(
       Deno.env.set("HOST_EMAIL_API_KEY", "key-123");
       Deno.env.set("HOST_EMAIL_FROM_ADDRESS", "noreply@example.com");
       settings.invalidateCache();
-      await settings.loadAll();
+      await settings.loadKeys(ALL_SETTINGS_KEYS);
 
       await sendRegistrationEmails([makeEntry()], "GBP");
 

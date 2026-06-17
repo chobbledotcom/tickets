@@ -24,6 +24,10 @@ import {
 } from "#shared/db/attendees.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getListingsBySlugsBatch } from "#shared/db/listings.ts";
+import {
+  getOptionalAddOns,
+  hasPromoCodeModifiers,
+} from "#shared/db/modifier-resolve.ts";
 import { getQuestionsWithListingIds } from "#shared/db/questions.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { EmailEntry } from "#shared/email.ts";
@@ -358,16 +362,21 @@ export const getTicketContext = async (
   group?: Group,
 ): Promise<TicketSharedContext> => {
   const listingIds = activeListings.map((e) => e.listing.id);
-  const [dates, globalTerms, questionsResult] = await Promise.all([
-    computeSharedDates(activeListings),
-    Promise.resolve(settings.terms),
-    getQuestionsWithListingIds(listingIds),
-  ]);
+  const [dates, globalTerms, questionsResult, promoCodesEnabled, addOns] =
+    await Promise.all([
+      computeSharedDates(activeListings),
+      Promise.resolve(settings.terms),
+      getQuestionsWithListingIds(listingIds),
+      hasPromoCodeModifiers(),
+      getOptionalAddOns(listingIds),
+    ]);
   const terms = group
     ? group.terms_and_conditions || globalTerms || ""
     : globalTerms;
   return {
+    addOns,
     dates,
+    promoCodesEnabled,
     terms,
     ...questionsResult,
     ...(group && {

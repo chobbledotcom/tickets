@@ -876,9 +876,10 @@ export type ModifierFormValues = {
   calc_kind: string;
   direction: string;
   calc_value: number;
+  trigger: string;
+  code: string;
   scope: string;
   min_subtotal: number;
-  min_visits: number;
   stock: number | null;
   active: string;
 };
@@ -927,6 +928,25 @@ export const modifierFields: Field[] = [
       Number.isFinite(Number.parseFloat(value)) ? null : "Enter a valid number",
   },
   {
+    defaultValue: "automatic",
+    hint: "When this applies. Promo codes are entered by the buyer at checkout; optional add-ons are chosen by the buyer.",
+    label: "Trigger",
+    name: "trigger",
+    options: [
+      { label: "Automatic (always)", value: "automatic" },
+      { label: "Promo code", value: "code" },
+      { label: "Optional add-on", value: "optional" },
+    ],
+    type: "select",
+  },
+  {
+    hint: "The code buyers enter at checkout. Required for promo-code modifiers; ignored otherwise.",
+    label: "Promo code",
+    name: "code",
+    placeholder: "SUMMER20",
+    type: "text",
+  },
+  {
     defaultValue: "all",
     hint: "Which items this applies to. For specific listings or groups, choose the listings/groups on the edit page after saving.",
     label: "Applies to",
@@ -953,24 +973,6 @@ export const modifierFields: Field[] = [
       return Number.isFinite(n) && n >= 0
         ? null
         : "Minimum order must be a positive number";
-    },
-  },
-  {
-    hint: "Only apply to a returning customer with at least this many previous bookings. 0 (or blank) applies to everyone; 1 means seen at least once before.",
-    label: "Minimum previous bookings (optional)",
-    min: 0,
-    name: "min_visits",
-    // Optional integer count: blank means no requirement (0). A provided value
-    // must be a non-negative whole number; `validateSingleField` only runs
-    // `validate` when non-empty, and `parse` maps blank to 0 (the column's
-    // default) so the field always yields a number, never null.
-    parse: (value: string) => (value ? Number.parseInt(value, 10) : 0),
-    type: "number",
-    validate: (value: string) => {
-      const n = Number.parseInt(value, 10);
-      return Number.isInteger(n) && n >= 0
-        ? null
-        : "Minimum previous bookings must be a whole number of 0 or more";
     },
   },
   {
@@ -1162,7 +1164,14 @@ export const getAddAttendeeFields = (
   isDaily: boolean,
   dayCounts?: number[],
 ): Field[] => {
-  const result = [...getTicketFields(fields, false), addAttendeeQuantityField];
+  // Admin enters a customer's details here, so disable native autofill: we don't
+  // want the operator's browser to store or suggest other customers' PII. The
+  // shared ticket fields keep their semantic autocomplete for the public form,
+  // so override on copies rather than mutating the originals.
+  const contactFields = getTicketFields(fields, false).map(
+    (f): Field => ({ ...f, autocomplete: "off" }),
+  );
+  const result = [...contactFields, addAttendeeQuantityField];
   if (isDaily) result.push(addAttendeeDateField);
   if (dayCounts && dayCounts.length > 0) {
     result.push(addAttendeeDayCountField(dayCounts));
@@ -1234,6 +1243,7 @@ export const getChangePasswordFields = (): Field[] => [
  */
 export const getStripeKeyFields = (): Field[] => [
   {
+    autocomplete: "off",
     hint: t("fields.stripe.secret_key_hint"),
     label: t("fields.stripe.secret_key"),
     name: "stripe_secret_key",
@@ -1248,6 +1258,7 @@ export const getStripeKeyFields = (): Field[] => [
  */
 export const getSquareAccessTokenFields = (): Field[] => [
   {
+    autocomplete: "off",
     hint: t("fields.square.access_token_hint"),
     label: t("fields.square.access_token"),
     name: "square_access_token",
@@ -1256,6 +1267,7 @@ export const getSquareAccessTokenFields = (): Field[] => [
     type: "password",
   },
   {
+    autocomplete: "off",
     hint: t("fields.square.location_id_hint"),
     label: t("fields.square.location_id"),
     name: "square_location_id",
@@ -1270,6 +1282,7 @@ export const getSquareAccessTokenFields = (): Field[] => [
  */
 export const getSquareWebhookFields = (): Field[] => [
   {
+    autocomplete: "off",
     hint: t("fields.square.webhook_key_hint"),
     label: t("fields.square.webhook_key"),
     name: "square_webhook_signature_key",

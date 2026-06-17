@@ -32,6 +32,7 @@ describe("payment-helpers", () => {
       listingIds: null,
       name: "Parking",
       quantity: 2,
+      trigger: "automatic" as const,
       value: 500,
     };
 

@@ -9,6 +9,7 @@ import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import { createAuthedHandler } from "#shared/app-forms.ts";
+import { hmacHash } from "#shared/crypto/hashing.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import { getAllGroups } from "#shared/db/groups.ts";
 import { getAllListings } from "#shared/db/listings.ts";
@@ -28,8 +29,11 @@ import {
   isCalcKind,
   isModifierDirection,
   isModifierScope,
+  isModifierTrigger,
   type ModifierDirection,
   type ModifierScope,
+  type ModifierTrigger,
+  normalizeCode,
   validateCalcValue,
 } from "#shared/price-modifier.ts";
 import { defineNamedResource } from "#shared/rest/resource.ts";
@@ -49,27 +53,41 @@ import { withEntityLoader } from "./entity-handlers.ts";
 
 /** Build modifier input from validated form values. The value is stored as the
  * positive magnitude the owner typed; converting it to the signed engine value
- * happens where modifiers are applied to a checkout. */
-const extractModifierInput = (values: ModifierFormValues): ModifierInput => ({
-  active: values.active === "1",
-  calcKind: values.calc_kind as CalcKind,
-  calcValue: values.calc_value,
-  direction: values.direction as ModifierDirection,
-  minSubtotal: toMinorUnits(values.min_subtotal),
-  minVisits: values.min_visits,
-  name: values.name,
-  scope: values.scope as ModifierScope,
-  stock: values.stock,
-});
+ * happens where modifiers are applied to a checkout. A promo code is kept only
+ * for "code" modifiers, with its blind index computed for public lookup. */
+const extractModifierInput = async (
+  values: ModifierFormValues,
+): Promise<ModifierInput> => {
+  const code = values.trigger === "code" ? values.code.trim() : "";
+  return {
+    active: values.active === "1",
+    calcKind: values.calc_kind as CalcKind,
+    calcValue: values.calc_value,
+    code,
+    codeIndex: code ? await hmacHash(normalizeCode(code)) : null,
+    direction: values.direction as ModifierDirection,
+    minSubtotal: toMinorUnits(values.min_subtotal),
+    name: values.name,
+    scope: values.scope as ModifierScope,
+    stock: values.stock,
+    trigger: values.trigger as ModifierTrigger,
+  };
+};
 
-/** Validate a modifier's kind, direction, scope, and value (the select options
- * can be bypassed by a crafted POST, so re-check membership here). */
+/** Validate a modifier's kind, direction, trigger, scope, and value (the select
+ * options can be bypassed by a crafted POST, so re-check membership here). */
 const validateModifier = (input: ModifierInput): Promise<string | null> => {
   if (!isCalcKind(input.calcKind)) {
     return Promise.resolve("Invalid modifier type");
   }
   if (!isModifierDirection(input.direction)) {
     return Promise.resolve("Invalid direction");
+  }
+  if (input.trigger !== undefined && !isModifierTrigger(input.trigger)) {
+    return Promise.resolve("Invalid trigger");
+  }
+  if (input.trigger === "code" && !input.code) {
+    return Promise.resolve("A promo-code modifier needs a code");
   }
   if (input.scope !== undefined && !isModifierScope(input.scope)) {
     return Promise.resolve("Invalid scope");

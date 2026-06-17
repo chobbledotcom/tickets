@@ -1,20 +1,19 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { hmacHash } from "#shared/crypto/hashing.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
-  hashEmail,
-  hashPhone,
-  recordVisit,
-} from "#shared/db/contact-preferences.ts";
-import {
-  buyerVisits,
+  ADDON_MAX_QUANTITY,
+  getOptionalAddOns,
+  hasPromoCodeModifiers,
   resolveModifiers,
   specsFromRefs,
 } from "#shared/db/modifier-resolve.ts";
 import { consumeModifierStock } from "#shared/db/modifier-usage.ts";
 import { type ModifierInput, modifiersTable } from "#shared/db/modifiers.ts";
 import type { CheckoutItem } from "#shared/payments.ts";
+import { normalizeCode } from "#shared/price-modifier.ts";
 import { createTestListing, describeWithEnv } from "#test-utils";
 
 const linkListing = (modifierId: number, listingId: number) =>
@@ -74,6 +73,7 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
           listingIds: null,
           name: "Parking",
           quantity: 1,
+          trigger: "automatic",
           value: toMinorUnits(5),
         },
       ]);
@@ -144,6 +144,47 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
       expect(skipped.map((s) => s.name)).not.toContain("VIP");
     });
 
+    test("applies a code modifier only when the matching code is entered", async () => {
+      const m = await insertModifier({ name: "SUMMER" });
+      await patchModifier(m.id, {
+        code_index: await hmacHash(normalizeCode("Summer25")),
+        trigger: "code",
+      });
+
+      const withoutCode = await resolveModifiers([item()]);
+      expect(withoutCode.map((s) => s.name)).not.toContain("SUMMER");
+
+      const wrongCode = await resolveModifiers([item()], { code: "winter" });
+      expect(wrongCode.map((s) => s.name)).not.toContain("SUMMER");
+
+      // Matching is case-insensitive (normalised before hashing).
+      const rightCode = await resolveModifiers([item()], { code: "SUMMER25" });
+      expect(rightCode.map((s) => s.name)).toContain("SUMMER");
+    });
+
+    test("applies an opt-in add-on at the chosen quantity only when selected", async () => {
+      const m = await insertModifier({ name: "T-shirt" });
+      await patchModifier(m.id, { trigger: "optional" });
+
+      const unselected = await resolveModifiers([item()]);
+      expect(unselected.map((s) => s.name)).not.toContain("T-shirt");
+
+      const selected = await resolveModifiers([item()], {
+        addOns: new Map([[m.id, 3]]),
+      });
+      expect(selected.find((s) => s.name === "T-shirt")?.quantity).toBe(3);
+    });
+
+    test("caps an opt-in add-on quantity at the remaining stock", async () => {
+      const m = await insertModifier({ name: "Limited tee", stock: 2 });
+      await patchModifier(m.id, { trigger: "optional" });
+
+      const specs = await resolveModifiers([item()], {
+        addOns: new Map([[m.id, 5]]),
+      });
+      expect(specs.find((s) => s.name === "Limited tee")?.quantity).toBe(2);
+    });
+
     test("applies a group-scoped modifier to the linked group's listings", async () => {
       const listing = await createTestListing({
         maxAttendees: 10,
@@ -167,64 +208,94 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
         listing.id,
       ]);
     });
+  });
 
-    test("excludes a min_visits modifier for a buyer below the threshold", async () => {
-      const m = await insertModifier({ name: "WelcomeBack" });
-      await patchModifier(m.id, { min_visits: 1 });
+  describe("hasPromoCodeModifiers", () => {
+    test("is false with no code modifiers and true once one exists", async () => {
+      await insertModifier({ name: "Automatic" });
+      expect(await hasPromoCodeModifiers()).toBe(false);
 
-      // Default context = 0 visits (a first-time buyer): the gate excludes it.
-      const firstTime = await resolveModifiers([item()]);
-      expect(firstTime.map((s) => s.name)).not.toContain("WelcomeBack");
-
-      // A returning buyer (>= the threshold) gets it.
-      const returning = await resolveModifiers([item()], { visits: 1 });
-      expect(returning.map((s) => s.name)).toContain("WelcomeBack");
-    });
-
-    test("applies a min_visits modifier once the buyer meets the threshold exactly", async () => {
-      const m = await insertModifier({ name: "Loyalty5" });
-      await patchModifier(m.id, { min_visits: 5 });
-
-      expect(
-        (await resolveModifiers([item()], { visits: 4 })).map((s) => s.name),
-      ).not.toContain("Loyalty5");
-      expect(
-        (await resolveModifiers([item()], { visits: 5 })).map((s) => s.name),
-      ).toContain("Loyalty5");
+      const coded = await insertModifier({ name: "Coded" });
+      await patchModifier(coded.id, { trigger: "code" });
+      expect(await hasPromoCodeModifiers()).toBe(true);
     });
   });
 
-  describe("buyerVisits", () => {
-    test("returns 0 for an unknown buyer and when no identifiers are given", async () => {
-      expect(await buyerVisits("unknown@example.com")).toBe(0);
-      expect(await buyerVisits()).toBe(0);
-      expect(await buyerVisits("", "")).toBe(0);
+  describe("getOptionalAddOns", () => {
+    test("offers a whole-order add-on with its price label and quantity cap", async () => {
+      const m = await insertModifier({
+        calcKind: "fixed",
+        calcValue: 5,
+        direction: "charge",
+        name: "Parking",
+      });
+      await patchModifier(m.id, { trigger: "optional" });
+
+      const addOns = await getOptionalAddOns([1]);
+      expect(addOns).toEqual([
+        {
+          id: m.id,
+          maxQuantity: ADDON_MAX_QUANTITY,
+          name: "Parking",
+          priceLabel: "+£5",
+        },
+      ]);
     });
 
-    test("reads the visit count for a known email", async () => {
-      await recordVisit(await hashEmail("seen@example.com"));
-      await recordVisit(await hashEmail("seen@example.com"));
-      expect(await buyerVisits("seen@example.com")).toBe(2);
+    test("labels a percentage discount add-on with a minus sign", async () => {
+      const m = await insertModifier({
+        calcKind: "percent",
+        calcValue: 10,
+        direction: "discount",
+        name: "Member rebate",
+      });
+      await patchModifier(m.id, { trigger: "optional" });
+      const addOns = await getOptionalAddOns([1]);
+      expect(addOns[0]?.priceLabel).toBe("−10%");
     });
 
-    test("takes the max across the email and phone identifiers", async () => {
-      await recordVisit(await hashEmail("max@example.com"));
-      await recordVisit(await hashPhone("07700 900333"));
-      await recordVisit(await hashPhone("07700 900333"));
-      await recordVisit(await hashPhone("07700 900333"));
-      // email=1, phone=3 → max is 3.
-      expect(await buyerVisits("max@example.com", "07700 900333")).toBe(3);
+    test("labels a multiplier add-on with its bare factor", async () => {
+      const m = await insertModifier({
+        calcKind: "multiply",
+        calcValue: 1.5,
+        direction: "charge",
+        name: "Peak surcharge",
+      });
+      await patchModifier(m.id, { trigger: "optional" });
+      const addOns = await getOptionalAddOns([1]);
+      expect(addOns[0]?.priceLabel).toBe("×1.5");
     });
 
-    test("treats a non-string identifier (malformed metadata) as absent", async () => {
-      // Provider metadata is adversarial; a non-string email/phone must be
-      // ignored rather than throwing on .trim().
-      expect(
-        await buyerVisits(
-          12345 as unknown as string,
-          true as unknown as string,
-        ),
-      ).toBe(0);
+    test("caps maxQuantity at the remaining stock", async () => {
+      const m = await insertModifier({ name: "Tee", stock: 3 });
+      await patchModifier(m.id, { trigger: "optional" });
+      const addOns = await getOptionalAddOns([1]);
+      expect(addOns[0]?.maxQuantity).toBe(3);
+    });
+
+    test("omits a sold-out add-on", async () => {
+      const m = await insertModifier({ name: "Sold out", stock: 1 });
+      await patchModifier(m.id, { trigger: "optional" });
+      await consumeModifierStock(1, [
+        { amountApplied: 500, modifierId: m.id, quantity: 1 },
+      ]);
+      expect(await getOptionalAddOns([1])).toEqual([]);
+    });
+
+    test("offers a listing-scoped add-on only on a page with its listing", async () => {
+      const m = await insertModifier({ name: "Scoped tee" });
+      await patchModifier(m.id, { scope: "listings", trigger: "optional" });
+      await linkListing(m.id, 7);
+
+      expect(await getOptionalAddOns([7])).toHaveLength(1);
+      expect(await getOptionalAddOns([8])).toEqual([]);
+    });
+
+    test("excludes automatic and code modifiers", async () => {
+      await insertModifier({ name: "Automatic" });
+      const coded = await insertModifier({ name: "Coded" });
+      await patchModifier(coded.id, { trigger: "code" });
+      expect(await getOptionalAddOns([1])).toEqual([]);
     });
   });
 
@@ -248,6 +319,7 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
           listingIds: null,
           name: "Parking",
           quantity: 2,
+          trigger: "automatic",
           value: toMinorUnits(5),
         },
       ]);
@@ -266,21 +338,6 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
       await patchModifier(created.id, { active: 0 });
       expect(await specsFromRefs([{ i: created.id, q: 1 }])).toEqual([]);
       expect(await specsFromRefs([{ i: 9999, q: 1 }])).toEqual([]);
-    });
-
-    test("drops a min_visits reference for a buyer below the threshold (anti-spoof)", async () => {
-      // A crafted checkout could reference a returning-customer modifier the
-      // buyer isn't entitled to; the webhook re-check drops it so the re-derived
-      // total no longer matches and the refund path fires.
-      const m = await insertModifier({ name: "ReturningOnly" });
-      await patchModifier(m.id, { min_visits: 1 });
-
-      // Default context = 0 visits: the ref is dropped.
-      expect(await specsFromRefs([{ i: m.id, q: 1 }])).toEqual([]);
-
-      // A genuinely returning buyer keeps it.
-      const kept = await specsFromRefs([{ i: m.id, q: 1 }], { visits: 1 });
-      expect(kept.map((s) => s.name)).toEqual(["ReturningOnly"]);
     });
   });
 });

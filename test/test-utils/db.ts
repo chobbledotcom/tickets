@@ -9,7 +9,7 @@ import { invalidateListingsCache } from "#shared/db/listings.ts";
 import { invalidateLogisticsAgentsCache } from "#shared/db/logistics-agents.ts";
 import { initDb } from "#shared/db/migrations.ts";
 import { resetSessionCache } from "#shared/db/sessions.ts";
-import { settings } from "#shared/db/settings.ts";
+import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import { invalidateUsersCache } from "#shared/db/users.ts";
 import { setDemoModeForTest } from "#shared/demo.ts";
 import {
@@ -84,7 +84,7 @@ export const createTestDbWithSetup = async (country = "GB"): Promise<void> => {
       }
     }
     settings.invalidateCache();
-    await settings.loadAll();
+    await settings.loadKeys(ALL_SETTINGS_KEYS);
 
     settings.setForTest({ timezone: "UTC" });
     return;
@@ -95,7 +95,7 @@ export const createTestDbWithSetup = async (country = "GB"): Promise<void> => {
     TEST_ADMIN_PASSWORD,
     country,
   );
-  await settings.loadAll();
+  await settings.loadKeys(ALL_SETTINGS_KEYS);
 
   settings.setForTest({ timezone: "UTC" });
 

@@ -53,7 +53,7 @@ type Trigger = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add email_preferences table for marketing opt-outs and contact history; add customisable_days and day_prices columns to listings for visitor-chosen multi-day bookings with per-day-count pricing; add attendee_statuses table with status_id and remaining_balance on attendees, plus attendee_id on activity_log, for the reservation and balance-payment flow; add idx_activity_log_listing_id so per-listing activity log reads are index scans instead of full-table scans; add a logistics_agents table plus a uses_logistics flag on listings, a split_logistics_agents flag on attendees, and start_agent_id/end_agent_id/start_time/end_time on listing_attendees for the logistics flow; add email_templates table for owner-keypair-encrypted reusable email subjects and bodies; add a user_logistics_agents table linking agent users to the logistics agents they drive, plus start_done/end_done flags on listing_attendees so delivery agents can mark drop-offs and collections complete; add failure_data to processed_payments so handled payment failures are recorded as a terminal outcome for idempotent redirect/webhook replay; add booked_quantity, tickets_count and income aggregate columns to listings, maintained by triggers on listing_attendees so listing reads and active-listing stats avoid scanning the attendee rows; add modifiers table for owner-defined price modifiers (surcharges, discounts, add-ons), with active/trigger/code_index/scope/stock/max_per_order/min_subtotal columns plus modifier_listings, modifier_groups and modifier_usages tables for scoping and stock; generalise email_preferences into a channel-agnostic contact_preferences table (rename email_hash to contact_hash, add last_activity and visits, backfill last_activity from created then drop created) with idx_contact_prefs_unsubscribed and idx_contact_prefs_last_activity indexes; add a min_visits column to modifiers for returning-customer (repeat-booking) discounts gated on a keyless visit count";
+  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add email_preferences table for marketing opt-outs and contact history; add customisable_days and day_prices columns to listings for visitor-chosen multi-day bookings with per-day-count pricing; add attendee_statuses table with status_id and remaining_balance on attendees, plus attendee_id on activity_log, for the reservation and balance-payment flow; add idx_activity_log_listing_id so per-listing activity log reads are index scans instead of full-table scans; add a logistics_agents table plus a uses_logistics flag on listings, a split_logistics_agents flag on attendees, and start_agent_id/end_agent_id/start_time/end_time on listing_attendees for the logistics flow; add email_templates table for owner-keypair-encrypted reusable email subjects and bodies; add a user_logistics_agents table linking agent users to the logistics agents they drive, plus start_done/end_done flags on listing_attendees so delivery agents can mark drop-offs and collections complete; add failure_data to processed_payments so handled payment failures are recorded as a terminal outcome for idempotent redirect/webhook replay; add booked_quantity, tickets_count and income aggregate columns to listings, maintained by triggers on listing_attendees so listing reads and active-listing stats avoid scanning the attendee rows; add modifiers table for owner-defined price modifiers (surcharges, discounts, add-ons), with active/trigger/code_index/scope/stock/max_per_order/min_subtotal columns plus modifier_listings, modifier_groups and modifier_usages tables for scoping and stock; add an encrypted code column to modifiers for promo-code modifiers; add sms_messages table mapping gateway message ids to attendees for SMS status webhooks (content lives in the encrypted activity log); add phone_index to attendees so inbound SMS replies can be matched to an attendee";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -286,6 +286,10 @@ const SCHEMA: [name: string, table: Table][] = [
         ["status_id", "INTEGER DEFAULT NULL"],
         ["remaining_balance", "INTEGER NOT NULL DEFAULT 0"],
         ["split_logistics_agents", "INTEGER NOT NULL DEFAULT 0"],
+        // HMAC blind-index of the attendee's phone, populated lazily the first
+        // time an admin texts them, so inbound SMS replies can be matched back
+        // to the attendee without storing the number in the clear.
+        ["phone_index", "TEXT NOT NULL DEFAULT ''"],
       ],
       indexes: [
         {
@@ -296,6 +300,10 @@ const SCHEMA: [name: string, table: Table][] = [
         {
           columns: ["status_id"],
           name: "idx_attendees_status_id",
+        },
+        {
+          columns: ["phone_index"],
+          name: "idx_attendees_phone_index",
         },
       ],
     },
@@ -457,12 +465,20 @@ const SCHEMA: [name: string, table: Table][] = [
         ["direction", "TEXT NOT NULL"],
         ["active", "INTEGER NOT NULL DEFAULT 1"],
         ["trigger", "TEXT NOT NULL DEFAULT 'automatic'"],
+        ["code", "TEXT NOT NULL DEFAULT ''"],
         ["code_index", "TEXT"],
         ["scope", "TEXT NOT NULL DEFAULT 'all'"],
         ["stock", "INTEGER"],
         ["max_per_order", "INTEGER"],
         ["min_subtotal", "INTEGER NOT NULL DEFAULT 0"],
-        ["min_visits", "INTEGER NOT NULL DEFAULT 0"],
+        // Precomputed aggregates over modifier_usages, maintained by the
+        // MODIFIER_AGGREGATE_TRIGGERS so admin reads never SUM/COUNT the
+        // modifier_usages table. total_uses is SUM(quantity), usage_count is
+        // COUNT(*), total_revenue is SUM(amount_applied) — all scoped to this
+        // modifier.
+        ["total_uses", "INTEGER NOT NULL DEFAULT 0"],
+        ["usage_count", "INTEGER NOT NULL DEFAULT 0"],
+        ["total_revenue", "INTEGER NOT NULL DEFAULT 0"],
       ],
       indexes: [{ columns: ["code_index"], name: "idx_modifiers_code_index" }],
     },
@@ -647,35 +663,19 @@ const SCHEMA: [name: string, table: Table][] = [
   ],
 
   [
-    // Channel-agnostic per-contact preferences, visit history and contact
-    // history, keyed by the HMAC of a channel-namespaced identifier (an email
-    // OR a phone) — the same blind-index approach as ticket_token_index, so a
-    // DB dump never reveals which contact a row belongs to, and the channel
-    // (email/sms) lives in the hash prefix rather than a column. `unsubscribed`
-    // is plaintext so the public, key-less /unsubscribe page can toggle it;
-    // `visits` is the plaintext booking count the keyless checkout reads to gate
-    // a returning-customer modifier; `last_activity` (ms-epoch) is bumped on
-    // booking and outreach and is the key the pruner deletes stale rows by;
-    // `stats_blob` is a hybrid-encrypted {c,t,s} (outreach count, last contact,
+    // Per-email marketing preferences + contact history, keyed by the HMAC of
+    // the address (same blind-index approach as ticket_token_index, so a DB
+    // dump never reveals which address a row belongs to). `unsubscribed` is
+    // plaintext so the public, key-less /unsubscribe page can toggle it;
+    // `stats_blob` is a hybrid-encrypted {c,t,s} (contact count, last contact,
     // last subject) only the admin private key can read.
-    "contact_preferences",
+    "email_preferences",
     {
       columns: [
-        ["contact_hash", "TEXT PRIMARY KEY"],
-        ["last_activity", "INTEGER NOT NULL DEFAULT 0"],
+        ["email_hash", "TEXT PRIMARY KEY"],
         ["unsubscribed", "INTEGER NOT NULL DEFAULT 0"],
-        ["visits", "INTEGER NOT NULL DEFAULT 0"],
         ["stats_blob", "TEXT NOT NULL DEFAULT ''"],
-      ],
-      indexes: [
-        {
-          columns: ["unsubscribed"],
-          name: "idx_contact_prefs_unsubscribed",
-        },
-        {
-          columns: ["last_activity"],
-          name: "idx_contact_prefs_last_activity",
-        },
+        ["created", "TEXT NOT NULL"],
       ],
     },
   ],
@@ -691,6 +691,28 @@ const SCHEMA: [name: string, table: Table][] = [
         ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
         ["subject", "TEXT NOT NULL"],
         ["body", "TEXT NOT NULL"],
+      ],
+    },
+  ],
+
+  [
+    // Lean, PII-free map from the gateway's message id to the attendee it was
+    // sent to, so delivery/failure webhooks can be logged against the right
+    // attendee. Message content and recipient numbers live only in the
+    // (encrypted) activity log — never here. Rows are deleted on a terminal
+    // status event and pruned by age as a backstop.
+    "sms_messages",
+    {
+      columns: [
+        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+        ["attendee_id", "INTEGER NOT NULL"],
+        ["listing_id", "INTEGER NOT NULL"],
+        ["provider_id", "TEXT NOT NULL"],
+        ["created", "TEXT NOT NULL"],
+      ],
+      indexes: [
+        { columns: ["provider_id"], name: "idx_sms_messages_provider_id" },
+        { columns: ["created"], name: "idx_sms_messages_created" },
       ],
     },
   ],
@@ -762,8 +784,73 @@ END`,
   },
 ];
 
+/**
+ * Modifier aggregate triggers keep modifiers.total_uses, modifiers.usage_count
+ * and modifiers.total_revenue in step with the modifier_usages ledger, the same
+ * way the listing triggers maintain the listings aggregates. The UPDATE trigger
+ * is scoped to OF quantity, amount_applied, modifier_id so the only writes that
+ * affect the totals fire it, and it subtracts the OLD row's contribution from
+ * its old modifier and adds the NEW row's to its new modifier so a row moving
+ * between modifiers stays correct.
+ *
+ * Semantics mirror the previous SUM(quantity) / COUNT(*) / SUM(amount_applied)
+ * queries over modifier_usages exactly.
+ */
+const MODIFIER_AGGREGATE_TRIGGERS: Trigger[] = [
+  {
+    name: "trg_modifier_usages_aggregates_insert",
+    sql: `CREATE TRIGGER IF NOT EXISTS trg_modifier_usages_aggregates_insert
+AFTER INSERT ON modifier_usages
+FOR EACH ROW
+BEGIN
+  UPDATE modifiers SET
+    total_uses = total_uses + NEW.quantity,
+    usage_count = usage_count + 1,
+    total_revenue = total_revenue + NEW.amount_applied
+  WHERE id = NEW.modifier_id;
+END`,
+    table: "modifier_usages",
+  },
+  {
+    name: "trg_modifier_usages_aggregates_delete",
+    sql: `CREATE TRIGGER IF NOT EXISTS trg_modifier_usages_aggregates_delete
+AFTER DELETE ON modifier_usages
+FOR EACH ROW
+BEGIN
+  UPDATE modifiers SET
+    total_uses = total_uses - OLD.quantity,
+    usage_count = usage_count - 1,
+    total_revenue = total_revenue - OLD.amount_applied
+  WHERE id = OLD.modifier_id;
+END`,
+    table: "modifier_usages",
+  },
+  {
+    name: "trg_modifier_usages_aggregates_update",
+    sql: `CREATE TRIGGER IF NOT EXISTS trg_modifier_usages_aggregates_update
+AFTER UPDATE OF quantity, amount_applied, modifier_id ON modifier_usages
+FOR EACH ROW
+BEGIN
+  UPDATE modifiers SET
+    total_uses = total_uses - OLD.quantity,
+    usage_count = usage_count - 1,
+    total_revenue = total_revenue - OLD.amount_applied
+  WHERE id = OLD.modifier_id;
+  UPDATE modifiers SET
+    total_uses = total_uses + NEW.quantity,
+    usage_count = usage_count + 1,
+    total_revenue = total_revenue + NEW.amount_applied
+  WHERE id = NEW.modifier_id;
+END`,
+    table: "modifier_usages",
+  },
+];
+
 /** Every declared trigger, across all aggregate relationships. */
-const TRIGGERS: Trigger[] = [...LISTING_AGGREGATE_TRIGGERS];
+const TRIGGERS: Trigger[] = [
+  ...LISTING_AGGREGATE_TRIGGERS,
+  ...MODIFIER_AGGREGATE_TRIGGERS,
+];
 
 /** Ordered table names — matches FK dependency order (parents before children) */
 export const SCHEMA_TABLE_NAMES: string[] = SCHEMA.map(([name]) => name);
@@ -1204,6 +1291,23 @@ const backfillListingAggregates = async (): Promise<void> => {
   );
 };
 
+/**
+ * Recompute the modifiers aggregate columns from modifier_usages in a single
+ * statement. One-time on migration; afterwards the triggers keep them current.
+ * Idempotent (absolute recompute, not a delta), so it's safe to re-run.
+ */
+const backfillModifierAggregates = async (): Promise<void> => {
+  await getDb().execute(
+    `UPDATE modifiers SET
+       total_uses = COALESCE(
+         (SELECT SUM(quantity) FROM modifier_usages WHERE modifier_id = modifiers.id), 0),
+       usage_count = COALESCE(
+         (SELECT COUNT(*) FROM modifier_usages WHERE modifier_id = modifiers.id), 0),
+       total_revenue = COALESCE(
+         (SELECT SUM(amount_applied) FROM modifier_usages WHERE modifier_id = modifiers.id), 0)`,
+  );
+};
+
 const verifyCurrentAppSchema = async (): Promise<void> => {
   // One snapshot (a single batched round-trip) replaces the per-table
   // tableExists/getExistingColumns/indexExists probes — dozens of subrequests
@@ -1263,6 +1367,9 @@ const syncCurrentSchema = async (): Promise<void> => {
 
   logDebug("Migration", "Step 6: backfilling listing aggregates...");
   await backfillListingAggregates();
+
+  logDebug("Migration", "Step 7: backfilling modifier aggregates...");
+  await backfillModifierAggregates();
 };
 
 /**
@@ -1427,55 +1534,6 @@ export const renameEventsToListings = async (): Promise<void> => {
   await syncIndexes();
 };
 
-/**
- * Generalise the legacy "email_preferences" table to the channel-agnostic
- * "contact_preferences".
- *
- * Guarded so this is a no-op on fresh databases (where the declarative schema
- * already created `contact_preferences`) and only rewrites a genuine legacy
- * table. Steps, in order:
- *  1. Rename the table and its PK column (email_hash → contact_hash).
- *  2. Ensure `last_activity` exists before the backfill — independent of
- *     whether applySchemaChanges() ran first — so a legacy table missing the
- *     column still gets backfilled rather than throwing on the UPDATE.
- *  3. Backfill `last_activity` from the old `created` ISO timestamp so existing
- *     unsubscribe history isn't pruned immediately, then drop `created`.
- * Index (re)creation is left to syncIndexes(), which drops any index not in
- * SCHEMA and creates the contact-prefs ones.
- */
-export const renameEmailPrefsToContactPrefs = async (): Promise<void> => {
-  await renameTableIfLegacy("email_preferences", "contact_preferences");
-  await renameColumnIfLegacy(
-    "contact_preferences",
-    "email_hash",
-    "contact_hash",
-  );
-
-  // Only operate on a real (post-rename) table; on a fresh DB the table already
-  // has its final shape and there is nothing legacy to migrate.
-  if (await tableExists("contact_preferences")) {
-    const cols = await getExistingColumns("contact_preferences");
-    // Robustly ensure last_activity exists before the backfill reads/writes it,
-    // regardless of whether applySchemaChanges() has run yet.
-    if (!cols.has("last_activity")) {
-      await runMigration(
-        "ALTER TABLE contact_preferences ADD COLUMN last_activity INTEGER NOT NULL DEFAULT 0",
-      );
-    }
-    // Backfill from the legacy `created` ISO timestamp (only if it survives) so
-    // pre-existing rows keep a realistic last-activity and aren't pruned at once.
-    if (cols.has("created")) {
-      await runMigration(
-        "UPDATE contact_preferences SET last_activity = CAST(strftime('%s', created) AS INTEGER) * 1000 WHERE created IS NOT NULL AND last_activity = 0",
-      );
-      await runMigration("ALTER TABLE contact_preferences DROP COLUMN created");
-    }
-  }
-
-  await applySchemaChanges();
-  await syncIndexes();
-};
-
 // Per-migration object ownership — kept beside each migration so verify() and
 // the restore tests stay in lockstep with what up() actually adds.
 const REQ_SUMUP_CHECKOUTS: SchemaRequirement = {
@@ -1499,20 +1557,7 @@ const REQ_QUESTION_SORT_ORDER: SchemaRequirement = {
   columns: { questions: ["sort_order"] },
 };
 const REQ_EMAIL_PREFERENCES: SchemaRequirement = {
-  newTables: ["contact_preferences"],
-};
-const REQ_RENAME_CONTACT_PREFS: SchemaRequirement = {
-  absentTables: ["email_preferences"],
-  columns: {
-    contact_preferences: ["contact_hash", "last_activity", "visits"],
-  },
-  indexes: [
-    "idx_contact_prefs_unsubscribed",
-    "idx_contact_prefs_last_activity",
-  ],
-};
-const REQ_MODIFIER_MIN_VISITS: SchemaRequirement = {
-  columns: { modifiers: ["min_visits"] },
+  newTables: ["email_preferences"],
 };
 const REQ_CUSTOMISABLE_DAYS: SchemaRequirement = {
   columns: { listings: ["customisable_days", "day_prices"] },
@@ -1576,12 +1621,31 @@ const REQ_MODIFIERS: SchemaRequirement = {
     "modifier_usages",
   ],
 };
+const REQ_MODIFIER_CODE: SchemaRequirement = {
+  columns: { modifiers: ["code"] },
+};
+const REQ_SMS_MESSAGES: SchemaRequirement = {
+  indexes: ["idx_sms_messages_provider_id", "idx_sms_messages_created"],
+  newTables: ["sms_messages"],
+};
+const REQ_ATTENDEE_PHONE_INDEX: SchemaRequirement = {
+  columns: { attendees: ["phone_index"] },
+  indexes: ["idx_attendees_phone_index"],
+};
 const REQ_LISTING_AGGREGATES: SchemaRequirement = {
   columns: { listings: ["booked_quantity", "tickets_count", "income"] },
   triggers: [
     "trg_listing_attendees_aggregates_insert",
     "trg_listing_attendees_aggregates_delete",
     "trg_listing_attendees_aggregates_update",
+  ],
+};
+const REQ_MODIFIER_AGGREGATES: SchemaRequirement = {
+  columns: { modifiers: ["total_uses", "usage_count", "total_revenue"] },
+  triggers: [
+    "trg_modifier_usages_aggregates_insert",
+    "trg_modifier_usages_aggregates_delete",
+    "trg_modifier_usages_aggregates_update",
   ],
 };
 
@@ -1605,14 +1669,27 @@ export const MIGRATIONS: Migration[] = [
       await syncIndexes();
     },
   }),
-  additive({
+  {
     description:
       "Reorder listing_attendees overlap index to (listing_id, end_at, start_at) so per-day capacity scans skip historical rows",
     // NB: legacy id retained verbatim — this is a stored marker, not display text
     id: "2026-06-13_event_attendees_overlap_index",
     requires: REQ_OVERLAP_INDEX,
-    up: syncIndexes,
-  }),
+    up: async () => {
+      // Pre-rename databases still have the "events" table; "listings" doesn't
+      // exist yet, so syncIndexes() would fail trying to create indexes on it.
+      // The rename_events_to_listings migration that follows calls syncIndexes()
+      // after renaming the tables, which creates the reordered index there.
+      if (await tableExists("events")) return;
+      await syncIndexes();
+    },
+    verify: async () => {
+      // On pre-rename databases the index doesn't exist yet — it lands via the
+      // rename migration's syncIndexes() call. Nothing to verify here.
+      if (await tableExists("events")) return;
+      await verifyRequirement(REQ_OVERLAP_INDEX)();
+    },
+  },
   additive({
     description:
       "Rename the 'event' domain to 'listing' (tables, columns and indexes)",
@@ -1636,12 +1713,8 @@ export const MIGRATIONS: Migration[] = [
     },
   }),
   additive({
-    // Historically created the email_preferences table; that table is now
-    // generalised to contact_preferences (see the 2026-06-17 migration below),
-    // which is the table applySchemaChanges() creates on a fresh database, so
-    // this migration's ownership points at the current name.
     description:
-      "Add the per-contact preferences/contact-history table (originally email_preferences, now contact_preferences) for marketing opt-outs and contact history",
+      "Add email_preferences table for marketing opt-outs and contact history",
     id: "2026-06-14_email_preferences",
     requires: REQ_EMAIL_PREFERENCES,
     up: async () => {
@@ -1739,18 +1812,45 @@ export const MIGRATIONS: Migration[] = [
   }),
   additive({
     description:
-      "Generalise email_preferences into a channel-agnostic contact_preferences table: rename email_hash to contact_hash, add last_activity (ms-epoch) and visits, backfill last_activity from the old created timestamp then drop created, and add the unsubscribed/last_activity indexes",
-    id: "2026-06-17_contact_preferences",
-    requires: REQ_RENAME_CONTACT_PREFS,
-    up: renameEmailPrefsToContactPrefs,
+      "Add an encrypted code column to modifiers for promo-code (trigger=code) modifiers; the public code box matches against code_index",
+    id: "2026-06-17_modifier_code",
+    requires: REQ_MODIFIER_CODE,
+    up: async () => {
+      await applySchemaChanges();
+    },
   }),
   additive({
     description:
-      "Add a min_visits column to modifiers so a returning-customer discount can be gated on a buyer's keyless visit count (0 = applies to everyone, as before)",
-    id: "2026-06-17_modifier_min_visits",
-    requires: REQ_MODIFIER_MIN_VISITS,
+      "Add sms_messages table mapping gateway message ids to attendees for status webhooks (PII-free; content lives in the activity log)",
+    id: "2026-06-16_sms_messages",
+    requires: REQ_SMS_MESSAGES,
     up: async () => {
       await applySchemaChanges();
+      await syncIndexes();
+    },
+  }),
+  additive({
+    description:
+      "Add phone_index to attendees so inbound SMS replies can be matched to an attendee",
+    id: "2026-06-16_attendee_phone_index",
+    requires: REQ_ATTENDEE_PHONE_INDEX,
+    up: async () => {
+      await applySchemaChanges();
+      await syncIndexes();
+    },
+  }),
+  additive({
+    description:
+      "Add total_uses, usage_count and total_revenue aggregate columns to modifiers, maintained by triggers on modifier_usages, so admin modifier reads avoid scanning the usage ledger; backfill from existing data",
+    id: "2026-06-17_modifier_aggregates",
+    requires: REQ_MODIFIER_AGGREGATES,
+    up: async () => {
+      await applySchemaChanges();
+      // Triggers first, then an absolute recompute: any usage write that slips
+      // in between is counted by the trigger and then overwritten by the fresh
+      // backfill total, so no insert can be lost.
+      await syncTriggers();
+      await backfillModifierAggregates();
     },
   }),
 ];

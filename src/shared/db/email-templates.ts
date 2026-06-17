@@ -7,7 +7,7 @@
  * TEXT values.
  */
 
-import { getDb, queryAll, queryOne } from "#shared/db/client.ts";
+import { countRows, getDb, queryAll, queryOne } from "#shared/db/client.ts";
 
 export type RawEmailTemplate = { id: number; subject: string; body: string };
 
@@ -19,14 +19,8 @@ export const getRawEmailTemplate = (
 ): Promise<RawEmailTemplate | null> =>
   queryOne("SELECT id, subject, body FROM email_templates WHERE id = ?", [id]);
 
-export const countEmailTemplates = async (): Promise<number> => {
-  const row = await queryOne<{ n: number }>(
-    "SELECT COUNT(*) AS n FROM email_templates",
-    [],
-  );
-  // COUNT(*) always returns exactly one row, so the result is never null.
-  return row!.n;
-};
+export const countEmailTemplates = (): Promise<number> =>
+  countRows("email_templates");
 
 /* jscpd:ignore-start */
 export const insertEmailTemplate = async (
