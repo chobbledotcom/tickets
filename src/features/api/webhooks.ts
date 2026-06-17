@@ -792,6 +792,25 @@ const settleBalanceSession = async (
   };
 };
 
+const logPromoCodeModifiers = async (
+  specs: ModifierSpec[],
+  fullTotal: number,
+  listing: ListingWithCount,
+  attendeeId: number,
+): Promise<void> => {
+  for (const spec of specs) {
+    if (spec.trigger !== "code") continue;
+    const delta = modifierDelta(fullTotal, spec.kind, spec.value);
+    const effect =
+      delta < 0 ? `${formatCurrency(-delta)} off` : `+${formatCurrency(delta)}`;
+    await logActivity(
+      `Promo code '${spec.name}' used: ${effect}`,
+      listing,
+      attendeeId,
+    );
+  }
+};
+
 /**
  * Process a session we have just reserved (holding the lock). Every failure
  * returned here is a handled terminal outcome; processPaymentSession records it
@@ -853,20 +872,12 @@ const processReservedSession = async (
 
   if (modifierSpecs.some((s) => s.trigger === "code")) {
     const fullTotal = sumOf((v: ValidatedItem) => v.item.p)(validatedItems);
-    for (const spec of modifierSpecs) {
-      if (spec.trigger === "code") {
-        const delta = modifierDelta(fullTotal, spec.kind, spec.value);
-        const effect =
-          delta < 0
-            ? `${formatCurrency(-delta)} off`
-            : `+${formatCurrency(delta)}`;
-        await logActivity(
-          `Promo code '${spec.name}' used: ${effect}`,
-          firstAttendee.listing,
-          firstAttendee.attendee.id,
-        );
-      }
-    }
+    await logPromoCodeModifiers(
+      modifierSpecs,
+      fullTotal,
+      firstAttendee.listing,
+      firstAttendee.attendee.id,
+    );
   }
 
   await logAndNotifyRegistration(createdEntries, intent.siteTokenIndex);
