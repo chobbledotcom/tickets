@@ -19,6 +19,26 @@ export type LegacyRenamePlan = {
 
 type RenameState = "neither" | "target_only" | "legacy_only" | "both";
 
+const renameState = (
+  legacyExists: boolean,
+  targetExists: boolean,
+): RenameState => {
+  if (legacyExists && targetExists) return "both";
+  if (legacyExists) return "legacy_only";
+  if (targetExists) return "target_only";
+  return "neither";
+};
+
+const applyDirectRename = async (
+  state: RenameState,
+  sql: string,
+): Promise<boolean> => {
+  if (state === "neither" || state === "target_only") return true;
+  if (state !== "legacy_only") return false;
+  await runMigration(sql);
+  return true;
+};
+
 const tableRenameState = async (
   legacy: string,
   target: string,
@@ -27,10 +47,7 @@ const tableRenameState = async (
     tableExists(legacy),
     tableExists(target),
   ]);
-  if (legacyExists && targetExists) return "both";
-  if (legacyExists) return "legacy_only";
-  if (targetExists) return "target_only";
-  return "neither";
+  return renameState(legacyExists, targetExists);
 };
 
 const repairLegacyTableRename = async (
@@ -38,9 +55,9 @@ const repairLegacyTableRename = async (
   target: string,
 ): Promise<void> => {
   const state = await tableRenameState(legacy, target);
-  if (state === "neither" || state === "target_only") return;
-  if (state === "legacy_only") {
-    await runMigration(`ALTER TABLE ${legacy} RENAME TO ${target}`);
+  if (
+    await applyDirectRename(state, `ALTER TABLE ${legacy} RENAME TO ${target}`)
+  ) {
     return;
   }
   // state === "both" — a failed prior migration attempt created the empty
@@ -65,12 +82,7 @@ const columnRenameState = async (
   target: string,
 ): Promise<RenameState> => {
   const cols = await getExistingColumns(table);
-  const legacyExists = cols.has(legacy);
-  const targetExists = cols.has(target);
-  if (legacyExists && targetExists) return "both";
-  if (legacyExists) return "legacy_only";
-  if (targetExists) return "target_only";
-  return "neither";
+  return renameState(cols.has(legacy), cols.has(target));
 };
 
 const countRowsWhere = async (
@@ -98,8 +110,7 @@ const dropProjectIndexesReferencingColumn = async (
 ): Promise<void> => {
   const result = await getDb().execute({
     args: [table],
-    sql:
-      "SELECT name, sql FROM sqlite_master " +
+    sql: "SELECT name, sql FROM sqlite_master " +
       "WHERE type = 'index' AND tbl_name = ? AND sql IS NOT NULL",
   });
 
@@ -121,11 +132,12 @@ const repairLegacyColumnRename = async (
   if (!(await tableExists(table))) return;
 
   const state = await columnRenameState(table, legacy, target);
-  if (state === "neither" || state === "target_only") return;
-  if (state === "legacy_only") {
-    await runMigration(
+  if (
+    await applyDirectRename(
+      state,
       `ALTER TABLE ${table} RENAME COLUMN ${legacy} TO ${target}`,
-    );
+    )
+  ) {
     return;
   }
 

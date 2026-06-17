@@ -8,6 +8,10 @@ import {
   type Table,
   TRIGGERS,
 } from "./schema.ts";
+import {
+  assertColumnsPresent,
+  assertLiveTableColumns,
+} from "./schema-assertions.ts";
 
 /** Run an idempotent migration — swallows expected "already done" errors */
 export const runMigration = async (sql: string): Promise<void> => {
@@ -71,8 +75,7 @@ export const snapshotLiveSchema = async (): Promise<LiveSchema> => {
   const [columns, indexRows, triggerRows] = await queryBatchPrimary([
     {
       args: [],
-      sql:
-        "SELECT m.name AS tbl, ti.name AS col " +
+      sql: "SELECT m.name AS tbl, ti.name AS col " +
         "FROM sqlite_master m JOIN pragma_table_info(m.name) ti " +
         "WHERE m.type = 'table'",
     },
@@ -102,9 +105,11 @@ export const snapshotLiveSchema = async (): Promise<LiveSchema> => {
 /** Build the idempotent CREATE INDEX statement for a declared index. */
 const createIndexSql = (tableName: string, idx: Index): string => {
   const unique = idx.unique ? "UNIQUE " : "";
-  return `CREATE ${unique}INDEX IF NOT EXISTS ${idx.name} ON ${tableName}(${idx.columns.join(
-    ", ",
-  )})`;
+  return `CREATE ${unique}INDEX IF NOT EXISTS ${idx.name} ON ${tableName}(${
+    idx.columns.join(
+      ", ",
+    )
+  })`;
 };
 
 /** Create indexes for a named table from SCHEMA */
@@ -160,7 +165,8 @@ const recreateTable = async (tableName: string): Promise<void> => {
       { args: [], sql: `CREATE TABLE ${tmpName} (${colDefs})` },
       {
         args: [],
-        sql: `INSERT INTO ${tmpName} (${colNames}) SELECT ${selectExprs} FROM ${tableName}`,
+        sql:
+          `INSERT INTO ${tmpName} (${colNames}) SELECT ${selectExprs} FROM ${tableName}`,
       },
       { args: [], sql: `DROP TABLE ${tableName}` },
       { args: [], sql: `ALTER TABLE ${tmpName} RENAME TO ${tableName}` },
@@ -183,14 +189,7 @@ const requireColumns = (
   existing: Set<string>,
   required: string[],
 ): void => {
-  const missing = required.filter((col) => !existing.has(col));
-  if (missing.length > 0) {
-    throw new Error(
-      `Cannot migrate ${table}: missing expected legacy column(s): ${missing.join(
-        ", ",
-      )}`,
-    );
-  }
+  assertColumnsPresent("legacy", table, existing, required);
 };
 
 const backfillListingAttendees = async (): Promise<void> => {
@@ -284,6 +283,11 @@ export const createTableSql = ([name, table]: [string, Table]): string => {
   return `CREATE TABLE IF NOT EXISTS ${name} (${parts.join(", ")})`;
 };
 
+const writeStatement = (sql: string): { args: InValue[]; sql: string } => ({
+  args: [],
+  sql,
+});
+
 export const applySchemaChanges = async (): Promise<void> => {
   const live = await snapshotLiveSchema();
   const statements: { args: InValue[]; sql: string }[] = [];
@@ -318,23 +322,20 @@ export const syncIndexes = async (): Promise<void> => {
     (table.indexes ?? []).map((idx) => ({
       name: idx.name,
       sql: createIndexSql(name, idx),
-    })),
+    }))
   );
   const declaredNames = new Set(declared.map((d) => d.name));
 
   const creates = declared
     .filter((d) => !live.indexes.has(d.name))
-    .map((d): { args: InValue[]; sql: string } => ({ args: [], sql: d.sql }));
+    .map((d) => writeStatement(d.sql));
 
   // Drop any project-owned (idx_*) index no longer declared in SCHEMA. The
   // sqlite_autoindex_* entries backing UNIQUE/PRIMARY KEY constraints never
   // match this prefix, so they're left untouched.
   const drops = [...live.indexes]
     .filter((name) => name.startsWith("idx_") && !declaredNames.has(name))
-    .map((name): { args: InValue[]; sql: string } => ({
-      args: [],
-      sql: `DROP INDEX IF EXISTS ${name}`,
-    }));
+    .map((name) => writeStatement(`DROP INDEX IF EXISTS ${name}`));
 
   // One batched write (one subrequest) instead of a CREATE/DROP per index.
   const statements = [...creates, ...drops];
@@ -399,23 +400,12 @@ export const verifyCurrentAppSchema = async (): Promise<void> => {
   // that could alone exceed the edge per-request cap.
   const live = await snapshotLiveSchema();
   for (const [name, table] of APP_SCHEMA) {
-    const existing = live.tables.get(name);
-    if (!existing) {
-      throw new Error(
-        `Database schema verification failed: missing table ${name}`,
-      );
-    }
-
-    const missingColumns = table.columns
-      .map(([col]) => col)
-      .filter((col) => !existing.has(col));
-    if (missingColumns.length > 0) {
-      throw new Error(
-        `Database schema verification failed: ${name} missing column(s): ${missingColumns.join(
-          ", ",
-        )}`,
-      );
-    }
+    assertLiveTableColumns(
+      "appSchema",
+      live,
+      name,
+      table.columns.map(([col]) => col),
+    );
 
     for (const index of table.indexes ?? []) {
       if (!live.indexes.has(index.name)) {

@@ -1,3 +1,4 @@
+import { assertLiveTableColumns } from "./schema-assertions.ts";
 import {
   getAppSchemaColumns,
   type LiveSchema,
@@ -9,34 +10,17 @@ import type {
   SchemaRequirement,
 } from "./types.ts";
 
-const assertTableColumns = (
-  live: LiveSchema,
-  name: string,
-  cols: string[],
-): void => {
-  const existing = live.tables.get(name);
-  if (!existing) {
-    throw new Error(`Migration verification failed: missing table ${name}`);
-  }
-  const missing = cols.filter((col) => !existing.has(col));
-  if (missing.length > 0) {
-    throw new Error(
-      `Migration verification failed: ${name} missing column(s): ${missing.join(
-        ", ",
-      )}`,
-    );
-  }
-};
-
 const assertRequiredTables = (
   live: LiveSchema,
   req: SchemaRequirement,
 ): void => {
   for (const name of req.newTables ?? []) {
-    assertTableColumns(live, name, [...getAppSchemaColumns(name)]);
+    assertLiveTableColumns("migration", live, name, [
+      ...getAppSchemaColumns(name),
+    ]);
   }
   for (const [name, cols] of Object.entries(req.columns ?? {})) {
-    assertTableColumns(live, name, cols);
+    assertLiveTableColumns("migration", live, name, cols);
   }
 };
 
