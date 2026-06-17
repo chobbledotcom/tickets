@@ -1243,6 +1243,7 @@ export const getChangePasswordFields = (): Field[] => [
  */
 export const getStripeKeyFields = (): Field[] => [
   {
+    autocomplete: "off",
     hint: t("fields.stripe.secret_key_hint"),
     label: t("fields.stripe.secret_key"),
     name: "stripe_secret_key",
@@ -1257,6 +1258,7 @@ export const getStripeKeyFields = (): Field[] => [
  */
 export const getSquareAccessTokenFields = (): Field[] => [
   {
+    autocomplete: "off",
     hint: t("fields.square.access_token_hint"),
     label: t("fields.square.access_token"),
     name: "square_access_token",
@@ -1265,6 +1267,7 @@ export const getSquareAccessTokenFields = (): Field[] => [
     type: "password",
   },
   {
+    autocomplete: "off",
     hint: t("fields.square.location_id_hint"),
     label: t("fields.square.location_id"),
     name: "square_location_id",
@@ -1279,6 +1282,7 @@ export const getSquareAccessTokenFields = (): Field[] => [
  */
 export const getSquareWebhookFields = (): Field[] => [
   {
+    autocomplete: "off",
     hint: t("fields.square.webhook_key_hint"),
     label: t("fields.square.webhook_key"),
     name: "square_webhook_signature_key",

@@ -16,7 +16,7 @@ export const BusinessEmailForm = (s: SettingsPageState): JSX.Element => (
     <label>
       {t("settings.business_email")}
       <input
-        autocomplete="email"
+        autocomplete="off"
         name="business_email"
         placeholder="contact@example.com"
         type="email"
