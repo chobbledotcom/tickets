@@ -36,6 +36,10 @@ import {
   isPaidListing,
   type ListingWithCount,
 } from "#shared/types.ts";
+import {
+  parseNonNegativeInt,
+  parsePositiveInt,
+} from "#shared/validation/number.ts";
 import { extractContact, tryValidateTicketFields } from "#templates/fields.ts";
 
 // =============================================================================
@@ -232,8 +236,8 @@ const handleGetListing = withActiveListing(async (_request, listing) => {
 /** GET /api/listings/:slug/availability — check if spots are available */
 const handleCheckAvailability = withActiveListing(async (request, listing) => {
   const url = new URL(request.url);
-  const parsed = Number.parseInt(url.searchParams.get("quantity") || "1", 10);
-  const quantity = Math.max(1, Number.isNaN(parsed) ? 1 : parsed);
+  const quantity =
+    parseNonNegativeInt(url.searchParams.get("quantity") ?? "1") ?? 1;
   const date = url.searchParams.get("date") || undefined;
   return apiResponse({
     available: await hasAvailableSpots(
@@ -353,11 +357,8 @@ const handleBook = withActiveListing(async (request, listing, server) => {
   const values = valResult;
 
   // Parse quantity
-  const rawQuantity = Number.parseInt(String(body.quantity ?? "1"), 10);
-  const quantity =
-    Number.isNaN(rawQuantity) || rawQuantity < 1
-      ? 1
-      : Math.min(rawQuantity, listing.max_quantity);
+  const rawQuantity = parsePositiveInt(String(body.quantity ?? "1"));
+  const quantity = Math.min(rawQuantity ?? 1, listing.max_quantity);
 
   // Validate date for daily listings
   const dateResult = await resolveBookingDate(listing, body);

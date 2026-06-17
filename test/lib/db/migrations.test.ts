@@ -35,7 +35,7 @@ import {
   withFetchMock,
 } from "#test-utils";
 
-describeWithEnv("db > migrations", { db: true }, () => {
+describeWithEnv("db > migrations", { db: true, triggers: true }, () => {
   const markCurrentSchemaMigrationPending = () => {
     // Clearing recorded history must also clear the per-isolate ready cache,
     // otherwise initDb never re-inspects this client.
@@ -914,10 +914,11 @@ describe("db > migrations > schema change guard", () => {
         "2026-06-16_modifiers",
         "2026-06-17_modifier_code",
         "2026-06-16_sms_messages",
+        "2026-06-17_processed_sms_inbound",
         "2026-06-16_attendee_phone_index",
         "2026-06-17_modifier_aggregates",
       ],
-      schemaHash: "1lq777j",
+      schemaHash: "1ldxgs3",
     });
   });
 });

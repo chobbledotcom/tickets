@@ -4,7 +4,7 @@ import { stub } from "@std/testing/mock";
 import { builderApi } from "#shared/builder.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { getAllBuiltSites } from "#shared/db/built-sites.ts";
-import { settings } from "#shared/db/settings.ts";
+import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 
 const MOCK_DB_RESULT = {
   dbId: "db_auto123",
@@ -315,7 +315,7 @@ describeWithEnv(
     test("POST /admin/builder returns error when another task in progress", async () => {
       await settings.update.currentTask("other-task");
       settings.invalidateCache();
-      await settings.loadAll();
+      await settings.loadKeys(ALL_SETTINGS_KEYS);
 
       await withMocks(
         () => ({

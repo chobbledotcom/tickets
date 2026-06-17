@@ -100,6 +100,17 @@ describeWithEnv("admin sms", { db: true }, () => {
     expect(response.status).toBe(404);
   });
 
+  it("GET treats malformed target ids as no target", async () => {
+    await configureGateway();
+    await setup();
+    const { response } = await adminGet("/admin/sms?listing=1x&attendee=1");
+    const html = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(html).toContain("Messages awaiting delivery:");
+    expect(html).not.toContain("Send a text message");
+  });
+
   it("POST queues a text: records the id→attendee map and logs it", async () => {
     await configureGateway();
     const { attendee, form } = await setup();
@@ -170,6 +181,22 @@ describeWithEnv("admin sms", { db: true }, () => {
       message: "Hi",
     });
     expect(response.status).toBe(404);
+  });
+
+  it("POST rejects malformed target ids before sending", async () => {
+    await configureGateway();
+    const fetchStub = okFetch();
+    try {
+      const { response } = await adminFormPost("/admin/sms", {
+        attendee: "1",
+        listing: "1x",
+        message: "Hi",
+      });
+      expect(response.status).toBe(302);
+      expect(fetchStub.calls).toHaveLength(0);
+    } finally {
+      fetchStub.restore();
+    }
   });
 
   it("GET renders the conversation history from the activity log", async () => {

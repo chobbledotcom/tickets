@@ -50,7 +50,7 @@ const expectReservedRedirectWithTokens = (response: Response): void => {
   expect(location).toMatch(/^\/ticket\/reserved\?tokens=.+$/);
 };
 
-describeWithEnv("server (public routes)", { db: true }, () => {
+describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
   describe("GET /", () => {
     test("redirects to admin when public site is disabled", async () => {
       const response = await handleRequest(mockRequest("/"));

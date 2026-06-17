@@ -17,7 +17,7 @@ import { describeWithEnv } from "#test-utils";
  * and verify() for each migration in isolation, and keeps each migration's
  * declared `requires` honest against what up() actually creates.
  */
-describeWithEnv("db > migration restore", { db: true }, () => {
+describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
   const migrationById = (id: string): Migration =>
     MIGRATIONS.find((m) => m.id === id)!;
 

@@ -13,13 +13,22 @@
 
 import { settings } from "#shared/db/settings.ts";
 import { type FetchResult, fetchText } from "#shared/fetch.ts";
+import { fetchTextFollowingSafeRedirects } from "#shared/safe-fetch.ts";
 import { DEFAULT_PBKDF2_ITERATIONS, encryptField } from "#shared/sms/e2e.ts";
+import {
+  isSafeServerFetchUrl,
+  validateSafeServerFetchUrl,
+} from "#shared/url-safety.ts";
 
 /** Default base URL of the free public cloud relay. */
 export const DEFAULT_SMS_BASE_URL = "https://api.sms-gate.app";
 
 /** Path of the send-message endpoint (relative to the base URL). */
 const MESSAGES_PATH = "/3rdparty/v1/messages";
+
+/** Remove trailing slashes so path concatenation stays stable. */
+const normalizeBaseUrl = (baseUrl: string): string =>
+  baseUrl.replace(/\/+$/, "");
 
 export type SmsGatewayConfig = {
   baseUrl: string;
@@ -46,8 +55,12 @@ export const getSmsGatewayConfig = (): SmsGatewayConfig | null => {
   const username = settings.smsGatewayUsername;
   const password = settings.smsGatewayPassword;
   if (!passphrase || !username || !password) return null;
+  const baseUrl = normalizeBaseUrl(
+    settings.smsGatewayBaseUrl || DEFAULT_SMS_BASE_URL,
+  );
+  if (!isSafeServerFetchUrl(baseUrl)) return null;
   return {
-    baseUrl: settings.smsGatewayBaseUrl || DEFAULT_SMS_BASE_URL,
+    baseUrl,
     passphrase,
     password,
     username,
@@ -107,13 +120,25 @@ export const sendEncryptedMessage = async (
   payload: EncryptedMessagePayload,
   fetchImpl: typeof fetchText = fetchText,
 ): Promise<{ providerId: string }> => {
-  const result = await fetchImpl(`${config.baseUrl}${MESSAGES_PATH}`, {
-    body: JSON.stringify(payload),
-    headers: {
-      authorization: basicAuthHeader(config.username, config.password),
-      "content-type": "application/json",
+  const baseUrl = normalizeBaseUrl(config.baseUrl);
+  const baseUrlError = validateSafeServerFetchUrl(
+    baseUrl,
+    "SMS gateway base URL must be a public https:// domain",
+  );
+  if (baseUrlError) {
+    throw new Error(baseUrlError);
+  }
+  const result = await fetchTextFollowingSafeRedirects(
+    `${baseUrl}${MESSAGES_PATH}`,
+    {
+      body: JSON.stringify(payload),
+      headers: {
+        authorization: basicAuthHeader(config.username, config.password),
+        "content-type": "application/json",
+      },
+      method: "POST",
     },
-    method: "POST",
-  });
+    fetchImpl,
+  );
   return { providerId: parseMessageId(result) };
 };
