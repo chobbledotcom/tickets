@@ -19,7 +19,6 @@ src/ui/static/embed.js
 src/ui/static/contact.js
 src/ui/static/iframe-resizer-parent.js
 src/ui/static/iframe-resizer-child.js
-.envrc
 .deno_cache/
 .deno/
 .deno-cache/

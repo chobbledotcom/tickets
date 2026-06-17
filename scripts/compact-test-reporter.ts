@@ -1,5 +1,5 @@
-import { fileURLToPath } from "node:url";
 import { isAbsolute, relative } from "node:path";
+import { fileURLToPath } from "node:url";
 
 type Location = {
   file: string;
@@ -84,8 +84,8 @@ const isStepFailureDiagnostic = (diagnostic: TapDiagnostic): boolean =>
 const formatLocation = (location?: Location): string =>
   location
     ? `${location.file}${location.line ? `:${location.line}` : ""}${
-      location.column ? `:${location.column}` : ""
-    }`
+        location.column ? `:${location.column}` : ""
+      }`
     : "unknown location";
 
 const countMatches = (text: string, re: RegExp): number => {
@@ -106,9 +106,9 @@ const locationFromDiagnostic = (
 ): Location | undefined => {
   if (!diagnostic.at?.file) return undefined;
   return {
+    column: diagnostic.at.column,
     file: toDisplayPath(cwd, diagnostic.at.file),
     line: diagnostic.at.line,
-    column: diagnostic.at.column,
   };
 };
 
@@ -134,18 +134,20 @@ const locationFromStack = (
     if (rel.startsWith("..")) continue;
 
     return {
+      column: Number(match.slice(columnSplit + 1)),
       file: rel || ".",
       line: Number(match.slice(lineSplit + 1, columnSplit)),
-      column: Number(match.slice(columnSplit + 1)),
     };
   }
   return undefined;
 };
 
 export const hasReporterArg = (args: string[]): boolean =>
-  args.some((arg, index) =>
-    REPORTER_FLAGS.has(arg) || arg.startsWith("--reporter=") ||
-    args[index - 1] === "--reporter"
+  args.some(
+    (arg, index) =>
+      REPORTER_FLAGS.has(arg) ||
+      arg.startsWith("--reporter=") ||
+      args[index - 1] === "--reporter",
   );
 
 const collectFileArgs = (args: string[]): string[] => {
@@ -156,7 +158,8 @@ const collectFileArgs = (args: string[]): string[] => {
     if (arg === "--") break;
     if (arg.startsWith("-")) {
       if (
-        FILE_ARG_VALUE_FLAGS.has(arg) && args[i + 1]?.startsWith("-") === false
+        FILE_ARG_VALUE_FLAGS.has(arg) &&
+        args[i + 1]?.startsWith("-") === false
       ) {
         i++;
       }
@@ -299,9 +302,10 @@ export class CompactTapReporter {
   }
 
   #recordFailure(name: string, diagnostic: TapDiagnostic): void {
-    const message = diagnostic.message?.trimEnd() ||
-      "No failure message was emitted.";
-    const location = locationFromStack(this.#cwd, message) ??
+    const message =
+      diagnostic.message?.trimEnd() || "No failure message was emitted.";
+    const location =
+      locationFromStack(this.#cwd, message) ??
       locationFromDiagnostic(this.#cwd, diagnostic);
     const failure: CompactFailure = { location, message, name };
 
@@ -326,9 +330,10 @@ export class CompactTapReporter {
     );
     const bar = `${"#".repeat(fill)}${"-".repeat(PROGRESS_WIDTH - fill)}`;
     const suffix = done > total ? "+" : "";
-    return `[${bar}] ${
-      String(done).padStart(String(total).length, " ")
-    }/${total}${suffix}`;
+    return `[${bar}] ${String(done).padStart(
+      String(total).length,
+      " ",
+    )}/${total}${suffix}`;
   }
 }
 
@@ -435,9 +440,8 @@ export const runCompactDenoTest = async (
     estimatedTotal: options.estimatedTotal,
   });
 
-  const stdoutTask = readLines(
-    child.stdout,
-    (line) => reporter.consumeLine(line),
+  const stdoutTask = readLines(child.stdout, (line) =>
+    reporter.consumeLine(line),
   );
   const stderrTask = readText(child.stderr);
   const status = await child.status;

@@ -1,5 +1,5 @@
-import { expect } from "@std/expect";
 import { pathToFileURL } from "node:url";
+import { expect } from "@std/expect";
 import {
   CompactTapReporter,
   hasReporterArg,
@@ -29,8 +29,7 @@ Deno.test("compact TAP reporter keeps real failures and suppresses parent step s
     "      ---",
     JSON.stringify({
       at: { file: "test/example.test.ts", line: 171 },
-      message:
-        `AssertionError: Values differ\n    at Object.<anonymous> (${failureUrl}:12:3)`,
+      message: `AssertionError: Values differ\n    at Object.<anonymous> (${failureUrl}:12:3)`,
       severity: "fail",
     }),
     "      ...",
@@ -64,9 +63,7 @@ Deno.test("compact TAP reporter keeps real failures and suppresses parent step s
     file: "test/example.test.ts",
     line: 12,
   });
-  expect(out).toEqual([
-    "ok   [######------------------] 1/4 passes",
-  ]);
+  expect(out).toEqual(["ok   [######------------------] 1/4 passes"]);
   expect(err.join("\n")).toContain("AssertionError: Values differ");
   expect(err.join("\n")).not.toContain("1 test step failed.");
 });

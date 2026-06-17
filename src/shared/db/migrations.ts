@@ -949,7 +949,8 @@ const snapshotLiveSchema = async (): Promise<LiveSchema> => {
   const [columns, indexRows, triggerRows] = await queryBatchPrimary([
     {
       args: [],
-      sql: "SELECT m.name AS tbl, ti.name AS col " +
+      sql:
+        "SELECT m.name AS tbl, ti.name AS col " +
         "FROM sqlite_master m JOIN pragma_table_info(m.name) ti " +
         "WHERE m.type = 'table'",
     },
@@ -1019,7 +1020,7 @@ const getDbState = async (): Promise<DbState> => {
       result.rows.map((r) => [r.key as string, r.value as string]),
     );
     return values.get("latest_db_update") === LATEST_UPDATE &&
-        values.get("db_schema_hash") === SCHEMA_HASH
+      values.get("db_schema_hash") === SCHEMA_HASH
       ? "up_to_date"
       : "needs_migration";
   } catch (error) {
@@ -1031,11 +1032,9 @@ const getDbState = async (): Promise<DbState> => {
 /** Build the idempotent CREATE INDEX statement for a declared index. */
 const createIndexSql = (tableName: string, idx: Index): string => {
   const unique = idx.unique ? "UNIQUE " : "";
-  return `CREATE ${unique}INDEX IF NOT EXISTS ${idx.name} ON ${tableName}(${
-    idx.columns.join(
-      ", ",
-    )
-  })`;
+  return `CREATE ${unique}INDEX IF NOT EXISTS ${idx.name} ON ${tableName}(${idx.columns.join(
+    ", ",
+  )})`;
 };
 
 /** Create indexes for a named table from SCHEMA */
@@ -1095,8 +1094,7 @@ const recreateTable = async (tableName: string): Promise<void> => {
       { args: [], sql: `CREATE TABLE ${tmpName} (${colDefs})` },
       {
         args: [],
-        sql:
-          `INSERT INTO ${tmpName} (${colNames}) SELECT ${selectExprs} FROM ${tableName}`,
+        sql: `INSERT INTO ${tmpName} (${colNames}) SELECT ${selectExprs} FROM ${tableName}`,
       },
       { args: [], sql: `DROP TABLE ${tableName}` },
       { args: [], sql: `ALTER TABLE ${tmpName} RENAME TO ${tableName}` },
@@ -1122,11 +1120,9 @@ const requireColumns = (
   const missing = required.filter((col) => !existing.has(col));
   if (missing.length > 0) {
     throw new Error(
-      `Cannot migrate ${table}: missing expected legacy column(s): ${
-        missing.join(
-          ", ",
-        )
-      }`,
+      `Cannot migrate ${table}: missing expected legacy column(s): ${missing.join(
+        ", ",
+      )}`,
     );
   }
 };
@@ -1256,7 +1252,7 @@ const syncIndexes = async (): Promise<void> => {
     (table.indexes ?? []).map((idx) => ({
       name: idx.name,
       sql: createIndexSql(name, idx),
-    }))
+    })),
   );
   const declaredNames = new Set(declared.map((d) => d.name));
 
@@ -1351,11 +1347,9 @@ const verifyCurrentAppSchema = async (): Promise<void> => {
       .filter((col) => !existing.has(col));
     if (missingColumns.length > 0) {
       throw new Error(
-        `Database schema verification failed: ${name} missing column(s): ${
-          missingColumns.join(
-            ", ",
-          )
-        }`,
+        `Database schema verification failed: ${name} missing column(s): ${missingColumns.join(
+          ", ",
+        )}`,
       );
     }
 
@@ -1443,11 +1437,9 @@ const assertTableColumns = (
   const missing = cols.filter((col) => !existing.has(col));
   if (missing.length > 0) {
     throw new Error(
-      `Migration verification failed: ${name} missing column(s): ${
-        missing.join(
-          ", ",
-        )
-      }`,
+      `Migration verification failed: ${name} missing column(s): ${missing.join(
+        ", ",
+      )}`,
     );
   }
 };
@@ -1942,21 +1934,18 @@ const markMigrationApplied = async (migration: Migration): Promise<void> => {
   await ensureMigrationTrackingTable();
   await getDb().execute({
     args: [migration.id, migration.description, new Date().toISOString()],
-    sql:
-      `INSERT OR REPLACE INTO ${SCHEMA_MIGRATIONS_TABLE} (id, description, applied_at) VALUES (?, ?, ?)`,
+    sql: `INSERT OR REPLACE INTO ${SCHEMA_MIGRATIONS_TABLE} (id, description, applied_at) VALUES (?, ?, ?)`,
   });
 };
 
 const writeSchemaMarkers = async (): Promise<void> => {
   await getDb().execute({
     args: [LATEST_UPDATE],
-    sql:
-      "INSERT OR REPLACE INTO settings (key, value) VALUES ('latest_db_update', ?)",
+    sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('latest_db_update', ?)",
   });
   await getDb().execute({
     args: [SCHEMA_HASH],
-    sql:
-      "INSERT OR REPLACE INTO settings (key, value) VALUES ('db_schema_hash', ?)",
+    sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('db_schema_hash', ?)",
   });
 };
 
@@ -2038,7 +2027,8 @@ const acquireMigrationLock = async (
   const result = await getDb()
     .execute({
       args: [MIGRATION_LOCK_KEY, stamp, stamp, cutoff],
-      sql: "INSERT INTO settings (key, value) VALUES (?, ?) " +
+      sql:
+        "INSERT INTO settings (key, value) VALUES (?, ?) " +
         "ON CONFLICT(key) DO UPDATE SET value = ? WHERE settings.value < ?",
     })
     .catch((error) => {
@@ -2088,20 +2078,26 @@ export const initDb = async (opts: InitDbOptions = {}): Promise<void> => {
   setReadyClient(client);
 };
 
+const requireAllowedInitialDbState = (
+  state: DbState,
+  allowMissingSettings: boolean,
+): void => {
+  if (allowMissingSettings) return;
+  if (state === "missing_settings") throw new MissingSettingsTableError();
+  if (state === "uninitialized_settings") {
+    throw new MissingSettingsTableError(
+      "Database settings table is uninitialized",
+    );
+  }
+};
+
 const initDbUncached = async (allowMissingSettings: boolean): Promise<void> => {
   let state = await getDbState();
   if (state === "up_to_date") {
     await baselineCurrentSchemaIfNeeded();
     return;
   }
-  if (state === "missing_settings" && !allowMissingSettings) {
-    throw new MissingSettingsTableError();
-  }
-  if (state === "uninitialized_settings" && !allowMissingSettings) {
-    throw new MissingSettingsTableError(
-      "Database settings table is uninitialized",
-    );
-  }
+  requireAllowedInitialDbState(state, allowMissingSettings);
 
   const acquired = await acquireMigrationLock(allowMissingSettings);
   if (!acquired) {
@@ -2161,7 +2157,7 @@ const initDbUncached = async (allowMissingSettings: boolean): Promise<void> => {
         `Failed to release migration lock: ${
           error instanceof Error ? error.message : String(error)
         }`,
-      )
+      ),
     );
   }
 };

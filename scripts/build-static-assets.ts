@@ -120,65 +120,89 @@ export const buildStaticAssets = async (
 ): Promise<void> => {
   const quiet = options.quiet ?? false;
   await Promise.all([
-    buildBundle("Scanner", {
-      bundle: true,
-      entryPoints: ["./src/ui/client/scanner.js"],
-      format: "iife",
-      minify: true,
-      outfile: STATIC_ASSET_OUTFILES.scanner,
-      platform: "browser",
-      plugins: [denoNpmResolvePlugin],
-    }, quiet),
+    buildBundle(
+      "Scanner",
+      {
+        bundle: true,
+        entryPoints: ["./src/ui/client/scanner.js"],
+        format: "iife",
+        minify: true,
+        outfile: STATIC_ASSET_OUTFILES.scanner,
+        platform: "browser",
+        plugins: [denoNpmResolvePlugin],
+      },
+      quiet,
+    ),
 
-    buildBundle("Admin", {
-      bundle: true,
-      entryPoints: ["./src/ui/client/admin.ts"],
-      format: "iife",
-      minify: true,
-      outfile: STATIC_ASSET_OUTFILES.admin,
-      platform: "browser",
-      plugins: [denoImportMapPlugin],
-    }, quiet),
+    buildBundle(
+      "Admin",
+      {
+        bundle: true,
+        entryPoints: ["./src/ui/client/admin.ts"],
+        format: "iife",
+        minify: true,
+        outfile: STATIC_ASSET_OUTFILES.admin,
+        platform: "browser",
+        plugins: [denoImportMapPlugin],
+      },
+      quiet,
+    ),
 
-    buildBundle("Embed", {
-      bundle: true,
-      entryPoints: ["./src/ui/client/embed.ts"],
-      format: "iife",
-      minify: true,
-      outfile: STATIC_ASSET_OUTFILES.embed,
-      platform: "browser",
-    }, quiet),
+    buildBundle(
+      "Embed",
+      {
+        bundle: true,
+        entryPoints: ["./src/ui/client/embed.ts"],
+        format: "iife",
+        minify: true,
+        outfile: STATIC_ASSET_OUTFILES.embed,
+        platform: "browser",
+      },
+      quiet,
+    ),
 
-    buildBundle("Contact", {
-      bundle: true,
-      entryPoints: ["./src/ui/client/contact.ts"],
-      format: "iife",
-      minify: true,
-      outfile: STATIC_ASSET_OUTFILES.contact,
-      platform: "browser",
-      plugins: [botpoisonResolvePlugin],
-    }, quiet),
+    buildBundle(
+      "Contact",
+      {
+        bundle: true,
+        entryPoints: ["./src/ui/client/contact.ts"],
+        format: "iife",
+        minify: true,
+        outfile: STATIC_ASSET_OUTFILES.contact,
+        platform: "browser",
+        plugins: [botpoisonResolvePlugin],
+      },
+      quiet,
+    ),
 
-    buildBundle("iframe-resizer-parent", {
-      bundle: true,
-      entryPoints: ["./src/ui/client/iframe-resizer-parent.ts"],
-      format: "iife",
-      minify: true,
-      outfile: STATIC_ASSET_OUTFILES.iframeResizerParent,
-      platform: "browser",
-      plugins: [iframeResizerResolvePlugin],
-    }, quiet),
+    buildBundle(
+      "iframe-resizer-parent",
+      {
+        bundle: true,
+        entryPoints: ["./src/ui/client/iframe-resizer-parent.ts"],
+        format: "iife",
+        minify: true,
+        outfile: STATIC_ASSET_OUTFILES.iframeResizerParent,
+        platform: "browser",
+        plugins: [iframeResizerResolvePlugin],
+      },
+      quiet,
+    ),
 
-    buildBundle("iframe-resizer-child", {
-      banner: { js: "window.iframeResizer={license:'GPLv3'};" },
-      bundle: true,
-      entryPoints: ["./src/ui/client/iframe-resizer-child.ts"],
-      format: "iife",
-      minify: true,
-      outfile: STATIC_ASSET_OUTFILES.iframeResizerChild,
-      platform: "browser",
-      plugins: [iframeResizerResolvePlugin],
-    }, quiet),
+    buildBundle(
+      "iframe-resizer-child",
+      {
+        banner: { js: "window.iframeResizer={license:'GPLv3'};" },
+        bundle: true,
+        entryPoints: ["./src/ui/client/iframe-resizer-child.ts"],
+        format: "iife",
+        minify: true,
+        outfile: STATIC_ASSET_OUTFILES.iframeResizerChild,
+        platform: "browser",
+        plugins: [iframeResizerResolvePlugin],
+      },
+      quiet,
+    ),
   ]);
 
   if (options.stop) {
