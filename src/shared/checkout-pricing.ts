@@ -10,9 +10,9 @@
 
 import { sum, sumOf } from "#fp";
 import {
-  chargeUnitAmount,
   feeSubtotalFor,
   getBookingFeeAmount,
+  itemsSubtotal,
 } from "#shared/booking-fee.ts";
 import type {
   CheckoutIntent,
@@ -20,6 +20,7 @@ import type {
   ModifierSpec,
 } from "#shared/payments.ts";
 import { modifierDelta } from "#shared/price-modifier.ts";
+import { allocateReservationDeposit } from "#shared/reservation-amount.ts";
 
 /** One ticket line and the amount charged per unit (deposit- and
  * discount-aware). A single cart item can split into several lines when a
@@ -55,6 +56,35 @@ const lineCharge = (line: PricedLine): number =>
   line.chargedUnitAmount * line.quantity;
 
 const extraCharge = (extra: ExtraLine): number => extra.amount * extra.quantity;
+
+const baseTicketLines = (intent: CheckoutIntent): PricedLine[] => {
+  if (!intent.reservationAmount) {
+    return intent.items.map((item) => ({
+      chargedUnitAmount: item.unitPrice,
+      item,
+      quantity: item.quantity,
+    }));
+  }
+  const allocation = allocateReservationDeposit(
+    intent.reservationAmount,
+    intent.items,
+  );
+  return allocation.lines.map((line) => ({
+    chargedUnitAmount: line.chargedUnitAmount,
+    item: intent.items[line.itemIndex]!,
+    quantity: line.quantity,
+  }));
+};
+
+const bookingFeeSubtotal = (
+  intent: CheckoutIntent,
+  modifierTotal: number,
+): number => {
+  const base = intent.reservationAmount
+    ? (intent.feeSubtotal ?? itemsSubtotal(intent.items))
+    : feeSubtotalFor(intent);
+  return base + modifierTotal;
+};
 
 /** The booking-fee extra line for a subtotal, or [] when the fee is zero. */
 const feeExtras = (fullSubtotal: number): ExtraLine[] => {
@@ -212,19 +242,14 @@ export const applyModifiers = (
 
 /**
  * Price a checkout intent into provider-agnostic lines, extras, and total.
- * Reproduces the per-line deposit charging (`chargeUnitAmount`) and the
- * booking-fee line that each provider previously built on its own, and applies
- * any resolved modifiers.
+ * Reproduces the ticket and booking-fee lines that each provider previously
+ * built on its own, and applies any resolved modifiers.
  */
 export const priceCheckout = (intent: CheckoutIntent): PricedOrder => {
-  const baseLines: PricedLine[] = intent.items.map((item) => ({
-    chargedUnitAmount: chargeUnitAmount(intent, item),
-    item,
-    quantity: item.quantity,
-  }));
+  const baseLines = baseTicketLines(intent);
   const modifiers = applyModifiers(baseLines, intent.modifiers ?? []);
   // The booking fee is charged on the full order plus any net modifier change.
-  const fullSubtotal = feeSubtotalFor(intent) + modifiers.modifierTotal;
+  const fullSubtotal = bookingFeeSubtotal(intent, modifiers.modifierTotal);
   const extras = [...modifiers.extras, ...feeExtras(fullSubtotal)];
   return {
     extras,
