@@ -8,10 +8,11 @@
 import { type FetchResult, fetchText } from "#shared/fetch.ts";
 import { isSafeServerFetchUrl } from "#shared/url-safety.ts";
 
-const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+const REDIRECT_STATUSES = [301, 302, 303, 307, 308] as const;
 const MAX_SAFE_REDIRECTS = 5;
 
-const isRedirect = (status: number): boolean => REDIRECT_STATUSES.has(status);
+const isRedirect = (status: number): boolean =>
+  REDIRECT_STATUSES.includes(status as (typeof REDIRECT_STATUSES)[number]);
 
 const resolveRedirectUrl = (location: string, currentUrl: string): string => {
   try {

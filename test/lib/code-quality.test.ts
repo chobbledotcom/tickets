@@ -781,7 +781,10 @@ describe("code quality", () => {
      * Intentional constant arguments that should not be flagged.
      * Format: "calleeName#position" with a justifying comment.
      */
-    const ALLOWED_CONSTANT_ARGS: string[] = [];
+    const ALLOWED_CONSTANT_ARGS = [
+      // Built-in parseInt/Number.parseInt should always pass an explicit radix.
+      "parseInt#1",
+    ];
 
     /** True for arguments that are constant literals (not variables/expressions). */
     const isConstantLiteral = (arg: string): boolean => {
