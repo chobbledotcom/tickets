@@ -45,6 +45,9 @@ const ALLOWED_FILES_STATE = [
   // Short-TTL warm-isolate stash for re-filling forms after a redirect;
   // one-shot, size/count-capped, with a cookie-flash fallback when cold.
   "shared/form-stash.ts",
+  // Compiled ICU MessageFormat cache keyed by locale + message key;
+  // immutable derived data (parsing is non-trivial), not mutable app state.
+  "shared/i18n.ts",
 ];
 
 /**
@@ -486,6 +489,8 @@ describe("code quality", () => {
       "shared/stripe.ts:resetStripeClient",
       // TTL constant used by page-cache tests to verify caching behaviour
       "shared/db/settings.ts:SETTINGS_CACHE_TTL_MS",
+      // Dev/test-only switch for the settings read audit (no-op in production)
+      "shared/db/settings-audit.ts:setSettingsAuditEnabled",
       // (settings.ts functions now accessed via settings namespace, not individual exports)
       // Reset cached sessions between tests
       "shared/db/sessions.ts:resetSessionCache",
