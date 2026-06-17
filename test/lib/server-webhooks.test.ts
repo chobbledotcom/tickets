@@ -544,7 +544,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         );
         const log = await getAllActivityLog();
         expect(
-          log.some((e) => e.message === "Promo code 'EARLYBIRD' used"),
+          log.some((e) => e.message === "Promo code 'EARLYBIRD' used: £1 off"),
         ).toBe(true);
       } finally {
         mockVerify.restore();

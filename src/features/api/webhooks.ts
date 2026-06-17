@@ -43,6 +43,7 @@ import { getSearchParam } from "#routes/url.ts";
 import { calculateBookingFee } from "#shared/booking-fee.ts";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
+import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
@@ -850,13 +851,21 @@ const processReservedSession = async (
     options?.storeTokens === false ? [] : [ticketToken],
   );
 
-  for (const spec of modifierSpecs) {
-    if (spec.trigger === "code") {
-      await logActivity(
-        `Promo code '${spec.name}' used`,
-        firstAttendee.listing,
-        firstAttendee.attendee.id,
-      );
+  if (modifierSpecs.some((s) => s.trigger === "code")) {
+    const fullTotal = sumOf((v: ValidatedItem) => v.item.p)(validatedItems);
+    for (const spec of modifierSpecs) {
+      if (spec.trigger === "code") {
+        const delta = modifierDelta(fullTotal, spec.kind, spec.value);
+        const effect =
+          delta < 0
+            ? `${formatCurrency(-delta)} off`
+            : `+${formatCurrency(delta)}`;
+        await logActivity(
+          `Promo code '${spec.name}' used: ${effect}`,
+          firstAttendee.listing,
+          firstAttendee.attendee.id,
+        );
+      }
     }
   }
 
