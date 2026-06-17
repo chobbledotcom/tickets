@@ -44,6 +44,7 @@ import {
   type Group,
   normalizeDurationDays,
 } from "#shared/types.ts";
+import { parsePositiveInt } from "#shared/validation/number.ts";
 import { logAndNotifyRegistration } from "#shared/webhook.ts";
 import type { TicketListing } from "#templates/public.tsx";
 import { formatAtomicError, listingsWithQuantity } from "./ticket-form.ts";
@@ -165,8 +166,8 @@ export const bookingDateFields = (
   durationDays: listing.customisable_days
     ? normalizeDurationDays(dayCount)
     : listing.listing_type === "daily"
-      ? normalizeDurationDays(listing.duration_days)
-      : 1,
+    ? normalizeDurationDays(listing.duration_days)
+    : 1,
 });
 
 /** Resolve the per-ticket price for a selected listing: customisable listings
@@ -250,8 +251,8 @@ export const resolveDayCount = async (
   );
   if (customisable.length === 0) return { dayCount: 1 };
 
-  const raw = Number.parseInt(form.getString("day_count"), 10);
-  if (!Number.isInteger(raw) || raw < 1) {
+  const raw = parsePositiveInt(form.getString("day_count"));
+  if (raw === null) {
     return { error: "Please choose how many days to book" };
   }
   for (const { listing } of customisable) {
@@ -267,7 +268,8 @@ export const resolveDayCount = async (
     for (const { listing } of dailyCustomisable) {
       if (!isBookingRangeValid(listing, date, raw, holidays)) {
         return {
-          error: `${listing.name}: ${raw} days aren't all available from that date — choose fewer days or a different start date`,
+          error:
+            `${listing.name}: ${raw} days aren't all available from that date — choose fewer days or a different start date`,
         };
       }
     }

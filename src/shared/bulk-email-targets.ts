@@ -20,6 +20,7 @@ import {
 import { getAllListings, getListingWithCount } from "#shared/db/listings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { ListingWithCount } from "#shared/types.ts";
+import { parsePositiveIntId } from "#shared/validation/number.ts";
 
 // ── Audiences ───────────────────────────────────────────────────────
 
@@ -123,19 +124,19 @@ export type TargetDescription = {
  */
 export type ComposeControl =
   | {
-      readonly mode: "select";
+    readonly mode: "select";
+    readonly label: string;
+    readonly name: string;
+    readonly selected: string;
+    readonly options: readonly {
+      readonly value: string;
       readonly label: string;
-      readonly name: string;
-      readonly selected: string;
-      readonly options: readonly {
-        readonly value: string;
-        readonly label: string;
-      }[];
-    }
+    }[];
+  }
   | {
-      readonly mode: "fixed";
-      readonly fields: ReadonlyArray<readonly [name: string, value: string]>;
-    };
+    readonly mode: "fixed";
+    readonly fields: ReadonlyArray<readonly [name: string, value: string]>;
+  };
 
 /** Static heading + intro shown when composing to a kind of target. */
 export type ComposeCopy = { readonly heading: string; readonly intro: string };
@@ -195,10 +196,9 @@ const audienceListingIds = async (
   now: number,
 ): Promise<number[]> => {
   const listings = await getAllListings();
-  const matches =
-    audience === "active"
-      ? filter((l: ListingWithCount) => l.active)
-      : filter((l: ListingWithCount) => isUpcomingListing(l, now));
+  const matches = audience === "active"
+    ? filter((l: ListingWithCount) => l.active)
+    : filter((l: ListingWithCount) => isUpcomingListing(l, now));
   return map((l: ListingWithCount) => l.id)(matches(listings));
 };
 
@@ -238,8 +238,8 @@ const audienceSpec: TargetSpec<AudienceTarget> = {
     target.audience === "all"
       ? getAllAttendeePiiBlobs()
       : getAttendeePiiBlobsForListings(
-          await audienceListingIds(target.audience, now),
-        ),
+        await audienceListingIds(target.audience, now),
+      ),
   logListingId: () => null,
   singleRecipient: false,
   toQuery: (target) => `?audience=${target.audience}`,
@@ -251,8 +251,8 @@ const audienceSpec: TargetSpec<AudienceTarget> = {
 const listingTargetFromRaw = async (
   raw: string,
 ): Promise<ListingTarget | null> => {
-  const id = Number(raw);
-  if (!Number.isInteger(id) || id <= 0) return null;
+  const id = parsePositiveIntId(raw);
+  if (id === null) return null;
   const listing = await getListingWithCount(id);
   return listing ? { kind: "listing", listingId: id } : null;
 };

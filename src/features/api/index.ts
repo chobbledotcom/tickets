@@ -36,6 +36,10 @@ import {
   isPaidListing,
   type ListingWithCount,
 } from "#shared/types.ts";
+import {
+  parseNonNegativeInt,
+  parsePositiveInt,
+} from "#shared/validation/number.ts";
 import { extractContact, tryValidateTicketFields } from "#templates/fields.ts";
 
 // =============================================================================
@@ -101,13 +105,13 @@ export const toPublicListing = (
   groupRemaining: number | undefined,
 ): PublicListing => {
   const listingRemaining = listing.max_attendees - listing.attendee_count;
-  const spotsRemaining =
-    groupRemaining === undefined
-      ? listingRemaining
-      : Math.min(listingRemaining, groupRemaining);
+  const spotsRemaining = groupRemaining === undefined
+    ? listingRemaining
+    : Math.min(listingRemaining, groupRemaining);
   const isSoldOut = spotsRemaining <= 0;
-  const maxPurchasable =
-    isSoldOut || closed ? 0 : Math.min(listing.max_quantity, spotsRemaining);
+  const maxPurchasable = isSoldOut || closed
+    ? 0
+    : Math.min(listing.max_quantity, spotsRemaining);
 
   const result: PublicListing = {
     canPayMore: listing.can_pay_more,
@@ -169,24 +173,21 @@ const parseApiJsonBody = async (
 };
 
 /** Wrap a handler that needs an active listing — handles slug lookup + 404 */
-const withActiveListing =
-  (
-    handler: (
-      request: Request,
-      listing: ListingWithCount,
-      server?: ServerContext,
-    ) => Promise<Response>,
-  ) =>
-  async (
+const withActiveListing = (
+  handler: (
     request: Request,
-    { slug }: { slug: string },
+    listing: ListingWithCount,
     server?: ServerContext,
-  ): Promise<Response> => {
-    const result = await findActiveListing(slug);
-    return result instanceof Response
-      ? result
-      : handler(request, result, server);
-  };
+  ) => Promise<Response>,
+) =>
+async (
+  request: Request,
+  { slug }: { slug: string },
+  server?: ServerContext,
+): Promise<Response> => {
+  const result = await findActiveListing(slug);
+  return result instanceof Response ? result : handler(request, result, server);
+};
 
 // =============================================================================
 // Handlers
@@ -207,7 +208,7 @@ const handleListListings = async (): Promise<Response> => {
       isRegistrationClosed(e),
       undefined,
       groupRemaining.get(e.id),
-    ),
+    )
   );
   return apiResponse({ listings });
 };
@@ -232,8 +233,8 @@ const handleGetListing = withActiveListing(async (_request, listing) => {
 /** GET /api/listings/:slug/availability — check if spots are available */
 const handleCheckAvailability = withActiveListing(async (request, listing) => {
   const url = new URL(request.url);
-  const parsed = Number.parseInt(url.searchParams.get("quantity") || "1", 10);
-  const quantity = Math.max(1, Number.isNaN(parsed) ? 1 : parsed);
+  const quantity =
+    parseNonNegativeInt(url.searchParams.get("quantity") ?? "1") ?? 1;
   const date = url.searchParams.get("date") || undefined;
   return apiResponse({
     available: await hasAvailableSpots(
@@ -353,11 +354,8 @@ const handleBook = withActiveListing(async (request, listing, server) => {
   const values = valResult;
 
   // Parse quantity
-  const rawQuantity = Number.parseInt(String(body.quantity ?? "1"), 10);
-  const quantity =
-    Number.isNaN(rawQuantity) || rawQuantity < 1
-      ? 1
-      : Math.min(rawQuantity, listing.max_quantity);
+  const rawQuantity = parsePositiveInt(String(body.quantity ?? "1"));
+  const quantity = Math.min(rawQuantity ?? 1, listing.max_quantity);
 
   // Validate date for daily listings
   const dateResult = await resolveBookingDate(listing, body);

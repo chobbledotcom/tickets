@@ -378,6 +378,17 @@ describeWithEnv("Public API", { db: true }, () => {
       expect(response.status).toBe(200);
       expect(body.available).toBe(true);
     });
+
+    test("does not parse a malformed quantity prefix", async () => {
+      const listing = await createTestListing({ maxAttendees: 2 });
+      await createTestAttendeeDirect(listing.id, "Alice", "a@test.com");
+      const { response, body } = await fetchAvailability(
+        listing.slug,
+        "quantity=2x",
+      );
+      expect(response.status).toBe(200);
+      expect(body.available).toBe(true);
+    });
   });
 
   describe("POST /api/listings/:slug/book", () => {
@@ -702,6 +713,20 @@ describeWithEnv("Public API", { db: true }, () => {
       expect(body.booking?.ticketToken).toBeDefined();
     });
 
+    test("does not parse a malformed booking quantity prefix", async () => {
+      const listing = await createTestListing({ maxAttendees: 10 });
+      const { response } = await bookListing(listing.slug, {
+        email: "alice@test.com",
+        name: "Alice",
+        quantity: "2x",
+      });
+      expect(response.status).toBe(200);
+
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      const attendees = await getAttendeesRaw(listing.id);
+      expect(attendees[0]!.quantity).toBe(1);
+    });
+
     test("handles booking when email not in listing fields", async () => {
       const listing = await createTestListing({
         fields: "phone",
@@ -744,11 +769,14 @@ describeWithEnv("Public API", { db: true }, () => {
     test("returns 500 on encryption error for free listing", async () => {
       const { attendeesApi } = await import("#shared/db/attendees.ts");
       const listing = await createTestListing({ maxAttendees: 10 });
-      const mockCreate = stub(attendeesApi, "createAttendeeAtomic", () =>
-        Promise.resolve({
-          reason: "encryption_error" as const,
-          success: false as const,
-        }),
+      const mockCreate = stub(
+        attendeesApi,
+        "createAttendeeAtomic",
+        () =>
+          Promise.resolve({
+            reason: "encryption_error" as const,
+            success: false as const,
+          }),
       );
       try {
         const { response, body } = await bookListing(listing.slug);

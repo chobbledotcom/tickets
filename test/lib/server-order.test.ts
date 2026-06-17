@@ -213,5 +213,14 @@ describeWithEnv("server (public order)", { db: true }, () => {
       // Row A is pre-filled to 2; row B has no q param so stays unselected.
       expect(html).toContain("selected>2</option>");
     });
+
+    test("ignores malformed quantity pre-fill values", async () => {
+      const item = await createTestListing({ maxQuantity: 5, name: "Widget" });
+      const html = await assertPublicHtml(
+        `/ticket/${item.slug}?q_${item.id}=2x`,
+        `name="quantity_${item.id}"`,
+      );
+      expect(html).not.toContain("selected>2</option>");
+    });
   });
 });

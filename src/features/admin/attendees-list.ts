@@ -20,14 +20,18 @@ import { getAllListings } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   isListingFilter,
-  type ListingFilter,
   listingCategory,
+  type ListingFilter,
 } from "#shared/listing-filter.ts";
 import type {
   Attendee,
   AttendeeTableRow,
   ListingWithCount,
 } from "#shared/types.ts";
+import {
+  parsePositiveInt,
+  parsePositiveIntId,
+} from "#shared/validation/number.ts";
 import { adminAttendeesListPage } from "#templates/admin/attendees-list.tsx";
 
 /** Parse the ?sort= param, defaulting to newest-first */
@@ -36,8 +40,7 @@ const parseSort = (request: Request): AttendeeSort =>
 
 /** Parse the ?page= param into a zero-based, non-negative page index */
 const parsePage = (request: Request): number => {
-  const raw = Number.parseInt(getSearchParam(request, "page"), 10);
-  return Number.isNaN(raw) || raw < 1 ? 0 : raw;
+  return parsePositiveInt(getSearchParam(request, "page")) ?? 0;
 };
 
 /**
@@ -49,8 +52,8 @@ const parseListingId = (
   request: Request,
   listings: ListingWithCount[],
 ): number | null => {
-  const raw = Number.parseInt(getSearchParam(request, "listing"), 10);
-  if (Number.isNaN(raw)) return null;
+  const raw = parsePositiveIntId(getSearchParam(request, "listing"));
+  if (raw === null) return null;
   return listings.some((e) => e.id === raw) ? raw : null;
 };
 

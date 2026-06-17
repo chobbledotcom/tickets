@@ -23,7 +23,10 @@ import type { FormParams } from "#shared/form-data.ts";
 import { START_DATE_FIELD } from "#shared/order-select.ts";
 import { type ListingWithCount, normalizeDurationDays } from "#shared/types.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
-import { parsePositiveIntId } from "#shared/validation/number.ts";
+import {
+  parseNonNegativeInt,
+  parsePositiveIntId,
+} from "#shared/validation/number.ts";
 import {
   validateAddress,
   validateEmail,
@@ -101,12 +104,12 @@ export type AttendeeFieldError = {
 export type ValidationResult =
   | { valid: true; values: ParsedAttendeeForm }
   | {
-      valid: false;
-      attendeeError: AttendeeFieldError | null;
-      dateError: string | null;
-      lineErrors: Map<number, string>;
-      values: ParsedAttendeeForm;
-    };
+    valid: false;
+    attendeeError: AttendeeFieldError | null;
+    dateError: string | null;
+    lineErrors: Map<number, string>;
+    values: ParsedAttendeeForm;
+  };
 
 /** The shared date range implied by an attendee's existing daily bookings. */
 type SharedDates = {
@@ -132,8 +135,8 @@ export const bookingDurationDays = (
   booking: ListingAttendeeRow,
 ): number | null => {
   if (!booking.start_at || !booking.end_at) return null;
-  const ms =
-    new Date(booking.end_at).getTime() - new Date(booking.start_at).getTime();
+  const ms = new Date(booking.end_at).getTime() -
+    new Date(booking.start_at).getTime();
   const days = Math.round(ms / 86_400_000);
   return days >= 1 ? days : null;
 };
@@ -201,9 +204,7 @@ export const resolveSharedDates = (
 
 /** Parse one quantity field value: blank/invalid → null, else the integer. */
 const parseQuantity = (raw: string): number | null => {
-  if (raw.trim() === "") return null;
-  const n = Number.parseInt(raw, 10);
-  return Number.isInteger(n) ? n : null;
+  return parseNonNegativeInt(raw);
 };
 
 /** One editor line per `qty_<id>` field in the form, in document order and
@@ -313,10 +314,9 @@ export const validateParsedForm = (
 ): ValidationResult => {
   const attendeeError = validateAttendeeBlock(parsed);
   const hasDailyBooking = parsed.lines.some(isBookedDaily);
-  const dateError =
-    hasDailyBooking && !isIsoDate(parsed.startDate)
-      ? "A start date is required for the booked daily listings"
-      : null;
+  const dateError = hasDailyBooking && !isIsoDate(parsed.startDate)
+    ? "A start date is required for the booked daily listings"
+    : null;
 
   const lineErrors = new Map<number, string>();
   for (let i = 0; i < parsed.lines.length; i++) {
@@ -418,16 +418,20 @@ export const attendeeBalanceNotice = (
   if (status.is_paid_default) {
     return remainingBalance > 0
       ? {
-          message: `This attendee is in a paid status but still owes ${formatCurrency(remainingBalance)}.`,
-          tone: "warning",
-        }
+        message: `This attendee is in a paid status but still owes ${
+          formatCurrency(remainingBalance)
+        }.`,
+        tone: "warning",
+      }
       : null;
   }
   if (status.is_reservation && remainingBalance <= 0) {
     const owed = fullPrice - amountPaid;
     if (owed > 0) {
       return {
-        message: `This reservation has no balance recorded, but ${formatCurrency(owed)} of the order is still unpaid.`,
+        message: `This reservation has no balance recorded, but ${
+          formatCurrency(owed)
+        } of the order is still unpaid.`,
         tone: "warning",
       };
     }

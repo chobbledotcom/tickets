@@ -14,7 +14,7 @@ import {
   parseQuestionAnswers,
   saveAttendeeAnswers,
 } from "#shared/db/questions.ts";
-import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
+import { applyDemoOverrides, ATTENDEE_DEMO_FIELDS } from "#shared/demo.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { verifyQrBookToken } from "#shared/qr-token.ts";
 import { validateSiteAssignmentConfig } from "#shared/site-assignment.ts";
@@ -23,6 +23,10 @@ import {
   isPaidListing,
   type ListingWithCount,
 } from "#shared/types.ts";
+import {
+  parseNonNegativeInt,
+  parsePositiveInt,
+} from "#shared/validation/number.ts";
 import {
   type TicketFormValues,
   tryValidateTicketFields,
@@ -93,10 +97,8 @@ const validateFormAndAvailability = (
   }
 
   for (const { listing, isClosed } of ctx.listings) {
-    const selectedQty = Number.parseInt(
-      form.get(`quantity_${listing.id}`) || "0",
-      10,
-    );
+    const selectedQty =
+      parseNonNegativeInt(form.get(`quantity_${listing.id}`) ?? "0") ?? 0;
     if (isClosed && selectedQty > 0) {
       return errorResponse(REGISTRATION_CLOSED_SUBMIT_MESSAGE);
     }
@@ -166,11 +168,11 @@ const computeListingAnswerMap = (
 ): Record<string, number[]> | undefined =>
   info.answerIds.length > 0
     ? buildListingAnswerMap(
-        info.activeQuestions,
-        info.answerIds,
-        ctx.questionListingMap,
-        info.selectedListingIds,
-      )
+      info.activeQuestions,
+      info.answerIds,
+      ctx.questionListingMap,
+      info.selectedListingIds,
+    )
     : undefined;
 
 type PathParams = {
@@ -440,10 +442,9 @@ const buildTicketCtx = async ({
 export const handleTicket = async (args: BookingRequest): Promise<Response> => {
   const { request, listings } = args;
   const ctx = await buildTicketCtx(args);
-  const response =
-    request.method === "GET"
-      ? ticketResponse(ctx)(applyFlash(request).error)
-      : await submitTicket(request, ctx);
+  const response = request.method === "GET"
+    ? ticketResponse(ctx)(applyFlash(request).error)
+    : await submitTicket(request, ctx);
   return applyHiddenNoindex(
     response,
     listings.some((e) => e.listing.hidden),
@@ -463,8 +464,8 @@ const parseQuantityPrefill = (
   const params = new URL(request.url).searchParams;
   const map = new Map<number, TicketPrefill>();
   for (const { listing } of listings) {
-    const qty = Number.parseInt(params.get(`q_${listing.id}`) ?? "", 10);
-    if (Number.isInteger(qty) && qty > 0) {
+    const qty = parsePositiveInt(params.get(`q_${listing.id}`) ?? "");
+    if (qty !== null) {
       map.set(listing.id, { quantity: qty });
     }
   }
@@ -483,8 +484,7 @@ export const handleTicketBySlugs = (
       prefill: parseQuantityPrefill(request, listings),
       request,
       slugs,
-    }),
-  );
+    }));
 
 /**
  * The booking-page framework entrypoint: render a booking page for an arbitrary
@@ -498,26 +498,25 @@ export const handleTicketBySlugs = (
  * header + action), and `prefill` pre-selects per-listing quantities (the order
  * cart's selected products).
  */
-export const renderTicketFlow =
-  (
-    request: Request,
-    slugs: string[],
-    options: {
-      group?: Group;
-      overrides?: Partial<TicketSharedContext>;
-      prefill?: BookingPrefill;
-    } = {},
-  ) =>
-  async (listings: ListingWithCount[]): Promise<Response> => {
-    const activeListings = await buildTicketListingsWithGroupCapacity(listings);
-    return handleTicket({
-      getContext: async (e) => ({
-        ...(await getTicketContext(e, options.group)),
-        ...options.overrides,
-      }),
-      listings: activeListings,
-      prefill: options.prefill,
-      request,
-      slugs,
-    });
-  };
+export const renderTicketFlow = (
+  request: Request,
+  slugs: string[],
+  options: {
+    group?: Group;
+    overrides?: Partial<TicketSharedContext>;
+    prefill?: BookingPrefill;
+  } = {},
+) =>
+async (listings: ListingWithCount[]): Promise<Response> => {
+  const activeListings = await buildTicketListingsWithGroupCapacity(listings);
+  return handleTicket({
+    getContext: async (e) => ({
+      ...(await getTicketContext(e, options.group)),
+      ...options.overrides,
+    }),
+    listings: activeListings,
+    prefill: options.prefill,
+    request,
+    slugs,
+  });
+};

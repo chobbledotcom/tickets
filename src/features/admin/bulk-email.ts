@@ -30,9 +30,9 @@ import {
 } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
-  type BulkEmailTarget,
   buildBulkPayload,
   buildMailtoLink,
+  type BulkEmailTarget,
   contactFrequencySummary,
   describeTarget,
   parseDraft,
@@ -79,6 +79,7 @@ import type { FormParams } from "#shared/form-data.ts";
 import { MAX_EMAIL_TEMPLATES } from "#shared/limits.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import { ok } from "#shared/response.ts";
+import { parsePositiveIntId } from "#shared/validation/number.ts";
 import {
   bulkEmailComposePage,
   bulkEmailPreviewPage,
@@ -97,14 +98,12 @@ type BulkAvailability = {
 
 const getBulkAvailability = (): BulkAvailability => {
   const config = getEmailConfig();
-  return config
-    ? { canBulkSend: true, config, disabledReason: "" }
-    : {
-        canBulkSend: false,
-        config: null,
-        disabledReason:
-          "You haven't configured your own email provider, so the system won't send bulk email for you. Sending marketing from a shared address risks the whole platform's deliverability.",
-      };
+  return config ? { canBulkSend: true, config, disabledReason: "" } : {
+    canBulkSend: false,
+    config: null,
+    disabledReason:
+      "You haven't configured your own email provider, so the system won't send bulk email for you. Sending marketing from a shared address risks the whole platform's deliverability.",
+  };
 };
 
 /** Recipients + the private key used + the owner's bulk-send availability. */
@@ -202,7 +201,9 @@ const handleComposeGet = ownerEmailPage(async (request, session) => {
   const templates = await decryptTemplateSubjects(privateKey);
 
   const templateParam = params.get("template");
-  const selectedTemplateId = templateParam ? Number(templateParam) : null;
+  const selectedTemplateId = templateParam
+    ? parsePositiveIntId(templateParam)
+    : null;
   let draft = await parseSavedDraft(privateKey);
 
   if (selectedTemplateId !== null) {
@@ -247,20 +248,22 @@ const validateFormBody = async (
   form: FormParams,
 ): Promise<Response | ValidatedEmailForm> => {
   const target = await targetFromForm(form);
-  if (!target)
+  if (!target) {
     return errorRedirect(COMPOSE_PATH, "That listing no longer exists.");
+  }
   const validation = validateDraftInput({
     body: form.getString("body"),
     marketing: form.get("marketing") === "1",
     subject: form.getString("subject"),
     target,
   });
-  if (!validation.valid)
+  if (!validation.valid) {
     return errorRedirect(
       `${COMPOSE_PATH}${targetQuery(target)}`,
       validation.error,
       "bulk-email",
     );
+  }
   return {
     body: validation.draft.body,
     marketing: validation.draft.marketing,
@@ -309,8 +312,9 @@ const handlePreviewGet = ownerEmailPage(async (_request, session) => {
         draft.body,
         settings.businessEmail,
       ),
-      providerLabel:
-        canBulkSend && config ? EMAIL_PROVIDER_LABELS[config.provider] : "",
+      providerLabel: canBulkSend && config
+        ? EMAIL_PROVIDER_LABELS[config.provider]
+        : "",
       recipientCount: recipients.length,
       sendableCount: sendable.length,
       sendableEmails: sendable,
@@ -391,7 +395,9 @@ const handleTemplateSavePost = (request: Request): Promise<Response> =>
     const encBody = await encryptWithOwnerKey(body, settings.publicKey);
     const updateExisting = form.get("update_existing") === "1";
     const templateIdParam = form.get("template_id");
-    const templateId = templateIdParam ? Number(templateIdParam) : null;
+    const templateId = templateIdParam
+      ? parsePositiveIntId(templateIdParam)
+      : null;
 
     if (updateExisting && templateId !== null) {
       const existing = await getRawEmailTemplate(templateId);

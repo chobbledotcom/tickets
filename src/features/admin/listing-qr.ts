@@ -25,6 +25,7 @@ import { FormParams } from "#shared/form-data.ts";
 import { generateQrSvg, listingSupportsDirectCheckout } from "#shared/qr.ts";
 import { buildQrBookPayload, signQrBookToken } from "#shared/qr-token.ts";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
+import { parsePositiveInt } from "#shared/validation/number.ts";
 import type {
   AdminListingQrResult,
   AdminListingQrValues,
@@ -105,8 +106,8 @@ const createQrFormValidator = (
   validate: (form) => {
     const values = extractRawValues(form);
 
-    const quantity = Number.parseInt(values.quantity, 10);
-    if (Number.isNaN(quantity) || quantity < 1) {
+    const quantity = parsePositiveInt(values.quantity);
+    if (quantity === null) {
       return { error: "Quantity must be at least 1", valid: false };
     }
     if (quantity > listing.max_quantity) {
@@ -144,7 +145,7 @@ const parsedFromValues = (
   values: AdminListingQrValues,
   listing: ListingWithCount,
 ): ParsedValues => {
-  const quantity = Number.parseInt(values.quantity, 10);
+  const quantity = parsePositiveInt(values.quantity)!;
   let valueMinor: number | undefined;
   if (values.value) {
     const { minPrice, maxPrice } = getPriceBounds(listing);
@@ -162,9 +163,11 @@ const parsedFromValues = (
 /** Build the absolute URL the QR encodes */
 const buildQrUrl = (slug: string, token: string): string => {
   const domain = getEffectiveDomain();
-  return `https://${domain}/ticket/${slug}/qr-book?t=${encodeURIComponent(
-    token,
-  )}`;
+  return `https://${domain}/ticket/${slug}/qr-book?t=${
+    encodeURIComponent(
+      token,
+    )
+  }`;
 };
 
 /** Sign a fresh token for the given listing and render its QR SVG */
@@ -230,8 +233,7 @@ const handleJsonGet: TypedRouteHandler<"GET /admin/listing/:id/qr.json"> = (
         parsedFromValues(result.values, listing),
       );
       return jsonResponse({ ok: true, ...qrResult });
-    }),
-  );
+    }));
 
 /** Exported admin routes for the QR generator */
 export const listingQrRoutes = defineRoutes({

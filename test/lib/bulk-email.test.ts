@@ -1,24 +1,26 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  AUDIENCES,
   audienceById,
-  type BulkEmailDraft,
+  AUDIENCES,
   buildBulkPayload,
   buildMailtoLink,
+  type BulkEmailDraft,
   contactFrequencySummary,
-  DEFAULT_AUDIENCE_ID,
   dedupeEmails,
+  DEFAULT_AUDIENCE_ID,
   isAudienceId,
   isBulkEmailTarget,
-  MAX_BULK_EMAIL_SUBJECT_LENGTH,
   marketingFooterHtml,
   marketingFooterText,
+  MAX_BULK_EMAIL_SUBJECT_LENGTH,
   parseDraft,
   resolveRecipientEmails,
   serializeDraft,
   summarizeProviderResponse,
   targetComposeControl,
+  targetFromForm,
+  targetFromQuery,
   targetQuery,
   unsubscribeUrl,
   validateDraftInput,
@@ -28,6 +30,7 @@ import {
   setEffectiveDomainForTest,
 } from "#shared/config.ts";
 import { hashEmail } from "#shared/db/email-preferences.ts";
+import { FormParams } from "#shared/form-data.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { describeWithEnv, getTestPrivateKey } from "#test-utils";
 import {
@@ -489,5 +492,31 @@ describeWithEnv("resolveRecipientEmails", { db: true }, () => {
         pk,
       ),
     ).toEqual([]);
+  });
+});
+
+describeWithEnv("bulk-email target parsing", { db: true }, () => {
+  test("parses valid listing targets from query and form fields", async () => {
+    const listing = await createTestListing({ name: "Mailout" });
+    await createTestAttendeeDirect(listing.id, "Amy", "amy@example.com");
+
+    await expect(
+      targetFromQuery(new URLSearchParams({ listing: String(listing.id) })),
+    ).resolves.toEqual({ kind: "listing", listingId: listing.id });
+    await expect(
+      targetFromForm(new FormParams({ listing_id: String(listing.id) })),
+    ).resolves.toEqual({ kind: "listing", listingId: listing.id });
+  });
+
+  test("rejects malformed listing target ids", async () => {
+    const listing = await createTestListing({ name: "Mailout" });
+    const malformedId = `${listing.id}x`;
+
+    await expect(
+      targetFromQuery(new URLSearchParams({ listing: malformedId })),
+    ).resolves.toBeNull();
+    await expect(
+      targetFromForm(new FormParams({ listing_id: malformedId })),
+    ).resolves.toBeNull();
   });
 });

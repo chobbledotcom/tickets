@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { parseQuantityValue } from "#routes/public/ticket-form.ts";
 import {
   bookingDateFields,
   buildRegistrationItems,
@@ -53,6 +54,19 @@ const ticketListingFor = async (listingId: number): Promise<TicketListing> => {
 };
 
 describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
+  describe("parseQuantityValue", () => {
+    test("caps valid quantities and defaults malformed input", () => {
+      expect(parseQuantityValue(" 2 ", 5, 0)).toBe(2);
+      expect(parseQuantityValue("0", 5, 0)).toBe(0);
+      expect(parseQuantityValue("7", 5, 0)).toBe(5);
+      expect(parseQuantityValue("2x", 5, 0)).toBe(0);
+    });
+
+    test("uses the minimum default when zero is below the field minimum", () => {
+      expect(parseQuantityValue("0", 5)).toBe(1);
+    });
+  });
+
   describe("ensureAllBookings", () => {
     test("ok when every booking in the cart succeeded", async () => {
       const e1 = await createTestListing({ maxAttendees: 10, name: "ok-a" });
@@ -314,6 +328,17 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
         null,
       );
       expect(result).toEqual({ error: "Please choose how many days to book" });
+    });
+
+    test("rejects malformed day counts instead of parsing their prefix", async () => {
+      const result = await resolveDayCount(
+        [line(custStandard({ id: 1 }))],
+        new FormParams({ day_count: "2x" }),
+        null,
+      );
+      expect(result).toEqual({
+        error: "Please choose how many days to book",
+      });
     });
 
     test("rejects a day count with no configured price", async () => {
