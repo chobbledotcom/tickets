@@ -30,9 +30,9 @@ import {
 } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
+  type BulkEmailTarget,
   buildBulkPayload,
   buildMailtoLink,
-  type BulkEmailTarget,
   contactFrequencySummary,
   describeTarget,
   parseDraft,
@@ -98,12 +98,14 @@ type BulkAvailability = {
 
 const getBulkAvailability = (): BulkAvailability => {
   const config = getEmailConfig();
-  return config ? { canBulkSend: true, config, disabledReason: "" } : {
-    canBulkSend: false,
-    config: null,
-    disabledReason:
-      "You haven't configured your own email provider, so the system won't send bulk email for you. Sending marketing from a shared address risks the whole platform's deliverability.",
-  };
+  return config
+    ? { canBulkSend: true, config, disabledReason: "" }
+    : {
+        canBulkSend: false,
+        config: null,
+        disabledReason:
+          "You haven't configured your own email provider, so the system won't send bulk email for you. Sending marketing from a shared address risks the whole platform's deliverability.",
+      };
 };
 
 /** Recipients + the private key used + the owner's bulk-send availability. */
@@ -312,9 +314,8 @@ const handlePreviewGet = ownerEmailPage(async (_request, session) => {
         draft.body,
         settings.businessEmail,
       ),
-      providerLabel: canBulkSend && config
-        ? EMAIL_PROVIDER_LABELS[config.provider]
-        : "",
+      providerLabel:
+        canBulkSend && config ? EMAIL_PROVIDER_LABELS[config.provider] : "",
       recipientCount: recipients.length,
       sendableCount: sendable.length,
       sendableEmails: sendable,

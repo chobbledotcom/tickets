@@ -163,11 +163,9 @@ const parsedFromValues = (
 /** Build the absolute URL the QR encodes */
 const buildQrUrl = (slug: string, token: string): string => {
   const domain = getEffectiveDomain();
-  return `https://${domain}/ticket/${slug}/qr-book?t=${
-    encodeURIComponent(
-      token,
-    )
-  }`;
+  return `https://${domain}/ticket/${slug}/qr-book?t=${encodeURIComponent(
+    token,
+  )}`;
 };
 
 /** Sign a fresh token for the given listing and render its QR SVG */
@@ -233,7 +231,8 @@ const handleJsonGet: TypedRouteHandler<"GET /admin/listing/:id/qr.json"> = (
         parsedFromValues(result.values, listing),
       );
       return jsonResponse({ ok: true, ...qrResult });
-    }));
+    }),
+  );
 
 /** Exported admin routes for the QR generator */
 export const listingQrRoutes = defineRoutes({

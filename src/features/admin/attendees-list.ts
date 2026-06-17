@@ -20,8 +20,8 @@ import { getAllListings } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   isListingFilter,
-  listingCategory,
   type ListingFilter,
+  listingCategory,
 } from "#shared/listing-filter.ts";
 import type {
   Attendee,

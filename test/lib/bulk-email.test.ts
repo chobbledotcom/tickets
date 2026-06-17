@@ -1,19 +1,19 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  audienceById,
   AUDIENCES,
+  audienceById,
+  type BulkEmailDraft,
   buildBulkPayload,
   buildMailtoLink,
-  type BulkEmailDraft,
   contactFrequencySummary,
-  dedupeEmails,
   DEFAULT_AUDIENCE_ID,
+  dedupeEmails,
   isAudienceId,
   isBulkEmailTarget,
+  MAX_BULK_EMAIL_SUBJECT_LENGTH,
   marketingFooterHtml,
   marketingFooterText,
-  MAX_BULK_EMAIL_SUBJECT_LENGTH,
   parseDraft,
   resolveRecipientEmails,
   serializeDraft,

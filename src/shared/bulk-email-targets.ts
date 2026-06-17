@@ -124,19 +124,19 @@ export type TargetDescription = {
  */
 export type ComposeControl =
   | {
-    readonly mode: "select";
-    readonly label: string;
-    readonly name: string;
-    readonly selected: string;
-    readonly options: readonly {
-      readonly value: string;
+      readonly mode: "select";
       readonly label: string;
-    }[];
-  }
+      readonly name: string;
+      readonly selected: string;
+      readonly options: readonly {
+        readonly value: string;
+        readonly label: string;
+      }[];
+    }
   | {
-    readonly mode: "fixed";
-    readonly fields: ReadonlyArray<readonly [name: string, value: string]>;
-  };
+      readonly mode: "fixed";
+      readonly fields: ReadonlyArray<readonly [name: string, value: string]>;
+    };
 
 /** Static heading + intro shown when composing to a kind of target. */
 export type ComposeCopy = { readonly heading: string; readonly intro: string };
@@ -196,9 +196,10 @@ const audienceListingIds = async (
   now: number,
 ): Promise<number[]> => {
   const listings = await getAllListings();
-  const matches = audience === "active"
-    ? filter((l: ListingWithCount) => l.active)
-    : filter((l: ListingWithCount) => isUpcomingListing(l, now));
+  const matches =
+    audience === "active"
+      ? filter((l: ListingWithCount) => l.active)
+      : filter((l: ListingWithCount) => isUpcomingListing(l, now));
   return map((l: ListingWithCount) => l.id)(matches(listings));
 };
 
@@ -238,8 +239,8 @@ const audienceSpec: TargetSpec<AudienceTarget> = {
     target.audience === "all"
       ? getAllAttendeePiiBlobs()
       : getAttendeePiiBlobsForListings(
-        await audienceListingIds(target.audience, now),
-      ),
+          await audienceListingIds(target.audience, now),
+        ),
   logListingId: () => null,
   singleRecipient: false,
   toQuery: (target) => `?audience=${target.audience}`,

@@ -43,15 +43,13 @@ const setup = async (phone = PHONE) => {
 };
 
 const okFetch = () =>
-  stub(
-    globalThis,
-    "fetch",
-    () => Promise.resolve(new Response('{"id":"msg-9"}', { status: 200 })),
+  stub(globalThis, "fetch", () =>
+    Promise.resolve(new Response('{"id":"msg-9"}', { status: 200 })),
   );
 
 const queuedLog = async (attendeeId: number) =>
   (await getAttendeeActivityLog(attendeeId)).some((e) =>
-    e.message.includes("SMS queued")
+    e.message.includes("SMS queued"),
   );
 
 describeWithEnv("admin sms", { db: true }, () => {
@@ -140,10 +138,8 @@ describeWithEnv("admin sms", { db: true }, () => {
   it("POST on a gateway error logs the failure and records no row", async () => {
     await configureGateway();
     const { attendee, form } = await setup();
-    const fetchStub = stub(
-      globalThis,
-      "fetch",
-      () => Promise.resolve(new Response("boom", { status: 500 })),
+    const fetchStub = stub(globalThis, "fetch", () =>
+      Promise.resolve(new Response("boom", { status: 500 })),
     );
     try {
       await adminFormPost("/admin/sms", { ...form, message: "Hi" });

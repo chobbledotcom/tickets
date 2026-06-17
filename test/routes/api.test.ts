@@ -769,14 +769,11 @@ describeWithEnv("Public API", { db: true }, () => {
     test("returns 500 on encryption error for free listing", async () => {
       const { attendeesApi } = await import("#shared/db/attendees.ts");
       const listing = await createTestListing({ maxAttendees: 10 });
-      const mockCreate = stub(
-        attendeesApi,
-        "createAttendeeAtomic",
-        () =>
-          Promise.resolve({
-            reason: "encryption_error" as const,
-            success: false as const,
-          }),
+      const mockCreate = stub(attendeesApi, "createAttendeeAtomic", () =>
+        Promise.resolve({
+          reason: "encryption_error" as const,
+          success: false as const,
+        }),
       );
       try {
         const { response, body } = await bookListing(listing.slug);

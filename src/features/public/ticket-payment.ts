@@ -166,8 +166,8 @@ export const bookingDateFields = (
   durationDays: listing.customisable_days
     ? normalizeDurationDays(dayCount)
     : listing.listing_type === "daily"
-    ? normalizeDurationDays(listing.duration_days)
-    : 1,
+      ? normalizeDurationDays(listing.duration_days)
+      : 1,
 });
 
 /** Resolve the per-ticket price for a selected listing: customisable listings
@@ -268,8 +268,7 @@ export const resolveDayCount = async (
     for (const { listing } of dailyCustomisable) {
       if (!isBookingRangeValid(listing, date, raw, holidays)) {
         return {
-          error:
-            `${listing.name}: ${raw} days aren't all available from that date — choose fewer days or a different start date`,
+          error: `${listing.name}: ${raw} days aren't all available from that date — choose fewer days or a different start date`,
         };
       }
     }

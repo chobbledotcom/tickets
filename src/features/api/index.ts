@@ -105,13 +105,13 @@ export const toPublicListing = (
   groupRemaining: number | undefined,
 ): PublicListing => {
   const listingRemaining = listing.max_attendees - listing.attendee_count;
-  const spotsRemaining = groupRemaining === undefined
-    ? listingRemaining
-    : Math.min(listingRemaining, groupRemaining);
+  const spotsRemaining =
+    groupRemaining === undefined
+      ? listingRemaining
+      : Math.min(listingRemaining, groupRemaining);
   const isSoldOut = spotsRemaining <= 0;
-  const maxPurchasable = isSoldOut || closed
-    ? 0
-    : Math.min(listing.max_quantity, spotsRemaining);
+  const maxPurchasable =
+    isSoldOut || closed ? 0 : Math.min(listing.max_quantity, spotsRemaining);
 
   const result: PublicListing = {
     canPayMore: listing.can_pay_more,
@@ -173,21 +173,24 @@ const parseApiJsonBody = async (
 };
 
 /** Wrap a handler that needs an active listing — handles slug lookup + 404 */
-const withActiveListing = (
-  handler: (
+const withActiveListing =
+  (
+    handler: (
+      request: Request,
+      listing: ListingWithCount,
+      server?: ServerContext,
+    ) => Promise<Response>,
+  ) =>
+  async (
     request: Request,
-    listing: ListingWithCount,
+    { slug }: { slug: string },
     server?: ServerContext,
-  ) => Promise<Response>,
-) =>
-async (
-  request: Request,
-  { slug }: { slug: string },
-  server?: ServerContext,
-): Promise<Response> => {
-  const result = await findActiveListing(slug);
-  return result instanceof Response ? result : handler(request, result, server);
-};
+  ): Promise<Response> => {
+    const result = await findActiveListing(slug);
+    return result instanceof Response
+      ? result
+      : handler(request, result, server);
+  };
 
 // =============================================================================
 // Handlers
@@ -208,7 +211,7 @@ const handleListListings = async (): Promise<Response> => {
       isRegistrationClosed(e),
       undefined,
       groupRemaining.get(e.id),
-    )
+    ),
   );
   return apiResponse({ listings });
 };

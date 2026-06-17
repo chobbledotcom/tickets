@@ -77,7 +77,7 @@ const handleSmsGet = (request: Request): Promise<Response> =>
           queueCount,
           target: data,
         }),
-      )
+      ),
     );
   });
 
@@ -134,9 +134,9 @@ const sendSms = (session: AuthSession, form: FormParams): Promise<Response> => {
       return redirect(backUrl, "Text message queued", true);
     } catch (e) {
       await logActivity(
-        `${SMS_LOG_PREFIX} to ${data.attendee.name} could not be queued: ${
-          String(e)
-        }`,
+        `${SMS_LOG_PREFIX} to ${data.attendee.name} could not be queued: ${String(
+          e,
+        )}`,
         listingId,
         attendeeId,
       );
