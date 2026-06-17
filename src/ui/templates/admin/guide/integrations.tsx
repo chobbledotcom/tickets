@@ -83,7 +83,9 @@ export const Integrations = (): JSX.Element => (
           </li>
           <li>
             In the app, enable <strong>end-to-end encryption</strong> and set a
-            passphrase.
+            passphrase of <strong>at least 12 characters</strong>. This is the
+            only secret protecting your attendees' phone numbers and messages,
+            so make it long and unique.
           </li>
           <li>
             In{" "}

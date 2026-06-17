@@ -44,6 +44,7 @@ export const SmsGatewayForm = (s: AdvancedSettingsPageState): JSX.Element => (
         type="password"
         value={s.smsGatewayPassphraseConfigured ? MASK_SENTINEL : undefined}
       />
+      <Raw html={t("sms.settings.passphrase_help")} />
     </label>
     <label>
       {t("sms.settings.base_url")}

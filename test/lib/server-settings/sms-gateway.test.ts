@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { MASK_SENTINEL, settings } from "#shared/db/settings.ts";
+import { SMS_PASSPHRASE_MIN_LENGTH } from "#shared/sms/e2e.ts";
 import { getSmsGatewayConfig } from "#shared/sms/gateway.ts";
 import {
   adminFormPost,
@@ -22,7 +23,7 @@ describeWithEnv("server (admin settings: sms gateway)", { db: true }, () => {
     test("saves credentials, passphrase and base URL", async () => {
       const { response } = await post({
         sms_gateway_base_url: "https://sms.example.com",
-        sms_gateway_passphrase: "secret-key",
+        sms_gateway_passphrase: "long-enough-passphrase",
         sms_gateway_password: "pw",
         sms_gateway_username: "user",
       });
@@ -37,13 +38,40 @@ describeWithEnv("server (admin settings: sms gateway)", { db: true }, () => {
       expect(cfg).not.toBeNull();
       expect(cfg!.username).toBe("user");
       expect(cfg!.password).toBe("pw");
-      expect(cfg!.passphrase).toBe("secret-key");
+      expect(cfg!.passphrase).toBe("long-enough-passphrase");
       expect(cfg!.baseUrl).toBe("https://sms.example.com");
+    });
+
+    test("rejects a passphrase shorter than the minimum length", async () => {
+      const { response } = await post({
+        sms_gateway_passphrase: "a".repeat(SMS_PASSPHRASE_MIN_LENGTH - 1),
+        sms_gateway_password: "pw",
+        sms_gateway_username: "user",
+      });
+
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("at least"), false);
+      // Nothing persisted on a validation failure
+      expect(settings.smsGatewayUsername).toBe("");
+      expect(settings.smsGatewayPassphrase).toBe("");
+    });
+
+    test("accepts a passphrase exactly at the minimum length", async () => {
+      const { response } = await post({
+        sms_gateway_passphrase: "a".repeat(SMS_PASSPHRASE_MIN_LENGTH),
+        sms_gateway_password: "pw",
+        sms_gateway_username: "user",
+      });
+
+      expect(response.status).toBe(302);
+      expect(getSmsGatewayConfig()!.passphrase).toBe(
+        "a".repeat(SMS_PASSPHRASE_MIN_LENGTH),
+      );
     });
 
     test("masked secrets leave the stored values unchanged", async () => {
       await post({
-        sms_gateway_passphrase: "key1",
+        sms_gateway_passphrase: "first-passphrase",
         sms_gateway_password: "pw1",
         sms_gateway_username: "user",
       });
@@ -57,12 +85,12 @@ describeWithEnv("server (admin settings: sms gateway)", { db: true }, () => {
       const cfg = getSmsGatewayConfig();
       expect(cfg!.username).toBe("renamed");
       expect(cfg!.password).toBe("pw1");
-      expect(cfg!.passphrase).toBe("key1");
+      expect(cfg!.passphrase).toBe("first-passphrase");
     });
 
     test("empty secrets clear the stored values", async () => {
       await post({
-        sms_gateway_passphrase: "key1",
+        sms_gateway_passphrase: "first-passphrase",
         sms_gateway_password: "pw1",
         sms_gateway_username: "user",
       });

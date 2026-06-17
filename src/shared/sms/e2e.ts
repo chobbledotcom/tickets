@@ -29,6 +29,14 @@ const SALT_BYTES = 16;
 export const DEFAULT_PBKDF2_ITERATIONS = 75_000;
 
 /**
+ * Minimum length for the E2E passphrase. This passphrase is the *only* secret
+ * protecting attendee phone numbers and message text once they reach the cloud
+ * relay, so we require a reasonably long one rather than accepting whatever the
+ * owner types.
+ */
+export const SMS_PASSPHRASE_MIN_LENGTH = 12;
+
+/**
  * Derive the AES-256-CBC key from a passphrase + salt via PBKDF2-HMAC-SHA1.
  */
 const deriveKey = async (
