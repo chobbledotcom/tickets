@@ -608,9 +608,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         );
         const log = await getAllActivityLog();
         expect(
-          log.some(
-            (e) => e.message === "Promo code 'PREMIUM' used: +£1",
-          ),
+          log.some((e) => e.message === "Promo code 'PREMIUM' used: +£1"),
         ).toBe(true);
       } finally {
         mockVerify.restore();
