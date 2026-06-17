@@ -108,7 +108,7 @@ is deliberate: `loadAll` is being removed (see §6), so there is no
 honest, and listing the keys explicitly makes the cost of a broad route visible
 in code review.
 
-### 2. Bundles, `withSettings`, and the dev assertion — ⏳ NEXT (Phase 2)
+### 2. Bundles, the prefix table, and the dev assertion — ⏳ NEXT (Phase 2)
 
 This is the next phase to implement. It adds the declaration machinery but
 changes no runtime behaviour: with the migration bridge in place, undeclared
@@ -146,63 +146,87 @@ ones and may re-export the per-file bundles for convenience.
 Type the bundle keys against `StringSettingKey` where possible so a typo or a
 renamed `CONFIG_KEYS` entry is a compile error.
 
-#### 2b. `withSettings` wrapper
+#### 2b. Declaring what a route needs: prefix baseline + handler top-ups
 
-Attach the required keys to the handler as a static, inspectable property:
+> This replaces the earlier "`withSettings` wrapper on each handler" sketch. The
+> reason is the single-query investigation in §4: the exact matched handler is
+> not known until deep inside lazy-loaded route modules, so reading per-handler
+> metadata *before* the settings load would force every route module to be
+> imported eagerly (killing cold-start) or duplicate all route patterns. A
+> coarser, pure path→keys function avoids both. See §4 for the full reasoning.
 
-```ts
-// src/features/router.ts
-const SETTINGS_KEYS = Symbol("settingsKeys");
+Declaration happens at two levels, both cheap and both colocated:
 
-export const withSettings = <P extends string>(
-  bundles: readonly (readonly string[])[],
-  handler: TypedRouteHandler<P>,
-): TypedRouteHandler<P> => {
-  (handler as WithSettings)[SETTINGS_KEYS] = unique(bundles.flat());
-  return handler;
-};
+1. **Prefix baseline (the pre-load).** A pure function keyed off the existing
+   first-segment prefix (`getPrefix`, `index.ts:211`) returns the union bundle
+   for that prefix. It does no imports and reads no settings, so it can run at
+   the very top of the request, before anything is loaded:
 
-export const settingsKeysOf = (h: RouteHandlerFn): readonly string[] | null =>
-  (h as WithSettings)[SETTINGS_KEYS] ?? null;
-```
+   ```ts
+   // src/features/route-settings.ts  (light module, eagerly imported by index.ts)
+   import { TICKET_SETTINGS } from "./ticket/...";   // colocated const arrays
+   import { ADMIN_BASELINE_SETTINGS } from "./admin/...";
+   // ...
+   const PREFIX_SETTINGS: Record<string, readonly string[]> = {
+     "": HOME_SETTINGS,
+     ticket: TICKET_SETTINGS,
+     t: TICKET_VIEW_SETTINGS,
+     listings: LISTINGS_SETTINGS,
+     admin: ADMIN_BASELINE_SETTINGS,
+     // ...one entry per prefixHandlers key
+   };
+   export const routeSettingsForPath = (path: string): readonly string[] =>
+     PREFIX_SETTINGS[getPrefix(path)] ?? [];
+   ```
 
-Registered at the route:
+   Only the **bundle constants** (plain `readonly string[]`) are imported
+   eagerly — not the heavy handler modules — so cold-start is unaffected. The
+   heavy route modules stay lazy.
 
-```ts
-"GET /ticket/:slug": withSettings([SITE_CHROME, LOCALE], handleTicketGet),
-```
+2. **Handler top-ups (on-demand fine grain).** A handler that needs settings
+   beyond its prefix baseline — typically a rare admin subpage that reads a big
+   value like an email template, a wallet cert, or a provider secret — simply
+   calls `await settings.loadKeys(STRIPE_SETTINGS)` at its top. Because
+   `loadKeys` is incremental, this fetches only what the baseline didn't already
+   cover, and is a no-op if it did. This keeps big values **out** of the common
+   admin baseline while still being explicit and colocated with the code that
+   reads them.
 
-The wrapper returns the handler unchanged except for the attached metadata, so
-it composes with the existing `defineRoutes` typing and needs no router
-rewrite. `compileRoutes` already stores the handler reference; the
-matcher just needs to surface `settingsKeysOf(handler)` alongside the match (see
-§4). `settingsKeysOf` returning `null` means "undeclared" → migration bridge.
+The net effect on query count (see §4): the common request — every public hot
+path and most admin pages — loads in **one** query (infra ∪ prefix baseline).
+Only a rare handler that genuinely needs extra big values issues a second,
+targeted query, and only on that page.
 
-A route that needs everything (the admin settings *page*, which reads ~40
-settings to render the form) declares an explicit `ADMIN_SETTINGS_PAGE` bundle —
-the union of every per-file bundle — not a magic "all" flag.
+A route that needs everything (the admin settings *page* itself, which reads
+~40 settings to render the form) tops up with an explicit `ADMIN_SETTINGS_PAGE`
+bundle — the union of every per-file bundle — rather than a magic "all" flag.
 
 #### 2c. Dev assertion mode (the safety net)
 
-This is what makes removing `loadAll` safe. Wire a per-request "declared key
-set" and have `snap()` (`settings.ts`) record every snapshot key actually read.
-In test/dev only (gated on an env flag or the existing test-mode detection), at
-the end of a request assert that every key read was either in the route's
-declared set or in the fixed infra bundle (§4); on a miss, throw an error naming
-the route, the offending key, and the bundle it most likely belongs to.
+This is what makes the coarse prefix baseline safe and lets us delete `loadAll`.
+Wire a per-request "loaded key set" (the union actually passed to `loadKeys`
+this request) and have `snap()` (`settings.ts`) record every snapshot key
+actually read. In test/dev only (gated on an env flag or the existing test-mode
+detection), at the end of a request assert that every key read was in the loaded
+set; on a miss, throw an error naming the route, the offending key, and the
+bundle it most likely belongs to. This catches both an under-declared prefix
+baseline and a handler that forgot its top-up.
 
 Mechanics:
 
 - Add an internal `recordRead(key)` called from `snap()`; collect into a
   per-request set (an `AsyncLocalStorage`-style context already exists for flash
   / saved-form data — reuse that mechanism rather than a global).
+- Track the loaded set as `loadKeys` is called (baseline + any top-ups), so the
+  assertion compares reads ⊆ everything loaded, regardless of which mechanism
+  loaded it.
 - Map snapshot field names back to `CONFIG_KEYS` for the comparison (the special
   fields like `currency`/`timezone` map back to `COUNTRY`; `payment_provider`
   and `payment_provider_setting` map back to `PAYMENT_PROVIDER`).
 - The assertion is **dev/test-only** — it must be a strict no-op in production
   (no per-read bookkeeping cost on the hot path beyond a cheap branch).
 
-The payoff: every route exercised by the test suite is *proven* to declare
+The payoff: every route exercised by the test suite is *proven* to load
 everything it reads, so when the bridge is deleted in §6 there are no surprises.
 
 ### 3. The settings cache + scoped load — ✅ DONE (Phase 1)
@@ -256,48 +280,126 @@ partial loads become a real race (revisit during §5).
 
 ### 4. Wire the scoped load into the request lifecycle — ⏳ Phase 3
 
-Today `prepareRequestEnvironment` (`src/features/index.ts:516`) calls
-`settings.loadAll()` *before* routing, because it needs `CUSTOM_DOMAIN` for
-`loadEffectiveDomain` and the `LAST_PRUNED_*` timestamps for `maybeRunPrunes`.
-The matched route — and therefore its declared bundles — isn't known until
-`routeAndFinalize` → `handleRequestInternal` runs later. The wiring must bridge
-that gap without reordering the whole pipeline.
+#### The single-query question
 
-**Approach: a fixed infra bundle now, route bundles at dispatch.**
+Two queries per request (one for infra, one for the route bundle) is acceptable,
+but **one is better**. This section is the investigation into whether one is
+achievable, and the recommended design. Short answer: **yes, the common case is
+one query**, by keying the pre-load off the path *prefix* rather than the exact
+matched route.
 
-1. **Infra bundle.** Define `INFRA_SETTINGS` = the keys the pre-routing pipeline
-   itself touches: `CUSTOM_DOMAIN`, `CUSTOM_DOMAIN_LAST_VALIDATED` (domain
-   resolution), the five `LAST_PRUNED_*` keys (pruning), and `SETUP_COMPLETE`
-   (setup gate). In `prepareRequestEnvironment`, replace `loadAll()` with
-   `settings.loadKeys(INFRA_SETTINGS)`. This is a handful of plaintext keys —
-   no decryption, one tiny query — versus today's whole-table load.
+**Why the exact route can't drive the pre-load.** The routing pipeline
+(`src/features/index.ts`) is deliberately lazy to keep cold-start small:
 
-2. **Route bundles at dispatch.** Surface the matched handler's
-   `settingsKeysOf(handler)` from the router (return it alongside `handler`/
-   `params` from `matchRequest`, or expose a `resolveRoute` that the dispatcher
-   calls). Immediately before invoking the handler in `createRouter`'s returned
-   function (or in `routeAndFinalize`), call `settings.loadKeys(keys)` for the
-   declared keys. Because `loadKeys` is incremental and the infra keys are
-   already loaded+fresh, this only fetches the route's *additional* keys.
+- `routeMainApp` (`index.ts:372`) does O(1) dispatch on the first path segment
+  via `getPrefix` (`index.ts:211`, pure — path string only) into
+  `prefixHandlers` (`index.ts:319`).
+- Almost every prefix entry is `lazyRoute(loadXRoutes)` — a dynamic `import()`
+  of the feature's route module, which only then runs its own
+  `createRouter`/`defineRoutes` matcher to find the handler.
 
-3. **Migration bridge.** When `settingsKeysOf(handler)` is `null` (undeclared),
-   call `settings.loadAll()` instead — preserving today's behaviour for routes
-   not yet migrated. This branch is deleted in §6.
+So the *exact* handler (and any per-handler metadata) is only known **after**
+lazy-loading that module and running its matcher. To drive the settings pre-load
+off the exact route you would have to either (a) eagerly import every route
+module up front to inspect handler metadata — which throws away the lazy-loading
+that keeps the edge cold-start fast — or (b) duplicate every route's path
+pattern in a second pre-dispatch matcher — drift-prone. Both are bad. This is
+why §2b uses a *prefix*-keyed function instead of per-handler metadata.
 
-Edge cases to handle in this phase:
+**A second wrinkle: routing already reads settings.** Dispatch itself reads
+`settings.showPublicApi` (`index.ts:333`) and `settings.showPublicSite`
+(`index.ts:345`), and `handleRequestInternal` calls
+`settings.setup.isComplete()` (`index.ts:402`). So settings must be populated
+*before* dispatch — the pre-load can't be deferred until after a route matches.
+Good news: **nothing reads the settings snapshot before
+`prepareRequestEnvironment`** (verified — `routeStatic`,
+`seedEffectiveDomainHost`, `initializeDatabaseForPath`, `trackingParamRedirect`
+all run first and touch no settings), so the load point has full freedom to use
+the path.
+
+#### Recommended design: prefix baseline ∪ infra, in one query
+
+Because `getPrefix(path)` is a pure function available at the very top of the
+request, the prefix's bundle can be computed *before* the settings load and
+unioned with the infra keys into a single `loadKeys`:
+
+1. **Infra bundle.** `INFRA_SETTINGS` = the keys the pre-routing /
+   dispatch pipeline itself touches: `CUSTOM_DOMAIN`,
+   `CUSTOM_DOMAIN_LAST_VALIDATED` (domain resolution in
+   `loadEffectiveDomain`), the five `LAST_PRUNED_*` keys (`maybeRunPrunes`),
+   `SETUP_COMPLETE` (setup gate), and the two dispatch-gating flags
+   `SHOW_PUBLIC_SITE` / `SHOW_PUBLIC_API`. All plaintext — no decryption.
+
+2. **One load call.** In `prepareRequestEnvironment` (`index.ts:516`), replace
+   `settings.loadAll()` with:
+
+   ```ts
+   await settings.loadKeys([
+     ...INFRA_SETTINGS,
+     ...routeSettingsForPath(path),   // prefix baseline, §2b
+   ]);
+   ```
+
+   `routeSettingsForPath` is pure and import-free, so this is a single
+   `WHERE key IN (…)` query covering infra + the whole prefix's needs. (Pass
+   `path` into `prepareRequestEnvironment`; it currently only takes `request`.)
+
+3. **Handler top-ups (rare second query).** A handler needing more than its
+   prefix baseline calls `await settings.loadKeys(...)` itself (§2b). Only that
+   page pays for a second query, and only for the keys the baseline missed.
+
+4. **Migration bridge.** While a prefix has no entry in `PREFIX_SETTINGS`,
+   `routeSettingsForPath` returns `[]` and we fall back to `settings.loadAll()`
+   for that request. Removed in §6 once every prefix is mapped.
+
+**Query-count outcome:** every public hot path (`/`, `/ticket/:slug`, `/t/…`,
+`/listings`) and most admin pages → **one** query. A rare heavy admin subpage
+(email templates, wallet certs, provider secrets) → two, by its own choice.
+
+#### Granularity trade-off (prefix vs. exact route)
+
+A prefix baseline is **coarser** than per-route: it loads the union of every
+route under that prefix. This is always *correct* (a superset — the dev
+assertion guarantees reads ⊆ loaded) and it's tight exactly where it matters,
+because the hot public paths are each their own single-purpose prefix
+(`ticket`, `t`, `listings`, `""`). The one prefix with many heterogeneous
+sub-routes is `admin`. Two ways to keep admin lean, both supported:
+
+- **Keep `ADMIN_BASELINE_SETTINGS` small** (auth, chrome, the few settings every
+  admin page reads) and let heavy admin subpages top up (§2b.2). Recommended —
+  one query for ordinary admin pages, big values loaded only where read.
+- **If finer admin precision in a single query is ever wanted**, upgrade
+  `routeSettingsForPath` to a small *pattern* table for the `admin` subtree only
+  (a handful of regexes → bundles), accepting that those patterns duplicate the
+  admin router's. Defer unless a specific high-traffic admin path justifies it.
+
+#### Alternatives considered (and rejected)
+
+- **Per-handler `withSettings` metadata read at dispatch.** Requires eager
+  import of all route modules (loses lazy cold-start) or a full duplicate
+  pattern matcher. Rejected — see "Why the exact route can't drive the
+  pre-load" above.
+- **Reorder the pipeline to match the route first, then load.** The matcher
+  reads settings (`showPublicApi`/`showPublicSite`) and lazy-loads modules, so
+  "match first" reintroduces the chicken-and-egg and the cold-start hit.
+  Rejected.
+- **Two unconditional queries (infra, then route).** Simplest, and explicitly
+  fine per the user — but the prefix-baseline design gets the common case to one
+  query for nearly the same complexity, so it's preferred.
+
+#### Edge cases
 
 - **Static assets / early returns** (`routeStatic`, `trackingParamRedirect`,
-  `initializeDatabaseForPath`) run before `prepareRequestEnvironment` and must
-  not need settings — confirm they don't, or give them the infra bundle.
-- **404 / no route matched** — no declared keys; the infra bundle is enough to
-  render the not-found path. Verify the 404 renderer doesn't read undeclared
-  settings (if it reads `SITE_CHROME` for layout, fold that into the infra
-  bundle or a dedicated "layout" bundle loaded for all HTML responses).
-- **Shared layout/chrome.** Most HTML pages render a common header/footer that
-  reads website title, theme, header image. Rather than repeat `SITE_CHROME` in
-  every bundle, consider loading a small **layout bundle** for any route that
-  returns HTML (orthogonal to the route's data bundles). Decide this explicitly
-  in Phase 3 — it's the most likely source of "undeclared key" assertion hits.
+  `initializeDatabaseForPath`) run before `prepareRequestEnvironment` and read no
+  settings — confirmed; no action.
+- **404 / unknown prefix** — `routeSettingsForPath` returns `[]`; infra alone
+  must render the not-found page. Verify the 404 renderer's reads are in infra,
+  else add a tiny "layout" set (below).
+- **Shared layout/chrome.** Most HTML pages render a header/footer reading
+  website title, theme, header image. Rather than repeat those in every prefix
+  bundle, fold a small `LAYOUT_SETTINGS` set into the union for any HTML route
+  (or simply into the infra union, since it's a few small keys). Decide this
+  explicitly in Phase 3 — it's the most likely source of assertion hits.
 
 ### 5. Writes / invalidation — ⏳ Phase 3/4 (mostly already correct)
 
@@ -324,11 +426,11 @@ Remaining work, to confirm during Phases 3–4:
 ### 6. Remove `loadAll` (priority) — ⏳ Phase 5
 
 `loadAll` is the waste this plan exists to remove, so deleting it is a
-first-class deliverable, not cleanup. Once every route declares bundles and the
-dev assertion has run green across the full suite:
+first-class deliverable, not cleanup. Once every prefix has a `PREFIX_SETTINGS`
+entry and the dev assertion has run green across the full suite:
 
-1. Delete the `settingsKeysOf(...) === null → loadAll()` bridge in the
-   dispatcher (§4.3).
+1. Delete the "empty prefix bundle → `loadAll()`" fallback in
+   `prepareRequestEnvironment` (§4.4).
 2. Make `getCachedRaw` consumers self-sufficient (§5) — each loads the keys it
    reads.
 3. Remove `loadAll`, the `full` flag, and the `SELECT *` path from
@@ -348,10 +450,10 @@ disincentive that motivated the whole effort.
 | Phase | Scope | Status |
 | --- | --- | --- |
 | 1 | Keyed cache + `loadKeys` + per-key resolvers; `loadAll` unchanged (§3) | ✅ done |
-| 2 | Bundles, `withSettings`, dev assertion mode; bridge keeps behaviour identical (§2) | ⏳ next |
-| 3 | Infra bundle + dispatch-time `loadKeys`; migrate hot public routes (`GET /`, `GET /ticket/:slug`, embeds); resolve the layout-bundle question (§4) | ⏳ |
-| 4 | Migrate remaining public + all admin routes (explicit `ADMIN_SETTINGS_PAGE` bundle); make `getCachedRaw` consumers self-sufficient (§5) | ⏳ |
-| 5 | Delete the bridge and `loadAll`; convert test `loadAll` calls (§6) | ⏳ |
+| 2 | Colocated bundle constants, `routeSettingsForPath` prefix table, dev assertion mode; empty-prefix fallback keeps behaviour identical (§2) | ⏳ next |
+| 3 | Infra ∪ prefix-baseline single `loadKeys` in `prepareRequestEnvironment`; map the hot public prefixes (`""`, `ticket`, `t`, `listings`); resolve the layout-set question (§4) | ⏳ |
+| 4 | Map remaining prefixes incl. `admin` (small baseline + handler top-ups; explicit `ADMIN_SETTINGS_PAGE` top-up for the settings page); make `getCachedRaw` consumers self-sufficient (§5) | ⏳ |
+| 5 | Delete the empty-prefix fallback and `loadAll`; convert test `loadAll` calls (§6) | ⏳ |
 
 Each phase keeps the full suite green and 100% coverage. Phases 2 and the early
 part of 3 are behaviour-preserving; the win lands incrementally as routes are
@@ -378,8 +480,17 @@ migrated in 3–4; phase 5 removes the fallback.
 
 1. **Granularity:** bundles (mapped onto the existing sub-namespaces), with the
    freedom to list bare keys for one-off needs.
-2. **Location of `requires`:** colocated with the route via `withSettings`, so
-   the declaration sits next to the code that reads the settings.
-3. **Fate of `loadAll`:** removed as soon as all routes declare bundles (§6).
-   It is a temporary migration bridge only — there is no permanent "load
-   everything" mode, because that is exactly the waste being eliminated.
+2. **Declaration:** bundle *constants* colocated in the feature files that own
+   the settings; composed into a pure, prefix-keyed `routeSettingsForPath`
+   table (§2b) that drives the pre-load, plus on-demand `loadKeys` top-ups in
+   handlers that need extra big values. (Supersedes the earlier per-handler
+   `withSettings` idea — see §4 for why exact-route metadata can't drive a
+   pre-load without losing lazy cold-start.)
+3. **Fate of `loadAll`:** removed once every prefix is mapped (§6). It is a
+   temporary migration fallback only — there is no permanent "load everything"
+   mode, because that is exactly the waste being eliminated.
+4. **Query count:** the common request (all public hot paths, most admin pages)
+   loads in **one** query — infra ∪ prefix baseline. Only a rare handler that
+   needs extra big values issues a second, targeted query. Two unconditional
+   queries were considered acceptable but bettered by the prefix-baseline
+   design.
