@@ -8,7 +8,13 @@
  */
 
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import { executeBatch, getDb, queryAll, queryOne } from "#shared/db/client.ts";
+import {
+  executeBatch,
+  getDb,
+  queryAll,
+  queryOne,
+  resetAggregates,
+} from "#shared/db/client.ts";
 import {
   defineIdTable,
   encryptedNameSchema,
@@ -136,7 +142,7 @@ export const updateModifierAggregateValues = async (
   });
 };
 
-const modifierAggregateResetSql: Record<ModifierAggregateField, string> = {
+const aggregateResetSql: Record<ModifierAggregateField, string> = {
   total_revenue:
     "total_revenue = COALESCE((SELECT SUM(amount_applied) FROM modifier_usages WHERE modifier_id = ?), 0)",
   total_uses:
@@ -150,12 +156,7 @@ export const resetModifierAggregateFields = async (
   modifierId: number,
   fields: ModifierAggregateField[],
 ): Promise<void> => {
-  await getDb().execute({
-    args: [...fields.map(() => modifierId), modifierId],
-    sql: `UPDATE modifiers SET ${fields
-      .map((field) => modifierAggregateResetSql[field])
-      .join(", ")} WHERE id = ?`,
-  });
+  await resetAggregates("modifiers", modifierId, fields, aggregateResetSql);
 };
 
 /** Run a single-column `id` query for a modifier and return the ids. */

@@ -19,6 +19,7 @@ import {
   queryAll,
   queryBatch,
   queryOne,
+  resetAggregates,
   resultRows,
 } from "#shared/db/client.ts";
 import {
@@ -443,7 +444,7 @@ export const updateListingAggregateValues = async (
   invalidateListingsCache();
 };
 
-const listingAggregateResetSql: Record<ListingAggregateField, string> = {
+const aggregateResetSql: Record<ListingAggregateField, string> = {
   booked_quantity:
     "booked_quantity = COALESCE((SELECT SUM(quantity) FROM listing_attendees WHERE listing_id = ?), 0)",
   income:
@@ -457,12 +458,7 @@ export const resetListingAggregateFields = async (
   listingId: number,
   fields: ListingAggregateField[],
 ): Promise<void> => {
-  await getDb().execute({
-    args: [...fields.map(() => listingId), listingId],
-    sql: `UPDATE listings SET ${fields
-      .map((field) => listingAggregateResetSql[field])
-      .join(", ")} WHERE id = ?`,
-  });
+  await resetAggregates("listings", listingId, fields, aggregateResetSql);
   invalidateListingsCache();
 };
 

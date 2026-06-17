@@ -1,3 +1,4 @@
+import { htmlResponse } from "#routes/response.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { Field } from "#shared/forms.tsx";
 import { type ValidationResult, validateForm } from "#shared/forms.tsx";
@@ -28,3 +29,27 @@ export const selectedRecalculationFields = <T extends string>(
   const selected = new Set(form.getAll(RECALCULATE_FIELD_NAME));
   return allowed.filter((field) => selected.has(field));
 };
+
+type RecalculatePage<TEntity, TSnapshot, TSession> = (
+  entity: TEntity,
+  snapshot: TSnapshot,
+  session: TSession,
+  error?: string,
+  success?: string,
+) => string;
+
+export const createRecalculatePageRenderer =
+  <TEntity, TSnapshot, TSession>(
+    snapshot: (entity: TEntity) => Promise<TSnapshot>,
+    page: RecalculatePage<TEntity, TSnapshot, TSession>,
+  ) =>
+  async (
+    entity: TEntity,
+    session: TSession,
+    error?: string,
+    success?: string,
+  ): Promise<Response> =>
+    htmlResponse(
+      page(entity, await snapshot(entity), session, error, success),
+      error ? 400 : 200,
+    );

@@ -10,6 +10,7 @@ import {
   listingAttendeesLoader,
 } from "#routes/admin/actions.ts";
 import {
+  createRecalculatePageRenderer,
   parseEditableAggregateForm,
   selectedRecalculationFields,
 } from "#routes/admin/aggregate-recalculation.ts";
@@ -697,22 +698,10 @@ const handleAdminListingEditPost: TypedRouteHandler<
     }),
   );
 
-const renderListingRecalculatePage = async (
-  listing: ListingWithCount,
-  session: AdminSession,
-  error?: string,
-  success?: string,
-): Promise<Response> =>
-  htmlResponse(
-    adminListingRecalculatePage(
-      listing,
-      await getListingAggregateRecalculation(listing),
-      session,
-      error,
-      success,
-    ),
-    error ? 400 : 200,
-  );
+const renderListingRecalculatePage = createRecalculatePageRenderer(
+  getListingAggregateRecalculation,
+  adminListingRecalculatePage,
+);
 
 const handleListingRecalculateGet: TypedRouteHandler<
   "GET /admin/listings/recalculate/:listingId"

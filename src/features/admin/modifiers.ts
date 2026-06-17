@@ -5,6 +5,7 @@
 /* jscpd:ignore-start */
 import { t } from "#i18n";
 import {
+  createRecalculatePageRenderer,
   parseEditableAggregateForm,
   selectedRecalculationFields,
 } from "#routes/admin/aggregate-recalculation.ts";
@@ -53,7 +54,7 @@ import {
   validateCalcValue,
 } from "#shared/price-modifier.ts";
 import { defineNamedResource } from "#shared/rest/resource.ts";
-import type { AdminSession, Modifier } from "#shared/types.ts";
+import type { Modifier } from "#shared/types.ts";
 import {
   adminModifierDeletePage,
   adminModifierEditPage,
@@ -215,22 +216,10 @@ const handleEditPost: TypedRouteHandler<"POST /admin/modifiers/:id/edit"> = (
     return errorRedirect(`/admin/modifiers/${id}/edit`, result.error);
   });
 
-const renderModifierRecalculatePage = async (
-  modifier: Modifier,
-  session: AdminSession,
-  error?: string,
-  success?: string,
-): Promise<Response> =>
-  htmlResponse(
-    adminModifierRecalculatePage(
-      modifier,
-      await getModifierAggregateRecalculation(modifier),
-      session,
-      error,
-      success,
-    ),
-    error ? 400 : 200,
-  );
+const renderModifierRecalculatePage = createRecalculatePageRenderer(
+  getModifierAggregateRecalculation,
+  adminModifierRecalculatePage,
+);
 
 const handleModifierRecalculateGet: TypedRouteHandler<
   "GET /admin/modifiers/recalculate/:modifierId"
