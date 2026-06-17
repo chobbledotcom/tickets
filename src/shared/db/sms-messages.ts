@@ -8,7 +8,13 @@
  * status event and pruned by age as a backstop.
  */
 
-import { deleteByField, getDb, insert, queryOne } from "#shared/db/client.ts";
+import {
+  countRows,
+  deleteByField,
+  getDb,
+  insert,
+  queryOne,
+} from "#shared/db/client.ts";
 import { nowIso } from "#shared/now.ts";
 
 export interface SmsMessageRow {
@@ -49,14 +55,8 @@ export const getSmsMessageByProviderId = (
       );
 
 /** Count messages still in flight (sent, awaiting a delivery/failure webhook). */
-export const countSmsMessages = async (): Promise<number> => {
-  // COUNT(*) always returns exactly one row, so the result is never null.
-  const row = await queryOne<{ c: number }>(
-    "SELECT COUNT(*) AS c FROM sms_messages",
-    [],
-  );
-  return Number(row!.c);
-};
+export const countSmsMessages = (): Promise<number> =>
+  countRows("sms_messages");
 
 /** Delete a row once its message reaches a terminal state. */
 export const deleteSmsMessage = (id: number): Promise<void> =>
