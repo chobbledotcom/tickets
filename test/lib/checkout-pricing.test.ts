@@ -19,6 +19,7 @@ const modifier = (overrides: Partial<ModifierSpec> = {}): ModifierSpec => ({
   listingIds: null,
   name: "Add-on",
   quantity: 1,
+  trigger: "automatic",
   value: 500,
   ...overrides,
 });

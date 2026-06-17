@@ -850,6 +850,16 @@ const processReservedSession = async (
     options?.storeTokens === false ? [] : [ticketToken],
   );
 
+  for (const spec of modifierSpecs) {
+    if (spec.trigger === "code") {
+      await logActivity(
+        `Promo code '${spec.name}' used`,
+        firstAttendee.listing,
+        firstAttendee.attendee.id,
+      );
+    }
+  }
+
   await logAndNotifyRegistration(createdEntries, intent.siteTokenIndex);
 
   return {

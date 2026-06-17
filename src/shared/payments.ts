@@ -9,7 +9,7 @@
 import * as v from "valibot";
 import { settings } from "#shared/db/settings.ts";
 import { logDebug } from "#shared/logger.ts";
-import type { CalcKind } from "#shared/price-modifier.ts";
+import type { CalcKind, ModifierTrigger } from "#shared/price-modifier.ts";
 import type { ContactInfo, PaymentProviderType } from "#shared/types.ts";
 
 /** Stubbable API for internal calls (testable via spyOn, like stripeApi/squareApi) */
@@ -42,6 +42,7 @@ export type ModifierSpec = {
   id: number;
   name: string;
   kind: CalcKind;
+  trigger: ModifierTrigger;
   value: number;
   listingIds: number[] | null;
   quantity: number;

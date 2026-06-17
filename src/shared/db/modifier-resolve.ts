@@ -56,6 +56,7 @@ const toSpec = (
   listingIds,
   name: modifier.name,
   quantity,
+  trigger: modifier.trigger,
   value: signedValue(modifier),
 });
 

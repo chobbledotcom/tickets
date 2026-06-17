@@ -3,6 +3,7 @@ import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { setEffectiveDomainForTest } from "#shared/config.ts";
+import { getAllActivityLog } from "#shared/db/activityLog.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import {
   answersTable,
@@ -481,6 +482,70 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         );
         const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
         expect((await getAttendeesRaw(listing.id)).length).toBe(1);
+      } finally {
+        mockVerify.restore();
+      }
+    });
+
+    test("logs a promo code usage when a code-triggered modifier is applied", async () => {
+      await setupStripe();
+      const listing = await createTestListing({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+      const modifier = await modifiersTable.insert({
+        calcKind: "fixed",
+        calcValue: 1,
+        direction: "discount",
+        name: "EARLYBIRD",
+        trigger: "code",
+      });
+
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            listing: {
+              data: {
+                object: {
+                  // £10 ticket minus £1 promo discount = £9.00.
+                  amount_total: 900,
+                  id: "cs_promo_log",
+                  metadata: webhookMeta({
+                    email: "promo@example.com",
+                    items: singleItem(listing.id, 1, 1000),
+                    modifiers: JSON.stringify([{ i: modifier.id, q: 1 }]),
+                    name: "Promo Buyer",
+                  }),
+                  payment_intent: "pi_promo_log",
+                  payment_status: "paid",
+                },
+              },
+              id: "evt_promo_log",
+              type: "checkout.session.completed",
+            },
+            valid: true,
+          }),
+      );
+
+      try {
+        await assertJson(
+          handleRequest(
+            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+          ),
+          200,
+          (json) => {
+            expect(json.processed).toBe(true);
+          },
+        );
+        const log = await getAllActivityLog();
+        expect(
+          log.some((e) => e.message === "Promo code 'EARLYBIRD' used"),
+        ).toBe(true);
       } finally {
         mockVerify.restore();
       }

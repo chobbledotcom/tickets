@@ -73,6 +73,7 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
           listingIds: null,
           name: "Parking",
           quantity: 1,
+          trigger: "automatic",
           value: toMinorUnits(5),
         },
       ]);
@@ -318,6 +319,7 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
           listingIds: null,
           name: "Parking",
           quantity: 2,
+          trigger: "automatic",
           value: toMinorUnits(5),
         },
       ]);
