@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
+import { formatCurrency } from "#shared/currency.ts";
 import type { Modifier } from "#shared/types.ts";
 import {
   adminModifierDeletePage,
@@ -57,6 +58,20 @@ describe("adminModifiersPage", () => {
     expect(html).toContain("Add Modifier");
     // The name links to the edit page; there is no separate actions column.
     expect(html).toContain("/admin/modifiers/1/edit");
+  });
+
+  test("shows the trigger-maintained usage figures", () => {
+    const html = adminModifiersPage(
+      [mod({ id: 1, total_revenue: 2500, total_uses: 7, usage_count: 3 })],
+      SESSION,
+    );
+    expect(html).toContain("Uses");
+    expect(html).toContain("Orders");
+    expect(html).toContain("Revenue");
+    expect(html).toContain(">7<");
+    expect(html).toContain(">3<");
+    // total_revenue is in minor units, formatted in the configured currency.
+    expect(html).toContain(`>${formatCurrency(2500)}<`);
   });
 
   test("shows an empty state when there are no modifiers", () => {
