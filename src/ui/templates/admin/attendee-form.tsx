@@ -765,7 +765,7 @@ export const attendeeFormPage = (
 
   return String(
     <Layout title={pageTitle(data)}>
-      <AdminNav active="/admin/" session={session} />
+      <AdminNav active="/admin/attendees" session={session} />
 
       <div class="prose">
         <h1>{pageTitle(data)}</h1>
