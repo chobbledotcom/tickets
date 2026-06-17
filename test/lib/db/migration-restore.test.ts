@@ -207,25 +207,25 @@ describeWithEnv("db > migration restore", { db: true }, () => {
     );
   });
 
+  // Rename the current listing-named tables/columns back to their historical
+  // "event" names, reproducing the pre-rename shape on disk.
+  const downgradeToLegacyNames = () =>
+    getDb().batch(
+      [
+        "ALTER TABLE listings RENAME COLUMN listing_type TO event_type",
+        "ALTER TABLE listings RENAME TO events",
+        "ALTER TABLE listing_attendees RENAME COLUMN listing_id TO event_id",
+        "ALTER TABLE listing_attendees RENAME TO event_attendees",
+        "ALTER TABLE listing_questions RENAME COLUMN listing_id TO event_id",
+        "ALTER TABLE listing_questions RENAME TO event_questions",
+        "ALTER TABLE activity_log RENAME COLUMN listing_id TO event_id",
+        "ALTER TABLE built_sites RENAME COLUMN assigned_listing_id TO assigned_event_id",
+      ],
+      "write",
+    );
+
   describe("rename migration verify", () => {
     const rename = () => migrationById("2026-06-14_rename_events_to_listings");
-
-    // Rename the current listing-named tables/columns back to their historical
-    // "event" names, reproducing the pre-rename shape on disk.
-    const downgradeToLegacyNames = () =>
-      getDb().batch(
-        [
-          "ALTER TABLE listings RENAME COLUMN listing_type TO event_type",
-          "ALTER TABLE listings RENAME TO events",
-          "ALTER TABLE listing_attendees RENAME COLUMN listing_id TO event_id",
-          "ALTER TABLE listing_attendees RENAME TO event_attendees",
-          "ALTER TABLE listing_questions RENAME COLUMN listing_id TO event_id",
-          "ALTER TABLE listing_questions RENAME TO event_questions",
-          "ALTER TABLE activity_log RENAME COLUMN listing_id TO event_id",
-          "ALTER TABLE built_sites RENAME COLUMN assigned_listing_id TO assigned_event_id",
-        ],
-        "write",
-      );
 
     test("rejects while legacy event tables are still present", async () => {
       await downgradeToLegacyNames();
@@ -238,6 +238,23 @@ describeWithEnv("db > migration restore", { db: true }, () => {
       await downgradeToLegacyNames();
       await rename().up();
       await rename().verify();
+    });
+  });
+
+  describe("overlap index migration on pre-rename database", () => {
+    const overlapIdx = () =>
+      migrationById("2026-06-13_event_attendees_overlap_index");
+
+    test("up() is a no-op when legacy 'events' table exists", async () => {
+      await downgradeToLegacyNames();
+      // Must not throw (would fail with "no such table: main.listings" before fix)
+      await overlapIdx().up();
+    });
+
+    test("verify() passes when legacy 'events' table exists", async () => {
+      await downgradeToLegacyNames();
+      // Defers to rename migration — nothing to verify yet
+      await overlapIdx().verify();
     });
   });
 });
