@@ -27,7 +27,9 @@ import attendeeStatusesMigration from "./migrations/2026-06-14_attendee_statuses
 import emailPreferencesMigration from "./migrations/2026-06-14_email_preferences.ts";
 import listingCustomisableDaysMigration from "./migrations/2026-06-14_listing_customisable_days.ts";
 import questionSortOrderMigration from "./migrations/2026-06-14_question_sort_order.ts";
-import renameEventsToListingsMigration, { EVENT_TO_LISTING_RENAME_PLAN } from "./migrations/2026-06-14_rename_events_to_listings.ts";
+import renameEventsToListingsMigration, {
+  EVENT_TO_LISTING_RENAME_PLAN,
+} from "./migrations/2026-06-14_rename_events_to_listings.ts";
 import activityLogListingIdIndexMigration from "./migrations/2026-06-15_activity_log_listing_id_index.ts";
 import agentUsersMigration from "./migrations/2026-06-16_agent_users.ts";
 import attendeePhoneIndexMigration from "./migrations/2026-06-16_attendee_phone_index.ts";
@@ -39,32 +41,33 @@ import processedPaymentsFailureDataMigration from "./migrations/2026-06-16_proce
 import smsMessagesMigration from "./migrations/2026-06-16_sms_messages.ts";
 import modifierAggregatesMigration from "./migrations/2026-06-17_modifier_aggregates.ts";
 import modifierCodeMigration from "./migrations/2026-06-17_modifier_code.ts";
-import type { Migration, MigrationContext } from "./migrations/types.ts";
 import { repairLegacyRenames } from "./migrations/rename-utils.ts";
 import {
-  APP_SCHEMA,
-  createTableSql,
   LATEST_UPDATE,
   SCHEMA,
   SCHEMA_HASH,
   SCHEMA_MIGRATIONS_TABLE,
-  SCHEMA_TABLE_NAMES,
 } from "./migrations/schema.ts";
 import {
   applySchemaChanges,
   backfillListingAggregates,
   backfillModifierAggregates,
+  createTableSql,
   runMigration,
-  syncCurrentSchema: () =>
-    syncCurrentSchema(() => repairLegacyRenames(EVENT_TO_LISTING_RENAME_PLAN)),
+  syncCurrentSchema as syncCurrentSchemaBase,
   syncIndexes,
   syncTriggers,
   tableExists,
   verifyCurrentAppSchema,
 } from "./migrations/schema-sync.ts";
+import type { Migration, MigrationContext } from "./migrations/types.ts";
 import { additive, verifyRequirement } from "./migrations/verify.ts";
 
-export { LATEST_UPDATE, SCHEMA_HASH, SCHEMA_TABLE_NAMES } from "./migrations/schema.ts";
+export {
+  LATEST_UPDATE,
+  SCHEMA_HASH,
+  SCHEMA_TABLE_NAMES,
+} from "./migrations/schema.ts";
 export type { Migration, SchemaRequirement } from "./migrations/types.ts";
 
 // ─── Helpers ────────────────────────────────────────────────────
@@ -133,16 +136,10 @@ export const renameEventsToListings = async (): Promise<void> => {
   await syncIndexes();
 };
 
-/**
- * Rename the legacy "event" domain to "listing". Public entrypoint so tests
- * can drive the rename directly; in production it is called by the baseline
- * reconcile and by the `2026-06-14_rename_events_to_listings` migration (as an
- * idempotent verification/cleanup step).
- */
-export const renameEventsToListings = async (): Promise<void> => {
-  await repairLegacyRenames(EVENT_TO_LISTING_RENAME_PLAN);
-  await applySchemaChanges();
-  await syncIndexes();
+const syncCurrentSchema = async (): Promise<void> => {
+  await syncCurrentSchemaBase(() =>
+    repairLegacyRenames(EVENT_TO_LISTING_RENAME_PLAN),
+  );
 };
 
 const migrationContext: MigrationContext = {
