@@ -34,8 +34,7 @@ describeWithEnv(
     const aggregates = async (listingId: number): Promise<Aggregates> => {
       const result = await getDb().execute({
         args: [listingId],
-        sql:
-          "SELECT booked_quantity, tickets_count, income FROM listings WHERE id = ?",
+        sql: "SELECT booked_quantity, tickets_count, income FROM listings WHERE id = ?",
       });
       const row = result.rows[0]!;
       return {
@@ -53,8 +52,7 @@ describeWithEnv(
     ): Promise<unknown> =>
       getDb().execute({
         args: [listingId, attendeeId, quantity, pricePaid],
-        sql:
-          "INSERT INTO listing_attendees (listing_id, attendee_id, quantity, price_paid) VALUES (?, ?, ?, ?)",
+        sql: "INSERT INTO listing_attendees (listing_id, attendee_id, quantity, price_paid) VALUES (?, ?, ?, ?)",
       });
 
     test("a new listing starts with zeroed aggregates", async () => {
@@ -83,8 +81,7 @@ describeWithEnv(
       await insertAttendee(listing.id, 2, 2, 1000);
       await getDb().execute({
         args: [listing.id, 1],
-        sql:
-          "DELETE FROM listing_attendees WHERE listing_id = ? AND attendee_id = ?",
+        sql: "DELETE FROM listing_attendees WHERE listing_id = ? AND attendee_id = ?",
       });
       expect(await aggregates(listing.id)).toEqual({
         booked_quantity: 2,
@@ -98,8 +95,7 @@ describeWithEnv(
       await insertAttendee(listing.id, 1, 3, 1500);
       await getDb().execute({
         args: [listing.id, 1],
-        sql:
-          "UPDATE listing_attendees SET quantity = 5, price_paid = 4000 WHERE listing_id = ? AND attendee_id = ?",
+        sql: "UPDATE listing_attendees SET quantity = 5, price_paid = 4000 WHERE listing_id = ? AND attendee_id = ?",
       });
       expect(await aggregates(listing.id)).toEqual({
         booked_quantity: 5,
@@ -115,8 +111,7 @@ describeWithEnv(
 
       await getDb().execute({
         args: [to.id, from.id, 1],
-        sql:
-          "UPDATE listing_attendees SET listing_id = ? WHERE listing_id = ? AND attendee_id = ?",
+        sql: "UPDATE listing_attendees SET listing_id = ? WHERE listing_id = ? AND attendee_id = ?",
       });
 
       expect(await aggregates(from.id)).toEqual({
@@ -139,8 +134,7 @@ describeWithEnv(
       // checked_in is not in the trigger's UPDATE OF list, so this must not fire.
       await getDb().execute({
         args: [listing.id, 1],
-        sql:
-          "UPDATE listing_attendees SET checked_in = 1 WHERE listing_id = ? AND attendee_id = ?",
+        sql: "UPDATE listing_attendees SET checked_in = 1 WHERE listing_id = ? AND attendee_id = ?",
       });
 
       expect(await aggregates(listing.id)).toEqual(before);

@@ -42,8 +42,7 @@ describeWithEnv(
     const aggregates = async (modifierId: number): Promise<Aggregates> => {
       const result = await getDb().execute({
         args: [modifierId],
-        sql:
-          "SELECT total_uses, usage_count, total_revenue FROM modifiers WHERE id = ?",
+        sql: "SELECT total_uses, usage_count, total_revenue FROM modifiers WHERE id = ?",
       });
       const row = result.rows[0]!;
       return {
@@ -61,8 +60,7 @@ describeWithEnv(
     ): Promise<unknown> =>
       getDb().execute({
         args: [modifierId, attendeeId, quantity, amountApplied, "2026-06-17"],
-        sql:
-          "INSERT INTO modifier_usages (modifier_id, attendee_id, quantity, amount_applied, created) VALUES (?, ?, ?, ?, ?)",
+        sql: "INSERT INTO modifier_usages (modifier_id, attendee_id, quantity, amount_applied, created) VALUES (?, ?, ?, ?, ?)",
       });
 
     test("a new modifier starts with zeroed aggregates", async () => {
@@ -102,8 +100,7 @@ describeWithEnv(
       await insertUsage(m.id, 2, 2, 1000);
       await getDb().execute({
         args: [m.id, 1],
-        sql:
-          "DELETE FROM modifier_usages WHERE modifier_id = ? AND attendee_id = ?",
+        sql: "DELETE FROM modifier_usages WHERE modifier_id = ? AND attendee_id = ?",
       });
       expect(await aggregates(m.id)).toEqual({
         total_revenue: 1000,
@@ -117,8 +114,7 @@ describeWithEnv(
       await insertUsage(m.id, 1, 3, 1500);
       await getDb().execute({
         args: [m.id, 1],
-        sql:
-          "UPDATE modifier_usages SET quantity = 5, amount_applied = 4000 WHERE modifier_id = ? AND attendee_id = ?",
+        sql: "UPDATE modifier_usages SET quantity = 5, amount_applied = 4000 WHERE modifier_id = ? AND attendee_id = ?",
       });
       expect(await aggregates(m.id)).toEqual({
         total_revenue: 4000,
@@ -134,8 +130,7 @@ describeWithEnv(
 
       await getDb().execute({
         args: [to.id, from.id, 1],
-        sql:
-          "UPDATE modifier_usages SET modifier_id = ? WHERE modifier_id = ? AND attendee_id = ?",
+        sql: "UPDATE modifier_usages SET modifier_id = ? WHERE modifier_id = ? AND attendee_id = ?",
       });
 
       expect(await aggregates(from.id)).toEqual({
@@ -158,8 +153,7 @@ describeWithEnv(
       // created is not in the trigger's UPDATE OF list, so this must not fire.
       await getDb().execute({
         args: [m.id, 1],
-        sql:
-          "UPDATE modifier_usages SET created = '2099-01-01' WHERE modifier_id = ? AND attendee_id = ?",
+        sql: "UPDATE modifier_usages SET created = '2099-01-01' WHERE modifier_id = ? AND attendee_id = ?",
       });
 
       expect(await aggregates(m.id)).toEqual(before);
