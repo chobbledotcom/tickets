@@ -92,17 +92,21 @@ union of their keys.
 
 **Keeping bundles honest.** A bundle that under-declares is the failure mode to
 guard against (a getter returns a stale/default value because its key was never
-loaded). Two complementary safeguards:
+loaded). The safeguard is a **debug/dev assertion mode**: `snap()`
+(`settings.ts:329`) records every snapshot key actually read during a request;
+in test/dev we assert that every read key was in the request's declared key
+set, and fail the test naming the route and the missing bundle. This turns "I
+forgot to declare a setting" into a failing test rather than a production bug,
+and every route exercised by the suite is therefore proven complete.
 
-- A **debug/dev assertion mode**: `snap()` (`settings.ts:329`) records every
-  snapshot key actually read during a request; in test/dev we assert that every
-  read key was in the request's declared key set, and fail the test naming the
-  route and the missing bundle. This turns "I forgot to declare a setting" into
-  a failing test rather than a production bug.
-- A **`requiresAll` escape hatch** for routes that genuinely need everything
-  (e.g. the admin settings page, which reads ~40 settings) — it loads the full
-  set exactly like today. This keeps the migration incremental and gives a safe
-  default.
+**No "load everything" escape hatch.** Routes that genuinely read most settings
+(notably the admin settings page, ~40 settings) declare an explicit, named
+bundle — e.g. an `adminSettingsPage` bundle, or a composed list of the
+sub-namespace bundles — rather than falling back to loading the full set. This
+is deliberate: `loadAll` is being removed (see §6), so there is no
+"requiresAll" mode to lean on. The dev assertion keeps even these large bundles
+honest, and listing the keys explicitly makes the cost of a broad route visible
+in code review.
 
 ### 2. Route declares its bundles
 
@@ -117,8 +121,11 @@ registered as:
 
 `withSettings(bundles, handler)` attaches `bundles` as a static property on the
 handler function (a const, inspectable before invocation) and returns the
-handler unchanged otherwise. Routes that declare nothing default to
-`requiresAll` during migration, so behaviour is identical until a route opts in.
+handler unchanged otherwise. During migration only, a route that declares
+nothing temporarily falls back to the legacy full load — but this fallback is a
+**bridge, not a feature**: it exists solely so the migration can land
+incrementally, and it is deleted together with `loadAll` in the final phase
+(§6). The end state has **no undeclared routes**.
 
 The declaration lives **with the route**, satisfying "broadcast required
 settings up front in a static const we keep up to date". The dev assertion in
@@ -168,8 +175,8 @@ route's declaration:
 
 1. Resolve the route (the router already does pattern matching) and read its
    `requires` const.
-2. `requiresAll` → `settings.loadAll()` (unchanged path, still available).
-3. otherwise → `settings.loadKeys(union of declared bundles' keys)`.
+2. Declared → `settings.loadKeys(union of declared bundles' keys)`.
+3. Undeclared (migration bridge only) → temporary full load, removed in §6.
 
 One subtlety: `prepareRequestEnvironment` currently runs **before** routing and
 itself needs `CUSTOM_DOMAIN` (`loadEffectiveDomain`) and the prune timestamps.
@@ -200,18 +207,28 @@ snapshot to defaults (unchanged contract). No call-site changes for writers —
    `buildSnapshot` into a per-key `resolveValues` / `applyToSnapshot` that
    `loadAll` reuses. No behaviour change yet (everything still
    `requiresAll`). Full test suite stays green.
-2. **Add bundles + `withSettings` + dev assertion mode.** Default every route
-   to `requiresAll`. Still no behaviour change.
+2. **Add bundles + `withSettings` + dev assertion mode.** Undeclared routes use
+   the temporary full-load bridge. Still no behaviour change.
 3. **Migrate routes bundle-by-bundle**, starting with hot, narrow public routes
    (`GET /`, `GET /ticket/:slug`, embeds) where the win is largest and the
    surface is smallest. For each, declare bundles, run the dev assertion to
    confirm completeness, keep the suite green.
-4. **Leave broad admin routes on `requiresAll`** (or give them an `admin`
-   mega-bundle) — they legitimately read most settings, so there's little to
-   gain and more risk.
+4. **Migrate the broad admin routes too** — give the admin settings page an
+   explicit `adminSettingsPage` bundle (the union of the keys it reads). No
+   route is left undeclared.
 5. Once public routes are migrated, the common case loads a handful of keys
    instead of 130+, and adding a new large setting only costs the routes that
    actually declare it.
+
+### 6. Remove `loadAll` (priority)
+
+`loadAll` is the source of the waste this plan exists to fix, so its removal is
+a first-class goal, not an afterthought. As soon as every route declares its
+bundles (end of step 4), **delete `loadAll`, the full-load migration bridge,
+and `buildSnapshot`'s whole-table path**. From then on the only way settings
+reach the snapshot is `loadKeys` for declared bundles. The dev assertion mode
+guarantees this is safe — any route that still reads an undeclared key fails its
+test before the bridge is removed.
 
 ## What does NOT change
 
@@ -228,18 +245,17 @@ snapshot to defaults (unchanged contract). No call-site changes for writers —
 | A bundle under-declares → getter returns a default/stale value | Dev/test assertion mode fails the offending route's tests (§1) |
 | Per-request route→bundle resolution adds overhead before routing | Bundles are static consts; union+dedupe is O(keys); infra bundle is fixed and tiny |
 | Cross-isolate staleness from per-key TTL | Same bound as today (per-entry TTL); writes invalidate within the isolate; security gating already hits the DB, not the cache |
-| Snapshot fields read but never declared anywhere (dynamic reads) | `requiresAll` remains the safe default; only opt routes in once proven complete |
+| Removing `loadAll` exposes a route that read an undeclared key | The bridge is only removed *after* the dev assertion proves every suite-exercised route is complete; broad routes get explicit bundles in step 4 |
 
-## Open questions
+## Resolved decisions
 
-- **Granularity of bundles vs. individual keys.** Bundles map cleanly onto the
-  existing sub-namespaces and keep declarations short; per-key declarations are
-  more precise but noisier. Recommend bundles, with the freedom to list bare
-  keys for one-off needs.
-- **Where the `requires` lives** — attached to the handler via `withSettings`
-  (colocated, recommended) vs. a central `pattern → bundles` registry
-  (one place to audit). Colocation keeps it next to the code that reads the
-  settings, which is what keeps it in sync.
+1. **Granularity:** bundles (mapped onto the existing sub-namespaces), with the
+   freedom to list bare keys for one-off needs.
+2. **Location of `requires`:** colocated with the route via `withSettings`, so
+   the declaration sits next to the code that reads the settings.
+3. **Fate of `loadAll`:** removed as soon as all routes declare bundles (§6).
+   It is a temporary migration bridge only — there is no permanent "load
+   everything" mode, because that is exactly the waste being eliminated.
 - **Should `loadAll` eventually be removed** once all routes declare bundles, or
   kept permanently as the `requiresAll` implementation? Recommend keeping it as
   the escape hatch.
