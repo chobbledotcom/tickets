@@ -75,7 +75,8 @@ export const snapshotLiveSchema = async (): Promise<LiveSchema> => {
   const [columns, indexRows, triggerRows] = await queryBatchPrimary([
     {
       args: [],
-      sql: "SELECT m.name AS tbl, ti.name AS col " +
+      sql:
+        "SELECT m.name AS tbl, ti.name AS col " +
         "FROM sqlite_master m JOIN pragma_table_info(m.name) ti " +
         "WHERE m.type = 'table'",
     },
@@ -105,11 +106,9 @@ export const snapshotLiveSchema = async (): Promise<LiveSchema> => {
 /** Build the idempotent CREATE INDEX statement for a declared index. */
 const createIndexSql = (tableName: string, idx: Index): string => {
   const unique = idx.unique ? "UNIQUE " : "";
-  return `CREATE ${unique}INDEX IF NOT EXISTS ${idx.name} ON ${tableName}(${
-    idx.columns.join(
-      ", ",
-    )
-  })`;
+  return `CREATE ${unique}INDEX IF NOT EXISTS ${idx.name} ON ${tableName}(${idx.columns.join(
+    ", ",
+  )})`;
 };
 
 /** Create indexes for a named table from SCHEMA */
@@ -165,8 +164,7 @@ const recreateTable = async (tableName: string): Promise<void> => {
       { args: [], sql: `CREATE TABLE ${tmpName} (${colDefs})` },
       {
         args: [],
-        sql:
-          `INSERT INTO ${tmpName} (${colNames}) SELECT ${selectExprs} FROM ${tableName}`,
+        sql: `INSERT INTO ${tmpName} (${colNames}) SELECT ${selectExprs} FROM ${tableName}`,
       },
       { args: [], sql: `DROP TABLE ${tableName}` },
       { args: [], sql: `ALTER TABLE ${tmpName} RENAME TO ${tableName}` },
@@ -322,7 +320,7 @@ export const syncIndexes = async (): Promise<void> => {
     (table.indexes ?? []).map((idx) => ({
       name: idx.name,
       sql: createIndexSql(name, idx),
-    }))
+    })),
   );
   const declaredNames = new Set(declared.map((d) => d.name));
 

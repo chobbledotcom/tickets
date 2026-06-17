@@ -30,18 +30,18 @@ const missingColumnsMessage = (
   missing: string[],
 ): string => {
   if (kind === "appSchema") {
-    return `Database schema verification failed: ${table} missing column(s): ${
-      columnList(missing)
-    }`;
+    return `Database schema verification failed: ${table} missing column(s): ${columnList(
+      missing,
+    )}`;
   }
   if (kind === "migration") {
-    return `Migration verification failed: ${table} missing column(s): ${
-      columnList(missing)
-    }`;
+    return `Migration verification failed: ${table} missing column(s): ${columnList(
+      missing,
+    )}`;
   }
-  return `Cannot migrate ${table}: missing expected legacy column(s): ${
-    columnList(missing)
-  }`;
+  return `Cannot migrate ${table}: missing expected legacy column(s): ${columnList(
+    missing,
+  )}`;
 };
 
 export const assertColumnsPresent = (

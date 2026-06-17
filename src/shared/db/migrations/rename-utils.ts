@@ -110,7 +110,8 @@ const dropProjectIndexesReferencingColumn = async (
 ): Promise<void> => {
   const result = await getDb().execute({
     args: [table],
-    sql: "SELECT name, sql FROM sqlite_master " +
+    sql:
+      "SELECT name, sql FROM sqlite_master " +
       "WHERE type = 'index' AND tbl_name = ? AND sql IS NOT NULL",
   });
 

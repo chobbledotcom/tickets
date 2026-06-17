@@ -26,19 +26,20 @@ const runSchemaSync = async (
   if (hasEntries(requires.triggers)) await context.syncTriggers();
 };
 
-export const schemaMigration = (
-  id: string,
-  description: string,
-  requires: SchemaRequirement,
-  after?: SchemaMigrationAfter,
-): MigrationBuilder =>
-(context) =>
-  context.additive({
-    description,
-    id,
-    requires,
-    up: async () => {
-      await runSchemaSync(context, requires);
-      await after?.(context);
-    },
-  });
+export const schemaMigration =
+  (
+    id: string,
+    description: string,
+    requires: SchemaRequirement,
+    after?: SchemaMigrationAfter,
+  ): MigrationBuilder =>
+  (context) =>
+    context.additive({
+      description,
+      id,
+      requires,
+      up: async () => {
+        await runSchemaSync(context, requires);
+        await after?.(context);
+      },
+    });
