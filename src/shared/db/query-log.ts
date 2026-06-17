@@ -24,6 +24,13 @@ type QueryLogState = {
   enabled: boolean;
   entries: QueryLogEntry[];
   startTime: number;
+  /**
+   * Whether the admin debug footer may render the captured queries. Separate
+   * from `enabled` (which only controls *recording*): recording is turned on
+   * early — before the route's settings load, so that query is captured — but
+   * the footer is staff-only and gated on this flag, set after auth.
+   */
+  footerVisible: boolean;
   /** Per-request count of each read SQL string, for the N+1 guard */
   readCounts: Map<string, number>;
 };
@@ -32,6 +39,7 @@ const asyncLocalStorage = new AsyncLocalStorage<QueryLogState>();
 const fallbackState: QueryLogState = {
   enabled: false,
   entries: [],
+  footerVisible: false,
   readCounts: new Map(),
   startTime: 0,
 };
@@ -41,7 +49,13 @@ const getState = (): QueryLogState =>
 
 export const runWithQueryLogContext = <T>(fn: () => T): T =>
   asyncLocalStorage.run(
-    { enabled: false, entries: [], readCounts: new Map(), startTime: 0 },
+    {
+      enabled: false,
+      entries: [],
+      footerVisible: false,
+      readCounts: new Map(),
+      startTime: 0,
+    },
     fn,
   );
 
@@ -55,6 +69,14 @@ export const enableQueryLog = (): void => {
 
 /** Whether query logging is currently active */
 export const isQueryLogEnabled = (): boolean => getState().enabled;
+
+/** Allow the admin debug footer to render the captured queries (staff-only). */
+export const enableFooterDebug = (): void => {
+  getState().footerVisible = true;
+};
+
+/** Whether the admin debug footer may render the captured queries. */
+export const isFooterDebugEnabled = (): boolean => getState().footerVisible;
 
 /** Return the start time recorded by enableQueryLog() */
 export const getQueryLogStartTime = (): number => getState().startTime;

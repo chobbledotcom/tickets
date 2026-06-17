@@ -278,7 +278,24 @@ correct for the single-threaded isolate model already in use; the generation
 counter from `keyed-cache.ts:75` should be added when/if concurrent in-flight
 partial loads become a real race (revisit during §5).
 
-### 4. Wire the scoped load into the request lifecycle — ⏳ Phase 3
+### 4. Wire the scoped load into the request lifecycle — 🟡 Phase 3 (in progress)
+
+**Implemented so far** (`src/features/index.ts`): `INFRA_SETTINGS`, a
+`PREFIX_SETTINGS` table, and `settingsForPath(path)` returning `infra ∪ prefix
+bundle` (or `null` → `loadAll` bridge). `prepareRequestEnvironment(request,
+path, method)` now does the single scoped `loadKeys` for migrated prefixes and
+falls back to `loadAll` otherwise. Migrated prefixes so far: the public
+read-only pages — `""` (home), `listings`, `terms` — sharing a
+`PUBLIC_LAYOUT_SETTINGS` set (the layout + public-nav reads, incl. the contact
+nav's `contactFormEnabled`/`businessEmail` via `isContactFormActive`).
+**Deviation from the sketch:** the bundle constants currently live in `index.ts`
+next to the prefix dispatch rather than in per-feature light modules; they'll
+move to the features as more prefixes migrate. The dev assertion (§2c) is not
+built yet — the existing per-page render tests are the safety net for the
+migrated routes (a missing key renders a default and fails a test).
+
+**Still to do:** migrate the remaining prefixes (esp. `admin`, `ticket`, `t`,
+`contact`, `order`, webhooks); build the dev assertion; then §6.
 
 #### The single-query question
 
@@ -387,6 +404,37 @@ sub-routes is `admin`. Two ways to keep admin lean, both supported:
   fine per the user — but the prefix-baseline design gets the common case to one
   query for nearly the same complexity, so it's preferred.
 
+#### Debug-footer interaction (the "settings query isn't logged" bug) — ✅ fixed
+
+The admin debug footer lists the SQL run for the page, but the settings query
+never appeared. Root cause, in order:
+
+1. The settings query runs in `prepareRequestEnvironment`, which executes
+   **before** `enableQueryLog()` — that was called later, in `routeAdmin`, only
+   after the auth check (deliberately, to keep auth queries out of the footer
+   *and* to gate the footer to non-agent staff).
+2. `enableQueryLog()` also **resets** the entry list, so anything captured
+   earlier would be wiped anyway.
+3. `routeAdmin` then called `settings.loadAll()` again, but
+   `prepareRequestEnvironment` had already warmed the 60 s cache, so that call
+   was a **no-op** that issued no query. Net: the settings query ran while
+   recording was off and never re-ran while it was on → invisible.
+
+Fix: split *recording* from *footer visibility* in `query-log.ts`. Recording
+(`enableQueryLog`) is now turned on at the top of `prepareRequestEnvironment`
+for **admin GETs**, *before* the settings load, so that query is captured. A new
+`footerVisible` flag (`enableFooterDebug` / `isFooterDebugEnabled`) is set after
+auth in `routeAdmin` for non-agent staff and gates whether the footer *renders*
+the captured log — preserving the staff-only guard. The redundant
+`routeAdmin` `loadAll()` is removed.
+
+Honest behaviour after the fix: because settings are cached for 60 s across
+requests, the settings query only actually *runs* (and so only appears) on the
+request that refills the cache; cached requests correctly show no settings
+query. A side effect is that the auth/session query now appears too (it runs
+after recording is on) — acceptable, and arguably more accurate, for a debug
+tool.
+
 #### Edge cases
 
 - **Static assets / early returns** (`routeStatic`, `trackingParamRedirect`,
@@ -450,8 +498,8 @@ disincentive that motivated the whole effort.
 | Phase | Scope | Status |
 | --- | --- | --- |
 | 1 | Keyed cache + `loadKeys` + per-key resolvers; `loadAll` unchanged (§3) | ✅ done |
-| 2 | Colocated bundle constants, `routeSettingsForPath` prefix table, dev assertion mode; empty-prefix fallback keeps behaviour identical (§2) | ⏳ next |
-| 3 | Infra ∪ prefix-baseline single `loadKeys` in `prepareRequestEnvironment`; map the hot public prefixes (`""`, `ticket`, `t`, `listings`); resolve the layout-set question (§4) | ⏳ |
+| 2 | Colocated bundle constants, `routeSettingsForPath` prefix table, dev assertion mode; empty-prefix fallback keeps behaviour identical (§2) | 🟡 prefix table + bundles done (in `index.ts`); dev assertion not yet built |
+| 3 | Infra ∪ prefix-baseline single `loadKeys` in `prepareRequestEnvironment`; map the hot public prefixes; debug-footer fix (§4) | 🟡 wiring + footer fix done; `""`/`listings`/`terms` migrated, rest on bridge |
 | 4 | Map remaining prefixes incl. `admin` (small baseline + handler top-ups; explicit `ADMIN_SETTINGS_PAGE` top-up for the settings page); make `getCachedRaw` consumers self-sufficient (§5) | ⏳ |
 | 5 | Delete the empty-prefix fallback and `loadAll`; convert test `loadAll` calls (§6) | ⏳ |
 

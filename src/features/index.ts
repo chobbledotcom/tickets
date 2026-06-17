@@ -49,8 +49,11 @@ import {
   MissingSettingsTableError,
 } from "#shared/db/migrations.ts";
 import { maybeRunPrunes } from "#shared/db/prune.ts";
-import { runWithQueryLogContext } from "#shared/db/query-log.ts";
-import { settings } from "#shared/db/settings.ts";
+import {
+  enableQueryLog,
+  runWithQueryLogContext,
+} from "#shared/db/query-log.ts";
+import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
 import { isReadOnly } from "#shared/env.ts";
 import {
   hasFlash,
@@ -211,6 +214,65 @@ export type { ServerContext } from "#routes/types.ts";
 const getPrefix = (path: string): string => {
   const i = path.indexOf("/", 1);
   return i === -1 ? path.slice(1) : path.slice(1, i);
+};
+
+// ---------------------------------------------------------------------------
+// Per-request settings pre-load (see settings-plan.md §4)
+//
+// The pre-routing pipeline reads settings before the lazy router resolves a
+// handler, so the load is keyed off the path *prefix* (pure, import-free) and
+// unioned with a fixed infra set into a single query. Prefixes not listed here
+// fall back to a full load (`loadAll`) — the migration bridge. Bundle constants
+// will move next to the features that own them as more prefixes are migrated.
+// ---------------------------------------------------------------------------
+
+/** Keys the pre-routing pipeline, prefix dispatch, and auth need every request. */
+const INFRA_SETTINGS: readonly string[] = [
+  CONFIG_KEYS.CUSTOM_DOMAIN,
+  CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED,
+  CONFIG_KEYS.SETUP_COMPLETE,
+  CONFIG_KEYS.SHOW_PUBLIC_SITE,
+  CONFIG_KEYS.SHOW_PUBLIC_API,
+  CONFIG_KEYS.LAST_PRUNED_PAYMENTS,
+  CONFIG_KEYS.LAST_PRUNED_SESSIONS,
+  CONFIG_KEYS.LAST_PRUNED_SUMUP,
+  CONFIG_KEYS.LAST_PRUNED_LOGINS,
+  CONFIG_KEYS.LAST_PRUNED_TOKENS,
+  CONFIG_KEYS.PUBLIC_KEY,
+  CONFIG_KEYS.WRAPPED_PRIVATE_KEY,
+];
+
+/** Keys every public HTML page reads via the shared layout + public nav. */
+const PUBLIC_LAYOUT_SETTINGS: readonly string[] = [
+  CONFIG_KEYS.THEME,
+  CONFIG_KEYS.HEADER_IMAGE_URL,
+  CONFIG_KEYS.WEBSITE_TITLE,
+  CONFIG_KEYS.CONTACT_PAGE_TEXT,
+  CONFIG_KEYS.CONTACT_FORM_ENABLED,
+  CONFIG_KEYS.BUSINESS_EMAIL,
+  CONFIG_KEYS.ORDER_ENABLED,
+  CONFIG_KEYS.TERMS_AND_CONDITIONS,
+];
+
+/** Migrated prefixes → the settings their pages read (union with INFRA). */
+const PREFIX_SETTINGS: Record<string, readonly string[]> = {
+  "": [
+    ...PUBLIC_LAYOUT_SETTINGS,
+    CONFIG_KEYS.HOMEPAGE_TEXT,
+    CONFIG_KEYS.COUNTRY,
+  ],
+  listings: [...PUBLIC_LAYOUT_SETTINGS, CONFIG_KEYS.COUNTRY],
+  terms: PUBLIC_LAYOUT_SETTINGS,
+};
+
+/**
+ * Settings to pre-load for a path: infra ∪ the prefix's bundle, or `null` when
+ * the prefix isn't migrated yet (caller falls back to a full `loadAll`).
+ */
+const settingsForPath = (path: string): readonly string[] | null => {
+  const prefix = getPrefix(path);
+  if (!Object.hasOwn(PREFIX_SETTINGS, prefix)) return null;
+  return [...INFRA_SETTINGS, ...PREFIX_SETTINGS[prefix]!];
 };
 
 /** Create a lazy-loaded route handler (prefix already matched by dispatch map) */
@@ -513,10 +575,25 @@ const applyFlashFromCookie = (request: Request): string | null => {
  * Run settings load, schedule pruning, resolve effective domain.
  * These are per-request setup tasks that must happen before routing.
  */
-const prepareRequestEnvironment = async (request: Request): Promise<void> => {
-  // Ensure settings cache is populated before reading custom domain.
-  // loadAll() is a no-op when the cache is still valid (60 s TTL).
-  await settings.loadAll();
+const prepareRequestEnvironment = async (
+  request: Request,
+  path: string,
+  method: string,
+): Promise<void> => {
+  // Turn on query recording before the settings load for admin GETs, so that
+  // load appears in the debug footer. The footer itself stays staff-gated
+  // (enableFooterDebug, after auth). Non-admin requests skip the overhead.
+  if (method === "GET" && getPrefix(path) === "admin") enableQueryLog();
+
+  // Load only the settings this route needs (infra ∪ prefix bundle) in one
+  // query; unmigrated prefixes fall back to a full load. Either way the cache
+  // is a no-op when still valid (60 s TTL).
+  const keys = settingsForPath(path);
+  if (keys === null) {
+    await settings.loadAll();
+  } else {
+    await settings.loadKeys(keys);
+  }
 
   // Schedule DB pruning as fire-and-forget pending work. Each
   // prune task self-guards via its last_pruned_* timestamp, so
@@ -617,7 +694,7 @@ const processRequest = async (
       return logAndReturn(trackingRedirect, method, path, getElapsed);
     }
 
-    await prepareRequestEnvironment(effectiveRequest);
+    await prepareRequestEnvironment(effectiveRequest, path, method);
 
     if (!isValidContentType(effectiveRequest, path)) {
       return logAndReturn(
