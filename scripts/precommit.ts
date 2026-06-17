@@ -15,6 +15,7 @@ const write = (s: string) => Deno.stdout.writeSync(encoder.encode(s));
 
 interface Step {
   cmd: string[];
+  env?: Record<string, string>;
   filterOutput?: (stdout: string, stderr: string) => string;
   name: string;
 }
@@ -50,13 +51,30 @@ const filterTestOutput = (stdout: string, stderr: string): string => {
 const isCi = (): boolean =>
   Deno.args.includes("--ci") || Boolean(Deno.env.get("CI"));
 
-const getSteps = (ci: boolean): Step[] => {
+/** Check if a command is available in PATH */
+const hasCommand = async (name: string): Promise<boolean> => {
+  try {
+    const result = await new Deno.Command("which", { args: [name] }).output();
+    return result.success;
+  } catch {
+    return false;
+  }
+};
+
+const getLintStep = async (ci: boolean): Promise<Step> => {
+  if (ci) return { cmd: ["deno", "task", "lint:ci"], name: "lint" };
+  const env = (await hasCommand("biome")) ? undefined : { BIOME_NPM: "1" };
+  return { cmd: ["deno", "task", "lint"], env, name: "lint" };
+};
+
+const getSteps = async (ci: boolean): Promise<Step[]> => {
   return [
     // Dev runs the auto-fixing `lint` (Biome `check --write`). CI runs the
     // read-only `lint:ci`, which fails when code *would* be reformatted or has
     // a lint warning — catching unformatted code without modifying the checkout
-    // or requiring a clean working tree.
-    { cmd: ["deno", "task", ci ? "lint:ci" : "lint"], name: "lint" },
+    // or requiring a clean working tree. Outside the Nix dev shell, fall back
+    // to the npm Biome package so `deno task precommit` remains runnable.
+    await getLintStep(ci),
     { cmd: ["deno", "task", "typecheck"], name: "typecheck" },
     { cmd: ["deno", "task", "cpd"], name: "cpd" },
     { cmd: ["deno", "task", "build:edge"], name: "build:edge" },
@@ -74,6 +92,7 @@ const runStep = async (step: Step): Promise<boolean> => {
 
   const cmd = new Deno.Command(step.cmd[0], {
     args: step.cmd.slice(1),
+    env: step.env,
     stderr: "piped",
     stdout: "piped",
   });
@@ -100,7 +119,7 @@ const main = async (): Promise<void> => {
   const ci = isCi();
   console.log(bold(ci ? "precommit (ci)" : "precommit"));
 
-  const steps = getSteps(ci);
+  const steps = await getSteps(ci);
   for (const step of steps) {
     const passed = await runStep(step);
     if (!passed) {

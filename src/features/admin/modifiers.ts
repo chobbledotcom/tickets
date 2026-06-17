@@ -194,8 +194,6 @@ const handleEditPost: TypedRouteHandler<"POST /admin/modifiers/:id/edit"> = (
   { id },
 ) =>
   withAuth(request, AUTH_FORM, async (_session, form) => {
-    const modifier = await modifiersTable.findById(id);
-    if (!modifier) return notFoundResponse();
     const aggregates = parseEditableAggregateForm<
       ModifierAggregateFormValues,
       ModifierAggregateValues
@@ -220,17 +218,17 @@ const renderModifierRecalculatePage = async (
   session: AdminSession,
   error?: string,
   success?: string,
-): Promise<Response> =>
-  htmlResponse(
-    adminModifierRecalculatePage(
-      modifier,
-      await getModifierAggregateRecalculation(modifier),
-      session,
-      error,
-      success,
-    ),
-    error ? 400 : 200,
+): Promise<Response> => {
+  const recalculation = await getModifierAggregateRecalculation(modifier);
+  const page = adminModifierRecalculatePage(
+    modifier,
+    recalculation,
+    session,
+    error,
+    success,
   );
+  return htmlResponse(page, error ? 400 : 200);
+};
 
 const handleModifierRecalculateGet: TypedRouteHandler<
   "GET /admin/modifiers/recalculate/:modifierId"

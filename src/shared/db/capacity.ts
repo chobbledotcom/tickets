@@ -17,6 +17,17 @@ import { normalizeDurationDays } from "#shared/types.ts";
 
 export type SqlFragment = { sql: string; args: InValue[] };
 
+type CountSqlOptions = {
+  dayRange: { startAt: string; endAt: string } | null;
+  endAt: string | null;
+  excludeArg: InValue[];
+  excludeAttendeeId?: number;
+  excludeEa2: string;
+  excludeEa3: string;
+  listingId: number;
+  startAt: string | null;
+};
+
 /** Convert a date string ("YYYY-MM-DD") to a half-open [start, end) pair.
  * `durationDays` is normalized (whole days in [1, MAX]) so `end_at` is always
  * a clean midnight boundary N full days after start — the stored range and
@@ -54,89 +65,27 @@ const buildDayCapacitySql = (
   const excludeEa2 = excludeAttendeeId ? "AND ea2.attendee_id != ? " : "";
   const excludeEa3 = excludeAttendeeId ? "AND ea3.attendee_id != ? " : "";
   const excludeArg: InValue[] = excludeAttendeeId ? [excludeAttendeeId] : [];
-  const listingCountSql = dayRange
-    ? `(SELECT CASE
-          WHEN e0.listing_type = 'daily' THEN (
-            SELECT COALESCE(SUM(ea2.quantity), 0)
-              FROM listing_attendees ea2
-             WHERE ea2.listing_id = ? ${excludeEa2}
-               AND ea2.start_at < ? AND ea2.end_at > ?
-          )
-          ELSE e0.booked_quantity
-        END
-        FROM listings e0 WHERE e0.id = ?)`
-    : excludeAttendeeId
-    ? `((SELECT booked_quantity FROM listings WHERE id = ?)
-          - COALESCE((
-            SELECT SUM(ea2.quantity)
-              FROM listing_attendees ea2
-             WHERE ea2.listing_id = ? AND ea2.attendee_id = ?
-          ), 0))`
-    : `(SELECT booked_quantity FROM listings WHERE id = ?)`;
-  const listingCountArgs = dayRange
-    ? [listingId, ...excludeArg, endAt, startAt, listingId]
-    : excludeAttendeeId
-    ? [listingId, listingId, excludeAttendeeId]
-    : [listingId];
-
-  const groupCountSql = dayRange
-    ? `(COALESCE((
-          SELECT SUM(e2.booked_quantity)
-            FROM listings e2
-           WHERE e2.group_id = ev.group_id AND e2.listing_type != 'daily'
-        ), 0)
-        ${
-      excludeAttendeeId
-        ? `- COALESCE((
-          SELECT SUM(ea4.quantity)
-            FROM listing_attendees ea4
-            JOIN listings e4 ON e4.id = ea4.listing_id
-           WHERE e4.group_id = ev.group_id
-             AND e4.listing_type != 'daily'
-             AND ea4.attendee_id = ?
-        ), 0)`
-        : ""
-    }
-        + COALESCE((
-          SELECT SUM(ea3.quantity)
-            FROM listing_attendees ea3
-            JOIN listings e3 ON e3.id = ea3.listing_id
-           WHERE e3.group_id = ev.group_id
-             AND e3.listing_type = 'daily' ${excludeEa3}
-             AND ea3.start_at < ? AND ea3.end_at > ?
-        ), 0))`
-    : `(COALESCE((
-          SELECT SUM(e2.booked_quantity)
-            FROM listings e2
-           WHERE e2.group_id = ev.group_id
-        ), 0)
-        ${
-      excludeAttendeeId
-        ? `- COALESCE((
-          SELECT SUM(ea3.quantity)
-            FROM listing_attendees ea3
-            JOIN listings e3 ON e3.id = ea3.listing_id
-           WHERE e3.group_id = ev.group_id AND ea3.attendee_id = ?
-        ), 0)`
-        : ""
-    })`;
-  const groupCountArgs = dayRange
-    ? [
-      ...(excludeAttendeeId ? [excludeAttendeeId] : []),
-      ...excludeArg,
-      endAt,
-      startAt,
-    ]
-    : excludeArg;
+  const opts: CountSqlOptions = {
+    dayRange,
+    endAt,
+    excludeArg,
+    excludeAttendeeId,
+    excludeEa2,
+    excludeEa3,
+    listingId,
+    startAt,
+  };
+  const listingCount = buildListingCountSql(opts);
+  const groupCount = buildGroupCountSql(opts);
 
   const sql = `(
-    ${listingCountSql}
+    ${listingCount.sql}
   ) + ? <= (SELECT max_attendees FROM listings WHERE id = ?)
   AND (
     SELECT CASE
       WHEN ev.group_id = 0 THEN 1
       WHEN COALESCE(g.max_attendees, 0) = 0 THEN 1
-      WHEN ${groupCountSql} + ? <= g.max_attendees THEN 1
+      WHEN ${groupCount.sql} + ? <= g.max_attendees THEN 1
       ELSE 0
     END
     FROM listings ev
@@ -146,14 +95,121 @@ const buildDayCapacitySql = (
 
   return {
     args: [
-      ...listingCountArgs,
+      ...listingCount.args,
       qty,
       listingId,
-      ...groupCountArgs,
+      ...groupCount.args,
       qty,
       listingId,
     ],
     sql,
+  };
+};
+
+const buildListingCountSql = ({
+  dayRange,
+  endAt,
+  excludeArg,
+  excludeAttendeeId,
+  excludeEa2,
+  listingId,
+  startAt,
+}: CountSqlOptions): SqlFragment => {
+  if (dayRange) {
+    return {
+      args: [listingId, ...excludeArg, endAt, startAt, listingId],
+      sql: `(SELECT CASE
+          WHEN e0.listing_type = 'daily' THEN (
+            SELECT COALESCE(SUM(ea2.quantity), 0)
+              FROM listing_attendees ea2
+             WHERE ea2.listing_id = ? ${excludeEa2}
+               AND ea2.start_at < ? AND ea2.end_at > ?
+          )
+          ELSE e0.booked_quantity
+        END
+        FROM listings e0 WHERE e0.id = ?)`,
+    };
+  }
+
+  if (excludeAttendeeId) {
+    return {
+      args: [listingId, listingId, excludeAttendeeId],
+      sql: `((SELECT booked_quantity FROM listings WHERE id = ?)
+          - COALESCE((
+            SELECT SUM(ea2.quantity)
+              FROM listing_attendees ea2
+             WHERE ea2.listing_id = ? AND ea2.attendee_id = ?
+          ), 0))`,
+    };
+  }
+
+  return {
+    args: [listingId],
+    sql: "(SELECT booked_quantity FROM listings WHERE id = ?)",
+  };
+};
+
+const buildGroupCountSql = ({
+  dayRange,
+  endAt,
+  excludeArg,
+  excludeAttendeeId,
+  excludeEa3,
+  startAt,
+}: CountSqlOptions): SqlFragment => {
+  if (dayRange) {
+    return {
+      args: [
+        ...(excludeAttendeeId ? [excludeAttendeeId] : []),
+        ...excludeArg,
+        endAt,
+        startAt,
+      ],
+      sql: `(COALESCE((
+          SELECT SUM(e2.booked_quantity)
+            FROM listings e2
+           WHERE e2.group_id = ev.group_id AND e2.listing_type != 'daily'
+        ), 0)
+        ${
+          excludeAttendeeId
+            ? `- COALESCE((
+          SELECT SUM(ea4.quantity)
+            FROM listing_attendees ea4
+            JOIN listings e4 ON e4.id = ea4.listing_id
+           WHERE e4.group_id = ev.group_id
+             AND e4.listing_type != 'daily'
+             AND ea4.attendee_id = ?
+        ), 0)`
+            : ""
+        }
+        + COALESCE((
+          SELECT SUM(ea3.quantity)
+            FROM listing_attendees ea3
+            JOIN listings e3 ON e3.id = ea3.listing_id
+           WHERE e3.group_id = ev.group_id
+             AND e3.listing_type = 'daily' ${excludeEa3}
+             AND ea3.start_at < ? AND ea3.end_at > ?
+        ), 0))`,
+    };
+  }
+
+  return {
+    args: excludeArg,
+    sql: `(COALESCE((
+          SELECT SUM(e2.booked_quantity)
+            FROM listings e2
+           WHERE e2.group_id = ev.group_id
+        ), 0)
+        ${
+          excludeAttendeeId
+            ? `- COALESCE((
+          SELECT SUM(ea3.quantity)
+            FROM listing_attendees ea3
+            JOIN listings e3 ON e3.id = ea3.listing_id
+           WHERE e3.group_id = ev.group_id AND ea3.attendee_id = ?
+        ), 0)`
+            : ""
+        })`,
   };
 };
 
