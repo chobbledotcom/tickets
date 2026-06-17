@@ -3,7 +3,7 @@
  */
 
 import { t } from "#i18n";
-import { toMajorUnits } from "#shared/currency.ts";
+import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
 import { isReadOnly } from "#shared/env.ts";
 import {
   booleanToCheckbox,
@@ -125,6 +125,9 @@ export const adminModifiersPage = (
               <tr>
                 <th>{t("common.name")}</th>
                 <th>{t("modifiers.rule_column")}</th>
+                <th>{t("modifiers.uses_column")}</th>
+                <th>{t("modifiers.orders_column")}</th>
+                <th>{t("modifiers.revenue_column")}</th>
               </tr>
             </thead>
             <tbody>
@@ -134,6 +137,9 @@ export const adminModifiersPage = (
                     <a href={`/admin/modifiers/${m.id}/edit`}>{m.name}</a>
                   </td>
                   <td>{ruleSummary(m)}</td>
+                  <td>{m.total_uses}</td>
+                  <td>{m.usage_count}</td>
+                  <td>{formatCurrency(m.total_revenue)}</td>
                 </tr>
               ))}
             </tbody>
