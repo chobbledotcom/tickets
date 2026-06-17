@@ -2,13 +2,18 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import { getDb, insert } from "#shared/db/client.ts";
+import { assertLiveTableColumns } from "#shared/db/migrations/schema-assertions.ts";
+import { runMigration } from "#shared/db/migrations/schema-sync.ts";
 import {
   MIGRATIONS,
   type Migration,
   type SchemaRequirement,
 } from "#shared/db/migrations.ts";
 import { describeWithEnv } from "#test-utils";
-import { downgradeListingDomainToLegacyNames } from "./migration-test-helpers.ts";
+import {
+  downgradeListingDomainToLegacyNames,
+  tableRowCount,
+} from "./migration-test-helpers.ts";
 
 /**
  * "Restore from each migration" — for every additive migration, start from a
@@ -183,6 +188,46 @@ describeWithEnv("db > migration restore", { db: true }, () => {
     await expect(
       migrationById("2026-06-14_attendee_statuses").verify(),
     ).rejects.toThrow("missing table attendee_statuses");
+  });
+
+  test("schema assertions use context-specific missing table and column messages", () => {
+    const live = { tables: new Map([["legacy", new Set(["id"])]]) };
+
+    expect(() =>
+      assertLiveTableColumns("appSchema", live, "missing", ["id"]),
+    ).toThrow("Database schema verification failed: missing table missing");
+    expect(() =>
+      assertLiveTableColumns("legacy", live, "missing", ["id"]),
+    ).toThrow("Cannot migrate missing: missing expected legacy table");
+    expect(() =>
+      assertLiveTableColumns("appSchema", live, "legacy", ["name"]),
+    ).toThrow(
+      "Database schema verification failed: legacy missing column(s): name",
+    );
+    expect(() =>
+      assertLiveTableColumns("migration", live, "legacy", ["name"]),
+    ).toThrow("Migration verification failed: legacy missing column(s): name");
+  });
+
+  test("runMigration ignores idempotent duplicate errors but rethrows real ones", async () => {
+    await runMigration("CREATE TABLE duplicate_probe (id TEXT)");
+    await runMigration("CREATE TABLE duplicate_probe (id TEXT)");
+
+    await expect(
+      runMigration("SELECT * FROM missing_probe_table"),
+    ).rejects.toThrow("missing_probe_table");
+  });
+
+  test("verify names legacy tables that should be absent", async () => {
+    await getDb().execute("CREATE TABLE events (id TEXT)");
+    await expect(
+      migrationById("2026-06-14_rename_events_to_listings").verify(),
+    ).rejects.toThrow("legacy table events still present");
+  });
+
+  test("tableRowCount returns the count for populated tables", async () => {
+    await seedSentinelListing();
+    expect(await tableRowCount("listings")).toBeGreaterThan(0);
   });
 
   test("a migration's verify names a missing trigger it owns", async () => {

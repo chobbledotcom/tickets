@@ -18,7 +18,7 @@ export const runMigration = async (sql: string): Promise<void> => {
   try {
     await getDb().execute(sql);
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
+    const msg = String(e);
     // Expected when re-running on an already-migrated DB or racing another
     // isolate through an idempotent DDL statement.
     if (msg.includes("already exists") || msg.includes("duplicate")) {

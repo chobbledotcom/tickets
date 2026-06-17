@@ -107,5 +107,5 @@ export const tableNames = async (): Promise<Set<string>> => {
 
 export const tableRowCount = async (table: string): Promise<number> => {
   const result = await getDb().execute(`SELECT COUNT(*) AS n FROM ${table}`);
-  return Number(result.rows[0]?.n ?? 0);
+  return Number(result.rows[0]!.n);
 };

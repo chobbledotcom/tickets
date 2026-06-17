@@ -92,7 +92,7 @@ const countRowsWhere = async (
   const result = await getDb().execute(
     `SELECT COUNT(*) AS n FROM ${table} WHERE ${where}`,
   );
-  return Number(result.rows[0]?.n ?? 0);
+  return Number(result.rows[0]!.n);
 };
 
 const countColumnValues = (table: string, column: string): Promise<number> =>
