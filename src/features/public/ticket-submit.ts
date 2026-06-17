@@ -218,11 +218,7 @@ const handlePaidPath = async (
     );
   }
   const listingAnswerIds = computeListingAnswerMap(ctx, info);
-  // Modifiers apply only to full-payment orders for now; reservations (deposits)
-  // compose with modifiers in a later step.
-  const modifiers = reservationAmount
-    ? []
-    : await resolveModifiers(items, { addOns, code: promoCode });
+  const modifiers = await resolveModifiers(items, { addOns, code: promoCode });
   const intent = {
     ...contact,
     date,

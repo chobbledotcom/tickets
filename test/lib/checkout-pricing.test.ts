@@ -197,6 +197,49 @@ describe("priceCheckout", () => {
       expect(order.total).toBe(2900);
     },
   );
+
+  testWithSetting(
+    "charges a reservation deposit against the modified full subtotal",
+    { booking_fee: "10" },
+    () => {
+      const order = priceCheckout(
+        intentWith([item()], {
+          modifiers: [
+            modifier({ kind: "fixed", name: "Programme", value: 500 }),
+          ],
+          reservationAmount: "10%",
+        }),
+      );
+      // Full modified subtotal is £15.00; checkout charges a £1.50 deposit
+      // plus a £1.50 booking fee, not the full £5.00 add-on.
+      expect(order.fullSubtotal).toBe(1500);
+      expect(order.lines).toEqual([
+        { chargedUnitAmount: 150, item: item(), quantity: 1 },
+      ]);
+      expect(order.extras).toEqual([
+        { amount: 150, key: "fee", name: "Booking fee", quantity: 1 },
+      ]);
+      expect(order.total).toBe(300);
+    },
+  );
+
+  testWithSetting(
+    "reduces a reservation deposit when a modifier discounts the full subtotal",
+    { booking_fee: "0" },
+    () => {
+      const order = priceCheckout(
+        intentWith([item()], {
+          modifiers: [modifier({ kind: "percent", value: -10 })],
+          reservationAmount: "10%",
+        }),
+      );
+      expect(order.fullSubtotal).toBe(900);
+      expect(order.lines).toEqual([
+        { chargedUnitAmount: 90, item: item(), quantity: 1 },
+      ]);
+      expect(order.total).toBe(90);
+    },
+  );
 });
 
 describe("applyModifiers", () => {

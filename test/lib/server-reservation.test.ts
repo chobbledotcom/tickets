@@ -2,11 +2,15 @@ import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
+import { signBalanceToken } from "#shared/balance-link.ts";
 import {
   getPublicDefaultStatus,
   invalidateAttendeeStatusesCache,
 } from "#shared/db/attendee-statuses.ts";
-import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
+import {
+  getAttendeeBalanceState,
+  getAttendeeOrderSummary,
+} from "#shared/db/attendees/balance.ts";
 import { getDb } from "#shared/db/client.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -73,6 +77,23 @@ const latestAttendee = async (): Promise<{
     statusId: state!.statusId,
   };
 };
+
+const attendeeCount = async (): Promise<number> => {
+  const { rows } = await getDb().execute("SELECT COUNT(*) AS c FROM attendees");
+  return Number(rows[0]!.c);
+};
+
+const modifierUsageCount = async (modifierId: number): Promise<number> => {
+  const { rows } = await getDb().execute({
+    args: [modifierId],
+    sql:
+      "SELECT COALESCE(SUM(quantity), 0) AS c FROM modifier_usages WHERE modifier_id = ?",
+  });
+  return Number(rows[0]!.c);
+};
+
+const modifierRefs = (id: number, quantity = 1): string =>
+  JSON.stringify([{ i: id, q: quantity }]);
 
 describeWithEnv(
   "server (reservation deposit at checkout)",
@@ -263,6 +284,188 @@ describeWithEnv(
         expect(captured?.modifiers?.[0]?.value).toBe(10);
       } finally {
         checkout.restore();
+      }
+    });
+
+    test("carries resolved modifiers into a reservation checkout", async () => {
+      await setupStripe();
+      await setPublicReservation("10%");
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        thankYouUrl: "https://example.com",
+        unitPrice: 1000,
+      });
+      await modifiersTable.insert({
+        calcKind: "fixed",
+        calcValue: 5,
+        direction: "charge",
+        name: "Programme",
+      });
+      let captured: CheckoutIntent | undefined;
+      const checkout = stub(
+        stripePaymentProvider,
+        "createCheckoutSession",
+        (intent: CheckoutIntent) => {
+          captured = intent;
+          return Promise.resolve({
+            checkoutUrl: "https://stripe.example/checkout",
+            sessionId: "cs_test",
+          });
+        },
+      );
+      try {
+        const response = await submitTicketForm(listing.slug, {
+          [`quantity_${listing.id}`]: "1",
+          email: "buyer@example.com",
+          name: "Buyer",
+        });
+        expect([302, 303]).toContain(response.status);
+        expect(captured?.reservationAmount).toBe("10%");
+        expect(captured?.modifiers).toHaveLength(1);
+      } finally {
+        checkout.restore();
+      }
+    });
+
+    test("reservation with a positive add-on stores the modified balance", async () => {
+      await setupStripe();
+      await settings.update.bookingFee("0");
+      await setPublicReservation("10%");
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        thankYouUrl: "https://example.com",
+        unitPrice: 1000,
+      });
+      const addOn = await modifiersTable.insert({
+        calcKind: "fixed",
+        calcValue: 5,
+        direction: "charge",
+        name: "Programme",
+      });
+      // Full modified subtotal £15.00, deposit 10% = £1.50.
+      const session = stubPaidSession(
+        "cs_addon_dep",
+        {
+          _origin: "localhost",
+          email: "reserver@example.com",
+          items: JSON.stringify([{ e: listing.id, p: 1000, q: 1 }]),
+          modifiers: modifierRefs(addOn.id),
+          name: "Reserver",
+          reservation_amount: "10%",
+        },
+        150,
+      );
+      try {
+        const response = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_addon_dep"),
+        );
+        expect([200, 302, 303]).toContain(response.status);
+
+        const attendee = await latestAttendee();
+        expect(attendee.pricePaid).toBe(150);
+        expect(attendee.remainingBalance).toBe(1350);
+        expect(await modifierUsageCount(addOn.id)).toBe(1);
+      } finally {
+        session.restore();
+      }
+    });
+
+    test("reservation promo discount reduces the balance page totals", async () => {
+      await setupStripe();
+      await settings.update.bookingFee("0");
+      await setPublicReservation("10%");
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        thankYouUrl: "https://example.com",
+        unitPrice: 1000,
+      });
+      const promo = await modifiersTable.insert({
+        calcKind: "percent",
+        calcValue: 10,
+        direction: "discount",
+        name: "SAVE10",
+        trigger: "code",
+      });
+      // Full modified subtotal £9.00, deposit 10% = £0.90.
+      const session = stubPaidSession(
+        "cs_discount_dep",
+        {
+          _origin: "localhost",
+          email: "reserver@example.com",
+          items: JSON.stringify([{ e: listing.id, p: 1000, q: 1 }]),
+          modifiers: modifierRefs(promo.id),
+          name: "Reserver",
+          reservation_amount: "10%",
+        },
+        90,
+      );
+      try {
+        const response = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_discount_dep"),
+        );
+        expect([200, 302, 303]).toContain(response.status);
+
+        const attendee = await latestAttendee();
+        expect(attendee.pricePaid).toBe(90);
+        expect(attendee.remainingBalance).toBe(810);
+        const summary = await getAttendeeOrderSummary(attendee.id);
+        expect(summary.fullPrice).toBe(900);
+
+        const token = await signBalanceToken(attendee.id);
+        const html = await (
+          await handleRequest(mockRequest(`/pay/${token}`))
+        ).text();
+        expect(html).toContain("Full order price");
+        expect(html).toContain("£9");
+        expect(html).toContain("£0.90");
+        expect(html).toContain("£8.10");
+      } finally {
+        session.restore();
+      }
+    });
+
+    test("sold-out reservation add-on rolls back attendee creation", async () => {
+      await setupStripe();
+      await settings.update.bookingFee("0");
+      await setPublicReservation("10%");
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        thankYouUrl: "https://example.com",
+        unitPrice: 1000,
+      });
+      const addOn = await modifiersTable.insert({
+        calcKind: "fixed",
+        calcValue: 5,
+        direction: "charge",
+        name: "Programme",
+        stock: 0,
+      });
+      const refund = stub(stripeApi, "refundPayment", () =>
+        Promise.resolve({ id: "re_addon" } as never),
+      );
+      const session = stubPaidSession(
+        "cs_addon_sold",
+        {
+          _origin: "localhost",
+          email: "reserver@example.com",
+          items: JSON.stringify([{ e: listing.id, p: 1000, q: 1 }]),
+          modifiers: modifierRefs(addOn.id),
+          name: "Reserver",
+          reservation_amount: "10%",
+        },
+        150,
+      );
+      try {
+        const response = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_addon_sold"),
+        );
+        expect(response.status).toBe(409);
+        expect(await attendeeCount()).toBe(0);
+        expect(await modifierUsageCount(addOn.id)).toBe(0);
+        expect(refund.calls[0]!.args).toEqual(["pi_cs_addon_sold"]);
+      } finally {
+        session.restore();
+        refund.restore();
       }
     });
 

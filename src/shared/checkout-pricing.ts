@@ -9,17 +9,14 @@
  */
 
 import { sum, sumOf } from "#fp";
-import {
-  chargeUnitAmount,
-  feeSubtotalFor,
-  getBookingFeeAmount,
-} from "#shared/booking-fee.ts";
+import { feeSubtotalFor, getBookingFeeAmount } from "#shared/booking-fee.ts";
 import type {
   CheckoutIntent,
   CheckoutItem,
   ModifierSpec,
 } from "#shared/payments.ts";
 import { modifierDelta } from "#shared/price-modifier.ts";
+import { computeReservationDeposit } from "#shared/reservation-amount.ts";
 
 /** One ticket line and the amount charged per unit (deposit- and
  * discount-aware). A single cart item can split into several lines when a
@@ -142,6 +139,50 @@ const toLines = (units: WorkUnit[]): PricedLine[] => {
   });
 };
 
+/** Allocate an amount across positive-weight units by largest remainder.
+ * Unlike allocateDiscount, this can allocate more than the original unit
+ * weights because reservation deposits may include separate add-on charges. */
+const allocateAmount = (weights: number[], amount: number): number[] => {
+  const total = sum(weights);
+  if (amount <= 0) return weights.map(() => 0);
+  const effectiveWeights = total > 0 ? weights : weights.map(() => 1);
+  const effectiveTotal = sum(effectiveWeights);
+  const shares = effectiveWeights.map((w) => (amount * w) / effectiveTotal);
+  const floors = shares.map((s) => Math.floor(s));
+  const leftover = amount - sum(floors);
+  const bumped = new Set(
+    shares
+      .map((s, i) => ({ frac: s - Math.floor(s), i }))
+      .sort((a, b) => b.frac - a.frac || a.i - b.i)
+      .slice(0, leftover)
+      .map(({ i }) => i),
+  );
+  return floors.map((v, i) => v + (bumped.has(i) ? 1 : 0));
+};
+
+/** Convert a modified full-price order into the ticket lines charged up front
+ * for a reservation. The configured deposit is calculated once from the final
+ * modified subtotal, then allocated back over the booked listing rows so
+ * listing_attendees.price_paid can reconcile to the actual upfront deposit. */
+const reservationLines = (
+  lines: PricedLine[],
+  reservationAmount: string,
+  fullSubtotal: number,
+): PricedLine[] => {
+  const units = toUnits(lines);
+  const totalQuantity = units.length;
+  const deposit = computeReservationDeposit(
+    reservationAmount,
+    fullSubtotal,
+    totalQuantity,
+  );
+  const allocations = allocateAmount(
+    units.map((u) => u.price),
+    deposit,
+  );
+  return toLines(units.map((u, i) => ({ ...u, price: allocations[i]! })));
+};
+
 /** State threaded while applying modifiers one at a time. */
 type ModifierPass = {
   units: WorkUnit[];
@@ -212,24 +253,31 @@ export const applyModifiers = (
 
 /**
  * Price a checkout intent into provider-agnostic lines, extras, and total.
- * Reproduces the per-line deposit charging (`chargeUnitAmount`) and the
- * booking-fee line that each provider previously built on its own, and applies
- * any resolved modifiers.
+ * Applies resolved modifiers against the full order, then either charges the
+ * full modified lines or, for reservations, allocates the configured deposit
+ * across those lines. The booking-fee line is always calculated once from the
+ * final modified full subtotal.
  */
 export const priceCheckout = (intent: CheckoutIntent): PricedOrder => {
   const baseLines: PricedLine[] = intent.items.map((item) => ({
-    chargedUnitAmount: chargeUnitAmount(intent, item),
+    chargedUnitAmount: item.unitPrice,
     item,
     quantity: item.quantity,
   }));
   const modifiers = applyModifiers(baseLines, intent.modifiers ?? []);
   // The booking fee is charged on the full order plus any net modifier change.
   const fullSubtotal = feeSubtotalFor(intent) + modifiers.modifierTotal;
-  const extras = [...modifiers.extras, ...feeExtras(fullSubtotal)];
+  const lines = intent.reservationAmount
+    ? reservationLines(modifiers.lines, intent.reservationAmount, fullSubtotal)
+    : modifiers.lines;
+  const extras = [
+    ...(intent.reservationAmount ? [] : modifiers.extras),
+    ...feeExtras(fullSubtotal),
+  ];
   return {
     extras,
     fullSubtotal,
-    lines: modifiers.lines,
-    total: sumOf(lineCharge)(modifiers.lines) + sumOf(extraCharge)(extras),
+    lines,
+    total: sumOf(lineCharge)(lines) + sumOf(extraCharge)(extras),
   };
 };

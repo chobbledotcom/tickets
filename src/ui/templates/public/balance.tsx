@@ -40,6 +40,10 @@ export const balancePaymentPage = (
         </tbody>
       </table>
       <p>
+        <strong>{t("public_balance.full_order_price")}:</strong>{" "}
+        {formatCurrency(summary.fullPrice)}
+      </p>
+      <p>
         <strong>{t("public_balance.already_paid")}:</strong>{" "}
         {formatCurrency(summary.depositPaid)}
       </p>
