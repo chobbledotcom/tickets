@@ -35,29 +35,22 @@ type QueryLogState = {
   readCounts: Map<string, number>;
 };
 
-const asyncLocalStorage = new AsyncLocalStorage<QueryLogState>();
-const fallbackState: QueryLogState = {
+const freshState = (): QueryLogState => ({
   enabled: false,
   entries: [],
   footerVisible: false,
   readCounts: new Map(),
   startTime: 0,
-};
+});
+
+const asyncLocalStorage = new AsyncLocalStorage<QueryLogState>();
+const fallbackState: QueryLogState = freshState();
 
 const getState = (): QueryLogState =>
   asyncLocalStorage.getStore() ?? fallbackState;
 
 export const runWithQueryLogContext = <T>(fn: () => T): T =>
-  asyncLocalStorage.run(
-    {
-      enabled: false,
-      entries: [],
-      footerVisible: false,
-      readCounts: new Map(),
-      startTime: 0,
-    },
-    fn,
-  );
+  asyncLocalStorage.run(freshState(), fn);
 
 /** Enable query logging and clear previous entries */
 export const enableQueryLog = (): void => {
