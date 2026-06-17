@@ -14,6 +14,7 @@ import {
   getBookingFeeAmount,
   itemsSubtotal,
 } from "#shared/booking-fee.ts";
+import { largestRemainderIndexes } from "#shared/largest-remainder.ts";
 import type {
   CheckoutIntent,
   CheckoutItem,
@@ -108,13 +109,7 @@ export const allocateDiscount = (units: number[], amount: number): number[] => {
   const shares = units.map((u) => (discount * u) / total);
   const floors = shares.map((s) => Math.floor(s));
   const leftover = discount - sum(floors);
-  const bumped = new Set(
-    shares
-      .map((s, i) => ({ frac: s - Math.floor(s), i }))
-      .sort((a, b) => b.frac - a.frac || a.i - b.i)
-      .slice(0, leftover)
-      .map(({ i }) => i),
-  );
+  const bumped = largestRemainderIndexes(shares, leftover);
   return units.map((u, i) => u - floors[i]! - (bumped.has(i) ? 1 : 0));
 };
 

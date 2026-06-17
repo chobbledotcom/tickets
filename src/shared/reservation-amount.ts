@@ -15,6 +15,7 @@
 
 import { sum, sumOf } from "#fp";
 import { toMinorUnits } from "#shared/currency.ts";
+import { largestRemainderIndexes } from "#shared/largest-remainder.ts";
 
 /** A parsed reservation amount. `value` is the bare number (not minor units). */
 export type ReservationAmount =
@@ -150,7 +151,7 @@ export const allocateReservationDeposit = (
   >();
   for (const [index, amount] of allocations.entries()) {
     const unit = units[index]!;
-    perItemTotals[unit.itemIndex] += amount;
+    perItemTotals[unit.itemIndex] = perItemTotals[unit.itemIndex]! + amount;
     const key = lineKey(unit.itemIndex, amount);
     const existing = grouped.get(key);
     if (existing) {
@@ -181,17 +182,9 @@ const allocateProportionally = (
   const shares = units.map((unit) => (total * unit.capacity) / fullSubtotal);
   const floors = shares.map((share) => Math.floor(share));
   const leftover = total - sum(floors);
-  const bumped = new Set(
-    shares
-      .map((share, i) => ({
-        frac: share - Math.floor(share),
-        i,
-        originalIndex: units[i]!.originalIndex,
-      }))
-      .filter(({ i }) => floors[i]! < units[i]!.capacity)
-      .sort((a, b) => b.frac - a.frac || a.originalIndex - b.originalIndex)
-      .slice(0, leftover)
-      .map(({ i }) => i),
-  );
+  const bumped = largestRemainderIndexes(shares, leftover, {
+    canReceive: (index) => floors[index]! < units[index]!.capacity,
+    tieBreaker: (index) => units[index]!.originalIndex,
+  });
   return floors.map((amount, i) => amount + (bumped.has(i) ? 1 : 0));
 };
