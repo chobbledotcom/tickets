@@ -16,11 +16,7 @@ import type {
   LineBooking,
   ListingBooking,
 } from "#shared/db/attendee-types.ts";
-import {
-  buildCapacityCondition,
-  buildGroupAttendeePredicate,
-  dateToRange,
-} from "#shared/db/capacity.ts";
+import { buildCapacityCondition, dateToRange } from "#shared/db/capacity.ts";
 import { inPlaceholders, queryAll, queryOne } from "#shared/db/client.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import { type ListingType, normalizeDurationDays } from "#shared/types.ts";
@@ -43,12 +39,9 @@ const uniquePositiveGroupIds = (groupIds: number[]): number[] =>
 
 /**
  * Per-group remaining capacity. Groups with `max_attendees <= 0` (no cap)
- * are omitted from the map. With `date = null`, daily-listing attendees count
- * cumulatively — correct for booking-time enforcement after upstream date
- * validation, misleading for display.
- *
- * Optional `excludeAttendeeId` skips rows belonging to that attendee so an
- * admin moving their own booking doesn't fight themselves.
+ * are omitted from the map. With `date = null`, this uses each listing's
+ * editable booked_quantity running total; with a date, non-daily listings still
+ * use booked_quantity while daily listings count overlapping attendee rows.
  */
 export const getGroupRemainingByGroupId = async (
   groupIds: number[],
@@ -56,21 +49,37 @@ export const getGroupRemainingByGroupId = async (
 ): Promise<RemainingMap> => {
   const ids = uniquePositiveGroupIds(groupIds);
   if (ids.length === 0) return new Map();
-  const predicate = buildGroupAttendeePredicate("e", "ea", date);
+  const range = date ? dateToRange(date) : null;
+  const datedCount = date
+    ? `COALESCE((
+        SELECT SUM(e.booked_quantity)
+          FROM listings e
+         WHERE e.group_id = g.id AND e.listing_type != 'daily'
+      ), 0) + COALESCE((
+        SELECT SUM(ea.quantity)
+          FROM listing_attendees ea
+          JOIN listings e ON e.id = ea.listing_id
+         WHERE e.group_id = g.id
+           AND e.listing_type = 'daily'
+           AND ea.start_at < ? AND ea.end_at > ?
+      ), 0)`
+    : `COALESCE((
+        SELECT SUM(e.booked_quantity)
+          FROM listings e
+         WHERE e.group_id = g.id
+      ), 0)`;
+  const countArgs = range ? [range.endAt, range.startAt] : [];
   const rows = await queryAll<{
     group_id: number;
     max_attendees: number;
     count: number;
   }>(
     `SELECT g.id as group_id, g.max_attendees,
-            COALESCE(SUM(ea.quantity), 0) as count
+            ${datedCount} as count
      FROM groups g
-     LEFT JOIN listings e ON e.group_id = g.id
-     LEFT JOIN listing_attendees ea ON ea.listing_id = e.id
-       AND ${predicate.sql}
      WHERE g.id IN (${inPlaceholders(ids)}) AND g.max_attendees > 0
      GROUP BY g.id`,
-    [...predicate.args, ...ids],
+    [...countArgs, ...ids],
   );
   return new Map(
     rows.map((r) => [r.group_id, Math.max(0, r.max_attendees - r.count)]),
@@ -141,7 +150,8 @@ export const buildCapacityCheckedInsert = (
   const args: InValue[] = [listingId];
   if (attendeeIdArg !== undefined) args.push(attendeeIdArg);
   args.push(startAt, endAt, qty, pricePaid);
-  const insertSelect = `INSERT INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, price_paid)
+  const insertSelect =
+    `INSERT INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, price_paid)
           SELECT ?, ${attendeeIdExpr}, ?, ?, ?, ?`;
   if (allowOverbook) return { args, sql: insertSelect };
 
@@ -371,11 +381,9 @@ export const checkBatchAvailabilityImpl = async (
 
   const listingRows = await queryAll<ListingRow>(
     `SELECT e.id, e.max_attendees, e.group_id, e.listing_type,
-            COALESCE(SUM(ea.quantity), 0) as attendee_count
+            e.booked_quantity as attendee_count
      FROM listings e
-     LEFT JOIN listing_attendees ea ON ea.listing_id = e.id
-     WHERE e.id IN (${inPlaceholders(listingIds)})
-     GROUP BY e.id`,
+     WHERE e.id IN (${inPlaceholders(listingIds)})`,
     listingIds,
   );
   const listingsById = new Map(listingRows.map((r) => [r.id, r]));
@@ -385,8 +393,9 @@ export const checkBatchAvailabilityImpl = async (
 
   const ctx: BatchAvailabilityContext = { date, items, listingsById };
   const listingDemand = aggregateDemand(ctx, (ev) => ev.id);
-  const groupDemand = aggregateDemand(ctx, (ev) =>
-    ev.group_id > 0 ? ev.group_id : null,
+  const groupDemand = aggregateDemand(
+    ctx,
+    (ev) => ev.group_id > 0 ? ev.group_id : null,
   );
 
   // Prefetch everything the per-bucket checks need, batched: per-listing
@@ -394,8 +403,8 @@ export const checkBatchAvailabilityImpl = async (
   const allDays = unique(
     [...listingDemand.values()].flatMap((b) => [...b.perDay.keys()]),
   );
-  const [overlapByListing, groupPerDay, totalGroupRemaining] =
-    await Promise.all([
+  const [overlapByListing, groupPerDay, totalGroupRemaining] = await Promise
+    .all([
       overlappingRowsByListing(withDailyDemand(listingDemand), allDays),
       groupPerDayRemainingByGroup(withDailyDemand(groupDemand), allDays),
       getGroupRemainingByGroupId(
@@ -440,7 +449,9 @@ const overlappingRowsByListing = async (
   const { startAt, endAt } = daySpan(days);
   const rows = await queryAll<IntervalRow & { listing_id: number }>(
     `SELECT listing_id, start_at, end_at, quantity FROM listing_attendees
-     WHERE listing_id IN (${inPlaceholders(listingIds)}) AND start_at < ? AND end_at > ?`,
+     WHERE listing_id IN (${
+      inPlaceholders(listingIds)
+    }) AND start_at < ? AND end_at > ?`,
     [...listingIds, endAt, startAt],
   );
   for (const row of rows) {
@@ -461,21 +472,32 @@ const groupPerDayRemainingByGroup = async (
   const result = new Map<number, Map<string, number>>();
   const ids = uniquePositiveGroupIds(groupIds);
   if (ids.length === 0) return result;
-  const caps = await queryAll<{ id: number; max_attendees: number }>(
-    `SELECT id, max_attendees FROM groups
-     WHERE id IN (${inPlaceholders(ids)}) AND max_attendees > 0`,
+  const caps = await queryAll<{
+    id: number;
+    max_attendees: number;
+    base: number;
+  }>(
+    `SELECT g.id, g.max_attendees,
+            COALESCE((
+              SELECT SUM(e.booked_quantity)
+                FROM listings e
+               WHERE e.group_id = g.id AND e.listing_type != 'daily'
+            ), 0) AS base
+       FROM groups g
+     WHERE g.id IN (${inPlaceholders(ids)}) AND g.max_attendees > 0`,
     ids,
   );
   if (caps.length === 0) return result;
   const cappedIds = caps.map((c) => c.id);
   const { startAt, endAt } = daySpan(days);
-  type GroupRow = IntervalRow & { group_id: number; listing_type: ListingType };
+  type GroupRow = IntervalRow & { group_id: number };
   const rows = await queryAll<GroupRow>(
-    `SELECT e.group_id, ea.start_at, ea.end_at, ea.quantity, e.listing_type
+    `SELECT e.group_id, ea.start_at, ea.end_at, ea.quantity
      FROM listing_attendees ea
      JOIN listings e ON e.id = ea.listing_id
      WHERE e.group_id IN (${inPlaceholders(cappedIds)})
-       AND (e.listing_type != 'daily' OR (ea.start_at < ? AND ea.end_at > ?))`,
+       AND e.listing_type = 'daily'
+       AND ea.start_at < ? AND ea.end_at > ?`,
     [...cappedIds, endAt, startAt],
   );
   const rowsByGroup = new Map<number, GroupRow[]>();
@@ -484,16 +506,9 @@ const groupPerDayRemainingByGroup = async (
     if (list) list.push(row);
     else rowsByGroup.set(row.group_id, [row]);
   }
-  for (const { id, max_attendees } of caps) {
+  for (const { id, max_attendees, base } of caps) {
     const groupRows = rowsByGroup.get(id) ?? [];
-    // Non-daily rows count on every day; daily rows count per overlapping day.
-    const base = sumQuantity(
-      filter((r: GroupRow) => r.listing_type !== "daily")(groupRows),
-    );
-    const loads = perDayLoads(
-      filter((r: GroupRow) => r.listing_type === "daily")(groupRows),
-      days,
-    );
+    const loads = perDayLoads(groupRows, days);
     result.set(
       id,
       new Map(
@@ -550,8 +565,9 @@ export const getListingRemainingForRange = async (
   const result = new Map<number, number>();
   for (const l of totals) {
     const base = l.max_attendees - l.attendee_count;
-    const group =
-      l.group_id > 0 ? totalGroupRemaining.get(l.group_id) : undefined;
+    const group = l.group_id > 0
+      ? totalGroupRemaining.get(l.group_id)
+      : undefined;
     result.set(
       l.id,
       atLeastZero(group === undefined ? base : Math.min(base, group)),
@@ -565,9 +581,9 @@ export const getListingRemainingForRange = async (
     const groupPerDay = dailyGroupPerDay.get(l.group_id);
     const remaining = groupPerDay
       ? Math.min(
-          listingRemaining,
-          Math.min(...days.map((day) => groupPerDay.get(day)!)),
-        )
+        listingRemaining,
+        Math.min(...days.map((day) => groupPerDay.get(day)!)),
+      )
       : listingRemaining;
     result.set(l.id, atLeastZero(remaining));
   }
@@ -594,7 +610,7 @@ export const checkLinesCapacity = async (
       b.date,
       excludeAttendeeId,
       b.durationDays,
-    ),
+    )
   );
   const columns = conditions.map((c, i) => `(${c.sql}) AS ok${i}`).join(", ");
   const args = conditions.flatMap((c) => c.args);

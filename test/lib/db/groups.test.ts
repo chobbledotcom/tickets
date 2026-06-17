@@ -18,7 +18,10 @@ import {
   isGroupSlugTaken,
   resetGroupListings,
 } from "#shared/db/groups.ts";
-import { getListing } from "#shared/db/listings.ts";
+import {
+  getListing,
+  updateListingAggregateValues,
+} from "#shared/db/listings.ts";
 import {
   bookAttendee,
   createTestGroup,
@@ -449,6 +452,21 @@ describeWithEnv("db > groups", { db: true }, () => {
 
       const map = await getGroupRemainingByGroupId([group.id]);
       expect(map.get(group.id)).toBe(3);
+    });
+
+    test("getGroupRemainingByGroupId uses editable booked quantities", async () => {
+      const { e1, group } = await createCappedGroupWithListings(
+        5,
+        "manual-remaining",
+      );
+      await updateListingAggregateValues(e1.id, {
+        booked_quantity: 4,
+        income: 0,
+        tickets_count: 0,
+      });
+
+      const map = await getGroupRemainingByGroupId([group.id]);
+      expect(map.get(group.id)).toBe(1);
     });
 
     test("getGroupRemainingByGroupId omits groups with no max set", async () => {

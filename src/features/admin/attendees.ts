@@ -77,8 +77,9 @@ const deleteAttendeeAndRedirect = async (
   activityMessage: string,
   flashMessage: string,
   opts?: Parameters<typeof redirect>[3],
+  releaseBookings = true,
 ): Promise<Response> => {
-  await deleteAttendee(attendeeId);
+  await deleteAttendee(attendeeId, { releaseBookings });
   await logActivity(activityMessage, listingId);
   return redirect(`/admin/listing/${listingId}`, flashMessage, true, opts);
 };
@@ -94,6 +95,7 @@ const handleAttendeeDelete = verifiedAttendeeForm(
       `Attendee deleted from '${data.listing.name}'`,
       t("success.attendee_deleted"),
       { form },
+      form.get("release_bookings") === "1",
     ),
 );
 

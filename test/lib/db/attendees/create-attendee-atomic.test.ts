@@ -7,6 +7,7 @@ import {
 } from "#shared/db/attendees.ts";
 import { dateToRange } from "#shared/db/capacity.ts";
 import { getDb } from "#shared/db/client.ts";
+import { updateListingAggregateValues } from "#shared/db/listings.ts";
 import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
 import {
   createDailyTestListing,
@@ -262,6 +263,38 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
       ],
       email: "span@example.com",
       name: "Span",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test("atomic SQL uses editable booked quantity for date-less capacity", async () => {
+    const listing = await createTestListing({ maxAttendees: 1 });
+    await updateListingAggregateValues(listing.id, {
+      booked_quantity: 1,
+      income: 0,
+      tickets_count: 0,
+    });
+    const result = await createAttendeeAtomic({
+      bookings: [{ listingId: listing.id, quantity: 1 }],
+      email: "manual-full@example.com",
+      name: "Manual Full",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test("atomic SQL uses editable booked quantity for dated standard listings", async () => {
+    const listing = await createTestListing({ maxAttendees: 1 });
+    await updateListingAggregateValues(listing.id, {
+      booked_quantity: 1,
+      income: 0,
+      tickets_count: 0,
+    });
+    const result = await createAttendeeAtomic({
+      bookings: [
+        { date: "2026-05-01", listingId: listing.id, quantity: 1 },
+      ],
+      email: "dated-standard-full@example.com",
+      name: "Dated Standard Full",
     });
     expect(result.success).toBe(false);
   });

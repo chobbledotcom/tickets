@@ -1,4 +1,5 @@
 import { CsrfForm, Flash } from "#shared/forms.tsx";
+import { RECALCULATE_FIELD_NAME } from "#shared/recalculate-fields.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
@@ -10,8 +11,6 @@ export type RecalculateRow = {
   name: string;
   recalculated: string;
 };
-
-export const RECALCULATE_FIELD_NAME = "recalculate_fields";
 
 export const adminRecalculatePage = ({
   action,

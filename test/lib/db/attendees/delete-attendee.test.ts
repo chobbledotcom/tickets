@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { deleteAttendee, getAttendee } from "#shared/db/attendees.ts";
 import { queryOne } from "#shared/db/client.ts";
+import { getListingWithCount } from "#shared/db/listings.ts";
 import {
   consumeModifierStock,
   modifierUsedQuantities,
@@ -13,6 +14,7 @@ import {
   reserveSession,
 } from "#shared/db/processed-payments.ts";
 import {
+  createPaidTestAttendee,
   createTestAttendee,
   createTestListing,
   describeWithEnv,
@@ -58,6 +60,51 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
 
     const processed = await isSessionProcessed("sess_attendee_delete");
     expect(processed).toBeNull();
+  });
+
+  test("releases listing aggregate totals by default", async () => {
+    const listing = await createTestListing({ maxAttendees: 50 });
+    const attendee = await createPaidTestAttendee(
+      listing.id,
+      "Release Me",
+      "release@example.com",
+      "pay_release",
+      1200,
+      3,
+    );
+
+    await deleteAttendee(attendee.id);
+
+    const updated = await getListingWithCount(listing.id);
+    expect(updated).toMatchObject({
+      attendee_count: 0,
+      income: 0,
+      tickets_count: 0,
+    });
+  });
+
+  test("can delete attendee without releasing listing aggregate totals", async () => {
+    const listing = await createTestListing({ maxAttendees: 50 });
+    const attendee = await createPaidTestAttendee(
+      listing.id,
+      "Keep Totals",
+      "keep@example.com",
+      "pay_keep",
+      1200,
+      3,
+    );
+
+    await deleteAttendee(attendee.id, { releaseBookings: false });
+
+    const privateKey = await getTestPrivateKey();
+    const fetched = await getAttendee(attendee.id, privateKey);
+    const updated = await getListingWithCount(listing.id);
+    expect(fetched).toBeNull();
+    expect(updated).toMatchObject({
+      attendee_count: 3,
+      income: 1200,
+      tickets_count: 1,
+    });
   });
 
   test("keeps modifier usage rows and totals after attendee deletion", async () => {
