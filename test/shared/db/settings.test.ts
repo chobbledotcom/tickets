@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
+import { encrypt } from "#shared/crypto/encryption.ts";
 import { getDb } from "#shared/db/client.ts";
 import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
 import { getUserByUsername, verifyUserPassword } from "#shared/db/users.ts";
@@ -46,6 +47,58 @@ describeWithEnv("db > settings", { db: true }, () => {
       settings.invalidateCache();
       await settings.loadAll();
       expect(settings.paymentProvider).toBeNull();
+    });
+  });
+
+  describe("loadKeys (on-demand)", () => {
+    test("resolves only the requested key into the snapshot", async () => {
+      await settings.setRaw(CONFIG_KEYS.THEME, "dark");
+      await settings.setRaw(CONFIG_KEYS.BUSINESS_EMAIL, await encrypt("a@b.c"));
+      settings.invalidateCache();
+
+      await settings.loadKeys([CONFIG_KEYS.THEME]);
+
+      expect(settings.theme).toBe("dark");
+      // An undeclared key stays at its default — it was never fetched.
+      expect(settings.businessEmail).toBe("");
+    });
+
+    test("decrypts an encrypted key it is asked to load", async () => {
+      await settings.setRaw(
+        CONFIG_KEYS.BUSINESS_EMAIL,
+        await encrypt("owner@example.com"),
+      );
+      settings.invalidateCache();
+
+      await settings.loadKeys([CONFIG_KEYS.BUSINESS_EMAIL]);
+
+      expect(settings.businessEmail).toBe("owner@example.com");
+    });
+
+    test("applies country-derived fields", async () => {
+      await settings.setRaw(CONFIG_KEYS.COUNTRY, "US");
+      settings.invalidateCache();
+
+      await settings.loadKeys([CONFIG_KEYS.COUNTRY]);
+
+      expect(settings.country).toBe("US");
+      expect(settings.currency).toBe("USD");
+    });
+
+    test("is a no-op when the requested key is already loaded", async () => {
+      await settings.setRaw(CONFIG_KEYS.THEME, "dark");
+      settings.invalidateCache();
+      await settings.loadAll();
+
+      // Mutate the DB after the full load; loadKeys must not re-fetch a key
+      // the fresh full cache already holds.
+      await getDb().execute({
+        args: ["light", CONFIG_KEYS.THEME],
+        sql: "UPDATE settings SET value = ? WHERE key = ?",
+      });
+      await settings.loadKeys([CONFIG_KEYS.THEME]);
+
+      expect(settings.theme).toBe("dark");
     });
   });
 

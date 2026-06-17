@@ -14,7 +14,7 @@
  *   await settings.update.headerImageUrl(url);
  */
 
-import { lazyRef } from "#fp";
+import { lazyRef, unique } from "#fp";
 import { registerCache } from "#shared/cache-registry.ts";
 import { DEFAULT_COUNTRY, getCountry } from "#shared/countries.ts";
 import { decrypt, encrypt, encryptWithKey } from "#shared/crypto/encryption.ts";
@@ -146,19 +146,41 @@ const keyModeOf = (key: string): "test" | "live" | null =>
 
 export const SETTINGS_CACHE_TTL_MS = 60_000;
 
-type CacheState = { entries: Map<string, string> | null; time: number };
+/**
+ * Raw-row cache. `values` holds the rows loaded so far (decrypted values still
+ * live in the snapshot, not here). `loaded` records which keys have been
+ * resolved — present *or* absent in the DB — so a partial `loadKeys` never
+ * re-queries a key it has already fetched. `full` is set by `loadAll`, after a
+ * whole-table `SELECT *`, so every key counts as loaded. `time` stamps the load
+ * for TTL expiry; `0` means never loaded.
+ */
+type CacheState = {
+  values: Map<string, string>;
+  loaded: Set<string>;
+  full: boolean;
+  time: number;
+};
 const [getCacheState, setCacheState] = lazyRef<CacheState>(() => ({
-  entries: null,
+  full: false,
+  loaded: new Set(),
   time: 0,
+  values: new Map(),
 }));
 
-const isCacheValid = (): boolean => {
+const isCacheFresh = (): boolean => {
   const s = getCacheState();
-  return s.entries !== null && nowMs() - s.time < SETTINGS_CACHE_TTL_MS;
+  return s.time > 0 && nowMs() - s.time < SETTINGS_CACHE_TTL_MS;
+};
+
+/** Whether a key's value is already resolved in the current fresh cache. */
+const isKeyLoaded = (key: string): boolean => {
+  if (!isCacheFresh()) return false;
+  const s = getCacheState();
+  return s.full || s.loaded.has(key);
 };
 
 registerCache(() => ({
-  entries: getCacheState().entries?.size ?? 0,
+  entries: getCacheState().values.size,
   name: "settings",
 }));
 
@@ -337,12 +359,11 @@ const snap = <K extends keyof SettingsData>(key: K): SettingsData[K] => {
 
 /** Read a raw string from the cache. Returns null if missing or cache not loaded. */
 const getRawCached = (key: string): string | null =>
-  getCacheState().entries?.get(key) ?? null;
+  getCacheState().values.get(key) ?? null;
 
-/** Mutate the raw cache if it's currently loaded; no-op otherwise. */
-const syncCache = (mutate: (entries: Map<string, string>) => void): void => {
-  const { entries } = getCacheState();
-  if (entries) mutate(entries);
+/** Mutate the raw cache if it's currently fresh; no-op otherwise. */
+const syncCache = (mutate: (state: CacheState) => void): void => {
+  if (isCacheFresh()) mutate(getCacheState());
 };
 
 /** Write a setting to the DB and update the raw cache in-place. */
@@ -351,7 +372,10 @@ const writeRaw = async (key: string, value: string): Promise<void> => {
     args: [key, value],
     sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
   });
-  syncCache((entries) => entries.set(key, value));
+  syncCache((s) => {
+    s.values.set(key, value);
+    s.loaded.add(key);
+  });
 };
 
 /** Delete a setting from the DB and remove it from the raw cache. */
@@ -360,7 +384,10 @@ const deleteRaw = async (key: string): Promise<void> => {
     args: [key],
     sql: "DELETE FROM settings WHERE key = ?",
   });
-  syncCache((entries) => entries.delete(key));
+  syncCache((s) => {
+    s.values.delete(key);
+    s.loaded.add(key);
+  });
 };
 
 /** Write a setting or delete it if value is empty. */
@@ -534,62 +561,132 @@ const applyCountryDerived = (info: CountryInfo): void => {
   data.phone_prefix = info.phonePrefix;
 };
 
-const buildSnapshot = async (raw: Map<string, string>): Promise<void> => {
-  // Plaintext special fields
-  const country = raw.get(CONFIG_KEYS.COUNTRY) || DEFAULT_COUNTRY;
-  const info = getCountry(country);
+/**
+ * Per-key resolvers for the non-string snapshot fields. A config key may drive
+ * more than one snapshot field (COUNTRY → currency/timezone/phone_prefix;
+ * PAYMENT_PROVIDER → provider + setting). `raw` is undefined when the key is
+ * absent from the DB, in which case the default is applied.
+ */
+const SPECIAL_APPLIERS: Record<string, (raw: string | undefined) => void> = {
+  [CONFIG_KEYS.COUNTRY]: (raw) => {
+    const country = raw || DEFAULT_COUNTRY;
+    data.country = country;
+    applyCountryDerived(getCountry(country));
+  },
+  [CONFIG_KEYS.THEME]: (raw) => {
+    data.theme = raw === "dark" ? "dark" : "light";
+  },
+  [CONFIG_KEYS.SHOW_PUBLIC_SITE]: (raw) => {
+    data.show_public_site = raw === "true";
+  },
+  [CONFIG_KEYS.SHOW_PUBLIC_API]: (raw) => {
+    data.show_public_api = raw === "true";
+  },
+  [CONFIG_KEYS.CONTACT_FORM_ENABLED]: (raw) => {
+    data.contact_form_enabled = raw === "true";
+  },
+  [CONFIG_KEYS.ORDER_ENABLED]: (raw) => {
+    data.order_enabled = raw === "true";
+  },
+  [CONFIG_KEYS.HAS_LOGISTICS]: (raw) => {
+    data.has_logistics = raw === "true";
+  },
+  [CONFIG_KEYS.PAYMENT_PROVIDER]: (raw) => {
+    data.payment_provider = raw && isPaymentProvider(raw) ? raw : null;
+    data.payment_provider_setting =
+      raw && isPaymentProviderSetting(raw) ? raw : null;
+  },
+  [CONFIG_KEYS.BOOKING_FEE]: (raw) => {
+    data.booking_fee = raw ?? "0";
+  },
+  [CONFIG_KEYS.SQUARE_SANDBOX]: (raw) => {
+    data.square_sandbox = raw === "true";
+  },
+};
 
-  data.country = country;
-  data.theme = raw.get(CONFIG_KEYS.THEME) === "dark" ? "dark" : "light";
-  data.show_public_site = raw.get(CONFIG_KEYS.SHOW_PUBLIC_SITE) === "true";
-  data.show_public_api = raw.get(CONFIG_KEYS.SHOW_PUBLIC_API) === "true";
-  data.contact_form_enabled =
-    raw.get(CONFIG_KEYS.CONTACT_FORM_ENABLED) === "true";
-  data.order_enabled = raw.get(CONFIG_KEYS.ORDER_ENABLED) === "true";
-  data.has_logistics = raw.get(CONFIG_KEYS.HAS_LOGISTICS) === "true";
-  const rawProvider = raw.get(CONFIG_KEYS.PAYMENT_PROVIDER);
-  data.payment_provider =
-    rawProvider && isPaymentProvider(rawProvider) ? rawProvider : null;
-  data.payment_provider_setting =
-    rawProvider && isPaymentProviderSetting(rawProvider) ? rawProvider : null;
-  data.booking_fee = raw.get(CONFIG_KEYS.BOOKING_FEE) ?? "0";
-  data.square_sandbox = raw.get(CONFIG_KEYS.SQUARE_SANDBOX) === "true";
+const PLAINTEXT_KEY_SET = new Set<string>(PLAINTEXT_KEYS);
 
-  // Plaintext string fields — config key IS the snapshot key
-  for (const key of PLAINTEXT_KEYS) {
-    setSnapshotField(key, raw.get(key) ?? "");
+/** Every config key that maps to a snapshot field, in load order. */
+const SNAPSHOT_KEYS: readonly string[] = [
+  ...Object.keys(SPECIAL_APPLIERS),
+  ...PLAINTEXT_KEYS,
+  ...ENCRYPTED_KEYS,
+];
+
+/**
+ * Resolve one config key from `values` into the snapshot. Encrypted keys are
+ * decrypted (hence async); plaintext and special keys are synchronous. Keys
+ * with no snapshot field (e.g. SETUP_COMPLETE) are no-ops — they live in the
+ * raw cache only.
+ */
+const applyKey = async (
+  key: string,
+  values: Map<string, string>,
+): Promise<void> => {
+  const special = SPECIAL_APPLIERS[key];
+  if (special) return special(values.get(key));
+  if (ENCRYPTED_KEY_SET.has(key)) {
+    const v = values.get(key);
+    setSnapshotField(key as StringSettingKey, v ? await decrypt(v) : "");
+    return;
   }
-
-  // Derived
-  applyCountryDerived(info);
-
-  // Encrypted — parallel decrypt
-  const values = await Promise.all(
-    ENCRYPTED_KEYS.map((key) => {
-      const v = raw.get(key);
-      return v ? decrypt(v) : "";
-    }),
-  );
-  for (let i = 0; i < ENCRYPTED_KEYS.length; i++) {
-    setSnapshotField(ENCRYPTED_KEYS[i]!, values[i]!);
+  if (PLAINTEXT_KEY_SET.has(key)) {
+    setSnapshotField(key as StringSettingKey, values.get(key) ?? "");
   }
+};
+
+/** Resolve a batch of keys into the snapshot, decrypting in parallel. */
+const applyKeys = async (
+  keys: readonly string[],
+  values: Map<string, string>,
+): Promise<void> => {
+  await Promise.all(keys.map((key) => applyKey(key, values)));
 };
 
 // ---------------------------------------------------------------------------
 // loadAll / invalidateCache
 // ---------------------------------------------------------------------------
 
+/** Reset the raw cache to a fresh, empty state stamped at the current time. */
+const resetCache = (full: boolean): CacheState => {
+  setCacheState(null);
+  const s = getCacheState();
+  s.time = nowMs();
+  s.full = full;
+  return s;
+};
+
 /**
- * Load all settings from the DB and pre-decrypt encrypted values.
- * No-op when the raw cache is still valid.
+ * Load every setting from the DB and pre-decrypt encrypted values. Keeps the
+ * whole-table `SELECT *` so the raw cache holds every row (callers reach for
+ * arbitrary keys via `getCachedRaw`). No-op when a full load is still fresh.
  */
 const loadAll = async (): Promise<void> => {
-  if (isCacheValid()) return;
+  if (isCacheFresh() && getCacheState().full) return;
   const rows = await queryAll<Settings>("SELECT key, value FROM settings");
-  const raw = new Map<string, string>();
-  for (const row of rows) raw.set(row.key, row.value);
-  setCacheState({ entries: raw, time: nowMs() });
-  await buildSnapshot(raw);
+  const s = resetCache(true);
+  for (const row of rows) s.values.set(row.key, row.value);
+  await applyKeys(SNAPSHOT_KEYS, s.values);
+};
+
+/**
+ * Load only the given config keys, fetching just the ones not already resolved
+ * in the current fresh cache (one `WHERE key IN (...)` query) and decrypting
+ * only those. The on-demand counterpart to `loadAll`.
+ */
+const loadKeys = async (keys: readonly string[]): Promise<void> => {
+  const s = isCacheFresh() ? getCacheState() : resetCache(false);
+  const missing = unique([...keys]).filter((k) => !(s.full || s.loaded.has(k)));
+  if (missing.length === 0) return;
+  const rows = await queryAll<Settings>(
+    `SELECT key, value FROM settings WHERE key IN (${missing
+      .map(() => "?")
+      .join(", ")})`,
+    missing,
+  );
+  for (const row of rows) s.values.set(row.key, row.value);
+  for (const key of missing) s.loaded.add(key);
+  await applyKeys(missing, s.values);
 };
 
 /** Full invalidation — clears raw cache AND resets snapshot to defaults. */
@@ -613,8 +710,10 @@ const isSetupComplete = async (): Promise<boolean> => {
   const confirmed = getSetupConfirmed();
   const cached = getSetupCompleteCache();
   if (confirmed && cached) return true;
-  // Need the raw cache for this check
-  if (!isCacheValid()) await loadAll();
+  // Need the raw cache for this check — fetch only the one key we read.
+  if (!isKeyLoaded(CONFIG_KEYS.SETUP_COMPLETE)) {
+    await loadKeys([CONFIG_KEYS.SETUP_COMPLETE]);
+  }
   const isComplete = getRawCached(CONFIG_KEYS.SETUP_COMPLETE) === "true";
   if (isComplete) {
     setSetupCompleteCache(true);
@@ -720,8 +819,10 @@ const withCurrentTask = async <T>(
       ok: false,
     };
   }
-  const state = getCacheState();
-  if (state.entries) state.entries.set(CONFIG_KEYS.CURRENT_TASK, taskName);
+  syncCache((s) => {
+    s.values.set(CONFIG_KEYS.CURRENT_TASK, taskName);
+    s.loaded.add(CONFIG_KEYS.CURRENT_TASK);
+  });
   setSnapshotField("current_task", taskName);
   try {
     const value = await fn();
@@ -821,6 +922,7 @@ const settingsBase = {
   invalidateCache,
   // --- Core ---
   loadAll,
+  loadKeys,
   get orderEnabled(): boolean {
     return snap("order_enabled");
   },
