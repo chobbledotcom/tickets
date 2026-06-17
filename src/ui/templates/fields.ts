@@ -876,6 +876,8 @@ export type ModifierFormValues = {
   calc_kind: string;
   direction: string;
   calc_value: number;
+  trigger: string;
+  code: string;
   scope: string;
   min_subtotal: number;
   stock: number | null;
@@ -924,6 +926,25 @@ export const modifierFields: Field[] = [
     type: "text",
     validate: (value: string) =>
       Number.isFinite(Number.parseFloat(value)) ? null : "Enter a valid number",
+  },
+  {
+    defaultValue: "automatic",
+    hint: "When this applies. Promo codes are entered by the buyer at checkout; optional add-ons are chosen by the buyer.",
+    label: "Trigger",
+    name: "trigger",
+    options: [
+      { label: "Automatic (always)", value: "automatic" },
+      { label: "Promo code", value: "code" },
+      { label: "Optional add-on", value: "optional" },
+    ],
+    type: "select",
+  },
+  {
+    hint: "The code buyers enter at checkout. Required for promo-code modifiers; ignored otherwise.",
+    label: "Promo code",
+    name: "code",
+    placeholder: "SUMMER20",
+    type: "text",
   },
   {
     defaultValue: "all",

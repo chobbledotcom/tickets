@@ -412,6 +412,11 @@ export interface Modifier {
   direction: ModifierDirection;
   active: boolean;
   trigger: ModifierTrigger;
+  /** Promo code (trigger = "code"), shown to the owner; "" for other triggers. */
+  code: string;
+  /** Blind index (HMAC) of the normalised code, for public code lookup; null
+   * when the modifier has no code. */
+  code_index: string | null;
   scope: ModifierScope;
   /** Minimum in-scope subtotal (minor units) for the modifier to apply. */
   min_subtotal: number;

@@ -500,6 +500,69 @@ describe("ticketPage", () => {
     expect(html).toContain('data-listing-ids="1"');
   });
 
+  test("renders a promo-code field when promo codes are enabled", () => {
+    const listings = [
+      buildTicketListing(
+        testListingWithCount({
+          attendee_count: 0,
+          id: 1,
+          name: "Listing A",
+          slug: "ab12c",
+        }),
+        false,
+        undefined,
+      ),
+    ];
+    const html = ticketPage({
+      listings,
+      promoCodesEnabled: true,
+      slugs: ["ab12c"],
+    });
+    expect(html).toContain('name="promo_code"');
+    expect(html).toContain("Promo code");
+  });
+
+  test("omits the promo-code field when promo codes are disabled", () => {
+    const listings = [
+      buildTicketListing(
+        testListingWithCount({
+          attendee_count: 0,
+          id: 1,
+          name: "Listing A",
+          slug: "ab12c",
+        }),
+        false,
+        undefined,
+      ),
+    ];
+    const html = ticketPage({ listings, slugs: ["ab12c"] });
+    expect(html).not.toContain('name="promo_code"');
+  });
+
+  test("renders an opt-in add-on selector with its price label", () => {
+    const listings = [
+      buildTicketListing(
+        testListingWithCount({
+          attendee_count: 0,
+          id: 1,
+          name: "Listing A",
+          slug: "ab12c",
+        }),
+        false,
+        undefined,
+      ),
+    ];
+    const html = ticketPage({
+      addOns: [{ id: 7, maxQuantity: 5, name: "T-shirt", priceLabel: "+£5" }],
+      listings,
+      slugs: ["ab12c"],
+    });
+    expect(html).toContain('name="addon_7"');
+    expect(html).toContain("T-shirt");
+    expect(html).toContain("+£5");
+    expect(html).toContain('max="5"');
+  });
+
   test("appends ?iframe=true to form action in iframe mode", () => {
     detectIframeMode("https://example.com/?iframe=true");
     const listings = [
