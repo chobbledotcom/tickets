@@ -18,7 +18,8 @@ const isInternalHostname = (h: string): boolean =>
 
 /** True when the host is an IPv4 or IPv6 literal rather than a real domain. */
 const isIpLiteral = (host: string): boolean => {
-  const h = host.replace(/^\[|\]$/g, "");
+  const h =
+    host.startsWith("[") && host.endsWith("]") ? host.slice(1, -1) : host;
   if (h.includes(":")) return true;
   return /^(\d{1,3}\.){3}\d{1,3}$/.test(h);
 };
@@ -41,9 +42,9 @@ export const isSafeServerFetchUrl = (raw: string): boolean => {
   const host = url.hostname.toLowerCase();
   return (
     url.protocol === "https:" &&
-    isDomainHostname(host) &&
     !isInternalHostname(host) &&
-    !isIpLiteral(host)
+    !isIpLiteral(host) &&
+    isDomainHostname(host)
   );
 };
 

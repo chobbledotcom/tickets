@@ -85,10 +85,6 @@ const crud = createOwnerCrudHandlers({
   getName: (a) => a.name,
   listPath: "/admin/logistics",
   renderDelete: adminLogisticsAgentDeletePage,
-  // The edit GET/POST routes are overridden below to load/save user
-  // assignments; this adapter only keeps the CRUD config types satisfied.
-  renderEdit: (agent, session) =>
-    adminLogisticsAgentEditPage(agent, [], new Set(), session),
   renderList: adminLogisticsPage,
   renderNew: adminLogisticsAgentNewPage,
   resource: logisticsAgentsResource,

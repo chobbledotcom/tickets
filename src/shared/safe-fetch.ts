@@ -38,11 +38,8 @@ export const fetchTextFollowingSafeRedirects = async (
 ): Promise<FetchResult> => {
   let currentUrl = url;
 
-  for (
-    let redirectCount = 0;
-    redirectCount <= MAX_SAFE_REDIRECTS;
-    redirectCount++
-  ) {
+  let redirectCount = 0;
+  while (true) {
     if (!isSafeServerFetchUrl(currentUrl)) {
       throw new Error("Unsafe redirect URL");
     }
@@ -57,7 +54,6 @@ export const fetchTextFollowingSafeRedirects = async (
     }
 
     currentUrl = resolveRedirectUrl(location, currentUrl);
+    redirectCount++;
   }
-
-  throw new Error("Too many redirects");
 };

@@ -36,6 +36,7 @@ describe("url-safety", () => {
       "https://100.64.0.1/", // CGNAT
       "https://8.8.8.8/hook",
       "https://[2001:db8::1]/", // IPv6 literal
+      "https://2001:db8::1/", // bare IPv6-like host fails as an IP literal before domain checks
       "https://[::1]/", // IPv6 loopback
       "https://[fe80::1]/", // IPv6 link-local
       "https://[fc00::1]/", // IPv6 unique-local
