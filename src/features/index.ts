@@ -49,8 +49,15 @@ import {
   MissingSettingsTableError,
 } from "#shared/db/migrations.ts";
 import { maybeRunPrunes } from "#shared/db/prune.ts";
-import { runWithQueryLogContext } from "#shared/db/query-log.ts";
-import { settings } from "#shared/db/settings.ts";
+import {
+  enableQueryLog,
+  runWithQueryLogContext,
+} from "#shared/db/query-log.ts";
+import { CONFIG_KEYS, SNAPSHOT_KEYS, settings } from "#shared/db/settings.ts";
+import {
+  assertSettingsReadsDeclared,
+  runWithSettingsAudit,
+} from "#shared/db/settings-audit.ts";
 import { isReadOnly } from "#shared/env.ts";
 import {
   hasFlash,
@@ -211,6 +218,205 @@ export type { ServerContext } from "#routes/types.ts";
 const getPrefix = (path: string): string => {
   const i = path.indexOf("/", 1);
   return i === -1 ? path.slice(1) : path.slice(1, i);
+};
+
+// ---------------------------------------------------------------------------
+// Per-request settings pre-load (see settings-plan.md §4)
+//
+// The pre-routing pipeline reads settings before the lazy router resolves a
+// handler, so the load is keyed off the path *prefix* (pure, import-free).
+// `settingsForPath` always unions the prefix bundle with INFRA_SETTINGS, so the
+// per-prefix bundles below list only the *extra* keys a route reads beyond
+// infra. The whole set is fetched in one `WHERE key IN (...)` query.
+// ---------------------------------------------------------------------------
+
+/**
+ * Keys every request needs regardless of route:
+ * - domain resolution (`loadEffectiveDomain`) reads custom_domain + bunny_subdomain
+ * - routing gates on setup_complete / show_public_*
+ * - the bare `Layout` (rendered by the universal `notFoundResponse` fallback
+ *   and every HTML error page) reads theme + header_image_url
+ * - `applySecurityHeaders` rebuilds the CSP on every routed response, reading
+ *   the payment provider (and square_sandbox when the provider is Square)
+ * - pruning self-guards on last_pruned_*
+ * - session auth + PII decryption read the key material
+ */
+const INFRA_SETTINGS: readonly string[] = [
+  CONFIG_KEYS.CUSTOM_DOMAIN,
+  CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED,
+  CONFIG_KEYS.BUNNY_SUBDOMAIN,
+  CONFIG_KEYS.SETUP_COMPLETE,
+  CONFIG_KEYS.SHOW_PUBLIC_SITE,
+  CONFIG_KEYS.SHOW_PUBLIC_API,
+  CONFIG_KEYS.THEME,
+  CONFIG_KEYS.HEADER_IMAGE_URL,
+  CONFIG_KEYS.PAYMENT_PROVIDER,
+  CONFIG_KEYS.SQUARE_SANDBOX,
+  CONFIG_KEYS.LAST_PRUNED_PAYMENTS,
+  CONFIG_KEYS.LAST_PRUNED_SESSIONS,
+  CONFIG_KEYS.LAST_PRUNED_SUMUP,
+  CONFIG_KEYS.LAST_PRUNED_LOGINS,
+  CONFIG_KEYS.LAST_PRUNED_TOKENS,
+  CONFIG_KEYS.PUBLIC_KEY,
+  CONFIG_KEYS.WRAPPED_PRIVATE_KEY,
+];
+
+/**
+ * Extra keys the full public-page nav reads (theme + header are in infra).
+ * Rendered by pages built on `publicPage`/`PublicNav` (home, listings, terms,
+ * contact, order, ticket forms). Pages on the bare `Layout` don't need these.
+ */
+const PUBLIC_NAV_SETTINGS: readonly string[] = [
+  CONFIG_KEYS.WEBSITE_TITLE,
+  CONFIG_KEYS.CONTACT_PAGE_TEXT,
+  CONFIG_KEYS.CONTACT_FORM_ENABLED,
+  CONFIG_KEYS.BUSINESS_EMAIL,
+  CONFIG_KEYS.ORDER_ENABLED,
+  CONFIG_KEYS.TERMS_AND_CONDITIONS,
+];
+
+/**
+ * The active payment provider is resolved at runtime (`getActivePaymentProvider`),
+ * so any checkout flow must be able to read all three providers' keys plus
+ * country (currency) and the booking fee.
+ */
+const PAYMENT_SETTINGS: readonly string[] = [
+  CONFIG_KEYS.PAYMENT_PROVIDER,
+  CONFIG_KEYS.COUNTRY,
+  CONFIG_KEYS.BOOKING_FEE,
+  CONFIG_KEYS.STRIPE_SECRET_KEY,
+  CONFIG_KEYS.STRIPE_WEBHOOK_ENDPOINT_ID,
+  CONFIG_KEYS.STRIPE_WEBHOOK_SECRET,
+  CONFIG_KEYS.SQUARE_ACCESS_TOKEN,
+  CONFIG_KEYS.SQUARE_LOCATION_ID,
+  CONFIG_KEYS.SQUARE_SANDBOX,
+  CONFIG_KEYS.SQUARE_WEBHOOK_SIGNATURE_KEY,
+  CONFIG_KEYS.SUMUP_API_KEY,
+  CONFIG_KEYS.SUMUP_MERCHANT_CODE,
+];
+
+/** Keys the registration/confirmation email pipeline reads. */
+const EMAIL_SETTINGS: readonly string[] = [
+  CONFIG_KEYS.BUSINESS_EMAIL,
+  CONFIG_KEYS.EMAIL_PROVIDER,
+  CONFIG_KEYS.EMAIL_API_KEY,
+  CONFIG_KEYS.EMAIL_FROM_ADDRESS,
+  CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_SUBJECT,
+  CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_HTML,
+  CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_TEXT,
+  CONFIG_KEYS.EMAIL_TPL_ADMIN_SUBJECT,
+  CONFIG_KEYS.EMAIL_TPL_ADMIN_HTML,
+  CONFIG_KEYS.EMAIL_TPL_ADMIN_TEXT,
+];
+
+/** Apple Wallet pass generation reads all five cert/identifier keys. */
+const APPLE_WALLET_SETTINGS: readonly string[] = [
+  CONFIG_KEYS.APPLE_WALLET_PASS_TYPE_ID,
+  CONFIG_KEYS.APPLE_WALLET_TEAM_ID,
+  CONFIG_KEYS.APPLE_WALLET_SIGNING_CERT,
+  CONFIG_KEYS.APPLE_WALLET_SIGNING_KEY,
+  CONFIG_KEYS.APPLE_WALLET_WWDR_CERT,
+];
+
+/** Google Wallet pass generation reads all three issuer/service-account keys. */
+const GOOGLE_WALLET_SETTINGS: readonly string[] = [
+  CONFIG_KEYS.GOOGLE_WALLET_ISSUER_ID,
+  CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL,
+  CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_KEY,
+];
+
+/**
+ * Extra keys read when an *owner* session authenticates: the settings-nag
+ * banner (`getSettingsNagItemsForOwner`) checks the payment provider, business
+ * email, superuser choice, and domain config (custom_domain + bunny_subdomain
+ * are already infra).
+ */
+const OWNER_AUTH_SETTINGS: readonly string[] = [
+  CONFIG_KEYS.PAYMENT_PROVIDER,
+  CONFIG_KEYS.BUSINESS_EMAIL,
+  CONFIG_KEYS.SUPERUSER_CHOICE,
+];
+
+/** The whole booking flow (form + checkout + confirmation emails). */
+const BOOKING_FLOW_SETTINGS: readonly string[] = [
+  ...PUBLIC_NAV_SETTINGS,
+  ...PAYMENT_SETTINGS,
+  ...EMAIL_SETTINGS,
+];
+
+/**
+ * The full snapshot, for routes that may touch any setting — the admin HTML
+ * pages and the public booking API (`POST /api/.../book` fans out into the
+ * entire payment + email + country surface). `admin` additionally reads
+ * `db_schema_hash` on the debug page (written by migrations, not a snapshot
+ * field). INFRA is added by `settingsForPath`.
+ */
+const ALL_SNAPSHOT_SETTINGS: readonly string[] = SNAPSHOT_KEYS;
+const ADMIN_SETTINGS: readonly string[] = [...SNAPSHOT_KEYS, "db_schema_hash"];
+
+/**
+ * Per-prefix settings bundle (keys *beyond* INFRA_SETTINGS). Every prefix in
+ * `prefixHandlers` must be listed; an unlisted prefix falls back to the full
+ * snapshot. Empty arrays mean "infra is enough" (binary/JSON routes and pure
+ * redirects whose only HTML is the themed error fallback).
+ */
+const PREFIX_SETTINGS: Record<string, readonly string[]> = {
+  // --- Public HTML pages (full nav) ---
+  "": [...PUBLIC_NAV_SETTINGS, CONFIG_KEYS.HOMEPAGE_TEXT, CONFIG_KEYS.COUNTRY],
+  // --- Everything (may touch any setting) ---
+  admin: ADMIN_SETTINGS,
+  api: ALL_SNAPSHOT_SETTINGS,
+  attachment: [],
+  // --- Check-in (owner-authenticated admin view) ---
+  checkin: [
+    CONFIG_KEYS.COUNTRY,
+    CONFIG_KEYS.ATTENDEE_COLUMN_ORDER,
+    ...OWNER_AUTH_SETTINGS,
+  ],
+  // Contact form submission sends an email to the business address.
+  contact: [...PUBLIC_NAV_SETTINGS, CONFIG_KEYS.COUNTRY, ...EMAIL_SETTINGS],
+  demo: [],
+  events: [],
+  // --- Feeds (ICS/RSS): website title + country (timezone) ---
+  feeds: [CONFIG_KEYS.WEBSITE_TITLE, CONFIG_KEYS.COUNTRY],
+  gwallet: [...GOOGLE_WALLET_SETTINGS, CONFIG_KEYS.COUNTRY],
+  // --- Infra-only routes (binary/JSON responses or pure redirects) ---
+  image: [],
+  join: [],
+  listings: [...PUBLIC_NAV_SETTINGS, CONFIG_KEYS.COUNTRY],
+  order: [
+    ...PUBLIC_NAV_SETTINGS,
+    CONFIG_KEYS.ORDER_INTRO_TEXT,
+    CONFIG_KEYS.COUNTRY,
+  ],
+  // --- Checkout / payment (bare layout, no public nav) ---
+  pay: PAYMENT_SETTINGS,
+  payment: [...PAYMENT_SETTINGS, ...EMAIL_SETTINGS],
+  "read-only": [],
+  renew: BOOKING_FLOW_SETTINGS,
+  setup: [],
+  // --- Inbound SMS webhook (JSON only) ---
+  sms: [
+    CONFIG_KEYS.SMS_GATEWAY_WEBHOOK_SECRET,
+    CONFIG_KEYS.SMS_GATEWAY_PASSPHRASE,
+  ],
+  // --- Ticket view + wallet passes ---
+  t: [CONFIG_KEYS.COUNTRY, ...APPLE_WALLET_SETTINGS, ...GOOGLE_WALLET_SETTINGS],
+  terms: PUBLIC_NAV_SETTINGS,
+  // --- Booking flows (form + checkout + emails) ---
+  // Ticket pages are embeddable, so applySecurityHeaders reads embed_hosts.
+  ticket: [...BOOKING_FLOW_SETTINGS, CONFIG_KEYS.EMBED_HOSTS],
+  // --- Unsubscribe page (bare layout + page title) ---
+  unsubscribe: [CONFIG_KEYS.WEBSITE_TITLE],
+  v1: [...APPLE_WALLET_SETTINGS, CONFIG_KEYS.COUNTRY],
+  wallet: [...APPLE_WALLET_SETTINGS, CONFIG_KEYS.COUNTRY],
+};
+
+/** Settings to pre-load for a path: infra ∪ the prefix's bundle. */
+const settingsForPath = (path: string): readonly string[] => {
+  const prefix = getPrefix(path);
+  const bundle = PREFIX_SETTINGS[prefix] ?? ALL_SNAPSHOT_SETTINGS;
+  return [...INFRA_SETTINGS, ...bundle];
 };
 
 /** Create a lazy-loaded route handler (prefix already matched by dispatch map) */
@@ -513,10 +719,19 @@ const applyFlashFromCookie = (request: Request): string | null => {
  * Run settings load, schedule pruning, resolve effective domain.
  * These are per-request setup tasks that must happen before routing.
  */
-const prepareRequestEnvironment = async (request: Request): Promise<void> => {
-  // Ensure settings cache is populated before reading custom domain.
-  // loadAll() is a no-op when the cache is still valid (60 s TTL).
-  await settings.loadAll();
+const prepareRequestEnvironment = async (
+  request: Request,
+  path: string,
+  method: string,
+): Promise<void> => {
+  // Turn on query recording before the settings load for admin GETs, so that
+  // load appears in the debug footer. The footer itself stays staff-gated
+  // (enableFooterDebug, after auth). Non-admin requests skip the overhead.
+  if (method === "GET" && getPrefix(path) === "admin") enableQueryLog();
+
+  // Load only the settings this route needs (infra ∪ prefix bundle) in one
+  // targeted query. The cache is a no-op when still valid (60 s TTL).
+  await settings.loadKeys(settingsForPath(path));
 
   // Schedule DB pruning as fire-and-forget pending work. Each
   // prune task self-guards via its last_pruned_* timestamp, so
@@ -617,7 +832,7 @@ const processRequest = async (
       return logAndReturn(trackingRedirect, method, path, getElapsed);
     }
 
-    await prepareRequestEnvironment(effectiveRequest);
+    await prepareRequestEnvironment(effectiveRequest, path, method);
 
     if (!isValidContentType(effectiveRequest, path)) {
       return logAndReturn(
@@ -634,6 +849,9 @@ const processRequest = async (
       path,
       getElapsed,
     );
+    // Dev/test safety net: prove this route declared every setting it read.
+    // No-op in production (audit scope is never entered).
+    assertSettingsReadsDeclared(`${method} ${path}`);
   } catch (error) {
     response = logAndReturn(
       handleRoutingError(error, method, path),
@@ -666,7 +884,9 @@ export const handleRequest = async (
           runWithQueryLogContext(() =>
             runWithFlashContext(() =>
               runWithSessionContext(() =>
-                processRequest(effectiveRequest, server),
+                runWithSettingsAudit(() =>
+                  processRequest(effectiveRequest, server),
+                ),
               ),
             ),
           ),

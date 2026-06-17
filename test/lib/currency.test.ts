@@ -6,7 +6,7 @@ import {
   toMajorUnits,
   toMinorUnits,
 } from "#shared/currency.ts";
-import { settings } from "#shared/db/settings.ts";
+import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import {
   createTestDbWithSetup,
   resetDb,
@@ -158,7 +158,7 @@ describe("currency", () => {
     beforeEach(async () => {
       setupTestEncryptionKey();
       await createTestDbWithSetup("US");
-      await settings.loadAll();
+      await settings.loadKeys(ALL_SETTINGS_KEYS);
     });
 
     afterEach(() => {

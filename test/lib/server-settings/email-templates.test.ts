@@ -1,7 +1,11 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
+import {
+  ALL_SETTINGS_KEYS,
+  CONFIG_KEYS,
+  settings,
+} from "#shared/db/settings.ts";
 import { resetEngine } from "#shared/email-renderer.ts";
 import {
   assertJson,
@@ -157,7 +161,7 @@ describeWithEnv("admin email templates", { db: true }, () => {
         subject: "Custom: {{ listing_names }}",
         text: "Hi {{ attendee.name }}",
       });
-      await settings.loadAll();
+      await settings.loadKeys(ALL_SETTINGS_KEYS);
 
       // Raw DB values should be encrypted, not plaintext
       const rawSubject = settings.getCachedRaw(
@@ -192,7 +196,7 @@ describeWithEnv("admin email templates", { db: true }, () => {
         "Custom subject",
       );
       settings.invalidateCache();
-      await settings.loadAll();
+      await settings.loadKeys(ALL_SETTINGS_KEYS);
 
       const response = await postTemplateForm(
         "/admin/settings/email-templates/confirmation",
