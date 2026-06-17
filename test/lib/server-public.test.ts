@@ -114,6 +114,17 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
       expect(response.status).toBe(404);
     });
 
+    test("redirects legacy /events to listings when public site is enabled", async () => {
+      await settings.update.showPublicSite(true);
+      const response = await handleRequest(mockRequest("/events"));
+      expectRedirect(response, /^\/listings$/);
+    });
+
+    test("does not redirect legacy /events when public site is disabled", async () => {
+      const response = await handleRequest(mockRequest("/events"));
+      expect(response.status).toBe(404);
+    });
+
     test("renders markdown paragraphs in homepage text", async () => {
       await settings.update.showPublicSite(true);
       await settings.update.homepageText("Line one\n\nLine two");

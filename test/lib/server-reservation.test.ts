@@ -8,6 +8,7 @@ import {
 } from "#shared/db/attendee-statuses.ts";
 import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
 import { getDb } from "#shared/db/client.ts";
+import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
@@ -16,6 +17,7 @@ import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import {
   createTestListing,
   describeWithEnv,
+  expectFlash,
   mockRequest,
   setupStripe,
   submitTicketForm,
@@ -305,6 +307,80 @@ describeWithEnv(
       } finally {
         checkout.restore();
       }
+    });
+
+    test("records stock usage for zero-total modifier bookings", async () => {
+      await setupStripe();
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        thankYouUrl: "https://example.com",
+        unitPrice: 1000,
+      });
+      const modifier = await modifiersTable.insert({
+        calcKind: "fixed",
+        calcValue: 10,
+        direction: "discount",
+        name: "Comp",
+        stock: 1,
+      });
+
+      const response = await submitTicketForm(listing.slug, {
+        [`quantity_${listing.id}`]: "1",
+        email: "buyer@example.com",
+        name: "Buyer",
+      });
+
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("https://example.com");
+      expect(await modifierUsedQuantities([modifier.id])).toEqual(
+        new Map([[modifier.id, 1]]),
+      );
+    });
+
+    test("rolls back a zero-total modifier booking when stock sells out after pricing", async () => {
+      await setupStripe();
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        thankYouUrl: "https://example.com",
+        unitPrice: 1000,
+      });
+      const modifier = await modifiersTable.insert({
+        calcKind: "fixed",
+        calcValue: 10,
+        direction: "discount",
+        name: "Comp",
+        stock: 1,
+      });
+      await getDb().execute(
+        `CREATE TRIGGER test_consume_modifier_before_order
+         AFTER INSERT ON attendees
+         BEGIN
+           INSERT INTO modifier_usages
+             (modifier_id, attendee_id, quantity, amount_applied, created)
+           VALUES (${modifier.id}, NEW.id, 1, 1000, '2024-01-01T00:00:00Z');
+         END`,
+      );
+
+      const response = await submitTicketForm(listing.slug, {
+        [`quantity_${listing.id}`]: "1",
+        email: "buyer@example.com",
+        name: "Buyer",
+      });
+
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location") ?? "").toMatch(
+        new RegExp(`^/ticket/${listing.slug}\\?flash=`),
+      );
+      expectFlash(
+        response,
+        "An extra you selected sold out while you were checking out. Please try again.",
+        false,
+      );
+      expect(await modifierUsedQuantities([modifier.id])).toEqual(new Map());
+      const attendeeCount = await getDb().execute(
+        "SELECT COUNT(*) AS count FROM attendees",
+      );
+      expect(Number(attendeeCount.rows[0]!.count)).toBe(0);
     });
 
     test("carries no deposit when no public-default status is configured", async () => {

@@ -120,6 +120,15 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
     expect([302, 303]).toContain(response.status);
   });
 
+  test("POST rejects an invalid csrf token", async () => {
+    const attendeeId = await createReserved(1500);
+    const token = await signBalanceToken(attendeeId);
+    const response = await handleRequest(
+      mockFormRequest(`/pay/${token}`, { csrf_token: "invalid" }, ""),
+    );
+    expect(await response.text()).toContain("not valid");
+  });
+
   test("POST starts a checkout for the balance", async () => {
     await setupStripe();
     const attendeeId = await createReserved(1500);

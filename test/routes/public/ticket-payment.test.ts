@@ -5,7 +5,7 @@ import {
   bookingDateFields,
   buildRegistrationItems,
   computeSharedDates,
-  processFreeReservation,
+  createFreeReservation,
   resolveDayCount,
 } from "#routes/public/ticket-payment.ts";
 import { addDays } from "#shared/dates.ts";
@@ -134,7 +134,7 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
     });
   });
 
-  describe("processFreeReservation (all-or-nothing)", () => {
+  describe("createFreeReservation (all-or-nothing)", () => {
     test("rejects the whole cart and persists nothing when a group cap is partially exceeded", async () => {
       const group = await createTestGroup({
         maxAttendees: 3,
@@ -161,7 +161,7 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
         [e1.id, 2],
         [e2.id, 2],
       ]);
-      const result = await processFreeReservation({
+      const result = await createFreeReservation({
         contact,
         date: null,
         listings: ticketListings,
@@ -195,7 +195,7 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
         await ticketListingFor(e1.id),
         await ticketListingFor(e2.id),
       ];
-      const result = await processFreeReservation({
+      const result = await createFreeReservation({
         contact,
         date: null,
         listings: ticketListings,

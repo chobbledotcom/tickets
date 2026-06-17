@@ -9,7 +9,6 @@ import {
   notFoundResponse,
 } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
-import { hmacHash } from "#shared/crypto/hashing.ts";
 import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
 import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
 import type {
@@ -44,7 +43,6 @@ import {
   normalizeDurationDays,
 } from "#shared/types.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
-import { logAndNotifyRegistration } from "#shared/webhook.ts";
 import type { TicketListing } from "#templates/public.tsx";
 import { formatAtomicError, listingsWithQuantity } from "./ticket-form.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
@@ -318,25 +316,6 @@ export const createFreeReservation = async ({
     success: true,
     token: attendees[0]!.ticket_token,
   };
-};
-
-export const processFreeReservation = async ({
-  siteToken,
-  ...reservation
-}: FreeReservationParams & {
-  siteToken?: string;
-}): Promise<FreeReservationResult> => {
-  const result = await createFreeReservation(reservation);
-  if (!result.success) return result;
-
-  // Hash before passing on so the renewal lookup uses the same blind index
-  // the paid path would carry through Stripe session metadata. Notification
-  // is the caller's responsibility for paths that may roll the order back
-  // (zero-total-with-modifiers); this wrapper keeps it for the plain free
-  // path so existing callers still notify on success.
-  const siteTokenIndex = siteToken ? await hmacHash(siteToken) : undefined;
-  await logAndNotifyRegistration(result.entries, siteTokenIndex);
-  return result;
 };
 
 /** Load and validate active listings, return 404 if none */
