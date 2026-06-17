@@ -79,8 +79,7 @@ export const adminCalendarPage = (
     if (dateFilter) params.set("date", dateFilter);
     const param = agentFilterParam(f);
     if (param) params.set("agent", param);
-    const query = params.toString();
-    return `/admin/calendar${query ? `?${query}` : ""}#attendees`;
+    return `/admin/calendar?${params.toString()}#attendees`;
   };
 
   // The export carries the active agent filter so it matches the on-screen
