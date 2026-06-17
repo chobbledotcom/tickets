@@ -15,11 +15,43 @@ import type { Client, InValue } from "@libsql/client";
 import { lazyRef } from "#fp";
 import { ensureDefaultAttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import { createAndUploadBackup, hasRecentBackup } from "#shared/db/backup.ts";
-import { executeBatch, getDb, queryBatchPrimary } from "#shared/db/client.ts";
+import {
+  countRows,
+  executeBatch,
+  getDb,
+  queryBatchPrimary,
+} from "#shared/db/client.ts";
 import { getEnv } from "#shared/env.ts";
 import { logDebug } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
+import currentSchemaMigration from "./migrations/2026-06-11_current_schema.ts";
+import sumupCheckoutsMigration from "./migrations/2026-06-12_sumup_checkouts.ts";
+import eventAttendeesOverlapIndexMigration from "./migrations/2026-06-13_event_attendees_overlap_index.ts";
+import attendeeStatusesMigration from "./migrations/2026-06-14_attendee_statuses.ts";
+import emailPreferencesMigration from "./migrations/2026-06-14_email_preferences.ts";
+import listingCustomisableDaysMigration from "./migrations/2026-06-14_listing_customisable_days.ts";
+import questionSortOrderMigration from "./migrations/2026-06-14_question_sort_order.ts";
+import renameEventsToListingsMigration from "./migrations/2026-06-14_rename_events_to_listings.ts";
+import activityLogListingIdIndexMigration from "./migrations/2026-06-15_activity_log_listing_id_index.ts";
+import agentUsersMigration from "./migrations/2026-06-16_agent_users.ts";
+import attendeePhoneIndexMigration from "./migrations/2026-06-16_attendee_phone_index.ts";
+import emailTemplatesMigration from "./migrations/2026-06-16_email_templates.ts";
+import listingAggregatesMigration from "./migrations/2026-06-16_listing_aggregates.ts";
+import logisticsAgentsMigration from "./migrations/2026-06-16_logistics_agents.ts";
+import modifiersMigration from "./migrations/2026-06-16_modifiers.ts";
+import processedPaymentsFailureDataMigration from "./migrations/2026-06-16_processed_payments_failure_data.ts";
+import smsMessagesMigration from "./migrations/2026-06-16_sms_messages.ts";
+import modifierAggregatesMigration from "./migrations/2026-06-17_modifier_aggregates.ts";
+import modifierCodeMigration from "./migrations/2026-06-17_modifier_code.ts";
+import type {
+  AdditiveMigration,
+  Migration,
+  MigrationContext,
+  SchemaRequirement,
+} from "./migrations/types.ts";
+
+export type { Migration, SchemaRequirement } from "./migrations/types.ts";
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -1351,6 +1383,15 @@ const verifyCurrentAppSchema = async (): Promise<void> => {
 };
 
 const syncCurrentSchema = async (): Promise<void> => {
+  logDebug(
+    "Migration",
+    "Step 0: repairing legacy schema renames before schema apply...",
+  );
+  // Must run BEFORE applySchemaChanges(): otherwise the declarative apply can
+  // create empty target tables/columns first, leaving legacy data behind under
+  // the old names.
+  await repairLegacyRenames(EVENT_TO_LISTING_RENAME_PLAN);
+
   logDebug("Migration", "Step 1: applying schema changes...");
   await applySchemaChanges();
   logDebug("Migration", "Step 2: syncing indexes...");
@@ -1370,37 +1411,6 @@ const syncCurrentSchema = async (): Promise<void> => {
 
   logDebug("Migration", "Step 7: backfilling modifier aggregates...");
   await backfillModifierAggregates();
-};
-
-/**
- * The schema objects a single migration is responsible for. Drives that
- * migration's verify() — so a failure names exactly what the migration was
- * meant to add, instead of re-checking the whole latest schema (which an
- * early migration could satisfy only because a later migration's up() already
- * created everything). It also lets tests drive a precise "restore from this
- * migration" check by dropping exactly these objects and re-running up().
- */
-export type SchemaRequirement = {
-  /** Tables this migration creates (verified to have their full SCHEMA columns). */
-  newTables?: string[];
-  /** Columns this migration adds to already-existing tables. */
-  columns?: Record<string, string[]>;
-  /** Indexes this migration creates. */
-  indexes?: string[];
-  /** Triggers this migration creates. */
-  triggers?: string[];
-  /** Legacy tables this migration removes (must be absent afterwards). */
-  absentTables?: string[];
-};
-
-export type Migration = {
-  id: string;
-  description: string;
-  up: () => Promise<void>;
-  /** Runs after up(); a failure leaves the migration unrecorded for retry. */
-  verify: () => Promise<void>;
-  /** Objects this migration owns; drives verify() and the restore tests. */
-  requires?: SchemaRequirement;
 };
 
 const assertTableColumns = (
@@ -1482,378 +1492,236 @@ const verifyRequirement =
   };
 
 /** Build a migration whose verify() is derived from the objects it owns. */
-const additive = (
-  m: Omit<Migration, "verify"> & { requires: SchemaRequirement },
-): Migration => ({ ...m, verify: verifyRequirement(m.requires) });
+const additive = (m: AdditiveMigration): Migration => ({
+  ...m,
+  verify: verifyRequirement(m.requires),
+});
 
-/**
- * Rename the legacy "event" domain to "listing".
- *
- * Renames are guarded so this is a no-op on fresh databases (where the
- * declarative schema already created the listing-named tables) and only
- * rewrites genuine legacy "event" tables/columns. Index names are left to
- * syncIndexes(), which drops any index not declared in SCHEMA and recreates
- * the listing-named ones.
- */
-const renameTableIfLegacy = async (from: string, to: string): Promise<void> => {
-  if ((await tableExists(from)) && !(await tableExists(to))) {
-    await runMigration(`ALTER TABLE ${from} RENAME TO ${to}`);
+type LegacyTableRename = readonly [legacy: string, target: string];
+type LegacyColumnRename = readonly [
+  table: string,
+  legacy: string,
+  target: string,
+];
+
+type LegacyRenamePlan = {
+  tableRenames: readonly LegacyTableRename[];
+  columnRenames: readonly LegacyColumnRename[];
+};
+
+const EVENT_TO_LISTING_RENAME_PLAN: LegacyRenamePlan = {
+  columnRenames: [
+    ["listings", "event_type", "listing_type"],
+    ["listing_attendees", "event_id", "listing_id"],
+    ["listing_questions", "event_id", "listing_id"],
+    ["activity_log", "event_id", "listing_id"],
+    ["built_sites", "assigned_event_id", "assigned_listing_id"],
+    // Legacy attendees table carried event_id before backfill dropped it.
+    ["attendees", "event_id", "listing_id"],
+  ],
+  tableRenames: [
+    ["events", "listings"],
+    ["event_attendees", "listing_attendees"],
+    ["event_questions", "listing_questions"],
+  ],
+};
+
+type RenameState = "neither" | "target_only" | "legacy_only" | "both";
+
+const tableRenameState = async (
+  legacy: string,
+  target: string,
+): Promise<RenameState> => {
+  const [legacyExists, targetExists] = await Promise.all([
+    tableExists(legacy),
+    tableExists(target),
+  ]);
+  if (legacyExists && targetExists) return "both";
+  if (legacyExists) return "legacy_only";
+  if (targetExists) return "target_only";
+  return "neither";
+};
+
+const repairLegacyTableRename = async (
+  legacy: string,
+  target: string,
+): Promise<void> => {
+  const state = await tableRenameState(legacy, target);
+  if (state === "neither" || state === "target_only") return;
+  if (state === "legacy_only") {
+    await runMigration(`ALTER TABLE ${legacy} RENAME TO ${target}`);
+    return;
+  }
+  // state === "both" — a failed prior migration attempt created the empty
+  // target before the legacy table could be renamed. Only auto-resolve when
+  // the target is provably empty; otherwise refuse to guess how to merge.
+  const targetCount = await countRows(target);
+  if (targetCount > 0) {
+    throw new Error(
+      `Cannot migrate "${legacy}" -> "${target}": both tables exist and the ` +
+        `target has ${targetCount} row(s). Manual migration is required — ` +
+        "back up the database, merge the legacy rows into the target by hand, " +
+        "drop the legacy table, then re-run the migration.",
+    );
+  }
+  await runMigration(`DROP TABLE ${target}`);
+  await runMigration(`ALTER TABLE ${legacy} RENAME TO ${target}`);
+};
+
+const columnRenameState = async (
+  table: string,
+  legacy: string,
+  target: string,
+): Promise<RenameState> => {
+  const cols = await getExistingColumns(table);
+  const legacyExists = cols.has(legacy);
+  const targetExists = cols.has(target);
+  if (legacyExists && targetExists) return "both";
+  if (legacyExists) return "legacy_only";
+  if (targetExists) return "target_only";
+  return "neither";
+};
+
+const countRowsWhere = async (
+  table: string,
+  where: string,
+): Promise<number> => {
+  const result = await getDb().execute(
+    `SELECT COUNT(*) AS n FROM ${table} WHERE ${where}`,
+  );
+  return Number(result.rows[0]?.n ?? 0);
+};
+
+const countColumnValues = (table: string, column: string): Promise<number> =>
+  countRowsWhere(table, `${column} IS NOT NULL`);
+
+const escapeRegExp = (value: string): string =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const sqlIdentifierPattern = (name: string): RegExp =>
+  new RegExp(`(?<![A-Za-z0-9_])${escapeRegExp(name)}(?![A-Za-z0-9_])`);
+
+const dropProjectIndexesReferencingColumn = async (
+  table: string,
+  column: string,
+): Promise<void> => {
+  const result = await getDb().execute({
+    args: [table],
+    sql:
+      "SELECT name, sql FROM sqlite_master " +
+      "WHERE type = 'index' AND tbl_name = ? AND sql IS NOT NULL",
+  });
+
+  const referencesColumn = sqlIdentifierPattern(column);
+  for (const row of result.rows) {
+    const name = String(row.name);
+    const sql = String(row.sql);
+    if (name.startsWith("idx_") && referencesColumn.test(sql)) {
+      await runMigration(`DROP INDEX IF EXISTS ${name}`);
+    }
   }
 };
 
-const renameColumnIfLegacy = async (
+const repairLegacyColumnRename = async (
   table: string,
-  from: string,
-  to: string,
+  legacy: string,
+  target: string,
 ): Promise<void> => {
   if (!(await tableExists(table))) return;
-  const cols = await getExistingColumns(table);
-  if (cols.has(from) && !cols.has(to)) {
-    await runMigration(`ALTER TABLE ${table} RENAME COLUMN ${from} TO ${to}`);
+
+  const state = await columnRenameState(table, legacy, target);
+  if (state === "neither" || state === "target_only") return;
+  if (state === "legacy_only") {
+    await runMigration(
+      `ALTER TABLE ${table} RENAME COLUMN ${legacy} TO ${target}`,
+    );
+    return;
+  }
+
+  const [legacyCount, targetCount] = await Promise.all([
+    countColumnValues(table, legacy),
+    countColumnValues(table, target),
+  ]);
+  if (legacyCount > 0 && targetCount > 0) {
+    throw new Error(
+      `Cannot migrate "${table}.${legacy}" -> "${table}.${target}": both ` +
+        `columns contain data (${legacyCount} legacy row(s), ` +
+        `${targetCount} target row(s)). Manual migration is required — ` +
+        "back up the database, merge the legacy column values into the " +
+        "target by hand, drop the legacy column, then re-run the migration.",
+    );
+  }
+
+  if (legacyCount > 0) {
+    await runMigration(`UPDATE ${table} SET ${target} = ${legacy}`);
+  }
+  await dropProjectIndexesReferencingColumn(table, legacy);
+  await runMigration(`ALTER TABLE ${table} DROP COLUMN ${legacy}`);
+};
+
+/**
+ * Repair-safe legacy schema renames. This runs before schema sync so a failed
+ * older run that created empty targets can be retried without dropping legacy
+ * data.
+ */
+const repairLegacyRenames = async (plan: LegacyRenamePlan): Promise<void> => {
+  for (const [legacy, target] of plan.tableRenames) {
+    await repairLegacyTableRename(legacy, target);
+  }
+  for (const [table, legacy, target] of plan.columnRenames) {
+    await repairLegacyColumnRename(table, legacy, target);
   }
 };
 
+/**
+ * Rename the legacy "event" domain to "listing". Public entrypoint so tests
+ * can drive the rename directly; in production it is called by the baseline
+ * reconcile and by the `2026-06-14_rename_events_to_listings` migration (as an
+ * idempotent verification/cleanup step).
+ */
 export const renameEventsToListings = async (): Promise<void> => {
-  await renameTableIfLegacy("events", "listings");
-  await renameTableIfLegacy("event_attendees", "listing_attendees");
-  await renameTableIfLegacy("event_questions", "listing_questions");
-
-  await renameColumnIfLegacy("listings", "event_type", "listing_type");
-  await renameColumnIfLegacy("listing_attendees", "event_id", "listing_id");
-  await renameColumnIfLegacy("listing_questions", "event_id", "listing_id");
-  await renameColumnIfLegacy("activity_log", "event_id", "listing_id");
-  await renameColumnIfLegacy(
-    "built_sites",
-    "assigned_event_id",
-    "assigned_listing_id",
-  );
-  // Legacy attendees table carried event_id before backfill dropped it.
-  await renameColumnIfLegacy("attendees", "event_id", "listing_id");
-
+  await repairLegacyRenames(EVENT_TO_LISTING_RENAME_PLAN);
   await applySchemaChanges();
   await syncIndexes();
 };
 
-// Per-migration object ownership — kept beside each migration so verify() and
-// the restore tests stay in lockstep with what up() actually adds.
-const REQ_SUMUP_CHECKOUTS: SchemaRequirement = {
-  indexes: ["idx_sumup_checkouts_sumup_id"],
-  newTables: ["sumup_checkouts"],
-};
-const REQ_OVERLAP_INDEX: SchemaRequirement = {
-  indexes: ["idx_listing_attendees_listing_end_start"],
-};
-const REQ_RENAME_LISTINGS: SchemaRequirement = {
-  absentTables: ["events", "event_attendees", "event_questions"],
-  columns: {
-    activity_log: ["listing_id"],
-    built_sites: ["assigned_listing_id"],
-    listing_attendees: ["listing_id"],
-    listing_questions: ["listing_id"],
-    listings: ["listing_type"],
-  },
-};
-const REQ_QUESTION_SORT_ORDER: SchemaRequirement = {
-  columns: { questions: ["sort_order"] },
-};
-const REQ_EMAIL_PREFERENCES: SchemaRequirement = {
-  newTables: ["email_preferences"],
-};
-const REQ_CUSTOMISABLE_DAYS: SchemaRequirement = {
-  columns: { listings: ["customisable_days", "day_prices"] },
-};
-const REQ_ATTENDEE_STATUSES: SchemaRequirement = {
-  columns: {
-    activity_log: ["attendee_id"],
-    attendees: ["status_id", "remaining_balance"],
-  },
-  indexes: [
-    "idx_attendee_statuses_sort_order",
-    "idx_attendees_status_id",
-    "idx_activity_log_attendee_id",
-  ],
-  newTables: ["attendee_statuses"],
-};
-const REQ_ACTIVITY_LOG_LISTING_INDEX: SchemaRequirement = {
-  indexes: ["idx_activity_log_listing_id"],
-};
-const REQ_LOGISTICS: SchemaRequirement = {
-  columns: {
-    attendees: ["split_logistics_agents"],
-    listing_attendees: [
-      "start_agent_id",
-      "end_agent_id",
-      "start_time",
-      "end_time",
-    ],
-    listings: ["uses_logistics"],
-  },
-  newTables: ["logistics_agents"],
-};
-const REQ_EMAIL_TEMPLATES: SchemaRequirement = {
-  newTables: ["email_templates"],
-};
-const REQ_AGENT_USERS: SchemaRequirement = {
-  columns: { listing_attendees: ["start_done", "end_done"] },
-  indexes: [
-    "idx_user_logistics_agents_unique",
-    "idx_user_logistics_agents_agent_id",
-  ],
-  newTables: ["user_logistics_agents"],
-};
-const REQ_PROCESSED_PAYMENTS_FAILURE_DATA: SchemaRequirement = {
-  columns: { processed_payments: ["failure_data"] },
-};
-const REQ_MODIFIERS: SchemaRequirement = {
-  indexes: [
-    "idx_modifiers_code_index",
-    "idx_modifier_listings_pair",
-    "idx_modifier_listings_listing",
-    "idx_modifier_groups_pair",
-    "idx_modifier_groups_group",
-    "idx_modifier_usages_modifier",
-    "idx_modifier_usages_attendee",
-  ],
-  newTables: [
-    "modifiers",
-    "modifier_listings",
-    "modifier_groups",
-    "modifier_usages",
-  ],
-};
-const REQ_MODIFIER_CODE: SchemaRequirement = {
-  columns: { modifiers: ["code"] },
-};
-const REQ_SMS_MESSAGES: SchemaRequirement = {
-  indexes: ["idx_sms_messages_provider_id", "idx_sms_messages_created"],
-  newTables: ["sms_messages"],
-};
-const REQ_ATTENDEE_PHONE_INDEX: SchemaRequirement = {
-  columns: { attendees: ["phone_index"] },
-  indexes: ["idx_attendees_phone_index"],
-};
-const REQ_LISTING_AGGREGATES: SchemaRequirement = {
-  columns: { listings: ["booked_quantity", "tickets_count", "income"] },
-  triggers: [
-    "trg_listing_attendees_aggregates_insert",
-    "trg_listing_attendees_aggregates_delete",
-    "trg_listing_attendees_aggregates_update",
-  ],
-};
-const REQ_MODIFIER_AGGREGATES: SchemaRequirement = {
-  columns: { modifiers: ["total_uses", "usage_count", "total_revenue"] },
-  triggers: [
-    "trg_modifier_usages_aggregates_insert",
-    "trg_modifier_usages_aggregates_delete",
-    "trg_modifier_usages_aggregates_update",
-  ],
+const migrationContext: MigrationContext = {
+  additive,
+  applySchemaChanges,
+  backfillListingAggregates,
+  backfillModifierAggregates,
+  ensureDefaultAttendeeStatus,
+  getDb,
+  renameEventsToListings,
+  syncCurrentSchema,
+  syncIndexes,
+  syncTriggers,
+  tableExists,
+  verifyCurrentAppSchema,
+  verifyRequirement,
 };
 
 export const MIGRATIONS: Migration[] = [
-  {
-    // The baseline reconcile genuinely brings the WHOLE schema current from any
-    // legacy shape, so it keeps the full-schema verification.
-    description:
-      "Reconcile legacy databases with the current declarative schema",
-    id: "2026-06-11_current_schema",
-    up: syncCurrentSchema,
-    verify: verifyCurrentAppSchema,
-  },
-  additive({
-    description:
-      "Add encrypted sumup_checkouts staging table for SumUp metadata",
-    id: "2026-06-12_sumup_checkouts",
-    requires: REQ_SUMUP_CHECKOUTS,
-    up: async () => {
-      await applySchemaChanges();
-      await syncIndexes();
-    },
-  }),
-  {
-    description:
-      "Reorder listing_attendees overlap index to (listing_id, end_at, start_at) so per-day capacity scans skip historical rows",
-    // NB: legacy id retained verbatim — this is a stored marker, not display text
-    id: "2026-06-13_event_attendees_overlap_index",
-    requires: REQ_OVERLAP_INDEX,
-    up: async () => {
-      // Pre-rename databases still have the "events" table; "listings" doesn't
-      // exist yet, so syncIndexes() would fail trying to create indexes on it.
-      // The rename_events_to_listings migration that follows calls syncIndexes()
-      // after renaming the tables, which creates the reordered index there.
-      if (await tableExists("events")) return;
-      await syncIndexes();
-    },
-    verify: async () => {
-      // On pre-rename databases the index doesn't exist yet — it lands via the
-      // rename migration's syncIndexes() call. Nothing to verify here.
-      if (await tableExists("events")) return;
-      await verifyRequirement(REQ_OVERLAP_INDEX)();
-    },
-  },
-  additive({
-    description:
-      "Rename the 'event' domain to 'listing' (tables, columns and indexes)",
-    id: "2026-06-14_rename_events_to_listings",
-    requires: REQ_RENAME_LISTINGS,
-    up: renameEventsToListings,
-  }),
-  additive({
-    description:
-      "Add a single global sort_order per question (replacing per-listing ordering); backfill existing questions from their row id to preserve creation order",
-    id: "2026-06-14_question_sort_order",
-    requires: REQ_QUESTION_SORT_ORDER,
-    up: async () => {
-      await applySchemaChanges();
-      // One-time backfill: existing rows all default to 0, so seed each from
-      // its id (distinct, creation-ordered). New questions are assigned a
-      // non-zero sort_order on creation, so this never re-touches them.
-      await getDb().execute(
-        "UPDATE questions SET sort_order = id WHERE sort_order = 0",
-      );
-    },
-  }),
-  additive({
-    description:
-      "Add email_preferences table for marketing opt-outs and contact history",
-    id: "2026-06-14_email_preferences",
-    requires: REQ_EMAIL_PREFERENCES,
-    up: async () => {
-      await applySchemaChanges();
-      await syncIndexes();
-    },
-  }),
-  additive({
-    description:
-      "Add customisable_days and day_prices columns to listings so visitors can choose how many days to book with per-day-count pricing",
-    id: "2026-06-14_listing_customisable_days",
-    requires: REQ_CUSTOMISABLE_DAYS,
-    up: async () => {
-      await applySchemaChanges();
-    },
-  }),
-  additive({
-    description:
-      "Add attendee_statuses table, status_id + remaining_balance on attendees, and attendee_id on activity_log; seed the default status and backfill existing attendees onto it",
-    id: "2026-06-14_attendee_statuses",
-    requires: REQ_ATTENDEE_STATUSES,
-    up: async () => {
-      await applySchemaChanges();
-      await syncIndexes();
-      await ensureDefaultAttendeeStatus();
-    },
-  }),
-  additive({
-    description:
-      "Add idx_activity_log_listing_id so per-listing activity log lookups use an index range scan instead of a full table scan",
-    id: "2026-06-15_activity_log_listing_id_index",
-    requires: REQ_ACTIVITY_LOG_LISTING_INDEX,
-    up: syncIndexes,
-  }),
-  additive({
-    description:
-      "Add logistics_agents table, uses_logistics flag on listings, split_logistics_agents on attendees, and start_agent_id/end_agent_id/start_time/end_time on listing_attendees for the logistics flow",
-    id: "2026-06-16_logistics_agents",
-    requires: REQ_LOGISTICS,
-    up: async () => {
-      await applySchemaChanges();
-    },
-  }),
-  additive({
-    description:
-      "Add email_templates table for owner-keypair-encrypted reusable email subjects and bodies",
-    id: "2026-06-16_email_templates",
-    requires: REQ_EMAIL_TEMPLATES,
-    up: async () => {
-      await applySchemaChanges();
-    },
-  }),
-  additive({
-    description:
-      "Add user_logistics_agents table (agent users ↔ logistics agents) and start_done/end_done flags on listing_attendees for the delivery-agent run sheet",
-    id: "2026-06-16_agent_users",
-    requires: REQ_AGENT_USERS,
-    up: async () => {
-      await applySchemaChanges();
-      await syncIndexes();
-    },
-  }),
-  additive({
-    description:
-      "Add failure_data to processed_payments so a handled payment failure (refund/sold-out/price-change) is recorded as a terminal outcome and replayed idempotently instead of leaving a stuck reservation",
-    id: "2026-06-16_processed_payments_failure_data",
-    requires: REQ_PROCESSED_PAYMENTS_FAILURE_DATA,
-    up: async () => {
-      await applySchemaChanges();
-    },
-  }),
-  additive({
-    description:
-      "Add booked_quantity, tickets_count and income aggregate columns to listings, maintained by triggers on listing_attendees, so listing reads and active-listing stats avoid scanning the attendee rows; backfill from existing data",
-    id: "2026-06-16_listing_aggregates",
-    requires: REQ_LISTING_AGGREGATES,
-    up: async () => {
-      await applySchemaChanges();
-      // Triggers first, then an absolute recompute: any attendee write that
-      // slips in between is counted by the trigger and then overwritten by the
-      // fresh backfill total, so no insert can be lost.
-      await syncTriggers();
-      await backfillListingAggregates();
-    },
-  }),
-  additive({
-    description:
-      "Add modifiers table for owner-defined price modifiers (surcharges, discounts, add-ons), plus modifier_listings, modifier_groups and modifier_usages for scoping and stock",
-    id: "2026-06-16_modifiers",
-    requires: REQ_MODIFIERS,
-    up: async () => {
-      await applySchemaChanges();
-      await syncIndexes();
-    },
-  }),
-  additive({
-    description:
-      "Add an encrypted code column to modifiers for promo-code (trigger=code) modifiers; the public code box matches against code_index",
-    id: "2026-06-17_modifier_code",
-    requires: REQ_MODIFIER_CODE,
-    up: async () => {
-      await applySchemaChanges();
-    },
-  }),
-  additive({
-    description:
-      "Add sms_messages table mapping gateway message ids to attendees for status webhooks (PII-free; content lives in the activity log)",
-    id: "2026-06-16_sms_messages",
-    requires: REQ_SMS_MESSAGES,
-    up: async () => {
-      await applySchemaChanges();
-      await syncIndexes();
-    },
-  }),
-  additive({
-    description:
-      "Add phone_index to attendees so inbound SMS replies can be matched to an attendee",
-    id: "2026-06-16_attendee_phone_index",
-    requires: REQ_ATTENDEE_PHONE_INDEX,
-    up: async () => {
-      await applySchemaChanges();
-      await syncIndexes();
-    },
-  }),
-  additive({
-    description:
-      "Add total_uses, usage_count and total_revenue aggregate columns to modifiers, maintained by triggers on modifier_usages, so admin modifier reads avoid scanning the usage ledger; backfill from existing data",
-    id: "2026-06-17_modifier_aggregates",
-    requires: REQ_MODIFIER_AGGREGATES,
-    up: async () => {
-      await applySchemaChanges();
-      // Triggers first, then an absolute recompute: any usage write that slips
-      // in between is counted by the trigger and then overwritten by the fresh
-      // backfill total, so no insert can be lost.
-      await syncTriggers();
-      await backfillModifierAggregates();
-    },
-  }),
-];
+  currentSchemaMigration,
+  sumupCheckoutsMigration,
+  eventAttendeesOverlapIndexMigration,
+  renameEventsToListingsMigration,
+  questionSortOrderMigration,
+  emailPreferencesMigration,
+  listingCustomisableDaysMigration,
+  attendeeStatusesMigration,
+  activityLogListingIdIndexMigration,
+  logisticsAgentsMigration,
+  emailTemplatesMigration,
+  agentUsersMigration,
+  processedPaymentsFailureDataMigration,
+  listingAggregatesMigration,
+  modifiersMigration,
+  modifierCodeMigration,
+  smsMessagesMigration,
+  attendeePhoneIndexMigration,
+  modifierAggregatesMigration,
+].map((build) => build(migrationContext));
 
 export const MIGRATION_IDS: string[] = MIGRATIONS.map(
   (migration) => migration.id,

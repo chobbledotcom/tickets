@@ -8,6 +8,7 @@ import {
   type SchemaRequirement,
 } from "#shared/db/migrations.ts";
 import { describeWithEnv } from "#test-utils";
+import { downgradeListingDomainToLegacyNames } from "./migration-test-helpers.ts";
 
 /**
  * "Restore from each migration" — for every additive migration, start from a
@@ -207,35 +208,18 @@ describeWithEnv("db > migration restore", { db: true }, () => {
     );
   });
 
-  // Rename the current listing-named tables/columns back to their historical
-  // "event" names, reproducing the pre-rename shape on disk.
-  const downgradeToLegacyNames = () =>
-    getDb().batch(
-      [
-        "ALTER TABLE listings RENAME COLUMN listing_type TO event_type",
-        "ALTER TABLE listings RENAME TO events",
-        "ALTER TABLE listing_attendees RENAME COLUMN listing_id TO event_id",
-        "ALTER TABLE listing_attendees RENAME TO event_attendees",
-        "ALTER TABLE listing_questions RENAME COLUMN listing_id TO event_id",
-        "ALTER TABLE listing_questions RENAME TO event_questions",
-        "ALTER TABLE activity_log RENAME COLUMN listing_id TO event_id",
-        "ALTER TABLE built_sites RENAME COLUMN assigned_listing_id TO assigned_event_id",
-      ],
-      "write",
-    );
-
   describe("rename migration verify", () => {
     const rename = () => migrationById("2026-06-14_rename_events_to_listings");
 
     test("rejects while legacy event tables are still present", async () => {
-      await downgradeToLegacyNames();
+      await downgradeListingDomainToLegacyNames();
       await expect(rename().verify()).rejects.toThrow(
         "Migration verification failed",
       );
     });
 
     test("resolves after up() renames everything to listing", async () => {
-      await downgradeToLegacyNames();
+      await downgradeListingDomainToLegacyNames();
       await rename().up();
       await rename().verify();
     });
@@ -246,13 +230,13 @@ describeWithEnv("db > migration restore", { db: true }, () => {
       migrationById("2026-06-13_event_attendees_overlap_index");
 
     test("up() is a no-op when legacy 'events' table exists", async () => {
-      await downgradeToLegacyNames();
+      await downgradeListingDomainToLegacyNames();
       // Must not throw (would fail with "no such table: main.listings" before fix)
       await overlapIdx().up();
     });
 
     test("verify() passes when legacy 'events' table exists", async () => {
-      await downgradeToLegacyNames();
+      await downgradeListingDomainToLegacyNames();
       // Defers to rename migration — nothing to verify yet
       await overlapIdx().verify();
     });
