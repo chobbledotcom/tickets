@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { MASK_SENTINEL } from "#shared/db/settings.ts";
+import { SMS_PASSPHRASE_MIN_LENGTH } from "#shared/sms/e2e.ts";
 import type { SettingsPageState } from "#templates/admin/settings.tsx";
 import { adminSettingsPage } from "#templates/admin/settings.tsx";
 import type { AdvancedSettingsPageState } from "#templates/admin/settings-advanced.tsx";
@@ -479,6 +480,7 @@ describe("adminAdvancedSettingsPage", () => {
     expect(html).toContain('name="sms_gateway_username"');
     expect(html).toContain("myuser");
     expect(html).toContain("https://sms.example.com");
+    expect(html).toContain(`minlength="${SMS_PASSPHRASE_MIN_LENGTH}"`);
   });
 
   test("masks the SMS gateway secrets when configured", () => {
