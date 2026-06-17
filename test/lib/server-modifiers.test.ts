@@ -1,12 +1,18 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { toMinorUnits } from "#shared/currency.ts";
-import { getAllModifiers } from "#shared/db/modifiers.ts";
+import {
+  getAllModifiers,
+  getModifierGroupIds,
+  getModifierListingIds,
+} from "#shared/db/modifiers.ts";
 import type { Modifier } from "#shared/types.ts";
 import {
   adminFormPost,
   adminGet,
   awaitTestRequest,
+  createTestGroup,
+  createTestListing,
   createTestManagerSession,
   describeWithEnv,
   expectHtmlResponse,
@@ -325,6 +331,115 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         true,
       )(response);
       expect((await getAllModifiers()).some((m) => m.id === id)).toBe(false);
+    });
+  });
+
+  describe("scope", () => {
+    test("stores the chosen scope", async () => {
+      await adminFormPost(
+        "/admin/modifiers",
+        createData({ scope: "listings" }),
+      );
+      expect((await lastModifier()).scope).toBe("listings");
+    });
+
+    test("rejects an unknown scope", async () => {
+      const { response } = await adminFormPost(
+        "/admin/modifiers",
+        createData({ scope: "bogus" }),
+      );
+      expectRedirectWithFlash(
+        "/admin/modifiers/new",
+        "Invalid scope",
+        false,
+      )(response);
+    });
+
+    test("edit page lists linkable listings for a listings-scoped modifier", async () => {
+      await createTestListing({
+        maxAttendees: 10,
+        name: "VIP",
+        unitPrice: 100,
+      });
+      await adminFormPost(
+        "/admin/modifiers",
+        createData({ name: "Scoped", scope: "listings" }),
+      );
+      const { id } = await lastModifier();
+      const { response } = await adminGet(`/admin/modifiers/${id}/edit`);
+      await expectHtmlResponse(
+        response,
+        200,
+        "Linked listings",
+        "VIP",
+        'name="listing_ids"',
+      );
+    });
+
+    test("edit page lists linkable groups for a groups-scoped modifier", async () => {
+      await createTestGroup({ name: "Weekend" });
+      await adminFormPost(
+        "/admin/modifiers",
+        createData({ name: "GS", scope: "groups" }),
+      );
+      const { id } = await lastModifier();
+      const { response } = await adminGet(`/admin/modifiers/${id}/edit`);
+      await expectHtmlResponse(
+        response,
+        200,
+        "Linked groups",
+        "Weekend",
+        'name="group_ids"',
+      );
+    });
+
+    test("links listings via the scope form", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        name: "VIP",
+        unitPrice: 100,
+      });
+      await adminFormPost(
+        "/admin/modifiers",
+        createData({ name: "Scoped", scope: "listings" }),
+      );
+      const { id } = await lastModifier();
+      await adminFormPost(`/admin/modifiers/${id}/links`, {
+        listing_ids: String(listing.id),
+      });
+      expect(await getModifierListingIds(id)).toEqual([listing.id]);
+    });
+
+    test("links groups via the scope form", async () => {
+      await adminFormPost(
+        "/admin/modifiers",
+        createData({ name: "GS", scope: "groups" }),
+      );
+      const { id } = await lastModifier();
+      await adminFormPost(`/admin/modifiers/${id}/links`, { group_ids: "42" });
+      expect(await getModifierGroupIds(id)).toEqual([42]);
+    });
+
+    test("the scope form is a no-op for a whole-order modifier", async () => {
+      await adminFormPost("/admin/modifiers", createData());
+      const { id } = await lastModifier();
+      const { response } = await adminFormPost(
+        `/admin/modifiers/${id}/links`,
+        {},
+      );
+      expectRedirectWithFlash(
+        `/admin/modifiers/${id}/edit`,
+        "Scope updated",
+        true,
+      )(response);
+    });
+
+    test("the scope form 404s for a missing modifier", async () => {
+      const { response } = await adminFormPost(
+        "/admin/modifiers/999/links",
+        {},
+      );
+      expectStatus(404)(response);
     });
   });
 });

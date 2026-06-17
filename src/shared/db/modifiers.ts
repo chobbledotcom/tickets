@@ -8,7 +8,7 @@
  */
 
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import { queryAll } from "#shared/db/client.ts";
+import { executeBatch, queryAll } from "#shared/db/client.ts";
 import {
   defineIdTable,
   encryptedNameSchema,
@@ -30,6 +30,7 @@ export type ModifierInput = {
   calcValue: number;
   direction: ModifierDirection;
   active?: boolean;
+  scope?: ModifierScope;
   minSubtotal?: number;
   stock?: number | null;
 };
@@ -93,3 +94,43 @@ export const getModifierGroupListingIds = (
      WHERE mg.modifier_id = ?`,
     modifierId,
   );
+
+/** Group ids a modifier is linked to (for the admin scope editor). */
+export const getModifierGroupIds = (modifierId: number): Promise<number[]> =>
+  modifierIdColumn(
+    "SELECT group_id AS id FROM modifier_groups WHERE modifier_id = ?",
+    modifierId,
+  );
+
+/** Replace a modifier's link rows in `table` with one per id (reset + insert),
+ * so saving the scope editor is idempotent. */
+const setModifierLinks = (
+  table: "modifier_listings" | "modifier_groups",
+  column: "listing_id" | "group_id",
+  modifierId: number,
+  ids: number[],
+): Promise<unknown> =>
+  executeBatch([
+    {
+      args: [modifierId],
+      sql: `DELETE FROM ${table} WHERE modifier_id = ?`,
+    },
+    ...ids.map((id) => ({
+      args: [modifierId, id],
+      sql: `INSERT INTO ${table} (modifier_id, ${column}) VALUES (?, ?)`,
+    })),
+  ]);
+
+/** Set the listings a "listings"-scoped modifier is charged on. */
+export const setModifierListings = (
+  modifierId: number,
+  listingIds: number[],
+): Promise<unknown> =>
+  setModifierLinks("modifier_listings", "listing_id", modifierId, listingIds);
+
+/** Set the groups a "groups"-scoped modifier is charged on. */
+export const setModifierGroups = (
+  modifierId: number,
+  groupIds: number[],
+): Promise<unknown> =>
+  setModifierLinks("modifier_groups", "group_id", modifierId, groupIds);

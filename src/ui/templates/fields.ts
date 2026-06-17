@@ -876,6 +876,7 @@ export type ModifierFormValues = {
   calc_kind: string;
   direction: string;
   calc_value: number;
+  scope: string;
   min_subtotal: number;
   stock: number | null;
   active: string;
@@ -923,6 +924,18 @@ export const modifierFields: Field[] = [
     type: "text",
     validate: (value: string) =>
       Number.isFinite(Number.parseFloat(value)) ? null : "Enter a valid number",
+  },
+  {
+    defaultValue: "all",
+    hint: "Which items this applies to. For specific listings or groups, choose the listings/groups on the edit page after saving.",
+    label: "Applies to",
+    name: "scope",
+    options: [
+      { label: "The whole order", value: "all" },
+      { label: "Specific listings", value: "listings" },
+      { label: "Listings in specific groups", value: "groups" },
+    ],
+    type: "select",
   },
   {
     hint: "Only apply when the order subtotal is at least this amount (in your currency). Leave blank for no minimum.",
