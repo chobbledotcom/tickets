@@ -13,6 +13,7 @@ import type {
 } from "#shared/db/questions.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { ListingFields } from "#shared/types.ts";
+import { parseNonNegativeInt } from "#shared/validation/number.ts";
 import { extractContact, mergeListingFields } from "#templates/fields.ts";
 import { type TicketListing, ticketPage } from "#templates/public.tsx";
 import type { ListingQty, TicketCtx } from "./types.ts";
@@ -23,8 +24,8 @@ export const parseQuantityValue = (
   max: number,
   minDefault = 1,
 ): number => {
-  const quantity = Number.parseInt(raw, 10);
-  if (Number.isNaN(quantity) || quantity < minDefault) return minDefault;
+  const quantity = parseNonNegativeInt(raw);
+  if (quantity === null || quantity < minDefault) return minDefault;
   return Math.min(quantity, max);
 };
 

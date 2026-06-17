@@ -31,7 +31,7 @@ import { parseEmail } from "#shared/validation/email.ts";
  */
 export const getSupportPageText = (): string | null => {
   const raw = getEnv("SUPPORT_PAGE_TEXT");
-  if (!raw || !raw.trim()) return null;
+  if (!raw?.trim()) return null;
   return raw.replace(/\\n/g, "\n");
 };
 

@@ -7,6 +7,7 @@
 
 import { escapeHtml } from "#shared/jsx/jsx-runtime.ts";
 import type { LogisticsAgent } from "#shared/types.ts";
+import { parsePositiveIntId } from "#shared/validation/number.ts";
 
 /** Filter value: "all", "none" (no agent assigned), or a specific agent id. */
 export type AgentFilter = "all" | "none" | number;
@@ -17,8 +18,8 @@ export const parseAgentFilter = (
   agentIds: ReadonlySet<number>,
 ): AgentFilter => {
   if (raw === "none") return "none";
-  const n = Number.parseInt(raw ?? "", 10);
-  return Number.isInteger(n) && agentIds.has(n) ? n : "all";
+  const n = parsePositiveIntId(raw ?? "");
+  return n !== null && agentIds.has(n) ? n : "all";
 };
 
 /** The query-param string for a filter value ("" means omit it / all). */
