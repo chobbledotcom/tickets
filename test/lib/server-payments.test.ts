@@ -24,7 +24,7 @@ import {
   withMocks,
 } from "#test-utils";
 
-describeWithEnv("server (payment flow)", { db: true }, () => {
+describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
   describe("GET /payment/success", () => {
     test("returns error for missing session_id", async () => {
       const response = await handleRequest(mockRequest("/payment/success"));
