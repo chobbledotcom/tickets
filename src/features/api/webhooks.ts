@@ -799,7 +799,6 @@ const logPromoCodeModifiers = async (
   attendeeId: number,
 ): Promise<void> => {
   for (const spec of specs) {
-    if (spec.trigger !== "code") continue;
     const delta = modifierDelta(fullTotal, spec.kind, spec.value);
     const effect =
       delta < 0 ? `${formatCurrency(-delta)} off` : `+${formatCurrency(delta)}`;
@@ -870,10 +869,11 @@ const processReservedSession = async (
     options?.storeTokens === false ? [] : [ticketToken],
   );
 
-  if (modifierSpecs.some((s) => s.trigger === "code")) {
+  const codeSpecs = modifierSpecs.filter((s) => s.trigger === "code");
+  if (codeSpecs.length > 0) {
     const fullTotal = sumOf((v: ValidatedItem) => v.item.p)(validatedItems);
     await logPromoCodeModifiers(
-      modifierSpecs,
+      codeSpecs,
       fullTotal,
       firstAttendee.listing,
       firstAttendee.attendee.id,
