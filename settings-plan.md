@@ -108,127 +108,254 @@ is deliberate: `loadAll` is being removed (see §6), so there is no
 honest, and listing the keys explicitly makes the cost of a broad route visible
 in code review.
 
-### 2. Route declares its bundles
+### 2. Bundles, `withSettings`, and the dev assertion — ⏳ NEXT (Phase 2)
 
-Extend route registration so a handler can carry a static `requires`. The
-router (`src/features/router.ts`, `defineRoutes`) already maps pattern →
-handler; add an optional companion map (or a wrapper) so a route can be
-registered as:
+This is the next phase to implement. It adds the declaration machinery but
+changes no runtime behaviour: with the migration bridge in place, undeclared
+routes still get a full load, so the app behaves exactly as it does after
+Phase 1. Three pieces:
+
+#### 2a. Bundle definitions, colocated
+
+The admin settings UI is already split by domain — `settings-stripe.ts`,
+`settings-email.ts`, `settings-square.ts`, `settings-sms.ts`,
+`settings-wallets.ts`, `settings-domains.ts`, `settings-general.ts`,
+`settings-logistics.ts`, `settings-superuser.ts`,
+`settings-email-templates.ts`, `settings-header-image.ts`,
+`settings-statuses.ts` — so each bundle lives in the file that owns those
+settings, exported as a `readonly` tuple of `CONFIG_KEYS` values:
 
 ```ts
-"GET /ticket/:slug": withSettings(["siteChrome", "locale"], handleTicketGet),
+// src/features/admin/settings-stripe.ts
+export const STRIPE_SETTINGS = [
+  CONFIG_KEYS.STRIPE_SECRET_KEY,
+  CONFIG_KEYS.STRIPE_WEBHOOK_SECRET,
+  CONFIG_KEYS.STRIPE_WEBHOOK_ENDPOINT_ID,
+] as const;
 ```
 
-`withSettings(bundles, handler)` attaches `bundles` as a static property on the
-handler function (a const, inspectable before invocation) and returns the
-handler unchanged otherwise. During migration only, a route that declares
-nothing temporarily falls back to the legacy full load — but this fallback is a
-**bridge, not a feature**: it exists solely so the migration can land
-incrementally, and it is deleted together with `loadAll` in the final phase
-(§6). The end state has **no undeclared routes**.
+A bundle is just `readonly StringSettingKey[]` (or `readonly string[]` for keys
+without snapshot fields). Cross-cutting bundles that don't belong to a single
+admin file — `LOCALE` (just `COUNTRY`, which fans out to currency/timezone/
+phone-prefix), `SITE_CHROME` (website title, header image, theme,
+show-public-site, custom domain), `PAYMENTS` (payment_provider + the active
+provider's keys) — live in a new `src/features/settings-bundles.ts`. There is no
+single giant registry; `settings-bundles.ts` only holds the genuinely shared
+ones and may re-export the per-file bundles for convenience.
 
-The declaration lives **with the route**, satisfying "broadcast required
-settings up front in a static const we keep up to date". The dev assertion in
-§1 keeps it in sync.
+Type the bundle keys against `StringSettingKey` where possible so a typo or a
+renamed `CONFIG_KEYS` entry is a compile error.
 
-### 3. The settings cache + scoped load
+#### 2b. `withSettings` wrapper
+
+Attach the required keys to the handler as a static, inspectable property:
 
 ```ts
-// src/shared/db/settings.ts (internal)
-const cache = ttlCache<string, string>(SETTINGS_CACHE_TTL_MS, nowMs);
-// stores DECRYPTED values keyed by CONFIG_KEYS string
+// src/features/router.ts
+const SETTINGS_KEYS = Symbol("settingsKeys");
 
-const loadKeys = async (keys: readonly string[]): Promise<void> => {
-  const missing = unique(keys).filter((k) => cache.get(k) === undefined);
-  if (missing.length > 0) {
-    const rows = await queryAll<Settings>(
-      `SELECT key, value FROM settings WHERE key IN (${placeholders(missing)})`,
-      missing,
-    );
-    const raw = new Map(rows.map((r) => [r.key, r.value]));
-    // decrypt only the encrypted keys among `missing`, in parallel
-    for (const [k, v] of await resolveValues(missing, raw)) cache.set(k, v);
-  }
-  applyToSnapshot(keys); // write resolved values into `data` for sync getters
+export const withSettings = <P extends string>(
+  bundles: readonly (readonly string[])[],
+  handler: TypedRouteHandler<P>,
+): TypedRouteHandler<P> => {
+  (handler as WithSettings)[SETTINGS_KEYS] = unique(bundles.flat());
+  return handler;
 };
+
+export const settingsKeysOf = (h: RouteHandlerFn): readonly string[] | null =>
+  (h as WithSettings)[SETTINGS_KEYS] ?? null;
 ```
 
-- `loadKeys` fetches a **single `WHERE key IN (...)` query for the misses
-  only**, decrypts only the encrypted keys in that set, and caches each
-  decrypted value with its own TTL — mirroring `getByKeys` in the keyed cache
-  (`keyed-cache.ts:121-133`).
-- `applyToSnapshot` writes the resolved values into the existing `data`
-  snapshot via `setSnapshotField`, applying the same per-key resolution
-  `buildSnapshot` does today: booleans (`=== "true"`), `payment_provider`
-  parsing, `booking_fee` default, and the **country-derived** fields
-  (`applyCountryDerived` when `COUNTRY` is in the set). This is the existing
-  logic, refactored from "loop over all keys" to "resolve a given key" so it
-  can run per-bundle.
-- A **generation counter** (as in `keyed-cache.ts:75`) drops in-flight fetches
-  that raced a write, so a write is never overwritten by an older read.
+Registered at the route:
 
-### 4. Wire into the request lifecycle
+```ts
+"GET /ticket/:slug": withSettings([SITE_CHROME, LOCALE], handleTicketGet),
+```
 
-In `prepareRequestEnvironment` (`src/features/index.ts:516`), replace the
-unconditional `settings.loadAll()` with a scoped load driven by the matched
-route's declaration:
+The wrapper returns the handler unchanged except for the attached metadata, so
+it composes with the existing `defineRoutes` typing and needs no router
+rewrite. `compileRoutes` already stores the handler reference; the
+matcher just needs to surface `settingsKeysOf(handler)` alongside the match (see
+§4). `settingsKeysOf` returning `null` means "undeclared" → migration bridge.
 
-1. Resolve the route (the router already does pattern matching) and read its
-   `requires` const.
-2. Declared → `settings.loadKeys(union of declared bundles' keys)`.
-3. Undeclared (migration bridge only) → temporary full load, removed in §6.
+A route that needs everything (the admin settings *page*, which reads ~40
+settings to render the form) declares an explicit `ADMIN_SETTINGS_PAGE` bundle —
+the union of every per-file bundle — not a magic "all" flag.
 
-One subtlety: `prepareRequestEnvironment` currently runs **before** routing and
-itself needs `CUSTOM_DOMAIN` (`loadEffectiveDomain`) and the prune timestamps.
-Two options:
+#### 2c. Dev assertion mode (the safety net)
 
-- **(a, recommended)** Always pre-load a tiny fixed **infra bundle**
-  (`CUSTOM_DOMAIN`, `LAST_PRUNED_*`, `SETUP_COMPLETE`) — the handful of keys the
-  request pipeline itself needs — then load the route bundles. This keeps
-  `prepareRequestEnvironment` self-contained and cheap.
-- (b) Move route resolution before `prepareRequestEnvironment` so the bundle is
-  known earlier. More invasive to the lifecycle ordering.
+This is what makes removing `loadAll` safe. Wire a per-request "declared key
+set" and have `snap()` (`settings.ts`) record every snapshot key actually read.
+In test/dev only (gated on an env flag or the existing test-mode detection), at
+the end of a request assert that every key read was either in the route's
+declared set or in the fixed infra bundle (§4); on a miss, throw an error naming
+the route, the offending key, and the bundle it most likely belongs to.
 
-Recommend (a): a small, explicit infra bundle plus the route's bundles.
+Mechanics:
 
-### 5. Writes / invalidation
+- Add an internal `recordRead(key)` called from `snap()`; collect into a
+  per-request set (an `AsyncLocalStorage`-style context already exists for flash
+  / saved-form data — reuse that mechanism rather than a global).
+- Map snapshot field names back to `CONFIG_KEYS` for the comparison (the special
+  fields like `currency`/`timezone` map back to `COUNTRY`; `payment_provider`
+  and `payment_provider_setting` map back to `PAYMENT_PROVIDER`).
+- The assertion is **dev/test-only** — it must be a strict no-op in production
+  (no per-read bookkeeping cost on the hot path beyond a cheap branch).
 
-Current writes update the snapshot **in place** and also poke the raw cache
-(`writeRaw` → `syncCache`, `settings.ts:348-355`). With the keyed cache the
-write path becomes: write DB → `cache.set(key, value)` (decrypted) and
-`setSnapshotField`, plus **bump the generation** so any concurrent in-flight
-read is discarded. `invalidateCache` clears the `ttlCache` and resets the
-snapshot to defaults (unchanged contract). No call-site changes for writers —
-`settings.update.*` keeps its current surface.
+The payoff: every route exercised by the test suite is *proven* to declare
+everything it reads, so when the bridge is deleted in §6 there are no surprises.
+
+### 3. The settings cache + scoped load — ✅ DONE (Phase 1)
+
+This phase shipped. The shape ended up slightly different from the original
+sketch: rather than introduce a *second* decrypted `ttlCache` alongside the
+existing raw cache (which would have split state and complicated writes), the
+existing raw-row cache was extended to support partial loads, and decrypted
+values continue to live in the snapshot (`data`). What landed in
+`src/shared/db/settings.ts`:
+
+- **`CacheState` now tracks partiality.** It holds `values` (rows loaded so
+  far), `loaded` (the set of keys resolved — *present or absent* in the DB, so a
+  partial load never re-queries a key it already fetched), a `full` flag (set by
+  `loadAll` after a `SELECT *`, meaning every key counts as loaded), and `time`
+  for TTL expiry.
+
+- **`loadKeys(keys)`** — the on-demand loader. It resets the cache if stale,
+  computes `missing = keys not yet loaded`, runs **one
+  `SELECT … WHERE key IN (…)`** for just those, records them in `values`/`loaded`,
+  and resolves them into the snapshot via `applyKeys`. No-op when everything
+  requested is already loaded.
+
+- **Per-key resolution.** `buildSnapshot`'s monolithic loop became
+  `SPECIAL_APPLIERS` (a map from config key → snapshot mutation for the
+  non-string fields: country+derived, theme, the booleans, payment-provider
+  parsing, booking-fee default, square-sandbox) plus `applyKey`/`applyKeys`
+  which handle plaintext (verbatim) and encrypted (parallel `decrypt`) keys.
+  Both `loadAll` and `loadKeys` share these resolvers, so there is exactly one
+  definition of "raw row → snapshot field".
+
+- **`loadAll` kept its `SELECT *`** so the raw cache still holds every row.
+  This matters because `getCachedRaw` is a general escape hatch read for
+  arbitrary keys not in any bundle (e.g. `db_schema_hash` in
+  `features/admin/debug.ts`, `fieldsApi.getSettingCached`). `loadAll` is now
+  effectively "load everything and mark `full`"; `loadKeys` is the partial
+  counterpart.
+
+- **First real consumer:** `isSetupComplete` now calls
+  `loadKeys([SETUP_COMPLETE])` instead of triggering a full load.
+
+- Writes (`writeRaw`/`deleteRaw`) still update the snapshot and raw cache in
+  place; they now also mark the key `loaded` so a later partial load trusts the
+  written value.
+
+**Not yet done (intentionally deferred to later phases):** the generation
+counter for read/write races. The current in-place write + `loaded` marking is
+correct for the single-threaded isolate model already in use; the generation
+counter from `keyed-cache.ts:75` should be added when/if concurrent in-flight
+partial loads become a real race (revisit during §5).
+
+### 4. Wire the scoped load into the request lifecycle — ⏳ Phase 3
+
+Today `prepareRequestEnvironment` (`src/features/index.ts:516`) calls
+`settings.loadAll()` *before* routing, because it needs `CUSTOM_DOMAIN` for
+`loadEffectiveDomain` and the `LAST_PRUNED_*` timestamps for `maybeRunPrunes`.
+The matched route — and therefore its declared bundles — isn't known until
+`routeAndFinalize` → `handleRequestInternal` runs later. The wiring must bridge
+that gap without reordering the whole pipeline.
+
+**Approach: a fixed infra bundle now, route bundles at dispatch.**
+
+1. **Infra bundle.** Define `INFRA_SETTINGS` = the keys the pre-routing pipeline
+   itself touches: `CUSTOM_DOMAIN`, `CUSTOM_DOMAIN_LAST_VALIDATED` (domain
+   resolution), the five `LAST_PRUNED_*` keys (pruning), and `SETUP_COMPLETE`
+   (setup gate). In `prepareRequestEnvironment`, replace `loadAll()` with
+   `settings.loadKeys(INFRA_SETTINGS)`. This is a handful of plaintext keys —
+   no decryption, one tiny query — versus today's whole-table load.
+
+2. **Route bundles at dispatch.** Surface the matched handler's
+   `settingsKeysOf(handler)` from the router (return it alongside `handler`/
+   `params` from `matchRequest`, or expose a `resolveRoute` that the dispatcher
+   calls). Immediately before invoking the handler in `createRouter`'s returned
+   function (or in `routeAndFinalize`), call `settings.loadKeys(keys)` for the
+   declared keys. Because `loadKeys` is incremental and the infra keys are
+   already loaded+fresh, this only fetches the route's *additional* keys.
+
+3. **Migration bridge.** When `settingsKeysOf(handler)` is `null` (undeclared),
+   call `settings.loadAll()` instead — preserving today's behaviour for routes
+   not yet migrated. This branch is deleted in §6.
+
+Edge cases to handle in this phase:
+
+- **Static assets / early returns** (`routeStatic`, `trackingParamRedirect`,
+  `initializeDatabaseForPath`) run before `prepareRequestEnvironment` and must
+  not need settings — confirm they don't, or give them the infra bundle.
+- **404 / no route matched** — no declared keys; the infra bundle is enough to
+  render the not-found path. Verify the 404 renderer doesn't read undeclared
+  settings (if it reads `SITE_CHROME` for layout, fold that into the infra
+  bundle or a dedicated "layout" bundle loaded for all HTML responses).
+- **Shared layout/chrome.** Most HTML pages render a common header/footer that
+  reads website title, theme, header image. Rather than repeat `SITE_CHROME` in
+  every bundle, consider loading a small **layout bundle** for any route that
+  returns HTML (orthogonal to the route's data bundles). Decide this explicitly
+  in Phase 3 — it's the most likely source of "undeclared key" assertion hits.
+
+### 5. Writes / invalidation — ⏳ Phase 3/4 (mostly already correct)
+
+Phase 1 already keeps writes correct: `writeRaw`/`deleteRaw` update the DB, the
+snapshot, and the raw cache in place, and now also mark the key `loaded`.
+`invalidateCache` clears the cache and resets the snapshot to defaults. No
+writer call sites change — `settings.update.*` keeps its surface.
+
+Remaining work, to confirm during Phases 3–4:
+
+- **Read-after-write within a request.** A handler that writes a setting and
+  then reads it (or re-renders) must see the new value. The in-place snapshot
+  update already guarantees this regardless of whether the key was in the
+  request's bundle. Add a test per migrated write route that reads back.
+- **Generation counter (deferred from §3).** If concurrent partial loads can
+  race a write within an isolate, add the `keyed-cache.ts:75` generation pattern
+  to `loadKeys` so a fetch that started before a write can't overwrite it. Only
+  needed if profiling shows real concurrency here.
+- **`getCachedRaw` consumers.** `db_schema_hash` (debug page) and
+  `fieldsApi.getSettingCached` read arbitrary keys via the raw cache. After
+  `loadAll` is removed (§6) these must explicitly `loadKeys([...])` the keys they
+  read, since nothing loads "everything" any more. Inventory them in Phase 4.
+
+### 6. Remove `loadAll` (priority) — ⏳ Phase 5
+
+`loadAll` is the waste this plan exists to remove, so deleting it is a
+first-class deliverable, not cleanup. Once every route declares bundles and the
+dev assertion has run green across the full suite:
+
+1. Delete the `settingsKeysOf(...) === null → loadAll()` bridge in the
+   dispatcher (§4.3).
+2. Make `getCachedRaw` consumers self-sufficient (§5) — each loads the keys it
+   reads.
+3. Remove `loadAll`, the `full` flag, and the `SELECT *` path from
+   `settings.ts`. `loadKeys` and the per-key resolvers are all that remain.
+4. Update tests: the ~40 `await settings.loadAll()` calls in the test suite
+   (and `test/test-utils/db.ts`) become `await settings.loadKeys([...])` for the
+   keys each test asserts on, or a small test helper `loadTestSettings()` that
+   loads a representative set. This is the largest mechanical change and should
+   be its own commit.
+
+After this, the common request loads a handful of keys instead of 130+, and
+adding a new large setting only costs the routes that declare it — removing the
+disincentive that motivated the whole effort.
 
 ## Migration sequence (incremental, always green)
 
-1. **Land the cache + `loadKeys`** alongside the existing `loadAll`; refactor
-   `buildSnapshot` into a per-key `resolveValues` / `applyToSnapshot` that
-   `loadAll` reuses. No behaviour change yet (everything still
-   `requiresAll`). Full test suite stays green.
-2. **Add bundles + `withSettings` + dev assertion mode.** Undeclared routes use
-   the temporary full-load bridge. Still no behaviour change.
-3. **Migrate routes bundle-by-bundle**, starting with hot, narrow public routes
-   (`GET /`, `GET /ticket/:slug`, embeds) where the win is largest and the
-   surface is smallest. For each, declare bundles, run the dev assertion to
-   confirm completeness, keep the suite green.
-4. **Migrate the broad admin routes too** — give the admin settings page an
-   explicit `adminSettingsPage` bundle (the union of the keys it reads). No
-   route is left undeclared.
-5. Once public routes are migrated, the common case loads a handful of keys
-   instead of 130+, and adding a new large setting only costs the routes that
-   actually declare it.
+| Phase | Scope | Status |
+| --- | --- | --- |
+| 1 | Keyed cache + `loadKeys` + per-key resolvers; `loadAll` unchanged (§3) | ✅ done |
+| 2 | Bundles, `withSettings`, dev assertion mode; bridge keeps behaviour identical (§2) | ⏳ next |
+| 3 | Infra bundle + dispatch-time `loadKeys`; migrate hot public routes (`GET /`, `GET /ticket/:slug`, embeds); resolve the layout-bundle question (§4) | ⏳ |
+| 4 | Migrate remaining public + all admin routes (explicit `ADMIN_SETTINGS_PAGE` bundle); make `getCachedRaw` consumers self-sufficient (§5) | ⏳ |
+| 5 | Delete the bridge and `loadAll`; convert test `loadAll` calls (§6) | ⏳ |
 
-### 6. Remove `loadAll` (priority)
-
-`loadAll` is the source of the waste this plan exists to fix, so its removal is
-a first-class goal, not an afterthought. As soon as every route declares its
-bundles (end of step 4), **delete `loadAll`, the full-load migration bridge,
-and `buildSnapshot`'s whole-table path**. From then on the only way settings
-reach the snapshot is `loadKeys` for declared bundles. The dev assertion mode
-guarantees this is safe — any route that still reads an undeclared key fails its
-test before the bridge is removed.
+Each phase keeps the full suite green and 100% coverage. Phases 2 and the early
+part of 3 are behaviour-preserving; the win lands incrementally as routes are
+migrated in 3–4; phase 5 removes the fallback.
 
 ## What does NOT change
 
@@ -256,8 +383,3 @@ test before the bridge is removed.
 3. **Fate of `loadAll`:** removed as soon as all routes declare bundles (§6).
    It is a temporary migration bridge only — there is no permanent "load
    everything" mode, because that is exactly the waste being eliminated.
-- **Should `loadAll` eventually be removed** once all routes declare bundles, or
-  kept permanently as the `requiresAll` implementation? Recommend keeping it as
-  the escape hatch.
-</content>
-</invoke>

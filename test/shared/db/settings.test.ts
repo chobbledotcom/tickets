@@ -85,6 +85,24 @@ describeWithEnv("db > settings", { db: true }, () => {
       expect(settings.currency).toBe("USD");
     });
 
+    test("re-reads an already-loaded key without re-querying", async () => {
+      // isSetupComplete uses isKeyLoaded to skip loadKeys when the key is
+      // already resolved in a fresh partial cache (no full load). Setup must
+      // be incomplete so the permanent-cache short-circuit doesn't fire first.
+      settings.setup.clearCache();
+      await getDb().execute({
+        args: [CONFIG_KEYS.SETUP_COMPLETE],
+        sql: "DELETE FROM settings WHERE key = ?",
+      });
+      settings.invalidateCache();
+
+      // First call: not loaded → loadKeys fetches just setup_complete.
+      expect(await settings.setup.isComplete()).toBe(false);
+      // Second call: fresh partial cache already holds the key → isKeyLoaded
+      // returns true via the loaded-set branch, so no second query runs.
+      expect(await settings.setup.isComplete()).toBe(false);
+    });
+
     test("is a no-op when the requested key is already loaded", async () => {
       await settings.setRaw(CONFIG_KEYS.THEME, "dark");
       settings.invalidateCache();
