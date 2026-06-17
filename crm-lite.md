@@ -71,13 +71,18 @@ contact identity, keyed by an irreversible hash.
 ```
 contact_preferences
   contact_hash   TEXT PRIMARY KEY    -- HMAC-SHA256, see §3.1
-  channel        TEXT NOT NULL       -- 'email' | 'sms'  (plaintext discriminator)
-  created        TEXT NOT NULL        -- ISO seed time
   last_activity  INTEGER NOT NULL     -- ms-epoch; bumped on booking & outreach; PRUNE key
   unsubscribed   INTEGER NOT NULL DEFAULT 0   -- plaintext opt-out (keyless /unsubscribe)
   visits         INTEGER NOT NULL DEFAULT 0   -- plaintext booking count (keyless modifier gate, §6)
   stats_blob     TEXT NOT NULL DEFAULT ''     -- owner-keypair-encrypted JSON, §3.3
 ```
+
+No `channel` column: the channel is encoded in the **hash prefix** (§3.1), so
+lookups already know it and a DB reader cannot tell which rows are email vs SMS —
+one less piece of metadata at rest. No `created` column either: pruning keys off
+`last_activity`, and "first seen" (if wanted) lives in the encrypted blob. The
+migration backfills `last_activity` from the old `created` so existing
+unsubscribe history survives, then drops `created`.
 
 Indexes:
 
@@ -124,17 +129,20 @@ address, not reversible, not enumerable to a person.
 
 Everything behavioural/sensitive stays encrypted with the owner's public key and
 is readable only in an authenticated admin session (`decryptWithOwnerKey`).
-Compact keys, like today's `{c,t,s}`:
+Because each row is **single-channel** (email and SMS hash to different rows), the
+blob keeps today's exact `{c,t,s}` shape — the `c` counter is naturally "emails
+sent" for an email row and "SMS sent" for an SMS row, with no per-channel split:
 
 ```jsonc
 {
-  "f": "2026-01-04T...",   // first seen (ISO)
-  "s": "Summer sale",       // last outreach subject
-  "e": 3,                    // emails sent
-  "m": 1,                    // SMS sent
-  "v": 14500                 // lifetime spend (minor units), optional
+  "c": 3,                   // sends on this row's channel
+  "t": "2026-01-04T...",   // last send (ISO)
+  "s": "Summer sale"        // last subject
 }
 ```
+
+(`visits` — bookings, customer→us — is the separate plaintext counter; `c` here
+is outreach, us→customer.)
 
 Note the split of concerns:
 
@@ -184,19 +192,19 @@ upsert that also bumps the counter, **once per order** (not per ticket — a
 multi-listing booking is one visit):
 
 ```sql
-INSERT INTO contact_preferences (contact_hash, channel, created, last_activity, visits)
-VALUES (?, ?, ?, ?, 1)
+INSERT INTO contact_preferences (contact_hash, last_activity, visits)
+VALUES (?, ?, 1)
 ON CONFLICT(contact_hash) DO UPDATE
   SET visits = visits + 1, last_activity = excluded.last_activity;
 ```
 
 Seed a row for both the email **and** (when present) the phone, so SMS-only
-recognition works too.
+recognition works too. Keyless: touches only plaintext columns, never the blob.
 
 ### Outreach update (admin send, has private key)
 
-Generalise `recordContacts` to update the encrypted blob (bump `e`/`m`, set last
-subject `s`, set `last_activity`) for each recipient hash — unchanged in spirit,
+Generalise `recordContacts` to update the encrypted blob (bump `c`, set last
+subject `s`, set `t` and `last_activity`) for each recipient hash — unchanged in spirit,
 just channel-aware and writing to `contact_preferences`.
 
 ### Unsubscribe (keyless)
@@ -331,7 +339,8 @@ rather than cloning a phone-only table:
 
 - Hash phones with `contactHash("sms", phone)` using the existing
   `normalizePhone`.
-- Record SMS sends through the generalised `recordContacts` (`m` counter).
+- Record SMS sends through the generalised `recordContacts` — same `{c,t,s}`
+  blob, just on the SMS-hashed row (each row is single-channel).
 - Honour the shared `unsubscribed` flag for STOP handling.
 - Loyalty/`min_visits` then works identically whether the buyer gave an email, a
   phone, or both.
@@ -398,8 +407,10 @@ which is the whole point.
 ## 12. Phased plan
 
 1. **Generalise the table** — `email_preferences → contact_preferences`
-   (migration + rename refs), add `channel`, `last_activity`, `visits`; keep
-   `unsubscribed`/`stats_blob`. Update `LATEST_UPDATE`.
+   (migration + rename refs), add `last_activity` + `visits`, backfill
+   `last_activity` from `created` then drop `created`; keep
+   `unsubscribed`/`stats_blob`. Channel lives in the hash prefix, not a column.
+   Update `LATEST_UPDATE`.
 2. **Keyless visit counter** — bump `visits`/`last_activity` at booking for email
    and phone; once per order.
 3. **Modifiers gate** — add `modifiers.min_visits`; thread `PricingContext` into
