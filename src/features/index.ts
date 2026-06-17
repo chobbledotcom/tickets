@@ -53,7 +53,7 @@ import {
   enableQueryLog,
   runWithQueryLogContext,
 } from "#shared/db/query-log.ts";
-import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
+import { CONFIG_KEYS, settings, SNAPSHOT_KEYS } from "#shared/db/settings.ts";
 import { isReadOnly } from "#shared/env.ts";
 import {
   hasFlash,
@@ -221,9 +221,8 @@ const getPrefix = (path: string): string => {
 //
 // The pre-routing pipeline reads settings before the lazy router resolves a
 // handler, so the load is keyed off the path *prefix* (pure, import-free) and
-// unioned with a fixed infra set into a single query. Prefixes not listed here
-// fall back to a full load (`loadAll`) — the migration bridge. Bundle constants
-// will move next to the features that own them as more prefixes are migrated.
+// unioned with a fixed infra set into a single query. Bundle constants will
+// move next to the features that own them as bundles are refined.
 // ---------------------------------------------------------------------------
 
 /** Keys the pre-routing pipeline, prefix dispatch, and auth need every request. */
@@ -254,25 +253,63 @@ const PUBLIC_LAYOUT_SETTINGS: readonly string[] = [
   CONFIG_KEYS.TERMS_AND_CONDITIONS,
 ];
 
-/** Migrated prefixes → the settings their pages read (union with INFRA). */
-const PREFIX_SETTINGS: Record<string, readonly string[]> = {
-  "": [
-    ...PUBLIC_LAYOUT_SETTINGS,
-    CONFIG_KEYS.HOMEPAGE_TEXT,
-    CONFIG_KEYS.COUNTRY,
-  ],
-  listings: [...PUBLIC_LAYOUT_SETTINGS, CONFIG_KEYS.COUNTRY],
-  terms: PUBLIC_LAYOUT_SETTINGS,
-};
+/**
+ * All snapshot keys plus infra. Used for routes that may access any setting
+ * (admin, API, payment handlers, wallets, etc.). Equivalent to the former
+ * `loadAll()` SELECT * in terms of what affects request behaviour, but uses
+ * a targeted WHERE key IN (...) query instead of a full table scan.
+ */
+const FULL_SETTINGS_BUNDLE: readonly string[] = [
+  ...new Set([...INFRA_SETTINGS, ...SNAPSHOT_KEYS]),
+];
 
 /**
- * Settings to pre-load for a path: infra ∪ the prefix's bundle, or `null` when
- * the prefix isn't migrated yet (caller falls back to a full `loadAll`).
+ * Admin also needs the db_schema_hash key (written by migrations, read by the
+ * debug page) which isn't in SNAPSHOT_KEYS since it doesn't affect the snapshot.
  */
-const settingsForPath = (path: string): readonly string[] | null => {
+const ADMIN_SETTINGS_BUNDLE: readonly string[] = [
+  ...FULL_SETTINGS_BUNDLE,
+  "db_schema_hash",
+];
+
+/** Per-prefix settings bundle. Every prefix in prefixHandlers must be listed. */
+const PREFIX_SETTINGS: Record<string, readonly string[]> = {
+  // --- Migrated public pages (small focused bundles) ---
+  "": [...PUBLIC_LAYOUT_SETTINGS, CONFIG_KEYS.HOMEPAGE_TEXT, CONFIG_KEYS.COUNTRY],
+  listings: [...PUBLIC_LAYOUT_SETTINGS, CONFIG_KEYS.COUNTRY],
+  terms: PUBLIC_LAYOUT_SETTINGS,
+  contact: [...PUBLIC_LAYOUT_SETTINGS, CONFIG_KEYS.COUNTRY],
+  events: PUBLIC_LAYOUT_SETTINGS,
+  "read-only": INFRA_SETTINGS,
+  // --- Setup path (only needs infra; routes handle their own loads) ---
+  setup: INFRA_SETTINGS,
+  // --- Admin ---
+  admin: ADMIN_SETTINGS_BUNDLE,
+  // --- All remaining routes get the full bundle ---
+  api: FULL_SETTINGS_BUNDLE,
+  attachment: FULL_SETTINGS_BUNDLE,
+  checkin: FULL_SETTINGS_BUNDLE,
+  demo: FULL_SETTINGS_BUNDLE,
+  feeds: FULL_SETTINGS_BUNDLE,
+  gwallet: FULL_SETTINGS_BUNDLE,
+  image: FULL_SETTINGS_BUNDLE,
+  join: FULL_SETTINGS_BUNDLE,
+  order: FULL_SETTINGS_BUNDLE,
+  pay: FULL_SETTINGS_BUNDLE,
+  payment: FULL_SETTINGS_BUNDLE,
+  renew: FULL_SETTINGS_BUNDLE,
+  sms: FULL_SETTINGS_BUNDLE,
+  t: FULL_SETTINGS_BUNDLE,
+  ticket: FULL_SETTINGS_BUNDLE,
+  unsubscribe: FULL_SETTINGS_BUNDLE,
+  v1: FULL_SETTINGS_BUNDLE,
+  wallet: FULL_SETTINGS_BUNDLE,
+};
+
+/** Settings to pre-load for a path: infra ∪ the prefix's bundle. */
+const settingsForPath = (path: string): readonly string[] => {
   const prefix = getPrefix(path);
-  if (!Object.hasOwn(PREFIX_SETTINGS, prefix)) return null;
-  return [...INFRA_SETTINGS, ...PREFIX_SETTINGS[prefix]!];
+  return PREFIX_SETTINGS[prefix] ?? FULL_SETTINGS_BUNDLE;
 };
 
 /** Create a lazy-loaded route handler (prefix already matched by dispatch map) */
@@ -586,14 +623,8 @@ const prepareRequestEnvironment = async (
   if (method === "GET" && getPrefix(path) === "admin") enableQueryLog();
 
   // Load only the settings this route needs (infra ∪ prefix bundle) in one
-  // query; unmigrated prefixes fall back to a full load. Either way the cache
-  // is a no-op when still valid (60 s TTL).
-  const keys = settingsForPath(path);
-  if (keys === null) {
-    await settings.loadAll();
-  } else {
-    await settings.loadKeys(keys);
-  }
+  // targeted query. The cache is a no-op when still valid (60 s TTL).
+  await settings.loadKeys(settingsForPath(path));
 
   // Schedule DB pruning as fire-and-forget pending work. Each
   // prune task self-guards via its last_pruned_* timestamp, so

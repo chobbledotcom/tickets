@@ -1,7 +1,7 @@
 /**
  * Settings — sync reads, async writes.
  *
- * Call `settings.loadAll()` once per request to populate the snapshot.
+ * Call `settings.loadKeys(keys)` before a request to populate the snapshot.
  * After that, every setting is a plain sync property:
  *
  *   settings.theme            // "light"
@@ -150,18 +150,15 @@ export const SETTINGS_CACHE_TTL_MS = 60_000;
  * Raw-row cache. `values` holds the rows loaded so far (decrypted values still
  * live in the snapshot, not here). `loaded` records which keys have been
  * resolved — present *or* absent in the DB — so a partial `loadKeys` never
- * re-queries a key it has already fetched. `full` is set by `loadAll`, after a
- * whole-table `SELECT *`, so every key counts as loaded. `time` stamps the load
- * for TTL expiry; `0` means never loaded.
+ * re-queries a key it has already fetched. `time` stamps the load for TTL
+ * expiry; `0` means never loaded.
  */
 type CacheState = {
   values: Map<string, string>;
   loaded: Set<string>;
-  full: boolean;
   time: number;
 };
 const [getCacheState, setCacheState] = lazyRef<CacheState>(() => ({
-  full: false,
   loaded: new Set(),
   time: 0,
   values: new Map(),
@@ -175,8 +172,7 @@ const isCacheFresh = (): boolean => {
 /** Whether a key's value is already resolved in the current fresh cache. */
 const isKeyLoaded = (key: string): boolean => {
   if (!isCacheFresh()) return false;
-  const s = getCacheState();
-  return s.full || s.loaded.has(key);
+  return getCacheState().loaded.has(key);
 };
 
 registerCache(() => ({
@@ -237,7 +233,7 @@ const PLAINTEXT_KEYS = [
   CONFIG_KEYS.SMS_GATEWAY_BASE_URL,
 ] as const;
 
-/** Encrypted string config keys (decrypted during loadAll, default ""). */
+/** Encrypted string config keys (decrypted during loadKeys, default ""). */
 const ENCRYPTED_KEYS = [
   CONFIG_KEYS.BUSINESS_EMAIL,
   CONFIG_KEYS.HEADER_IMAGE_URL,
@@ -312,7 +308,7 @@ type SpecificFields = {
 /** Full settings snapshot type. */
 export type SettingsData = SpecificFields & StringSettingFields;
 
-/** Mutable snapshot of all settings. Populated by loadAll(). */
+/** Mutable snapshot of all settings. Populated by loadKeys(). */
 const data: SettingsData = {
   booking_fee: "0",
   contact_form_enabled: false,
@@ -551,7 +547,7 @@ type BoolSettingKey = {
 }[keyof SettingsData];
 
 // ---------------------------------------------------------------------------
-// Snapshot builder — called by loadAll()
+// Snapshot builder — called by loadKeys()
 // ---------------------------------------------------------------------------
 
 type CountryInfo = ReturnType<typeof getCountry>;
@@ -607,10 +603,20 @@ const SPECIAL_APPLIERS: Record<string, (raw: string | undefined) => void> = {
 const PLAINTEXT_KEY_SET = new Set<string>(PLAINTEXT_KEYS);
 
 /** Every config key that maps to a snapshot field, in load order. */
-const SNAPSHOT_KEYS: readonly string[] = [
+export const SNAPSHOT_KEYS: readonly string[] = [
   ...Object.keys(SPECIAL_APPLIERS),
   ...PLAINTEXT_KEYS,
   ...ENCRYPTED_KEYS,
+];
+
+/**
+ * All keys that populate the snapshot plus the setup-complete flag. Equivalent
+ * to the former `loadAll` SELECT * in terms of what affects request behaviour.
+ * Use in tests and in pre-load bundles that need every setting.
+ */
+export const ALL_SETTINGS_KEYS: readonly string[] = [
+  ...SNAPSHOT_KEYS,
+  CONFIG_KEYS.SETUP_COMPLETE,
 ];
 
 /**
@@ -644,39 +650,25 @@ const applyKeys = async (
 };
 
 // ---------------------------------------------------------------------------
-// loadAll / invalidateCache
+// loadKeys / invalidateCache
 // ---------------------------------------------------------------------------
 
 /** Reset the raw cache to a fresh, empty state stamped at the current time. */
-const resetCache = (full: boolean): CacheState => {
+const resetCache = (): CacheState => {
   setCacheState(null);
   const s = getCacheState();
   s.time = nowMs();
-  s.full = full;
   return s;
-};
-
-/**
- * Load every setting from the DB and pre-decrypt encrypted values. Keeps the
- * whole-table `SELECT *` so the raw cache holds every row (callers reach for
- * arbitrary keys via `getCachedRaw`). No-op when a full load is still fresh.
- */
-const loadAll = async (): Promise<void> => {
-  if (isCacheFresh() && getCacheState().full) return;
-  const rows = await queryAll<Settings>("SELECT key, value FROM settings");
-  const s = resetCache(true);
-  for (const row of rows) s.values.set(row.key, row.value);
-  await applyKeys(SNAPSHOT_KEYS, s.values);
 };
 
 /**
  * Load only the given config keys, fetching just the ones not already resolved
  * in the current fresh cache (one `WHERE key IN (...)` query) and decrypting
- * only those. The on-demand counterpart to `loadAll`.
+ * only those.
  */
 const loadKeys = async (keys: readonly string[]): Promise<void> => {
-  const s = isCacheFresh() ? getCacheState() : resetCache(false);
-  const missing = unique([...keys]).filter((k) => !(s.full || s.loaded.has(k)));
+  const s = isCacheFresh() ? getCacheState() : resetCache();
+  const missing = unique([...keys]).filter((k) => !s.loaded.has(k));
   if (missing.length === 0) return;
   const rows = await queryAll<Settings>(
     `SELECT key, value FROM settings WHERE key IN (${missing
@@ -749,7 +741,7 @@ const completeSetup = async (
   await writeRaw(CONFIG_KEYS.SETUP_COMPLETE, "true");
   // Keep the in-memory snapshot in sync with the freshly-written rows so the
   // next request doesn't read stale defaults while the raw cache is still
-  // valid (loadAll short-circuits for up to SETTINGS_CACHE_TTL_MS).
+  // valid (loadKeys short-circuits for up to SETTINGS_CACHE_TTL_MS).
   setSnapshotField(CONFIG_KEYS.WRAPPED_PRIVATE_KEY, encryptedPrivateKey);
   setSnapshotField(CONFIG_KEYS.PUBLIC_KEY, publicKey);
   data.country = country;
@@ -865,7 +857,7 @@ const settingsBase = {
   },
 
   // -----------------------------------------------------------------------
-  // Sync reads — all populated by loadAll()
+  // Sync reads — all populated by loadKeys()
   // -----------------------------------------------------------------------
 
   get contactFormEnabled(): boolean {
@@ -921,7 +913,6 @@ const settingsBase = {
   },
   invalidateCache,
   // --- Core ---
-  loadAll,
   loadKeys,
   get orderEnabled(): boolean {
     return snap("order_enabled");

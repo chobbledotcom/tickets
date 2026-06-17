@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { encrypt } from "#shared/crypto/encryption.ts";
 import { getDb } from "#shared/db/client.ts";
-import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
+import { ALL_SETTINGS_KEYS, CONFIG_KEYS, settings } from "#shared/db/settings.ts";
 import { getUserByUsername, verifyUserPassword } from "#shared/db/users.ts";
 import {
   describeWithEnv,
@@ -20,7 +20,7 @@ describeWithEnv("db > settings", { db: true }, () => {
 
     test("setSetting and getSetting work together", async () => {
       await settings.setRaw("test_key", "test_value");
-      await settings.loadAll();
+      await settings.loadKeys(["test_key"]);
       const value = settings.getCachedRaw("test_key");
       expect(value).toBe("test_value");
     });
@@ -28,24 +28,24 @@ describeWithEnv("db > settings", { db: true }, () => {
     test("setSetting overwrites existing value", async () => {
       await settings.setRaw("key", "value1");
       await settings.setRaw("key", "value2");
-      await settings.loadAll();
+      await settings.loadKeys(["key"]);
       const value = settings.getCachedRaw("key");
       expect(value).toBe("value2");
     });
   });
 
-  describe("buildSnapshot via loadAll", () => {
+  describe("buildSnapshot via loadKeys", () => {
     test("loads valid payment provider from raw settings", async () => {
       await settings.setRaw("payment_provider", "stripe");
       settings.invalidateCache();
-      await settings.loadAll();
+      await settings.loadKeys([CONFIG_KEYS.PAYMENT_PROVIDER]);
       expect(settings.paymentProvider).toBe("stripe");
     });
 
     test("ignores invalid payment provider in raw settings", async () => {
       await settings.setRaw("payment_provider", "not-a-provider");
       settings.invalidateCache();
-      await settings.loadAll();
+      await settings.loadKeys([CONFIG_KEYS.PAYMENT_PROVIDER]);
       expect(settings.paymentProvider).toBeNull();
     });
   });
@@ -106,10 +106,10 @@ describeWithEnv("db > settings", { db: true }, () => {
     test("is a no-op when the requested key is already loaded", async () => {
       await settings.setRaw(CONFIG_KEYS.THEME, "dark");
       settings.invalidateCache();
-      await settings.loadAll();
+      await settings.loadKeys([CONFIG_KEYS.THEME]);
 
-      // Mutate the DB after the full load; loadKeys must not re-fetch a key
-      // the fresh full cache already holds.
+      // Mutate the DB after the load; loadKeys must not re-fetch a key
+      // the fresh cache already holds.
       await getDb().execute({
         args: ["light", CONFIG_KEYS.THEME],
         sql: "UPDATE settings SET value = ? WHERE key = ?",
@@ -126,7 +126,7 @@ describeWithEnv("db > settings", { db: true }, () => {
       await getDb().execute("DELETE FROM settings");
       await settings.setup.complete("setupuser", "mypassword", "US");
       settings.invalidateCache();
-      await settings.loadAll();
+      await settings.loadKeys(ALL_SETTINGS_KEYS);
 
       expect(await settings.setup.isComplete()).toBe(true);
       const user = await getUserByUsername("setupuser");
@@ -145,7 +145,7 @@ describeWithEnv("db > settings", { db: true }, () => {
       await getDb().execute("DELETE FROM users");
       await getDb().execute("DELETE FROM settings");
       settings.invalidateCache();
-      await settings.loadAll();
+      await settings.loadKeys(ALL_SETTINGS_KEYS);
       expect(settings.wrappedPrivateKey).toBe("");
       expect(settings.publicKey).toBe("");
 
@@ -196,7 +196,7 @@ describeWithEnv("db > settings", { db: true }, () => {
 
     test("updateStripeKey stores key encrypted", async () => {
       await settings.update.stripe.secretKey("sk_test_encrypted");
-      await settings.loadAll();
+      await settings.loadKeys([CONFIG_KEYS.STRIPE_SECRET_KEY]);
       const rawValue = settings.getCachedRaw(CONFIG_KEYS.STRIPE_SECRET_KEY);
       expect(rawValue).toMatch(/^enc:1:/);
       expect(settings.stripe.secretKey).toBe("sk_test_encrypted");
@@ -233,20 +233,20 @@ describeWithEnv("db > settings", { db: true }, () => {
   describe("additional settings", () => {
     test("clearPaymentProvider removes payment provider setting", async () => {
       await settings.update.paymentProvider("stripe");
-      await settings.loadAll();
+      await settings.loadKeys([CONFIG_KEYS.PAYMENT_PROVIDER]);
       expect(settings.getCachedRaw(CONFIG_KEYS.PAYMENT_PROVIDER)).toBe(
         "stripe",
       );
 
       await settings.update.clearPaymentProvider();
-      await settings.loadAll();
+      await settings.loadKeys([CONFIG_KEYS.PAYMENT_PROVIDER]);
       expect(settings.getCachedRaw(CONFIG_KEYS.PAYMENT_PROVIDER)).toBeNull();
     });
 
-    test("loadAll sets theme to dark when stored value is dark", async () => {
+    test("loadKeys sets theme to dark when stored value is dark", async () => {
       await settings.setRaw(CONFIG_KEYS.THEME, "dark");
       settings.invalidateCache();
-      await settings.loadAll();
+      await settings.loadKeys([CONFIG_KEYS.THEME]);
       expect(settings.theme).toBe("dark");
     });
 
@@ -335,7 +335,7 @@ describeWithEnv("db > settings", { db: true }, () => {
     test("getTimezoneCached returns value after getTimezoneFromDb populates cache", async () => {
       await settings.update.country("US");
       settings.invalidateCache();
-      await settings.loadAll();
+      await settings.loadKeys([CONFIG_KEYS.COUNTRY]);
       const value = settings.timezone;
       expect(value).toBe("America/New_York");
       expect(settings.timezone).toBe("America/New_York");
@@ -344,7 +344,7 @@ describeWithEnv("db > settings", { db: true }, () => {
     test("getTimezoneCached reads from TTL cache when permanent cache is empty", async () => {
       await settings.update.country("JP");
       settings.invalidateCache();
-      await settings.loadAll();
+      await settings.loadKeys([CONFIG_KEYS.COUNTRY]);
       settings.getCachedRaw(CONFIG_KEYS.COUNTRY);
       expect(settings.timezone).toBe("Asia/Tokyo");
     });
@@ -381,14 +381,14 @@ describeWithEnv("db > settings", { db: true }, () => {
     test("superuser_choice is listed in PLAINTEXT_KEYS", async () => {
       // Write it and check it comes back without encryption prefix
       await settings.update.superuserChoice("self-managed");
-      await settings.loadAll();
+      await settings.loadKeys([CONFIG_KEYS.SUPERUSER_CHOICE]);
       const raw = settings.getCachedRaw("superuser_choice");
       expect(raw).toBe("self-managed");
     });
 
     test("superuser_choice is NOT in ENCRYPTED_KEYS", async () => {
       await settings.update.superuserChoice("enabled");
-      await settings.loadAll();
+      await settings.loadKeys([CONFIG_KEYS.SUPERUSER_CHOICE]);
       const raw = settings.getCachedRaw("superuser_choice");
       expect(raw).not.toMatch(/^enc:1:/);
     });
@@ -421,7 +421,7 @@ describeWithEnv("db > settings", { db: true }, () => {
     test("settings.superuserChoice returns '' when stored value is invalid", async () => {
       await settings.setRaw(CONFIG_KEYS.SUPERUSER_CHOICE, "invalid");
       settings.invalidateCache();
-      await settings.loadAll();
+      await settings.loadKeys([CONFIG_KEYS.SUPERUSER_CHOICE]);
 
       expect(settings.superuserChoice).toBe("");
     });
@@ -431,7 +431,7 @@ describeWithEnv("db > settings", { db: true }, () => {
     test("settings.update.superuserChoice persists across a round-trip", async () => {
       await settings.update.superuserChoice("enabled");
       settings.invalidateCache();
-      await settings.loadAll();
+      await settings.loadKeys([CONFIG_KEYS.SUPERUSER_CHOICE]);
       expect(settings.superuserChoice).toBe("enabled");
     });
 

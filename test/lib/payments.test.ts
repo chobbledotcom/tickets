@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { settings } from "#shared/db/settings.ts";
+import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import { getActivePaymentProvider } from "#shared/payments.ts";
 import { describeWithEnv } from "#test-utils";
 
@@ -13,7 +13,7 @@ describeWithEnv("getActivePaymentProvider", { db: true }, () => {
     // setRaw bypasses the typed API; reload so the snapshot reflects the raw value
     await settings.setRaw("payment_provider", "unknown_provider");
     settings.invalidateCache();
-    await settings.loadAll();
+    await settings.loadKeys(ALL_SETTINGS_KEYS);
     expect(await getActivePaymentProvider()).toBeNull();
   });
 
