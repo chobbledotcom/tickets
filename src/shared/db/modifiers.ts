@@ -56,7 +56,13 @@ export const modifiersTable = defineIdTable<Modifier, ModifierInput>(
     min_subtotal: col.withDefault(() => 0),
     scope: col.withDefault<ModifierScope>(() => "all"),
     stock: col.withDefault<number | null>(() => null),
+    // Trigger-maintained aggregates over modifier_usages — read-only here
+    // (generated), so insert/update never write them and the DB default / the
+    // triggers keep them current.
+    total_revenue: col.generated<number>(),
+    total_uses: col.generated<number>(),
     trigger: col.withDefault<ModifierTrigger>(() => "automatic"),
+    usage_count: col.generated<number>(),
   },
 );
 

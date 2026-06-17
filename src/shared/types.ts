@@ -422,6 +422,12 @@ export interface Modifier {
   min_subtotal: number;
   /** Remaining-stock cap, or null for unlimited. Consumed monotonically. */
   stock: number | null;
+  /** Trigger-maintained SUM(quantity) over this modifier's usage rows. */
+  total_uses: number;
+  /** Trigger-maintained COUNT of this modifier's usage rows. */
+  usage_count: number;
+  /** Trigger-maintained SUM(amount_applied) over this modifier's usages, in minor units. */
+  total_revenue: number;
 }
 
 export interface ListingWithCount extends Listing {

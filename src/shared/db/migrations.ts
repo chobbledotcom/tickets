@@ -471,6 +471,14 @@ const SCHEMA: [name: string, table: Table][] = [
         ["stock", "INTEGER"],
         ["max_per_order", "INTEGER"],
         ["min_subtotal", "INTEGER NOT NULL DEFAULT 0"],
+        // Precomputed aggregates over modifier_usages, maintained by the
+        // MODIFIER_AGGREGATE_TRIGGERS so admin reads never SUM/COUNT the
+        // modifier_usages table. total_uses is SUM(quantity), usage_count is
+        // COUNT(*), total_revenue is SUM(amount_applied) — all scoped to this
+        // modifier.
+        ["total_uses", "INTEGER NOT NULL DEFAULT 0"],
+        ["usage_count", "INTEGER NOT NULL DEFAULT 0"],
+        ["total_revenue", "INTEGER NOT NULL DEFAULT 0"],
       ],
       indexes: [{ columns: ["code_index"], name: "idx_modifiers_code_index" }],
     },
@@ -776,8 +784,73 @@ END`,
   },
 ];
 
+/**
+ * Modifier aggregate triggers keep modifiers.total_uses, modifiers.usage_count
+ * and modifiers.total_revenue in step with the modifier_usages ledger, the same
+ * way the listing triggers maintain the listings aggregates. The UPDATE trigger
+ * is scoped to OF quantity, amount_applied, modifier_id so the only writes that
+ * affect the totals fire it, and it subtracts the OLD row's contribution from
+ * its old modifier and adds the NEW row's to its new modifier so a row moving
+ * between modifiers stays correct.
+ *
+ * Semantics mirror the previous SUM(quantity) / COUNT(*) / SUM(amount_applied)
+ * queries over modifier_usages exactly.
+ */
+const MODIFIER_AGGREGATE_TRIGGERS: Trigger[] = [
+  {
+    name: "trg_modifier_usages_aggregates_insert",
+    sql: `CREATE TRIGGER IF NOT EXISTS trg_modifier_usages_aggregates_insert
+AFTER INSERT ON modifier_usages
+FOR EACH ROW
+BEGIN
+  UPDATE modifiers SET
+    total_uses = total_uses + NEW.quantity,
+    usage_count = usage_count + 1,
+    total_revenue = total_revenue + NEW.amount_applied
+  WHERE id = NEW.modifier_id;
+END`,
+    table: "modifier_usages",
+  },
+  {
+    name: "trg_modifier_usages_aggregates_delete",
+    sql: `CREATE TRIGGER IF NOT EXISTS trg_modifier_usages_aggregates_delete
+AFTER DELETE ON modifier_usages
+FOR EACH ROW
+BEGIN
+  UPDATE modifiers SET
+    total_uses = total_uses - OLD.quantity,
+    usage_count = usage_count - 1,
+    total_revenue = total_revenue - OLD.amount_applied
+  WHERE id = OLD.modifier_id;
+END`,
+    table: "modifier_usages",
+  },
+  {
+    name: "trg_modifier_usages_aggregates_update",
+    sql: `CREATE TRIGGER IF NOT EXISTS trg_modifier_usages_aggregates_update
+AFTER UPDATE OF quantity, amount_applied, modifier_id ON modifier_usages
+FOR EACH ROW
+BEGIN
+  UPDATE modifiers SET
+    total_uses = total_uses - OLD.quantity,
+    usage_count = usage_count - 1,
+    total_revenue = total_revenue - OLD.amount_applied
+  WHERE id = OLD.modifier_id;
+  UPDATE modifiers SET
+    total_uses = total_uses + NEW.quantity,
+    usage_count = usage_count + 1,
+    total_revenue = total_revenue + NEW.amount_applied
+  WHERE id = NEW.modifier_id;
+END`,
+    table: "modifier_usages",
+  },
+];
+
 /** Every declared trigger, across all aggregate relationships. */
-const TRIGGERS: Trigger[] = [...LISTING_AGGREGATE_TRIGGERS];
+const TRIGGERS: Trigger[] = [
+  ...LISTING_AGGREGATE_TRIGGERS,
+  ...MODIFIER_AGGREGATE_TRIGGERS,
+];
 
 /** Ordered table names — matches FK dependency order (parents before children) */
 export const SCHEMA_TABLE_NAMES: string[] = SCHEMA.map(([name]) => name);
@@ -1218,6 +1291,23 @@ const backfillListingAggregates = async (): Promise<void> => {
   );
 };
 
+/**
+ * Recompute the modifiers aggregate columns from modifier_usages in a single
+ * statement. One-time on migration; afterwards the triggers keep them current.
+ * Idempotent (absolute recompute, not a delta), so it's safe to re-run.
+ */
+const backfillModifierAggregates = async (): Promise<void> => {
+  await getDb().execute(
+    `UPDATE modifiers SET
+       total_uses = COALESCE(
+         (SELECT SUM(quantity) FROM modifier_usages WHERE modifier_id = modifiers.id), 0),
+       usage_count = COALESCE(
+         (SELECT COUNT(*) FROM modifier_usages WHERE modifier_id = modifiers.id), 0),
+       total_revenue = COALESCE(
+         (SELECT SUM(amount_applied) FROM modifier_usages WHERE modifier_id = modifiers.id), 0)`,
+  );
+};
+
 const verifyCurrentAppSchema = async (): Promise<void> => {
   // One snapshot (a single batched round-trip) replaces the per-table
   // tableExists/getExistingColumns/indexExists probes — dozens of subrequests
@@ -1277,6 +1367,9 @@ const syncCurrentSchema = async (): Promise<void> => {
 
   logDebug("Migration", "Step 6: backfilling listing aggregates...");
   await backfillListingAggregates();
+
+  logDebug("Migration", "Step 7: backfilling modifier aggregates...");
+  await backfillModifierAggregates();
 };
 
 /**
@@ -1547,6 +1640,14 @@ const REQ_LISTING_AGGREGATES: SchemaRequirement = {
     "trg_listing_attendees_aggregates_update",
   ],
 };
+const REQ_MODIFIER_AGGREGATES: SchemaRequirement = {
+  columns: { modifiers: ["total_uses", "usage_count", "total_revenue"] },
+  triggers: [
+    "trg_modifier_usages_aggregates_insert",
+    "trg_modifier_usages_aggregates_delete",
+    "trg_modifier_usages_aggregates_update",
+  ],
+};
 
 export const MIGRATIONS: Migration[] = [
   {
@@ -1736,6 +1837,20 @@ export const MIGRATIONS: Migration[] = [
     up: async () => {
       await applySchemaChanges();
       await syncIndexes();
+    },
+  }),
+  additive({
+    description:
+      "Add total_uses, usage_count and total_revenue aggregate columns to modifiers, maintained by triggers on modifier_usages, so admin modifier reads avoid scanning the usage ledger; backfill from existing data",
+    id: "2026-06-17_modifier_aggregates",
+    requires: REQ_MODIFIER_AGGREGATES,
+    up: async () => {
+      await applySchemaChanges();
+      // Triggers first, then an absolute recompute: any usage write that slips
+      // in between is counted by the trigger and then overwritten by the fresh
+      // backfill total, so no insert can be lost.
+      await syncTriggers();
+      await backfillModifierAggregates();
     },
   }),
 ];

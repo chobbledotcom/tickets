@@ -24,7 +24,10 @@ const mod = (overrides: Partial<Modifier> = {}): Modifier => ({
   name: "Early bird",
   scope: "all",
   stock: null,
+  total_revenue: 0,
+  total_uses: 0,
   trigger: "automatic",
+  usage_count: 0,
   ...overrides,
 });
 
