@@ -551,6 +551,72 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
+    test("logs a promo code surcharge with a + prefix", async () => {
+      await setupStripe();
+      const listing = await createTestListing({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+      const modifier = await modifiersTable.insert({
+        calcKind: "fixed",
+        calcValue: 1,
+        direction: "charge",
+        name: "PREMIUM",
+        trigger: "code",
+      });
+
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            listing: {
+              data: {
+                object: {
+                  // £10 ticket + £1 promo surcharge = £11.00.
+                  amount_total: 1100,
+                  id: "cs_promo_surcharge",
+                  metadata: webhookMeta({
+                    email: "surcharge@example.com",
+                    items: singleItem(listing.id, 1, 1000),
+                    modifiers: JSON.stringify([{ i: modifier.id, q: 1 }]),
+                    name: "Surcharge Buyer",
+                  }),
+                  payment_intent: "pi_promo_surcharge",
+                  payment_status: "paid",
+                },
+              },
+              id: "evt_promo_surcharge",
+              type: "checkout.session.completed",
+            },
+            valid: true,
+          }),
+      );
+
+      try {
+        await assertJson(
+          handleRequest(
+            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+          ),
+          200,
+          (json) => {
+            expect(json.processed).toBe(true);
+          },
+        );
+        const log = await getAllActivityLog();
+        expect(
+          log.some(
+            (e) => e.message === "Promo code 'PREMIUM' used: +£1",
+          ),
+        ).toBe(true);
+      } finally {
+        mockVerify.restore();
+      }
+    });
+
     test("refunds a webhook whose total omits an applied modifier", async () => {
       await setupStripe();
       const listing = await createTestListing({
