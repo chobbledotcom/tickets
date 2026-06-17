@@ -1579,6 +1579,7 @@ button.secondary:hover,
 
 .admin-footer-top > .inline {
   flex: 0 0 auto;
+  min-width: 0;
 }
 
 .admin-footer-info {

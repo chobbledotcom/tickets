@@ -1,6 +1,10 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
+import { hmacHash } from "#shared/crypto/hashing.ts";
+import { getDb } from "#shared/db/client.ts";
+import { modifiersTable } from "#shared/db/modifiers.ts";
+import { normalizeCode } from "#shared/price-modifier.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
 import {
   assertPublicHtml,
@@ -858,6 +862,90 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
         // The chosen span and its price are carried into the checkout intent.
         expect(capturedIntent?.dayCount).toBe(2);
         expect(capturedIntent?.items[0]?.unitPrice).toBe(1800);
+      } finally {
+        mockCreate.restore();
+      }
+    });
+
+    test("carries a selected add-on and entered promo code into the checkout intent", async () => {
+      await setupStripe();
+
+      const listing = await createTestListing({
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com/thanks",
+        unitPrice: 1000,
+      });
+
+      // An opt-in add-on and a promo-code discount, both whole-order. A second
+      // add-on is offered but left unselected (its quantity field stays 0).
+      const addOn = await modifiersTable.insert({
+        calcKind: "fixed",
+        calcValue: 5,
+        direction: "charge",
+        name: "T-shirt",
+      });
+      const skippedAddOn = await modifiersTable.insert({
+        calcKind: "fixed",
+        calcValue: 3,
+        direction: "charge",
+        name: "Tote bag",
+      });
+      const promo = await modifiersTable.insert({
+        calcKind: "percent",
+        calcValue: 10,
+        direction: "discount",
+        name: "SAVE10",
+      });
+      await getDb().execute({
+        args: ["optional", addOn.id],
+        sql: "UPDATE modifiers SET trigger = ? WHERE id = ?",
+      });
+      await getDb().execute({
+        args: ["optional", skippedAddOn.id],
+        sql: "UPDATE modifiers SET trigger = ? WHERE id = ?",
+      });
+      await getDb().execute({
+        args: ["code", await hmacHash(normalizeCode("SAVE10")), promo.id],
+        sql: "UPDATE modifiers SET trigger = ?, code_index = ? WHERE id = ?",
+      });
+
+      const { stub } = await import("@std/testing/mock");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
+      let capturedIntent:
+        | import("#shared/payments.ts").CheckoutIntent
+        | undefined;
+      const mockCreate = stub(
+        stripePaymentProvider,
+        "createCheckoutSession",
+        (intent: import("#shared/payments.ts").CheckoutIntent) => {
+          capturedIntent = intent;
+          return Promise.resolve({
+            checkoutUrl: "https://stripe.test/checkout",
+            sessionId: "cs_modifiers_web",
+          });
+        },
+      );
+
+      try {
+        const response = await submitTicketForm(listing.slug, {
+          // The second add-on's field is omitted entirely (left unselected).
+          [`addon_${addOn.id}`]: "2",
+          email: "john@example.com",
+          name: "John Doe",
+          promo_code: "save10",
+        });
+
+        expect(response.status).toBe(302);
+        const byId = new Map(
+          (capturedIntent?.modifiers ?? []).map((m) => [m.id, m]),
+        );
+        // The add-on is applied at the chosen quantity, the promo at quantity 1,
+        // and the unselected add-on is absent.
+        expect(byId.get(addOn.id)?.quantity).toBe(2);
+        expect(byId.get(promo.id)?.quantity).toBe(1);
+        expect(byId.has(skippedAddOn.id)).toBe(false);
       } finally {
         mockCreate.restore();
       }

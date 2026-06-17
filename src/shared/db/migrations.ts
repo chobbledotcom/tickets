@@ -53,7 +53,7 @@ type Trigger = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add email_preferences table for marketing opt-outs and contact history; add customisable_days and day_prices columns to listings for visitor-chosen multi-day bookings with per-day-count pricing; add attendee_statuses table with status_id and remaining_balance on attendees, plus attendee_id on activity_log, for the reservation and balance-payment flow; add idx_activity_log_listing_id so per-listing activity log reads are index scans instead of full-table scans; add a logistics_agents table plus a uses_logistics flag on listings, a split_logistics_agents flag on attendees, and start_agent_id/end_agent_id/start_time/end_time on listing_attendees for the logistics flow; add email_templates table for owner-keypair-encrypted reusable email subjects and bodies; add a user_logistics_agents table linking agent users to the logistics agents they drive, plus start_done/end_done flags on listing_attendees so delivery agents can mark drop-offs and collections complete; add failure_data to processed_payments so handled payment failures are recorded as a terminal outcome for idempotent redirect/webhook replay; add booked_quantity, tickets_count and income aggregate columns to listings, maintained by triggers on listing_attendees so listing reads and active-listing stats avoid scanning the attendee rows; add modifiers table for owner-defined price modifiers (surcharges, discounts, add-ons), with active/trigger/code_index/scope/stock/max_per_order/min_subtotal columns plus modifier_listings, modifier_groups and modifier_usages tables for scoping and stock; add sms_messages table mapping gateway message ids to attendees for SMS status webhooks (content lives in the encrypted activity log); add phone_index to attendees so inbound SMS replies can be matched to an attendee";
+  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add email_preferences table for marketing opt-outs and contact history; add customisable_days and day_prices columns to listings for visitor-chosen multi-day bookings with per-day-count pricing; add attendee_statuses table with status_id and remaining_balance on attendees, plus attendee_id on activity_log, for the reservation and balance-payment flow; add idx_activity_log_listing_id so per-listing activity log reads are index scans instead of full-table scans; add a logistics_agents table plus a uses_logistics flag on listings, a split_logistics_agents flag on attendees, and start_agent_id/end_agent_id/start_time/end_time on listing_attendees for the logistics flow; add email_templates table for owner-keypair-encrypted reusable email subjects and bodies; add a user_logistics_agents table linking agent users to the logistics agents they drive, plus start_done/end_done flags on listing_attendees so delivery agents can mark drop-offs and collections complete; add failure_data to processed_payments so handled payment failures are recorded as a terminal outcome for idempotent redirect/webhook replay; add booked_quantity, tickets_count and income aggregate columns to listings, maintained by triggers on listing_attendees so listing reads and active-listing stats avoid scanning the attendee rows; add modifiers table for owner-defined price modifiers (surcharges, discounts, add-ons), with active/trigger/code_index/scope/stock/max_per_order/min_subtotal columns plus modifier_listings, modifier_groups and modifier_usages tables for scoping and stock; add an encrypted code column to modifiers for promo-code modifiers; add sms_messages table mapping gateway message ids to attendees for SMS status webhooks (content lives in the encrypted activity log); add phone_index to attendees so inbound SMS replies can be matched to an attendee";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -465,6 +465,7 @@ const SCHEMA: [name: string, table: Table][] = [
         ["direction", "TEXT NOT NULL"],
         ["active", "INTEGER NOT NULL DEFAULT 1"],
         ["trigger", "TEXT NOT NULL DEFAULT 'automatic'"],
+        ["code", "TEXT NOT NULL DEFAULT ''"],
         ["code_index", "TEXT"],
         ["scope", "TEXT NOT NULL DEFAULT 'all'"],
         ["stock", "INTEGER"],
@@ -1527,6 +1528,9 @@ const REQ_MODIFIERS: SchemaRequirement = {
     "modifier_usages",
   ],
 };
+const REQ_MODIFIER_CODE: SchemaRequirement = {
+  columns: { modifiers: ["code"] },
+};
 const REQ_SMS_MESSAGES: SchemaRequirement = {
   indexes: ["idx_sms_messages_provider_id", "idx_sms_messages_created"],
   newTables: ["sms_messages"],
@@ -1690,6 +1694,15 @@ export const MIGRATIONS: Migration[] = [
     up: async () => {
       await applySchemaChanges();
       await syncIndexes();
+    },
+  }),
+  additive({
+    description:
+      "Add an encrypted code column to modifiers for promo-code (trigger=code) modifiers; the public code box matches against code_index",
+    id: "2026-06-17_modifier_code",
+    requires: REQ_MODIFIER_CODE,
+    up: async () => {
+      await applySchemaChanges();
     },
   }),
   additive({

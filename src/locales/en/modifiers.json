@@ -14,5 +14,9 @@
   "modifiers.delete.submit": "Delete Modifier",
   "modifiers.delete.confirm": "Are you sure you want to delete the modifier {name}?",
   "modifiers.delete.confirm_prompt": "Type the modifier name to confirm:",
-  "modifiers.name_label": "Modifier Name"
+  "modifiers.name_label": "Modifier Name",
+  "modifiers.scope.listings_heading": "Linked listings",
+  "modifiers.scope.groups_heading": "Linked groups",
+  "modifiers.scope.none": "Nothing available to link yet.",
+  "modifiers.scope.save": "Save scope"
 }

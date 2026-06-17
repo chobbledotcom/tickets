@@ -1,14 +1,19 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { hmacHash } from "#shared/crypto/hashing.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
+  ADDON_MAX_QUANTITY,
+  getOptionalAddOns,
+  hasPromoCodeModifiers,
   resolveModifiers,
   specsFromRefs,
 } from "#shared/db/modifier-resolve.ts";
 import { consumeModifierStock } from "#shared/db/modifier-usage.ts";
 import { type ModifierInput, modifiersTable } from "#shared/db/modifiers.ts";
 import type { CheckoutItem } from "#shared/payments.ts";
+import { normalizeCode } from "#shared/price-modifier.ts";
 import { createTestListing, describeWithEnv } from "#test-utils";
 
 const linkListing = (modifierId: number, listingId: number) =>
@@ -138,6 +143,47 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
       expect(skipped.map((s) => s.name)).not.toContain("VIP");
     });
 
+    test("applies a code modifier only when the matching code is entered", async () => {
+      const m = await insertModifier({ name: "SUMMER" });
+      await patchModifier(m.id, {
+        code_index: await hmacHash(normalizeCode("Summer25")),
+        trigger: "code",
+      });
+
+      const withoutCode = await resolveModifiers([item()]);
+      expect(withoutCode.map((s) => s.name)).not.toContain("SUMMER");
+
+      const wrongCode = await resolveModifiers([item()], { code: "winter" });
+      expect(wrongCode.map((s) => s.name)).not.toContain("SUMMER");
+
+      // Matching is case-insensitive (normalised before hashing).
+      const rightCode = await resolveModifiers([item()], { code: "SUMMER25" });
+      expect(rightCode.map((s) => s.name)).toContain("SUMMER");
+    });
+
+    test("applies an opt-in add-on at the chosen quantity only when selected", async () => {
+      const m = await insertModifier({ name: "T-shirt" });
+      await patchModifier(m.id, { trigger: "optional" });
+
+      const unselected = await resolveModifiers([item()]);
+      expect(unselected.map((s) => s.name)).not.toContain("T-shirt");
+
+      const selected = await resolveModifiers([item()], {
+        addOns: new Map([[m.id, 3]]),
+      });
+      expect(selected.find((s) => s.name === "T-shirt")?.quantity).toBe(3);
+    });
+
+    test("caps an opt-in add-on quantity at the remaining stock", async () => {
+      const m = await insertModifier({ name: "Limited tee", stock: 2 });
+      await patchModifier(m.id, { trigger: "optional" });
+
+      const specs = await resolveModifiers([item()], {
+        addOns: new Map([[m.id, 5]]),
+      });
+      expect(specs.find((s) => s.name === "Limited tee")?.quantity).toBe(2);
+    });
+
     test("applies a group-scoped modifier to the linked group's listings", async () => {
       const listing = await createTestListing({
         maxAttendees: 10,
@@ -160,6 +206,95 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
       expect(applied.find((s) => s.name === "GroupWide")?.listingIds).toEqual([
         listing.id,
       ]);
+    });
+  });
+
+  describe("hasPromoCodeModifiers", () => {
+    test("is false with no code modifiers and true once one exists", async () => {
+      await insertModifier({ name: "Automatic" });
+      expect(await hasPromoCodeModifiers()).toBe(false);
+
+      const coded = await insertModifier({ name: "Coded" });
+      await patchModifier(coded.id, { trigger: "code" });
+      expect(await hasPromoCodeModifiers()).toBe(true);
+    });
+  });
+
+  describe("getOptionalAddOns", () => {
+    test("offers a whole-order add-on with its price label and quantity cap", async () => {
+      const m = await insertModifier({
+        calcKind: "fixed",
+        calcValue: 5,
+        direction: "charge",
+        name: "Parking",
+      });
+      await patchModifier(m.id, { trigger: "optional" });
+
+      const addOns = await getOptionalAddOns([1]);
+      expect(addOns).toEqual([
+        {
+          id: m.id,
+          maxQuantity: ADDON_MAX_QUANTITY,
+          name: "Parking",
+          priceLabel: "+£5",
+        },
+      ]);
+    });
+
+    test("labels a percentage discount add-on with a minus sign", async () => {
+      const m = await insertModifier({
+        calcKind: "percent",
+        calcValue: 10,
+        direction: "discount",
+        name: "Member rebate",
+      });
+      await patchModifier(m.id, { trigger: "optional" });
+      const addOns = await getOptionalAddOns([1]);
+      expect(addOns[0]?.priceLabel).toBe("−10%");
+    });
+
+    test("labels a multiplier add-on with its bare factor", async () => {
+      const m = await insertModifier({
+        calcKind: "multiply",
+        calcValue: 1.5,
+        direction: "charge",
+        name: "Peak surcharge",
+      });
+      await patchModifier(m.id, { trigger: "optional" });
+      const addOns = await getOptionalAddOns([1]);
+      expect(addOns[0]?.priceLabel).toBe("×1.5");
+    });
+
+    test("caps maxQuantity at the remaining stock", async () => {
+      const m = await insertModifier({ name: "Tee", stock: 3 });
+      await patchModifier(m.id, { trigger: "optional" });
+      const addOns = await getOptionalAddOns([1]);
+      expect(addOns[0]?.maxQuantity).toBe(3);
+    });
+
+    test("omits a sold-out add-on", async () => {
+      const m = await insertModifier({ name: "Sold out", stock: 1 });
+      await patchModifier(m.id, { trigger: "optional" });
+      await consumeModifierStock(1, [
+        { amountApplied: 500, modifierId: m.id, quantity: 1 },
+      ]);
+      expect(await getOptionalAddOns([1])).toEqual([]);
+    });
+
+    test("offers a listing-scoped add-on only on a page with its listing", async () => {
+      const m = await insertModifier({ name: "Scoped tee" });
+      await patchModifier(m.id, { scope: "listings", trigger: "optional" });
+      await linkListing(m.id, 7);
+
+      expect(await getOptionalAddOns([7])).toHaveLength(1);
+      expect(await getOptionalAddOns([8])).toEqual([]);
+    });
+
+    test("excludes automatic and code modifiers", async () => {
+      await insertModifier({ name: "Automatic" });
+      const coded = await insertModifier({ name: "Coded" });
+      await patchModifier(coded.id, { trigger: "code" });
+      expect(await getOptionalAddOns([1])).toEqual([]);
     });
   });
 

@@ -16,6 +16,8 @@ const mod = (overrides: Partial<Modifier> = {}): Modifier => ({
   active: true,
   calc_kind: "percent",
   calc_value: 10,
+  code: "",
+  code_index: null,
   direction: "discount",
   id: 1,
   min_subtotal: 0,
@@ -101,5 +103,52 @@ describe("adminModifierDeletePage", () => {
     expect(html).toContain("Delete Modifier");
     expect(html).toContain("Loyalty");
     expect(html).toContain('name="confirm_identifier"');
+  });
+});
+
+describe("adminModifierEditPage scope editor", () => {
+  test("renders listing checkboxes (with current links checked)", () => {
+    const html = adminModifierEditPage(
+      mod({ scope: "listings" }),
+      SESSION,
+      undefined,
+      {
+        kind: "listings",
+        options: [{ id: 7, name: "VIP Pass" }],
+        selected: [7],
+      },
+    );
+    expect(html).toContain("Linked listings");
+    expect(html).toContain("VIP Pass");
+    expect(html).toContain('name="listing_ids"');
+    expect(html).toContain("checked");
+  });
+
+  test("renders group checkboxes for a groups-scoped modifier", () => {
+    const html = adminModifierEditPage(
+      mod({ scope: "groups" }),
+      SESSION,
+      undefined,
+      { kind: "groups", options: [{ id: 3, name: "Weekend" }], selected: [] },
+    );
+    expect(html).toContain("Linked groups");
+    expect(html).toContain("Weekend");
+    expect(html).toContain('name="group_ids"');
+  });
+
+  test("shows an empty note when nothing is linkable", () => {
+    const html = adminModifierEditPage(
+      mod({ scope: "listings" }),
+      SESSION,
+      undefined,
+      { kind: "listings", options: [], selected: [] },
+    );
+    expect(html).toContain("Nothing available to link yet");
+  });
+
+  test("omits the scope editor for a whole-order modifier", () => {
+    const html = adminModifierEditPage(mod(), SESSION);
+    expect(html).not.toContain("Linked listings");
+    expect(html).not.toContain("Linked groups");
   });
 });

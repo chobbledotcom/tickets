@@ -26,11 +26,30 @@ export type ModifierDirection = v.InferOutput<typeof ModifierDirectionSchema>;
 
 /** How a modifier becomes part of a checkout: applied automatically, unlocked
  * by a promo code, or an opt-in add-on the buyer chooses. */
-export type ModifierTrigger = "automatic" | "code" | "optional";
+export const ModifierTriggerSchema = v.picklist([
+  "automatic",
+  "code",
+  "optional",
+]);
+export type ModifierTrigger = v.InferOutput<typeof ModifierTriggerSchema>;
+
+/** Type guard: is the string a valid modifier trigger? */
+export const isModifierTrigger = (value: string): value is ModifierTrigger =>
+  v.is(ModifierTriggerSchema, value);
 
 /** Which cart items a modifier is charged on: the whole order, specific
  * listings, or every listing in specific groups. */
-export type ModifierScope = "all" | "listings" | "groups";
+export const ModifierScopeSchema = v.picklist(["all", "listings", "groups"]);
+export type ModifierScope = v.InferOutput<typeof ModifierScopeSchema>;
+
+/** Type guard: is the string a valid modifier scope? */
+export const isModifierScope = (value: string): value is ModifierScope =>
+  v.is(ModifierScopeSchema, value);
+
+/** Normalise a promo code for storage and matching: trimmed and lower-cased so
+ * codes are case-insensitive. The blind index is the HMAC of this. */
+export const normalizeCode = (code: string): string =>
+  code.trim().toLowerCase();
 
 /** Type guard: is the string a valid calc kind? */
 export const isCalcKind = (value: string): value is CalcKind =>

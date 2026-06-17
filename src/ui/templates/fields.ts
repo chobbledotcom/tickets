@@ -876,6 +876,9 @@ export type ModifierFormValues = {
   calc_kind: string;
   direction: string;
   calc_value: number;
+  trigger: string;
+  code: string;
+  scope: string;
   min_subtotal: number;
   stock: number | null;
   active: string;
@@ -923,6 +926,37 @@ export const modifierFields: Field[] = [
     type: "text",
     validate: (value: string) =>
       Number.isFinite(Number.parseFloat(value)) ? null : "Enter a valid number",
+  },
+  {
+    defaultValue: "automatic",
+    hint: "When this applies. Promo codes are entered by the buyer at checkout; optional add-ons are chosen by the buyer.",
+    label: "Trigger",
+    name: "trigger",
+    options: [
+      { label: "Automatic (always)", value: "automatic" },
+      { label: "Promo code", value: "code" },
+      { label: "Optional add-on", value: "optional" },
+    ],
+    type: "select",
+  },
+  {
+    hint: "The code buyers enter at checkout. Required for promo-code modifiers; ignored otherwise.",
+    label: "Promo code",
+    name: "code",
+    placeholder: "SUMMER20",
+    type: "text",
+  },
+  {
+    defaultValue: "all",
+    hint: "Which items this applies to. For specific listings or groups, choose the listings/groups on the edit page after saving.",
+    label: "Applies to",
+    name: "scope",
+    options: [
+      { label: "The whole order", value: "all" },
+      { label: "Specific listings", value: "listings" },
+      { label: "Listings in specific groups", value: "groups" },
+    ],
+    type: "select",
   },
   {
     hint: "Only apply when the order subtotal is at least this amount (in your currency). Leave blank for no minimum.",
