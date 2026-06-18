@@ -24,6 +24,14 @@ const usage = (modifierId: number, quantity = 1) => ({
   quantity,
 });
 
+const usageAmount = async (modifierId: number): Promise<number> => {
+  const result = await getDb().execute({
+    args: [modifierId],
+    sql: "SELECT amount_applied FROM modifier_usages WHERE modifier_id = ?",
+  });
+  return Number(result.rows[0]!.amount_applied);
+};
+
 describeWithEnv("db > modifier-usage", { db: true }, () => {
   describe("consumeModifierStock", () => {
     test("returns true for no usages", async () => {
@@ -36,6 +44,7 @@ describeWithEnv("db > modifier-usage", { db: true }, () => {
       expect(await modifierUsedQuantities([m.id])).toEqual(
         new Map([[m.id, 2]]),
       );
+      expect(await usageAmount(m.id)).toBe(500);
     });
 
     test("refuses to oversell a stock-limited modifier", async () => {

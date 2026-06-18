@@ -42,7 +42,7 @@ import { parseTokens } from "#routes/tickets/token-utils.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { calculateBookingFee } from "#shared/booking-fee.ts";
 import {
-  type ModifierUsageAmount,
+  type ModifierApplication,
   type PricedOrder,
   priceCheckout,
 } from "#shared/checkout-pricing.ts";
@@ -692,11 +692,15 @@ const createAttendeeForSession = async (
   // Consume modifier stock atomically; a sold-out race rolls the order back.
   // The usage amount comes from the same pricing pass that calculated the
   // checkout total, so scoped bases, quantities, and clamped discounts match.
-  if (pricedOrder.modifierUsages.length > 0) {
+  if (pricedOrder.modifierApplications.length > 0) {
     const attendeeId = created.attendees[0]!.id;
     const consumed = await consumeModifierStock(
       attendeeId,
-      pricedOrder.modifierUsages,
+      pricedOrder.modifierApplications.map((application) => ({
+        amountApplied: application.amountApplied,
+        modifierId: application.modifierId,
+        quantity: application.quantity,
+      })),
     );
     if (!consumed) {
       await deleteAttendee(attendeeId);
@@ -795,19 +799,15 @@ const settleBalanceSession = async (
 
 const logPromoCodeModifiers = async (
   specs: ModifierSpec[],
-  usages: ReadonlyArray<ModifierUsageAmount>,
+  applications: ModifierApplication[],
   listing: ListingWithCount,
   attendeeId: number,
 ): Promise<void> => {
+  const byId = new Map(applications.map((a) => [a.modifierId, a]));
   for (const spec of specs) {
-    const amountApplied = usages.find(
-      (usage) => usage.modifierId === spec.id,
-    )!.amountApplied;
-    const isDiscount =
-      spec.kind === "multiply" ? spec.value < 1 : spec.value < 0;
-    const effect = isDiscount
-      ? `${formatCurrency(amountApplied)} off`
-      : `+${formatCurrency(amountApplied)}`;
+    const delta = byId.get(spec.id)!.delta;
+    const effect =
+      delta < 0 ? `${formatCurrency(-delta)} off` : `+${formatCurrency(delta)}`;
     await logActivity(
       `Promo code '${spec.name}' used: ${effect}`,
       listing,
@@ -885,7 +885,7 @@ const processReservedSession = async (
   if (codeSpecs.length > 0) {
     await logPromoCodeModifiers(
       codeSpecs,
-      pricedOrder.modifierUsages,
+      pricedOrder.modifierApplications,
       firstAttendee.listing,
       firstAttendee.attendee.id,
     );

@@ -181,6 +181,31 @@ describe("priceCheckout", () => {
   );
 
   testWithSetting(
+    "records the full applied amount for a quantity-based add-on",
+    { booking_fee: "0" },
+    () => {
+      const order = priceCheckout(
+        intentWith([item()], {
+          modifiers: [modifier({ kind: "fixed", quantity: 3, value: 500 })],
+        }),
+      );
+      expect(order.extras).toEqual([
+        { amount: 500, key: "mod:1", name: "Add-on", quantity: 3 },
+      ]);
+      expect(order.modifierApplications).toEqual([
+        {
+          amountApplied: 1500,
+          delta: 1500,
+          modifierId: 1,
+          quantity: 3,
+          scopedSubtotal: 1000,
+        },
+      ]);
+      expect(order.total).toBe(2500);
+    },
+  );
+
+  testWithSetting(
     "omits the fee extra when the booking fee is zero",
     { booking_fee: "0" },
     () => {
@@ -424,8 +449,14 @@ describe("applyModifiers", () => {
     expect(result.extras).toEqual([
       { amount: 450, key: "mod:1", name: "Add-on", quantity: 1 },
     ]);
-    expect(result.modifierUsages).toEqual([
-      { amountApplied: 450, modifierId: 1, quantity: 1 },
+    expect(result.applications).toEqual([
+      {
+        amountApplied: 450,
+        delta: 450,
+        modifierId: 1,
+        quantity: 1,
+        scopedSubtotal: 4500,
+      },
     ]);
     expect(result.modifierTotal).toBe(450);
   });
@@ -436,7 +467,29 @@ describe("applyModifiers", () => {
       modifier({ kind: "percent", listingIds: [1], value: 10 }),
     ]);
     expect(result.extras[0]!.amount).toBe(200);
+    expect(result.applications[0]).toEqual({
+      amountApplied: 200,
+      delta: 200,
+      modifierId: 1,
+      quantity: 1,
+      scopedSubtotal: 2000,
+    });
     expect(result.modifierTotal).toBe(200);
+  });
+
+  test("scopes a percentage across a group-sized listing set", () => {
+    // 10% of listings 1 + 2 only = £4.50.
+    const result = applyModifiers(lines, [
+      modifier({ kind: "percent", listingIds: [1, 2], value: 10 }),
+    ]);
+    expect(result.applications[0]).toEqual({
+      amountApplied: 450,
+      delta: 450,
+      modifierId: 1,
+      quantity: 1,
+      scopedSubtotal: 4500,
+    });
+    expect(result.modifierTotal).toBe(450);
   });
 
   test("multiplies a fixed add-on by its quantity in the total", () => {
@@ -450,8 +503,14 @@ describe("applyModifiers", () => {
       name: "Add-on",
       quantity: 3,
     });
-    expect(result.modifierUsages).toEqual([
-      { amountApplied: 1500, modifierId: 1, quantity: 3 },
+    expect(result.applications).toEqual([
+      {
+        amountApplied: 1500,
+        delta: 1500,
+        modifierId: 1,
+        quantity: 3,
+        scopedSubtotal: 4500,
+      },
     ]);
     expect(result.modifierTotal).toBe(1500);
   });
@@ -462,8 +521,14 @@ describe("applyModifiers", () => {
     ]);
     expect(result.extras).toEqual([]);
     expect(result.lines).toEqual(lines);
-    expect(result.modifierUsages).toEqual([
-      { amountApplied: 0, modifierId: 1, quantity: 1 },
+    expect(result.applications).toEqual([
+      {
+        amountApplied: 0,
+        delta: 0,
+        modifierId: 1,
+        quantity: 1,
+        scopedSubtotal: 4500,
+      },
     ]);
     expect(result.modifierTotal).toBe(0);
   });
@@ -481,8 +546,14 @@ describe("applyModifiers", () => {
         quantity: 1,
       },
     ]);
-    expect(result.modifierUsages).toEqual([
-      { amountApplied: 200, modifierId: 1, quantity: 1 },
+    expect(result.applications).toEqual([
+      {
+        amountApplied: 200,
+        delta: -200,
+        modifierId: 1,
+        quantity: 1,
+        scopedSubtotal: 2000,
+      },
     ]);
     expect(result.modifierTotal).toBe(-200);
   });
@@ -495,8 +566,14 @@ describe("applyModifiers", () => {
     expect(result.lines).toEqual([
       { chargedUnitAmount: 0, item: item(), quantity: 2 },
     ]);
-    expect(result.modifierUsages).toEqual([
-      { amountApplied: 2000, modifierId: 1, quantity: 1 },
+    expect(result.applications).toEqual([
+      {
+        amountApplied: 2000,
+        delta: -2000,
+        modifierId: 1,
+        quantity: 1,
+        scopedSubtotal: 2000,
+      },
     ]);
     expect(result.modifierTotal).toBe(-2000);
   });
