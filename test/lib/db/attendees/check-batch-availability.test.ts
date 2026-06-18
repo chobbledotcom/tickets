@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { checkBatchAvailability } from "#shared/db/attendees.ts";
+import { updateListingAggregateValues } from "#shared/db/listings.ts";
 import {
   enableQueryLog,
   getQueryLog,
@@ -144,6 +145,21 @@ describeWithEnv("db > attendees > checkBatchAvailability", { db: true }, () => {
       maxAttendees: 2,
     });
     await bookAttendee(listing, { quantity: 2 });
+    expect(
+      await checkBatchAvailability([{ listingId: listing.id, quantity: 1 }]),
+    ).toBe(false);
+  });
+
+  test("uses the editable booked quantity for standard listing capacity", async () => {
+    const listing = await createTestListing({
+      listingType: "standard",
+      maxAttendees: 5,
+    });
+    await updateListingAggregateValues(listing.id, {
+      booked_quantity: 5,
+      income: 0,
+      tickets_count: 0,
+    });
     expect(
       await checkBatchAvailability([{ listingId: listing.id, quantity: 1 }]),
     ).toBe(false);

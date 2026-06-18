@@ -4,6 +4,7 @@ import { signCsrfToken } from "#shared/csrf.ts";
 import { adminGroupDetailPage } from "#templates/admin/groups.tsx";
 import {
   setupTestEncryptionKey,
+  testAttendee,
   testGroup,
   testListingWithCount,
 } from "#test-utils";
@@ -74,5 +75,37 @@ describe("adminGroupDetailPage", () => {
     expect(html).toContain("danger-text");
     expect(html).toContain("10 / 10");
     expect(html).toContain("0 remain");
+  });
+
+  test("shows a running-total mismatch for group listings", () => {
+    const group = testGroup({ max_attendees: 20 });
+    const listings = [
+      testListingWithCount({
+        attendee_count: 9,
+        group_id: group.id,
+        id: 1,
+        income: 9000,
+        tickets_count: 5,
+      }),
+    ];
+    const attendees = [
+      testAttendee({
+        id: 1,
+        listing_id: 1,
+        price_paid: "2500",
+        quantity: 2,
+      }),
+    ];
+    const html = adminGroupDetailPage(
+      group,
+      listings,
+      [],
+      attendees,
+      TEST_SESSION,
+      "localhost",
+    );
+    expect(html).toContain("Running total check");
+    expect(html).toContain("expected <strong>2</strong>, got");
+    expect(html).toContain("Review group listings");
   });
 });
