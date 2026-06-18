@@ -71,6 +71,9 @@ import {
   reserveSession,
 } from "#shared/db/processed-payments.ts";
 import {
+  answerAmountAllocations,
+  answerModifierSpecs,
+  answerQuantitiesFromListingAnswers,
   groupListingAnswers,
   saveAttendeeAnswers,
 } from "#shared/db/questions.ts";
@@ -696,11 +699,13 @@ const createAttendeeForSession = async (
     const attendeeId = created.attendees[0]!.id;
     const consumed = await consumeModifierStock(
       attendeeId,
-      pricedOrder.modifierApplications.map((application) => ({
-        amountApplied: application.amountApplied,
-        modifierId: application.modifierId,
-        quantity: application.quantity,
-      })),
+      pricedOrder.modifierApplications
+        .filter((application) => application.source !== "answer")
+        .map((application) => ({
+          amountApplied: application.amountApplied,
+          modifierId: application.modifierId,
+          quantity: application.quantity,
+        })),
     );
     if (!consumed) {
       await deleteAttendee(attendeeId);
@@ -841,14 +846,25 @@ const processReservedSession = async (
 
   // Resolve the applied modifiers once (re-fetched by id from the database);
   // both the price re-derivation and the stock consumption use the same specs.
-  const modifierSpecs = await specsFromRefs(intent.modifiers, {
-    visits: await buyerVisits(intent.email, intent.phone),
-  });
-  const pricingIntent = checkoutIntentForSession(
-    intent,
-    validatedItems,
-    modifierSpecs,
+  const answerIds = intent.listingAnswerIds
+    ? Object.values(intent.listingAnswerIds).flat()
+    : [];
+  const listingQuantities = new Map(
+    intent.items.map((item) => [item.e, item.q] as const),
   );
+  const answerQuantities = answerQuantitiesFromListingAnswers(
+    intent.listingAnswerIds,
+    listingQuantities,
+  );
+  const visits = await buyerVisits(intent.email, intent.phone);
+  const [modifierSpecs, answerSpecs] = await Promise.all([
+    specsFromRefs(intent.modifiers, { visits }),
+    answerModifierSpecs(answerIds, answerQuantities),
+  ]);
+  const pricingIntent = checkoutIntentForSession(intent, validatedItems, [
+    ...modifierSpecs,
+    ...answerSpecs,
+  ]);
   const pricedOrder = priceCheckout(pricingIntent);
 
   const pricingError = await verifyPaidPricing(
@@ -871,6 +887,7 @@ const processReservedSession = async (
   if (intent.listingAnswerIds) {
     await saveAttendeeAnswers(
       groupListingAnswers(createdEntries, intent.listingAnswerIds),
+      answerAmountAllocations(pricedOrder.modifierApplications),
     );
   }
 

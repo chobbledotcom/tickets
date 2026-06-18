@@ -42,6 +42,7 @@ import smsMessagesMigration from "./migrations/2026-06-16_sms_messages.ts";
 import modifierAggregatesMigration from "./migrations/2026-06-17_modifier_aggregates.ts";
 import modifierCodeMigration from "./migrations/2026-06-17_modifier_code.ts";
 import processedSmsInboundMigration from "./migrations/2026-06-17_processed_sms_inbound.ts";
+import answerPriceModifiersMigration from "./migrations/2026-06-18_answer_price_modifiers.ts";
 import contactPreferencesMigration from "./migrations/2026-06-18_contact_preferences.ts";
 import modifierMinVisitsMigration from "./migrations/2026-06-18_modifier_min_visits.ts";
 import questionDisplayTypeMigration from "./migrations/2026-06-18_question_display_type.ts";
@@ -183,6 +184,7 @@ export const MIGRATIONS: Migration[] = [
   processedSmsInboundMigration,
   attendeePhoneIndexMigration,
   modifierAggregatesMigration,
+  answerPriceModifiersMigration,
   contactPreferencesMigration,
   modifierMinVisitsMigration,
   questionDisplayTypeMigration,

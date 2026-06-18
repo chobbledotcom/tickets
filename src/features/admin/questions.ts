@@ -47,6 +47,13 @@ import {
 } from "#shared/db/questions.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { defineForm } from "#shared/forms.tsx";
+import {
+  type CalcKind,
+  isCalcKind,
+  isModifierDirection,
+  type ModifierDirection,
+  validateCalcValue,
+} from "#shared/price-modifier.ts";
 import type { AdminSession } from "#shared/types.ts";
 import {
   adminAnswerDeletePage,
@@ -91,6 +98,39 @@ export const answerTextForm = defineForm({
       placeholder: "e.g. Medium",
       required: true,
       type: "text",
+    },
+    {
+      defaultValue: "fixed",
+      label: "Price modifier type",
+      name: "calc_kind",
+      options: [
+        { label: "Fixed amount", value: "fixed" },
+        { label: "Percentage", value: "percent" },
+        { label: "Multiplier", value: "multiply" },
+      ],
+      type: "select",
+    },
+    {
+      defaultValue: "charge",
+      label: "Price modifier direction",
+      name: "direction",
+      options: [
+        { label: "Charge (adds to the price)", value: "charge" },
+        { label: "Discount (reduces the price)", value: "discount" },
+      ],
+      type: "select",
+    },
+    {
+      hint: "Optional. Leave blank for no price change. Fixed amounts are in your currency; percentages and multipliers work like Modifiers.",
+      inputmode: "decimal",
+      label: "Price modifier value",
+      name: "calc_value",
+      parse: (value: string) => (value ? Number.parseFloat(value) : null),
+      type: "text",
+      validate: (value: string) =>
+        Number.isFinite(Number.parseFloat(value))
+          ? null
+          : "Enter a valid number",
     },
   ] as const,
   id: "answerText",
@@ -191,15 +231,43 @@ const handleQuestionListings = ownerFormById(async (id, _session, form) => {
 
 /** Handle POST /admin/questions/:id/answers (add answer) */
 const handleAddAnswer = createAuthedFormRoute<
-  { text: string },
+  {
+    calc_kind: string | null;
+    calc_value: number | null;
+    direction: string | null;
+    text: string;
+  },
   QuestionIdParams
 >({
   auth: OWNER_FORM,
   form: answerTextForm,
   onInvalid: redirectToQuestion,
-  onValid: async ({ params, values: { text } }) => {
+  onValid: async ({
+    params,
+    values: { calc_kind, calc_value, direction, text },
+  }) => {
+    const kind = calc_kind;
+    const dir = direction;
+    if (calc_value !== null) {
+      if (!kind || !dir || !isCalcKind(kind) || !isModifierDirection(dir)) {
+        return redirectToQuestion({ error: "Invalid price modifier", params });
+      }
+      const error = validateCalcValue(kind, calc_value);
+      if (error) return redirectToQuestion({ error, params });
+    }
     const sortOrder = await getNextAnswerSortOrder(params.id);
-    await answersTable.insert({ questionId: params.id, sortOrder, text });
+    await answersTable.insert(
+      calc_value === null
+        ? { questionId: params.id, sortOrder, text }
+        : {
+            calcKind: kind as CalcKind,
+            calcValue: calc_value,
+            direction: dir as ModifierDirection,
+            questionId: params.id,
+            sortOrder,
+            text,
+          },
+    );
     await logActivity(`Answer '${text}' added to question ${params.id}`);
     return redirect(`/admin/questions/${params.id}`, "Answer added", true);
   },
