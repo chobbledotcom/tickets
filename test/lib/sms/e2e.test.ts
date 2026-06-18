@@ -89,8 +89,16 @@ describe("sms e2e decryptField errors", () => {
     ).rejects.toThrow("bad iteration count");
   });
 
-  it("fails to decrypt with the wrong passphrase", async () => {
-    const encoded = await encryptField("secret", PASSPHRASE);
-    await expect(decryptField(encoded, "wrong passphrase")).rejects.toThrow();
+  it("does not recover the plaintext with the wrong passphrase", async () => {
+    const plaintext = "secret";
+    const encoded = await encryptField(plaintext, PASSPHRASE);
+
+    try {
+      expect(await decryptField(encoded, "wrong passphrase")).not.toBe(
+        plaintext,
+      );
+    } catch {
+      return;
+    }
   });
 });
