@@ -16,6 +16,7 @@ const question = (
     sort_order: i,
     text: a.text,
   })),
+  display_type: "radio",
   id,
   text,
 });

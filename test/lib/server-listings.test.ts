@@ -415,7 +415,10 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       });
       const { questionsTable, answersTable, setListingQuestions } =
         await import("#shared/db/questions.ts");
-      const q = await questionsTable.insert({ text: "Size" });
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "Size",
+      });
       await answersTable.insert({
         questionId: q.id,
         sortOrder: 0,
@@ -741,7 +744,10 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         setListingQuestions,
         saveAttendeeAnswers,
       } = await import("#shared/db/questions.ts");
-      const q = await questionsTable.insert({ text: "Shirt Size" });
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "Shirt Size",
+      });
       const a1 = await answersTable.insert({
         questionId: q.id,
         sortOrder: 0,

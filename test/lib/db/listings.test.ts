@@ -383,7 +383,10 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
 
     test("keeps the shared attendee's answers when one listing is deleted", async () => {
       const { attendeeId, listing1 } = await bookAttendeeOnTwoListings();
-      const question = await questionsTable.insert({ text: "Meal choice?" });
+      const question = await questionsTable.insert({
+        displayType: "radio",
+        text: "Meal choice?",
+      });
       const answer = await answersTable.insert({
         questionId: question.id,
         sortOrder: 0,

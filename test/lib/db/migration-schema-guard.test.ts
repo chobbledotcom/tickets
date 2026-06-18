@@ -30,8 +30,9 @@ describe("db > migrations > schema change guard", () => {
         "2026-06-17_processed_sms_inbound",
         "2026-06-16_attendee_phone_index",
         "2026-06-17_modifier_aggregates",
+        "2026-06-18_question_display_type",
       ],
-      schemaHash: "1ldxgs3",
+      schemaHash: "17cz3w3",
     });
   });
 });

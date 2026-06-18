@@ -2184,7 +2184,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "John Doe",
         "john@example.com",
       );
-      const q = await questionsTable.insert({ text: "T-shirt size?" });
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "T-shirt size?",
+      });
       const a1 = await answersTable.insert({
         questionId: q.id,
         sortOrder: 0,
@@ -2885,7 +2888,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
   describe("merge with answer conflicts", () => {
     test("GET merge page renders answer decision table when conflicts exist", async () => {
       const listing = await createTestListing({ maxAttendees: 10 });
-      const q = await questionsTable.insert({ text: "Favourite colour?" });
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "Favourite colour?",
+      });
       const a1 = await answersTable.insert({
         questionId: q.id,
         sortOrder: 0,
@@ -2940,7 +2946,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("POST merge applies selected answer winners", async () => {
       const listing = await createTestListing({ maxAttendees: 10 });
-      const q = await questionsTable.insert({ text: "Size?" });
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "Size?",
+      });
       const a1 = await answersTable.insert({
         questionId: q.id,
         sortOrder: 0,
@@ -3078,7 +3087,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("POST merge with clear answer choice clears the answer", async () => {
       const listing = await createTestListing({ maxAttendees: 10 });
-      const q = await questionsTable.insert({ text: "Diet?" });
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "Diet?",
+      });
       const a1 = await answersTable.insert({
         questionId: q.id,
         sortOrder: 0,
@@ -3132,7 +3144,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
 
     test("POST merge with target answer choice keeps target answer", async () => {
       const listing = await createTestListing({ maxAttendees: 10 });
-      const q = await questionsTable.insert({ text: "Shirt?" });
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "Shirt?",
+      });
       const a1 = await answersTable.insert({
         questionId: q.id,
         sortOrder: 0,
@@ -3190,7 +3205,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         maxAttendees: 10,
         name: "E2",
       });
-      const q = await questionsTable.insert({ text: "Colour?" });
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "Colour?",
+      });
       const a1 = await answersTable.insert({
         questionId: q.id,
         sortOrder: 0,
@@ -3238,7 +3256,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         maxAttendees: 10,
         name: "E2",
       });
-      const q = await questionsTable.insert({ text: "Food?" });
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "Food?",
+      });
       const a1 = await answersTable.insert({
         questionId: q.id,
         sortOrder: 0,

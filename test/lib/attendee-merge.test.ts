@@ -70,7 +70,10 @@ const createQuestionWithAnswers = async (
   questionText: string,
   answerTexts: string[],
 ) => {
-  const q = await questionsTable.insert({ text: questionText });
+  const q = await questionsTable.insert({
+    displayType: "radio",
+    text: questionText,
+  });
   const answers = [];
   for (let i = 0; i < answerTexts.length; i++) {
     const a = await answersTable.insert({
@@ -423,7 +426,10 @@ describeWithEnv("attendee merge service", { db: true }, () => {
 
   test("uses fallback question text for orphaned answers", async () => {
     const listing = await createTestListing({ maxAttendees: 10 });
-    const q = await questionsTable.insert({ text: "Hidden Q" });
+    const q = await questionsTable.insert({
+      displayType: "radio",
+      text: "Hidden Q",
+    });
     const a1 = await answersTable.insert({
       questionId: q.id,
       sortOrder: 0,

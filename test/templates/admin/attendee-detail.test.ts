@@ -81,11 +81,13 @@ describe("AttendeeAnswersTable", () => {
         { id: 10, question_id: 1, sort_order: 0, text: "Small" },
         { id: 11, question_id: 1, sort_order: 1, text: "Large" },
       ],
+      display_type: "radio" as const,
       id: 1,
       text: "Shirt size?",
     },
     {
       answers: [{ id: 20, question_id: 2, sort_order: 0, text: "Vegan" }],
+      display_type: "radio" as const,
       id: 2,
       text: "Meal?",
     },
