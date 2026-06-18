@@ -34,9 +34,12 @@ import {
   getNextAnswerSortOrder,
   getQuestionListingIds,
   getQuestionWithAnswers,
-  type QuestionDisplayType,
+  isQuestionDisplayType,
+  QUESTION_DISPLAY_TYPES,
   type QuestionWithAnswers,
+  questionDisplayTypeError,
   questionsTable,
+  requireQuestionDisplayType,
   setListingQuestions,
   setQuestionListings,
   swapAnswerOrder,
@@ -74,15 +77,17 @@ export const questionTextForm = defineForm({
     {
       label: "Display as",
       name: "display_type",
-      options: [
-        { label: "Radio buttons", value: "radio" },
-        { label: "Select box", value: "select" },
-      ],
+      options: QUESTION_DISPLAY_TYPES.map((value) => ({
+        label: value === "radio" ? "Radio buttons" : "Select box",
+        value,
+      })),
       required: true,
       type: "select",
     },
   ] as const,
   id: "questionText",
+  validate: ({ display_type }) =>
+    isQuestionDisplayType(display_type) ? null : questionDisplayTypeError,
 });
 
 export const answerTextForm = defineForm({
@@ -148,7 +153,7 @@ const handleQuestionsPost = createAuthedFormRoute({
   onInvalid: ({ error }) => errorRedirect("/admin/questions", error),
   onValid: async ({ values: { display_type, text } }) => {
     const question = await questionsTable.insert({
-      displayType: display_type as QuestionDisplayType,
+      displayType: requireQuestionDisplayType(display_type),
       text,
     });
     await assignNextQuestionSortOrder(question.id);
@@ -201,7 +206,7 @@ const handleQuestionEdit = createAuthedFormRoute<
   onInvalid: redirectToQuestion,
   onValid: async ({ params, values: { display_type, text } }) => {
     const updated = await questionsTable.update(params.id, {
-      displayType: display_type as QuestionDisplayType,
+      displayType: requireQuestionDisplayType(display_type),
       text,
     });
     if (!updated) return notFoundResponse();
