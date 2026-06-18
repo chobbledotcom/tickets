@@ -14,18 +14,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Deno
-        uses: denoland/setup-deno@v2
+      - name: Build Bunny edge script
+        uses: ./.github/actions/build-bunny-script
         with:
-          deno-version: v2.x
-
-      - name: Install dependencies
-        run: deno install --allow-scripts
-
-      - name: Build edge script
-        run: deno task build:edge
-        env:
-          BUILD_COMMIT: ${{ github.sha }}
+          build_commit: ${{ github.sha }}
 
       - name: Deploy to clients
         env:

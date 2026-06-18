@@ -1,17 +1,15 @@
-name: Deploy to Staging
+name: Deploy to Production
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
     inputs:
       script_id:
-        description: "Override Bunny staging script ID (defaults to BUNNY_STAGING_SCRIPT_ID secret)"
+        description: "Override Bunny production script ID (defaults to BUNNY_SCRIPT_ID secret)"
         required: false
         type: string
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   deploy:
@@ -26,8 +24,14 @@ jobs:
         with:
           build_commit: ${{ github.sha }}
 
-      - name: Deploy to staging
+      - name: Deploy to production
         uses: ./.github/actions/deploy-bunny-script
         with:
-          script_id: ${{ inputs.script_id || secrets.BUNNY_STAGING_SCRIPT_ID }}
+          script_id: ${{ inputs.script_id || secrets.BUNNY_SCRIPT_ID }}
           api_key: ${{ secrets.BUNNY_ACCESS_KEY }}
+
+      - name: Tag production deployment
+        run: |
+          TAG="deploy-$(date -u +%Y-%m-%d-%H%M)"
+          git tag "$TAG"
+          git push origin "$TAG"
