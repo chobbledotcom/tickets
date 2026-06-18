@@ -22,6 +22,31 @@ import {
 import { getHolidayFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
+/** Shared holidays table used by the holiday settings page and dashboard. */
+export const HolidayTable = ({ holidays }: { holidays: Holiday[] }): string =>
+  String(
+    <table>
+      <thead>
+        <tr>
+          <th>{t("common.name")}</th>
+          <th>{t("holidays.col.start_date")}</th>
+          <th>{t("holidays.col.end_date")}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {holidays.map((holiday) => (
+          <tr>
+            <td>
+              <a href={`/admin/holidays/${holiday.id}/edit`}>{holiday.name}</a>
+            </td>
+            <td>{holiday.start_date}</td>
+            <td>{holiday.end_date}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>,
+  );
+
 /**
  * Admin holidays list page
  */
@@ -47,28 +72,7 @@ export const adminHolidaysPage = (
         <p>{t("holidays.no_holidays")}</p>
       ) : (
         <div class="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>{t("common.name")}</th>
-                <th>{t("holidays.col.start_date")}</th>
-                <th>{t("holidays.col.end_date")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {holidays.map((holiday) => (
-                <tr>
-                  <td>
-                    <a href={`/admin/holidays/${holiday.id}/edit`}>
-                      {holiday.name}
-                    </a>
-                  </td>
-                  <td>{holiday.start_date}</td>
-                  <td>{holiday.end_date}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <Raw html={HolidayTable({ holidays })} />
         </div>
       )}
     </Layout>,

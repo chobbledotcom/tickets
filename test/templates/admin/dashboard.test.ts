@@ -74,6 +74,33 @@ describe("adminDashboardPage", () => {
     expect(html).not.toContain("Newest");
     expect(html).not.toContain("<details open");
   });
+  test("renders upcoming holidays in a constrained scrollable table", () => {
+    const html = adminDashboardPage(
+      [],
+      TEST_SESSION,
+      undefined,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      "all",
+      [
+        {
+          end_date: "2026-12-26",
+          id: 1,
+          name: "Winter Break",
+          start_date: "2026-12-24",
+        },
+      ],
+    );
+
+    expect(html).toContain("Upcoming Holidays</summary>");
+    expect(html).toContain('class="table-scroll dashboard-holidays-scroll"');
+    expect(html).toContain('href="/admin/holidays/1/edit"');
+    expect(html).toContain("Winter Break");
+    expect(html).toContain("2026-12-24");
+    expect(html).toContain("2026-12-26");
+  });
 
   test("newest attendees shows singular for single attendee", () => {
     const listings = [testListingWithCount({ id: 1 })];

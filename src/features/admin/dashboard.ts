@@ -78,6 +78,7 @@ const handleAdminGet = (request: Request): Promise<Response> =>
           stats,
           settings.listingColumnOrder,
           activeType,
+          holidays,
         ),
       );
     },

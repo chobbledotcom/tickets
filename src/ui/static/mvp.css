@@ -983,6 +983,11 @@ dialog::backdrop {
   -webkit-overflow-scrolling: touch;
 }
 
+.dashboard-holidays-scroll {
+  max-height: 6rem;
+  overflow-y: auto;
+}
+
 table {
   border: 1px solid var(--color-bg-secondary);
   border-radius: var(--border-radius);
