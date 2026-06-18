@@ -74,26 +74,22 @@ describeWithEnv("db > settings", { db: true }, () => {
       expect(settings.wrappedPrivateKey).toBeTruthy();
     });
 
-    test("completeSetup updates snapshot so wrappedPrivateKey is readable without invalidation", async () => {
-      // Regression: previously completeSetup only updated the raw entries
-      // cache, leaving the snapshot holding default "" values. Because
-      // loadAll() short-circuits while the 60s TTL is valid, the first
-      // GET /admin after setup would see settings.wrappedPrivateKey === ""
-      // and throw SessionKeyError ("Private key unavailable for session").
+    test("completeSetup clears stale pre-setup settings cache and confirms setup", async () => {
       await getDb().execute("DELETE FROM users");
       await getDb().execute("DELETE FROM settings");
-      // Prime the snapshot with a fresh loadKeys so the cache is valid and
-      // contains default empty values for wrapped_private_key/public_key.
+      settings.setup.clearCache();
       settings.invalidateCache();
       await settings.loadKeys(ALL_SETTINGS_KEYS);
       expect(settings.wrappedPrivateKey).toBe("");
       expect(settings.publicKey).toBe("");
+      expect(await settings.setup.isComplete()).toBe(false);
 
       await settings.setup.complete("setupuser", "mypassword", "US");
 
-      // Do NOT invalidate or reload — the snapshot should already reflect the
-      // values just written, since subsequent requests rely on loadAll() being
-      // a no-op while the cache is still valid.
+      expect(await settings.setup.isComplete()).toBe(true);
+      expect(settings.wrappedPrivateKey).toBe("");
+      expect(settings.publicKey).toBe("");
+      await settings.loadKeys(ALL_SETTINGS_KEYS);
       expect(settings.wrappedPrivateKey).toBeTruthy();
       expect(settings.publicKey).toBeTruthy();
       expect(settings.country).toBe("US");

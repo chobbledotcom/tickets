@@ -7,6 +7,11 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v6
+      with:
+        node-version: 24
+
     - name: Setup Deno
       uses: denoland/setup-deno@v2
       with:
