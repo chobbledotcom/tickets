@@ -663,6 +663,17 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
   });
 
   describe("routes/index.ts (routeMainApp null fallback)", () => {
+    test("redirects legacy /events only when the public site is enabled", async () => {
+      await settings.update.showPublicSite(true);
+      const enabled = await handleRequest(mockRequest("/events"));
+      expect(enabled.status).toBe(302);
+      expect(enabled.headers.get("location")).toBe("/listings");
+
+      await settings.update.showPublicSite(false);
+      const disabled = await handleRequest(mockRequest("/events"));
+      expect(disabled.status).toBe(404);
+    });
+
     test("returns 404 when routeMainApp returns null for unmatched path", async () => {
       const response = await handleRequest(
         mockRequest("/completely-unknown-path-xyz-987"),

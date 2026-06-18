@@ -9,6 +9,7 @@ import {
   notFoundResponse,
 } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
+import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { isPaymentsEnabled } from "#shared/config.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
@@ -44,6 +45,7 @@ import {
   type Group,
   normalizeDurationDays,
 } from "#shared/types.ts";
+import { parsePositiveInt } from "#shared/validation/number.ts";
 import { logAndNotifyRegistration } from "#shared/webhook.ts";
 import type { TicketListing } from "#templates/public.tsx";
 import { formatAtomicError, listingsWithQuantity } from "./ticket-form.ts";
@@ -200,12 +202,9 @@ export const buildRegistrationItems = (
   }));
 };
 
-/** Check if any selected listing requires payment */
-export const anyRequiresPayment = (items: CheckoutItem[]): boolean => {
-  const paymentsEnabled = isPaymentsEnabled();
-  if (!paymentsEnabled) return false;
-  return items.some((item) => item.unitPrice > 0);
-};
+/** Whether the fully-priced checkout needs a payment session. */
+export const checkoutRequiresPayment = (intent: CheckoutIntent): boolean =>
+  isPaymentsEnabled() && priceCheckout(intent).total > 0;
 
 /** Handle payment flow for ticket purchase */
 export const handlePaymentFlow = (
@@ -250,8 +249,8 @@ export const resolveDayCount = async (
   );
   if (customisable.length === 0) return { dayCount: 1 };
 
-  const raw = Number.parseInt(form.getString("day_count"), 10);
-  if (!Number.isInteger(raw) || raw < 1) {
+  const raw = parsePositiveInt(form.getString("day_count"));
+  if (raw === null) {
     return { error: "Please choose how many days to book" };
   }
   for (const { listing } of customisable) {

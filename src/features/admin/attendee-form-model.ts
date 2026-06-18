@@ -23,7 +23,10 @@ import type { FormParams } from "#shared/form-data.ts";
 import { START_DATE_FIELD } from "#shared/order-select.ts";
 import { type ListingWithCount, normalizeDurationDays } from "#shared/types.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
-import { parsePositiveIntId } from "#shared/validation/number.ts";
+import {
+  parseNonNegativeInt,
+  parsePositiveIntId,
+} from "#shared/validation/number.ts";
 import {
   validateAddress,
   validateEmail,
@@ -201,9 +204,7 @@ export const resolveSharedDates = (
 
 /** Parse one quantity field value: blank/invalid → null, else the integer. */
 const parseQuantity = (raw: string): number | null => {
-  if (raw.trim() === "") return null;
-  const n = Number.parseInt(raw, 10);
-  return Number.isInteger(n) ? n : null;
+  return parseNonNegativeInt(raw);
 };
 
 /** One editor line per `qty_<id>` field in the form, in document order and
@@ -413,21 +414,26 @@ export const attendeeBalanceNotice = (
   remainingBalance: number,
   fullPrice: number,
   amountPaid: number,
+  listedFullPrice = fullPrice,
 ): BalanceNotice | null => {
   if (!status) return null;
   if (status.is_paid_default) {
     return remainingBalance > 0
       ? {
-          message: `This attendee is in a paid status but still owes ${formatCurrency(remainingBalance)}.`,
+          message: `This attendee is in a paid status but still owes ${formatCurrency(
+            remainingBalance,
+          )}.`,
           tone: "warning",
         }
       : null;
   }
   if (status.is_reservation && remainingBalance <= 0) {
-    const owed = fullPrice - amountPaid;
+    const owed = Math.max(fullPrice, listedFullPrice) - amountPaid;
     if (owed > 0) {
       return {
-        message: `This reservation has no balance recorded, but ${formatCurrency(owed)} of the order is still unpaid.`,
+        message: `This reservation has no balance recorded, but ${formatCurrency(
+          owed,
+        )} of the order is still unpaid.`,
         tone: "warning",
       };
     }

@@ -14,7 +14,7 @@
  * - Two-phase locking prevents duplicate attendee creation from race conditions
  */
 
-import { sum, sumOf, unique } from "#fp";
+import { sumOf, unique } from "#fp";
 import type {
   BookingIntent,
   ListingPriceValidation,
@@ -84,7 +84,6 @@ import {
   type ValidatedPaymentSession,
   type WebhookEvent,
 } from "#shared/payments.ts";
-import { reservationDepositForLine } from "#shared/reservation-amount.ts";
 import { dayPriceFor, type ListingWithCount } from "#shared/types.ts";
 import { logAndNotifyRegistration } from "#shared/webhook.ts";
 import { paymentCancelPage, successPage } from "#templates/payment.tsx";
@@ -553,26 +552,7 @@ const validateAllItems = async (
   return { items: validatedItems, ok: true };
 };
 
-/**
- * Per-line reservation deposits for a session, or `total: undefined` when the
- * session is a normal full-price booking. metadata `p` is the full line price,
- * so each line's deposit is re-derived identically to how it was charged. The
- * `perLine` order matches `intent.items` (and thus the validated-items order).
- */
-const reservationDeposits = (
-  intent: BookingIntent,
-): { perLine: number[]; total: number | undefined } => {
-  const amount = intent.reservationAmount;
-  if (!amount) return { perLine: [], total: undefined };
-  const totalQty = sumOf((item: BookingItem) => item.q)(intent.items);
-  const perLine = intent.items.map((item) =>
-    reservationDepositForLine(amount, item.p, item.q, totalQty),
-  );
-  return { perLine, total: sum(perLine) };
-};
-
-/** Rebuild the checkout intent used by the provider pricing layer. */
-const checkoutPricingIntent = (
+const checkoutIntentForSession = (
   intent: BookingIntent,
   validatedItems: ValidatedItem[],
   modifierSpecs: ModifierSpec[],
@@ -597,26 +577,49 @@ const checkoutPricingIntent = (
     : {}),
 });
 
-/** Verify per-item and total prices for paid sessions. */
+const orderLineTotal = (order: PricedOrder): number =>
+  sumOf(
+    (line: PricedOrder["lines"][number]) =>
+      line.chargedUnitAmount * line.quantity,
+  )(order.lines);
+
+const paidByListing = (order: PricedOrder): Map<number, number> => {
+  const paid = new Map<number, number>();
+  for (const line of order.lines) {
+    const current = paid.get(line.item.listingId) ?? 0;
+    paid.set(
+      line.item.listingId,
+      current + line.chargedUnitAmount * line.quantity,
+    );
+  }
+  return paid;
+};
+
+/** Verify per-item and total prices for paid sessions. Returns null on success. */
 const verifyPaidPricing = async (
   session: ValidatedPaymentSession,
+  intent: BookingIntent,
   validatedItems: ValidatedItem[],
   pricedOrder: PricedOrder,
 ): Promise<PaymentResult | null> => {
-  const hasPaidItems = validatedItems.some((v) => v.item.p > 0);
-  if (!hasPaidItems) return null;
+  const hasPaidItems = intent.items.some((item) => item.p > 0);
 
   // Per-item prices are ticket-only (no fee), so validate without booking fee
-  for (const { item, listing, expectedPrice } of validatedItems) {
-    if (hasPriceMismatch(item.p, expectedPrice, listing, 0, item.q)) {
-      return await priceMismatchRefund(
-        session,
-        `Per-item price mismatch for listing ${listing.id}: metadata p=${item.p} but expected ${expectedPrice} (can_pay_more=${listing.can_pay_more})`,
-        listing.id,
-      );
+  if (hasPaidItems) {
+    for (const { item, listing, expectedPrice } of validatedItems) {
+      if (hasPriceMismatch(item.p, expectedPrice, listing, 0, item.q)) {
+        return await priceMismatchRefund(
+          session,
+          `Per-item price mismatch for listing ${listing.id}: metadata p=${item.p} but expected ${expectedPrice} (can_pay_more=${listing.can_pay_more})`,
+          listing.id,
+        );
+      }
     }
   }
 
+  // Re-derive the expected total with the same pricing pipeline the checkout
+  // used: deposit-aware ticket charges, modifiers (re-fetched from the database
+  // by id, never trusting metadata amounts), and the booking fee on top.
   const expectedTotal = pricedOrder.total;
   if (session.amountTotal !== expectedTotal) {
     return await priceMismatchRefund(
@@ -644,20 +647,19 @@ const createAttendeeForSession = async (
   session: ValidatedPaymentSession,
   intent: BookingIntent,
   validatedItems: ValidatedItem[],
-  modifierApplications: ModifierApplication[],
+  pricedOrder: PricedOrder,
 ): Promise<{ ok: true; entries: CreatedEntry[] } | PaymentResult> => {
-  // A reservation charges only the per-line deposit up front; the rest of the
-  // full order price is recorded as the attendee's outstanding balance.
-  const deposits = reservationDeposits(intent);
-  const bookings = validatedItems.map(({ item, listing }, i) => ({
+  const linePaidByListing = paidByListing(pricedOrder);
+  const bookings = validatedItems.map(({ item, listing }) => ({
     listingId: item.e,
-    pricePaid: deposits.perLine[i] ?? item.p,
+    pricePaid: linePaidByListing.get(item.e)!,
     quantity: item.q,
     ...bookingDateFields(listing, intent.date, intent.dayCount),
   }));
-  const fullTotal = sumOf((v: ValidatedItem) => v.item.p)(validatedItems);
+  const fullTotal = pricedOrder.fullSubtotal;
+  const depositTotal = orderLineTotal(pricedOrder);
   const remainingBalance =
-    deposits.total === undefined ? 0 : fullTotal - deposits.total;
+    intent.reservationAmount === undefined ? 0 : fullTotal - depositTotal;
 
   const result = await createAttendeeAtomic({
     address: intent.address,
@@ -687,16 +689,17 @@ const createAttendeeForSession = async (
   }
   const created = result as Extract<typeof result, { success: true }>;
 
-  // Consume modifier stock atomically; amount_applied comes from the priced
-  // order that was already verified against the provider charge.
-  if (modifierApplications.length > 0) {
+  // Consume modifier stock atomically; a sold-out race rolls the order back.
+  // The usage amount comes from the same pricing pass that calculated the
+  // checkout total, so scoped bases, quantities, and clamped discounts match.
+  if (pricedOrder.modifierApplications.length > 0) {
     const attendeeId = created.attendees[0]!.id;
     const consumed = await consumeModifierStock(
       attendeeId,
-      modifierApplications.map((a) => ({
-        amountApplied: a.amountApplied,
-        modifierId: a.modifierId,
-        quantity: a.quantity,
+      pricedOrder.modifierApplications.map((application) => ({
+        amountApplied: application.amountApplied,
+        modifierId: application.modifierId,
+        quantity: application.quantity,
       })),
     );
     if (!consumed) {
@@ -802,7 +805,7 @@ const logPromoCodeModifiers = async (
 ): Promise<void> => {
   const byId = new Map(applications.map((a) => [a.modifierId, a]));
   for (const spec of specs) {
-    const delta = byId.get(spec.id)?.delta ?? 0;
+    const delta = byId.get(spec.id)!.delta;
     const effect =
       delta < 0 ? `${formatCurrency(-delta)} off` : `+${formatCurrency(delta)}`;
     await logActivity(
@@ -839,12 +842,16 @@ const processReservedSession = async (
   // Resolve the applied modifiers once (re-fetched by id from the database);
   // both the price re-derivation and the stock consumption use the same specs.
   const modifierSpecs = await specsFromRefs(intent.modifiers);
-  const pricedOrder = priceCheckout(
-    checkoutPricingIntent(intent, validatedItems, modifierSpecs),
+  const pricingIntent = checkoutIntentForSession(
+    intent,
+    validatedItems,
+    modifierSpecs,
   );
+  const pricedOrder = priceCheckout(pricingIntent);
 
   const pricingError = await verifyPaidPricing(
     session,
+    intent,
     validatedItems,
     pricedOrder,
   );
@@ -854,7 +861,7 @@ const processReservedSession = async (
     session,
     intent,
     validatedItems,
-    pricedOrder.modifierApplications,
+    pricedOrder,
   );
   if ("success" in created) return created;
   const createdEntries = created.entries;

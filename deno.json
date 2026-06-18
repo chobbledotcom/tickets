@@ -11,7 +11,7 @@
     "test:files": "deno run -A scripts/run-test-files.ts",
     "test:raw": "deno task build:static && deno test --no-check --allow-net --allow-env --allow-read --allow-write --allow-run --allow-sys --allow-ffi test/",
     "lint": "deno run -A scripts/biome.ts check --write --error-on-warnings src test scripts",
-    "lint:ci": "BIOME_NPM=1 deno run -A scripts/biome.ts check --error-on-warnings src test scripts",
+    "lint:ci": "deno run -A scripts/biome.ts check --error-on-warnings src test scripts",
     "typecheck": "deno check --unstable-tsgo src/**/*.ts src/**/*.tsx test/**/*.ts",
     "cpd": "deno run -A npm:jscpd src --config .jscpd.json",
     "precommit": "deno run -A scripts/precommit.ts",

@@ -2,7 +2,10 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getListingRemainingForRange } from "#shared/db/attendees.ts";
 import { getDb } from "#shared/db/client.ts";
-import { getListingWithCount } from "#shared/db/listings.ts";
+import {
+  getListingWithCount,
+  updateListingAggregateValues,
+} from "#shared/db/listings.ts";
 import {
   enableQueryLog,
   getQueryLog,
@@ -46,7 +49,7 @@ const lowerMaxAttendees = (id: number, max: number): Promise<unknown> =>
 
 describeWithEnv(
   "db > attendees > getListingRemainingForRange",
-  { db: true },
+  { db: true, triggers: true },
   () => {
     test("empty list yields an empty map", async () => {
       const map = await getListingRemainingForRange([], null);
@@ -57,6 +60,16 @@ describeWithEnv(
       const listing = await createTestListing({ maxAttendees: 5 });
       await createTestAttendee(listing.id, listing.slug, "A", "a@example.com");
       expect(await remaining(listing.id, null)).toBe(4);
+    });
+
+    test("standard listing: remaining uses editable booked quantity", async () => {
+      const listing = await createTestListing({ maxAttendees: 5 });
+      await updateListingAggregateValues(listing.id, {
+        booked_quantity: 4,
+        income: 0,
+        tickets_count: 0,
+      });
+      expect(await remaining(listing.id, null)).toBe(1);
     });
 
     test("standard listing: overbooked remaining clamps to zero", async () => {

@@ -19,7 +19,9 @@ import {
   updateTestBuiltSite,
 } from "#test-utils";
 
-describeWithEnv("server (admin built sites)", { db: true }, () => {
+const builtSitesTestEnv = { db: true, triggers: true };
+
+describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
   describe("GET /admin/built-sites", () => {
     testRequiresAuth("/admin/built-sites");
 

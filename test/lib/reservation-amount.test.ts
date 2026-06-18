@@ -1,11 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  allocateReservationDeposit,
   computeReservationDeposit,
   parseReservationAmount,
   RESERVATION_AMOUNT_HINT,
-  reservationDepositForLine,
-  reservationDepositPerUnit,
   validateReservationAmount,
 } from "#shared/reservation-amount.ts";
 import { testWithSetting } from "#test-utils";
@@ -162,72 +161,104 @@ describe("reservation-amount", () => {
     );
   });
 
-  describe("reservationDepositPerUnit", () => {
-    // Per-unit deposit: the amount one ticket is charged up front.
-    testWithSetting("percent of the unit price", { currency: "GBP" }, () => {
-      // 10% of a £10.00 ticket = £1.00.
-      expect(reservationDepositPerUnit("10%", 1000, 4)).toBe(100);
-    });
-
+  describe("allocateReservationDeposit", () => {
     testWithSetting(
-      "per-item is a flat amount per unit",
-      { currency: "GBP" },
+      "returns no allocation when there are no items",
+      {
+        currency: "GBP",
+      },
       () => {
-        // "10x" → £10.00 per ticket, independent of how many were booked.
-        expect(reservationDepositPerUnit("10x", 5000, 4)).toBe(1000);
+        const allocation = allocateReservationDeposit("10", []);
+        expect(allocation).toEqual({ lines: [], perItemTotals: [], total: 0 });
       },
     );
 
     testWithSetting(
-      "flat spreads the order amount across all units",
+      "flat 10 across 3 equal tickets allocates exactly 1000 minor units",
       { currency: "GBP" },
       () => {
-        // "20" → £20.00 over 4 tickets = £5.00 each.
-        expect(reservationDepositPerUnit("20", 5000, 4)).toBe(500);
+        const allocation = allocateReservationDeposit("10", [
+          { quantity: 3, unitPrice: 1000 },
+        ]);
+        expect(allocation.total).toBe(1000);
+        expect(allocation.perItemTotals).toEqual([1000]);
+        expect(allocation.lines).toEqual([
+          { chargedUnitAmount: 334, itemIndex: 0, quantity: 1 },
+          { chargedUnitAmount: 333, itemIndex: 0, quantity: 2 },
+        ]);
       },
     );
 
     testWithSetting(
-      "flat treats a zero total quantity as one unit",
+      "flat 10.01 across 3 equal tickets allocates exactly 1001 minor units",
       { currency: "GBP" },
       () => {
-        // Guards against division by zero: the whole amount lands on one unit.
-        expect(reservationDepositPerUnit("20", 5000, 0)).toBe(2000);
+        const allocation = allocateReservationDeposit("10.01", [
+          { quantity: 3, unitPrice: 1000 },
+        ]);
+        expect(allocation.total).toBe(1001);
+        expect(allocation.perItemTotals).toEqual([1001]);
+        expect(allocation.lines).toEqual([
+          { chargedUnitAmount: 334, itemIndex: 0, quantity: 2 },
+          { chargedUnitAmount: 333, itemIndex: 0, quantity: 1 },
+        ]);
       },
     );
 
     testWithSetting(
-      "clamps the per-unit deposit to the unit price",
+      "flat deposit larger than the order clamps to the full order total",
       { currency: "GBP" },
       () => {
-        expect(reservationDepositPerUnit("150%", 1000, 1)).toBe(1000);
-        expect(reservationDepositPerUnit("100x", 1000, 1)).toBe(1000);
-      },
-    );
-
-    testWithSetting("malformed amount yields zero", { currency: "GBP" }, () => {
-      expect(reservationDepositPerUnit("nope", 1000, 1)).toBe(0);
-    });
-  });
-
-  describe("reservationDepositForLine", () => {
-    // A line's deposit re-derived from its full line price (unit × quantity).
-    testWithSetting(
-      "scales the per-unit deposit by quantity",
-      { currency: "GBP" },
-      () => {
-        // £10.00 unit × 2 = £20.00 line; 10% per unit = £1.00 × 2 = £2.00.
-        expect(reservationDepositForLine("10%", 2000, 2, 4)).toBe(200);
+        const allocation = allocateReservationDeposit("100", [
+          { quantity: 2, unitPrice: 300 },
+        ]);
+        expect(allocation.total).toBe(600);
+        expect(allocation.perItemTotals).toEqual([600]);
+        expect(allocation.lines).toEqual([
+          { chargedUnitAmount: 300, itemIndex: 0, quantity: 2 },
+        ]);
       },
     );
 
     testWithSetting(
-      "matches a per-unit charge times the quantity",
+      "mixed quantities and prices allocate exactly without exceeding unit prices",
       { currency: "GBP" },
       () => {
-        // Flat "20" over 4 units = £5.00/unit; this line has 2 of them.
-        const perUnit = reservationDepositPerUnit("20", 1000, 4);
-        expect(reservationDepositForLine("20", 2000, 2, 4)).toBe(perUnit * 2);
+        const allocation = allocateReservationDeposit("10", [
+          { quantity: 2, unitPrice: 1000 },
+          { quantity: 1, unitPrice: 2500 },
+          { quantity: 3, unitPrice: 500 },
+        ]);
+        expect(allocation.total).toBe(1000);
+        expect(allocation.perItemTotals).toEqual([334, 417, 249]);
+        expect(allocation.lines).toEqual([
+          { chargedUnitAmount: 167, itemIndex: 0, quantity: 2 },
+          { chargedUnitAmount: 417, itemIndex: 1, quantity: 1 },
+          { chargedUnitAmount: 83, itemIndex: 2, quantity: 3 },
+        ]);
+        for (const line of allocation.lines) {
+          const item = [
+            { quantity: 2, unitPrice: 1000 },
+            { quantity: 1, unitPrice: 2500 },
+            { quantity: 3, unitPrice: 500 },
+          ][line.itemIndex]!;
+          expect(line.chargedUnitAmount).toBeLessThanOrEqual(item.unitPrice);
+        }
+      },
+    );
+
+    testWithSetting(
+      "percent and per-item totals preserve their order-level semantics",
+      { currency: "GBP" },
+      () => {
+        expect(
+          allocateReservationDeposit("10%", [{ quantity: 2, unitPrice: 1000 }])
+            .total,
+        ).toBe(200);
+        expect(
+          allocateReservationDeposit("10x", [{ quantity: 2, unitPrice: 1000 }])
+            .total,
+        ).toBe(2000);
       },
     );
   });

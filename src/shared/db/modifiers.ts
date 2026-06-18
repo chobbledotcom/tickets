@@ -8,7 +8,13 @@
  */
 
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import { executeBatch, queryAll } from "#shared/db/client.ts";
+import {
+  executeBatch,
+  getDb,
+  queryAll,
+  queryOne,
+  resetAggregates,
+} from "#shared/db/client.ts";
 import {
   defineIdTable,
   encryptedNameSchema,
@@ -78,6 +84,80 @@ export const getAllModifiers = (): Promise<Modifier[]> =>
 /** Get the active modifiers, decrypted, ordered by id. */
 export const getActiveModifiers = (): Promise<Modifier[]> =>
   queryModifiers("SELECT * FROM modifiers WHERE active = 1 ORDER BY id ASC");
+
+export const MODIFIER_AGGREGATE_FIELDS = [
+  "total_uses",
+  "usage_count",
+  "total_revenue",
+] as const;
+
+export type ModifierAggregateField = (typeof MODIFIER_AGGREGATE_FIELDS)[number];
+
+export type ModifierAggregateValues = Record<ModifierAggregateField, number>;
+
+export type ModifierAggregateRecalculation = Record<
+  ModifierAggregateField,
+  { current: number; recalculated: number }
+>;
+
+/** The modifier aggregate columns as they would be if rebuilt from usage rows. */
+export const getModifierAggregateRecalculation = async (
+  modifier: Modifier,
+): Promise<ModifierAggregateRecalculation> => {
+  const row = (await queryOne<ModifierAggregateValues>(
+    `SELECT
+       COALESCE(SUM(quantity), 0) AS total_uses,
+       COUNT(*) AS usage_count,
+       COALESCE(SUM(amount_applied), 0) AS total_revenue
+     FROM modifier_usages
+     WHERE modifier_id = ?`,
+    [modifier.id],
+  ))!;
+  return {
+    total_revenue: {
+      current: modifier.total_revenue,
+      recalculated: row.total_revenue,
+    },
+    total_uses: { current: modifier.total_uses, recalculated: row.total_uses },
+    usage_count: {
+      current: modifier.usage_count,
+      recalculated: row.usage_count,
+    },
+  };
+};
+
+/** Manually set every editable modifier aggregate from the edit form. */
+export const updateModifierAggregateValues = async (
+  modifierId: number,
+  values: ModifierAggregateValues,
+): Promise<void> => {
+  await getDb().execute({
+    args: [
+      values.total_uses,
+      values.usage_count,
+      values.total_revenue,
+      modifierId,
+    ],
+    sql: "UPDATE modifiers SET total_uses = ?, usage_count = ?, total_revenue = ? WHERE id = ?",
+  });
+};
+
+const aggregateResetSql: Record<ModifierAggregateField, string> = {
+  total_revenue:
+    "total_revenue = COALESCE((SELECT SUM(amount_applied) FROM modifier_usages WHERE modifier_id = ?), 0)",
+  total_uses:
+    "total_uses = COALESCE((SELECT SUM(quantity) FROM modifier_usages WHERE modifier_id = ?), 0)",
+  usage_count:
+    "usage_count = (SELECT COUNT(*) FROM modifier_usages WHERE modifier_id = ?)",
+};
+
+/** Reset selected modifier aggregate columns from actual usage rows. */
+export const resetModifierAggregateFields = async (
+  modifierId: number,
+  fields: ModifierAggregateField[],
+): Promise<void> => {
+  await resetAggregates("modifiers", modifierId, fields, aggregateResetSql);
+};
 
 /** Run a single-column `id` query for a modifier and return the ids. */
 const modifierIdColumn = async (

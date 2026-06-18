@@ -130,6 +130,17 @@ describe("parseAttendeeForm", () => {
     expect(parsed.lines[1]!.quantity).toBeNull();
   });
 
+  test("rejects malformed quantity values instead of parsing their prefix", () => {
+    const parsed = parseAttendeeForm(
+      makeForm({
+        name: "X",
+        qty_1: "2x",
+      }),
+      new Map(),
+    );
+    expect(parsed.lines[0]!.quantity).toBeNull();
+  });
+
   test("clamps the day count to the valid range", () => {
     expect(
       parseAttendeeForm(makeForm({ day_count: "0", name: "X" }), new Map())

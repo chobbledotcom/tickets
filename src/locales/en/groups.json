@@ -26,5 +26,9 @@
   "groups.fields.terms_hint": "If set, overrides the global terms and conditions for this group ticket page",
   "groups.select.none": "No Group",
   "groups.name_label": "Group name",
-  "groups.group_attendees": "Group Attendees"
+  "groups.group_attendees": "Group Attendees",
+  "groups.running_total_check": "Running total check",
+  "groups.running_totals_error_action": "Review group listings",
+  "groups.running_totals_error_explanation": "Expected values come from attendee rows in this group. Got values are the sum of stored running totals on the group's listings. Normal attendee changes keep these aligned; recalculate the affected listing totals before relying on group capacity or reporting.",
+  "groups.running_totals_error_title": "Group listing totals do not match attendee rows."
 }

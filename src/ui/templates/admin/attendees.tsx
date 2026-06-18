@@ -65,6 +65,13 @@ export const adminDeleteAttendeePage = (
           <p>
             <strong>Registered:</strong> {formatDatetimeShort(attendee.created)}
           </p>
+          <label>
+            <input checked name="release_bookings" type="checkbox" value="1" />{" "}
+            {t("admin.attendees.release_bookings")}
+          </label>
+          <p>
+            <small>{t("admin.attendees.release_bookings_note")}</small>
+          </p>
           <p>{t("admin.attendees.delete_confirm", { name: attendee.name })}</p>
         </div>
       </ConfirmForm>

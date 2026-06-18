@@ -508,6 +508,18 @@ const contactPrefixHandler: RouterFn = async (request, reqPath, method) => {
   return null;
 };
 
+/** Legacy redirect: the public listings page used to live at /events. */
+const legacyEventsRedirectHandler: RouterFn = async (
+  _request,
+  reqPath,
+  method,
+) => {
+  if (reqPath !== "/events" || method !== "GET" || !settings.showPublicSite) {
+    return null;
+  }
+  return redirectResponse("/listings");
+};
+
 const publicPageHandlers = reduce(
   (acc: Record<string, RouterFn>, spec: PublicGetPageSpec) => {
     const { prefix, pick } = spec;
@@ -544,13 +556,7 @@ const prefixHandlers: Record<string, RouterFn> = {
   checkin: lazyRoute(loadCheckinRoutes),
   contact: contactPrefixHandler,
   demo: lazyRoute(loadDemoResetRoutes),
-  // Legacy redirect: the public listings page used to live at /events.
-  // Only active when the public site is enabled (otherwise /listings itself
-  // redirects to the admin login).
-  events: (_request, reqPath, method) =>
-    reqPath === "/events" && method === "GET" && settings.showPublicSite
-      ? Promise.resolve(redirectResponse("/listings"))
-      : Promise.resolve(null),
+  events: legacyEventsRedirectHandler,
   feeds: lazyRoute(loadFeedRoutes),
   gwallet: lazyRoute(loadGoogleWalletRoutes),
   image: lazyRoute(loadImageRoutes),

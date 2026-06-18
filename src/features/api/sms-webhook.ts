@@ -15,6 +15,10 @@ import { createRouter, defineRoutes } from "#routes/router.ts";
 import { constantTimeEqual } from "#shared/crypto/utils.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { findAttendeeIdByPhoneIndex } from "#shared/db/attendee-phone-index.ts";
+import {
+  claimProcessedSmsInbound,
+  pruneProcessedSmsInboundBefore,
+} from "#shared/db/processed-sms-inbound.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   deleteSmsMessage,
@@ -28,6 +32,9 @@ import { computePhoneIndex } from "#shared/sms/phone-index.ts";
 
 /** How long to keep id→attendee rows as a backstop for missed webhooks. */
 const RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+
+/** Maximum signed webhook age/skew accepted, matching Stripe-style Unix seconds. */
+const SMS_WEBHOOK_TOLERANCE_SECONDS = 300;
 
 const EnvelopeSchema = v.object({
   event: v.string(),
@@ -48,6 +55,15 @@ const hmacHex = async (secret: string, message: string): Promise<string> => {
   return new Uint8Array(sig).toHex();
 };
 
+/** Parse the signed Unix-seconds timestamp and enforce freshness. */
+const isFreshTimestamp = (timestamp: string): boolean => {
+  if (!/^\d+$/.test(timestamp)) return false;
+  const seconds = Number(timestamp);
+  if (!Number.isSafeInteger(seconds)) return false;
+  const nowSeconds = Math.floor(nowMs() / 1000);
+  return Math.abs(nowSeconds - seconds) <= SMS_WEBHOOK_TOLERANCE_SECONDS;
+};
+
 /** Verify the X-Signature / X-Timestamp headers against the raw body. */
 const isValidSignature = async (
   request: Request,
@@ -56,7 +72,7 @@ const isValidSignature = async (
 ): Promise<boolean> => {
   const signature = request.headers.get("x-signature");
   const timestamp = request.headers.get("x-timestamp");
-  if (!signature || !timestamp) return false;
+  if (!signature || !timestamp || !isFreshTimestamp(timestamp)) return false;
   const expected = await hmacHex(secret, rawBody + timestamp);
   return constantTimeEqual(expected, signature);
 };
@@ -101,10 +117,14 @@ const handleStatus = (
     await deleteSmsMessage(row.id);
   });
 
+const inboundWebhookId = (payload: Record<string, unknown>): string =>
+  str(payload.messageId) || str(payload.id);
+
 const handleReceived = async (
   payload: Record<string, unknown>,
   passphrase: string,
 ): Promise<void> => {
+  if (!(await claimProcessedSmsInbound(inboundWebhookId(payload)))) return;
   const message = await tryDecrypt(str(payload.message), passphrase);
   const sender = await tryDecrypt(str(payload.sender), passphrase);
   const attendeeId = await findAttendeeIdByPhoneIndex(
@@ -140,7 +160,9 @@ export const handleSmsWebhook = async (request: Request): Promise<Response> => {
   }
 
   // Backstop cleanup for rows whose delivery webhook never arrived.
-  await pruneSmsMessagesBefore(new Date(nowMs() - RETENTION_MS).toISOString());
+  const retentionCutoff = new Date(nowMs() - RETENTION_MS).toISOString();
+  await pruneSmsMessagesBefore(retentionCutoff);
+  await pruneProcessedSmsInboundBefore(retentionCutoff);
 
   return jsonResponse({ ok: true });
 };
