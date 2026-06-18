@@ -4,6 +4,10 @@
 
 import { t } from "#i18n";
 import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
+import type {
+  ModifierAggregateField,
+  ModifierAggregateRecalculation,
+} from "#shared/db/modifiers.ts";
 import { isReadOnly } from "#shared/env.ts";
 import {
   booleanToCheckbox,
@@ -16,8 +20,12 @@ import {
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession, Modifier } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
+import {
+  adminRecalculatePage,
+  type RecalculateRow,
+} from "#templates/admin/recalculate.tsx";
 import { ActionButton, SubmitButton } from "#templates/components/actions.tsx";
-import { modifierFields } from "#templates/fields.ts";
+import { modifierAggregateFields, modifierFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
 /** Candidate listings/groups and current links for the scope editor. */
@@ -94,10 +102,88 @@ export const modifierToFieldValues = (
       active: (m) => booleanToCheckbox(m.active),
       min_subtotal: (m) =>
         m.min_subtotal ? Number(toMajorUnits(m.min_subtotal)) : "",
+      min_visits: (m) => m.min_visits || "",
       stock: (m) => m.stock ?? "",
     },
     modifier ? undefined : { active: "1" },
   );
+
+export const modifierAggregateToFieldValues = (
+  modifier: Modifier,
+): Record<string, string | number> => ({
+  total_revenue: toMajorUnits(modifier.total_revenue),
+  total_uses: modifier.total_uses,
+  usage_count: modifier.usage_count,
+});
+
+const ModifierRunningTotalsSection = ({
+  modifier,
+}: {
+  modifier: Modifier;
+}): JSX.Element => (
+  <fieldset>
+    <legend>{t("modifiers.running_totals")}</legend>
+    <p>
+      <small>{t("modifiers.running_totals_note")}</small>
+    </p>
+    <Raw
+      html={renderFields(
+        modifierAggregateFields,
+        modifierAggregateToFieldValues(modifier),
+      )}
+    />
+    <p>
+      <a href={`/admin/modifiers/recalculate/${modifier.id}`}>
+        {t("modifiers.recalculate_totals")}
+      </a>
+    </p>
+  </fieldset>
+);
+
+const modifierAggregateFormatters: Record<
+  ModifierAggregateField,
+  (value: number) => string
+> = {
+  total_revenue: formatCurrency,
+  total_uses: String,
+  usage_count: String,
+};
+
+const modifierRecalculateRows = (
+  snapshot: ModifierAggregateRecalculation,
+): RecalculateRow[] =>
+  modifierAggregateFields.map((field) => {
+    const name = field.name as ModifierAggregateField;
+    return {
+      current: modifierAggregateFormatters[name](snapshot[name].current),
+      label: field.label,
+      name,
+      recalculated: modifierAggregateFormatters[name](
+        snapshot[name].recalculated,
+      ),
+    };
+  });
+
+export const adminModifierRecalculatePage = (
+  modifier: Modifier,
+  snapshot: ModifierAggregateRecalculation,
+  session: AdminSession,
+  error?: string,
+  success?: string,
+): string =>
+  adminRecalculatePage({
+    action: `/admin/modifiers/recalculate/${modifier.id}`,
+    active: "/admin/modifiers",
+    currentLabel: t("modifiers.recalculate.current"),
+    description: t("modifiers.recalculate.description"),
+    error,
+    recalculatedLabel: t("modifiers.recalculate.from_attendees"),
+    rows: modifierRecalculateRows(snapshot),
+    session,
+    submitLabel: t("modifiers.recalculate.save"),
+    success,
+    title: t("modifiers.recalculate.heading", { name: modifier.name }),
+  });
 
 /** Admin modifiers list page */
 export const adminModifiersPage = (
@@ -173,16 +259,18 @@ export const adminModifierEditPage = (
   session: AdminSession,
   error?: string,
   links?: ScopeLinks | null,
+  success?: string,
 ): string =>
   String(
     <Layout title={t("modifiers.edit.heading")}>
       <AdminNav active="/admin/modifiers" session={session} />
       <CsrfForm action={`/admin/modifiers/${modifier.id}/edit`}>
         <h1>{t("modifiers.edit.heading")}</h1>
-        <Flash error={error} />
+        <Flash error={error} success={success} />
         <Raw
           html={renderFields(modifierFields, modifierToFieldValues(modifier))}
         />
+        <ModifierRunningTotalsSection modifier={modifier} />
         <SubmitButton icon="save">{t("common.save_changes")}</SubmitButton>
       </CsrfForm>
       {links && <ScopeLinksForm links={links} modifier={modifier} />}

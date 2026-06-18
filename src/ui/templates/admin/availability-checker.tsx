@@ -12,6 +12,7 @@
  */
 
 import { sort } from "#fp";
+import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
 import { SELECT_PREFIX, START_DATE_FIELD } from "#shared/order-select.ts";
 import { Icon } from "#templates/components/actions.tsx";
@@ -31,8 +32,8 @@ export type AvailabilityRow = {
  * "From" prefix when the buyer may pay more. */
 const priceLabel = (row: AvailabilityRow): string =>
   row.unitPrice <= 0
-    ? "Free"
-    : `${row.canPayMore ? "From " : ""}${formatCurrency(row.unitPrice)}`;
+    ? t("availability.free")
+    : `${row.canPayMore ? t("availability.from_prefix") : ""}${formatCurrency(row.unitPrice)}`;
 
 /** One selectable listing row. The name links to the listing; the first cell
  * is the hidden checkbox + tick box that drives selection. */
@@ -43,7 +44,7 @@ const Row = ({ row }: { row: AvailabilityRow }): JSX.Element => {
       <td>
         <label class="row-select">
           <input
-            aria-label={`Select ${row.name}`}
+            aria-label={t("availability.select_listing", { name: row.name })}
             class="order-select"
             id={field}
             name={field}
@@ -78,11 +79,11 @@ export const AvailabilityChecker = ({
   date: string | null;
 }): JSX.Element => (
   <details class="availability-checker" data-availability-checker>
-    <summary>Check availability</summary>
+    <summary>{t("availability.check")}</summary>
     <div class="availability-checker-body">
       {rows.length === 0 ? (
         <p>
-          <em>No bookable listings.</em>
+          <em>{t("availability.no_bookable_listings")}</em>
         </p>
       ) : (
         <form
@@ -96,11 +97,13 @@ export const AvailabilityChecker = ({
               <thead>
                 <tr>
                   <th>
-                    <span class="visually-hidden">Select</span>
+                    <span class="visually-hidden">
+                      {t("availability.select")}
+                    </span>
                   </th>
-                  <th>Listing</th>
-                  <th>Remaining</th>
-                  <th>Price</th>
+                  <th>{t("availability.listing")}</th>
+                  <th>{t("availability.remaining")}</th>
+                  <th>{t("availability.price")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -115,7 +118,9 @@ export const AvailabilityChecker = ({
           <button class="order-cart" type="submit">
             <Icon name="user-plus" />
             <span aria-hidden="true" class="order-cart-count"></span>
-            <span class="order-cart-label">Create Attendee</span>
+            <span class="order-cart-label">
+              {t("availability.create_attendee")}
+            </span>
           </button>
         </form>
       )}

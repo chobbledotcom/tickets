@@ -18,6 +18,8 @@ import {
   inPlaceholders,
   queryAll,
   queryBatch,
+  queryOne,
+  resetAggregates,
   resultRows,
 } from "#shared/db/client.ts";
 import {
@@ -383,6 +385,82 @@ export const getListingWithCountBySlug = async (
   slug: string,
 ): Promise<ListingWithCount | null> =>
   listingsCache.getByKey(await computeSlugIndex(slug));
+
+export const LISTING_AGGREGATE_FIELDS = [
+  "booked_quantity",
+  "tickets_count",
+  "income",
+] as const;
+
+export type ListingAggregateField = (typeof LISTING_AGGREGATE_FIELDS)[number];
+
+export type ListingAggregateValues = Record<ListingAggregateField, number>;
+
+export type ListingAggregateRecalculation = Record<
+  ListingAggregateField,
+  { current: number; recalculated: number }
+>;
+
+/** The listing aggregate columns as they would be if rebuilt from attendee rows. */
+export const getListingAggregateRecalculation = async (
+  listing: ListingWithCount,
+): Promise<ListingAggregateRecalculation> => {
+  const row = (await queryOne<ListingAggregateValues>(
+    `SELECT
+       COALESCE(SUM(quantity), 0) AS booked_quantity,
+       COUNT(*) AS tickets_count,
+       COALESCE(SUM(price_paid), 0) AS income
+     FROM listing_attendees
+     WHERE listing_id = ?`,
+    [listing.id],
+  ))!;
+  return {
+    booked_quantity: {
+      current: listing.attendee_count,
+      recalculated: row.booked_quantity,
+    },
+    income: { current: listing.income, recalculated: row.income },
+    tickets_count: {
+      current: listing.tickets_count,
+      recalculated: row.tickets_count,
+    },
+  };
+};
+
+/** Manually set every editable listing aggregate from the edit form. */
+export const updateListingAggregateValues = async (
+  listingId: number,
+  values: ListingAggregateValues,
+): Promise<void> => {
+  await getDb().execute({
+    args: [
+      values.booked_quantity,
+      values.tickets_count,
+      values.income,
+      listingId,
+    ],
+    sql: "UPDATE listings SET booked_quantity = ?, tickets_count = ?, income = ? WHERE id = ?",
+  });
+  invalidateListingsCache();
+};
+
+const aggregateResetSql: Record<ListingAggregateField, string> = {
+  booked_quantity:
+    "booked_quantity = COALESCE((SELECT SUM(quantity) FROM listing_attendees WHERE listing_id = ?), 0)",
+  income:
+    "income = COALESCE((SELECT SUM(price_paid) FROM listing_attendees WHERE listing_id = ?), 0)",
+  tickets_count:
+    "tickets_count = (SELECT COUNT(*) FROM listing_attendees WHERE listing_id = ?)",
+};
+
+/** Reset selected listing aggregate columns from actual attendee rows. */
+export const resetListingAggregateFields = async (
+  listingId: number,
+  fields: ListingAggregateField[],
+): Promise<void> => {
+  await resetAggregates("listings", listingId, fields, aggregateResetSql);
+  invalidateListingsCache();
+};
 
 /** Result type for combined listing + attendees query */
 export type ListingWithAttendees = {

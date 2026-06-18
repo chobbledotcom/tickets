@@ -11,6 +11,11 @@
 import { itemsSubtotal } from "#shared/booking-fee.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { formatCurrency, toMinorUnits } from "#shared/currency.ts";
+import {
+  getVisits,
+  hashEmail,
+  hashPhone,
+} from "#shared/db/contact-preferences.ts";
 import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
 import {
   getActiveModifiers,
@@ -39,8 +44,9 @@ const signedValue = (modifier: Modifier): number => {
 
 /** The listing ids a modifier is charged on, or null for the whole order. */
 const listingIdsFor = (modifier: Modifier): Promise<number[]> | null => {
-  if (modifier.scope === "groups")
+  if (modifier.scope === "groups") {
     return getModifierGroupListingIds(modifier.id);
+  }
   if (modifier.scope === "listings") return getModifierListingIds(modifier.id);
   return null;
 };
@@ -102,25 +108,54 @@ const triggerQuantity = (
   codeIndex: string | null,
   addOns: Map<number, number>,
 ): number => {
-  if (modifier.trigger === "code")
+  if (modifier.trigger === "code") {
     return codeIndex !== null && modifier.code_index === codeIndex ? 1 : 0;
+  }
   if (modifier.trigger === "optional") return addOns.get(modifier.id) ?? 0;
   return 1;
 };
 
+export type PricingContext = { visits: number };
+
+const NO_VISITS: PricingContext = { visits: 0 };
+
+export const buyerVisits = async (
+  email?: string,
+  phone?: string,
+): Promise<number> => {
+  const usable = (value: string | undefined): value is string =>
+    typeof value === "string" && value.trim() !== "";
+  const hashes = await Promise.all(
+    [
+      usable(email) ? hashEmail(email) : null,
+      usable(phone) ? hashPhone(phone) : null,
+    ].filter((hash): hash is Promise<string> => hash !== null),
+  );
+  if (hashes.length === 0) return 0;
+  const counts = await Promise.all(hashes.map(getVisits));
+  return Math.max(0, ...counts);
+};
+
+type ResolveOptions = {
+  code?: string;
+  addOns?: Map<number, number>;
+  ctx?: PricingContext;
+};
+
 /**
  * The modifiers that apply to a cart: active, triggered, in scope, past their
- * minimum subtotal, and with stock remaining. Automatic modifiers always
- * trigger; a "code" modifier triggers only when the buyer entered its matching
- * code; an "optional" add-on triggers only when the buyer selected it
- * (`opts.addOns` maps modifier id → chosen quantity), and is applied that many
- * times.
+ * minimum subtotal, past their minimum visit count, and with stock remaining.
+ * Automatic modifiers always trigger; a "code" modifier triggers only when the
+ * buyer entered its matching code; an "optional" add-on triggers only when the
+ * buyer selected it (`opts.addOns` maps modifier id → chosen quantity), and is
+ * applied that many times.
  */
 export const resolveModifiers = async (
   items: CheckoutItem[],
-  opts: { code?: string; addOns?: Map<number, number> } = {},
+  opts: ResolveOptions = {},
 ): Promise<ModifierSpec[]> => {
   const addOns = opts.addOns ?? new Map<number, number>();
+  const ctx = opts.ctx ?? NO_VISITS;
   const codeIndex = opts.code?.trim()
     ? await hmacHash(normalizeCode(opts.code))
     : null;
@@ -129,6 +164,7 @@ export const resolveModifiers = async (
       (
         await getActiveModifiers()
       ).map(async (modifier): Promise<Candidate | null> => {
+        if (modifier.min_visits > ctx.visits) return null;
         const quantity = triggerQuantity(modifier, codeIndex, addOns);
         if (quantity < 1) return null;
         const listingIds = await listingIdsFor(modifier);
@@ -170,6 +206,8 @@ export type AddOnOption = {
   name: string;
   /** Buyer-facing price effect, e.g. "+£5", "−10%", "×1.5". */
   priceLabel: string;
+  /** True when selecting this add-on can route an otherwise-free cart to payment. */
+  requiresPayment: boolean;
   /** The most units a buyer may select, capped by remaining stock. */
   maxQuantity: number;
 };
@@ -188,6 +226,9 @@ const addOnPriceLabel = (modifier: Modifier): string => {
       : `${modifier.calc_value}%`;
   return `${sign}${amount}`;
 };
+
+const addOnCanRequirePayment = (modifier: Modifier): boolean =>
+  modifier.calc_kind === "fixed" && signedValue(modifier) > 0;
 
 /**
  * The opt-in add-ons offered for a page's listings: active "optional"
@@ -225,6 +266,7 @@ export const getOptionalAddOns = async (
       maxQuantity,
       name: modifier.name,
       priceLabel: addOnPriceLabel(modifier),
+      requiresPayment: addOnCanRequirePayment(modifier),
     }));
 };
 
@@ -236,12 +278,14 @@ export const getOptionalAddOns = async (
  */
 export const specsFromRefs = async (
   refs: ModifierRef[],
+  ctx: PricingContext = NO_VISITS,
 ): Promise<ModifierSpec[]> => {
   if (refs.length === 0) return [];
   const byId = new Map((await getActiveModifiers()).map((m) => [m.id, m]));
   const specs = await Promise.all(
     refs.map(async (ref) => {
       const modifier = byId.get(ref.i);
+      if (modifier && modifier.min_visits > ctx.visits) return null;
       return modifier
         ? toSpec(modifier, ref.q, await listingIdsFor(modifier))
         : null;

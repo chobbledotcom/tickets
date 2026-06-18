@@ -1,12 +1,20 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { deleteAttendee, getAttendee } from "#shared/db/attendees.ts";
+import { queryOne } from "#shared/db/client.ts";
+import { getListingWithCount } from "#shared/db/listings.ts";
+import {
+  consumeModifierStock,
+  modifierUsedQuantities,
+} from "#shared/db/modifier-usage.ts";
+import { modifiersTable } from "#shared/db/modifiers.ts";
 import {
   finalizeSession as finalizePaymentSession,
   isSessionProcessed,
   reserveSession,
 } from "#shared/db/processed-payments.ts";
 import {
+  createPaidTestAttendee,
   createTestAttendee,
   createTestListing,
   describeWithEnv,
@@ -52,5 +60,115 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
 
     const processed = await isSessionProcessed("sess_attendee_delete");
     expect(processed).toBeNull();
+  });
+
+  test("releases listing aggregate totals by default", async () => {
+    const listing = await createTestListing({ maxAttendees: 50 });
+    const attendee = await createPaidTestAttendee(
+      listing.id,
+      "Release Me",
+      "release@example.com",
+      "pay_release",
+      1200,
+      3,
+    );
+
+    await deleteAttendee(attendee.id);
+
+    const updated = await getListingWithCount(listing.id);
+    expect(updated).toMatchObject({
+      attendee_count: 0,
+      income: 0,
+      tickets_count: 0,
+    });
+  });
+
+  test("can delete attendee without releasing listing aggregate totals", async () => {
+    const listing = await createTestListing({ maxAttendees: 50 });
+    const attendee = await createPaidTestAttendee(
+      listing.id,
+      "Keep Totals",
+      "keep@example.com",
+      "pay_keep",
+      1200,
+      3,
+    );
+
+    await deleteAttendee(attendee.id, { releaseBookings: false });
+
+    const privateKey = await getTestPrivateKey();
+    const fetched = await getAttendee(attendee.id, privateKey);
+    const updated = await getListingWithCount(listing.id);
+    expect(fetched).toBeNull();
+    expect(updated).toMatchObject({
+      attendee_count: 3,
+      income: 1200,
+      tickets_count: 1,
+    });
+  });
+
+  test("keeps modifier usage rows and totals after attendee deletion", async () => {
+    const listing = await createTestListing({
+      maxAttendees: 50,
+      thankYouUrl: "https://example.com",
+    });
+    const attendee = await createTestAttendee(
+      listing.id,
+      listing.slug,
+      "Modifier User",
+      "modifier@example.com",
+    );
+    const modifier = await modifiersTable.insert({
+      calcKind: "fixed",
+      calcValue: 5,
+      direction: "charge",
+      name: "Add-on",
+      stock: null,
+    });
+
+    const consumed = await consumeModifierStock(attendee.id, [
+      { amountApplied: 1500, modifierId: modifier.id, quantity: 3 },
+    ]);
+    expect(consumed).toBe(true);
+    const before = await queryOne<{ n: number }>(
+      "SELECT COUNT(*) AS n FROM modifier_usages WHERE attendee_id = ?",
+      [attendee.id],
+    );
+    expect(before?.n).toBe(1);
+
+    await deleteAttendee(attendee.id);
+
+    const after = await queryOne<{ n: number }>(
+      "SELECT COUNT(*) AS n FROM modifier_usages WHERE attendee_id = ?",
+      [attendee.id],
+    );
+    expect(after?.n).toBe(1);
+    expect(await modifierUsedQuantities([modifier.id])).toEqual(
+      new Map([[modifier.id, 3]]),
+    );
+    expect(await modifiersTable.findById(modifier.id)).toMatchObject({
+      total_revenue: 1500,
+      total_uses: 3,
+      usage_count: 1,
+    });
+  });
+
+  test("succeeds when the attendee has no modifier usage", async () => {
+    const listing = await createTestListing({
+      maxAttendees: 50,
+      thankYouUrl: "https://example.com",
+    });
+    const attendee = await createTestAttendee(
+      listing.id,
+      listing.slug,
+      "No Modifier",
+      "none@example.com",
+    );
+
+    await expect(deleteAttendee(attendee.id)).resolves.toBeUndefined();
+
+    const privateKey = await getTestPrivateKey();
+    const fetched = await getAttendee(attendee.id, privateKey);
+    expect(fetched).toBeNull();
   });
 });

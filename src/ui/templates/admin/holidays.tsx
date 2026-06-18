@@ -12,7 +12,7 @@ import {
 } from "#shared/forms.tsx";
 import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession, Holiday } from "#shared/types.ts";
-import { AdminNav } from "#templates/admin/nav.tsx";
+import { AdminNav, SettingsSubNav } from "#templates/admin/nav.tsx";
 import {
   ActionButton,
   DeleteSection,
@@ -32,7 +32,8 @@ export const adminHolidaysPage = (
 ): string =>
   String(
     <Layout title={t("terms.holidays")}>
-      <AdminNav active="/admin/holidays" session={session} />
+      <AdminNav active="/admin/settings" session={session} />
+      <SettingsSubNav />
       <Flash success={successMessage} />
       <p class="actions">
         <ActionButton href="/admin/holidays/new" icon="plus">
@@ -90,7 +91,8 @@ export const adminHolidayNewPage = (
 ): string =>
   String(
     <Layout title={t("holidays.add.title")}>
-      <AdminNav active="/admin/holidays" session={session} />
+      <AdminNav active="/admin/settings" session={session} />
+      <SettingsSubNav />
       <CsrfForm action="/admin/holidays">
         <h1>{t("holidays.add.heading")}</h1>
         <Flash error={error} />
@@ -110,7 +112,8 @@ export const adminHolidayEditPage = (
 ): string =>
   String(
     <Layout title={t("holidays.edit.title")}>
-      <AdminNav active="/admin/holidays" session={session} />
+      <AdminNav active="/admin/settings" session={session} />
+      <SettingsSubNav />
       <CsrfForm action={`/admin/holidays/${holiday.id}/edit`}>
         <h1>{t("holidays.edit.heading")}</h1>
         <Flash error={error} />
@@ -138,7 +141,8 @@ export const adminHolidayDeletePage = (
 ): string =>
   String(
     <Layout title={t("holidays.delete.heading")}>
-      <AdminNav active="/admin/holidays" session={session} />
+      <AdminNav active="/admin/settings" session={session} />
+      <SettingsSubNav />
       <ConfirmForm
         action={`/admin/holidays/${holiday.id}/delete`}
         buttonText={t("holidays.delete.submit")}

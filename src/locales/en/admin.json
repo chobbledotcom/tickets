@@ -78,6 +78,8 @@
   "admin.attendees.registered": "Registered:",
   "admin.attendees.delete_confirm": "To delete this attendee, you must type their name \"{name}\" into the box below:",
   "admin.attendees.delete_label": "Attendee name",
+  "admin.attendees.release_bookings": "Release their bookings into the pool",
+  "admin.attendees.release_bookings_note": "Leave checked to subtract this attendee from listing running totals, making standard and purchase-page places available again. Uncheck to keep those totals unchanged.",
   "admin.attendees.delete_submit": "Delete Attendee",
   "admin.attendees.refund_warning": "Warning: This will issue a full refund for this attendee's payment. The attendee will remain registered.",
   "admin.attendees.amount_paid": "Amount Paid:",

@@ -15,11 +15,11 @@ const isRedirect = (status: number): boolean =>
   REDIRECT_STATUSES.includes(status as (typeof REDIRECT_STATUSES)[number]);
 
 const resolveRedirectUrl = (location: string, currentUrl: string): string => {
-  try {
-    return new URL(location, currentUrl).toString();
-  } catch {
+  if (!URL.canParse(location, currentUrl)) {
     throw new Error("Unsafe redirect URL");
   }
+
+  return new URL(location, currentUrl).toString();
 };
 
 const manualRedirectInit = (init?: RequestInit): RequestInit => ({

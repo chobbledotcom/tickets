@@ -221,6 +221,16 @@ export const PRUNE_SUMUP_RETENTION_HOURS = readLimit(
   24,
 );
 
+/**
+ * Retention (days) past last contact activity for contact_preferences rows
+ * (default: 1825 = 5 years). Bounds the opaque repeat-customer recognition
+ * table and makes loyalty status recency-bounded.
+ */
+export const PRUNE_CONTACTS_RETENTION_DAYS = readLimit(
+  "PRUNE_CONTACTS_RETENTION_DAYS",
+  1825,
+);
+
 /** How often (hours) to re-run each prune task (default: 24 = daily) */
 export const PRUNE_INTERVAL_HOURS = readLimit("PRUNE_INTERVAL_HOURS", 24);
 
@@ -254,6 +264,8 @@ export const PRUNE_LOGINS_RETENTION_MS = PRUNE_LOGINS_RETENTION_DAYS * DAY_MS;
 export const PRUNE_TOKENS_RETENTION_MS = PRUNE_TOKENS_RETENTION_DAYS * DAY_MS;
 export const PRUNE_SUMUP_RETENTION_MS =
   PRUNE_SUMUP_RETENTION_HOURS * 60 * 60 * 1000;
+export const PRUNE_CONTACTS_RETENTION_MS =
+  PRUNE_CONTACTS_RETENTION_DAYS * DAY_MS;
 
 // ---------------------------------------------------------------------------
 // Form re-fill stash
@@ -510,6 +522,13 @@ export const LIMIT_ENTRIES: readonly LimitEntry[] = [
     envKey: "PRUNE_SUMUP_RETENTION_HOURS",
     label: "Prune: SumUp checkout staging retention",
     unit: "hours",
+  },
+  {
+    current: PRUNE_CONTACTS_RETENTION_DAYS,
+    defaultValue: 1825,
+    envKey: "PRUNE_CONTACTS_RETENTION_DAYS",
+    label: "Prune: contact-preferences retention",
+    unit: "days",
   },
   {
     current: PRUNE_INTERVAL_HOURS,

@@ -91,6 +91,20 @@
   "listings_table.booking_duration_day_prices": "Booking Duration & Day Prices",
   "listings_table.options_visibility": "Options & Visibility",
   "listings_table.advanced_settings": "Advanced settings",
+  "listings_table.running_totals": "Running totals",
+  "listings_table.running_totals_note": "These are running totals; edit them for imports or corrections. Total Attendees Ever affects standard and purchase-page availability. Accuracy is not guaranteed.",
+  "listings_table.running_total_check": "Running total check",
+  "listings_table.running_totals_error_action": "Review and recalculate totals",
+  "listings_table.running_totals_error_explanation": "Expected values come from attendee rows. Got values are the stored running totals used by standard listing availability. Normal attendee changes keep these aligned; recalculate the stored totals before relying on capacity or reporting.",
+  "listings_table.running_totals_error_title": "Listing running totals do not match attendee rows.",
+  "listings_table.recalculate_totals": "Recalculate from attendee data",
+  "listings_table.recalculate_listing_title": "Recalculate: {name}",
+  "listings_table.recalculate_current": "Current",
+  "listings_table.recalculate_from_attendees": "From attendee data",
+  "listings_table.recalculate_choose": "Choose at least one total to recalculate",
+  "listings_table.recalculate_save": "Save recalculated totals",
+  "listings_table.recalculate_success": "Listing totals recalculated",
   "listings_table.duration_warning_message": "Changing booking duration will update existing bookings for this listing.",
-  "listings_table.i_understand": "I understand"
+  "listings_table.i_understand": "I understand",
+  "listings_table.recalculate_description": "Compare the stored listing totals with totals counted from attendee records. Select only the stored values you want to replace."
 }

@@ -7,7 +7,12 @@ import { withCookie } from "#routes/response.ts";
 import { addDays } from "#shared/dates.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getDb, insert } from "#shared/db/client.ts";
-import { invalidateListingsCache, listingsTable } from "#shared/db/listings.ts";
+import {
+  getListingWithCount,
+  invalidateListingsCache,
+  listingsTable,
+  updateListingAggregateValues,
+} from "#shared/db/listings.ts";
 import { setDemoModeForTest } from "#shared/demo.ts";
 import { nowMs } from "#shared/now.ts";
 import { runWithStorageConfig } from "#shared/storage.ts";
@@ -293,6 +298,44 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       });
 
       await assertAdminHtml("/admin/listing/1", listing.name);
+    });
+
+    test("shows stored-total mismatches on listing detail and edit pages", async () => {
+      const { listing } = await setupListingAndLogin({
+        maxAttendees: 100,
+        name: "Mismatch Listing",
+        thankYouUrl: "https://example.com",
+      });
+      await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Actual User",
+        "actual@example.com",
+        2,
+      );
+      await updateListingAggregateValues(listing.id, {
+        booked_quantity: 9,
+        income: 0,
+        tickets_count: 1,
+      });
+
+      const detail = await adminGet(`/admin/listing/${listing.id}`);
+      await expectHtmlResponse(
+        detail.response,
+        200,
+        "Running total check",
+        "expected <strong>1</strong>, got",
+        "Review and recalculate totals",
+      );
+
+      const edit = await adminGet(`/admin/listing/${listing.id}/edit`);
+      await expectHtmlResponse(
+        edit.response,
+        200,
+        "Running totals",
+        "expected <strong>1</strong>, got",
+        "Review and recalculate totals",
+      );
     });
 
     test("shows Edit link on listing page", async () => {
@@ -760,6 +803,129 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     });
   });
 
+  describe("listing aggregate recalculation routes", () => {
+    testRequiresAuth("/admin/listings/recalculate/1", {
+      setup: async () => {
+        await createTestListing({
+          maxAttendees: 100,
+          thankYouUrl: "https://example.com",
+        });
+      },
+    });
+
+    test("shows current and attendee-derived listing totals", async () => {
+      const { listing } = await setupListingAndLogin({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Counted User",
+        "counted@example.com",
+        2,
+      );
+      await updateListingAggregateValues(listing.id, {
+        booked_quantity: 9,
+        income: 9000,
+        tickets_count: 5,
+      });
+
+      const { response } = await adminGet(
+        `/admin/listings/recalculate/${listing.id}`,
+      );
+      await expectHtmlResponse(
+        response,
+        200,
+        "Recalculate:",
+        "Current",
+        "From attendee data",
+        'value="booked_quantity"',
+        ">9<",
+        ">1<",
+      );
+    });
+
+    test("resets selected listing totals", async () => {
+      const { listing } = await setupListingAndLogin({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Reset User",
+        "reset@example.com",
+        2,
+      );
+      await updateListingAggregateValues(listing.id, {
+        booked_quantity: 9,
+        income: 9000,
+        tickets_count: 5,
+      });
+
+      const { response } = await adminFormPost(
+        `/admin/listings/recalculate/${listing.id}`,
+        { recalculate_fields: "booked_quantity" },
+      );
+      expectRedirectWithFlash(
+        `/admin/listing/${listing.id}/edit`,
+        "Listing totals recalculated",
+        true,
+      )(response);
+
+      const updated = await getListingWithCount(listing.id);
+      expect(updated?.attendee_count).toBe(1);
+      expect(updated?.income).toBe(9000);
+      expect(updated?.tickets_count).toBe(5);
+    });
+
+    test("shows recalculation success on the redirected edit page", async () => {
+      const { listing } = await setupListingAndLogin({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+
+      const { cookie, response } = await adminFormPost(
+        `/admin/listings/recalculate/${listing.id}`,
+        { recalculate_fields: "booked_quantity" },
+      );
+      expectRedirectWithFlash(
+        `/admin/listing/${listing.id}/edit`,
+        "Listing totals recalculated",
+        true,
+      )(response);
+
+      const editResponse = await followRedirectWithFlash(
+        response,
+        (request) => handleRequest(request),
+        cookie,
+      );
+      await expectHtmlResponse(
+        editResponse,
+        200,
+        "Listing totals recalculated",
+      );
+    });
+
+    test("rejects listing recalculation with no selected totals", async () => {
+      const { listing } = await setupListingAndLogin({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+
+      const { response } = await adminFormPost(
+        `/admin/listings/recalculate/${listing.id}`,
+        {},
+      );
+      await expectHtmlResponse(
+        response,
+        400,
+        "Choose at least one total to recalculate",
+      );
+    });
+  });
+
   describe("POST /admin/listing/:id/edit", () => {
     testRequiresAuth("/admin/listing/1/edit", {
       body: {
@@ -864,6 +1030,71 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       expect(updated?.max_attendees).toBe(200);
       expect(updated?.thank_you_url).toBe("https://example.com/updated");
       expect(updated?.unit_price).toBe(2000);
+    });
+
+    test("updates listing running totals from the edit form", async () => {
+      const { listing, cookie, csrfToken } = await setupListingAndLogin({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/listing/${listing.id}/edit`,
+          {
+            booked_quantity: "12",
+            csrf_token: csrfToken,
+            income: "123.45",
+            max_attendees: "100",
+            max_quantity: "1",
+            name: listing.name,
+            slug: listing.slug,
+            thank_you_url: "https://example.com",
+            tickets_count: "4",
+          },
+          cookie,
+        ),
+      );
+      expectRedirectWithFlash(
+        `/admin/listing/${listing.id}`,
+        "Listing updated",
+      )(response);
+
+      const updated = await getListingWithCount(listing.id);
+      expect(updated?.attendee_count).toBe(12);
+      expect(updated?.income).toBe(12345);
+      expect(updated?.tickets_count).toBe(4);
+    });
+
+    test("rejects invalid listing running totals", async () => {
+      const { listing, cookie, csrfToken } = await setupListingAndLogin({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/listing/${listing.id}/edit`,
+          {
+            booked_quantity: "-1",
+            csrf_token: csrfToken,
+            income: "10.00",
+            max_attendees: "100",
+            max_quantity: "1",
+            name: listing.name,
+            slug: listing.slug,
+            thank_you_url: "https://example.com",
+            tickets_count: "4",
+          },
+          cookie,
+        ),
+      );
+
+      await expectHtmlResponse(
+        response,
+        400,
+        "Total Attendees Ever must be 0 or greater",
+      );
     });
 
     test("clears webhook URL when updating listing in demo mode", async () => {

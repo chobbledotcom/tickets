@@ -86,25 +86,10 @@ export const AdminNav = ({ session, active }: AdminNavProps): JSX.Element => {
           {navLink("/admin/attendees", t("terms.attendees"), active)}
           {session.adminLevel === "owner" &&
             navLink("/admin/users", t("terms.users"), active)}
-          {session.adminLevel === "owner" &&
-            settings.showPublicSite &&
-            navLink("/admin/site", t("nav.site"), active)}
-          {session.adminLevel === "owner" &&
-            navLink("/admin/emails", t("nav.emails"), active)}
-          {session.adminLevel === "owner" &&
-            navLink("/admin/settings", t("nav.settings"), active)}
-          {navLink("/admin/log", t("nav.log"), active)}
           {navLink("/admin/groups", t("terms.groups"), active)}
           {navLink("/admin/modifiers", t("terms.modifiers"), active)}
           {session.adminLevel === "owner" &&
-            navLink("/admin/holidays", t("terms.holidays"), active)}
-          {session.adminLevel === "owner" &&
-            isBuilderEnabled() &&
-            navLink("/admin/built-sites", t("nav.built_sites"), active)}
-          {navLink("/admin/guide", t("nav.guide"), active)}
-          {session.adminLevel === "owner" &&
-            isSupportEnabled() &&
-            navLink("/admin/support", t("nav.support"), active)}
+            navLink("/admin/settings", t("nav.settings"), active)}
         </ul>
       </nav>
     </>
@@ -159,6 +144,22 @@ export const SettingsSubNav = (): JSX.Element => (
         <a href="/admin/logistics">{t("nav.logistics")}</a>
       </li>
       <li>
+        <a href="/admin/emails">{t("nav.emails")}</a>
+      </li>
+      {settings.showPublicSite && (
+        <li>
+          <a href="/admin/site">{t("nav.site")}</a>
+        </li>
+      )}
+      <li>
+        <a href="/admin/holidays">{t("terms.holidays")}</a>
+      </li>
+      {isBuilderEnabled() && (
+        <li>
+          <a href="/admin/built-sites">{t("nav.built_sites")}</a>
+        </li>
+      )}
+      <li>
         <a href="/admin/settings-advanced">{t("nav.sub.advanced")}</a>
       </li>
       <li>
@@ -170,6 +171,11 @@ export const SettingsSubNav = (): JSX.Element => (
       <li>
         <a href="/admin/debug">{t("nav.sub.debug")}</a>
       </li>
+      {isSupportEnabled() && (
+        <li>
+          <a href="/admin/support">{t("nav.support")}</a>
+        </li>
+      )}
     </ul>
   </nav>
 );

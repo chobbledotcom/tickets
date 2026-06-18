@@ -16,6 +16,7 @@ import { addDays } from "#shared/dates.ts";
 import { normalizeDurationDays } from "#shared/types.ts";
 
 export type SqlFragment = { sql: string; args: InValue[] };
+type DayRange = { startAt: string; endAt: string };
 
 /** Convert a date string ("YYYY-MM-DD") to a half-open [start, end) pair.
  * `durationDays` is normalized (whole days in [1, MAX]) so `end_at` is always
@@ -28,71 +29,186 @@ export type SqlFragment = { sql: string; args: InValue[] };
  * so the `.000Z` / `Z` difference is irrelevant — but do not "tidy" them
  * to match, because SQLite TEXT comparison is byte-for-byte and tests
  * assert the exact stored format. */
-export const dateToRange = (
-  date: string,
-  durationDays = 1,
-): { startAt: string; endAt: string } => {
+export const dateToRange = (date: string, durationDays = 1): DayRange => {
   const days = normalizeDurationDays(durationDays);
   const ms = new Date(`${date}T00:00:00Z`).getTime();
   const endIso = new Date(ms + days * 86_400_000).toISOString();
   return { endAt: endIso, startAt: `${date}T00:00:00Z` };
 };
 
-/**
- * Whether an `listing_attendees` row should count toward its group's cap on
- * the given date. Standard listings always count; daily listings count only
- * when their booking overlaps the date. With `date = null` every row
- * counts — useful after upstream date validation, misleading for display.
- *
- * Args order: `[date, endAt, startAt]`.
- */
-export const buildGroupAttendeePredicate = (
-  listingAlias: string,
-  attendeeAlias: string,
-  date: string | null,
+const attendeeExclusionSql = (
+  alias: string,
+  excludeAttendeeId?: number,
+): string => (excludeAttendeeId ? `AND ${alias}.attendee_id != ? ` : "");
+
+const attendeeExclusionArgs = (excludeAttendeeId?: number): InValue[] =>
+  excludeAttendeeId ? [excludeAttendeeId] : [];
+
+const buildDailyListingCountSql = (
+  listingId: number,
+  dayRange: DayRange,
+  excludeAttendeeId?: number,
+): SqlFragment => ({
+  args: [
+    listingId,
+    ...attendeeExclusionArgs(excludeAttendeeId),
+    dayRange.endAt,
+    dayRange.startAt,
+    listingId,
+  ],
+  sql: `(SELECT CASE
+          WHEN e0.listing_type = 'daily' THEN (
+            SELECT COALESCE(SUM(ea2.quantity), 0)
+              FROM listing_attendees ea2
+             WHERE ea2.listing_id = ? ${attendeeExclusionSql(
+               "ea2",
+               excludeAttendeeId,
+             )}
+               AND ea2.start_at < ? AND ea2.end_at > ?
+          )
+          ELSE e0.booked_quantity
+        END
+        FROM listings e0 WHERE e0.id = ?)`,
+});
+
+const buildUndatedListingCountSql = (
+  listingId: number,
+  excludeAttendeeId?: number,
 ): SqlFragment => {
-  const range = date ? dateToRange(date) : null;
+  if (excludeAttendeeId) {
+    return {
+      args: [listingId, listingId, excludeAttendeeId],
+      sql: `((SELECT booked_quantity FROM listings WHERE id = ?)
+          - COALESCE((
+            SELECT SUM(ea2.quantity)
+              FROM listing_attendees ea2
+             WHERE ea2.listing_id = ? AND ea2.attendee_id = ?
+          ), 0))`,
+    };
+  }
+
   return {
-    args: [date, range?.endAt ?? null, range?.startAt ?? null],
-    sql: `(? IS NULL OR ${listingAlias}.listing_type != 'daily' OR (${attendeeAlias}.start_at < ? AND ${attendeeAlias}.end_at > ?))`,
+    args: [listingId],
+    sql: "(SELECT booked_quantity FROM listings WHERE id = ?)",
   };
+};
+
+const buildListingCountSql = (
+  listingId: number,
+  dayRange: DayRange | null,
+  excludeAttendeeId?: number,
+): SqlFragment => {
+  if (dayRange) {
+    return buildDailyListingCountSql(listingId, dayRange, excludeAttendeeId);
+  }
+
+  return buildUndatedListingCountSql(listingId, excludeAttendeeId);
+};
+
+const buildDailyNonListingGroupExclusionSql = (
+  excludeAttendeeId?: number,
+): string => {
+  if (!excludeAttendeeId) return "";
+
+  return `- COALESCE((
+          SELECT SUM(ea4.quantity)
+            FROM listing_attendees ea4
+            JOIN listings e4 ON e4.id = ea4.listing_id
+           WHERE e4.group_id = ev.group_id
+             AND e4.listing_type != 'daily'
+             AND ea4.attendee_id = ?
+        ), 0)`;
+};
+
+const buildUndatedGroupExclusionSql = (excludeAttendeeId?: number): string => {
+  if (!excludeAttendeeId) return "";
+
+  return `- COALESCE((
+          SELECT SUM(ea3.quantity)
+            FROM listing_attendees ea3
+            JOIN listings e3 ON e3.id = ea3.listing_id
+           WHERE e3.group_id = ev.group_id AND ea3.attendee_id = ?
+        ), 0)`;
+};
+
+const buildDailyGroupCountSql = (
+  dayRange: DayRange,
+  excludeAttendeeId?: number,
+): SqlFragment => ({
+  args: [
+    ...attendeeExclusionArgs(excludeAttendeeId),
+    ...attendeeExclusionArgs(excludeAttendeeId),
+    dayRange.endAt,
+    dayRange.startAt,
+  ],
+  sql: `(COALESCE((
+          SELECT SUM(e2.booked_quantity)
+            FROM listings e2
+           WHERE e2.group_id = ev.group_id AND e2.listing_type != 'daily'
+        ), 0)
+        ${buildDailyNonListingGroupExclusionSql(excludeAttendeeId)}
+        + COALESCE((
+          SELECT SUM(ea3.quantity)
+            FROM listing_attendees ea3
+            JOIN listings e3 ON e3.id = ea3.listing_id
+           WHERE e3.group_id = ev.group_id
+             AND e3.listing_type = 'daily' ${attendeeExclusionSql(
+               "ea3",
+               excludeAttendeeId,
+             )}
+             AND ea3.start_at < ? AND ea3.end_at > ?
+        ), 0))`,
+});
+
+const buildUndatedGroupCountSql = (
+  excludeAttendeeId?: number,
+): SqlFragment => ({
+  args: attendeeExclusionArgs(excludeAttendeeId),
+  sql: `(COALESCE((
+          SELECT SUM(e2.booked_quantity)
+            FROM listings e2
+           WHERE e2.group_id = ev.group_id
+        ), 0)
+        ${buildUndatedGroupExclusionSql(excludeAttendeeId)})`,
+});
+
+const buildGroupCountSql = (
+  dayRange: DayRange | null,
+  excludeAttendeeId?: number,
+): SqlFragment => {
+  if (dayRange) {
+    return buildDailyGroupCountSql(dayRange, excludeAttendeeId);
+  }
+
+  return buildUndatedGroupCountSql(excludeAttendeeId);
 };
 
 /**
  * Build a single-day capacity clause (listing-cap + group-cap when applicable).
- * `dayRange` is null for non-daily / date-less bookings; uses `? IS NULL OR …`
- * to elide the time filter in one branch rather than two SQL shapes.
+ * `dayRange` is null for non-daily / date-less bookings; those use the editable
+ * booked_quantity running total. Dated daily checks still count overlapping rows.
  */
 const buildDayCapacitySql = (
   listingId: number,
   qty: number,
-  dayRange: { startAt: string; endAt: string } | null,
+  dayRange: DayRange | null,
   excludeAttendeeId?: number,
 ): SqlFragment => {
-  const dayDate = dayRange?.startAt.slice(0, 10) ?? null;
-  const startAt = dayRange?.startAt ?? null;
-  const endAt = dayRange?.endAt ?? null;
-  const excludeEa2 = excludeAttendeeId ? "AND ea2.attendee_id != ? " : "";
-  const excludeEa3 = excludeAttendeeId ? "AND ea3.attendee_id != ? " : "";
-  const excludeArg: InValue[] = excludeAttendeeId ? [excludeAttendeeId] : [];
+  const listingCount = buildListingCountSql(
+    listingId,
+    dayRange,
+    excludeAttendeeId,
+  );
+  const groupCount = buildGroupCountSql(dayRange, excludeAttendeeId);
 
   const sql = `(
-    SELECT COALESCE(SUM(ea2.quantity), 0)
-    FROM listing_attendees ea2
-    WHERE ea2.listing_id = ? ${excludeEa2}
-    AND (? IS NULL OR (ea2.start_at < ? AND ea2.end_at > ?))
+    ${listingCount.sql}
   ) + ? <= (SELECT max_attendees FROM listings WHERE id = ?)
   AND (
     SELECT CASE
       WHEN ev.group_id = 0 THEN 1
       WHEN COALESCE(g.max_attendees, 0) = 0 THEN 1
-      WHEN (
-        SELECT COALESCE(SUM(ea3.quantity), 0)
-        FROM listing_attendees ea3
-        JOIN listings e2 ON e2.id = ea3.listing_id
-        WHERE e2.group_id = ev.group_id ${excludeEa3}
-        AND (? IS NULL OR e2.listing_type != 'daily' OR (ea3.start_at < ? AND ea3.end_at > ?))
-      ) + ? <= g.max_attendees THEN 1
+      WHEN ${groupCount.sql} + ? <= g.max_attendees THEN 1
       ELSE 0
     END
     FROM listings ev
@@ -102,17 +218,10 @@ const buildDayCapacitySql = (
 
   return {
     args: [
-      listingId,
-      ...excludeArg,
-      startAt,
-      endAt,
-      startAt,
+      ...listingCount.args,
       qty,
       listingId,
-      ...excludeArg,
-      dayDate,
-      endAt,
-      startAt,
+      ...groupCount.args,
       qty,
       listingId,
     ],
@@ -134,8 +243,9 @@ export const buildCapacityCondition = (
   excludeAttendeeId?: number,
   durationDays = 1,
 ): SqlFragment => {
-  if (!date)
+  if (!date) {
     return buildDayCapacitySql(listingId, qty, null, excludeAttendeeId);
+  }
   const duration = normalizeDurationDays(durationDays);
   const clauses: string[] = [];
   const args: InValue[] = [];

@@ -65,7 +65,7 @@ import {
   type EmailStats,
   getEmailStats,
   hashEmail,
-} from "#shared/db/email-preferences.ts";
+} from "#shared/db/contact-preferences.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import {
   type LogisticsAssignment,
@@ -315,6 +315,7 @@ const buildTemplateData = async (
     parsed.remainingBalance,
     summary?.fullPrice ?? 0,
     summary?.depositPaid ?? 0,
+    summary?.listedFullPrice ?? 0,
   );
   const activityLog = attendee
     ? await getAttendeeActivityLog(attendee.id, ATTENDEE_LOG_LIMIT)

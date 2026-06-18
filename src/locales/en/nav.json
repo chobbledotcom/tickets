@@ -7,7 +7,7 @@
   "nav.built_sites": "Builds",
   "nav.guide": "Guide",
   "nav.support": "Support",
-  "nav.logout": "Logout",
+  "nav.logout": "Log out",
   "nav.readonly.banner": "This site is in read-only mode",
   "nav.readonly.renew": "Renew now",
   "nav.readonly.expires": "Your site expires on {date}",

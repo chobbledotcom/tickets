@@ -15,7 +15,7 @@
 
 import { sum, sumOf } from "#fp";
 import { toMinorUnits } from "#shared/currency.ts";
-import { largestRemainderIndexes } from "#shared/largest-remainder.ts";
+import { largestRemainderAllocation } from "#shared/largest-remainder.ts";
 
 /** A parsed reservation amount. `value` is the bare number (not minor units). */
 export type ReservationAmount =
@@ -55,8 +55,7 @@ export const validateReservationAmount = (raw: string): string | null =>
 
 /**
  * Parse `raw`, turn the parsed amount into a deposit via `fromParsed`, and
- * clamp the result to [0, max]. A malformed amount yields 0. Shared by the
- * order-level and per-unit calculations so the parse/guard/clamp lives once.
+ * clamp the result to [0, max]. A malformed amount yields 0.
  */
 const clampedDeposit = (
   raw: string,
@@ -178,13 +177,12 @@ const allocateProportionally = (
   units: AllocationUnit[],
   total: number,
 ): number[] => {
-  const fullSubtotal = sumOf((unit: AllocationUnit) => unit.capacity)(units);
-  const shares = units.map((unit) => (total * unit.capacity) / fullSubtotal);
-  const floors = shares.map((share) => Math.floor(share));
-  const leftover = total - sum(floors);
-  const bumped = largestRemainderIndexes(shares, leftover, {
-    canReceive: (index) => floors[index]! < units[index]!.capacity,
-    tieBreaker: (index) => units[index]!.originalIndex,
-  });
-  return floors.map((amount, i) => amount + (bumped.has(i) ? 1 : 0));
+  return largestRemainderAllocation(
+    units.map((unit) => unit.capacity),
+    total,
+    {
+      canReceive: (index, floor) => floor < units[index]!.capacity,
+      tieBreaker: (index) => units[index]!.originalIndex,
+    },
+  );
 };

@@ -31,6 +31,10 @@ describe("iframe", () => {
       detectIframeMode("https://example.com/ticket/test?foo=bar&iframe=true");
       expect(getIframeMode()).toBe(true);
     });
+
+    test("rejects invalid request URLs before reading query params", () => {
+      expect(() => detectIframeMode("http://[::1")).toThrow(TypeError);
+    });
   });
 
   describe("appendIframeParam", () => {
@@ -79,6 +83,11 @@ describe("iframe", () => {
       expect(appendIframeParam("/ticket/test?iframe=true")).toBe(
         "/ticket/test?iframe=true",
       );
+    });
+
+    test("rejects invalid redirect URLs before appending iframe params", () => {
+      detectIframeMode("https://example.com/?iframe=true");
+      expect(() => appendIframeParam("http://[::1")).toThrow(TypeError);
     });
   });
 });

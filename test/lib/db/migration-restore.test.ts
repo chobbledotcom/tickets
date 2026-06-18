@@ -88,16 +88,15 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
   };
 
   // Additive migrations own concrete objects and can be reconstructed by
-  // re-running up(). The baseline reconcile (no `requires`) and the rename
-  // (which removes legacy tables rather than adding objects) are covered
-  // separately below.
+  // re-running up(). The baseline reconcile (no `requires`) and migrations
+  // that remove legacy tables are covered separately below.
   const additiveMigrations = MIGRATIONS.filter(
     (m) => m.requires && !m.requires.absentTables,
   );
 
   test("every additive migration is covered by a restore case", () => {
     // Guards against a future migration slipping through with no restore test.
-    expect(additiveMigrations.length).toBe(MIGRATIONS.length - 2);
+    expect(additiveMigrations.length).toBe(MIGRATIONS.length - 3);
   });
 
   for (const migration of additiveMigrations) {

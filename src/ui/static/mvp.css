@@ -885,6 +885,16 @@ label > input[type="time"] {
   width: auto;
 }
 
+input[type="number"] {
+  box-sizing: border-box;
+  max-width: 100%;
+  width: 8ch;
+}
+
+label > input[type="number"] {
+  flex: 0 0 auto;
+}
+
 label > select[name="quantity"],
 label > select[name^="quantity_"] {
   width: 8ch;
@@ -1102,6 +1112,10 @@ article {
   padding: var(--space-m);
 }
 
+output.success {
+  display: block;
+}
+
 .info {
   background: #eef4ff;
   border-left: 4px solid #0066cc;
@@ -1161,6 +1175,20 @@ input[type="submit"].danger:hover,
 .danger-text {
   color: #cc0000;
   font-weight: bold;
+}
+
+.expected-actual-notice {
+  margin: var(--space-s) 0;
+}
+
+.expected-actual-notice summary {
+  cursor: pointer;
+}
+
+.expected-actual-notice p,
+.expected-actual-notice ul {
+  margin-bottom: var(--space-s);
+  margin-top: var(--space-s);
 }
 
 .success-text {
@@ -1391,8 +1419,8 @@ form:has(select[name="listing_type"] option[value="standard"]:checked)
 /* Booking duration applies to daily listings, or to any listing using
    customisable day pricing (where it caps how many days a visitor may pick). */
 form:has(select[name="listing_type"] option[value="standard"]:checked):not(
-    :has(input[name="customisable_days"]:checked)
-  )
+  :has(input[name="customisable_days"]:checked)
+)
   label:has([name="duration_days"]) {
   display: none;
 }
@@ -1553,8 +1581,8 @@ button.secondary:hover,
   box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.3);
 }
 
-/* Admin footer: a top row with the Chobble link (growing to fill) and the
-   logout button (sized to its content), then an optional debug menu below. */
+/* Admin footer: a top row with the Chobble link (growing to fill) and
+   inline utility links, then an optional debug menu below. */
 .admin-footer {
   margin-top: auto;
   display: flex;
@@ -1571,15 +1599,16 @@ button.secondary:hover,
   gap: var(--space-s);
 }
 
-/* The Chobble link grows to fill, the logout form stays its natural width. */
+/* The Chobble link grows to fill, the utility links stay their natural width. */
 .admin-footer-top > a {
   flex: 1 1 auto;
   min-width: 0;
 }
 
-.admin-footer-top > .inline {
+.admin-footer-links {
   flex: 0 0 auto;
   min-width: 0;
+  white-space: nowrap;
 }
 
 .admin-footer-info {
@@ -1945,10 +1974,19 @@ button.secondary:hover,
 }
 
 /* Email template save controls — checkbox-driven show/hide without JS */
-#bulk-email .save-update { display: none; }
-#bulk-email:has(input[name="update_existing"]:checked) .save-as-new { display: none; }
-#bulk-email:has(input[name="update_existing"]:checked) .save-update { display: inline; }
-#bulk-email:not(:has(input[name="update_existing"]:checked)) .template-update-fields { display: none; }
+#bulk-email .save-update {
+  display: none;
+}
+#bulk-email:has(input[name="update_existing"]:checked) .save-as-new {
+  display: none;
+}
+#bulk-email:has(input[name="update_existing"]:checked) .save-update {
+  display: inline;
+}
+#bulk-email:not(:has(input[name="update_existing"]:checked))
+  .template-update-fields {
+  display: none;
+}
 
 /* No-transition helper (used by admin nav scroll-hide) */
 .nav-no-transition {
@@ -2193,9 +2231,7 @@ a.cal-day-selected:hover {
   border: 2px solid var(--color-bg-secondary);
   border-radius: var(--border-radius);
   background: var(--color-bg);
-  transition:
-    border-color 0.15s,
-    box-shadow 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
 .order-card:hover {

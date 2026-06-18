@@ -7,6 +7,7 @@ import {
   adminModifierDeletePage,
   adminModifierEditPage,
   adminModifierNewPage,
+  adminModifierRecalculatePage,
   adminModifiersPage,
 } from "#templates/admin/modifiers.tsx";
 import { setTestEnv, setupTestEncryptionKey } from "#test-utils";
@@ -22,6 +23,7 @@ const mod = (overrides: Partial<Modifier> = {}): Modifier => ({
   direction: "discount",
   id: 1,
   min_subtotal: 0,
+  min_visits: 0,
   name: "Early bird",
   scope: "all",
   stock: null,
@@ -105,13 +107,56 @@ describe("adminModifierNewPage", () => {
 
 describe("adminModifierEditPage", () => {
   test("renders the edit form pre-filled with the modifier", () => {
-    const html = adminModifierEditPage(mod({ name: "Loyalty" }), SESSION);
+    const html = adminModifierEditPage(
+      mod({
+        min_visits: 2,
+        name: "Loyalty",
+        total_revenue: 2500,
+        total_uses: 7,
+        usage_count: 3,
+      }),
+      SESSION,
+    );
     expect(html).toContain("Edit Modifier");
     expect(html).toContain("Loyalty");
     expect(html).toContain('value="10"');
+    expect(html).toContain("Running totals");
+    expect(html).toContain("Accuracy is not guaranteed");
+    expect(html).toContain('name="total_uses"');
+    expect(html).toContain('value="7"');
+    expect(html).toContain('name="usage_count"');
+    expect(html).toContain('value="3"');
+    expect(html).toContain('name="total_revenue"');
+    expect(html).toContain('value="25.00"');
+    expect(html).toContain("/admin/modifiers/recalculate/1");
+    expect(html).toContain('name="min_visits"');
+    expect(html).toContain('value="2"');
     // The delete action lives on the edit page.
     expect(html).toContain("Delete Modifier");
     expect(html).toContain("/admin/modifiers/1/delete");
+  });
+});
+
+describe("adminModifierRecalculatePage", () => {
+  test("shows current and usage-derived totals with checkboxes", () => {
+    const html = adminModifierRecalculatePage(
+      mod({ name: "Loyalty" }),
+      {
+        total_revenue: { current: 5500, recalculated: 2500 },
+        total_uses: { current: 9, recalculated: 4 },
+        usage_count: { current: 5, recalculated: 2 },
+      },
+      SESSION,
+    );
+    expect(html).toContain("Recalculate: Loyalty");
+    expect(html).toContain("Current");
+    expect(html).toContain("From attendee data");
+    expect(html).toContain('name="recalculate_fields"');
+    expect(html).toContain('value="total_uses"');
+    expect(html).toContain(">9<");
+    expect(html).toContain(">4<");
+    expect(html).toContain(">£55<");
+    expect(html).toContain(">£25<");
   });
 });
 

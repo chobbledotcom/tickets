@@ -1,6 +1,13 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#shared/db/client.ts";
+import {
+  getListingAggregateRecalculation,
+  getListingWithCount,
+  invalidateListingsCache,
+  resetListingAggregateFields,
+  updateListingAggregateValues,
+} from "#shared/db/listings.ts";
 import { MIGRATIONS } from "#shared/db/migrations.ts";
 import { createTestListing, describeWithEnv } from "#test-utils";
 
@@ -55,6 +62,18 @@ describeWithEnv(
         booked_quantity: 0,
         income: 0,
         tickets_count: 0,
+      });
+    });
+
+    test("listingsTable read exposes the trigger-maintained aggregates", async () => {
+      const listing = await createTestListing({ maxAttendees: 50 });
+      await insertAttendee(listing.id, 1, 3, 1500);
+      invalidateListingsCache();
+      const reread = await getListingWithCount(listing.id);
+      expect(reread).toMatchObject({
+        attendee_count: 3,
+        income: 1500,
+        tickets_count: 1,
       });
     });
 
@@ -132,6 +151,52 @@ describeWithEnv(
       });
 
       expect(await aggregates(listing.id)).toEqual(before);
+    });
+
+    test("manual aggregate edits override the trigger-maintained values", async () => {
+      const listing = await createTestListing({ maxAttendees: 50 });
+      await insertAttendee(listing.id, 1, 3, 1500);
+
+      await updateListingAggregateValues(listing.id, {
+        booked_quantity: 8,
+        income: 9999,
+        tickets_count: 4,
+      });
+
+      expect(await aggregates(listing.id)).toEqual({
+        booked_quantity: 8,
+        income: 9999,
+        tickets_count: 4,
+      });
+    });
+
+    test("selected aggregate reset fields are rebuilt from attendee rows", async () => {
+      const listing = await createTestListing({ maxAttendees: 50 });
+      await insertAttendee(listing.id, 1, 3, 1500);
+      await insertAttendee(listing.id, 2, 2, 1000);
+      await updateListingAggregateValues(listing.id, {
+        booked_quantity: 8,
+        income: 9999,
+        tickets_count: 4,
+      });
+
+      const stale = (await getListingWithCount(listing.id))!;
+      expect(await getListingAggregateRecalculation(stale)).toEqual({
+        booked_quantity: { current: 8, recalculated: 5 },
+        income: { current: 9999, recalculated: 2500 },
+        tickets_count: { current: 4, recalculated: 2 },
+      });
+
+      await resetListingAggregateFields(listing.id, [
+        "booked_quantity",
+        "income",
+      ]);
+
+      expect(await aggregates(listing.id)).toEqual({
+        booked_quantity: 5,
+        income: 2500,
+        tickets_count: 4,
+      });
     });
 
     test("the migration's backfill recomputes stale aggregates from scratch", async () => {

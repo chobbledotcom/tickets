@@ -9,6 +9,7 @@ import {
   assertAdminHtml,
   assertPublicHtml,
   awaitTestRequest,
+  createTestAgentSession,
   describeWithEnv,
   expectFlash,
   expectHtmlResponse,
@@ -234,9 +235,38 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
   });
 
   describe("GET /admin/logout", () => {
-    test("returns 404 not found", async () => {
-      const response = await handleRequest(mockRequest("/admin/logout"));
-      await expectHtmlResponse(response, 404, "Not Found");
+    testRequiresAuth("/admin/logout");
+
+    test("shows confirmation page with the actual POST form", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockRequest("/admin/logout", { headers: { cookie } }),
+      );
+
+      await expectHtmlResponse(
+        response,
+        200,
+        "Are you sure you want to log out?",
+        'action="/admin/logout"',
+        'method="POST"',
+      );
+    });
+
+    test("shows confirmation page to delivery agents", async () => {
+      const { cookie } = await createTestAgentSession();
+
+      const response = await handleRequest(
+        mockRequest("/admin/logout", { headers: { cookie } }),
+      );
+
+      await expectHtmlResponse(
+        response,
+        200,
+        "Are you sure you want to log out?",
+        'action="/admin/logout"',
+        'method="POST"',
+      );
     });
   });
 

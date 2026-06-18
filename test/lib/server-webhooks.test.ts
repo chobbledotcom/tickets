@@ -4,7 +4,12 @@ import { spy, stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { setEffectiveDomainForTest } from "#shared/config.ts";
 import { getAllActivityLog } from "#shared/db/activityLog.ts";
-import { modifiersTable } from "#shared/db/modifiers.ts";
+import { getDb } from "#shared/db/client.ts";
+import {
+  modifiersTable,
+  setModifierGroups,
+  setModifierListings,
+} from "#shared/db/modifiers.ts";
 import {
   answersTable,
   getAttendeeAnswersBatch,
@@ -23,6 +28,7 @@ import { sumupApi } from "#shared/sumup.ts";
 import {
   assertJson,
   bookAttendee,
+  createTestGroup,
   createTestListing,
   deactivateTestListing,
   describeWithEnv,
@@ -104,6 +110,29 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     const sumupWebhookEvent = {
       event_type: "CHECKOUT_STATUS_CHANGED",
       id: "co_e2e",
+    };
+
+    const modifierUsageAmount = async (modifierId: number): Promise<number> => {
+      const result = await getDb().execute({
+        args: [modifierId],
+        sql: "SELECT amount_applied FROM modifier_usages WHERE modifier_id = ?",
+      });
+      return Number(result.rows[0]!.amount_applied);
+    };
+
+    const modifierAggregates = async (
+      modifierId: number,
+    ): Promise<{
+      totalRevenue: number;
+      totalUses: number;
+      usageCount: number;
+    }> => {
+      const row = await modifiersTable.findById(modifierId);
+      return {
+        totalRevenue: row!.total_revenue,
+        totalUses: row!.total_uses,
+        usageCount: row!.usage_count,
+      };
     };
 
     test("processes an unsigned SumUp webhook end to end, idempotently", async () => {
@@ -487,6 +516,222 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
+    test("records the in-scope amount for a listing-scoped modifier", async () => {
+      await setupStripe();
+      const listing1 = await createTestListing({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+      const listing2 = await createTestListing({
+        maxAttendees: 50,
+        unitPrice: 2500,
+      });
+      const modifier = await modifiersTable.insert({
+        calcKind: "percent",
+        calcValue: 10,
+        direction: "charge",
+        name: "Listing fee",
+        scope: "listings",
+      });
+      await setModifierListings(modifier.id, [listing1.id]);
+
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            listing: {
+              data: {
+                object: {
+                  // £20 in-scope subtotal + £25 out-of-scope subtotal + £2 fee.
+                  amount_total: 4700,
+                  id: "cs_listing_scope",
+                  metadata: webhookMeta({
+                    email: "scope@example.com",
+                    items: JSON.stringify([
+                      { e: listing1.id, p: 2000, q: 2 },
+                      { e: listing2.id, p: 2500, q: 1 },
+                    ]),
+                    modifiers: JSON.stringify([{ i: modifier.id, q: 1 }]),
+                    name: "Scope Buyer",
+                  }),
+                  payment_intent: "pi_listing_scope",
+                  payment_status: "paid",
+                },
+              },
+              id: "evt_listing_scope",
+              type: "checkout.session.completed",
+            },
+            valid: true,
+          }),
+      );
+
+      try {
+        await assertJson(
+          handleRequest(
+            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+          ),
+          200,
+          (json) => {
+            expect(json.processed).toBe(true);
+          },
+        );
+        expect(await modifierUsageAmount(modifier.id)).toBe(200);
+        expect(await modifierAggregates(modifier.id)).toEqual({
+          totalRevenue: 200,
+          totalUses: 1,
+          usageCount: 1,
+        });
+      } finally {
+        mockVerify.restore();
+      }
+    });
+
+    test("records the group-scoped amount for a grouped modifier", async () => {
+      await setupStripe();
+      const group = await createTestGroup({ maxAttendees: 50 });
+      const listing1 = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+      const listing2 = await createTestListing({
+        maxAttendees: 50,
+        unitPrice: 2500,
+      });
+      const modifier = await modifiersTable.insert({
+        calcKind: "percent",
+        calcValue: 10,
+        direction: "charge",
+        name: "Group fee",
+        scope: "groups",
+      });
+      await setModifierGroups(modifier.id, [group.id]);
+
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            listing: {
+              data: {
+                object: {
+                  // £20 grouped subtotal + £25 outside the group + £2 fee.
+                  amount_total: 4700,
+                  id: "cs_group_scope",
+                  metadata: webhookMeta({
+                    email: "group@example.com",
+                    items: JSON.stringify([
+                      { e: listing1.id, p: 2000, q: 2 },
+                      { e: listing2.id, p: 2500, q: 1 },
+                    ]),
+                    modifiers: JSON.stringify([{ i: modifier.id, q: 1 }]),
+                    name: "Group Buyer",
+                  }),
+                  payment_intent: "pi_group_scope",
+                  payment_status: "paid",
+                },
+              },
+              id: "evt_group_scope",
+              type: "checkout.session.completed",
+            },
+            valid: true,
+          }),
+      );
+
+      try {
+        await assertJson(
+          handleRequest(
+            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+          ),
+          200,
+          (json) => {
+            expect(json.processed).toBe(true);
+          },
+        );
+        expect(await modifierUsageAmount(modifier.id)).toBe(200);
+        expect(await modifierAggregates(modifier.id)).toEqual({
+          totalRevenue: 200,
+          totalUses: 1,
+          usageCount: 1,
+        });
+      } finally {
+        mockVerify.restore();
+      }
+    });
+
+    test("records quantity-based add-on revenue through the aggregate trigger", async () => {
+      await setupStripe();
+      const listing = await createTestListing({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+      const modifier = await modifiersTable.insert({
+        calcKind: "fixed",
+        calcValue: 5,
+        direction: "charge",
+        name: "VIP Lanyard",
+        trigger: "optional",
+      });
+
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            listing: {
+              data: {
+                object: {
+                  // £10 ticket + (£5 × 3 add-ons) = £25.00.
+                  amount_total: 2500,
+                  id: "cs_modifier_quantity",
+                  metadata: webhookMeta({
+                    email: "addons@example.com",
+                    items: singleItem(listing.id, 1, 1000),
+                    modifiers: JSON.stringify([{ i: modifier.id, q: 3 }]),
+                    name: "Add-on Buyer",
+                  }),
+                  payment_intent: "pi_modifier_quantity",
+                  payment_status: "paid",
+                },
+              },
+              id: "evt_modifier_quantity",
+              type: "checkout.session.completed",
+            },
+            valid: true,
+          }),
+      );
+
+      try {
+        await assertJson(
+          handleRequest(
+            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+          ),
+          200,
+          (json) => {
+            expect(json.processed).toBe(true);
+          },
+        );
+        expect(await modifierUsageAmount(modifier.id)).toBe(1500);
+        expect(await modifierAggregates(modifier.id)).toEqual({
+          totalRevenue: 1500,
+          totalUses: 3,
+          usageCount: 1,
+        });
+      } finally {
+        mockVerify.restore();
+      }
+    });
+
     test("logs a promo code usage when a code-triggered modifier is applied", async () => {
       await setupStripe();
       const listing = await createTestListing({
@@ -542,6 +787,12 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
             expect(json.processed).toBe(true);
           },
         );
+        expect(await modifierUsageAmount(modifier.id)).toBe(100);
+        expect(await modifierAggregates(modifier.id)).toEqual({
+          totalRevenue: 100,
+          totalUses: 1,
+          usageCount: 1,
+        });
         const log = await getAllActivityLog();
         expect(
           log.some((e) => e.message === "Promo code 'EARLYBIRD' used: £1 off"),
@@ -606,9 +857,79 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
             expect(json.processed).toBe(true);
           },
         );
+        expect(await modifierUsageAmount(modifier.id)).toBe(100);
+        expect(await modifierAggregates(modifier.id)).toEqual({
+          totalRevenue: 100,
+          totalUses: 1,
+          usageCount: 1,
+        });
         const log = await getAllActivityLog();
         expect(
           log.some((e) => e.message === "Promo code 'PREMIUM' used: +£1"),
+        ).toBe(true);
+      } finally {
+        mockVerify.restore();
+      }
+    });
+
+    test("logs a multiplier promo code discount", async () => {
+      await setupStripe();
+      const listing = await createTestListing({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+      const modifier = await modifiersTable.insert({
+        calcKind: "multiply",
+        calcValue: 0.8,
+        direction: "discount",
+        name: "MULTI20",
+        trigger: "code",
+      });
+
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            listing: {
+              data: {
+                object: {
+                  // £10 ticket multiplied by 0.8 = £8.00.
+                  amount_total: 800,
+                  id: "cs_promo_multiplier",
+                  metadata: webhookMeta({
+                    email: "multiplier@example.com",
+                    items: singleItem(listing.id, 1, 1000),
+                    modifiers: JSON.stringify([{ i: modifier.id, q: 1 }]),
+                    name: "Multiplier Buyer",
+                  }),
+                  payment_intent: "pi_promo_multiplier",
+                  payment_status: "paid",
+                },
+              },
+              id: "evt_promo_multiplier",
+              type: "checkout.session.completed",
+            },
+            valid: true,
+          }),
+      );
+
+      try {
+        await assertJson(
+          handleRequest(
+            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+          ),
+          200,
+          (json) => {
+            expect(json.processed).toBe(true);
+          },
+        );
+        const log = await getAllActivityLog();
+        expect(
+          log.some((e) => e.message === "Promo code 'MULTI20' used: £2 off"),
         ).toBe(true);
       } finally {
         mockVerify.restore();
@@ -675,6 +996,63 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
             expect(json.error).toContain("price");
           },
         );
+      } finally {
+        mockVerify.restore();
+        mockRefund.restore();
+      }
+    });
+
+    test("refunds when an add-on-only paid session total no longer matches", async () => {
+      await setupStripe();
+      const listing = await createTestListing({
+        maxAttendees: 50,
+        unitPrice: 0,
+      });
+      const modifier = await modifiersTable.insert({
+        calcKind: "fixed",
+        calcValue: 5,
+        direction: "charge",
+        name: "Workshop kit",
+      });
+
+      const mockVerify = await stubWebhookVerify({
+        data: {
+          object: {
+            // Expected total is the £5 add-on; simulate a stale £4 session.
+            amount_total: 400,
+            id: "cs_addon_only_mismatch",
+            metadata: webhookMeta({
+              email: "mod@example.com",
+              items: singleItem(listing.id, 1, 0),
+              modifiers: JSON.stringify([{ i: modifier.id, q: 1 }]),
+              name: "Mod Buyer",
+            }),
+            payment_intent: "pi_addon_only_mismatch",
+            payment_status: "paid",
+          },
+        },
+        id: "evt_addon_only_mismatch",
+        type: "checkout.session.completed",
+      });
+      const mockRefund = stub(stripeApi, "refundPayment", () =>
+        Promise.resolve({ id: "re_addon_only" } as unknown as Awaited<
+          ReturnType<typeof stripeApi.refundPayment>
+        >),
+      );
+
+      try {
+        await assertJson(
+          handleRequest(
+            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+          ),
+          200,
+          (json) => {
+            expect(json.processed).toBe(false);
+            expect(json.error).toContain("price");
+          },
+        );
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+        expect((await getAttendeesRaw(listing.id)).length).toBe(0);
       } finally {
         mockVerify.restore();
         mockRefund.restore();
