@@ -456,6 +456,22 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       expect(await getQuestionListingIds(qId)).toEqual([]);
     });
 
+    test("stores assign-all and logs all-listings assignment", async () => {
+      const qId = await createQuestion("Assign everyone?");
+      await adminFormPost(`/admin/questions/${qId}/listings`, {
+        assign_all: "on",
+      });
+
+      const { getQuestionWithAnswers } = await import(
+        "#shared/db/questions.ts"
+      );
+      expect((await getQuestionWithAnswers(qId))!.assign_all).toBe(true);
+
+      const { response } = await adminGet("/admin/log");
+      const body = await response.text();
+      expect(body).toContain("assigned to all listings");
+    });
+
     test("logs singular when assigned to one listing", async () => {
       const listing = await createTestListing({ name: "Singular listing" });
       const qId = await createQuestion("Singular listings log");

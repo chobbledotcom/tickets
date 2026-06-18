@@ -219,12 +219,16 @@ const handleQuestionEdit = createAuthedFormRoute<
 const handleQuestionListings = ownerFormById(async (id, _session, form) => {
   const question = await getQuestionWithAnswers(id);
   if (!question) return notFoundResponse();
+  const assignAll = form.get("assign_all") === "on";
   const listingIds = form.getNumberArray("listing_ids");
+  await questionsTable.update(id, { assignAll });
   await setQuestionListings(id, listingIds);
   await logActivity(
-    `Question '${question.text}' assigned to ${listingIds.length} listing${
-      listingIds.length !== 1 ? "s" : ""
-    }`,
+    assignAll
+      ? `Question '${question.text}' assigned to all listings`
+      : `Question '${question.text}' assigned to ${listingIds.length} listing${
+          listingIds.length !== 1 ? "s" : ""
+        }`,
   );
   return redirect(`/admin/questions/${id}`, "Listings updated", true);
 });
