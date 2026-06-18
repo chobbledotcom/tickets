@@ -2,8 +2,8 @@
  * Admin footer.
  *
  * Rendered at the bottom of every admin page: a top row with the Chobble
- * Tickets link (growing to fill the space) on the left and the logout button
- * (sized to its content) on the right, both always on one line; and, when query
+ * Tickets link (growing to fill the space) on the left and inline utility links
+ * on the right, all always on one line; and, when query
  * logging is active, a debug menu (render time, SQL queries, cache stats) on a
  * row below them.
  *
@@ -22,9 +22,7 @@ import {
   isFooterDebugEnabled,
   type QueryLogEntry,
 } from "#shared/db/query-log.ts";
-import { CsrfForm } from "#shared/forms.tsx";
 import { getUptimeSeconds } from "#shared/uptime.ts";
-import { SubmitButton } from "#templates/components/actions.tsx";
 
 /** Data passed to the debug-details renderer */
 export type DebugFooterData = {
@@ -89,7 +87,9 @@ export const debugDetailsHtml = (data: DebugFooterData): string => {
         "</ul></details>"
       : "") +
     (cacheStats.length > 0
-      ? `<details><summary>${t("admin.footer.caches")} (${cacheStats.length})</summary><ul>` +
+      ? `<details><summary>${t(
+          "admin.footer.caches",
+        )} (${cacheStats.length})</summary><ul>` +
         cacheStats.map(renderCacheStat).join("") +
         "</ul></details>"
       : "") +
@@ -97,26 +97,21 @@ export const debugDetailsHtml = (data: DebugFooterData): string => {
   );
 };
 
-/** The footer's logout form, rendered to a string. */
-const logoutFormHtml = (): string =>
-  String(
-    <CsrfForm action="/admin/logout" class="inline">
-      <SubmitButton icon="log-out">{t("nav.logout")}</SubmitButton>
-    </CsrfForm>,
-  );
-
 /** Build the admin footer: Chobble link (plus the debug menu when present) on
- * the left, the logout button on the right. */
+ * the left, utility links on the right. */
 export const adminFooterHtml = (debug: DebugFooterData | null): string =>
   `<footer class="admin-footer">` +
   `<div class="admin-footer-top">` +
-  `<a href="https://github.com/chobbledotcom/tickets">${t("admin.footer.chobble_tickets")}</a>` +
+  `<a href="https://github.com/chobbledotcom/tickets">${t(
+    "admin.footer.chobble_tickets",
+  )}</a>` +
   `<div class="admin-footer-links">` +
   `<a href="/admin/log">${t("nav.log")}</a>` +
   " &middot; " +
   `<a href="/admin/guide">${t("nav.guide")}</a>` +
+  " &middot; " +
+  `<a href="/admin/logout">${t("nav.logout")}</a>` +
   "</div>" +
-  logoutFormHtml() +
   "</div>" +
   (debug
     ? `<div class="admin-footer-info">${debugDetailsHtml(debug)}</div>`
