@@ -1314,6 +1314,7 @@ export const adminListingRecalculatePage = (
     action: `/admin/listings/recalculate/${listing.id}`,
     active: "/admin/",
     currentLabel: t("listings_table.recalculate_current"),
+    description: t("listings_table.recalculate_description"),
     error,
     recalculatedLabel: t("listings_table.recalculate_from_attendees"),
     rows: listingRecalculateRows(snapshot),

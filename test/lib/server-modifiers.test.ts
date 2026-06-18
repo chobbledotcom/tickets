@@ -424,7 +424,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         { recalculate_fields: "total_uses" },
       );
       expectRedirectWithFlash(
-        `/admin/modifiers/recalculate/${id}`,
+        `/admin/modifiers/${id}/edit`,
         "Modifier totals recalculated",
         true,
       )(response);

@@ -869,7 +869,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         { recalculate_fields: "booked_quantity" },
       );
       expectRedirectWithFlash(
-        `/admin/listings/recalculate/${listing.id}`,
+        `/admin/listing/${listing.id}/edit`,
         "Listing totals recalculated",
         true,
       )(response);

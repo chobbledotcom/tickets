@@ -256,7 +256,7 @@ const handleModifierRecalculatePost: TypedRouteHandler<
       await resetModifierAggregateFields(modifier.id, selected);
       await logActivity(`Modifier '${modifier.name}' totals recalculated`);
       return redirect(
-        `/admin/modifiers/recalculate/${modifier.id}`,
+        `/admin/modifiers/${modifier.id}/edit`,
         t("modifiers.recalculate.success"),
         true,
       );

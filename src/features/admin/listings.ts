@@ -780,7 +780,7 @@ const handleListingRecalculatePost: TypedRouteHandler<
         listing,
       );
       return redirect(
-        `/admin/listings/recalculate/${listing.id}`,
+        `/admin/listing/${listing.id}/edit`,
         t("listings_table.recalculate_success"),
         true,
       );

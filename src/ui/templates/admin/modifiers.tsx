@@ -174,6 +174,7 @@ export const adminModifierRecalculatePage = (
     action: `/admin/modifiers/recalculate/${modifier.id}`,
     active: "/admin/modifiers",
     currentLabel: t("modifiers.recalculate.current"),
+    description: t("modifiers.recalculate.description"),
     error,
     recalculatedLabel: t("modifiers.recalculate.from_attendees"),
     rows: modifierRecalculateRows(snapshot),
