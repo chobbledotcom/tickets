@@ -24,7 +24,7 @@ import {
 import { getApiKeyByToken, touchApiKeyLastUsed } from "#shared/db/api-keys.ts";
 import { deleteSession, getSession } from "#shared/db/sessions.ts";
 import { settings } from "#shared/db/settings.ts";
-import { decryptAdminLevel, getUserById } from "#shared/db/users.ts";
+import { decryptAdminLevel, getUserAuthFieldsById } from "#shared/db/users.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { setSavedFormData } from "#shared/forms.tsx";
 import { SCANNER_CSRF_MAX_AGE_S } from "#shared/limits.ts";
@@ -93,7 +93,7 @@ export const getAuthenticatedSession = async (
   }
 
   // Load user and decrypt admin level
-  const user = await getUserById(session.user_id);
+  const user = await getUserAuthFieldsById(session.user_id);
   if (!user) {
     logError({
       code: ErrorCode.AUTH_INVALID_SESSION,
@@ -170,7 +170,7 @@ export const getAuthenticatedApiKey = async (
     return null;
   }
 
-  const user = await getUserById(apiKeyRow.user_id);
+  const user = await getUserAuthFieldsById(apiKeyRow.user_id);
   if (!user) {
     logError({
       code: ErrorCode.AUTH_INVALID_SESSION,

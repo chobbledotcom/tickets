@@ -57,6 +57,34 @@ describe("validateListingInput", () => {
     await expect(validateListingInput(input)).resolves.toBeNull();
   });
 
+  test("rejects unsafe thank_you_url before webhook validation", async () => {
+    const input: ListingInput = {
+      ...testListingInput({
+        thankYouUrl: "https://127.0.0.1/thanks",
+        webhookUrl: "https://example.com/webhook",
+      }),
+      slug: "test-listing",
+      slugIndex: "test-index",
+    };
+    await expect(validateListingInput(input)).resolves.toBe(
+      "Thank you URL must be a public https:// domain",
+    );
+  });
+
+  test("rejects unsafe webhook_url", async () => {
+    const input: ListingInput = {
+      ...testListingInput({
+        thankYouUrl: "https://example.com/thanks",
+        webhookUrl: "https://127.0.0.1/webhook",
+      }),
+      slug: "test-listing",
+      slugIndex: "test-index",
+    };
+    await expect(validateListingInput(input)).resolves.toBe(
+      "Webhook URL must be a public https:// domain",
+    );
+  });
+
   const customisableInput = (
     overrides: Partial<ListingInput>,
   ): ListingInput => ({

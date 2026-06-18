@@ -21,6 +21,7 @@ describe("logistics-filter parseAgentFilter", () => {
     expect(parseAgentFilter("", agentIds)).toBe("all");
     expect(parseAgentFilter("nope", agentIds)).toBe("all");
     expect(parseAgentFilter("999", agentIds)).toBe("all");
+    expect(parseAgentFilter("2x", agentIds)).toBe("all");
   });
 
   test("parses none", () => {

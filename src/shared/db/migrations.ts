@@ -41,6 +41,7 @@ import processedPaymentsFailureDataMigration from "./migrations/2026-06-16_proce
 import smsMessagesMigration from "./migrations/2026-06-16_sms_messages.ts";
 import modifierAggregatesMigration from "./migrations/2026-06-17_modifier_aggregates.ts";
 import modifierCodeMigration from "./migrations/2026-06-17_modifier_code.ts";
+import processedSmsInboundMigration from "./migrations/2026-06-17_processed_sms_inbound.ts";
 import { repairLegacyRenames } from "./migrations/rename-utils.ts";
 import {
   LATEST_UPDATE,
@@ -176,6 +177,7 @@ export const MIGRATIONS: Migration[] = [
   modifiersMigration,
   modifierCodeMigration,
   smsMessagesMigration,
+  processedSmsInboundMigration,
   attendeePhoneIndexMigration,
   modifierAggregatesMigration,
 ].map((build) => build(migrationContext));
@@ -183,6 +185,26 @@ export const MIGRATIONS: Migration[] = [
 export const MIGRATION_IDS: string[] = MIGRATIONS.map(
   (migration) => migration.id,
 );
+
+/**
+ * Initialize a brand-new database directly from the current declarative schema.
+ *
+ * Empty databases do not need to replay every historical migration and verifier:
+ * there is no legacy data to backfill or reshape. Creating the latest schema in
+ * one pass keeps first boot fast while still recording every migration marker so
+ * future boots use the normal up-to-date path.
+ */
+const initializeFreshSchema = async (): Promise<void> => {
+  logDebug("Migration", "Initializing fresh database from current schema");
+  await applySchemaChanges();
+  await syncIndexes();
+  await ensureDefaultAttendeeStatus();
+  await syncTriggers();
+  await writeSchemaMarkers();
+  for (const migration of MIGRATIONS) {
+    await markMigrationApplied(migration);
+  }
+};
 
 const ensureMigrationTrackingTable = async (): Promise<void> => {
   await getDb().execute(
@@ -346,20 +368,26 @@ export const initDb = async (opts: InitDbOptions = {}): Promise<void> => {
   setReadyClient(client);
 };
 
+const requireAllowedInitialDbState = (
+  state: DbState,
+  allowMissingSettings: boolean,
+): void => {
+  if (allowMissingSettings) return;
+  if (state === "missing_settings") throw new MissingSettingsTableError();
+  if (state === "uninitialized_settings") {
+    throw new MissingSettingsTableError(
+      "Database settings table is uninitialized",
+    );
+  }
+};
+
 const initDbUncached = async (allowMissingSettings: boolean): Promise<void> => {
   let state = await getDbState();
   if (state === "up_to_date") {
     await baselineCurrentSchemaIfNeeded();
     return;
   }
-  if (state === "missing_settings" && !allowMissingSettings) {
-    throw new MissingSettingsTableError();
-  }
-  if (state === "uninitialized_settings" && !allowMissingSettings) {
-    throw new MissingSettingsTableError(
-      "Database settings table is uninitialized",
-    );
-  }
+  requireAllowedInitialDbState(state, allowMissingSettings);
 
   const acquired = await acquireMigrationLock(allowMissingSettings);
   if (!acquired) {
@@ -377,6 +405,11 @@ const initDbUncached = async (allowMissingSettings: boolean): Promise<void> => {
     state = await getDbState();
     if (state === "up_to_date") {
       await baselineCurrentSchemaIfNeeded();
+      return;
+    }
+
+    if (state === "missing_settings") {
+      await initializeFreshSchema();
       return;
     }
 

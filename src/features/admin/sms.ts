@@ -33,6 +33,7 @@ import {
   sendEncryptedMessage,
 } from "#shared/sms/gateway.ts";
 import { computePhoneIndex } from "#shared/sms/phone-index.ts";
+import { parsePositiveIntId } from "#shared/validation/number.ts";
 import { type SmsHistoryItem, smsPage } from "#templates/admin/sms.tsx";
 import { withAttendee } from "./attendees-route-helpers.ts";
 
@@ -51,13 +52,13 @@ const historyFor = async (attendeeId: number): Promise<SmsHistoryItem[]> =>
 /** GET /admin/sms */
 const handleSmsGet = (request: Request): Promise<Response> =>
   requireSessionOr(request, async (session) => {
-    const listingId = Number(getSearchParam(request, "listing"));
-    const attendeeId = Number(getSearchParam(request, "attendee"));
+    const listingId = parsePositiveIntId(getSearchParam(request, "listing"));
+    const attendeeId = parsePositiveIntId(getSearchParam(request, "attendee"));
     const flash = getFlash();
     const queueCount = await countSmsMessages();
     const configured = getSmsGatewayConfig() !== null;
 
-    if (!listingId || !attendeeId) {
+    if (listingId === null || attendeeId === null) {
       return htmlResponse(
         smsPage(session, { configured, flash, history: [], queueCount }),
       );
@@ -82,8 +83,11 @@ const handleSmsGet = (request: Request): Promise<Response> =>
 
 /** Send the composed text to the targeted attendee. */
 const sendSms = (session: AuthSession, form: FormParams): Promise<Response> => {
-  const listingId = Number(form.getString("listing"));
-  const attendeeId = Number(form.getString("attendee"));
+  const listingId = parsePositiveIntId(form.getString("listing"));
+  const attendeeId = parsePositiveIntId(form.getString("attendee"));
+  if (listingId === null || attendeeId === null) {
+    return Promise.resolve(redirect("/admin/sms", "Invalid SMS target", false));
+  }
   const backUrl = smsUrl(listingId, attendeeId);
 
   return withAttendee(
@@ -130,7 +134,9 @@ const sendSms = (session: AuthSession, form: FormParams): Promise<Response> => {
       return redirect(backUrl, "Text message queued", true);
     } catch (e) {
       await logActivity(
-        `${SMS_LOG_PREFIX} to ${data.attendee.name} could not be queued: ${String(e)}`,
+        `${SMS_LOG_PREFIX} to ${data.attendee.name} could not be queued: ${String(
+          e,
+        )}`,
         listingId,
         attendeeId,
       );

@@ -31,7 +31,7 @@ export type SuperuserState =
 
 export const getAdminEmailAddress = (): ValidEmail | null => {
   const raw = getEnv("ADMIN_EMAIL_ADDRESS");
-  if (!raw || !raw.trim()) return null;
+  if (!raw?.trim()) return null;
   const email = parseEmail(raw);
   if (!email) {
     logError({

@@ -148,16 +148,14 @@ describeWithEnv("admin listing-qr route", { db: true }, () => {
       expect(body).not.toContain("/qr-book?t=");
     });
 
-    test("renders a validation error when quantity is not a number", async () => {
+    test("renders a validation error when quantity is not a strict integer", async () => {
       const listing = await createTestListing({
         maxAttendees: 10,
         unitPrice: 500,
       });
       const { response } = await adminFormPost(
         `/admin/listing/${listing.id}/qr`,
-        {
-          quantity: "abc",
-        },
+        { quantity: "2x" },
       );
       const body = await response.text();
       expect(body).toContain("Quantity must be at least 1");

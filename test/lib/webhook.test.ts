@@ -252,12 +252,63 @@ describe("webhook", () => {
       const [url, options] = fetchSpy.calls[0].args as [string, RequestInit];
       expect(url).toBe("https://example.com/webhook");
       expect(options.method).toBe("POST");
+      expect(options.redirect).toBe("manual");
       expect(options.headers).toEqual({ "Content-Type": "application/json" });
 
       const body = JSON.parse(options.body as string) as WebhookPayload;
       expect(body.notification_type).toBe("registration.completed");
       expect(body.name).toBe("Jane Doe");
       expect(body.tickets).toHaveLength(1);
+    });
+
+    test("follows a safe redirect with each hop validated manually", async () => {
+      let count = 0;
+      restubFetch(() => {
+        count++;
+        return Promise.resolve(
+          count === 1
+            ? new Response("", {
+                headers: { location: "https://hooks.example.org/final" },
+                status: 307,
+              })
+            : new Response("ok"),
+        );
+      });
+
+      const payload = await buildWebhookPayload(defaultEntries(), "GBP");
+
+      await sendWebhook("https://example.com/webhook", payload);
+
+      expect(fetchSpy.calls.length).toBe(2);
+      const [firstUrl, firstOptions] = fetchSpy.calls[0].args as [
+        string,
+        RequestInit,
+      ];
+      const [secondUrl, secondOptions] = fetchSpy.calls[1].args as [
+        string,
+        RequestInit,
+      ];
+      expect(firstUrl).toBe("https://example.com/webhook");
+      expect(firstOptions.redirect).toBe("manual");
+      expect(secondUrl).toBe("https://hooks.example.org/final");
+      expect(secondOptions.redirect).toBe("manual");
+    });
+
+    test("refuses to follow an unsafe redirect target", async () => {
+      restubFetch(() =>
+        Promise.resolve(
+          new Response("", {
+            headers: { location: "https://127.0.0.1/final" },
+            status: 307,
+          }),
+        ),
+      );
+
+      const payload = await buildWebhookPayload(defaultEntries(), "GBP");
+
+      await sendWebhook("https://example.com/webhook", payload);
+
+      expect(fetchSpy.calls.length).toBe(1);
     });
 
     test("does not throw on fetch error", async () => {

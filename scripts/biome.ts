@@ -1,11 +1,10 @@
 #!/usr/bin/env -S deno run --allow-all
 /**
- * Biome runner that works on any OS.
+ * Biome runner that prefers the local native binary.
  *
- * The npm `@biomejs/biome` package downloads a prebuilt, dynamically-linked
- * native binary. That binary fails to start on NixOS (its interpreter path
- * doesn't exist), so we prefer a `biome` already on PATH (e.g. installed via
- * Nix) and fall back to the npm package everywhere else.
+ * If `biome` exists on PATH, use it. That keeps Nix dev shells on the native
+ * package even for CI-style checks. If it is missing, fall back to the npm
+ * package so hosted CI can run without a separate Biome install step.
  *
  * Usage: deno run -A scripts/biome.ts <biome args...>
  */
@@ -20,9 +19,8 @@ const hasCommand = async (name: string): Promise<boolean> => {
   }
 };
 
-const useSystemBiome = await hasCommand("biome");
-
-const cmd = useSystemBiome
+const hasLocalBiome = await hasCommand("biome");
+const cmd = hasLocalBiome
   ? new Deno.Command("biome", { args: Deno.args })
   : new Deno.Command("deno", {
       args: ["run", "-A", "npm:@biomejs/biome", ...Deno.args],

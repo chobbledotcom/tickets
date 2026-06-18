@@ -4,7 +4,6 @@
  */
 
 const encoder = new TextEncoder();
-const decoder = new TextDecoder();
 
 const green = (s: string) => `\x1b[32m${s}\x1b[0m`;
 const red = (s: string) => `\x1b[31m${s}\x1b[0m`;
@@ -16,16 +15,29 @@ const write = (s: string) => Deno.stdout.writeSync(encoder.encode(s));
 interface Step {
   cmd: string[];
   filterOutput?: (stdout: string, stderr: string) => string;
+  progress?: (line: string) => string | undefined;
   name: string;
 }
 
+const isInteractive = (): boolean =>
+  Deno.stdout.isTerminal() && !Deno.env.get("CI");
+
 /** True when a line starts an ERRORS or FAILURES section or is a summary line */
 const isSectionStart = (line: string): boolean =>
-  /^ (ERRORS|FAILURES)\s*$/.test(line) || /^(FAILED|ok)\s*\|/.test(line);
+  /^ (ERRORS|FAILURES)\s*$/.test(line) ||
+  /^::error/.test(line) ||
+  /^Coverage failed/.test(line) ||
+  /^(FAILED|Failed tests:|fail\b)/.test(line) ||
+  /^(Line|Branch) coverage is not 100%:/.test(line) ||
+  /^Test quality rules:/.test(line) ||
+  /^(FAILED|ok)\s*\|/.test(line);
 
 /** True when a line contains a failure or error keyword */
 const isErrorLine = (line: string): boolean =>
-  /FAILED|error:|Error:|AssertionError|assert/i.test(line);
+  /^::error/.test(line) ||
+  /^Coverage failed/.test(line) ||
+  /^(FAILED|fail\b|error:|Error:|AssertionError)/.test(line) ||
+  /coverage is not 100%/.test(line);
 
 /** Collect lines from the first section-start onward */
 const collectFromSections = (lines: string[]): string[] => {
@@ -46,6 +58,19 @@ const filterTestOutput = (stdout: string, stderr: string): string => {
   return output.join("\n").trim();
 };
 
+const testProgressFromLine = (line: string): string | undefined => {
+  if (line.trim() === "Running tests...") return "(starting tests)";
+
+  const numbered = line.match(/^(?:ok|fail)\s+\[[^\]]+\]\s+(\d+)\/(\d+)\b/);
+  if (numbered?.[1] && numbered[2]) return `(${numbered[1]}/${numbered[2]})`;
+
+  const done = line.match(/^(?:ok|fail)\s+\[\s*(\d+)\s+done\]/);
+  if (done?.[1]) return `(${done[1]} done)`;
+
+  if (line.trim() === "Checking coverage...") return "(checking coverage)";
+  return undefined;
+};
+
 /** True when running in CI (the --ci flag or a CI env var is set) */
 const isCi = (): boolean =>
   Deno.args.includes("--ci") || Boolean(Deno.env.get("CI"));
@@ -64,31 +89,81 @@ const getSteps = (ci: boolean): Step[] => {
       cmd: ["deno", "task", "test:coverage"],
       filterOutput: filterTestOutput,
       name: "test:coverage",
+      progress: testProgressFromLine,
     },
   ];
 };
 
-const runStep = async (step: Step): Promise<boolean> => {
-  write(`  ${step.name} … `);
-  const start = performance.now();
+const readStream = async (
+  stream: ReadableStream<Uint8Array>,
+  onLine: (line: string) => void,
+): Promise<string> => {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let buffered = "";
+  let text = "";
 
-  const cmd = new Deno.Command(step.cmd[0], {
-    args: step.cmd.slice(1),
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value, { stream: true });
+      text += chunk;
+      buffered += chunk;
+      const lines = buffered.split(/\r?\n/);
+      buffered = lines.pop() ?? "";
+      for (const line of lines) onLine(line);
+    }
+  } finally {
+    const chunk = decoder.decode();
+    text += chunk;
+    buffered += chunk;
+    if (buffered) onLine(buffered);
+    reader.releaseLock();
+  }
+
+  return text;
+};
+
+const runStep = async (step: Step): Promise<boolean> => {
+  const prefix = `  ${step.name} … `;
+  write(prefix);
+  const start = performance.now();
+  const [command, ...args] = step.cmd;
+  if (!command) throw new Error(`No command configured for ${step.name}`);
+
+  const cmd = new Deno.Command(command, {
+    args,
     stderr: "piped",
     stdout: "piped",
   });
 
-  const result = await cmd.output();
-  const elapsed = ((performance.now() - start) / 1000).toFixed(1);
+  const child = cmd.spawn();
+  let progress = "";
+  const updateProgress = (line: string): void => {
+    if (!step.progress || !isInteractive()) return;
+    const next = step.progress(line);
+    if (!next || next === progress) return;
+    progress = next;
+    write(`\r\x1b[2K${prefix}${progress} `);
+  };
 
-  if (result.success) {
+  const stdoutTask = readStream(child.stdout, updateProgress);
+  const stderrTask = readStream(child.stderr, updateProgress);
+  const [status, stdout, stderr] = await Promise.all([
+    child.status,
+    stdoutTask,
+    stderrTask,
+  ]);
+  const elapsed = ((performance.now() - start) / 1000).toFixed(1);
+  if (progress) write(`\r\x1b[2K${prefix}`);
+
+  if (status.success) {
     write(`${green("✓")} ${dim(`${elapsed}s`)}\n`);
     return true;
   }
 
   write(`${red("✗")} ${dim(`${elapsed}s`)}\n`);
-  const stdout = decoder.decode(result.stdout);
-  const stderr = decoder.decode(result.stderr);
   const output = step.filterOutput
     ? step.filterOutput(stdout, stderr)
     : [stdout, stderr].filter(Boolean).join("\n");
@@ -98,6 +173,7 @@ const runStep = async (step: Step): Promise<boolean> => {
 
 const main = async (): Promise<void> => {
   const ci = isCi();
+  if (ci && !Deno.env.get("CI")) Deno.env.set("CI", "1");
   console.log(bold(ci ? "precommit (ci)" : "precommit"));
 
   const steps = getSteps(ci);
