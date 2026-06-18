@@ -17,50 +17,16 @@ import {
   specsFromRefs,
 } from "#shared/db/modifier-resolve.ts";
 import { consumeModifierStock } from "#shared/db/modifier-usage.ts";
-import { type ModifierInput, modifiersTable } from "#shared/db/modifiers.ts";
-import type { CheckoutItem } from "#shared/payments.ts";
 import { normalizeCode } from "#shared/price-modifier.ts";
-import { createTestListing, describeWithEnv } from "#test-utils";
-
-const linkListing = (modifierId: number, listingId: number) =>
-  getDb().execute({
-    args: [modifierId, listingId],
-    sql: "INSERT INTO modifier_listings (modifier_id, listing_id) VALUES (?, ?)",
-  });
-
-const linkGroup = (modifierId: number, groupId: number) =>
-  getDb().execute({
-    args: [modifierId, groupId],
-    sql: "INSERT INTO modifier_groups (modifier_id, group_id) VALUES (?, ?)",
-  });
-
-const item = (overrides: Partial<CheckoutItem> = {}): CheckoutItem => ({
-  listingId: 1,
-  name: "General",
-  quantity: 1,
-  slug: "general",
-  unitPrice: 1000,
-  ...overrides,
-});
-
-const insertModifier = (overrides: Partial<ModifierInput> = {}) =>
-  modifiersTable.insert({
-    calcKind: "fixed",
-    calcValue: 5,
-    direction: "charge",
-    name: "Add-on",
-    ...overrides,
-  });
-
-/** Override behavioural columns the base create form doesn't expose yet. */
-const patchModifier = (id: number, set: Record<string, string | number>) => {
-  const cols = Object.keys(set);
-  const assignments = cols.map((c) => `${c} = ?`).join(", ");
-  return getDb().execute({
-    args: [...cols.map((c) => set[c]!), id],
-    sql: `UPDATE modifiers SET ${assignments} WHERE id = ?`,
-  });
-};
+import {
+  checkoutItem,
+  createTestListing,
+  describeWithEnv,
+  insertModifier,
+  linkModifierGroup,
+  linkModifierListing,
+  patchModifier,
+} from "#test-utils";
 
 describeWithEnv("db > modifier-resolve", { db: true }, () => {
   describe("resolveModifiers", () => {
@@ -71,7 +37,7 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
         direction: "charge",
         name: "Parking",
       });
-      const specs = await resolveModifiers([item()]);
+      const specs = await resolveModifiers([checkoutItem()]);
       expect(specs).toEqual([
         {
           id: specs[0]!.id,
@@ -98,7 +64,7 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
         direction: "charge",
         name: "Peak",
       });
-      const specs = await resolveModifiers([item()]);
+      const specs = await resolveModifiers([checkoutItem()]);
       const byName = new Map(specs.map((s) => [s.name, s]));
       expect(byName.get("Loyalty")!.value).toBe(-10);
       expect(byName.get("Peak")!.value).toBe(1.5);
@@ -114,13 +80,13 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
       const gated = await insertModifier({ name: "BigSpendOnly" });
       await patchModifier(gated.id, { min_subtotal: 999999 });
 
-      const specs = await resolveModifiers([item({ unitPrice: 1000 })]);
+      const specs = await resolveModifiers([checkoutItem({ unitPrice: 1000 })]);
       expect(specs.map((s) => s.name)).toEqual([]);
     });
 
     test("includes a stock-limited modifier while stock remains", async () => {
       await insertModifier({ name: "Plenty", stock: 5 });
-      const specs = await resolveModifiers([item()]);
+      const specs = await resolveModifiers([checkoutItem()]);
       expect(specs.map((s) => s.name)).toContain("Plenty");
     });
 
@@ -129,7 +95,7 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
       await consumeModifierStock(1, [
         { amountApplied: 500, modifierId: m.id, quantity: 1 },
       ]);
-      const specs = await resolveModifiers([item()]);
+      const specs = await resolveModifiers([checkoutItem()]);
       expect(specs.map((s) => s.name)).not.toContain("Limited");
     });
 
@@ -141,12 +107,12 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
         name: "VIP",
       });
       await patchModifier(m.id, { scope: "listings" });
-      await linkListing(m.id, 1);
+      await linkModifierListing(m.id, 1);
 
-      const applied = await resolveModifiers([item({ listingId: 1 })]);
+      const applied = await resolveModifiers([checkoutItem({ listingId: 1 })]);
       expect(applied.find((s) => s.name === "VIP")?.listingIds).toEqual([1]);
 
-      const skipped = await resolveModifiers([item({ listingId: 2 })]);
+      const skipped = await resolveModifiers([checkoutItem({ listingId: 2 })]);
       expect(skipped.map((s) => s.name)).not.toContain("VIP");
     });
 
@@ -157,14 +123,18 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
         trigger: "code",
       });
 
-      const withoutCode = await resolveModifiers([item()]);
+      const withoutCode = await resolveModifiers([checkoutItem()]);
       expect(withoutCode.map((s) => s.name)).not.toContain("SUMMER");
 
-      const wrongCode = await resolveModifiers([item()], { code: "winter" });
+      const wrongCode = await resolveModifiers([checkoutItem()], {
+        code: "winter",
+      });
       expect(wrongCode.map((s) => s.name)).not.toContain("SUMMER");
 
       // Matching is case-insensitive (normalised before hashing).
-      const rightCode = await resolveModifiers([item()], { code: "SUMMER25" });
+      const rightCode = await resolveModifiers([checkoutItem()], {
+        code: "SUMMER25",
+      });
       expect(rightCode.map((s) => s.name)).toContain("SUMMER");
     });
 
@@ -172,10 +142,10 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
       const m = await insertModifier({ name: "T-shirt" });
       await patchModifier(m.id, { trigger: "optional" });
 
-      const unselected = await resolveModifiers([item()]);
+      const unselected = await resolveModifiers([checkoutItem()]);
       expect(unselected.map((s) => s.name)).not.toContain("T-shirt");
 
-      const selected = await resolveModifiers([item()], {
+      const selected = await resolveModifiers([checkoutItem()], {
         addOns: new Map([[m.id, 3]]),
       });
       expect(selected.find((s) => s.name === "T-shirt")?.quantity).toBe(3);
@@ -188,9 +158,11 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
         name: "Welcome back",
       });
 
-      expect((await resolveModifiers([item()])).map((s) => s.name)).toEqual([]);
+      expect(
+        (await resolveModifiers([checkoutItem()])).map((s) => s.name),
+      ).toEqual([]);
 
-      const returning = await resolveModifiers([item()], {
+      const returning = await resolveModifiers([checkoutItem()], {
         ctx: { visits: 1 },
       });
       expect(returning.map((s) => s.name)).toEqual(["Welcome back"]);
@@ -200,7 +172,7 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
       const m = await insertModifier({ name: "Limited tee", stock: 2 });
       await patchModifier(m.id, { trigger: "optional" });
 
-      const specs = await resolveModifiers([item()], {
+      const specs = await resolveModifiers([checkoutItem()], {
         addOns: new Map([[m.id, 5]]),
       });
       expect(specs.find((s) => s.name === "Limited tee")?.quantity).toBe(2);
@@ -222,9 +194,11 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
         name: "GroupWide",
       });
       await patchModifier(m.id, { scope: "groups" });
-      await linkGroup(m.id, 42);
+      await linkModifierGroup(m.id, 42);
 
-      const applied = await resolveModifiers([item({ listingId: listing.id })]);
+      const applied = await resolveModifiers([
+        checkoutItem({ listingId: listing.id }),
+      ]);
       expect(applied.find((s) => s.name === "GroupWide")?.listingIds).toEqual([
         listing.id,
       ]);
@@ -323,7 +297,7 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
     test("offers a listing-scoped add-on only on a page with its listing", async () => {
       const m = await insertModifier({ name: "Scoped tee" });
       await patchModifier(m.id, { scope: "listings", trigger: "optional" });
-      await linkListing(m.id, 7);
+      await linkModifierListing(m.id, 7);
 
       expect(await getOptionalAddOns([7])).toHaveLength(1);
       expect(await getOptionalAddOns([8])).toEqual([]);
@@ -366,7 +340,7 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
     test("rebuilds the listing ids for a scoped reference", async () => {
       const m = await insertModifier({ name: "Scoped" });
       await patchModifier(m.id, { scope: "listings" });
-      await linkListing(m.id, 3);
+      await linkModifierListing(m.id, 3);
       const specs = await specsFromRefs([{ i: m.id, q: 1 }]);
       expect(specs[0]?.listingIds).toEqual([3]);
     });
