@@ -384,6 +384,9 @@ describe("applyModifiers", () => {
     expect(result.extras).toEqual([
       { amount: 450, key: "mod:1", name: "Add-on", quantity: 1 },
     ]);
+    expect(result.modifierUsages).toEqual([
+      { amountApplied: 450, modifierId: 1, quantity: 1 },
+    ]);
     expect(result.modifierTotal).toBe(450);
   });
 
@@ -407,6 +410,9 @@ describe("applyModifiers", () => {
       name: "Add-on",
       quantity: 3,
     });
+    expect(result.modifierUsages).toEqual([
+      { amountApplied: 1500, modifierId: 1, quantity: 3 },
+    ]);
     expect(result.modifierTotal).toBe(1500);
   });
 
@@ -416,6 +422,9 @@ describe("applyModifiers", () => {
     ]);
     expect(result.extras).toEqual([]);
     expect(result.lines).toEqual(lines);
+    expect(result.modifierUsages).toEqual([
+      { amountApplied: 0, modifierId: 1, quantity: 1 },
+    ]);
     expect(result.modifierTotal).toBe(0);
   });
 
@@ -432,7 +441,23 @@ describe("applyModifiers", () => {
         quantity: 1,
       },
     ]);
+    expect(result.modifierUsages).toEqual([
+      { amountApplied: 200, modifierId: 1, quantity: 1 },
+    ]);
     expect(result.modifierTotal).toBe(-200);
+  });
+
+  test("records only the clamped amount for an oversized discount", () => {
+    const result = applyModifiers([line({ quantity: 2 })], [
+      modifier({ kind: "fixed", value: -5000 }),
+    ]);
+    expect(result.lines).toEqual([
+      { chargedUnitAmount: 0, item: item(), quantity: 2 },
+    ]);
+    expect(result.modifierUsages).toEqual([
+      { amountApplied: 2000, modifierId: 1, quantity: 1 },
+    ]);
+    expect(result.modifierTotal).toBe(-2000);
   });
 });
 

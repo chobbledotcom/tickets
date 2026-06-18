@@ -42,10 +42,18 @@ export type ExtraLine = {
   quantity: number;
 };
 
+/** The reporting amount a modifier actually changed the order by. */
+export type ModifierUsageAmount = {
+  modifierId: number;
+  quantity: number;
+  amountApplied: number;
+};
+
 /** A fully-priced checkout: ticket lines, extra lines, and the resulting total. */
 export type PricedOrder = {
   lines: PricedLine[];
   extras: ExtraLine[];
+  modifierUsages: ModifierUsageAmount[];
   /** Sum of all line and extra charges, in minor units. */
   total: number;
   /** The pre-extras item subtotal the booking fee is charged on. */
@@ -101,6 +109,7 @@ const allocateAmount = (weights: number[], amount: number): number[] => {
 type ModifierResult = {
   lines: PricedLine[];
   extras: ExtraLine[];
+  modifierUsages: ModifierUsageAmount[];
   modifierTotal: number;
 };
 
@@ -191,6 +200,7 @@ const unmodifiedReservationLines = (
 type ModifierPass = {
   units: WorkUnit[];
   extras: ExtraLine[];
+  modifierUsages: ModifierUsageAmount[];
   discountTotal: number;
 };
 
@@ -204,8 +214,22 @@ const applyOne = (pass: ModifierPass, spec: ModifierSpec): ModifierPass => {
     spec.kind,
     spec.value,
   );
+  const withUsage = (
+    next: ModifierPass,
+    amountApplied: number,
+  ): ModifierPass => ({
+    ...next,
+    modifierUsages: [
+      ...pass.modifierUsages,
+      {
+        amountApplied,
+        modifierId: spec.id,
+        quantity: spec.quantity,
+      },
+    ],
+  });
   if (delta > 0) {
-    return {
+    return withUsage({
       ...pass,
       extras: [
         ...pass.extras,
@@ -216,9 +240,9 @@ const applyOne = (pass: ModifierPass, spec: ModifierSpec): ModifierPass => {
           quantity: spec.quantity,
         },
       ],
-    };
+    }, delta * spec.quantity);
   }
-  if (delta === 0) return pass;
+  if (delta === 0) return withUsage(pass, 0);
 
   const reduced = allocateDiscount(
     scoped.map((u) => u.price),
@@ -229,7 +253,10 @@ const applyOne = (pass: ModifierPass, spec: ModifierSpec): ModifierPass => {
     inScope(spec, u) ? { ...u, price: reduced[next++]! } : u,
   );
   const applied = sum(scoped.map((u) => u.price)) - sum(reduced);
-  return { ...pass, discountTotal: pass.discountTotal + applied, units };
+  return withUsage(
+    { ...pass, discountTotal: pass.discountTotal + applied, units },
+    applied,
+  );
 };
 
 /**
@@ -246,11 +273,13 @@ export const applyModifiers = (
   const pass = specs.reduce(applyOne, {
     discountTotal: 0,
     extras: [],
+    modifierUsages: [],
     units: toUnits(lines),
   });
   return {
     extras: pass.extras,
     lines: toLines(pass.units),
+    modifierUsages: pass.modifierUsages,
     modifierTotal: sumOf(extraCharge)(pass.extras) - pass.discountTotal,
   };
 };
@@ -289,6 +318,7 @@ export const priceCheckout = (intent: CheckoutIntent): PricedOrder => {
     extras,
     fullSubtotal,
     lines,
+    modifierUsages: modifiers.modifierUsages,
     total: sumOf(lineCharge)(lines) + sumOf(extraCharge)(extras),
   };
 };

@@ -91,6 +91,14 @@ const modifierUsageCount = async (modifierId: number): Promise<number> => {
   return Number(rows[0]!.c);
 };
 
+const modifierUsageAmount = async (modifierId: number): Promise<number> => {
+  const { rows } = await getDb().execute({
+    args: [modifierId],
+    sql: "SELECT COALESCE(SUM(amount_applied), 0) AS c FROM modifier_usages WHERE modifier_id = ?",
+  });
+  return Number(rows[0]!.c);
+};
+
 const modifierRefs = (id: number, quantity = 1): string =>
   JSON.stringify([{ i: id, q: quantity }]);
 
@@ -411,6 +419,7 @@ describeWithEnv(
         expect(attendee.pricePaid).toBe(900);
         expect(attendee.remainingBalance).toBe(0);
         expect(await modifierUsageCount(promo.id)).toBe(1);
+        expect(await modifierUsageAmount(promo.id)).toBe(100);
       } finally {
         session.restore();
       }
@@ -471,18 +480,18 @@ describeWithEnv(
         direction: "charge",
         name: "Programme",
       });
-      // Full modified subtotal £15.00, deposit 10% = £1.50.
+      // Full modified subtotal £20.00, deposit 10% = £2.00.
       const session = stubPaidSession(
         "cs_addon_dep",
         {
           _origin: "localhost",
           email: "reserver@example.com",
           items: JSON.stringify([{ e: listing.id, p: 1000, q: 1 }]),
-          modifiers: modifierRefs(addOn.id),
+          modifiers: modifierRefs(addOn.id, 2),
           name: "Reserver",
           reservation_amount: "10%",
         },
-        150,
+        200,
       );
       try {
         const response = await handleRequest(
@@ -491,9 +500,10 @@ describeWithEnv(
         expect([200, 302, 303]).toContain(response.status);
 
         const attendee = await latestAttendee();
-        expect(attendee.pricePaid).toBe(150);
-        expect(attendee.remainingBalance).toBe(1350);
-        expect(await modifierUsageCount(addOn.id)).toBe(1);
+        expect(attendee.pricePaid).toBe(200);
+        expect(attendee.remainingBalance).toBe(1800);
+        expect(await modifierUsageCount(addOn.id)).toBe(2);
+        expect(await modifierUsageAmount(addOn.id)).toBe(1000);
       } finally {
         session.restore();
       }
@@ -537,6 +547,8 @@ describeWithEnv(
         const attendee = await latestAttendee();
         expect(attendee.pricePaid).toBe(90);
         expect(attendee.remainingBalance).toBe(810);
+        expect(await modifierUsageCount(promo.id)).toBe(1);
+        expect(await modifierUsageAmount(promo.id)).toBe(100);
         const summary = await getAttendeeOrderSummary(attendee.id);
         expect(summary.fullPrice).toBe(900);
 
