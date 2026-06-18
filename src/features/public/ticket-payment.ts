@@ -9,6 +9,7 @@ import {
   notFoundResponse,
 } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
+import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { isPaymentsEnabled } from "#shared/config.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
@@ -201,12 +202,9 @@ export const buildRegistrationItems = (
   }));
 };
 
-/** Check if any selected listing requires payment */
-export const anyRequiresPayment = (items: CheckoutItem[]): boolean => {
-  const paymentsEnabled = isPaymentsEnabled();
-  if (!paymentsEnabled) return false;
-  return items.some((item) => item.unitPrice > 0);
-};
+/** Whether the fully-priced checkout needs a payment session. */
+export const checkoutRequiresPayment = (intent: CheckoutIntent): boolean =>
+  isPaymentsEnabled() && priceCheckout(intent).total > 0;
 
 /** Handle payment flow for ticket purchase */
 export const handlePaymentFlow = (

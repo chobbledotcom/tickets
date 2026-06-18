@@ -465,6 +465,54 @@ describeWithEnv(
       }
     });
 
+    test("free listing with a selected add-on uses paid reservation checkout", async () => {
+      await setupStripe();
+      await settings.update.bookingFee("0");
+      await setPublicReservation("10%");
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        thankYouUrl: "https://example.com",
+        unitPrice: 0,
+      });
+      const addOn = await modifiersTable.insert({
+        calcKind: "fixed",
+        calcValue: 5,
+        direction: "charge",
+        name: "Programme",
+      });
+      await getDb().execute({
+        args: ["optional", addOn.id],
+        sql: "UPDATE modifiers SET trigger = ? WHERE id = ?",
+      });
+      let captured: CheckoutIntent | undefined;
+      const checkout = stub(
+        stripePaymentProvider,
+        "createCheckoutSession",
+        (intent: CheckoutIntent) => {
+          captured = intent;
+          return Promise.resolve({
+            checkoutUrl: "https://stripe.example/checkout",
+            sessionId: "cs_free_addon",
+          });
+        },
+      );
+      try {
+        const response = await submitTicketForm(listing.slug, {
+          [`addon_${addOn.id}`]: "1",
+          [`quantity_${listing.id}`]: "1",
+          email: "buyer@example.com",
+          name: "Buyer",
+        });
+        expect([302, 303]).toContain(response.status);
+        expect(captured?.items[0]?.unitPrice).toBe(0);
+        expect(captured?.reservationAmount).toBe("10%");
+        expect(captured?.modifiers?.[0]?.id).toBe(addOn.id);
+        expect(captured?.modifiers?.[0]?.quantity).toBe(1);
+      } finally {
+        checkout.restore();
+      }
+    });
+
     test("reservation with a positive add-on stores the modified balance", async () => {
       await setupStripe();
       await settings.update.bookingFee("0");
@@ -506,6 +554,50 @@ describeWithEnv(
         expect(await modifierUsageAmount(addOn.id)).toBe(1000);
       } finally {
         session.restore();
+      }
+    });
+
+    test("refunds a zero-price reservation add-on when the total mismatches", async () => {
+      await setupStripe();
+      await settings.update.bookingFee("0");
+      await setPublicReservation("10%");
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        thankYouUrl: "https://example.com",
+        unitPrice: 0,
+      });
+      const addOn = await modifiersTable.insert({
+        calcKind: "fixed",
+        calcValue: 5,
+        direction: "charge",
+        name: "Programme",
+      });
+      const refund = stub(stripeApi, "refundPayment", () =>
+        Promise.resolve({ id: "re_free_addon" } as never),
+      );
+      const session = stubPaidSession(
+        "cs_free_addon_bad",
+        {
+          _origin: "localhost",
+          email: "reserver@example.com",
+          items: JSON.stringify([{ e: listing.id, p: 0, q: 1 }]),
+          modifiers: modifierRefs(addOn.id),
+          name: "Reserver",
+          reservation_amount: "10%",
+        },
+        40,
+      );
+      try {
+        const response = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_free_addon_bad"),
+        );
+        expect(response.status).toBe(409);
+        expect(await attendeeCount()).toBe(0);
+        expect(await modifierUsageCount(addOn.id)).toBe(0);
+        expect(refund.calls[0]!.args).toEqual(["pi_cs_free_addon_bad"]);
+      } finally {
+        session.restore();
+        refund.restore();
       }
     });
 

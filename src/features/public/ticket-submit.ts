@@ -16,13 +16,10 @@ import {
 } from "#shared/db/questions.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import type { CheckoutIntent } from "#shared/payments.ts";
 import { verifyQrBookToken } from "#shared/qr-token.ts";
 import { validateSiteAssignmentConfig } from "#shared/site-assignment.ts";
-import {
-  type Group,
-  isPaidListing,
-  type ListingWithCount,
-} from "#shared/types.ts";
+import type { Group, ListingWithCount } from "#shared/types.ts";
 import {
   parseNonNegativeInt,
   parsePositiveInt,
@@ -50,9 +47,9 @@ import {
 } from "./ticket-form.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 import {
-  anyRequiresPayment,
   buildRegistrationItems,
   checkAvailability,
+  checkoutRequiresPayment,
   getTicketContext,
   handlePaymentFlow,
   processFreeReservation,
@@ -67,21 +64,12 @@ import {
   type TicketSharedContext,
 } from "./types.ts";
 
-/** Validate fields, terms and listing availability. Returns Response on error, or parsed field values. */
-const validateFormAndAvailability = (
+/** Validate page-level form state before deeper parsing. */
+const validateFormState = (
   form: FormParams,
   ctx: TicketCtx,
-): Response | TicketFormValues => {
+): Response | null => {
   const errorResponse = ticketFormErrorResponse(ctx);
-  const anyPaid = ctx.listings.some((e) => isPaidListing(e.listing));
-  const fieldResult = tryValidateTicketFields(
-    form,
-    getTicketFieldsSetting(ctx.listings),
-    errorResponse,
-    anyPaid,
-  );
-  if (fieldResult instanceof Response) return fieldResult;
-
   if (ctx.terms && form.get("agree_terms") !== "1") {
     return errorResponse("You must agree to the terms and conditions");
   }
@@ -103,8 +91,21 @@ const validateFormAndAvailability = (
       return errorResponse(REGISTRATION_CLOSED_SUBMIT_MESSAGE);
     }
   }
-  return fieldResult;
+  return null;
 };
+
+/** Validate contact fields once the final priced checkout says whether it is paid. */
+const validateTicketFields = (
+  form: FormParams,
+  ctx: TicketCtx,
+  requiresPayment: boolean,
+): Response | TicketFormValues =>
+  tryValidateTicketFields(
+    form,
+    getTicketFieldsSetting(ctx.listings),
+    ticketFormErrorResponse(ctx),
+    requiresPayment,
+  );
 
 /** Parse custom prices for pay-more listings. Returns Response on validation error. */
 const parseCustomPrices = (
@@ -185,29 +186,64 @@ type PathParams = {
   info: AnswerInfo;
 };
 
-/** Handle the paid registration path */
-const handlePaidPath = async (
-  request: Request,
-  params: PathParams & {
+type PaymentPathParams = Pick<
+  PathParams,
+  "ctx" | "date" | "dayCount" | "quantities"
+> & { intent: CheckoutIntent };
+
+const emptyContact = {
+  address: "",
+  email: "",
+  name: "",
+  phone: "",
+  special_instructions: "",
+};
+
+const checkoutIntentForSubmission = (
+  contact: ReturnType<typeof extractContact>,
+  params: {
+    ctx: TicketCtx;
+    date: string | null;
+    dayCount: number;
+    hasCustomisable: boolean;
+    info: AnswerInfo;
     items: ReturnType<typeof buildRegistrationItems>;
+    modifiers: CheckoutIntent["modifiers"];
     reservationAmount?: string;
-    promoCode?: string;
-    addOns?: Map<number, number>;
   },
-): Promise<Response> => {
+): CheckoutIntent => {
   const {
     ctx,
-    quantities,
     date,
     dayCount,
     hasCustomisable,
-    contact,
-    items,
     info,
+    items,
+    modifiers,
     reservationAmount,
-    promoCode,
-    addOns,
   } = params;
+  const listingAnswerIds = computeListingAnswerMap(ctx, info);
+  return {
+    ...contact,
+    date,
+    items,
+    listingAnswerIds,
+    // Carry the chosen span only when a customisable listing is involved, so
+    // the webhook re-prices and dates the booking by day count, not the
+    // listing's fixed duration.
+    ...(hasCustomisable ? { dayCount } : {}),
+    ...(ctx.siteToken ? { siteToken: ctx.siteToken } : {}),
+    ...(reservationAmount ? { reservationAmount } : {}),
+    ...(modifiers && modifiers.length > 0 ? { modifiers } : {}),
+  };
+};
+
+/** Handle the paid registration path */
+const handlePaidPath = async (
+  request: Request,
+  params: PaymentPathParams,
+): Promise<Response> => {
+  const { ctx, quantities, date, dayCount, intent } = params;
   const available = await checkAvailability(
     ctx.listings,
     quantities,
@@ -219,21 +255,6 @@ const handlePaidPath = async (
       "Sorry, some tickets are no longer available",
     );
   }
-  const listingAnswerIds = computeListingAnswerMap(ctx, info);
-  const modifiers = await resolveModifiers(items, { addOns, code: promoCode });
-  const intent = {
-    ...contact,
-    date,
-    items,
-    listingAnswerIds,
-    // Carry the chosen span only when a customisable listing is involved, so
-    // the webhook re-prices and dates the booking by day count, not the
-    // listing's fixed duration.
-    ...(hasCustomisable ? { dayCount } : {}),
-    ...(ctx.siteToken ? { siteToken: ctx.siteToken } : {}),
-    ...(reservationAmount ? { reservationAmount } : {}),
-    ...(modifiers.length > 0 ? { modifiers } : {}),
-  };
   return handlePaymentFlow(request, intent, ctx);
 };
 
@@ -291,9 +312,8 @@ const processSubmission = async (
 ): Promise<Response> => {
   const errorResponse = ticketFormErrorResponse(ctx);
 
-  const validated = validateFormAndAvailability(form, ctx);
-  if (validated instanceof Response) return validated;
-  const values = validated;
+  const formStateError = validateFormState(form, ctx);
+  if (formStateError) return formStateError;
 
   const quantities = parseQuantities(form, ctx.listings);
   const totalQuantity = sum(Array.from(quantities.values()));
@@ -320,8 +340,6 @@ const processSubmission = async (
   if (!answersResult.ok) {
     return ticketFormErrorResponse(ctx)(answersResult.error);
   }
-
-  const contact = extractContact(values);
 
   let date: string | null = null;
   if (ctx.dates.length > 0) {
@@ -355,19 +373,42 @@ const processSubmission = async (
     selectedListingIds,
   };
 
-  if (await anyRequiresPayment(items)) {
+  const addOns = parseAddOnSelections(form, ctx.addOns);
+  const promoCode = form.getString("promo_code");
+  const modifiers = await resolveModifiers(items, { addOns, code: promoCode });
+  const reservationAmount = await publicReservationAmount();
+  const pricingIntent = checkoutIntentForSubmission(emptyContact, {
+    ctx,
+    date,
+    dayCount,
+    hasCustomisable,
+    info,
+    items,
+    modifiers,
+    reservationAmount,
+  });
+  const requiresPayment = checkoutRequiresPayment(pricingIntent);
+  const validated = validateTicketFields(form, ctx, requiresPayment);
+  if (validated instanceof Response) return validated;
+  const contact = extractContact(validated);
+  const intent = checkoutIntentForSubmission(contact, {
+    ctx,
+    date,
+    dayCount,
+    hasCustomisable,
+    info,
+    items,
+    modifiers,
+    reservationAmount,
+  });
+
+  if (requiresPayment) {
     return handlePaidPath(request, {
-      addOns: parseAddOnSelections(form, ctx.addOns),
-      contact,
       ctx,
       date,
       dayCount,
-      hasCustomisable,
-      info,
-      items,
-      promoCode: form.getString("promo_code"),
+      intent,
       quantities,
-      reservationAmount: await publicReservationAmount(),
     });
   }
   return handleFreePath({

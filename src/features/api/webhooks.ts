@@ -603,16 +603,17 @@ const verifyPaidPricing = async (
   pricedOrder: PricedOrder,
 ): Promise<PaymentResult | null> => {
   const hasPaidItems = intent.items.some((item) => item.p > 0);
-  if (!hasPaidItems) return null;
 
   // Per-item prices are ticket-only (no fee), so validate without booking fee
-  for (const { item, listing, expectedPrice } of validatedItems) {
-    if (hasPriceMismatch(item.p, expectedPrice, listing, 0, item.q)) {
-      return await priceMismatchRefund(
-        session,
-        `Per-item price mismatch for listing ${listing.id}: metadata p=${item.p} but expected ${expectedPrice} (can_pay_more=${listing.can_pay_more})`,
-        listing.id,
-      );
+  if (hasPaidItems) {
+    for (const { item, listing, expectedPrice } of validatedItems) {
+      if (hasPriceMismatch(item.p, expectedPrice, listing, 0, item.q)) {
+        return await priceMismatchRefund(
+          session,
+          `Per-item price mismatch for listing ${listing.id}: metadata p=${item.p} but expected ${expectedPrice} (can_pay_more=${listing.can_pay_more})`,
+          listing.id,
+        );
+      }
     }
   }
 
