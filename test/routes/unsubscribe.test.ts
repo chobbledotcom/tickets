@@ -3,10 +3,12 @@ import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
 import {
+  getVisits,
   hashEmail,
   isHashUnsubscribed,
+  recordVisit,
   unsubscribeHash,
-} from "#shared/db/email-preferences.ts";
+} from "#shared/db/contact-preferences.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   describeWithEnv,
@@ -43,6 +45,7 @@ describeWithEnv("routes (unsubscribe)", { db: true }, () => {
         "Email preferences",
         "currently subscribed",
         "Unsubscribe",
+        "Delete my data",
       );
     });
 
@@ -124,6 +127,17 @@ describeWithEnv("routes (unsubscribe)", { db: true }, () => {
       );
       expect(html).toContain('class="success"');
       expect(html).not.toContain('class="info"');
+    });
+
+    test("forgets the contact row", async () => {
+      const hash = await hashEmail("forgetme@example.com");
+      await recordVisit(hash);
+      const response = await postUnsubscribe({
+        action: "forget",
+        email: hash,
+      });
+      expectRedirect(response, "/unsubscribe");
+      expect(await getVisits(hash)).toBe(0);
     });
 
     test("redirects with an error when the hash is missing", async () => {

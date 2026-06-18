@@ -54,7 +54,7 @@ import {
   getAttendeesByTokens,
 } from "#shared/db/attendees.ts";
 import { getListing, getListingWithCount } from "#shared/db/listings.ts";
-import { specsFromRefs } from "#shared/db/modifier-resolve.ts";
+import { buyerVisits, specsFromRefs } from "#shared/db/modifier-resolve.ts";
 import { consumeModifierStock } from "#shared/db/modifier-usage.ts";
 import {
   balanceFinalizeStatement,
@@ -838,7 +838,9 @@ const processReservedSession = async (
 
   // Resolve the applied modifiers once (re-fetched by id from the database);
   // both the price re-derivation and the stock consumption use the same specs.
-  const modifierSpecs = await specsFromRefs(intent.modifiers);
+  const modifierSpecs = await specsFromRefs(intent.modifiers, {
+    visits: await buyerVisits(intent.email, intent.phone),
+  });
 
   const pricingError = await verifyPaidPricing(
     session,

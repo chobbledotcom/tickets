@@ -8,7 +8,7 @@ import { errorRedirect, redirectResponse } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { getPublicDefaultStatus } from "#shared/db/attendee-statuses.ts";
-import { resolveModifiers } from "#shared/db/modifier-resolve.ts";
+import { buyerVisits, resolveModifiers } from "#shared/db/modifier-resolve.ts";
 import {
   groupListingAnswers,
   parseQuestionAnswers,
@@ -224,7 +224,11 @@ const handlePaidPath = async (
   // compose with modifiers in a later step.
   const modifiers = reservationAmount
     ? []
-    : await resolveModifiers(items, { addOns, code: promoCode });
+    : await resolveModifiers(items, {
+        addOns,
+        code: promoCode,
+        ctx: { visits: await buyerVisits(contact.email, contact.phone) },
+      });
   const intent = {
     ...contact,
     date,

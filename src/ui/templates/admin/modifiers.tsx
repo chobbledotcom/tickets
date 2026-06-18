@@ -94,6 +94,7 @@ export const modifierToFieldValues = (
       active: (m) => booleanToCheckbox(m.active),
       min_subtotal: (m) =>
         m.min_subtotal ? Number(toMajorUnits(m.min_subtotal)) : "",
+      min_visits: (m) => m.min_visits || "",
       stock: (m) => m.stock ?? "",
     },
     modifier ? undefined : { active: "1" },

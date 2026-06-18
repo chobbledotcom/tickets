@@ -33,6 +33,7 @@ export type ModifierInput = {
   trigger?: ModifierTrigger;
   code?: string;
   codeIndex?: string | null;
+  minVisits?: number;
   scope?: ModifierScope;
   minSubtotal?: number;
   stock?: number | null;
@@ -54,6 +55,7 @@ export const modifiersTable = defineIdTable<Modifier, ModifierInput>(
     code_index: col.withDefault<string | null>(() => null),
     direction: col.simple<ModifierDirection>(),
     min_subtotal: col.withDefault(() => 0),
+    min_visits: col.withDefault(() => 0),
     scope: col.withDefault<ModifierScope>(() => "all"),
     stock: col.withDefault<number | null>(() => null),
     // Trigger-maintained aggregates over modifier_usages — read-only here
