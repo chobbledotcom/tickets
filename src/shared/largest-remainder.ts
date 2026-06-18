@@ -14,11 +14,10 @@ const sumNumbers = (values: ReadonlyArray<number>): number =>
 const largestRemainderIndexes = (
   shares: ReadonlyArray<number>,
   count: number,
-  {
-    canReceive = () => true,
-    tieBreaker = (index) => index,
-  }: LargestRemainderOptions = {},
+  options: LargestRemainderOptions = {},
 ): Set<number> => {
+  const canReceive = options.canReceive ?? (() => true);
+  const tieBreaker = options.tieBreaker ?? ((index: number) => index);
   return new Set(
     shares
       .map((share, index) => ({
@@ -43,9 +42,13 @@ export const largestRemainderAllocation = (
   const shares = weights.map((weight) => (amount * weight) / total);
   const floors = shares.map((share) => Math.floor(share));
   const leftover = amount - sumNumbers(floors);
-  const bumped = largestRemainderIndexes(shares, leftover, {
-    canReceive: (index) => options.canReceive?.(index, floors[index]!) ?? true,
+  const indexOptions: LargestRemainderOptions = {
     tieBreaker: options.tieBreaker,
-  });
+  };
+  if (options.canReceive) {
+    indexOptions.canReceive = (index) =>
+      options.canReceive!(index, floors[index]!);
+  }
+  const bumped = largestRemainderIndexes(shares, leftover, indexOptions);
   return floors.map((value, index) => value + (bumped.has(index) ? 1 : 0));
 };
