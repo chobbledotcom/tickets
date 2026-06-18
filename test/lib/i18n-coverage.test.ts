@@ -50,7 +50,8 @@ const LEFTOVER_ALLOWLIST = new Set<string>([
   "admin/settings/payment.tsx",
   "admin/settings/public-api.tsx",
   "admin/site.tsx",
-  "public.tsx",
+  "public/reservations.tsx",
+  "public/shared.tsx",
 ]);
 
 /** t("key") / t('key') / t(`key`) not preceded by an identifier char. */
@@ -80,8 +81,9 @@ const walk = (dir: string, exts: string[]): string[] => {
 const leftoverLiterals = (src: string): string[] => {
   const hits: string[] = [];
   src.split("\n").forEach((line, i) => {
-    for (const m of line.matchAll(ATTR))
+    for (const m of line.matchAll(ATTR)) {
       hits.push(`L${i + 1} ${m[1]}="${m[3]}"`);
+    }
     for (const m of line.matchAll(TEXT)) {
       const text = m[1] ?? "";
       if (/[a-z]/.test(text)) hits.push(`L${i + 1} text "${text.trim()}"`);
@@ -127,8 +129,9 @@ describe("i18n coverage", () => {
         }
       })();
       if (src === null) stale.push(`${rel} (missing — remove from allowlist)`);
-      else if (leftoverLiterals(src).length === 0)
+      else if (leftoverLiterals(src).length === 0) {
         stale.push(`${rel} (now clean — remove from allowlist)`);
+      }
     }
     expect(stale).toEqual([]);
   });
