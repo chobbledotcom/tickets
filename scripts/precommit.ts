@@ -21,11 +21,20 @@ interface Step {
 
 /** True when a line starts an ERRORS or FAILURES section or is a summary line */
 const isSectionStart = (line: string): boolean =>
-  /^ (ERRORS|FAILURES)\s*$/.test(line) || /^(FAILED|ok)\s*\|/.test(line);
+  /^ (ERRORS|FAILURES)\s*$/.test(line) ||
+  /^::error/.test(line) ||
+  /^Coverage failed/.test(line) ||
+  /^(FAILED|Failed tests:|fail\b)/.test(line) ||
+  /^(Line|Branch) coverage is not 100%:/.test(line) ||
+  /^Test quality rules:/.test(line) ||
+  /^(FAILED|ok)\s*\|/.test(line);
 
 /** True when a line contains a failure or error keyword */
 const isErrorLine = (line: string): boolean =>
-  /FAILED|error:|Error:|AssertionError|assert/i.test(line);
+  /^::error/.test(line) ||
+  /^Coverage failed/.test(line) ||
+  /^(FAILED|fail\b|error:|Error:|AssertionError)/.test(line) ||
+  /coverage is not 100%/.test(line);
 
 /** Collect lines from the first section-start onward */
 const collectFromSections = (lines: string[]): string[] => {
@@ -71,9 +80,11 @@ const getSteps = (ci: boolean): Step[] => {
 const runStep = async (step: Step): Promise<boolean> => {
   write(`  ${step.name} … `);
   const start = performance.now();
+  const [command, ...args] = step.cmd;
+  if (!command) throw new Error(`No command configured for ${step.name}`);
 
-  const cmd = new Deno.Command(step.cmd[0], {
-    args: step.cmd.slice(1),
+  const cmd = new Deno.Command(command, {
+    args,
     stderr: "piped",
     stdout: "piped",
   });
@@ -98,6 +109,7 @@ const runStep = async (step: Step): Promise<boolean> => {
 
 const main = async (): Promise<void> => {
   const ci = isCi();
+  if (ci && !Deno.env.get("CI")) Deno.env.set("CI", "1");
   console.log(bold(ci ? "precommit (ci)" : "precommit"));
 
   const steps = getSteps(ci);

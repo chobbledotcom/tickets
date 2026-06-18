@@ -37,6 +37,7 @@ export type CompactTapSummary = {
 type CompactTapReporterOptions = {
   cwd: string;
   estimatedTotal?: number;
+  hideProgress?: boolean;
   stdout?: (line: string) => void;
   stderr?: (line: string) => void;
 };
@@ -77,6 +78,99 @@ const TEST_STEP_RE = /\.\s*step\s*\(/g;
 
 const stripTapDirective = (name: string): string =>
   name.replace(/\s+#\s+(?:SKIP|TODO)\b.*$/i, "").trim();
+
+const leadingWhitespaceLength = (line: string): number =>
+  line.match(/^\s*/)?.[0].length ?? 0;
+
+const stripCommonIndent = (lines: string[]): string => {
+  const indents = lines
+    .filter((line) => line.trim().length > 0)
+    .map(leadingWhitespaceLength);
+  const indent = indents.length > 0 ? Math.min(...indents) : 0;
+  return lines.map((line) => line.slice(indent)).join("\n");
+};
+
+const parseYamlScalar = (value: string): string => {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      return trimmed.slice(1, -1);
+    }
+  }
+  return trimmed;
+};
+
+const readYamlBlockScalar = (
+  lines: string[],
+  startIndex: number,
+  baseIndent: number,
+): string => {
+  const block: string[] = [];
+  for (const line of lines.slice(startIndex + 1)) {
+    const indent = leadingWhitespaceLength(line);
+    if (line.trim() && indent <= baseIndent && /^\w[\w-]*:/.test(line.trim())) {
+      break;
+    }
+    block.push(line);
+  }
+  return stripCommonIndent(block).trimEnd();
+};
+
+const parseYamlTapDiagnostic = (text: string): TapDiagnostic | undefined => {
+  const lines = text.split(/\r?\n/);
+  const diagnostic: TapDiagnostic = {};
+
+  for (let index = 0; index < lines.length; index++) {
+    const match = lines[index]?.match(/^(\s*)message:\s*(.*)$/);
+    if (!match) continue;
+    const value = match[2]?.trim() ?? "";
+    const baseIndent = (match[1] ?? "").length;
+    diagnostic.message =
+      value.startsWith("|") || value.startsWith(">")
+        ? readYamlBlockScalar(lines, index, baseIndent)
+        : parseYamlScalar(value);
+    break;
+  }
+
+  const atIndex = lines.findIndex((line) => /^(\s*)at:\s*$/.test(line));
+  if (atIndex !== -1) {
+    const atIndent = leadingWhitespaceLength(lines[atIndex] ?? "");
+    const at: TapDiagnostic["at"] = {};
+    for (const line of lines.slice(atIndex + 1)) {
+      if (line.trim() && leadingWhitespaceLength(line) <= atIndent) break;
+      const match = line.match(/^\s*(file|line|column):\s*(.*)$/);
+      if (!match) continue;
+      const key = match[1];
+      const value = parseYamlScalar(match[2] ?? "");
+      if (key === "file") at.file = value;
+      if (key === "line") at.line = Number(value);
+      if (key === "column") at.column = Number(value);
+    }
+    diagnostic.at = at;
+  }
+
+  return diagnostic.message || diagnostic.at ? diagnostic : undefined;
+};
+
+const parseTapDiagnosticBlock = (lines: string[]): TapDiagnostic => {
+  const text = stripCommonIndent(lines).trimEnd();
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return { message: "No TAP diagnostic was emitted for this failure." };
+  }
+
+  try {
+    return JSON.parse(trimmed) as TapDiagnostic;
+  } catch {
+    return parseYamlTapDiagnostic(text) ?? { message: text };
+  }
+};
 
 const isStepFailureDiagnostic = (diagnostic: TapDiagnostic): boolean =>
   STEP_FAILURE_RE.test((diagnostic.message ?? "").trim());
@@ -217,23 +311,36 @@ export const estimateTapEventCount = async (
 export class CompactTapReporter {
   #cwd: string;
   #estimatedTotal?: number;
+  #hideProgress: boolean;
   #stdout: (line: string) => void;
   #stderr: (line: string) => void;
   #passed = 0;
   #failed = 0;
   #pendingFailure?: PendingFailure;
+  #diagnosticLines?: string[];
   #failures: CompactFailure[] = [];
   #sawTap = false;
 
   constructor(options: CompactTapReporterOptions) {
     this.#cwd = options.cwd;
     this.#estimatedTotal = options.estimatedTotal;
+    this.#hideProgress = options.hideProgress ?? false;
     this.#stdout = options.stdout ?? console.log;
     this.#stderr = options.stderr ?? console.error;
   }
 
   consumeLine(line: string): void {
     const trimmed = line.trim();
+
+    if (this.#diagnosticLines) {
+      if (trimmed === "...") {
+        this.#consumeDiagnosticBlock(this.#diagnosticLines);
+        return;
+      }
+      this.#diagnosticLines.push(line);
+      return;
+    }
+
     if (!trimmed) return;
 
     if (trimmed === "TAP version 14" || PLAN_RE.test(trimmed)) {
@@ -241,12 +348,12 @@ export class CompactTapReporter {
       return;
     }
 
-    if (trimmed === "---" || trimmed === "...") return;
-
-    if (this.#pendingFailure && trimmed.startsWith("{")) {
-      this.#consumeDiagnostic(trimmed);
+    if (this.#pendingFailure && trimmed === "---") {
+      this.#diagnosticLines = [];
       return;
     }
+
+    if (trimmed === "---" || trimmed === "...") return;
 
     const result = line.match(TEST_RESULT_RE);
     if (!result) return;
@@ -262,7 +369,7 @@ export class CompactTapReporter {
     }
 
     this.#passed++;
-    this.#stdout(`ok   ${this.#progress()} ${name}`);
+    this.#stdout(this.#formatResultLine("ok  ", name));
   }
 
   finish(): CompactTapSummary {
@@ -275,17 +382,12 @@ export class CompactTapReporter {
     };
   }
 
-  #consumeDiagnostic(line: string): void {
-    let diagnostic: TapDiagnostic;
-    try {
-      diagnostic = JSON.parse(line) as TapDiagnostic;
-    } catch {
-      this.#flushPendingFailure();
-      return;
-    }
-
+  #consumeDiagnosticBlock(lines: string[]): void {
     const pending = this.#pendingFailure;
     this.#pendingFailure = undefined;
+    this.#diagnosticLines = undefined;
+
+    const diagnostic = parseTapDiagnosticBlock(lines);
     if (!pending || isStepFailureDiagnostic(diagnostic)) return;
 
     this.#recordFailure(pending.name, diagnostic);
@@ -294,6 +396,11 @@ export class CompactTapReporter {
   #flushPendingFailure(): void {
     const pending = this.#pendingFailure;
     if (!pending) return;
+
+    if (this.#diagnosticLines) {
+      this.#consumeDiagnosticBlock(this.#diagnosticLines);
+      return;
+    }
 
     this.#pendingFailure = undefined;
     this.#recordFailure(pending.name, {
@@ -311,17 +418,26 @@ export class CompactTapReporter {
 
     this.#failed++;
     this.#failures.push(failure);
-    this.#stderr(`fail ${this.#progress()} ${name}`);
+    this.#stderr(this.#formatResultLine("fail", name));
     this.#stderr(`     at ${formatLocation(location)}`);
     for (const detailLine of message.split("\n")) {
       this.#stderr(`     ${detailLine}`);
     }
   }
 
+  #formatResultLine(prefix: string, name: string): string {
+    const progress = this.#progress();
+    return progress ? `${prefix} ${progress} ${name}` : `${prefix} ${name}`;
+  }
+
   #progress(): string {
+    if (this.#hideProgress) return "";
+
     const done = this.#passed + this.#failed;
     const total = this.#estimatedTotal;
-    if (!total) return `[${String(done).padStart(4, " ")} done]`;
+    if (!total || done > total) {
+      return `[${String(done).padStart(4, " ")} done]`;
+    }
 
     const shownDone = Math.min(done, total);
     const fill = Math.min(
@@ -329,11 +445,10 @@ export class CompactTapReporter {
       Math.max(1, Math.round((shownDone / total) * PROGRESS_WIDTH)),
     );
     const bar = `${"#".repeat(fill)}${"-".repeat(PROGRESS_WIDTH - fill)}`;
-    const suffix = done > total ? "+" : "";
     return `[${bar}] ${String(done).padStart(
       String(total).length,
       " ",
-    )}/${total}${suffix}`;
+    )}/${total}`;
   }
 }
 
@@ -438,6 +553,7 @@ export const runCompactDenoTest = async (
   const reporter = new CompactTapReporter({
     cwd: options.cwd,
     estimatedTotal: options.estimatedTotal,
+    hideProgress: Boolean(options.env.CI || options.env.GITHUB_ACTIONS),
   });
 
   const stdoutTask = readLines(child.stdout, (line) =>
