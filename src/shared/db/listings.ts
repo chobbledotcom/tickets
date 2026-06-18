@@ -384,12 +384,6 @@ export const getListingWithCountBySlug = async (
 ): Promise<ListingWithCount | null> =>
   listingsCache.getByKey(await computeSlugIndex(slug));
 
-/** Get all cached listings of a given type (loads the whole set once per TTL). */
-const getListingsByType = async (
-  type: ListingType,
-): Promise<ListingWithCount[]> =>
-  (await listingsCache.getAll()).filter((e) => e.listing_type === type);
-
 /** Result type for combined listing + attendees query */
 export type ListingWithAttendees = {
   listing: ListingWithCount;
@@ -423,19 +417,6 @@ export const getListingWithAttendeesRaw = async (
     listing,
   }));
 };
-
-/**
- * Get all daily listings with attendee counts (from cache).
- */
-export const getAllDailyListings = (): Promise<ListingWithCount[]> =>
-  getListingsByType("daily");
-
-/**
- * Get all standard listings with attendee counts (from cache).
- * Used by the calendar view to include one-time listings on their scheduled date.
- */
-export const getAllStandardListings = (): Promise<ListingWithCount[]> =>
-  getListingsByType("standard");
 
 /**
  * Get distinct attendee dates for daily listings.
