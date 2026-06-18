@@ -1179,7 +1179,7 @@ const formatDatetimeLocal = (iso: string | null): string | null => {
   return utcToLocalInput(iso, settings.timezone);
 };
 
-const formatBookableDays = (days: string[]): string => days.join(",");
+const formatBookableDays = (days: string[]): string => days.join(", ");
 
 /**
  * Render the per-day-count price inputs for "customisable days" listings: one
