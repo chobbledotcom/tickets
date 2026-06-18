@@ -317,6 +317,62 @@ describe("db > listing_attendees migration from legacy schema", () => {
     expect(payments.rows[0]!.attendee_id).toBe(1);
   });
 
+  test("adds question display type when legacy question tables have foreign keys", async () => {
+    const client = await createLegacyDb();
+    await client.execute("PRAGMA foreign_keys = ON");
+
+    await client.execute(
+      insert("listings", {
+        created: "2024-01-01T00:00:00Z",
+        id: 1,
+        max_attendees: 100,
+        name: "Test Listing",
+      }),
+    );
+    await client.execute(
+      insert("questions", {
+        id: 1,
+        text: "Encrypted question",
+      }),
+    );
+    await client.execute(
+      insert("answers", {
+        id: 1,
+        question_id: 1,
+        text: "Encrypted answer",
+      }),
+    );
+    await client.execute(
+      insert("listing_questions", {
+        id: 1,
+        listing_id: 1,
+        question_id: 1,
+      }),
+    );
+
+    const pragmaStub = stubPragmaForeignKeysOff(client);
+    try {
+      await initDb();
+    } finally {
+      pragmaStub.restore();
+    }
+
+    const questions = await client.execute(
+      "SELECT id, text, sort_order, display_type FROM questions",
+    );
+    expect(questions.rows.length).toBe(1);
+    expect(questions.rows[0]!.display_type).toBe("radio");
+    expect(questions.rows[0]!.id).toBe(1);
+    expect(questions.rows[0]!.text).toBe("Encrypted question");
+
+    const answers = await client.execute(
+      "SELECT id, question_id, text FROM answers",
+    );
+    expect(answers.rows).toEqual([
+      { id: 1, question_id: 1, text: "Encrypted answer" },
+    ]);
+  });
+
   test("drops PII columns when listing_id was dropped in a prior partial run", async () => {
     setupTestEncryptionKey();
     const client = createClient({ url: ":memory:" });
