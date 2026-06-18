@@ -20,7 +20,7 @@ export const Accounts = (): JSX.Element => (
       <Faq id="invite_link_expiry" />
     </Section>
 
-    <Section id="login-security" title="Login &amp; Security">
+    <Section id="login-security" title="Login & Security">
       <Faq id="what_happens_if_i_enter_the_wrong" />
 
       <Faq id="why_am_i_locked_out_even_though" />
@@ -65,7 +65,7 @@ export const Accounts = (): JSX.Element => (
       </Q>
     </Section>
 
-    <Section id="login" title="Login &amp; Sessions">
+    <Section id="login" title="Login & Sessions">
       <Faq id="what_are_sessions" />
 
       <Faq id="what_happens_when_i_change_my_password" />
@@ -85,7 +85,7 @@ export const Accounts = (): JSX.Element => (
           If you&apos;re legitimately locked out, wait for the lockout to expire
           or log in from a different network. Because there is{" "}
           <strong>no password recovery</strong> (see{" "}
-          <strong>Data &amp; Privacy</strong>), another owner cannot unlock your
+          <strong>Data & Privacy</strong>), another owner cannot unlock your
           account &mdash; only time (or switching IP) will clear the block.
         </p>
       </Q>

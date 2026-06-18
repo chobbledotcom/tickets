@@ -34,6 +34,17 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
       );
     });
 
+    test("renders ampersands in guide section titles once", async () => {
+      const html = await assertAdminHtml(
+        "/admin/guide",
+        "Data &amp; Privacy",
+        "Daily Listings &amp; Holidays",
+        "Check-in &amp; QR Scanner",
+      );
+
+      expect(html).not.toContain("Data &amp;amp; Privacy");
+    });
+
     test("contains booking questions section", async () => {
       await assertAdminHtml(
         "/admin/guide",
