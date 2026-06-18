@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { handleRequest } from "#routes";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import { getDb } from "#shared/db/client.ts";
@@ -24,6 +25,7 @@ import {
   expectHtmlResponse,
   expectRedirectWithFlash,
   expectStatus,
+  followRedirectWithFlash,
   testRequiresAuth,
 } from "#test-utils";
 
@@ -424,7 +426,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         { recalculate_fields: "total_uses" },
       );
       expectRedirectWithFlash(
-        `/admin/modifiers/recalculate/${id}`,
+        `/admin/modifiers/${id}/edit`,
         "Modifier totals recalculated",
         true,
       )(response);
@@ -433,6 +435,32 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       expect(updated.total_uses).toBe(2);
       expect(updated.total_revenue).toBe(9000);
       expect(updated.usage_count).toBe(5);
+    });
+
+    test("shows recalculation success on the redirected edit page", async () => {
+      await adminFormPost("/admin/modifiers", createData({ name: "Reset" }));
+      const { id } = await lastModifier();
+
+      const { cookie, response } = await adminFormPost(
+        `/admin/modifiers/recalculate/${id}`,
+        { recalculate_fields: "total_uses" },
+      );
+      expectRedirectWithFlash(
+        `/admin/modifiers/${id}/edit`,
+        "Modifier totals recalculated",
+        true,
+      )(response);
+
+      const editResponse = await followRedirectWithFlash(
+        response,
+        (request) => handleRequest(request),
+        cookie,
+      );
+      await expectHtmlResponse(
+        editResponse,
+        200,
+        "Modifier totals recalculated",
+      );
     });
 
     test("rejects modifier recalculation with no selected totals", async () => {
@@ -639,6 +667,49 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const modifier = await lastModifier();
       expect(modifier.code).toBe("");
       expect(modifier.code_index).toBeNull();
+    });
+  });
+
+  describe("returning-customer gate", () => {
+    test("stores the minimum previous bookings gate", async () => {
+      await adminFormPost("/admin/modifiers", createData({ min_visits: "2" }));
+      expect((await lastModifier()).min_visits).toBe(2);
+    });
+
+    test("rejects minimum previous bookings on optional add-ons", async () => {
+      const { response } = await adminFormPost(
+        "/admin/modifiers",
+        createData({ min_visits: "1", trigger: "optional" }),
+      );
+      expectRedirectWithFlash(
+        "/admin/modifiers/new",
+        "Optional add-ons cannot require previous bookings",
+        false,
+      )(response);
+    });
+
+    test("rejects a negative minimum previous bookings value", async () => {
+      const { response } = await adminFormPost(
+        "/admin/modifiers",
+        createData({ min_visits: "-1" }),
+      );
+      expectRedirectWithFlash(
+        "/admin/modifiers/new",
+        "Minimum previous bookings must be a whole number of 0 or more",
+        false,
+      )(response);
+    });
+
+    test("rejects a fractional minimum previous bookings value", async () => {
+      const { response } = await adminFormPost(
+        "/admin/modifiers",
+        createData({ min_visits: "1.5" }),
+      );
+      expectRedirectWithFlash(
+        "/admin/modifiers/new",
+        "Minimum previous bookings must be a whole number of 0 or more",
+        false,
+      )(response);
     });
   });
 });

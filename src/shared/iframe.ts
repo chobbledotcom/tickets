@@ -13,6 +13,8 @@ const _iframeStore = { value: false };
 
 /** Detect iframe mode from a request URL and store it for the current request */
 export const detectIframeMode = (url: string): void => {
+  if (!URL.canParse(url)) throw new TypeError("Invalid iframe detection URL");
+
   _iframeStore.value = new URL(url).searchParams.get("iframe") === "true";
 };
 
@@ -22,6 +24,10 @@ export const getIframeMode = (): boolean => _iframeStore.value;
 /** Append iframe=true query param to a URL when in iframe mode */
 export const appendIframeParam = (url: string): string => {
   if (!_iframeStore.value) return url;
+  if (!URL.canParse(url, "http://localhost")) {
+    throw new TypeError("Invalid iframe redirect URL");
+  }
+
   const parsed = new URL(url, "http://localhost");
   parsed.searchParams.set("iframe", "true");
   return `${parsed.pathname}${parsed.search}${parsed.hash}`;

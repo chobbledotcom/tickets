@@ -30,5 +30,6 @@
   "modifiers.scope.listings_heading": "Linked listings",
   "modifiers.scope.groups_heading": "Linked groups",
   "modifiers.scope.none": "Nothing available to link yet.",
-  "modifiers.scope.save": "Save scope"
+  "modifiers.scope.save": "Save scope",
+  "modifiers.recalculate.description": "Compare the stored modifier totals with totals counted from attendee records. Select only the stored values you want to replace."
 }

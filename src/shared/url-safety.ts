@@ -33,12 +33,9 @@ const isDomainHostname = (host: string): boolean =>
  * https:// URL whose host is a real domain name and not internal/private.
  */
 export const isSafeServerFetchUrl = (raw: string): boolean => {
-  let url: URL;
-  try {
-    url = new URL(raw);
-  } catch {
-    return false;
-  }
+  if (!URL.canParse(raw)) return false;
+
+  const url = new URL(raw);
   const host = url.hostname.toLowerCase();
   return (
     url.protocol === "https:" &&

@@ -32,7 +32,7 @@ export type Trigger = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add email_preferences table for marketing opt-outs and contact history; add customisable_days and day_prices columns to listings for visitor-chosen multi-day bookings with per-day-count pricing; add attendee_statuses table with status_id and remaining_balance on attendees, plus attendee_id on activity_log, for the reservation and balance-payment flow; add idx_activity_log_listing_id so per-listing activity log reads are index scans instead of full-table scans; add a logistics_agents table plus a uses_logistics flag on listings, a split_logistics_agents flag on attendees, and start_agent_id/end_agent_id/start_time/end_time on listing_attendees for the logistics flow; add email_templates table for owner-keypair-encrypted reusable email subjects and bodies; add a user_logistics_agents table linking agent users to the logistics agents they drive, plus start_done/end_done flags on listing_attendees so delivery agents can mark drop-offs and collections complete; add failure_data to processed_payments so handled payment failures are recorded as a terminal outcome for idempotent redirect/webhook replay; add booked_quantity, tickets_count and income aggregate columns to listings, maintained by triggers on listing_attendees so listing reads and active-listing stats avoid scanning the attendee rows; add modifiers table for owner-defined price modifiers (surcharges, discounts, add-ons), with active/trigger/code_index/scope/stock/max_per_order/min_subtotal columns plus modifier_listings, modifier_groups and modifier_usages tables for scoping and stock; add an encrypted code column to modifiers for promo-code modifiers; add sms_messages table mapping gateway message ids to attendees for SMS status webhooks (content lives in the encrypted activity log); add processed_sms_inbound table for inbound SMS webhook replay protection; add phone_index to attendees so inbound SMS replies can be matched to an attendee; add display_type to questions so booking questions can render as radio buttons or a select box";
+  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add contact_preferences table for marketing opt-outs, contact history, and visit counts; add customisable_days and day_prices columns to listings for visitor-chosen multi-day bookings with per-day-count pricing; add attendee_statuses table with status_id and remaining_balance on attendees, plus attendee_id on activity_log, for the reservation and balance-payment flow; add idx_activity_log_listing_id so per-listing activity log reads are index scans instead of full-table scans; add a logistics_agents table plus a uses_logistics flag on listings, a split_logistics_agents flag on attendees, and start_agent_id/end_agent_id/start_time/end_time on listing_attendees for the logistics flow; add email_templates table for owner-keypair-encrypted reusable email subjects and bodies; add a user_logistics_agents table linking agent users to the logistics agents they drive, plus start_done/end_done flags on listing_attendees so delivery agents can mark drop-offs and collections complete; add failure_data to processed_payments so handled payment failures are recorded as a terminal outcome for idempotent redirect/webhook replay; add booked_quantity, tickets_count and income aggregate columns to listings, maintained by triggers on listing_attendees so listing reads and active-listing stats avoid scanning the attendee rows; add modifiers table for owner-defined price modifiers (surcharges, discounts, add-ons), with active/trigger/code_index/scope/stock/max_per_order/min_subtotal/min_visits columns plus modifier_listings, modifier_groups and modifier_usages tables for scoping and stock; add an encrypted code column to modifiers for promo-code modifiers; add sms_messages table mapping gateway message ids to attendees for SMS status webhooks (content lives in the encrypted activity log); add processed_sms_inbound table for inbound SMS webhook replay protection; add phone_index to attendees so inbound SMS replies can be matched to an attendee; add display_type to questions so booking questions can render as radio buttons or a select box";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -450,6 +450,7 @@ export const SCHEMA: [name: string, table: Table][] = [
         ["stock", "INTEGER"],
         ["max_per_order", "INTEGER"],
         ["min_subtotal", "INTEGER NOT NULL DEFAULT 0"],
+        ["min_visits", "INTEGER NOT NULL DEFAULT 0"],
         // Precomputed aggregates over modifier_usages, maintained by the
         // MODIFIER_AGGREGATE_TRIGGERS so admin reads never SUM/COUNT the
         // modifier_usages table. total_uses is SUM(quantity), usage_count is
@@ -643,19 +644,28 @@ export const SCHEMA: [name: string, table: Table][] = [
   ],
 
   [
-    // Per-email marketing preferences + contact history, keyed by the HMAC of
-    // the address (same blind-index approach as ticket_token_index, so a DB
-    // dump never reveals which address a row belongs to). `unsubscribed` is
-    // plaintext so the public, key-less /unsubscribe page can toggle it;
-    // `stats_blob` is a hybrid-encrypted {c,t,s} (contact count, last contact,
-    // last subject) only the admin private key can read.
-    "email_preferences",
+    // Per-contact marketing preferences, contact history, and visit counts,
+    // keyed by an opaque HMAC blind index. Public checkout/unsubscribe paths can
+    // read the plaintext operational scalars; richer outreach stats stay in the
+    // owner-keypair-encrypted stats_blob.
+    "contact_preferences",
     {
       columns: [
-        ["email_hash", "TEXT PRIMARY KEY"],
+        ["contact_hash", "TEXT PRIMARY KEY"],
         ["unsubscribed", "INTEGER NOT NULL DEFAULT 0"],
+        ["visits", "INTEGER NOT NULL DEFAULT 0"],
         ["stats_blob", "TEXT NOT NULL DEFAULT ''"],
-        ["created", "TEXT NOT NULL"],
+        ["last_activity", "INTEGER NOT NULL DEFAULT 0"],
+      ],
+      indexes: [
+        {
+          columns: ["unsubscribed"],
+          name: "idx_contact_prefs_unsubscribed",
+        },
+        {
+          columns: ["last_activity"],
+          name: "idx_contact_prefs_last_activity",
+        },
       ],
     },
   ],

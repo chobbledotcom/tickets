@@ -69,7 +69,9 @@ const PublicNav = ({
       )}
       {hasTerms && (
         <li>
-          <a href="/terms">T&amp;Cs</a>
+          <a href="/terms">
+            <Raw html={t("nav.public.terms")} />
+          </a>
         </li>
       )}
       {hasContact && (
@@ -149,7 +151,7 @@ const ContactForm = ({
     <CsrfForm action="/contact" {...botpoisonAttr}>
       <h2>{t("public.send_us_a_message")}</h2>
       <label>
-        Your email address
+        {t("public.contact_email_label")}
         <input autocomplete="email" name="email" required type="email" />
       </label>
       <MessageFields />
@@ -171,7 +173,10 @@ export const contactPage = (options: {
   error?: string;
 }): string => {
   const { websiteTitle, content, formActive, botpoisonPublicKey } = options;
-  const pageTitle = websiteTitle ? `Contact - ${websiteTitle}` : "Contact";
+  const contactTitle = t("public.contact");
+  const pageTitle = websiteTitle
+    ? `${contactTitle} - ${websiteTitle}`
+    : contactTitle;
   const loadWidget = formActive && botpoisonPublicKey !== "";
   const headExtra = loadWidget
     ? `${FEED_DISCOVERY_TAGS}\n<script defer src="${CONTACT_JS_PATH}"></script>`
@@ -209,11 +214,13 @@ const renderListingListing = (info: TicketListing): string => {
   const descriptionHtml = listing.description
     ? renderMarkdown(listing.description)
     : "";
-  const bookLabel = listing.purchase_only ? "Buy now" : "Book now";
+  const bookLabel = listing.purchase_only
+    ? t("public.buy_now")
+    : t("public.book_now");
   const linkHtml = isSoldOut
-    ? "<p><strong>Sold Out</strong></p>"
+    ? `<p><strong>${t("public.sold_out")}</strong></p>`
     : isClosed || isReadOnly()
-      ? "<p><strong>Registration Closed</strong></p>"
+      ? `<p><strong>${t("public.registration_closed")}</strong></p>`
       : `<p><a class="btn" href="/ticket/${escapeHtml(
           listing.slug,
         )}">${bookLabel}</a></p>`;
@@ -229,10 +236,10 @@ const renderGroupListing = (group: Group): string => {
     ? renderMarkdown(group.description)
     : "";
   const linkHtml = isReadOnly()
-    ? "<p><strong>Registration Closed</strong></p>"
+    ? `<p><strong>${t("public.registration_closed")}</strong></p>`
     : `<p><a class="btn" href="/ticket/${escapeHtml(
         group.slug,
-      )}">Book now</a></p>`;
+      )}">${t("public.book_now")}</a></p>`;
 
   return `<div class="prose"><h2>${escapeHtml(
     group.name,
@@ -255,7 +262,10 @@ export const homepagePage = (
   websiteTitle: string | null | undefined,
   groups: Group[],
 ): string => {
-  const title = websiteTitle ? `Listings - ${websiteTitle}` : "Listings";
+  const listingsTitle = t("terms.listings");
+  const title = websiteTitle
+    ? `${listingsTitle} - ${websiteTitle}`
+    : listingsTitle;
 
   if (listings.length === 0 && groups.length === 0) {
     return String(
@@ -350,10 +360,14 @@ const renderDateSelector = (
   durationDays = 1,
 ): string =>
   dates.length === 0
-    ? `<div class="error" role="alert">No dates are currently available for booking.</div>`
-    : `<label for="date">Select Date${durationDays > 1 ? ` <small>(each booking reserves ${durationDays} days)</small>` : ""}</label>
+    ? `<div class="error" role="alert">${t("public.ticket.no_dates_available")}</div>`
+    : `<label for="date">${t("public.ticket.select_date")}${
+        durationDays > 1
+          ? ` <small>(${t("public.ticket.date_duration_hint", { durationDays })})</small>`
+          : ""
+      }</label>
        <select name="date" id="date" required>
-         <option value="">— Select a date —</option>
+         <option value="">${t("public.ticket.select_date_placeholder")}</option>
          ${dates
            .map(
              (d) =>
@@ -388,12 +402,12 @@ const renderDayCountSelector = (
   priceFor?: (days: number) => number | null,
 ): string => {
   if (counts.length === 0) {
-    return `<div class="error" role="alert">No booking lengths are currently available.</div>`;
+    return `<div class="error" role="alert">${t("public.ticket.no_booking_lengths")}</div>`;
   }
   const selected = savedFormValue("day_count");
-  return `<label for="day_count">Number of days</label>
+  return `<label for="day_count">${t("public.ticket.number_of_days")}</label>
        <select name="day_count" id="day_count" required>
-         <option value="">— Select —</option>
+         <option value="">${t("public.ticket.select_placeholder")}</option>
          ${counts
            .map((n) => {
              const price = priceFor?.(n);
@@ -403,7 +417,7 @@ const renderDayCountSelector = (
                  : "";
              return `<option value="${n}"${
                selected === String(n) ? " selected" : ""
-             }>${n} day${n === 1 ? "" : "s"}${suffix}</option>`;
+             }>${t("public.ticket.day_option", { count: n })}${suffix}</option>`;
            })
            .join("")}
        </select>`;
@@ -452,7 +466,7 @@ const renderTermsAndCheckbox = (terms: string): string => {
   const checked = savedFormValue("agree_terms") === "1" ? " checked" : "";
   return (
     `<div class="prose">${renderMarkdown(terms)}</div>` +
-    `<label class="terms-agree"><input type="checkbox" name="agree_terms" value="1"${checked} required> I agree to the terms above</label>`
+    `<label class="terms-agree"><input type="checkbox" name="agree_terms" value="1"${checked} required> ${t("public.ticket.agree_terms")}</label>`
   );
 };
 
@@ -631,7 +645,11 @@ export const readOnlyPage = (): string => {
     <Layout title={t("public.read_only.title")}>
       <p>
         {t("public.read_only.message")}
-        {renewalUrl && <Raw html={` <a href="${renewalUrl}">Renew now</a>`} />}
+        {renewalUrl && (
+          <Raw
+            html={` <a href="${escapeHtml(renewalUrl)}">${t("public.read_only.renew_now")}</a>`}
+          />
+        )}
       </p>
     </Layout>,
   );
@@ -727,7 +745,7 @@ const renderListingRow = (
       <div class="ticket-row sold-out">
         ${imageHtml}
         <label>${escapeHtml(listing.name)}</label>
-        <span class="sold-out-label">Registration Closed</span>
+        <span class="sold-out-label">${t("public.registration_closed")}</span>
       </div>
     `;
   }
@@ -738,7 +756,7 @@ const renderListingRow = (
         ${imageHtml}
         <label>${escapeHtml(listing.name)}</label>
         ${renderListingDescription(listing.description)}
-        <span class="sold-out-label">Sold Out</span>
+        <span class="sold-out-label">${t("public.sold_out")}</span>
       </div>
     `;
   }
@@ -879,7 +897,7 @@ const TicketPageHeader = ({
           {pastDays !== null && (
             <span class="badge-alert">
               {" "}
-              {pastDays} {pastDays === 1 ? "day" : "days"} ago
+              {t("public.ticket.days_ago", { count: pastDays })}
             </span>
           )}
         </p>
@@ -1112,7 +1130,7 @@ export const ticketPage = ({
   // back to listing name/description since they don't set group metadata.
   const headerName = groupName ?? singleListing?.name;
   const headerDescription = groupDescription ?? singleListing?.description;
-  const title = headerName || "Reserve Tickets";
+  const title = headerName || t("public.multi.title");
   const headExtra =
     singleListing && baseUrl ? buildOgTags(singleListing, baseUrl) : undefined;
 
@@ -1174,12 +1192,13 @@ const renderOrderCard = (info: TicketListing): string => {
   const priceHtml =
     listing.unit_price > 0
       ? `<span class="order-card-price">${
-          listing.can_pay_more ? "From " : ""
+          listing.can_pay_more ? t("availability.from_prefix") : ""
         }${escapeHtml(formatCurrency(listing.unit_price))}</span>`
       : "";
 
   if (isSoldOut || isClosed || isReadOnly()) {
-    const status = isSoldOut && !isClosed ? "Sold Out" : "Unavailable";
+    const status =
+      isSoldOut && !isClosed ? t("public.sold_out") : t("public.unavailable");
     return `<div class="order-card order-card--unavailable">
         ${imageHtml}
         <span class="order-card-body">
@@ -1215,7 +1234,8 @@ export const orderGalleryPage = (
   websiteTitle?: string | null,
   introText?: string | null,
 ): string => {
-  const title = websiteTitle ? `Order - ${websiteTitle}` : "Order";
+  const orderTitle = t("nav.public.order");
+  const title = websiteTitle ? `${orderTitle} - ${websiteTitle}` : orderTitle;
   const cards = pipe(map(renderOrderCard), (rows: string[]) => rows.join(""))(
     listings,
   );
@@ -1231,7 +1251,7 @@ export const orderGalleryPage = (
       )}
       {listings.length === 0 ? (
         <p>
-          <em>No items are available to order right now.</em>
+          <em>{t("public.order.empty")}</em>
         </p>
       ) : (
         <form action="/order" class="order-gallery" method="get">
@@ -1244,7 +1264,7 @@ export const orderGalleryPage = (
           <button class="order-cart" type="submit">
             <Icon name="shopping-cart" />
             <span aria-hidden="true" class="order-cart-count"></span>
-            <span class="order-cart-label">View order</span>
+            <span class="order-cart-label">{t("public.order.view_order")}</span>
           </button>
         </form>
       )}

@@ -105,5 +105,6 @@
   "listings_table.recalculate_save": "Save recalculated totals",
   "listings_table.recalculate_success": "Listing totals recalculated",
   "listings_table.duration_warning_message": "Changing booking duration will update existing bookings for this listing.",
-  "listings_table.i_understand": "I understand"
+  "listings_table.i_understand": "I understand",
+  "listings_table.recalculate_description": "Compare the stored listing totals with totals counted from attendee records. Select only the stored values you want to replace."
 }
