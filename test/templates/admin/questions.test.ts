@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
+import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import {
   adminListingPage,
   buildAnswerSummaryRows,
@@ -142,6 +143,30 @@ describe("adminQuestionPage", () => {
     expect(html).toContain("No answers yet");
   });
 
+  test("renders answer price modifier labels", () => {
+    const question: QuestionWithAnswers = {
+      answers: [
+        {
+          calc_kind: "fixed",
+          calc_value: 2.5,
+          direction: "charge",
+          id: 10,
+          question_id: 1,
+          sort_order: 0,
+          text: "Premium",
+        },
+      ],
+      display_type: "radio" as const,
+      id: 1,
+      text: "Meal?",
+    };
+
+    const html = adminQuestionPage(question, TEST_SESSION);
+
+    expect(html).toContain("Premium");
+    expect(html).toContain("+£2.50");
+  });
+
   test("renders answer counts when provided", () => {
     const counts = new Map([
       [10, 5],
@@ -150,6 +175,32 @@ describe("adminQuestionPage", () => {
     const html = adminQuestionPage(question, TEST_SESSION, undefined, counts);
     expect(html).toContain("(5)");
     expect(html).toContain("(3)");
+  });
+
+  test("renders answer aggregate revenue totals", () => {
+    const html = adminQuestionPage(
+      {
+        ...question,
+        answers: [
+          {
+            ...question.answers[0]!,
+            total_revenue: 500,
+            total_uses: 2,
+            usage_count: 2,
+          },
+          {
+            ...question.answers[1]!,
+            total_revenue: undefined,
+            total_uses: 1,
+            usage_count: 1,
+          },
+        ],
+      },
+      TEST_SESSION,
+    );
+
+    expect(html).toContain("2 uses · £5");
+    expect(html).toContain("1 uses · £0");
   });
 
   test("renders move-up and move-down buttons", () => {

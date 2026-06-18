@@ -19,6 +19,9 @@ import { getPublicDefaultStatus } from "#shared/db/attendee-statuses.ts";
 import { buyerVisits, resolveModifiers } from "#shared/db/modifier-resolve.ts";
 import { consumeModifierStockOrRollback } from "#shared/db/modifier-usage.ts";
 import {
+  answerAmountAllocations,
+  answerModifierSpecs,
+  answerQuantitiesFromListingAnswers,
   groupListingAnswers,
   parseQuestionAnswers,
   saveAttendeeAnswers,
@@ -332,11 +335,14 @@ const handleFreePath = async (
   // stock-limited modifier that sold out between resolution and consumption
   // rolls the new attendee back so the buyer isn't granted a free order they
   // shouldn't have.
-  if (modifierUsages.length > 0) {
+  const stockModifierUsages = modifierUsages.filter(
+    (usage) => usage.source !== "answer",
+  );
+  if (stockModifierUsages.length > 0) {
     const attendeeId = result.entries[0]!.attendee.id;
     const consumed = await consumeModifierStockOrRollback(
       attendeeId,
-      modifierUsages,
+      stockModifierUsages,
     );
     if (!consumed) {
       return ticketFormErrorResponse(ctx)(MODIFIER_SOLD_OUT_MESSAGE);
@@ -361,6 +367,7 @@ const handleFreePath = async (
     );
     await saveAttendeeAnswers(
       groupListingAnswers(result.entries, listingAnswerMap),
+      answerAmountAllocations(modifierUsages),
     );
   }
 
@@ -384,6 +391,7 @@ const parseBookingDate = (
 type SubmissionPricingParams = Omit<CheckoutIntentParams, "modifiers"> & {
   addOns: Map<number, number>;
   promoCode: string;
+  quantities: Map<number, number>;
 };
 
 const priceSubmission = (
@@ -407,15 +415,25 @@ const priceSubmission = (
   return { intent, pricedOrder: priceCheckout(intent) };
 };
 
-const resolveSubmissionModifiers = (
+const resolveSubmissionModifiers = async (
   params: SubmissionPricingParams,
   visits = 0,
-): Promise<CheckoutIntent["modifiers"]> =>
-  resolveModifiers(params.items, {
-    addOns: params.addOns,
-    code: params.promoCode,
-    ctx: { visits },
-  });
+): Promise<CheckoutIntent["modifiers"]> => {
+  const listingAnswerIds = computeListingAnswerMap(params.ctx, params.info);
+  const answerQuantities = answerQuantitiesFromListingAnswers(
+    listingAnswerIds,
+    params.quantities,
+  );
+  const [resolvedModifiers, answerModifiers] = await Promise.all([
+    resolveModifiers(params.items, {
+      addOns: params.addOns,
+      code: params.promoCode,
+      ctx: { visits },
+    }),
+    answerModifierSpecs(params.info.answerIds, answerQuantities),
+  ]);
+  return [...resolvedModifiers, ...answerModifiers];
+};
 
 const priceSubmissionBeforeContact = async (
   params: SubmissionPricingParams,
@@ -526,6 +544,7 @@ const processSubmission = async (
     info,
     items,
     promoCode,
+    quantities,
     reservationAmount,
   };
   const { pricedOrder } = await priceSubmissionBeforeContact(pricingParams);
