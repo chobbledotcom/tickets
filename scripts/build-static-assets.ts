@@ -30,6 +30,7 @@ export const STATIC_ASSET_OUTFILES = {
 const buildBundle = async (
   label: string,
   options: esbuild.BuildOptions,
+  quiet = false,
 ): Promise<void> => {
   const result = await esbuild.build(options);
   if (result.errors.length > 0) {
@@ -39,6 +40,7 @@ const buildBundle = async (
     }
     Deno.exit(1);
   }
+  if (quiet) return;
   if (options.outfile) {
     console.log(`${label} build complete: ${options.outfile}`);
   } else {
@@ -114,67 +116,94 @@ const botpoisonResolvePlugin: Plugin = {
 };
 
 export const buildStaticAssets = async (
-  options: { stop?: boolean } = {},
+  options: { quiet?: boolean; stop?: boolean } = {},
 ): Promise<void> => {
-  await buildBundle("Scanner", {
-    bundle: true,
-    entryPoints: ["./src/ui/client/scanner.js"],
-    format: "iife",
-    minify: true,
-    outfile: STATIC_ASSET_OUTFILES.scanner,
-    platform: "browser",
-    plugins: [denoNpmResolvePlugin],
-  });
+  const quiet = options.quiet ?? false;
+  await Promise.all([
+    buildBundle(
+      "Scanner",
+      {
+        bundle: true,
+        entryPoints: ["./src/ui/client/scanner.js"],
+        format: "iife",
+        minify: true,
+        outfile: STATIC_ASSET_OUTFILES.scanner,
+        platform: "browser",
+        plugins: [denoNpmResolvePlugin],
+      },
+      quiet,
+    ),
 
-  await buildBundle("Admin", {
-    bundle: true,
-    entryPoints: ["./src/ui/client/admin.ts"],
-    format: "iife",
-    minify: true,
-    outfile: STATIC_ASSET_OUTFILES.admin,
-    platform: "browser",
-    plugins: [denoImportMapPlugin],
-  });
+    buildBundle(
+      "Admin",
+      {
+        bundle: true,
+        entryPoints: ["./src/ui/client/admin.ts"],
+        format: "iife",
+        minify: true,
+        outfile: STATIC_ASSET_OUTFILES.admin,
+        platform: "browser",
+        plugins: [denoImportMapPlugin],
+      },
+      quiet,
+    ),
 
-  await buildBundle("Embed", {
-    bundle: true,
-    entryPoints: ["./src/ui/client/embed.ts"],
-    format: "iife",
-    minify: true,
-    outfile: STATIC_ASSET_OUTFILES.embed,
-    platform: "browser",
-  });
+    buildBundle(
+      "Embed",
+      {
+        bundle: true,
+        entryPoints: ["./src/ui/client/embed.ts"],
+        format: "iife",
+        minify: true,
+        outfile: STATIC_ASSET_OUTFILES.embed,
+        platform: "browser",
+      },
+      quiet,
+    ),
 
-  await buildBundle("Contact", {
-    bundle: true,
-    entryPoints: ["./src/ui/client/contact.ts"],
-    format: "iife",
-    minify: true,
-    outfile: STATIC_ASSET_OUTFILES.contact,
-    platform: "browser",
-    plugins: [botpoisonResolvePlugin],
-  });
+    buildBundle(
+      "Contact",
+      {
+        bundle: true,
+        entryPoints: ["./src/ui/client/contact.ts"],
+        format: "iife",
+        minify: true,
+        outfile: STATIC_ASSET_OUTFILES.contact,
+        platform: "browser",
+        plugins: [botpoisonResolvePlugin],
+      },
+      quiet,
+    ),
 
-  await buildBundle("iframe-resizer-parent", {
-    bundle: true,
-    entryPoints: ["./src/ui/client/iframe-resizer-parent.ts"],
-    format: "iife",
-    minify: true,
-    outfile: STATIC_ASSET_OUTFILES.iframeResizerParent,
-    platform: "browser",
-    plugins: [iframeResizerResolvePlugin],
-  });
+    buildBundle(
+      "iframe-resizer-parent",
+      {
+        bundle: true,
+        entryPoints: ["./src/ui/client/iframe-resizer-parent.ts"],
+        format: "iife",
+        minify: true,
+        outfile: STATIC_ASSET_OUTFILES.iframeResizerParent,
+        platform: "browser",
+        plugins: [iframeResizerResolvePlugin],
+      },
+      quiet,
+    ),
 
-  await buildBundle("iframe-resizer-child", {
-    banner: { js: "window.iframeResizer={license:'GPLv3'};" },
-    bundle: true,
-    entryPoints: ["./src/ui/client/iframe-resizer-child.ts"],
-    format: "iife",
-    minify: true,
-    outfile: STATIC_ASSET_OUTFILES.iframeResizerChild,
-    platform: "browser",
-    plugins: [iframeResizerResolvePlugin],
-  });
+    buildBundle(
+      "iframe-resizer-child",
+      {
+        banner: { js: "window.iframeResizer={license:'GPLv3'};" },
+        bundle: true,
+        entryPoints: ["./src/ui/client/iframe-resizer-child.ts"],
+        format: "iife",
+        minify: true,
+        outfile: STATIC_ASSET_OUTFILES.iframeResizerChild,
+        platform: "browser",
+        plugins: [iframeResizerResolvePlugin],
+      },
+      quiet,
+    ),
+  ]);
 
   if (options.stop) {
     esbuild.stop();
