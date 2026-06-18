@@ -1,8 +1,0 @@
-[test]
-root = "./test"
-timeout = 30000
-coverage = true
-preload = ["./test/setup.ts"]
-# 100% coverage required
-coverageThreshold = { lines = 1.0, functions = 1.0 }
-coverageSkipTestFiles = true

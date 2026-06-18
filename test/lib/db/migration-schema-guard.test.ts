@@ -35,7 +35,7 @@ describe("db > migrations > schema change guard", () => {
         "2026-06-18_modifier_min_visits",
         "2026-06-18_question_display_type",
       ],
-      schemaHash: "hnqqa9",
+      schemaHash: "b7t80j",
     });
   });
 });
