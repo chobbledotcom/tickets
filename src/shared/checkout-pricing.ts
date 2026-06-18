@@ -17,7 +17,10 @@ import type {
   ModifierSpec,
 } from "#shared/payments.ts";
 import { modifierDelta } from "#shared/price-modifier.ts";
-import { computeReservationDeposit } from "#shared/reservation-amount.ts";
+import {
+  allocateReservationDeposit,
+  computeReservationDeposit,
+} from "#shared/reservation-amount.ts";
 
 /** One ticket line and the amount charged per unit (deposit- and
  * discount-aware). A single cart item can split into several lines when a
@@ -169,6 +172,21 @@ const reservationLines = (
   return toLines(units.map((u, i) => ({ ...u, price: allocations[i]! })));
 };
 
+const unmodifiedReservationLines = (
+  intent: CheckoutIntent,
+  reservationAmount: string,
+): PricedLine[] => {
+  const allocation = allocateReservationDeposit(
+    reservationAmount,
+    intent.items,
+  );
+  return allocation.lines.map((line) => ({
+    chargedUnitAmount: line.chargedUnitAmount,
+    item: intent.items[line.itemIndex]!,
+    quantity: line.quantity,
+  }));
+};
+
 /** State threaded while applying modifiers one at a time. */
 type ModifierPass = {
   units: WorkUnit[];
@@ -245,16 +263,23 @@ export const applyModifiers = (
  * final modified full subtotal.
  */
 export const priceCheckout = (intent: CheckoutIntent): PricedOrder => {
+  const modifierSpecs = intent.modifiers ?? [];
   const baseLines: PricedLine[] = intent.items.map((item) => ({
     chargedUnitAmount: item.unitPrice,
     item,
     quantity: item.quantity,
   }));
-  const modifiers = applyModifiers(baseLines, intent.modifiers ?? []);
+  const modifiers = applyModifiers(baseLines, modifierSpecs);
   // The booking fee is charged on the full order plus any net modifier change.
   const fullSubtotal = feeSubtotalFor(intent) + modifiers.modifierTotal;
   const lines = intent.reservationAmount
-    ? reservationLines(modifiers.lines, intent.reservationAmount, fullSubtotal)
+    ? modifierSpecs.length === 0 && intent.feeSubtotal === undefined
+      ? unmodifiedReservationLines(intent, intent.reservationAmount)
+      : reservationLines(
+          modifiers.lines,
+          intent.reservationAmount,
+          fullSubtotal,
+        )
     : modifiers.lines;
   const extras = [
     ...(intent.reservationAmount ? [] : modifiers.extras),
