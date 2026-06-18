@@ -159,7 +159,7 @@ describe("adminListingEditPage form sections", () => {
       income: { current: 2500, recalculated: 1500 },
       tickets_count: { current: 3, recalculated: 3 },
     });
-    expect(html).toContain("Error");
+    expect(html).toContain("Mismatch");
     expect(html).toContain("expected <strong>4</strong>, got");
     expect(html).toContain("expected <strong>£15</strong>, got");
     expect(html).toContain(`/admin/listings/recalculate/${listing.id}`);
@@ -446,7 +446,8 @@ describe("adminListingPage", () => {
     });
     expect(html).toContain("Running total check");
     expect(html).toContain("expected <strong>1</strong>, got");
-    expect(html).toContain("Click for info");
+    expect(html).toContain("Mismatch");
+    expect(html).not.toContain("Click for info");
   });
 
   test("renders no Group Attendees row when groupContext is omitted", () => {
