@@ -174,6 +174,7 @@ export const adminModifierRecalculatePage = (
     action: `/admin/modifiers/recalculate/${modifier.id}`,
     active: "/admin/modifiers",
     currentLabel: t("modifiers.recalculate.current"),
+    description: t("modifiers.recalculate.description"),
     error,
     recalculatedLabel: t("modifiers.recalculate.from_attendees"),
     rows: modifierRecalculateRows(snapshot),
@@ -257,13 +258,14 @@ export const adminModifierEditPage = (
   session: AdminSession,
   error?: string,
   links?: ScopeLinks | null,
+  success?: string,
 ): string =>
   String(
     <Layout title={t("modifiers.edit.heading")}>
       <AdminNav active="/admin/modifiers" session={session} />
       <CsrfForm action={`/admin/modifiers/${modifier.id}/edit`}>
         <h1>{t("modifiers.edit.heading")}</h1>
-        <Flash error={error} />
+        <Flash error={error} success={success} />
         <Raw
           html={renderFields(modifierFields, modifierToFieldValues(modifier))}
         />
