@@ -258,7 +258,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
         "/admin/guide",
         "/admin/guide",
         "Listings",
-        "Logout",
+        "Log out",
       );
     });
 

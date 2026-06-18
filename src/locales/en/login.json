@@ -19,5 +19,8 @@
   "password.current": "Current Password",
   "password.new": "New Password",
   "password.new_hint": "Minimum 8 characters",
-  "password.confirm": "Confirm New Password"
+  "password.confirm": "Confirm New Password",
+  "logout.title": "Log out",
+  "logout.confirm_heading": "Are you sure you want to log out?",
+  "logout.confirm_body": "You will need to log in again to manage tickets."
 }
