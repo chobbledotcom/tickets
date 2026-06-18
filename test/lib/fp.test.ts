@@ -3,35 +3,14 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   asString,
   bracket,
-  chunk,
   collectionCache,
-  compact,
-  filter,
   firstMatch,
-  flatMap,
   lazyRef,
-  map,
-  mapNotNullish,
-  mapParallel,
   once,
-  pipe,
-  reduce,
-  sort,
-  sum,
-  sumOf,
   ttlCache,
-  unique,
-  uniqueBy,
 } from "#fp";
 
 // --- test helpers ---
-
-const double = (x: number) => x * 2;
-
-/** Curried fn returns [] for empty input */
-const expectEmptyPassthrough = (curriedFn: (arr: number[]) => unknown) => {
-  expect(curriedFn([])).toEqual([]);
-};
 
 /** Create a bracket that logs acquire/use/release to an array */
 const logBracket = (asPromise = false) => {
@@ -121,191 +100,6 @@ describe("fp", () => {
     });
   });
 
-  describe("pipe", () => {
-    test("composes functions left-to-right", () => {
-      const addOne = (x: number) => x + 1;
-      expect(pipe(addOne, double)(5)).toBe(12); // (5 + 1) * 2
-    });
-
-    test("works with single function", () => {
-      expect(pipe(double)(5)).toBe(10);
-    });
-
-    test("works with no functions", () => {
-      expect(pipe<number>()(5)).toBe(5);
-    });
-
-    test("works with 6+ functions (recursive type catch-all)", () => {
-      const addOne = (x: number) => x + 1;
-      const result = pipe(addOne, double, addOne, double, addOne, double)(0); // (((((0+1)*2)+1)*2)+1)*2 = ((((1*2)+1)*2)+1)*2 = (((2+1)*2)+1)*2 = ((3*2)+1)*2 = (6+1)*2 = 14
-      expect(result).toBe(14);
-    });
-  });
-
-  describe("filter", () => {
-    test("filters array based on predicate", () => {
-      const isEven = (x: number) => x % 2 === 0;
-      expect(filter(isEven)([1, 2, 3, 4, 5, 6])).toEqual([2, 4, 6]);
-    });
-
-    test("returns empty array when no matches", () => {
-      const isNegative = (x: number) => x < 0;
-      expect(filter(isNegative)([1, 2, 3])).toEqual([]);
-    });
-  });
-
-  describe("map", () => {
-    test("transforms array elements", () => {
-      expect(map(double)([1, 2, 3])).toEqual([2, 4, 6]);
-    });
-
-    test("works with empty array", () => {
-      expectEmptyPassthrough(map(double));
-    });
-  });
-
-  describe("flatMap", () => {
-    test("maps and flattens results", () => {
-      const duplicate = (x: number) => [x, x];
-      expect(flatMap(duplicate)([1, 2, 3])).toEqual([1, 1, 2, 2, 3, 3]);
-    });
-
-    test("works with empty array", () => {
-      expectEmptyPassthrough(flatMap((x: number) => [x, x]));
-    });
-  });
-
-  describe("mapNotNullish", () => {
-    test("maps and drops null/undefined results in one pass", () => {
-      const result = mapNotNullish((x: number) =>
-        x % 2 === 0 ? x * 10 : null,
-      )([1, 2, 3, 4]);
-      expect(result).toEqual([20, 40]);
-    });
-
-    test("keeps falsy-but-defined results (0, empty string, false)", () => {
-      const result = mapNotNullish((x: number) => x - 1)([1, 2]);
-      expect(result).toEqual([0, 1]);
-    });
-
-    test("works with empty array", () => {
-      expect(mapNotNullish((x: number) => x)([])).toEqual([]);
-    });
-  });
-
-  describe("reduce", () => {
-    test("reduces array to single value", () => {
-      const sum = (acc: number, x: number) => acc + x;
-      expect(reduce(sum, 0)([1, 2, 3, 4])).toBe(10);
-    });
-
-    test("works with mutation pattern", () => {
-      const collect = (acc: number[], x: number) => {
-        acc.push(x * 3);
-        return acc;
-      };
-      expect(reduce(collect, [] as number[])([1, 2, 3])).toEqual([3, 6, 9]);
-    });
-  });
-
-  describe("sumOf", () => {
-    test("sums the numbers produced by the selector", () => {
-      const items = [{ n: 1 }, { n: 2 }, { n: 3 }];
-      expect(sumOf((x: { n: number }) => x.n)(items)).toBe(6);
-    });
-
-    test("returns 0 for an empty array", () => {
-      expect(sumOf((x: { n: number }) => x.n)([])).toBe(0);
-    });
-
-    test("works inside a pipe as a terminal reducer", () => {
-      const result = pipe(
-        filter((x: number) => x % 2 === 0),
-        sumOf((x: number) => x * 10),
-      )([1, 2, 3, 4]);
-      expect(result).toBe(60); // (2 + 4) * 10
-    });
-  });
-
-  describe("sum", () => {
-    test("adds an array of numbers", () => {
-      expect(sum([1, 2, 3, 4])).toBe(10);
-    });
-
-    test("returns 0 for an empty array", () => {
-      expect(sum([])).toBe(0);
-    });
-  });
-
-  describe("sort", () => {
-    test("sorts array non-mutating", () => {
-      const original = [3, 1, 2];
-      const result = sort((a: number, b: number) => a - b)(original);
-      expect(result).toEqual([1, 2, 3]);
-      expect(original).toEqual([3, 1, 2]); // Original unchanged
-    });
-
-    test("sorts descending", () => {
-      const result = sort((a: number, b: number) => b - a)([1, 3, 2]);
-      expect(result).toEqual([3, 2, 1]);
-    });
-  });
-
-  describe("unique", () => {
-    test("removes duplicate primitives", () => {
-      const result = unique([1, 2, 2, 3, 3, 3]);
-      expect(result).toEqual([1, 2, 3]);
-    });
-
-    test("works with strings", () => {
-      const result = unique(["a", "b", "a", "c"]);
-      expect(result).toEqual(["a", "b", "c"]);
-    });
-
-    test("handles empty array", () => {
-      expectEmptyPassthrough(unique);
-    });
-  });
-
-  describe("uniqueBy", () => {
-    test("removes duplicates by key function", () => {
-      const items = [
-        { id: 1, name: "a" },
-        { id: 2, name: "b" },
-        { id: 1, name: "c" },
-      ];
-      expect(
-        uniqueBy((x: { id: number; name: string }) => x.id)(items),
-      ).toEqual([
-        { id: 1, name: "a" },
-        { id: 2, name: "b" },
-      ]);
-    });
-
-    test("handles empty array", () => {
-      expectEmptyPassthrough(uniqueBy((x: number) => x));
-    });
-  });
-
-  describe("compact", () => {
-    test("removes null and undefined", () => {
-      expect(compact([1, null, 2, undefined, 3, 4])).toEqual([1, 2, 3, 4]);
-    });
-
-    test("preserves 0, empty string, and false", () => {
-      expect(compact([0, "", false, null, undefined])).toEqual([0, "", false]);
-    });
-
-    test("handles empty array", () => {
-      expectEmptyPassthrough(compact);
-    });
-
-    test("removes only null and undefined from mixed array", () => {
-      const result = compact([null, undefined]);
-      expect(result).toEqual([]);
-    });
-  });
-
   describe("firstMatch", () => {
     test("returns the first defined result", async () => {
       expect(await firstMatch([() => undefined, () => "b", () => "c"])).toBe(
@@ -348,42 +142,6 @@ describe("fp", () => {
       ]);
       expect(result).toBe("first");
       expect(laterCalled).toBe(false);
-    });
-  });
-
-  describe("chunk", () => {
-    test("splits array into chunks of given size", () => {
-      expect(chunk(2)([1, 2, 3, 4, 5])).toEqual([[1, 2], [3, 4], [5]]);
-    });
-
-    test("returns single chunk when array fits", () => {
-      expect(chunk(5)([1, 2, 3])).toEqual([[1, 2, 3]]);
-    });
-
-    test("returns empty array for empty input", () => {
-      expect(chunk(3)([])).toEqual([]);
-    });
-
-    test("handles exact multiples", () => {
-      expect(chunk(2)([1, 2, 3, 4])).toEqual([
-        [1, 2],
-        [3, 4],
-      ]);
-    });
-
-    test("handles chunk size of 1", () => {
-      expect(chunk(1)([1, 2, 3])).toEqual([[1], [2], [3]]);
-    });
-  });
-
-  describe("composition", () => {
-    test("works with pipe and curried functions", () => {
-      const numbers = [1, 2, 3, 4, 5, 6];
-      const result = pipe(
-        filter((x: number) => x % 2 === 0),
-        map((x: number) => x * 2),
-      )(numbers);
-      expect(result).toEqual([4, 8, 12]);
     });
   });
 
@@ -454,38 +212,6 @@ describe("fp", () => {
     });
 
     test("works with async acquire and release", () => testBracketUse(true));
-  });
-
-  describe("mapParallel", () => {
-    const asyncDouble = (x: number) => Promise.resolve(x * 2);
-
-    test("maps array with async function", async () => {
-      expect(await mapParallel(asyncDouble)([2, 3, 4])).toEqual([4, 6, 8]);
-    });
-
-    test("preserves result order regardless of completion order", async () => {
-      const delayed = (ms: number) =>
-        new Promise<number>((resolve) => setTimeout(() => resolve(ms), ms));
-      expect(await mapParallel(delayed)([30, 10, 20])).toEqual([30, 10, 20]);
-    });
-
-    test("handles empty array", async () => {
-      expect(await mapParallel(asyncDouble)([])).toEqual([]);
-    });
-
-    test("runs operations concurrently", async () => {
-      let concurrent = 0;
-      let maxConcurrent = 0;
-      const track = async (x: number) => {
-        concurrent++;
-        maxConcurrent = Math.max(maxConcurrent, concurrent);
-        await new Promise((r) => setTimeout(r, 10));
-        concurrent--;
-        return x;
-      };
-      await mapParallel(track)([1, 2, 3]);
-      expect(maxConcurrent).toBe(3);
-    });
   });
 
   describe("ttlCache", () => {

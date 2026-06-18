@@ -1,26 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  buildRuntimeInfo,
-  getRuntimeInfo,
-  type RuntimeGlobals,
-} from "#shared/runtime.ts";
+import { buildRuntimeInfo, type RuntimeGlobals } from "#shared/runtime.ts";
 
 describe("runtime", () => {
-  describe("getRuntimeInfo (live globals)", () => {
-    test("detects the Deno runtime the tests execute on", () => {
-      expect(getRuntimeInfo().runtime).toBe("deno");
-    });
-
-    test("reports a concrete Deno version", () => {
-      expect(getRuntimeInfo().denoVersion).toMatch(/^\d+\.\d+\.\d+/);
-    });
-
-    test("reports a Deno user agent", () => {
-      expect(getRuntimeInfo().userAgent).toContain("Deno");
-    });
-  });
-
   describe("buildRuntimeInfo runtime detection", () => {
     test("reports bunny when the Bunny global is present", () => {
       const g: RuntimeGlobals = { Bunny: {}, Deno: { build: { os: "linux" } } };

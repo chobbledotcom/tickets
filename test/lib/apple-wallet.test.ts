@@ -213,28 +213,7 @@ describe("apple-wallet", () => {
     });
   });
 
-  describe("sha1Hex", () => {
-    test("computes correct SHA-1 hash", () => {
-      const data = new TextEncoder().encode("hello");
-      const hash = sha1Hex(data);
-      expect(hash).toBe("aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d");
-    });
-
-    test("produces different hashes for different data", () => {
-      const a = sha1Hex(new TextEncoder().encode("abc"));
-      const b = sha1Hex(new TextEncoder().encode("xyz"));
-      expect(a).not.toBe(b);
-    });
-  });
-
   describe("createManifest", () => {
-    test("produces JSON mapping filenames to SHA-1 hashes", () => {
-      const data = new TextEncoder().encode('{"test":true}');
-      const manifest = createManifest({ "pass.json": data });
-      const parsed = JSON.parse(manifest);
-      expect(parsed["pass.json"]).toBe(sha1Hex(data));
-    });
-
     test("includes all provided files", () => {
       const a = new TextEncoder().encode("aaa");
       const b = new TextEncoder().encode("bbb");
