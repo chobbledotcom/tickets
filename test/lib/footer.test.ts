@@ -192,9 +192,14 @@ describe("adminFooterHtml", () => {
     expect(html).toContain("Chobble Tickets</a>");
   });
 
-  test("includes a logout form", () => {
+  test("includes inline utility links separated by dots", () => {
     const html = adminFooterHtml(null);
-    expect(html).toContain('action="/admin/logout"');
+    expect(html).toContain('<div class="admin-footer-links">');
+    expect(html).toContain(
+      '<a href="/admin/log">Log</a> &middot; <a href="/admin/guide">Guide</a> &middot; <a href="/admin/logout">Log out</a>',
+    );
+    expect(html).not.toContain('action="/admin/logout"');
+    expect(html).not.toContain("#log-out");
   });
 
   test("omits the debug menu when no debug data is supplied", () => {
@@ -226,7 +231,7 @@ describe("renderAdminFooter", () => {
       markAdminFooter();
       const html = renderAdminFooter();
       expect(html).toContain('<footer class="admin-footer">');
-      expect(html).toContain('action="/admin/logout"');
+      expect(html).toContain('<a href="/admin/logout">Log out</a>');
       expect(html).not.toContain("debug-menu");
     });
   });

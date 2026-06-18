@@ -6,6 +6,7 @@ import { capacityErrorFormatter } from "#routes/format.ts";
 import { builderApi } from "#shared/builder.ts";
 import { addDays } from "#shared/dates.ts";
 import { insertBuiltSite } from "#shared/db/built-sites.ts";
+import { hashPhone, recordVisit } from "#shared/db/contact-preferences.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import {
   answersTable,
@@ -2258,6 +2259,88 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
       );
     });
 
+    test("Square requires email when a returning-customer charge makes a free listing paid", async () => {
+      await settings.update.paymentProvider("square");
+      await recordVisit(await hashPhone("555-1234"));
+      const listing = await createTestListing({
+        fields: "phone",
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com/thanks",
+        unitPrice: 0,
+      });
+      await modifiersTable.insert({
+        calcKind: "fixed",
+        calcValue: 5,
+        direction: "charge",
+        minVisits: 1,
+        name: "Returning customer fee",
+        trigger: "automatic",
+      });
+
+      const response = await submitTicketForm(listing.slug, {
+        name: "John Doe",
+        phone: "555-1234",
+      });
+
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Your Email is required"),
+        false,
+      );
+    });
+
+    test("Square redirects when a returning-customer charge has the required email", async () => {
+      await settings.update.paymentProvider("square");
+      await settings.update.square.accessToken("EAAAl_test_123");
+      await settings.update.square.locationId("L_test_123");
+      await recordVisit(await hashPhone("555-1234"));
+      const listing = await createTestListing({
+        fields: "phone",
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com/thanks",
+        unitPrice: 0,
+      });
+      await modifiersTable.insert({
+        calcKind: "fixed",
+        calcValue: 5,
+        direction: "charge",
+        minVisits: 1,
+        name: "Returning customer fee",
+        trigger: "automatic",
+      });
+      const { squarePaymentProvider } = await import(
+        "#shared/square-provider.ts"
+      );
+      let capturedIntent:
+        | import("#shared/payments.ts").CheckoutIntent
+        | undefined;
+      const checkout = stub(
+        squarePaymentProvider,
+        "createCheckoutSession",
+        (intent: import("#shared/payments.ts").CheckoutIntent) => {
+          capturedIntent = intent;
+          return Promise.resolve({
+            checkoutUrl: "https://square.example/checkout",
+            sessionId: "square_order_123",
+          });
+        },
+      );
+
+      try {
+        const response = await submitTicketForm(listing.slug, {
+          email: "john@example.com",
+          name: "John Doe",
+          phone: "555-1234",
+        });
+
+        expectCheckoutRedirect(response);
+        expect(capturedIntent?.email).toBe("john@example.com");
+      } finally {
+        checkout.restore();
+      }
+    });
+
     test("ticket form with invalid quantity rejects submission", async () => {
       const listing = await createTestListing({
         maxAttendees: 50,
@@ -4429,7 +4512,10 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
   describe("single-ticket with custom questions", () => {
     /** Create a question with answers and assign it to an listing */
     const setupQuestionForListing = async (listingId: number) => {
-      const q = await questionsTable.insert({ text: "T-shirt size?" });
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "T-shirt size?",
+      });
       const a1 = await answersTable.insert({
         questionId: q.id,
         sortOrder: 0,
@@ -4528,7 +4614,10 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
 
   describe("ticket with custom questions", () => {
     const setupQuestionForListings = async (listingIds: number[]) => {
-      const q = await questionsTable.insert({ text: "Dietary needs?" });
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "Dietary needs?",
+      });
       const a1 = await answersTable.insert({
         questionId: q.id,
         sortOrder: 0,
@@ -4592,7 +4681,10 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
         name: "Multi Evt B",
       });
       // Question 1 assigned to listing1 only
-      const q1 = await questionsTable.insert({ text: "Listing A question?" });
+      const q1 = await questionsTable.insert({
+        displayType: "radio",
+        text: "Listing A question?",
+      });
       const a1 = await answersTable.insert({
         questionId: q1.id,
         sortOrder: 0,
@@ -4601,7 +4693,10 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
       await setListingQuestions(listing1.id, [q1.id]);
 
       // Question 2 assigned to listing2 only
-      const q2 = await questionsTable.insert({ text: "Listing B question?" });
+      const q2 = await questionsTable.insert({
+        displayType: "radio",
+        text: "Listing B question?",
+      });
       const a2 = await answersTable.insert({
         questionId: q2.id,
         sortOrder: 0,
@@ -4643,7 +4738,10 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
         name: "Multi Q Shared 2",
       });
       // Question assigned to BOTH listings
-      const q1 = await questionsTable.insert({ text: "Shared question?" });
+      const q1 = await questionsTable.insert({
+        displayType: "radio",
+        text: "Shared question?",
+      });
       const a1 = await answersTable.insert({
         questionId: q1.id,
         sortOrder: 0,
@@ -4683,7 +4781,10 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
         name: "Multi Q Filter 2",
       });
       // Only assign question to listing1
-      const q = await questionsTable.insert({ text: "Listing1 question?" });
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "Listing1 question?",
+      });
       await answersTable.insert({
         questionId: q.id,
         sortOrder: 0,

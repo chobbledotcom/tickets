@@ -669,4 +669,47 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       expect(modifier.code_index).toBeNull();
     });
   });
+
+  describe("returning-customer gate", () => {
+    test("stores the minimum previous bookings gate", async () => {
+      await adminFormPost("/admin/modifiers", createData({ min_visits: "2" }));
+      expect((await lastModifier()).min_visits).toBe(2);
+    });
+
+    test("rejects minimum previous bookings on optional add-ons", async () => {
+      const { response } = await adminFormPost(
+        "/admin/modifiers",
+        createData({ min_visits: "1", trigger: "optional" }),
+      );
+      expectRedirectWithFlash(
+        "/admin/modifiers/new",
+        "Optional add-ons cannot require previous bookings",
+        false,
+      )(response);
+    });
+
+    test("rejects a negative minimum previous bookings value", async () => {
+      const { response } = await adminFormPost(
+        "/admin/modifiers",
+        createData({ min_visits: "-1" }),
+      );
+      expectRedirectWithFlash(
+        "/admin/modifiers/new",
+        "Minimum previous bookings must be a whole number of 0 or more",
+        false,
+      )(response);
+    });
+
+    test("rejects a fractional minimum previous bookings value", async () => {
+      const { response } = await adminFormPost(
+        "/admin/modifiers",
+        createData({ min_visits: "1.5" }),
+      );
+      expectRedirectWithFlash(
+        "/admin/modifiers/new",
+        "Minimum previous bookings must be a whole number of 0 or more",
+        false,
+      )(response);
+    });
+  });
 });

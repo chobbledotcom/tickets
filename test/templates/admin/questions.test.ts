@@ -40,6 +40,7 @@ describe("adminQuestionsPage", () => {
             { id: 10, question_id: 1, sort_order: 0, text: "Red" },
             { id: 11, question_id: 1, sort_order: 1, text: "Blue" },
           ],
+          display_type: "radio" as const,
           id: 1,
           text: "Favourite colour?",
         },
@@ -55,6 +56,7 @@ describe("adminQuestionsPage", () => {
       [
         {
           answers: [{ id: 10, question_id: 1, sort_order: 0, text: "Yes" }],
+          display_type: "radio" as const,
           id: 1,
           text: "Yes or no?",
         },
@@ -70,11 +72,13 @@ describe("adminQuestionsPage", () => {
       [
         {
           answers: [{ id: 10, question_id: 1, sort_order: 0, text: "A" }],
+          display_type: "radio" as const,
           id: 1,
           text: "First Q",
         },
         {
           answers: [{ id: 20, question_id: 2, sort_order: 0, text: "B" }],
+          display_type: "radio" as const,
           id: 2,
           text: "Second Q",
         },
@@ -101,6 +105,7 @@ describe("adminQuestionPage", () => {
       { id: 10, question_id: 1, sort_order: 0, text: "Small" },
       { id: 11, question_id: 1, sort_order: 1, text: "Large" },
     ],
+    display_type: "radio" as const,
     id: 1,
     text: "T-shirt size?",
   };
@@ -131,7 +136,7 @@ describe("adminQuestionPage", () => {
 
   test("renders empty answers state", () => {
     const html = adminQuestionPage(
-      { answers: [], id: 1, text: "Q?" },
+      { answers: [], display_type: "radio" as const, id: 1, text: "Q?" },
       TEST_SESSION,
     );
     expect(html).toContain("No answers yet");
@@ -162,6 +167,7 @@ describe("adminQuestionPage", () => {
         { id: 11, question_id: 1, sort_order: 1, text: "B" },
         { id: 12, question_id: 1, sort_order: 2, text: "C" },
       ],
+      display_type: "radio" as const,
       id: 1,
       text: "Q?",
     };
@@ -213,6 +219,7 @@ describe("adminQuestionPage", () => {
 describe("adminQuestionDeletePage", () => {
   const question = {
     answers: [{ id: 10, question_id: 1, sort_order: 0, text: "Small" }],
+    display_type: "radio" as const,
     id: 1,
     text: "T-shirt size?",
   };
@@ -247,6 +254,7 @@ describe("adminAnswerDeletePage", () => {
       { id: 10, question_id: 1, sort_order: 0, text: "Small" },
       { id: 11, question_id: 1, sort_order: 1, text: "Large" },
     ],
+    display_type: "radio" as const,
     id: 1,
     text: "T-shirt size?",
   };
@@ -295,6 +303,7 @@ describe("adminListingQuestionsPage", () => {
     const questions = [
       {
         answers: [{ id: 10, question_id: 1, sort_order: 0, text: "Yes" }],
+        display_type: "radio" as const,
         id: 1,
         text: "Yes or no?",
       },
@@ -317,6 +326,7 @@ describe("adminListingQuestionsPage", () => {
           { id: 10, question_id: 1, sort_order: 0, text: "A" },
           { id: 11, question_id: 1, sort_order: 1, text: "B" },
         ],
+        display_type: "radio" as const,
         id: 1,
         text: "Q?",
       },
@@ -340,6 +350,7 @@ describe("adminListingQuestionsPage", () => {
           { id: 11, question_id: 1, sort_order: 1, text: "M" },
           { id: 12, question_id: 1, sort_order: 2, text: "L" },
         ],
+        display_type: "radio" as const,
         id: 1,
         text: "Size?",
       },
@@ -378,6 +389,7 @@ describe("buildAnswerSummaryRows", () => {
             { id: 10, question_id: 1, sort_order: 0, text: "Small" },
             { id: 11, question_id: 1, sort_order: 1, text: "Large" },
           ],
+          display_type: "radio" as const,
           id: 1,
           text: "Size?",
         },
@@ -394,6 +406,7 @@ describe("buildAnswerSummaryRows", () => {
       questions: [
         {
           answers: [{ id: 10, question_id: 1, sort_order: 0, text: "A" }],
+          display_type: "radio" as const,
           id: 1,
           text: "Q?",
         },
@@ -414,6 +427,7 @@ describe("adminListingPage with questionData", () => {
         questions: [
           {
             answers: [{ id: 10, question_id: 1, sort_order: 0, text: "S" }],
+            display_type: "radio" as const,
             id: 1,
             text: "Size?",
           },

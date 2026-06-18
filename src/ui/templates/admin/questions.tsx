@@ -9,7 +9,7 @@ import { answerTextForm, questionTextForm } from "#routes/admin/questions.ts";
 import type { Answer, QuestionWithAnswers } from "#shared/db/questions.ts";
 import { ConfirmForm, CsrfForm, Flash } from "#shared/forms.tsx";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
-import { AdminNav } from "#templates/admin/nav.tsx";
+import { AdminNav, SettingsSubNav } from "#templates/admin/nav.tsx";
 import { GuideLink, SubmitButton } from "#templates/components/actions.tsx";
 import { Layout } from "#templates/layout.tsx";
 
@@ -21,7 +21,8 @@ export const adminQuestionsPage = (
 ): string =>
   String(
     <Layout title={t("questions.title")}>
-      <AdminNav active="/admin/questions" session={session} />
+      <AdminNav active="/admin/settings" session={session} />
+      <SettingsSubNav />
 
       <div class="prose">
         <h1>{t("questions.heading")}</h1>
@@ -88,13 +89,19 @@ export const adminQuestionPage = (
 ): string =>
   String(
     <Layout title={`Question: ${question.text}`}>
-      <AdminNav active="/admin/questions" session={session} />
+      <AdminNav active="/admin/settings" session={session} />
+      <SettingsSubNav />
 
       <h1>{question.text}</h1>
       <Flash error={error} />
 
       <CsrfForm action={`/admin/questions/${question.id}/edit`}>
-        <Raw html={questionTextForm.render({ text: question.text })} />
+        <Raw
+          html={questionTextForm.render({
+            display_type: question.display_type,
+            text: question.text,
+          })}
+        />
         <SubmitButton icon="save">{t("questions.edit.update")}</SubmitButton>
       </CsrfForm>
 
@@ -195,7 +202,8 @@ export const adminQuestionDeletePage = (
 ): string =>
   String(
     <Layout title={t("questions.delete.heading")}>
-      <AdminNav active="/admin/questions" session={session} />
+      <AdminNav active="/admin/settings" session={session} />
+      <SettingsSubNav />
 
       <ConfirmForm
         action={`/admin/questions/${question.id}/delete`}
@@ -220,7 +228,8 @@ export const adminAnswerDeletePage = (
 ): string =>
   String(
     <Layout title={t("questions.delete_answer.title")}>
-      <AdminNav active="/admin/questions" session={session} />
+      <AdminNav active="/admin/settings" session={session} />
+      <SettingsSubNav />
 
       <ConfirmForm
         action={`/admin/questions/${question.id}/answers/${answer.id}/delete`}

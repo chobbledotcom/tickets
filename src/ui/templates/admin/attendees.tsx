@@ -236,17 +236,34 @@ export const EditQuestions = ({
     {questions.map((q) => (
       <fieldset class="custom-question">
         <legend>{q.text}</legend>
-        {q.answers.map((a) => (
+        {q.display_type === "select" ? (
           <label>
-            <input
-              checked={selectedAnswerIds.includes(a.id)}
-              name={`question_${q.id}`}
-              type="radio"
-              value={String(a.id)}
-            />{" "}
-            {a.text}
+            <span class="sr-only">{q.text}</span>
+            <select name={`question_${q.id}`}>
+              <option value="">No answer</option>
+              {q.answers.map((a) => (
+                <option
+                  selected={selectedAnswerIds.includes(a.id) || undefined}
+                  value={String(a.id)}
+                >
+                  {a.text}
+                </option>
+              ))}
+            </select>
           </label>
-        ))}
+        ) : (
+          q.answers.map((a) => (
+            <label>
+              <input
+                checked={selectedAnswerIds.includes(a.id)}
+                name={`question_${q.id}`}
+                type="radio"
+                value={String(a.id)}
+              />{" "}
+              {a.text}
+            </label>
+          ))
+        )}
       </fieldset>
     ))}
   </>

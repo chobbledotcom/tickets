@@ -420,6 +420,8 @@ export interface Modifier {
   scope: ModifierScope;
   /** Minimum in-scope subtotal (minor units) for the modifier to apply. */
   min_subtotal: number;
+  /** Minimum prior bookings required for the modifier to apply. */
+  min_visits: number;
   /** Remaining-stock cap, or null for unlimited. Consumed monotonically. */
   stock: number | null;
   /** Trigger-maintained SUM(quantity) over this modifier's usage rows. */

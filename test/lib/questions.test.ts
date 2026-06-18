@@ -40,7 +40,10 @@ const createAttendee = async (listingId: number, name = "Alice") => {
 describeWithEnv("custom questions", { db: true }, () => {
   describe("questions CRUD", () => {
     test("creates and retrieves a question", async () => {
-      const q = await questionsTable.insert({ text: "Favourite colour?" });
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "Favourite colour?",
+      });
       expect(q.id).toBeGreaterThan(0);
 
       const found = await questionsTable.findById(q.id);
@@ -49,14 +52,20 @@ describeWithEnv("custom questions", { db: true }, () => {
     });
 
     test("updates a question", async () => {
-      const q = await questionsTable.insert({ text: "Old text" });
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "Old text",
+      });
       await questionsTable.update(q.id, { text: "New text" });
       const found = await questionsTable.findById(q.id);
       expect(found!.text).toBe("New text");
     });
 
     test("deletes a question and cascades", async () => {
-      const q = await questionsTable.insert({ text: "To delete" });
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "To delete",
+      });
       const a = await answersTable.insert({
         questionId: q.id,
         sortOrder: 0,
@@ -80,7 +89,10 @@ describeWithEnv("custom questions", { db: true }, () => {
 
   describe("answers CRUD", () => {
     test("creates answers for a question", async () => {
-      const q = await questionsTable.insert({ text: "Size?" });
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "Size?",
+      });
       await answersTable.insert({
         questionId: q.id,
         sortOrder: 0,
@@ -100,7 +112,10 @@ describeWithEnv("custom questions", { db: true }, () => {
     });
 
     test("deletes a single answer", async () => {
-      const q = await questionsTable.insert({ text: "Size?" });
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "Size?",
+      });
       const small = await answersTable.insert({
         questionId: q.id,
         sortOrder: 0,
@@ -122,8 +137,14 @@ describeWithEnv("custom questions", { db: true }, () => {
 
   describe("listing-question mapping", () => {
     test("assigns questions to an listing", async () => {
-      const q1 = await questionsTable.insert({ text: "Q1" });
-      const q2 = await questionsTable.insert({ text: "Q2" });
+      const q1 = await questionsTable.insert({
+        displayType: "radio",
+        text: "Q1",
+      });
+      const q2 = await questionsTable.insert({
+        displayType: "radio",
+        text: "Q2",
+      });
       await answersTable.insert({
         questionId: q1.id,
         sortOrder: 0,
@@ -148,9 +169,15 @@ describeWithEnv("custom questions", { db: true }, () => {
     });
 
     test("orders listing questions by the global sort_order, not assignment order", async () => {
-      const q1 = await questionsTable.insert({ text: "Q1" });
+      const q1 = await questionsTable.insert({
+        displayType: "radio",
+        text: "Q1",
+      });
       await assignNextQuestionSortOrder(q1.id);
-      const q2 = await questionsTable.insert({ text: "Q2" });
+      const q2 = await questionsTable.insert({
+        displayType: "radio",
+        text: "Q2",
+      });
       await assignNextQuestionSortOrder(q2.id);
       await answersTable.insert({
         questionId: q1.id,
@@ -174,8 +201,14 @@ describeWithEnv("custom questions", { db: true }, () => {
     });
 
     test("replaces listing questions on re-assignment", async () => {
-      const q1 = await questionsTable.insert({ text: "Q1" });
-      const q2 = await questionsTable.insert({ text: "Q2" });
+      const q1 = await questionsTable.insert({
+        displayType: "radio",
+        text: "Q1",
+      });
+      const q2 = await questionsTable.insert({
+        displayType: "radio",
+        text: "Q2",
+      });
       await answersTable.insert({
         questionId: q1.id,
         sortOrder: 0,
@@ -203,8 +236,14 @@ describeWithEnv("custom questions", { db: true }, () => {
     });
 
     test("skips questions with no answers", async () => {
-      const qWithAnswers = await questionsTable.insert({ text: "Has answers" });
-      const qNoAnswers = await questionsTable.insert({ text: "No answers" });
+      const qWithAnswers = await questionsTable.insert({
+        displayType: "radio",
+        text: "Has answers",
+      });
+      const qNoAnswers = await questionsTable.insert({
+        displayType: "radio",
+        text: "No answers",
+      });
       await answersTable.insert({
         questionId: qWithAnswers.id,
         sortOrder: 0,
@@ -222,8 +261,14 @@ describeWithEnv("custom questions", { db: true }, () => {
 
   describe("getListingQuestionIds", () => {
     test("returns assigned question IDs", async () => {
-      const q1 = await questionsTable.insert({ text: "Q1" });
-      const q2 = await questionsTable.insert({ text: "Q2" });
+      const q1 = await questionsTable.insert({
+        displayType: "radio",
+        text: "Q1",
+      });
+      const q2 = await questionsTable.insert({
+        displayType: "radio",
+        text: "Q2",
+      });
 
       const listing = await createTestListing();
       await setListingQuestions(listing.id, [q2.id, q1.id]);
@@ -241,7 +286,10 @@ describeWithEnv("custom questions", { db: true }, () => {
 
   describe("getQuestionListingIds", () => {
     test("returns the listings a question is assigned to", async () => {
-      const q = await questionsTable.insert({ text: "Q" });
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "Q",
+      });
       const listing1 = await createTestListing();
       const listing2 = await createTestListing({ name: "Listing 2" });
       await setListingQuestions(listing1.id, [q.id]);
@@ -252,14 +300,20 @@ describeWithEnv("custom questions", { db: true }, () => {
     });
 
     test("returns empty array when assigned to no listings", async () => {
-      const q = await questionsTable.insert({ text: "Lonely Q" });
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "Lonely Q",
+      });
       expect(await getQuestionListingIds(q.id)).toEqual([]);
     });
   });
 
   describe("setQuestionListings", () => {
     test("assigns a question to the selected listings", async () => {
-      const q = await questionsTable.insert({ text: "Q" });
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "Q",
+      });
       const listing1 = await createTestListing();
       const listing2 = await createTestListing({ name: "Listing 2" });
 
@@ -271,7 +325,10 @@ describeWithEnv("custom questions", { db: true }, () => {
     });
 
     test("removes the question from unchecked listings", async () => {
-      const q = await questionsTable.insert({ text: "Q" });
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "Q",
+      });
       const listing1 = await createTestListing();
       const listing2 = await createTestListing({ name: "Listing 2" });
       await setQuestionListings(q.id, [listing1.id, listing2.id]);
@@ -282,8 +339,14 @@ describeWithEnv("custom questions", { db: true }, () => {
     });
 
     test("lists a listing's assigned questions in the global question order", async () => {
-      const existing = await questionsTable.insert({ text: "Existing" });
-      const added = await questionsTable.insert({ text: "Added" });
+      const existing = await questionsTable.insert({
+        displayType: "radio",
+        text: "Existing",
+      });
+      const added = await questionsTable.insert({
+        displayType: "radio",
+        text: "Added",
+      });
       await answersTable.insert({
         questionId: existing.id,
         sortOrder: 0,
@@ -305,7 +368,10 @@ describeWithEnv("custom questions", { db: true }, () => {
     });
 
     test("does nothing when the assignment is unchanged", async () => {
-      const q = await questionsTable.insert({ text: "Q" });
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "Q",
+      });
       const listing = await createTestListing();
       await setQuestionListings(q.id, [listing.id]);
 
@@ -315,7 +381,10 @@ describeWithEnv("custom questions", { db: true }, () => {
     });
 
     test("clears all listings when given an empty list", async () => {
-      const q = await questionsTable.insert({ text: "Q" });
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "Q",
+      });
       const listing = await createTestListing();
       await setQuestionListings(q.id, [listing.id]);
 
@@ -327,8 +396,14 @@ describeWithEnv("custom questions", { db: true }, () => {
 
   describe("getQuestionsWithListingIds", () => {
     test("deduplicates questions across listings", async () => {
-      const q1 = await questionsTable.insert({ text: "Q1" });
-      const q2 = await questionsTable.insert({ text: "Q2" });
+      const q1 = await questionsTable.insert({
+        displayType: "radio",
+        text: "Q1",
+      });
+      const q2 = await questionsTable.insert({
+        displayType: "radio",
+        text: "Q2",
+      });
       await answersTable.insert({
         questionId: q1.id,
         sortOrder: 0,
@@ -355,8 +430,14 @@ describeWithEnv("custom questions", { db: true }, () => {
     });
 
     test("returns listing-ID mapping for each question", async () => {
-      const q1 = await questionsTable.insert({ text: "Q1" });
-      const q2 = await questionsTable.insert({ text: "Q2" });
+      const q1 = await questionsTable.insert({
+        displayType: "radio",
+        text: "Q1",
+      });
+      const q2 = await questionsTable.insert({
+        displayType: "radio",
+        text: "Q2",
+      });
       await answersTable.insert({
         questionId: q1.id,
         sortOrder: 0,
@@ -390,8 +471,14 @@ describeWithEnv("custom questions", { db: true }, () => {
     });
 
     test("skips questions with no answers", async () => {
-      const qWithAnswers = await questionsTable.insert({ text: "Has answers" });
-      const qNoAnswers = await questionsTable.insert({ text: "No answers" });
+      const qWithAnswers = await questionsTable.insert({
+        displayType: "radio",
+        text: "Has answers",
+      });
+      const qNoAnswers = await questionsTable.insert({
+        displayType: "radio",
+        text: "No answers",
+      });
       await answersTable.insert({
         questionId: qWithAnswers.id,
         sortOrder: 0,
@@ -409,7 +496,10 @@ describeWithEnv("custom questions", { db: true }, () => {
 
   describe("attendee answers", () => {
     test("saves and retrieves attendee answers", async () => {
-      const q = await questionsTable.insert({ text: "Size?" });
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "Size?",
+      });
       const a1 = await answersTable.insert({
         questionId: q.id,
         sortOrder: 0,
@@ -431,7 +521,10 @@ describeWithEnv("custom questions", { db: true }, () => {
     });
 
     test("batch retrieval for multiple attendees", async () => {
-      const q = await questionsTable.insert({ text: "Size?" });
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "Size?",
+      });
       const a1 = await answersTable.insert({
         questionId: q.id,
         sortOrder: 0,
@@ -471,7 +564,10 @@ describeWithEnv("custom questions", { db: true }, () => {
     });
 
     test("saveAttendeeAnswers replaces existing answers atomically", async () => {
-      const q = await questionsTable.insert({ text: "Colour?" });
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "Colour?",
+      });
       const a1 = await answersTable.insert({
         questionId: q.id,
         sortOrder: 0,
@@ -497,7 +593,10 @@ describeWithEnv("custom questions", { db: true }, () => {
     });
 
     test("saveAttendeeAnswers with empty answerIds clears answers", async () => {
-      const q = await questionsTable.insert({ text: "Colour?" });
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "Colour?",
+      });
       const a1 = await answersTable.insert({
         questionId: q.id,
         sortOrder: 0,
@@ -517,8 +616,14 @@ describeWithEnv("custom questions", { db: true }, () => {
 
   describe("getAllQuestionsWithAnswers", () => {
     test("returns all questions with their answers", async () => {
-      const q1 = await questionsTable.insert({ text: "Q1" });
-      const q2 = await questionsTable.insert({ text: "Q2" });
+      const q1 = await questionsTable.insert({
+        displayType: "radio",
+        text: "Q1",
+      });
+      const q2 = await questionsTable.insert({
+        displayType: "radio",
+        text: "Q2",
+      });
       await answersTable.insert({
         questionId: q1.id,
         sortOrder: 0,
@@ -548,12 +653,18 @@ describeWithEnv("custom questions", { db: true }, () => {
 
   describe("getNextAnswerSortOrder", () => {
     test("returns 0 for a question with no answers", async () => {
-      const q = await questionsTable.insert({ text: "Empty Q" });
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "Empty Q",
+      });
       expect(await getNextAnswerSortOrder(q.id)).toBe(0);
     });
 
     test("returns max sort_order + 1 when answers exist", async () => {
-      const q = await questionsTable.insert({ text: "Q" });
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "Q",
+      });
       await answersTable.insert({ questionId: q.id, sortOrder: 0, text: "A1" });
       await answersTable.insert({ questionId: q.id, sortOrder: 1, text: "A2" });
       expect(await getNextAnswerSortOrder(q.id)).toBe(2);
@@ -562,7 +673,10 @@ describeWithEnv("custom questions", { db: true }, () => {
 
   describe("getAnswerCountsForQuestion", () => {
     test("returns zero counts when no attendees have answered", async () => {
-      const q = await questionsTable.insert({ text: "Color?" });
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "Color?",
+      });
       const a1 = await answersTable.insert({
         questionId: q.id,
         sortOrder: 0,
@@ -580,7 +694,10 @@ describeWithEnv("custom questions", { db: true }, () => {
 
     test("counts attendee answers correctly", async () => {
       const listing = await createTestListing();
-      const q = await questionsTable.insert({ text: "Size?" });
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "Size?",
+      });
       const a1 = await answersTable.insert({
         questionId: q.id,
         sortOrder: 0,
@@ -603,7 +720,10 @@ describeWithEnv("custom questions", { db: true }, () => {
 
   describe("swapAnswerOrder", () => {
     test("swaps sort_order of two answers", async () => {
-      const q = await questionsTable.insert({ text: "Q" });
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "Q",
+      });
       const a1 = await answersTable.insert({
         questionId: q.id,
         sortOrder: 0,
@@ -624,8 +744,14 @@ describeWithEnv("custom questions", { db: true }, () => {
 
   describe("question ordering", () => {
     test("assignNextQuestionSortOrder gives sequential non-zero orders", async () => {
-      const q1 = await questionsTable.insert({ text: "Q1" });
-      const q2 = await questionsTable.insert({ text: "Q2" });
+      const q1 = await questionsTable.insert({
+        displayType: "radio",
+        text: "Q1",
+      });
+      const q2 = await questionsTable.insert({
+        displayType: "radio",
+        text: "Q2",
+      });
       await answersTable.insert({ questionId: q1.id, sortOrder: 0, text: "A" });
       await answersTable.insert({ questionId: q2.id, sortOrder: 0, text: "B" });
 
@@ -639,9 +765,15 @@ describeWithEnv("custom questions", { db: true }, () => {
     });
 
     test("swapQuestionOrder reorders the global question list", async () => {
-      const q1 = await questionsTable.insert({ text: "Q1" });
+      const q1 = await questionsTable.insert({
+        displayType: "radio",
+        text: "Q1",
+      });
       await assignNextQuestionSortOrder(q1.id);
-      const q2 = await questionsTable.insert({ text: "Q2" });
+      const q2 = await questionsTable.insert({
+        displayType: "radio",
+        text: "Q2",
+      });
       await assignNextQuestionSortOrder(q2.id);
       await answersTable.insert({ questionId: q1.id, sortOrder: 0, text: "A" });
       await answersTable.insert({ questionId: q2.id, sortOrder: 0, text: "B" });

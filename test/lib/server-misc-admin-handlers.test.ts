@@ -648,7 +648,10 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
         await import("#shared/db/questions.ts");
 
       const listing = await createTestListing({ maxAttendees: 10 });
-      const question = await questionsTable.insert({ text: "Food preference" });
+      const question = await questionsTable.insert({
+        displayType: "radio",
+        text: "Food preference",
+      });
       await listingQuestionsTable.insert({
         listingId: listing.id,
         questionId: question.id,

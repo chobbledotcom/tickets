@@ -1035,7 +1035,10 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         name: "QB Event",
       });
 
-      const qA = await questionsTable.insert({ text: "Shirt size?" });
+      const qA = await questionsTable.insert({
+        displayType: "radio",
+        text: "Shirt size?",
+      });
       const aA = await answersTable.insert({
         questionId: qA.id,
         sortOrder: 0,
@@ -1043,7 +1046,10 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       });
       await setListingQuestions(eventA.id, [qA.id]);
 
-      const qB = await questionsTable.insert({ text: "Meal choice?" });
+      const qB = await questionsTable.insert({
+        displayType: "radio",
+        text: "Meal choice?",
+      });
       const aB = await answersTable.insert({
         questionId: qB.id,
         sortOrder: 0,
@@ -1134,7 +1140,10 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         maxAttendees: 10,
         name: "Shared",
       });
-      const q = await questionsTable.insert({ text: "Size?" });
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "Size?",
+      });
       const a1 = await answersTable.insert({
         questionId: q.id,
         sortOrder: 0,

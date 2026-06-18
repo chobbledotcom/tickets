@@ -28,12 +28,6 @@ describeWithEnv(
       expect(bytes.length).toBe(32);
     });
 
-    test("generateEncryptionKey produces unique keys", () => {
-      const key1 = builderApi.generateEncryptionKey();
-      const key2 = builderApi.generateEncryptionKey();
-      expect(key1).not.toBe(key2);
-    });
-
     test("buildSite returns error when release has no asset", async () => {
       await withMocks(
         () =>

@@ -16,7 +16,7 @@ import { isPaymentsEnabled } from "#shared/config.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { getPublicDefaultStatus } from "#shared/db/attendee-statuses.ts";
-import { resolveModifiers } from "#shared/db/modifier-resolve.ts";
+import { buyerVisits, resolveModifiers } from "#shared/db/modifier-resolve.ts";
 import { consumeModifierStockOrRollback } from "#shared/db/modifier-usage.ts";
 import {
   groupListingAnswers,
@@ -208,18 +208,20 @@ const emptyContact = {
   special_instructions: "",
 };
 
+type CheckoutIntentParams = {
+  ctx: TicketCtx;
+  date: string | null;
+  dayCount: number;
+  hasCustomisable: boolean;
+  info: AnswerInfo;
+  items: ReturnType<typeof buildRegistrationItems>;
+  modifiers: CheckoutIntent["modifiers"];
+  reservationAmount?: string;
+};
+
 const checkoutIntentForSubmission = (
   contact: ReturnType<typeof extractContact>,
-  params: {
-    ctx: TicketCtx;
-    date: string | null;
-    dayCount: number;
-    hasCustomisable: boolean;
-    info: AnswerInfo;
-    items: ReturnType<typeof buildRegistrationItems>;
-    modifiers: CheckoutIntent["modifiers"];
-    reservationAmount?: string;
-  },
+  params: CheckoutIntentParams,
 ): CheckoutIntent => {
   const {
     ctx,
@@ -379,6 +381,74 @@ const parseBookingDate = (
   return date ?? ticketFormErrorResponse(ctx)("Please select a valid date");
 };
 
+type SubmissionPricingParams = Omit<CheckoutIntentParams, "modifiers"> & {
+  addOns: Map<number, number>;
+  promoCode: string;
+};
+
+const priceSubmission = (
+  contact: ReturnType<typeof extractContact>,
+  params: SubmissionPricingParams,
+  modifiers: CheckoutIntent["modifiers"],
+): {
+  intent: CheckoutIntent;
+  pricedOrder: ReturnType<typeof priceCheckout>;
+} => {
+  const intent = checkoutIntentForSubmission(contact, {
+    ctx: params.ctx,
+    date: params.date,
+    dayCount: params.dayCount,
+    hasCustomisable: params.hasCustomisable,
+    info: params.info,
+    items: params.items,
+    modifiers,
+    reservationAmount: params.reservationAmount,
+  });
+  return { intent, pricedOrder: priceCheckout(intent) };
+};
+
+const resolveSubmissionModifiers = (
+  params: SubmissionPricingParams,
+  visits = 0,
+): Promise<CheckoutIntent["modifiers"]> =>
+  resolveModifiers(params.items, {
+    addOns: params.addOns,
+    code: params.promoCode,
+    ctx: { visits },
+  });
+
+const priceSubmissionBeforeContact = async (
+  params: SubmissionPricingParams,
+): Promise<ReturnType<typeof priceSubmission>> =>
+  priceSubmission(
+    emptyContact,
+    params,
+    await resolveSubmissionModifiers(params),
+  );
+
+const priceSubmissionWithContact = async (
+  contact: ReturnType<typeof extractContact>,
+  params: SubmissionPricingParams,
+): Promise<ReturnType<typeof priceSubmission>> =>
+  priceSubmission(
+    contact,
+    params,
+    await resolveSubmissionModifiers(
+      params,
+      await buyerVisits(contact.email, contact.phone),
+    ),
+  );
+
+const validatePaymentUpgrade = (
+  form: FormParams,
+  ctx: TicketCtx,
+  initiallyRequired: boolean,
+  finallyRequired: boolean,
+): TicketFormValues | Response | null => {
+  if (!finallyRequired || initiallyRequired) return null;
+  return validateTicketFields(form, ctx, true);
+};
+
 /** Process submitted form after CSRF and demo overrides. */
 const processSubmission = async (
   request: Request,
@@ -446,36 +516,43 @@ const processSubmission = async (
   const addOns = parseAddOnSelections(form, ctx.addOns);
   const promoCode = form.getString("promo_code");
   const paymentsEnabled = isPaymentsEnabled();
-  const modifiers = await resolveModifiers(items, { addOns, code: promoCode });
   const reservationAmount = await publicReservationAmount();
-  const pricingIntent = checkoutIntentForSubmission(emptyContact, {
+  const pricingParams = {
+    addOns,
     ctx,
     date,
     dayCount,
     hasCustomisable,
     info,
     items,
-    modifiers,
+    promoCode,
     reservationAmount,
-  });
-  const pricedOrder = priceCheckout(pricingIntent);
+  };
+  const { pricedOrder } = await priceSubmissionBeforeContact(pricingParams);
   const pricedTotal = pricedOrder.total;
-  const requiresPayment = paymentsEnabled && pricedTotal > 0;
-  const validated = validateTicketFields(form, ctx, pricedTotal > 0);
+  const requiresPaidFields = pricedTotal > 0;
+  const validated = validateTicketFields(form, ctx, requiresPaidFields);
   if (validated instanceof Response) return validated;
-  const contact = extractContact(validated);
-  const intent = checkoutIntentForSubmission(contact, {
+  let contact = extractContact(validated);
+  let { intent, pricedOrder: finalPricedOrder } =
+    await priceSubmissionWithContact(contact, pricingParams);
+  const paidUpgradeValidation = validatePaymentUpgrade(
+    form,
     ctx,
-    date,
-    dayCount,
-    hasCustomisable,
-    info,
-    items,
-    modifiers: paymentsEnabled ? modifiers : [],
-    reservationAmount,
-  });
+    requiresPaidFields,
+    finalPricedOrder.total > 0,
+  );
+  if (paidUpgradeValidation instanceof Response) return paidUpgradeValidation;
+  if (paidUpgradeValidation) {
+    contact = extractContact(paidUpgradeValidation);
+    ({ intent, pricedOrder: finalPricedOrder } =
+      await priceSubmissionWithContact(contact, pricingParams));
+  }
 
-  if (requiresPayment) {
+  const finalRequiresPaidFields = finalPricedOrder.total > 0;
+  const finalRequiresPayment = paymentsEnabled && finalRequiresPaidFields;
+
+  if (finalRequiresPayment) {
     return handlePaidPath(request, {
       ctx,
       date,
@@ -491,7 +568,9 @@ const processSubmission = async (
     dayCount,
     hasCustomisable,
     info,
-    modifierUsages: paymentsEnabled ? pricedOrder.modifierApplications : [],
+    modifierUsages: paymentsEnabled
+      ? finalPricedOrder.modifierApplications
+      : [],
     paymentBreakdown: paymentsEnabled
       ? ticketPaymentBreakdown(intent)
       : undefined,

@@ -88,6 +88,7 @@ const extractModifierInput = async (
     codeIndex: code ? await hmacHash(normalizeCode(code)) : null,
     direction: values.direction as ModifierDirection,
     minSubtotal: toMinorUnits(values.min_subtotal),
+    minVisits: values.min_visits,
     name: values.name,
     scope: values.scope as ModifierScope,
     stock: values.stock,
@@ -120,6 +121,19 @@ const validateModifier = (input: ModifierInput): Promise<string | null> => {
   }
   if (input.scope !== undefined && !isModifierScope(input.scope)) {
     return Promise.resolve("Invalid scope");
+  }
+  if (
+    input.minVisits !== undefined &&
+    (!Number.isInteger(input.minVisits) || input.minVisits < 0)
+  ) {
+    return Promise.resolve(
+      "Minimum previous bookings must be a whole number of 0 or more",
+    );
+  }
+  const isOptionalAddOn = input.trigger === "optional";
+  const requiresPreviousBookings = Number(input.minVisits) > 0;
+  if (isOptionalAddOn && requiresPreviousBookings) {
+    return Promise.resolve("Optional add-ons cannot require previous bookings");
   }
   return Promise.resolve(validateCalcValue(input.calcKind, input.calcValue));
 };

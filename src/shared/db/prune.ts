@@ -12,6 +12,10 @@
  * - login_attempts: rows with an expired lockout are dead. (Rows with NULL
  *   locked_until are left alone: they represent in-progress attempt counts
  *   and have no timestamp we can key off.)
+ * - contact_preferences: opaque per-contact recognition/contact-history rows.
+ *   `last_activity` is bumped on booking and outreach; pruning subscribed rows
+ *   bounds table growth and makes returning-customer recognition
+ *   recency-bounded. Unsubscribed rows are suppression records and are kept.
  *
  * The scheduler is fire-and-forget via `addPendingWork` from the request
  * handler. Each table has its own `last_pruned_*` timestamp; a table is
@@ -22,6 +26,7 @@ import { getDb } from "#shared/db/client.ts";
 import { RESOLVED_OUTCOME } from "#shared/db/processed-payments.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
+  PRUNE_CONTACTS_RETENTION_MS,
   PRUNE_INTERVAL_MS,
   PRUNE_LOGINS_RETENTION_MS,
   PRUNE_PAYMENTS_RETENTION_MS,
@@ -109,6 +114,16 @@ export const pruneTokenAttempts = async (): Promise<number> => {
   return result.rowsAffected;
 };
 
+/** Delete subscribed contact-preference rows untouched beyond retention. */
+export const pruneContacts = async (): Promise<number> => {
+  const cutoffMs = nowMs() - PRUNE_CONTACTS_RETENTION_MS;
+  const result = await getDb().execute({
+    args: [cutoffMs],
+    sql: "DELETE FROM contact_preferences WHERE unsubscribed = 0 AND last_activity < ?",
+  });
+  return result.rowsAffected;
+};
+
 /**
  * Parse a `last_pruned_*` setting (stored as ms-epoch string) to a number.
  * Empty string / unparseable => 0, meaning "never run, due immediately".
@@ -156,6 +171,12 @@ const PRUNE_TASKS = (): PruneTask[] => [
     name: "token_attempts",
     run: pruneTokenAttempts,
     writeLast: settings.update.lastPrunedTokens,
+  },
+  {
+    lastRaw: settings.lastPrunedContacts,
+    name: "contact_preferences",
+    run: pruneContacts,
+    writeLast: settings.update.lastPrunedContacts,
   },
 ];
 
