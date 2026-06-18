@@ -745,6 +745,63 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
+    test("refunds when an add-on-only paid session total no longer matches", async () => {
+      await setupStripe();
+      const listing = await createTestListing({
+        maxAttendees: 50,
+        unitPrice: 0,
+      });
+      const modifier = await modifiersTable.insert({
+        calcKind: "fixed",
+        calcValue: 5,
+        direction: "charge",
+        name: "Workshop kit",
+      });
+
+      const mockVerify = await stubWebhookVerify({
+        data: {
+          object: {
+            // Expected total is the £5 add-on; simulate a stale £4 session.
+            amount_total: 400,
+            id: "cs_addon_only_mismatch",
+            metadata: webhookMeta({
+              email: "mod@example.com",
+              items: singleItem(listing.id, 1, 0),
+              modifiers: JSON.stringify([{ i: modifier.id, q: 1 }]),
+              name: "Mod Buyer",
+            }),
+            payment_intent: "pi_addon_only_mismatch",
+            payment_status: "paid",
+          },
+        },
+        id: "evt_addon_only_mismatch",
+        type: "checkout.session.completed",
+      });
+      const mockRefund = stub(stripeApi, "refundPayment", () =>
+        Promise.resolve({ id: "re_addon_only" } as unknown as Awaited<
+          ReturnType<typeof stripeApi.refundPayment>
+        >),
+      );
+
+      try {
+        await assertJson(
+          handleRequest(
+            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+          ),
+          200,
+          (json) => {
+            expect(json.processed).toBe(false);
+            expect(json.error).toContain("price");
+          },
+        );
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+        expect((await getAttendeesRaw(listing.id)).length).toBe(0);
+      } finally {
+        mockVerify.restore();
+        mockRefund.restore();
+      }
+    });
+
     test("refunds when a modifier sold out before the webhook finalized", async () => {
       await setupStripe();
       const listing = await createTestListing({

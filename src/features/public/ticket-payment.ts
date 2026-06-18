@@ -9,9 +9,6 @@ import {
   notFoundResponse,
 } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
-import { priceCheckout } from "#shared/checkout-pricing.ts";
-import { isPaymentsEnabled } from "#shared/config.ts";
-import { hmacHash } from "#shared/crypto/hashing.ts";
 import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
 import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
 import type {
@@ -46,7 +43,6 @@ import {
   normalizeDurationDays,
 } from "#shared/types.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
-import { logAndNotifyRegistration } from "#shared/webhook.ts";
 import type { TicketListing } from "#templates/public.tsx";
 import { formatAtomicError, listingsWithQuantity } from "./ticket-form.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
@@ -202,10 +198,6 @@ export const buildRegistrationItems = (
   }));
 };
 
-/** Whether the fully-priced checkout needs a payment session. */
-export const checkoutRequiresPayment = (intent: CheckoutIntent): boolean =>
-  isPaymentsEnabled() && priceCheckout(intent).total > 0;
-
 /** Handle payment flow for ticket purchase */
 export const handlePaymentFlow = (
   request: Request,
@@ -274,22 +266,40 @@ export const resolveDayCount = async (
   return { dayCount: raw };
 };
 
-export const processFreeReservation = async (
-  listings: TicketListing[],
-  quantities: Map<number, number>,
-  contact: ContactInfo,
-  date: string | null,
-  siteToken?: string,
-  dayCount = 1,
-): Promise<
+type FreeReservationParams = {
+  listings: TicketListing[];
+  quantities: Map<number, number>;
+  contact: ContactInfo;
+  date: string | null;
+  dayCount?: number;
+  paidByListingId?: Map<number, number>;
+  remainingBalance?: number;
+};
+
+type FreeReservationResult =
   | { success: true; token: string; entries: EmailEntry[] }
-  | { success: false; error: string }
-> => {
+  | { success: false; error: string };
+
+export const createFreeReservation = async ({
+  listings,
+  quantities,
+  contact,
+  date,
+  dayCount = 1,
+  paidByListingId,
+  remainingBalance = 0,
+}: FreeReservationParams): Promise<FreeReservationResult> => {
   const selected = listingsWithQuantity(listings, quantities);
-  const bookings = buildBookings(selected, date, dayCount);
+  const bookings = buildBookings(selected, date, dayCount).map((booking) => ({
+    ...booking,
+    ...(paidByListingId
+      ? { pricePaid: paidByListingId.get(booking.listingId)! }
+      : {}),
+  }));
   const result = await createAttendeeAtomic({
     ...contact,
     bookings,
+    remainingBalance,
     statusId: await getPublicStatusId(),
   });
 
@@ -311,11 +321,6 @@ export const processFreeReservation = async (
     attendee,
     listing: selected[i]!.listing,
   }));
-
-  // Hash before passing on so the renewal lookup uses the same blind index
-  // the paid path would carry through Stripe session metadata.
-  const siteTokenIndex = siteToken ? await hmacHash(siteToken) : undefined;
-  await logAndNotifyRegistration(entries, siteTokenIndex);
   return {
     entries,
     success: true,

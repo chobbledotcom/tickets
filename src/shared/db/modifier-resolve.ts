@@ -39,8 +39,9 @@ const signedValue = (modifier: Modifier): number => {
 
 /** The listing ids a modifier is charged on, or null for the whole order. */
 const listingIdsFor = (modifier: Modifier): Promise<number[]> | null => {
-  if (modifier.scope === "groups")
+  if (modifier.scope === "groups") {
     return getModifierGroupListingIds(modifier.id);
+  }
   if (modifier.scope === "listings") return getModifierListingIds(modifier.id);
   return null;
 };
@@ -102,8 +103,9 @@ const triggerQuantity = (
   codeIndex: string | null,
   addOns: Map<number, number>,
 ): number => {
-  if (modifier.trigger === "code")
+  if (modifier.trigger === "code") {
     return codeIndex !== null && modifier.code_index === codeIndex ? 1 : 0;
+  }
   if (modifier.trigger === "optional") return addOns.get(modifier.id) ?? 0;
   return 1;
 };
@@ -170,6 +172,8 @@ export type AddOnOption = {
   name: string;
   /** Buyer-facing price effect, e.g. "+£5", "−10%", "×1.5". */
   priceLabel: string;
+  /** True when selecting this add-on can route an otherwise-free cart to payment. */
+  requiresPayment: boolean;
   /** The most units a buyer may select, capped by remaining stock. */
   maxQuantity: number;
 };
@@ -188,6 +192,9 @@ const addOnPriceLabel = (modifier: Modifier): string => {
       : `${modifier.calc_value}%`;
   return `${sign}${amount}`;
 };
+
+const addOnCanRequirePayment = (modifier: Modifier): boolean =>
+  modifier.calc_kind === "fixed" && signedValue(modifier) > 0;
 
 /**
  * The opt-in add-ons offered for a page's listings: active "optional"
@@ -225,6 +232,7 @@ export const getOptionalAddOns = async (
       maxQuantity,
       name: modifier.name,
       priceLabel: addOnPriceLabel(modifier),
+      requiresPayment: addOnCanRequirePayment(modifier),
     }));
 };
 
