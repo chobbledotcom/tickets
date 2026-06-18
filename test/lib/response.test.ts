@@ -166,4 +166,8 @@ describe("redirect form re-fill stash", () => {
     expect(token).toBeDefined();
     expect(takeForm(token!)).toBe("name=explicit");
   });
+
+  test("redirect rejects invalid targets before adding flash data", () => {
+    expect(() => redirect("http://[::1", "bad", false)).toThrow(TypeError);
+  });
 });

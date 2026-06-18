@@ -2,12 +2,22 @@ import { createClient, type InValue, type Row } from "@libsql/client";
 import { afterEach, beforeEach, describe } from "@std/testing/bdd";
 import { resetEffectiveDomain } from "#shared/config.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
+import { ensureDefaultAttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import { getDb, insert, queryOne, setDb } from "#shared/db/client.ts";
 import { invalidateGroupsCache } from "#shared/db/groups.ts";
 import { invalidateHolidaysCache } from "#shared/db/holidays.ts";
 import { invalidateListingsCache } from "#shared/db/listings.ts";
 import { invalidateLogisticsAgentsCache } from "#shared/db/logistics-agents.ts";
-import { initDb } from "#shared/db/migrations.ts";
+import {
+  SCHEMA,
+  SCHEMA_MIGRATIONS_TABLE,
+  TRIGGERS,
+} from "#shared/db/migrations/schema.ts";
+import {
+  LATEST_UPDATE,
+  MIGRATIONS,
+  SCHEMA_HASH,
+} from "#shared/db/migrations.ts";
 import { resetSessionCache } from "#shared/db/sessions.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import { invalidateUsersCache } from "#shared/db/users.ts";
@@ -32,6 +42,43 @@ import {
   TEST_ADMIN_USERNAME,
 } from "#test-utils/internal.ts";
 
+type SchemaEntry = (typeof SCHEMA)[number];
+type SchemaIndex = NonNullable<SchemaEntry[1]["indexes"]>[number];
+
+const createTableSql = ([name, table]: SchemaEntry): string =>
+  `CREATE TABLE IF NOT EXISTS ${name} (${table.columns
+    .map(([col, type]) => `${col} ${type}`)
+    .join(", ")})`;
+
+const createIndexSql = (tableName: string, idx: SchemaIndex): string => {
+  const unique = idx.unique ? "UNIQUE " : "";
+  return `CREATE ${unique}INDEX IF NOT EXISTS ${idx.name} ON ${tableName}(${idx.columns.join(
+    ", ",
+  )})`;
+};
+
+const sqlString = (value: string): string => `'${value.replaceAll("'", "''")}'`;
+
+const TEST_SCHEMA_SQL = `${[
+  ...SCHEMA.map(createTableSql),
+  ...SCHEMA.flatMap(([name, table]) =>
+    (table.indexes ?? []).map((idx) => createIndexSql(name, idx)),
+  ),
+  ...TRIGGERS.map((trigger) => trigger.sql),
+  `INSERT OR REPLACE INTO settings (key, value) VALUES ('latest_db_update', ${sqlString(
+    LATEST_UPDATE,
+  )})`,
+  `INSERT OR REPLACE INTO settings (key, value) VALUES ('db_schema_hash', ${sqlString(
+    SCHEMA_HASH,
+  )})`,
+  ...MIGRATIONS.map(
+    (migration) =>
+      `INSERT OR REPLACE INTO ${SCHEMA_MIGRATIONS_TABLE} (id, description, applied_at) VALUES (${sqlString(
+        migration.id,
+      )}, ${sqlString(migration.description)}, '2026-01-01T00:00:00.000Z')`,
+  ),
+].join(";\n")};`;
+
 const prepareTestClient = async (triggers = false): Promise<void> => {
   setupTestEncryptionKey();
   settings.setup.clearCache();
@@ -48,7 +95,8 @@ const prepareTestClient = async (triggers = false): Promise<void> => {
   });
   const client = createClient({ url: ":memory:" });
   setDb(client);
-  await initDb({ allowMissingSettings: true });
+  await client.executeMultiple(TEST_SCHEMA_SQL);
+  await ensureDefaultAttendeeStatus();
 };
 
 export const createTestDb = async (triggers = false): Promise<void> => {

@@ -15,11 +15,11 @@ import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import type { AdminSession } from "#shared/types.ts";
-import { AdminNav } from "#templates/admin/nav.tsx";
+import { AdminNav, SettingsSubNav } from "#templates/admin/nav.tsx";
 import { ActionButton } from "#templates/components/actions.tsx";
 import { Layout } from "#templates/layout.tsx";
 
-const NAV_ACTIVE = "/admin/emails";
+const NAV_ACTIVE = "/admin/settings";
 
 /** Deep link to the Email Notifications form on the advanced settings page. */
 const EMAIL_SETTINGS_LINK = "/admin/settings-advanced#settings-email";
@@ -107,6 +107,7 @@ export const bulkEmailComposePage = (
   return String(
     <Layout title={copy.heading}>
       <AdminNav active={NAV_ACTIVE} session={session} />
+      <SettingsSubNav />
       <Flash />
 
       <div class="prose">
@@ -262,6 +263,7 @@ export const bulkEmailTemplateDeletePage = (
   String(
     <Layout title={t("bulk_email.delete_template_heading")}>
       <AdminNav active={NAV_ACTIVE} session={session} />
+      <SettingsSubNav />
       <ConfirmForm
         action={`/admin/emails/templates/${template.id}/delete`}
         buttonText={t("bulk_email.delete_template_submit")}
@@ -326,6 +328,7 @@ export const bulkEmailPreviewPage = (
   return String(
     <Layout title={t("bulk_email.preview_page_title")}>
       <AdminNav active={NAV_ACTIVE} session={session} />
+      <SettingsSubNav />
       <Flash />
 
       <div class="prose">

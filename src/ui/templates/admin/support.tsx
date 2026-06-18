@@ -11,7 +11,7 @@ import { CsrfForm, Flash, MessageFields } from "#shared/forms.tsx";
 import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import type { AdminSession } from "#shared/types.ts";
-import { AdminNav } from "#templates/admin/nav.tsx";
+import { AdminNav, SettingsSubNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 /** Message form delivering to the platform host (no Botpoison). Just a message
@@ -56,7 +56,8 @@ export const adminSupportPage = (opts: {
 }): string =>
   String(
     <Layout title={t("support.page_title")}>
-      <AdminNav active="/admin/support" session={opts.session} />
+      <AdminNav active="/admin/settings" session={opts.session} />
+      <SettingsSubNav />
       <Flash error={opts.error} success={opts.success} />
       <div class="prose">
         {opts.supportText ? (
