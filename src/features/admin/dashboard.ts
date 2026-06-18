@@ -24,7 +24,10 @@ import { isListingFilter, type ListingFilter } from "#shared/listing-filter.ts";
 import { sortListings } from "#shared/sort-listings.ts";
 /* jscpd:ignore-end */
 import { adminGlobalActivityLogPage } from "#templates/admin/activityLog.tsx";
-import { adminDashboardPage } from "#templates/admin/dashboard.tsx";
+import {
+  adminDashboardPage,
+  adminListingsPage,
+} from "#templates/admin/dashboard.tsx";
 import { adminLoginPage } from "#templates/admin/login.tsx";
 
 /** Login page response helper */
@@ -81,6 +84,20 @@ const handleAdminGet = (request: Request): Promise<Response> =>
     () => loginResponse(request),
   );
 
+/** Handle GET /admin/listings */
+const handleAdminListingsGet: TypedRouteHandler<"GET /admin/listings"> =
+  sessionPage(async (session) => {
+    const [listings, holidays] = await Promise.all([
+      getAllListings(),
+      getActiveHolidays(),
+    ]);
+    return adminListingsPage(
+      sortListings(listings, holidays),
+      session,
+      settings.listingColumnOrder,
+    );
+  });
+
 /** Maximum number of log entries to display */
 const LOG_DISPLAY_LIMIT = 200;
 
@@ -101,5 +118,6 @@ const handleAdminLog: TypedRouteHandler<"GET /admin/log"> = sessionPage(
 /** Dashboard routes */
 export const dashboardRoutes = defineRoutes({
   "GET /admin": handleAdminGet,
+  "GET /admin/listings": handleAdminListingsGet,
   "GET /admin/log": handleAdminLog,
 });

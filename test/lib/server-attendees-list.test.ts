@@ -29,10 +29,13 @@ describeWithEnv("server (admin attendees list)", { db: true }, () => {
 
       await assertAdminHtml(
         "/admin/attendees",
-        "<h1>Attendees</h1>",
+        'href="/admin/attendees/new"',
         "Alice",
         "Gala Night",
       );
+      const { response } = await adminGet("/admin/attendees");
+      const html = await response.text();
+      expect(html).not.toContain("<h1>Attendees</h1>");
     });
 
     test("lists the newest registration first by default", async () => {
