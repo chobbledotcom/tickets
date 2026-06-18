@@ -28,8 +28,10 @@ import type {
   AdminSession,
   Attendee,
   AttendeeTableRow,
+  Holiday,
   ListingWithCount,
 } from "#shared/types.ts";
+import { HolidayTable } from "#templates/admin/holidays.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { AttendeeTable } from "#templates/attendee-table.tsx";
 import { ActionButton } from "#templates/components/actions.tsx";
@@ -179,6 +181,17 @@ const newestAttendeesSection = (
   );
 };
 
+/** Upcoming holidays section shown on the admin dashboard. */
+const upcomingHolidaysSection = (holidays: Holiday[]): string =>
+  String(
+    <details open>
+      <summary>{t("holidays.upcoming_heading")}</summary>
+      <div class="table-scroll dashboard-holidays-scroll">
+        <Raw html={HolidayTable({ holidays })} />
+      </div>
+    </details>,
+  );
+
 /** Render the listing table with dynamic column keys */
 export const renderListingTable = (
   columnKeys: string[],
@@ -225,6 +238,7 @@ export const adminDashboardPage = (
   stats?: ActiveListingStats | null,
   listingColumnTemplate?: string,
   activeType: ListingFilter = "all",
+  upcomingHolidays: Holiday[] = [],
 ): string => {
   const { columnKeys, filters } = resolveColumnLayout(
     listingColumnTemplate ?? "",
@@ -272,6 +286,10 @@ export const adminDashboardPage = (
       />
 
       {stats && <Raw html={activeListingStatsSection(stats)} />}
+
+      {upcomingHolidays.length > 0 && (
+        <Raw html={upcomingHolidaysSection(upcomingHolidays)} />
+      )}
 
       {activeListings.length >= 2 && (
         <Raw html={multiBookingSection(activeListings)} />
