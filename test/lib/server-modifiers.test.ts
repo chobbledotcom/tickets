@@ -518,5 +518,17 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         false,
       )(response);
     });
+
+    test("rejects a fractional minimum previous bookings value", async () => {
+      const { response } = await adminFormPost(
+        "/admin/modifiers",
+        createData({ min_visits: "1.5" }),
+      );
+      expectRedirectWithFlash(
+        "/admin/modifiers/new",
+        "Minimum previous bookings must be a whole number of 0 or more",
+        false,
+      )(response);
+    });
   });
 });

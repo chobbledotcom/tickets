@@ -33,6 +33,31 @@
             export DB_ENCRYPTION_KEY="$(openssl rand -base64 32)"
             export DB_URL=":memory:"
             export PORT=8080
+
+            install_precommit_hook() {
+              if ! ${pkgs.git}/bin/git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+                return
+              fi
+
+              hook_path="$(${pkgs.git}/bin/git rev-parse --git-path hooks/pre-commit)"
+              hook_marker="# Installed by tickets flake.nix"
+
+              if [ -e "$hook_path" ] && ! grep -Fqx "$hook_marker" "$hook_path"; then
+                echo "  pre-commit hook already exists; leaving it unchanged"
+                return
+              fi
+
+              mkdir -p "$(dirname "$hook_path")"
+              cat > "$hook_path" <<'HOOK'
+#!/usr/bin/env sh
+# Installed by tickets flake.nix
+exec deno task precommit
+HOOK
+              chmod +x "$hook_path"
+              echo "  installed pre-commit hook - deno task precommit"
+            }
+
+            install_precommit_hook
           '';
         };
       });

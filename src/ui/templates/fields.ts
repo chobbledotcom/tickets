@@ -867,14 +867,8 @@ export const modifierFields: Field[] = [
     label: "Minimum previous bookings (optional)",
     min: 0,
     name: "min_visits",
-    parse: (value: string) => (value ? Number.parseInt(value, 10) : 0),
+    parse: (value: string) => (value ? Number(value) : 0),
     type: "number",
-    validate: (value: string) => {
-      const n = Number.parseInt(value, 10);
-      return Number.isInteger(n) && n >= 0
-        ? null
-        : "Minimum previous bookings must be a whole number of 0 or more";
-    },
   },
   {
     hint: "Total number available across all orders. Leave blank for unlimited.",

@@ -18,6 +18,7 @@ import {
   MAX_IMAGE_SIZE,
   MAX_LOGIN_ATTEMPTS,
   MAX_TEXTAREA_LENGTH,
+  PRUNE_CONTACTS_RETENTION_DAYS,
   PRUNE_INTERVAL_HOURS,
   PRUNE_INTERVAL_MS,
   PRUNE_LOGINS_RETENTION_DAYS,
@@ -147,6 +148,7 @@ describe("limits", () => {
         "PRUNE_LOGINS_RETENTION_DAYS",
         "PRUNE_TOKENS_RETENTION_DAYS",
         "PRUNE_SUMUP_RETENTION_HOURS",
+        "PRUNE_CONTACTS_RETENTION_DAYS",
         "PRUNE_INTERVAL_HOURS",
         "FORM_STASH_TTL_MS",
         "FORM_STASH_MAX_BYTES",
@@ -192,6 +194,9 @@ describe("limits", () => {
       );
       expect(currentByKey.get("PRUNE_SUMUP_RETENTION_HOURS")).toBe(
         PRUNE_SUMUP_RETENTION_HOURS,
+      );
+      expect(currentByKey.get("PRUNE_CONTACTS_RETENTION_DAYS")).toBe(
+        PRUNE_CONTACTS_RETENTION_DAYS,
       );
       expect(currentByKey.get("FORM_STASH_TTL_MS")).toBe(FORM_STASH_TTL_MS);
       expect(currentByKey.get("FORM_STASH_MAX_BYTES")).toBe(
