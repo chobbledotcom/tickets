@@ -7,7 +7,7 @@ import { applyFlash, withCsrfForm } from "#routes/csrf.ts";
 import { errorRedirect, redirectResponse } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
 import {
-  type ModifierUsageAmount,
+  type ModifierApplication,
   priceCheckout,
   type TicketPaymentBreakdown,
   ticketPaymentBreakdown,
@@ -301,7 +301,7 @@ const MODIFIER_SOLD_OUT_MESSAGE =
  */
 const handleFreePath = async (
   params: PathParams & {
-    modifierUsages: ModifierUsageAmount[];
+    modifierUsages: ModifierApplication[];
     paymentBreakdown?: TicketPaymentBreakdown;
   },
 ): Promise<Response> => {
@@ -491,7 +491,7 @@ const processSubmission = async (
     dayCount,
     hasCustomisable,
     info,
-    modifierUsages: paymentsEnabled ? pricedOrder.modifierUsages : [],
+    modifierUsages: paymentsEnabled ? pricedOrder.modifierApplications : [],
     paymentBreakdown: paymentsEnabled
       ? ticketPaymentBreakdown(intent)
       : undefined,
