@@ -39,10 +39,7 @@ export const ExpectedActualNotice = ({
         <span class="badge-alert">{badge}</span> <strong>{first.label}</strong>:{" "}
         {t("expected_actual.expected")} <strong>{first.expected}</strong>,{" "}
         {t("expected_actual.got")} <strong>{first.actual}</strong>
-        {extra}.{" "}
-        <span class="expected-actual-click">
-          {t("expected_actual.click_for_info")}
-        </span>
+        {extra}.
       </summary>
       <div>
         <p>{noticeTitle}</p>
