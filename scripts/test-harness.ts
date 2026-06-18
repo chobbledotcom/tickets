@@ -16,12 +16,22 @@ import {
   buildStaticAssets,
   STATIC_ASSET_OUTFILES,
 } from "./build-static-assets.ts";
+import {
+  estimateTapEventCount,
+  hasReporterArg,
+  runCompactDenoTest,
+} from "./compact-test-reporter.ts";
 
 const STRIPE_MOCK_VERSION = "0.188.0";
 export const STRIPE_MOCK_PORT = 12111;
 export const projectRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const BIN_DIR = join(projectRoot, ".bin");
 const STRIPE_MOCK_PATH = join(BIN_DIR, "stripe-mock");
+const verboseHarness = Deno.env.get("TICKETS_TEST_HARNESS_VERBOSE") === "1";
+
+const harnessLog = (...args: unknown[]): void => {
+  if (verboseHarness) console.log(...args);
+};
 
 /** Check if stripe-mock is running */
 const isStripeMockRunning = async (): Promise<boolean> => {
@@ -46,7 +56,7 @@ const downloadStripeMock = async (): Promise<void> => {
     // Download needed
   }
 
-  console.log("Downloading stripe-mock...");
+  harnessLog("Downloading stripe-mock...");
   await Deno.mkdir(BIN_DIR, { recursive: true });
 
   const platform = Deno.build.os === "darwin" ? "darwin" : "linux";
@@ -75,19 +85,19 @@ const downloadStripeMock = async (): Promise<void> => {
   }).output();
 
   await Deno.remove(tarPath);
-  console.log("stripe-mock downloaded");
+  harnessLog("stripe-mock downloaded");
 };
 
 /** Start stripe-mock and return the process (null if one is already running) */
 const startStripeMock = async (): Promise<Deno.ChildProcess | null> => {
   if (await isStripeMockRunning()) {
-    console.log("stripe-mock already running on port", STRIPE_MOCK_PORT);
+    harnessLog("stripe-mock already running on port", STRIPE_MOCK_PORT);
     return null;
   }
 
   await downloadStripeMock();
 
-  console.log("Starting stripe-mock on port", STRIPE_MOCK_PORT);
+  harnessLog("Starting stripe-mock on port", STRIPE_MOCK_PORT);
   const cmd = new Deno.Command(STRIPE_MOCK_PATH, {
     args: ["-http-port", String(STRIPE_MOCK_PORT)],
     stderr: "null",
@@ -98,7 +108,7 @@ const startStripeMock = async (): Promise<Deno.ChildProcess | null> => {
   // Wait for it to be ready
   for (let i = 0; i < 30; i++) {
     if (await isStripeMockRunning()) {
-      console.log("stripe-mock started");
+      harnessLog("stripe-mock started");
       return process;
     }
     await new Promise((r) => setTimeout(r, 100));
@@ -130,7 +140,7 @@ const setupStaticAssets = async (): Promise<() => Promise<void>> => {
     if (!(await fileExists(path))) generated.push(path);
   }
 
-  await buildStaticAssets({ stop: true });
+  await buildStaticAssets({ quiet: true, stop: true });
 
   return async () => {
     for (const path of generated) {
@@ -143,6 +153,7 @@ const setupStaticAssets = async (): Promise<() => Promise<void>> => {
 const buildDenoTestArgs = (
   extraArgs: string[],
   useCoverage: boolean,
+  reporter?: "tap",
 ): string[] => {
   const args = [
     "test",
@@ -156,6 +167,7 @@ const buildDenoTestArgs = (
     "--allow-ffi",
     "--parallel",
   ];
+  if (reporter) args.push("--reporter", reporter);
   if (useCoverage) args.push("--coverage=coverage");
   args.push(...extraArgs);
   return args;
@@ -170,17 +182,30 @@ export const runTests = async (
   extraArgs: string[],
   useCoverage: boolean,
 ): Promise<number> => {
+  const env = {
+    ...Deno.env.toObject(),
+    NO_PROXY: "localhost,127.0.0.1,::1",
+    no_proxy: "localhost,127.0.0.1,::1",
+    STRIPE_MOCK_HOST: "localhost",
+    STRIPE_MOCK_PORT: String(STRIPE_MOCK_PORT),
+  };
+
+  if (!hasReporterArg(extraArgs)) {
+    return await runCompactDenoTest(
+      buildDenoTestArgs(extraArgs, useCoverage, "tap"),
+      {
+        cwd: projectRoot,
+        env,
+        estimatedTotal: await estimateTapEventCount(projectRoot, extraArgs),
+      },
+    );
+  }
+
   console.log("Running tests...");
   const testCmd = new Deno.Command(Deno.execPath(), {
     args: buildDenoTestArgs(extraArgs, useCoverage),
     cwd: projectRoot,
-    env: {
-      ...Deno.env.toObject(),
-      NO_PROXY: "localhost,127.0.0.1,::1",
-      no_proxy: "localhost,127.0.0.1,::1",
-      STRIPE_MOCK_HOST: "localhost",
-      STRIPE_MOCK_PORT: String(STRIPE_MOCK_PORT),
-    },
+    env,
     stderr: "inherit",
     stdin: "inherit",
     stdout: "inherit",
@@ -208,7 +233,7 @@ export const withTestHarness = async <T>(
     return await task();
   } finally {
     if (stripeMockProcess) {
-      console.log("Stopping stripe-mock...");
+      harnessLog("Stopping stripe-mock...");
       stripeMockProcess.kill();
     }
     await cleanupStaticAssets();
