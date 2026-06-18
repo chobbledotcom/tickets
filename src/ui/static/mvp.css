@@ -878,6 +878,16 @@ label > input[type="time"] {
   width: auto;
 }
 
+input[type="number"] {
+  box-sizing: border-box;
+  max-width: 100%;
+  width: 8ch;
+}
+
+label > input[type="number"] {
+  flex: 0 0 auto;
+}
+
 label > select[name="quantity"],
 label > select[name^="quantity_"] {
   width: 8ch;
