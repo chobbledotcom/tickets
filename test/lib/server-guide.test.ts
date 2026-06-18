@@ -138,6 +138,17 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
       );
     });
 
+    test("explains the privacy-first CRM stance", async () => {
+      await assertAdminHtml(
+        "/admin/guide",
+        "Why is this privacy-first instead of a CRM?",
+        "stops short of being a CRM",
+        "GDPR and UK GDPR obligations",
+        "legal obligations",
+        "listing webhooks are a good place to start",
+      );
+    });
+
     test("contains calendar and activity log sections", async () => {
       await assertAdminHtml("/admin/guide", "Calendar", "Activity Log");
     });
@@ -258,7 +269,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
         "/admin/guide",
         "/admin/guide",
         "Listings",
-        "Logout",
+        "Log out",
       );
     });
 

@@ -58,7 +58,7 @@ import {
   getAttendeesByTokens,
 } from "#shared/db/attendees.ts";
 import { getListing, getListingWithCount } from "#shared/db/listings.ts";
-import { specsFromRefs } from "#shared/db/modifier-resolve.ts";
+import { buyerVisits, specsFromRefs } from "#shared/db/modifier-resolve.ts";
 import { consumeModifierStock } from "#shared/db/modifier-usage.ts";
 import {
   balanceFinalizeStatement,
@@ -856,8 +856,9 @@ const processReservedSession = async (
     intent.listingAnswerIds,
     listingQuantities,
   );
+  const visits = await buyerVisits(intent.email, intent.phone);
   const [modifierSpecs, answerSpecs] = await Promise.all([
-    specsFromRefs(intent.modifiers),
+    specsFromRefs(intent.modifiers, { visits }),
     answerModifierSpecs(answerIds, answerQuantities),
   ]);
   const pricingIntent = checkoutIntentForSession(intent, validatedItems, [

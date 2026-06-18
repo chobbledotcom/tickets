@@ -16,8 +16,15 @@
   --color-text-secondary: #999;
   --color-scrollbar: #cacae8;
   --font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu,
-    Cantarell, "Helvetica Neue", sans-serif;
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Oxygen-Sans,
+    Ubuntu,
+    Cantarell,
+    "Helvetica Neue",
+    sans-serif;
   --hover-brightness: 1.2;
   --justify-important: left;
   --justify-normal: left;
@@ -1574,8 +1581,8 @@ button.secondary:hover,
   box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.3);
 }
 
-/* Admin footer: a top row with the Chobble link (growing to fill) and the
-   logout button (sized to its content), then an optional debug menu below. */
+/* Admin footer: a top row with the Chobble link (growing to fill) and
+   inline utility links, then an optional debug menu below. */
 .admin-footer {
   margin-top: auto;
   display: flex;
@@ -1592,15 +1599,16 @@ button.secondary:hover,
   gap: var(--space-s);
 }
 
-/* The Chobble link grows to fill, the logout form stays its natural width. */
+/* The Chobble link grows to fill, the utility links stay their natural width. */
 .admin-footer-top > a {
   flex: 1 1 auto;
   min-width: 0;
 }
 
-.admin-footer-top > .inline {
+.admin-footer-links {
   flex: 0 0 auto;
   min-width: 0;
+  white-space: nowrap;
 }
 
 .admin-footer-info {

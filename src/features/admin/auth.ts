@@ -7,6 +7,7 @@ import { loginResponse } from "#routes/admin/dashboard.ts";
 import {
   ANY_USER_FORM,
   adminLandingPath,
+  anyUserPage,
   generateSecureToken,
   getAuthenticatedSession,
   withAuth,
@@ -39,6 +40,7 @@ import { nowMs } from "#shared/now.ts";
 import { fail, ok } from "#shared/response.ts";
 import { getSkipLoginDelay } from "#shared/test-overrides.ts";
 import type { AdminLevel } from "#shared/types.ts";
+import { adminLogoutPage } from "#templates/admin/logout.tsx";
 import { getLoginFields, type LoginFormValues } from "#templates/fields.ts";
 
 /** Random delay between 100-200ms to prevent timing attacks */
@@ -160,9 +162,12 @@ const handleLoginGet = async (request: Request): Promise<Response> => {
   return loginResponse(request);
 };
 
+const handleLogoutGet = anyUserPage((session) => adminLogoutPage(session));
+
 /** Authentication routes */
 export const authRoutes = defineRoutes({
   "GET /admin/login": handleLoginGet,
+  "GET /admin/logout": handleLogoutGet,
   "POST /admin/login": handleAdminLogin,
   "POST /admin/logout": handleAdminLogout,
 });

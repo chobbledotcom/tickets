@@ -1,7 +1,7 @@
 /**
  * Public unsubscribe / resubscribe routes for marketing emails.
  *
- * The link carries an opaque email hash (HMAC), so the address is never
+ * The link carries an opaque contact hash (HMAC), so the address is never
  * exposed and state only changes via POST. No login required — recipients act
  * on their own address via the capability in their link.
  */
@@ -10,10 +10,11 @@ import { applyFlash, withCsrfForm } from "#routes/csrf.ts";
 import { htmlResponse, infoRedirect, redirect } from "#routes/response.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import {
+  forgetContact,
   isHashUnsubscribed,
   resubscribeHash,
   unsubscribeHash,
-} from "#shared/db/email-preferences.ts";
+} from "#shared/db/contact-preferences.ts";
 import { unsubscribePage } from "#templates/public/unsubscribe.tsx";
 
 const pagePath = (hash: string): string =>
@@ -57,6 +58,14 @@ export const handleUnsubscribePost = (request: Request): Promise<Response> =>
         return redirect(
           pagePath(hash),
           "You've resubscribed to our marketing emails.",
+          true,
+        );
+      }
+      if (form.getString("action") === "forget") {
+        await forgetContact(hash);
+        return redirect(
+          "/unsubscribe",
+          "Your contact record has been deleted.",
           true,
         );
       }

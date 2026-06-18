@@ -13,6 +13,7 @@ import { hmacHash } from "#shared/crypto/hashing.ts";
 import { getDb, insert } from "#shared/db/client.ts";
 import {
   maybeRunPrunes,
+  pruneContacts,
   pruneLoginAttempts,
   prunePayments,
   pruneSessions,
@@ -22,6 +23,7 @@ import {
 import { createSession, getAllSessions } from "#shared/db/sessions.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
+  PRUNE_CONTACTS_RETENTION_MS,
   PRUNE_INTERVAL_MS,
   PRUNE_LOGINS_RETENTION_MS,
   PRUNE_PAYMENTS_RETENTION_MS,
@@ -135,6 +137,18 @@ const insertTokenAttempt = async (
   return ipHash;
 };
 
+/** Insert a contact preference row with the given activity timestamp. */
+const insertContactPreference = async (
+  hash: string,
+  unsubscribed: number,
+  lastActivity: number,
+): Promise<void> => {
+  await getDb().execute({
+    args: [hash, unsubscribed, lastActivity],
+    sql: "INSERT INTO contact_preferences (contact_hash, unsubscribed, visits, stats_blob, last_activity) VALUES (?, ?, 1, '', ?)",
+  });
+};
+
 /** Is a token_attempts row with this ip hash still in the DB? */
 const tokenAttemptExists = async (ipHash: string): Promise<boolean> => {
   const { rows } = await getDb().execute({
@@ -162,6 +176,15 @@ const loginAttemptExists = async (ipHash: string): Promise<boolean> => {
   return rows.length > 0;
 };
 
+/** Is a contact_preferences row with this hash still in the DB? */
+const contactPreferenceExists = async (hash: string): Promise<boolean> => {
+  const { rows } = await getDb().execute({
+    args: [hash],
+    sql: "SELECT 1 FROM contact_preferences WHERE contact_hash = ?",
+  });
+  return rows.length > 0;
+};
+
 /** Clear all last_pruned_* timestamps so every task is due. */
 const clearAllLastPruned = async (): Promise<void> => {
   await settings.update.lastPrunedPayments("");
@@ -169,6 +192,7 @@ const clearAllLastPruned = async (): Promise<void> => {
   await settings.update.lastPrunedLogins("");
   await settings.update.lastPrunedTokens("");
   await settings.update.lastPrunedSumup("");
+  await settings.update.lastPrunedContacts("");
 };
 
 /** Set all last_pruned_* timestamps to the same value. */
@@ -178,6 +202,7 @@ const setAllLastPruned = async (value: string): Promise<void> => {
   await settings.update.lastPrunedLogins(value);
   await settings.update.lastPrunedTokens(value);
   await settings.update.lastPrunedSumup(value);
+  await settings.update.lastPrunedContacts(value);
 };
 
 describeWithEnv("db > prune", { db: true }, () => {
@@ -370,6 +395,34 @@ describeWithEnv("db > prune", { db: true }, () => {
     });
   });
 
+  describe("pruneContacts", () => {
+    test("deletes subscribed rows older than the retention window", async () => {
+      const stale = nowMs() - PRUNE_CONTACTS_RETENTION_MS - 60_000;
+      await insertContactPreference("contact_old", 0, stale);
+
+      await pruneContacts();
+
+      expect(await contactPreferenceExists("contact_old")).toBe(false);
+    });
+
+    test("keeps subscribed rows within the retention window", async () => {
+      await insertContactPreference("contact_recent", 0, nowMs());
+
+      await pruneContacts();
+
+      expect(await contactPreferenceExists("contact_recent")).toBe(true);
+    });
+
+    test("keeps unsubscribed rows older than the retention window", async () => {
+      const stale = nowMs() - PRUNE_CONTACTS_RETENTION_MS - 60_000;
+      await insertContactPreference("contact_opt_out", 1, stale);
+
+      await pruneContacts();
+
+      expect(await contactPreferenceExists("contact_opt_out")).toBe(true);
+    });
+  });
+
   describe("maybeRunPrunes scheduler", () => {
     test("records fresh payments timestamp after running", async () => {
       await clearAllLastPruned();
@@ -422,6 +475,17 @@ describeWithEnv("db > prune", { db: true }, () => {
       await maybeRunPrunes();
 
       const ts = Number.parseInt(settings.lastPrunedTokens, 10);
+      expect(ts).toBeGreaterThanOrEqual(before);
+      expect(ts).toBeLessThanOrEqual(nowMs());
+    });
+
+    test("records fresh contacts timestamp after running", async () => {
+      await clearAllLastPruned();
+      const before = nowMs();
+
+      await maybeRunPrunes();
+
+      const ts = Number.parseInt(settings.lastPrunedContacts, 10);
       expect(ts).toBeGreaterThanOrEqual(before);
       expect(ts).toBeLessThanOrEqual(nowMs());
     });
