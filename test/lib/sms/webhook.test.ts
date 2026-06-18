@@ -41,18 +41,21 @@ const hmacHex = async (secret: string, message: string): Promise<string> => {
   return new Uint8Array(sig).toHex();
 };
 
+const currentTimestamp = (offsetSeconds = 0): string =>
+  String(Math.floor(Date.now() / 1000) + offsetSeconds);
+
 const postWebhook = async (
   body: unknown,
-  opts: { sign?: boolean; rawBody?: string } = {},
+  opts: { sign?: boolean; rawBody?: string; timestamp?: string } = {},
 ): Promise<Response> => {
   const raw = opts.rawBody ?? JSON.stringify(body);
-  const ts = "1700000000";
+  const ts = opts.timestamp ?? currentTimestamp();
   // Force the next request to re-read settings written directly in the test.
   settings.invalidateCache();
   const headers = new Headers({ "content-type": "application/json" });
   if (opts.sign !== false) {
     headers.set("x-signature", await hmacHex(SECRET, raw + ts));
-    headers.set("x-timestamp", ts);
+    if (opts.timestamp !== "") headers.set("x-timestamp", ts);
   }
   return handleRequest(
     new Request("http://localhost/sms/webhook", {
@@ -120,6 +123,57 @@ describeWithEnv("api > sms webhook", { db: true }, () => {
       {
         sign: false,
       },
+    );
+    expect(res.status).toBe(401);
+  });
+
+  test("valid signature with a current timestamp succeeds", async () => {
+    await configure();
+    const res = await postWebhook({ event: "sms:received", payload: {} });
+    expect(res.status).toBe(200);
+  });
+
+  test("missing timestamp fails", async () => {
+    await configure();
+    const res = await postWebhook(
+      { event: "sms:received", payload: {} },
+      { timestamp: "" },
+    );
+    expect(res.status).toBe(401);
+  });
+
+  test("malformed timestamp fails", async () => {
+    await configure();
+    const res = await postWebhook(
+      { event: "sms:received", payload: {} },
+      { timestamp: "not-a-unix-second" },
+    );
+    expect(res.status).toBe(401);
+  });
+
+  test("unsafe integer timestamp fails", async () => {
+    await configure();
+    const res = await postWebhook(
+      { event: "sms:received", payload: {} },
+      { timestamp: "999999999999999999999" },
+    );
+    expect(res.status).toBe(401);
+  });
+
+  test("timestamp older than tolerance fails", async () => {
+    await configure();
+    const res = await postWebhook(
+      { event: "sms:received", payload: {} },
+      { timestamp: currentTimestamp(-301) },
+    );
+    expect(res.status).toBe(401);
+  });
+
+  test("timestamp too far in the future fails", async () => {
+    await configure();
+    const res = await postWebhook(
+      { event: "sms:received", payload: {} },
+      { timestamp: currentTimestamp(302) },
     );
     expect(res.status).toBe(401);
   });
@@ -247,6 +301,7 @@ describeWithEnv("api > sms webhook", { db: true }, () => {
     await postWebhook({
       event: "sms:received",
       payload: {
+        id: "inbound-1",
         message: await encryptField("see you there", PASS),
         sender: await encryptField("07700900123", PASS),
       },
@@ -255,6 +310,49 @@ describeWithEnv("api > sms webhook", { db: true }, () => {
     const log = await getAttendeeActivityLog(attendee.id);
     expect(log.some((e) => e.message.includes("received: see you there"))).toBe(
       true,
+    );
+  });
+
+  test("replaying the same inbound id does not duplicate activity", async () => {
+    await configure();
+    await settings.update.smsGatewayPassphrase(PASS);
+
+    const body = {
+      event: "sms:received",
+      payload: {
+        id: "inbound-replay",
+        message: "hi once",
+        sender: "+440000000000",
+      },
+    };
+    expect((await postWebhook(body)).status).toBe(200);
+    expect((await postWebhook(body)).status).toBe(200);
+
+    const all = await getAllActivityLog();
+    expect(
+      all.filter((e) => e.message.includes("received: hi once")).length,
+    ).toBe(1);
+  });
+
+  test("replayed delivered event remains idempotent", async () => {
+    await configure();
+    const attendee = await makeAttendee();
+    await recordSmsMessage({
+      attendeeId: attendee.id,
+      listingId: 1,
+      providerId: "msg-replay",
+    });
+    const body = {
+      event: "sms:delivered",
+      payload: { messageId: "msg-replay" },
+    };
+
+    expect((await postWebhook(body)).status).toBe(200);
+    expect((await postWebhook(body)).status).toBe(200);
+
+    const log = await getAttendeeActivityLog(attendee.id);
+    expect(log.filter((e) => e.message.includes("SMS delivered")).length).toBe(
+      1,
     );
   });
 

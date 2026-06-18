@@ -26,8 +26,7 @@ import {
 } from "#shared/db/attendees.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {
-  getAllDailyListings,
-  getAllStandardListings,
+  getAllListings,
   getAttendeesByListingIds,
   getDailyListingAttendeeDates,
   getDailyListingAttendeesByDate,
@@ -234,11 +233,20 @@ const withCalendarSession = (
     handler(session, getDateFilter(request)),
   );
 
-/** Load standard listings and build their date map */
-const loadStandardListingContext = async () => {
-  const standardListings = await getAllStandardListings();
+/** Split the cached listing list once for the calendar view/export. */
+const loadListingContext = async () => {
+  const allListings = await getAllListings();
+  const dailyListings = allListings.filter((e) => e.listing_type === "daily");
+  const standardListings = allListings.filter(
+    (e) => e.listing_type === "standard",
+  );
   const standardListingDateMap = buildStandardListingDateMap(standardListings);
-  return { standardListingDateMap, standardListings };
+  return {
+    allListings,
+    dailyListings,
+    standardListingDateMap,
+    standardListings,
+  };
 };
 
 /** Load and decrypt attendees for standard listings matching a calendar date */
@@ -288,17 +296,21 @@ const buildAvailabilityRows = async (
  */
 const handleAdminCalendarGet = (request: Request) =>
   withCalendarSession(request, async (session, dateFilter) => {
-    const [dailyListings, attendeeDates, holidays, standardCtx] =
-      await Promise.all([
-        getAllDailyListings(),
-        getDailyListingAttendeeDates(),
-        getActiveHolidays(),
-        loadStandardListingContext(),
-      ]);
+    const [listingCtx, attendeeDates, holidays] = await Promise.all([
+      loadListingContext(),
+      getDailyListingAttendeeDates(),
+      getActiveHolidays(),
+    ]);
 
-    const { agents, agentFilter } = await resolveAgentFilter(request);
-
-    const allListings = [...dailyListings, ...standardCtx.standardListings];
+    const {
+      allListings,
+      dailyListings,
+      standardListings,
+      standardListingDateMap,
+    } = listingCtx;
+    const { agents, agentFilter } = dateFilter
+      ? await resolveAgentFilter(request)
+      : { agentFilter: "all" as AgentFilter, agents: [] };
     let attendees: CalendarAttendeeRow[] = [];
     if (dateFilter) {
       const privateKey = (await getPrivateKey(session))!;
@@ -306,9 +318,9 @@ const handleAdminCalendarGet = (request: Request) =>
         getDailyListingAttendeesByDate(dateFilter),
         loadStandardListingAttendees(
           dateFilter,
-          standardCtx.standardListingDateMap,
+          standardListingDateMap,
           privateKey,
-          standardCtx.standardListings,
+          standardListings,
         ),
       ]);
       const hasPaidDailyListing = dailyListings.some(isPaidListing);
@@ -330,8 +342,8 @@ const handleAdminCalendarGet = (request: Request) =>
     const availableDates = compileDateOptions(
       dailyListings,
       attendeeDates,
-      standardCtx.standardListingDateMap,
-      standardCtx.standardListings,
+      standardListingDateMap,
+      standardListings,
       holidays,
     );
     const questionData = await loadAttendeeQuestionData(
@@ -374,22 +386,21 @@ const handleAdminCalendarExport = (request: Request) =>
     }
 
     const privateKey = (await getPrivateKey(session))!;
-    const [dailyListings, rawDailyAttendees, standardCtx] = await Promise.all([
-      getAllDailyListings(),
+    const [listingCtx, rawDailyAttendees] = await Promise.all([
+      loadListingContext(),
       getDailyListingAttendeesByDate(dateFilter),
-      loadStandardListingContext(),
     ]);
+    const { allListings, standardListingDateMap } = listingCtx;
 
     const [dailyDecrypted, standardAttendees] = await Promise.all([
       decryptAttendees(rawDailyAttendees, privateKey),
       loadStandardListingAttendees(
         dateFilter,
-        standardCtx.standardListingDateMap,
+        standardListingDateMap,
         privateKey,
       ),
     ]);
 
-    const allListings = [...dailyListings, ...standardCtx.standardListings];
     const allAttendees = sortAttendeesByCreatedDesc([
       ...dailyDecrypted,
       ...standardAttendees,

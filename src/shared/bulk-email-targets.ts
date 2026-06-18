@@ -20,6 +20,7 @@ import {
 import { getAllListings, getListingWithCount } from "#shared/db/listings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { ListingWithCount } from "#shared/types.ts";
+import { parsePositiveIntId } from "#shared/validation/number.ts";
 
 // ── Audiences ───────────────────────────────────────────────────────
 
@@ -251,8 +252,8 @@ const audienceSpec: TargetSpec<AudienceTarget> = {
 const listingTargetFromRaw = async (
   raw: string,
 ): Promise<ListingTarget | null> => {
-  const id = Number(raw);
-  if (!Number.isInteger(id) || id <= 0) return null;
+  const id = parsePositiveIntId(raw);
+  if (id === null) return null;
   const listing = await getListingWithCount(id);
   return listing ? { kind: "listing", listingId: id } : null;
 };

@@ -17,6 +17,7 @@ import { getAllLogisticsAgents } from "#shared/db/logistics-agents.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { Attendee, LogisticsAgent } from "#shared/types.ts";
+import { parsePositiveIntId } from "#shared/validation/number.ts";
 
 /** Checkbox field: when "1", each logistics listing carries its own agents. */
 export const SPLIT_AGENTS_FIELD = "split_logistics_agents";
@@ -79,8 +80,8 @@ export const parseLogisticsPlan = (
 ): { split: boolean; perListing: Map<number, LogisticsAssignment> } => {
   const split = form.get(SPLIT_AGENTS_FIELD) === "1";
   const valid = (raw: string): number | null => {
-    const n = Number.parseInt(raw, 10);
-    return Number.isInteger(n) && agentIds.has(n) ? n : null;
+    const n = parsePositiveIntId(raw);
+    return n !== null && agentIds.has(n) ? n : null;
   };
   const perListing = new Map<number, LogisticsAssignment>();
   for (const line of deliveredBookedLines(lines)) {

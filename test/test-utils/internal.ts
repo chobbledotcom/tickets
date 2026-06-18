@@ -55,6 +55,7 @@ export interface DescribeEnvOptions {
   db?: boolean;
   encryptionKey?: boolean;
   env?: Record<string, string | undefined>;
+  triggers?: boolean;
 }
 
 export interface TestRequestOptions {

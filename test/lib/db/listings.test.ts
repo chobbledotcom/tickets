@@ -46,7 +46,7 @@ import {
   getTestPrivateKey,
 } from "#test-utils";
 
-describeWithEnv("db > listings", { db: true }, () => {
+describeWithEnv("db > listings", { db: true, triggers: true }, () => {
   describe("CRUD", () => {
     test("createListing creates listing with correct properties", async () => {
       const listing = await createTestListing({

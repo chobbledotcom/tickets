@@ -39,7 +39,7 @@ type CrudConfig<Row, Input> = {
     successMessage?: string,
   ) => string;
   renderNew: (session: AdminSession, error?: string) => string;
-  renderEdit: (row: Row, session: AdminSession, error?: string) => string;
+  renderEdit?: (row: Row, session: AdminSession, error?: string) => string;
   renderDelete: (row: Row, session: AdminSession, error?: string) => string;
   getName: (row: Row) => string;
 };
@@ -121,7 +121,7 @@ const createCrudHandlersWithAuth = <Row, Input>(
 
   const createPost = authForm(createHandler);
 
-  const editGet = authRowHtml(cfg.renderEdit);
+  const editGet = cfg.renderEdit ? authRowHtml(cfg.renderEdit) : undefined;
 
   const editPost: IdRouteHandler = (request, { id }) =>
     auth.withForm(request, async (_session, form) => {
@@ -157,7 +157,7 @@ const createCrudHandlersWithAuth = <Row, Input>(
     [`GET ${cfg.listPath}`]: listGet,
     [`GET ${cfg.listPath}/new`]: newGet,
     [`POST ${cfg.listPath}`]: createPost,
-    [`GET ${cfg.listPath}/:id/edit`]: editGet,
+    ...(editGet ? { [`GET ${cfg.listPath}/:id/edit`]: editGet } : {}),
     [`POST ${cfg.listPath}/:id/edit`]: editPost,
   } as Record<string, RouteHandlerFn>;
 

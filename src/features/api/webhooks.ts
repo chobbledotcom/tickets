@@ -14,7 +14,7 @@
  * - Two-phase locking prevents duplicate attendee creation from race conditions
  */
 
-import { sum, sumOf, unique } from "#fp";
+import { sumOf, unique } from "#fp";
 import type {
   BookingIntent,
   ListingPriceValidation,
@@ -81,7 +81,7 @@ import {
   type WebhookEvent,
 } from "#shared/payments.ts";
 import { modifierDelta } from "#shared/price-modifier.ts";
-import { reservationDepositForLine } from "#shared/reservation-amount.ts";
+import { allocateReservationDeposit } from "#shared/reservation-amount.ts";
 import { dayPriceFor, type ListingWithCount } from "#shared/types.ts";
 import { logAndNotifyRegistration } from "#shared/webhook.ts";
 import { paymentCancelPage, successPage } from "#templates/payment.tsx";
@@ -561,11 +561,14 @@ const reservationDeposits = (
 ): { perLine: number[]; total: number | undefined } => {
   const amount = intent.reservationAmount;
   if (!amount) return { perLine: [], total: undefined };
-  const totalQty = sumOf((item: BookingItem) => item.q)(intent.items);
-  const perLine = intent.items.map((item) =>
-    reservationDepositForLine(amount, item.p, item.q, totalQty),
+  const allocation = allocateReservationDeposit(
+    amount,
+    intent.items.map((item) => ({
+      quantity: item.q,
+      unitPrice: item.p / Math.max(1, item.q),
+    })),
   );
-  return { perLine, total: sum(perLine) };
+  return { perLine: allocation.perItemTotals, total: allocation.total };
 };
 
 /** Verify per-item and total prices for paid sessions. Returns null on success. */

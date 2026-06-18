@@ -271,7 +271,9 @@ const ProvisionedPanel = ({ site }: { site: BuiltSite }): JSX.Element => {
         {formatDeadlineLabel(site.readOnlyFrom)}
         {site.readOnlyFrom && (
           <Raw
-            html={`<details><summary>${t("built_sites.raw_iso")}</summary><code>${site.readOnlyFrom}</code></details>`}
+            html={`<details><summary>${t(
+              "built_sites.raw_iso",
+            )}</summary><code>${site.readOnlyFrom}</code></details>`}
           />
         )}
       </p>
@@ -364,9 +366,7 @@ const SecretsPanel = ({
         />
       </p>
       {view.missing.length === 0 ? (
-        <div class="success" role="status">
-          {t("built_sites.all_secrets_present")}
-        </div>
+        <output class="success">{t("built_sites.all_secrets_present")}</output>
       ) : (
         <SiteActionForm action="add-secrets" siteId={site.id}>
           <p>{t("built_sites.missing_secrets")}</p>
