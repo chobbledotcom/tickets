@@ -147,6 +147,23 @@ describe("adminListingEditPage form sections", () => {
     expect(html).toContain('value="25.00"');
     expect(html).toContain(`/admin/listings/recalculate/${listing.id}`);
   });
+
+  test("shows a running-total mismatch on the edit page", () => {
+    const listing = testListingWithCount({
+      attendee_count: 7,
+      income: 2500,
+      tickets_count: 3,
+    });
+    const html = adminListingEditPage(listing, [], TEST_SESSION, undefined, {
+      booked_quantity: { current: 7, recalculated: 4 },
+      income: { current: 2500, recalculated: 1500 },
+      tickets_count: { current: 3, recalculated: 3 },
+    });
+    expect(html).toContain("Error");
+    expect(html).toContain("expected <strong>4</strong>, got");
+    expect(html).toContain("expected <strong>£15</strong>, got");
+    expect(html).toContain(`/admin/listings/recalculate/${listing.id}`);
+  });
 });
 
 describe("adminListingRecalculatePage", () => {
@@ -413,6 +430,23 @@ describe("adminListingPage", () => {
     expect(html).toContain("Listing Attendees");
     expect(html).toContain("2 / 100");
     expect(html).toContain("98 remain");
+  });
+
+  test("shows a running-total mismatch in the details table", () => {
+    const html = adminListingPage({
+      aggregateRecalculation: {
+        booked_quantity: { current: 2, recalculated: 1 },
+        income: { current: 0, recalculated: 0 },
+        tickets_count: { current: 0, recalculated: 0 },
+      },
+      allowedDomain: "localhost",
+      attendees: [],
+      listing,
+      session: TEST_SESSION,
+    });
+    expect(html).toContain("Running total check");
+    expect(html).toContain("expected <strong>1</strong>, got");
+    expect(html).toContain("Click for info");
   });
 
   test("renders no Group Attendees row when groupContext is omitted", () => {

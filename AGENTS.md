@@ -33,6 +33,7 @@ The `.tool-versions` file is kept in sync for asdf-compatible tooling.
 
 - **Use FP methods**: Prefer curried functional utilities from `#fp` over imperative loops
 - **100% test coverage**: All code must have complete test coverage - run `deno coverage` to find uncovered lines/branches
+- **Trust application invariants**: Do not design normal code paths around database states the application says are impossible. If an impossible state is observed, raise it as an error and repair the data explicitly rather than silently accepting or normalising it.
 
 ## FP Imports
 

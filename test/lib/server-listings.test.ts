@@ -300,6 +300,44 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       await assertAdminHtml("/admin/listing/1", listing.name);
     });
 
+    test("shows stored-total mismatches on listing detail and edit pages", async () => {
+      const { listing } = await setupListingAndLogin({
+        maxAttendees: 100,
+        name: "Mismatch Listing",
+        thankYouUrl: "https://example.com",
+      });
+      await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Actual User",
+        "actual@example.com",
+        2,
+      );
+      await updateListingAggregateValues(listing.id, {
+        booked_quantity: 9,
+        income: 0,
+        tickets_count: 1,
+      });
+
+      const detail = await adminGet(`/admin/listing/${listing.id}`);
+      await expectHtmlResponse(
+        detail.response,
+        200,
+        "Running total check",
+        "expected <strong>1</strong>, got",
+        "Review and recalculate totals",
+      );
+
+      const edit = await adminGet(`/admin/listing/${listing.id}/edit`);
+      await expectHtmlResponse(
+        edit.response,
+        200,
+        "Running totals",
+        "expected <strong>1</strong>, got",
+        "Review and recalculate totals",
+      );
+    });
+
     test("shows Edit link on listing page", async () => {
       const { cookie } = await setupListingAndLogin({
         maxAttendees: 100,

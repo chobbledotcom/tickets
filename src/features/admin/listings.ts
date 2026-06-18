@@ -46,6 +46,7 @@ import {
   getListingAggregateRecalculation,
   getListingWithCount,
   LISTING_AGGREGATE_FIELDS,
+  type ListingAggregateRecalculation,
   type ListingAggregateValues,
   type ListingInput,
   listingsTable,
@@ -519,19 +520,27 @@ const renderListingPage = async (
           request,
         );
         const attendeeIds = filteredByDate.map((a) => a.id);
-        const [flash, phonePrefix, questions, attendeeAnswerMap, groupContext] =
-          await Promise.all([
-            Promise.resolve(getFlash()),
-            Promise.resolve(settings.phonePrefix),
-            getQuestionsForListing(listing.id),
-            getAttendeeAnswersBatch(attendeeIds),
-            loadGroupContext(listing, dateFilter),
-          ]);
+        const [
+          flash,
+          phonePrefix,
+          questions,
+          attendeeAnswerMap,
+          groupContext,
+          aggregateRecalculation,
+        ] = await Promise.all([
+          Promise.resolve(getFlash()),
+          Promise.resolve(settings.phonePrefix),
+          getQuestionsForListing(listing.id),
+          getAttendeeAnswersBatch(attendeeIds),
+          loadGroupContext(listing, dateFilter),
+          getListingAggregateRecalculation(listing),
+        ]);
         const questionData =
           questions.length > 0 ? { attendeeAnswerMap, questions } : undefined;
         return htmlResponse(
           adminListingPage({
             activeFilter,
+            aggregateRecalculation,
             allowedDomain: getEffectiveDomain(),
             attendees: filteredByDate,
             availableDates,
@@ -559,12 +568,22 @@ const renderListingPage = async (
 /** Handle GET /admin/listing/:id/duplicate */
 const getListingAndGroups = async (
   listingId: number,
-): Promise<{ listing: ListingWithCount; groups: Group[] } | null> => {
+): Promise<{
+  aggregateRecalculation: ListingAggregateRecalculation;
+  groups: Group[];
+  listing: ListingWithCount;
+} | null> => {
   const [listing, groups] = await Promise.all([
     getListingWithCount(listingId),
     getAllGroups(),
   ]);
-  return listing ? { groups, listing } : null;
+  return listing
+    ? {
+        aggregateRecalculation: await getListingAggregateRecalculation(listing),
+        groups,
+        listing,
+      }
+    : null;
 };
 
 const withListingAndGroupsPage =
@@ -586,8 +605,22 @@ const handleAdminListingDuplicateGet: TypedRouteHandler<"GET /admin/listing/:id/
   withListingAndGroupsPage(adminDuplicateListingPage);
 
 /** Handle GET /admin/listing/:id/edit */
-const handleAdminListingEditGet: TypedRouteHandler<"GET /admin/listing/:id/edit"> =
-  withListingAndGroupsPage(adminListingEditPage);
+const handleAdminListingEditGet: TypedRouteHandler<
+  "GET /admin/listing/:id/edit"
+> = (request, params) =>
+  requireSessionOr(request, (session) =>
+    withEntityFromParam(params.id, getListingAndGroups, (ctx) =>
+      htmlResponse(
+        adminListingEditPage(
+          ctx.listing,
+          ctx.groups,
+          session,
+          undefined,
+          ctx.aggregateRecalculation,
+        ),
+      ),
+    ),
+  );
 
 /**
  * If a daily listing's duration changed on edit, recompute booking ranges and
@@ -634,7 +667,13 @@ const renderListingEditError = async (
   const ctx = await getListingAndGroups(id);
   return ctx
     ? htmlResponse(
-        adminListingEditPage(ctx.listing, ctx.groups, session, error),
+        adminListingEditPage(
+          ctx.listing,
+          ctx.groups,
+          session,
+          error,
+          ctx.aggregateRecalculation,
+        ),
         400,
       )
     : notFoundResponse();

@@ -4,6 +4,7 @@ import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { validateGroupListingType } from "#shared/db/groups.ts";
+import { updateListingAggregateValues } from "#shared/db/listings.ts";
 import { setDemoModeForTest } from "#shared/demo.ts";
 import {
   adminFormPost,
@@ -568,6 +569,39 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       expect(html).toContain("Checked In");
       expect(html).toContain("0 / 2");
       expect(html).toContain("2 remain");
+    });
+
+    test("shows stored-total mismatches on the group detail page", async () => {
+      const group = await createTestGroup({
+        name: "Mismatch Group",
+        slug: "mismatch-group",
+      });
+      const listing = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 20,
+        name: "Mismatch Listing",
+      });
+      await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Actual",
+        "actual-group@test.com",
+        2,
+      );
+      await updateListingAggregateValues(listing.id, {
+        booked_quantity: 9,
+        income: 0,
+        tickets_count: 1,
+      });
+
+      const { response } = await adminGet(`/admin/groups/${group.id}`);
+      await expectHtmlResponse(
+        response,
+        200,
+        "Running total check",
+        "expected <strong>1</strong>, got",
+        "Review group listings",
+      );
     });
 
     test("shows dual checked-in rows when attendees have multi-quantity", async () => {
