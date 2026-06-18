@@ -1,6 +1,8 @@
 import { countRows, getDb } from "#shared/db/client.ts";
 import {
+  currentSchemaColumnsPresentIn,
   getExistingColumns,
+  rebuildTableWithColumns,
   runMigration,
   tableExists,
 } from "./schema-sync.ts";
@@ -76,27 +78,37 @@ const repairLegacyTableRename = async (
   await runMigration(`ALTER TABLE ${legacy} RENAME TO ${target}`);
 };
 
-const columnRenameState = async (
+const columnRenameState = (
+  cols: Set<string>,
+  legacy: string,
+  target: string,
+): RenameState => renameState(cols.has(legacy), cols.has(target));
+
+type ColumnValueStats = {
+  conflictCount: number;
+  legacyCount: number;
+  targetCount: number;
+};
+
+const countColumnValueStats = async (
   table: string,
   legacy: string,
   target: string,
-): Promise<RenameState> => {
-  const cols = await getExistingColumns(table);
-  return renameState(cols.has(legacy), cols.has(target));
-};
-
-const countRowsWhere = async (
-  table: string,
-  where: string,
-): Promise<number> => {
+): Promise<ColumnValueStats> => {
   const result = await getDb().execute(
-    `SELECT COUNT(*) AS n FROM ${table} WHERE ${where}`,
+    `SELECT
+       COALESCE(SUM(CASE WHEN ${legacy} IS NOT NULL THEN 1 ELSE 0 END), 0) AS legacy_count,
+       COALESCE(SUM(CASE WHEN ${target} IS NOT NULL THEN 1 ELSE 0 END), 0) AS target_count,
+       COALESCE(SUM(CASE WHEN ${legacy} IS NOT NULL AND ${target} IS NOT NULL AND ${legacy} != ${target} THEN 1 ELSE 0 END), 0) AS conflict_count
+     FROM ${table}`,
   );
-  return Number(result.rows[0]!.n);
+  const row = result.rows[0]!;
+  return {
+    conflictCount: Number(row.conflict_count),
+    legacyCount: Number(row.legacy_count),
+    targetCount: Number(row.target_count),
+  };
 };
-
-const countColumnValues = (table: string, column: string): Promise<number> =>
-  countRowsWhere(table, `${column} IS NOT NULL`);
 
 const escapeRegExp = (value: string): string =>
   value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -125,14 +137,23 @@ const dropProjectIndexesReferencingColumn = async (
   }
 };
 
+const columnHasForeignKey = async (
+  table: string,
+  column: string,
+): Promise<boolean> => {
+  const result = await getDb().execute(`PRAGMA foreign_key_list(${table})`);
+  return result.rows.some((row) => String(row.from) === column);
+};
+
 const repairLegacyColumnRename = async (
   table: string,
   legacy: string,
   target: string,
 ): Promise<void> => {
-  if (!(await tableExists(table))) return;
+  const existingColumns = await getExistingColumns(table);
+  if (existingColumns.size === 0) return;
 
-  const state = await columnRenameState(table, legacy, target);
+  const state = columnRenameState(existingColumns, legacy, target);
   if (
     await applyDirectRename(
       state,
@@ -142,25 +163,34 @@ const repairLegacyColumnRename = async (
     return;
   }
 
-  const [legacyCount, targetCount] = await Promise.all([
-    countColumnValues(table, legacy),
-    countColumnValues(table, target),
-  ]);
-  if (legacyCount > 0 && targetCount > 0) {
+  const { conflictCount, legacyCount, targetCount } =
+    await countColumnValueStats(table, legacy, target);
+  if (conflictCount > 0) {
     throw new Error(
       `Cannot migrate "${table}.${legacy}" -> "${table}.${target}": both ` +
-        `columns contain data (${legacyCount} legacy row(s), ` +
-        `${targetCount} target row(s)). Manual migration is required — ` +
+        `columns contain conflicting data (${legacyCount} legacy row(s), ` +
+        `${targetCount} target row(s), ${conflictCount} conflict row(s)). ` +
+        "Manual migration is required — " +
         "back up the database, merge the legacy column values into the " +
         "target by hand, drop the legacy column, then re-run the migration.",
     );
   }
 
   if (legacyCount > 0) {
-    await runMigration(`UPDATE ${table} SET ${target} = ${legacy}`);
+    await runMigration(
+      `UPDATE ${table} SET ${target} = ${legacy} WHERE ${target} IS NULL`,
+    );
   }
-  await dropProjectIndexesReferencingColumn(table, legacy);
-  await runMigration(`ALTER TABLE ${table} DROP COLUMN ${legacy}`);
+  if (await columnHasForeignKey(table, legacy)) {
+    await rebuildTableWithColumns({
+      columns: currentSchemaColumnsPresentIn(table, existingColumns),
+      tableName: table,
+      tmpName: `${table}_rename_rebuild`,
+    });
+  } else {
+    await dropProjectIndexesReferencingColumn(table, legacy);
+    await runMigration(`ALTER TABLE ${table} DROP COLUMN ${legacy}`);
+  }
 };
 
 /**

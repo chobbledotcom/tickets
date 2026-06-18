@@ -13,6 +13,11 @@ import {
   promptToPushCheckedInChanges,
   shouldPushFromAnswer,
 } from "../../scripts/precommit/push.ts";
+import {
+  canPrompt,
+  canShowProgress,
+  currentTerminalState,
+} from "../../scripts/precommit/terminal.ts";
 
 const ok = (stdout = ""): CommandResult => ({
   code: 0,
@@ -223,6 +228,30 @@ describe("precommit merge conflict warning", () => {
     await expect(runInteractiveCommand([])).rejects.toThrow(
       "No command configured",
     );
+  });
+});
+
+describe("precommit terminal behavior", () => {
+  test("shows progress in git hooks where stdout is a terminal but stdin is not", () => {
+    const hookTerminalState = { ci: false, stdin: false, stdout: true };
+
+    expect(canShowProgress(hookTerminalState)).toBe(true);
+    expect(canPrompt(hookTerminalState)).toBe(false);
+  });
+
+  test("does not show progress or prompt in CI", () => {
+    const ciTerminalState = { ci: true, stdin: true, stdout: true };
+
+    expect(canShowProgress(ciTerminalState)).toBe(false);
+    expect(canPrompt(ciTerminalState)).toBe(false);
+  });
+
+  test("reads the current terminal state", () => {
+    const state = currentTerminalState();
+
+    expect(typeof state.ci).toBe("boolean");
+    expect(typeof state.stdin).toBe("boolean");
+    expect(typeof state.stdout).toBe("boolean");
   });
 });
 

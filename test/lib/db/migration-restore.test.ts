@@ -3,7 +3,10 @@ import { describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import { getDb, insert } from "#shared/db/client.ts";
 import { assertLiveTableColumns } from "#shared/db/migrations/schema-assertions.ts";
-import { runMigration } from "#shared/db/migrations/schema-sync.ts";
+import {
+  currentSchemaColumnsPresentIn,
+  runMigration,
+} from "#shared/db/migrations/schema-sync.ts";
 import {
   MIGRATIONS,
   type Migration,
@@ -206,6 +209,12 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
     expect(() =>
       assertLiveTableColumns("migration", live, "legacy", ["name"]),
     ).toThrow("Migration verification failed: legacy missing column(s): name");
+  });
+
+  test("schema column selection rejects unknown tables", () => {
+    expect(() =>
+      currentSchemaColumnsPresentIn("missing_schema_table", new Set()),
+    ).toThrow("Unknown schema table missing_schema_table");
   });
 
   test("runMigration ignores idempotent duplicate errors but rethrows real ones", async () => {

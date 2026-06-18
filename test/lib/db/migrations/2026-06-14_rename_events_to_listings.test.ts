@@ -162,6 +162,71 @@ describeWithEnv(
         expect(await schemaHashMarker()).toBe(SCHEMA_HASH);
       });
 
+      test("a database with duplicate legacy and target column values self-heals by dropping the legacy column", async () => {
+        const listing = await createTestListing();
+        await getDb().execute(
+          "INSERT INTO activity_log (created, listing_id, message) VALUES ('2024-01-01T00:00:00Z', ?, 'duplicate listing activity')",
+          [listing.id],
+        );
+        await getDb().execute(
+          "ALTER TABLE activity_log ADD COLUMN event_id INTEGER",
+        );
+        await getDb().execute(
+          "UPDATE activity_log SET event_id = listing_id WHERE listing_id IS NOT NULL",
+        );
+
+        await markMigrationsForRerun();
+        await initDb();
+
+        expect(await columnNames("activity_log")).toContain("listing_id");
+        expect(await columnNames("activity_log")).not.toContain("event_id");
+        const row = await getDb().execute(
+          "SELECT listing_id FROM activity_log WHERE message = 'duplicate listing activity'",
+        );
+        expect(row.rows[0]?.listing_id).toBe(listing.id);
+        expect(await schemaHashMarker()).toBe(SCHEMA_HASH);
+      });
+
+      test("a duplicate column state with a stale legacy foreign key self-heals by rebuilding the table", async () => {
+        const listing = await createTestListing();
+        await getDb().execute("DROP TABLE activity_log");
+        await getDb().execute(
+          `CREATE TABLE activity_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created TEXT NOT NULL,
+            event_id INTEGER,
+            listing_id INTEGER,
+            message TEXT NOT NULL,
+            FOREIGN KEY (event_id) REFERENCES listings(id) ON DELETE SET NULL
+          )`,
+        );
+        await getDb().execute(
+          "INSERT INTO activity_log (created, event_id, listing_id, message) VALUES ('2024-01-01T00:00:00Z', ?, ?, 'stale fk listing activity')",
+          [listing.id, listing.id],
+        );
+
+        await markMigrationsForRerun();
+        await initDb();
+
+        const cols = await columnNames("activity_log");
+        expect(cols).toContain("listing_id");
+        expect(cols).toContain("attendee_id");
+        expect(cols).not.toContain("event_id");
+        const row = await getDb().execute(
+          "SELECT listing_id FROM activity_log WHERE message = 'stale fk listing activity'",
+        );
+        expect(row.rows[0]?.listing_id).toBe(listing.id);
+        const foreignKeys = await getDb().execute(
+          "PRAGMA foreign_key_list(activity_log)",
+        );
+        expect(
+          foreignKeys.rows.some(
+            (foreignKey) => String(foreignKey.from) === "event_id",
+          ),
+        ).toBe(false);
+        expect(await schemaHashMarker()).toBe(SCHEMA_HASH);
+      });
+
       test("a database with both legacy and target tables containing rows fails with a clear manual-repair error", async () => {
         await seedListingDomainRows();
         await getDb().batch(
