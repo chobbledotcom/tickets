@@ -1,0 +1,21 @@
+{
+  "logistics.title": "Logistics",
+  "logistics.enable_hint": "Enable logistics for listings handled by an agent at the customer's location \u2014 deliveries, equipment hire, transport, set-up and teardown. When on, listings gain a \"Needs logistics\" option and logistics agents can be managed below.",
+  "logistics.agents_heading": "Logistics Agents",
+  "logistics.agents_hint": "Agents (e.g. vans, drivers, or crew) you can assign as the start and end agent on a logistics listing's attendees.",
+  "logistics.no_agents_yet": "No logistics agents yet.",
+  "logistics.add_agent": "Add Agent",
+  "logistics.create_agent": "Create Agent",
+  "logistics.guide_link": "Logistics guide",
+  "logistics.assigned_users": "Assigned users",
+  "logistics.assigned_users_hint": "These users see this agent's deliveries and collections on the deliveries page. Agent-class users can only see the deliveries page; owners and managers reach it from the Calendar menu.",
+  "logistics.no_users_to_assign": "No users to assign yet.",
+  "logistics.edit_agent": "Edit Logistics Agent",
+  "logistics.agent_details": "Agent details",
+  "logistics.delete_agent": "Delete Agent",
+  "logistics.agent_name": "Agent name",
+  "logistics.delete_confirm": "Are you sure you want to delete the logistics agent <strong>{name}</strong>? Any attendees assigned to this agent will have that assignment cleared.",
+  "logistics.type_name_to_confirm": "Type the agent name \"{name}\" to confirm:",
+  "logistics.add_logistics_agent": "Add Logistics Agent",
+  "logistics.delete_logistics_agent": "Delete Logistics Agent"
+}
