@@ -33,6 +33,8 @@ export const Accounts = (): JSX.Element => (
     <Section title={t("guide.sections.data_and_privacy")}>
       <Faq id="attendee_data_protection" />
 
+      <Faq id="privacy_first_by_default" />
+
       <Faq id="lost_password" />
 
       <Faq id="export_attendee_data" />

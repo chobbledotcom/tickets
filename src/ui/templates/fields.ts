@@ -781,6 +781,7 @@ export type ModifierFormValues = {
   code: string;
   scope: string;
   min_subtotal: number;
+  min_visits: number;
   stock: number | null;
   active: string;
 };
@@ -914,6 +915,14 @@ export const modifierFields: Field[] = [
         ? null
         : "Minimum order must be a positive number";
     },
+  },
+  {
+    hint: "Only apply to a returning customer with at least this many previous bookings. 0 (or blank) applies to everyone; 1 means seen at least once before.",
+    label: "Minimum previous bookings (optional)",
+    min: 0,
+    name: "min_visits",
+    parse: (value: string) => (value ? Number(value) : 0),
+    type: "number",
   },
   {
     hint: "Total number available across all orders. Leave blank for unlimited.",

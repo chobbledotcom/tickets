@@ -6,6 +6,7 @@ import { capacityErrorFormatter } from "#routes/format.ts";
 import { builderApi } from "#shared/builder.ts";
 import { addDays } from "#shared/dates.ts";
 import { insertBuiltSite } from "#shared/db/built-sites.ts";
+import { hashPhone, recordVisit } from "#shared/db/contact-preferences.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import {
   answersTable,
@@ -2256,6 +2257,82 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
         expect.stringContaining("Your Email is required"),
         false,
       );
+    });
+
+    test("Square requires email when a returning-customer charge makes a free listing paid", async () => {
+      await settings.update.paymentProvider("square");
+      await recordVisit(await hashPhone("555-1234"));
+      const listing = await createTestListing({
+        fields: "phone",
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com/thanks",
+        unitPrice: 0,
+      });
+      await modifiersTable.insert({
+        calcKind: "fixed",
+        calcValue: 5,
+        direction: "charge",
+        minVisits: 1,
+        name: "Returning customer fee",
+        trigger: "automatic",
+      });
+
+      const response = await submitTicketForm(listing.slug, {
+        name: "John Doe",
+        phone: "555-1234",
+      });
+
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Your Email is required"),
+        false,
+      );
+    });
+
+    test("Square redirects when a returning-customer charge has the required email", async () => {
+      await settings.update.paymentProvider("square");
+      await settings.update.square.accessToken("EAAAl_test_123");
+      await settings.update.square.locationId("L_test_123");
+      await recordVisit(await hashPhone("555-1234"));
+      const listing = await createTestListing({
+        fields: "phone",
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com/thanks",
+        unitPrice: 0,
+      });
+      await modifiersTable.insert({
+        calcKind: "fixed",
+        calcValue: 5,
+        direction: "charge",
+        minVisits: 1,
+        name: "Returning customer fee",
+        trigger: "automatic",
+      });
+      const { squarePaymentProvider } = await import(
+        "#shared/square-provider.ts"
+      );
+      const checkout = stub(
+        squarePaymentProvider,
+        "createCheckoutSession",
+        () =>
+          Promise.resolve({
+            checkoutUrl: "https://square.example/checkout",
+            sessionId: "square_order_123",
+          }),
+      );
+
+      try {
+        const response = await submitTicketForm(listing.slug, {
+          email: "john@example.com",
+          name: "John Doe",
+          phone: "555-1234",
+        });
+
+        expectCheckoutRedirect(response);
+      } finally {
+        checkout.restore();
+      }
     });
 
     test("ticket form with invalid quantity rejects submission", async () => {

@@ -19,9 +19,10 @@ import {
 } from "#shared/db/attendees/pii.ts";
 import { executeBatchWithResults, insert } from "#shared/db/client.ts";
 import {
-  ensureEmailPreference,
   hashEmail,
-} from "#shared/db/email-preferences.ts";
+  hashPhone,
+  recordVisit,
+} from "#shared/db/contact-preferences.ts";
 import { invalidateListingsCache } from "#shared/db/listings.ts";
 import { type Attendee, normalizeDurationDays } from "#shared/types.ts";
 
@@ -98,6 +99,19 @@ const buildAttendeeResult = (input: BuildAttendeeInput): Attendee => ({
   ticket_token: input.ticketToken,
   ticket_token_index: input.ticketTokenIndex,
 });
+
+const recordOrderVisit = async (email: unknown, phone: unknown) => {
+  const hashes: Promise<string>[] = [];
+  if (typeof email === "string" && email.trim()) {
+    hashes.push(hashEmail(email));
+  }
+  if (typeof phone === "string" && phone.trim()) {
+    hashes.push(hashPhone(phone));
+  }
+  for (const hash of await Promise.all(hashes)) {
+    await recordVisit(hash);
+  }
+};
 
 /**
  * Atomically create an attendee linked to one or more listings.
@@ -221,11 +235,10 @@ export const createAttendeeAtomicImpl = async (
     return { reason: "capacity_exceeded", success: false };
   }
 
-  // Seed an email-preferences record (count 0) so the attendee shows up in
-  // contact history before any bulk email goes out.
-  if (typeof email === "string" && email.trim()) {
-    await ensureEmailPreference(await hashEmail(email));
-  }
+  // Record one order-level visit per contact identity. Multi-listing carts
+  // still count as one customer visit, while email and phone can both recognize
+  // the customer on future checkouts.
+  await recordOrderVisit(email, phone);
 
   invalidateListingsCache();
   return { attendees: successfulBookings, success: true };
