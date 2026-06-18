@@ -193,13 +193,23 @@ export const buildItemsMetadata = async (
       : undefined,
   });
 
-/** Compact the resolved modifier specs to id/quantity references for metadata. */
+/**
+ * Compact the resolved modifier specs to id/quantity references for metadata.
+ *
+ * Answer price modifiers are excluded: the webhook re-derives them from the
+ * stored `answer_ids`, not from these refs, and an answer id can collide with
+ * an unrelated modifier id (the two tables autoincrement independently). Were
+ * they included, `specsFromRefs` would re-fetch that id from the modifiers
+ * table and wrongly revive a same-id modifier on payment completion.
+ */
 export const toModifierRefs = (
   specs: CheckoutIntent["modifiers"],
-): ModifierRef[] | undefined =>
-  specs && specs.length > 0
-    ? specs.map((s) => ({ i: s.id, q: s.quantity }))
+): ModifierRef[] | undefined => {
+  const real = (specs ?? []).filter((s) => s.source !== "answer");
+  return real.length > 0
+    ? real.map((s) => ({ i: s.id, q: s.quantity }))
     : undefined;
+};
 
 /** Input for buildMetadata — like BookingIntent but with optional contact fields */
 type MetadataInput = Pick<BookingIntent, "name" | "email" | "items" | "date"> &
