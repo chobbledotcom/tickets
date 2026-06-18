@@ -6,6 +6,7 @@ import { capacityErrorFormatter } from "#routes/format.ts";
 import { builderApi } from "#shared/builder.ts";
 import { addDays } from "#shared/dates.ts";
 import { insertBuiltSite } from "#shared/db/built-sites.ts";
+import { modifiersTable } from "#shared/db/modifiers.ts";
 import {
   answersTable,
   getAttendeeAnswersBatch,
@@ -111,6 +112,17 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
 
     test("returns 404 for non-GET requests to /", async () => {
       const response = await handleRequest(mockRequest("/", { method: "PUT" }));
+      expect(response.status).toBe(404);
+    });
+
+    test("redirects legacy /events to listings when public site is enabled", async () => {
+      await settings.update.showPublicSite(true);
+      const response = await handleRequest(mockRequest("/events"));
+      expectRedirect(response, /^\/listings$/);
+    });
+
+    test("does not redirect legacy /events when public site is disabled", async () => {
+      const response = await handleRequest(mockRequest("/events"));
       expect(response.status).toBe(404);
     });
 
@@ -2211,6 +2223,39 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
       });
       // With fields="phone", email is not collected and extractContact returns "" for email
       expectRedirect(response, "https://example.com/thanks");
+    });
+
+    test("Square requires email when a free listing has a paid add-on", async () => {
+      await settings.update.paymentProvider("square");
+      const listing = await createTestListing({
+        fields: "phone",
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com/thanks",
+        unitPrice: 0,
+      });
+      const addOn = await modifiersTable.insert({
+        calcKind: "fixed",
+        calcValue: 5,
+        direction: "charge",
+        name: "Workshop kit",
+        trigger: "optional",
+      });
+
+      const page = await handleRequest(mockRequest(`/ticket/${listing.slug}`));
+      const html = await page.text();
+      expect(html).toContain('name="email"');
+
+      const response = await submitTicketForm(listing.slug, {
+        [`addon_${addOn.id}`]: "1",
+        name: "John Doe",
+        phone: "555-1234",
+      });
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Your Email is required"),
+        false,
+      );
     });
 
     test("ticket form with invalid quantity rejects submission", async () => {

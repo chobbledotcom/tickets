@@ -100,6 +100,28 @@ export const deleteByFieldBatch = (
     })),
   );
 
+/**
+ * Reset selected aggregate columns from trusted SQL expressions. Each
+ * expression must use the entity id as its only placeholder.
+ */
+export const resetAggregates = async <T extends string>(
+  table: string,
+  entityId: InValue,
+  fields: readonly T[],
+  resetSql: Record<T, string>,
+): Promise<void> => {
+  if (fields.length === 0) return;
+  const sql = `UPDATE ${table} SET ${fields
+    .map((field) => resetSql[field])
+    .join(", ")} WHERE id = ?`;
+  await trackQuery(sql, () =>
+    getDb().execute({
+      args: fields.map(() => entityId).concat(entityId),
+      sql,
+    }),
+  );
+};
+
 /** Execute a batch with optional query logging and timing */
 const trackedBatch = async (
   statements: Array<{ sql: string; args: InValue[] }>,

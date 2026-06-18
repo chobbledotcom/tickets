@@ -9,6 +9,7 @@ import {
   LISTING_DEFAULT_ORDER,
   LISTING_TABLE_COLUMNS,
 } from "#shared/columns/listing-columns.ts";
+import { formatCurrency } from "#shared/currency.ts";
 import { settings } from "#shared/db/settings.ts";
 import { buildEmbedSnippets } from "#shared/embed.ts";
 import { isReadOnly } from "#shared/env.ts";
@@ -31,8 +32,15 @@ import {
 import { ListingRow, renderListingTable } from "#templates/admin/dashboard.tsx";
 import {
   buildSharedDetailRows,
+  calculateTotalRevenue,
   renderDetailRows,
+  sumQuantity,
 } from "#templates/admin/detail-rows.tsx";
+import {
+  type ExpectedActualItem,
+  ExpectedActualNotice,
+  hasExpectedActualMismatches,
+} from "#templates/admin/expected-actual.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import {
   AttendeeTable,
@@ -197,6 +205,60 @@ const buildAttendeeRows = (
 };
 
 const totalAttendeeCount = sumOf((e: ListingWithCount) => e.attendee_count);
+const totalTicketCount = sumOf((e: ListingWithCount) => e.tickets_count);
+const totalIncome = sumOf((e: ListingWithCount) => e.income);
+
+const groupAggregateMismatchItems = (
+  listings: ListingWithCount[],
+  attendees: Attendee[],
+): ExpectedActualItem[] => {
+  const checks: Array<ExpectedActualItem & { matches: boolean }> = [
+    {
+      actual: String(totalAttendeeCount(listings)),
+      expected: String(sumQuantity(attendees)),
+      label: t("fields.listing.booked_quantity"),
+      matches: totalAttendeeCount(listings) === sumQuantity(attendees),
+    },
+    {
+      actual: String(totalTicketCount(listings)),
+      expected: String(attendees.length),
+      label: t("fields.listing.tickets_count"),
+      matches: totalTicketCount(listings) === attendees.length,
+    },
+    {
+      actual: formatCurrency(totalIncome(listings)),
+      expected: formatCurrency(calculateTotalRevenue(attendees)),
+      label: t("fields.listing.income"),
+      matches: totalIncome(listings) === calculateTotalRevenue(attendees),
+    },
+  ];
+  return checks.filter((item) => !item.matches);
+};
+
+const GroupAggregateMismatchRow = ({
+  attendees,
+  listings,
+}: {
+  attendees: Attendee[];
+  listings: ListingWithCount[];
+}): JSX.Element | null => {
+  const items = groupAggregateMismatchItems(listings, attendees);
+  if (!hasExpectedActualMismatches(items)) return null;
+  return (
+    <tr>
+      <th>{t("groups.running_total_check")}</th>
+      <td>
+        <ExpectedActualNotice
+          actionHref="#listings"
+          actionLabel={t("groups.running_totals_error_action")}
+          explanation={t("groups.running_totals_error_explanation")}
+          items={items}
+          title={t("groups.running_totals_error_title")}
+        />
+      </td>
+    </tr>
+  );
+};
 
 /** Render the group-attendees row. The cap fragment is omitted when the
  * group is uncapped so the displayed total isn't conflated with a fake
@@ -259,7 +321,9 @@ export const adminGroupDetailPage = (
           map((e: ListingWithCount) => ListingRow({ columnKeys, e, filters })),
           joinStrings,
         )(listings)
-      : `<tr><td colspan="${columnKeys.length}">${t("groups.detail.no_listings")}</td></tr>`;
+      : `<tr><td colspan="${columnKeys.length}">${t(
+          "groups.detail.no_listings",
+        )}</td></tr>`;
 
   const ticketUrl = `https://${allowedDomain}/ticket/${group.slug}`;
   const { script: embedScriptCode, iframe: embedIframeCode } =
@@ -366,6 +430,10 @@ export const adminGroupDetailPage = (
                 </tr>
               )}
               <GroupAttendeesRow attendeeCount={totalCount} group={group} />
+              <GroupAggregateMismatchRow
+                attendees={attendees}
+                listings={listings}
+              />
               <Raw html={renderDetailRows(sharedRows)} />
             </tbody>
           </table>

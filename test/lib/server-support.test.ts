@@ -101,8 +101,8 @@ describeWithEnv(
         expect(html).not.toContain('name="email"');
       });
 
-      test("shows the Support link in the admin nav", async () => {
-        const { response } = await adminGet("/admin/");
+      test("shows the Support link in the settings sub-nav", async () => {
+        const { response } = await adminGet("/admin/settings");
         const html = await response.text();
         expect(html).toContain('href="/admin/support"');
       });
@@ -258,8 +258,8 @@ describeWithEnv("server (admin support, disabled)", { db: true }, () => {
     expect(response.status).toBe(404);
   });
 
-  test("hides the Support link in the admin nav", async () => {
-    const { response } = await adminGet("/admin/");
+  test("hides the Support link in the settings sub-nav", async () => {
+    const { response } = await adminGet("/admin/settings");
     const html = await response.text();
     expect(html).not.toContain('href="/admin/support"');
   });

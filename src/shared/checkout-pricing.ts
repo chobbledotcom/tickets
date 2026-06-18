@@ -42,18 +42,22 @@ export type ExtraLine = {
   quantity: number;
 };
 
-/** The reporting amount a modifier actually changed the order by. */
-export type ModifierUsageAmount = {
+/** One modifier's exact contribution to a priced checkout. `amountApplied` is
+ * the positive absolute impact for reporting/ledger compatibility; `delta` is
+ * the signed net checkout change. */
+export type ModifierApplication = {
   modifierId: number;
   quantity: number;
   amountApplied: number;
+  delta: number;
+  scopedSubtotal: number;
 };
 
 /** A fully-priced checkout: ticket lines, extra lines, and the resulting total. */
 export type PricedOrder = {
   lines: PricedLine[];
   extras: ExtraLine[];
-  modifierUsages: ModifierUsageAmount[];
+  modifierApplications: ModifierApplication[];
   /** Sum of all line and extra charges, in minor units. */
   total: number;
   /** The pre-extras item subtotal the booking fee is charged on. */
@@ -64,6 +68,20 @@ const lineCharge = (line: PricedLine): number =>
   line.chargedUnitAmount * line.quantity;
 
 const extraCharge = (extra: ExtraLine): number => extra.amount * extra.quantity;
+
+export const ticketLineTotal = (order: Pick<PricedOrder, "lines">): number =>
+  sumOf(lineCharge)(order.lines);
+
+export const ticketLineTotalsByListingId = (
+  order: Pick<PricedOrder, "lines">,
+): Map<number, number> => {
+  const totals = new Map<number, number>();
+  for (const line of order.lines) {
+    const listingId = line.item.listingId;
+    totals.set(listingId, (totals.get(listingId) ?? 0) + lineCharge(line));
+  }
+  return totals;
+};
 
 /** The booking-fee extra line for a subtotal, or [] when the fee is zero. */
 const feeExtras = (fullSubtotal: number): ExtraLine[] => {
@@ -109,7 +127,7 @@ const allocateAmount = (weights: number[], amount: number): number[] => {
 type ModifierResult = {
   lines: PricedLine[];
   extras: ExtraLine[];
-  modifierUsages: ModifierUsageAmount[];
+  applications: ModifierApplication[];
   modifierTotal: number;
 };
 
@@ -200,36 +218,38 @@ const unmodifiedReservationLines = (
 type ModifierPass = {
   units: WorkUnit[];
   extras: ExtraLine[];
-  modifierUsages: ModifierUsageAmount[];
+  applications: ModifierApplication[];
   discountTotal: number;
 };
 
 /** Apply one modifier: an additive delta becomes an extra line; a negative
  * delta is allocated across the in-scope units as a discount (clamped to what
- * those units can absorb). A zero delta is a no-op. */
+ * those units can absorb). A zero delta still records an application so the
+ * ledger and stock consumption stay aligned with the chosen quantity. */
 const applyOne = (pass: ModifierPass, spec: ModifierSpec): ModifierPass => {
   const scoped = pass.units.filter((u) => inScope(spec, u));
-  const delta = modifierDelta(
-    sum(scoped.map((u) => u.orig)),
-    spec.kind,
-    spec.value,
-  );
-  const withUsage = (
+  const scopedSubtotal = sum(scoped.map((u) => u.orig));
+  const delta = modifierDelta(scopedSubtotal, spec.kind, spec.value);
+  const appliedDelta = delta * spec.quantity;
+  const withApplication = (
     next: ModifierPass,
     amountApplied: number,
+    signedDelta: number,
   ): ModifierPass => ({
     ...next,
-    modifierUsages: [
-      ...pass.modifierUsages,
+    applications: [
+      ...pass.applications,
       {
         amountApplied,
+        delta: signedDelta,
         modifierId: spec.id,
         quantity: spec.quantity,
+        scopedSubtotal,
       },
     ],
   });
   if (delta > 0) {
-    return withUsage(
+    return withApplication(
       {
         ...pass,
         extras: [
@@ -242,23 +262,25 @@ const applyOne = (pass: ModifierPass, spec: ModifierSpec): ModifierPass => {
           },
         ],
       },
-      delta * spec.quantity,
+      appliedDelta,
+      appliedDelta,
     );
   }
-  if (delta === 0) return withUsage(pass, 0);
+  if (delta === 0) return withApplication(pass, 0, 0);
 
   const reduced = allocateDiscount(
     scoped.map((u) => u.price),
-    -delta,
+    -appliedDelta,
   );
   let next = 0;
   const units = pass.units.map((u) =>
     inScope(spec, u) ? { ...u, price: reduced[next++]! } : u,
   );
   const applied = sum(scoped.map((u) => u.price)) - sum(reduced);
-  return withUsage(
+  return withApplication(
     { ...pass, discountTotal: pass.discountTotal + applied, units },
     applied,
+    -applied,
   );
 };
 
@@ -274,16 +296,16 @@ export const applyModifiers = (
   specs: ModifierSpec[],
 ): ModifierResult => {
   const pass = specs.reduce(applyOne, {
+    applications: [],
     discountTotal: 0,
     extras: [],
-    modifierUsages: [],
     units: toUnits(lines),
   });
   return {
+    applications: pass.applications,
     extras: pass.extras,
     lines: toLines(pass.units),
     modifierTotal: sumOf(extraCharge)(pass.extras) - pass.discountTotal,
-    modifierUsages: pass.modifierUsages,
   };
 };
 
@@ -321,7 +343,28 @@ export const priceCheckout = (intent: CheckoutIntent): PricedOrder => {
     extras,
     fullSubtotal,
     lines,
-    modifierUsages: modifiers.modifierUsages,
+    modifierApplications: modifiers.applications,
     total: sumOf(lineCharge)(lines) + sumOf(extraCharge)(extras),
   };
+};
+
+export type TicketPaymentBreakdown = {
+  paidByListingId: Map<number, number>;
+  remainingBalance: number;
+};
+
+export const ticketPaymentBreakdown = (
+  intent: CheckoutIntent,
+): TicketPaymentBreakdown => {
+  const paid = priceCheckout(intent);
+  const paidByListingId = ticketLineTotalsByListingId(paid);
+  if (!intent.reservationAmount) {
+    return { paidByListingId, remainingBalance: 0 };
+  }
+
+  const remainingBalance = Math.max(
+    0,
+    paid.fullSubtotal - ticketLineTotal(paid),
+  );
+  return { paidByListingId, remainingBalance };
 };

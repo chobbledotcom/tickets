@@ -9,6 +9,7 @@
  */
 
 import type { InValue } from "@libsql/client";
+import { deleteAttendee } from "#shared/db/attendees/delete.ts";
 import {
   executeBatchWithResults,
   getDb,
@@ -86,5 +87,28 @@ export const consumeModifierStock = async (
     args: [attendeeId],
     sql: "DELETE FROM modifier_usages WHERE attendee_id = ?",
   });
+  return false;
+};
+
+/**
+ * Consume stock for a checkout's priced modifier usages and roll back the order
+ * when a stock-limited modifier sold out between resolution and consumption.
+ *
+ * Returns true when every usage was recorded. Returns false after deleting the
+ * newly-created attendee (and the partial `modifier_usages` rows it would have
+ * owned) when consumption failed — so the caller only has to surface the
+ * failure; the partially-created order is gone as if it never happened.
+ *
+ * The recorded `amount_applied` must come from the pricing engine, because
+ * discounts can be clamped by the remaining ticket subtotal after earlier
+ * modifiers have been applied. With no usages this is a no-op.
+ */
+export const consumeModifierStockOrRollback = async (
+  attendeeId: number,
+  usages: ModifierUsage[],
+): Promise<boolean> => {
+  const consumed = await consumeModifierStock(attendeeId, usages);
+  if (consumed) return true;
+  await deleteAttendee(attendeeId);
   return false;
 };

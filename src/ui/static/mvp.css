@@ -16,15 +16,8 @@
   --color-text-secondary: #999;
   --color-scrollbar: #cacae8;
   --font-family:
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    Roboto,
-    Oxygen-Sans,
-    Ubuntu,
-    Cantarell,
-    "Helvetica Neue",
-    sans-serif;
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu,
+    Cantarell, "Helvetica Neue", sans-serif;
   --hover-brightness: 1.2;
   --justify-important: left;
   --justify-normal: left;
@@ -885,6 +878,16 @@ label > input[type="time"] {
   width: auto;
 }
 
+input[type="number"] {
+  box-sizing: border-box;
+  max-width: 100%;
+  width: 8ch;
+}
+
+label > input[type="number"] {
+  flex: 0 0 auto;
+}
+
 label > select[name="quantity"],
 label > select[name^="quantity_"] {
   width: 8ch;
@@ -1167,6 +1170,20 @@ input[type="submit"].danger:hover,
   font-weight: bold;
 }
 
+.expected-actual-notice {
+  margin: var(--space-s) 0;
+}
+
+.expected-actual-notice summary {
+  cursor: pointer;
+}
+
+.expected-actual-notice p,
+.expected-actual-notice ul {
+  margin-bottom: var(--space-s);
+  margin-top: var(--space-s);
+}
+
 .success-text {
   color: #006600;
   font-weight: bold;
@@ -1395,8 +1412,8 @@ form:has(select[name="listing_type"] option[value="standard"]:checked)
 /* Booking duration applies to daily listings, or to any listing using
    customisable day pricing (where it caps how many days a visitor may pick). */
 form:has(select[name="listing_type"] option[value="standard"]:checked):not(
-    :has(input[name="customisable_days"]:checked)
-  )
+  :has(input[name="customisable_days"]:checked)
+)
   label:has([name="duration_days"]) {
   display: none;
 }
@@ -1949,10 +1966,19 @@ button.secondary:hover,
 }
 
 /* Email template save controls — checkbox-driven show/hide without JS */
-#bulk-email .save-update { display: none; }
-#bulk-email:has(input[name="update_existing"]:checked) .save-as-new { display: none; }
-#bulk-email:has(input[name="update_existing"]:checked) .save-update { display: inline; }
-#bulk-email:not(:has(input[name="update_existing"]:checked)) .template-update-fields { display: none; }
+#bulk-email .save-update {
+  display: none;
+}
+#bulk-email:has(input[name="update_existing"]:checked) .save-as-new {
+  display: none;
+}
+#bulk-email:has(input[name="update_existing"]:checked) .save-update {
+  display: inline;
+}
+#bulk-email:not(:has(input[name="update_existing"]:checked))
+  .template-update-fields {
+  display: none;
+}
 
 /* No-transition helper (used by admin nav scroll-hide) */
 .nav-no-transition {
@@ -2197,9 +2223,7 @@ a.cal-day-selected:hover {
   border: 2px solid var(--color-bg-secondary);
   border-radius: var(--border-radius);
   background: var(--color-bg);
-  transition:
-    border-color 0.15s,
-    box-shadow 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
 .order-card:hover {
