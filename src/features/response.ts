@@ -161,6 +161,10 @@ export const redirect = (
   opts?: RedirectOpts,
 ): Response => {
   const target = opts?.form?.get("return_url") || url;
+  if (!URL.canParse(target, "http://localhost")) {
+    throw new TypeError("Invalid redirect URL");
+  }
+
   const u = new URL(target, "http://localhost");
   const flashId = getRequestId();
   u.searchParams.set("flash", flashId);

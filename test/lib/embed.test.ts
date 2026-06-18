@@ -39,5 +39,9 @@ describe("embed", () => {
       const result = buildEmbedSnippets("https://example.com/");
       expect(result.script).toContain('data-listings=""');
     });
+
+    test("rejects invalid URLs before building snippets", () => {
+      expect(() => buildEmbedSnippets("not a url")).toThrow(TypeError);
+    });
   });
 });
