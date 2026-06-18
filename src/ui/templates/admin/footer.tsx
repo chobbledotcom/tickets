@@ -111,6 +111,11 @@ export const adminFooterHtml = (debug: DebugFooterData | null): string =>
   `<footer class="admin-footer">` +
   `<div class="admin-footer-top">` +
   `<a href="https://github.com/chobbledotcom/tickets">${t("admin.footer.chobble_tickets")}</a>` +
+  `<div class="admin-footer-links">` +
+  `<a href="/admin/log">${t("nav.log")}</a>` +
+  ` &middot; ` +
+  `<a href="/admin/guide">${t("nav.guide")}</a>` +
+  `</div>` +
   logoutFormHtml() +
   "</div>" +
   (debug

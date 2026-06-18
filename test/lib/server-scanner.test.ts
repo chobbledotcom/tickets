@@ -692,12 +692,10 @@ describeWithEnv("QR Scanner", { db: true }, () => {
       expect(response.headers.get("location")).toBe("/admin");
     });
 
-    test("nav contains guide link", async () => {
+    test("footer contains guide link", async () => {
       const { response } = await adminGet("/admin/guide");
       const body = await response.text();
-      expect(body).toMatch(
-        /<a[^>]*\bclass="active"[^>]*\bhref="\/admin\/guide"[^>]*>\s*Guide\s*<\/a>/,
-      );
+      expect(body).toMatch(/<a[^>]*\bhref="\/admin\/guide"[^>]*>\s*Guide\s*<\/a>/);
     });
   });
 });
