@@ -6,6 +6,7 @@ import {
   getBookingFeeAmount,
   itemsSubtotal,
 } from "#shared/booking-fee.ts";
+import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { testWithSetting } from "#test-utils";
 
 describe("feeSubtotalFor", () => {
@@ -74,6 +75,36 @@ describe("getBookingFeeAmount", () => {
       // parseFloat returns NaN for garbage input — the `|| 0` guard in
       // getBookingFee() must prevent NaN ever reaching the payment provider.
       expect(getBookingFeeAmount(10000)).toBe(0);
+    },
+  );
+});
+
+describe("reservation booking fee", () => {
+  testWithSetting(
+    "is charged on the full order total, not the deposit total",
+    { booking_fee: "5", currency: "GBP" },
+    () => {
+      const item = {
+        listingId: 1,
+        name: "General",
+        quantity: 3,
+        slug: "general",
+        unitPrice: 1000,
+      };
+      const order = priceCheckout({
+        address: "",
+        date: null,
+        email: "buyer@example.com",
+        items: [item],
+        name: "Buyer",
+        phone: "",
+        reservationAmount: "10",
+        special_instructions: "",
+      });
+      expect(order.fullSubtotal).toBe(3000);
+      expect(order.extras).toEqual([
+        { amount: 150, key: "fee", name: "Booking fee", quantity: 1 },
+      ]);
     },
   );
 });

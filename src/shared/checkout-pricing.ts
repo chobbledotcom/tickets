@@ -10,6 +10,7 @@
 
 import { sum, sumOf } from "#fp";
 import { feeSubtotalFor, getBookingFeeAmount } from "#shared/booking-fee.ts";
+import { largestRemainderAllocation } from "#shared/largest-remainder.ts";
 import type {
   CheckoutIntent,
   CheckoutItem,
@@ -65,24 +66,7 @@ const feeExtras = (fullSubtotal: number): ExtraLine[] => {
 const allocateByLargestRemainder = (
   weights: number[],
   amount: number,
-): number[] => {
-  const total = sum(weights);
-  if (amount <= 0 || total <= 0) return weights.map(() => 0);
-  const shares = weights.map((weight) => (amount * weight) / total);
-  const floors = shares.map((share) => Math.floor(share));
-  const leftover = amount - sum(floors);
-  const bumped = new Set(
-    shares
-      .map((share, index) => ({
-        frac: share - Math.floor(share),
-        index,
-      }))
-      .sort((a, b) => b.frac - a.frac || a.index - b.index)
-      .slice(0, leftover)
-      .map(({ index }) => index),
-  );
-  return floors.map((value, index) => value + (bumped.has(index) ? 1 : 0));
-};
+): number[] => largestRemainderAllocation(weights, amount);
 
 /**
  * Spread a discount across per-unit prices by largest remainder: each unit

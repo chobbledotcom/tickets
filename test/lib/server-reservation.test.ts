@@ -193,6 +193,40 @@ describeWithEnv(
       }
     });
 
+    test("recomputes flat split deposits exactly when storing the remaining balance", async () => {
+      await setupStripe();
+      await settings.update.bookingFee("0");
+      await setPublicReservation("10");
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        thankYouUrl: "https://example.com",
+        unitPrice: 1000,
+      });
+      const session = stubPaidSession(
+        "cs_flat_split",
+        {
+          _origin: "localhost",
+          email: "reserver@example.com",
+          items: JSON.stringify([{ e: listing.id, p: 3000, q: 3 }]),
+          name: "Reserver",
+          reservation_amount: "10",
+        },
+        1000,
+      );
+      try {
+        const response = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_flat_split"),
+        );
+        expect([200, 302, 303]).toContain(response.status);
+
+        const attendee = await latestAttendee();
+        expect(attendee.pricePaid).toBe(1000);
+        expect(attendee.remainingBalance).toBe(2000);
+      } finally {
+        session.restore();
+      }
+    });
+
     test("refunds when the charged total does not match deposit plus fee", async () => {
       await setupStripe();
       await settings.update.bookingFee("10");

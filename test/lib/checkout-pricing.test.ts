@@ -83,6 +83,90 @@ describe("priceCheckout", () => {
   );
 
   testWithSetting(
+    "splits flat reservation lines so 10 across 3 tickets charges exactly 1000",
+    { booking_fee: "0", currency: "GBP" },
+    () => {
+      const order = priceCheckout(
+        intentWith([item({ quantity: 3 })], { reservationAmount: "10" }),
+      );
+      expect(order.lines).toEqual([
+        { chargedUnitAmount: 334, item: item({ quantity: 3 }), quantity: 1 },
+        { chargedUnitAmount: 333, item: item({ quantity: 3 }), quantity: 2 },
+      ]);
+      expect(order.total).toBe(1000);
+    },
+  );
+
+  testWithSetting(
+    "splits flat reservation lines so 10.01 across 3 tickets charges exactly 1001",
+    { booking_fee: "0", currency: "GBP" },
+    () => {
+      const order = priceCheckout(
+        intentWith([item({ quantity: 3 })], { reservationAmount: "10.01" }),
+      );
+      expect(order.lines).toEqual([
+        { chargedUnitAmount: 334, item: item({ quantity: 3 }), quantity: 2 },
+        { chargedUnitAmount: 333, item: item({ quantity: 3 }), quantity: 1 },
+      ]);
+      expect(order.total).toBe(1001);
+    },
+  );
+
+  testWithSetting(
+    "clamps an oversized flat reservation deposit to the full order total",
+    { booking_fee: "0", currency: "GBP" },
+    () => {
+      const order = priceCheckout(
+        intentWith([item({ quantity: 2, unitPrice: 300 })], {
+          reservationAmount: "100",
+        }),
+      );
+      expect(order.lines).toEqual([
+        {
+          chargedUnitAmount: 300,
+          item: item({ quantity: 2, unitPrice: 300 }),
+          quantity: 2,
+        },
+      ]);
+      expect(order.total).toBe(600);
+    },
+  );
+
+  testWithSetting(
+    "allocates mixed flat reservation items exactly without exceeding line prices",
+    { booking_fee: "0", currency: "GBP" },
+    () => {
+      const general = item({ listingId: 1, quantity: 2, unitPrice: 1000 });
+      const vip = item({
+        listingId: 2,
+        name: "VIP",
+        quantity: 1,
+        slug: "vip",
+        unitPrice: 2500,
+      });
+      const cheap = item({
+        listingId: 3,
+        name: "Cheap",
+        quantity: 3,
+        slug: "cheap",
+        unitPrice: 500,
+      });
+      const order = priceCheckout(
+        intentWith([general, vip, cheap], { reservationAmount: "10" }),
+      );
+      expect(order.lines).toEqual([
+        { chargedUnitAmount: 167, item: general, quantity: 2 },
+        { chargedUnitAmount: 417, item: vip, quantity: 1 },
+        { chargedUnitAmount: 83, item: cheap, quantity: 3 },
+      ]);
+      expect(order.total).toBe(1000);
+      for (const line of order.lines) {
+        expect(line.chargedUnitAmount).toBeLessThanOrEqual(line.item.unitPrice);
+      }
+    },
+  );
+
+  testWithSetting(
     "adds a booking-fee extra line on top of the ticket total",
     { booking_fee: "5" },
     () => {
@@ -122,6 +206,21 @@ describe("priceCheckout", () => {
       expect(order.extras[0]!.amount).toBe(100);
       // Deposit (2 × £1) + fee (£1) = £3.
       expect(order.total).toBe(300);
+    },
+  );
+
+  testWithSetting(
+    "charges the fee on the full reservation order when no override is present",
+    { booking_fee: "5" },
+    () => {
+      const order = priceCheckout(
+        intentWith([item({ quantity: 3 })], { reservationAmount: "10" }),
+      );
+      expect(order.fullSubtotal).toBe(3000);
+      expect(order.extras).toEqual([
+        { amount: 150, key: "fee", name: "Booking fee", quantity: 1 },
+      ]);
+      expect(order.total).toBe(1150);
     },
   );
 

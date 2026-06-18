@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  allocateReservationDeposit,
   computeReservationDeposit,
   parseReservationAmount,
   RESERVATION_AMOUNT_HINT,
@@ -156,6 +157,108 @@ describe("reservation-amount", () => {
       },
       () => {
         expect(computeReservationDeposit("nonsense", 10000, 4)).toBe(0);
+      },
+    );
+  });
+
+  describe("allocateReservationDeposit", () => {
+    testWithSetting(
+      "returns no allocation when there are no items",
+      {
+        currency: "GBP",
+      },
+      () => {
+        const allocation = allocateReservationDeposit("10", []);
+        expect(allocation).toEqual({ lines: [], perItemTotals: [], total: 0 });
+      },
+    );
+
+    testWithSetting(
+      "flat 10 across 3 equal tickets allocates exactly 1000 minor units",
+      { currency: "GBP" },
+      () => {
+        const allocation = allocateReservationDeposit("10", [
+          { quantity: 3, unitPrice: 1000 },
+        ]);
+        expect(allocation.total).toBe(1000);
+        expect(allocation.perItemTotals).toEqual([1000]);
+        expect(allocation.lines).toEqual([
+          { chargedUnitAmount: 334, itemIndex: 0, quantity: 1 },
+          { chargedUnitAmount: 333, itemIndex: 0, quantity: 2 },
+        ]);
+      },
+    );
+
+    testWithSetting(
+      "flat 10.01 across 3 equal tickets allocates exactly 1001 minor units",
+      { currency: "GBP" },
+      () => {
+        const allocation = allocateReservationDeposit("10.01", [
+          { quantity: 3, unitPrice: 1000 },
+        ]);
+        expect(allocation.total).toBe(1001);
+        expect(allocation.perItemTotals).toEqual([1001]);
+        expect(allocation.lines).toEqual([
+          { chargedUnitAmount: 334, itemIndex: 0, quantity: 2 },
+          { chargedUnitAmount: 333, itemIndex: 0, quantity: 1 },
+        ]);
+      },
+    );
+
+    testWithSetting(
+      "flat deposit larger than the order clamps to the full order total",
+      { currency: "GBP" },
+      () => {
+        const allocation = allocateReservationDeposit("100", [
+          { quantity: 2, unitPrice: 300 },
+        ]);
+        expect(allocation.total).toBe(600);
+        expect(allocation.perItemTotals).toEqual([600]);
+        expect(allocation.lines).toEqual([
+          { chargedUnitAmount: 300, itemIndex: 0, quantity: 2 },
+        ]);
+      },
+    );
+
+    testWithSetting(
+      "mixed quantities and prices allocate exactly without exceeding unit prices",
+      { currency: "GBP" },
+      () => {
+        const allocation = allocateReservationDeposit("10", [
+          { quantity: 2, unitPrice: 1000 },
+          { quantity: 1, unitPrice: 2500 },
+          { quantity: 3, unitPrice: 500 },
+        ]);
+        expect(allocation.total).toBe(1000);
+        expect(allocation.perItemTotals).toEqual([334, 417, 249]);
+        expect(allocation.lines).toEqual([
+          { chargedUnitAmount: 167, itemIndex: 0, quantity: 2 },
+          { chargedUnitAmount: 417, itemIndex: 1, quantity: 1 },
+          { chargedUnitAmount: 83, itemIndex: 2, quantity: 3 },
+        ]);
+        for (const line of allocation.lines) {
+          const item = [
+            { quantity: 2, unitPrice: 1000 },
+            { quantity: 1, unitPrice: 2500 },
+            { quantity: 3, unitPrice: 500 },
+          ][line.itemIndex]!;
+          expect(line.chargedUnitAmount).toBeLessThanOrEqual(item.unitPrice);
+        }
+      },
+    );
+
+    testWithSetting(
+      "percent and per-item totals preserve their order-level semantics",
+      { currency: "GBP" },
+      () => {
+        expect(
+          allocateReservationDeposit("10%", [{ quantity: 2, unitPrice: 1000 }])
+            .total,
+        ).toBe(200);
+        expect(
+          allocateReservationDeposit("10x", [{ quantity: 2, unitPrice: 1000 }])
+            .total,
+        ).toBe(2000);
       },
     );
   });
