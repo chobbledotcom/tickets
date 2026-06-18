@@ -4,15 +4,20 @@
  */
 
 import { lazyRef, map } from "#fp";
-import type {
-  ExtraLine,
-  PricedLine,
-  PricedOrder,
+import {
+  type ExtraLine,
+  type PricedLine,
+  type PricedOrder,
+  priceCheckout,
 } from "#shared/checkout-pricing.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { ErrorCodeType, LogCategory } from "#shared/logger.ts";
 import { logDebug, logError } from "#shared/logger.ts";
+import {
+  priceFieldsFromMetadata,
+  signPrice,
+} from "#shared/payment-signature.ts";
 import type {
   BookingIntent,
   BookingItem,
@@ -183,8 +188,8 @@ export const singleListingAnswerIds = (
  */
 export const buildItemsMetadata = async (
   intent: CheckoutIntent,
-): Promise<Record<string, string>> =>
-  buildMetadata({
+): Promise<Record<string, string>> => {
+  const base = buildMetadata({
     ...intent,
     items: toBookingItems(intent.items),
     modifiers: toModifierRefs(intent.modifiers),
@@ -192,6 +197,13 @@ export const buildItemsMetadata = async (
       ? await hmacHash(intent.siteToken)
       : undefined,
   });
+  // Sign the total the buyer is charged (the same priceCheckout the provider
+  // bills from), bound to the stored price/booking fields, so the webhook can
+  // trust it as an oracle rather than re-deriving and hoping they agree.
+  const total = priceCheckout(intent).total;
+  const price_sig = await signPrice(priceFieldsFromMetadata(base, total));
+  return { ...base, price_sig, price_total: String(total) };
+};
 
 /**
  * Compact the resolved modifier specs to id/quantity references for metadata.
@@ -349,6 +361,8 @@ export const extractSessionMetadata = (
   modifiers: metadata.modifiers || "",
   name: metadata.name,
   phone: metadata.phone || "",
+  price_sig: metadata.price_sig || "",
+  price_total: metadata.price_total || "",
   reservation_amount: metadata.reservation_amount || "",
   site_token_index: metadata.site_token_index || "",
   special_instructions: metadata.special_instructions || "",

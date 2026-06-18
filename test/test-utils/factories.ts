@@ -165,6 +165,8 @@ export const webhookMeta = (
   items: "",
   modifiers: "",
   phone: "",
+  price_sig: "",
+  price_total: "",
   reservation_amount: "",
   site_token_index: "",
   special_instructions: "",

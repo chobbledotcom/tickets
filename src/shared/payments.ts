@@ -151,6 +151,12 @@ export type SessionMetadata = {
   reservation_amount: string;
   /** JSON array of applied modifier references ("" when none applied). */
   modifiers: string;
+  /** Agreed order total (minor units) the buyer was charged, as a string. */
+  price_total: string;
+  /** Server HMAC over the price/booking fields + total, so the webhook can
+   * trust the agreed total instead of re-deriving it ("" only on legacy or
+   * tampered sessions, which the webhook rejects). */
+  price_sig: string;
 };
 
 /** Schema for valid payment status values. "failed" is a terminal non-payment
