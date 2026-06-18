@@ -52,6 +52,31 @@ describe("renderQuestions", () => {
     expect(html).toContain('name="question_2"');
   });
 
+  test("renders answer price modifier labels", () => {
+    const questions: QuestionWithAnswers[] = [
+      {
+        answers: [
+          {
+            calc_kind: "fixed",
+            calc_value: 2.5,
+            direction: "charge",
+            id: 10,
+            question_id: 1,
+            sort_order: 0,
+            text: "Premium",
+          },
+        ],
+        id: 1,
+        text: "Meal?",
+      },
+    ];
+
+    const html = renderQuestions(questions);
+
+    expect(html).toContain("Premium");
+    expect(html).toContain("+£2.50");
+  });
+
   test("escapes HTML in question and answer text", () => {
     const questions: QuestionWithAnswers[] = [
       {

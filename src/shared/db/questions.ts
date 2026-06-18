@@ -7,7 +7,9 @@
 
 import type { InValue } from "@libsql/client";
 import { filter, map, reduce } from "#fp";
+import type { ModifierApplication } from "#shared/checkout-pricing.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
+import { formatCurrency, toMinorUnits } from "#shared/currency.ts";
 import {
   executeBatch,
   inPlaceholders,
@@ -16,6 +18,9 @@ import {
 } from "#shared/db/client.ts";
 import { swapSortOrder } from "#shared/db/query.ts";
 import { col, defineTable } from "#shared/db/table.ts";
+import { largestRemainderAllocation } from "#shared/largest-remainder.ts";
+import type { ModifierSpec } from "#shared/payments.ts";
+import type { CalcKind, ModifierDirection } from "#shared/price-modifier.ts";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -33,6 +38,12 @@ export interface Answer {
   question_id: number;
   sort_order: number;
   text: string; // encrypted
+  calc_kind?: CalcKind | null;
+  calc_value?: number | null;
+  direction?: ModifierDirection | null;
+  total_uses?: number;
+  usage_count?: number;
+  total_revenue?: number;
 }
 
 /** Link between listing and question. Membership only — display order comes
@@ -50,6 +61,7 @@ export interface AttendeeAnswer {
   answer_id: number;
   attendee_id: number;
   id: number;
+  amount_applied: number;
 }
 
 /** Question with its answer options (decrypted) */
@@ -75,7 +87,14 @@ export const questionsTable = defineTable<Question, QuestionInput>({
   schema: { id: generatedId, text: encryptedText },
 });
 
-type AnswerInput = { questionId: number; text: string; sortOrder: number };
+type AnswerInput = {
+  calcKind?: CalcKind | null;
+  calcValue?: number | null;
+  direction?: ModifierDirection | null;
+  questionId: number;
+  text: string;
+  sortOrder: number;
+};
 
 export const answersTable = defineTable<Answer, AnswerInput>({
   name: "answers",
@@ -83,7 +102,15 @@ export const answersTable = defineTable<Answer, AnswerInput>({
   schema: {
     id: generatedId,
     ...questionIdAndSortOrder,
+    calc_kind: col.withDefault<CalcKind | null | undefined>(() => null),
+    calc_value: col.withDefault<number | null | undefined>(() => null),
+    direction: col.withDefault<ModifierDirection | null | undefined>(
+      () => null,
+    ),
     text: encryptedText,
+    total_revenue: col.generated<number | undefined>(),
+    total_uses: col.generated<number | undefined>(),
+    usage_count: col.generated<number | undefined>(),
   },
 });
 
@@ -106,7 +133,11 @@ export const listingQuestionsTable = defineTable<
   },
 });
 
-type AttendeeAnswerInput = { attendeeId: number; answerId: number };
+type AttendeeAnswerInput = {
+  attendeeId: number;
+  answerId: number;
+  amountApplied?: number;
+};
 
 export const attendeeAnswersTable = defineTable<
   AttendeeAnswer,
@@ -115,6 +146,7 @@ export const attendeeAnswersTable = defineTable<
   name: "attendee_answers",
   primaryKey: "id",
   schema: {
+    amount_applied: col.withDefault(() => 0),
     answer_id: col.simple<number>(),
     attendee_id: col.simple<number>(),
     id: col.generated<number>(),
@@ -133,12 +165,16 @@ type JoinedRow = {
   a_text: string | null;
   a_question_id: number | null;
   a_sort_order: number | null;
+  a_calc_kind: CalcKind | null;
+  a_calc_value: number | null;
+  a_direction: ModifierDirection | null;
 };
 
 /** Shared SELECT columns and JOIN for question + answers */
 const QA_COLS = `q.id AS q_id, q.text AS q_text,
        a.id AS a_id, a.text AS a_text,
-       a.question_id AS a_question_id, a.sort_order AS a_sort_order`;
+       a.question_id AS a_question_id, a.sort_order AS a_sort_order,
+       a.calc_kind AS a_calc_kind, a.calc_value AS a_calc_value, a.direction AS a_direction`;
 const QA_JOIN = "questions q LEFT JOIN answers a ON a.question_id = q.id";
 
 /** Group flat joined rows into QuestionWithAnswers[], preserving row order.
@@ -149,6 +185,9 @@ const groupJoinedRows = (rows: JoinedRow[]): Promise<QuestionWithAnswers[]> => {
     const group = acc.get(row.q_id) ?? { answers: [], text: row.q_text };
     if (row.a_id !== null) {
       group.answers.push({
+        calc_kind: row.a_calc_kind,
+        calc_value: row.a_calc_value,
+        direction: row.a_direction,
         id: row.a_id,
         question_id: row.a_question_id!,
         sort_order: row.a_sort_order!,
@@ -274,6 +313,11 @@ export const setQuestionListings = async (
 /** Map from question ID to the set of listing IDs that use it */
 export type QuestionListingMap = Map<number, number[]>;
 
+const noQuestionsWithListingIds = () => ({
+  questionListingMap: new Map() as QuestionListingMap,
+  questions: [] as QuestionWithAnswers[],
+});
+
 /** Joined row including the comma-separated listing IDs from GROUP_CONCAT */
 type JoinedRowWithListings = JoinedRow & { listing_ids: string };
 
@@ -285,9 +329,7 @@ export const getQuestionsWithListingIds = async (
   questions: QuestionWithAnswers[];
   questionListingMap: QuestionListingMap;
 }> => {
-  if (listingIds.length === 0) {
-    return { questionListingMap: new Map(), questions: [] };
-  }
+  if (listingIds.length === 0) return noQuestionsWithListingIds();
 
   const ph = inPlaceholders(listingIds);
   const rows = await queryAll<JoinedRowWithListings>(
@@ -300,8 +342,7 @@ export const getQuestionsWithListingIds = async (
     [...listingIds, ...listingIds],
   );
 
-  if (rows.length === 0)
-    return { questionListingMap: new Map(), questions: [] };
+  if (rows.length === 0) return noQuestionsWithListingIds();
 
   const questionListingMap = reduce(
     (acc: QuestionListingMap, row: JoinedRowWithListings) => {
@@ -417,6 +458,7 @@ export function parseQuestionAnswers(opts: { optional: boolean }) {
  */
 export const saveAttendeeAnswers = async (
   answersByAttendee: Map<number, number[]>,
+  amountAllocations: Map<number, number[]> = new Map(),
 ): Promise<void> => {
   const statements: { sql: string; args: InValue[] }[] = [];
   for (const [attendeeId, answerIds] of answersByAttendee) {
@@ -425,10 +467,14 @@ export const saveAttendeeAnswers = async (
       sql: "DELETE FROM attendee_answers WHERE attendee_id = ?",
     });
     if (answerIds.length > 0) {
-      const placeholders = answerIds.map(() => "(?, ?)").join(", ");
+      const placeholders = answerIds.map(() => "(?, ?, ?)").join(", ");
       statements.push({
-        args: answerIds.flatMap((id) => [attendeeId, id]),
-        sql: `INSERT OR IGNORE INTO attendee_answers (attendee_id, answer_id) VALUES ${placeholders}`,
+        args: answerIds.flatMap((id) => [
+          attendeeId,
+          id,
+          amountAllocations.get(id)?.shift() ?? 0,
+        ]),
+        sql: `INSERT OR IGNORE INTO attendee_answers (attendee_id, answer_id, amount_applied) VALUES ${placeholders}`,
       });
     }
   }
@@ -529,6 +575,9 @@ export const getAttendeeAnswersByQuestion = async (
   const result = new Map<number, { answerId: number; answerText: string }>();
   for (const row of rows) {
     const decrypted = await answersTable.fromDb({
+      calc_kind: null,
+      calc_value: null,
+      direction: null,
       id: row.answer_id,
       question_id: row.question_id,
       sort_order: 0,
@@ -655,4 +704,93 @@ export const assignNextQuestionSortOrder = async (
             WHERE id = ?`,
     },
   ]);
+};
+
+/** Whether an answer carries a complete price modifier rule. */
+export const answerHasPriceModifier = (answer: Answer): boolean =>
+  answer.calc_kind != null &&
+  answer.calc_value != null &&
+  answer.direction != null;
+
+const signedAnswerValue = (answer: Answer): number => {
+  if (answer.calc_kind === "multiply") return answer.calc_value!;
+  const magnitude =
+    answer.calc_kind === "fixed"
+      ? toMinorUnits(answer.calc_value!)
+      : answer.calc_value!;
+  return answer.direction === "discount" ? -magnitude : magnitude;
+};
+
+/** Buyer-facing label for an answer price modifier. */
+export const answerPriceLabel = (answer: Answer): string => {
+  if (!answerHasPriceModifier(answer)) return "";
+  if (answer.calc_kind === "multiply") return `×${answer.calc_value}`;
+  const sign = answer.direction === "discount" ? "−" : "+";
+  const amount =
+    answer.calc_kind === "fixed"
+      ? formatCurrency(toMinorUnits(answer.calc_value!))
+      : `${answer.calc_value}%`;
+  return `${sign}${amount}`;
+};
+
+/** Convert selected answer ids into checkout modifier specs. */
+export const answerModifierSpecs = async (
+  answerIds: number[],
+  quantities: Map<number, number> = new Map(),
+): Promise<ModifierSpec[]> => {
+  if (answerIds.length === 0) return [];
+  const rows = await queryAll<Answer>(
+    `SELECT * FROM answers WHERE id IN (${inPlaceholders(answerIds)})`,
+    answerIds,
+  );
+  const answers = await Promise.all(
+    map((row: Answer) => answersTable.fromDb(row))(rows),
+  );
+  return answers.filter(answerHasPriceModifier).map((answer) => ({
+    id: answer.id,
+    kind: answer.calc_kind!,
+    listingIds: null,
+    name: answer.text,
+    quantity: quantities.get(answer.id) ?? 1,
+    source: "answer" as const,
+    trigger: "automatic" as const,
+    value: signedAnswerValue(answer),
+  }));
+};
+
+/** Count how many attendee-answer rows each selected answer will create. */
+export function answerQuantitiesFromListingAnswers(
+  listingAnswerIds: Record<string, number[]> | undefined,
+  listingQuantities: Map<number, number>,
+): Map<number, number> {
+  const totalsByAnswerId = new Map<number, number>();
+  if (listingAnswerIds === undefined) return totalsByAnswerId;
+  for (const [listingId, answerIds] of Object.entries(listingAnswerIds)) {
+    const selectedCount = listingQuantities.get(Number(listingId)) ?? 0;
+    for (const answerId of answerIds) {
+      totalsByAnswerId.set(
+        answerId,
+        (totalsByAnswerId.get(answerId) ?? 0) + selectedCount,
+      );
+    }
+  }
+  return totalsByAnswerId;
+}
+
+/** Allocate priced answer modifier revenue across the attendee_answer rows. */
+export const answerAmountAllocations = (
+  applications: ModifierApplication[],
+): Map<number, number[]> => {
+  const allocations = new Map<number, number[]>();
+  for (const application of applications) {
+    if (application.source !== "answer") continue;
+    allocations.set(
+      application.modifierId,
+      largestRemainderAllocation(
+        Array.from({ length: application.quantity }, () => 1),
+        application.amountApplied,
+      ),
+    );
+  }
+  return allocations;
 };

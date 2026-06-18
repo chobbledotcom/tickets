@@ -19,6 +19,9 @@ import { getPublicDefaultStatus } from "#shared/db/attendee-statuses.ts";
 import { resolveModifiers } from "#shared/db/modifier-resolve.ts";
 import { consumeModifierStockOrRollback } from "#shared/db/modifier-usage.ts";
 import {
+  answerAmountAllocations,
+  answerModifierSpecs,
+  answerQuantitiesFromListingAnswers,
   groupListingAnswers,
   parseQuestionAnswers,
   saveAttendeeAnswers,
@@ -330,11 +333,14 @@ const handleFreePath = async (
   // stock-limited modifier that sold out between resolution and consumption
   // rolls the new attendee back so the buyer isn't granted a free order they
   // shouldn't have.
-  if (modifierUsages.length > 0) {
+  const stockModifierUsages = modifierUsages.filter(
+    (usage) => usage.source !== "answer",
+  );
+  if (stockModifierUsages.length > 0) {
     const attendeeId = result.entries[0]!.attendee.id;
     const consumed = await consumeModifierStockOrRollback(
       attendeeId,
-      modifierUsages,
+      stockModifierUsages,
     );
     if (!consumed) {
       return ticketFormErrorResponse(ctx)(MODIFIER_SOLD_OUT_MESSAGE);
@@ -359,6 +365,7 @@ const handleFreePath = async (
     );
     await saveAttendeeAnswers(
       groupListingAnswers(result.entries, listingAnswerMap),
+      answerAmountAllocations(modifierUsages),
     );
   }
 
@@ -443,10 +450,19 @@ const processSubmission = async (
     selectedListingIds,
   };
 
+  const listingAnswerIds = computeListingAnswerMap(ctx, info);
+  const answerQuantities = answerQuantitiesFromListingAnswers(
+    listingAnswerIds,
+    quantities,
+  );
   const addOns = parseAddOnSelections(form, ctx.addOns);
   const promoCode = form.getString("promo_code");
   const paymentsEnabled = isPaymentsEnabled();
-  const modifiers = await resolveModifiers(items, { addOns, code: promoCode });
+  const [resolvedModifiers, answerModifiers] = await Promise.all([
+    resolveModifiers(items, { addOns, code: promoCode }),
+    answerModifierSpecs(answersResult.answerIds, answerQuantities),
+  ]);
+  const modifiers = [...resolvedModifiers, ...answerModifiers];
   const reservationAmount = await publicReservationAmount();
   const pricingIntent = checkoutIntentForSubmission(emptyContact, {
     ctx,

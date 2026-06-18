@@ -51,6 +51,7 @@ export type ModifierApplication = {
   amountApplied: number;
   delta: number;
   scopedSubtotal: number;
+  source: ModifierSpec["source"];
 };
 
 /** A fully-priced checkout: ticket lines, extra lines, and the resulting total. */
@@ -245,6 +246,7 @@ const applyOne = (pass: ModifierPass, spec: ModifierSpec): ModifierPass => {
         modifierId: spec.id,
         quantity: spec.quantity,
         scopedSubtotal,
+        source: spec.source,
       },
     ],
   });

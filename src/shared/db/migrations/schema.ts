@@ -32,7 +32,7 @@ export type Trigger = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add email_preferences table for marketing opt-outs and contact history; add customisable_days and day_prices columns to listings for visitor-chosen multi-day bookings with per-day-count pricing; add attendee_statuses table with status_id and remaining_balance on attendees, plus attendee_id on activity_log, for the reservation and balance-payment flow; add idx_activity_log_listing_id so per-listing activity log reads are index scans instead of full-table scans; add a logistics_agents table plus a uses_logistics flag on listings, a split_logistics_agents flag on attendees, and start_agent_id/end_agent_id/start_time/end_time on listing_attendees for the logistics flow; add email_templates table for owner-keypair-encrypted reusable email subjects and bodies; add a user_logistics_agents table linking agent users to the logistics agents they drive, plus start_done/end_done flags on listing_attendees so delivery agents can mark drop-offs and collections complete; add failure_data to processed_payments so handled payment failures are recorded as a terminal outcome for idempotent redirect/webhook replay; add booked_quantity, tickets_count and income aggregate columns to listings, maintained by triggers on listing_attendees so listing reads and active-listing stats avoid scanning the attendee rows; add modifiers table for owner-defined price modifiers (surcharges, discounts, add-ons), with active/trigger/code_index/scope/stock/max_per_order/min_subtotal columns plus modifier_listings, modifier_groups and modifier_usages tables for scoping and stock; add an encrypted code column to modifiers for promo-code modifiers; add sms_messages table mapping gateway message ids to attendees for SMS status webhooks (content lives in the encrypted activity log); add processed_sms_inbound table for inbound SMS webhook replay protection; add phone_index to attendees so inbound SMS replies can be matched to an attendee";
+  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add email_preferences table for marketing opt-outs and contact history; add customisable_days and day_prices columns to listings for visitor-chosen multi-day bookings with per-day-count pricing; add attendee_statuses table with status_id and remaining_balance on attendees, plus attendee_id on activity_log, for the reservation and balance-payment flow; add idx_activity_log_listing_id so per-listing activity log reads are index scans instead of full-table scans; add a logistics_agents table plus a uses_logistics flag on listings, a split_logistics_agents flag on attendees, and start_agent_id/end_agent_id/start_time/end_time on listing_attendees for the logistics flow; add email_templates table for owner-keypair-encrypted reusable email subjects and bodies; add a user_logistics_agents table linking agent users to the logistics agents they drive, plus start_done/end_done flags on listing_attendees so delivery agents can mark drop-offs and collections complete; add failure_data to processed_payments so handled payment failures are recorded as a terminal outcome for idempotent redirect/webhook replay; add booked_quantity, tickets_count and income aggregate columns to listings, maintained by triggers on listing_attendees so listing reads and active-listing stats avoid scanning the attendee rows; add modifiers table for owner-defined price modifiers (surcharges, discounts, add-ons), with active/trigger/code_index/scope/stock/max_per_order/min_subtotal columns plus modifier_listings, modifier_groups and modifier_usages tables for scoping and stock; add an encrypted code column to modifiers for promo-code modifiers; add sms_messages table mapping gateway message ids to attendees for SMS status webhooks (content lives in the encrypted activity log); add processed_sms_inbound table for inbound SMS webhook replay protection; add phone_index to attendees so inbound SMS replies can be matched to an attendee; add calc_kind, calc_value, direction and answer aggregate totals for per-answer price modifiers";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -455,6 +455,7 @@ export const SCHEMA: [name: string, table: Table][] = [
         // modifier_usages table. total_uses is SUM(quantity), usage_count is
         // COUNT(*), total_revenue is SUM(amount_applied) — all scoped to this
         // modifier.
+        // Answer-level aggregates are maintained from attendee_answers.
         ["total_uses", "INTEGER NOT NULL DEFAULT 0"],
         ["usage_count", "INTEGER NOT NULL DEFAULT 0"],
         ["total_revenue", "INTEGER NOT NULL DEFAULT 0"],
@@ -570,6 +571,12 @@ export const SCHEMA: [name: string, table: Table][] = [
         ["question_id", "INTEGER NOT NULL"],
         ["text", "TEXT NOT NULL"],
         ["sort_order", "INTEGER NOT NULL DEFAULT 0"],
+        ["calc_kind", "TEXT"],
+        ["calc_value", "REAL"],
+        ["direction", "TEXT"],
+        ["total_revenue", "INTEGER NOT NULL DEFAULT 0"],
+        ["total_uses", "INTEGER NOT NULL DEFAULT 0"],
+        ["usage_count", "INTEGER NOT NULL DEFAULT 0"],
       ],
       indexes: [{ columns: ["question_id"], name: "idx_answers_question_id" }],
     },
@@ -625,6 +632,7 @@ export const SCHEMA: [name: string, table: Table][] = [
         ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
         ["attendee_id", "INTEGER NOT NULL"],
         ["answer_id", "INTEGER NOT NULL"],
+        ["amount_applied", "INTEGER NOT NULL DEFAULT 0"],
       ],
       indexes: [
         {
@@ -840,10 +848,61 @@ END`,
   },
 ];
 
+const ANSWER_AGGREGATE_TRIGGERS: Trigger[] = [
+  {
+    name: "trg_attendee_answers_aggregates_insert",
+    sql: `CREATE TRIGGER IF NOT EXISTS trg_attendee_answers_aggregates_insert
+AFTER INSERT ON attendee_answers
+FOR EACH ROW
+BEGIN
+  UPDATE answers SET
+    total_uses = total_uses + 1,
+    usage_count = usage_count + 1,
+    total_revenue = total_revenue + NEW.amount_applied
+  WHERE id = NEW.answer_id;
+END`,
+    table: "attendee_answers",
+  },
+  {
+    name: "trg_attendee_answers_aggregates_delete",
+    sql: `CREATE TRIGGER IF NOT EXISTS trg_attendee_answers_aggregates_delete
+AFTER DELETE ON attendee_answers
+FOR EACH ROW
+BEGIN
+  UPDATE answers SET
+    total_uses = total_uses - 1,
+    usage_count = usage_count - 1,
+    total_revenue = total_revenue - OLD.amount_applied
+  WHERE id = OLD.answer_id;
+END`,
+    table: "attendee_answers",
+  },
+  {
+    name: "trg_attendee_answers_aggregates_update",
+    sql: `CREATE TRIGGER IF NOT EXISTS trg_attendee_answers_aggregates_update
+AFTER UPDATE OF answer_id, amount_applied ON attendee_answers
+FOR EACH ROW
+BEGIN
+  UPDATE answers SET
+    total_uses = total_uses - 1,
+    usage_count = usage_count - 1,
+    total_revenue = total_revenue - OLD.amount_applied
+  WHERE id = OLD.answer_id;
+  UPDATE answers SET
+    total_uses = total_uses + 1,
+    usage_count = usage_count + 1,
+    total_revenue = total_revenue + NEW.amount_applied
+  WHERE id = NEW.answer_id;
+END`,
+    table: "attendee_answers",
+  },
+];
+
 /** Every declared trigger, across all aggregate relationships. */
 export const TRIGGERS: Trigger[] = [
   ...LISTING_AGGREGATE_TRIGGERS,
   ...MODIFIER_AGGREGATE_TRIGGERS,
+  ...ANSWER_AGGREGATE_TRIGGERS,
 ];
 
 /** Ordered table names — matches FK dependency order (parents before children) */

@@ -42,6 +42,7 @@ import smsMessagesMigration from "./migrations/2026-06-16_sms_messages.ts";
 import modifierAggregatesMigration from "./migrations/2026-06-17_modifier_aggregates.ts";
 import modifierCodeMigration from "./migrations/2026-06-17_modifier_code.ts";
 import processedSmsInboundMigration from "./migrations/2026-06-17_processed_sms_inbound.ts";
+import answerPriceModifiersMigration from "./migrations/2026-06-18_answer_price_modifiers.ts";
 import { repairLegacyRenames } from "./migrations/rename-utils.ts";
 import {
   LATEST_UPDATE,
@@ -180,6 +181,7 @@ export const MIGRATIONS: Migration[] = [
   processedSmsInboundMigration,
   attendeePhoneIndexMigration,
   modifierAggregatesMigration,
+  answerPriceModifiersMigration,
 ].map((build) => build(migrationContext));
 
 export const MIGRATION_IDS: string[] = MIGRATIONS.map(

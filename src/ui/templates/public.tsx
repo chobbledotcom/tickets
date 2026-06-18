@@ -17,6 +17,7 @@ import type {
   QuestionListingMap,
   QuestionWithAnswers,
 } from "#shared/db/questions.ts";
+import { answerPriceLabel } from "#shared/db/questions.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getRenewalUrl, isReadOnly } from "#shared/env.ts";
 import type { Field } from "#shared/forms.tsx";
@@ -351,7 +352,11 @@ const renderDateSelector = (
 ): string =>
   dates.length === 0
     ? `<div class="error" role="alert">No dates are currently available for booking.</div>`
-    : `<label for="date">Select Date${durationDays > 1 ? ` <small>(each booking reserves ${durationDays} days)</small>` : ""}</label>
+    : `<label for="date">Select Date${
+        durationDays > 1
+          ? ` <small>(each booking reserves ${durationDays} days)</small>`
+          : ""
+      }</label>
        <select name="date" id="date" required>
          <option value="">— Select a date —</option>
          ${dates
@@ -473,7 +478,11 @@ export const renderQuestions = (
           (a) =>
             `<label><input type="radio" name="question_${q.id}" value="${a.id}"${
               answered === String(a.id) ? " checked" : ""
-            } required> ${escapeHtml(a.text)}</label>`,
+            } required> ${escapeHtml(a.text)}${
+              answerPriceLabel(a)
+                ? ` <small>${escapeHtml(answerPriceLabel(a))}</small>`
+                : ""
+            }</label>`,
         )
         .join("");
       const listingIds = questionListingMap?.get(q.id);
@@ -749,7 +758,11 @@ const renderListingRow = (
       ${imageHtml}
       <label>${escapeHtml(listing.name)}${quantityHtml}</label>
       ${renderListingDescription(listing.description)}
-      ${showPayMore ? renderPayMoreInput(listing, priceFieldName, prefilledPrice) : ""}
+      ${
+        showPayMore
+          ? renderPayMoreInput(listing, priceFieldName, prefilledPrice)
+          : ""
+      }
     </div>
   `;
 };
@@ -1163,9 +1176,9 @@ const renderOrderCard = (info: TicketListing): string => {
   const imageHtml = renderListingImage(listing, "order-card-image");
   const priceHtml =
     listing.unit_price > 0
-      ? `<span class="order-card-price">${
-          listing.can_pay_more ? "From " : ""
-        }${escapeHtml(formatCurrency(listing.unit_price))}</span>`
+      ? `<span class="order-card-price">${listing.can_pay_more ? "From " : ""}${escapeHtml(
+          formatCurrency(listing.unit_price),
+        )}</span>`
       : "";
 
   if (isSoldOut || isClosed || isReadOnly()) {
