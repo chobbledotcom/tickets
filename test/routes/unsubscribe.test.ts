@@ -46,6 +46,7 @@ describeWithEnv("routes (unsubscribe)", { db: true }, () => {
         "currently subscribed",
         "Unsubscribe",
         "Delete my data",
+        "Other contact identities from past bookings",
       );
     });
 

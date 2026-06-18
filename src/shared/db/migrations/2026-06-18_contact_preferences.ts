@@ -1,4 +1,5 @@
 import { countRows } from "#shared/db/client.ts";
+import { nowMs } from "#shared/now.ts";
 import { getExistingColumns, runMigration } from "./schema-sync.ts";
 import type {
   Migration,
@@ -71,8 +72,9 @@ const backfillAndDropCreated = async (): Promise<void> => {
   const columns = await getExistingColumns("contact_preferences");
   if (!columns.has("created")) return;
   if (columns.has("last_activity")) {
+    const migratedAtMs = nowMs();
     await runMigration(
-      "UPDATE contact_preferences SET last_activity = CAST(strftime('%s', created) AS INTEGER) * 1000 WHERE created IS NOT NULL AND last_activity = 0",
+      `UPDATE contact_preferences SET last_activity = ${migratedAtMs} WHERE last_activity = 0`,
     );
   }
   await runMigration("ALTER TABLE contact_preferences DROP COLUMN created");
@@ -81,7 +83,7 @@ const backfillAndDropCreated = async (): Promise<void> => {
 export default (context: MigrationContext): Migration =>
   context.additive({
     description:
-      "Generalise email_preferences into contact_preferences: rename email_hash to contact_hash, add visits and last_activity, backfill last_activity from created, drop created, and add pruning/filter indexes",
+      "Generalise email_preferences into contact_preferences: rename email_hash to contact_hash, add visits and last_activity, backfill migrated last_activity to migration time, drop created, and add pruning/filter indexes",
     id: "2026-06-18_contact_preferences",
     requires,
     up: async () => {

@@ -85,7 +85,7 @@
   "unsubscribe.subscribed_message": "You're currently subscribed to our marketing emails.",
   "unsubscribe.unsubscribe_button": "Unsubscribe",
   "unsubscribe.forget_heading": "Delete my data",
-  "unsubscribe.forget_explainer": "Permanently remove the record we hold for this contact (an irreversible hash plus how often we've seen or contacted you). This can't be undone, and we won't be able to recognise you as a returning customer afterwards.",
+  "unsubscribe.forget_explainer": "Permanently remove the record for the contact identity in this link (an irreversible hash plus how often we've seen or contacted it). This can't be undone. Other contact identities from past bookings, such as a phone number, are separate records.",
   "unsubscribe.forget_button": "Delete my data",
   "unsubscribe.forgotten_message": "Your contact record has been deleted.",
   "public.send_us_a_message": "Send us a message",

@@ -444,10 +444,9 @@ const validatePaymentUpgrade = (
   ctx: TicketCtx,
   initiallyRequired: boolean,
   finallyRequired: boolean,
-): Response | null => {
+): TicketFormValues | Response | null => {
   if (!finallyRequired || initiallyRequired) return null;
-  const validated = validateTicketFields(form, ctx, true);
-  return validated instanceof Response ? validated : null;
+  return validateTicketFields(form, ctx, true);
 };
 
 /** Process submitted form after CSRF and demo overrides. */
@@ -534,18 +533,24 @@ const processSubmission = async (
   const requiresPaidFields = pricedTotal > 0;
   const validated = validateTicketFields(form, ctx, requiresPaidFields);
   if (validated instanceof Response) return validated;
-  const contact = extractContact(validated);
-  const { intent, pricedOrder: finalPricedOrder } =
+  let contact = extractContact(validated);
+  let { intent, pricedOrder: finalPricedOrder } =
     await priceSubmissionWithContact(contact, pricingParams);
-  const finalRequiresPaidFields = finalPricedOrder.total > 0;
-  const finalRequiresPayment = paymentsEnabled && finalRequiresPaidFields;
-  const paymentUpgradeError = validatePaymentUpgrade(
+  const paidUpgradeValidation = validatePaymentUpgrade(
     form,
     ctx,
     requiresPaidFields,
-    finalRequiresPaidFields,
+    finalPricedOrder.total > 0,
   );
-  if (paymentUpgradeError) return paymentUpgradeError;
+  if (paidUpgradeValidation instanceof Response) return paidUpgradeValidation;
+  if (paidUpgradeValidation) {
+    contact = extractContact(paidUpgradeValidation);
+    ({ intent, pricedOrder: finalPricedOrder } =
+      await priceSubmissionWithContact(contact, pricingParams));
+  }
+
+  const finalRequiresPaidFields = finalPricedOrder.total > 0;
+  const finalRequiresPayment = paymentsEnabled && finalRequiresPaidFields;
 
   if (finalRequiresPayment) {
     return handlePaidPath(request, {

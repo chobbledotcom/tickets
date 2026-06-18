@@ -648,6 +648,18 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       expect((await lastModifier()).min_visits).toBe(2);
     });
 
+    test("rejects minimum previous bookings on optional add-ons", async () => {
+      const { response } = await adminFormPost(
+        "/admin/modifiers",
+        createData({ min_visits: "1", trigger: "optional" }),
+      );
+      expectRedirectWithFlash(
+        "/admin/modifiers/new",
+        "Optional add-ons cannot require previous bookings",
+        false,
+      )(response);
+    });
+
     test("rejects a negative minimum previous bookings value", async () => {
       const { response } = await adminFormPost(
         "/admin/modifiers",

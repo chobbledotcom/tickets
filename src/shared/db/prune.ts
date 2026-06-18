@@ -13,8 +13,9 @@
  *   locked_until are left alone: they represent in-progress attempt counts
  *   and have no timestamp we can key off.)
  * - contact_preferences: opaque per-contact recognition/contact-history rows.
- *   `last_activity` is bumped on booking and outreach; pruning it bounds table
- *   growth and makes returning-customer recognition recency-bounded.
+ *   `last_activity` is bumped on booking and outreach; pruning subscribed rows
+ *   bounds table growth and makes returning-customer recognition
+ *   recency-bounded. Unsubscribed rows are suppression records and are kept.
  *
  * The scheduler is fire-and-forget via `addPendingWork` from the request
  * handler. Each table has its own `last_pruned_*` timestamp; a table is
@@ -113,12 +114,12 @@ export const pruneTokenAttempts = async (): Promise<number> => {
   return result.rowsAffected;
 };
 
-/** Delete contact-preference rows untouched beyond the retention window. */
+/** Delete subscribed contact-preference rows untouched beyond retention. */
 export const pruneContacts = async (): Promise<number> => {
   const cutoffMs = nowMs() - PRUNE_CONTACTS_RETENTION_MS;
   const result = await getDb().execute({
     args: [cutoffMs],
-    sql: "DELETE FROM contact_preferences WHERE last_activity < ?",
+    sql: "DELETE FROM contact_preferences WHERE unsubscribed = 0 AND last_activity < ?",
   });
   return result.rowsAffected;
 };

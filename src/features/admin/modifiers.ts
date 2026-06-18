@@ -130,6 +130,11 @@ const validateModifier = (input: ModifierInput): Promise<string | null> => {
       "Minimum previous bookings must be a whole number of 0 or more",
     );
   }
+  const isOptionalAddOn = input.trigger === "optional";
+  const requiresPreviousBookings = Number(input.minVisits) > 0;
+  if (isOptionalAddOn && requiresPreviousBookings) {
+    return Promise.resolve("Optional add-ons cannot require previous bookings");
+  }
   return Promise.resolve(validateCalcValue(input.calcKind, input.calcValue));
 };
 

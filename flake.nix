@@ -17,6 +17,9 @@
         default = pkgs.mkShell {
           packages = [
             pkgs.deno
+            (pkgs.writeShellScriptBin "pc" ''
+              exec ${pkgs.deno}/bin/deno task precommit "$@"
+            '')
             pkgs.typescript-go
             pkgs.biome
             pkgs.openssl
@@ -28,6 +31,7 @@
             echo "  deno task test       - run tests"
             echo "  deno task build:edge - build for edge"
             echo "  deno task precommit  - typecheck + lint + cpd + build + test"
+            echo "  pc                   - run precommit"
             echo "  nix run .#docker     - build container image"
             echo "  nix run .#docker-start - build and run container"
             export DB_ENCRYPTION_KEY="$(openssl rand -base64 32)"

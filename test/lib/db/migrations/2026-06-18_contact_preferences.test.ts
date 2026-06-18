@@ -93,6 +93,7 @@ describeWithEnv(
         await resetContactPreferenceTables();
         await createLegacyEmailPreferences();
         await insertLegacyPreference("legacy-hash");
+        const before = Date.now();
 
         await runContactPreferencesMigration();
 
@@ -107,15 +108,14 @@ describeWithEnv(
         const rows = await getDb().execute(
           "SELECT contact_hash, unsubscribed, visits, stats_blob, last_activity FROM contact_preferences",
         );
-        expect(rows.rows).toEqual([
-          {
-            contact_hash: "legacy-hash",
-            last_activity: Date.parse("2024-01-02T03:04:05Z"),
-            stats_blob: "",
-            unsubscribed: 1,
-            visits: 0,
-          },
-        ]);
+        const row = rows.rows[0];
+        expect(row?.contact_hash).toBe("legacy-hash");
+        expect(row?.stats_blob).toBe("");
+        expect(row?.unsubscribed).toBe(1);
+        expect(row?.visits).toBe(0);
+        const lastActivity = Number(row?.last_activity);
+        expect(lastActivity).toBeGreaterThanOrEqual(before);
+        expect(lastActivity).toBeLessThanOrEqual(Date.now());
       });
 
       test("replaces an empty target table with the populated legacy table", async () => {

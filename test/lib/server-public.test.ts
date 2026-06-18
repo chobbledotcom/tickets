@@ -2312,14 +2312,19 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
       const { squarePaymentProvider } = await import(
         "#shared/square-provider.ts"
       );
+      let capturedIntent:
+        | import("#shared/payments.ts").CheckoutIntent
+        | undefined;
       const checkout = stub(
         squarePaymentProvider,
         "createCheckoutSession",
-        () =>
-          Promise.resolve({
+        (intent: import("#shared/payments.ts").CheckoutIntent) => {
+          capturedIntent = intent;
+          return Promise.resolve({
             checkoutUrl: "https://square.example/checkout",
             sessionId: "square_order_123",
-          }),
+          });
+        },
       );
 
       try {
@@ -2330,6 +2335,7 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
         });
 
         expectCheckoutRedirect(response);
+        expect(capturedIntent?.email).toBe("john@example.com");
       } finally {
         checkout.restore();
       }
