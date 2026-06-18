@@ -799,13 +799,14 @@ const logPromoCodeModifiers = async (
   attendeeId: number,
 ): Promise<void> => {
   for (const spec of specs) {
-    const amountApplied =
-      usages.find((usage) => usage.modifierId === spec.id)?.amountApplied ?? 0;
-    const isDiscount = spec.kind === "multiply" ? spec.value < 1 : spec.value < 0;
-    const effect =
-      isDiscount
-        ? `${formatCurrency(amountApplied)} off`
-        : `+${formatCurrency(amountApplied)}`;
+    const amountApplied = usages.find(
+      (usage) => usage.modifierId === spec.id,
+    )!.amountApplied;
+    const isDiscount =
+      spec.kind === "multiply" ? spec.value < 1 : spec.value < 0;
+    const effect = isDiscount
+      ? `${formatCurrency(amountApplied)} off`
+      : `+${formatCurrency(amountApplied)}`;
     await logActivity(
       `Promo code '${spec.name}' used: ${effect}`,
       listing,

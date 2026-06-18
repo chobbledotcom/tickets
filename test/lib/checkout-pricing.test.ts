@@ -448,9 +448,10 @@ describe("applyModifiers", () => {
   });
 
   test("records only the clamped amount for an oversized discount", () => {
-    const result = applyModifiers([line({ quantity: 2 })], [
-      modifier({ kind: "fixed", value: -5000 }),
-    ]);
+    const result = applyModifiers(
+      [line({ quantity: 2 })],
+      [modifier({ kind: "fixed", value: -5000 })],
+    );
     expect(result.lines).toEqual([
       { chargedUnitAmount: 0, item: item(), quantity: 2 },
     ]);

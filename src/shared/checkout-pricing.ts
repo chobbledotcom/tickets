@@ -229,18 +229,21 @@ const applyOne = (pass: ModifierPass, spec: ModifierSpec): ModifierPass => {
     ],
   });
   if (delta > 0) {
-    return withUsage({
-      ...pass,
-      extras: [
-        ...pass.extras,
-        {
-          amount: delta,
-          key: `mod:${spec.id}`,
-          name: spec.name,
-          quantity: spec.quantity,
-        },
-      ],
-    }, delta * spec.quantity);
+    return withUsage(
+      {
+        ...pass,
+        extras: [
+          ...pass.extras,
+          {
+            amount: delta,
+            key: `mod:${spec.id}`,
+            name: spec.name,
+            quantity: spec.quantity,
+          },
+        ],
+      },
+      delta * spec.quantity,
+    );
   }
   if (delta === 0) return withUsage(pass, 0);
 
@@ -279,8 +282,8 @@ export const applyModifiers = (
   return {
     extras: pass.extras,
     lines: toLines(pass.units),
-    modifierUsages: pass.modifierUsages,
     modifierTotal: sumOf(extraCharge)(pass.extras) - pass.discountTotal,
+    modifierUsages: pass.modifierUsages,
   };
 };
 
