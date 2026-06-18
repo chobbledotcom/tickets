@@ -1,0 +1,22 @@
+name: Deploy Bunny edge script
+description: Deploy a built Bunny Edge script bundle to one Bunny Edge Scripting script.
+inputs:
+  script_id:
+    description: Bunny Edge Scripting script ID.
+    required: true
+  api_key:
+    description: Bunny API access key.
+    required: true
+  file:
+    description: Built script file to deploy.
+    required: false
+    default: bunny-script.ts
+runs:
+  using: composite
+  steps:
+    - name: Deploy script to Bunny Edge Scripting
+      uses: BunnyWay/actions/deploy-script@main
+      with:
+        script_id: ${{ inputs.script_id }}
+        file: ${{ inputs.file }}
+        api_key: ${{ inputs.api_key }}
