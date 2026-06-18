@@ -11,7 +11,7 @@ import {
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
-import { AdminNav } from "#templates/admin/nav.tsx";
+import { AdminNav, SettingsSubNav } from "#templates/admin/nav.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import { Layout } from "#templates/layout.tsx";
 
@@ -44,7 +44,8 @@ export const adminSiteHomePage = (
 ): string =>
   String(
     <Layout title={t("site.home_title")}>
-      <AdminNav active="/admin/site" session={session} />
+      <AdminNav active="/admin/settings" session={session} />
+      <SettingsSubNav />
       <SiteSubNav />
 
       <Flash error={error} success={success} />
@@ -139,7 +140,8 @@ export const adminSiteContactPage = (
 ): string =>
   String(
     <Layout title={t("site.contact_title")}>
-      <AdminNav active="/admin/site" session={session} />
+      <AdminNav active="/admin/settings" session={session} />
+      <SettingsSubNav />
       <SiteSubNav />
 
       <Flash error={error} success={success} />
@@ -205,7 +207,8 @@ export const adminSiteOrderPage = (
 ): string =>
   String(
     <Layout title={t("site.order_title")}>
-      <AdminNav active="/admin/site" session={session} />
+      <AdminNav active="/admin/settings" session={session} />
+      <SettingsSubNav />
       <SiteSubNav />
 
       <Flash error={error} success={success} />
