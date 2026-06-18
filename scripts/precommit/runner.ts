@@ -6,9 +6,16 @@ import {
 } from "./merge-warning.ts";
 import { promptToPushCheckedInChanges, shouldPushFromAnswer } from "./push.ts";
 import { getSteps, type Step } from "./steps.ts";
+import {
+  canPrompt,
+  canShowProgress,
+  currentTerminalState,
+} from "./terminal.ts";
 
-const isInteractive = (): boolean =>
-  Deno.stdin.isTerminal() && Deno.stdout.isTerminal() && !Deno.env.get("CI");
+const canPromptNow = (): boolean => canPrompt(currentTerminalState());
+
+const canShowProgressNow = (): boolean =>
+  canShowProgress(currentTerminalState());
 
 /** True when running in CI (the --ci flag or a CI env var is set) */
 const isCi = (): boolean =>
@@ -82,7 +89,7 @@ const runStep = async (step: Step): Promise<boolean> => {
   const child = cmd.spawn();
   let progress = "";
   const updateProgress = (line: string): void => {
-    if (!step.progress || !isInteractive()) return;
+    if (!step.progress || !canShowProgressNow()) return;
     const next = step.progress(line);
     if (!next || next === progress) return;
     progress = next;
@@ -130,7 +137,7 @@ export const main = async (): Promise<void> => {
   console.log(`\n${green("precommit passed")}`);
   const pushSucceeded = await promptToPushCheckedInChanges({
     confirm: confirmPush,
-    isInteractive,
+    isInteractive: canPromptNow,
     push: runInteractiveCommand,
     run: runCommand,
   });
