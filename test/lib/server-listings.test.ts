@@ -2956,7 +2956,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         "Listing Type",
         "Daily",
         "Bookable Days",
-        "Monday,Tuesday",
+        "Monday, Tuesday",
         "Booking Window",
         "3 to 60 days",
         "Capacity of",
