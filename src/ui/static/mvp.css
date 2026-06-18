@@ -2151,7 +2151,7 @@ a.cal-day-selected:hover {
   flex-direction: row;
   align-items: flex-end;
   gap: 1rem;
-  margin: 1rem 0;
+  margin: 0;
   padding: 0;
   border: 0;
   box-shadow: none;
@@ -2175,6 +2175,12 @@ a.cal-day-selected:hover {
 
 .filter-row select {
   max-width: 15rem;
+}
+
+.attendees-table-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
 }
 
 /* Previous/next pagination */

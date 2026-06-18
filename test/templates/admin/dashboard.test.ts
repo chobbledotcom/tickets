@@ -4,6 +4,7 @@ import { signCsrfToken } from "#shared/csrf.ts";
 import {
   activeListingStatsSection,
   adminDashboardPage,
+  adminListingsPage,
 } from "#templates/admin/dashboard.tsx";
 import {
   describeWithEnv,
@@ -45,14 +46,6 @@ describe("adminDashboardPage", () => {
     const html = adminDashboardPage([], TEST_SESSION);
     expect(html).toContain('href="/admin/listing/new"');
     expect(html).toContain("Add Listing");
-  });
-
-  test("renders add attendee link to the create-attendee route", () => {
-    // The "Add Attendee" button must point at the registered create route
-    // (plural /admin/attendees/new); a singular typo here 404s the page.
-    const html = adminDashboardPage([], TEST_SESSION);
-    expect(html).toContain('href="/admin/attendees/new"');
-    expect(html).toContain("Add Attendee");
   });
 
   test("includes logout link", () => {
@@ -139,13 +132,18 @@ describe("adminDashboardPage", () => {
 });
 
 describe("adminDashboardPage inactive listings", () => {
-  test("renders inactive listing with reduced opacity", () => {
+  test("hides inactive listings from home", () => {
     const listings = [
-      testListingWithCount({ active: false, attendee_count: 5 }),
+      testListingWithCount({
+        active: false,
+        attendee_count: 5,
+        name: "Inactive",
+      }),
     ];
     const html = adminDashboardPage(listings, TEST_SESSION);
-    expect(html).toContain("inactive-row");
-    expect(html).toContain("Inactive");
+    expect(html).not.toContain("inactive-row");
+    expect(html).not.toContain('href="/admin/listing/1"');
+    expect(html).toContain("No listings yet");
   });
 });
 
@@ -477,3 +475,32 @@ describeWithEnv(
     });
   },
 );
+
+describe("adminListingsPage", () => {
+  test("renders active listings first and deactivated listings second", () => {
+    const active = testListingWithCount({
+      active: true,
+      id: 1,
+      name: "Active Show",
+    });
+    const inactive = testListingWithCount({
+      active: false,
+      id: 2,
+      name: "Old Show",
+    });
+    const html = adminListingsPage([active, inactive], TEST_SESSION);
+    expect(html).toContain('class="active" href="/admin/listings"');
+    expect(html).toContain("Active Show");
+    expect(html).toContain("Deactivated");
+    expect(html).toContain("Old Show");
+    expect(html.indexOf("Active Show")).toBeLessThan(html.indexOf("Old Show"));
+  });
+
+  test("omits the deactivated heading when every listing is active", () => {
+    const html = adminListingsPage(
+      [testListingWithCount({ active: true, name: "Active Show" })],
+      TEST_SESSION,
+    );
+    expect(html).not.toContain("Deactivated");
+  });
+});
