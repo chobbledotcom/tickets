@@ -84,7 +84,10 @@ export const encryptField = async (
 
 /**
  * Decrypt a field encoded by {@link encryptField} (or by the SMS Gate app).
- * Throws on malformed input or the wrong passphrase.
+ * Throws on malformed input and on wrong-passphrase decryptions that WebCrypto
+ * rejects for bad padding or that do not decode as valid UTF-8. AES-CBC is not
+ * authenticated, so callers must not treat successful decryption as proof that
+ * the passphrase was correct.
  */
 export const decryptField = async (
   encoded: string,
@@ -109,5 +112,5 @@ export const decryptField = async (
     key,
     fromBase64(ciphertextB64!) as BufferSource,
   );
-  return new TextDecoder().decode(plaintext);
+  return new TextDecoder("utf-8", { fatal: true }).decode(plaintext);
 };
