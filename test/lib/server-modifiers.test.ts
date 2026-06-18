@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import { getDb } from "#shared/db/client.ts";
@@ -7,6 +8,7 @@ import {
   getAllModifiers,
   getModifierGroupIds,
   getModifierListingIds,
+  modifiersTable,
   updateModifierAggregateValues,
 } from "#shared/db/modifiers.ts";
 import { normalizeCode } from "#shared/price-modifier.ts";
@@ -356,6 +358,24 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         createData(),
       );
       expectStatus(404)(response);
+    });
+
+    test("returns 404 when a modifier disappears during update", async () => {
+      await adminFormPost("/admin/modifiers", createData({ name: "Stale" }));
+      const { id } = await lastModifier();
+      const updateStub = stub(modifiersTable, "update", () =>
+        Promise.resolve(null),
+      );
+
+      try {
+        const { response } = await adminFormPost(
+          `/admin/modifiers/${id}/edit`,
+          createData({ name: "Gone" }),
+        );
+        expectStatus(404)(response);
+      } finally {
+        updateStub.restore();
+      }
     });
   });
 

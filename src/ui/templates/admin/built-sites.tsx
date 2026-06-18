@@ -271,7 +271,9 @@ const ProvisionedPanel = ({ site }: { site: BuiltSite }): JSX.Element => {
         {formatDeadlineLabel(site.readOnlyFrom)}
         {site.readOnlyFrom && (
           <Raw
-            html={`<details><summary>${t("built_sites.raw_iso")}</summary><code>${site.readOnlyFrom}</code></details>`}
+            html={`<details><summary>${t(
+              "built_sites.raw_iso",
+            )}</summary><code>${site.readOnlyFrom}</code></details>`}
           />
         )}
       </p>

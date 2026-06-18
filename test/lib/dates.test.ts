@@ -23,11 +23,12 @@ import {
 } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { VALID_DAY_NAMES } from "#templates/fields.ts";
-import { describeWithEnv, testListing, testWithSetting } from "#test-utils";
+import { testListing, testWithSetting, useSetting } from "#test-utils";
 
 const today = () => todayInTz("UTC");
 
-describeWithEnv("dates", { db: true }, () => {
+describe("dates", () => {
+  useSetting({ timezone: "UTC" });
   describe("addDays", () => {
     test("adds positive days to a date", () => {
       expect(addDays("2026-01-01", 5)).toBe("2026-01-06");
