@@ -23,6 +23,7 @@ const mod = (overrides: Partial<Modifier> = {}): Modifier => ({
   direction: "discount",
   id: 1,
   min_subtotal: 0,
+  min_visits: 0,
   name: "Early bird",
   scope: "all",
   stock: null,
@@ -108,6 +109,7 @@ describe("adminModifierEditPage", () => {
   test("renders the edit form pre-filled with the modifier", () => {
     const html = adminModifierEditPage(
       mod({
+        min_visits: 2,
         name: "Loyalty",
         total_revenue: 2500,
         total_uses: 7,
@@ -127,6 +129,8 @@ describe("adminModifierEditPage", () => {
     expect(html).toContain('name="total_revenue"');
     expect(html).toContain('value="25.00"');
     expect(html).toContain("/admin/modifiers/recalculate/1");
+    expect(html).toContain('name="min_visits"');
+    expect(html).toContain('value="2"');
     // The delete action lives on the edit page.
     expect(html).toContain("Delete Modifier");
     expect(html).toContain("/admin/modifiers/1/delete");

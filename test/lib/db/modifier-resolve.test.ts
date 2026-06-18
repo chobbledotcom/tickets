@@ -4,7 +4,13 @@ import { hmacHash } from "#shared/crypto/hashing.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
+  hashEmail,
+  hashPhone,
+  recordVisit,
+} from "#shared/db/contact-preferences.ts";
+import {
   ADDON_MAX_QUANTITY,
+  buyerVisits,
   getOptionalAddOns,
   hasPromoCodeModifiers,
   resolveModifiers,
@@ -175,6 +181,21 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
       expect(selected.find((s) => s.name === "T-shirt")?.quantity).toBe(3);
     });
 
+    test("applies a visit-gated automatic modifier only for returning buyers", async () => {
+      await insertModifier({
+        direction: "discount",
+        minVisits: 1,
+        name: "Welcome back",
+      });
+
+      expect((await resolveModifiers([item()])).map((s) => s.name)).toEqual([]);
+
+      const returning = await resolveModifiers([item()], {
+        ctx: { visits: 1 },
+      });
+      expect(returning.map((s) => s.name)).toEqual(["Welcome back"]);
+    });
+
     test("caps an opt-in add-on quantity at the remaining stock", async () => {
       const m = await insertModifier({ name: "Limited tee", stock: 2 });
       await patchModifier(m.id, { trigger: "optional" });
@@ -207,6 +228,20 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
       expect(applied.find((s) => s.name === "GroupWide")?.listingIds).toEqual([
         listing.id,
       ]);
+    });
+  });
+
+  describe("buyerVisits", () => {
+    test("returns 0 when no contact identifier is present", async () => {
+      expect(await buyerVisits("", "")).toBe(0);
+    });
+
+    test("reads the max visit count across email and phone", async () => {
+      await recordVisit(await hashEmail("seen@example.com"));
+      await recordVisit(await hashPhone("07700 900123"));
+      await recordVisit(await hashPhone("07700 900123"));
+
+      expect(await buyerVisits("seen@example.com", "07700 900123")).toBe(2);
     });
   });
 
@@ -341,6 +376,21 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
       await patchModifier(created.id, { active: 0 });
       expect(await specsFromRefs([{ i: created.id, q: 1 }])).toEqual([]);
       expect(await specsFromRefs([{ i: 9999, q: 1 }])).toEqual([]);
+    });
+
+    test("re-checks the visit gate when rebuilding references", async () => {
+      const created = await insertModifier({
+        direction: "discount",
+        minVisits: 1,
+        name: "Returning",
+      });
+
+      expect(await specsFromRefs([{ i: created.id, q: 1 }])).toEqual([]);
+      expect(
+        (await specsFromRefs([{ i: created.id, q: 1 }], { visits: 1 })).map(
+          (s) => s.name,
+        ),
+      ).toEqual(["Returning"]);
     });
   });
 });
