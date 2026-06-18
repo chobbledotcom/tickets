@@ -9,6 +9,7 @@
  */
 
 import type { InValue } from "@libsql/client";
+import { itemsSubtotal } from "#shared/booking-fee.ts";
 import { deleteAttendee } from "#shared/db/attendees/delete.ts";
 import {
   executeBatchWithResults,
@@ -17,7 +18,7 @@ import {
   queryAll,
 } from "#shared/db/client.ts";
 import { nowIso } from "#shared/now.ts";
-import type { ModifierSpec } from "#shared/payments.ts";
+import type { CheckoutItem, ModifierSpec } from "#shared/payments.ts";
 import { modifierDelta } from "#shared/price-modifier.ts";
 
 /** One modifier consumed by an order: the modifier, how many, and the amount
@@ -101,25 +102,33 @@ export const consumeModifierStock = async (
  * owned) when consumption failed — so the caller only has to surface the
  * failure; the partially-created order is gone as if it never happened.
  *
- * `fullTotal` is the pre-modifier item subtotal the deltas are computed
- * against — the same base `priceCheckout` uses — so the recorded
- * `amount_applied` matches what the pricing engine charged. With no specs to
- * apply this is a no-op (the caller may have resolved nothing for a cart with
- * no eligible modifiers).
+ * The recorded `amount_applied` is the aggregate amount the pricing engine
+ * applied for that modifier: scoped to the same items and multiplied by the
+ * selected modifier quantity. With no specs to apply this is a no-op (the
+ * caller may have resolved nothing for a cart with no eligible modifiers).
  */
 export const consumeModifierStockOrRollback = async (
   attendeeId: number,
   specs: ModifierSpec[],
-  fullTotal: number,
+  items: CheckoutItem[],
 ): Promise<boolean> => {
   if (specs.length === 0) return true;
   const consumed = await consumeModifierStock(
     attendeeId,
-    specs.map((s) => ({
-      amountApplied: Math.abs(modifierDelta(fullTotal, s.kind, s.value)),
-      modifierId: s.id,
-      quantity: s.quantity,
-    })),
+    specs.map((s) => {
+      const scopedItems =
+        s.listingIds === null
+          ? items
+          : items.filter((i) => s.listingIds!.includes(i.listingId));
+      const amountApplied =
+        Math.abs(modifierDelta(itemsSubtotal(scopedItems), s.kind, s.value)) *
+        s.quantity;
+      return {
+        amountApplied,
+        modifierId: s.id,
+        quantity: s.quantity,
+      };
+    }),
   );
   if (consumed) return true;
   await deleteAttendee(attendeeId);

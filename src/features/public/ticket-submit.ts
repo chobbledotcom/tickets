@@ -6,7 +6,11 @@ import { sum } from "#fp";
 import { applyFlash, withCsrfForm } from "#routes/csrf.ts";
 import { errorRedirect, redirectResponse } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
-import { priceCheckout } from "#shared/checkout-pricing.ts";
+import {
+  priceCheckout,
+  type TicketPaymentBreakdown,
+  ticketPaymentBreakdown,
+} from "#shared/checkout-pricing.ts";
 import { isPaymentsEnabled } from "#shared/config.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
@@ -82,7 +86,9 @@ const validateFormAndAvailability = (
   ctx: TicketCtx,
 ): Response | TicketFormValues => {
   const errorResponse = ticketFormErrorResponse(ctx);
-  const anyPaid = ctx.listings.some((e) => isPaidListing(e.listing));
+  const anyPaid =
+    ctx.listings.some((e) => isPaidListing(e.listing)) ||
+    ctx.addOns.some((addOn) => addOn.requiresPayment);
   const fieldResult = tryValidateTicketFields(
     form,
     getTicketFieldsSetting(ctx.listings),
@@ -224,8 +230,8 @@ const MODIFIER_SOLD_OUT_MESSAGE =
  * a sold-out race), record answers, then notify and redirect.
  *
  * Used for every cart whose final priced total is zero — a free listing, a
- * paid listing discounted to zero, or a zero-price listing with a positive
- * add-on whose `priceCheckout` total is the modifier alone — and for every
+ * paid listing discounted to zero, or a zero-price listing whose modifiers net
+ * to zero after pricing — and for every
  * cart when payments are disabled (the existing disabled-is-free behaviour).
  * The same pricing engine that decided "no provider needed" also produced the
  * modifiers that this path must persist, so a zero-total order still records
@@ -235,16 +241,28 @@ const handleFreePath = async (
   params: PathParams & {
     items: CheckoutItem[];
     modifiers: ModifierSpec[];
+    paymentBreakdown?: TicketPaymentBreakdown;
   },
 ): Promise<Response> => {
-  const { ctx, quantities, date, dayCount, contact, info, items, modifiers } =
-    params;
+  const {
+    ctx,
+    quantities,
+    date,
+    dayCount,
+    contact,
+    info,
+    items,
+    modifiers,
+    paymentBreakdown,
+  } = params;
   const result = await createFreeReservation({
     contact,
     date,
     dayCount,
     listings: ctx.listings,
+    paidByListingId: paymentBreakdown?.paidByListingId,
     quantities,
+    remainingBalance: paymentBreakdown?.remainingBalance,
   });
   if (!result.success) return ticketFormErrorResponse(ctx)(result.error);
 
@@ -254,11 +272,10 @@ const handleFreePath = async (
   // isn't granted a free order they shouldn't have.
   if (modifiers.length > 0) {
     const attendeeId = result.entries[0]!.attendee.id;
-    const fullTotal = sum(items.map((i) => i.unitPrice * i.quantity));
     const consumed = await consumeModifierStockOrRollback(
       attendeeId,
       modifiers,
-      fullTotal,
+      items,
     );
     if (!consumed) {
       return ticketFormErrorResponse(ctx)(MODIFIER_SOLD_OUT_MESSAGE);
@@ -434,8 +451,8 @@ const processSubmission = async (
   const total = priceCheckout(draftIntent).total;
 
   // Route by the final priced total. A positive total with payments enabled
-  // goes to the provider; a zero total (a discount applied, or zero-price
-  // listings with stock-consuming modifiers) completes without a provider,
+  // goes to the provider; a zero total (a discount applied, or modifiers that
+  // net a zero-price listing back to zero) completes without a provider,
   // recording modifier usage if any was resolved.
   if (paymentsEnabled && total > 0) {
     const available = await checkAvailability(
@@ -458,6 +475,9 @@ const processSubmission = async (
     info,
     items,
     modifiers,
+    paymentBreakdown: paymentsEnabled
+      ? ticketPaymentBreakdown(draftIntent)
+      : undefined,
     quantities,
   });
 };

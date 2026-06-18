@@ -453,5 +453,70 @@ describeWithEnv(
         session.restore();
       }
     });
+
+    test("zero-deposit reservations without a fee skip the provider but keep the full balance", async () => {
+      await setupStripe();
+      await settings.update.bookingFee("0");
+      const statusId = await setPublicReservation("0");
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        thankYouUrl: "https://example.com",
+        unitPrice: 1000,
+      });
+
+      const response = await submitTicketForm(listing.slug, {
+        [`quantity_${listing.id}`]: "1",
+        email: "buyer@example.com",
+        name: "Buyer",
+      });
+
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("https://example.com");
+      const attendee = await latestAttendee();
+      expect(attendee.pricePaid).toBe(0);
+      expect(attendee.remainingBalance).toBe(1000);
+      expect(attendee.statusId).toBe(statusId);
+    });
+
+    test("reservation discounts reduce the paid deposit and remaining balance", async () => {
+      await setupStripe();
+      await settings.update.bookingFee("0");
+      const statusId = await setPublicReservation("10%");
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        thankYouUrl: "https://example.com",
+        unitPrice: 1000,
+      });
+      const modifier = await modifiersTable.insert({
+        calcKind: "fixed",
+        calcValue: 5,
+        direction: "discount",
+        name: "Discount",
+      });
+      const session = stubPaidSession(
+        "cs_discounted_reservation",
+        {
+          _origin: "localhost",
+          email: "reserver@example.com",
+          items: JSON.stringify([{ e: listing.id, p: 1000, q: 1 }]),
+          modifiers: JSON.stringify([{ i: modifier.id, q: 1 }]),
+          name: "Reserver",
+          reservation_amount: "10%",
+        },
+        50,
+      );
+      try {
+        const response = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_discounted_reservation"),
+        );
+        expect([200, 302, 303]).toContain(response.status);
+        const attendee = await latestAttendee();
+        expect(attendee.pricePaid).toBe(50);
+        expect(attendee.remainingBalance).toBe(450);
+        expect(attendee.statusId).toBe(statusId);
+      } finally {
+        session.restore();
+      }
+    });
   },
 );

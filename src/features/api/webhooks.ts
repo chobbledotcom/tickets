@@ -14,7 +14,7 @@
  * - Two-phase locking prevents duplicate attendee creation from race conditions
  */
 
-import { sum, sumOf, unique } from "#fp";
+import { sumOf, unique } from "#fp";
 import type {
   BookingIntent,
   ListingPriceValidation,
@@ -41,7 +41,10 @@ import { createRouter, defineRoutes } from "#routes/router.ts";
 import { parseTokens } from "#routes/tickets/token-utils.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { calculateBookingFee } from "#shared/booking-fee.ts";
-import { priceCheckout } from "#shared/checkout-pricing.ts";
+import {
+  priceCheckout,
+  ticketPaymentBreakdown,
+} from "#shared/checkout-pricing.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
@@ -80,7 +83,6 @@ import {
   type WebhookEvent,
 } from "#shared/payments.ts";
 import { modifierDelta } from "#shared/price-modifier.ts";
-import { reservationDepositForLine } from "#shared/reservation-amount.ts";
 import { dayPriceFor, type ListingWithCount } from "#shared/types.ts";
 import { logAndNotifyRegistration } from "#shared/webhook.ts";
 import { paymentCancelPage, successPage } from "#templates/payment.tsx";
@@ -549,23 +551,30 @@ const validateAllItems = async (
   return { items: validatedItems, ok: true };
 };
 
-/**
- * Per-line reservation deposits for a session, or `total: undefined` when the
- * session is a normal full-price booking. metadata `p` is the full line price,
- * so each line's deposit is re-derived identically to how it was charged. The
- * `perLine` order matches `intent.items` (and thus the validated-items order).
- */
-const reservationDeposits = (
+const pricingIntentForSession = (
   intent: BookingIntent,
-): { perLine: number[]; total: number | undefined } => {
-  const amount = intent.reservationAmount;
-  if (!amount) return { perLine: [], total: undefined };
-  const totalQty = sumOf((item: BookingItem) => item.q)(intent.items);
-  const perLine = intent.items.map((item) =>
-    reservationDepositForLine(amount, item.p, item.q, totalQty),
-  );
-  return { perLine, total: sum(perLine) };
-};
+  validatedItems: ValidatedItem[],
+  modifierSpecs: ModifierSpec[],
+): CheckoutIntent => ({
+  address: intent.address,
+  date: intent.date,
+  email: intent.email,
+  items: validatedItems.map((v) => ({
+    listingId: v.item.e,
+    name: v.listing.name,
+    quantity: v.item.q,
+    slug: v.listing.slug,
+    unitPrice: v.item.p / v.item.q,
+  })),
+  modifiers: modifierSpecs,
+  name: intent.name,
+  phone: intent.phone,
+  special_instructions: intent.special_instructions,
+  ...(intent.dayCount ? { dayCount: intent.dayCount } : {}),
+  ...(intent.reservationAmount
+    ? { reservationAmount: intent.reservationAmount }
+    : {}),
+});
 
 /** Verify per-item and total prices for paid sessions. Returns null on success. */
 const verifyPaidPricing = async (
@@ -575,7 +584,7 @@ const verifyPaidPricing = async (
   modifierSpecs: ModifierSpec[],
 ): Promise<PaymentResult | null> => {
   const hasPaidItems = intent.items.some((item) => item.p > 0);
-  if (!hasPaidItems) return null;
+  if (!hasPaidItems && modifierSpecs.length === 0) return null;
 
   // Per-item prices are ticket-only (no fee), so validate without booking fee
   for (const { item, listing, expectedPrice } of validatedItems) {
@@ -591,26 +600,11 @@ const verifyPaidPricing = async (
   // Re-derive the expected total with the same pricing pipeline the checkout
   // used: deposit-aware ticket charges, modifiers (re-fetched from the database
   // by id, never trusting metadata amounts), and the booking fee on top.
-  const pricingIntent: CheckoutIntent = {
-    address: intent.address,
-    date: intent.date,
-    email: intent.email,
-    items: validatedItems.map((v) => ({
-      listingId: v.item.e,
-      name: v.listing.name,
-      quantity: v.item.q,
-      slug: v.listing.slug,
-      unitPrice: v.item.p / v.item.q,
-    })),
-    modifiers: modifierSpecs,
-    name: intent.name,
-    phone: intent.phone,
-    special_instructions: intent.special_instructions,
-    ...(intent.dayCount ? { dayCount: intent.dayCount } : {}),
-    ...(intent.reservationAmount
-      ? { reservationAmount: intent.reservationAmount }
-      : {}),
-  };
+  const pricingIntent = pricingIntentForSession(
+    intent,
+    validatedItems,
+    modifierSpecs,
+  );
   const expectedTotal = priceCheckout(pricingIntent).total;
   if (session.amountTotal !== expectedTotal) {
     return await priceMismatchRefund(
@@ -640,18 +634,22 @@ const createAttendeeForSession = async (
   validatedItems: ValidatedItem[],
   modifierSpecs: ModifierSpec[],
 ): Promise<{ ok: true; entries: CreatedEntry[] } | PaymentResult> => {
-  // A reservation charges only the per-line deposit up front; the rest of the
-  // full order price is recorded as the attendee's outstanding balance.
-  const deposits = reservationDeposits(intent);
-  const bookings = validatedItems.map(({ item, listing }, i) => ({
+  // A reservation charges only the priced per-line deposit up front; the rest of
+  // the final ticket-line total is recorded as the attendee's outstanding
+  // balance. Positive modifier extras and booking fees are paid during checkout,
+  // while discounts reduce the final ticket balance.
+  const pricingIntent = pricingIntentForSession(
+    intent,
+    validatedItems,
+    modifierSpecs,
+  );
+  const paymentBreakdown = ticketPaymentBreakdown(pricingIntent);
+  const bookings = validatedItems.map(({ item, listing }) => ({
     listingId: item.e,
-    pricePaid: deposits.perLine[i] ?? item.p,
+    pricePaid: paymentBreakdown.paidByListingId.get(item.e) ?? 0,
     quantity: item.q,
     ...bookingDateFields(listing, intent.date, intent.dayCount),
   }));
-  const fullTotal = sumOf((v: ValidatedItem) => v.item.p)(validatedItems);
-  const remainingBalance =
-    deposits.total === undefined ? 0 : fullTotal - deposits.total;
 
   const result = await createAttendeeAtomic({
     address: intent.address,
@@ -660,7 +658,7 @@ const createAttendeeForSession = async (
     name: intent.name,
     paymentId: session.paymentReference,
     phone: intent.phone,
-    remainingBalance,
+    remainingBalance: paymentBreakdown.remainingBalance,
     special_instructions: intent.special_instructions,
     statusId: await getPublicStatusId(),
   });
@@ -683,15 +681,13 @@ const createAttendeeForSession = async (
 
   // Consume modifier stock atomically; on a sold-out race the helper rolls the
   // order back (deleting the attendee + its usage rows) and the session is
-  // refunded below. amount_applied is recorded against the order subtotal —
-  // the same base the pricing engine uses for today's whole-order ("all"
-  // scope) modifiers. When listing/group-scoped modifiers become creatable,
-  // this should use the in-scope subtotal to stay exact.
+  // refunded below. The helper computes amount_applied from the same checkout
+  // items and modifier scopes the pricing engine used.
   const attendeeId = created.attendees[0]!.id;
   const consumed = await consumeModifierStockOrRollback(
     attendeeId,
     modifierSpecs,
-    fullTotal,
+    pricingIntent.items,
   );
   if (!consumed) {
     return refundAndFail(

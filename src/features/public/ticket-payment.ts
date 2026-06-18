@@ -272,6 +272,8 @@ type FreeReservationParams = {
   contact: ContactInfo;
   date: string | null;
   dayCount?: number;
+  paidByListingId?: Map<number, number>;
+  remainingBalance?: number;
 };
 
 type FreeReservationResult =
@@ -284,12 +286,20 @@ export const createFreeReservation = async ({
   contact,
   date,
   dayCount = 1,
+  paidByListingId,
+  remainingBalance = 0,
 }: FreeReservationParams): Promise<FreeReservationResult> => {
   const selected = listingsWithQuantity(listings, quantities);
-  const bookings = buildBookings(selected, date, dayCount);
+  const bookings = buildBookings(selected, date, dayCount).map((booking) => ({
+    ...booking,
+    ...(paidByListingId
+      ? { pricePaid: paidByListingId.get(booking.listingId) ?? 0 }
+      : {}),
+  }));
   const result = await createAttendeeAtomic({
     ...contact,
     bookings,
+    remainingBalance,
     statusId: await getPublicStatusId(),
   });
 

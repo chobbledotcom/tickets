@@ -1,10 +1,13 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { getDb } from "#shared/db/client.ts";
 import {
   consumeModifierStock,
+  consumeModifierStockOrRollback,
   modifierUsedQuantities,
 } from "#shared/db/modifier-usage.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
+import type { CheckoutItem, ModifierSpec } from "#shared/payments.ts";
 import { describeWithEnv } from "#test-utils";
 
 const makeModifier = (stock: number | null) =>
@@ -20,6 +23,29 @@ const usage = (modifierId: number, quantity = 1) => ({
   amountApplied: 500,
   modifierId,
   quantity,
+});
+
+const item = (overrides: Partial<CheckoutItem> = {}): CheckoutItem => ({
+  listingId: 1,
+  name: "Ticket",
+  quantity: 1,
+  slug: "ticket",
+  unitPrice: 0,
+  ...overrides,
+});
+
+const spec = (
+  modifierId: number,
+  overrides: Partial<ModifierSpec> = {},
+): ModifierSpec => ({
+  id: modifierId,
+  kind: "fixed",
+  listingIds: null,
+  name: "Add-on",
+  quantity: 1,
+  trigger: "optional",
+  value: 500,
+  ...overrides,
 });
 
 describeWithEnv("db > modifier-usage", { db: true }, () => {
@@ -64,6 +90,25 @@ describeWithEnv("db > modifier-usage", { db: true }, () => {
   describe("modifierUsedQuantities", () => {
     test("returns an empty map for no ids", async () => {
       expect(await modifierUsedQuantities([])).toEqual(new Map());
+    });
+  });
+
+  describe("consumeModifierStockOrRollback", () => {
+    test("records the aggregate amount applied for selected quantity", async () => {
+      const m = await makeModifier(null);
+      const consumed = await consumeModifierStockOrRollback(
+        100,
+        [spec(m.id, { quantity: 3 })],
+        [item()],
+      );
+      expect(consumed).toBe(true);
+
+      const { rows } = await getDb().execute({
+        args: [m.id],
+        sql: "SELECT quantity, amount_applied FROM modifier_usages WHERE modifier_id = ?",
+      });
+      expect(Number(rows[0]!.quantity)).toBe(3);
+      expect(Number(rows[0]!.amount_applied)).toBe(1500);
     });
   });
 });

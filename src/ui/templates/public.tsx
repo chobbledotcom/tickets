@@ -1059,7 +1059,9 @@ export const ticketPage = ({
   const allUnavailable = listings.every((e) => e.isSoldOut || e.isClosed);
   const allClosed = listings.every((e) => e.isClosed);
   const fieldsSetting = getTicketFieldsSetting(listings);
-  const anyPaid = listings.some((e) => isPaidListing(e.listing));
+  const anyPaid =
+    listings.some((e) => isPaidListing(e.listing)) ||
+    (addOns?.some((addOn) => addOn.requiresPayment) ?? false);
   const fields: Field[] = getTicketFields(fieldsSetting, anyPaid);
   const hasDaily = listings.some((e) => e.listing.listing_type === "daily");
 

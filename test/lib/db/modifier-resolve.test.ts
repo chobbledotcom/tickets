@@ -238,6 +238,7 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
           maxQuantity: ADDON_MAX_QUANTITY,
           name: "Parking",
           priceLabel: "+£5",
+          requiresPayment: true,
         },
       ]);
     });
@@ -252,6 +253,7 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
       await patchModifier(m.id, { trigger: "optional" });
       const addOns = await getOptionalAddOns([1]);
       expect(addOns[0]?.priceLabel).toBe("−10%");
+      expect(addOns[0]?.requiresPayment).toBe(false);
     });
 
     test("labels a multiplier add-on with its bare factor", async () => {
@@ -264,6 +266,7 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
       await patchModifier(m.id, { trigger: "optional" });
       const addOns = await getOptionalAddOns([1]);
       expect(addOns[0]?.priceLabel).toBe("×1.5");
+      expect(addOns[0]?.requiresPayment).toBe(true);
     });
 
     test("caps maxQuantity at the remaining stock", async () => {

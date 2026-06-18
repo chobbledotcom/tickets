@@ -9,17 +9,14 @@
  */
 
 import { sum, sumOf } from "#fp";
-import {
-  chargeUnitAmount,
-  feeSubtotalFor,
-  getBookingFeeAmount,
-} from "#shared/booking-fee.ts";
+import { feeSubtotalFor, getBookingFeeAmount } from "#shared/booking-fee.ts";
 import type {
   CheckoutIntent,
   CheckoutItem,
   ModifierSpec,
 } from "#shared/payments.ts";
 import { modifierDelta } from "#shared/price-modifier.ts";
+import { reservationDepositPerUnit } from "#shared/reservation-amount.ts";
 
 /** One ticket line and the amount charged per unit (deposit- and
  * discount-aware). A single cart item can split into several lines when a
@@ -55,6 +52,20 @@ const lineCharge = (line: PricedLine): number =>
   line.chargedUnitAmount * line.quantity;
 
 const extraCharge = (extra: ExtraLine): number => extra.amount * extra.quantity;
+
+export const ticketLineTotal = (order: Pick<PricedOrder, "lines">): number =>
+  sumOf(lineCharge)(order.lines);
+
+export const ticketLineTotalsByListingId = (
+  order: Pick<PricedOrder, "lines">,
+): Map<number, number> => {
+  const totals = new Map<number, number>();
+  for (const line of order.lines) {
+    const listingId = line.item.listingId;
+    totals.set(listingId, (totals.get(listingId) ?? 0) + lineCharge(line));
+  }
+  return totals;
+};
 
 /** The booking-fee extra line for a subtotal, or [] when the fee is zero. */
 const feeExtras = (fullSubtotal: number): ExtraLine[] => {
@@ -187,6 +198,32 @@ const applyOne = (pass: ModifierPass, spec: ModifierSpec): ModifierPass => {
   return { ...pass, discountTotal: pass.discountTotal + applied, units };
 };
 
+const fullPriceLines = (items: CheckoutItem[]): PricedLine[] =>
+  items.map((item) => ({
+    chargedUnitAmount: item.unitPrice,
+    item,
+    quantity: item.quantity,
+  }));
+
+const totalQuantity = (items: CheckoutItem[]): number =>
+  sumOf((i: CheckoutItem) => i.quantity)(items);
+
+const depositLines = (
+  lines: PricedLine[],
+  reservationAmount: string,
+  items: CheckoutItem[],
+): PricedLine[] => {
+  const quantity = totalQuantity(items);
+  return lines.map((line) => ({
+    ...line,
+    chargedUnitAmount: reservationDepositPerUnit(
+      reservationAmount,
+      line.chargedUnitAmount,
+      quantity,
+    ),
+  }));
+};
+
 /**
  * Apply resolved modifiers to a checkout's priced lines. Each modifier reads
  * the original (pre-modifier) in-scope subtotal, so modifiers never compound on
@@ -217,19 +254,39 @@ export const applyModifiers = (
  * any resolved modifiers.
  */
 export const priceCheckout = (intent: CheckoutIntent): PricedOrder => {
-  const baseLines: PricedLine[] = intent.items.map((item) => ({
-    chargedUnitAmount: chargeUnitAmount(intent, item),
-    item,
-    quantity: item.quantity,
-  }));
+  const baseLines = fullPriceLines(intent.items);
   const modifiers = applyModifiers(baseLines, intent.modifiers ?? []);
+  const lines = intent.reservationAmount
+    ? depositLines(modifiers.lines, intent.reservationAmount, intent.items)
+    : modifiers.lines;
   // The booking fee is charged on the full order plus any net modifier change.
   const fullSubtotal = feeSubtotalFor(intent) + modifiers.modifierTotal;
   const extras = [...modifiers.extras, ...feeExtras(fullSubtotal)];
   return {
     extras,
     fullSubtotal,
-    lines: modifiers.lines,
-    total: sumOf(lineCharge)(modifiers.lines) + sumOf(extraCharge)(extras),
+    lines,
+    total: ticketLineTotal({ lines }) + sumOf(extraCharge)(extras),
   };
+};
+
+export type TicketPaymentBreakdown = {
+  paidByListingId: Map<number, number>;
+  remainingBalance: number;
+};
+
+export const ticketPaymentBreakdown = (
+  intent: CheckoutIntent,
+): TicketPaymentBreakdown => {
+  const paid = priceCheckout(intent);
+  const paidByListingId = ticketLineTotalsByListingId(paid);
+  if (!intent.reservationAmount)
+    return { paidByListingId, remainingBalance: 0 };
+
+  const full = priceCheckout({ ...intent, reservationAmount: undefined });
+  const remainingBalance = Math.max(
+    0,
+    ticketLineTotal(full) - ticketLineTotal(paid),
+  );
+  return { paidByListingId, remainingBalance };
 };

@@ -170,6 +170,8 @@ export type AddOnOption = {
   name: string;
   /** Buyer-facing price effect, e.g. "+£5", "−10%", "×1.5". */
   priceLabel: string;
+  /** True when selecting this add-on can route an otherwise-free cart to payment. */
+  requiresPayment: boolean;
   /** The most units a buyer may select, capped by remaining stock. */
   maxQuantity: number;
 };
@@ -225,6 +227,7 @@ export const getOptionalAddOns = async (
       maxQuantity,
       name: modifier.name,
       priceLabel: addOnPriceLabel(modifier),
+      requiresPayment: signedValue(modifier) > 0,
     }));
 };
 

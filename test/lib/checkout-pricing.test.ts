@@ -5,6 +5,7 @@ import {
   applyModifiers,
   type PricedLine,
   priceCheckout,
+  ticketPaymentBreakdown,
 } from "#shared/checkout-pricing.ts";
 import type {
   CheckoutIntent,
@@ -195,6 +196,34 @@ describe("priceCheckout", () => {
       ]);
       // No pennies lost: 967×2 + 966 = 2900 = 3000 − 100.
       expect(order.total).toBe(2900);
+    },
+  );
+
+  testWithSetting(
+    "computes reservation deposits and balances from modifier-adjusted ticket totals",
+    { booking_fee: "10" },
+    () => {
+      const intent = intentWith([item()], {
+        modifiers: [modifier({ kind: "fixed", value: -500 })],
+        reservationAmount: "10%",
+      });
+      const order = priceCheckout(intent);
+
+      // £10 ticket - £5 discount = £5 final ticket total. The reservation
+      // deposit is 10% of that adjusted total, and the booking fee is charged on
+      // the same adjusted subtotal.
+      expect(order.lines).toEqual([
+        { chargedUnitAmount: 50, item: item(), quantity: 1 },
+      ]);
+      expect(order.fullSubtotal).toBe(500);
+      expect(order.extras).toEqual([
+        { amount: 50, key: "fee", name: "Booking fee", quantity: 1 },
+      ]);
+      expect(order.total).toBe(100);
+
+      const breakdown = ticketPaymentBreakdown(intent);
+      expect(breakdown.paidByListingId).toEqual(new Map([[1, 50]]));
+      expect(breakdown.remainingBalance).toBe(450);
     },
   );
 });
