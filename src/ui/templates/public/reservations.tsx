@@ -174,9 +174,9 @@ const renderPayMoreInput = (
       value,
     )}" min="${escapeHtml(toMajorUnits(minPrice))}" max="${escapeHtml(
       toMajorUnits(maxPrice),
-    )}" pattern="\\d+(\\.\\d{1,2})?" title="A non-negative number (e.g. 10.00)"${
-      minPrice > 0 ? " required" : ""
-    } /></label>`
+    )}" pattern="\\d+(\\.\\d{1,2})?" title="${escapeHtml(
+      t("public.ticket.price_input_title"),
+    )}"${minPrice > 0 ? " required" : ""} /></label>`
   );
 };
 
@@ -220,7 +220,11 @@ export const renderQuestions = (
       const answered = savedFormValue(`question_${q.id}`);
       const options =
         q.display_type === "select"
-          ? `<label><span class="sr-only">${escapeHtml(q.text)}</span><select name="question_${q.id}" required><option value="">Select an answer</option>${q.answers
+          ? `<label><span class="sr-only">${escapeHtml(
+              q.text,
+            )}</span><select name="question_${q.id}" required><option value="">${t(
+              "public.ticket.select_answer_placeholder",
+            )}</option>${q.answers
               .map(
                 (a) =>
                   `<option value="${a.id}"${
@@ -364,7 +368,9 @@ const renderSingleListingControls = (
   const prefilledPrice = prefill ? prefill.customPriceMinor : undefined;
   const quantityHtml = hideQuantity
     ? `<input type="hidden" name="${fieldName}" value="1" />`
-    : `<label>Number of Tickets<select name="${fieldName}">${quantityOptions(
+    : `<label>${t(
+        "public.ticket.number_of_tickets",
+      )}<select name="${fieldName}">${quantityOptions(
         maxPurchasable,
         prefilledQty,
       )}</select></label>`;
@@ -463,7 +469,8 @@ const TicketPageHeader = ({
       )}
       {singleListing?.date && (
         <p>
-          <strong>Date:</strong> {formatDatetimeLabel(singleListing.date)}
+          <strong>{t("public.ticket.date_label")}</strong>{" "}
+          {formatDatetimeLabel(singleListing.date)}
           {pastDays !== null && (
             <span class="badge-alert">
               {" "}
@@ -474,7 +481,8 @@ const TicketPageHeader = ({
       )}
       {singleListing?.location && (
         <p>
-          <strong>Location:</strong> {singleListing.location}
+          <strong>{t("public.ticket.location_label")}</strong>{" "}
+          {singleListing.location}
         </p>
       )}
     </div>
