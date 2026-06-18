@@ -7,6 +7,7 @@
  * start and end agent selectors on their attendees.
  */
 
+import { t } from "#i18n";
 import { settings } from "#shared/db/settings.ts";
 import {
   ConfirmForm,
@@ -15,7 +16,7 @@ import {
   Flash,
   renderFields,
 } from "#shared/forms.tsx";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { escapeHtml, Raw } from "#shared/jsx/jsx-runtime.ts";
 import type {
   AdminLevel,
   AdminSession,
@@ -33,13 +34,8 @@ import { Layout } from "#templates/layout.tsx";
 /** The has-logistics enable/disable toggle. */
 const HasLogisticsForm = (hasLogistics: boolean): JSX.Element => (
   <CsrfForm action="/admin/logistics/has-logistics">
-    <h2>Logistics</h2>
-    <p>
-      Enable logistics for listings handled by an agent at the customer's
-      location — deliveries, equipment hire, transport, set-up and teardown.
-      When on, listings gain a "Needs logistics" option and logistics agents can
-      be managed below.
-    </p>
+    <h2>{t("logistics.title")}</h2>
+    <p>{t("logistics.enable_hint")}</p>
     <fieldset class="radios">
       <label>
         <input
@@ -48,7 +44,7 @@ const HasLogisticsForm = (hasLogistics: boolean): JSX.Element => (
           type="radio"
           value="true"
         />
-        Yes
+        {t("common.yes")}
       </label>
       <label>
         <input
@@ -57,29 +53,26 @@ const HasLogisticsForm = (hasLogistics: boolean): JSX.Element => (
           type="radio"
           value="false"
         />
-        No
+        {t("common.no")}
       </label>
     </fieldset>
-    <SubmitButton icon="save">Save</SubmitButton>
+    <SubmitButton icon="save">{t("common.save")}</SubmitButton>
   </CsrfForm>
 );
 
 /** The logistics-agents list with inline add form (shown when logistics is on). */
 const AgentsSection = (agents: LogisticsAgent[]): JSX.Element => (
   <article>
-    <h2>Logistics Agents</h2>
-    <p>
-      Agents (e.g. vans, drivers, or crew) you can assign as the start and end
-      agent on a logistics listing's attendees.
-    </p>
+    <h2>{t("logistics.agents_heading")}</h2>
+    <p>{t("logistics.agents_hint")}</p>
     {agents.length === 0 ? (
-      <p>No logistics agents yet.</p>
+      <p>{t("logistics.no_agents_yet")}</p>
     ) : (
       <div class="table-scroll">
         <table>
           <thead>
             <tr>
-              <th>Name</th>
+              <th>{t("common.name")}</th>
             </tr>
           </thead>
           <tbody>
@@ -95,9 +88,9 @@ const AgentsSection = (agents: LogisticsAgent[]): JSX.Element => (
       </div>
     )}
     <CsrfForm action="/admin/logistics">
-      <h3>Add Agent</h3>
+      <h3>{t("logistics.add_agent")}</h3>
       <Raw html={renderFields(logisticsAgentFields)} />
-      <SubmitButton icon="plus">Add Agent</SubmitButton>
+      <SubmitButton icon="plus">{t("logistics.add_agent")}</SubmitButton>
     </CsrfForm>
   </article>
 );
@@ -112,12 +105,14 @@ export const adminLogisticsPage = (
   successMessage?: string,
 ): string =>
   String(
-    <Layout title="Logistics">
+    <Layout title={t("logistics.title")}>
       <AdminNav active="/admin/logistics" session={session} />
       <SettingsSubNav />
       <Flash success={successMessage} />
       <p class="actions">
-        <GuideLink href="/admin/guide#logistics">Logistics guide</GuideLink>
+        <GuideLink href="/admin/guide#logistics">
+          {t("logistics.guide_link")}
+        </GuideLink>
       </p>
       {HasLogisticsForm(settings.hasLogistics)}
       {settings.hasLogistics && AgentsSection(agents)}
@@ -136,13 +131,13 @@ export const adminLogisticsAgentNewPage = (
   error?: string,
 ): string =>
   String(
-    <Layout title="Add Logistics Agent">
+    <Layout title={t("logistics.add_logistics_agent")}>
       <AdminNav active="/admin/logistics" session={session} />
       <CsrfForm action="/admin/logistics">
-        <h1>Add Logistics Agent</h1>
+        <h1>{t("logistics.add_logistics_agent")}</h1>
         <Flash error={error} />
         <Raw html={renderFields(logisticsAgentFields)} />
-        <SubmitButton icon="plus">Create Agent</SubmitButton>
+        <SubmitButton icon="plus">{t("logistics.create_agent")}</SubmitButton>
       </CsrfForm>
     </Layout>,
   );
@@ -165,17 +160,13 @@ const AgentUsersSelector = ({
   selected: ReadonlySet<number>;
 }): JSX.Element => (
   <fieldset class="checkboxes listing-section">
-    <legend>Assigned users</legend>
+    <legend>{t("logistics.assigned_users")}</legend>
     <p>
-      <small>
-        These users see this agent's deliveries and collections on the
-        deliveries page. Agent-class users can only see the deliveries page;
-        owners and managers reach it from the Calendar menu.
-      </small>
+      <small>{t("logistics.assigned_users_hint")}</small>
     </p>
     {users.length === 0 ? (
       <p>
-        <em>No users to assign yet.</em>
+        <em>{t("logistics.no_users_to_assign")}</em>
       </p>
     ) : (
       users.map((user) => (
@@ -203,13 +194,13 @@ export const adminLogisticsAgentEditPage = (
   error?: string,
 ): string =>
   String(
-    <Layout title="Edit Logistics Agent">
+    <Layout title={t("logistics.edit_agent")}>
       <AdminNav active="/admin/logistics" session={session} />
       <CsrfForm action={`/admin/logistics/${agent.id}/edit`}>
-        <h1>Edit Logistics Agent</h1>
+        <h1>{t("logistics.edit_agent")}</h1>
         <Flash error={error} />
         <fieldset class="listing-section">
-          <legend>Agent details</legend>
+          <legend>{t("logistics.agent_details")}</legend>
           <Raw
             html={renderFields(
               logisticsAgentFields,
@@ -218,13 +209,13 @@ export const adminLogisticsAgentEditPage = (
           />
         </fieldset>
         <AgentUsersSelector selected={selectedUserIds} users={users} />
-        <SubmitButton icon="save">Save Changes</SubmitButton>
+        <SubmitButton icon="save">{t("common.save_changes")}</SubmitButton>
       </CsrfForm>
       <DeleteSection
-        heading="Delete"
+        heading={t("common.delete")}
         href={`/admin/logistics/${agent.id}/delete`}
       >
-        Delete Agent
+        {t("logistics.delete_agent")}
       </DeleteSection>
     </Layout>,
   );
@@ -236,23 +227,25 @@ export const adminLogisticsAgentDeletePage = (
   error?: string,
 ): string =>
   String(
-    <Layout title="Delete Logistics Agent">
+    <Layout title={t("logistics.delete_logistics_agent")}>
       <AdminNav active="/admin/logistics" session={session} />
       <ConfirmForm
         action={`/admin/logistics/${agent.id}/delete`}
-        buttonText="Delete Agent"
+        buttonText={t("logistics.delete_agent")}
         danger={false}
-        label="Agent name"
+        label={t("logistics.agent_name")}
         name={agent.name}
       >
-        <h1>Delete Logistics Agent</h1>
+        <h1>{t("logistics.delete_logistics_agent")}</h1>
         <Flash error={error} />
         <p>
-          Are you sure you want to delete the logistics agent{" "}
-          <strong>{agent.name}</strong>? Any attendees assigned to this agent
-          will have that assignment cleared.
+          <Raw
+            html={t("logistics.delete_confirm", {
+              name: escapeHtml(agent.name),
+            })}
+          />
         </p>
-        <p>Type the agent name "{agent.name}" to confirm:</p>
+        <p>{t("logistics.type_name_to_confirm", { name: agent.name })}</p>
       </ConfirmForm>
     </Layout>,
   );

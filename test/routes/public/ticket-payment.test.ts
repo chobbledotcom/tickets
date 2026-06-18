@@ -5,7 +5,7 @@ import {
   bookingDateFields,
   buildRegistrationItems,
   computeSharedDates,
-  processFreeReservation,
+  createFreeReservation,
   resolveDayCount,
 } from "#routes/public/ticket-payment.ts";
 import { addDays } from "#shared/dates.ts";
@@ -134,7 +134,7 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
     });
   });
 
-  describe("processFreeReservation (all-or-nothing)", () => {
+  describe("createFreeReservation (all-or-nothing)", () => {
     test("rejects the whole cart and persists nothing when a group cap is partially exceeded", async () => {
       const group = await createTestGroup({
         maxAttendees: 3,
@@ -161,12 +161,12 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
         [e1.id, 2],
         [e2.id, 2],
       ]);
-      const result = await processFreeReservation(
-        ticketListings,
-        quantities,
+      const result = await createFreeReservation({
         contact,
-        null,
-      );
+        date: null,
+        listings: ticketListings,
+        quantities,
+      });
       expect(result.success).toBe(false);
       // Nothing persists for either listing — the partial booking is rolled back.
       expect((await getAttendeesRaw(e1.id)).length).toBe(0);
@@ -195,15 +195,15 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
         await ticketListingFor(e1.id),
         await ticketListingFor(e2.id),
       ];
-      const result = await processFreeReservation(
-        ticketListings,
-        new Map([
+      const result = await createFreeReservation({
+        contact,
+        date: null,
+        listings: ticketListings,
+        quantities: new Map([
           [e1.id, 1],
           [e2.id, 2],
         ]),
-        contact,
-        null,
-      );
+      });
       expect(result.success).toBe(true);
       expect((await getAttendeesRaw(e1.id))[0]!.quantity).toBe(1);
       expect((await getAttendeesRaw(e2.id))[0]!.quantity).toBe(2);

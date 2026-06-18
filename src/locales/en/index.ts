@@ -4,6 +4,7 @@
 
 import admin from "./admin.json" with { type: "json" };
 import attendees from "./attendees.json" with { type: "json" };
+import availability from "./availability.json" with { type: "json" };
 import backup from "./backup.json" with { type: "json" };
 import builder from "./builder.json" with { type: "json" };
 import builtSites from "./built-sites.json" with { type: "json" };
@@ -23,6 +24,7 @@ import holidays from "./holidays.json" with { type: "json" };
 import listingQr from "./listing-qr.json" with { type: "json" };
 import listingsTable from "./listings-table.json" with { type: "json" };
 import login from "./login.json" with { type: "json" };
+import logistics from "./logistics.json" with { type: "json" };
 import modifiers from "./modifiers.json" with { type: "json" };
 import nav from "./nav.json" with { type: "json" };
 import payment from "./payment.json" with { type: "json" };
@@ -41,6 +43,7 @@ import users from "./users.json" with { type: "json" };
 
 const en: Record<string, string> = {
   ...admin,
+  ...availability,
   ...attendees,
   ...backup,
   ...builder,
@@ -61,6 +64,7 @@ const en: Record<string, string> = {
   ...listingQr,
   ...listingsTable,
   ...login,
+  ...logistics,
   ...modifiers,
   ...nav,
   ...payment,

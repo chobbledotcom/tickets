@@ -12,6 +12,7 @@ import {
   getAttendeeOrderSummary,
 } from "#shared/db/attendees/balance.ts";
 import { getDb } from "#shared/db/client.ts";
+import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
@@ -20,6 +21,7 @@ import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import {
   createTestListing,
   describeWithEnv,
+  expectFlash,
   mockRequest,
   setupStripe,
   submitTicketForm,
@@ -311,6 +313,47 @@ describeWithEnv(
       }
     });
 
+    test("a reservation public-default still resolves modifiers before checkout", async () => {
+      await setupStripe();
+      await setPublicReservation("10%");
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        thankYouUrl: "https://example.com",
+        unitPrice: 1000,
+      });
+      await modifiersTable.insert({
+        calcKind: "percent",
+        calcValue: 10,
+        direction: "charge",
+        name: "Service charge",
+      });
+      let captured: CheckoutIntent | undefined;
+      const checkout = stub(
+        stripePaymentProvider,
+        "createCheckoutSession",
+        (intent: CheckoutIntent) => {
+          captured = intent;
+          return Promise.resolve({
+            checkoutUrl: "https://stripe.example/checkout",
+            sessionId: "cs_test",
+          });
+        },
+      );
+      try {
+        const response = await submitTicketForm(listing.slug, {
+          [`quantity_${listing.id}`]: "1",
+          email: "buyer@example.com",
+          name: "Buyer",
+        });
+        expect([302, 303]).toContain(response.status);
+        expect(captured?.reservationAmount).toBe("10%");
+        expect(captured?.modifiers).toHaveLength(1);
+        expect(captured?.modifiers?.[0]?.value).toBe(10);
+      } finally {
+        checkout.restore();
+      }
+    });
+
     test("a non-reservation public-default carries no deposit amount", async () => {
       await setupStripe();
       const listing = await createTestListing({
@@ -381,6 +424,81 @@ describeWithEnv(
       } finally {
         checkout.restore();
       }
+    });
+
+    test("records clamped stock usage for zero-total modifier bookings", async () => {
+      await setupStripe();
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        thankYouUrl: "https://example.com",
+        unitPrice: 1000,
+      });
+      const modifier = await modifiersTable.insert({
+        calcKind: "fixed",
+        calcValue: 20,
+        direction: "discount",
+        name: "Comp",
+        stock: 1,
+      });
+
+      const response = await submitTicketForm(listing.slug, {
+        [`quantity_${listing.id}`]: "1",
+        email: "buyer@example.com",
+        name: "Buyer",
+      });
+
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("https://example.com");
+      expect(await modifierUsedQuantities([modifier.id])).toEqual(
+        new Map([[modifier.id, 1]]),
+      );
+      expect(await modifierUsageAmount(modifier.id)).toBe(1000);
+    });
+
+    test("rolls back a zero-total modifier booking when stock sells out after pricing", async () => {
+      await setupStripe();
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        thankYouUrl: "https://example.com",
+        unitPrice: 1000,
+      });
+      const modifier = await modifiersTable.insert({
+        calcKind: "fixed",
+        calcValue: 10,
+        direction: "discount",
+        name: "Comp",
+        stock: 1,
+      });
+      await getDb().execute(
+        `CREATE TRIGGER test_consume_modifier_before_order
+         AFTER INSERT ON attendees
+         BEGIN
+           INSERT INTO modifier_usages
+             (modifier_id, attendee_id, quantity, amount_applied, created)
+           VALUES (${modifier.id}, NEW.id, 1, 1000, '2024-01-01T00:00:00Z');
+         END`,
+      );
+
+      const response = await submitTicketForm(listing.slug, {
+        [`quantity_${listing.id}`]: "1",
+        email: "buyer@example.com",
+        name: "Buyer",
+      });
+
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location") ?? "").toMatch(
+        new RegExp(`^/ticket/${listing.slug}\\?flash=`),
+      );
+      expectFlash(
+        response,
+        "An extra you selected sold out while you were checking out. Please try again.",
+        false,
+      );
+      expect(await modifierUsedQuantities([modifier.id])).toEqual(new Map());
+      const attendeeCount = await getDb().execute(
+        "SELECT COUNT(*) AS count FROM attendees",
+      );
+      expect(Number(attendeeCount.rows[0]!.count)).toBe(0);
     });
 
     test("full-payment promo discount stores the discounted price paid", async () => {
@@ -768,6 +886,71 @@ describeWithEnv(
         const attendee = await latestAttendee();
         expect(attendee.pricePaid).toBe(0);
         expect(attendee.remainingBalance).toBe(1000);
+      } finally {
+        session.restore();
+      }
+    });
+
+    test("zero-deposit reservations without a fee skip the provider but keep the full balance", async () => {
+      await setupStripe();
+      await settings.update.bookingFee("0");
+      const statusId = await setPublicReservation("0");
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        thankYouUrl: "https://example.com",
+        unitPrice: 1000,
+      });
+
+      const response = await submitTicketForm(listing.slug, {
+        [`quantity_${listing.id}`]: "1",
+        email: "buyer@example.com",
+        name: "Buyer",
+      });
+
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("https://example.com");
+      const attendee = await latestAttendee();
+      expect(attendee.pricePaid).toBe(0);
+      expect(attendee.remainingBalance).toBe(1000);
+      expect(attendee.statusId).toBe(statusId);
+    });
+
+    test("reservation discounts reduce the paid deposit and remaining balance", async () => {
+      await setupStripe();
+      await settings.update.bookingFee("0");
+      const statusId = await setPublicReservation("10%");
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        thankYouUrl: "https://example.com",
+        unitPrice: 1000,
+      });
+      const modifier = await modifiersTable.insert({
+        calcKind: "fixed",
+        calcValue: 5,
+        direction: "discount",
+        name: "Discount",
+      });
+      const session = stubPaidSession(
+        "cs_discounted_reservation",
+        {
+          _origin: "localhost",
+          email: "reserver@example.com",
+          items: JSON.stringify([{ e: listing.id, p: 1000, q: 1 }]),
+          modifiers: JSON.stringify([{ i: modifier.id, q: 1 }]),
+          name: "Reserver",
+          reservation_amount: "10%",
+        },
+        50,
+      );
+      try {
+        const response = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_discounted_reservation"),
+        );
+        expect([200, 302, 303]).toContain(response.status);
+        const attendee = await latestAttendee();
+        expect(attendee.pricePaid).toBe(50);
+        expect(attendee.remainingBalance).toBe(450);
+        expect(attendee.statusId).toBe(statusId);
       } finally {
         session.restore();
       }

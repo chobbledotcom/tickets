@@ -878,6 +878,16 @@ label > input[type="time"] {
   width: auto;
 }
 
+input[type="number"] {
+  box-sizing: border-box;
+  max-width: 100%;
+  width: 8ch;
+}
+
+label > input[type="number"] {
+  flex: 0 0 auto;
+}
+
 label > select[name="quantity"],
 label > select[name^="quantity_"] {
   width: 8ch;
@@ -1161,9 +1171,7 @@ input[type="submit"].danger:hover,
 }
 
 .expected-actual-notice {
-  border-left: 4px solid #cc0000;
   margin: var(--space-s) 0;
-  padding-left: var(--space-s);
 }
 
 .expected-actual-notice summary {
@@ -1174,10 +1182,6 @@ input[type="submit"].danger:hover,
 .expected-actual-notice ul {
   margin-bottom: var(--space-s);
   margin-top: var(--space-s);
-}
-
-.expected-actual-click {
-  color: var(--color-text-secondary);
 }
 
 .success-text {
@@ -1202,9 +1206,6 @@ input[type="submit"].danger:hover,
 }
 [data-theme="dark"] .danger-text {
   color: #ff5555;
-}
-[data-theme="dark"] .expected-actual-notice {
-  border-left-color: #ff5555;
 }
 [data-theme="dark"] .success-text {
   color: #50fa7b;

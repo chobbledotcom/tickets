@@ -8,7 +8,8 @@ test("ExpectedActualNotice uses the default title when none is provided", () => 
     items: [{ actual: "4", expected: "3", label: "Total" }],
   })!.toString();
 
-  expect(html).toContain("Stored total error");
+  expect(html).toContain("Stored total mismatch");
   expect(html).toContain("expected <strong>3</strong>, got");
-  expect(html).toContain("Click for info.");
+  expect(html).toContain("Mismatch");
+  expect(html).not.toContain("Click for info.");
 });

@@ -69,6 +69,20 @@ const lineCharge = (line: PricedLine): number =>
 
 const extraCharge = (extra: ExtraLine): number => extra.amount * extra.quantity;
 
+export const ticketLineTotal = (order: Pick<PricedOrder, "lines">): number =>
+  sumOf(lineCharge)(order.lines);
+
+export const ticketLineTotalsByListingId = (
+  order: Pick<PricedOrder, "lines">,
+): Map<number, number> => {
+  const totals = new Map<number, number>();
+  for (const line of order.lines) {
+    const listingId = line.item.listingId;
+    totals.set(listingId, (totals.get(listingId) ?? 0) + lineCharge(line));
+  }
+  return totals;
+};
+
 /** The booking-fee extra line for a subtotal, or [] when the fee is zero. */
 const feeExtras = (fullSubtotal: number): ExtraLine[] => {
   const amount = getBookingFeeAmount(fullSubtotal);
@@ -332,4 +346,25 @@ export const priceCheckout = (intent: CheckoutIntent): PricedOrder => {
     modifierApplications: modifiers.applications,
     total: sumOf(lineCharge)(lines) + sumOf(extraCharge)(extras),
   };
+};
+
+export type TicketPaymentBreakdown = {
+  paidByListingId: Map<number, number>;
+  remainingBalance: number;
+};
+
+export const ticketPaymentBreakdown = (
+  intent: CheckoutIntent,
+): TicketPaymentBreakdown => {
+  const paid = priceCheckout(intent);
+  const paidByListingId = ticketLineTotalsByListingId(paid);
+  if (!intent.reservationAmount) {
+    return { paidByListingId, remainingBalance: 0 };
+  }
+
+  const remainingBalance = Math.max(
+    0,
+    paid.fullSubtotal - ticketLineTotal(paid),
+  );
+  return { paidByListingId, remainingBalance };
 };
