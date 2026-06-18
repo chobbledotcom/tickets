@@ -13,6 +13,10 @@ import {
   formatDatetimeLabel,
   formatDatetimeShort,
 } from "#shared/dates.ts";
+import type {
+  ListingAggregateField,
+  ListingAggregateRecalculation,
+} from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
 import { buildEmbedSnippets } from "#shared/embed.ts";
 import { isReadOnly } from "#shared/env.ts";
@@ -40,8 +44,17 @@ import {
   normalizeDurationDays,
 } from "#shared/types.ts";
 import { buildSharedDetailRows } from "#templates/admin/detail-rows.tsx";
+import {
+  type ExpectedActualItem,
+  ExpectedActualNotice,
+  hasExpectedActualMismatches,
+} from "#templates/admin/expected-actual.tsx";
 import { ListingGroupSelect } from "#templates/admin/group-select.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
+import {
+  adminRecalculatePage,
+  type RecalculateRow,
+} from "#templates/admin/recalculate.tsx";
 import {
   AttendeeTable,
   type AttendeeTableRow,
@@ -60,6 +73,7 @@ import {
   getListingFields,
   getMonthsPerUnitField,
   getSlugField,
+  listingAggregateFields,
   logisticsField,
 } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
@@ -95,6 +109,74 @@ export const buildAnswerSummaryRows = (
 /** Check if listing is within 10% of capacity */
 export const nearCapacity = (listing: ListingWithCount): boolean =>
   listing.attendee_count >= listing.max_attendees * 0.9;
+
+const formatListingAggregateValue = (
+  name: ListingAggregateField,
+  value: number,
+): string => (name === "income" ? formatCurrency(value) : String(value));
+
+const listingAggregateMismatchItems = (
+  aggregateRecalculation?: ListingAggregateRecalculation,
+): ExpectedActualItem[] => {
+  if (!aggregateRecalculation) return [];
+  return listingAggregateFields.flatMap((field) => {
+    const name = field.name as ListingAggregateField;
+    const values = aggregateRecalculation[name];
+    return values.current === values.recalculated
+      ? []
+      : [
+          {
+            actual: formatListingAggregateValue(name, values.current),
+            expected: formatListingAggregateValue(name, values.recalculated),
+            label: field.label,
+          },
+        ];
+  });
+};
+
+const ListingAggregateMismatchNotice = ({
+  aggregateRecalculation,
+  actionHref,
+}: {
+  aggregateRecalculation?: ListingAggregateRecalculation;
+  actionHref: string;
+}): JSX.Element | null => {
+  const items = listingAggregateMismatchItems(aggregateRecalculation);
+  return (
+    <ExpectedActualNotice
+      actionHref={actionHref}
+      actionLabel={t("listings_table.running_totals_error_action")}
+      explanation={t("listings_table.running_totals_error_explanation")}
+      items={items}
+      title={t("listings_table.running_totals_error_title")}
+    />
+  );
+};
+
+const ListingAggregateMismatchRow = ({
+  aggregateRecalculation,
+  listing,
+}: {
+  aggregateRecalculation?: ListingAggregateRecalculation;
+  listing: ListingWithCount;
+}): JSX.Element | null => {
+  const items = listingAggregateMismatchItems(aggregateRecalculation);
+  if (!hasExpectedActualMismatches(items)) return null;
+  return (
+    <tr>
+      <th>{t("listings_table.running_total_check")}</th>
+      <td>
+        <ExpectedActualNotice
+          actionHref={`/admin/listings/recalculate/${listing.id}`}
+          actionLabel={t("listings_table.running_totals_error_action")}
+          explanation={t("listings_table.running_totals_error_explanation")}
+          items={items}
+          title={t("listings_table.running_totals_error_title")}
+        />
+      </td>
+    </tr>
+  );
+};
 
 /**
  * Check if an attendee has an incomplete/failed payment.
@@ -224,7 +306,9 @@ const DateSelector = ({
         }>${d.label}</option>`,
     ),
   ].join("");
-  return `<select data-nav-select aria-label="${t("listings_table.filter_by_date")}">${options}</select>`;
+  return `<select data-nav-select aria-label="${t(
+    "listings_table.filter_by_date",
+  )}">${options}</select>`;
 };
 
 /** Options for rendering the admin listing detail page */
@@ -241,6 +325,7 @@ export type AdminListingPageOptions = {
   attendees: Attendee[];
   allowedDomain: string;
   session: AdminSession;
+  aggregateRecalculation?: ListingAggregateRecalculation;
   checkinMessage?: CheckinMessage;
   activeFilter?: AttendeeFilter;
   dateFilter?: string | null;
@@ -386,9 +471,11 @@ const CustomisableDaysRow = ({
             {counts
               .map(
                 (n) =>
-                  `${n} ${t(`listings_table.day_count_unit_${n === 1 ? "singular" : "plural"}`)}: ${formatCurrency(
-                    dayPriceFor(listing, n)!,
-                  )}`,
+                  `${n} ${t(
+                    `listings_table.day_count_unit_${
+                      n === 1 ? "singular" : "plural"
+                    }`,
+                  )}: ${formatCurrency(dayPriceFor(listing, n)!)}`,
               )
               .join(", ")}
           </span>
@@ -550,6 +637,7 @@ const GroupAttendeesRow = ({
 /** Listing details table - all listing metadata rows */
 const ListingDetailsTable = ({
   listing,
+  aggregateRecalculation,
   allowedDomain,
   ticketUrl,
   embedScriptCode,
@@ -563,6 +651,7 @@ const ListingDetailsTable = ({
   sharedRowsHtml,
 }: {
   listing: ListingWithCount;
+  aggregateRecalculation?: ListingAggregateRecalculation;
   allowedDomain: string;
   ticketUrl: string;
   embedScriptCode: string;
@@ -750,6 +839,10 @@ const ListingDetailsTable = ({
               groupAttendeeCount={groupContext.attendeeCount}
             />
           )}
+          <ListingAggregateMismatchRow
+            aggregateRecalculation={aggregateRecalculation}
+            listing={listing}
+          />
           <Raw html={sharedRowsHtml} />
         </tbody>
       </table>
@@ -959,6 +1052,7 @@ export const adminListingPage = ({
   attendees,
   allowedDomain,
   session,
+  aggregateRecalculation,
   checkinMessage,
   activeFilter = "all",
   dateFilter = null,
@@ -1031,6 +1125,7 @@ export const adminListingPage = ({
       <Flash error={errorMessage} />
       <ListingDetailsTable
         adjustedCount={adjustedCount}
+        aggregateRecalculation={aggregateRecalculation}
         allowedDomain={allowedDomain}
         completeQuantitySum={completeQuantitySum}
         dailySuffix={dailySuffix}
@@ -1095,7 +1190,9 @@ export const renderDayPricesFieldset = (listing?: ListingWithCount): string => {
         `<label>${t("listings_table.day_price_row_label", { n })}` +
         `<input type="text" inputmode="decimal" name="day_price_${n}" ` +
         `value="${escapeHtml(value)}" pattern="\\d+(\\.\\d{1,2})?" ` +
-        `placeholder="${t("listings_table.day_price_placeholder")}" title="${t("listings_table.day_price_input_title")}" />` +
+        `placeholder="${t("listings_table.day_price_placeholder")}" title="${t(
+          "listings_table.day_price_input_title",
+        )}" />` +
         "</label>"
       );
     })
@@ -1140,6 +1237,92 @@ const getAllListingFields = (): Field[] => [
 const listingToFieldValues = (listing: ListingWithCount): FieldValues =>
   entityToFieldValues(listing, getAllListingFields(), listingFieldFormatters, {
     slug: listing.slug,
+  });
+
+export const listingAggregateToFieldValues = (
+  listing: ListingWithCount,
+): FieldValues => ({
+  booked_quantity: listing.attendee_count,
+  income: toMajorUnits(listing.income),
+  tickets_count: listing.tickets_count,
+});
+
+const ListingRunningTotalsSection = ({
+  aggregateRecalculation,
+  listing,
+}: {
+  aggregateRecalculation?: ListingAggregateRecalculation;
+  listing: ListingWithCount;
+}): JSX.Element => (
+  <fieldset class="listing-section">
+    <legend>{t("listings_table.running_totals")}</legend>
+    <div class="stack">
+      <ListingAggregateMismatchNotice
+        actionHref={`/admin/listings/recalculate/${listing.id}`}
+        aggregateRecalculation={aggregateRecalculation}
+      />
+      <p>
+        <small>{t("listings_table.running_totals_note")}</small>
+      </p>
+      <Raw
+        html={renderFields(
+          listingAggregateFields,
+          listingAggregateToFieldValues(listing),
+        )}
+      />
+      <p>
+        <a href={`/admin/listings/recalculate/${listing.id}`}>
+          {t("listings_table.recalculate_totals")}
+        </a>
+      </p>
+    </div>
+  </fieldset>
+);
+
+const listingAggregateFormatters: Record<
+  ListingAggregateField,
+  (value: number) => string
+> = {
+  booked_quantity: String,
+  income: formatCurrency,
+  tickets_count: String,
+};
+
+const listingRecalculateRows = (
+  snapshot: ListingAggregateRecalculation,
+): RecalculateRow[] =>
+  listingAggregateFields.map((field) => {
+    const name = field.name as ListingAggregateField;
+    return {
+      current: listingAggregateFormatters[name](snapshot[name].current),
+      label: field.label,
+      name,
+      recalculated: listingAggregateFormatters[name](
+        snapshot[name].recalculated,
+      ),
+    };
+  });
+
+export const adminListingRecalculatePage = (
+  listing: ListingWithCount,
+  snapshot: ListingAggregateRecalculation,
+  session: AdminSession,
+  error?: string,
+  success?: string,
+): string =>
+  adminRecalculatePage({
+    action: `/admin/listings/recalculate/${listing.id}`,
+    active: "/admin/",
+    currentLabel: t("listings_table.recalculate_current"),
+    error,
+    recalculatedLabel: t("listings_table.recalculate_from_attendees"),
+    rows: listingRecalculateRows(snapshot),
+    session,
+    submitLabel: t("listings_table.recalculate_save"),
+    success,
+    title: t("listings_table.recalculate_listing_title", {
+      name: listing.name,
+    }),
   });
 
 /** Listing fields with autofocus on the name field */
@@ -1450,6 +1633,7 @@ export const adminListingEditPage = (
   groups: Group[],
   session: AdminSession,
   error?: string,
+  aggregateRecalculation?: ListingAggregateRecalculation,
 ): string => {
   const storageEnabled = isStorageEnabled();
   const builderEnabled = isBuilderEnabled();
@@ -1495,6 +1679,10 @@ export const adminListingEditPage = (
           imagePreview={imagePreview}
           selectedGroupId={listing.group_id}
           values={listingToFieldValues(listing)}
+        />
+        <ListingRunningTotalsSection
+          aggregateRecalculation={aggregateRecalculation}
+          listing={listing}
         />
         <SubmitButton icon="save" id="listing-edit-submit">
           {t("common.save_changes")}

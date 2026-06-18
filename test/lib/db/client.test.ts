@@ -1,6 +1,13 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getDb, insert, rawSql, setDb } from "#shared/db/client.ts";
+import { stub } from "@std/testing/mock";
+import {
+  getDb,
+  insert,
+  rawSql,
+  resetAggregates,
+  setDb,
+} from "#shared/db/client.ts";
 import { describeWithEnv, setTestEnv } from "#test-utils";
 
 describeWithEnv("db > client", { db: true }, () => {
@@ -75,5 +82,17 @@ describeWithEnv("db > client", { db: true }, () => {
       "SELECT value FROM settings" + " WHERE key = 'insert_test'",
     );
     expect(row.rows[0]!.value).toBe("works");
+  });
+
+  test("resetAggregates does not issue an empty update", async () => {
+    const executeStub = stub(getDb(), "execute", () =>
+      Promise.reject(new Error("unexpected aggregate reset query")),
+    );
+    try {
+      await resetAggregates("settings", 1, [], {});
+      expect(executeStub.calls.length).toBe(0);
+    } finally {
+      executeStub.restore();
+    }
   });
 });
