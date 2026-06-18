@@ -11,15 +11,15 @@ type LargestRemainderAllocationOptions = {
 const sumNumbers = (values: ReadonlyArray<number>): number =>
   values.reduce((total, value) => total + value, 0);
 
-export const largestRemainderIndexes = (
+const largestRemainderIndexes = (
   shares: ReadonlyArray<number>,
   count: number,
   {
     canReceive = () => true,
     tieBreaker = (index) => index,
   }: LargestRemainderOptions = {},
-): Set<number> =>
-  new Set(
+): Set<number> => {
+  return new Set(
     shares
       .map((share, index) => ({
         index,
@@ -31,6 +31,7 @@ export const largestRemainderIndexes = (
       .slice(0, count)
       .map(({ index }) => index),
   );
+};
 
 export const largestRemainderAllocation = (
   weights: ReadonlyArray<number>,
