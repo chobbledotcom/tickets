@@ -776,13 +776,15 @@ const completeSetup = async (
   await writeRaw(CONFIG_KEYS.PUBLIC_KEY, publicKey);
   await writeRaw(CONFIG_KEYS.COUNTRY, country);
   await writeRaw(CONFIG_KEYS.SETUP_COMPLETE, "true");
-  // Keep the in-memory snapshot in sync with the freshly-written rows so the
-  // next request doesn't read stale defaults while the raw cache is still
-  // valid (loadKeys short-circuits for up to SETTINGS_CACHE_TTL_MS).
-  setSnapshotField(CONFIG_KEYS.WRAPPED_PRIVATE_KEY, encryptedPrivateKey);
-  setSnapshotField(CONFIG_KEYS.PUBLIC_KEY, publicKey);
-  data.country = country;
-  applyCountryDerived(getCountry(country));
+
+  // Setup flips the global routing gate. Drop any partially-loaded settings
+  // snapshot from pre-setup requests so the next request cannot keep serving
+  // stale defaults (notably a cached missing setup_complete row). Mark the
+  // permanent setup gate as confirmed so the immediate /setup/complete redirect
+  // succeeds without another DB round-trip.
+  invalidateCache();
+  setSetupCompleteCache(true);
+  setSetupConfirmed(true);
 };
 
 // ---------------------------------------------------------------------------

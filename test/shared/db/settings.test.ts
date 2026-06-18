@@ -165,16 +165,22 @@ describeWithEnv("db > settings", { db: true }, () => {
       expect(settings.wrappedPrivateKey).toBeTruthy();
     });
 
-    test("completeSetup updates snapshot so wrappedPrivateKey is readable without invalidation", async () => {
+    test("completeSetup clears stale pre-setup settings cache and confirms setup", async () => {
       await getDb().execute("DELETE FROM users");
       await getDb().execute("DELETE FROM settings");
+      settings.setup.clearCache();
       settings.invalidateCache();
       await settings.loadKeys(ALL_SETTINGS_KEYS);
       expect(settings.wrappedPrivateKey).toBe("");
       expect(settings.publicKey).toBe("");
+      expect(await settings.setup.isComplete()).toBe(false);
 
       await settings.setup.complete("setupuser", "mypassword", "US");
 
+      expect(await settings.setup.isComplete()).toBe(true);
+      expect(settings.wrappedPrivateKey).toBe("");
+      expect(settings.publicKey).toBe("");
+      await settings.loadKeys(ALL_SETTINGS_KEYS);
       expect(settings.wrappedPrivateKey).toBeTruthy();
       expect(settings.publicKey).toBeTruthy();
       expect(settings.country).toBe("US");
