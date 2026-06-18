@@ -743,8 +743,18 @@ const ListingDetailsTable = ({
             </td>
           </tr>
           <tr>
-            <th>{t("common.public_url")}</th>
+            <th>
+              <label for={`embed-toggle-${listing.id}`}>
+                {t("common.public_url")}
+                <span class="embed-toggle-badge">embed</span>
+              </label>
+            </th>
             <td>
+              <input
+                class="visually-hidden listing-embed-toggle"
+                id={`embed-toggle-${listing.id}`}
+                type="checkbox"
+              />
               <a href={ticketUrl}>
                 {`${allowedDomain}/ticket/${listing.slug}`}
               </a>
@@ -792,7 +802,7 @@ const ListingDetailsTable = ({
               </td>
             </tr>
           )}
-          <tr>
+          <tr class="listing-embed-row">
             <th>
               <label for={`embed-script-${listing.id}`}>
                 {t("common.embed_script")}
@@ -808,7 +818,7 @@ const ListingDetailsTable = ({
               />
             </td>
           </tr>
-          <tr>
+          <tr class="listing-embed-row">
             <th>
               <label for={`embed-iframe-${listing.id}`}>
                 {t("common.embed_iframe")}
