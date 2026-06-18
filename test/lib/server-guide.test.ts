@@ -203,8 +203,8 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
     test("contains purchase only info", async () => {
       await assertAdminHtml(
         "/admin/guide",
-        "Purchase Only",
-        "raffles, fundraisers, donations, or merchandise",
+        "No Check-In",
+        "raffles, fundraisers, donations, merchandise",
         "Buy now",
         "QR codes",
         "excluded from the ICS and RSS feeds",
