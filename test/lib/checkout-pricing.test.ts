@@ -296,6 +296,70 @@ describe("priceCheckout", () => {
       expect(order.total).toBe(2900);
     },
   );
+
+  testWithSetting(
+    "charges a reservation deposit against the modified full subtotal",
+    { booking_fee: "10" },
+    () => {
+      const order = priceCheckout(
+        intentWith([item()], {
+          modifiers: [
+            modifier({ kind: "fixed", name: "Programme", value: 500 }),
+          ],
+          reservationAmount: "10%",
+        }),
+      );
+      // Full modified subtotal is £15.00; checkout charges a £1.50 deposit
+      // plus a £1.50 booking fee, not the full £5.00 add-on.
+      expect(order.fullSubtotal).toBe(1500);
+      expect(order.lines).toEqual([
+        { chargedUnitAmount: 150, item: item(), quantity: 1 },
+      ]);
+      expect(order.extras).toEqual([
+        { amount: 150, key: "fee", name: "Booking fee", quantity: 1 },
+      ]);
+      expect(order.total).toBe(300);
+    },
+  );
+
+  testWithSetting(
+    "reduces a reservation deposit when a modifier discounts the full subtotal",
+    { booking_fee: "0" },
+    () => {
+      const order = priceCheckout(
+        intentWith([item()], {
+          modifiers: [modifier({ kind: "percent", value: -10 })],
+          reservationAmount: "10%",
+        }),
+      );
+      expect(order.fullSubtotal).toBe(900);
+      expect(order.lines).toEqual([
+        { chargedUnitAmount: 90, item: item(), quantity: 1 },
+      ]);
+      expect(order.total).toBe(90);
+    },
+  );
+
+  testWithSetting(
+    "allocates a modifier-funded reservation deposit for zero-price listings",
+    { booking_fee: "0" },
+    () => {
+      const freeItem = item({ unitPrice: 0 });
+      const order = priceCheckout(
+        intentWith([freeItem], {
+          modifiers: [
+            modifier({ kind: "fixed", name: "Donation", value: 500 }),
+          ],
+          reservationAmount: "10%",
+        }),
+      );
+      expect(order.fullSubtotal).toBe(500);
+      expect(order.lines).toEqual([
+        { chargedUnitAmount: 50, item: freeItem, quantity: 1 },
+      ]);
+      expect(order.total).toBe(50);
+    },
+  );
 });
 
 describe("applyModifiers", () => {
@@ -320,6 +384,9 @@ describe("applyModifiers", () => {
     expect(result.extras).toEqual([
       { amount: 450, key: "mod:1", name: "Add-on", quantity: 1 },
     ]);
+    expect(result.modifierUsages).toEqual([
+      { amountApplied: 450, modifierId: 1, quantity: 1 },
+    ]);
     expect(result.modifierTotal).toBe(450);
   });
 
@@ -343,6 +410,9 @@ describe("applyModifiers", () => {
       name: "Add-on",
       quantity: 3,
     });
+    expect(result.modifierUsages).toEqual([
+      { amountApplied: 1500, modifierId: 1, quantity: 3 },
+    ]);
     expect(result.modifierTotal).toBe(1500);
   });
 
@@ -352,6 +422,9 @@ describe("applyModifiers", () => {
     ]);
     expect(result.extras).toEqual([]);
     expect(result.lines).toEqual(lines);
+    expect(result.modifierUsages).toEqual([
+      { amountApplied: 0, modifierId: 1, quantity: 1 },
+    ]);
     expect(result.modifierTotal).toBe(0);
   });
 
@@ -368,7 +441,24 @@ describe("applyModifiers", () => {
         quantity: 1,
       },
     ]);
+    expect(result.modifierUsages).toEqual([
+      { amountApplied: 200, modifierId: 1, quantity: 1 },
+    ]);
     expect(result.modifierTotal).toBe(-200);
+  });
+
+  test("records only the clamped amount for an oversized discount", () => {
+    const result = applyModifiers(
+      [line({ quantity: 2 })],
+      [modifier({ kind: "fixed", value: -5000 })],
+    );
+    expect(result.lines).toEqual([
+      { chargedUnitAmount: 0, item: item(), quantity: 2 },
+    ]);
+    expect(result.modifierUsages).toEqual([
+      { amountApplied: 2000, modifierId: 1, quantity: 1 },
+    ]);
+    expect(result.modifierTotal).toBe(-2000);
   });
 });
 

@@ -55,6 +55,7 @@ export type OrderLine = {
 export type OrderSummary = {
   lines: OrderLine[];
   fullPrice: number;
+  listedFullPrice: number;
   totalQuantity: number;
   depositPaid: number;
 };
@@ -69,10 +70,13 @@ type OrderRow = { listing_id: number; quantity: number; price_paid: number };
 export const getAttendeeOrderSummary = async (
   attendeeId: number,
 ): Promise<OrderSummary> => {
-  const rows = await queryAll<OrderRow>(
-    "SELECT listing_id, quantity, price_paid FROM listing_attendees WHERE attendee_id = ? ORDER BY id",
-    [attendeeId],
-  );
+  const [rows, state] = await Promise.all([
+    queryAll<OrderRow>(
+      "SELECT listing_id, quantity, price_paid FROM listing_attendees WHERE attendee_id = ? ORDER BY id",
+      [attendeeId],
+    ),
+    getAttendeeBalanceState(attendeeId),
+  ]);
 
   // Resolve each line's current listing (concurrently); drop lines whose
   // listing has since been deleted.
@@ -91,10 +95,15 @@ export const getAttendeeOrderSummary = async (
     })(rows),
   );
 
-  return {
-    depositPaid: sumOf((l: OrderLine) => l.pricePaid)(lines),
-    fullPrice: sumOf((l: OrderLine) => l.unitPrice * l.quantity)(lines),
+  const depositPaid = sumOf((l: OrderLine) => l.pricePaid)(lines);
+  const listedFullPrice = sumOf((l: OrderLine) => l.unitPrice * l.quantity)(
     lines,
+  );
+  return {
+    depositPaid,
+    fullPrice: depositPaid + (state?.remainingBalance ?? 0),
+    lines,
+    listedFullPrice,
     totalQuantity: sumOf((l: OrderLine) => l.quantity)(lines),
   };
 };

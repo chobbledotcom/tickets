@@ -1102,6 +1102,10 @@ article {
   padding: var(--space-m);
 }
 
+output.success {
+  display: block;
+}
+
 .info {
   background: #eef4ff;
   border-left: 4px solid #0066cc;

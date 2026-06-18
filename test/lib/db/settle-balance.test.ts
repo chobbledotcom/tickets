@@ -152,6 +152,25 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     expect(summary.depositPaid).toBe(0);
   });
 
+  test("order summary uses recorded payments when attendee state is missing", async () => {
+    const listing = await createTestListing({
+      maxAttendees: 10,
+      thankYouUrl: "https://example.com",
+      unitPrice: 1000,
+    });
+    await getDb().execute({
+      args: [listing.id, 999999],
+      sql: "INSERT INTO listing_attendees (listing_id, attendee_id, quantity, price_paid) VALUES (?, ?, 2, 300)",
+    });
+
+    const summary = await getAttendeeOrderSummary(999999);
+    expect(summary.lines).toHaveLength(1);
+    expect(summary.depositPaid).toBe(300);
+    expect(summary.fullPrice).toBe(300);
+    expect(summary.listedFullPrice).toBe(2000);
+    expect(summary.totalQuantity).toBe(2);
+  });
+
   test("order summary skips bookings whose listing no longer exists", async () => {
     const { attendeeId } = await createReservedAttendee(1500);
     await getDb().execute({
