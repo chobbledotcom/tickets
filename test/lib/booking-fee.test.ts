@@ -2,11 +2,11 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   calculateBookingFee,
-  chargeUnitAmount,
   feeSubtotalFor,
   getBookingFeeAmount,
   itemsSubtotal,
 } from "#shared/booking-fee.ts";
+import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { testWithSetting } from "#test-utils";
 
 describe("feeSubtotalFor", () => {
@@ -79,22 +79,32 @@ describe("getBookingFeeAmount", () => {
   );
 });
 
-describe("chargeUnitAmount", () => {
-  const item = { quantity: 2, unitPrice: 1000 };
-
-  test("charges the full unit price for a non-reservation", () => {
-    // No reservationAmount → the customer pays the listed price up front.
-    expect(chargeUnitAmount({ items: [item] }, item)).toBe(1000);
-  });
-
+describe("reservation booking fee", () => {
   testWithSetting(
-    "charges the per-unit deposit for a reservation",
-    { currency: "GBP" },
+    "is charged on the full order total, not the deposit total",
+    { booking_fee: "5", currency: "GBP" },
     () => {
-      // 10% of a £10.00 ticket = £1.00 charged now.
-      expect(
-        chargeUnitAmount({ items: [item], reservationAmount: "10%" }, item),
-      ).toBe(100);
+      const item = {
+        listingId: 1,
+        name: "General",
+        quantity: 3,
+        slug: "general",
+        unitPrice: 1000,
+      };
+      const order = priceCheckout({
+        address: "",
+        date: null,
+        email: "buyer@example.com",
+        items: [item],
+        name: "Buyer",
+        phone: "",
+        reservationAmount: "10",
+        special_instructions: "",
+      });
+      expect(order.fullSubtotal).toBe(3000);
+      expect(order.extras).toEqual([
+        { amount: 150, key: "fee", name: "Booking fee", quantity: 1 },
+      ]);
     },
   );
 });
