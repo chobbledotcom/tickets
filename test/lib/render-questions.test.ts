@@ -99,6 +99,57 @@ describe("renderQuestions", () => {
     expect(html).toContain('name="question_2"');
   });
 
+  test("renders answer price modifier labels", () => {
+    const questions: QuestionWithAnswers[] = [
+      {
+        answers: [
+          {
+            calc_kind: "fixed",
+            calc_value: 2.5,
+            direction: "charge",
+            id: 10,
+            question_id: 1,
+            sort_order: 0,
+            text: "Premium",
+          },
+        ],
+        display_type: "radio" as const,
+        id: 1,
+        text: "Meal?",
+      },
+    ];
+
+    const html = renderQuestions(questions);
+
+    expect(html).toContain("Premium");
+    expect(html).toContain("+£2.50");
+  });
+
+  test("renders answer price modifier labels in select options", () => {
+    const questions: QuestionWithAnswers[] = [
+      {
+        answers: [
+          {
+            calc_kind: "fixed",
+            calc_value: 2.5,
+            direction: "charge",
+            id: 10,
+            question_id: 1,
+            sort_order: 0,
+            text: "Premium",
+          },
+        ],
+        display_type: "select" as const,
+        id: 1,
+        text: "Meal?",
+      },
+    ];
+
+    const html = renderQuestions(questions);
+
+    expect(html).toContain('<option value="10">Premium (+£2.50)</option>');
+  });
+
   test("escapes HTML in question and answer text", () => {
     const questions: QuestionWithAnswers[] = [
       {

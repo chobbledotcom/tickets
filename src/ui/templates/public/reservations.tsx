@@ -10,6 +10,7 @@ import type {
   QuestionListingMap,
   QuestionWithAnswers,
 } from "#shared/db/questions.ts";
+import { answerPriceLabel } from "#shared/db/questions.ts";
 import { isReadOnly } from "#shared/env.ts";
 import type { Field } from "#shared/forms.tsx";
 import {
@@ -191,7 +192,21 @@ const renderTermsAndCheckbox = (terms: string): string => {
   );
 };
 
-/** Render custom multiple-choice question fields (radio buttons).
+const answerLabelSuffix = (
+  answer: QuestionWithAnswers["answers"][number],
+): string => {
+  const label = answerPriceLabel(answer);
+  return label ? ` <small>${escapeHtml(label)}</small>` : "";
+};
+
+const answerOptionText = (
+  answer: QuestionWithAnswers["answers"][number],
+): string => {
+  const label = answerPriceLabel(answer);
+  return `${escapeHtml(answer.text)}${label ? ` (${escapeHtml(label)})` : ""}`;
+};
+
+/** Render custom multiple-choice question fields.
  * When questionListingMap is provided, adds data-listing-ids
  * so JS can show/hide questions based on selected listing quantities. */
 export const renderQuestions = (
@@ -210,7 +225,7 @@ export const renderQuestions = (
                 (a) =>
                   `<option value="${a.id}"${
                     answered === String(a.id) ? " selected" : ""
-                  }>${escapeHtml(a.text)}</option>`,
+                  }>${answerOptionText(a)}</option>`,
               )
               .join("")}</select></label>`
           : q.answers
@@ -218,7 +233,7 @@ export const renderQuestions = (
                 (a) =>
                   `<label><input type="radio" name="question_${q.id}" value="${a.id}"${
                     answered === String(a.id) ? " checked" : ""
-                  } required> ${escapeHtml(a.text)}</label>`,
+                  } required> ${escapeHtml(a.text)}${answerLabelSuffix(a)}</label>`,
               )
               .join("");
       const listingIds = questionListingMap?.get(q.id);
