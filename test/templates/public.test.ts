@@ -404,8 +404,9 @@ describe("migrationInProgressPage", () => {
 describe("siteNotActivatedPage", () => {
   test("renders not-activated message in the error dialog style", () => {
     const html = siteNotActivatedPage();
-    expect(html).toContain("<h1>Not Activated</h1>");
-    expect(html).toContain("This site has not been activated yet.");
+    expect(html).toContain(
+      '<div class="prose"><h1>Not Activated</h1><p>This site has not been activated yet.</p></div>',
+    );
     expect(html).toContain("<style>");
     expect(html).toContain("font-family:system-ui");
   });
