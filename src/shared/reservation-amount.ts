@@ -53,8 +53,7 @@ export const validateReservationAmount = (raw: string): string | null =>
 
 /**
  * Parse `raw`, turn the parsed amount into a deposit via `fromParsed`, and
- * clamp the result to [0, max]. A malformed amount yields 0. Shared by the
- * order-level and per-unit calculations so the parse/guard/clamp lives once.
+ * clamp the result to [0, max]. A malformed amount yields 0.
  */
 const clampedDeposit = (
   raw: string,
@@ -83,24 +82,4 @@ export const computeReservationDeposit = (
       : parsed.kind === "perItem"
         ? toMinorUnits(parsed.value) * totalQuantity
         : toMinorUnits(parsed.value),
-  );
-
-/**
- * The per-unit deposit (minor units) for one listing line of a reservation —
- * the price each ticket is charged up front. Computed identically at checkout
- * (to set the charged amount) and in the webhook (to validate it), so the two
- * always agree. A flat order amount is spread evenly across all items.
- * Clamped to [0, unitPrice] so a deposit never exceeds the ticket price.
- */
-export const reservationDepositPerUnit = (
-  raw: string,
-  unitPrice: number,
-  totalQuantity: number,
-): number =>
-  clampedDeposit(raw, unitPrice, (parsed) =>
-    parsed.kind === "percent"
-      ? Math.round((unitPrice * parsed.value) / 100)
-      : parsed.kind === "perItem"
-        ? toMinorUnits(parsed.value)
-        : Math.round(toMinorUnits(parsed.value) / Math.max(1, totalQuantity)),
   );

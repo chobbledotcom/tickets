@@ -138,6 +138,61 @@ describeWithEnv(
       }
     });
 
+    test("distributes reservation deposits across multiple listings", async () => {
+      await setupStripe();
+      await settings.update.bookingFee("0");
+      await setPublicReservation("10%");
+      const general = await createTestListing({
+        maxAttendees: 10,
+        name: "General admission",
+        thankYouUrl: "https://example.com",
+        unitPrice: 1000,
+      });
+      const vip = await createTestListing({
+        maxAttendees: 10,
+        name: "VIP admission",
+        thankYouUrl: "https://example.com",
+        unitPrice: 2000,
+      });
+      const session = stubPaidSession(
+        "cs_multi_dep",
+        {
+          _origin: "localhost",
+          email: "reserver@example.com",
+          items: JSON.stringify([
+            { e: general.id, p: 1000, q: 1 },
+            { e: vip.id, p: 2000, q: 1 },
+          ]),
+          name: "Reserver",
+          reservation_amount: "10%",
+        },
+        300,
+      );
+      try {
+        const response = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_multi_dep"),
+        );
+        expect([200, 302, 303]).toContain(response.status);
+
+        const attendee = await latestAttendee();
+        expect(attendee.remainingBalance).toBe(2700);
+        const paidRows = await getDb().execute({
+          args: [attendee.id],
+          sql: "SELECT listing_id, price_paid FROM listing_attendees WHERE attendee_id = ?",
+        });
+        const paidByListing = new Map(
+          paidRows.rows.map((row) => [
+            Number(row.listing_id),
+            Number(row.price_paid),
+          ]),
+        );
+        expect(paidByListing.get(general.id)).toBe(100);
+        expect(paidByListing.get(vip.id)).toBe(200);
+      } finally {
+        session.restore();
+      }
+    });
+
     test("refunds when the charged total does not match deposit plus fee", async () => {
       await setupStripe();
       await settings.update.bookingFee("10");
@@ -283,6 +338,47 @@ describeWithEnv(
         expect(captured?.modifiers?.[0]?.value).toBe(10);
       } finally {
         checkout.restore();
+      }
+    });
+
+    test("full-payment promo discount stores the discounted price paid", async () => {
+      await setupStripe();
+      await settings.update.bookingFee("0");
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        thankYouUrl: "https://example.com",
+        unitPrice: 1000,
+      });
+      const promo = await modifiersTable.insert({
+        calcKind: "percent",
+        calcValue: 10,
+        direction: "discount",
+        name: "SAVE10",
+        trigger: "code",
+      });
+      const session = stubPaidSession(
+        "cs_full_discount",
+        {
+          _origin: "localhost",
+          email: "buyer@example.com",
+          items: JSON.stringify([{ e: listing.id, p: 1000, q: 1 }]),
+          modifiers: modifierRefs(promo.id),
+          name: "Buyer",
+        },
+        900,
+      );
+      try {
+        const response = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_full_discount"),
+        );
+        expect([200, 302, 303]).toContain(response.status);
+
+        const attendee = await latestAttendee();
+        expect(attendee.pricePaid).toBe(900);
+        expect(attendee.remainingBalance).toBe(0);
+        expect(await modifierUsageCount(promo.id)).toBe(1);
+      } finally {
+        session.restore();
       }
     });
 

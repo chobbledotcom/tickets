@@ -240,6 +240,27 @@ describe("priceCheckout", () => {
       expect(order.total).toBe(90);
     },
   );
+
+  testWithSetting(
+    "allocates a modifier-funded reservation deposit for zero-price listings",
+    { booking_fee: "0" },
+    () => {
+      const freeItem = item({ unitPrice: 0 });
+      const order = priceCheckout(
+        intentWith([freeItem], {
+          modifiers: [
+            modifier({ kind: "fixed", name: "Donation", value: 500 }),
+          ],
+          reservationAmount: "10%",
+        }),
+      );
+      expect(order.fullSubtotal).toBe(500);
+      expect(order.lines).toEqual([
+        { chargedUnitAmount: 50, item: freeItem, quantity: 1 },
+      ]);
+      expect(order.total).toBe(50);
+    },
+  );
 });
 
 describe("applyModifiers", () => {

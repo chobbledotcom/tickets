@@ -4,7 +4,6 @@ import {
   computeReservationDeposit,
   parseReservationAmount,
   RESERVATION_AMOUNT_HINT,
-  reservationDepositPerUnit,
   validateReservationAmount,
 } from "#shared/reservation-amount.ts";
 import { testWithSetting } from "#test-utils";
@@ -159,53 +158,5 @@ describe("reservation-amount", () => {
         expect(computeReservationDeposit("nonsense", 10000, 4)).toBe(0);
       },
     );
-  });
-
-  describe("reservationDepositPerUnit", () => {
-    // Per-unit deposit: the amount one ticket is charged up front.
-    testWithSetting("percent of the unit price", { currency: "GBP" }, () => {
-      // 10% of a £10.00 ticket = £1.00.
-      expect(reservationDepositPerUnit("10%", 1000, 4)).toBe(100);
-    });
-
-    testWithSetting(
-      "per-item is a flat amount per unit",
-      { currency: "GBP" },
-      () => {
-        // "10x" → £10.00 per ticket, independent of how many were booked.
-        expect(reservationDepositPerUnit("10x", 5000, 4)).toBe(1000);
-      },
-    );
-
-    testWithSetting(
-      "flat spreads the order amount across all units",
-      { currency: "GBP" },
-      () => {
-        // "20" → £20.00 over 4 tickets = £5.00 each.
-        expect(reservationDepositPerUnit("20", 5000, 4)).toBe(500);
-      },
-    );
-
-    testWithSetting(
-      "flat treats a zero total quantity as one unit",
-      { currency: "GBP" },
-      () => {
-        // Guards against division by zero: the whole amount lands on one unit.
-        expect(reservationDepositPerUnit("20", 5000, 0)).toBe(2000);
-      },
-    );
-
-    testWithSetting(
-      "clamps the per-unit deposit to the unit price",
-      { currency: "GBP" },
-      () => {
-        expect(reservationDepositPerUnit("150%", 1000, 1)).toBe(1000);
-        expect(reservationDepositPerUnit("100x", 1000, 1)).toBe(1000);
-      },
-    );
-
-    testWithSetting("malformed amount yields zero", { currency: "GBP" }, () => {
-      expect(reservationDepositPerUnit("nope", 1000, 1)).toBe(0);
-    });
   });
 });

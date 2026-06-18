@@ -653,14 +653,10 @@ const createAttendeeForSession = async (
   const pricedOrder = priceCheckout(
     checkoutIntentForSession(intent, validatedItems, modifierSpecs),
   );
-  const depositPaidByListing = intent.reservationAmount
-    ? paidByListing(pricedOrder)
-    : new Map<number, number>();
+  const linePaidByListing = paidByListing(pricedOrder);
   const bookings = validatedItems.map(({ item, listing }) => ({
     listingId: item.e,
-    pricePaid: intent.reservationAmount
-      ? (depositPaidByListing.get(item.e) ?? 0)
-      : item.p,
+    pricePaid: linePaidByListing.get(item.e)!,
     quantity: item.q,
     ...bookingDateFields(listing, intent.date, intent.dayCount),
   }));
