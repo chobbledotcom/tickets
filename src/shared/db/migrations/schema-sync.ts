@@ -3,6 +3,7 @@ import { executeBatch, getDb, queryBatchPrimary } from "#shared/db/client.ts";
 import { logDebug } from "#shared/logger.ts";
 import {
   APP_SCHEMA,
+  type Column,
   type Index,
   SCHEMA,
   type Table,
@@ -133,6 +134,52 @@ const createTriggersForTable = async (tableName: string): Promise<void> => {
   }
 };
 
+const currentSchemaTable = (tableName: string): Table => {
+  const table = SCHEMA.find(([name]) => name === tableName)?.[1];
+  if (!table) throw new Error(`Unknown schema table ${tableName}`);
+  return table;
+};
+
+export const currentSchemaColumnsPresentIn = (
+  tableName: string,
+  existingColumns: Set<string>,
+): Column[] =>
+  currentSchemaTable(tableName).columns.filter(([column]) =>
+    existingColumns.has(column),
+  );
+
+const copyExpressionFor = ([column, type]: Column): string => {
+  const defaultMatch = type.match(/DEFAULT\s+'([^']*)'/i);
+  return defaultMatch ? `COALESCE(${column}, '${defaultMatch[1]}')` : column;
+};
+
+export const rebuildTableWithColumns = async ({
+  columns,
+  tableName,
+  tmpName = `${tableName}_new`,
+}: {
+  columns: readonly Column[];
+  tableName: string;
+  tmpName?: string;
+}): Promise<void> => {
+  const colNames = columns.map(([col]) => col).join(", ");
+  const colDefs = columns.map(([col, type]) => `${col} ${type}`).join(", ");
+  const selectExprs = columns.map(copyExpressionFor).join(", ");
+
+  await executeBatch([
+    { args: [], sql: `DROP TABLE IF EXISTS ${tmpName}` },
+    { args: [], sql: `CREATE TABLE ${tmpName} (${colDefs})` },
+    {
+      args: [],
+      sql:
+        `INSERT INTO ${tmpName} (${colNames}) ` +
+        `SELECT ${selectExprs} FROM ${tableName}`,
+    },
+    { args: [], sql: `DROP TABLE ${tableName}` },
+    { args: [], sql: `ALTER TABLE ${tmpName} RENAME TO ${tableName}` },
+  ]);
+};
+
 /**
  * Recreate a table from its SCHEMA definition, preserving data for matching columns.
  *
@@ -146,33 +193,13 @@ const createTriggersForTable = async (tableName: string): Promise<void> => {
  * HTTP requests in remote libsql (Turso).
  */
 const recreateTable = async (tableName: string): Promise<void> => {
-  const tableSchema = SCHEMA.find(([name]) => name === tableName)!;
-  const cols = tableSchema[1].columns;
-  const colNames = cols.map(([col]) => col).join(", ");
-  const colDefs = cols.map(([col, type]) => `${col} ${type}`).join(", ");
-  const tmpName = `${tableName}_new`;
+  const tableSchema = currentSchemaTable(tableName);
+  await rebuildTableWithColumns({
+    columns: tableSchema.columns,
+    tableName,
+  });
 
-  const selectExprs = cols
-    .map(([col, type]) => {
-      const defaultMatch = type.match(/DEFAULT\s+'([^']*)'/i);
-      return defaultMatch ? `COALESCE(${col}, '${defaultMatch[1]}')` : col;
-    })
-    .join(", ");
-
-  await getDb().batch(
-    [
-      { args: [], sql: `CREATE TABLE ${tmpName} (${colDefs})` },
-      {
-        args: [],
-        sql: `INSERT INTO ${tmpName} (${colNames}) SELECT ${selectExprs} FROM ${tableName}`,
-      },
-      { args: [], sql: `DROP TABLE ${tableName}` },
-      { args: [], sql: `ALTER TABLE ${tmpName} RENAME TO ${tableName}` },
-    ],
-    "write",
-  );
-
-  await createIndexesForTable(tableName, tableSchema[1].indexes ?? []);
+  await createIndexesForTable(tableName, tableSchema.indexes ?? []);
   // Triggers on this table were dropped with the old table — re-create them.
   await createTriggersForTable(tableName);
 };

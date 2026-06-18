@@ -983,6 +983,11 @@ dialog::backdrop {
   -webkit-overflow-scrolling: touch;
 }
 
+.dashboard-holidays-scroll {
+  max-height: 6rem;
+  overflow-y: auto;
+}
+
 table {
   border: 1px solid var(--color-bg-secondary);
   border-radius: var(--border-radius);
@@ -2151,7 +2156,7 @@ a.cal-day-selected:hover {
   flex-direction: row;
   align-items: flex-end;
   gap: 1rem;
-  margin: 1rem 0;
+  margin: 0;
   padding: 0;
   border: 0;
   box-shadow: none;
@@ -2175,6 +2180,12 @@ a.cal-day-selected:hover {
 
 .filter-row select {
   max-width: 15rem;
+}
+
+.attendees-table-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
 }
 
 /* Previous/next pagination */
@@ -2500,4 +2511,32 @@ a.cal-day-selected:hover {
 .logistics-leg-agent {
   flex: 1;
   max-width: 20rem;
+}
+
+.listing-embed-row {
+  display: none;
+}
+
+.listing-details-table:has(.listing-embed-toggle:checked) .listing-embed-row {
+  display: table-row;
+}
+
+.embed-toggle-badge {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0.05rem 0.35rem;
+  border: 1px solid var(--color-bg-secondary);
+  border-radius: var(--border-radius);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-size: 0.75em;
+  font-weight: 400;
+  line-height: 1.4;
+  text-transform: lowercase;
+}
+
+label:hover .embed-toggle-badge,
+.listing-details-table:has(.listing-embed-toggle:checked) .embed-toggle-badge {
+  border-color: var(--color-link);
+  color: var(--color-link);
 }

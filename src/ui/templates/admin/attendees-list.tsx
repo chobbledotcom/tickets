@@ -20,6 +20,7 @@ import type {
 } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { AttendeeTable } from "#templates/attendee-table.tsx";
+import { ActionButton } from "#templates/components/actions.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 const NAV_ACTIVE = "/admin/attendees";
@@ -165,42 +166,48 @@ export const adminAttendeesListPage = (props: AttendeesListPageProps): string =>
     <Layout title={t("terms.attendees")}>
       <AdminNav active={NAV_ACTIVE} session={props.session} />
 
-      <h1>{t("terms.attendees")}</h1>
+      <p class="actions">
+        <ActionButton href="/admin/attendees/new" icon="plus">
+          {t("admin.listings.add_attendee")}
+        </ActionButton>
+      </p>
 
-      {props.categories.length > 1 && (
-        <Raw
-          html={renderTypeFilter(props.type, props.categories, (f) =>
-            typeFilterHref(f, props.sort),
-          )}
+      <div class="attendees-table-controls">
+        {props.categories.length > 1 && (
+          <Raw
+            html={renderTypeFilter(props.type, props.categories, (f) =>
+              typeFilterHref(f, props.sort),
+            )}
+          />
+        )}
+
+        {props.type !== "all" && (
+          <p>
+            {t("attendees_list.showing_count", { count: props.count })}{" "}
+            <strong>{listingFilterLabel(props.type)}</strong>
+          </p>
+        )}
+
+        <FilterForm
+          listingId={props.listingId}
+          listings={props.listings}
+          sortOrder={props.sort}
         />
-      )}
 
-      {props.type !== "all" && (
-        <p>
-          {t("attendees_list.showing_count", { count: props.count })}{" "}
-          <strong>{listingFilterLabel(props.type)}</strong>
-        </p>
-      )}
-
-      <FilterForm
-        listingId={props.listingId}
-        listings={props.listings}
-        sortOrder={props.sort}
-      />
-
-      <div class="table-scroll">
-        <Raw
-          html={AttendeeTable({
-            allowedDomain: props.allowedDomain,
-            emptyMessage: t("attendees_list.no_attendees_yet"),
-            phonePrefix: props.phonePrefix,
-            presorted: true,
-            rows: props.rows,
-            showCheckin: false,
-            showDate: false,
-            showListing: true,
-          })}
-        />
+        <div class="table-scroll">
+          <Raw
+            html={AttendeeTable({
+              allowedDomain: props.allowedDomain,
+              emptyMessage: t("attendees_list.no_attendees_yet"),
+              phonePrefix: props.phonePrefix,
+              presorted: true,
+              rows: props.rows,
+              showCheckin: false,
+              showDate: false,
+              showListing: true,
+            })}
+          />
+        </div>
       </div>
 
       <Pagination

@@ -28,8 +28,10 @@ import type {
   AdminSession,
   Attendee,
   AttendeeTableRow,
+  Holiday,
   ListingWithCount,
 } from "#shared/types.ts";
+import { HolidayTable } from "#templates/admin/holidays.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { AttendeeTable } from "#templates/attendee-table.tsx";
 import { ActionButton } from "#templates/components/actions.tsx";
@@ -179,6 +181,17 @@ const newestAttendeesSection = (
   );
 };
 
+/** Upcoming holidays section shown on the admin dashboard. */
+const upcomingHolidaysSection = (holidays: Holiday[]): string =>
+  String(
+    <details open>
+      <summary>{t("holidays.upcoming_heading")}</summary>
+      <div class="table-scroll dashboard-holidays-scroll">
+        <Raw html={HolidayTable({ holidays })} />
+      </div>
+    </details>,
+  );
+
 /** Render the listing table with dynamic column keys */
 export const renderListingTable = (
   columnKeys: string[],
@@ -193,6 +206,26 @@ export const renderListingTable = (
   return `<table><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
 };
 
+const renderListingsTableSection = (
+  listings: ListingWithCount[],
+  columnKeys: string[],
+  filters: Map<string, string>,
+): string => {
+  const listingRows =
+    listings.length > 0
+      ? pipe(
+          map((e: ListingWithCount) => ListingRow({ columnKeys, e, filters })),
+          joinStrings,
+        )(listings)
+      : `<tr><td colspan="${columnKeys.length}">${t("admin.dashboard.no_listings")}</td></tr>`;
+
+  return String(
+    <div class="table-scroll">
+      <Raw html={renderListingTable(columnKeys, listingRows)} />
+    </div>,
+  );
+};
+
 /**
  * Admin dashboard page
  */
@@ -205,6 +238,7 @@ export const adminDashboardPage = (
   stats?: ActiveListingStats | null,
   listingColumnTemplate?: string,
   activeType: ListingFilter = "all",
+  upcomingHolidays: Holiday[] = [],
 ): string => {
   const { columnKeys, filters } = resolveColumnLayout(
     listingColumnTemplate ?? "",
@@ -216,12 +250,13 @@ export const adminDashboardPage = (
   // newest-attendee sections below stay based on the full set. Offer the bar
   // (same control as the public/attendee filters) only when more than one
   // listing type is present.
+  const activeListings = filter((e: ListingWithCount) => e.active)(listings);
   const categories = unique(listings.map(listingCategory));
   const shownListings =
     activeType === "all"
-      ? listings
+      ? activeListings
       : filter((e: ListingWithCount) => listingCategory(e) === activeType)(
-          listings,
+          activeListings,
         );
   const typeFilterHtml =
     categories.length > 1
@@ -229,16 +264,6 @@ export const adminDashboardPage = (
           f === "all" ? "/admin/" : `/admin/?type=${f}`,
         )
       : "";
-
-  const listingRows =
-    shownListings.length > 0
-      ? pipe(
-          map((e: ListingWithCount) => ListingRow({ columnKeys, e, filters })),
-          joinStrings,
-        )(shownListings)
-      : `<tr><td colspan="${columnKeys.length}">${t("admin.dashboard.no_listings")}</td></tr>`;
-
-  const activeListings = filter((e: ListingWithCount) => e.active)(listings);
 
   return String(
     <Layout title={t("terms.listings")}>
@@ -251,19 +276,20 @@ export const adminDashboardPage = (
           <ActionButton href="/admin/listing/new" icon="plus">
             {t("admin.dashboard.add_listing")}
           </ActionButton>
-          <ActionButton href="/admin/attendees/new" icon="plus">
-            Add Attendee
-          </ActionButton>
         </p>
       )}
 
       <Raw html={typeFilterHtml} />
 
-      <div class="table-scroll">
-        <Raw html={renderListingTable(columnKeys, listingRows)} />
-      </div>
+      <Raw
+        html={renderListingsTableSection(shownListings, columnKeys, filters)}
+      />
 
       {stats && <Raw html={activeListingStatsSection(stats)} />}
+
+      {upcomingHolidays.length > 0 && (
+        <Raw html={upcomingHolidaysSection(upcomingHolidays)} />
+      )}
 
       {activeListings.length >= 2 && (
         <Raw html={multiBookingSection(activeListings)} />
@@ -271,6 +297,54 @@ export const adminDashboardPage = (
 
       {newestAttendees.length > 0 && (
         <Raw html={newestAttendeesSection(newestAttendees, listings)} />
+      )}
+    </Layout>,
+  );
+};
+
+/** Admin listings index page with active and deactivated listings split. */
+export const adminListingsPage = (
+  listings: ListingWithCount[],
+  session: AdminSession,
+  listingColumnTemplate?: string,
+): string => {
+  const { columnKeys, filters } = resolveColumnLayout(
+    listingColumnTemplate ?? "",
+    Object.keys(LISTING_TABLE_COLUMNS),
+    LISTING_DEFAULT_ORDER,
+  );
+  const activeListings = filter((e: ListingWithCount) => e.active)(listings);
+  const deactivatedListings = filter((e: ListingWithCount) => !e.active)(
+    listings,
+  );
+
+  return String(
+    <Layout title={t("terms.listings")}>
+      <AdminNav active="/admin/listings" session={session} />
+
+      {!isReadOnly() && (
+        <p class="actions">
+          <ActionButton href="/admin/listing/new" icon="plus">
+            {t("admin.dashboard.add_listing")}
+          </ActionButton>
+        </p>
+      )}
+
+      <Raw
+        html={renderListingsTableSection(activeListings, columnKeys, filters)}
+      />
+
+      {deactivatedListings.length > 0 && (
+        <>
+          <h2>{t("admin.dashboard.deactivated")}</h2>
+          <Raw
+            html={renderListingsTableSection(
+              deactivatedListings,
+              columnKeys,
+              filters,
+            )}
+          />
+        </>
       )}
     </Layout>,
   );

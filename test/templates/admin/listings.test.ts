@@ -611,13 +611,17 @@ describe("adminListingPage", () => {
     expect(html).toContain("example.com/ticket/ab12c");
   });
 
-  test("shows embed codes with allowed domain and iframe param", () => {
+  test("shows collapsed embed codes with allowed domain and iframe param", () => {
     const html = adminListingPage({
       allowedDomain: "example.com",
       attendees: [],
       listing,
       session: TEST_SESSION,
     });
+    expect(html).toContain('for="embed-toggle-1"');
+    expect(html).toContain('class="embed-toggle-badge"');
+    expect(html).toContain('class="visually-hidden listing-embed-toggle"');
+    expect(html).toContain('class="listing-embed-row"');
     expect(html).toContain("Embed Script");
     expect(html).toContain("Embed Iframe");
     expect(html).toContain("embed.js");

@@ -55,7 +55,9 @@ describe("adminAttendeesListPage", () => {
     const html = adminAttendeesListPage(buildProps());
     expect(html).toContain("<title>Attendees</title>");
     expect(html).toContain('href="/admin/attendees"');
-    expect(html).toContain("<h1>Attendees</h1>");
+    expect(html).toContain('href="/admin/attendees/new"');
+    expect(html).toContain("Add Attendee");
+    expect(html).not.toContain("<h1>Attendees</h1>");
   });
 
   test("renders the filter/sort form as a GET form", () => {

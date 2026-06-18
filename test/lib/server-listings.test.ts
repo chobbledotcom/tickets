@@ -50,6 +50,26 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
     setDemoModeForTest(false);
   });
 
+  describe("GET /admin/listings", () => {
+    testRequiresAuth("/admin/listings");
+
+    test("renders active listings before deactivated listings", async () => {
+      const active = await createTestListing({ name: "Active Show" });
+      const deactivated = await createTestListing({ name: "Old Show" });
+      await deactivateTestListing(deactivated.id);
+
+      const { response } = await adminGet("/admin/listings");
+      const html = await response.text();
+      expect(response.status).toBe(200);
+      expect(html).toContain('class="active" href="/admin/listings"');
+      expect(html).toContain(active.name);
+      expect(html).toContain(deactivated.name);
+      expect(html.indexOf(active.name)).toBeLessThan(
+        html.indexOf(deactivated.name),
+      );
+    });
+  });
+
   describe("GET /admin/listing/new", () => {
     testRequiresAuth("/admin/listing/new");
 
@@ -2936,7 +2956,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         "Listing Type",
         "Daily",
         "Bookable Days",
-        "Monday,Tuesday",
+        "Monday, Tuesday",
         "Booking Window",
         "3 to 60 days",
         "Capacity of",

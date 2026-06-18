@@ -133,6 +133,21 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       )(response);
     });
 
+    test("rejects unsupported display types", async () => {
+      const { response } = await adminFormPost("/admin/questions", {
+        display_type: "dropdown",
+        text: "Choose one?",
+      });
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining(
+          "Display as must be radio buttons or a select box",
+        ),
+        false,
+      );
+    });
+
     test("rejects whitespace-only text", async () => {
       const { response } = await adminFormPost("/admin/questions", {
         display_type: "radio" as const,
@@ -210,6 +225,22 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       expectFlash(
         response,
         expect.stringContaining("Question text is required"),
+        false,
+      );
+    });
+
+    test("rejects unsupported display types on edit", async () => {
+      const id = await createQuestion("Keep me");
+      const { response } = await adminFormPost(`/admin/questions/${id}/edit`, {
+        display_type: "dropdown",
+        text: "Still here",
+      });
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining(
+          "Display as must be radio buttons or a select box",
+        ),
         false,
       );
     });
