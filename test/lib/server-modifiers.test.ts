@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { handleRequest } from "#routes";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import { getDb } from "#shared/db/client.ts";
@@ -24,6 +25,7 @@ import {
   expectHtmlResponse,
   expectRedirectWithFlash,
   expectStatus,
+  followRedirectWithFlash,
   testRequiresAuth,
 } from "#test-utils";
 
@@ -433,6 +435,32 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       expect(updated.total_uses).toBe(2);
       expect(updated.total_revenue).toBe(9000);
       expect(updated.usage_count).toBe(5);
+    });
+
+    test("shows recalculation success on the redirected edit page", async () => {
+      await adminFormPost("/admin/modifiers", createData({ name: "Reset" }));
+      const { id } = await lastModifier();
+
+      const { cookie, response } = await adminFormPost(
+        `/admin/modifiers/recalculate/${id}`,
+        { recalculate_fields: "total_uses" },
+      );
+      expectRedirectWithFlash(
+        `/admin/modifiers/${id}/edit`,
+        "Modifier totals recalculated",
+        true,
+      )(response);
+
+      const editResponse = await followRedirectWithFlash(
+        response,
+        (request) => handleRequest(request),
+        cookie,
+      );
+      await expectHtmlResponse(
+        editResponse,
+        200,
+        "Modifier totals recalculated",
+      );
     });
 
     test("rejects modifier recalculation with no selected totals", async () => {

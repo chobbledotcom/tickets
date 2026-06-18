@@ -880,6 +880,34 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       expect(updated?.tickets_count).toBe(5);
     });
 
+    test("shows recalculation success on the redirected edit page", async () => {
+      const { listing } = await setupListingAndLogin({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+
+      const { cookie, response } = await adminFormPost(
+        `/admin/listings/recalculate/${listing.id}`,
+        { recalculate_fields: "booked_quantity" },
+      );
+      expectRedirectWithFlash(
+        `/admin/listing/${listing.id}/edit`,
+        "Listing totals recalculated",
+        true,
+      )(response);
+
+      const editResponse = await followRedirectWithFlash(
+        response,
+        (request) => handleRequest(request),
+        cookie,
+      );
+      await expectHtmlResponse(
+        editResponse,
+        200,
+        "Listing totals recalculated",
+      );
+    });
+
     test("rejects listing recalculation with no selected totals", async () => {
       const { listing } = await setupListingAndLogin({
         maxAttendees: 100,

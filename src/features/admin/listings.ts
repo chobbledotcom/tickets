@@ -609,17 +609,19 @@ const handleAdminListingEditGet: TypedRouteHandler<
   "GET /admin/listing/:id/edit"
 > = (request, params) =>
   requireSessionOr(request, (session) =>
-    withEntityFromParam(params.id, getListingAndGroups, (ctx) =>
-      htmlResponse(
+    withEntityFromParam(params.id, getListingAndGroups, (ctx) => {
+      const flash = applyFlash(request);
+      return htmlResponse(
         adminListingEditPage(
           ctx.listing,
           ctx.groups,
           session,
-          undefined,
+          flash.error,
           ctx.aggregateRecalculation,
+          flash.success,
         ),
-      ),
-    ),
+      );
+    }),
   );
 
 /**

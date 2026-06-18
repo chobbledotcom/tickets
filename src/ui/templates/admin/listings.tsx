@@ -1635,6 +1635,7 @@ export const adminListingEditPage = (
   session: AdminSession,
   error?: string,
   aggregateRecalculation?: ListingAggregateRecalculation,
+  success?: string,
 ): string => {
   const storageEnabled = isStorageEnabled();
   const builderEnabled = isBuilderEnabled();
@@ -1663,7 +1664,7 @@ export const adminListingEditPage = (
       title={t("listings_table.edit_listing_title", { name: listing.name })}
     >
       <AdminNav active="/admin/" session={session} />
-      <Flash error={error} />
+      <Flash error={error} success={success} />
       <CsrfForm
         action={`/admin/listing/${listing.id}/edit`}
         enctype="multipart/form-data"
