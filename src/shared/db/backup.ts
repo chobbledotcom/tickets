@@ -94,12 +94,9 @@ export const isRemoteDatabase = (): boolean => {
  */
 export const dbName = (): string => {
   const url = requireEnv("DB_URL");
-  let host: string;
-  try {
-    host = new URL(url).hostname;
-  } catch {
-    return "local";
-  }
+  if (!URL.canParse(url)) return "local";
+
+  const host = new URL(url).hostname;
   // "01KFXB...-tickets-spencer.lite.bunnydb.net" → "01KFXB...-tickets-spencer"
   const first = host.split(".")[0]!;
   // Drop the leading ID chunk (before first hyphen)

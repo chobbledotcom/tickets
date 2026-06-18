@@ -182,10 +182,16 @@ const handleEditGet: TypedRouteHandler<"GET /admin/modifiers/:id/edit"> = (
 ) =>
   requireSessionOr(request, (session) =>
     withModifier(id)(async (modifier) => {
-      applyFlash(request);
+      const flash = applyFlash(request);
       const links = await scopeLinksFor(modifier);
       return htmlResponse(
-        adminModifierEditPage(modifier, session, getFlash().error, links),
+        adminModifierEditPage(
+          modifier,
+          session,
+          flash.error,
+          links,
+          flash.success,
+        ),
       );
     }),
   );
@@ -256,7 +262,7 @@ const handleModifierRecalculatePost: TypedRouteHandler<
       await resetModifierAggregateFields(modifier.id, selected);
       await logActivity(`Modifier '${modifier.name}' totals recalculated`);
       return redirect(
-        `/admin/modifiers/recalculate/${modifier.id}`,
+        `/admin/modifiers/${modifier.id}/edit`,
         t("modifiers.recalculate.success"),
         true,
       );

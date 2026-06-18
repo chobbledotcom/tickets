@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { createAttendeeAtomic } from "#shared/db/attendees.ts";
+import { queryOne } from "#shared/db/client.ts";
 import {
   answerAmountAllocations,
   answerModifierSpecs,
@@ -432,6 +433,25 @@ describeWithEnv("custom questions", { db: true }, () => {
 
       const batch = await getAttendeeAnswersBatch([attendee.id]);
       expect(batch.get(attendee.id)).toEqual([a1.id]);
+    });
+
+    test("defaults amount applied when inserting an attendee answer", async () => {
+      const q = await questionsTable.insert({ text: "Size?" });
+      const answer = await answersTable.insert({
+        questionId: q.id,
+        sortOrder: 0,
+        text: "Small",
+      });
+      const listing = await createTestListing();
+      const attendee = await createAttendee(listing.id);
+
+      await saveAttendeeAnswers(new Map([[attendee.id, [answer.id]]]));
+      const stored = await queryOne<{ amount_applied: number }>(
+        "SELECT amount_applied FROM attendee_answers WHERE attendee_id = ? AND answer_id = ?",
+        [attendee.id, answer.id],
+      );
+
+      expect(stored?.amount_applied).toBe(0);
     });
 
     test("batch retrieval for multiple attendees", async () => {

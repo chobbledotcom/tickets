@@ -467,14 +467,21 @@ export const saveAttendeeAnswers = async (
       sql: "DELETE FROM attendee_answers WHERE attendee_id = ?",
     });
     if (answerIds.length > 0) {
+      const columns = ["attendee_id", "answer_id", "amount_applied"] as const;
+      const rows = await Promise.all(
+        answerIds.map((id) => {
+          const amountApplied = amountAllocations.get(id)?.shift();
+          return attendeeAnswersTable.toDbValues({
+            ...(amountApplied === undefined ? {} : { amountApplied }),
+            answerId: id,
+            attendeeId,
+          });
+        }),
+      );
       const placeholders = answerIds.map(() => "(?, ?, ?)").join(", ");
       statements.push({
-        args: answerIds.flatMap((id) => [
-          attendeeId,
-          id,
-          amountAllocations.get(id)?.shift() ?? 0,
-        ]),
-        sql: `INSERT OR IGNORE INTO attendee_answers (attendee_id, answer_id, amount_applied) VALUES ${placeholders}`,
+        args: rows.flatMap((row) => columns.map((col) => row[col] as InValue)),
+        sql: `INSERT OR IGNORE INTO attendee_answers (${columns.join(", ")}) VALUES ${placeholders}`,
       });
     }
   }

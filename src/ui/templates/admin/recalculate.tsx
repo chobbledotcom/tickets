@@ -16,6 +16,7 @@ export const adminRecalculatePage = ({
   action,
   active,
   currentLabel,
+  description,
   error,
   recalculatedLabel,
   rows,
@@ -27,6 +28,7 @@ export const adminRecalculatePage = ({
   action: string;
   active: string;
   currentLabel: string;
+  description: string;
   error?: string;
   recalculatedLabel: string;
   rows: RecalculateRow[];
@@ -41,35 +43,40 @@ export const adminRecalculatePage = ({
       <CsrfForm action={action}>
         <h1>{title}</h1>
         <Flash error={error} success={success} />
-        <div class="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th></th>
-                <th>{currentLabel}</th>
-                <th>{recalculatedLabel}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr>
-                  <th>
-                    <label>
-                      <input
-                        name={RECALCULATE_FIELD_NAME}
-                        type="checkbox"
-                        value={row.name}
-                      />{" "}
-                      {row.label}
-                    </label>
-                  </th>
-                  <td>{row.current}</td>
-                  <td>{row.recalculated}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div class="prose">
+          <p>{description}</p>
         </div>
+        <fieldset class="checkboxes">
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th></th>
+                  <th>{currentLabel}</th>
+                  <th>{recalculatedLabel}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr>
+                    <th>
+                      <label>
+                        <input
+                          name={RECALCULATE_FIELD_NAME}
+                          type="checkbox"
+                          value={row.name}
+                        />{" "}
+                        {row.label}
+                      </label>
+                    </th>
+                    <td>{row.current}</td>
+                    <td>{row.recalculated}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </fieldset>
         <SubmitButton icon="save">{submitLabel}</SubmitButton>
       </CsrfForm>
     </Layout>,
