@@ -22,7 +22,23 @@ import { col, defineTable } from "#shared/db/table.ts";
 // ---------------------------------------------------------------------------
 
 /** A custom multiple-choice question */
-export type QuestionDisplayType = "radio" | "select";
+export const QUESTION_DISPLAY_TYPES = ["radio", "select"] as const;
+export type QuestionDisplayType = (typeof QUESTION_DISPLAY_TYPES)[number];
+
+export const isQuestionDisplayType = (
+  value: string,
+): value is QuestionDisplayType =>
+  QUESTION_DISPLAY_TYPES.includes(value as QuestionDisplayType);
+
+export const questionDisplayTypeError =
+  "Display as must be radio buttons or a select box";
+
+export const requireQuestionDisplayType = (
+  value: string,
+): QuestionDisplayType => {
+  if (isQuestionDisplayType(value)) return value;
+  throw new Error(questionDisplayTypeError);
+};
 
 export interface Question {
   display_type: QuestionDisplayType;
@@ -291,6 +307,11 @@ export const setQuestionListings = async (
 /** Map from question ID to the set of listing IDs that use it */
 export type QuestionListingMap = Map<number, number[]>;
 
+const emptyQuestionsWithListingIds = (): {
+  questions: QuestionWithAnswers[];
+  questionListingMap: QuestionListingMap;
+} => ({ questionListingMap: new Map(), questions: [] });
+
 /** Joined row including the comma-separated listing IDs from GROUP_CONCAT */
 type JoinedRowWithListings = JoinedRow & { listing_ids: string };
 
@@ -302,9 +323,7 @@ export const getQuestionsWithListingIds = async (
   questions: QuestionWithAnswers[];
   questionListingMap: QuestionListingMap;
 }> => {
-  if (listingIds.length === 0) {
-    return { questionListingMap: new Map(), questions: [] };
-  }
+  if (listingIds.length === 0) return emptyQuestionsWithListingIds();
 
   const ph = inPlaceholders(listingIds);
   const rows = await queryAll<JoinedRowWithListings>(
@@ -317,8 +336,7 @@ export const getQuestionsWithListingIds = async (
     [...listingIds, ...listingIds],
   );
 
-  if (rows.length === 0)
-    return { questionListingMap: new Map(), questions: [] };
+  if (rows.length === 0) return emptyQuestionsWithListingIds();
 
   const questionListingMap = reduce(
     (acc: QuestionListingMap, row: JoinedRowWithListings) => {

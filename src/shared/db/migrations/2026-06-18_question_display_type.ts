@@ -11,7 +11,7 @@ export default (context: MigrationContext) =>
         [
           {
             args: [],
-            sql: "CREATE TABLE questions_new (id INTEGER PRIMARY KEY AUTOINCREMENT, text TEXT NOT NULL, sort_order INTEGER NOT NULL DEFAULT 0, display_type TEXT NOT NULL)",
+            sql: "CREATE TABLE questions_new (id INTEGER PRIMARY KEY AUTOINCREMENT, text TEXT NOT NULL, sort_order INTEGER NOT NULL DEFAULT 0, display_type TEXT NOT NULL CHECK (display_type IN ('radio', 'select')))",
           },
           {
             args: [],

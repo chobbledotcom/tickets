@@ -15,7 +15,9 @@ import {
   getQuestionsForListing,
   getQuestionsWithListingIds,
   getQuestionWithAnswers,
+  questionDisplayTypeError,
   questionsTable,
+  requireQuestionDisplayType,
   saveAttendeeAnswers,
   setListingQuestions,
   setQuestionListings,
@@ -39,6 +41,12 @@ const createAttendee = async (listingId: number, name = "Alice") => {
 
 describeWithEnv("custom questions", { db: true }, () => {
   describe("questions CRUD", () => {
+    test("rejects unsupported display types", () => {
+      expect(() => requireQuestionDisplayType("dropdown")).toThrow(
+        questionDisplayTypeError,
+      );
+    });
+
     test("creates and retrieves a question", async () => {
       const q = await questionsTable.insert({
         displayType: "radio",

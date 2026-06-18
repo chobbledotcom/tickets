@@ -295,7 +295,8 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
       expect(html).toContain("Open a draft to 1 recipient");
       expect(html).toContain("addressed straight to your one recipient");
       expect(html).toContain("mailto:alice%40example.com?");
-      expect(html).not.toContain("BCC");
+      expect(html).not.toContain("Open a BCC draft");
+      expect(html).not.toContain("everyone in BCC");
     });
 
     test("omits the address list when there are no recipients", async () => {
