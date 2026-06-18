@@ -98,6 +98,16 @@ const countRowsWhere = async (
 const countColumnValues = (table: string, column: string): Promise<number> =>
   countRowsWhere(table, `${column} IS NOT NULL`);
 
+const countColumnConflicts = (
+  table: string,
+  legacy: string,
+  target: string,
+): Promise<number> =>
+  countRowsWhere(
+    table,
+    `${legacy} IS NOT NULL AND ${target} IS NOT NULL AND ${legacy} != ${target}`,
+  );
+
 const escapeRegExp = (value: string): string =>
   value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -146,18 +156,25 @@ const repairLegacyColumnRename = async (
     countColumnValues(table, legacy),
     countColumnValues(table, target),
   ]);
-  if (legacyCount > 0 && targetCount > 0) {
+  const conflictCount =
+    legacyCount > 0 && targetCount > 0
+      ? await countColumnConflicts(table, legacy, target)
+      : 0;
+  if (conflictCount > 0) {
     throw new Error(
       `Cannot migrate "${table}.${legacy}" -> "${table}.${target}": both ` +
-        `columns contain data (${legacyCount} legacy row(s), ` +
-        `${targetCount} target row(s)). Manual migration is required — ` +
+        `columns contain conflicting data (${legacyCount} legacy row(s), ` +
+        `${targetCount} target row(s), ${conflictCount} conflict row(s)). ` +
+        "Manual migration is required — " +
         "back up the database, merge the legacy column values into the " +
         "target by hand, drop the legacy column, then re-run the migration.",
     );
   }
 
   if (legacyCount > 0) {
-    await runMigration(`UPDATE ${table} SET ${target} = ${legacy}`);
+    await runMigration(
+      `UPDATE ${table} SET ${target} = ${legacy} WHERE ${target} IS NULL`,
+    );
   }
   await dropProjectIndexesReferencingColumn(table, legacy);
   await runMigration(`ALTER TABLE ${table} DROP COLUMN ${legacy}`);
