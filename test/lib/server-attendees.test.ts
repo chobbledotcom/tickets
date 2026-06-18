@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { attendeesApi } from "#shared/db/attendees.ts";
+import { getListingWithCount } from "#shared/db/listings.ts";
 import {
   answersTable,
   questionsTable,
@@ -121,6 +122,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         "Delete Attendee",
         "John Doe",
         "type their name",
+        'checked name="release_bookings" type="checkbox" value="1"',
+        "Release their bookings into the pool",
       );
     });
 
@@ -209,6 +212,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
     test("deletes attendee with matching name (case insensitive)", async () => {
       const { response, listing, attendee } = await deleteAction({
         confirm_identifier: "john doe",
+        release_bookings: "1",
       })();
       expectRedirectWithFlash(
         `/admin/listing/${listing.id}`,
@@ -219,6 +223,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { getAttendeeRaw } = await import("#shared/db/attendees.ts");
       const deleted = await getAttendeeRaw(attendee.id);
       expect(deleted).toBeNull();
+      expect(await getListingWithCount(listing.id)).toMatchObject({
+        attendee_count: 0,
+      });
     });
 
     test("deletes attendee with whitespace-trimmed name", async () => {
@@ -226,6 +233,34 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         confirm_identifier: "  John Doe  ",
       })();
       expectRedirectWithFlash("/admin/listing/1", "Attendee deleted")(response);
+    });
+
+    test("can delete attendee without releasing bookings", async () => {
+      const listing = await createTestListing({ maxAttendees: 50 });
+      const attendee = await createPaidTestAttendee(
+        listing.id,
+        "Keep Pool",
+        "keep-pool@example.com",
+        "pay_keep_pool",
+        1200,
+        3,
+      );
+
+      const { response } = await adminFormPost(
+        `/admin/listing/${listing.id}/attendee/${attendee.id}/delete`,
+        { confirm_identifier: "Keep Pool" },
+      );
+
+      expectRedirectWithFlash(
+        `/admin/listing/${listing.id}`,
+        "Attendee deleted",
+      )(response);
+      const updated = await getListingWithCount(listing.id);
+      expect(updated).toMatchObject({
+        attendee_count: 3,
+        income: 1200,
+        tickets_count: 1,
+      });
     });
   });
 

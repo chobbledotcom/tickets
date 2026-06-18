@@ -84,6 +84,90 @@ describe("priceCheckout", () => {
   );
 
   testWithSetting(
+    "splits flat reservation lines so 10 across 3 tickets charges exactly 1000",
+    { booking_fee: "0", currency: "GBP" },
+    () => {
+      const order = priceCheckout(
+        intentWith([item({ quantity: 3 })], { reservationAmount: "10" }),
+      );
+      expect(order.lines).toEqual([
+        { chargedUnitAmount: 334, item: item({ quantity: 3 }), quantity: 1 },
+        { chargedUnitAmount: 333, item: item({ quantity: 3 }), quantity: 2 },
+      ]);
+      expect(order.total).toBe(1000);
+    },
+  );
+
+  testWithSetting(
+    "splits flat reservation lines so 10.01 across 3 tickets charges exactly 1001",
+    { booking_fee: "0", currency: "GBP" },
+    () => {
+      const order = priceCheckout(
+        intentWith([item({ quantity: 3 })], { reservationAmount: "10.01" }),
+      );
+      expect(order.lines).toEqual([
+        { chargedUnitAmount: 334, item: item({ quantity: 3 }), quantity: 2 },
+        { chargedUnitAmount: 333, item: item({ quantity: 3 }), quantity: 1 },
+      ]);
+      expect(order.total).toBe(1001);
+    },
+  );
+
+  testWithSetting(
+    "clamps an oversized flat reservation deposit to the full order total",
+    { booking_fee: "0", currency: "GBP" },
+    () => {
+      const order = priceCheckout(
+        intentWith([item({ quantity: 2, unitPrice: 300 })], {
+          reservationAmount: "100",
+        }),
+      );
+      expect(order.lines).toEqual([
+        {
+          chargedUnitAmount: 300,
+          item: item({ quantity: 2, unitPrice: 300 }),
+          quantity: 2,
+        },
+      ]);
+      expect(order.total).toBe(600);
+    },
+  );
+
+  testWithSetting(
+    "allocates mixed flat reservation items exactly without exceeding line prices",
+    { booking_fee: "0", currency: "GBP" },
+    () => {
+      const general = item({ listingId: 1, quantity: 2, unitPrice: 1000 });
+      const vip = item({
+        listingId: 2,
+        name: "VIP",
+        quantity: 1,
+        slug: "vip",
+        unitPrice: 2500,
+      });
+      const cheap = item({
+        listingId: 3,
+        name: "Cheap",
+        quantity: 3,
+        slug: "cheap",
+        unitPrice: 500,
+      });
+      const order = priceCheckout(
+        intentWith([general, vip, cheap], { reservationAmount: "10" }),
+      );
+      expect(order.lines).toEqual([
+        { chargedUnitAmount: 167, item: general, quantity: 2 },
+        { chargedUnitAmount: 417, item: vip, quantity: 1 },
+        { chargedUnitAmount: 83, item: cheap, quantity: 3 },
+      ]);
+      expect(order.total).toBe(1000);
+      for (const line of order.lines) {
+        expect(line.chargedUnitAmount).toBeLessThanOrEqual(line.item.unitPrice);
+      }
+    },
+  );
+
+  testWithSetting(
     "adds a booking-fee extra line on top of the ticket total",
     { booking_fee: "5" },
     () => {
@@ -123,6 +207,21 @@ describe("priceCheckout", () => {
       expect(order.extras[0]!.amount).toBe(100);
       // Deposit (2 × £1) + fee (£1) = £3.
       expect(order.total).toBe(300);
+    },
+  );
+
+  testWithSetting(
+    "charges the fee on the full reservation order when no override is present",
+    { booking_fee: "5" },
+    () => {
+      const order = priceCheckout(
+        intentWith([item({ quantity: 3 })], { reservationAmount: "10" }),
+      );
+      expect(order.fullSubtotal).toBe(3000);
+      expect(order.extras).toEqual([
+        { amount: 150, key: "fee", name: "Booking fee", quantity: 1 },
+      ]);
+      expect(order.total).toBe(1150);
     },
   );
 
@@ -226,6 +325,81 @@ describe("priceCheckout", () => {
       expect(breakdown.remainingBalance).toBe(450);
     },
   );
+
+  testWithSetting(
+    "charges a reservation deposit against the modified full subtotal",
+    { booking_fee: "10" },
+    () => {
+      const order = priceCheckout(
+        intentWith([item()], {
+          modifiers: [
+            modifier({ kind: "fixed", name: "Programme", value: 500 }),
+          ],
+          reservationAmount: "10%",
+        }),
+      );
+      // Full modified subtotal is £15.00; checkout charges a £1.50 deposit
+      // plus a £1.50 booking fee, not the full £5.00 add-on.
+      expect(order.fullSubtotal).toBe(1500);
+      expect(order.lines).toEqual([
+        { chargedUnitAmount: 150, item: item(), quantity: 1 },
+      ]);
+      expect(order.extras).toEqual([
+        { amount: 150, key: "fee", name: "Booking fee", quantity: 1 },
+      ]);
+      expect(order.total).toBe(300);
+
+      const breakdown = ticketPaymentBreakdown(
+        intentWith([item()], {
+          modifiers: [
+            modifier({ kind: "fixed", name: "Programme", value: 500 }),
+          ],
+          reservationAmount: "10%",
+        }),
+      );
+      expect(breakdown.paidByListingId).toEqual(new Map([[1, 150]]));
+      expect(breakdown.remainingBalance).toBe(1350);
+    },
+  );
+
+  testWithSetting(
+    "reduces a reservation deposit when a modifier discounts the full subtotal",
+    { booking_fee: "0" },
+    () => {
+      const order = priceCheckout(
+        intentWith([item()], {
+          modifiers: [modifier({ kind: "percent", value: -10 })],
+          reservationAmount: "10%",
+        }),
+      );
+      expect(order.fullSubtotal).toBe(900);
+      expect(order.lines).toEqual([
+        { chargedUnitAmount: 90, item: item(), quantity: 1 },
+      ]);
+      expect(order.total).toBe(90);
+    },
+  );
+
+  testWithSetting(
+    "allocates a modifier-funded reservation deposit for zero-price listings",
+    { booking_fee: "0" },
+    () => {
+      const freeItem = item({ unitPrice: 0 });
+      const order = priceCheckout(
+        intentWith([freeItem], {
+          modifiers: [
+            modifier({ kind: "fixed", name: "Donation", value: 500 }),
+          ],
+          reservationAmount: "10%",
+        }),
+      );
+      expect(order.fullSubtotal).toBe(500);
+      expect(order.lines).toEqual([
+        { chargedUnitAmount: 50, item: freeItem, quantity: 1 },
+      ]);
+      expect(order.total).toBe(50);
+    },
+  );
 });
 
 describe("applyModifiers", () => {
@@ -250,6 +424,9 @@ describe("applyModifiers", () => {
     expect(result.extras).toEqual([
       { amount: 450, key: "mod:1", name: "Add-on", quantity: 1 },
     ]);
+    expect(result.modifierUsages).toEqual([
+      { amountApplied: 450, modifierId: 1, quantity: 1 },
+    ]);
     expect(result.modifierTotal).toBe(450);
   });
 
@@ -273,6 +450,9 @@ describe("applyModifiers", () => {
       name: "Add-on",
       quantity: 3,
     });
+    expect(result.modifierUsages).toEqual([
+      { amountApplied: 1500, modifierId: 1, quantity: 3 },
+    ]);
     expect(result.modifierTotal).toBe(1500);
   });
 
@@ -282,6 +462,9 @@ describe("applyModifiers", () => {
     ]);
     expect(result.extras).toEqual([]);
     expect(result.lines).toEqual(lines);
+    expect(result.modifierUsages).toEqual([
+      { amountApplied: 0, modifierId: 1, quantity: 1 },
+    ]);
     expect(result.modifierTotal).toBe(0);
   });
 
@@ -298,7 +481,24 @@ describe("applyModifiers", () => {
         quantity: 1,
       },
     ]);
+    expect(result.modifierUsages).toEqual([
+      { amountApplied: 200, modifierId: 1, quantity: 1 },
+    ]);
     expect(result.modifierTotal).toBe(-200);
+  });
+
+  test("records only the clamped amount for an oversized discount", () => {
+    const result = applyModifiers(
+      [line({ quantity: 2 })],
+      [modifier({ kind: "fixed", value: -5000 })],
+    );
+    expect(result.lines).toEqual([
+      { chargedUnitAmount: 0, item: item(), quantity: 2 },
+    ]);
+    expect(result.modifierUsages).toEqual([
+      { amountApplied: 2000, modifierId: 1, quantity: 1 },
+    ]);
+    expect(result.modifierTotal).toBe(-2000);
   });
 });
 

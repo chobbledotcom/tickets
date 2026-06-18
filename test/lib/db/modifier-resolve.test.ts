@@ -266,7 +266,7 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
       await patchModifier(m.id, { trigger: "optional" });
       const addOns = await getOptionalAddOns([1]);
       expect(addOns[0]?.priceLabel).toBe("×1.5");
-      expect(addOns[0]?.requiresPayment).toBe(true);
+      expect(addOns[0]?.requiresPayment).toBe(false);
     });
 
     test("caps maxQuantity at the remaining stock", async () => {

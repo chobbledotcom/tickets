@@ -293,7 +293,7 @@ export const createFreeReservation = async ({
   const bookings = buildBookings(selected, date, dayCount).map((booking) => ({
     ...booking,
     ...(paidByListingId
-      ? { pricePaid: paidByListingId.get(booking.listingId) ?? 0 }
+      ? { pricePaid: paidByListingId.get(booking.listingId)! }
       : {}),
   }));
   const result = await createAttendeeAtomic({

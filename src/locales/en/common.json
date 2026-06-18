@@ -38,5 +38,11 @@
   "common.slug": "Slug",
   "common.quantity": "Quantity",
   "common.close": "Close",
-  "common.continue": "Continue"
+  "common.continue": "Continue",
+  "expected_actual.badge_error": "Error",
+  "expected_actual.click_for_info": "Click for info.",
+  "expected_actual.default_title": "Stored total error",
+  "expected_actual.expected": "expected",
+  "expected_actual.got": "got",
+  "expected_actual.more": "(+{count} more)"
 }

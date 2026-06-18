@@ -4,16 +4,19 @@ tickets.db
 .db-key
 .env
 .db-key
+
+# Generated build output
 dist/
+bunny-script.ts
+.build-tag
+src/ui/static/*.js
+
 .bin/
 .direnv/
 cov/
 coverage*/
 cov_profile/
 .jscpd-report/
-bunny-script.ts
-.build-tag
-.envrc
 .deno_cache/
 .deno/
 .deno-cache/

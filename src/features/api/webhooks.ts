@@ -42,8 +42,9 @@ import { parseTokens } from "#routes/tickets/token-utils.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { calculateBookingFee } from "#shared/booking-fee.ts";
 import {
+  type ModifierUsageAmount,
+  type PricedOrder,
   priceCheckout,
-  ticketPaymentBreakdown,
 } from "#shared/checkout-pricing.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { formatCurrency } from "#shared/currency.ts";
@@ -52,12 +53,13 @@ import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
 import {
   createAttendeeAtomic,
+  deleteAttendee,
   ensureAllBookings,
   getAttendeesByTokens,
 } from "#shared/db/attendees.ts";
 import { getListing, getListingWithCount } from "#shared/db/listings.ts";
 import { specsFromRefs } from "#shared/db/modifier-resolve.ts";
-import { consumeModifierStockOrRollback } from "#shared/db/modifier-usage.ts";
+import { consumeModifierStock } from "#shared/db/modifier-usage.ts";
 import {
   balanceFinalizeStatement,
   clearSessionTokens,
@@ -82,7 +84,6 @@ import {
   type ValidatedPaymentSession,
   type WebhookEvent,
 } from "#shared/payments.ts";
-import { modifierDelta } from "#shared/price-modifier.ts";
 import { dayPriceFor, type ListingWithCount } from "#shared/types.ts";
 import { logAndNotifyRegistration } from "#shared/webhook.ts";
 import { paymentCancelPage, successPage } from "#templates/payment.tsx";
@@ -551,7 +552,7 @@ const validateAllItems = async (
   return { items: validatedItems, ok: true };
 };
 
-const pricingIntentForSession = (
+const checkoutIntentForSession = (
   intent: BookingIntent,
   validatedItems: ValidatedItem[],
   modifierSpecs: ModifierSpec[],
@@ -576,36 +577,50 @@ const pricingIntentForSession = (
     : {}),
 });
 
+const orderLineTotal = (order: PricedOrder): number =>
+  sumOf(
+    (line: PricedOrder["lines"][number]) =>
+      line.chargedUnitAmount * line.quantity,
+  )(order.lines);
+
+const paidByListing = (order: PricedOrder): Map<number, number> => {
+  const paid = new Map<number, number>();
+  for (const line of order.lines) {
+    const current = paid.get(line.item.listingId) ?? 0;
+    paid.set(
+      line.item.listingId,
+      current + line.chargedUnitAmount * line.quantity,
+    );
+  }
+  return paid;
+};
+
 /** Verify per-item and total prices for paid sessions. Returns null on success. */
 const verifyPaidPricing = async (
   session: ValidatedPaymentSession,
   intent: BookingIntent,
   validatedItems: ValidatedItem[],
-  modifierSpecs: ModifierSpec[],
+  pricedOrder: PricedOrder,
 ): Promise<PaymentResult | null> => {
   const hasPaidItems = intent.items.some((item) => item.p > 0);
-  if (!hasPaidItems && modifierSpecs.length === 0) return null;
 
   // Per-item prices are ticket-only (no fee), so validate without booking fee
-  for (const { item, listing, expectedPrice } of validatedItems) {
-    if (hasPriceMismatch(item.p, expectedPrice, listing, 0, item.q)) {
-      return await priceMismatchRefund(
-        session,
-        `Per-item price mismatch for listing ${listing.id}: metadata p=${item.p} but expected ${expectedPrice} (can_pay_more=${listing.can_pay_more})`,
-        listing.id,
-      );
+  if (hasPaidItems) {
+    for (const { item, listing, expectedPrice } of validatedItems) {
+      if (hasPriceMismatch(item.p, expectedPrice, listing, 0, item.q)) {
+        return await priceMismatchRefund(
+          session,
+          `Per-item price mismatch for listing ${listing.id}: metadata p=${item.p} but expected ${expectedPrice} (can_pay_more=${listing.can_pay_more})`,
+          listing.id,
+        );
+      }
     }
   }
 
   // Re-derive the expected total with the same pricing pipeline the checkout
   // used: deposit-aware ticket charges, modifiers (re-fetched from the database
   // by id, never trusting metadata amounts), and the booking fee on top.
-  const pricingIntent = pricingIntentForSession(
-    intent,
-    validatedItems,
-    modifierSpecs,
-  );
-  const expectedTotal = priceCheckout(pricingIntent).total;
+  const expectedTotal = pricedOrder.total;
   if (session.amountTotal !== expectedTotal) {
     return await priceMismatchRefund(
       session,
@@ -632,24 +647,19 @@ const createAttendeeForSession = async (
   session: ValidatedPaymentSession,
   intent: BookingIntent,
   validatedItems: ValidatedItem[],
-  modifierSpecs: ModifierSpec[],
+  pricedOrder: PricedOrder,
 ): Promise<{ ok: true; entries: CreatedEntry[] } | PaymentResult> => {
-  // A reservation charges only the priced per-line deposit up front; the rest of
-  // the final ticket-line total is recorded as the attendee's outstanding
-  // balance. Positive modifier extras and booking fees are paid during checkout,
-  // while discounts reduce the final ticket balance.
-  const pricingIntent = pricingIntentForSession(
-    intent,
-    validatedItems,
-    modifierSpecs,
-  );
-  const paymentBreakdown = ticketPaymentBreakdown(pricingIntent);
+  const linePaidByListing = paidByListing(pricedOrder);
   const bookings = validatedItems.map(({ item, listing }) => ({
     listingId: item.e,
-    pricePaid: paymentBreakdown.paidByListingId.get(item.e) ?? 0,
+    pricePaid: linePaidByListing.get(item.e)!,
     quantity: item.q,
     ...bookingDateFields(listing, intent.date, intent.dayCount),
   }));
+  const fullTotal = pricedOrder.fullSubtotal;
+  const depositTotal = orderLineTotal(pricedOrder);
+  const remainingBalance =
+    intent.reservationAmount === undefined ? 0 : fullTotal - depositTotal;
 
   const result = await createAttendeeAtomic({
     address: intent.address,
@@ -658,7 +668,7 @@ const createAttendeeForSession = async (
     name: intent.name,
     paymentId: session.paymentReference,
     phone: intent.phone,
-    remainingBalance: paymentBreakdown.remainingBalance,
+    remainingBalance,
     special_instructions: intent.special_instructions,
     statusId: await getPublicStatusId(),
   });
@@ -679,23 +689,24 @@ const createAttendeeForSession = async (
   }
   const created = result as Extract<typeof result, { success: true }>;
 
-  // Consume modifier stock atomically; on a sold-out race the helper rolls the
-  // order back (deleting the attendee + its usage rows) and the session is
-  // refunded below. The helper computes amount_applied from the same checkout
-  // items and modifier scopes the pricing engine used.
-  const attendeeId = created.attendees[0]!.id;
-  const consumed = await consumeModifierStockOrRollback(
-    attendeeId,
-    modifierSpecs,
-    pricingIntent.items,
-  );
-  if (!consumed) {
-    return refundAndFail(
-      session,
-      MODIFIER_SOLD_OUT_MESSAGE,
-      validatedItems[0]!.listing.id,
-      409,
+  // Consume modifier stock atomically; a sold-out race rolls the order back.
+  // The usage amount comes from the same pricing pass that calculated the
+  // checkout total, so scoped bases, quantities, and clamped discounts match.
+  if (pricedOrder.modifierUsages.length > 0) {
+    const attendeeId = created.attendees[0]!.id;
+    const consumed = await consumeModifierStock(
+      attendeeId,
+      pricedOrder.modifierUsages,
     );
+    if (!consumed) {
+      await deleteAttendee(attendeeId);
+      return refundAndFail(
+        session,
+        MODIFIER_SOLD_OUT_MESSAGE,
+        validatedItems[0]!.listing.id,
+        409,
+      );
+    }
   }
 
   const entries = created.attendees.map((attendee, i) => ({
@@ -784,14 +795,19 @@ const settleBalanceSession = async (
 
 const logPromoCodeModifiers = async (
   specs: ModifierSpec[],
-  fullTotal: number,
+  usages: ReadonlyArray<ModifierUsageAmount>,
   listing: ListingWithCount,
   attendeeId: number,
 ): Promise<void> => {
   for (const spec of specs) {
-    const delta = modifierDelta(fullTotal, spec.kind, spec.value);
-    const effect =
-      delta < 0 ? `${formatCurrency(-delta)} off` : `+${formatCurrency(delta)}`;
+    const amountApplied = usages.find(
+      (usage) => usage.modifierId === spec.id,
+    )!.amountApplied;
+    const isDiscount =
+      spec.kind === "multiply" ? spec.value < 1 : spec.value < 0;
+    const effect = isDiscount
+      ? `${formatCurrency(amountApplied)} off`
+      : `+${formatCurrency(amountApplied)}`;
     await logActivity(
       `Promo code '${spec.name}' used: ${effect}`,
       listing,
@@ -826,12 +842,18 @@ const processReservedSession = async (
   // Resolve the applied modifiers once (re-fetched by id from the database);
   // both the price re-derivation and the stock consumption use the same specs.
   const modifierSpecs = await specsFromRefs(intent.modifiers);
+  const pricingIntent = checkoutIntentForSession(
+    intent,
+    validatedItems,
+    modifierSpecs,
+  );
+  const pricedOrder = priceCheckout(pricingIntent);
 
   const pricingError = await verifyPaidPricing(
     session,
     intent,
     validatedItems,
-    modifierSpecs,
+    pricedOrder,
   );
   if (pricingError) return pricingError;
 
@@ -839,7 +861,7 @@ const processReservedSession = async (
     session,
     intent,
     validatedItems,
-    modifierSpecs,
+    pricedOrder,
   );
   if ("success" in created) return created;
   const createdEntries = created.entries;
@@ -861,10 +883,9 @@ const processReservedSession = async (
 
   const codeSpecs = modifierSpecs.filter((s) => s.trigger === "code");
   if (codeSpecs.length > 0) {
-    const fullTotal = sumOf((v: ValidatedItem) => v.item.p)(validatedItems);
     await logPromoCodeModifiers(
       codeSpecs,
-      fullTotal,
+      pricedOrder.modifierUsages,
       firstAttendee.listing,
       firstAttendee.attendee.id,
     );

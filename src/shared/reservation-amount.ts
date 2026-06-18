@@ -13,7 +13,9 @@
  * validated before it is stored, so the calculation path can assume it parses.
  */
 
+import { sum, sumOf } from "#fp";
 import { toMinorUnits } from "#shared/currency.ts";
+import { largestRemainderAllocation } from "#shared/largest-remainder.ts";
 
 /** A parsed reservation amount. `value` is the bare number (not minor units). */
 export type ReservationAmount =
@@ -53,8 +55,7 @@ export const validateReservationAmount = (raw: string): string | null =>
 
 /**
  * Parse `raw`, turn the parsed amount into a deposit via `fromParsed`, and
- * clamp the result to [0, max]. A malformed amount yields 0. Shared by the
- * order-level and per-unit calculations so the parse/guard/clamp lives once.
+ * clamp the result to [0, max]. A malformed amount yields 0.
  */
 const clampedDeposit = (
   raw: string,
@@ -85,41 +86,103 @@ export const computeReservationDeposit = (
         : toMinorUnits(parsed.value),
   );
 
-/**
- * The per-unit deposit (minor units) for one listing line of a reservation —
- * the price each ticket is charged up front. Computed identically at checkout
- * (to set the charged amount) and in the webhook (to validate it), so the two
- * always agree. A flat order amount is spread evenly across all items.
- * Clamped to [0, unitPrice] so a deposit never exceeds the ticket price.
- */
-export const reservationDepositPerUnit = (
-  raw: string,
-  unitPrice: number,
-  totalQuantity: number,
-): number =>
-  clampedDeposit(raw, unitPrice, (parsed) =>
-    parsed.kind === "percent"
-      ? Math.round((unitPrice * parsed.value) / 100)
-      : parsed.kind === "perItem"
-        ? toMinorUnits(parsed.value)
-        : Math.round(toMinorUnits(parsed.value) / Math.max(1, totalQuantity)),
-  );
+export type ReservationAllocationItem = {
+  unitPrice: number;
+  quantity: number;
+};
+
+export type ReservationAllocatedLine = {
+  itemIndex: number;
+  chargedUnitAmount: number;
+  quantity: number;
+};
+
+export type ReservationDepositAllocation = {
+  lines: ReservationAllocatedLine[];
+  perItemTotals: number[];
+  total: number;
+};
+
+type AllocationUnit = {
+  itemIndex: number;
+  capacity: number;
+  originalIndex: number;
+};
 
 /**
- * Re-derive the deposit (minor units) charged for one booking line from its
- * metadata, given the full line price `fullLinePrice` (unit price × quantity),
- * the line `quantity`, and the order's `totalQuantity`. Mirrors the per-unit
- * deposit charged at checkout so the webhook validates the same number and can
- * compute the remaining balance.
+ * Allocate an order-level reservation deposit exactly across individual ticket
+ * units. The intended total still comes from `computeReservationDeposit`; this
+ * helper only decides where each minor unit lands. Allocation is proportional
+ * to unit price, floors fractional shares, then assigns leftover minor units to
+ * the largest remainders with cart order as the stable tie-breaker.
  */
-export const reservationDepositForLine = (
+export const allocateReservationDeposit = (
   raw: string,
-  fullLinePrice: number,
-  quantity: number,
-  totalQuantity: number,
-): number =>
-  reservationDepositPerUnit(
-    raw,
-    fullLinePrice / Math.max(1, quantity),
-    totalQuantity,
-  ) * quantity;
+  items: ReadonlyArray<ReservationAllocationItem>,
+): ReservationDepositAllocation => {
+  const perItemTotals = Array.from({ length: items.length }, () => 0);
+  const units: AllocationUnit[] = items.flatMap((item, itemIndex) =>
+    Array.from({ length: Math.max(0, item.quantity) }, (_, unitIndex) => ({
+      capacity: Math.max(0, item.unitPrice),
+      itemIndex,
+      originalIndex:
+        sumOf((i: ReservationAllocationItem) => Math.max(0, i.quantity))(
+          items.slice(0, itemIndex),
+        ) + unitIndex,
+    })),
+  );
+  const fullSubtotal = sumOf((unit: AllocationUnit) => unit.capacity)(units);
+  const total = computeReservationDeposit(raw, fullSubtotal, units.length);
+  if (units.length === 0) {
+    return { lines: [], perItemTotals, total };
+  }
+  const allocations =
+    total === 0 || fullSubtotal === 0
+      ? units.map(() => 0)
+      : total === fullSubtotal
+        ? units.map((unit) => unit.capacity)
+        : allocateProportionally(units, total);
+  const lineKey = (itemIndex: number, amount: number) =>
+    `${itemIndex}:${amount}`;
+  const grouped = new Map<
+    string,
+    { itemIndex: number; chargedUnitAmount: number; quantity: number }
+  >();
+  for (const [index, amount] of allocations.entries()) {
+    const unit = units[index]!;
+    perItemTotals[unit.itemIndex] = perItemTotals[unit.itemIndex]! + amount;
+    const key = lineKey(unit.itemIndex, amount);
+    const existing = grouped.get(key);
+    if (existing) {
+      existing.quantity += 1;
+    } else {
+      grouped.set(key, {
+        chargedUnitAmount: amount,
+        itemIndex: unit.itemIndex,
+        quantity: 1,
+      });
+    }
+  }
+  return {
+    lines: [...grouped.values()].sort(
+      (a, b) =>
+        a.itemIndex - b.itemIndex || b.chargedUnitAmount - a.chargedUnitAmount,
+    ),
+    perItemTotals,
+    total: sum(allocations),
+  };
+};
+
+const allocateProportionally = (
+  units: AllocationUnit[],
+  total: number,
+): number[] => {
+  return largestRemainderAllocation(
+    units.map((unit) => unit.capacity),
+    total,
+    {
+      canReceive: (index, floor) => floor < units[index]!.capacity,
+      tieBreaker: (index) => units[index]!.originalIndex,
+    },
+  );
+};

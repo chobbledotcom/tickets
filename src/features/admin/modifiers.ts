@@ -3,24 +3,41 @@
  */
 
 /* jscpd:ignore-start */
+import { t } from "#i18n";
+import {
+  createRecalculatePageRenderer,
+  parseEditableAggregateForm,
+  selectedRecalculationFields,
+} from "#routes/admin/aggregate-recalculation.ts";
 import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
-import { requireSessionOr } from "#routes/auth.ts";
+import { AUTH_FORM, requireSessionOr, withAuth } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
-import { htmlResponse, redirect } from "#routes/response.ts";
+import {
+  errorRedirect,
+  htmlResponse,
+  notFoundResponse,
+  redirect,
+} from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import { createAuthedHandler } from "#shared/app-forms.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { toMinorUnits } from "#shared/currency.ts";
+import { logActivity } from "#shared/db/activityLog.ts";
 import { getAllGroups } from "#shared/db/groups.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import {
   getAllModifiers,
+  getModifierAggregateRecalculation,
   getModifierGroupIds,
   getModifierListingIds,
+  MODIFIER_AGGREGATE_FIELDS,
+  type ModifierAggregateValues,
   type ModifierInput,
   modifiersTable,
+  resetModifierAggregateFields,
   setModifierGroups,
   setModifierListings,
+  updateModifierAggregateValues,
 } from "#shared/db/modifiers.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -42,11 +59,15 @@ import {
   adminModifierDeletePage,
   adminModifierEditPage,
   adminModifierNewPage,
+  adminModifierRecalculatePage,
   adminModifiersPage,
   type ScopeLinks,
 } from "#templates/admin/modifiers.tsx";
-import type { ModifierFormValues } from "#templates/fields.ts";
-import { modifierFields } from "#templates/fields.ts";
+import type {
+  ModifierAggregateFormValues,
+  ModifierFormValues,
+} from "#templates/fields.ts";
+import { modifierAggregateFields, modifierFields } from "#templates/fields.ts";
 import { withEntityLoader } from "./entity-handlers.ts";
 
 /* jscpd:ignore-end */
@@ -73,6 +94,14 @@ const extractModifierInput = async (
     trigger: values.trigger as ModifierTrigger,
   };
 };
+
+const extractModifierAggregateValues = (
+  values: ModifierAggregateFormValues,
+): ModifierAggregateValues => ({
+  total_revenue: toMinorUnits(Number.parseFloat(values.total_revenue)),
+  total_uses: values.total_uses,
+  usage_count: values.usage_count,
+});
 
 /** Validate a modifier's kind, direction, trigger, scope, and value (the select
  * options can be bypassed by a crafted POST, so re-check membership here). */
@@ -161,6 +190,79 @@ const handleEditGet: TypedRouteHandler<"GET /admin/modifiers/:id/edit"> = (
     }),
   );
 
+const handleEditPost: TypedRouteHandler<"POST /admin/modifiers/:id/edit"> = (
+  request,
+  { id },
+) =>
+  withAuth(request, AUTH_FORM, async (_session, form) => {
+    const modifier = await modifiersTable.findById(id);
+    if (!modifier) return notFoundResponse();
+    const aggregates = parseEditableAggregateForm<
+      ModifierAggregateFormValues,
+      ModifierAggregateValues
+    >(form, modifierAggregateFields, extractModifierAggregateValues);
+    if (!aggregates.ok) {
+      return errorRedirect(`/admin/modifiers/${id}/edit`, aggregates.error);
+    }
+    const result = await modifiersResource.update(id, form);
+    if (result.ok) {
+      if (aggregates.input) {
+        await updateModifierAggregateValues(id, aggregates.input);
+      }
+      await logActivity(`Modifier '${result.row.name}' updated`);
+      return redirect("/admin/modifiers", "Modifier updated", true);
+    }
+    if ("notFound" in result) return notFoundResponse();
+    return errorRedirect(`/admin/modifiers/${id}/edit`, result.error);
+  });
+
+const renderModifierRecalculatePage = createRecalculatePageRenderer(
+  getModifierAggregateRecalculation,
+  adminModifierRecalculatePage,
+);
+
+const handleModifierRecalculateGet: TypedRouteHandler<
+  "GET /admin/modifiers/recalculate/:modifierId"
+> = (request, { modifierId }) =>
+  requireSessionOr(request, (session) =>
+    withModifier(modifierId)((modifier) => {
+      applyFlash(request);
+      const flash = getFlash();
+      return renderModifierRecalculatePage(
+        modifier,
+        session,
+        flash.error,
+        flash.success,
+      );
+    }),
+  );
+
+const handleModifierRecalculatePost: TypedRouteHandler<
+  "POST /admin/modifiers/recalculate/:modifierId"
+> = (request, { modifierId }) =>
+  withAuth(request, AUTH_FORM, (session, form) =>
+    withModifier(modifierId)(async (modifier) => {
+      const selected = selectedRecalculationFields(
+        form,
+        MODIFIER_AGGREGATE_FIELDS,
+      );
+      if (selected.length === 0) {
+        return renderModifierRecalculatePage(
+          modifier,
+          session,
+          t("modifiers.recalculate.choose"),
+        );
+      }
+      await resetModifierAggregateFields(modifier.id, selected);
+      await logActivity(`Modifier '${modifier.name}' totals recalculated`);
+      return redirect(
+        `/admin/modifiers/recalculate/${modifier.id}`,
+        t("modifiers.recalculate.success"),
+        true,
+      );
+    }),
+  );
+
 /** Selected ids from a checkbox group, positive integers only. */
 const selectedIds = (form: FormParams, field: string): number[] =>
   form
@@ -197,6 +299,11 @@ export const modifiersRoutes = {
   ...crud.routes,
   ...defineRoutes({
     "GET /admin/modifiers/:id/edit": handleEditGet,
+    "GET /admin/modifiers/recalculate/:modifierId":
+      handleModifierRecalculateGet,
+    "POST /admin/modifiers/:id/edit": handleEditPost,
     "POST /admin/modifiers/:id/links": handleScopeLinks,
+    "POST /admin/modifiers/recalculate/:modifierId":
+      handleModifierRecalculatePost,
   }),
 };

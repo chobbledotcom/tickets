@@ -7,7 +7,6 @@ import {
   modifierUsedQuantities,
 } from "#shared/db/modifier-usage.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
-import type { CheckoutItem, ModifierSpec } from "#shared/payments.ts";
 import { describeWithEnv } from "#test-utils";
 
 const makeModifier = (stock: number | null) =>
@@ -23,29 +22,6 @@ const usage = (modifierId: number, quantity = 1) => ({
   amountApplied: 500,
   modifierId,
   quantity,
-});
-
-const item = (overrides: Partial<CheckoutItem> = {}): CheckoutItem => ({
-  listingId: 1,
-  name: "Ticket",
-  quantity: 1,
-  slug: "ticket",
-  unitPrice: 0,
-  ...overrides,
-});
-
-const spec = (
-  modifierId: number,
-  overrides: Partial<ModifierSpec> = {},
-): ModifierSpec => ({
-  id: modifierId,
-  kind: "fixed",
-  listingIds: null,
-  name: "Add-on",
-  quantity: 1,
-  trigger: "optional",
-  value: 500,
-  ...overrides,
 });
 
 describeWithEnv("db > modifier-usage", { db: true }, () => {
@@ -94,13 +70,15 @@ describeWithEnv("db > modifier-usage", { db: true }, () => {
   });
 
   describe("consumeModifierStockOrRollback", () => {
-    test("records the aggregate amount applied for selected quantity", async () => {
+    test("returns true without consuming anything when no usages apply", async () => {
+      expect(await consumeModifierStockOrRollback(100, [])).toBe(true);
+    });
+
+    test("records the priced usage amounts supplied by the caller", async () => {
       const m = await makeModifier(null);
-      const consumed = await consumeModifierStockOrRollback(
-        100,
-        [spec(m.id, { quantity: 3 })],
-        [item()],
-      );
+      const consumed = await consumeModifierStockOrRollback(100, [
+        { amountApplied: 1234, modifierId: m.id, quantity: 3 },
+      ]);
       expect(consumed).toBe(true);
 
       const { rows } = await getDb().execute({
@@ -108,7 +86,7 @@ describeWithEnv("db > modifier-usage", { db: true }, () => {
         sql: "SELECT quantity, amount_applied FROM modifier_usages WHERE modifier_id = ?",
       });
       expect(Number(rows[0]!.quantity)).toBe(3);
-      expect(Number(rows[0]!.amount_applied)).toBe(1500);
+      expect(Number(rows[0]!.amount_applied)).toBe(1234);
     });
   });
 });

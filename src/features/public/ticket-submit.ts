@@ -7,6 +7,7 @@ import { applyFlash, withCsrfForm } from "#routes/csrf.ts";
 import { errorRedirect, redirectResponse } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
 import {
+  type ModifierUsageAmount,
   priceCheckout,
   type TicketPaymentBreakdown,
   ticketPaymentBreakdown,
@@ -24,18 +25,10 @@ import {
 } from "#shared/db/questions.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import type {
-  CheckoutIntent,
-  CheckoutItem,
-  ModifierSpec,
-} from "#shared/payments.ts";
+import type { CheckoutIntent } from "#shared/payments.ts";
 import { verifyQrBookToken } from "#shared/qr-token.ts";
 import { validateSiteAssignmentConfig } from "#shared/site-assignment.ts";
-import {
-  type Group,
-  isPaidListing,
-  type ListingWithCount,
-} from "#shared/types.ts";
+import type { Group, ListingWithCount } from "#shared/types.ts";
 import {
   parseNonNegativeInt,
   parsePositiveInt,
@@ -80,23 +73,12 @@ import {
   type TicketSharedContext,
 } from "./types.ts";
 
-/** Validate fields, terms and listing availability. Returns Response on error, or parsed field values. */
-const validateFormAndAvailability = (
+/** Validate page-level form state before deeper parsing. */
+const validateFormState = (
   form: FormParams,
   ctx: TicketCtx,
-): Response | TicketFormValues => {
+): Response | null => {
   const errorResponse = ticketFormErrorResponse(ctx);
-  const anyPaid =
-    ctx.listings.some((e) => isPaidListing(e.listing)) ||
-    ctx.addOns.some((addOn) => addOn.requiresPayment);
-  const fieldResult = tryValidateTicketFields(
-    form,
-    getTicketFieldsSetting(ctx.listings),
-    errorResponse,
-    anyPaid,
-  );
-  if (fieldResult instanceof Response) return fieldResult;
-
   if (ctx.terms && form.get("agree_terms") !== "1") {
     return errorResponse("You must agree to the terms and conditions");
   }
@@ -118,8 +100,21 @@ const validateFormAndAvailability = (
       return errorResponse(REGISTRATION_CLOSED_SUBMIT_MESSAGE);
     }
   }
-  return fieldResult;
+  return null;
 };
+
+/** Validate contact fields once the final priced checkout says whether it is paid. */
+const validateTicketFields = (
+  form: FormParams,
+  ctx: TicketCtx,
+  requiresPayment: boolean,
+): Response | TicketFormValues =>
+  tryValidateTicketFields(
+    form,
+    getTicketFieldsSetting(ctx.listings),
+    ticketFormErrorResponse(ctx),
+    requiresPayment,
+  );
 
 /** Parse custom prices for pay-more listings. Returns Response on validation error. */
 const parseCustomPrices = (
@@ -200,9 +195,76 @@ type PathParams = {
   info: AnswerInfo;
 };
 
-type PreparedSubmission = PathParams & {
-  items: CheckoutItem[];
-  listingAnswerIds: CheckoutIntent["listingAnswerIds"];
+type PaymentPathParams = Pick<
+  PathParams,
+  "ctx" | "date" | "dayCount" | "quantities"
+> & { intent: CheckoutIntent };
+
+const emptyContact = {
+  address: "",
+  email: "",
+  name: "",
+  phone: "",
+  special_instructions: "",
+};
+
+const checkoutIntentForSubmission = (
+  contact: ReturnType<typeof extractContact>,
+  params: {
+    ctx: TicketCtx;
+    date: string | null;
+    dayCount: number;
+    hasCustomisable: boolean;
+    info: AnswerInfo;
+    items: ReturnType<typeof buildRegistrationItems>;
+    modifiers: CheckoutIntent["modifiers"];
+    reservationAmount?: string;
+  },
+): CheckoutIntent => {
+  const {
+    ctx,
+    date,
+    dayCount,
+    hasCustomisable,
+    info,
+    items,
+    modifiers,
+    reservationAmount,
+  } = params;
+  const listingAnswerIds = computeListingAnswerMap(ctx, info);
+  return {
+    ...contact,
+    date,
+    items,
+    listingAnswerIds,
+    // Carry the chosen span only when a customisable listing is involved, so
+    // the webhook re-prices and dates the booking by day count, not the
+    // listing's fixed duration.
+    ...(hasCustomisable ? { dayCount } : {}),
+    ...(ctx.siteToken ? { siteToken: ctx.siteToken } : {}),
+    ...(reservationAmount ? { reservationAmount } : {}),
+    ...(modifiers && modifiers.length > 0 ? { modifiers } : {}),
+  };
+};
+
+/** Handle the paid registration path */
+const handlePaidPath = async (
+  request: Request,
+  params: PaymentPathParams,
+): Promise<Response> => {
+  const { ctx, quantities, date, dayCount, intent } = params;
+  const available = await checkAvailability(
+    ctx.listings,
+    quantities,
+    date,
+    dayCount,
+  );
+  if (!available) {
+    return ticketFormErrorResponse(ctx)(
+      "Sorry, some tickets are no longer available",
+    );
+  }
+  return handlePaymentFlow(request, intent, ctx);
 };
 
 /**
@@ -231,16 +293,15 @@ const MODIFIER_SOLD_OUT_MESSAGE =
  *
  * Used for every cart whose final priced total is zero — a free listing, a
  * paid listing discounted to zero, or a zero-price listing whose modifiers net
- * to zero after pricing — and for every
- * cart when payments are disabled (the existing disabled-is-free behaviour).
- * The same pricing engine that decided "no provider needed" also produced the
- * modifiers that this path must persist, so a zero-total order still records
- * modifier usage and respects stock limits.
+ * to zero after pricing — and for every cart when payments are disabled (the
+ * existing disabled-is-free behaviour). When payments are enabled, the same
+ * pricing engine that decided "no provider needed" also produced the modifiers
+ * that this path must persist, so a zero-total order still records modifier
+ * usage and respects stock limits.
  */
 const handleFreePath = async (
   params: PathParams & {
-    items: CheckoutItem[];
-    modifiers: ModifierSpec[];
+    modifierUsages: ModifierUsageAmount[];
     paymentBreakdown?: TicketPaymentBreakdown;
   },
 ): Promise<Response> => {
@@ -251,8 +312,7 @@ const handleFreePath = async (
     dayCount,
     contact,
     info,
-    items,
-    modifiers,
+    modifierUsages,
     paymentBreakdown,
   } = params;
   const result = await createFreeReservation({
@@ -266,16 +326,15 @@ const handleFreePath = async (
   });
   if (!result.success) return ticketFormErrorResponse(ctx)(result.error);
 
-  // Consume modifier stock against the same pre-modifier item subtotal the
-  // pricing engine used. A stock-limited modifier that sold out between
-  // resolution and consumption rolls the new attendee back so the buyer
-  // isn't granted a free order they shouldn't have.
-  if (modifiers.length > 0) {
+  // Persist the exact usage amounts returned by the pricing engine. A
+  // stock-limited modifier that sold out between resolution and consumption
+  // rolls the new attendee back so the buyer isn't granted a free order they
+  // shouldn't have.
+  if (modifierUsages.length > 0) {
     const attendeeId = result.entries[0]!.attendee.id;
     const consumed = await consumeModifierStockOrRollback(
       attendeeId,
-      modifiers,
-      items,
+      modifierUsages,
     );
     if (!consumed) {
       return ticketFormErrorResponse(ctx)(MODIFIER_SOLD_OUT_MESSAGE);
@@ -320,15 +379,16 @@ const parseBookingDate = (
   return date ?? ticketFormErrorResponse(ctx)("Please select a valid date");
 };
 
-const prepareSubmission = async (
+/** Process submitted form after CSRF and demo overrides. */
+const processSubmission = async (
+  request: Request,
   ctx: TicketCtx,
   form: FormParams,
-): Promise<Response | PreparedSubmission> => {
+): Promise<Response> => {
   const errorResponse = ticketFormErrorResponse(ctx);
 
-  const validated = validateFormAndAvailability(form, ctx);
-  if (validated instanceof Response) return validated;
-  const values = validated;
+  const formStateError = validateFormState(form, ctx);
+  if (formStateError) return formStateError;
 
   const quantities = parseQuantities(form, ctx.listings);
   const totalQuantity = sum(Array.from(quantities.values()));
@@ -354,8 +414,6 @@ const prepareSubmission = async (
   if (!answersResult.ok) {
     return errorResponse(answersResult.error);
   }
-
-  const contact = extractContact(values);
 
   const date = parseBookingDate(form, ctx);
   if (date instanceof Response) return date;
@@ -384,87 +442,47 @@ const prepareSubmission = async (
     answerIds: answersResult.answerIds,
     selectedListingIds,
   };
-  const listingAnswerIds = computeListingAnswerMap(ctx, info);
 
-  return {
-    contact,
+  const addOns = parseAddOnSelections(form, ctx.addOns);
+  const promoCode = form.getString("promo_code");
+  const paymentsEnabled = isPaymentsEnabled();
+  const modifiers = await resolveModifiers(items, { addOns, code: promoCode });
+  const reservationAmount = await publicReservationAmount();
+  const pricingIntent = checkoutIntentForSubmission(emptyContact, {
     ctx,
     date,
     dayCount,
     hasCustomisable,
     info,
     items,
-    listingAnswerIds,
-    quantities,
-  };
-};
-
-/** Process submitted form after CSRF and demo overrides. */
-const processSubmission = async (
-  request: Request,
-  ctx: TicketCtx,
-  form: FormParams,
-): Promise<Response> => {
-  const errorResponse = ticketFormErrorResponse(ctx);
-
-  const prepared = await prepareSubmission(ctx, form);
-  if (prepared instanceof Response) return prepared;
-  const {
-    contact,
+    modifiers,
+    reservationAmount,
+  });
+  const pricedOrder = priceCheckout(pricingIntent);
+  const pricedTotal = pricedOrder.total;
+  const requiresPayment = paymentsEnabled && pricedTotal > 0;
+  const validated = validateTicketFields(form, ctx, pricedTotal > 0);
+  if (validated instanceof Response) return validated;
+  const contact = extractContact(validated);
+  const intent = checkoutIntentForSubmission(contact, {
+    ctx,
     date,
     dayCount,
     hasCustomisable,
     info,
     items,
-    listingAnswerIds,
-    quantities,
-  } = prepared;
+    modifiers: paymentsEnabled ? modifiers : [],
+    reservationAmount,
+  });
 
-  // Resolve modifiers and price the cart in full *before* choosing between the
-  // provider checkout and the no-provider completion path. The previous gate
-  // (anyRequiresPayment on raw unitPrice) checked listing prices only: a
-  // zero-price cart with a positive add-on went free, and a paid cart
-  // discounted to zero still hit a payment provider for a zero-amount charge.
-  const addOns = parseAddOnSelections(form, ctx.addOns);
-  const promoCode = form.getString("promo_code");
-  const reservationAmount = await publicReservationAmount();
-  const paymentsEnabled = isPaymentsEnabled();
-  // Resolve modifiers before routing so the final priced total reflects the
-  // full cart, including reservation/deposit orders.
-  const modifiers = paymentsEnabled
-    ? await resolveModifiers(items, { addOns, code: promoCode })
-    : [];
-
-  const draftIntent: CheckoutIntent = {
-    ...contact,
-    date,
-    items,
-    listingAnswerIds,
-    // Carry the chosen span only when a customisable listing is involved, so
-    // the webhook re-prices and dates the booking by day count, not the
-    // listing's fixed duration.
-    ...(hasCustomisable ? { dayCount } : {}),
-    ...(ctx.siteToken ? { siteToken: ctx.siteToken } : {}),
-    ...(reservationAmount ? { reservationAmount } : {}),
-    ...(modifiers.length > 0 ? { modifiers } : {}),
-  };
-  const total = priceCheckout(draftIntent).total;
-
-  // Route by the final priced total. A positive total with payments enabled
-  // goes to the provider; a zero total (a discount applied, or modifiers that
-  // net a zero-price listing back to zero) completes without a provider,
-  // recording modifier usage if any was resolved.
-  if (paymentsEnabled && total > 0) {
-    const available = await checkAvailability(
-      ctx.listings,
-      quantities,
+  if (requiresPayment) {
+    return handlePaidPath(request, {
+      ctx,
       date,
       dayCount,
-    );
-    if (!available) {
-      return errorResponse("Sorry, some tickets are no longer available");
-    }
-    return handlePaymentFlow(request, draftIntent, ctx);
+      intent,
+      quantities,
+    });
   }
   return handleFreePath({
     contact,
@@ -473,10 +491,9 @@ const processSubmission = async (
     dayCount,
     hasCustomisable,
     info,
-    items,
-    modifiers,
+    modifierUsages: paymentsEnabled ? pricedOrder.modifierUsages : [],
     paymentBreakdown: paymentsEnabled
-      ? ticketPaymentBreakdown(draftIntent)
+      ? ticketPaymentBreakdown(intent)
       : undefined,
     quantities,
   });
