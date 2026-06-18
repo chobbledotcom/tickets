@@ -2787,7 +2787,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         setListingQuestions,
         getAttendeeAnswersBatch,
       } = await import("#shared/db/questions.ts");
-      const q = await questionsTable.insert({ text: "Size?" });
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "Size?",
+      });
       const a = await answersTable.insert({
         questionId: q.id,
         sortOrder: 0,
@@ -5361,7 +5364,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       });
 
       // Add a custom question only to listing1
-      const q = await questionsTable.insert({ text: "Dietary needs?" });
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "Dietary needs?",
+      });
       const a1 = await answersTable.insert({
         questionId: q.id,
         sortOrder: 0,
@@ -5473,7 +5479,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         unitPrice: 1000,
       });
 
-      const q = await questionsTable.insert({ text: "Dietary needs?" });
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "Dietary needs?",
+      });
       const a1 = await answersTable.insert({
         questionId: q.id,
         sortOrder: 1,

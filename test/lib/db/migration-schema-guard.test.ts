@@ -33,8 +33,9 @@ describe("db > migrations > schema change guard", () => {
         "2026-06-18_answer_price_modifiers",
         "2026-06-18_contact_preferences",
         "2026-06-18_modifier_min_visits",
+        "2026-06-18_question_display_type",
       ],
-      schemaHash: "lxidox",
+      schemaHash: "hnqqa9",
     });
   });
 });

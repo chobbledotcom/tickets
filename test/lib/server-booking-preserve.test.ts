@@ -131,7 +131,10 @@ describeWithEnv("server (booking input preservation)", { db: true }, () => {
   test("re-fills a question answer", async () => {
     await settings.update.terms(TERMS);
     const listing = await createTestListing({ maxQuantity: 5, name: "Ticket" });
-    const question = await questionsTable.insert({ text: "Size?" });
+    const question = await questionsTable.insert({
+      displayType: "radio",
+      text: "Size?",
+    });
     const answer = await answersTable.insert({
       questionId: question.id,
       sortOrder: 0,

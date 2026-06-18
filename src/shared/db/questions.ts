@@ -27,7 +27,10 @@ import type { CalcKind, ModifierDirection } from "#shared/price-modifier.ts";
 // ---------------------------------------------------------------------------
 
 /** A custom multiple-choice question */
+export type QuestionDisplayType = "radio" | "select";
+
 export interface Question {
+  display_type: QuestionDisplayType;
   id: number;
   text: string; // encrypted
 }
@@ -79,12 +82,16 @@ const questionIdAndSortOrder = {
   sort_order: col.simple<number>(),
 };
 
-type QuestionInput = { text: string };
+type QuestionInput = { displayType: QuestionDisplayType; text: string };
 
 export const questionsTable = defineTable<Question, QuestionInput>({
   name: "questions",
   primaryKey: "id",
-  schema: { id: generatedId, text: encryptedText },
+  schema: {
+    display_type: col.simple<QuestionDisplayType>(),
+    id: generatedId,
+    text: encryptedText,
+  },
 });
 
 type AnswerInput = {
@@ -160,6 +167,7 @@ export const attendeeAnswersTable = defineTable<
 /** Flat row from a question ← LEFT JOIN answers query */
 type JoinedRow = {
   q_id: number;
+  q_display_type: QuestionDisplayType;
   q_text: string;
   a_id: number | null;
   a_text: string | null;
@@ -171,7 +179,7 @@ type JoinedRow = {
 };
 
 /** Shared SELECT columns and JOIN for question + answers */
-const QA_COLS = `q.id AS q_id, q.text AS q_text,
+const QA_COLS = `q.id AS q_id, q.display_type AS q_display_type, q.text AS q_text,
        a.id AS a_id, a.text AS a_text,
        a.question_id AS a_question_id, a.sort_order AS a_sort_order,
        a.calc_kind AS a_calc_kind, a.calc_value AS a_calc_value, a.direction AS a_direction`;
@@ -180,9 +188,17 @@ const QA_JOIN = "questions q LEFT JOIN answers a ON a.question_id = q.id";
 /** Group flat joined rows into QuestionWithAnswers[], preserving row order.
  * Decrypts question and answer text in parallel. */
 const groupJoinedRows = (rows: JoinedRow[]): Promise<QuestionWithAnswers[]> => {
-  type Group = { text: string; answers: Answer[] };
+  type Group = {
+    displayType: QuestionDisplayType;
+    text: string;
+    answers: Answer[];
+  };
   const questionMap = reduce((acc: Map<number, Group>, row: JoinedRow) => {
-    const group = acc.get(row.q_id) ?? { answers: [], text: row.q_text };
+    const group = acc.get(row.q_id) ?? {
+      answers: [],
+      displayType: row.q_display_type,
+      text: row.q_text,
+    };
     if (row.a_id !== null) {
       group.answers.push({
         calc_kind: row.a_calc_kind,
@@ -200,10 +216,10 @@ const groupJoinedRows = (rows: JoinedRow[]): Promise<QuestionWithAnswers[]> => {
   const entries = [...questionMap.entries()];
   return Promise.all(
     map(
-      ([id, { text, answers }]: [
+      ([id, { displayType, text, answers }]: [
         number,
-        { text: string; answers: Answer[] },
-      ]) => decryptQuestion(id, text, answers),
+        { displayType: QuestionDisplayType; text: string; answers: Answer[] },
+      ]) => decryptQuestion(id, displayType, text, answers),
     )(entries),
   );
 };
@@ -214,11 +230,12 @@ const withAnswers = filter((q: QuestionWithAnswers) => q.answers.length > 0);
 /** Decrypt a single question and its answers */
 const decryptQuestion = async (
   id: number,
+  displayType: QuestionDisplayType,
   rawText: string,
   rawAnswers: Answer[],
 ): Promise<QuestionWithAnswers> => {
   const [question, ...answers] = await Promise.all([
-    questionsTable.fromDb({ id, text: rawText }),
+    questionsTable.fromDb({ display_type: displayType, id, text: rawText }),
     ...map((a: Answer) => answersTable.fromDb(a))(rawAnswers),
   ]);
   return { ...question, answers };

@@ -20,7 +20,10 @@ import {
 
 /** Helper: create a question via the admin form */
 const createQuestion = async (text: string): Promise<number> => {
-  const { response } = await adminFormPost("/admin/questions", { text });
+  const { response } = await adminFormPost("/admin/questions", {
+    display_type: "radio" as const,
+    text,
+  });
   expect(response.status).toBe(302);
   expectFlash(response, "Question created");
   // Get the ID from the DB
@@ -74,7 +77,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
   describe("POST /admin/questions", () => {
     testRequiresAuth("/admin/questions", {
-      body: { text: "Test?" },
+      body: { display_type: "radio" as const, text: "Test?" },
       method: "POST",
     });
 
@@ -85,6 +88,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
     test("redirects to the new question's detail page", async () => {
       const { response } = await adminFormPost("/admin/questions", {
+        display_type: "radio" as const,
         text: "Redirect target?",
       });
       const { getAllQuestionsWithAnswers } = await import(
@@ -100,6 +104,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
     test("rejects empty text", async () => {
       const { response } = await adminFormPost("/admin/questions", {
+        display_type: "radio" as const,
         text: "",
       });
       expect(response.status).toBe(302);
@@ -110,8 +115,27 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       );
     });
 
+    test("creates select questions", async () => {
+      const { response } = await adminFormPost("/admin/questions", {
+        display_type: "select" as const,
+        text: "Choose one?",
+      });
+      const { getAllQuestionsWithAnswers } = await import(
+        "#shared/db/questions.ts"
+      );
+      const question = (await getAllQuestionsWithAnswers()).find(
+        (q) => q.text === "Choose one?",
+      );
+      expect(question?.display_type).toBe("select");
+      expectRedirectWithFlash(
+        `/admin/questions/${question!.id}`,
+        "Question created",
+      )(response);
+    });
+
     test("rejects whitespace-only text", async () => {
       const { response } = await adminFormPost("/admin/questions", {
+        display_type: "radio" as const,
         text: "   ",
       });
       expect(response.status).toBe(302);
@@ -152,7 +176,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
   describe("POST /admin/questions/:id/edit", () => {
     testRequiresAuth("/admin/questions/1/edit", {
-      body: { text: "Edited" },
+      body: { display_type: "radio" as const, text: "Edited" },
       method: "POST",
       setup: async () => {
         await createQuestion("Edit me");
@@ -162,6 +186,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     test("updates question text", async () => {
       const id = await createQuestion("Before edit");
       const { response } = await adminFormPost(`/admin/questions/${id}/edit`, {
+        display_type: "radio" as const,
         text: "After edit",
       });
       expectRedirectWithFlash(
@@ -178,6 +203,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     test("rejects empty text with error page", async () => {
       const id = await createQuestion("Keep me");
       const { response } = await adminFormPost(`/admin/questions/${id}/edit`, {
+        display_type: "radio" as const,
         text: "",
       });
       expect(response.status).toBe(302);
@@ -190,6 +216,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
     test("returns 404 for non-existent question on edit", async () => {
       const { response } = await adminFormPost("/admin/questions/999/edit", {
+        display_type: "radio" as const,
         text: "Updated",
       });
       expectStatus(404)(response);
@@ -198,6 +225,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     test("redirects with error when question disappears during empty text validation", async () => {
       // Edit with empty text on a non-existent question triggers the requireTextOrError redirect
       const { response } = await adminFormPost("/admin/questions/999/edit", {
+        display_type: "radio" as const,
         text: "",
       });
       expect(response.status).toBe(302);
@@ -852,6 +880,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     test("logs question update", async () => {
       const id = await createQuestion("Before Update Q");
       await adminFormPost(`/admin/questions/${id}/edit`, {
+        display_type: "radio" as const,
         text: "After Update Q",
       });
       const { response } = await adminGet("/admin/log");

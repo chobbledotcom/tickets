@@ -141,6 +141,9 @@ export const SettingsSubNav = (): JSX.Element => (
         <a href="/admin/settings/statuses">{t("nav.sub.statuses")}</a>
       </li>
       <li>
+        <a href="/admin/questions">{t("terms.questions")}</a>
+      </li>
+      <li>
         <a href="/admin/logistics">{t("nav.logistics")}</a>
       </li>
       <li>

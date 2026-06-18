@@ -471,7 +471,21 @@ const renderTermsAndCheckbox = (terms: string): string => {
   );
 };
 
-/** Render custom multiple-choice question fields (radio buttons).
+const answerLabelSuffix = (
+  answer: QuestionWithAnswers["answers"][number],
+): string => {
+  const label = answerPriceLabel(answer);
+  return label ? ` <small>${escapeHtml(label)}</small>` : "";
+};
+
+const answerOptionText = (
+  answer: QuestionWithAnswers["answers"][number],
+): string => {
+  const label = answerPriceLabel(answer);
+  return `${escapeHtml(answer.text)}${label ? ` (${escapeHtml(label)})` : ""}`;
+};
+
+/** Render custom multiple-choice question fields.
  * When questionListingMap is provided, adds data-listing-ids
  * so JS can show/hide questions based on selected listing quantities. */
 export const renderQuestions = (
@@ -483,18 +497,24 @@ export const renderQuestions = (
     .map((q) => {
       // Restore the chosen answer when a validation error re-renders the page.
       const answered = savedFormValue(`question_${q.id}`);
-      const options = q.answers
-        .map(
-          (a) =>
-            `<label><input type="radio" name="question_${q.id}" value="${a.id}"${
-              answered === String(a.id) ? " checked" : ""
-            } required> ${escapeHtml(a.text)}${
-              answerPriceLabel(a)
-                ? ` <small>${escapeHtml(answerPriceLabel(a))}</small>`
-                : ""
-            }</label>`,
-        )
-        .join("");
+      const options =
+        q.display_type === "select"
+          ? `<label><span class="sr-only">${escapeHtml(q.text)}</span><select name="question_${q.id}" required><option value="">Select an answer</option>${q.answers
+              .map(
+                (a) =>
+                  `<option value="${a.id}"${
+                    answered === String(a.id) ? " selected" : ""
+                  }>${answerOptionText(a)}</option>`,
+              )
+              .join("")}</select></label>`
+          : q.answers
+              .map(
+                (a) =>
+                  `<label><input type="radio" name="question_${q.id}" value="${a.id}"${
+                    answered === String(a.id) ? " checked" : ""
+                  } required> ${escapeHtml(a.text)}${answerLabelSuffix(a)}</label>`,
+              )
+              .join("");
       const listingIds = questionListingMap?.get(q.id);
       const listingAttr = listingIds
         ? ` data-listing-ids="${listingIds.join(" ")}"`
