@@ -682,7 +682,10 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       );
       const { questionsTable, answersTable, setListingQuestions } =
         await import("#shared/db/questions.ts");
-      const q = await questionsTable.insert({ text: "Color" });
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "Color",
+      });
       await answersTable.insert({
         questionId: q.id,
         sortOrder: 0,

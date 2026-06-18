@@ -4512,7 +4512,10 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
   describe("single-ticket with custom questions", () => {
     /** Create a question with answers and assign it to an listing */
     const setupQuestionForListing = async (listingId: number) => {
-      const q = await questionsTable.insert({ text: "T-shirt size?" });
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "T-shirt size?",
+      });
       const a1 = await answersTable.insert({
         questionId: q.id,
         sortOrder: 0,
@@ -4611,7 +4614,10 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
 
   describe("ticket with custom questions", () => {
     const setupQuestionForListings = async (listingIds: number[]) => {
-      const q = await questionsTable.insert({ text: "Dietary needs?" });
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "Dietary needs?",
+      });
       const a1 = await answersTable.insert({
         questionId: q.id,
         sortOrder: 0,
@@ -4675,7 +4681,10 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
         name: "Multi Evt B",
       });
       // Question 1 assigned to listing1 only
-      const q1 = await questionsTable.insert({ text: "Listing A question?" });
+      const q1 = await questionsTable.insert({
+        displayType: "radio",
+        text: "Listing A question?",
+      });
       const a1 = await answersTable.insert({
         questionId: q1.id,
         sortOrder: 0,
@@ -4684,7 +4693,10 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
       await setListingQuestions(listing1.id, [q1.id]);
 
       // Question 2 assigned to listing2 only
-      const q2 = await questionsTable.insert({ text: "Listing B question?" });
+      const q2 = await questionsTable.insert({
+        displayType: "radio",
+        text: "Listing B question?",
+      });
       const a2 = await answersTable.insert({
         questionId: q2.id,
         sortOrder: 0,
@@ -4726,7 +4738,10 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
         name: "Multi Q Shared 2",
       });
       // Question assigned to BOTH listings
-      const q1 = await questionsTable.insert({ text: "Shared question?" });
+      const q1 = await questionsTable.insert({
+        displayType: "radio",
+        text: "Shared question?",
+      });
       const a1 = await answersTable.insert({
         questionId: q1.id,
         sortOrder: 0,
@@ -4766,7 +4781,10 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
         name: "Multi Q Filter 2",
       });
       // Only assign question to listing1
-      const q = await questionsTable.insert({ text: "Listing1 question?" });
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "Listing1 question?",
+      });
       await answersTable.insert({
         questionId: q.id,
         sortOrder: 0,

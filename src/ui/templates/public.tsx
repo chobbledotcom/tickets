@@ -482,14 +482,24 @@ export const renderQuestions = (
     .map((q) => {
       // Restore the chosen answer when a validation error re-renders the page.
       const answered = savedFormValue(`question_${q.id}`);
-      const options = q.answers
-        .map(
-          (a) =>
-            `<label><input type="radio" name="question_${q.id}" value="${a.id}"${
-              answered === String(a.id) ? " checked" : ""
-            } required> ${escapeHtml(a.text)}</label>`,
-        )
-        .join("");
+      const options =
+        q.display_type === "select"
+          ? `<label><span class="sr-only">${escapeHtml(q.text)}</span><select name="question_${q.id}" required><option value="">Select an answer</option>${q.answers
+              .map(
+                (a) =>
+                  `<option value="${a.id}"${
+                    answered === String(a.id) ? " selected" : ""
+                  }>${escapeHtml(a.text)}</option>`,
+              )
+              .join("")}</select></label>`
+          : q.answers
+              .map(
+                (a) =>
+                  `<label><input type="radio" name="question_${q.id}" value="${a.id}"${
+                    answered === String(a.id) ? " checked" : ""
+                  } required> ${escapeHtml(a.text)}</label>`,
+              )
+              .join("");
       const listingIds = questionListingMap?.get(q.id);
       const listingAttr = listingIds
         ? ` data-listing-ids="${listingIds.join(" ")}"`

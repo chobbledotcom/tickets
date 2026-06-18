@@ -44,6 +44,7 @@ import modifierCodeMigration from "./migrations/2026-06-17_modifier_code.ts";
 import processedSmsInboundMigration from "./migrations/2026-06-17_processed_sms_inbound.ts";
 import contactPreferencesMigration from "./migrations/2026-06-18_contact_preferences.ts";
 import modifierMinVisitsMigration from "./migrations/2026-06-18_modifier_min_visits.ts";
+import questionDisplayTypeMigration from "./migrations/2026-06-18_question_display_type.ts";
 import { repairLegacyRenames } from "./migrations/rename-utils.ts";
 import {
   LATEST_UPDATE,
@@ -184,6 +185,7 @@ export const MIGRATIONS: Migration[] = [
   modifierAggregatesMigration,
   contactPreferencesMigration,
   modifierMinVisitsMigration,
+  questionDisplayTypeMigration,
 ].map((build) => build(migrationContext));
 
 export const MIGRATION_IDS: string[] = MIGRATIONS.map(

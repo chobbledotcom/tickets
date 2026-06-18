@@ -34,6 +34,7 @@ import {
   getNextAnswerSortOrder,
   getQuestionListingIds,
   getQuestionWithAnswers,
+  type QuestionDisplayType,
   type QuestionWithAnswers,
   questionsTable,
   setListingQuestions,
@@ -62,6 +63,16 @@ export const questionTextForm = defineForm({
       placeholder: "e.g. What is your T-shirt size?",
       required: true,
       type: "text",
+    },
+    {
+      label: "Display as",
+      name: "display_type",
+      options: [
+        { label: "Radio buttons", value: "radio" },
+        { label: "Select box", value: "select" },
+      ],
+      required: true,
+      type: "select",
     },
   ] as const,
   id: "questionText",
@@ -95,8 +106,11 @@ const handleQuestionsPost = createAuthedFormRoute({
   auth: OWNER_FORM,
   form: questionTextForm,
   onInvalid: ({ error }) => errorRedirect("/admin/questions", error),
-  onValid: async ({ values: { text } }) => {
-    const question = await questionsTable.insert({ text });
+  onValid: async ({ values: { display_type, text } }) => {
+    const question = await questionsTable.insert({
+      displayType: display_type as QuestionDisplayType,
+      text,
+    });
     await assignNextQuestionSortOrder(question.id);
     await logActivity(`Question '${text}' created`);
     return redirect(
@@ -139,14 +153,17 @@ const redirectToQuestion = (args: {
 
 /** Handle POST /admin/questions/:id/edit */
 const handleQuestionEdit = createAuthedFormRoute<
-  { text: string },
+  { display_type: string; text: string },
   QuestionIdParams
 >({
   auth: OWNER_FORM,
   form: questionTextForm,
   onInvalid: redirectToQuestion,
-  onValid: async ({ params, values: { text } }) => {
-    const updated = await questionsTable.update(params.id, { text });
+  onValid: async ({ params, values: { display_type, text } }) => {
+    const updated = await questionsTable.update(params.id, {
+      displayType: display_type as QuestionDisplayType,
+      text,
+    });
     if (!updated) return notFoundResponse();
     await logActivity(`Question '${text}' updated`);
     return redirect(`/admin/questions/${params.id}`, "Question updated", true);
