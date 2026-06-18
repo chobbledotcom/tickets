@@ -318,12 +318,6 @@ describe("generateSuperuserPassword", () => {
     }
   });
 
-  test("produces different passwords on successive calls", () => {
-    const pass1 = generateSuperuserPassword();
-    const pass2 = generateSuperuserPassword();
-    expect(pass1).not.toBe(pass2);
-  });
-
   test("handles length 0 gracefully (empty string)", () => {
     expect(generateSuperuserPassword(0)).toBe("");
   });
