@@ -127,6 +127,18 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
   });
 
   describe("GET /listings", () => {
+    test("redirects legacy /events to /listings when public site is enabled", async () => {
+      await settings.update.showPublicSite(true);
+      const response = await handleRequest(mockRequest("/events"));
+      expectRedirect(response, /^\/listings$/);
+    });
+
+    test("does not redirect legacy /events subpaths", async () => {
+      await settings.update.showPublicSite(true);
+      const response = await handleRequest(mockRequest("/events/archive"));
+      expect(response.status).toBe(404);
+    });
+
     test("redirects to admin when public site is disabled", async () => {
       const response = await handleRequest(mockRequest("/listings"));
       expectRedirect(response, /^\/admin\/login$/);

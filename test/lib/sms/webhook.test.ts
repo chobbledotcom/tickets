@@ -173,7 +173,7 @@ describeWithEnv("api > sms webhook", { db: true }, () => {
     await configure();
     const res = await postWebhook(
       { event: "sms:received", payload: {} },
-      { timestamp: currentTimestamp(301) },
+      { timestamp: currentTimestamp(302) },
     );
     expect(res.status).toBe(401);
   });
