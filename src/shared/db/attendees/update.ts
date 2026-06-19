@@ -5,8 +5,7 @@
 import { filter, map, pipe, reduce, sumOf, unique } from "#fp";
 import type { UpdateAttendeePIIInput } from "#shared/db/attendee-types.ts";
 import { buildPiiBlob, encryptPiiBlob } from "#shared/db/attendees/pii.ts";
-import { getDb, queryAll } from "#shared/db/client.ts";
-import { invalidateListingsCache } from "#shared/db/listings.ts";
+import { execute, queryAll } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
 import { normalizeDurationDays } from "#shared/types.ts";
 
@@ -18,10 +17,10 @@ const updateListingAttendeeField =
     listingId: number,
     value: number,
   ): Promise<void> => {
-    await getDb().execute({
-      args: [value, attendeeId, listingId],
-      sql: `UPDATE listing_attendees SET ${field} = ? WHERE attendee_id = ? AND listing_id = ?`,
-    });
+    await execute(
+      `UPDATE listing_attendees SET ${field} = ? WHERE attendee_id = ? AND listing_id = ?`,
+      [value, attendeeId, listingId],
+    );
   };
 
 const setRefunded = updateListingAttendeeField("refunded");
@@ -48,20 +47,20 @@ export const updateAttendeeOrder = async (
   statusId: number | null,
   remainingBalance: number,
 ): Promise<void> => {
-  await getDb().execute({
-    args: [statusId, remainingBalance, attendeeId],
-    sql: "UPDATE attendees SET status_id = ?, remaining_balance = ? WHERE id = ?",
-  });
+  await execute(
+    "UPDATE attendees SET status_id = ?, remaining_balance = ? WHERE id = ?",
+    [statusId, remainingBalance, attendeeId],
+  );
 };
 
 export const incrementAttachmentDownloads = async (
   attendeeId: number,
   listingId: number,
 ): Promise<void> => {
-  await getDb().execute({
-    args: [attendeeId, listingId],
-    sql: "UPDATE listing_attendees SET attachment_downloads = attachment_downloads + 1 WHERE attendee_id = ? AND listing_id = ?",
-  });
+  await execute(
+    "UPDATE listing_attendees SET attachment_downloads = attachment_downloads + 1 WHERE attendee_id = ? AND listing_id = ?",
+    [attendeeId, listingId],
+  );
 };
 
 export const updateAttendeePII = async (
@@ -76,10 +75,10 @@ export const updateAttendeePII = async (
     }),
     settings.publicKey,
   );
-  await getDb().execute({
-    args: [encryptedPiiBlob, attendeeId],
-    sql: "UPDATE attendees SET pii_blob = ? WHERE id = ?",
-  });
+  await execute("UPDATE attendees SET pii_blob = ? WHERE id = ?", [
+    encryptedPiiBlob,
+    attendeeId,
+  ]);
 };
 
 /**
@@ -93,13 +92,12 @@ export const recomputeListingBookingRanges = async (
   durationDays: number,
 ): Promise<void> => {
   const duration = normalizeDurationDays(durationDays);
-  await getDb().execute({
-    args: [duration, listingId],
-    sql: `UPDATE listing_attendees
+  await execute(
+    `UPDATE listing_attendees
            SET end_at = REPLACE(datetime(start_at, '+' || ? || ' days'), ' ', 'T') || '.000Z'
            WHERE listing_id = ? AND start_at IS NOT NULL`,
-  });
-  invalidateListingsCache();
+    [duration, listingId],
+  );
 };
 
 /** A booking's day range as [start, end) YYYY-MM-DD strings (day-aligned —

@@ -9,7 +9,6 @@
 import { filter, map, reduce } from "#fp";
 import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
 import { executeBatch, insert } from "#shared/db/client.ts";
-import { invalidateListingsCache } from "#shared/db/listings.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import {
   getAttendeeAnswersByQuestion,
@@ -524,8 +523,6 @@ export const applyAttendeeMerge = async (
 
   // Save merged answers for target (one answer per question → flat id list).
   await saveAttendeeAnswers(new Map([[targetId, [...finalAnswers.values()]]]));
-
-  invalidateListingsCache();
 
   const summary: AttendeeMergeApplySummary = {
     answersCleared,

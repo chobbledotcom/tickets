@@ -14,12 +14,34 @@ import {
   type TransactionMode,
 } from "@libsql/client";
 import { lazyRef } from "#fp";
+import { invalidateCachesForTable } from "#shared/cache-registry.ts";
 import {
   addQueryLogEntry,
   isQueryLogEnabled,
   trackQuery,
 } from "#shared/db/query-log.ts";
 import { getEnv } from "#shared/env.ts";
+
+/**
+ * Match the target table of a mutating statement (INSERT/UPDATE/DELETE/REPLACE),
+ * the mirror of query-log's read detector. Anchored at the start so it fails
+ * fast on the SELECTs that dominate the call volume. The optional
+ * `OR <action>` / `OR <action> INTO` clauses cover libsql's conflict variants.
+ */
+const WRITE_TABLE_RE =
+  /^\s*(?:insert(?:\s+or\s+\w+)?\s+into|replace\s+into|update(?:\s+or\s+\w+)?|delete\s+from)\s+["'`]?(\w+)/i;
+
+/**
+ * After a successful write, invalidate every cache that declared a dependency
+ * on the mutated table. A no-op for reads (the regex doesn't match) and for
+ * tables no cache depends on. Over-invalidation is only a cache miss; the
+ * failure we are designing out — a forgotten manual invalidate leaving stale
+ * data — cannot happen because the write itself drives this.
+ */
+const invalidateForSql = (sql: string): void => {
+  const match = WRITE_TABLE_RE.exec(sql);
+  if (match) invalidateCachesForTable(match[1]!.toLowerCase());
+};
 
 const createDbClient = (): Client => {
   const url = getEnv("DB_URL");
@@ -48,13 +70,29 @@ export const setDb = (client: Client | null): void => dbSetter(client);
 export const resultRows = <T>(result: ResultSet): T[] =>
   result.rows as unknown as T[];
 
+/**
+ * Run a single statement: track it for the query log / N+1 guard, then fire any
+ * table-scoped cache invalidation. Every single-statement read and write goes
+ * through here (queryOne/queryAll wrap it), so cache invalidation is driven by
+ * the write itself rather than by each call site remembering to invalidate.
+ */
+export const execute = async (
+  sql: string,
+  args?: InValue[],
+): Promise<ResultSet> => {
+  const result = await trackQuery(sql, () =>
+    args ? getDb().execute({ args, sql }) : getDb().execute(sql),
+  );
+  invalidateForSql(sql);
+  return result;
+};
+
 /** Query single row, returning null if not found */
 export const queryOne = async <T>(
   sql: string,
   args: InValue[],
 ): Promise<T | null> => {
-  const result = await trackQuery(sql, () => getDb().execute({ args, sql }));
-  const rows = resultRows<T>(result);
+  const rows = resultRows<T>(await execute(sql, args));
   return rows.length === 0 ? null : rows[0]!;
 };
 
@@ -62,12 +100,7 @@ export const queryOne = async <T>(
 export const queryAll = async <T>(
   sql: string,
   args?: InValue[],
-): Promise<T[]> => {
-  const result = await trackQuery(sql, () =>
-    args ? getDb().execute({ args, sql }) : getDb().execute(sql),
-  );
-  return resultRows<T>(result);
-};
+): Promise<T[]> => resultRows<T>(await execute(sql, args));
 
 /** Count all rows in a table. `table` must be a trusted constant, not input. */
 export const countRows = async (table: string): Promise<number> => {
@@ -85,8 +118,7 @@ export const deleteByField = async (
   field: string,
   value: InValue,
 ): Promise<void> => {
-  const sql = `DELETE FROM ${table} WHERE ${field} = ?`;
-  await trackQuery(sql, () => getDb().execute({ args: [value], sql }));
+  await execute(`DELETE FROM ${table} WHERE ${field} = ?`, [value]);
 };
 
 /** Delete rows from multiple tables in a single batch transaction */
@@ -114,24 +146,26 @@ export const resetAggregates = async <T extends string>(
   const sql = `UPDATE ${table} SET ${fields
     .map((field) => resetSql[field])
     .join(", ")} WHERE id = ?`;
-  await trackQuery(sql, () =>
-    getDb().execute({
-      args: fields.map(() => entityId).concat(entityId),
-      sql,
-    }),
-  );
+  await execute(sql, fields.map(() => entityId).concat(entityId));
 };
 
-/** Execute a batch with optional query logging and timing */
+/**
+ * Execute a batch with optional query logging, then invalidate caches for every
+ * table the batch mutated. Invalidation runs once the transaction has
+ * committed; if the batch throws (rollback) it is skipped, so a cache is never
+ * cleared for a write that did not land.
+ */
 const trackedBatch = async (
   statements: Array<{ sql: string; args: InValue[] }>,
   mode: TransactionMode,
 ): Promise<ResultSet[]> => {
-  if (!isQueryLogEnabled()) return getDb().batch(statements, mode);
   const start = performance.now();
   const results = await getDb().batch(statements, mode);
-  const elapsed = performance.now() - start;
-  for (const stmt of statements) addQueryLogEntry(stmt.sql, elapsed);
+  if (isQueryLogEnabled()) {
+    const elapsed = performance.now() - start;
+    for (const stmt of statements) addQueryLogEntry(stmt.sql, elapsed);
+  }
+  for (const stmt of statements) invalidateForSql(stmt.sql);
   return results;
 };
 

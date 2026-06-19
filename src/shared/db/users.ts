@@ -12,11 +12,15 @@ import {
 import { deriveKEK, wrapKey } from "#shared/crypto/keys.ts";
 import {
   deleteByFieldBatch,
-  getDb,
+  execute,
   insert,
   queryAll,
 } from "#shared/db/client.ts";
-import { createKeyedCache, registerCache } from "#shared/db/common-schema.ts";
+import {
+  createKeyedCache,
+  registerCache,
+  registerTableInvalidation,
+} from "#shared/db/common-schema.ts";
 import { now } from "#shared/now.ts";
 import { type AdminLevel, isAdminLevel, type User } from "#shared/types.ts";
 
@@ -83,6 +87,8 @@ export const onUsersInvalidated = (listener: () => void): void => {
 const loadAllUsers = (): Promise<User[]> => usersCache.getAll();
 
 registerCache(() => ({ entries: usersCache.size(), name: "users" }));
+// Any write to the users table clears the cache automatically (db-client layer).
+registerTableInvalidation(["users"], () => usersCache.invalidate());
 
 /** Invalidate the users cache (for testing or after writes). */
 export const invalidateUsersCache = (): void => {
@@ -121,9 +127,8 @@ const insertUser = async (opts: {
     username_index: usernameIndex,
     wrapped_data_key: opts.wrappedDataKey,
   };
-  const result = await getDb().execute(insert("users", values));
-
-  invalidateUsersCache();
+  const { sql, args } = insert("users", values);
+  const result = await execute(sql, args);
   const id = Number(result.lastInsertRowid);
   return { id, ...values };
 };
@@ -250,11 +255,10 @@ export const setUserPassword = async (
   const encryptedHash = await encrypt(passwordHash);
   const encryptedNull = await encrypt("");
 
-  await getDb().execute({
-    args: [encryptedHash, encryptedNull, encryptedNull, userId],
-    sql: "UPDATE users SET password_hash = ?, invite_code_hash = ?, invite_expiry = ? WHERE id = ?",
-  });
-  invalidateUsersCache();
+  await execute(
+    "UPDATE users SET password_hash = ?, invite_code_hash = ?, invite_expiry = ? WHERE id = ?",
+    [encryptedHash, encryptedNull, encryptedNull, userId],
+  );
 
   return passwordHash;
 };
@@ -270,11 +274,10 @@ export const activateUser = async (
   const kek = await deriveKEK(decryptedPasswordHash);
   const wrappedDataKey = await wrapKey(dataKey, kek);
 
-  await getDb().execute({
-    args: [wrappedDataKey, userId],
-    sql: "UPDATE users SET wrapped_data_key = ? WHERE id = ?",
-  });
-  invalidateUsersCache();
+  await execute("UPDATE users SET wrapped_data_key = ? WHERE id = ?", [
+    wrappedDataKey,
+    userId,
+  ]);
 };
 
 /**
@@ -287,7 +290,6 @@ export const deleteUser = async (userId: number): Promise<void> => {
     { field: "user_id", table: "user_logistics_agents", value: userId },
     { field: "id", table: "users", value: userId },
   ]);
-  invalidateUsersCache();
 };
 
 /**

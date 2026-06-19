@@ -1,11 +1,5 @@
 import { mapParallel } from "#fp";
-import {
-  executeBatch,
-  getDb,
-  queryAll,
-  resultRows,
-} from "#shared/db/client.ts";
-import { trackQuery } from "#shared/db/query-log.ts";
+import { execute, executeBatch, queryAll, resultRows } from "#shared/db/client.ts";
 
 /**
  * Execute a SQL query and map result rows through an async transformer.
@@ -14,10 +8,8 @@ import { trackQuery } from "#shared/db/query-log.ts";
  */
 export const queryAndMap =
   <Row, Out>(toOut: (row: Row) => Promise<Out>) =>
-  async (sql: string): Promise<Out[]> => {
-    const result = await trackQuery(sql, () => getDb().execute(sql));
-    return mapParallel(toOut)(resultRows<Row>(result));
-  };
+  async (sql: string): Promise<Out[]> =>
+    mapParallel(toOut)(resultRows<Row>(await execute(sql)));
 
 /**
  * Swap the `sort_order` of two rows (by id) in a table that has `id` and

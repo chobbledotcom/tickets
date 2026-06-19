@@ -11,8 +11,11 @@
 import type { InValue } from "@libsql/client";
 import * as v from "valibot";
 import { compact, filter, mapParallel, reduce } from "#fp";
-import { registerCache } from "#shared/cache-registry.ts";
-import { getDb, queryAll, queryOne } from "#shared/db/client.ts";
+import {
+  registerCache,
+  registerTableInvalidation,
+} from "#shared/cache-registry.ts";
+import { execute, queryAll, queryOne } from "#shared/db/client.ts";
 import { requestCache } from "#shared/request-cache.ts";
 
 /**
@@ -283,10 +286,7 @@ export const defineTable = <Row, Input = Row>(config: {
     // Safe: columns are Object.keys(dbValues), so all values exist
     const args: InValue[] = columns.map((col) => dbValues[col] as InValue);
 
-    const result = await getDb().execute({
-      args,
-      sql: buildInsertSql(name, columns),
-    });
+    const result = await execute(buildInsertSql(name, columns), args);
 
     const initialRow = schema[primaryKey].generated
       ? { [primaryKey]: Number(result.lastInsertRowid) }
@@ -341,10 +341,7 @@ export const defineTable = <Row, Input = Row>(config: {
 
   // Delete by ID implementation
   const deleteById = async (id: InValue): Promise<void> => {
-    await getDb().execute({
-      args: [id],
-      sql: `DELETE FROM ${name} WHERE ${primaryKey} = ?`,
-    });
+    await execute(`DELETE FROM ${name} WHERE ${primaryKey} = ?`, [id]);
   };
 
   // Find all implementation
@@ -389,38 +386,14 @@ export const defineTable = <Row, Input = Row>(config: {
 };
 
 /**
- * Wrap a table so that insert, update, and deleteById automatically
- * call an invalidation callback (e.g. cache invalidation).
- * Eliminates the repeated spread-and-override pattern in groups/holidays/listings.
- */
-export const withCacheInvalidation = <Row, Input>(
-  table: Table<Row, Input>,
-  invalidate: () => void,
-): Table<Row, Input> => ({
-  ...table,
-  deleteById: async (id) => {
-    await table.deleteById(id);
-    invalidate();
-  },
-  insert: async (input) => {
-    const result = await table.insert(input);
-    invalidate();
-    return result;
-  },
-  update: async (id, input) => {
-    const result = await table.update(id, input);
-    invalidate();
-    return result;
-  },
-});
-
-/**
  * Bundle a request-scoped cache around a table.
  *
- * Wires together the three pieces every cached table used to repeat by hand:
+ * Wires together the pieces every cached table used to repeat by hand:
  *  - a {@link requestCache} over `fetchAll` (the decrypted/mapped rows),
  *  - registration with the cache-stats registry under `name`, and
- *  - a `table` wrapped via {@link withCacheInvalidation} so writes clear it.
+ *  - registration with the table→cache invalidation registry, so any write to
+ *    the table (or to a `dependsOn` table whose triggers feed it) clears the
+ *    cache automatically at the db-client layer — no per-write-path call.
  *
  * `fetchAll` may resolve a richer row type than the table's own `Row`
  * (e.g. listings cached with attendee counts), captured by `Cached`.
@@ -429,6 +402,8 @@ export const cachedTable = <Row, Input, Cached = Row>(config: {
   fetchAll: () => Promise<Cached[]>;
   name: string;
   table: Table<Row, Input>;
+  /** Extra tables (beyond the table itself) whose writes should clear it. */
+  dependsOn?: readonly string[];
 }): {
   getAll: () => Promise<Cached[]>;
   invalidate: () => void;
@@ -439,11 +414,11 @@ export const cachedTable = <Row, Input, Cached = Row>(config: {
   const invalidate = (): void => {
     cache.invalidate();
   };
-  return {
-    getAll: () => cache.getAll(),
+  registerTableInvalidation(
+    [config.table.name, ...(config.dependsOn ?? [])],
     invalidate,
-    table: withCacheInvalidation(config.table, invalidate),
-  };
+  );
+  return { getAll: () => cache.getAll(), invalidate, table: config.table };
 };
 
 /** Transform function type for column read/write */
