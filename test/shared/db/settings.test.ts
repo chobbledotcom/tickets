@@ -8,6 +8,7 @@ import {
   settings,
 } from "#shared/db/settings.ts";
 import { getUserByUsername, verifyUserPassword } from "#shared/db/users.ts";
+import { DEFAULT_ORPHAN_RETENTION } from "#shared/orphan-retention.ts";
 import {
   describeWithEnv,
   TEST_ADMIN_PASSWORD,
@@ -503,6 +504,70 @@ describeWithEnv("db > settings", { db: true }, () => {
       settings.setForTest({ superuser_choice: "" });
       expect(settings.superuserChoice).toBe("");
       settings.clearTestOverride("superuser_choice");
+    });
+  });
+
+  describe("orphan-purge settings", () => {
+    const loadOrphanKeys = () =>
+      settings.loadKeys([
+        CONFIG_KEYS.AUTO_PURGE_ORPHANS,
+        CONFIG_KEYS.ORPHAN_PURGE_RETENTION,
+      ]);
+
+    test("autoPurgeOrphans defaults to on for a fresh database", async () => {
+      settings.invalidateCache();
+      await loadOrphanKeys();
+      expect(settings.autoPurgeOrphans).toBe(true);
+    });
+
+    test("autoPurgeOrphans reads an explicit 'false'", async () => {
+      await settings.setRaw(CONFIG_KEYS.AUTO_PURGE_ORPHANS, "false");
+      settings.invalidateCache();
+      await loadOrphanKeys();
+      expect(settings.autoPurgeOrphans).toBe(false);
+    });
+
+    test("autoPurgeOrphans reads an explicit 'true'", async () => {
+      await settings.setRaw(CONFIG_KEYS.AUTO_PURGE_ORPHANS, "true");
+      settings.invalidateCache();
+      await loadOrphanKeys();
+      expect(settings.autoPurgeOrphans).toBe(true);
+    });
+
+    test("update.autoPurgeOrphans persists across a round-trip", async () => {
+      await settings.update.autoPurgeOrphans(false);
+      expect(settings.autoPurgeOrphans).toBe(false);
+      settings.invalidateCache();
+      await loadOrphanKeys();
+      expect(settings.autoPurgeOrphans).toBe(false);
+    });
+
+    test("orphanPurgeRetention defaults to 6 months (182 days)", async () => {
+      settings.invalidateCache();
+      await loadOrphanKeys();
+      expect(settings.orphanPurgeRetention).toBe(DEFAULT_ORPHAN_RETENTION);
+    });
+
+    test("orphanPurgeRetention keeps a valid stored age", async () => {
+      await settings.setRaw(CONFIG_KEYS.ORPHAN_PURGE_RETENTION, "365");
+      settings.invalidateCache();
+      await loadOrphanKeys();
+      expect(settings.orphanPurgeRetention).toBe("365");
+    });
+
+    test("orphanPurgeRetention coerces an invalid stored age to the default", async () => {
+      await settings.setRaw(CONFIG_KEYS.ORPHAN_PURGE_RETENTION, "not-an-age");
+      settings.invalidateCache();
+      await loadOrphanKeys();
+      expect(settings.orphanPurgeRetention).toBe(DEFAULT_ORPHAN_RETENTION);
+    });
+
+    test("update.orphanPurgeRetention persists across a round-trip", async () => {
+      await settings.update.orphanPurgeRetention("730");
+      expect(settings.orphanPurgeRetention).toBe("730");
+      settings.invalidateCache();
+      await loadOrphanKeys();
+      expect(settings.orphanPurgeRetention).toBe("730");
     });
   });
 });

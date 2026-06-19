@@ -16,6 +16,9 @@
  *   `last_activity` is bumped on booking and outreach; pruning subscribed rows
  *   bounds table growth and makes returning-customer recognition
  *   recency-bounded. Unsubscribed rows are suppression records and are kept.
+ * - attendees (orphaned only): rows with no surviving listing booking, older
+ *   than the age chosen on the Privacy page. Opt-in — only scheduled while
+ *   `auto_purge_orphans` is on (see PRUNE_TASKS).
  *
  * The scheduler is fire-and-forget via `addPendingWork` from the request
  * handler. Each table has its own `last_pruned_*` timestamp; a table is
@@ -23,6 +26,7 @@
  */
 
 import { execute } from "#shared/db/client.ts";
+import { purgeOrphanedAttendees } from "#shared/db/orphan-attendees.ts";
 import { RESOLVED_OUTCOME } from "#shared/db/processed-payments.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
@@ -37,6 +41,7 @@ import {
 } from "#shared/limits.ts";
 import { logDebug } from "#shared/logger.ts";
 import { nowMs } from "#shared/now.ts";
+import { orphanRetentionCutoffIso } from "#shared/orphan-retention.ts";
 
 /**
  * Build a pruner that deletes rows older than `retentionMs`, binding an
@@ -124,6 +129,17 @@ export const pruneContacts = async (): Promise<number> => {
 };
 
 /**
+ * Delete orphaned attendees (no surviving listing booking) older than the
+ * owner-configured age. Unlike the other tasks this is opt-in: it is only added
+ * to the schedule while `auto_purge_orphans` is on, and the age comes from the
+ * Privacy page rather than a fixed constant.
+ */
+export const pruneOrphanAttendees = (): Promise<number> =>
+  purgeOrphanedAttendees(
+    orphanRetentionCutoffIso(settings.orphanPurgeRetention, nowMs()),
+  );
+
+/**
  * Parse a `last_pruned_*` setting (stored as ms-epoch string) to a number.
  * Empty string / unparseable => 0, meaning "never run, due immediately".
  */
@@ -177,6 +193,17 @@ const PRUNE_TASKS = (): PruneTask[] => [
     run: pruneContacts,
     writeLast: settings.update.lastPrunedContacts,
   },
+  // Opt-in: scheduled only while the owner leaves automatic orphan purging on.
+  ...(settings.autoPurgeOrphans
+    ? [
+        {
+          lastRaw: settings.lastPrunedOrphans,
+          name: "orphan_attendees",
+          run: pruneOrphanAttendees,
+          writeLast: settings.update.lastPrunedOrphans,
+        },
+      ]
+    : []),
 ];
 
 /**

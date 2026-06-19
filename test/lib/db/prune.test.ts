@@ -15,6 +15,7 @@ import {
   maybeRunPrunes,
   pruneContacts,
   pruneLoginAttempts,
+  pruneOrphanAttendees,
   prunePayments,
   pruneSessions,
   pruneSumupCheckouts,
@@ -149,6 +150,32 @@ const insertContactPreference = async (
   });
 };
 
+/** Insert an orphaned attendee (no listing booking) with the given created
+ * timestamp, returning its id. */
+const insertOrphanAttendee = async (createdIso: string): Promise<number> => {
+  const result = await getDb().execute(
+    insert("attendees", {
+      created: createdIso,
+      pii_blob: "",
+      ticket_token_index: `prune-orphan-${crypto.randomUUID()}`,
+    }),
+  );
+  return Number(result.lastInsertRowid);
+};
+
+/** Is an attendee row with this id still in the DB? */
+const attendeeExists = async (id: number): Promise<boolean> => {
+  const { rows } = await getDb().execute({
+    args: [id],
+    sql: "SELECT 1 FROM attendees WHERE id = ?",
+  });
+  return rows.length > 0;
+};
+
+/** An orphan created a year ago — older than every retention except "5 years". */
+const oldOrphanIso = (): string =>
+  new Date(nowMs() - 365 * 24 * 60 * 60 * 1000).toISOString();
+
 /** Is a token_attempts row with this ip hash still in the DB? */
 const tokenAttemptExists = async (ipHash: string): Promise<boolean> => {
   const { rows } = await getDb().execute({
@@ -193,6 +220,7 @@ const clearAllLastPruned = async (): Promise<void> => {
   await settings.update.lastPrunedTokens("");
   await settings.update.lastPrunedSumup("");
   await settings.update.lastPrunedContacts("");
+  await settings.update.lastPrunedOrphans("");
 };
 
 /** Set all last_pruned_* timestamps to the same value. */
@@ -203,6 +231,7 @@ const setAllLastPruned = async (value: string): Promise<void> => {
   await settings.update.lastPrunedTokens(value);
   await settings.update.lastPrunedSumup(value);
   await settings.update.lastPrunedContacts(value);
+  await settings.update.lastPrunedOrphans(value);
 };
 
 describeWithEnv("db > prune", { db: true }, () => {
@@ -420,6 +449,51 @@ describeWithEnv("db > prune", { db: true }, () => {
       await pruneContacts();
 
       expect(await contactPreferenceExists("contact_opt_out")).toBe(true);
+    });
+  });
+
+  describe("pruneOrphanAttendees", () => {
+    test("deletes orphans older than the configured retention", async () => {
+      await settings.update.orphanPurgeRetention("182");
+      const id = await insertOrphanAttendee(oldOrphanIso());
+
+      await pruneOrphanAttendees();
+
+      expect(await attendeeExists(id)).toBe(false);
+    });
+
+    test("keeps orphans newer than the configured retention", async () => {
+      await settings.update.orphanPurgeRetention("1825");
+      const id = await insertOrphanAttendee(oldOrphanIso());
+
+      await pruneOrphanAttendees();
+
+      expect(await attendeeExists(id)).toBe(true);
+    });
+  });
+
+  describe("orphan auto-purge scheduling", () => {
+    test("maybeRunPrunes purges orphans when auto-purge is on", async () => {
+      await settings.update.autoPurgeOrphans(true);
+      await settings.update.orphanPurgeRetention("182");
+      await clearAllLastPruned();
+      const id = await insertOrphanAttendee(oldOrphanIso());
+
+      await maybeRunPrunes();
+
+      expect(await attendeeExists(id)).toBe(false);
+      expect(settings.lastPrunedOrphans).not.toBe("");
+    });
+
+    test("maybeRunPrunes leaves orphans alone when auto-purge is off", async () => {
+      await settings.update.autoPurgeOrphans(false);
+      await clearAllLastPruned();
+      const id = await insertOrphanAttendee(oldOrphanIso());
+
+      await maybeRunPrunes();
+
+      expect(await attendeeExists(id)).toBe(true);
+      expect(settings.lastPrunedOrphans).toBe("");
     });
   });
 
