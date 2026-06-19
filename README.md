@@ -90,6 +90,7 @@ For image uploads, also add `STORAGE_ZONE_NAME` and `STORAGE_ZONE_KEY` as Bunny 
 - Multi-user: owners invite managers via time-limited links (7-day expiry)
 - Session management: view active sessions, kill all others
 - Settings: payment provider config, email templates, custom domain, embed host restrictions, terms and conditions, password change
+- Privacy tools (`/admin/privacy`): plain-language data-minimisation guidance, automatic/manual purging of orphaned attendee records, and GDPR erasure of a contact's recognition record by email or phone
 - Branding: custom header image, website title, theme colours
 - Built-in admin guide (`/admin/guide`) with FAQ for all features
 - Ntfy error notifications for production monitoring (optional)

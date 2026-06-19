@@ -187,8 +187,15 @@ describeWithEnv("contact-preferences: erasure", { db: true }, () => {
     expect(await preferenceRowExists(keep)).toBe(true);
   });
 
+  test("forgetContact reports one deleted row when a record existed", async () => {
+    const hash = await hashEmail("counted@example.com");
+    await recordVisit(hash);
+    expect(await forgetContact(hash)).toBe(1);
+  });
+
   test("forgetContact is a no-op for an unknown hash", async () => {
-    await forgetContact(await hashEmail("ghost@example.com"));
+    const deleted = await forgetContact(await hashEmail("ghost@example.com"));
+    expect(deleted).toBe(0);
     expect(
       await preferenceRowExists(await hashEmail("ghost@example.com")),
     ).toBe(false);

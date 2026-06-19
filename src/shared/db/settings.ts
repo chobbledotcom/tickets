@@ -34,6 +34,10 @@ import {
 } from "#shared/db/settings-audit.ts";
 import { createUser, invalidateUsersCache } from "#shared/db/users.ts";
 import { nowMs } from "#shared/now.ts";
+import {
+  DEFAULT_ORPHAN_RETENTION,
+  isOrphanRetentionValue,
+} from "#shared/orphan-retention.ts";
 import { DEFAULT_TIMEZONE } from "#shared/timezone.ts";
 import type {
   PaymentProviderSetting,
@@ -68,6 +72,7 @@ export const CONFIG_KEYS = {
   APPLE_WALLET_TEAM_ID: "apple_wallet_team_id",
   APPLE_WALLET_WWDR_CERT: "apple_wallet_wwdr_cert",
   ATTENDEE_COLUMN_ORDER: "attendee_column_order",
+  AUTO_PURGE_ORPHANS: "auto_purge_orphans",
   BOOKING_FEE: "booking_fee",
   BULK_EMAIL_DRAFT: "bulk_email_draft",
   BUNNY_SUBDOMAIN: "bunny_subdomain",
@@ -98,6 +103,7 @@ export const CONFIG_KEYS = {
   HOMEPAGE_TEXT: "homepage_text",
   LAST_PRUNED_CONTACTS: "last_pruned_contacts",
   LAST_PRUNED_LOGINS: "last_pruned_logins",
+  LAST_PRUNED_ORPHANS: "last_pruned_orphans",
   LAST_PRUNED_PAYMENTS: "last_pruned_payments",
   LAST_PRUNED_SESSIONS: "last_pruned_sessions",
   LAST_PRUNED_SUMUP: "last_pruned_sumup",
@@ -107,6 +113,7 @@ export const CONFIG_KEYS = {
   LISTING_COLUMN_ORDER: "listing_column_order",
   ORDER_ENABLED: "order_enabled",
   ORDER_INTRO_TEXT: "order_intro_text",
+  ORPHAN_PURGE_RETENTION: "orphan_purge_retention",
   PAYMENT_PROVIDER: "payment_provider",
   PUBLIC_KEY: "public_key",
   SETUP_COMPLETE: "setup_complete",
@@ -239,6 +246,7 @@ const PLAINTEXT_KEYS = [
   CONFIG_KEYS.LAST_PRUNED_LOGINS,
   CONFIG_KEYS.LAST_PRUNED_TOKENS,
   CONFIG_KEYS.LAST_PRUNED_CONTACTS,
+  CONFIG_KEYS.LAST_PRUNED_ORPHANS,
   CONFIG_KEYS.SMS_GATEWAY_BASE_URL,
 ] as const;
 
@@ -314,6 +322,8 @@ type SpecificFields = {
   currency: string;
   timezone: string;
   phone_prefix: string;
+  auto_purge_orphans: boolean;
+  orphan_purge_retention: string;
 };
 
 /** Full settings snapshot type. */
@@ -321,6 +331,7 @@ export type SettingsData = SpecificFields & StringSettingFields;
 
 /** Mutable snapshot of all settings. Populated by loadKeys(). */
 const data: SettingsData = {
+  auto_purge_orphans: true,
   booking_fee: "0",
   calendar_feeds_enabled: false,
   calendar_feeds_group_by: "attendees",
@@ -329,6 +340,7 @@ const data: SettingsData = {
   currency: "GBP",
   has_logistics: false,
   order_enabled: false,
+  orphan_purge_retention: DEFAULT_ORPHAN_RETENTION,
   payment_provider: null,
   payment_provider_setting: null,
   phone_prefix: "+44",
@@ -480,6 +492,7 @@ const STRING_ACCESSORS = {
   homepageText: { key: CONFIG_KEYS.HOMEPAGE_TEXT },
   lastPrunedContacts: { key: CONFIG_KEYS.LAST_PRUNED_CONTACTS },
   lastPrunedLogins: { key: CONFIG_KEYS.LAST_PRUNED_LOGINS },
+  lastPrunedOrphans: { key: CONFIG_KEYS.LAST_PRUNED_ORPHANS },
   lastPrunedPayments: { key: CONFIG_KEYS.LAST_PRUNED_PAYMENTS },
   lastPrunedSessions: { key: CONFIG_KEYS.LAST_PRUNED_SESSIONS },
   lastPrunedSumup: { key: CONFIG_KEYS.LAST_PRUNED_SUMUP },
@@ -627,6 +640,16 @@ const SPECIAL_APPLIERS: Record<string, (raw: string | undefined) => void> = {
   },
   [CONFIG_KEYS.ORDER_ENABLED]: (raw) => {
     data.order_enabled = raw === "true";
+  },
+  // Defaults ON: only an explicit "false" disows automatic orphan purging.
+  [CONFIG_KEYS.AUTO_PURGE_ORPHANS]: (raw) => {
+    data.auto_purge_orphans = raw !== "false";
+  },
+  // Coerce an absent/garbled value back to the default age, so a bad row can
+  // never widen the purge window.
+  [CONFIG_KEYS.ORPHAN_PURGE_RETENTION]: (raw) => {
+    data.orphan_purge_retention =
+      raw && isOrphanRetentionValue(raw) ? raw : DEFAULT_ORPHAN_RETENTION;
   },
   [CONFIG_KEYS.HAS_LOGISTICS]: (raw) => {
     data.has_logistics = raw === "true";
@@ -887,6 +910,9 @@ export const MAX_EMAIL_TEMPLATE_LENGTH = 51_200;
 const settingsBase = {
   // --- Apple Wallet ---
   appleWallet: createAppleWalletReadSettings(snap as (k: string) => string),
+  get autoPurgeOrphans(): boolean {
+    return snap("auto_purge_orphans");
+  },
   get bookingFee(): string {
     return snap("booking_fee");
   },
@@ -972,6 +998,9 @@ const settingsBase = {
   loadKeys,
   get orderEnabled(): boolean {
     return snap("order_enabled");
+  },
+  get orphanPurgeRetention(): string {
+    return snap("orphan_purge_retention");
   },
   get paymentProvider(): PaymentProviderType | null {
     return snap("payment_provider");
@@ -1093,6 +1122,10 @@ const settingsBase = {
     ...stringAccessors.updaters,
     // --- Apple Wallet writes ---
     appleWallet: createAppleWalletUpdateSettings(encryptedUpdate),
+    autoPurgeOrphans: boolUpdate(
+      CONFIG_KEYS.AUTO_PURGE_ORPHANS,
+      "auto_purge_orphans",
+    ),
     bookingFee: async (v: string): Promise<void> => {
       await writeOrDelete(CONFIG_KEYS.BOOKING_FEE, v);
       data.booking_fee = v || "0";
@@ -1144,6 +1177,10 @@ const settingsBase = {
     googleWallet: createGoogleWalletUpdateSettings(encryptedUpdate),
     hasLogistics: boolUpdate(CONFIG_KEYS.HAS_LOGISTICS, "has_logistics"),
     orderEnabled: boolUpdate(CONFIG_KEYS.ORDER_ENABLED, "order_enabled"),
+    orphanPurgeRetention: rawUpdate(
+      CONFIG_KEYS.ORPHAN_PURGE_RETENTION,
+      "orphan_purge_retention",
+    ),
     paymentProvider: async (v: PaymentProviderType): Promise<void> => {
       await writeRaw(CONFIG_KEYS.PAYMENT_PROVIDER, v);
       data.payment_provider = v;

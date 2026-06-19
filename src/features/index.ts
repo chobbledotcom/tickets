@@ -258,6 +258,12 @@ const INFRA_SETTINGS: readonly string[] = [
   CONFIG_KEYS.LAST_PRUNED_LOGINS,
   CONFIG_KEYS.LAST_PRUNED_TOKENS,
   CONFIG_KEYS.LAST_PRUNED_CONTACTS,
+  // The orphaned-attendee auto-purge runs from the same fire-and-forget
+  // scheduler, so its enable flag, retention age, and last-run stamp must be
+  // readable on every request.
+  CONFIG_KEYS.LAST_PRUNED_ORPHANS,
+  CONFIG_KEYS.AUTO_PURGE_ORPHANS,
+  CONFIG_KEYS.ORPHAN_PURGE_RETENTION,
   CONFIG_KEYS.PUBLIC_KEY,
   CONFIG_KEYS.WRAPPED_PRIVATE_KEY,
 ];

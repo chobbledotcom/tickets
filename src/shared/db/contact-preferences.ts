@@ -89,8 +89,16 @@ export const getVisits = async (hash: string): Promise<number> => {
   return row?.visits ?? 0;
 };
 
-export const forgetContact = (hash: string): Promise<void> =>
-  run("DELETE FROM contact_preferences WHERE contact_hash = ?", [hash]);
+/** Delete a contact's record (GDPR erasure). Returns how many rows were
+ * removed: 1 when a record existed for the hash, 0 when none did — letting
+ * callers report "erased" versus "nothing on file" without a prior lookup. */
+export const forgetContact = async (hash: string): Promise<number> => {
+  const result = await execute(
+    "DELETE FROM contact_preferences WHERE contact_hash = ?",
+    [hash],
+  );
+  return result.rowsAffected;
+};
 
 export type EmailStats = {
   contactCount: number;
