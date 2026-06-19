@@ -608,6 +608,27 @@ describe("payment-helpers", () => {
       };
       expect(enforceMetadataLimits(metadata, 255)).toEqual(metadata);
     });
+
+    test("throws when the entry count exceeds maxEntries", () => {
+      const metadata: Record<string, string> = {
+        email: "j@x.com",
+        items: "[]",
+        name: "John",
+      };
+      // 3 base + 8 extras = 11 entries, over a cap of 10.
+      for (let i = 0; i < 8; i++) metadata[`k${i}`] = "v";
+      expect(() => enforceMetadataLimits(metadata, 255, 10)).toThrow(
+        PaymentUserError,
+      );
+      expect(() => enforceMetadataLimits(metadata, 255, 10)).toThrow(
+        /too much booking detail/i,
+      );
+    });
+
+    test("passes when the entry count is within maxEntries", () => {
+      const metadata = { email: "j@x.com", items: "[]", name: "John" };
+      expect(enforceMetadataLimits(metadata, 255, 10)).toEqual(metadata);
+    });
   });
 
   describe("metadata packing codec", () => {

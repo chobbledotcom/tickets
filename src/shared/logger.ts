@@ -175,10 +175,6 @@ const ERROR_DEFS = {
   VALIDATION_FORM: ["E_VALIDATION_FORM", "Form validation error"],
 
   // Webhook errors
-  WEBHOOK_PRICE_DIVERGENCE: [
-    "E_WEBHOOK_PRICE_DIVERGENCE",
-    "Webhook re-derived a total that differs from the signed agreed total",
-  ],
   WEBHOOK_PRICE_SIGNATURE: [
     "E_WEBHOOK_PRICE_SIGNATURE",
     "Webhook price signature invalid, missing, or charge differs from it",

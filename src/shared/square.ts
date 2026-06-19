@@ -27,6 +27,7 @@ import {
   enforceMetadataLimits,
   errorMessage,
   PaymentUserError,
+  SQUARE_METADATA_MAX_ENTRIES,
   SQUARE_METADATA_MAX_VALUE_LENGTH,
 } from "#shared/payment-helpers.ts";
 import type {
@@ -145,7 +146,11 @@ const rethrowAsUserError = (err: unknown): never => {
 const enforceSquareMetadataLimits = (
   metadata: Record<string, string>,
 ): Record<string, string> =>
-  enforceMetadataLimits(metadata, SQUARE_METADATA_MAX_VALUE_LENGTH);
+  enforceMetadataLimits(
+    metadata,
+    SQUARE_METADATA_MAX_VALUE_LENGTH,
+    SQUARE_METADATA_MAX_ENTRIES,
+  );
 
 /** Square API version for all requests */
 const SQUARE_API_VERSION = "2025-01-23";

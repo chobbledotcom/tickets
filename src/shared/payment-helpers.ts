@@ -300,8 +300,15 @@ export const withCheckoutError = async (
 /** Stripe metadata constraint: each value max 500 characters */
 export const STRIPE_METADATA_MAX_VALUE_LENGTH = 500;
 
+/** Stripe metadata constraint: max 50 entries. */
+export const STRIPE_METADATA_MAX_ENTRIES = 50;
+
 /** Square metadata constraint: each value max 255 characters */
 export const SQUARE_METADATA_MAX_VALUE_LENGTH = 255;
+
+/** Square metadata constraint: max 10 entries — the tightest provider cap, and
+ * the reason small fields are packed into one `b` entry (see packMetadata). */
+export const SQUARE_METADATA_MAX_ENTRIES = 10;
 
 /**
  * Small, bounded booking fields collapsed into a single packed `b` entry.
@@ -383,6 +390,7 @@ const parsePackedFields = (raw: string): Partial<Record<string, string>> => {
 export const enforceMetadataLimits = (
   metadata: Record<string, string>,
   maxValueLength: number,
+  maxEntries?: number,
 ): Record<string, string> => {
   const items = metadata.items;
   if (items && items.length > maxValueLength) {
@@ -403,6 +411,16 @@ export const enforceMetadataLimits = (
   // a provider's per-value cap, so it is length-checked like items/answer_ids.
   const packed = metadata[PACKED_FIELD];
   if (packed && packed.length > maxValueLength) {
+    throw new PaymentUserError(
+      "Too much booking detail for a single checkout. Please book in smaller batches.",
+    );
+  }
+
+  // Providers also cap the number of metadata entries (Square most tightly, at
+  // 10). Packing keeps a populated checkout well under, so tripping this means a
+  // new top-level field was added without accounting for the cap — fail loudly
+  // rather than let the provider reject the checkout before the customer pays.
+  if (maxEntries !== undefined && Object.keys(metadata).length > maxEntries) {
     throw new PaymentUserError(
       "Too much booking detail for a single checkout. Please book in smaller batches.",
     );

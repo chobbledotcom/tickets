@@ -191,17 +191,29 @@ const validatePaidSession = async (
     };
   }
 
-  const intent = extractIntent(session);
-  if (!intent) {
+  const resolved = await resolvePaidIntent(session);
+  if (!resolved.intent) {
+    // Our own signed-but-corrupt session was refunded above — show the refunded
+    // message. Otherwise it is unrecognized and we surface the generic error.
+    if (resolved.refunded) {
+      return {
+        ok: false,
+        response: paymentErrorResponse(
+          "Your payment could not be processed and has been refunded.",
+        ),
+      };
+    }
     logRedirectError(`Invalid session data (session=${sessionId})`);
     return {
       ok: false,
       response: paymentErrorResponse("Invalid session data"),
     };
   }
+  const intent = resolved.intent;
   if (
     intent.siteTokenIndex &&
-    session.metadata._origin !== getEffectiveDomain()
+    session.metadata._origin !== getEffectiveDomain() &&
+    !(await hasValidPriceProof(session))
   ) {
     logRedirectError(
       `Unrecognized renewal payment session origin (session=${sessionId}, origin=${session.metadata._origin})`,
@@ -505,6 +517,61 @@ const priceMismatchRefund = (
 ): Promise<PaymentResult> =>
   refundAndFail(session, PRICE_CHANGED_MESSAGE, listingId, 409, detail);
 
+/**
+ * Refund a paid session whose metadata won't parse, when it is our own signed
+ * session. A present `price_proof` means the session came through our checkout
+ * (corrupt items merely invalidated the proof), so — exactly like the
+ * invalid-proof branch of checkPriceSignature — we refund it when it also claims
+ * our origin, rather than strand a charged customer behind a terminal error.
+ * Returns true when it refunded. Unsigned or foreign corrupt data returns false
+ * and keeps its existing loud handling (it never came through our signed
+ * pipeline, so it is a bug or another instance's session, not ours to refund).
+ *
+ * The refund is keyed on the provider payment reference, and providers reject a
+ * second refund of the same charge, so a repeated event can't double-pay even
+ * though this path doesn't take the reservation lock.
+ */
+const refundCorruptOwnSession = async (
+  session: ValidatedPaymentSession,
+): Promise<boolean> => {
+  if (!session.metadata.price_proof) return false;
+  if (session.metadata._origin !== getEffectiveDomain()) return false;
+  // Refund first; defer the alert so a slow ntfy never delays the money.
+  addPendingWork(sendNtfyError(ErrorCode.WEBHOOK_PRICE_SIGNATURE));
+  await refundAndLog(
+    session,
+    `Corrupt metadata on a paid session (session=${session.id})`,
+    0,
+  );
+  return true;
+};
+
+/**
+ * Resolve a paid session's booking intent, refunding our own signed-but-corrupt
+ * sessions along the way:
+ *  - `{ intent }`: parsed successfully.
+ *  - `{ intent: null, refunded: true }`: our signed session's metadata won't
+ *    parse — refunded (see refundCorruptOwnSession); the caller acknowledges it.
+ *  - `{ intent: null, refunded: false }`: unsigned/foreign unparseable data; the
+ *    caller surfaces its own error.
+ * A corrupt-item-shape throw on an unsigned/foreign session is re-raised to keep
+ * the existing loud failure for data that never came through our signed pipeline.
+ */
+const resolvePaidIntent = async (
+  session: ValidatedPaymentSession,
+): Promise<{ intent: BookingIntent } | { intent: null; refunded: boolean }> => {
+  try {
+    const intent = extractIntent(session);
+    if (intent) return { intent };
+  } catch (err) {
+    if (await refundCorruptOwnSession(session)) {
+      return { intent: null, refunded: true };
+    }
+    throw err;
+  }
+  return { intent: null, refunded: await refundCorruptOwnSession(session) };
+};
+
 type ValidatedItem = {
   item: BookingItem;
   listing: ListingWithCount;
@@ -611,6 +678,56 @@ const parsePriceProof = (
 };
 
 /**
+ * Evaluate a session's price proof against its metadata:
+ *  - `null`: no proof at all — a genuine legacy/unsigned session.
+ *  - `{ valid: false }`: a proof is present but doesn't verify (our own tampered
+ *    metadata, or a foreign instance that signed with its own key).
+ *  - `{ valid: true, total }`: a genuine proof binding `total`.
+ * The single place the proof is parsed + verified, shared by the pricing gate
+ * and the early ownership check below so the two can never disagree.
+ */
+const evaluatePriceProof = async (
+  session: ValidatedPaymentSession,
+): Promise<null | { valid: false } | { valid: true; total: number }> => {
+  const proof = session.metadata.price_proof;
+  if (!proof) return null;
+  const parsed = parsePriceProof(proof);
+  if (
+    parsed === null ||
+    !(await verifyPrice(session.metadata, parsed.total, parsed.sig))
+  ) {
+    return { valid: false };
+  }
+  return { total: parsed.total, valid: true };
+};
+
+/**
+ * Whether the session carries a valid price proof — cryptographic proof that it
+ * is ours, independent of the mutable `_origin` marker. Lets the webhook's
+ * foreign-origin skip spare one of our own paid sessions whose `_origin` was
+ * stripped or altered (the proof can't be forged without our key, so a valid one
+ * is conclusive even when `_origin` no longer matches).
+ */
+const hasValidPriceProof = async (
+  session: ValidatedPaymentSession,
+): Promise<boolean> => {
+  const evaluation = await evaluatePriceProof(session);
+  return evaluation?.valid ?? false;
+};
+
+/**
+ * Whether the webhook should ignore a session as foreign: it does not carry our
+ * origin marker and has no valid proof to prove it is ours (a different
+ * application sharing the same payment provider account). A valid proof spares
+ * one of our own sessions whose `_origin` was stripped or altered.
+ */
+const isForeignWebhookSession = async (
+  session: ValidatedPaymentSession,
+): Promise<boolean> =>
+  session.metadata._origin !== getEffectiveDomain() &&
+  !(await hasValidPriceProof(session));
+
+/**
  * Gate a paid session on the agreed total its checkout signed into metadata —
  * the oracle the buyer paid, which the provider can't forge. Returns the
  * trusted total; null when the session carries no proof at all (a genuine
@@ -625,8 +742,8 @@ const checkPriceSignature = async (
   session: ValidatedPaymentSession,
   listingId: number,
 ): Promise<{ agreed: number } | null | PaymentResult> => {
-  const proof = session.metadata.price_proof;
-  if (!proof) return null; // genuinely unsigned (legacy fallback)
+  const evaluation = await evaluatePriceProof(session);
+  if (evaluation === null) return null; // genuinely unsigned (legacy fallback)
 
   const refuse = (detail: string): Promise<PaymentResult> => {
     // Refund first; defer the alert so a slow ntfy never delays the money.
@@ -634,27 +751,23 @@ const checkPriceSignature = async (
     return priceMismatchRefund(session, detail, listingId);
   };
 
-  const parsed = parsePriceProof(proof);
-  if (
-    parsed === null ||
-    !(await verifyPrice(session.metadata, parsed.total, parsed.sig))
-  ) {
+  if (!evaluation.valid) {
     // Invalid proof: either a foreign instance sharing the provider (it signs
     // with its own key) or our own tampered session. Only refund when it claims
     // our origin — refunding a foreign session would refund another instance's
     // payment, and a foreign session can't forge _origin since only its own
-    // merchant sets its metadata. A VALID proof below is honoured regardless of
+    // merchant sets its metadata. A VALID proof above is honoured regardless of
     // origin, so tampering the unsigned _origin can't downgrade an ours session.
     return session.metadata._origin === getEffectiveDomain()
       ? refuse(`Invalid price signature (session=${session.id})`)
       : null;
   }
-  if (session.amountTotal !== parsed.total) {
+  if (session.amountTotal !== evaluation.total) {
     return refuse(
-      `Provider charged ${session.amountTotal} but signed total was ${parsed.total}`,
+      `Provider charged ${session.amountTotal} but signed total was ${evaluation.total}`,
     );
   }
-  return { agreed: parsed.total };
+  return { agreed: evaluation.total };
 };
 
 /**
@@ -663,18 +776,16 @@ const checkPriceSignature = async (
  * `signature` is the result of the earlier checkPriceSignature gate (run before
  * validation so a signed session is never lost down the no-refund 404 path):
  * the trusted agreed total for a session we signed, or null for an unsigned
- * one. A signed session's re-derivation must reproduce the agreed total; a
- * divergence while every modifier ref still resolves is a code bug, not a
- * mid-checkout change, so it pages. An unsigned session falls back to the older
- * check of the charge against the re-derived total — a safer degraded mode than
- * refunding everyone if signing ever breaks.
+ * one. A signed session's re-derivation must reproduce the agreed total. An
+ * unsigned session falls back to the older check of the charge against the
+ * re-derived total — a safer degraded mode than refunding everyone if signing
+ * ever breaks.
  */
 const verifyPaidPricing = async (
   session: ValidatedPaymentSession,
   intent: BookingIntent,
   validatedItems: ValidatedItem[],
   pricedOrder: PricedOrder,
-  inputsIntact: boolean,
   signature: { agreed: number } | null,
 ): Promise<PaymentResult | null> => {
   const listingId = validatedItems[0]!.listing.id;
@@ -705,15 +816,17 @@ const verifyPaidPricing = async (
     return null;
   }
 
-  // Signed and charged correctly: the re-derivation must reproduce the total.
+  // Signed and charged correctly: the re-derivation must still reproduce the
+  // total. The proof pins every pricing input (items, modifier refs, answer ids,
+  // reservation snapshot), so a divergence here means a listing/modifier/answer
+  // price was edited in the database between checkout and this webhook — a
+  // legitimate mid-checkout price change, which refunds. Pricing-code divergence
+  // on identical inputs is caught at dev time by the property-based consistency
+  // test, so this runtime path refunds without paging.
   if (pricedOrder.total !== signature.agreed) {
-    // Refund first; defer the alert so a slow ntfy never delays the money.
-    if (inputsIntact) {
-      addPendingWork(sendNtfyError(ErrorCode.WEBHOOK_PRICE_DIVERGENCE));
-    }
     return priceMismatchRefund(
       session,
-      `Re-derived total ${pricedOrder.total} differs from signed total ${signature.agreed} (modifier inputs intact: ${inputsIntact})`,
+      `Re-derived total ${pricedOrder.total} differs from signed total ${signature.agreed}`,
       listingId,
     );
   }
@@ -974,10 +1087,6 @@ const processReservedSession = async (
     specsFromRefs(intent.modifiers, { visits }),
     answerModifierSpecs(answerIds, answerQuantities),
   ]);
-  // Every stored modifier ref still resolving means a price divergence can't be
-  // blamed on a mid-checkout change — it would be a re-derivation bug worth
-  // paging on. (Refs hold only real modifiers; answers re-derive separately.)
-  const inputsIntact = modifierSpecs.length === intent.modifiers.length;
   const pricingIntent = checkoutIntentForSession(intent, validatedItems, [
     ...modifierSpecs,
     ...answerSpecs,
@@ -989,7 +1098,6 @@ const processReservedSession = async (
     intent,
     validatedItems,
     pricedOrder,
-    inputsIntact,
     signature,
   );
   if (pricingError) return pricingError;
@@ -1370,14 +1478,14 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
 
   const session = sessionResult;
 
-  // Verify session originated from this instance. Sessions created by a
-  // different application sharing the same payment provider account will not
-  // carry our _origin marker.
-  const origin = session.metadata._origin;
-  if (origin !== getEffectiveDomain()) {
+  // Verify the session originated from this instance. A session from a different
+  // application sharing the same payment provider account won't carry our origin
+  // marker — but a valid price proof cryptographically proves the session is ours
+  // even when _origin was stripped or altered, so those are not discarded.
+  if (await isForeignWebhookSession(session)) {
     logDebug(
       "Webhook",
-      `Ignoring webhook for unrecognized payment session (origin=${origin}): ${payload}`,
+      `Ignoring webhook for unrecognized session (origin=${session.metadata._origin}): ${payload}`,
     );
     return webhookAckResponse();
   }
@@ -1392,8 +1500,12 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
     return webhookAckResponse({ status: "pending" });
   }
 
-  const intent = extractIntent(session);
-  if (!intent) {
+  const resolved = await resolvePaidIntent(session);
+  if (!resolved.intent) {
+    // Our own signed-but-corrupt session was refunded above — acknowledge it.
+    // Otherwise it's unsigned/foreign invalid data: 400 (and the provider may
+    // retry, exactly as before).
+    if (resolved.refunded) return webhookAckResponse();
     logError({
       code: ErrorCode.PAYMENT_SESSION,
       detail: `Invalid session data for ${session.id}`,
@@ -1401,6 +1513,7 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
     logDebug("Webhook", `Rejected payload: ${payload}`);
     return plainResponse("Invalid session data", 400);
   }
+  const intent = resolved.intent;
 
   const listingIdForLog = intent.items[0]?.e;
   const result = await processPaymentSession(session.id, {

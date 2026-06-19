@@ -23,6 +23,7 @@ import {
   createWithClient,
   enforceMetadataLimits,
   errorMessage,
+  STRIPE_METADATA_MAX_ENTRIES,
   STRIPE_METADATA_MAX_VALUE_LENGTH,
 } from "#shared/payment-helpers.ts";
 import type {
@@ -297,6 +298,7 @@ export const stripeApi: {
       metadata: enforceMetadataLimits(
         await buildItemsMetadata(intent, order.total),
         STRIPE_METADATA_MAX_VALUE_LENGTH,
+        STRIPE_METADATA_MAX_ENTRIES,
       ),
     };
 

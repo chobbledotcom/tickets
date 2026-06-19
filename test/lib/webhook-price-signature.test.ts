@@ -153,14 +153,15 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
     }
   });
 
-  test("a re-derivation that diverges with inputs intact is refunded", async () => {
+  test("a re-derivation that diverges from the signed total is refunded", async () => {
     await setupStripe();
     const listing = await createTestListing({
       maxAttendees: 50,
       unitPrice: 1000,
     });
     // Signed (and charged) at 999, but the item re-prices to 1000 with no
-    // modifiers in play — a pure re-derivation divergence, which pages.
+    // modifiers in play — a re-derivation divergence, which refunds (a valid
+    // proof pins the inputs, so this reflects a price edit, not a code bug).
     const metadata = signMeta(
       webhookMeta({
         email: "diverge@example.com",
@@ -185,15 +186,15 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
     }
   });
 
-  test("a divergence from a dropped modifier ref is refunded without paging", async () => {
+  test("a divergence from a dropped modifier ref is refunded", async () => {
     await setupStripe();
     const listing = await createTestListing({
       maxAttendees: 50,
       unitPrice: 1000,
     });
     // Signed at 1100 as if a +100 modifier applied, but the referenced modifier
-    // no longer resolves, so re-derivation lands at 1000. Because an input
-    // dropped, this is a legitimate change rather than a code bug.
+    // no longer resolves, so re-derivation lands at 1000 — a legitimate change,
+    // which refunds.
     const metadata = signMeta(
       webhookMeta({
         email: "dropped@example.com",
@@ -348,6 +349,240 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
       expect((await getAttendeesRaw(listing.id)).length).toBe(1);
     } finally {
       mockVerify.restore();
+    }
+  });
+
+  test("a signed session whose _origin was stripped is still processed", async () => {
+    await setupStripe();
+    const listing = await createTestListing({
+      maxAttendees: 50,
+      unitPrice: 1000,
+    });
+    // _origin is unsigned, so stripping it after signing leaves a valid proof.
+    // The proof alone proves the session is ours, so the webhook's foreign-origin
+    // skip must not discard it.
+    const metadata = {
+      ...signMeta(
+        webhookMeta({
+          email: "stripped@example.com",
+          items: singleItem(listing.id, 1, 1000),
+          name: "Origin Stripped",
+        }),
+        1000,
+      ),
+      _origin: "",
+    };
+    const mockVerify = await stubCompletedSession({
+      amount_total: 1000,
+      id: "cs_origin_stripped",
+      metadata,
+    });
+    try {
+      await assertJson(webhookRequest(), 200, (json) => {
+        expect(json.processed).toBe(true);
+      });
+      expect((await getAttendeesRaw(listing.id)).length).toBe(1);
+    } finally {
+      mockVerify.restore();
+    }
+  });
+
+  test("a corrupt-items signed session claiming our origin is refunded", async () => {
+    await setupStripe();
+    const listing = await createTestListing({
+      maxAttendees: 50,
+      unitPrice: 1000,
+    });
+    // Signed, then items corrupted: the proof is present but now invalid and the
+    // items won't parse. A present proof means it came through our checkout, so
+    // refund (like any invalid proof claiming our origin) rather than strand the
+    // charged customer behind a bare error.
+    const refund = stub(stripeApi, "refundPayment", () =>
+      Promise.resolve({ id: "re_corrupt_ours" } as unknown as Awaited<
+        ReturnType<typeof stripeApi.refundPayment>
+      >),
+    );
+    const metadata = {
+      ...signMeta(
+        webhookMeta({
+          email: "corrupt@example.com",
+          items: singleItem(listing.id, 1, 1000),
+          name: "Corrupt Ours",
+        }),
+        1000,
+      ),
+      items: "not-json",
+    };
+    const mockVerify = await stubCompletedSession({
+      amount_total: 1000,
+      id: "cs_corrupt_ours",
+      metadata,
+    });
+    try {
+      const response = await webhookRequest();
+      expect(response.status).toBe(200);
+      expect(refund.calls.length).toBe(1);
+      expect((await getAttendeesRaw(listing.id)).length).toBe(0);
+    } finally {
+      mockVerify.restore();
+      refund.restore();
+    }
+  });
+
+  test("an unsigned corrupt session is not refunded but fails loudly", async () => {
+    await setupStripe();
+    const listing = await createTestListing({
+      maxAttendees: 50,
+      unitPrice: 1000,
+    });
+    // No proof: this never came through our signed pipeline (a bug or a foreign
+    // session), so it keeps the old loud failure and is not auto-refunded.
+    const refund = stub(stripeApi, "refundPayment", () =>
+      Promise.resolve({ id: "re_never_unsigned" } as unknown as Awaited<
+        ReturnType<typeof stripeApi.refundPayment>
+      >),
+    );
+    const mockVerify = await stubCompletedSession({
+      amount_total: 1000,
+      id: "cs_unsigned_corrupt",
+      metadata: webhookMeta({
+        email: "unsigned-corrupt@example.com",
+        items: "not-json",
+        name: "Unsigned Corrupt",
+      }),
+    });
+    try {
+      const response = await webhookRequest();
+      expect(response.status).toBe(400);
+      expect(refund.calls.length).toBe(0);
+      expect((await getAttendeesRaw(listing.id)).length).toBe(0);
+    } finally {
+      mockVerify.restore();
+      refund.restore();
+    }
+  });
+
+  test("an unsigned foreign-origin webhook is ignored without refunding", async () => {
+    await setupStripe();
+    const listing = await createTestListing({
+      maxAttendees: 50,
+      unitPrice: 1000,
+    });
+    // No proof and an _origin that isn't ours: a different instance sharing the
+    // provider. Skip it (ack) without processing or refunding its payment.
+    const refund = stub(stripeApi, "refundPayment", () =>
+      Promise.resolve({ id: "re_never" } as unknown as Awaited<
+        ReturnType<typeof stripeApi.refundPayment>
+      >),
+    );
+    const mockVerify = await stubCompletedSession({
+      amount_total: 1000,
+      id: "cs_foreign_unsigned",
+      metadata: {
+        ...webhookMeta({
+          email: "foreign@example.com",
+          items: singleItem(listing.id, 1, 1000),
+          name: "Foreign Unsigned",
+        }),
+        _origin: "other-instance.example.test",
+      },
+    });
+    try {
+      await assertJson(webhookRequest(), 200, (json) => {
+        expect(json.received).toBe(true);
+      });
+      expect(refund.calls.length).toBe(0);
+      expect((await getAttendeesRaw(listing.id)).length).toBe(0);
+    } finally {
+      mockVerify.restore();
+      refund.restore();
+    }
+  });
+
+  test("a signed corrupt-shape session on the redirect path is refunded when ours", async () => {
+    await setupStripe();
+    // The success redirect reaches the same corrupt-session handling. Here the
+    // items are a valid array with a malformed entry (missing price), which
+    // throws inside parsing — the signed-ours path still refunds.
+    const refund = stub(stripeApi, "refundPayment", () =>
+      Promise.resolve({ id: "re_corrupt_redirect" } as unknown as Awaited<
+        ReturnType<typeof stripeApi.refundPayment>
+      >),
+    );
+    const metadata = {
+      ...signMeta(
+        webhookMeta({
+          email: "corruptredirect@example.com",
+          items: singleItem(1, 1, 1000),
+          name: "Corrupt Redirect",
+        }),
+        1000,
+      ),
+      items: JSON.stringify([{ e: 1, q: 1 }]),
+    };
+    const retrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+      Promise.resolve({
+        amount_total: 1000,
+        id: "cs_corrupt_redirect",
+        metadata,
+        payment_intent: "pi_corrupt_redirect",
+        payment_status: "paid",
+      } as unknown as Awaited<
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      >),
+    );
+    try {
+      await handleRequest(
+        mockRequest("/payment/success?session_id=cs_corrupt_redirect"),
+      );
+      expect(refund.calls.length).toBe(1);
+    } finally {
+      retrieve.restore();
+      refund.restore();
+    }
+  });
+
+  test("a signed corrupt session with a foreign origin is not refunded", async () => {
+    await setupStripe();
+    // A present proof but a foreign origin we can't match: even though it carries
+    // a proof, we don't refund another instance's payment — surface the generic
+    // error instead.
+    const refund = stub(stripeApi, "refundPayment", () =>
+      Promise.resolve({ id: "re_never_redirect" } as unknown as Awaited<
+        ReturnType<typeof stripeApi.refundPayment>
+      >),
+    );
+    const metadata = {
+      ...signMeta(
+        webhookMeta({
+          email: "corruptforeign@example.com",
+          items: singleItem(1, 1, 1000),
+          name: "Corrupt Foreign",
+        }),
+        1000,
+      ),
+      _origin: "other-instance.example.test",
+      items: "not-json",
+    };
+    const retrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+      Promise.resolve({
+        amount_total: 1000,
+        id: "cs_corrupt_foreign",
+        metadata,
+        payment_intent: "pi_corrupt_foreign",
+        payment_status: "paid",
+      } as unknown as Awaited<
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      >),
+    );
+    try {
+      await handleRequest(
+        mockRequest("/payment/success?session_id=cs_corrupt_foreign"),
+      );
+      expect(refund.calls.length).toBe(0);
+    } finally {
+      retrieve.restore();
+      refund.restore();
     }
   });
 });
