@@ -23,6 +23,7 @@ import {
 import { defineRoutes } from "#routes/router.ts";
 /* jscpd:ignore-start */
 import {
+  type AuthedHandlerArgs,
   createAuthedFormRoute,
   createAuthedHandler,
 } from "#shared/app-forms.ts";
@@ -294,6 +295,20 @@ const answerRoute =
       return handler(result.question, result.answer, session);
     });
 
+/** Owner POST handler for answer-scoped actions (move, recalculate): the
+ * createAuthedHandler counterpart to {@link answerRoute}. Fixes the owner auth
+ * policy and the question+answer loader so each action only supplies its body. */
+const answerActionHandler = (
+  handle: (
+    args: AuthedHandlerArgs<AnswerRouteParams, AnswerContext>,
+  ) => Response | Promise<Response>,
+) =>
+  createAuthedHandler<AnswerRouteParams, AnswerContext>({
+    auth: OWNER_FORM,
+    handle,
+    loadContext: loadQuestionAndAnswer,
+  });
+
 /** Handle GET /admin/questions/:id/answers/:answerId/delete */
 const handleDeleteAnswerGet = answerRoute((question, answer, session) => {
   const flash = getFlash();
@@ -438,13 +453,8 @@ const handleAnswerRecalculateGet = answerRoute((question, answer, session) => {
 });
 
 /** Handle POST /admin/questions/:id/answers/:answerId/recalculate */
-/* jscpd:ignore-start */
-const handleAnswerRecalculatePost = createAuthedHandler<
-  AnswerRouteParams,
-  AnswerContext
->({
-  auth: OWNER_FORM,
-  handle: async ({ context: { answer, question }, form, params, session }) => {
+const handleAnswerRecalculatePost = answerActionHandler(
+  async ({ context: { answer, question }, form, params, session }) => {
     const selected = selectedRecalculationFields(form, ANSWER_AGGREGATE_FIELDS);
     if (selected.length === 0) {
       return renderAnswerRecalculatePage(
@@ -464,28 +474,22 @@ const handleAnswerRecalculatePost = createAuthedHandler<
       true,
     );
   },
-  loadContext: loadQuestionAndAnswer,
-});
-/* jscpd:ignore-end */
+);
 
 /** Factory for move-up/move-down handlers */
 const moveAnswerHandler = (direction: -1 | 1) =>
-  createAuthedHandler<AnswerRouteParams, AnswerContext>({
-    auth: OWNER_FORM,
-    handle: async ({ context: { answer, question } }) => {
-      const idx = question.answers.findIndex((a) => a.id === answer.id);
-      const neighbor = question.answers[idx + direction];
-      if (neighbor) {
-        await swapAnswerOrder(
-          answer.id,
-          answer.sort_order,
-          neighbor.id,
-          neighbor.sort_order,
-        );
-      }
-      return redirect(`/admin/questions/${question.id}`, "Answer moved", true);
-    },
-    loadContext: loadQuestionAndAnswer,
+  answerActionHandler(async ({ context: { answer, question } }) => {
+    const idx = question.answers.findIndex((a) => a.id === answer.id);
+    const neighbor = question.answers[idx + direction];
+    if (neighbor) {
+      await swapAnswerOrder(
+        answer.id,
+        answer.sort_order,
+        neighbor.id,
+        neighbor.sort_order,
+      );
+    }
+    return redirect(`/admin/questions/${question.id}`, "Answer moved", true);
   });
 
 /** Handle POST /admin/questions/:id/answers/:answerId/move-up */
