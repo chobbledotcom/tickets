@@ -598,6 +598,31 @@ describe("payment-helpers", () => {
       };
       expect(enforceMetadataLimits(metadata, 255)).toEqual(metadata);
     });
+
+    test("throws when the entry count exceeds the cap (Square's 10-key limit)", () => {
+      // 11 short values — only the key count is over the cap, not any length.
+      const metadata = Object.fromEntries(
+        Array.from({ length: 11 }, (_, i) => [`k${i}`, "x"]),
+      );
+      expect(() => enforceMetadataLimits(metadata, 255, 10)).toThrow(
+        PaymentUserError,
+      );
+      expect(() => enforceMetadataLimits(metadata, 255, 10)).toThrow(
+        /too many options/i,
+      );
+    });
+
+    test("allows the entry count at the cap, and ignores it when unset (Stripe)", () => {
+      const tenKeys = Object.fromEntries(
+        Array.from({ length: 10 }, (_, i) => [`k${i}`, "x"]),
+      );
+      expect(enforceMetadataLimits(tenKeys, 255, 10)).toEqual(tenKeys);
+      // Stripe supplies no entry cap, so a high key count passes through.
+      const manyKeys = Object.fromEntries(
+        Array.from({ length: 20 }, (_, i) => [`k${i}`, "x"]),
+      );
+      expect(enforceMetadataLimits(manyKeys, 500)).toEqual(manyKeys);
+    });
   });
 });
 

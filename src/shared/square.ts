@@ -27,6 +27,7 @@ import {
   enforceMetadataLimits,
   errorMessage,
   PaymentUserError,
+  SQUARE_METADATA_MAX_ENTRIES,
   SQUARE_METADATA_MAX_VALUE_LENGTH,
 } from "#shared/payment-helpers.ts";
 import type {
@@ -141,11 +142,16 @@ const rethrowAsUserError = (err: unknown): never => {
   throw err;
 };
 
-/** Enforce Square metadata value length limits using the shared helper */
+/** Enforce Square's metadata value-length and 10-entry limits via the shared
+ * helper, so an over-cap checkout fails with a batching message up front. */
 const enforceSquareMetadataLimits = (
   metadata: Record<string, string>,
 ): Record<string, string> =>
-  enforceMetadataLimits(metadata, SQUARE_METADATA_MAX_VALUE_LENGTH);
+  enforceMetadataLimits(
+    metadata,
+    SQUARE_METADATA_MAX_VALUE_LENGTH,
+    SQUARE_METADATA_MAX_ENTRIES,
+  );
 
 /** Square API version for all requests */
 const SQUARE_API_VERSION = "2025-01-23";

@@ -289,18 +289,30 @@ export const STRIPE_METADATA_MAX_VALUE_LENGTH = 500;
 /** Square metadata constraint: each value max 255 characters */
 export const SQUARE_METADATA_MAX_VALUE_LENGTH = 255;
 
+/** Square metadata constraint: at most 10 key/value entries per order. Stripe's
+ * cap is far above anything we emit, so the entry count is only checked for
+ * Square (callers that pass `maxEntries`). */
+export const SQUARE_METADATA_MAX_ENTRIES = 10;
+
 /**
- * Enforce metadata value length limits for a payment provider.
+ * Enforce a payment provider's metadata limits.
  *
- * Only items, answer_ids and modifiers can realistically exceed provider
- * limits — they grow with the number of listings/options/modifiers selected
- * (answer-triggered modifiers ride the modifiers refs). All other fields
- * (name, email, address, etc.) are already constrained by form validation
- * to lengths well below the smallest provider limit (255).
+ * Only items, answer_ids and modifiers can realistically exceed the per-value
+ * length limit — they grow with the number of listings/options/modifiers
+ * selected (answer-triggered modifiers ride the modifiers refs). All other
+ * fields (name, email, address, etc.) are already constrained by form
+ * validation to lengths well below the smallest provider limit (255).
+ *
+ * Square also caps the *number* of entries: a customisable-day checkout that
+ * fills its optional fields (date, day_count, answer_ids, …) plus a modifiers
+ * ref can reach the 10-entry limit, so when `maxEntries` is supplied the key
+ * count is checked too and surfaces the same batching error rather than a
+ * generic provider rejection.
  */
 export const enforceMetadataLimits = (
   metadata: Record<string, string>,
   maxValueLength: number,
+  maxEntries?: number,
 ): Record<string, string> => {
   const items = metadata.items;
   if (items && items.length > maxValueLength) {
@@ -313,7 +325,8 @@ export const enforceMetadataLimits = (
   const modifiers = metadata.modifiers;
   if (
     (answerIds && answerIds.length > maxValueLength) ||
-    (modifiers && modifiers.length > maxValueLength)
+    (modifiers && modifiers.length > maxValueLength) ||
+    (maxEntries !== undefined && Object.keys(metadata).length > maxEntries)
   ) {
     throw new PaymentUserError(
       "Too many options selected for a single checkout. Please book in smaller batches.",
