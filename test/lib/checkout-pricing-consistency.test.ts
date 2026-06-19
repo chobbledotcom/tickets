@@ -7,6 +7,7 @@ import {
   resolveModifiers,
   specsFromRefs,
 } from "#shared/db/modifier-resolve.ts";
+import { answersTable, questionsTable } from "#shared/db/questions.ts";
 import { toModifierRefs } from "#shared/payment-helpers.ts";
 import type {
   CheckoutIntent,
@@ -45,6 +46,19 @@ const buyer = {
   name: "Buyer",
   phone: "",
   special_instructions: "",
+};
+
+/** Create a real question answer and return its id. The answer→modifier link is
+ * a column on the answers row, so the answer must actually exist for the link
+ * (and the resolve that reads it back) to take effect. */
+const createAnswer = async (): Promise<number> => {
+  const q = await questionsTable.insert({ displayType: "radio", text: "Q?" });
+  const a = await answersTable.insert({
+    questionId: q.id,
+    sortOrder: 0,
+    text: "A",
+  });
+  return a.id;
 };
 
 const pricingIntent = (
@@ -264,7 +278,8 @@ describeWithEnv(
     });
 
     test("an answer-triggered modifier round-trips through metadata refs like an add-on", async () => {
-      // A pricing-tier modifier wired to a question answer (id 555).
+      // A pricing-tier modifier wired to a question answer.
+      const answerId = await createAnswer();
       const tier = await insertModifier({
         calcKind: "fixed",
         calcValue: 3,
@@ -272,13 +287,13 @@ describeWithEnv(
         name: "Premium answer",
       });
       await patchModifier(tier.id, { trigger: "answer" });
-      await linkModifierAnswer(tier.id, 555);
+      await linkModifierAnswer(tier.id, answerId);
 
       const items = [checkoutItem({ quantity: 2 })];
       // The buyer picked the linked answer on both tickets of listing 1.
       const publicSpecs = await resolveModifiers(items, {
         answerQuantities: await answerModifierQuantities(
-          { "1": [555] },
+          { "1": [answerId] },
           new Map([[1, 2]]),
         ),
       });
@@ -294,6 +309,7 @@ describeWithEnv(
       // clamps the quantity to 2 and that clamped count is what the refs carry,
       // so the webhook re-prices the same total instead of refunding a good
       // order on a phantom mismatch.
+      const answerId = await createAnswer();
       const tier = await insertModifier({
         calcKind: "fixed",
         calcValue: 3,
@@ -302,12 +318,12 @@ describeWithEnv(
         stock: 2,
       });
       await patchModifier(tier.id, { trigger: "answer" });
-      await linkModifierAnswer(tier.id, 555);
+      await linkModifierAnswer(tier.id, answerId);
 
       const items = [checkoutItem({ quantity: 5 })];
       const publicSpecs = await resolveModifiers(items, {
         answerQuantities: await answerModifierQuantities(
-          { "1": [555] },
+          { "1": [answerId] },
           new Map([[1, 5]]),
         ),
       });

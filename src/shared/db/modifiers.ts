@@ -197,31 +197,40 @@ export const getModifierGroupIds = (modifierId: number): Promise<number[]> =>
   );
 
 /** Answer ids an "answer"-triggered modifier is linked to (for the admin
- * editor and the resolve-time trigger). */
+ * editor) — i.e. the answers whose modifier_id points at this modifier. */
 export const getModifierAnswerIds = (modifierId: number): Promise<number[]> =>
-  modifierIdColumn(
-    "SELECT answer_id AS id FROM modifier_answers WHERE modifier_id = ?",
-    modifierId,
-  );
+  modifierIdColumn("SELECT id FROM answers WHERE modifier_id = ?", modifierId);
 
-/** Replace a modifier's link rows in `table` with one per id (reset + insert),
- * so saving the scope/answer editor is idempotent. */
-const setModifierLinks = (
-  table: "modifier_listings" | "modifier_groups" | "modifier_answers",
-  column: "listing_id" | "group_id" | "answer_id",
+/** Run a "clear, then re-add" batch idempotently: one reset statement (bound to
+ * `[modifierId]`), then one write per id (bound to `[modifierId, id]`). Shared
+ * by every modifier-link save whether the links live in a join table (insert a
+ * row per id) or a column on the target rows (update them), so the batch shape
+ * lives in one place. */
+const resetAndWriteLinks = (
+  resetSql: string,
+  writeSql: string,
   modifierId: number,
   ids: number[],
 ): Promise<unknown> =>
   executeBatch([
-    {
-      args: [modifierId],
-      sql: `DELETE FROM ${table} WHERE modifier_id = ?`,
-    },
-    ...ids.map((id) => ({
-      args: [modifierId, id],
-      sql: `INSERT INTO ${table} (modifier_id, ${column}) VALUES (?, ?)`,
-    })),
+    { args: [modifierId], sql: resetSql },
+    ...ids.map((id) => ({ args: [modifierId, id], sql: writeSql })),
   ]);
+
+/** Replace a modifier's link rows in `table` with one per id (reset + insert),
+ * so saving the scope editor is idempotent. */
+const setModifierLinks = (
+  table: "modifier_listings" | "modifier_groups",
+  column: "listing_id" | "group_id",
+  modifierId: number,
+  ids: number[],
+): Promise<unknown> =>
+  resetAndWriteLinks(
+    `DELETE FROM ${table} WHERE modifier_id = ?`,
+    `INSERT INTO ${table} (modifier_id, ${column}) VALUES (?, ?)`,
+    modifierId,
+    ids,
+  );
 
 /** Set the listings a "listings"-scoped modifier is charged on. */
 export const setModifierListings = (
@@ -237,31 +246,32 @@ export const setModifierGroups = (
 ): Promise<unknown> =>
   setModifierLinks("modifier_groups", "group_id", modifierId, groupIds);
 
-/** Set the answers that trigger an "answer"-triggered modifier. */
+/** Point the given answers at an "answer"-triggered modifier (and clear any
+ * answers previously pointing at it), so saving the editor is idempotent and
+ * an answer carries at most one modifier. */
 export const setModifierAnswers = (
   modifierId: number,
   answerIds: number[],
 ): Promise<unknown> =>
-  setModifierLinks("modifier_answers", "answer_id", modifierId, answerIds);
+  resetAndWriteLinks(
+    "UPDATE answers SET modifier_id = NULL WHERE modifier_id = ?",
+    "UPDATE answers SET modifier_id = ? WHERE id = ?",
+    modifierId,
+    answerIds,
+  );
 
-/** Selected answer id → how many active "answer"-triggered modifiers it
- * activates, keyed for resolve. Maps each requested answer to the modifiers
- * linked to it so the resolver can total a modifier's quantity across every
- * linked answer the buyer chose. */
+/** Selected answer id → the "answer"-trigger modifier it activates (as a
+ * single-element list, absent when the answer has no modifier), keyed for
+ * resolve so a modifier's quantity totals across every chosen answer that
+ * points at it. */
 export const modifierIdsByAnswerId = async (
   answerIds: number[],
 ): Promise<Map<number, number[]>> => {
   if (answerIds.length === 0) return new Map();
-  const rows = await queryAll<{ answer_id: number; modifier_id: number }>(
-    `SELECT answer_id, modifier_id FROM modifier_answers
-     WHERE answer_id IN (${inPlaceholders(answerIds)})`,
+  const rows = await queryAll<{ id: number; modifier_id: number }>(
+    `SELECT id, modifier_id FROM answers
+     WHERE id IN (${inPlaceholders(answerIds)}) AND modifier_id IS NOT NULL`,
     answerIds,
   );
-  const byAnswer = new Map<number, number[]>();
-  for (const { answer_id, modifier_id } of rows) {
-    const list = byAnswer.get(answer_id) ?? [];
-    list.push(modifier_id);
-    byAnswer.set(answer_id, list);
-  }
-  return byAnswer;
+  return new Map(rows.map((r) => [r.id, [r.modifier_id]]));
 };

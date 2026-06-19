@@ -23,6 +23,7 @@ import {
   getModifierAnswerIds,
   setModifierAnswers,
 } from "#shared/db/modifiers.ts";
+import { answersTable, questionsTable } from "#shared/db/questions.ts";
 import { normalizeCode } from "#shared/price-modifier.ts";
 import {
   checkoutItem,
@@ -33,6 +34,22 @@ import {
   linkModifierListing,
   patchModifier,
 } from "#test-utils";
+
+/** Create a question with `count` answers, returning their real ids (answer
+ * ids are real rows now that the link is a modifier_id column on answers). */
+const createAnswers = async (count: number): Promise<number[]> => {
+  const q = await questionsTable.insert({ displayType: "radio", text: "Q?" });
+  const ids: number[] = [];
+  for (let i = 0; i < count; i++) {
+    const a = await answersTable.insert({
+      questionId: q.id,
+      sortOrder: i,
+      text: `A${i + 1}`,
+    });
+    ids.push(a.id);
+  }
+  return ids;
+};
 
 describeWithEnv("db > modifier-resolve", { db: true }, () => {
   describe("resolveModifiers", () => {
@@ -185,18 +202,19 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
     });
 
     test("applies an answer-triggered modifier when a linked answer is selected", async () => {
+      const [answerId] = await createAnswers(1);
       const m = await insertModifier({ name: "Large size" });
       await patchModifier(m.id, { trigger: "answer" });
-      await setModifierAnswers(m.id, [42]);
+      await setModifierAnswers(m.id, [answerId!]);
 
       // Not selected: the modifier doesn't trigger.
       const unselected = await resolveModifiers([checkoutItem()]);
       expect(unselected.map((s) => s.name)).not.toContain("Large size");
 
-      // Answer 42 selected on listing 1, which has 2 tickets: applies x2.
+      // The linked answer selected on listing 1, which has 2 tickets: applies x2.
       const selected = await resolveModifiers([checkoutItem()], {
         answerQuantities: await answerModifierQuantities(
-          { "1": [42] },
+          { "1": [answerId!] },
           new Map([[1, 2]]),
         ),
       });
@@ -206,13 +224,14 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
     });
 
     test("caps an answer-triggered modifier quantity at remaining stock", async () => {
+      const [answerId] = await createAnswers(1);
       const m = await insertModifier({ name: "Limited tier", stock: 2 });
       await patchModifier(m.id, { trigger: "answer" });
-      await setModifierAnswers(m.id, [5]);
+      await setModifierAnswers(m.id, [answerId!]);
 
       const specs = await resolveModifiers([checkoutItem()], {
         answerQuantities: await answerModifierQuantities(
-          { "1": [5] },
+          { "1": [answerId!] },
           new Map([[1, 5]]),
         ),
       });
@@ -248,26 +267,28 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
 
   describe("answer modifier links", () => {
     test("setModifierAnswers saves a modifier's answer links idempotently", async () => {
+      const [a1, a2] = await createAnswers(2);
       const m = await insertModifier({ name: "Tier" });
-      await setModifierAnswers(m.id, [7, 9]);
-      expect((await getModifierAnswerIds(m.id)).sort((a, b) => a - b)).toEqual([
-        7, 9,
-      ]);
+      await setModifierAnswers(m.id, [a1!, a2!]);
+      expect((await getModifierAnswerIds(m.id)).sort((a, b) => a - b)).toEqual(
+        [a1!, a2!].sort((a, b) => a - b),
+      );
 
       // Re-saving replaces the whole set (the editor posts the full selection).
-      await setModifierAnswers(m.id, [9]);
-      expect(await getModifierAnswerIds(m.id)).toEqual([9]);
+      await setModifierAnswers(m.id, [a2!]);
+      expect(await getModifierAnswerIds(m.id)).toEqual([a2!]);
     });
 
     test("answerModifierQuantities sums a whole-order modifier's selections across listings", async () => {
       // A whole-order (scope=all) tier linked to two answers, each picked on a
       // different listing — the counts sum across both listings.
+      const [a1, a2] = await createAnswers(2);
       const m = await insertModifier({ name: "Premium tier" });
       await patchModifier(m.id, { trigger: "answer" });
-      await setModifierAnswers(m.id, [1, 2]);
+      await setModifierAnswers(m.id, [a1!, a2!]);
 
       const quantities = await answerModifierQuantities(
-        { "1": [1], "2": [2] },
+        { "1": [a1!], "2": [a2!] },
         new Map([
           [1, 2],
           [2, 3],
@@ -280,13 +301,14 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
       // Scoped to listing 1, but the linked answer is also picked on listing 2
       // (out of scope). Only the listing-1 selection counts, so the modifier
       // isn't inflated to quantity 2.
+      const [answerId] = await createAnswers(1);
       const m = await insertModifier({ name: "L1 tier" });
       await patchModifier(m.id, { scope: "listings", trigger: "answer" });
       await linkModifierListing(m.id, 1);
-      await setModifierAnswers(m.id, [42]);
+      await setModifierAnswers(m.id, [answerId!]);
 
       const quantities = await answerModifierQuantities(
-        { "1": [42], "2": [42] },
+        { "1": [answerId!], "2": [answerId!] },
         new Map([
           [1, 1],
           [2, 1],
@@ -337,13 +359,14 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
     });
 
     test("answerModifierQuantities ignores an unlinked answer picked alongside a linked one", async () => {
+      const [linked, unlinked] = await createAnswers(2);
       const m = await insertModifier({ name: "Tier" });
       await patchModifier(m.id, { trigger: "answer" });
-      await setModifierAnswers(m.id, [42]);
-      // Answer 7 has no modifier link; picking it alongside the linked answer 42
-      // must contribute nothing.
+      await setModifierAnswers(m.id, [linked!]);
+      // The other answer has no modifier link; picking it alongside the linked
+      // answer must contribute nothing.
       const quantities = await answerModifierQuantities(
-        { "1": [42, 7] },
+        { "1": [linked!, unlinked!] },
         new Map([[1, 2]]),
       );
       expect(quantities).toEqual(new Map([[m.id, 2]]));
@@ -352,14 +375,15 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
     test("answerModifierQuantities ignores links to inactive or non-answer modifiers", async () => {
       // A link can outlive the modifier being deactivated or re-triggered; such
       // a link must never contribute a quantity.
+      const [a1, a2] = await createAnswers(2);
       const inactive = await insertModifier({ name: "Inactive tier" });
       await patchModifier(inactive.id, { active: 0, trigger: "answer" });
-      await setModifierAnswers(inactive.id, [42]);
+      await setModifierAnswers(inactive.id, [a1!]);
       const automatic = await insertModifier({ name: "Automatic" });
-      await setModifierAnswers(automatic.id, [43]);
+      await setModifierAnswers(automatic.id, [a2!]);
 
       const quantities = await answerModifierQuantities(
-        { "1": [42, 43] },
+        { "1": [a1!, a2!] },
         new Map([[1, 1]]),
       );
       expect(quantities).toEqual(new Map());
@@ -375,8 +399,9 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
     });
 
     test("answerModifierQuantities ignores answers with no linked modifier", async () => {
+      const [answerId] = await createAnswers(1);
       expect(
-        await answerModifierQuantities({ "1": [99] }, new Map([[1, 4]])),
+        await answerModifierQuantities({ "1": [answerId!] }, new Map([[1, 4]])),
       ).toEqual(new Map());
     });
   });

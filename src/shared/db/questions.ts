@@ -585,17 +585,13 @@ export const getAttendeeAnswersByQuestion = async (
 };
 
 /** Delete a question and all related data in a single batch.
- * Uses a subquery for attendee_answers and modifier_answers so the entire
- * cascade (including any answer→modifier links) is atomic. */
+ * Uses a subquery for attendee_answers so the entire cascade is atomic. The
+ * answer→modifier link is a column on answers, so it's removed with the rows. */
 export const deleteQuestion = async (questionId: number): Promise<void> => {
   await executeBatch([
     {
       args: [questionId],
       sql: "DELETE FROM attendee_answers WHERE answer_id IN (SELECT id FROM answers WHERE question_id = ?)",
-    },
-    {
-      args: [questionId],
-      sql: "DELETE FROM modifier_answers WHERE answer_id IN (SELECT id FROM answers WHERE question_id = ?)",
     },
     { args: [questionId], sql: "DELETE FROM answers WHERE question_id = ?" },
     {
@@ -606,17 +602,13 @@ export const deleteQuestion = async (questionId: number): Promise<void> => {
   ]);
 };
 
-/** Delete an answer and all related attendee answers and modifier links in a
- * single batch (so an answer-triggered modifier never keeps a dangling link). */
+/** Delete an answer and all related attendee answers in a single batch (its
+ * modifier_id link is a column on the row, so it's removed with the answer). */
 export const deleteAnswer = async (answerId: number): Promise<void> => {
   await executeBatch([
     {
       args: [answerId],
       sql: "DELETE FROM attendee_answers WHERE answer_id = ?",
-    },
-    {
-      args: [answerId],
-      sql: "DELETE FROM modifier_answers WHERE answer_id = ?",
     },
     { args: [answerId], sql: "DELETE FROM answers WHERE id = ?" },
   ]);
