@@ -42,9 +42,10 @@ import smsMessagesMigration from "./migrations/2026-06-16_sms_messages.ts";
 import modifierAggregatesMigration from "./migrations/2026-06-17_modifier_aggregates.ts";
 import modifierCodeMigration from "./migrations/2026-06-17_modifier_code.ts";
 import processedSmsInboundMigration from "./migrations/2026-06-17_processed_sms_inbound.ts";
-import answerPriceModifiersMigration from "./migrations/2026-06-18_answer_price_modifiers.ts";
+import answerModifiersMigration from "./migrations/2026-06-18_answer_modifiers.ts";
 import contactPreferencesMigration from "./migrations/2026-06-18_contact_preferences.ts";
 import modifierMinVisitsMigration from "./migrations/2026-06-18_modifier_min_visits.ts";
+import questionAssignAllMigration from "./migrations/2026-06-18_question_assign_all.ts";
 import questionDisplayTypeMigration from "./migrations/2026-06-18_question_display_type.ts";
 import { repairLegacyRenames } from "./migrations/rename-utils.ts";
 import {
@@ -58,6 +59,7 @@ import {
   backfillListingAggregates,
   backfillModifierAggregates,
   createTableSql,
+  recreateTable,
   runMigration,
   syncCurrentSchema as syncCurrentSchemaBase,
   syncIndexes,
@@ -154,6 +156,7 @@ const migrationContext: MigrationContext = {
   backfillModifierAggregates,
   ensureDefaultAttendeeStatus,
   getDb,
+  recreateTable,
   renameEventsToListings,
   syncCurrentSchema,
   syncIndexes,
@@ -184,10 +187,11 @@ export const MIGRATIONS: Migration[] = [
   processedSmsInboundMigration,
   attendeePhoneIndexMigration,
   modifierAggregatesMigration,
-  answerPriceModifiersMigration,
   contactPreferencesMigration,
   modifierMinVisitsMigration,
   questionDisplayTypeMigration,
+  answerModifiersMigration,
+  questionAssignAllMigration,
 ].map((build) => build(migrationContext));
 
 export const MIGRATION_IDS: string[] = MIGRATIONS.map(

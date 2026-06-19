@@ -16,12 +16,15 @@ import { isPaymentsEnabled } from "#shared/config.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { getPublicDefaultStatus } from "#shared/db/attendee-statuses.ts";
-import { buyerVisits, resolveModifiers } from "#shared/db/modifier-resolve.ts";
+import {
+  answerModifierQuantities,
+  buyerVisits,
+  oversubscribedAnswerTiers,
+  type ResolveOptions,
+  resolveModifiers,
+} from "#shared/db/modifier-resolve.ts";
 import { consumeModifierStockOrRollback } from "#shared/db/modifier-usage.ts";
 import {
-  answerAmountAllocations,
-  answerModifierSpecs,
-  answerQuantitiesFromListingAnswers,
   groupListingAnswers,
   parseQuestionAnswers,
   saveAttendeeAnswers,
@@ -299,10 +302,10 @@ const MODIFIER_SOLD_OUT_MESSAGE =
  * Used for every cart whose final priced total is zero — a free listing, a
  * paid listing discounted to zero, or a zero-price listing whose modifiers net
  * to zero after pricing — and for every cart when payments are disabled (the
- * existing disabled-is-free behaviour). When payments are enabled, the same
- * pricing engine that decided "no provider needed" also produced the modifiers
- * that this path must persist, so a zero-total order still records modifier
- * usage and respects stock limits.
+ * existing disabled-is-free behaviour). Either way the modifiers the pricing
+ * engine resolved are persisted here, so a zero-total or disabled-payments
+ * order still records modifier usage and consumes stock — keeping a
+ * stock-limited answer tier capped across free bookings, not just paid ones.
  */
 const handleFreePath = async (
   params: PathParams & {
@@ -334,15 +337,13 @@ const handleFreePath = async (
   // Persist the exact usage amounts returned by the pricing engine. A
   // stock-limited modifier that sold out between resolution and consumption
   // rolls the new attendee back so the buyer isn't granted a free order they
-  // shouldn't have.
-  const stockModifierUsages = modifierUsages.filter(
-    (usage) => usage.source !== "answer",
-  );
-  if (stockModifierUsages.length > 0) {
+  // shouldn't have. Answer-triggered modifiers are ordinary modifiers now, so
+  // they consume stock and record usage just like the rest.
+  if (modifierUsages.length > 0) {
     const attendeeId = result.entries[0]!.attendee.id;
     const consumed = await consumeModifierStockOrRollback(
       attendeeId,
-      stockModifierUsages,
+      modifierUsages,
     );
     if (!consumed) {
       return ticketFormErrorResponse(ctx)(MODIFIER_SOLD_OUT_MESSAGE);
@@ -367,7 +368,6 @@ const handleFreePath = async (
     );
     await saveAttendeeAnswers(
       groupListingAnswers(result.entries, listingAnswerMap),
-      answerAmountAllocations(modifierUsages),
     );
   }
 
@@ -390,6 +390,7 @@ const parseBookingDate = (
 
 type SubmissionPricingParams = Omit<CheckoutIntentParams, "modifiers"> & {
   addOns: Map<number, number>;
+  answerQuantities: Map<number, number>;
   promoCode: string;
   quantities: Map<number, number>;
 };
@@ -415,25 +416,26 @@ const priceSubmission = (
   return { intent, pricedOrder: priceCheckout(intent) };
 };
 
-const resolveSubmissionModifiers = async (
+/** The resolve options for this submission at a given visit count, shared by
+ * the pricing resolve and the sold-out check so both judge modifier eligibility
+ * (scope, minimum subtotal, visit gate) identically. */
+const submissionModifierOpts = (
+  params: SubmissionPricingParams,
+  visits: number,
+): ResolveOptions => ({
+  addOns: params.addOns,
+  answerQuantities: params.answerQuantities,
+  code: params.promoCode,
+  ctx: { visits },
+});
+
+const resolveSubmissionModifiers = (
   params: SubmissionPricingParams,
   visits = 0,
-): Promise<CheckoutIntent["modifiers"]> => {
-  const listingAnswerIds = computeListingAnswerMap(params.ctx, params.info);
-  const answerQuantities = answerQuantitiesFromListingAnswers(
-    listingAnswerIds,
-    params.quantities,
-  );
-  const [resolvedModifiers, answerModifiers] = await Promise.all([
-    resolveModifiers(params.items, {
-      addOns: params.addOns,
-      code: params.promoCode,
-      ctx: { visits },
-    }),
-    answerModifierSpecs(params.info.answerIds, answerQuantities),
-  ]);
-  return [...resolvedModifiers, ...answerModifiers];
-};
+): Promise<CheckoutIntent["modifiers"]> =>
+  // Answer-triggered modifiers join the same single resolve pass as automatic,
+  // code, and opt-in add-on modifiers — one engine, one eligibility check.
+  resolveModifiers(params.items, submissionModifierOpts(params, visits));
 
 const priceSubmissionBeforeContact = async (
   params: SubmissionPricingParams,
@@ -444,18 +446,22 @@ const priceSubmissionBeforeContact = async (
     await resolveSubmissionModifiers(params),
   );
 
+/** Price with the buyer's real visit count, returning that count so the caller
+ * can run the sold-out check against the same eligibility this pricing used. */
 const priceSubmissionWithContact = async (
   contact: ReturnType<typeof extractContact>,
   params: SubmissionPricingParams,
-): Promise<ReturnType<typeof priceSubmission>> =>
-  priceSubmission(
-    contact,
-    params,
-    await resolveSubmissionModifiers(
+): Promise<ReturnType<typeof priceSubmission> & { visits: number }> => {
+  const visits = await buyerVisits(contact.email, contact.phone);
+  return {
+    ...priceSubmission(
+      contact,
       params,
-      await buyerVisits(contact.email, contact.phone),
+      await resolveSubmissionModifiers(params, visits),
     ),
-  );
+    visits,
+  };
+};
 
 const validatePaymentUpgrade = (
   form: FormParams,
@@ -535,8 +541,17 @@ const processSubmission = async (
   const promoCode = form.getString("promo_code");
   const paymentsEnabled = isPaymentsEnabled();
   const reservationAmount = await publicReservationAmount();
+
+  // Resolve the answer-triggered modifier quantities once (scope-aware); these
+  // feed both the pricing resolve and the sold-out check further down.
+  const answerQuantities = await answerModifierQuantities(
+    computeListingAnswerMap(ctx, info),
+    quantities,
+  );
+
   const pricingParams = {
     addOns,
+    answerQuantities,
     ctx,
     date,
     dayCount,
@@ -553,8 +568,11 @@ const processSubmission = async (
   const validated = validateTicketFields(form, ctx, requiresPaidFields);
   if (validated instanceof Response) return validated;
   let contact = extractContact(validated);
-  let { intent, pricedOrder: finalPricedOrder } =
-    await priceSubmissionWithContact(contact, pricingParams);
+  let {
+    intent,
+    pricedOrder: finalPricedOrder,
+    visits,
+  } = await priceSubmissionWithContact(contact, pricingParams);
   const paidUpgradeValidation = validatePaymentUpgrade(
     form,
     ctx,
@@ -564,8 +582,26 @@ const processSubmission = async (
   if (paidUpgradeValidation instanceof Response) return paidUpgradeValidation;
   if (paidUpgradeValidation) {
     contact = extractContact(paidUpgradeValidation);
-    ({ intent, pricedOrder: finalPricedOrder } =
-      await priceSubmissionWithContact(contact, pricingParams));
+    ({
+      intent,
+      pricedOrder: finalPricedOrder,
+      visits,
+    } = await priceSubmissionWithContact(contact, pricingParams));
+  }
+
+  // An answer is recorded on every ticket that picked it, so a stock-limited
+  // answer tier the buyer over-subscribed can't be partially fulfilled — block
+  // the submission. Run against the same eligibility the pricing resolve used
+  // (now that the buyer's visit count is known), so a tier that wouldn't apply
+  // — cart below its minimum, or too few visits — isn't reported sold out.
+  const soldOutTiers = await oversubscribedAnswerTiers(
+    items,
+    submissionModifierOpts(pricingParams, visits),
+  );
+  if (soldOutTiers.length > 0) {
+    return errorResponse(
+      `Sorry, ${soldOutTiers.join(", ")} is no longer available. Please choose a different option.`,
+    );
   }
 
   const finalRequiresPaidFields = finalPricedOrder.total > 0;
@@ -587,9 +623,18 @@ const processSubmission = async (
     dayCount,
     hasCustomisable,
     info,
+    // Record modifier usage (and consume stock) on every completion, including
+    // disabled-payments free bookings, so a stock-limited answer tier is capped
+    // across all bookings — not just the paid ones the webhook would have
+    // consumed. With payments disabled the booking collects nothing, so the
+    // applied amounts are zeroed: stock is still consumed (it's keyed on
+    // quantity) while the modifier revenue aggregates correctly stay at zero.
     modifierUsages: paymentsEnabled
       ? finalPricedOrder.modifierApplications
-      : [],
+      : finalPricedOrder.modifierApplications.map((m) => ({
+          ...m,
+          amountApplied: 0,
+        })),
     paymentBreakdown: paymentsEnabled
       ? ticketPaymentBreakdown(intent)
       : undefined,

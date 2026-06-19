@@ -7,20 +7,17 @@
 
 import type { InValue } from "@libsql/client";
 import { filter, map, reduce } from "#fp";
-import type { ModifierApplication } from "#shared/checkout-pricing.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import { formatCurrency, toMinorUnits } from "#shared/currency.ts";
 import {
   executeBatch,
+  getDb,
   inPlaceholders,
   insert,
   queryAll,
+  queryOne,
 } from "#shared/db/client.ts";
 import { swapSortOrder } from "#shared/db/query.ts";
 import { col, defineTable } from "#shared/db/table.ts";
-import { largestRemainderAllocation } from "#shared/largest-remainder.ts";
-import type { ModifierSpec } from "#shared/payments.ts";
-import type { CalcKind, ModifierDirection } from "#shared/price-modifier.ts";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -46,6 +43,7 @@ export const requireQuestionDisplayType = (
 };
 
 export interface Question {
+  assign_all: boolean;
   display_type: QuestionDisplayType;
   id: number;
   text: string; // encrypted
@@ -57,12 +55,6 @@ export interface Answer {
   question_id: number;
   sort_order: number;
   text: string; // encrypted
-  calc_kind?: CalcKind | null;
-  calc_value?: number | null;
-  direction?: ModifierDirection | null;
-  total_uses?: number;
-  usage_count?: number;
-  total_revenue?: number;
 }
 
 /** Link between listing and question. Membership only — display order comes
@@ -75,16 +67,11 @@ export interface ListingQuestion {
   sort_order: number;
 }
 
-/** Link between attendee and selected answer */
-export interface AttendeeAnswer {
-  answer_id: number;
-  attendee_id: number;
-  id: number;
-  amount_applied: number;
-}
-
 /** Question with its answer options (decrypted) */
-export type QuestionWithAnswers = Question & { answers: Answer[] };
+export type QuestionWithAnswers = Omit<Question, "assign_all"> & {
+  answers: Answer[];
+  assign_all?: boolean;
+};
 
 // ---------------------------------------------------------------------------
 // Table definitions
@@ -98,12 +85,17 @@ const questionIdAndSortOrder = {
   sort_order: col.simple<number>(),
 };
 
-type QuestionInput = { displayType: QuestionDisplayType; text: string };
+type QuestionInput = {
+  assignAll?: boolean;
+  displayType: QuestionDisplayType;
+  text: string;
+};
 
 export const questionsTable = defineTable<Question, QuestionInput>({
   name: "questions",
   primaryKey: "id",
   schema: {
+    assign_all: col.boolean(false),
     display_type: col.simple<QuestionDisplayType>(),
     id: generatedId,
     text: encryptedText,
@@ -111,9 +103,6 @@ export const questionsTable = defineTable<Question, QuestionInput>({
 });
 
 type AnswerInput = {
-  calcKind?: CalcKind | null;
-  calcValue?: number | null;
-  direction?: ModifierDirection | null;
   questionId: number;
   text: string;
   sortOrder: number;
@@ -125,15 +114,7 @@ export const answersTable = defineTable<Answer, AnswerInput>({
   schema: {
     id: generatedId,
     ...questionIdAndSortOrder,
-    calc_kind: col.withDefault<CalcKind | null | undefined>(() => null),
-    calc_value: col.withDefault<number | null | undefined>(() => null),
-    direction: col.withDefault<ModifierDirection | null | undefined>(
-      () => null,
-    ),
     text: encryptedText,
-    total_revenue: col.generated<number | undefined>(),
-    total_uses: col.generated<number | undefined>(),
-    usage_count: col.generated<number | undefined>(),
   },
 });
 
@@ -156,26 +137,6 @@ export const listingQuestionsTable = defineTable<
   },
 });
 
-type AttendeeAnswerInput = {
-  attendeeId: number;
-  answerId: number;
-  amountApplied?: number;
-};
-
-export const attendeeAnswersTable = defineTable<
-  AttendeeAnswer,
-  AttendeeAnswerInput
->({
-  name: "attendee_answers",
-  primaryKey: "id",
-  schema: {
-    amount_applied: col.withDefault(() => 0),
-    answer_id: col.simple<number>(),
-    attendee_id: col.simple<number>(),
-    id: col.generated<number>(),
-  },
-});
-
 // ---------------------------------------------------------------------------
 // Queries
 // ---------------------------------------------------------------------------
@@ -183,28 +144,26 @@ export const attendeeAnswersTable = defineTable<
 /** Flat row from a question ← LEFT JOIN answers query */
 type JoinedRow = {
   q_id: number;
+  q_assign_all: boolean;
   q_display_type: QuestionDisplayType;
   q_text: string;
   a_id: number | null;
   a_text: string | null;
   a_question_id: number | null;
   a_sort_order: number | null;
-  a_calc_kind: CalcKind | null;
-  a_calc_value: number | null;
-  a_direction: ModifierDirection | null;
 };
 
 /** Shared SELECT columns and JOIN for question + answers */
-const QA_COLS = `q.id AS q_id, q.display_type AS q_display_type, q.text AS q_text,
+const QA_COLS = `q.id AS q_id, q.assign_all AS q_assign_all, q.display_type AS q_display_type, q.text AS q_text,
        a.id AS a_id, a.text AS a_text,
-       a.question_id AS a_question_id, a.sort_order AS a_sort_order,
-       a.calc_kind AS a_calc_kind, a.calc_value AS a_calc_value, a.direction AS a_direction`;
+       a.question_id AS a_question_id, a.sort_order AS a_sort_order`;
 const QA_JOIN = "questions q LEFT JOIN answers a ON a.question_id = q.id";
 
 /** Group flat joined rows into QuestionWithAnswers[], preserving row order.
  * Decrypts question and answer text in parallel. */
 const groupJoinedRows = (rows: JoinedRow[]): Promise<QuestionWithAnswers[]> => {
   type Group = {
+    assignAll: boolean;
     displayType: QuestionDisplayType;
     text: string;
     answers: Answer[];
@@ -212,14 +171,12 @@ const groupJoinedRows = (rows: JoinedRow[]): Promise<QuestionWithAnswers[]> => {
   const questionMap = reduce((acc: Map<number, Group>, row: JoinedRow) => {
     const group = acc.get(row.q_id) ?? {
       answers: [],
+      assignAll: row.q_assign_all,
       displayType: row.q_display_type,
       text: row.q_text,
     };
     if (row.a_id !== null) {
       group.answers.push({
-        calc_kind: row.a_calc_kind,
-        calc_value: row.a_calc_value,
-        direction: row.a_direction,
         id: row.a_id,
         question_id: row.a_question_id!,
         sort_order: row.a_sort_order!,
@@ -232,10 +189,15 @@ const groupJoinedRows = (rows: JoinedRow[]): Promise<QuestionWithAnswers[]> => {
   const entries = [...questionMap.entries()];
   return Promise.all(
     map(
-      ([id, { displayType, text, answers }]: [
+      ([id, { assignAll, displayType, text, answers }]: [
         number,
-        { displayType: QuestionDisplayType; text: string; answers: Answer[] },
-      ]) => decryptQuestion(id, displayType, text, answers),
+        {
+          assignAll: boolean;
+          displayType: QuestionDisplayType;
+          text: string;
+          answers: Answer[];
+        },
+      ]) => decryptQuestion(id, assignAll, displayType, text, answers),
     )(entries),
   );
 };
@@ -246,12 +208,18 @@ const withAnswers = filter((q: QuestionWithAnswers) => q.answers.length > 0);
 /** Decrypt a single question and its answers */
 const decryptQuestion = async (
   id: number,
+  assignAll: boolean,
   displayType: QuestionDisplayType,
   rawText: string,
   rawAnswers: Answer[],
 ): Promise<QuestionWithAnswers> => {
   const [question, ...answers] = await Promise.all([
-    questionsTable.fromDb({ display_type: displayType, id, text: rawText }),
+    questionsTable.fromDb({
+      assign_all: assignAll,
+      display_type: displayType,
+      id,
+      text: rawText,
+    }),
     ...map((a: Answer) => answersTable.fromDb(a))(rawAnswers),
   ]);
   return { ...question, answers };
@@ -283,10 +251,10 @@ export const getQuestionsForListing = async (
     await groupJoinedRows(
       await queryAll<JoinedRow>(
         `SELECT ${QA_COLS}
-       FROM listing_questions eq
-       JOIN questions q ON q.id = eq.question_id
+       FROM questions q
+       LEFT JOIN listing_questions eq ON q.id = eq.question_id AND eq.listing_id = ?
        LEFT JOIN answers a ON a.question_id = q.id
-       WHERE eq.listing_id = ?
+       WHERE q.assign_all = 1 OR eq.listing_id IS NOT NULL
        ORDER BY q.sort_order, q.id, a.sort_order`,
         [listingId],
       ),
@@ -299,10 +267,10 @@ export const getListingQuestionIds = async (
 ): Promise<number[]> =>
   map((r: { question_id: number }) => r.question_id)(
     await queryAll<{ question_id: number }>(
-      `SELECT eq.question_id
-       FROM listing_questions eq
-       JOIN questions q ON q.id = eq.question_id
-       WHERE eq.listing_id = ?
+      `SELECT q.id AS question_id
+       FROM questions q
+       LEFT JOIN listing_questions eq ON q.id = eq.question_id AND eq.listing_id = ?
+       WHERE q.assign_all = 1 OR eq.listing_id IS NOT NULL
        ORDER BY q.sort_order, q.id`,
       [listingId],
     ),
@@ -352,7 +320,7 @@ const emptyQuestionsWithListingIds = (): {
 } => ({ questionListingMap: new Map(), questions: [] });
 
 /** Joined row including the comma-separated listing IDs from GROUP_CONCAT */
-type JoinedRowWithListings = JoinedRow & { listing_ids: string };
+type JoinedRowWithListings = JoinedRow & { listing_ids: string | null };
 
 /** Get questions for multiple listings with listing-ID mapping (for conditional display).
  * Uses a single query with a subquery filter to avoid row multiplication. */
@@ -367,11 +335,13 @@ export const getQuestionsWithListingIds = async (
   const ph = inPlaceholders(listingIds);
   const rows = await queryAll<JoinedRowWithListings>(
     `SELECT ${QA_COLS},
-            (SELECT GROUP_CONCAT(eq.listing_id) FROM listing_questions eq
-             WHERE eq.question_id = q.id AND eq.listing_id IN (${ph})) AS listing_ids
+            CASE WHEN q.assign_all = 1 THEN NULL ELSE
+              (SELECT GROUP_CONCAT(eq.listing_id) FROM listing_questions eq
+               WHERE eq.question_id = q.id AND eq.listing_id IN (${ph}))
+            END AS listing_ids
      FROM ${QA_JOIN}
-     WHERE q.id IN (SELECT question_id FROM listing_questions WHERE listing_id IN (${ph}))
-     ORDER BY a.sort_order`,
+     WHERE q.assign_all = 1 OR q.id IN (SELECT question_id FROM listing_questions WHERE listing_id IN (${ph}))
+     ORDER BY q.sort_order, q.id, a.sort_order`,
     [...listingIds, ...listingIds],
   );
 
@@ -379,7 +349,7 @@ export const getQuestionsWithListingIds = async (
 
   const questionListingMap = reduce(
     (acc: QuestionListingMap, row: JoinedRowWithListings) => {
-      if (!acc.has(row.q_id)) {
+      if (!acc.has(row.q_id) && row.listing_ids !== null) {
         acc.set(row.q_id, map(Number)(row.listing_ids.split(",")));
       }
       return acc;
@@ -491,7 +461,6 @@ export function parseQuestionAnswers(opts: { optional: boolean }) {
  */
 export const saveAttendeeAnswers = async (
   answersByAttendee: Map<number, number[]>,
-  amountAllocations: Map<number, number[]> = new Map(),
 ): Promise<void> => {
   const statements: { sql: string; args: InValue[] }[] = [];
   for (const [attendeeId, answerIds] of answersByAttendee) {
@@ -500,21 +469,10 @@ export const saveAttendeeAnswers = async (
       sql: "DELETE FROM attendee_answers WHERE attendee_id = ?",
     });
     if (answerIds.length > 0) {
-      const columns = ["attendee_id", "answer_id", "amount_applied"] as const;
-      const rows = await Promise.all(
-        answerIds.map((id) => {
-          const amountApplied = amountAllocations.get(id)?.shift();
-          return attendeeAnswersTable.toDbValues({
-            ...(amountApplied === undefined ? {} : { amountApplied }),
-            answerId: id,
-            attendeeId,
-          });
-        }),
-      );
-      const placeholders = answerIds.map(() => "(?, ?, ?)").join(", ");
+      const placeholders = answerIds.map(() => "(?, ?)").join(", ");
       statements.push({
-        args: rows.flatMap((row) => columns.map((col) => row[col] as InValue)),
-        sql: `INSERT OR IGNORE INTO attendee_answers (${columns.join(", ")}) VALUES ${placeholders}`,
+        args: answerIds.flatMap((id) => [attendeeId, id]),
+        sql: `INSERT OR IGNORE INTO attendee_answers (attendee_id, answer_id) VALUES ${placeholders}`,
       });
     }
   }
@@ -615,9 +573,6 @@ export const getAttendeeAnswersByQuestion = async (
   const result = new Map<number, { answerId: number; answerText: string }>();
   for (const row of rows) {
     const decrypted = await answersTable.fromDb({
-      calc_kind: null,
-      calc_value: null,
-      direction: null,
       id: row.answer_id,
       question_id: row.question_id,
       sort_order: 0,
@@ -632,7 +587,8 @@ export const getAttendeeAnswersByQuestion = async (
 };
 
 /** Delete a question and all related data in a single batch.
- * Uses a subquery for attendee_answers so the entire cascade is atomic. */
+ * Uses a subquery for attendee_answers so the entire cascade is atomic. The
+ * answer→modifier link is a column on answers, so it's removed with the rows. */
 export const deleteQuestion = async (questionId: number): Promise<void> => {
   await executeBatch([
     {
@@ -648,7 +604,8 @@ export const deleteQuestion = async (questionId: number): Promise<void> => {
   ]);
 };
 
-/** Delete an answer and all related attendee answers in a single batch */
+/** Delete an answer and all related attendee answers in a single batch (its
+ * modifier_id link is a column on the row, so it's removed with the answer). */
 export const deleteAnswer = async (answerId: number): Promise<void> => {
   await executeBatch([
     {
@@ -687,6 +644,32 @@ export const getAnswerCountsForQuestion = async (
         [answer_id, cnt] as const,
     )(rows),
   );
+};
+
+/** Get the price-modifier id a single answer triggers, or null when it has
+ * none. The modifier_id column isn't part of the decrypted Answer shape, so the
+ * answer edit page reads it directly to pre-select the modifier dropdown. */
+export const getAnswerModifierId = async (
+  answerId: number,
+): Promise<number | null> => {
+  const row = await queryOne<{ modifier_id: number | null }>(
+    "SELECT modifier_id FROM answers WHERE id = ?",
+    [answerId],
+  );
+  return row?.modifier_id ?? null;
+};
+
+/** Point a single answer at an "answer"-trigger modifier, or clear the link
+ * (null). The inverse of setModifierAnswers, driven from the answer's own edit
+ * page so an answer carries at most one modifier. */
+export const setAnswerModifier = async (
+  answerId: number,
+  modifierId: number | null,
+): Promise<void> => {
+  await getDb().execute({
+    args: [modifierId, answerId],
+    sql: "UPDATE answers SET modifier_id = ? WHERE id = ?",
+  });
 };
 
 /** Swap the sort_order of two answers by their IDs */
@@ -744,93 +727,4 @@ export const assignNextQuestionSortOrder = async (
             WHERE id = ?`,
     },
   ]);
-};
-
-/** Whether an answer carries a complete price modifier rule. */
-export const answerHasPriceModifier = (answer: Answer): boolean =>
-  answer.calc_kind != null &&
-  answer.calc_value != null &&
-  answer.direction != null;
-
-const signedAnswerValue = (answer: Answer): number => {
-  if (answer.calc_kind === "multiply") return answer.calc_value!;
-  const magnitude =
-    answer.calc_kind === "fixed"
-      ? toMinorUnits(answer.calc_value!)
-      : answer.calc_value!;
-  return answer.direction === "discount" ? -magnitude : magnitude;
-};
-
-/** Buyer-facing label for an answer price modifier. */
-export const answerPriceLabel = (answer: Answer): string => {
-  if (!answerHasPriceModifier(answer)) return "";
-  if (answer.calc_kind === "multiply") return `×${answer.calc_value}`;
-  const sign = answer.direction === "discount" ? "−" : "+";
-  const amount =
-    answer.calc_kind === "fixed"
-      ? formatCurrency(toMinorUnits(answer.calc_value!))
-      : `${answer.calc_value}%`;
-  return `${sign}${amount}`;
-};
-
-/** Convert selected answer ids into checkout modifier specs. */
-export const answerModifierSpecs = async (
-  answerIds: number[],
-  quantities: Map<number, number> = new Map(),
-): Promise<ModifierSpec[]> => {
-  if (answerIds.length === 0) return [];
-  const rows = await queryAll<Answer>(
-    `SELECT * FROM answers WHERE id IN (${inPlaceholders(answerIds)})`,
-    answerIds,
-  );
-  const answers = await Promise.all(
-    map((row: Answer) => answersTable.fromDb(row))(rows),
-  );
-  return answers.filter(answerHasPriceModifier).map((answer) => ({
-    id: answer.id,
-    kind: answer.calc_kind!,
-    listingIds: null,
-    name: answer.text,
-    quantity: quantities.get(answer.id) ?? 1,
-    source: "answer" as const,
-    trigger: "automatic" as const,
-    value: signedAnswerValue(answer),
-  }));
-};
-
-/** Count how many attendee-answer rows each selected answer will create. */
-export function answerQuantitiesFromListingAnswers(
-  listingAnswerIds: Record<string, number[]> | undefined,
-  listingQuantities: Map<number, number>,
-): Map<number, number> {
-  const totalsByAnswerId = new Map<number, number>();
-  if (listingAnswerIds === undefined) return totalsByAnswerId;
-  for (const [listingId, answerIds] of Object.entries(listingAnswerIds)) {
-    const selectedCount = listingQuantities.get(Number(listingId)) ?? 0;
-    for (const answerId of answerIds) {
-      totalsByAnswerId.set(
-        answerId,
-        (totalsByAnswerId.get(answerId) ?? 0) + selectedCount,
-      );
-    }
-  }
-  return totalsByAnswerId;
-}
-
-/** Allocate priced answer modifier revenue across the attendee_answer rows. */
-export const answerAmountAllocations = (
-  applications: ModifierApplication[],
-): Map<number, number[]> => {
-  const allocations = new Map<number, number[]>();
-  for (const application of applications) {
-    if (application.source !== "answer") continue;
-    allocations.set(
-      application.modifierId,
-      largestRemainderAllocation(
-        Array.from({ length: application.quantity }, () => 1),
-        application.amountApplied,
-      ),
-    );
-  }
-  return allocations;
 };

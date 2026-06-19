@@ -283,77 +283,6 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       expect(answerId).toBeGreaterThan(0);
     });
 
-    test("adds answer with a price modifier", async () => {
-      const id = await createQuestion("Choose one");
-      const { response } = await adminFormPost(
-        `/admin/questions/${id}/answers`,
-        {
-          calc_kind: "fixed",
-          calc_value: "2.50",
-          direction: "charge",
-          text: "Premium",
-        },
-      );
-      expect(response.status).toBe(302);
-      expectFlash(response, "Answer added");
-
-      const { getQuestionWithAnswers } = await import(
-        "#shared/db/questions.ts"
-      );
-      const question = await getQuestionWithAnswers(id);
-      expect(question!.answers[0]).toMatchObject({
-        calc_kind: "fixed",
-        calc_value: 2.5,
-        direction: "charge",
-        text: "Premium",
-      });
-    });
-
-    test("rejects invalid answer price modifier values", async () => {
-      const id = await createQuestion("Choose one");
-      const { response } = await adminFormPost(
-        `/admin/questions/${id}/answers`,
-        {
-          calc_kind: "fixed",
-          calc_value: "0",
-          direction: "charge",
-          text: "Bad",
-        },
-      );
-      expect(response.status).toBe(302);
-      expectFlash(response, "Amount must be greater than 0", false);
-    });
-
-    test("rejects invalid answer price modifier options", async () => {
-      const id = await createQuestion("Choose one");
-      const { response } = await adminFormPost(
-        `/admin/questions/${id}/answers`,
-        {
-          calc_kind: "bogus",
-          calc_value: "1",
-          direction: "charge",
-          text: "Bad",
-        },
-      );
-      expect(response.status).toBe(302);
-      expectFlash(response, "Invalid price modifier", false);
-    });
-
-    test("rejects non-numeric answer price modifier values", async () => {
-      const id = await createQuestion("Choose one");
-      const { response } = await adminFormPost(
-        `/admin/questions/${id}/answers`,
-        {
-          calc_kind: "fixed",
-          calc_value: "nope",
-          direction: "charge",
-          text: "Bad",
-        },
-      );
-      expect(response.status).toBe(302);
-      expectFlash(response, "Enter a valid number", false);
-    });
-
     test("rejects empty answer text", async () => {
       const id = await createQuestion("Answer validation");
       const { response } = await adminFormPost(
@@ -454,6 +383,22 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         "Listings updated",
       )(response);
       expect(await getQuestionListingIds(qId)).toEqual([]);
+    });
+
+    test("stores assign-all and logs all-listings assignment", async () => {
+      const qId = await createQuestion("Assign everyone?");
+      await adminFormPost(`/admin/questions/${qId}/listings`, {
+        assign_all: "on",
+      });
+
+      const { getQuestionWithAnswers } = await import(
+        "#shared/db/questions.ts"
+      );
+      expect((await getQuestionWithAnswers(qId))!.assign_all).toBe(true);
+
+      const { response } = await adminGet("/admin/log");
+      const body = await response.text();
+      expect(body).toContain("assigned to all listings");
     });
 
     test("logs singular when assigned to one listing", async () => {
@@ -700,6 +645,174 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         expect.stringContaining("to confirm deletion"),
         false,
       );
+    });
+  });
+
+  describe("answer edit page", () => {
+    /** Insert an "answer"-trigger modifier directly and return its id. */
+    const createAnswerModifier = async (name: string): Promise<number> => {
+      const { modifiersTable } = await import("#shared/db/modifiers.ts");
+      const m = await modifiersTable.insert({
+        calcKind: "fixed",
+        calcValue: 5,
+        direction: "charge",
+        name,
+        trigger: "answer",
+      });
+      return m.id;
+    };
+
+    testRequiresAuth("/admin/questions/1/answers/1/edit", {
+      setup: async () => {
+        const qId = await createQuestion("Answer edit auth");
+        await addAnswer(qId, "Editable answer");
+      },
+    });
+
+    test("returns 404 for a non-existent answer", async () => {
+      const qId = await createQuestion("Edit missing answer");
+      const { response } = await adminGet(
+        `/admin/questions/${qId}/answers/999/edit`,
+      );
+      expectStatus(404)(response);
+    });
+
+    test("shows the edit page with the answer text and modifier option", async () => {
+      const qId = await createQuestion("Edit answer page");
+      const aId = await addAnswer(qId, "Editable");
+      await createAnswerModifier("Surcharge tier");
+
+      const { response } = await adminGet(
+        `/admin/questions/${qId}/answers/${aId}/edit`,
+      );
+      await expectHtmlResponse(
+        response,
+        200,
+        "Editable",
+        "Surcharge tier",
+        'name="modifier_id"',
+      );
+    });
+
+    test("updates the answer text and redirects to the question", async () => {
+      const qId = await createQuestion("Edit text question");
+      const aId = await addAnswer(qId, "Before");
+
+      const { response } = await adminFormPost(
+        `/admin/questions/${qId}/answers/${aId}/edit`,
+        { modifier_id: "", text: "After" },
+      );
+      expectRedirectWithFlash(
+        `/admin/questions/${qId}`,
+        "Answer updated",
+      )(response);
+
+      const { getQuestionWithAnswers } = await import(
+        "#shared/db/questions.ts"
+      );
+      const question = await getQuestionWithAnswers(qId);
+      expect(question!.answers.find((a) => a.id === aId)!.text).toBe("After");
+    });
+
+    test("links the chosen modifier to the answer", async () => {
+      const qId = await createQuestion("Link modifier question");
+      const aId = await addAnswer(qId, "Large");
+      const modifierId = await createAnswerModifier("Large surcharge");
+
+      const { response } = await adminFormPost(
+        `/admin/questions/${qId}/answers/${aId}/edit`,
+        { modifier_id: String(modifierId), text: "Large" },
+      );
+      expect(response.status).toBe(302);
+
+      const { getAnswerModifierId } = await import("#shared/db/questions.ts");
+      expect(await getAnswerModifierId(aId)).toBe(modifierId);
+    });
+
+    test("clears the modifier link when none is selected", async () => {
+      const qId = await createQuestion("Clear modifier question");
+      const aId = await addAnswer(qId, "Plain");
+      const modifierId = await createAnswerModifier("Removable");
+
+      const { setAnswerModifier, getAnswerModifierId } = await import(
+        "#shared/db/questions.ts"
+      );
+      await setAnswerModifier(aId, modifierId);
+      expect(await getAnswerModifierId(aId)).toBe(modifierId);
+
+      await adminFormPost(`/admin/questions/${qId}/answers/${aId}/edit`, {
+        modifier_id: "",
+        text: "Plain",
+      });
+      expect(await getAnswerModifierId(aId)).toBeNull();
+    });
+
+    test("rejects a modifier id that is not an answer-trigger modifier", async () => {
+      const qId = await createQuestion("Invalid modifier question");
+      const aId = await addAnswer(qId, "Pick");
+
+      const { response } = await adminFormPost(
+        `/admin/questions/${qId}/answers/${aId}/edit`,
+        { modifier_id: "9999", text: "Pick" },
+      );
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Invalid modifier"), false);
+
+      const { getAnswerModifierId } = await import("#shared/db/questions.ts");
+      expect(await getAnswerModifierId(aId)).toBeNull();
+    });
+
+    test("rejects linking a modifier that isn't answer-triggered", async () => {
+      const qId = await createQuestion("Wrong trigger question");
+      const aId = await addAnswer(qId, "Pick");
+      const { modifiersTable } = await import("#shared/db/modifiers.ts");
+      const automatic = await modifiersTable.insert({
+        calcKind: "fixed",
+        calcValue: 5,
+        direction: "charge",
+        name: "Automatic fee",
+        trigger: "automatic",
+      });
+
+      const { response } = await adminFormPost(
+        `/admin/questions/${qId}/answers/${aId}/edit`,
+        { modifier_id: String(automatic.id), text: "Pick" },
+      );
+      expect(response.status).toBe(302);
+      expectFlash(response, expect.stringContaining("Invalid modifier"), false);
+
+      const { getAnswerModifierId } = await import("#shared/db/questions.ts");
+      expect(await getAnswerModifierId(aId)).toBeNull();
+    });
+
+    test("rejects empty answer text", async () => {
+      const qId = await createQuestion("Empty edit question");
+      const aId = await addAnswer(qId, "Keep me");
+
+      const { response } = await adminFormPost(
+        `/admin/questions/${qId}/answers/${aId}/edit`,
+        { modifier_id: "", text: "" },
+      );
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("Answer text is required"),
+        false,
+      );
+    });
+
+    test("logs the answer update", async () => {
+      const qId = await createQuestion("Edit log question");
+      const aId = await addAnswer(qId, "Logged before");
+      await adminFormPost(`/admin/questions/${qId}/answers/${aId}/edit`, {
+        modifier_id: "",
+        text: "Logged after",
+      });
+
+      const { response } = await adminGet("/admin/log");
+      const body = await response.text();
+      expect(body).toContain("Logged after");
+      expect(body).toContain("updated");
     });
   });
 

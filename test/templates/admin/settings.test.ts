@@ -23,6 +23,8 @@ beforeAll(async () => {
 const defaultState = (): SettingsPageState => ({
   bookingFee: "0",
   businessEmail: "",
+  calendarFeedsEnabled: false,
+  calendarFeedsGroupBy: "attendees",
   country: "GB",
   embedHosts: "",
   headerImageUrl: "",
@@ -92,6 +94,23 @@ describe("adminSettingsPage", () => {
     expect(html).toContain('href="/admin/settings-advanced"');
     expect(html).toContain('href="/admin/backup"');
     expect(html).toContain('href="/admin/debug"');
+  });
+
+  test("renders the calendar feeds form as markup, not escaped HTML", () => {
+    const html = adminSettingsPage(TEST_SESSION, defaultState());
+    expect(html).toContain('action="/admin/settings/calendar-feeds"');
+    expect(html).toContain('name="calendar_feeds_enabled"');
+    expect(html).toContain('name="calendar_feeds_group_by"');
+    // The form is real markup, not an escaped string rendered as text.
+    expect(html).not.toContain("&lt;form");
+  });
+
+  test("checks the calendar feeds toggle when enabled", () => {
+    const html = adminSettingsPage(TEST_SESSION, {
+      ...defaultState(),
+      calendarFeedsEnabled: true,
+    });
+    expect(hasCheckedInput(html, "calendar_feeds_enabled", "true")).toBe(true);
   });
 });
 

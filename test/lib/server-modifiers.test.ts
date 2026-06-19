@@ -7,11 +7,13 @@ import { toMinorUnits } from "#shared/currency.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
   getAllModifiers,
+  getModifierAnswerIds,
   getModifierGroupIds,
   getModifierListingIds,
   modifiersTable,
   updateModifierAggregateValues,
 } from "#shared/db/modifiers.ts";
+import { answersTable, questionsTable } from "#shared/db/questions.ts";
 import { normalizeCode } from "#shared/price-modifier.ts";
 import type { Modifier } from "#shared/types.ts";
 import {
@@ -614,6 +616,76 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
     });
   });
 
+  describe("answer links", () => {
+    const createQuestionWithAnswer = async (
+      question: string,
+      answer: string,
+    ): Promise<{ questionId: number; answerId: number }> => {
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: question,
+      });
+      const a = await answersTable.insert({
+        questionId: q.id,
+        sortOrder: 0,
+        text: answer,
+      });
+      return { answerId: a.id, questionId: q.id };
+    };
+
+    test("edit page lists linkable answers for an answer-triggered modifier", async () => {
+      await createQuestionWithAnswer("Size?", "Large");
+      await adminFormPost(
+        "/admin/modifiers",
+        createData({ name: "Tier", trigger: "answer" }),
+      );
+      const { id } = await lastModifier();
+      const { response } = await adminGet(`/admin/modifiers/${id}/edit`);
+      await expectHtmlResponse(
+        response,
+        200,
+        "Linked answers",
+        "Size? — Large",
+        'name="answer_ids"',
+      );
+    });
+
+    test("links answers via the answer form", async () => {
+      const { answerId } = await createQuestionWithAnswer("Size?", "Large");
+      await adminFormPost(
+        "/admin/modifiers",
+        createData({ name: "Tier", trigger: "answer" }),
+      );
+      const { id } = await lastModifier();
+      const { response } = await adminFormPost(
+        `/admin/modifiers/${id}/answers`,
+        { answer_ids: String(answerId) },
+      );
+      expectRedirectWithFlash(
+        `/admin/modifiers/${id}/edit`,
+        "Answers updated",
+        true,
+      )(response);
+      expect(await getModifierAnswerIds(id)).toEqual([answerId]);
+    });
+
+    test("the answer form 404s for a missing modifier", async () => {
+      const { response } = await adminFormPost(
+        "/admin/modifiers/999/answers",
+        {},
+      );
+      expectStatus(404)(response);
+    });
+
+    test("the edit page omits the answer editor for a non-answer modifier", async () => {
+      await adminFormPost("/admin/modifiers", createData());
+      const { id } = await lastModifier();
+      const { response } = await adminGet(`/admin/modifiers/${id}/edit`);
+      const html = await response.text();
+      expect(html).not.toContain("Linked answers");
+    });
+  });
+
   describe("trigger and promo code", () => {
     test("stores the chosen trigger", async () => {
       await adminFormPost(
@@ -621,6 +693,14 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         createData({ trigger: "optional" }),
       );
       expect((await lastModifier()).trigger).toBe("optional");
+    });
+
+    test("stores the answer trigger", async () => {
+      await adminFormPost(
+        "/admin/modifiers",
+        createData({ trigger: "answer" }),
+      );
+      expect((await lastModifier()).trigger).toBe("answer");
     });
 
     test("rejects an unknown trigger", async () => {

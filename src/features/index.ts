@@ -368,6 +368,7 @@ const PREFIX_SETTINGS: Record<string, readonly string[]> = {
   admin: ADMIN_SETTINGS,
   api: ALL_SNAPSHOT_SETTINGS,
   attachment: [],
+  caldav: ALL_SNAPSHOT_SETTINGS,
   // --- Check-in (owner-authenticated admin view) ---
   checkin: [
     CONFIG_KEYS.COUNTRY,
@@ -554,6 +555,7 @@ const prefixHandlers: Record<string, RouterFn> = {
       : null;
   },
   attachment: lazyRoute(loadAttachmentRoutes),
+  caldav: lazyRoute(loadFeedRoutes),
   checkin: lazyRoute(loadCheckinRoutes),
   contact: contactPrefixHandler,
   demo: lazyRoute(loadDemoResetRoutes),

@@ -1,13 +1,13 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
-import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import {
   adminListingPage,
   buildAnswerSummaryRows,
 } from "#templates/admin/listings.tsx";
 import {
   adminAnswerDeletePage,
+  adminAnswerEditPage,
   adminListingQuestionsPage,
   adminQuestionDeletePage,
   adminQuestionPage,
@@ -117,12 +117,17 @@ describe("adminQuestionPage", () => {
     expect(html).toContain('action="/admin/questions/1/edit"');
   });
 
-  test("renders answer list with delete links", () => {
+  test("renders answer list linking to each answer's edit page", () => {
     const html = adminQuestionPage(question, TEST_SESSION);
     expect(html).toContain("Small");
     expect(html).toContain("Large");
-    expect(html).toContain("/admin/questions/1/answers/10/delete");
-    expect(html).toContain("/admin/questions/1/answers/11/delete");
+    expect(html).toContain('href="/admin/questions/1/answers/10/edit"');
+    expect(html).toContain('href="/admin/questions/1/answers/11/edit"');
+  });
+
+  test("no longer links to answer deletion from the question page", () => {
+    const html = adminQuestionPage(question, TEST_SESSION);
+    expect(html).not.toContain("/admin/questions/1/answers/10/delete");
   });
 
   test("renders delete question link", () => {
@@ -143,30 +148,6 @@ describe("adminQuestionPage", () => {
     expect(html).toContain("No answers yet");
   });
 
-  test("renders answer price modifier labels", () => {
-    const question: QuestionWithAnswers = {
-      answers: [
-        {
-          calc_kind: "fixed",
-          calc_value: 2.5,
-          direction: "charge",
-          id: 10,
-          question_id: 1,
-          sort_order: 0,
-          text: "Premium",
-        },
-      ],
-      display_type: "radio" as const,
-      id: 1,
-      text: "Meal?",
-    };
-
-    const html = adminQuestionPage(question, TEST_SESSION);
-
-    expect(html).toContain("Premium");
-    expect(html).toContain("+£2.50");
-  });
-
   test("renders answer counts when provided", () => {
     const counts = new Map([
       [10, 5],
@@ -175,32 +156,6 @@ describe("adminQuestionPage", () => {
     const html = adminQuestionPage(question, TEST_SESSION, undefined, counts);
     expect(html).toContain("(5)");
     expect(html).toContain("(3)");
-  });
-
-  test("renders answer aggregate revenue totals", () => {
-    const html = adminQuestionPage(
-      {
-        ...question,
-        answers: [
-          {
-            ...question.answers[0]!,
-            total_revenue: 500,
-            total_uses: 2,
-            usage_count: 2,
-          },
-          {
-            ...question.answers[1]!,
-            total_revenue: undefined,
-            total_uses: 1,
-            usage_count: 1,
-          },
-        ],
-      },
-      TEST_SESSION,
-    );
-
-    expect(html).toContain("2 uses · £5");
-    expect(html).toContain("1 uses · £0");
   });
 
   test("renders move-up and move-down buttons", () => {
@@ -296,6 +251,119 @@ describe("adminQuestionDeletePage", () => {
       "Text does not match",
     );
     expect(html).toContain("Text does not match");
+  });
+});
+
+describe("adminAnswerEditPage", () => {
+  const question = {
+    answers: [
+      { id: 10, question_id: 1, sort_order: 0, text: "Small" },
+      { id: 11, question_id: 1, sort_order: 1, text: "Large" },
+    ],
+    display_type: "radio" as const,
+    id: 1,
+    text: "T-shirt size?",
+  };
+  const answer = question.answers[1]!;
+  const modifiers = [
+    { id: 5, name: "Large surcharge" },
+    { id: 6, name: "Tiny discount" },
+  ];
+
+  test("renders the editable text pre-filled and the form action", () => {
+    const html = adminAnswerEditPage(
+      question,
+      answer,
+      TEST_SESSION,
+      undefined,
+      0,
+      modifiers,
+      null,
+    );
+    expect(html).toContain('action="/admin/questions/1/answers/11/edit"');
+    expect(html).toContain('value="Large"');
+  });
+
+  test("shows the cumulative selection count", () => {
+    const html = adminAnswerEditPage(
+      question,
+      answer,
+      TEST_SESSION,
+      undefined,
+      7,
+      modifiers,
+      null,
+    );
+    expect(html).toContain("Selected 7 times");
+  });
+
+  test("uses the singular for a single selection", () => {
+    const html = adminAnswerEditPage(
+      question,
+      answer,
+      TEST_SESSION,
+      undefined,
+      1,
+      modifiers,
+      null,
+    );
+    expect(html).toContain("Selected 1 time");
+    expect(html).not.toContain("Selected 1 times");
+  });
+
+  test("lists modifier options and marks the linked one selected", () => {
+    const html = adminAnswerEditPage(
+      question,
+      answer,
+      TEST_SESSION,
+      undefined,
+      0,
+      modifiers,
+      5,
+    );
+    expect(html).toContain('name="modifier_id"');
+    expect(html).toContain("Large surcharge");
+    expect(html).toContain("Tiny discount");
+    expect(html).toContain('<option selected value="5">');
+  });
+
+  test("selects the none option when no modifier is linked", () => {
+    const html = adminAnswerEditPage(
+      question,
+      answer,
+      TEST_SESSION,
+      undefined,
+      0,
+      modifiers,
+      null,
+    );
+    expect(html).toContain('<option selected value="">');
+  });
+
+  test("moves the delete action onto the edit page", () => {
+    const html = adminAnswerEditPage(
+      question,
+      answer,
+      TEST_SESSION,
+      undefined,
+      0,
+      modifiers,
+      null,
+    );
+    expect(html).toContain('href="/admin/questions/1/answers/11/delete"');
+  });
+
+  test("renders an error message when provided", () => {
+    const html = adminAnswerEditPage(
+      question,
+      answer,
+      TEST_SESSION,
+      "Invalid modifier",
+      0,
+      modifiers,
+      null,
+    );
+    expect(html).toContain("Invalid modifier");
   });
 });
 

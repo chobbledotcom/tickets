@@ -3,10 +3,16 @@ import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { setEffectiveDomainForTest } from "#shared/config.ts";
 import { hashPassword } from "#shared/crypto/hashing.ts";
+import {
+  enableQueryLog,
+  getQueryLog,
+  runWithQueryLogContext,
+} from "#shared/db/query-log.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   createUser,
   getUserByUsername,
+  invalidateUsersCache,
   verifyUserPassword,
 } from "#shared/db/users.ts";
 import {
@@ -269,6 +275,91 @@ describeWithEnv("getSuperuserState", { db: true }, () => {
     settings.setForTest({ superuser_choice: "enabled" });
     const state = await getSuperuserState();
     expect(state).toEqual({ available: false, reason: "missing-env" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getSuperuserState() — account lookup efficiency
+// ---------------------------------------------------------------------------
+
+describeWithEnv("getSuperuserState account lookup", { db: true }, () => {
+  let restoreEnv: (() => void) | undefined;
+
+  afterEach(() => {
+    restoreEnv?.();
+  });
+
+  test("resolves the superuser by blind index, never scanning the whole users table", async () => {
+    restoreEnv = setTestEnv({ ADMIN_EMAIL_ADDRESS: "admin@example.com" });
+    await runWithQueryLogContext(async () => {
+      enableQueryLog();
+      await getSuperuserState();
+      const sql = getQueryLog().map((q) => q.sql);
+      expect(sql.some((s) => s.includes("username_index IN"))).toBe(true);
+      // The old path loaded every user via "... FROM users ORDER BY id ASC".
+      expect(sql.some((s) => /FROM users\s+ORDER BY id ASC/.test(s))).toBe(
+        false,
+      );
+    });
+  });
+
+  test("caches the account state so a repeat read issues no query", async () => {
+    restoreEnv = setTestEnv({ ADMIN_EMAIL_ADDRESS: "admin@example.com" });
+    await runWithQueryLogContext(async () => {
+      enableQueryLog();
+      await getSuperuserState();
+      expect(getQueryLog().length).toBeGreaterThan(0);
+      // Re-arm the log; the warm cache should satisfy the second read.
+      enableQueryLog();
+      await getSuperuserState();
+      expect(getQueryLog().length).toBe(0);
+    });
+  });
+
+  test("re-queries after a user write invalidates the cache", async () => {
+    restoreEnv = setTestEnv({ ADMIN_EMAIL_ADDRESS: "admin@example.com" });
+    // Warm the cache with the not-yet-created state.
+    expect((await getSuperuserState()).available).toBe(true);
+    expect(await getUserByUsername("admin")).toBeNull();
+
+    // Creating the account invalidates the users cache, which must clear the
+    // derived superuser-account cache so the nag stops showing.
+    await createUser("admin", await hashPassword("pw"), "wrapped", "owner");
+
+    const state = await getSuperuserState();
+    expect(state.available && state.userExists && state.activated).toBe(true);
+  });
+
+  test("a manual users-cache invalidation also clears the cached account state", async () => {
+    restoreEnv = setTestEnv({ ADMIN_EMAIL_ADDRESS: "admin@example.com" });
+    await getSuperuserState(); // warm cache
+    invalidateUsersCache();
+    await runWithQueryLogContext(async () => {
+      enableQueryLog();
+      await getSuperuserState();
+      expect(getQueryLog().length).toBeGreaterThan(0);
+    });
+  });
+
+  test("discards a lookup that a concurrent user write raced, never caching stale state", async () => {
+    restoreEnv = setTestEnv({ ADMIN_EMAIL_ADDRESS: "admin@example.com" });
+    // Start a lookup: it runs synchronously until getUserByUsername suspends on
+    // its hashing await, having already captured the cache generation.
+    const inflight = getSuperuserState();
+    // A concurrent user write lands while that lookup is in flight, clearing the
+    // derived cache and bumping the generation.
+    invalidateUsersCache();
+    await inflight;
+    // The raced result predates the write, so it must not have been written
+    // back. A follow-up read therefore misses the cache and re-queries rather
+    // than serving the poisoned entry for the rest of the TTL.
+    await runWithQueryLogContext(async () => {
+      enableQueryLog();
+      await getSuperuserState();
+      expect(
+        getQueryLog().some((q) => q.sql.includes("username_index IN")),
+      ).toBe(true);
+    });
   });
 });
 

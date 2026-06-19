@@ -692,6 +692,17 @@ describeWithEnv("QR Scanner", { db: true }, () => {
       expect(response.headers.get("location")).toBe("/admin");
     });
 
+    test("documents modifiers and price values", async () => {
+      const { response } = await adminGet("/admin/guide");
+      const body = await response.text();
+
+      expect(body).toContain('id="modifiers"');
+      expect(body).toContain("What are modifiers?");
+      expect(body).toContain("Fixed amount");
+      expect(body).toContain("10%");
+      expect(body).toContain("10x");
+    });
+
     test("footer contains guide link", async () => {
       const { response } = await adminGet("/admin/guide");
       const body = await response.text();

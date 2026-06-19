@@ -564,6 +564,24 @@ describe("payment-helpers", () => {
       );
     });
 
+    test("throws PaymentUserError when modifiers exceeds limit", () => {
+      const longModifiers = JSON.stringify(
+        Array.from({ length: 40 }, (_, i) => ({ i, q: 1 })),
+      );
+      const metadata = {
+        email: "john@example.com",
+        items: '[{"e":1,"q":1,"p":0}]',
+        modifiers: longModifiers,
+        name: "John",
+      };
+      expect(() => enforceMetadataLimits(metadata, 255)).toThrow(
+        PaymentUserError,
+      );
+      expect(() => enforceMetadataLimits(metadata, 255)).toThrow(
+        /too many options/i,
+      );
+    });
+
     test("items within Stripe limit (500) but over Square limit (255)", () => {
       const items = JSON.stringify(
         Array.from({ length: 15 }, (_, i) => ({ e: i, p: 100, q: 1 })),
@@ -609,25 +627,29 @@ describe("payment-helpers", () => {
       expect(enforceMetadataLimits(metadata, 255)).toEqual(metadata);
     });
 
-    test("throws when the entry count exceeds maxEntries", () => {
-      const metadata: Record<string, string> = {
-        email: "j@x.com",
-        items: "[]",
-        name: "John",
-      };
-      // 3 base + 8 extras = 11 entries, over a cap of 10.
-      for (let i = 0; i < 8; i++) metadata[`k${i}`] = "v";
+    test("throws when the entry count exceeds the cap (Square's 10-key limit)", () => {
+      // 11 short values — only the key count is over the cap, not any length.
+      const metadata = Object.fromEntries(
+        Array.from({ length: 11 }, (_, i) => [`k${i}`, "x"]),
+      );
       expect(() => enforceMetadataLimits(metadata, 255, 10)).toThrow(
         PaymentUserError,
       );
       expect(() => enforceMetadataLimits(metadata, 255, 10)).toThrow(
-        /too much booking detail/i,
+        /too many options/i,
       );
     });
 
-    test("passes when the entry count is within maxEntries", () => {
-      const metadata = { email: "j@x.com", items: "[]", name: "John" };
-      expect(enforceMetadataLimits(metadata, 255, 10)).toEqual(metadata);
+    test("allows the entry count at the cap, and ignores it when unset (Stripe)", () => {
+      const tenKeys = Object.fromEntries(
+        Array.from({ length: 10 }, (_, i) => [`k${i}`, "x"]),
+      );
+      expect(enforceMetadataLimits(tenKeys, 255, 10)).toEqual(tenKeys);
+      // Stripe supplies no entry cap, so a high key count passes through.
+      const manyKeys = Object.fromEntries(
+        Array.from({ length: 20 }, (_, i) => [`k${i}`, "x"]),
+      );
+      expect(enforceMetadataLimits(manyKeys, 500)).toEqual(manyKeys);
     });
   });
 

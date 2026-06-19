@@ -225,7 +225,7 @@ export const createTestAgentSession = async (
 };
 
 export const createTestApiKeyToken = async (): Promise<string> => {
-  const dataKey = await getTestDataKey();
+  const dataKey = await getTestDataKeyForApiKey();
   const { apiKey } = await createApiKey(
     1,
     "Test API Key",
@@ -238,7 +238,7 @@ export const createTestApiKeyToken = async (): Promise<string> => {
 export const createTestApiKeyFull = async (
   name = "Test Key",
 ): Promise<{ apiKey: string; id: number; dataKey: CryptoKey }> => {
-  const dataKey = await getTestDataKey();
+  const dataKey = await getTestDataKeyForApiKey();
   const { apiKey, id } = await createApiKey(
     1,
     name,
@@ -248,7 +248,7 @@ export const createTestApiKeyFull = async (
   return { apiKey, dataKey, id };
 };
 
-const getTestDataKey = async (): Promise<CryptoKey> => {
+export const getTestDataKeyForApiKey = async (): Promise<CryptoKey> => {
   const { unwrapKeyWithToken } = await import("#shared/crypto/keys.ts");
   const cookie = await testCookie();
   const sessionMatch = cookie.match(

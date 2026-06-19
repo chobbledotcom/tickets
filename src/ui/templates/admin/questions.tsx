@@ -6,12 +6,7 @@ import { map } from "#fp";
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { answerTextForm, questionTextForm } from "#routes/admin/questions.ts";
-import { formatCurrency } from "#shared/currency.ts";
-import {
-  type Answer,
-  answerPriceLabel,
-  type QuestionWithAnswers,
-} from "#shared/db/questions.ts";
+import type { Answer, QuestionWithAnswers } from "#shared/db/questions.ts";
 import { ConfirmForm, CsrfForm, Flash } from "#shared/forms.tsx";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import { AdminNav, SettingsSubNav } from "#templates/admin/nav.tsx";
@@ -129,16 +124,10 @@ export const adminQuestionPage = (
         <ul class="answer-list">
           {question.answers.map((a, i) => (
             <li>
-              {a.text}
-              {answerPriceLabel(a) && <small>{answerPriceLabel(a)}</small>}
-              {answerCounts && <small>({answerCounts.get(a.id)})</small>}
-              {(a.total_uses ?? 0) > 0 && (
-                <small>
-                  {` ${a.total_uses} uses · ${formatCurrency(
-                    a.total_revenue ?? 0,
-                  )}`}
-                </small>
-              )}{" "}
+              <a href={`/admin/questions/${question.id}/answers/${a.id}/edit`}>
+                {a.text}
+              </a>
+              {answerCounts && <small>({answerCounts.get(a.id)})</small>}{" "}
               {i > 0 && (
                 <CsrfForm
                   action={`/admin/questions/${question.id}/answers/${a.id}/move-up`}
@@ -160,13 +149,6 @@ export const adminQuestionPage = (
                   </button>
                 </CsrfForm>
               )}
-              {i < question.answers.length - 1 && " "}
-              <a
-                class="danger small"
-                href={`/admin/questions/${question.id}/answers/${a.id}/delete`}
-              >
-                {t("common.delete")}
-              </a>
             </li>
           ))}
         </ul>
@@ -183,6 +165,14 @@ export const adminQuestionPage = (
           id="question-listings"
         >
           <fieldset class="checkboxes">
+            <label>
+              <input
+                checked={question.assign_all || undefined}
+                name="assign_all"
+                type="checkbox"
+              />
+              {" Assign to all listings"}
+            </label>
             {map((e: ListingWithCount) => (
               <label>
                 <input
@@ -202,6 +192,70 @@ export const adminQuestionPage = (
       <p>
         <a class="danger" href={`/admin/questions/${question.id}/delete`}>
           {t("questions.delete.link")}
+        </a>
+      </p>
+    </Layout>,
+  );
+
+/** A linkable "answer"-trigger modifier for the answer edit page selector. */
+export type AnswerModifierOption = { id: number; name: string };
+
+/** Answer edit page: cumulative stats, the editable answer text, the price
+ * modifier this answer triggers, and the delete action (moved here from the
+ * question page). Ordering still lives on the question page. */
+export const adminAnswerEditPage = (
+  question: QuestionWithAnswers,
+  answer: Answer,
+  session: AdminSession,
+  error: string | undefined,
+  count: number,
+  modifiers: AnswerModifierOption[],
+  modifierId: number | null,
+): string =>
+  String(
+    <Layout title={t("questions.edit_answer.title")}>
+      <AdminNav active="/admin/settings" session={session} />
+      <SettingsSubNav />
+
+      <h1>{t("questions.edit_answer.heading")}</h1>
+      <p>
+        <small>
+          {t("questions.edit_answer.question_context", { text: question.text })}
+        </small>
+      </p>
+      <Flash error={error} />
+
+      <p>{t("questions.edit_answer.times_selected", { count })}</p>
+
+      <CsrfForm
+        action={`/admin/questions/${question.id}/answers/${answer.id}/edit`}
+      >
+        <Raw html={answerTextForm.render({ text: answer.text })} />
+        <label>
+          {t("questions.edit_answer.modifier_label")}
+          <select id="modifier_id" name="modifier_id">
+            <option selected={modifierId === null} value="">
+              {t("questions.edit_answer.modifier_none")}
+            </option>
+            {modifiers.map((m) => (
+              <option selected={m.id === modifierId} value={String(m.id)}>
+                {m.name}
+              </option>
+            ))}
+          </select>
+          <small>{t("questions.edit_answer.modifier_hint")}</small>
+        </label>
+        <SubmitButton icon="save">
+          {t("questions.edit_answer.save")}
+        </SubmitButton>
+      </CsrfForm>
+
+      <p>
+        <a
+          class="danger"
+          href={`/admin/questions/${question.id}/answers/${answer.id}/delete`}
+        >
+          {t("questions.delete_answer.submit")}
         </a>
       </p>
     </Layout>,

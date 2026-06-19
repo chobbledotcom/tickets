@@ -71,9 +71,6 @@ import {
   reserveSession,
 } from "#shared/db/processed-payments.ts";
 import {
-  answerAmountAllocations,
-  answerModifierSpecs,
-  answerQuantitiesFromListingAnswers,
   groupListingAnswers,
   saveAttendeeAnswers,
 } from "#shared/db/questions.ts";
@@ -934,17 +931,17 @@ const createAttendeeForSession = async (
   // Consume modifier stock atomically; a sold-out race rolls the order back.
   // The usage amount comes from the same pricing pass that calculated the
   // checkout total, so scoped bases, quantities, and clamped discounts match.
+  // Answer-triggered modifiers are ordinary modifiers, so they consume stock
+  // and record usage (and its revenue aggregates) like every other modifier.
   if (pricedOrder.modifierApplications.length > 0) {
     const attendeeId = created.attendees[0]!.id;
     const consumed = await consumeModifierStock(
       attendeeId,
-      pricedOrder.modifierApplications
-        .filter((application) => application.source !== "answer")
-        .map((application) => ({
-          amountApplied: application.amountApplied,
-          modifierId: application.modifierId,
-          quantity: application.quantity,
-        })),
+      pricedOrder.modifierApplications.map((application) => ({
+        amountApplied: application.amountApplied,
+        modifierId: application.modifierId,
+        quantity: application.quantity,
+      })),
     );
     if (!consumed) {
       await deleteAttendee(attendeeId);
@@ -1112,25 +1109,16 @@ const processReservedSession = async (
 
   // Resolve the applied modifiers once (re-fetched by id from the database);
   // both the price re-derivation and the stock consumption use the same specs.
-  const answerIds = intent.listingAnswerIds
-    ? Object.values(intent.listingAnswerIds).flat()
-    : [];
-  const listingQuantities = new Map(
-    intent.items.map((item) => [item.e, item.q] as const),
-  );
-  const answerQuantities = answerQuantitiesFromListingAnswers(
-    intent.listingAnswerIds,
-    listingQuantities,
-  );
+  // Every trigger — automatic, code, opt-in add-on, and answer — rides the same
+  // metadata refs and is re-fetched by id here, re-checking the visit gate and
+  // re-deriving the amount so a tampered checkout can't dodge a surcharge.
   const visits = await buyerVisits(intent.email, intent.phone);
-  const [modifierSpecs, answerSpecs] = await Promise.all([
-    specsFromRefs(intent.modifiers, { visits }),
-    answerModifierSpecs(answerIds, answerQuantities),
-  ]);
-  const pricingIntent = checkoutIntentForSession(intent, validatedItems, [
-    ...modifierSpecs,
-    ...answerSpecs,
-  ]);
+  const modifierSpecs = await specsFromRefs(intent.modifiers, { visits });
+  const pricingIntent = checkoutIntentForSession(
+    intent,
+    validatedItems,
+    modifierSpecs,
+  );
   const pricedOrder = priceCheckout(pricingIntent);
 
   const pricingError = await verifyPaidPricing(
@@ -1154,7 +1142,6 @@ const processReservedSession = async (
   if (intent.listingAnswerIds) {
     await saveAttendeeAnswers(
       groupListingAnswers(createdEntries, intent.listingAnswerIds),
-      answerAmountAllocations(pricedOrder.modifierApplications),
     );
   }
 

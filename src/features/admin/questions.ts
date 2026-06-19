@@ -22,6 +22,7 @@ import {
 } from "#shared/app-forms.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getAllListings, getListingWithCount } from "#shared/db/listings.ts";
+import { getAllModifiers } from "#shared/db/modifiers.ts";
 import {
   type Answer,
   answersTable,
@@ -30,6 +31,7 @@ import {
   deleteQuestion,
   getAllQuestionsWithAnswers,
   getAnswerCountsForQuestion,
+  getAnswerModifierId,
   getListingQuestionIds,
   getNextAnswerSortOrder,
   getQuestionListingIds,
@@ -40,6 +42,7 @@ import {
   questionDisplayTypeError,
   questionsTable,
   requireQuestionDisplayType,
+  setAnswerModifier,
   setListingQuestions,
   setQuestionListings,
   swapAnswerOrder,
@@ -47,16 +50,11 @@ import {
 } from "#shared/db/questions.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { defineForm } from "#shared/forms.tsx";
-import {
-  type CalcKind,
-  isCalcKind,
-  isModifierDirection,
-  type ModifierDirection,
-  validateCalcValue,
-} from "#shared/price-modifier.ts";
 import type { AdminSession } from "#shared/types.ts";
 import {
+  type AnswerModifierOption,
   adminAnswerDeletePage,
+  adminAnswerEditPage,
   adminListingQuestionsPage,
   adminQuestionDeletePage,
   adminQuestionPage,
@@ -98,39 +96,6 @@ export const answerTextForm = defineForm({
       placeholder: "e.g. Medium",
       required: true,
       type: "text",
-    },
-    {
-      defaultValue: "fixed",
-      label: "Price modifier type",
-      name: "calc_kind",
-      options: [
-        { label: "Fixed amount", value: "fixed" },
-        { label: "Percentage", value: "percent" },
-        { label: "Multiplier", value: "multiply" },
-      ],
-      type: "select",
-    },
-    {
-      defaultValue: "charge",
-      label: "Price modifier direction",
-      name: "direction",
-      options: [
-        { label: "Charge (adds to the price)", value: "charge" },
-        { label: "Discount (reduces the price)", value: "discount" },
-      ],
-      type: "select",
-    },
-    {
-      hint: "Optional. Leave blank for no price change. Fixed amounts are in your currency; percentages and multipliers work like Modifiers.",
-      inputmode: "decimal",
-      label: "Price modifier value",
-      name: "calc_value",
-      parse: (value: string) => (value ? Number.parseFloat(value) : null),
-      type: "text",
-      validate: (value: string) =>
-        Number.isFinite(Number.parseFloat(value))
-          ? null
-          : "Enter a valid number",
     },
   ] as const,
   id: "answerText",
@@ -219,55 +184,31 @@ const handleQuestionEdit = createAuthedFormRoute<
 const handleQuestionListings = ownerFormById(async (id, _session, form) => {
   const question = await getQuestionWithAnswers(id);
   if (!question) return notFoundResponse();
+  const assignAll = form.get("assign_all") === "on";
   const listingIds = form.getNumberArray("listing_ids");
+  await questionsTable.update(id, { assignAll });
   await setQuestionListings(id, listingIds);
   await logActivity(
-    `Question '${question.text}' assigned to ${listingIds.length} listing${
-      listingIds.length !== 1 ? "s" : ""
-    }`,
+    assignAll
+      ? `Question '${question.text}' assigned to all listings`
+      : `Question '${question.text}' assigned to ${listingIds.length} listing${
+          listingIds.length !== 1 ? "s" : ""
+        }`,
   );
   return redirect(`/admin/questions/${id}`, "Listings updated", true);
 });
 
 /** Handle POST /admin/questions/:id/answers (add answer) */
 const handleAddAnswer = createAuthedFormRoute<
-  {
-    calc_kind: string | null;
-    calc_value: number | null;
-    direction: string | null;
-    text: string;
-  },
+  { text: string },
   QuestionIdParams
 >({
   auth: OWNER_FORM,
   form: answerTextForm,
   onInvalid: redirectToQuestion,
-  onValid: async ({
-    params,
-    values: { calc_kind, calc_value, direction, text },
-  }) => {
-    const kind = calc_kind;
-    const dir = direction;
-    if (calc_value !== null) {
-      if (!kind || !dir || !isCalcKind(kind) || !isModifierDirection(dir)) {
-        return redirectToQuestion({ error: "Invalid price modifier", params });
-      }
-      const error = validateCalcValue(kind, calc_value);
-      if (error) return redirectToQuestion({ error, params });
-    }
+  onValid: async ({ params, values: { text } }) => {
     const sortOrder = await getNextAnswerSortOrder(params.id);
-    await answersTable.insert(
-      calc_value === null
-        ? { questionId: params.id, sortOrder, text }
-        : {
-            calcKind: kind as CalcKind,
-            calcValue: calc_value,
-            direction: dir as ModifierDirection,
-            questionId: params.id,
-            sortOrder,
-            text,
-          },
-    );
+    await answersTable.insert({ questionId: params.id, sortOrder, text });
     await logActivity(`Answer '${text}' added to question ${params.id}`);
     return redirect(`/admin/questions/${params.id}`, "Answer added", true);
   },
@@ -345,6 +286,72 @@ const handleDeleteAnswerPost = createVerifiedFormRoute<
       `Answer '${answer.text}' deleted from question ${question.id}`,
     );
     return redirect(`/admin/questions/${question.id}`, "Answer deleted", true);
+  },
+});
+
+/** The "answer"-trigger modifiers an answer can be linked to, as the lightweight
+ * {id, name} options the edit page's selector renders. Only "answer"-triggered
+ * modifiers apply when a buyer picks an answer, so the others are filtered out. */
+const answerTriggerModifiers = async (): Promise<AnswerModifierOption[]> =>
+  (await getAllModifiers())
+    .filter((m) => m.trigger === "answer")
+    .map((m) => ({ id: m.id, name: m.name }));
+
+const editAnswerPath = ({ id, answerId }: AnswerRouteParams): string =>
+  `/admin/questions/${id}/answers/${answerId}/edit`;
+
+/** Handle GET /admin/questions/:id/answers/:answerId/edit */
+const handleEditAnswerGet = answerRoute(async (question, answer, session) => {
+  const flash = getFlash();
+  const [counts, modifiers, modifierId] = await Promise.all([
+    getAnswerCountsForQuestion(question.id),
+    answerTriggerModifiers(),
+    getAnswerModifierId(answer.id),
+  ]);
+  return htmlResponse(
+    adminAnswerEditPage(
+      question,
+      answer,
+      session,
+      flash.error,
+      // getAnswerCountsForQuestion returns a row per answer of the question, and
+      // this answer belongs to it, so its count entry always exists.
+      counts.get(answer.id)!,
+      modifiers,
+      modifierId,
+    ),
+  );
+});
+
+/** Handle POST /admin/questions/:id/answers/:answerId/edit (text + modifier) */
+const handleEditAnswerPost = createAuthedFormRoute<
+  { text: string },
+  AnswerRouteParams,
+  AnswerContext
+>({
+  auth: OWNER_FORM,
+  form: answerTextForm,
+  loadContext: loadQuestionAndAnswer,
+  onInvalid: ({ error, params }) =>
+    errorRedirect(editAnswerPath(params), error),
+  onValid: async ({
+    context: { answer, question },
+    form,
+    params,
+    values: { text },
+  }) => {
+    const raw = form.getString("modifier_id");
+    const modifierId = raw ? Number.parseInt(raw, 10) : null;
+    if (
+      modifierId !== null &&
+      !(await answerTriggerModifiers()).some((m) => m.id === modifierId)
+    ) {
+      return errorRedirect(editAnswerPath(params), "Invalid modifier");
+    }
+    await answersTable.update(answer.id, { text });
+    await setAnswerModifier(answer.id, modifierId);
+    await logActivity(`Answer '${text}' updated in question ${question.id}`);
+    return redirect(`/admin/questions/${question.id}`, "Answer updated", true);
   },
 });
 
@@ -437,11 +444,13 @@ export const questionsRoutes = {
     "GET /admin/questions": handleQuestionsGet,
     "GET /admin/questions/:id": handleQuestionGet,
     "GET /admin/questions/:id/answers/:answerId/delete": handleDeleteAnswerGet,
+    "GET /admin/questions/:id/answers/:answerId/edit": handleEditAnswerGet,
     "POST /admin/listing/:id/questions": handleListingQuestionsPost,
     "POST /admin/questions": handleQuestionsPost,
     "POST /admin/questions/:id/answers": handleAddAnswer,
     "POST /admin/questions/:id/answers/:answerId/delete":
       handleDeleteAnswerPost,
+    "POST /admin/questions/:id/answers/:answerId/edit": handleEditAnswerPost,
     "POST /admin/questions/:id/answers/:answerId/move-down":
       handleMoveAnswerDown,
     "POST /admin/questions/:id/answers/:answerId/move-up": handleMoveAnswerUp,

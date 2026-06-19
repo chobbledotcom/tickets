@@ -210,20 +210,20 @@ export const buildItemsMetadata = async (
 /**
  * Compact the resolved modifier specs to id/quantity references for metadata.
  *
- * Answer price modifiers are excluded: the webhook re-derives them from the
- * stored `answer_ids`, not from these refs, and an answer id can collide with
- * an unrelated modifier id (the two tables autoincrement independently). Were
- * they included, `specsFromRefs` would re-fetch that id from the modifiers
- * table and wrongly revive a same-id modifier on payment completion.
+ * Every trigger (automatic, code, opt-in add-on, and answer) is carried the
+ * same way — its modifier id and the resolved quantity — and the webhook
+ * re-fetches each by id, re-checking eligibility (the returning-customer visit
+ * gate) and re-deriving the amount, so provider metadata amounts are never
+ * trusted. Answer-triggered modifiers are ordinary modifier rows now, so their
+ * ids can't collide with anything: the resolved (stock-clamped) quantity stored
+ * here is exactly what the webhook re-prices, keeping the two totals identical.
  */
 export const toModifierRefs = (
   specs: CheckoutIntent["modifiers"],
-): ModifierRef[] | undefined => {
-  const real = (specs ?? []).filter((s) => s.source !== "answer");
-  return real.length > 0
-    ? real.map((s) => ({ i: s.id, q: s.quantity }))
+): ModifierRef[] | undefined =>
+  specs && specs.length > 0
+    ? specs.map((s) => ({ i: s.id, q: s.quantity }))
     : undefined;
-};
 
 /** Input for buildMetadata — like BookingIntent but with optional contact fields */
 type MetadataInput = Pick<BookingIntent, "name" | "email" | "items" | "date"> &
@@ -380,12 +380,19 @@ const parsePackedFields = (raw: string): Partial<Record<string, string>> => {
 };
 
 /**
- * Enforce metadata value length limits for a payment provider.
+ * Enforce a payment provider's metadata limits.
  *
- * Only items and answer_ids can realistically exceed provider limits —
- * they grow with the number of listings/options selected. All other fields
- * (name, email, address, etc.) are already constrained by form validation
- * to lengths well below the smallest provider limit (255).
+ * Only items, answer_ids and modifiers can realistically exceed the per-value
+ * length limit — they grow with the number of listings/options/modifiers
+ * selected (answer-triggered modifiers ride the modifiers refs). All other
+ * fields (name, email, address, etc.) are already constrained by form
+ * validation to lengths well below the smallest provider limit (255).
+ *
+ * Square also caps the *number* of entries: a customisable-day checkout that
+ * fills its optional fields (date, day_count, answer_ids, …) plus a modifiers
+ * ref can reach the 10-entry limit, so when `maxEntries` is supplied the key
+ * count is checked too and surfaces the same batching error rather than a
+ * generic provider rejection.
  */
 export const enforceMetadataLimits = (
   metadata: Record<string, string>,
@@ -400,7 +407,12 @@ export const enforceMetadataLimits = (
   }
 
   const answerIds = metadata.answer_ids;
-  if (answerIds && answerIds.length > maxValueLength) {
+  const modifiers = metadata.modifiers;
+  if (
+    (answerIds && answerIds.length > maxValueLength) ||
+    (modifiers && modifiers.length > maxValueLength) ||
+    (maxEntries !== undefined && Object.keys(metadata).length > maxEntries)
+  ) {
     throw new PaymentUserError(
       "Too many options selected for a single checkout. Please book in smaller batches.",
     );
@@ -411,16 +423,6 @@ export const enforceMetadataLimits = (
   // a provider's per-value cap, so it is length-checked like items/answer_ids.
   const packed = metadata[PACKED_FIELD];
   if (packed && packed.length > maxValueLength) {
-    throw new PaymentUserError(
-      "Too much booking detail for a single checkout. Please book in smaller batches.",
-    );
-  }
-
-  // Providers also cap the number of metadata entries (Square most tightly, at
-  // 10). Packing keeps a populated checkout well under, so tripping this means a
-  // new top-level field was added without accounting for the cap — fail loudly
-  // rather than let the provider reject the checkout before the customer pays.
-  if (maxEntries !== undefined && Object.keys(metadata).length > maxEntries) {
     throw new PaymentUserError(
       "Too much booking detail for a single checkout. Please book in smaller batches.",
     );

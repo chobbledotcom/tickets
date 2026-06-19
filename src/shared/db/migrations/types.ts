@@ -39,6 +39,9 @@ export type MigrationContext = {
   backfillModifierAggregates: () => Promise<void>;
   ensureDefaultAttendeeStatus: () => Promise<void>;
   getDb: () => Client;
+  /** Rebuild a table from its SCHEMA definition, dropping any columns and
+   * attached triggers no longer declared (preserving data for shared columns). */
+  recreateTable: (table: string) => Promise<void>;
   renameEventsToListings: () => Promise<void>;
   syncCurrentSchema: () => Promise<void>;
   syncIndexes: () => Promise<void>;

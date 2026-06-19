@@ -31,5 +31,10 @@
   "modifiers.scope.groups_heading": "Linked groups",
   "modifiers.scope.none": "Nothing available to link yet.",
   "modifiers.scope.save": "Save scope",
-  "modifiers.recalculate.description": "Compare the stored modifier totals with totals counted from attendee records. Select only the stored values you want to replace."
+  "modifiers.answers.heading": "Linked answers",
+  "modifiers.answers.hint": "This modifier applies when a buyer selects any of the ticked answers.",
+  "modifiers.answers.none": "No question answers to link yet.",
+  "modifiers.answers.save": "Save answers",
+  "modifiers.recalculate.description": "Compare the stored modifier totals with totals counted from attendee records. Select only the stored values you want to replace.",
+  "modifiers.guide_link": "Modifiers guide"
 }

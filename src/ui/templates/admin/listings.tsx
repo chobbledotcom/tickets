@@ -487,6 +487,36 @@ const CustomisableDaysRow = ({
   );
 };
 
+/** Compact price row for the listing details table. Keeps the high-signal
+ * booking price visible without adding another crowded admin-only metric. */
+const ListingPriceRow = ({
+  listing,
+}: {
+  listing: ListingWithCount;
+}): JSX.Element => {
+  const price =
+    listing.unit_price > 0
+      ? formatCurrency(listing.unit_price)
+      : t("listings_table.free");
+  const payMoreSuffix = listing.can_pay_more
+    ? listing.max_price > listing.unit_price
+      ? ` (${t("listings_table.pay_more_range", {
+          max: formatCurrency(listing.max_price),
+          min: price,
+        })})`
+      : ` (${t("listings_table.pay_more_enabled")})`
+    : "";
+  return (
+    <tr>
+      <th>{t("listings_table.ticket_price")}</th>
+      <td>
+        {price}
+        {payMoreSuffix}
+      </td>
+    </tr>
+  );
+};
+
 /** Daily-specific schedule rows (bookable days, booking window) */
 const DailyScheduleRows = ({
   listing,
@@ -700,6 +730,7 @@ const ListingDetailsTable = ({
                 : t("listings_table.standard")}
             </td>
           </tr>
+          <ListingPriceRow listing={listing} />
           {listing.customisable_days && (
             <CustomisableDaysRow listing={listing} />
           )}

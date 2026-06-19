@@ -870,13 +870,14 @@ export const modifierFields: Field[] = [
   },
   {
     defaultValue: "automatic",
-    hint: "When this applies. Promo codes are entered by the buyer at checkout; optional add-ons are chosen by the buyer.",
+    hint: "When this applies. Promo codes are entered by the buyer at checkout; optional add-ons are chosen by the buyer; question answers apply when the buyer picks a linked answer (choose the answers on the edit page after saving).",
     label: "Trigger",
     name: "trigger",
     options: [
       { label: "Automatic (always)", value: "automatic" },
       { label: "Promo code", value: "code" },
       { label: "Optional add-on", value: "optional" },
+      { label: "Question answer", value: "answer" },
     ],
     type: "select",
   },

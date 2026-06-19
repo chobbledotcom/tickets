@@ -24,13 +24,24 @@ import {
   adminRecalculatePage,
   type RecalculateRow,
 } from "#templates/admin/recalculate.tsx";
-import { ActionButton, SubmitButton } from "#templates/components/actions.tsx";
+import {
+  ActionButton,
+  GuideLink,
+  SubmitButton,
+} from "#templates/components/actions.tsx";
 import { modifierAggregateFields, modifierFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
 /** Candidate listings/groups and current links for the scope editor. */
 export type ScopeLinks = {
   kind: "listings" | "groups";
+  options: { id: number; name: string }[];
+  selected: number[];
+};
+
+/** Candidate answers and current links for an "answer"-triggered modifier.
+ * Options are flattened across questions; each name reads "Question — Answer". */
+export type AnswerLinks = {
   options: { id: number; name: string }[];
   selected: number[];
 };
@@ -72,6 +83,41 @@ const ScopeLinksForm = ({
     </CsrfForm>
   );
 };
+
+/** The answer link editor shown on the edit page for an "answer"-triggered
+ * modifier: tick the question answers that apply this modifier. */
+const AnswerLinksForm = ({
+  modifier,
+  answerLinks,
+}: {
+  modifier: Modifier;
+  answerLinks: AnswerLinks;
+}): JSX.Element => (
+  <CsrfForm action={`/admin/modifiers/${modifier.id}/answers`}>
+    <h2>{t("modifiers.answers.heading")}</h2>
+    <p>
+      <small>{t("modifiers.answers.hint")}</small>
+    </p>
+    {answerLinks.options.length === 0 ? (
+      <p>{t("modifiers.answers.none")}</p>
+    ) : (
+      <fieldset class="checkboxes">
+        {answerLinks.options.map((o) => (
+          <label>
+            <input
+              checked={answerLinks.selected.includes(o.id) || undefined}
+              name="answer_ids"
+              type="checkbox"
+              value={String(o.id)}
+            />
+            {` ${o.name}`}
+          </label>
+        ))}
+      </fieldset>
+    )}
+    <SubmitButton icon="save">{t("modifiers.answers.save")}</SubmitButton>
+  </CsrfForm>
+);
 
 /** Human-readable summary of a modifier's rule, e.g. "Discount · 10%". */
 const ruleSummary = (m: Modifier): string => {
@@ -195,13 +241,16 @@ export const adminModifiersPage = (
     <Layout title={t("terms.modifiers")}>
       <AdminNav active="/admin/modifiers" session={session} />
       <Flash success={successMessage} />
-      {!isReadOnly() && (
-        <p class="actions">
+      <p class="actions">
+        {!isReadOnly() && (
           <ActionButton href="/admin/modifiers/new" icon="plus">
             {t("modifiers.add_modifier")}
           </ActionButton>
-        </p>
-      )}
+        )}
+        <GuideLink href="/admin/guide#modifiers">
+          {t("modifiers.guide_link")}
+        </GuideLink>
+      </p>
       {modifiers.length === 0 ? (
         <p>{t("modifiers.no_modifiers")}</p>
       ) : (
@@ -245,6 +294,11 @@ export const adminModifierNewPage = (
       <AdminNav active="/admin/modifiers" session={session} />
       <CsrfForm action="/admin/modifiers">
         <h1>{t("modifiers.add.heading")}</h1>
+        <p class="actions">
+          <GuideLink href="/admin/guide#modifiers">
+            {t("modifiers.guide_link")}
+          </GuideLink>
+        </p>
         <Flash error={error} />
         <Raw html={renderFields(modifierFields, modifierToFieldValues())} />
         <SubmitButton icon="plus">{t("modifiers.add.submit")}</SubmitButton>
@@ -253,19 +307,28 @@ export const adminModifierNewPage = (
   );
 
 /** Admin modifier edit page. `links` carries the scope editor for a
- * listing/group-scoped modifier (null for a whole-order modifier). */
+ * listing/group-scoped modifier (null for a whole-order modifier);
+ * `answerLinks` carries the answer editor for an "answer"-triggered modifier
+ * (null otherwise). The two editors are independent — an answer modifier can
+ * also be scoped to specific listings. */
 export const adminModifierEditPage = (
   modifier: Modifier,
   session: AdminSession,
   error?: string,
   links?: ScopeLinks | null,
   success?: string,
+  answerLinks?: AnswerLinks | null,
 ): string =>
   String(
     <Layout title={t("modifiers.edit.heading")}>
       <AdminNav active="/admin/modifiers" session={session} />
       <CsrfForm action={`/admin/modifiers/${modifier.id}/edit`}>
         <h1>{t("modifiers.edit.heading")}</h1>
+        <p class="actions">
+          <GuideLink href="/admin/guide#modifiers">
+            {t("modifiers.guide_link")}
+          </GuideLink>
+        </p>
         <Flash error={error} success={success} />
         <Raw
           html={renderFields(modifierFields, modifierToFieldValues(modifier))}
@@ -274,6 +337,9 @@ export const adminModifierEditPage = (
         <SubmitButton icon="save">{t("common.save_changes")}</SubmitButton>
       </CsrfForm>
       {links && <ScopeLinksForm links={links} modifier={modifier} />}
+      {answerLinks && (
+        <AnswerLinksForm answerLinks={answerLinks} modifier={modifier} />
+      )}
       <p class="actions">
         <a class="danger" href={`/admin/modifiers/${modifier.id}/delete`}>
           {t("modifiers.delete.submit")}

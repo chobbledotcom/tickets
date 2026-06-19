@@ -46,8 +46,6 @@ export type ModifierSpec = {
   value: number;
   listingIds: number[] | null;
   quantity: number;
-  /** Actual modifier rows are stock-consumed; answer modifiers only affect price. */
-  source?: "modifier" | "answer";
 };
 
 /** Compact booking item stored in session metadata (serialized/deserialized as JSON) */

@@ -11,6 +11,7 @@ import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import {
   executeBatch,
   getDb,
+  inPlaceholders,
   queryAll,
   queryOne,
   resetAggregates,
@@ -195,6 +196,27 @@ export const getModifierGroupIds = (modifierId: number): Promise<number[]> =>
     modifierId,
   );
 
+/** Answer ids an "answer"-triggered modifier is linked to (for the admin
+ * editor) — i.e. the answers whose modifier_id points at this modifier. */
+export const getModifierAnswerIds = (modifierId: number): Promise<number[]> =>
+  modifierIdColumn("SELECT id FROM answers WHERE modifier_id = ?", modifierId);
+
+/** Run a "clear, then re-add" batch idempotently: one reset statement (bound to
+ * `[modifierId]`), then one write per id (bound to `[modifierId, id]`). Shared
+ * by every modifier-link save whether the links live in a join table (insert a
+ * row per id) or a column on the target rows (update them), so the batch shape
+ * lives in one place. */
+const resetAndWriteLinks = (
+  resetSql: string,
+  writeSql: string,
+  modifierId: number,
+  ids: number[],
+): Promise<unknown> =>
+  executeBatch([
+    { args: [modifierId], sql: resetSql },
+    ...ids.map((id) => ({ args: [modifierId, id], sql: writeSql })),
+  ]);
+
 /** Replace a modifier's link rows in `table` with one per id (reset + insert),
  * so saving the scope editor is idempotent. */
 const setModifierLinks = (
@@ -203,16 +225,12 @@ const setModifierLinks = (
   modifierId: number,
   ids: number[],
 ): Promise<unknown> =>
-  executeBatch([
-    {
-      args: [modifierId],
-      sql: `DELETE FROM ${table} WHERE modifier_id = ?`,
-    },
-    ...ids.map((id) => ({
-      args: [modifierId, id],
-      sql: `INSERT INTO ${table} (modifier_id, ${column}) VALUES (?, ?)`,
-    })),
-  ]);
+  resetAndWriteLinks(
+    `DELETE FROM ${table} WHERE modifier_id = ?`,
+    `INSERT INTO ${table} (modifier_id, ${column}) VALUES (?, ?)`,
+    modifierId,
+    ids,
+  );
 
 /** Set the listings a "listings"-scoped modifier is charged on. */
 export const setModifierListings = (
@@ -227,3 +245,33 @@ export const setModifierGroups = (
   groupIds: number[],
 ): Promise<unknown> =>
   setModifierLinks("modifier_groups", "group_id", modifierId, groupIds);
+
+/** Point the given answers at an "answer"-triggered modifier (and clear any
+ * answers previously pointing at it), so saving the editor is idempotent and
+ * an answer carries at most one modifier. */
+export const setModifierAnswers = (
+  modifierId: number,
+  answerIds: number[],
+): Promise<unknown> =>
+  resetAndWriteLinks(
+    "UPDATE answers SET modifier_id = NULL WHERE modifier_id = ?",
+    "UPDATE answers SET modifier_id = ? WHERE id = ?",
+    modifierId,
+    answerIds,
+  );
+
+/** Selected answer id → the "answer"-trigger modifier it activates (as a
+ * single-element list, absent when the answer has no modifier), keyed for
+ * resolve so a modifier's quantity totals across every chosen answer that
+ * points at it. */
+export const modifierIdsByAnswerId = async (
+  answerIds: number[],
+): Promise<Map<number, number[]>> => {
+  if (answerIds.length === 0) return new Map();
+  const rows = await queryAll<{ id: number; modifier_id: number }>(
+    `SELECT id, modifier_id FROM answers
+     WHERE id IN (${inPlaceholders(answerIds)}) AND modifier_id IS NOT NULL`,
+    answerIds,
+  );
+  return new Map(rows.map((r) => [r.id, [r.modifier_id]]));
+};

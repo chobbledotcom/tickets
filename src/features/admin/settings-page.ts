@@ -33,6 +33,8 @@ const getSettingsPageState = async () => {
   return {
     bookingFee: settings.bookingFee,
     businessEmail: settings.businessEmail,
+    calendarFeedsEnabled: settings.calendarFeedsEnabled,
+    calendarFeedsGroupBy: settings.calendarFeedsGroupBy,
     country: settings.country,
     embedHosts: settings.embedHosts,
     headerImageUrl: settings.headerImageUrl,

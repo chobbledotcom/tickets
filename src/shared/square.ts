@@ -142,7 +142,8 @@ const rethrowAsUserError = (err: unknown): never => {
   throw err;
 };
 
-/** Enforce Square metadata value length limits using the shared helper */
+/** Enforce Square's metadata value-length and 10-entry limits via the shared
+ * helper, so an over-cap checkout fails with a batching message up front. */
 const enforceSquareMetadataLimits = (
   metadata: Record<string, string>,
 ): Record<string, string> =>

@@ -7,6 +7,7 @@ import type { SuperuserState } from "#shared/superuser.ts";
 import type { AdminSession, Theme } from "#shared/types.ts";
 import { AdminNav, SettingsSubNav } from "#templates/admin/nav.tsx";
 import { BusinessEmailForm } from "#templates/admin/settings/business-email.tsx";
+import { CalendarFeedsForm } from "#templates/admin/settings/calendar-feeds.tsx";
 import { ChangePasswordForm } from "#templates/admin/settings/change-password.tsx";
 import { CountryForm } from "#templates/admin/settings/country.tsx";
 import { EmbedHostsForm } from "#templates/admin/settings/embed-hosts.tsx";
@@ -45,6 +46,8 @@ export type SettingsPageState = {
   headerImageUrl: string;
   storageEnabled: boolean;
   superuser: SuperuserState;
+  calendarFeedsEnabled: boolean;
+  calendarFeedsGroupBy: "attendees" | "listings";
 };
 
 /**
@@ -60,6 +63,7 @@ export type SettingsPageState = {
  * 7. Terms and Conditions
  * 8. Embed Hosts - niche
  * 9. Change Password - rare maintenance
+ * 10. Calendar Feeds - niche read-only feed
  */
 export const adminSettingsPage = (
   session: AdminSession,
@@ -87,5 +91,6 @@ export const adminSettingsPage = (
       {EmbedHostsForm(s)}
       <SuperuserForm superuser={s.superuser} />
       <ChangePasswordForm />
+      {CalendarFeedsForm(s)}
     </Layout>,
   );
