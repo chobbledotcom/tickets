@@ -15,6 +15,12 @@ import { defineRoutes } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import {
+  type CalendarAttendee,
+  type CalendarLogisticsCsv,
+  generateCalendarCsv,
+  toCalendarAttendees,
+} from "#shared/csv/calendar.ts";
+import {
   formatDateLabel,
   getAvailableDates,
   listingDateToCalendarDate,
@@ -58,11 +64,6 @@ import {
   adminCalendarPage,
   type CalendarAttendeeRow,
 } from "#templates/admin/calendar.tsx";
-import {
-  type CalendarAttendee,
-  type CalendarLogisticsCsv,
-  generateCalendarCsv,
-} from "#templates/csv.ts";
 import type { DatePickerDate } from "#templates/date-picker.tsx";
 
 /* jscpd:ignore-end */
@@ -128,26 +129,17 @@ const compileDateOptions = (
   }))(allDates);
 };
 
-/** Build calendar attendee rows by joining attendees with their listing info */
+/** Build calendar attendee rows by joining attendees with their listing info.
+ * `listingId` mirrors each attendee's own `listing_id` (the join key), so the
+ * shared {@link toCalendarAttendees} does the work and we only tack it on. */
 const buildCalendarAttendees = (
   listings: ListingWithCount[],
   attendees: Attendee[],
-): CalendarAttendeeRow[] => {
-  const listingById = new Map(
-    map((e: ListingWithCount) => [e.id, e] as const)(listings),
-  );
-
-  return map((a: Attendee): CalendarAttendeeRow => {
-    const listing = listingById.get(a.listing_id)!;
-    return {
-      ...a,
-      listingDate: listing.date,
-      listingId: listing.id,
-      listingLocation: listing.location,
-      listingName: listing.name,
-    };
-  })(attendees);
-};
+): CalendarAttendeeRow[] =>
+  toCalendarAttendees(attendees, listings).map((a) => ({
+    ...a,
+    listingId: a.listing_id,
+  }));
 
 /** The distinct attendee ids for a set of calendar rows. */
 const attendeeIds = (attendees: CalendarAttendeeRow[]): number[] =>

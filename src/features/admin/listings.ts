@@ -29,6 +29,10 @@ import type { TypedRouteHandler } from "#routes/router.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
+import {
+  type CsvQuestionData,
+  generateAttendeesCsv,
+} from "#shared/csv/attendees.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import { formatDateLabel, normalizeDatetime } from "#shared/dates.ts";
 import {
@@ -109,7 +113,6 @@ import {
   adminReactivateListingPage,
   type GroupContext,
 } from "#templates/admin/listings.tsx";
-import { type CsvQuestionData, generateAttendeesCsv } from "#templates/csv.ts";
 import type {
   ListingAggregateFormValues,
   ListingEditFormValues,

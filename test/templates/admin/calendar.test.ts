@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
+import { generateCalendarCsv } from "#shared/csv/calendar.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import type { AvailabilityRow } from "#templates/admin/availability-checker.tsx";
 import {
@@ -8,7 +9,6 @@ import {
   type CalendarAttendeeRow,
 } from "#templates/admin/calendar.tsx";
 import { adminDashboardPage } from "#templates/admin/dashboard.tsx";
-import { generateCalendarCsv } from "#templates/csv.ts";
 import { setupTestEncryptionKey, testAttendee } from "#test-utils";
 
 const TEST_SESSION = { adminLevel: "owner" as const };

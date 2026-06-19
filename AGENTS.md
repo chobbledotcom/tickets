@@ -32,6 +32,14 @@ The `.tool-versions` file is kept in sync for asdf-compatible tooling.
 ## Preferences
 
 - **Use FP methods**: Prefer curried functional utilities from `#fp` over imperative loops
+- **Always unify duplication; less code is the goal**: When two pieces of code
+  are similar, extract one shared helper and parameterise the difference — a
+  curried helper is almost always the right shape. Do **not** decline to unify
+  because the cases look "dissimilar in some minor way": that minor difference
+  is exactly what the parameter (or a small curried wrapper) is for. The jscpd
+  duplication threshold is **0%** and non-negotiable; fix a `cpd` failure by
+  abstracting the shared code, never by renaming parameters, reordering, or
+  reformatting to dodge detection.
 - **100% test coverage**: All code must have complete test coverage - run `deno coverage` to find uncovered lines/branches
 - **Trust application invariants**: Do not design normal code paths around database states the application says are impossible. If an impossible state is observed, raise it as an error and repair the data explicitly rather than silently accepting or normalising it.
 - **Final check**: Run `deno task precommit` (via `mise exec -- deno task precommit` when using the pinned toolchain) before finishing any job with code or documentation changes.

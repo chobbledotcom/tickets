@@ -5,23 +5,31 @@
  */
 
 import { map, unique } from "#fp";
-import { requirePrivateKey } from "#routes/admin/actions.ts";
-import { requireSessionOr } from "#routes/auth.ts";
+import { csvResponse, requirePrivateKey } from "#routes/admin/actions.ts";
+import { type AuthSession, requireSessionOr } from "#routes/auth.ts";
 import { htmlResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import {
+  generateCalendarCsv,
+  toCalendarAttendees,
+} from "#shared/csv/calendar.ts";
+import { logActivity } from "#shared/db/activityLog.ts";
+import {
   type AttendeeSort,
   decryptAttendees,
   getAttendeesPage,
 } from "#shared/db/attendees.ts";
-import { getAllListings } from "#shared/db/listings.ts";
+import {
+  getAllListings,
+  getAttendeesByListingIds,
+} from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
-  isListingFilter,
   type ListingFilter,
   listingCategory,
+  listingTypeFromRequest,
 } from "#shared/listing-filter.ts";
 import type {
   Attendee,
@@ -57,12 +65,6 @@ const parseListingId = (
   return listings.some((e) => e.id === raw) ? raw : null;
 };
 
-/** Parse the ?type= filter (a listing category), defaulting to "all". */
-const parseType = (request: Request): ListingFilter => {
-  const raw = getSearchParam(request, "type");
-  return isListingFilter(raw) ? raw : "all";
-};
-
 /**
  * The listings the page is restricted to: a specific selected listing wins;
  * otherwise a chosen type expands to every listing of that type; otherwise null
@@ -92,6 +94,19 @@ const buildRows = (
   })(attendees);
 };
 
+/** Auth, then load every listing and hand both to the handler. Shared by the
+ * attendees page and its CSV export, which both start from the full set. */
+const withListings = (
+  request: Request,
+  handler: (
+    session: AuthSession,
+    listings: ListingWithCount[],
+  ) => Promise<Response>,
+): Promise<Response> =>
+  requireSessionOr(request, async (session) =>
+    handler(session, await getAllListings()),
+  );
+
 /**
  * Handle GET /admin/attendees
  *
@@ -101,10 +116,9 @@ const buildRows = (
 export const handleAttendeesListGet: TypedRouteHandler<
   "GET /admin/attendees"
 > = (request) =>
-  requireSessionOr(request, async (session) => {
-    const listings = await getAllListings();
+  withListings(request, async (session, listings) => {
     const listingId = parseListingId(request, listings);
-    const type = parseType(request);
+    const type = listingTypeFromRequest(request);
     const sort = parseSort(request);
     const page = parsePage(request);
     const listingIds = resolveListingIds(listingId, type, listings);
@@ -134,4 +148,31 @@ export const handleAttendeesListGet: TypedRouteHandler<
         type,
       }),
     );
+  });
+
+/**
+ * Handle GET /admin/attendees/csv
+ *
+ * Export every attendee booking matching the current listing/type filter — not
+ * just the visible page — as a CSV download. Reuses the calendar CSV generator
+ * since both list attendees (with their listing) across multiple listings.
+ */
+export const handleAttendeesCsvExport: TypedRouteHandler<
+  "GET /admin/attendees/csv"
+> = (request) =>
+  withListings(request, async (session, listings) => {
+    const listingIds = resolveListingIds(
+      parseListingId(request, listings),
+      listingTypeFromRequest(request),
+      listings,
+    );
+    // null is the unfiltered "all listings" view; expand it to every id so
+    // the single fetch covers both cases. An empty set matches nothing.
+    const ids = listingIds ?? listings.map((e) => e.id);
+    const raw = ids.length === 0 ? [] : await getAttendeesByListingIds(ids);
+    const privateKey = await requirePrivateKey(session);
+    const attendees = await decryptAttendees(raw, privateKey);
+    const csv = generateCalendarCsv(toCalendarAttendees(attendees, listings));
+    await logActivity("Attendees CSV exported");
+    return csvResponse(csv, "attendees.csv");
   });

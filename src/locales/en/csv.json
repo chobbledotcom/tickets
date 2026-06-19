@@ -6,5 +6,11 @@
   "csv.col.price_paid": "Price Paid",
   "csv.col.transaction_id": "Transaction ID",
   "csv.col.ticket_token": "Ticket Token",
-  "csv.col.ticket_url": "Ticket URL"
+  "csv.col.ticket_url": "Ticket URL",
+  "csv.col.type": "Type",
+  "csv.col.attendees": "Attendees",
+  "csv.col.capacity": "Capacity",
+  "csv.col.tickets": "Tickets",
+  "csv.col.revenue": "Revenue",
+  "csv.col.price": "Price"
 }

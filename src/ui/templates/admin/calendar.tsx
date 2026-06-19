@@ -131,11 +131,6 @@ export const adminCalendarPage = (
           </p>
         )}
         <AvailabilityChecker date={dateFilter} rows={availabilityRows} />
-        {dateFilter && attendees.length > 0 && (
-          <p>
-            <a href={exportHref}>{t("admin.calendar.export_csv")}</a>
-          </p>
-        )}
         {sharedRows.length > 0 && (
           <div class="table-scroll">
             <table class="listing-details-table">
@@ -162,6 +157,11 @@ export const adminCalendarPage = (
             })}
           />
         </div>
+        {dateFilter && attendees.length > 0 && (
+          <p class="table-footer-actions">
+            <a href={exportHref}>{t("admin.calendar.export_csv")}</a>
+          </p>
+        )}
       </article>
     </Layout>,
   );

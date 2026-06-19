@@ -226,6 +226,35 @@ const renderListingsTableSection = (
   );
 };
 
+/** Build the /admin/listings/csv href, carrying the active type filter. */
+const listingsCsvHref = (type: ListingFilter): string =>
+  type === "all" ? "/admin/listings/csv" : `/admin/listings/csv?type=${type}`;
+
+/** A listings table with an optional filter row above it and a CSV-export
+ * footer below, spaced by the .table-block container. Shared by the dashboard
+ * and the listings index so both get the same export control. */
+const ListingsTableBlock = ({
+  listings,
+  columnKeys,
+  filters,
+  csvType,
+  headerHtml = "",
+}: {
+  listings: ListingWithCount[];
+  columnKeys: string[];
+  filters: Map<string, string>;
+  csvType: ListingFilter;
+  headerHtml?: string;
+}): JSX.Element => (
+  <div class="table-block">
+    <Raw html={headerHtml} />
+    <Raw html={renderListingsTableSection(listings, columnKeys, filters)} />
+    <p class="table-footer-actions">
+      <a href={listingsCsvHref(csvType)}>{t("listings_table.export_csv")}</a>
+    </p>
+  </div>
+);
+
 /**
  * Admin dashboard page
  */
@@ -279,10 +308,12 @@ export const adminDashboardPage = (
         </p>
       )}
 
-      <Raw html={typeFilterHtml} />
-
-      <Raw
-        html={renderListingsTableSection(shownListings, columnKeys, filters)}
+      <ListingsTableBlock
+        columnKeys={columnKeys}
+        csvType={activeType}
+        filters={filters}
+        headerHtml={typeFilterHtml}
+        listings={shownListings}
       />
 
       {stats && <Raw html={activeListingStatsSection(stats)} />}
@@ -330,8 +361,11 @@ export const adminListingsPage = (
         </p>
       )}
 
-      <Raw
-        html={renderListingsTableSection(activeListings, columnKeys, filters)}
+      <ListingsTableBlock
+        columnKeys={columnKeys}
+        csvType="all"
+        filters={filters}
+        listings={activeListings}
       />
 
       {deactivatedListings.length > 0 && (

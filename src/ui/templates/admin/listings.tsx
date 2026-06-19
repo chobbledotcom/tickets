@@ -343,13 +343,11 @@ export type AdminListingPageOptions = {
 /** Top action nav for the listing detail page */
 const ListingActionNav = ({
   listing,
-  dateFilter,
   hasPaidListing,
   isOwner,
   hasEmailableAttendees,
 }: {
   listing: ListingWithCount;
-  dateFilter: string | null;
   hasPaidListing: boolean;
   isOwner: boolean;
   hasEmailableAttendees: boolean;
@@ -412,15 +410,6 @@ const ListingActionNav = ({
             </MaybeButtonLink>
           </li>
         )}
-        <li>
-          <a
-            href={`/admin/listing/${listing.id}/export${
-              dateFilter ? `?date=${dateFilter}` : ""
-            }`}
-          >
-            {t("listings_table.export_csv")}
-          </a>
-        </li>
         {hasPaidListing && (
           <li>
             <a class="danger" href={`/admin/listing/${listing.id}/refund-all`}>
@@ -1006,6 +995,11 @@ const AttendeesSection = ({
           })}
         />
       </div>
+      <p class="table-footer-actions">
+        <a href={`${basePath}/export${dateQs}`}>
+          {t("listings_table.export_csv")}
+        </a>
+      </p>
     </article>
   );
 };
@@ -1151,7 +1145,6 @@ export const adminListingPage = ({
     <Layout title={t("listings_table.detail_title", { name: listing.name })}>
       <AdminNav active="/admin/" session={session} />
       <ListingActionNav
-        dateFilter={dateFilter}
         hasEmailableAttendees={hasEmailableAttendees}
         hasPaidListing={hasPaidListing}
         isOwner={session.adminLevel === "owner"}

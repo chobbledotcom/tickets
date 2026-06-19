@@ -2,15 +2,15 @@
  * Admin dashboard route
  */
 
-import { requirePrivateKey } from "#routes/admin/actions.ts";
-import { sessionPage, withSession } from "#routes/auth.ts";
+import { csvResponse, requirePrivateKey } from "#routes/admin/actions.ts";
+import { requireSessionOr, sessionPage, withSession } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, redirectResponse } from "#routes/response.ts";
 /* jscpd:ignore-start */
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
-import { getSearchParam } from "#routes/url.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { getAllActivityLog } from "#shared/db/activityLog.ts";
+import { generateListingsCsv } from "#shared/csv/listings.ts";
+import { getAllActivityLog, logActivity } from "#shared/db/activityLog.ts";
 import {
   decryptAttendees,
   getActiveListingStats,
@@ -20,7 +20,10 @@ import { getActiveHolidays } from "#shared/db/holidays.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getFlash } from "#shared/flash-context.ts";
-import { isListingFilter, type ListingFilter } from "#shared/listing-filter.ts";
+import {
+  filterListingsByType,
+  listingTypeFromRequest,
+} from "#shared/listing-filter.ts";
 import { sortListings } from "#shared/sort-listings.ts";
 /* jscpd:ignore-end */
 import { adminGlobalActivityLogPage } from "#templates/admin/activityLog.tsx";
@@ -43,6 +46,16 @@ export const loginResponse = async (
 /** Maximum number of newest attendees to show on dashboard */
 const NEWEST_ATTENDEES_LIMIT = 10;
 
+/** Load every listing, sorted for display (upcoming first). Shared by the
+ * listings index page and the listings CSV export. */
+const loadSortedListings = async () => {
+  const [listings, holidays] = await Promise.all([
+    getAllListings(),
+    getActiveHolidays(),
+  ]);
+  return sortListings(listings, holidays);
+};
+
 /**
  * Handle GET /admin/
  */
@@ -64,10 +77,7 @@ const handleAdminGet = (request: Request): Promise<Response> =>
       const newestAttendees = await decryptAttendees(newestRaw, privateKey);
       const sortedListings = sortListings(listings, holidays);
       const stats = await getActiveListingStats(sortedListings);
-      const rawType = getSearchParam(request, "type");
-      const activeType: ListingFilter = isListingFilter(rawType)
-        ? rawType
-        : "all";
+      const activeType = listingTypeFromRequest(request);
       return htmlResponse(
         adminDashboardPage(
           sortedListings,
@@ -87,16 +97,28 @@ const handleAdminGet = (request: Request): Promise<Response> =>
 
 /** Handle GET /admin/listings */
 const handleAdminListingsGet: TypedRouteHandler<"GET /admin/listings"> =
-  sessionPage(async (session) => {
-    const [listings, holidays] = await Promise.all([
-      getAllListings(),
-      getActiveHolidays(),
-    ]);
-    return adminListingsPage(
-      sortListings(listings, holidays),
+  sessionPage(async (session) =>
+    adminListingsPage(
+      await loadSortedListings(),
       session,
       settings.listingColumnOrder,
+    ),
+  );
+
+/** Handle GET /admin/listings/csv — export every listing (filtered by the same
+ * ?type= category filter the listings views use) as a CSV download. */
+const handleListingsCsvExport: TypedRouteHandler<"GET /admin/listings/csv"> = (
+  request,
+) =>
+  requireSessionOr(request, async () => {
+    const type = listingTypeFromRequest(request);
+    const listings = filterListingsByType(type)(await loadSortedListings());
+    const csv = generateListingsCsv(listings);
+    const suffix = type === "all" ? "" : `_${type}`;
+    await logActivity(
+      `Listings CSV exported${type === "all" ? "" : ` (type: ${type})`}`,
     );
+    return csvResponse(csv, `listings${suffix}.csv`);
   });
 
 /** Maximum number of log entries to display */
@@ -120,5 +142,6 @@ const handleAdminLog: TypedRouteHandler<"GET /admin/log"> = sessionPage(
 export const dashboardRoutes = defineRoutes({
   "GET /admin": handleAdminGet,
   "GET /admin/listings": handleAdminListingsGet,
+  "GET /admin/listings/csv": handleListingsCsvExport,
   "GET /admin/log": handleAdminLog,
 });

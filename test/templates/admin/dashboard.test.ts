@@ -480,6 +480,25 @@ describe("adminDashboardPage type filter", () => {
     expect(html).toContain('data-multi-booking-slug="std01"');
     expect(html).toContain('data-multi-booking-slug="day01"');
   });
+
+  test("links to the listings CSV export, carrying the active type", () => {
+    const all = adminDashboardPage([standard, daily], TEST_SESSION);
+    expect(all).toContain('class="table-footer-actions"');
+    expect(all).toContain('href="/admin/listings/csv"');
+    expect(all).toContain("Export CSV");
+
+    const filtered = adminDashboardPage(
+      [standard, daily],
+      TEST_SESSION,
+      undefined,
+      [],
+      undefined,
+      null,
+      undefined,
+      "daily",
+    );
+    expect(filtered).toContain('href="/admin/listings/csv?type=daily"');
+  });
 });
 
 describeWithEnv(
@@ -529,5 +548,15 @@ describe("adminListingsPage", () => {
       TEST_SESSION,
     );
     expect(html).not.toContain("Deactivated");
+  });
+
+  test("links to the listings CSV export", () => {
+    const html = adminListingsPage(
+      [testListingWithCount({ name: "Active Show" })],
+      TEST_SESSION,
+    );
+    expect(html).toContain('class="table-footer-actions"');
+    expect(html).toContain('href="/admin/listings/csv"');
+    expect(html).toContain("Export CSV");
   });
 });
