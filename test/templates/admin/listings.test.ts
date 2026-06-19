@@ -956,6 +956,17 @@ describe("adminListingPage export button", () => {
     expect(html).toContain("/admin/listing/1/export");
     expect(html).toContain("Export CSV");
   });
+
+  test("the export link carries the active check-in filter", () => {
+    const html = adminListingPage({
+      activeFilter: "in",
+      allowedDomain: "localhost",
+      attendees: [testAttendee({ checked_in: true })],
+      listing: testListingWithCount({ attendee_count: 1 }),
+      session: TEST_SESSION,
+    });
+    expect(html).toContain("/admin/listing/1/export?checkin=in");
+  });
 });
 
 describe("adminListingPage filter links", () => {

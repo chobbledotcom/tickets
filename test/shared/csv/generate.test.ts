@@ -38,15 +38,14 @@ describe("CSV.generate", () => {
     );
   });
 
-  test("throws on duplicate column headers", () => {
-    expect(() =>
-      CSV.generate(
-        [],
-        [
-          { header: "X", value: () => "1" },
-          { header: "X", value: () => "2" },
-        ],
-      ),
-    ).toThrow("duplicate column headers");
+  test("allows duplicate headers (e.g. two same-named questions)", () => {
+    const csv = CSV.generate(
+      [{ a: "1", b: "2" }],
+      [
+        { header: "Q", value: (r: { a: string; b: string }) => r.a },
+        { header: "Q", value: (r: { a: string; b: string }) => r.b },
+      ],
+    );
+    expect(csv).toBe("Q,Q\n1,2");
   });
 });

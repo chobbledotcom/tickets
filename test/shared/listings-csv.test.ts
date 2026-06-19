@@ -44,6 +44,33 @@ describe("generateListingsCsv", () => {
     expect(csv).toContain(",Free,");
   });
 
+  test("shows the day-price range for a paid customisable-days listing", () => {
+    const csv = generateListingsCsv([
+      testListingWithCount({
+        customisable_days: true,
+        day_prices: { 1: 1000, 3: 3000 },
+        duration_days: 3,
+        name: "Camp",
+        unit_price: 0,
+      }),
+    ]);
+    expect(csv).toContain("10.00–30.00");
+    expect(csv).not.toContain("Free");
+  });
+
+  test("shows a single day price when only one duration is offered", () => {
+    const csv = generateListingsCsv([
+      testListingWithCount({
+        customisable_days: true,
+        day_prices: { 2: 1500 },
+        duration_days: 2,
+        unit_price: 0,
+      }),
+    ]);
+    expect(csv).toContain(",15.00,");
+    expect(csv).not.toContain("Free");
+  });
+
   test("labels a daily listing's type", () => {
     const csv = generateListingsCsv([
       testListingWithCount({ listing_type: "daily", name: "Day Pass" }),

@@ -111,6 +111,7 @@ import {
   adminListingPage,
   adminListingRecalculatePage,
   adminReactivateListingPage,
+  filterAttendees,
   type GroupContext,
 } from "#templates/admin/listings.tsx";
 import type {
@@ -792,6 +793,12 @@ const handleListingRecalculatePost: TypedRouteHandler<
     }),
   );
 
+/** Parse the ?checkin= filter on the export route, defaulting to "all". */
+const checkinFromRequest = (request: Request): AttendeeFilter => {
+  const raw = getSearchParam(request, "checkin");
+  return raw === "in" || raw === "out" ? raw : "all";
+};
+
 /**
  * Handle GET /admin/listing/:id/export (CSV export)
  */
@@ -809,9 +816,14 @@ const handleAdminListingExport: TypedRouteHandler<
         request,
       );
       const isDaily = listing.listing_type === "daily";
+      // Mirror the on-screen view: also apply the /in /out check-in filter.
+      const exported = filterAttendees(
+        filteredByDate,
+        checkinFromRequest(request),
+      );
 
       // Load questions and attendee answers for CSV
-      const attendeeIds = filteredByDate.map((a) => a.id);
+      const attendeeIds = exported.map((a) => a.id);
       const [questions, attendeeAnswerMap] = await Promise.all([
         getQuestionsForListing(listing.id),
         getAttendeeAnswersBatch(attendeeIds),
@@ -820,7 +832,7 @@ const handleAdminListingExport: TypedRouteHandler<
         questions.length > 0 ? { attendeeAnswerMap, questions } : undefined;
 
       const csv = generateAttendeesCsv(
-        filteredByDate,
+        exported,
         isDaily,
         {
           listingDate: listing.date,

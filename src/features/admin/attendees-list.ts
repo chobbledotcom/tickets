@@ -21,10 +21,7 @@ import {
   decryptAttendees,
   getAttendeesPage,
 } from "#shared/db/attendees.ts";
-import {
-  getAllListings,
-  getAttendeesByListingIds,
-} from "#shared/db/listings.ts";
+import { getAllListings } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   type ListingFilter,
@@ -150,6 +147,24 @@ export const handleAttendeesListGet: TypedRouteHandler<
     );
   });
 
+/** Every attendee booking matching the filter, across all pages — the export
+ * isn't paginated. Reuses the page query, so the all-listings case (null) stays
+ * an unfiltered query rather than an enormous `IN (...)` clause. */
+const allAttendeeBookings = async (
+  listingIds: number[] | null,
+): Promise<Attendee[]> => {
+  const out: Attendee[] = [];
+  let page = 0;
+  let hasNext = true;
+  while (hasNext) {
+    const result = await getAttendeesPage({ listingIds, page, sort: "newest" });
+    for (const row of result.rows) out.push(row);
+    hasNext = result.hasNext;
+    page++;
+  }
+  return out;
+};
+
 /**
  * Handle GET /admin/attendees/csv
  *
@@ -166,11 +181,8 @@ export const handleAttendeesCsvExport: TypedRouteHandler<
       listingTypeFromRequest(request),
       listings,
     );
-    // null is the unfiltered "all listings" view; expand it to every id so
-    // the single fetch covers both cases. An empty set matches nothing.
-    const ids = listingIds ?? listings.map((e) => e.id);
-    const raw = ids.length === 0 ? [] : await getAttendeesByListingIds(ids);
     const privateKey = await requirePrivateKey(session);
+    const raw = await allAttendeeBookings(listingIds);
     const attendees = await decryptAttendees(raw, privateKey);
     const csv = generateCalendarCsv(toCalendarAttendees(attendees, listings));
     await logActivity("Attendees CSV exported");

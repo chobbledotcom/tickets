@@ -22,8 +22,9 @@ const joinRows = (header: string, rows: readonly string[]): string =>
 
 /**
  * Build CSV text from items and the columns that describe them. The headers and
- * every cell are escaped. Throws when no columns are given or two columns share
- * a header (which would silently corrupt the output).
+ * every cell are escaped. Throws only when no columns are given — duplicate
+ * headers are allowed (e.g. two custom questions sharing a name), matching what
+ * spreadsheets accept.
  */
 const generate = <T>(
   items: readonly T[],
@@ -32,14 +33,8 @@ const generate = <T>(
   if (columns.length === 0) {
     throw new Error("CSV.generate: at least one column is required");
   }
-  const headers = columns.map((c) => c.header);
-  if (new Set(headers).size !== headers.length) {
-    throw new Error(
-      `CSV.generate: duplicate column headers: ${headers.join(", ")}`,
-    );
-  }
   return joinRows(
-    headers.map(escapeValue).join(","),
+    columns.map((c) => escapeValue(c.header)).join(","),
     items.map((item) =>
       columns.map((c) => escapeValue(c.value(item))).join(","),
     ),

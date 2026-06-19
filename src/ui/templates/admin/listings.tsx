@@ -251,7 +251,7 @@ const FailedPaymentsTable = ({
 export type CheckinMessage = { name: string; status: string } | null;
 
 /** Filter attendees by check-in status */
-const filterAttendees = (
+export const filterAttendees = (
   attendees: Attendee[],
   activeFilter: AttendeeFilter,
 ): Attendee[] => {
@@ -953,6 +953,15 @@ const AttendeesSection = ({
     checkinMessage?.status === "in"
       ? "checkin-message-in"
       : "checkin-message-out";
+  // The export mirrors the current view: the date filter plus the active
+  // check-in filter (/in or /out), so the CSV matches the rows on screen.
+  const exportParams = new URLSearchParams();
+  if (dateFilter) exportParams.set("date", dateFilter);
+  if (activeFilter !== "all") exportParams.set("checkin", activeFilter);
+  const exportQuery = exportParams.toString();
+  const exportHref = `${basePath}/export${
+    exportQuery ? `?${exportQuery}` : ""
+  }`;
   return (
     <article>
       <div class="prose">
@@ -996,9 +1005,7 @@ const AttendeesSection = ({
         />
       </div>
       <p class="table-footer-actions">
-        <a href={`${basePath}/export${dateQs}`}>
-          {t("listings_table.export_csv")}
-        </a>
+        <a href={exportHref}>{t("listings_table.export_csv")}</a>
       </p>
     </article>
   );

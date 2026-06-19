@@ -7,7 +7,25 @@ import { t } from "#i18n";
 import { type Column, CSV } from "#shared/csv/index.ts";
 import { toMajorUnits } from "#shared/currency.ts";
 import { listingCategory, listingFilterLabel } from "#shared/listing-filter.ts";
-import type { ListingWithCount } from "#shared/types.ts";
+import {
+  availableDayCounts,
+  dayPriceFor,
+  type ListingWithCount,
+} from "#shared/types.ts";
+
+/** The export's Price cell: the unit price, or — for a customisable-days
+ * listing whose base price is 0 — the range of its day prices, or "Free" when
+ * genuinely free. Avoids labelling paid day-priced listings as Free. */
+const listingPriceLabel = (l: ListingWithCount): string => {
+  if (l.unit_price > 0) return toMajorUnits(l.unit_price);
+  const dayPrices = availableDayCounts(l).map((n) => dayPriceFor(l, n)!);
+  if (dayPrices.length === 0) return t("listings_table.free");
+  const min = Math.min(...dayPrices);
+  const max = Math.max(...dayPrices);
+  return min === max
+    ? toMajorUnits(min)
+    : `${toMajorUnits(min)}–${toMajorUnits(max)}`;
+};
 
 /** Ordered listing CSV columns. Built per call so the active locale applies. */
 const listingColumns = (): Column<ListingWithCount>[] => [
@@ -24,11 +42,7 @@ const listingColumns = (): Column<ListingWithCount>[] => [
   { header: t("csv.col.capacity"), value: (l) => String(l.max_attendees) },
   { header: t("csv.col.tickets"), value: (l) => String(l.tickets_count) },
   { header: t("csv.col.revenue"), value: (l) => toMajorUnits(l.income) },
-  {
-    header: t("csv.col.price"),
-    value: (l) =>
-      l.unit_price > 0 ? toMajorUnits(l.unit_price) : t("listings_table.free"),
-  },
+  { header: t("csv.col.price"), value: listingPriceLabel },
   {
     header: t("common.date"),
     value: (l) => (l.date ? l.date.slice(0, 10) : ""),
