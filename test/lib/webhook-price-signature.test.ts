@@ -3,6 +3,10 @@ import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { getAttendeesRaw } from "#shared/db/attendees.ts";
+import {
+  markSessionFailed,
+  reserveSession,
+} from "#shared/db/processed-payments.ts";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import {
   assertJson,
@@ -660,6 +664,101 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
       );
       expect(await response.text()).toContain("contact support");
       expect(refund.calls.length).toBe(1);
+    } finally {
+      retrieve.restore();
+      refund.restore();
+    }
+  });
+
+  test("a corrupt session already refunded by a prior delivery replays without re-refunding", async () => {
+    await setupStripe();
+    // Simulate the webhook having already claimed and refunded this session. The
+    // success-redirect must replay "refunded" from the recorded outcome rather
+    // than issue a second refund the provider would reject.
+    await reserveSession("cs_replay_refunded");
+    await markSessionFailed("cs_replay_refunded", {
+      error: "Corrupt payment metadata; refunded.",
+      refunded: true,
+      status: 409,
+    });
+    const refund = stub(stripeApi, "refundPayment", () =>
+      Promise.resolve({ id: "re_should_not_run" } as unknown as Awaited<
+        ReturnType<typeof stripeApi.refundPayment>
+      >),
+    );
+    const metadata = {
+      ...signMeta(
+        webhookMeta({
+          email: "replay@example.com",
+          items: singleItem(1, 1, 1000),
+          name: "Replay Refunded",
+        }),
+        1000,
+      ),
+      items: "not-json",
+    };
+    const retrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+      Promise.resolve({
+        amount_total: 1000,
+        id: "cs_replay_refunded",
+        metadata,
+        payment_intent: "pi_replay",
+        payment_status: "paid",
+      } as unknown as Awaited<
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      >),
+    );
+    try {
+      const response = await handleRequest(
+        mockRequest("/payment/success?session_id=cs_replay_refunded"),
+      );
+      expect(await response.text()).toContain("has been refunded");
+      expect(refund.calls.length).toBe(0);
+    } finally {
+      retrieve.restore();
+      refund.restore();
+    }
+  });
+
+  test("a corrupt session claimed but not yet refunded replays as a retry", async () => {
+    await setupStripe();
+    // A concurrent delivery has claimed the session but not recorded a refund
+    // yet: replay as not-refunded (contact-support) so the caller retries rather
+    // than claiming success — and still no second refund is issued.
+    await reserveSession("cs_replay_pending");
+    const refund = stub(stripeApi, "refundPayment", () =>
+      Promise.resolve({ id: "re_should_not_run" } as unknown as Awaited<
+        ReturnType<typeof stripeApi.refundPayment>
+      >),
+    );
+    const metadata = {
+      ...signMeta(
+        webhookMeta({
+          email: "pending@example.com",
+          items: singleItem(1, 1, 1000),
+          name: "Replay Pending",
+        }),
+        1000,
+      ),
+      items: "not-json",
+    };
+    const retrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+      Promise.resolve({
+        amount_total: 1000,
+        id: "cs_replay_pending",
+        metadata,
+        payment_intent: "pi_pending",
+        payment_status: "paid",
+      } as unknown as Awaited<
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      >),
+    );
+    try {
+      const response = await handleRequest(
+        mockRequest("/payment/success?session_id=cs_replay_pending"),
+      );
+      expect(await response.text()).toContain("contact support");
+      expect(refund.calls.length).toBe(0);
     } finally {
       retrieve.restore();
       refund.restore();

@@ -519,16 +519,34 @@ type CorruptSessionOutcome = "not-ours" | "refunded" | "refund-failed";
  * our origin, rather than strand a charged customer behind a terminal error.
  *
  * Returns the real refund result (`refund-failed` when the provider refund
- * didn't go through) so callers never report a failed refund as handled. The
- * refund is keyed on the provider payment reference, and providers reject a
- * second refund of the same charge, so a retried event can't double-pay even
- * though this path doesn't take the reservation lock.
+ * didn't go through) so callers never report a failed refund as handled.
+ *
+ * Idempotent via the reservation lock: the first delivery (webhook or redirect)
+ * claims the session, refunds, and records the outcome; a later delivery for the
+ * same paid session finds the claim and replays that outcome instead of issuing
+ * a second refund a full-refund provider would reject (which would otherwise
+ * show a refunded customer a "contact support" message). A failed refund is left
+ * unrecorded so the reservation goes stale and a retry re-attempts it, matching
+ * the reserved-session path's self-healing.
  */
 const refundCorruptOwnSession = async (
   session: ValidatedPaymentSession,
 ): Promise<CorruptSessionOutcome> => {
   if (!session.metadata.price_proof) return "not-ours";
   if (session.metadata._origin !== getEffectiveDomain()) return "not-ours";
+
+  const reservation = await reserveSession(session.id);
+  if (!reservation.reserved) {
+    // Already handled by an earlier/concurrent delivery — replay its recorded
+    // outcome. A claim with no recorded refund (mid-flight or a prior failed
+    // refund) reads as not-yet-refunded, so the caller retries rather than
+    // claiming success.
+    const failure = await parseSessionFailure(
+      reservation.existing.failure_data,
+    );
+    return failure?.refunded ? "refunded" : "refund-failed";
+  }
+
   // Refund first; defer the alert so a slow ntfy never delays the money.
   addPendingWork(sendNtfyError(ErrorCode.WEBHOOK_PRICE_SIGNATURE));
   const refunded = await refundAndLog(
@@ -536,7 +554,14 @@ const refundCorruptOwnSession = async (
     `Corrupt metadata on a paid session (session=${session.id})`,
     0,
   );
-  return refunded ? "refunded" : "refund-failed";
+  if (!refunded) return "refund-failed";
+  // Record the terminal outcome so a later delivery replays it (no re-refund).
+  await markSessionFailed(session.id, {
+    error: "Corrupt payment metadata; refunded.",
+    refunded: true,
+    status: 409,
+  });
+  return "refunded";
 };
 
 /**
