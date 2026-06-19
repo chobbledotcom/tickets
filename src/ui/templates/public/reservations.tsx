@@ -197,44 +197,56 @@ const renderTermsAndCheckbox = (terms: string): string => {
 export const renderQuestions = (
   questions: QuestionWithAnswers[],
   questionListingMap?: QuestionListingMap,
-): string => {
-  if (questions.length === 0) return "";
-  return questions
-    .map((q) => {
+): JSX.Element => (
+  <>
+    {questions.map((q) => {
       // Restore the chosen answer when a validation error re-renders the page.
       const answered = savedFormValue(`question_${q.id}`);
-      const options =
-        q.display_type === "select"
-          ? `<label><span class="sr-only">${escapeHtml(
-              q.text,
-            )}</span><select name="question_${q.id}" required><option value="">${t(
-              "public.ticket.select_answer_placeholder",
-            )}</option>${q.answers
-              .map(
-                (a) =>
-                  `<option value="${a.id}"${
-                    answered === String(a.id) ? " selected" : ""
-                  }>${escapeHtml(a.text)}</option>`,
-              )
-              .join("")}</select></label>`
-          : q.answers
-              .map(
-                (a) =>
-                  `<label><input type="radio" name="question_${q.id}" value="${a.id}"${
-                    answered === String(a.id) ? " checked" : ""
-                  } required> ${escapeHtml(a.text)}</label>`,
-              )
-              .join("");
-      const listingIds = questionListingMap?.get(q.id);
-      const listingAttr = listingIds
-        ? ` data-listing-ids="${listingIds.join(" ")}"`
-        : "";
-      return `<fieldset class="custom-question"${listingAttr}><legend>${escapeHtml(
-        q.text,
-      )}</legend>${options}</fieldset>`;
-    })
-    .join("");
-};
+      const listingIds = questionListingMap?.get(q.id)?.join(" ");
+      // A select is a single control, so a plain <label> names it like the text
+      // fields do. Radios are a set of controls, so they need a <fieldset> with
+      // a <legend> to label the group. Both carry .custom-question (plus any
+      // data-listing-ids) so the visibility script can show/hide them.
+      if (q.display_type === "select") {
+        return (
+          <label class="custom-question" data-listing-ids={listingIds}>
+            {q.text}
+            <select name={`question_${q.id}`} required>
+              <option value="">
+                {t("public.ticket.select_answer_placeholder")}
+              </option>
+              {q.answers.map((a) => (
+                <option
+                  selected={answered === String(a.id)}
+                  value={String(a.id)}
+                >
+                  {a.text}
+                </option>
+              ))}
+            </select>
+          </label>
+        );
+      }
+      return (
+        <fieldset class="custom-question" data-listing-ids={listingIds}>
+          <legend>{q.text}</legend>
+          {q.answers.map((a) => (
+            <label>
+              <input
+                checked={answered === String(a.id)}
+                name={`question_${q.id}`}
+                required
+                type="radio"
+                value={String(a.id)}
+              />{" "}
+              {a.text}
+            </label>
+          ))}
+        </fieldset>
+      );
+    })}
+  </>
+);
 
 /** Render description HTML for listing row */
 const renderListingDescription = (description: string): string =>
@@ -588,9 +600,9 @@ const TicketPageForm = ({
         </fieldset>
       )}
 
-      {questions && questions.length > 0 && (
-        <Raw html={renderQuestions(questions, questionListingMap)} />
-      )}
+      {questions &&
+        questions.length > 0 &&
+        renderQuestions(questions, questionListingMap)}
       {addOns && addOns.length > 0 && <AddOnsFieldset addOns={addOns} />}
       {promoCodesEnabled && <PromoCodeField />}
       {terms && <Raw html={renderTermsAndCheckbox(terms)} />}

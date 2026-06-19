@@ -47,6 +47,7 @@ import contactPreferencesMigration from "./migrations/2026-06-18_contact_prefere
 import modifierMinVisitsMigration from "./migrations/2026-06-18_modifier_min_visits.ts";
 import questionAssignAllMigration from "./migrations/2026-06-18_question_assign_all.ts";
 import questionDisplayTypeMigration from "./migrations/2026-06-18_question_display_type.ts";
+import answerAggregatesMigration from "./migrations/2026-06-19_answer_aggregates.ts";
 import { repairLegacyRenames } from "./migrations/rename-utils.ts";
 import {
   LATEST_UPDATE,
@@ -56,6 +57,7 @@ import {
 } from "./migrations/schema.ts";
 import {
   applySchemaChanges,
+  backfillAnswerAggregates,
   backfillListingAggregates,
   backfillModifierAggregates,
   createTableSql,
@@ -152,6 +154,7 @@ const syncCurrentSchema = async (): Promise<void> => {
 const migrationContext: MigrationContext = {
   additive,
   applySchemaChanges,
+  backfillAnswerAggregates,
   backfillListingAggregates,
   backfillModifierAggregates,
   ensureDefaultAttendeeStatus,
@@ -192,6 +195,7 @@ export const MIGRATIONS: Migration[] = [
   questionDisplayTypeMigration,
   answerModifiersMigration,
   questionAssignAllMigration,
+  answerAggregatesMigration,
 ].map((build) => build(migrationContext));
 
 export const MIGRATION_IDS: string[] = MIGRATIONS.map(

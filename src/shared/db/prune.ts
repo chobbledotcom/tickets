@@ -22,7 +22,7 @@
  * pruned only when PRUNE_INTERVAL_MS has elapsed since its last run.
  */
 
-import { getDb } from "#shared/db/client.ts";
+import { execute } from "#shared/db/client.ts";
 import { RESOLVED_OUTCOME } from "#shared/db/processed-payments.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
@@ -45,7 +45,7 @@ import { nowMs } from "#shared/now.ts";
 const isoAgePruner =
   (sql: string, retentionMs: number) => async (): Promise<number> => {
     const cutoffIso = new Date(nowMs() - retentionMs).toISOString();
-    const result = await getDb().execute({ args: [cutoffIso], sql });
+    const result = await execute(sql, [cutoffIso]);
     return result.rowsAffected;
   };
 
@@ -79,10 +79,9 @@ export const pruneSumupCheckouts = isoAgePruner(
  */
 export const pruneSessions = async (): Promise<number> => {
   const cutoffMs = nowMs() - PRUNE_SESSIONS_RETENTION_MS;
-  const result = await getDb().execute({
-    args: [cutoffMs],
-    sql: "DELETE FROM sessions WHERE expires < ?",
-  });
+  const result = await execute("DELETE FROM sessions WHERE expires < ?", [
+    cutoffMs,
+  ]);
   return result.rowsAffected;
 };
 
@@ -93,10 +92,10 @@ export const pruneSessions = async (): Promise<number> => {
  */
 export const pruneLoginAttempts = async (): Promise<number> => {
   const cutoffMs = nowMs() - PRUNE_LOGINS_RETENTION_MS;
-  const result = await getDb().execute({
-    args: [cutoffMs],
-    sql: "DELETE FROM login_attempts WHERE locked_until IS NOT NULL AND locked_until < ?",
-  });
+  const result = await execute(
+    "DELETE FROM login_attempts WHERE locked_until IS NOT NULL AND locked_until < ?",
+    [cutoffMs],
+  );
   return result.rowsAffected;
 };
 
@@ -107,20 +106,20 @@ export const pruneLoginAttempts = async (): Promise<number> => {
  */
 export const pruneTokenAttempts = async (): Promise<number> => {
   const cutoffMs = nowMs() - PRUNE_TOKENS_RETENTION_MS;
-  const result = await getDb().execute({
-    args: [cutoffMs],
-    sql: "DELETE FROM token_attempts WHERE last_attempt < ?",
-  });
+  const result = await execute(
+    "DELETE FROM token_attempts WHERE last_attempt < ?",
+    [cutoffMs],
+  );
   return result.rowsAffected;
 };
 
 /** Delete subscribed contact-preference rows untouched beyond retention. */
 export const pruneContacts = async (): Promise<number> => {
   const cutoffMs = nowMs() - PRUNE_CONTACTS_RETENTION_MS;
-  const result = await getDb().execute({
-    args: [cutoffMs],
-    sql: "DELETE FROM contact_preferences WHERE unsubscribed = 0 AND last_activity < ?",
-  });
+  const result = await execute(
+    "DELETE FROM contact_preferences WHERE unsubscribed = 0 AND last_activity < ?",
+    [cutoffMs],
+  );
   return result.rowsAffected;
 };
 

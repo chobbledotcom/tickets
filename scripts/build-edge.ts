@@ -21,7 +21,7 @@ await buildStaticAssets();
 const BUILD_TS = Math.floor(Date.now() / 1000);
 
 // Read static assets at build time for inlining (client bundles freshly built above)
-const rawCss = await Deno.readTextFile("./src/ui/static/mvp.css");
+const rawCss = await Deno.readTextFile("./src/ui/static/style.css");
 const minifiedCss = await minifyCss(rawCss);
 
 const JS = "application/javascript; charset=utf-8";
@@ -34,7 +34,7 @@ const ASSET_DEFS: [string, string, string, string][] = [
   ["robots.txt", "handleRobotsTxt", TEXT, ""],
   ["favicon.svg", "handleFavicon", SVG, ""],
   ["icons.svg", "handleIcons", SVG, "ICONS_PATH"],
-  ["mvp.css", "handleMvpCss", CSS, "CSS_PATH"],
+  ["style.css", "handleStyleCss", CSS, "CSS_PATH"],
   ["admin.js", "handleAdminJs", JS, "JS_PATH"],
   ["scanner.js", "handleScannerJs", JS, "SCANNER_JS_PATH"],
   [
@@ -55,11 +55,11 @@ const ASSET_DEFS: [string, string, string, string][] = [
 
 const STATIC_ASSETS: Record<string, string> = {
   "favicon.svg": await Deno.readTextFile("./src/ui/static/favicon.svg"),
-  "mvp.css": minifiedCss,
+  "style.css": minifiedCss,
 };
 
 for (const [filename] of ASSET_DEFS) {
-  if (filename === "favicon.svg" || filename === "mvp.css") continue;
+  if (filename === "favicon.svg" || filename === "style.css") continue;
   STATIC_ASSETS[filename] = await Deno.readTextFile(
     `./src/ui/static/${filename}`,
   );

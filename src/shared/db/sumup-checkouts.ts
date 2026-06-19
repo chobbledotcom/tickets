@@ -36,7 +36,7 @@ import {
   unwrapKeyWithToken,
   wrapKeyWithToken,
 } from "#shared/crypto/keys.ts";
-import { getDb, insert, queryOne } from "#shared/db/client.ts";
+import { execute, insert, queryOne } from "#shared/db/client.ts";
 import { nowIso } from "#shared/now.ts";
 
 type SumupCheckoutRow = {
@@ -62,15 +62,14 @@ export const storeSumupCheckout = async (
     wrapKeyWithToken(dataKey, reference),
     encryptWithKey(JSON.stringify(metadata), dataKey),
   ]);
-  await getDb().execute(
-    insert("sumup_checkouts", {
-      created_at: nowIso(),
-      metadata: ciphertext,
-      reference_index: referenceIndex,
-      sumup_id: "",
-      wrapped_key: wrappedKey,
-    }),
-  );
+  const { sql, args } = insert("sumup_checkouts", {
+    created_at: nowIso(),
+    metadata: ciphertext,
+    reference_index: referenceIndex,
+    sumup_id: "",
+    wrapped_key: wrappedKey,
+  });
+  await execute(sql, args);
 };
 
 /** Record the SumUp-side checkout id once creation succeeds. */
@@ -78,10 +77,10 @@ export const setSumupCheckoutId = async (
   reference: string,
   sumupId: string,
 ): Promise<void> => {
-  await getDb().execute({
-    args: [sumupId, await hmacHash(reference)],
-    sql: "UPDATE sumup_checkouts SET sumup_id = ? WHERE reference_index = ?",
-  });
+  await execute(
+    "UPDATE sumup_checkouts SET sumup_id = ? WHERE reference_index = ?",
+    [sumupId, await hmacHash(reference)],
+  );
 };
 
 /** Whether a webhook's checkout id belongs to a checkout we created.

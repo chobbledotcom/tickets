@@ -32,7 +32,7 @@ export type Trigger = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add contact_preferences table for marketing opt-outs, contact history, and visit counts; add customisable_days and day_prices columns to listings for visitor-chosen multi-day bookings with per-day-count pricing; add attendee_statuses table with status_id and remaining_balance on attendees, plus attendee_id on activity_log, for the reservation and balance-payment flow; add idx_activity_log_listing_id so per-listing activity log reads are index scans instead of full-table scans; add a logistics_agents table plus a uses_logistics flag on listings, a split_logistics_agents flag on attendees, and start_agent_id/end_agent_id/start_time/end_time on listing_attendees for the logistics flow; add email_templates table for owner-keypair-encrypted reusable email subjects and bodies; add a user_logistics_agents table linking agent users to the logistics agents they drive, plus start_done/end_done flags on listing_attendees so delivery agents can mark drop-offs and collections complete; add failure_data to processed_payments so handled payment failures are recorded as a terminal outcome for idempotent redirect/webhook replay; add booked_quantity, tickets_count and income aggregate columns to listings, maintained by triggers on listing_attendees so listing reads and active-listing stats avoid scanning the attendee rows; add modifiers table for owner-defined price modifiers (surcharges, discounts, add-ons), with active/trigger/code_index/scope/stock/max_per_order/min_subtotal/min_visits columns plus modifier_listings, modifier_groups and modifier_usages tables for scoping and stock; add an encrypted code column to modifiers for promo-code modifiers; add sms_messages table mapping gateway message ids to attendees for SMS status webhooks (content lives in the encrypted activity log); add processed_sms_inbound table for inbound SMS webhook replay protection; add phone_index to attendees so inbound SMS replies can be matched to an attendee; add a modifier_id column to answers linking an answer to the price modifier it triggers (with an 'answer' modifier trigger) so an answer applies a modifier through the shared engine, replacing the per-answer pricing columns; add display_type to questions so booking questions can render as radio buttons or a select box; add assign_all to questions so booking questions can apply to every listing";
+  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add contact_preferences table for marketing opt-outs, contact history, and visit counts; add customisable_days and day_prices columns to listings for visitor-chosen multi-day bookings with per-day-count pricing; add attendee_statuses table with status_id and remaining_balance on attendees, plus attendee_id on activity_log, for the reservation and balance-payment flow; add idx_activity_log_listing_id so per-listing activity log reads are index scans instead of full-table scans; add a logistics_agents table plus a uses_logistics flag on listings, a split_logistics_agents flag on attendees, and start_agent_id/end_agent_id/start_time/end_time on listing_attendees for the logistics flow; add email_templates table for owner-keypair-encrypted reusable email subjects and bodies; add a user_logistics_agents table linking agent users to the logistics agents they drive, plus start_done/end_done flags on listing_attendees so delivery agents can mark drop-offs and collections complete; add failure_data to processed_payments so handled payment failures are recorded as a terminal outcome for idempotent redirect/webhook replay; add booked_quantity, tickets_count and income aggregate columns to listings, maintained by triggers on listing_attendees so listing reads and active-listing stats avoid scanning the attendee rows; add modifiers table for owner-defined price modifiers (surcharges, discounts, add-ons), with active/trigger/code_index/scope/stock/max_per_order/min_subtotal/min_visits columns plus modifier_listings, modifier_groups and modifier_usages tables for scoping and stock; add an encrypted code column to modifiers for promo-code modifiers; add sms_messages table mapping gateway message ids to attendees for SMS status webhooks (content lives in the encrypted activity log); add processed_sms_inbound table for inbound SMS webhook replay protection; add phone_index to attendees so inbound SMS replies can be matched to an attendee; add a modifier_id column to answers linking an answer to the price modifier it triggers (with an 'answer' modifier trigger) so an answer applies a modifier through the shared engine, replacing the per-answer pricing columns; add display_type to questions so booking questions can render as radio buttons or a select box; add assign_all to questions so booking questions can apply to every listing; add a times_selected aggregate column to answers, maintained by triggers on attendee_answers, so the question and answer admin pages report selection counts without scanning attendee_answers";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -581,6 +581,12 @@ export const SCHEMA: [name: string, table: Table][] = [
         // modifier), or NULL for an answer with no price effect. Many answers
         // may point at one "pricing tier" modifier; an answer has at most one.
         ["modifier_id", "INTEGER"],
+        // Precomputed COUNT of attendee_answers rows for this answer,
+        // maintained by the ANSWER_AGGREGATE_TRIGGERS so the question/answer
+        // admin pages report how many times the answer was chosen without
+        // scanning attendee_answers. Owner-editable on the answer edit page;
+        // the recalculate flow rebuilds it from attendee_answers when it drifts.
+        ["times_selected", "INTEGER NOT NULL DEFAULT 0"],
       ],
       indexes: [
         { columns: ["question_id"], name: "idx_answers_question_id" },
@@ -736,6 +742,18 @@ export const SCHEMA: [name: string, table: Table][] = [
 ];
 
 /**
+ * The listing_attendees columns that shift listing aggregates (booked_quantity,
+ * tickets_count, income). The UPDATE trigger fires on exactly these columns;
+ * the cache-invalidation gate in listings.ts reads the same constant so the
+ * two cannot drift.
+ */
+export const LISTING_AGGREGATE_WRITE_COLUMNS = [
+  "quantity",
+  "price_paid",
+  "listing_id",
+] as const;
+
+/**
  * Triggers that keep the listings aggregate columns (booked_quantity,
  * tickets_count, income) in lockstep with listing_attendees, so the hot
  * listing reads and the active-listing stats cost one row read instead of
@@ -783,7 +801,7 @@ END`,
   {
     name: "trg_listing_attendees_aggregates_update",
     sql: `CREATE TRIGGER IF NOT EXISTS trg_listing_attendees_aggregates_update
-AFTER UPDATE OF quantity, price_paid, listing_id ON listing_attendees
+AFTER UPDATE OF ${LISTING_AGGREGATE_WRITE_COLUMNS.join(", ")} ON listing_attendees
 FOR EACH ROW
 BEGIN
   UPDATE listings SET
@@ -863,10 +881,60 @@ END`,
   },
 ];
 
+/**
+ * Answer aggregate triggers keep answers.times_selected in step with the
+ * attendee_answers join table, the same way the listing and modifier triggers
+ * maintain their aggregates. Each attendee_answers row is one selection, so the
+ * count is COUNT(*) per answer_id. The UPDATE trigger is scoped to OF answer_id
+ * — the only column whose change moves a selection between answers — and it
+ * subtracts the OLD answer's contribution and adds the NEW answer's so a
+ * reassigned row stays correct.
+ *
+ * Semantics mirror the previous COUNT(*) query over attendee_answers exactly.
+ */
+const ANSWER_AGGREGATE_TRIGGERS: Trigger[] = [
+  {
+    name: "trg_attendee_answers_aggregates_insert",
+    sql: `CREATE TRIGGER IF NOT EXISTS trg_attendee_answers_aggregates_insert
+AFTER INSERT ON attendee_answers
+FOR EACH ROW
+BEGIN
+  UPDATE answers SET times_selected = times_selected + 1
+  WHERE id = NEW.answer_id;
+END`,
+    table: "attendee_answers",
+  },
+  {
+    name: "trg_attendee_answers_aggregates_delete",
+    sql: `CREATE TRIGGER IF NOT EXISTS trg_attendee_answers_aggregates_delete
+AFTER DELETE ON attendee_answers
+FOR EACH ROW
+BEGIN
+  UPDATE answers SET times_selected = times_selected - 1
+  WHERE id = OLD.answer_id;
+END`,
+    table: "attendee_answers",
+  },
+  {
+    name: "trg_attendee_answers_aggregates_update",
+    sql: `CREATE TRIGGER IF NOT EXISTS trg_attendee_answers_aggregates_update
+AFTER UPDATE OF answer_id ON attendee_answers
+FOR EACH ROW
+BEGIN
+  UPDATE answers SET times_selected = times_selected - 1
+  WHERE id = OLD.answer_id;
+  UPDATE answers SET times_selected = times_selected + 1
+  WHERE id = NEW.answer_id;
+END`,
+    table: "attendee_answers",
+  },
+];
+
 /** Every declared trigger, across all aggregate relationships. */
 export const TRIGGERS: Trigger[] = [
   ...LISTING_AGGREGATE_TRIGGERS,
   ...MODIFIER_AGGREGATE_TRIGGERS,
+  ...ANSWER_AGGREGATE_TRIGGERS,
 ];
 
 /** Ordered table names — matches FK dependency order (parents before children) */

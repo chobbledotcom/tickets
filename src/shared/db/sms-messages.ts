@@ -11,7 +11,7 @@
 import {
   countRows,
   deleteByField,
-  getDb,
+  execute,
   insert,
   queryOne,
 } from "#shared/db/client.ts";
@@ -33,14 +33,13 @@ export const recordSmsMessage = async (input: {
   listingId: number;
   providerId: string;
 }): Promise<void> => {
-  await getDb().execute(
-    insert("sms_messages", {
-      attendee_id: input.attendeeId,
-      created: nowIso(),
-      listing_id: input.listingId,
-      provider_id: input.providerId,
-    }),
-  );
+  const { sql, args } = insert("sms_messages", {
+    attendee_id: input.attendeeId,
+    created: nowIso(),
+    listing_id: input.listingId,
+    provider_id: input.providerId,
+  });
+  await execute(sql, args);
 };
 
 /** Find the message a status event refers to, by the gateway's message id. */
@@ -66,8 +65,5 @@ export const deleteSmsMessage = (id: number): Promise<void> =>
 export const pruneSmsMessagesBefore = async (
   cutoffIso: string,
 ): Promise<void> => {
-  await getDb().execute({
-    args: [cutoffIso],
-    sql: "DELETE FROM sms_messages WHERE created < ?",
-  });
+  await execute("DELETE FROM sms_messages WHERE created < ?", [cutoffIso]);
 };

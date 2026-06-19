@@ -15,7 +15,7 @@
 
 import type { InValue } from "@libsql/client";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import { getDb, insert, queryOne } from "#shared/db/client.ts";
+import { execute, insert, queryOne } from "#shared/db/client.ts";
 import { STALE_RESERVATION_MS } from "#shared/limits.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
 
@@ -99,7 +99,7 @@ export const isUnresolvedReservation = (row: ProcessedPayment): boolean =>
 
 /** Execute a SQL statement parameterized by a single payment session ID */
 const execWithSessionId = (sessionId: string, sql: string): Promise<unknown> =>
-  getDb().execute({ args: [sessionId], sql });
+  execute(sql, [sessionId]);
 
 /**
  * Delete a stale reservation to allow retry. Only abandoned, outcome-less rows
@@ -123,10 +123,10 @@ export const deleteStaleReservation = async (
  */
 export const deleteAllStaleReservations = async (): Promise<number> => {
   const cutoff = new Date(nowMs() - STALE_RESERVATION_MS).toISOString();
-  const result = await getDb().execute({
-    args: [cutoff],
-    sql: `DELETE FROM processed_payments WHERE ${UNRESOLVED_RESERVATION} AND processed_at < ?`,
-  });
+  const result = await execute(
+    `DELETE FROM processed_payments WHERE ${UNRESOLVED_RESERVATION} AND processed_at < ?`,
+    [cutoff],
+  );
   return result.rowsAffected;
 };
 
@@ -143,13 +143,12 @@ export const reserveSession = async (
   sessionId: string,
 ): Promise<ReserveSessionResult> => {
   try {
-    await getDb().execute(
-      insert("processed_payments", {
-        attendee_id: null,
-        payment_session_id: sessionId,
-        processed_at: nowIso(),
-      }),
-    );
+    const { sql, args } = insert("processed_payments", {
+      attendee_id: null,
+      payment_session_id: sessionId,
+      processed_at: nowIso(),
+    });
+    await execute(sql, args);
     return { reserved: true };
   } catch (e) {
     const errorMsg = String(e);
@@ -192,10 +191,10 @@ export const finalizeSession = async (
 ): Promise<void> => {
   const joined = ticketTokens.join("+");
   const encryptedTokens = joined ? await encrypt(joined) : "";
-  await getDb().execute({
-    args: [attendeeId, encryptedTokens, sessionId],
-    sql: "UPDATE processed_payments SET attendee_id = ?, ticket_tokens = ? WHERE payment_session_id = ?",
-  });
+  await execute(
+    "UPDATE processed_payments SET attendee_id = ?, ticket_tokens = ? WHERE payment_session_id = ?",
+    [attendeeId, encryptedTokens, sessionId],
+  );
 };
 
 /**
@@ -210,10 +209,10 @@ export const markSessionFailed = async (
   sessionId: string,
   failure: StoredPaymentFailure,
 ): Promise<void> => {
-  await getDb().execute({
-    args: [await encrypt(JSON.stringify(failure)), sessionId],
-    sql: `UPDATE processed_payments SET failure_data = ? WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION}`,
-  });
+  await execute(
+    `UPDATE processed_payments SET failure_data = ? WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION}`,
+    [await encrypt(JSON.stringify(failure)), sessionId],
+  );
 };
 
 /** Generic terminal failure used when stored failure_data can't be parsed. */

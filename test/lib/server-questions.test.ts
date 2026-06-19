@@ -73,6 +73,17 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const { response } = await adminGet("/admin/questions");
       await expectHtmlResponse(response, 200, "Questions", "Favorite color?");
     });
+
+    test("shows a Listings cell titled with the assigned listing names", async () => {
+      const qId = await createQuestion("Listings column?");
+      const listing = await createTestListing({ name: "Gala Night" });
+      const { setQuestionListings } = await import("#shared/db/questions.ts");
+      await setQuestionListings(qId, [listing.id]);
+
+      const { response } = await adminGet("/admin/questions");
+      const body = await response.text();
+      expect(body).toContain('title="Gala Night"');
+    });
   });
 
   describe("POST /admin/questions", () => {
@@ -814,6 +825,134 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       expect(body).toContain("Logged after");
       expect(body).toContain("updated");
     });
+
+    test("saves the edited selection total", async () => {
+      const qId = await createQuestion("Edit total question");
+      const aId = await addAnswer(qId, "Tally");
+
+      const { response } = await adminFormPost(
+        `/admin/questions/${qId}/answers/${aId}/edit`,
+        { modifier_id: "", text: "Tally", times_selected: "15" },
+      );
+      expect(response.status).toBe(302);
+
+      const { getAnswerSelectionTotals } = await import(
+        "#shared/db/questions.ts"
+      );
+      expect((await getAnswerSelectionTotals(qId)).get(aId)).toBe(15);
+    });
+
+    test("rejects a negative selection total without saving the edit", async () => {
+      const qId = await createQuestion("Bad total question");
+      const aId = await addAnswer(qId, "Before");
+
+      const { response } = await adminFormPost(
+        `/admin/questions/${qId}/answers/${aId}/edit`,
+        { modifier_id: "", text: "After", times_selected: "-3" },
+      );
+      expect(response.status).toBe(302);
+
+      const { getQuestionWithAnswers } = await import(
+        "#shared/db/questions.ts"
+      );
+      const question = await getQuestionWithAnswers(qId);
+      // The invalid aggregate aborts the whole edit, so the text is unchanged.
+      expect(question!.answers.find((a) => a.id === aId)!.text).toBe("Before");
+    });
+  });
+
+  describe("answer recalculate page", () => {
+    /** Book an attendee on a listing and point them at the answer, so the
+     * answer has one real selection to recalculate against. */
+    const bookAnswer = async (
+      listingId: number,
+      answerId: number,
+    ): Promise<void> => {
+      const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
+      const { saveAttendeeAnswers } = await import("#shared/db/questions.ts");
+      const result = await createAttendeeAtomic({
+        bookings: [{ listingId }],
+        email: "booker@test.com",
+        name: "Booker",
+      });
+      if (!result.success) throw new Error("Failed to create attendee");
+      await saveAttendeeAnswers(
+        new Map([[result.attendees[0]!.id, [answerId]]]),
+      );
+    };
+
+    testRequiresAuth("/admin/questions/1/answers/1/recalculate", {
+      setup: async () => {
+        const qId = await createQuestion("Recalc auth");
+        await addAnswer(qId, "Answer");
+      },
+    });
+
+    test("returns 404 for a non-existent answer", async () => {
+      const qId = await createQuestion("Recalc missing");
+      const { response } = await adminGet(
+        `/admin/questions/${qId}/answers/999/recalculate`,
+      );
+      expectStatus(404)(response);
+    });
+
+    test("shows the stored and recalculated totals", async () => {
+      const qId = await createQuestion("Recalc page");
+      const aId = await addAnswer(qId, "Pick");
+      const listing = await createTestListing();
+      await bookAnswer(listing.id, aId);
+
+      const { updateAnswerAggregateValues } = await import(
+        "#shared/db/questions.ts"
+      );
+      await updateAnswerAggregateValues(aId, { times_selected: 8 });
+
+      const { response } = await adminGet(
+        `/admin/questions/${qId}/answers/${aId}/recalculate`,
+      );
+      const body = await response.text();
+      expect(response.status).toBe(200);
+      // Stored (8) and the value rebuilt from the single booking (1).
+      expect(body).toContain("<td>8</td>");
+      expect(body).toContain("<td>1</td>");
+      expect(body).toContain(
+        `action="/admin/questions/${qId}/answers/${aId}/recalculate"`,
+      );
+    });
+
+    test("re-renders with a prompt when no field is selected", async () => {
+      const qId = await createQuestion("Recalc none");
+      const aId = await addAnswer(qId, "Pick");
+
+      const { response } = await adminFormPost(
+        `/admin/questions/${qId}/answers/${aId}/recalculate`,
+        {},
+      );
+      const body = await response.text();
+      expect(response.status).toBe(400);
+      expect(body).toContain("Choose at least one total to recalculate");
+    });
+
+    test("resets the stored total from attendee answers and redirects", async () => {
+      const qId = await createQuestion("Recalc reset");
+      const aId = await addAnswer(qId, "Pick");
+      const listing = await createTestListing();
+      await bookAnswer(listing.id, aId);
+
+      const { updateAnswerAggregateValues, getAnswerSelectionTotals } =
+        await import("#shared/db/questions.ts");
+      await updateAnswerAggregateValues(aId, { times_selected: 99 });
+
+      const { response } = await adminFormPost(
+        `/admin/questions/${qId}/answers/${aId}/recalculate`,
+        { recalculate_fields: "times_selected" },
+      );
+      expectRedirectWithFlash(
+        `/admin/questions/${qId}/answers/${aId}/edit`,
+        "Selection total recalculated",
+      )(response);
+      expect((await getAnswerSelectionTotals(qId)).get(aId)).toBe(1);
+    });
   });
 
   describe("GET /admin/listing/:id/questions", () => {
@@ -1138,15 +1277,16 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
   });
 
   describe("question detail page with answer counts", () => {
-    test("shows answer counts on question detail page", async () => {
+    test("shows selection totals on question detail page", async () => {
       const qId = await createQuestion("Count Q");
       await addAnswer(qId, "Yes");
       await addAnswer(qId, "No");
 
       const { response } = await adminGet(`/admin/questions/${qId}`);
       const body = await response.text();
-      // Should show counts (0 for both since no attendees)
-      expect(body).toContain("(0)");
+      // The answers table shows the stored selection total (0 with no bookings).
+      expect(body).toContain("<th>Times Selected</th>");
+      expect(body).toContain("<td>0</td>");
     });
   });
 

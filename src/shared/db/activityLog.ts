@@ -144,7 +144,7 @@ export const getListingWithActivityLog = async (
   const results = await queryBatch([
     {
       args: [listingId],
-      sql: `${LISTING_COUNT_SELECT} WHERE e.id = ? ${LISTING_COUNT_GROUP_BY}`,
+      sql: `${LISTING_COUNT_SELECT} WHERE listing.id = ? ${LISTING_COUNT_GROUP_BY}`,
     },
     {
       args: [listingId, limit],

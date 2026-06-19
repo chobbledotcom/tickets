@@ -1399,7 +1399,7 @@ const getListingFieldsWithAutofocus = (): Field[] =>
 // and the edit-only duration-change warning.
 //
 // Conditional visibility (daily-only fields, day prices, max price) is handled
-// entirely in CSS via :has() — see the form rules in mvp.css. The day-prices
+// entirely in CSS via :has() — see the form rules in style.scss. The day-prices
 // block sits right under the "Customisable Days" checkbox so enabling it
 // reveals the prices in place.
 // ---------------------------------------------------------------------------

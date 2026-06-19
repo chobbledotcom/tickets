@@ -4,17 +4,14 @@
 
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
-import { getDb } from "#shared/db/client.ts";
+import { execute, queryAll } from "#shared/db/client.ts";
 import {
   cachedEntityTable,
   defineIdTable,
   encryptedNameSchema,
   idAndEncryptedSlugSchema,
 } from "#shared/db/common-schema.ts";
-import {
-  invalidateListingsCache,
-  queryListingsWithCounts,
-} from "#shared/db/listings.ts";
+import { queryListingsWithCounts } from "#shared/db/listings.ts";
 import { queryAndMap } from "#shared/db/query.ts";
 import { col } from "#shared/db/table.ts";
 import type { Group, ListingType, ListingWithCount } from "#shared/types.ts";
@@ -92,18 +89,18 @@ export const isGroupSlugTaken = async (
 ): Promise<boolean> => {
   const slugIndex = await computeGroupSlugIndex(slug);
 
-  const listingHit = await getDb().execute({
-    args: [slugIndex],
-    sql: "SELECT 1 FROM listings WHERE slug_index = ? LIMIT 1",
-  });
-  if (listingHit.rows.length > 0) return true;
+  const listingHit = await queryAll(
+    "SELECT 1 FROM listings WHERE slug_index = ? LIMIT 1",
+    [slugIndex],
+  );
+  if (listingHit.length > 0) return true;
 
   const sql = excludeGroupId
     ? "SELECT 1 FROM groups WHERE slug_index = ? AND id != ? LIMIT 1"
     : "SELECT 1 FROM groups WHERE slug_index = ? LIMIT 1";
   const args = excludeGroupId ? [slugIndex, excludeGroupId] : [slugIndex];
-  const groupHit = await getDb().execute({ args, sql });
-  return groupHit.rows.length > 0;
+  const groupHit = await queryAll(sql, args);
+  return groupHit.length > 0;
 };
 
 /** Query listings in a group with attendee counts, optionally filtering to active only */
@@ -113,8 +110,8 @@ const queryGroupListings = (
 ): Promise<ListingWithCount[]> =>
   queryListingsWithCounts(
     activeOnly
-      ? "WHERE e.active = 1 AND e.group_id = ?"
-      : "WHERE e.group_id = ?",
+      ? "WHERE listing.active = 1 AND listing.group_id = ?"
+      : "WHERE listing.group_id = ?",
     [groupId],
   );
 
@@ -167,7 +164,7 @@ export const validateGroupListingType = async (
  * Get ungrouped listings (group_id = 0) with attendee counts.
  */
 export const getUngroupedListings = (): Promise<ListingWithCount[]> =>
-  queryListingsWithCounts("WHERE e.group_id = 0");
+  queryListingsWithCounts("WHERE listing.group_id = 0");
 
 /**
  * Assign listings to a group by updating their group_id.
@@ -177,23 +174,20 @@ export const assignListingsToGroup = async (
   groupId: number,
 ): Promise<void> => {
   for (const listingId of listingIds) {
-    await getDb().execute({
-      args: [groupId, listingId],
-      sql: "UPDATE listings SET group_id = ? WHERE id = ?",
-    });
+    await execute("UPDATE listings SET group_id = ? WHERE id = ?", [
+      groupId,
+      listingId,
+    ]);
   }
-  if (listingIds.length > 0) invalidateListingsCache();
 };
 
 /**
  * Reset group assignment on all listings in a group.
  */
 export const resetGroupListings = async (groupId: number): Promise<void> => {
-  await getDb().execute({
-    args: [groupId],
-    sql: "UPDATE listings SET group_id = 0 WHERE group_id = ?",
-  });
-  invalidateListingsCache();
+  await execute("UPDATE listings SET group_id = 0 WHERE group_id = ?", [
+    groupId,
+  ]);
 };
 
 /**
@@ -204,10 +198,9 @@ export const setGroupListingsActive = async (
   groupId: number,
   active: boolean,
 ): Promise<number> => {
-  const result = await getDb().execute({
-    args: [active ? 1 : 0, groupId],
-    sql: "UPDATE listings SET active = ? WHERE group_id = ?",
-  });
-  invalidateListingsCache();
+  const result = await execute(
+    "UPDATE listings SET active = ? WHERE group_id = ?",
+    [active ? 1 : 0, groupId],
+  );
   return result.rowsAffected;
 };

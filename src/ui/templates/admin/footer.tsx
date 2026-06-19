@@ -21,6 +21,7 @@ import {
   getQueryLogStartTime,
   isFooterDebugEnabled,
   type QueryLogEntry,
+  sqlWallClockMs,
 } from "#shared/db/query-log.ts";
 import { getUptimeSeconds } from "#shared/uptime.ts";
 
@@ -40,6 +41,9 @@ export const markAdminFooter = (): void => {
   _adminFooterStore.show = true;
 };
 
+/** Total query work: the sum of every query's duration, counting concurrent
+ * and batched queries in full. Pairs with the wall-clock figure to expose how
+ * much of that work overlapped (the parallel factor). */
 const sumDurations = reduce(
   (total: number, q: QueryLogEntry) => total + q.durationMs,
   0,
@@ -57,8 +61,14 @@ const renderCacheStat = (stat: CacheStat): string =>
  * and cache stats. Shown in the footer only when query logging is active. */
 export const debugDetailsHtml = (data: DebugFooterData): string => {
   const { renderTimeMs, queries, cacheStats, uptimeSeconds } = data;
-  const totalSqlMs = sumDurations(queries);
-  const otherMs = renderTimeMs - totalSqlMs;
+  // Wall-clock time blocked on SQL (overlaps merged) vs. total query work
+  // (durations summed). They diverge exactly when queries ran concurrently or
+  // were batched, so `render = sqlWall + other` is a true, non-negative split
+  // and `work / sqlWall` is the parallel factor.
+  const sqlWallMs = sqlWallClockMs(queries);
+  const sqlWorkMs = sumDurations(queries);
+  const otherMs = renderTimeMs - sqlWallMs;
+  const parallelFactor = sqlWallMs > 0 ? sqlWorkMs / sqlWallMs : 1;
   const totalCacheEntries = reduce(
     (total: number, s: CacheStat) => total + s.entries,
     0,
@@ -67,13 +77,18 @@ export const debugDetailsHtml = (data: DebugFooterData): string => {
   return (
     `<details class="debug-menu">` +
     `<summary>${renderTimeMs.toFixed(0)}ms` +
-    ` &middot; ${queries.length} quer${queries.length === 1 ? "y" : "ies"} ${totalSqlMs.toFixed(
+    ` &middot; ${queries.length} quer${queries.length === 1 ? "y" : "ies"} ${sqlWallMs.toFixed(
       0,
     )}ms` +
     ` &middot; ${totalCacheEntries} cached` +
     ` &middot; up ${uptimeSeconds.toFixed(0)}s</summary>` +
     `<p>Render: ${renderTimeMs.toFixed(1)}ms` +
-    ` (sql ${totalSqlMs.toFixed(1)}ms + other ${otherMs.toFixed(1)}ms)</p>` +
+    ` (sql ${sqlWallMs.toFixed(1)}ms + other ${otherMs.toFixed(1)}ms)</p>` +
+    (queries.length > 0
+      ? `<p>SQL: ${sqlWorkMs.toFixed(1)}ms work across ${queries.length} quer${
+          queries.length === 1 ? "y" : "ies"
+        }, ${parallelFactor.toFixed(1)}&times; parallel</p>`
+      : "") +
     (queries.length > 0
       ? `<details><summary>${t("admin.footer.sql_queries")}</summary><ul>` +
         queries

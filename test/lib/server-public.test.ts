@@ -629,9 +629,9 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
     });
   });
 
-  describe("GET /mvp.css", () => {
+  describe("GET /style.css", () => {
     test("returns CSS stylesheet", async () => {
-      const response = await handleRequest(mockRequest("/mvp.css"));
+      const response = await handleRequest(mockRequest("/style.css"));
       expect(response.status).toBe(200);
       expect(response.headers.get("content-type")).toBe(
         "text/css; charset=utf-8",
@@ -641,8 +641,8 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
       expect(css).toContain("--color-link");
     });
 
-    test("returns 404 for non-GET requests to /mvp.css", async () => {
-      const response = await awaitTestRequest("/mvp.css", {
+    test("returns 404 for non-GET requests to /style.css", async () => {
+      const response = await awaitTestRequest("/style.css", {
         data: {},
         method: "POST",
       });
@@ -650,7 +650,7 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
     });
 
     test("has long cache headers", async () => {
-      const response = await handleRequest(mockRequest("/mvp.css"));
+      const response = await handleRequest(mockRequest("/style.css"));
       expect(response.headers.get("cache-control")).toBe(
         "public, max-age=31536000, immutable",
       );

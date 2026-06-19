@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#shared/db/client.ts";
 import {
   getListingAggregateRecalculation,
@@ -8,8 +8,25 @@ import {
   resetListingAggregateFields,
   updateListingAggregateValues,
 } from "#shared/db/listings.ts";
+import {
+  LISTING_AGGREGATE_WRITE_COLUMNS,
+  TRIGGERS,
+} from "#shared/db/migrations/schema.ts";
 import { MIGRATIONS } from "#shared/db/migrations.ts";
 import { createTestListing, describeWithEnv } from "#test-utils";
+
+describe("LISTING_AGGREGATE_WRITE_COLUMNS matches the trigger SQL", () => {
+  test("the UPDATE trigger fires on exactly the columns in LISTING_AGGREGATE_WRITE_COLUMNS", () => {
+    const updateTrigger = TRIGGERS.find(
+      (t) => t.name === "trg_listing_attendees_aggregates_update",
+    );
+    expect(updateTrigger).toBeDefined();
+    const expectedCols = [...LISTING_AGGREGATE_WRITE_COLUMNS].join(", ");
+    expect(updateTrigger!.sql).toContain(
+      `AFTER UPDATE OF ${expectedCols} ON listing_attendees`,
+    );
+  });
+});
 
 /**
  * The listings aggregate columns (booked_quantity, tickets_count, income) are

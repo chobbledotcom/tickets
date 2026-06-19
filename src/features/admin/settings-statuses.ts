@@ -34,7 +34,7 @@ import {
   invalidateAttendeeStatusesCache,
   swapAttendeeStatusOrder,
 } from "#shared/db/attendee-statuses.ts";
-import { getDb } from "#shared/db/client.ts";
+import { execute } from "#shared/db/client.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { validateReservationAmount } from "#shared/reservation-amount.ts";
@@ -98,16 +98,16 @@ const clearOtherDefaults = async (
   data: StatusFormData,
 ): Promise<void> => {
   if (data.isPublicDefault) {
-    await getDb().execute({
-      args: [id],
-      sql: "UPDATE attendee_statuses SET is_public_default = 0 WHERE id != ?",
-    });
+    await execute(
+      "UPDATE attendee_statuses SET is_public_default = 0 WHERE id != ?",
+      [id],
+    );
   }
   if (data.isPaidDefault) {
-    await getDb().execute({
-      args: [id],
-      sql: "UPDATE attendee_statuses SET is_paid_default = 0 WHERE id != ?",
-    });
+    await execute(
+      "UPDATE attendee_statuses SET is_paid_default = 0 WHERE id != ?",
+      [id],
+    );
   }
   invalidateAttendeeStatusesCache();
 };
@@ -214,10 +214,10 @@ const deletePost = ownerFormById(async (id, _session, form) => {
       "Choose another paid default before deleting this status",
     );
   }
-  const inUse = await getDb().execute({
-    args: [id],
-    sql: "SELECT 1 FROM attendees WHERE status_id = ? LIMIT 1",
-  });
+  const inUse = await execute(
+    "SELECT 1 FROM attendees WHERE status_id = ? LIMIT 1",
+    [id],
+  );
   if (inUse.rows.length > 0) {
     return errorRedirect(confirmPath, "This status is in use by attendees");
   }

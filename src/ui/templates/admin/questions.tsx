@@ -6,30 +6,96 @@ import { map } from "#fp";
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { answerTextForm, questionTextForm } from "#routes/admin/questions.ts";
-import type { Answer, QuestionWithAnswers } from "#shared/db/questions.ts";
-import { ConfirmForm, CsrfForm, Flash } from "#shared/forms.tsx";
+import type {
+  Answer,
+  AnswerAggregateField,
+  AnswerAggregateRecalculation,
+  QuestionWithAnswers,
+} from "#shared/db/questions.ts";
+import { ConfirmForm, CsrfForm, Flash, renderFields } from "#shared/forms.tsx";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
+import {
+  type ExpectedActualItem,
+  ExpectedActualNotice,
+} from "#templates/admin/expected-actual.tsx";
 import { AdminNav, SettingsSubNav } from "#templates/admin/nav.tsx";
-import { GuideLink, SubmitButton } from "#templates/components/actions.tsx";
+import {
+  adminRecalculatePage,
+  type RecalculateRow,
+} from "#templates/admin/recalculate.tsx";
+import {
+  BackButton,
+  GuideLink,
+  SubmitButton,
+} from "#templates/components/actions.tsx";
+import { answerAggregateFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
-/** List all questions */
+/** Move-up / move-down reorder controls used as the first column of the
+ * question and answer tables. `action` builds the move path for a direction. */
+const ReorderControls = ({
+  action,
+  index,
+  count,
+}: {
+  action: (direction: "up" | "down") => string;
+  index: number;
+  count: number;
+}): JSX.Element => (
+  <>
+    {index > 0 && (
+      <CsrfForm action={action("up")} class="inline">
+        <button class="link-button small" type="submit">
+          &#9650;
+        </button>
+      </CsrfForm>
+    )}{" "}
+    {index < count - 1 && (
+      <CsrfForm action={action("down")} class="inline">
+        <button class="link-button small" type="submit">
+          &#9660;
+        </button>
+      </CsrfForm>
+    )}
+  </>
+);
+
+/** Listings cell for a question row: a count whose title attribute spells out
+ * the assigned listing names (comma + space separated), or "All" when the
+ * question is assigned to every listing. */
+const QuestionListingsCell = ({
+  question,
+  listingNames,
+  totalListings,
+}: {
+  question: QuestionWithAnswers;
+  listingNames: string[];
+  totalListings: number;
+}): JSX.Element => {
+  const all = question.assign_all === true;
+  const count = all ? totalListings : listingNames.length;
+  const title = all ? t("questions.all_listings") : listingNames.join(", ");
+  return <td title={title}>{count}</td>;
+};
+
+/** List all questions in a reorderable table, mirroring the listings table:
+ * reorder arrows in the first column, then the question, its answer count, and
+ * the listings it applies to. */
 export const adminQuestionsPage = (
   questions: QuestionWithAnswers[],
   session: AdminSession,
   error?: string,
+  listingNames: Map<number, string[]> = new Map(),
+  totalListings = 0,
 ): string =>
   String(
     <Layout title={t("questions.title")}>
       <AdminNav active="/admin/settings" session={session} />
       <SettingsSubNav />
 
-      <div class="prose">
-        <h1>{t("questions.heading")}</h1>
-        <p class="actions">
-          <GuideLink href="/admin/guide#questions">Questions guide</GuideLink>
-        </p>
-      </div>
+      <p class="actions">
+        <GuideLink href="/admin/guide#questions">Questions guide</GuideLink>
+      </p>
       <Flash error={error} />
 
       <CsrfForm action="/admin/questions" id="new-question">
@@ -42,38 +108,40 @@ export const adminQuestionsPage = (
           <em>{t("questions.no_questions")}</em>
         </p>
       ) : (
-        <ul class="question-list">
-          {questions.map((q, i) => (
-            <li>
-              <a href={`/admin/questions/${q.id}`}>{q.text}</a>
-              <small>
-                {" "}
-                ({q.answers.length} answer{q.answers.length !== 1 ? "s" : ""})
-              </small>{" "}
-              {i > 0 && (
-                <CsrfForm
-                  action={`/admin/questions/${q.id}/move-up`}
-                  class="inline"
-                >
-                  <button class="link-button small" type="submit">
-                    &#9650;
-                  </button>
-                </CsrfForm>
-              )}
-              {i > 0 && " "}
-              {i < questions.length - 1 && (
-                <CsrfForm
-                  action={`/admin/questions/${q.id}/move-down`}
-                  class="inline"
-                >
-                  <button class="link-button small" type="submit">
-                    &#9660;
-                  </button>
-                </CsrfForm>
-              )}
-            </li>
-          ))}
-        </ul>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>{t("questions.order_column")}</th>
+                <th>{t("questions.question_column")}</th>
+                <th>{t("questions.answers_column")}</th>
+                <th>{t("questions.listings_column")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {questions.map((q, i) => (
+                <tr>
+                  <td>
+                    <ReorderControls
+                      action={(d) => `/admin/questions/${q.id}/move-${d}`}
+                      count={questions.length}
+                      index={i}
+                    />
+                  </td>
+                  <td>
+                    <a href={`/admin/questions/${q.id}`}>{q.text}</a>
+                  </td>
+                  <td>{q.answers.length}</td>
+                  <QuestionListingsCell
+                    listingNames={listingNames.get(q.id) ?? []}
+                    question={q}
+                    totalListings={totalListings}
+                  />
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </Layout>,
   );
@@ -121,37 +189,40 @@ export const adminQuestionPage = (
           <em>{t("questions.edit.no_answers")}</em>
         </p>
       ) : (
-        <ul class="answer-list">
-          {question.answers.map((a, i) => (
-            <li>
-              <a href={`/admin/questions/${question.id}/answers/${a.id}/edit`}>
-                {a.text}
-              </a>
-              {answerCounts && <small>({answerCounts.get(a.id)})</small>}{" "}
-              {i > 0 && (
-                <CsrfForm
-                  action={`/admin/questions/${question.id}/answers/${a.id}/move-up`}
-                  class="inline"
-                >
-                  <button class="link-button small" type="submit">
-                    &#9650;
-                  </button>
-                </CsrfForm>
-              )}
-              {i > 0 && " "}
-              {i < question.answers.length - 1 && (
-                <CsrfForm
-                  action={`/admin/questions/${question.id}/answers/${a.id}/move-down`}
-                  class="inline"
-                >
-                  <button class="link-button small" type="submit">
-                    &#9660;
-                  </button>
-                </CsrfForm>
-              )}
-            </li>
-          ))}
-        </ul>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>{t("questions.order_column")}</th>
+                <th>{t("questions.answer_column")}</th>
+                <th>{t("questions.selected_column")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {question.answers.map((a, i) => (
+                <tr>
+                  <td>
+                    <ReorderControls
+                      action={(d) =>
+                        `/admin/questions/${question.id}/answers/${a.id}/move-${d}`
+                      }
+                      count={question.answers.length}
+                      index={i}
+                    />
+                  </td>
+                  <td>
+                    <a
+                      href={`/admin/questions/${question.id}/answers/${a.id}/edit`}
+                    >
+                      {a.text}
+                    </a>
+                  </td>
+                  <td>{answerCounts?.get(a.id) ?? 0}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       <h2>{t("questions.assign_to_listings")}</h2>
@@ -200,15 +271,75 @@ export const adminQuestionPage = (
 /** A linkable "answer"-trigger modifier for the answer edit page selector. */
 export type AnswerModifierOption = { id: number; name: string };
 
-/** Answer edit page: cumulative stats, the editable answer text, the price
- * modifier this answer triggers, and the delete action (moved here from the
- * question page). Ordering still lives on the question page. */
+/** Path to an answer's running-total recalculation page. */
+const answerRecalculatePath = (questionId: number, answerId: number): string =>
+  `/admin/questions/${questionId}/answers/${answerId}/recalculate`;
+
+/** Drifted answer aggregate columns as expected/actual items (expected = the
+ * value rebuilt from attendee answers, actual = the stored running total). */
+const answerAggregateMismatchItems = (
+  recalc: AnswerAggregateRecalculation,
+): ExpectedActualItem[] =>
+  answerAggregateFields.flatMap((field) => {
+    const name = field.name as AnswerAggregateField;
+    const values = recalc[name];
+    return values.current === values.recalculated
+      ? []
+      : [
+          {
+            actual: String(values.current),
+            expected: String(values.recalculated),
+            label: field.label,
+          },
+        ];
+  });
+
+/** Owner-editable selection total, with the same drift warning and recalculate
+ * link the listing edit page uses for its running totals. */
+const AnswerRunningTotalsSection = ({
+  question,
+  answer,
+  aggregateRecalculation,
+}: {
+  question: QuestionWithAnswers;
+  answer: Answer;
+  aggregateRecalculation: AnswerAggregateRecalculation;
+}): JSX.Element => (
+  <fieldset>
+    <legend>{t("questions.edit_answer.running_totals")}</legend>
+    <ExpectedActualNotice
+      actionHref={answerRecalculatePath(question.id, answer.id)}
+      actionLabel={t("questions.edit_answer.mismatch_action")}
+      explanation={t("questions.edit_answer.mismatch_explanation")}
+      items={answerAggregateMismatchItems(aggregateRecalculation)}
+      title={t("questions.edit_answer.mismatch_title")}
+    />
+    <p>
+      <small>{t("questions.edit_answer.running_totals_note")}</small>
+    </p>
+    <Raw
+      html={renderFields(answerAggregateFields, {
+        times_selected: aggregateRecalculation.times_selected.current,
+      })}
+    />
+    <p>
+      <a href={answerRecalculatePath(question.id, answer.id)}>
+        {t("questions.edit_answer.recalculate_totals")}
+      </a>
+    </p>
+  </fieldset>
+);
+
+/** Answer edit page: a back link to the question, the editable answer text, the
+ * editable selection total (with drift warning + recalculate flow), the price
+ * modifier this answer triggers, and the delete action. Ordering still lives on
+ * the question page. */
 export const adminAnswerEditPage = (
   question: QuestionWithAnswers,
   answer: Answer,
   session: AdminSession,
   error: string | undefined,
-  count: number,
+  aggregateRecalculation: AnswerAggregateRecalculation,
   modifiers: AnswerModifierOption[],
   modifierId: number | null,
 ): string =>
@@ -217,6 +348,12 @@ export const adminAnswerEditPage = (
       <AdminNav active="/admin/settings" session={session} />
       <SettingsSubNav />
 
+      <p>
+        <BackButton href={`/admin/questions/${question.id}`}>
+          {t("questions.edit_answer.back_to_question")}
+        </BackButton>
+      </p>
+
       <h1>{t("questions.edit_answer.heading")}</h1>
       <p>
         <small>
@@ -224,8 +361,6 @@ export const adminAnswerEditPage = (
         </small>
       </p>
       <Flash error={error} />
-
-      <p>{t("questions.edit_answer.times_selected", { count })}</p>
 
       <CsrfForm
         action={`/admin/questions/${question.id}/answers/${answer.id}/edit`}
@@ -245,6 +380,11 @@ export const adminAnswerEditPage = (
           </select>
           <small>{t("questions.edit_answer.modifier_hint")}</small>
         </label>
+        <AnswerRunningTotalsSection
+          aggregateRecalculation={aggregateRecalculation}
+          answer={answer}
+          question={question}
+        />
         <SubmitButton icon="save">
           {t("questions.edit_answer.save")}
         </SubmitButton>
@@ -260,6 +400,45 @@ export const adminAnswerEditPage = (
       </p>
     </Layout>,
   );
+
+/** Build the recalculate table rows comparing the stored selection total with
+ * the value rebuilt from attendee answers. */
+const answerRecalculateRows = (
+  snapshot: AnswerAggregateRecalculation,
+): RecalculateRow[] =>
+  answerAggregateFields.map((field) => {
+    const name = field.name as AnswerAggregateField;
+    return {
+      current: String(snapshot[name].current),
+      label: field.label,
+      name,
+      recalculated: String(snapshot[name].recalculated),
+    };
+  });
+
+/** Answer running-total recalculation page — the reset flow linked from the
+ * edit page's drift warning, mirroring the listing/modifier recalculate pages. */
+export const adminAnswerRecalculatePage = (
+  question: QuestionWithAnswers,
+  answer: Answer,
+  snapshot: AnswerAggregateRecalculation,
+  session: AdminSession,
+  error?: string,
+  success?: string,
+): string =>
+  adminRecalculatePage({
+    action: answerRecalculatePath(question.id, answer.id),
+    active: "/admin/settings",
+    currentLabel: t("questions.recalculate.current"),
+    description: t("questions.recalculate.description"),
+    error,
+    recalculatedLabel: t("questions.recalculate.from_attendees"),
+    rows: answerRecalculateRows(snapshot),
+    session,
+    submitLabel: t("questions.recalculate.save"),
+    success,
+    title: t("questions.recalculate.heading", { text: answer.text }),
+  });
 
 /** Question delete confirmation page */
 export const adminQuestionDeletePage = (

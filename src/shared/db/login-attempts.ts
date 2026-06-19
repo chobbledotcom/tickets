@@ -10,7 +10,7 @@
  */
 
 import { hmacHash } from "#shared/crypto/hashing.ts";
-import { deleteByField, getDb, queryOne } from "#shared/db/client.ts";
+import { deleteByField, execute, queryOne } from "#shared/db/client.ts";
 import { LOGIN_LOCKOUT_MS, MAX_LOGIN_ATTEMPTS } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
 
@@ -60,17 +60,17 @@ const makeRecordAttempt =
 
     if (newAttempts >= maxAttempts) {
       const lockedUntil = nowMs() + lockoutMs;
-      await getDb().execute({
-        args: [hashedIp, newAttempts, lockedUntil],
-        sql: "INSERT OR REPLACE INTO login_attempts (ip, attempts, locked_until) VALUES (?, ?, ?)",
-      });
+      await execute(
+        "INSERT OR REPLACE INTO login_attempts (ip, attempts, locked_until) VALUES (?, ?, ?)",
+        [hashedIp, newAttempts, lockedUntil],
+      );
       return true;
     }
 
-    await getDb().execute({
-      args: [hashedIp, newAttempts],
-      sql: "INSERT OR REPLACE INTO login_attempts (ip, attempts, locked_until) VALUES (?, ?, NULL)",
-    });
+    await execute(
+      "INSERT OR REPLACE INTO login_attempts (ip, attempts, locked_until) VALUES (?, ?, NULL)",
+      [hashedIp, newAttempts],
+    );
     return false;
   };
 

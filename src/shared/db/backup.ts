@@ -12,7 +12,7 @@
 
 import { unzipSync, zipSync } from "fflate";
 import { chunk, compact } from "#fp";
-import { executeBatch, getDb, queryAll } from "#shared/db/client.ts";
+import { execute, executeBatch, queryAll } from "#shared/db/client.ts";
 import { invalidateGroupsCache } from "#shared/db/groups.ts";
 import { invalidateListingsCache } from "#shared/db/listings.ts";
 import {
@@ -318,9 +318,9 @@ export const restoreFromSql = async (sql: string): Promise<void> => {
   // default attendee_statuses row; clear them so the backup's own rows don't
   // collide on primary keys. (An older backup with no attendee_statuses rows
   // re-seeds on the next initDb, which runs because the markers are cleared.)
-  await getDb().execute("DELETE FROM settings");
-  await getDb().execute("DELETE FROM schema_migrations");
-  await getDb().execute("DELETE FROM attendee_statuses");
+  await execute("DELETE FROM settings");
+  await execute("DELETE FROM schema_migrations");
+  await execute("DELETE FROM attendee_statuses");
 
   const statements = splitStatements(sql);
   if (statements.length > 0) {

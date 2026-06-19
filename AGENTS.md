@@ -32,16 +32,11 @@ The `.tool-versions` file is kept in sync for asdf-compatible tooling.
 ## Preferences
 
 - **Use FP methods**: Prefer curried functional utilities from `#fp` over imperative loops
-- **Always unify duplication; less code is the goal**: When two pieces of code
-  are similar, extract one shared helper and parameterise the difference — a
-  curried helper is almost always the right shape. Do **not** decline to unify
-  because the cases look "dissimilar in some minor way": that minor difference
-  is exactly what the parameter (or a small curried wrapper) is for. The jscpd
-  duplication threshold is **0%** and non-negotiable; fix a `cpd` failure by
-  abstracting the shared code, never by renaming parameters, reordering, or
-  reformatting to dodge detection.
+- **Zero code duplication**: jscpd runs at a non-negotiable 0% threshold. Fix duplication with a helper or currying — see [Code Duplication](#code-duplication). `jscpd:ignore` is reserved for import blocks, essentially nothing else.
 - **100% test coverage**: All code must have complete test coverage - run `deno coverage` to find uncovered lines/branches
 - **Trust application invariants**: Do not design normal code paths around database states the application says are impossible. If an impossible state is observed, raise it as an error and repair the data explicitly rather than silently accepting or normalising it.
+- **Select only needed columns**: Avoid `SELECT *` and broad "load every row" helpers — query the specific columns a caller actually uses. See [Database Queries](#database-queries).
+- **SQL table aliases**: Alias tables with the full singular word using `AS`, not a single letter — write `FROM listings AS listing`, never `FROM listings e` (the `e` is a leftover from when listings were called "events"). When one query references the same table more than once (e.g. correlated subqueries that compare a row against its group), give each occurrence a descriptive word alias — `listing` for the row being checked, `groupListing` for sibling rows in its group.
 - **Final check**: Run `deno task precommit` (via `mise exec -- deno task precommit` when using the pinned toolchain) before finishing any job with code or documentation changes.
 
 ## FP Imports
@@ -99,6 +94,40 @@ the `pipe`-based code. Note `@std/collections` has **no** `groupBy` export
 | `chunk(size)`      | Split array into chunks (std chunk) |
 | `sumOf(selector)`  | Sum by selector (std sumOf)        |
 | `sum(arr)`         | Sum an array of numbers         |
+
+## Code Duplication
+
+`deno task cpd` (run as part of `deno task precommit`) runs jscpd with a **0%
+threshold — this is non-negotiable**. When it fails it prints this same
+guidance. Fix the duplication; do not silence it:
+
+1. **Write a helper.** This is the answer in ~99.999% of cases. If an obvious
+   shared function jumps out, extract it and call it from both sites.
+2. **No obvious helper? Curry.** Lift the parts that differ into arguments of a
+   function that returns the specialised version, then call it at each site.
+   **Then review your work before committing — zoom out one step further.** The
+   first small curry you reach for is often not the best one; a larger, more
+   holistic curry across the call sites is very frequently far better.
+3. **`jscpd:ignore` is the last resort.** It is excusable for basically *one*
+   thing: **import blocks** (plus the rare unavoidable scrap of
+   boilerplate/infrastructure we have no control over). If the duplicated code
+   is not an import block, you almost certainly want option 1 or 2 — an
+   `jscpd:ignore` tag anywhere else is a code smell, not a fix.
+
+## Database Queries
+
+Avoid `SELECT *`, and avoid loading more rows or columns than the caller needs.
+
+- **Prefer explicit, narrow column lists.** Write `SELECT id, name, admin_level FROM …`, never `SELECT *` — list only the columns the caller reads. This keeps less plaintext/PII in memory, skips decrypting columns nobody uses, and makes each query's data dependencies obvious. Copy the existing examples: `getUserDisplayFields` (`id, username_hash, admin_level`), `getAllUserIds` (`id`), `getAllAttendeePiiBlobs` (`pii_blob`), `getAllRawEmailTemplates` (`id, subject, body`).
+- **"Get all rows" is rarely the right shape.** About the only legitimate reason to read a whole table is rendering an admin collection page (e.g. `/admin/listings`, `/admin/questions`) — and even then, select only the columns those rows display, not every column on the table. Everything else should be a bounded query (by id, by key, or with a `WHERE`/`LIMIT`).
+
+Some reads legitimately need the full row — these are the exceptions, not the rule:
+
+- **An entity cache that also backs single-record reads.** When one request-scoped cache serves both the collection view and the `getById`/`getByKey` detail/auth reads (listings, users, groups, holidays, built-sites, attendee-statuses), it loads the full entity once so the detail, edit, and login paths it feeds have every column. Narrowing the cache load would break those reads. (`getAllListings`' `SELECT listing.*` is deliberately wide — it also carries the trigger-maintained `booked_quantity`/`income`/`tickets_count` aggregate columns.)
+- **Full-table backup/restore** (`backup.ts`) — a dump needs every column to round-trip.
+- **The generic `Table.findById`/`findAll` helpers** (`table.ts`) — they `SELECT *` by design and feed edit pages that need the whole row; specific tables narrow at the cache `fetchAll` layer instead.
+
+Even when a caller genuinely needs many columns, list them explicitly rather than `SELECT *`, so adding a column later doesn't silently widen every read.
 
 ## Scripts
 

@@ -421,6 +421,19 @@ export const backfillModifierAggregates = async (): Promise<void> => {
   );
 };
 
+/**
+ * Recompute the answers.times_selected aggregate from attendee_answers in a
+ * single statement. One-time on migration; afterwards the triggers keep it
+ * current. Idempotent (absolute recompute, not a delta), so it's safe to re-run.
+ */
+export const backfillAnswerAggregates = async (): Promise<void> => {
+  await getDb().execute(
+    `UPDATE answers SET
+       times_selected = COALESCE(
+         (SELECT COUNT(*) FROM attendee_answers WHERE answer_id = answers.id), 0)`,
+  );
+};
+
 export const verifyCurrentAppSchema = async (): Promise<void> => {
   // One snapshot (a single batched round-trip) replaces the per-table
   // tableExists/getExistingColumns/indexExists probes — dozens of subrequests
@@ -485,4 +498,7 @@ export const syncCurrentSchema = async (
 
   logDebug("Migration", "Step 7: backfilling modifier aggregates...");
   await backfillModifierAggregates();
+
+  logDebug("Migration", "Step 8: backfilling answer aggregates...");
+  await backfillAnswerAggregates();
 };

@@ -16,7 +16,10 @@ export type FormValidator<TValues> = {
 
 // ── createAuthedHandler: shared auth + load primitive ─────────────────
 
-type AuthedHandlerArgs<TParams, TContext> = {
+/** The authed, context-loaded request passed to a {@link createAuthedHandler}
+ * `handle`. Exported so callers can type a specialised handler factory (fixing
+ * the params/context generics) over the same shape. */
+export type AuthedHandlerArgs<TParams, TContext> = {
   context: TContext;
   form: FormParams;
   params: TParams;
