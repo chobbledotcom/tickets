@@ -33,6 +33,8 @@ const getSettingsPageState = async () => {
   return {
     bookingFee: settings.bookingFee,
     businessEmail: settings.businessEmail,
+    calendarFeedsEnabled: settings.calendarFeedsEnabled,
+    calendarFeedsGroupBy: settings.calendarFeedsGroupBy,
     country: settings.country,
     embedHosts: settings.embedHosts,
     headerImageUrl: settings.headerImageUrl,
@@ -82,8 +84,6 @@ const getAdvancedSettingsPageState = async (
       : "",
     bunnySubdomain: settings.bunnySubdomain,
     businessEmail: settings.businessEmail,
-    calendarFeedsEnabled: settings.calendarFeedsEnabled,
-    calendarFeedsGroupBy: settings.calendarFeedsGroupBy,
     cdnHostname: cdnResult?.ok ? cdnResult.hostname : "",
     confirmationTemplates,
     customDomain: (bunnyCdnConfigured ? settings.customDomain : null) ?? "",

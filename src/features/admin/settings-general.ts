@@ -150,7 +150,6 @@ export const handleShowPublicApiPost = settingsToggle({
 
 /** Handle POST /admin/settings/calendar-feeds - owner only */
 export const handleCalendarFeedsPost = settingsHandler({
-  advanced: true,
   extract: (form) => ({
     enabled: form.getString("calendar_feeds_enabled") === "true",
     groupBy: form.getString("calendar_feeds_group_by"),
