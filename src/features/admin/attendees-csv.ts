@@ -12,6 +12,7 @@ import { type Column, CSV } from "#shared/csv/index.ts";
 import { toMajorUnits } from "#shared/currency.ts";
 import { addDays } from "#shared/dates.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
+import { DEFAULT_TIMEZONE, utcToDateInTz } from "#shared/timezone.ts";
 import type { Attendee } from "#shared/types.ts";
 
 /** Listing-level fields optionally prefixed to an attendee export. */
@@ -75,10 +76,19 @@ export const standardAttendeeColumns = (domain: string): Column<Attendee>[] => [
   },
 ];
 
-/** Optional Listing Date / Listing Location columns (fixed for every row). */
-const listingInfoColumns = (info?: CsvListingInfo): Column<Attendee>[] => [
+/** Optional Listing Date / Listing Location columns (fixed for every row). The
+ * listing date is a UTC ISO datetime, shown as a calendar day in `tz`. */
+const listingInfoColumns = (
+  tz: string,
+  info?: CsvListingInfo,
+): Column<Attendee>[] => [
   ...(info?.listingDate
-    ? [{ header: t("csv.col.listing_date"), value: () => info.listingDate }]
+    ? [
+        {
+          header: t("csv.col.listing_date"),
+          value: () => utcToDateInTz(info.listingDate, tz),
+        },
+      ]
     : []),
   ...(info?.listingLocation
     ? [
@@ -108,28 +118,63 @@ const questionColumns = (data?: CsvQuestionData): Column<Attendee>[] => {
   }));
 };
 
+/** Options describing which columns an attendee export includes. */
+type AttendeeCsvOptions = {
+  /** Prepend a Date column (the booking's day/range) for daily listings. */
+  includeDate: boolean;
+  /** Site domain, for the ticket-URL column. */
+  domain: string;
+  /** Site timezone, for the optional Listing Date column. */
+  tz: string;
+  /** Prepend fixed Listing Date / Listing Location columns. */
+  listingInfo?: CsvListingInfo;
+  /** Append one column per custom question. */
+  questionData?: CsvQuestionData;
+};
+
+/** The ordered attendee columns for an export: an optional booking Date, then
+ * optional listing info, the standard attendee columns, then question columns.
+ * Pure — built per call so the active locale applies. */
+const attendeeColumns = ({
+  includeDate,
+  domain,
+  tz,
+  listingInfo,
+  questionData,
+}: AttendeeCsvOptions): Column<Attendee>[] => [
+  ...(includeDate
+    ? [
+        {
+          header: t("common.date"),
+          value: (a: Attendee) => csvDateRange(a.date, a.end_date),
+        },
+      ]
+    : []),
+  ...listingInfoColumns(tz, listingInfo),
+  ...standardAttendeeColumns(domain),
+  ...questionColumns(questionData),
+];
+
 /**
  * Generate CSV content for a single listing's attendees. When includeDate is
  * true, prepends a Date column (daily listings); when listingInfo is provided,
  * prepends Listing Date / Listing Location; when questionData is provided,
- * appends one column per custom question.
+ * appends one column per custom question. The Listing Date is rendered in `tz`.
  */
 export const generateAttendeesCsv = (
   attendees: Attendee[],
   includeDate = false,
   listingInfo?: CsvListingInfo,
   questionData?: CsvQuestionData,
+  tz: string = DEFAULT_TIMEZONE,
 ): string =>
-  CSV.generate(attendees, [
-    ...(includeDate
-      ? [
-          {
-            header: t("common.date"),
-            value: (a: Attendee) => csvDateRange(a.date, a.end_date),
-          },
-        ]
-      : []),
-    ...listingInfoColumns(listingInfo),
-    ...standardAttendeeColumns(getEffectiveDomain()),
-    ...questionColumns(questionData),
-  ]);
+  CSV.generate(
+    attendees,
+    attendeeColumns({
+      domain: getEffectiveDomain(),
+      includeDate,
+      listingInfo,
+      questionData,
+      tz,
+    }),
+  );

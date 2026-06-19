@@ -14,6 +14,10 @@ import {
   parseEditableAggregateForm,
   selectedRecalculationFields,
 } from "#routes/admin/aggregate-recalculation.ts";
+import {
+  type CsvQuestionData,
+  generateAttendeesCsv,
+} from "#routes/admin/attendees-csv.ts";
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
 import {
@@ -28,10 +32,6 @@ import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
-import {
-  type CsvQuestionData,
-  generateAttendeesCsv,
-} from "#shared/attendees-csv.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import { formatDateLabel, normalizeDatetime } from "#shared/dates.ts";
@@ -842,6 +842,7 @@ const handleAdminListingExport: TypedRouteHandler<
           listingLocation: listing.location,
         },
         questionData,
+        settings.timezone,
       );
       const sanitizedName = listing.name.replace(/[^a-zA-Z0-9]/g, "_");
       const filename = dateFilter

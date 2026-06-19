@@ -6,14 +6,14 @@
 
 import { map, unique } from "#fp";
 import { csvResponse, requirePrivateKey } from "#routes/admin/actions.ts";
+import {
+  generateCalendarCsv,
+  toCalendarAttendees,
+} from "#routes/admin/calendar-csv.ts";
 import { type AuthSession, requireSessionOr } from "#routes/auth.ts";
 import { htmlResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
-import {
-  generateCalendarCsv,
-  toCalendarAttendees,
-} from "#shared/calendar-csv.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
@@ -184,7 +184,11 @@ export const handleAttendeesCsvExport: TypedRouteHandler<
     const privateKey = await requirePrivateKey(session);
     const raw = await allAttendeeBookings(listingIds);
     const attendees = await decryptAttendees(raw, privateKey);
-    const csv = generateCalendarCsv(toCalendarAttendees(attendees, listings));
+    const csv = generateCalendarCsv(
+      toCalendarAttendees(attendees, listings),
+      undefined,
+      settings.timezone,
+    );
     await logActivity("Attendees CSV exported");
     return csvResponse(csv, "attendees.csv");
   });

@@ -3,6 +3,7 @@
  */
 
 import { csvResponse, requirePrivateKey } from "#routes/admin/actions.ts";
+import { generateListingsCsv } from "#routes/admin/listings-csv.ts";
 import { requireSessionOr, sessionPage, withSession } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, redirectResponse } from "#routes/response.ts";
@@ -23,7 +24,6 @@ import {
   filterListingsByType,
   listingTypeFromRequest,
 } from "#shared/listing-filter.ts";
-import { generateListingsCsv } from "#shared/listings-csv.ts";
 import { sortListings } from "#shared/sort-listings.ts";
 /* jscpd:ignore-end */
 import { adminGlobalActivityLogPage } from "#templates/admin/activityLog.tsx";

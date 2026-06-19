@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { generateCalendarCsv } from "#shared/calendar-csv.ts";
+import { generateCalendarCsv } from "#routes/admin/calendar-csv.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import type { AvailabilityRow } from "#templates/admin/availability-checker.tsx";
@@ -473,7 +473,9 @@ describe("generateCalendarCsv", () => {
     const csv = generateCalendarCsv(attendees);
     const lines = csv.split("\n");
     expect(lines[0]).toContain("Listing,Listing Date,Date,Name");
-    expect(lines[1]).toContain("2026-06-15T14:00:00.000Z");
+    // The UTC ISO listing datetime is shown as a calendar day in the tz.
+    expect(lines[1]).toContain("2026-06-15");
+    expect(lines[1]).not.toContain("2026-06-15T14:00:00.000Z");
   });
 
   test("includes Listing Location column when some attendees have listing locations", () => {

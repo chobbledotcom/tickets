@@ -3,7 +3,7 @@ import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import {
   type CsvListingInfo,
   generateAttendeesCsv,
-} from "#shared/attendees-csv.ts";
+} from "#routes/admin/attendees-csv.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { setupTestEncryptionKey, testAttendee } from "#test-utils";
 
@@ -194,9 +194,33 @@ describe("generateAttendeesCsv with listingInfo", () => {
     const attendees = [testAttendee()];
     const csv = generateAttendeesCsv(attendees, false, listingInfo);
     const lines = csv.split("\n");
-    expect(lines[1]).toContain(
-      "2026-06-15T14:00:00.000Z,Village Hall,John Doe",
+    // The UTC ISO listing datetime is shown as a calendar day in the tz.
+    expect(lines[1]).toContain("2026-06-15,Village Hall,John Doe");
+  });
+
+  test("renders the Listing Date in the given timezone", () => {
+    const listingInfo: CsvListingInfo = {
+      // 23:30 UTC is the next calendar day in BST (Europe/London).
+      listingDate: "2026-06-15T23:30:00.000Z",
+      listingLocation: "",
+    };
+    const attendees = [testAttendee()];
+    const utc = generateAttendeesCsv(
+      attendees,
+      false,
+      listingInfo,
+      undefined,
+      "UTC",
     );
+    expect(utc.split("\n")[1]).toContain("2026-06-15");
+    const bst = generateAttendeesCsv(
+      attendees,
+      false,
+      listingInfo,
+      undefined,
+      "Europe/London",
+    );
+    expect(bst.split("\n")[1]).toContain("2026-06-16");
   });
 
   test("omits Listing Date and Listing Location when listingInfo is undefined", () => {

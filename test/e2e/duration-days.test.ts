@@ -10,7 +10,7 @@
 
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
-import { generateAttendeesCsv } from "#shared/attendees-csv.ts";
+import { generateAttendeesCsv } from "#routes/admin/attendees-csv.ts";
 import { addDays, getAvailableDates } from "#shared/dates.ts";
 import { getListingActivityLog } from "#shared/db/activityLog.ts";
 import {

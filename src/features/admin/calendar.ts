@@ -9,16 +9,16 @@ import {
   getDateFilter,
   getMonthFilter,
 } from "#routes/admin/actions.ts";
-import { getPrivateKey, requireSessionOr } from "#routes/auth.ts";
-import { htmlResponse, redirect } from "#routes/response.ts";
-import { defineRoutes } from "#routes/router.ts";
-import { getSearchParam } from "#routes/url.ts";
 import {
   type CalendarAttendee,
   type CalendarLogisticsCsv,
   generateCalendarCsv,
   toCalendarAttendees,
-} from "#shared/calendar-csv.ts";
+} from "#routes/admin/calendar-csv.ts";
+import { getPrivateKey, requireSessionOr } from "#routes/auth.ts";
+import { htmlResponse, redirect } from "#routes/response.ts";
+import { defineRoutes } from "#routes/router.ts";
+import { getSearchParam } from "#routes/url.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import {
   formatDateLabel,
@@ -416,7 +416,11 @@ const handleAdminCalendarExport = (request: Request) =>
       attendees,
       agents,
     );
-    const csv = generateCalendarCsv(calendarAttendees, logisticsCsv);
+    const csv = generateCalendarCsv(
+      calendarAttendees,
+      logisticsCsv,
+      settings.timezone,
+    );
     const filename = `calendar_${dateFilter}_attendees.csv`;
     await logActivity(`Calendar CSV exported for date ${dateFilter}`);
     return csvResponse(csv, filename);

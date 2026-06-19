@@ -10,7 +10,7 @@ import { t } from "#i18n";
 import {
   csvDateRange,
   standardAttendeeColumns,
-} from "#shared/attendees-csv.ts";
+} from "#routes/admin/attendees-csv.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { type Column, CSV } from "#shared/csv/index.ts";
 import {
@@ -18,6 +18,7 @@ import {
   type LogisticsAssignment,
 } from "#shared/db/logistics.ts";
 import { appleMapsUrl, googleMapsUrl } from "#shared/maps.ts";
+import { DEFAULT_TIMEZONE, utcToDateInTz } from "#shared/timezone.ts";
 import type { Attendee } from "#shared/types.ts";
 
 /** Attendee with associated listing info for calendar CSV. */
@@ -64,8 +65,10 @@ export const toCalendarAttendees = <
   });
 };
 
-/** Optional Listing Date / Listing Location columns (per booking's listing). */
+/** Optional Listing Date / Listing Location columns (per booking's listing).
+ * The listing date is a UTC ISO datetime, shown as a calendar day in `tz`. */
 const listingInfoColumns = (
+  tz: string,
   showDate: boolean,
   showLocation: boolean,
 ): Column<CalendarAttendee>[] => [
@@ -73,7 +76,8 @@ const listingInfoColumns = (
     ? [
         {
           header: t("csv.col.listing_date"),
-          value: (a: CalendarAttendee) => a.listingDate,
+          value: (a: CalendarAttendee) =>
+            a.listingDate ? utcToDateInTz(a.listingDate, tz) : "",
         },
       ]
     : []),
@@ -126,21 +130,28 @@ const logisticsColumns = (
   ];
 };
 
-/**
- * Generate CSV content for the calendar view. Conditionally includes Listing
- * Date / Listing Location columns based on the data, and the logistics columns
- * when a run-sheet context is supplied and any row is a logistics booking.
- */
-export const generateCalendarCsv = (
-  attendees: CalendarAttendee[],
-  logistics?: CalendarLogisticsCsv,
-): string => {
+/** The ordered calendar columns: Listing name, optional listing date/location,
+ * the booking Date, the standard attendee columns, then — when a run-sheet
+ * context applies to any row — the logistics columns. Pure; built per call so
+ * the active locale applies. */
+const calendarColumns = ({
+  attendees,
+  domain,
+  tz,
+  logistics,
+}: {
+  attendees: CalendarAttendee[];
+  domain: string;
+  tz: string;
+  logistics?: CalendarLogisticsCsv;
+}): Column<CalendarAttendee>[] => {
   const showLogistics = Boolean(
     logistics && attendees.some((a) => logistics.listingIds.has(a.listing_id)),
   );
-  return CSV.generate(attendees, [
+  return [
     { header: t("terms.listing"), value: (a) => a.listingName },
     ...listingInfoColumns(
+      tz,
       attendees.some((a) => a.listingDate !== ""),
       attendees.some((a) => a.listingLocation !== ""),
     ),
@@ -148,7 +159,23 @@ export const generateCalendarCsv = (
       header: t("common.date"),
       value: (a) => csvDateRange(a.date, a.end_date),
     },
-    ...standardAttendeeColumns(getEffectiveDomain()),
+    ...standardAttendeeColumns(domain),
     ...(showLogistics ? logisticsColumns(logistics!) : []),
-  ]);
+  ];
 };
+
+/**
+ * Generate CSV content for the calendar view. Conditionally includes Listing
+ * Date / Listing Location columns based on the data, and the logistics columns
+ * when a run-sheet context is supplied and any row is a logistics booking. The
+ * Listing Date is rendered in `tz`.
+ */
+export const generateCalendarCsv = (
+  attendees: CalendarAttendee[],
+  logistics?: CalendarLogisticsCsv,
+  tz: string = DEFAULT_TIMEZONE,
+): string =>
+  CSV.generate(
+    attendees,
+    calendarColumns({ attendees, domain: getEffectiveDomain(), logistics, tz }),
+  );

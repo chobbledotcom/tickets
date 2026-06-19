@@ -24,6 +24,10 @@ const pad2 = (n: number): string => String(n).padStart(2, "0");
 const utcToZoned = (utcIso: string, tz: string) =>
   fromAbsolute(new Date(utcIso).getTime(), tz);
 
+/** Format the date portion (YYYY-MM-DD) of a zoned datetime. */
+const dateOf = (z: ReturnType<typeof utcToZoned>): string =>
+  `${z.year}-${pad2(z.month)}-${pad2(z.day)}`;
+
 /**
  * Get today's date as YYYY-MM-DD in the given timezone.
  */
@@ -84,10 +88,16 @@ export const formatDatetimeShortInTz = (utcIso: string, tz: string): string =>
  */
 export const utcToLocalInput = (utcIso: string, tz: string): string => {
   const z = utcToZoned(utcIso, tz);
-  return `${z.year}-${pad2(z.month)}-${pad2(z.day)}T${pad2(z.hour)}:${pad2(
-    z.minute,
-  )}`;
+  return `${dateOf(z)}T${pad2(z.hour)}:${pad2(z.minute)}`;
 };
+
+/**
+ * The calendar date (YYYY-MM-DD) of a UTC ISO datetime in the given timezone.
+ * Used by CSV exports so the Date column matches the configured timezone
+ * rather than slicing the raw UTC string (which can be the wrong day).
+ */
+export const utcToDateInTz = (utcIso: string, tz: string): string =>
+  dateOf(utcToZoned(utcIso, tz));
 
 /**
  * Validate that a string is a valid IANA timezone identifier.

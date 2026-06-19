@@ -4,7 +4,7 @@ import {
   type CalendarAttendee,
   type CalendarLogisticsCsv,
   generateCalendarCsv,
-} from "#shared/calendar-csv.ts";
+} from "#routes/admin/calendar-csv.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { bookingAssignmentKey } from "#shared/db/logistics.ts";
 import { appleMapsUrl, googleMapsUrl } from "#shared/maps.ts";
