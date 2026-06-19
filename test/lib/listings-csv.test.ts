@@ -72,6 +72,32 @@ describe("generateListingsCsv", () => {
     expect(csv).not.toContain("Free");
   });
 
+  test("shows the pay-what-you-want range instead of Free for can_pay_more", () => {
+    // can_pay_more listings are paid even with a zero base price: buyers may
+    // pay up to max_price, so the CSV must not report them as Free.
+    const csv = generateListingsCsv([
+      testListingWithCount({
+        can_pay_more: true,
+        max_price: 5000,
+        name: "Donate",
+        unit_price: 0,
+      }),
+    ]);
+    expect(csv).toContain("0.00–50.00");
+    expect(csv).not.toContain("Free");
+  });
+
+  test("shows the pay-what-you-want range from a non-zero base price", () => {
+    const csv = generateListingsCsv([
+      testListingWithCount({
+        can_pay_more: true,
+        max_price: 5000,
+        unit_price: 2000,
+      }),
+    ]);
+    expect(csv).toContain("20.00–50.00");
+  });
+
   test("uses day prices for a customisable listing with a non-zero base price", () => {
     // Checkout charges from day_prices; the legacy unit_price must be ignored.
     const csv = generateListingsCsv([

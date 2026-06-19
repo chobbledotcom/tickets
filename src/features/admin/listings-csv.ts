@@ -14,19 +14,25 @@ import {
   type ListingWithCount,
 } from "#shared/types.ts";
 
+/** Format a min–max price span (minor units), collapsing to a single value
+ * when both ends are equal. */
+const priceRange = (minMinor: number, maxMinor: number): string =>
+  minMinor === maxMinor
+    ? toMajorUnits(minMinor)
+    : `${toMajorUnits(minMinor)}–${toMajorUnits(maxMinor)}`;
+
 /** The export's Price cell. For a customisable-days listing it shows the range
  * of configured day prices — what checkout actually charges via `dayPriceFor`,
- * regardless of any legacy base `unit_price`. Otherwise it shows the unit price,
- * or "Free" when genuinely free. */
+ * regardless of any legacy base `unit_price`. For a pay-what-you-want listing
+ * it shows the span from the base price up to `max_price`, so it isn't reported
+ * as Free when the base is zero. Otherwise it shows the unit price, or "Free"
+ * when genuinely free. */
 const listingPriceLabel = (l: ListingWithCount): string => {
   const dayPrices = availableDayCounts(l).map((n) => dayPriceFor(l, n)!);
   if (dayPrices.length > 0) {
-    const min = Math.min(...dayPrices);
-    const max = Math.max(...dayPrices);
-    return min === max
-      ? toMajorUnits(min)
-      : `${toMajorUnits(min)}–${toMajorUnits(max)}`;
+    return priceRange(Math.min(...dayPrices), Math.max(...dayPrices));
   }
+  if (l.can_pay_more) return priceRange(l.unit_price, l.max_price);
   return l.unit_price > 0
     ? toMajorUnits(l.unit_price)
     : t("listings_table.free");
