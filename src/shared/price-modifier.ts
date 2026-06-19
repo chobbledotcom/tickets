@@ -81,8 +81,9 @@ export const modifierDelta = (
 /**
  * Validate the magnitude an owner entered for a modifier, given its kind.
  * The value is a positive magnitude (the charge/discount direction is a
- * separate field): a percentage in 0–100, a multiplier above 0, or a fixed
- * amount above 0. Returns an error message, or null when valid.
+ * separate field): a percentage above 0 up to 100, a multiplier above 0, or a
+ * fixed amount above 0. A zero value is a no-op modifier, so it is rejected for
+ * every kind. Returns an error message, or null when valid.
  */
 export const validateCalcValue = (
   kind: CalcKind,
@@ -90,9 +91,9 @@ export const validateCalcValue = (
 ): string | null => {
   if (!Number.isFinite(value)) return "Enter a valid number";
   if (kind === "percent") {
-    return value >= 0 && value <= 100
+    return value > 0 && value <= 100
       ? null
-      : "Percentage must be between 0 and 100";
+      : "Percentage must be greater than 0 and at most 100";
   }
   if (kind === "multiply") {
     return value > 0 ? null : "Multiplier must be greater than 0";

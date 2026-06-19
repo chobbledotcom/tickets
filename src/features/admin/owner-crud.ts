@@ -106,7 +106,12 @@ const createCrudHandlersWithAuth = <Row, Input>(
     return cfg.renderList(rows, session, success);
   });
 
-  const newGet = authHtml(cfg.renderNew);
+  // Surface a validation error stashed by a failed create (PRG redirect),
+  // mirroring how listGet reads the success flash. Without this the create
+  // page would silently re-render blank after rejecting a submission.
+  const newGet = authHtml((session) =>
+    cfg.renderNew(session, getFlash().error),
+  );
 
   const createHandler: FormHandler = async (_session, form) => {
     const result = await cfg.resource.create(form);

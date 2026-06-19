@@ -53,18 +53,16 @@ describe("validateCalcValue", () => {
   });
 
   describe("percent", () => {
-    test("accepts 0 to 100", () => {
-      expect(validateCalcValue("percent", 0)).toBeNull();
+    test("accepts values above 0 up to 100", () => {
+      expect(validateCalcValue("percent", 0.5)).toBeNull();
       expect(validateCalcValue("percent", 100)).toBeNull();
     });
 
-    test("rejects out-of-range percentages", () => {
-      expect(validateCalcValue("percent", 150)).toBe(
-        "Percentage must be between 0 and 100",
-      );
-      expect(validateCalcValue("percent", -1)).toBe(
-        "Percentage must be between 0 and 100",
-      );
+    test("rejects zero, negative, and above-100 percentages", () => {
+      const message = "Percentage must be greater than 0 and at most 100";
+      expect(validateCalcValue("percent", 0)).toBe(message);
+      expect(validateCalcValue("percent", -1)).toBe(message);
+      expect(validateCalcValue("percent", 150)).toBe(message);
     });
   });
 

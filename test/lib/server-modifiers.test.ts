@@ -193,9 +193,38 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       );
       expectRedirectWithFlash(
         "/admin/modifiers/new",
-        "Percentage must be between 0 and 100",
+        "Percentage must be greater than 0 and at most 100",
         false,
       )(response);
+    });
+
+    test("rejects a zero percentage", async () => {
+      const { response } = await adminFormPost(
+        "/admin/modifiers",
+        createData({ calc_value: "0" }),
+      );
+      expectRedirectWithFlash(
+        "/admin/modifiers/new",
+        "Percentage must be greater than 0 and at most 100",
+        false,
+      )(response);
+    });
+
+    test("re-renders the create form with the validation error", async () => {
+      const { cookie, response } = await adminFormPost(
+        "/admin/modifiers",
+        createData({
+          calc_kind: "fixed",
+          calc_value: "0",
+          direction: "charge",
+        }),
+      );
+      const page = await followRedirectWithFlash(
+        response,
+        (request) => handleRequest(request),
+        cookie,
+      );
+      await expectHtmlResponse(page, 200, "Amount must be greater than 0");
     });
 
     test("rejects a non-positive multiplier", async () => {
@@ -351,7 +380,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       );
       expectRedirectWithFlash(
         `/admin/modifiers/${id}/edit`,
-        "Percentage must be between 0 and 100",
+        "Percentage must be greater than 0 and at most 100",
         false,
       )(response);
     });
