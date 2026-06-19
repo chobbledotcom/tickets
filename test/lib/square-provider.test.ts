@@ -163,11 +163,12 @@ describe("square-provider", () => {
   });
 
   describe("isPaymentRefunded", () => {
-    test("returns true when payment has refundedMoney", async () => {
+    test("returns true when fully refunded", async () => {
       await withMocks(
         () =>
           stub(squareApi, "retrievePayment", () =>
             Promise.resolve({
+              amountMoney: { amount: BigInt(1000), currency: "USD" },
               id: "pay_123",
               refundedMoney: { amount: BigInt(1000), currency: "USD" },
               status: "COMPLETED",
@@ -181,11 +182,51 @@ describe("square-provider", () => {
       );
     });
 
+    test("returns false when only partially refunded", async () => {
+      await withMocks(
+        () =>
+          stub(squareApi, "retrievePayment", () =>
+            Promise.resolve({
+              amountMoney: { amount: BigInt(1000), currency: "USD" },
+              id: "pay_123",
+              refundedMoney: { amount: BigInt(400), currency: "USD" },
+              status: "COMPLETED",
+            }),
+          ),
+        async () => {
+          const result =
+            await squarePaymentProvider.isPaymentRefunded("pay_123");
+          expect(result).toBe(false);
+        },
+      );
+    });
+
+    test("returns false when the charged amount is unknown", async () => {
+      // Without amountMoney we cannot confirm a full refund, so a present
+      // refundedMoney must not be treated as fully refunded.
+      await withMocks(
+        () =>
+          stub(squareApi, "retrievePayment", () =>
+            Promise.resolve({
+              id: "pay_123",
+              refundedMoney: { amount: BigInt(1000), currency: "USD" },
+              status: "COMPLETED",
+            }),
+          ),
+        async () => {
+          const result =
+            await squarePaymentProvider.isPaymentRefunded("pay_123");
+          expect(result).toBe(false);
+        },
+      );
+    });
+
     test("returns false when refundedMoney is zero", async () => {
       await withMocks(
         () =>
           stub(squareApi, "retrievePayment", () =>
             Promise.resolve({
+              amountMoney: { amount: BigInt(1000), currency: "USD" },
               id: "pay_123",
               refundedMoney: { amount: BigInt(0), currency: "USD" },
               status: "COMPLETED",
@@ -215,6 +256,7 @@ describe("square-provider", () => {
         () =>
           stub(squareApi, "retrievePayment", () =>
             Promise.resolve({
+              amountMoney: { amount: BigInt(1000), currency: "USD" },
               id: "pay_123",
               status: "COMPLETED",
             }),
