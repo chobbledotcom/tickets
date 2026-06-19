@@ -72,6 +72,8 @@ export const CONFIG_KEYS = {
   BULK_EMAIL_DRAFT: "bulk_email_draft",
   BUNNY_SUBDOMAIN: "bunny_subdomain",
   BUSINESS_EMAIL: "business_email",
+  CALENDAR_FEEDS_ENABLED: "calendar_feeds_enabled",
+  CALENDAR_FEEDS_GROUP_BY: "calendar_feeds_group_by",
   CONTACT_FORM_ENABLED: "contact_form_enabled",
   CONTACT_PAGE_TEXT: "contact_page_text",
   COUNTRY: "country",
@@ -299,6 +301,8 @@ type SpecificFields = {
   theme: Theme;
   show_public_site: boolean;
   show_public_api: boolean;
+  calendar_feeds_enabled: boolean;
+  calendar_feeds_group_by: string;
   contact_form_enabled: boolean;
   order_enabled: boolean;
   has_logistics: boolean;
@@ -318,6 +322,8 @@ export type SettingsData = SpecificFields & StringSettingFields;
 /** Mutable snapshot of all settings. Populated by loadKeys(). */
 const data: SettingsData = {
   booking_fee: "0",
+  calendar_feeds_enabled: false,
+  calendar_feeds_group_by: "attendees",
   contact_form_enabled: false,
   country: DEFAULT_COUNTRY,
   currency: "GBP",
@@ -612,6 +618,13 @@ const SPECIAL_APPLIERS: Record<string, (raw: string | undefined) => void> = {
   [CONFIG_KEYS.SHOW_PUBLIC_API]: (raw) => {
     data.show_public_api = raw === "true";
   },
+  [CONFIG_KEYS.CALENDAR_FEEDS_ENABLED]: (raw) => {
+    data.calendar_feeds_enabled = raw === "true";
+  },
+  [CONFIG_KEYS.CALENDAR_FEEDS_GROUP_BY]: (raw) => {
+    data.calendar_feeds_group_by =
+      raw === "listings" ? "listings" : "attendees";
+  },
   [CONFIG_KEYS.CONTACT_FORM_ENABLED]: (raw) => {
     data.contact_form_enabled = raw === "true";
   },
@@ -882,6 +895,18 @@ const settingsBase = {
     return snap("booking_fee");
   },
 
+  // -----------------------------------------------------------------------
+  // Sync reads — all populated by loadKeys()
+  // -----------------------------------------------------------------------
+
+  get calendarFeedsEnabled(): boolean {
+    return snap("calendar_feeds_enabled");
+  },
+  get calendarFeedsGroupBy(): "attendees" | "listings" {
+    const value = snap("calendar_feeds_group_by");
+    return value === "listings" ? "listings" : "attendees";
+  },
+
   /** Remove specific test override keys (falls back to data). */
   clearTestOverride(...keys: (keyof SettingsData)[]): void {
     const current = getTestOverrides();
@@ -894,10 +919,6 @@ const settingsBase = {
   clearTestOverrides(): void {
     setTestOverrides(null);
   },
-
-  // -----------------------------------------------------------------------
-  // Sync reads — all populated by loadKeys()
-  // -----------------------------------------------------------------------
 
   get contactFormEnabled(): boolean {
     return snap("contact_form_enabled");
@@ -1080,6 +1101,14 @@ const settingsBase = {
       await writeOrDelete(CONFIG_KEYS.BOOKING_FEE, v);
       data.booking_fee = v || "0";
     },
+    calendarFeedsEnabled: boolUpdate(
+      CONFIG_KEYS.CALENDAR_FEEDS_ENABLED,
+      "calendar_feeds_enabled",
+    ),
+    calendarFeedsGroupBy: rawUpdate(
+      CONFIG_KEYS.CALENDAR_FEEDS_GROUP_BY,
+      "calendar_feeds_group_by",
+    ) as (v: "attendees" | "listings") => Promise<void>,
     clearPaymentProvider: async (): Promise<void> => {
       await deleteRaw(CONFIG_KEYS.PAYMENT_PROVIDER);
       data.payment_provider = null;

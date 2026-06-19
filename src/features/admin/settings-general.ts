@@ -148,6 +148,27 @@ export const handleShowPublicApiPost = settingsToggle({
   save: (v) => settings.update.showPublicApi(v),
 });
 
+/** Handle POST /admin/settings/calendar-feeds - owner only */
+export const handleCalendarFeedsPost = settingsHandler({
+  advanced: true,
+  extract: (form) => ({
+    enabled: form.getString("calendar_feeds_enabled") === "true",
+    groupBy: form.getString("calendar_feeds_group_by"),
+  }),
+  formId: "settings-calendar-feeds",
+  label: "Calendar feeds",
+  log: (v) =>
+    v.enabled
+      ? `Calendar feeds enabled (${v.groupBy})`
+      : "Calendar feeds disabled",
+  save: async (v) => {
+    await settings.update.calendarFeedsEnabled(v.enabled);
+    await settings.update.calendarFeedsGroupBy(
+      v.groupBy === "listings" ? "listings" : "attendees",
+    );
+  },
+});
+
 /** Handle POST /admin/settings/booking-fee - owner only */
 export const handleBookingFeePost = settingsHandler({
   extract: (form) => Number.parseFloat(form.getString("booking_fee")),
