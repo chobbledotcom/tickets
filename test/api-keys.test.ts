@@ -698,17 +698,24 @@ describeWithEnv("API Keys", { db: true }, () => {
       expect(response.status).toBe(401);
     });
 
-    test("GET /api/admin/listings returns 401 for cookie without CSRF header", async () => {
+    test("GET /api/admin/listings serves a cookie without a CSRF header", async () => {
       await createTestListing({ name: "CSRF Listing" });
       const cookie = await testCookie();
 
-      const response = await handleRequest(
-        mockRequest("/api/admin/listings", {
-          headers: { cookie },
-        }),
+      // A safe GET carries no body and can't mutate state, so a cookie session
+      // need not (and a feed/browser client often cannot) send an x-csrf-token
+      // header to read a JSON endpoint.
+      await assertJson(
+        handleRequest(
+          mockRequest("/api/admin/listings", {
+            headers: { cookie },
+          }),
+        ),
+        200,
+        (body) => {
+          expect(body.listings).toBeDefined();
+        },
       );
-
-      expect(response.status).toBe(403);
     });
 
     test("request succeeds when touchApiKeyLastUsed fails (fire-and-forget)", async () => {

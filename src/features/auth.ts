@@ -447,12 +447,23 @@ export const authFailure = (
   reason: AuthFailureReason,
 ): Response => AUTH_FAILURES[reason][channel]();
 
+/**
+ * Safe HTTP methods (RFC 7231 §4.2.1): read-only, so a request using one cannot
+ * mutate state and carries no body. Such requests need no CSRF token — CSRF
+ * defends state-changing submissions, and cross-origin reads of the response are
+ * already blocked by the Same-Origin Policy. This lets cookie-authenticated
+ * calendar clients fetch GET /caldav/events.ics without an x-csrf-token header
+ * they have no way to attach.
+ */
+const isSafeMethod = (request: Request): boolean =>
+  request.method === "GET" || request.method === "HEAD";
+
 /** Parse JSON body, returning empty object for non-JSON GET/HEAD requests */
 const parseJsonBody = async (
   request: Request,
 ): Promise<Record<string, unknown> | Response> => {
   const contentType = (request.headers.get("content-type") ?? "").toLowerCase();
-  const bodyRequired = request.method !== "GET" && request.method !== "HEAD";
+  const bodyRequired = !isSafeMethod(request);
 
   if (!contentType.includes("application/json")) {
     if (bodyRequired) {
@@ -493,6 +504,9 @@ const verifyCsrf = async (
  *
  * `skipCsrf` only applies to JSON bodies (used for API key auth). Form and
  * multipart bodies are always CSRF-checked because API key clients use JSON.
+ * Safe-method (GET/HEAD) JSON requests also skip CSRF: they cannot mutate state,
+ * so the token is moot — this keeps read-only JSON routes (e.g. the calendar
+ * feed) reachable by cookie sessions that can't send an x-csrf-token header.
  * `maxAge` overrides the CSRF token expiry window (seconds). */
 const parseCsrfBody = async (
   request: Request,
@@ -502,7 +516,7 @@ const parseCsrfBody = async (
 ): Promise<FormParams | FormData | Record<string, unknown> | Response> => {
   const channel = channelFor(mode);
   if (mode === "json") {
-    if (!skipCsrf) {
+    if (!skipCsrf && !isSafeMethod(request)) {
       const err = await verifyCsrf(
         request.headers.get("x-csrf-token") ?? "",
         channel,
