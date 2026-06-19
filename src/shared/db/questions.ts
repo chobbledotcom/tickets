@@ -708,10 +708,10 @@ export const updateAnswerAggregateValues = async (
   answerId: number,
   values: AnswerAggregateValues,
 ): Promise<void> => {
-  await getDb().execute({
-    args: [values.times_selected, answerId],
-    sql: "UPDATE answers SET times_selected = ? WHERE id = ?",
-  });
+  await execute("UPDATE answers SET times_selected = ? WHERE id = ?", [
+    values.times_selected,
+    answerId,
+  ]);
 };
 
 const answerAggregateResetSql: Record<AnswerAggregateField, string> = {
