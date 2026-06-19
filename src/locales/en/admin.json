@@ -144,11 +144,11 @@
   "admin.attendees.search_by_token": "Search by Ticket Token",
   "admin.attendees.merge_preview": "Merge Preview",
   "admin.attendees.field": "Field",
-  "settings.advanced.calendar_feeds": "Calendar feeds",
-  "settings.advanced.calendar_feeds_hint": "Enable a read-only authenticated calendar feed for staff API keys. Calendar clients can subscribe with a Bearer API key at",
-  "settings.advanced.calendar_feeds_enabled": "Enable calendar feeds",
-  "settings.advanced.calendar_feeds_group_by": "Group feed entries by",
-  "settings.advanced.calendar_feeds_group_by_attendees": "Attendees",
-  "settings.advanced.calendar_feeds_group_by_listings": "Listings",
-  "settings.advanced.save_calendar_feeds": "Save calendar feed settings"
+  "settings.calendar_feeds": "Calendar feeds",
+  "settings.calendar_feeds_hint": "Enable a read-only authenticated calendar feed for staff API keys. Calendar clients can subscribe with a Bearer API key at",
+  "settings.calendar_feeds_enabled": "Enable calendar feeds",
+  "settings.calendar_feeds_group_by": "Group feed entries by",
+  "settings.calendar_feeds_group_by_attendees": "Attendees",
+  "settings.calendar_feeds_group_by_listings": "Listings",
+  "settings.save_calendar_feeds": "Save calendar feed settings"
 }
