@@ -1431,6 +1431,39 @@ const handlePaymentCancel = withSessionId(async (sid) => {
 const webhookAckResponse = (extra?: Record<string, unknown>): Response =>
   jsonResponse({ received: true, ...extra });
 
+/**
+ * Map a processed-payment result to the webhook's HTTP response.
+ *  - success → 200 ack (processed).
+ *  - another request holds the reservation (transient lock, no refund) → 409 so
+ *    the provider retries.
+ *  - a refund of a real payment failed → 503 (reservation left retryable) so the
+ *    provider re-delivers and we re-attempt; guarded on a payment reference so a
+ *    session with nothing to refund can't trigger a retry loop.
+ *  - any other handled failure (refund issued, or nothing to retry) → 200 ack.
+ */
+const webhookResultResponse = (
+  result: PaymentResult,
+  session: ValidatedPaymentSession,
+  payload: string,
+  listingIdForLog: number | undefined,
+): Response => {
+  if (result.success) return webhookAckResponse({ processed: true });
+  // Log once at the boundary — inner functions pass structured context via detail.
+  logError({
+    code: ErrorCode.PAYMENT_SESSION,
+    detail: result.detail ?? result.error,
+    listingId: listingIdForLog,
+  });
+  logDebug("Webhook", `Failed payload: ${payload}`);
+  if (result.status === 409 && result.refunded === undefined) {
+    return plainResponse(result.error, 409);
+  }
+  if (result.refunded === false && session.paymentReference) {
+    return plainResponse(result.error, 503);
+  }
+  return webhookAckResponse({ error: result.error, processed: false });
+};
+
 /** Detect which provider sent the webhook based on request headers */
 const getWebhookSignatureHeader = (request: Request): string | null =>
   request.headers.get("stripe-signature") ??
@@ -1574,28 +1607,7 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
     intent,
     session,
   });
-
-  if (!result.success) {
-    // Log once at the boundary — inner functions pass structured context via result.detail
-    logError({
-      code: ErrorCode.PAYMENT_SESSION,
-      detail: result.detail ?? result.error,
-      listingId: listingIdForLog,
-    });
-    logDebug("Webhook", `Failed payload: ${payload}`);
-
-    // If another request holds the reservation (no refund attempted,
-    // just a transient lock), return 409 so the provider retries the webhook.
-    // Handled outcomes (refund issued) keep the 200 ack — retrying wouldn't help.
-    if (result.status === 409 && result.refunded === undefined) {
-      return plainResponse(result.error, 409);
-    }
-  }
-
-  return webhookAckResponse({
-    error: result.success ? undefined : result.error,
-    processed: result.success,
-  });
+  return webhookResultResponse(result, session, payload, listingIdForLog);
 };
 
 /** Payment routes definition */

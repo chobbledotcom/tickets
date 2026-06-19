@@ -126,6 +126,45 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
     }
   });
 
+  test("a tampered signature whose refund fails returns 503 for retry", async () => {
+    await setupStripe();
+    const listing = await createTestListing({
+      maxAttendees: 50,
+      unitPrice: 1000,
+    });
+    // The signature gate refunds a tampered session, but the provider refund
+    // fails. The webhook must return 5xx so the provider re-delivers and the
+    // refund is re-attempted, not ack a customer who is still charged.
+    const refund = stub(stripeApi, "refundPayment", () =>
+      Promise.resolve(null),
+    );
+    const metadata = {
+      ...signMeta(
+        webhookMeta({
+          email: "sigfail@example.com",
+          items: singleItem(listing.id, 1, 1000),
+          name: "Sig Refund Fail",
+        }),
+        1000,
+      ),
+      price_proof: `1000.${"A".repeat(44)}`,
+    };
+    const mockVerify = await stubCompletedSession({
+      amount_total: 1000,
+      id: "cs_sig_refund_fail",
+      metadata,
+    });
+    try {
+      const response = await webhookRequest();
+      expect(response.status).toBe(503);
+      expect(refund.calls.length).toBe(1);
+      expect((await getAttendeesRaw(listing.id)).length).toBe(0);
+    } finally {
+      mockVerify.restore();
+      refund.restore();
+    }
+  });
+
   test("a charge above the signed total is refunded", async () => {
     await setupStripe();
     const listing = await createTestListing({

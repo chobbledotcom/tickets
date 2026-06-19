@@ -3228,15 +3228,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       );
 
       try {
-        await assertJson(
-          handleRequest(
-            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
-          ),
-          200,
-          (json) => {
-            expect(json.error).toContain("no longer accepting");
-          },
+        const response = await handleRequest(
+          mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
+        // The payment has a reference but the refund couldn't go through (no
+        // provider), so it is retryable: 5xx for the provider to re-deliver once
+        // reconfigured, rather than ack a still-charged customer.
+        expect(response.status).toBe(503);
+        expect(await response.text()).toContain("no longer accepting");
       } finally {
         mockVerify.restore();
         mockGetConfigured.restore();
