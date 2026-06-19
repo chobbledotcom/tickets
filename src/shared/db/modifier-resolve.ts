@@ -21,6 +21,7 @@ import {
   getActiveModifiers,
   getModifierGroupListingIds,
   getModifierListingIds,
+  modifierIdsByAnswerId,
 } from "#shared/db/modifiers.ts";
 import type {
   CheckoutItem,
@@ -100,19 +101,46 @@ const stockedQuantity = (
 };
 
 /** How many times a modifier is requested for a cart: automatic modifiers
- * apply once, a "code" modifier applies once when the entered code matches, and
- * an opt-in add-on applies as many times as the buyer chose (0 = not selected).
+ * apply once, a "code" modifier applies once when the entered code matches, an
+ * opt-in add-on applies as many times as the buyer chose, and an "answer"
+ * modifier applies once per selected answer linked to it (0 = none chosen).
  * A result below 1 means the modifier doesn't trigger at all. */
 const triggerQuantity = (
   modifier: Modifier,
   codeIndex: string | null,
   addOns: Map<number, number>,
+  answerQuantities: Map<number, number>,
 ): number => {
   if (modifier.trigger === "code") {
     return codeIndex !== null && modifier.code_index === codeIndex ? 1 : 0;
   }
   if (modifier.trigger === "optional") return addOns.get(modifier.id) ?? 0;
+  if (modifier.trigger === "answer") {
+    return answerQuantities.get(modifier.id) ?? 0;
+  }
   return 1;
+};
+
+/**
+ * Total quantity each "answer"-triggered modifier is requested for, given how
+ * many times the buyer selected each answer (answerId → count, as produced by
+ * `answerQuantitiesFromListingAnswers`). A modifier linked to several chosen
+ * answers sums their counts, so one "Large size +£5" modifier wired to several
+ * answers is applied once for every matching selection.
+ */
+export const answerModifierQuantities = async (
+  answerCounts: Map<number, number>,
+): Promise<Map<number, number>> => {
+  const byAnswer = await modifierIdsByAnswerId([...answerCounts.keys()]);
+  const quantities = new Map<number, number>();
+  for (const [answerId, modifierIds] of byAnswer) {
+    // byAnswer is keyed from answerCounts.keys(), so the count is always present.
+    const count = answerCounts.get(answerId)!;
+    for (const modifierId of modifierIds) {
+      quantities.set(modifierId, (quantities.get(modifierId) ?? 0) + count);
+    }
+  }
+  return quantities;
 };
 
 export type PricingContext = { visits: number };
@@ -139,6 +167,7 @@ export const buyerVisits = async (
 type ResolveOptions = {
   code?: string;
   addOns?: Map<number, number>;
+  answerQuantities?: Map<number, number>;
   ctx?: PricingContext;
 };
 
@@ -147,14 +176,17 @@ type ResolveOptions = {
  * minimum subtotal, past their minimum visit count, and with stock remaining.
  * Automatic modifiers always trigger; a "code" modifier triggers only when the
  * buyer entered its matching code; an "optional" add-on triggers only when the
- * buyer selected it (`opts.addOns` maps modifier id → chosen quantity), and is
- * applied that many times.
+ * buyer selected it (`opts.addOns` maps modifier id → chosen quantity); an
+ * "answer" modifier triggers when the buyer selected a linked answer
+ * (`opts.answerQuantities` maps modifier id → selection count). Each is applied
+ * its requested number of times.
  */
 export const resolveModifiers = async (
   items: CheckoutItem[],
   opts: ResolveOptions = {},
 ): Promise<ModifierSpec[]> => {
   const addOns = opts.addOns ?? new Map<number, number>();
+  const answerQuantities = opts.answerQuantities ?? new Map<number, number>();
   const ctx = opts.ctx ?? NO_VISITS;
   const codeIndex = opts.code?.trim()
     ? await hmacHash(normalizeCode(opts.code))
@@ -165,7 +197,12 @@ export const resolveModifiers = async (
         await getActiveModifiers()
       ).map(async (modifier): Promise<Candidate | null> => {
         if (modifier.min_visits > ctx.visits) return null;
-        const quantity = triggerQuantity(modifier, codeIndex, addOns);
+        const quantity = triggerQuantity(
+          modifier,
+          codeIndex,
+          addOns,
+          answerQuantities,
+        );
         if (quantity < 1) return null;
         const listingIds = await listingIdsFor(modifier);
         const base = inScopeSubtotal(items, listingIds);

@@ -11,6 +11,7 @@ import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import {
   executeBatch,
   getDb,
+  inPlaceholders,
   queryAll,
   queryOne,
   resetAggregates,
@@ -195,11 +196,19 @@ export const getModifierGroupIds = (modifierId: number): Promise<number[]> =>
     modifierId,
   );
 
+/** Answer ids an "answer"-triggered modifier is linked to (for the admin
+ * editor and the resolve-time trigger). */
+export const getModifierAnswerIds = (modifierId: number): Promise<number[]> =>
+  modifierIdColumn(
+    "SELECT answer_id AS id FROM modifier_answers WHERE modifier_id = ?",
+    modifierId,
+  );
+
 /** Replace a modifier's link rows in `table` with one per id (reset + insert),
- * so saving the scope editor is idempotent. */
+ * so saving the scope/answer editor is idempotent. */
 const setModifierLinks = (
-  table: "modifier_listings" | "modifier_groups",
-  column: "listing_id" | "group_id",
+  table: "modifier_listings" | "modifier_groups" | "modifier_answers",
+  column: "listing_id" | "group_id" | "answer_id",
   modifierId: number,
   ids: number[],
 ): Promise<unknown> =>
@@ -227,3 +236,32 @@ export const setModifierGroups = (
   groupIds: number[],
 ): Promise<unknown> =>
   setModifierLinks("modifier_groups", "group_id", modifierId, groupIds);
+
+/** Set the answers that trigger an "answer"-triggered modifier. */
+export const setModifierAnswers = (
+  modifierId: number,
+  answerIds: number[],
+): Promise<unknown> =>
+  setModifierLinks("modifier_answers", "answer_id", modifierId, answerIds);
+
+/** Selected answer id → how many active "answer"-triggered modifiers it
+ * activates, keyed for resolve. Maps each requested answer to the modifiers
+ * linked to it so the resolver can total a modifier's quantity across every
+ * linked answer the buyer chose. */
+export const modifierIdsByAnswerId = async (
+  answerIds: number[],
+): Promise<Map<number, number[]>> => {
+  if (answerIds.length === 0) return new Map();
+  const rows = await queryAll<{ answer_id: number; modifier_id: number }>(
+    `SELECT answer_id, modifier_id FROM modifier_answers
+     WHERE answer_id IN (${inPlaceholders(answerIds)})`,
+    answerIds,
+  );
+  const byAnswer = new Map<number, number[]>();
+  for (const { answer_id, modifier_id } of rows) {
+    const list = byAnswer.get(answer_id) ?? [];
+    list.push(modifier_id);
+    byAnswer.set(answer_id, list);
+  }
+  return byAnswer;
+};

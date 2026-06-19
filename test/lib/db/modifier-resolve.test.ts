@@ -10,6 +10,7 @@ import {
 } from "#shared/db/contact-preferences.ts";
 import {
   ADDON_MAX_QUANTITY,
+  answerModifierQuantities,
   buyerVisits,
   getOptionalAddOns,
   hasPromoCodeModifiers,
@@ -17,6 +18,10 @@ import {
   specsFromRefs,
 } from "#shared/db/modifier-resolve.ts";
 import { consumeModifierStock } from "#shared/db/modifier-usage.ts";
+import {
+  getModifierAnswerIds,
+  setModifierAnswers,
+} from "#shared/db/modifiers.ts";
 import { normalizeCode } from "#shared/price-modifier.ts";
 import {
   checkoutItem,
@@ -178,6 +183,35 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
       expect(specs.find((s) => s.name === "Limited tee")?.quantity).toBe(2);
     });
 
+    test("applies an answer-triggered modifier when a linked answer is selected", async () => {
+      const m = await insertModifier({ name: "Large size" });
+      await patchModifier(m.id, { trigger: "answer" });
+      await setModifierAnswers(m.id, [42]);
+
+      // Not selected: the modifier doesn't trigger.
+      const unselected = await resolveModifiers([checkoutItem()]);
+      expect(unselected.map((s) => s.name)).not.toContain("Large size");
+
+      // Selected twice (one per ticket): applies at that quantity.
+      const selected = await resolveModifiers([checkoutItem()], {
+        answerQuantities: await answerModifierQuantities(new Map([[42, 2]])),
+      });
+      const spec = selected.find((s) => s.name === "Large size");
+      expect(spec?.trigger).toBe("answer");
+      expect(spec?.quantity).toBe(2);
+    });
+
+    test("caps an answer-triggered modifier quantity at remaining stock", async () => {
+      const m = await insertModifier({ name: "Limited tier", stock: 2 });
+      await patchModifier(m.id, { trigger: "answer" });
+      await setModifierAnswers(m.id, [5]);
+
+      const specs = await resolveModifiers([checkoutItem()], {
+        answerQuantities: await answerModifierQuantities(new Map([[5, 5]])),
+      });
+      expect(specs.find((s) => s.name === "Limited tier")?.quantity).toBe(2);
+    });
+
     test("applies a group-scoped modifier to the linked group's listings", async () => {
       const listing = await createTestListing({
         maxAttendees: 10,
@@ -202,6 +236,43 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
       expect(applied.find((s) => s.name === "GroupWide")?.listingIds).toEqual([
         listing.id,
       ]);
+    });
+  });
+
+  describe("answer modifier links", () => {
+    test("setModifierAnswers saves a modifier's answer links idempotently", async () => {
+      const m = await insertModifier({ name: "Tier" });
+      await setModifierAnswers(m.id, [7, 9]);
+      expect((await getModifierAnswerIds(m.id)).sort((a, b) => a - b)).toEqual([
+        7, 9,
+      ]);
+
+      // Re-saving replaces the whole set (the editor posts the full selection).
+      await setModifierAnswers(m.id, [9]);
+      expect(await getModifierAnswerIds(m.id)).toEqual([9]);
+    });
+
+    test("answerModifierQuantities sums selections across linked answers", async () => {
+      const m = await insertModifier({ name: "Premium tier" });
+      await setModifierAnswers(m.id, [1, 2]);
+
+      const quantities = await answerModifierQuantities(
+        new Map([
+          [1, 2],
+          [2, 3],
+        ]),
+      );
+      expect(quantities).toEqual(new Map([[m.id, 5]]));
+    });
+
+    test("answerModifierQuantities is empty when no answers were selected", async () => {
+      expect(await answerModifierQuantities(new Map())).toEqual(new Map());
+    });
+
+    test("answerModifierQuantities ignores answers with no linked modifier", async () => {
+      expect(await answerModifierQuantities(new Map([[99, 4]]))).toEqual(
+        new Map(),
+      );
     });
   });
 

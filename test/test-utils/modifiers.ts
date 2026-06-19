@@ -51,3 +51,10 @@ export const linkModifierGroup = (modifierId: number, groupId: number) =>
     args: [modifierId, groupId],
     sql: "INSERT INTO modifier_groups (modifier_id, group_id) VALUES (?, ?)",
   });
+
+/** Link an "answer"-triggered modifier to a question answer. */
+export const linkModifierAnswer = (modifierId: number, answerId: number) =>
+  getDb().execute({
+    args: [modifierId, answerId],
+    sql: "INSERT INTO modifier_answers (modifier_id, answer_id) VALUES (?, ?)",
+  });

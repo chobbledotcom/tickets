@@ -16,11 +16,13 @@ import { isPaymentsEnabled } from "#shared/config.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { getPublicDefaultStatus } from "#shared/db/attendee-statuses.ts";
-import { buyerVisits, resolveModifiers } from "#shared/db/modifier-resolve.ts";
+import {
+  answerModifierQuantities,
+  buyerVisits,
+  resolveModifiers,
+} from "#shared/db/modifier-resolve.ts";
 import { consumeModifierStockOrRollback } from "#shared/db/modifier-usage.ts";
 import {
-  answerAmountAllocations,
-  answerModifierSpecs,
   answerQuantitiesFromListingAnswers,
   groupListingAnswers,
   parseQuestionAnswers,
@@ -334,15 +336,13 @@ const handleFreePath = async (
   // Persist the exact usage amounts returned by the pricing engine. A
   // stock-limited modifier that sold out between resolution and consumption
   // rolls the new attendee back so the buyer isn't granted a free order they
-  // shouldn't have.
-  const stockModifierUsages = modifierUsages.filter(
-    (usage) => usage.source !== "answer",
-  );
-  if (stockModifierUsages.length > 0) {
+  // shouldn't have. Answer-triggered modifiers are ordinary modifiers now, so
+  // they consume stock and record usage just like the rest.
+  if (modifierUsages.length > 0) {
     const attendeeId = result.entries[0]!.attendee.id;
     const consumed = await consumeModifierStockOrRollback(
       attendeeId,
-      stockModifierUsages,
+      modifierUsages,
     );
     if (!consumed) {
       return ticketFormErrorResponse(ctx)(MODIFIER_SOLD_OUT_MESSAGE);
@@ -367,7 +367,6 @@ const handleFreePath = async (
     );
     await saveAttendeeAnswers(
       groupListingAnswers(result.entries, listingAnswerMap),
-      answerAmountAllocations(modifierUsages),
     );
   }
 
@@ -420,19 +419,18 @@ const resolveSubmissionModifiers = async (
   visits = 0,
 ): Promise<CheckoutIntent["modifiers"]> => {
   const listingAnswerIds = computeListingAnswerMap(params.ctx, params.info);
-  const answerQuantities = answerQuantitiesFromListingAnswers(
+  const answerCounts = answerQuantitiesFromListingAnswers(
     listingAnswerIds,
     params.quantities,
   );
-  const [resolvedModifiers, answerModifiers] = await Promise.all([
-    resolveModifiers(params.items, {
-      addOns: params.addOns,
-      code: params.promoCode,
-      ctx: { visits },
-    }),
-    answerModifierSpecs(params.info.answerIds, answerQuantities),
-  ]);
-  return [...resolvedModifiers, ...answerModifiers];
+  // Answer-triggered modifiers join the same single resolve pass as automatic,
+  // code, and opt-in add-on modifiers — one engine, one eligibility check.
+  return resolveModifiers(params.items, {
+    addOns: params.addOns,
+    answerQuantities: await answerModifierQuantities(answerCounts),
+    code: params.promoCode,
+    ctx: { visits },
+  });
 };
 
 const priceSubmissionBeforeContact = async (

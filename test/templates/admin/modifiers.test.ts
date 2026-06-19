@@ -215,3 +215,47 @@ describe("adminModifierEditPage scope editor", () => {
     expect(html).not.toContain("Linked groups");
   });
 });
+
+describe("adminModifierEditPage answer editor", () => {
+  test("renders answer checkboxes (with current links checked) for an answer modifier", () => {
+    const html = adminModifierEditPage(
+      mod({ trigger: "answer" }),
+      SESSION,
+      undefined,
+      null,
+      undefined,
+      {
+        options: [
+          { id: 10, name: "Size — Large" },
+          { id: 11, name: "Size — Small" },
+        ],
+        selected: [10],
+      },
+    );
+    expect(html).toContain("Linked answers");
+    expect(html).toContain("Size — Large");
+    expect(html).toContain("/admin/modifiers/1/answers");
+    // The linked answer (10) is checked; the unlinked one (11) is not.
+    expect(html).toContain(
+      'checked name="answer_ids" type="checkbox" value="10"',
+    );
+    expect(html).toContain('name="answer_ids" type="checkbox" value="11"');
+  });
+
+  test("shows an empty note when there are no answers to link", () => {
+    const html = adminModifierEditPage(
+      mod({ trigger: "answer" }),
+      SESSION,
+      undefined,
+      null,
+      undefined,
+      { options: [], selected: [] },
+    );
+    expect(html).toContain("No question answers to link yet");
+  });
+
+  test("omits the answer editor when no answer links are passed", () => {
+    const html = adminModifierEditPage(mod(), SESSION);
+    expect(html).not.toContain("Linked answers");
+  });
+});

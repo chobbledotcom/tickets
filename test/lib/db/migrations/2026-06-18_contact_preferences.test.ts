@@ -34,6 +34,7 @@ const context: MigrationContext = {
   backfillModifierAggregates: unused,
   ensureDefaultAttendeeStatus: unused,
   getDb,
+  recreateTable: unused,
   renameEventsToListings: unused,
   syncCurrentSchema: unused,
   syncIndexes,
