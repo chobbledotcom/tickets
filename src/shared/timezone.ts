@@ -13,20 +13,25 @@ export const DEFAULT_TIMEZONE = "Europe/London";
 /** Pad a number to two digits */
 const pad2 = (n: number): string => String(n).padStart(2, "0");
 
+/** Convert epoch milliseconds to a ZonedDateTime in the given timezone */
+const msToZoned = (ms: number, tz: string): Temporal.ZonedDateTime =>
+  Temporal.Instant.fromEpochMilliseconds(ms).toZonedDateTimeISO(tz);
+
 /** Parse a UTC ISO string into a ZonedDateTime in the given timezone */
 export const utcToZoned = (
   utcIso: string,
   tz: string,
-): Temporal.ZonedDateTime =>
-  Temporal.Instant.fromEpochMilliseconds(
-    new Date(utcIso).getTime(),
-  ).toZonedDateTimeISO(tz);
+): Temporal.ZonedDateTime => msToZoned(new Date(utcIso).getTime(), tz);
 
 /**
  * Get today's date as YYYY-MM-DD in the given timezone.
+ *
+ * Reads the clock via `Date.now()` rather than `Temporal.Now` so the helper
+ * stays controllable under `@std/testing/time`'s `FakeTime`, which patches
+ * `Date`/timers but not `Temporal.Now`.
  */
 export const todayInTz = (tz: string): string =>
-  Temporal.Now.plainDateISO(tz).toString();
+  msToZoned(Date.now(), tz).toPlainDate().toString();
 
 /**
  * Strict datetime-local shape: a calendar date optionally followed by a

@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { FakeTime } from "@std/testing/time";
 import {
   DEFAULT_TIMEZONE,
   formatDatetimeInTz,
@@ -32,6 +33,18 @@ describe("timezone", () => {
       const a = todayInTz("UTC");
       const b = todayInTz("UTC");
       expect(a).toBe(b);
+    });
+
+    test("is controllable under FakeTime (reads the fakeable clock)", () => {
+      // Temporal.Now bypasses FakeTime; todayInTz must derive "today" from
+      // Date.now() so date-dependent code stays deterministic in frozen-time
+      // tests (booking windows, holiday cutoffs, calendar/delivery pages).
+      const time = new FakeTime(new Date("2030-01-15T12:00:00Z"));
+      try {
+        expect(todayInTz("Europe/London")).toBe("2030-01-15");
+      } finally {
+        time.restore();
+      }
     });
   });
 
