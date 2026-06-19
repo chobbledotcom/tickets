@@ -175,6 +175,7 @@
   "fields.modifier.total_uses": "Total Uses",
   "fields.modifier.usage_count": "Total Orders",
   "fields.modifier.total_revenue": "Total Money Collected",
+  "fields.answer.times_selected": "Times Selected",
   "fields.validation.price_min": "Price must be 0 or greater",
   "fields.validation.email": "Please enter a valid email address",
   "fields.validation.phone": "Please enter a valid phone number",

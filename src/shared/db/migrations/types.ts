@@ -35,6 +35,7 @@ export type AdditiveMigration = Omit<Migration, "verify"> & {
 export type MigrationContext = {
   additive: (migration: AdditiveMigration) => Migration;
   applySchemaChanges: () => Promise<void>;
+  backfillAnswerAggregates: () => Promise<void>;
   backfillListingAggregates: () => Promise<void>;
   backfillModifierAggregates: () => Promise<void>;
   ensureDefaultAttendeeStatus: () => Promise<void>;

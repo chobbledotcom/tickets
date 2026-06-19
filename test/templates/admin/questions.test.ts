@@ -8,6 +8,7 @@ import {
 import {
   adminAnswerDeletePage,
   adminAnswerEditPage,
+  adminAnswerRecalculatePage,
   adminListingQuestionsPage,
   adminQuestionDeletePage,
   adminQuestionPage,
@@ -28,44 +29,53 @@ beforeAll(async () => {
 });
 
 describe("adminQuestionsPage", () => {
+  const colourQuestion = {
+    answers: [
+      { id: 10, question_id: 1, sort_order: 0, text: "Red" },
+      { id: 11, question_id: 1, sort_order: 1, text: "Blue" },
+    ],
+    display_type: "radio" as const,
+    id: 1,
+    text: "Favourite colour?",
+  };
+
   test("renders empty state when no questions", () => {
     const html = adminQuestionsPage([], TEST_SESSION);
     expect(html).toContain("No custom questions yet");
   });
 
-  test("renders question list with answer counts", () => {
-    const html = adminQuestionsPage(
-      [
-        {
-          answers: [
-            { id: 10, question_id: 1, sort_order: 0, text: "Red" },
-            { id: 11, question_id: 1, sort_order: 1, text: "Blue" },
-          ],
-          display_type: "radio" as const,
-          id: 1,
-          text: "Favourite colour?",
-        },
-      ],
-      TEST_SESSION,
-    );
-    expect(html).toContain("Favourite colour?");
-    expect(html).toContain("2 answers");
+  test("removes the Custom Questions heading", () => {
+    expect(adminQuestionsPage([], TEST_SESSION)).not.toContain("<h1");
   });
 
-  test("renders singular answer count for one answer", () => {
+  test("renders questions in a table with the answer count", () => {
+    const html = adminQuestionsPage([colourQuestion], TEST_SESSION);
+    expect(html).toContain("<table");
+    expect(html).toContain("Favourite colour?");
+    // Answer-count cell shows the raw number.
+    expect(html).toContain("<td>2</td>");
+  });
+
+  test("shows a Listings count with the listing names as the cell title", () => {
     const html = adminQuestionsPage(
-      [
-        {
-          answers: [{ id: 10, question_id: 1, sort_order: 0, text: "Yes" }],
-          display_type: "radio" as const,
-          id: 1,
-          text: "Yes or no?",
-        },
-      ],
+      [colourQuestion],
       TEST_SESSION,
+      undefined,
+      new Map([[1, ["Spring Gig", "Summer Gig"]]]),
+      5,
     );
-    expect(html).toContain("1 answer)");
-    expect(html).not.toContain("1 answers");
+    expect(html).toContain('<td title="Spring Gig, Summer Gig">2</td>');
+  });
+
+  test("shows All and the total count for assign-all questions", () => {
+    const html = adminQuestionsPage(
+      [{ ...colourQuestion, assign_all: true }],
+      TEST_SESSION,
+      undefined,
+      new Map(),
+      5,
+    );
+    expect(html).toContain('<td title="All">5</td>');
   });
 
   test("renders reorder controls: down on the first, up on the last", () => {
@@ -148,14 +158,25 @@ describe("adminQuestionPage", () => {
     expect(html).toContain("No answers yet");
   });
 
-  test("renders answer counts when provided", () => {
+  test("renders answers in a table with their selection totals", () => {
     const counts = new Map([
       [10, 5],
       [11, 3],
     ]);
     const html = adminQuestionPage(question, TEST_SESSION, undefined, counts);
-    expect(html).toContain("(5)");
-    expect(html).toContain("(3)");
+    expect(html).toContain("<table");
+    expect(html).toContain("<td>5</td>");
+    expect(html).toContain("<td>3</td>");
+  });
+
+  test("shows zero selections for answers with no stored total", () => {
+    const html = adminQuestionPage(
+      question,
+      TEST_SESSION,
+      undefined,
+      new Map(),
+    );
+    expect(html).toContain("<td>0</td>");
   });
 
   test("renders move-up and move-down buttons", () => {
@@ -269,6 +290,8 @@ describe("adminAnswerEditPage", () => {
     { id: 5, name: "Large surcharge" },
     { id: 6, name: "Tiny discount" },
   ];
+  const aligned = { times_selected: { current: 7, recalculated: 7 } };
+  const drifted = { times_selected: { current: 7, recalculated: 5 } };
 
   test("renders the editable text pre-filled and the form action", () => {
     const html = adminAnswerEditPage(
@@ -276,7 +299,7 @@ describe("adminAnswerEditPage", () => {
       answer,
       TEST_SESSION,
       undefined,
-      0,
+      aligned,
       modifiers,
       null,
     );
@@ -284,31 +307,74 @@ describe("adminAnswerEditPage", () => {
     expect(html).toContain('value="Large"');
   });
 
-  test("shows the cumulative selection count", () => {
+  test("renders the editable selection total field with the stored value", () => {
     const html = adminAnswerEditPage(
       question,
       answer,
       TEST_SESSION,
       undefined,
-      7,
+      aligned,
       modifiers,
       null,
     );
-    expect(html).toContain("Selected 7 times");
+    expect(html).toContain('name="times_selected"');
+    expect(html).toContain('value="7"');
   });
 
-  test("uses the singular for a single selection", () => {
+  test("links back to the question", () => {
     const html = adminAnswerEditPage(
       question,
       answer,
       TEST_SESSION,
       undefined,
-      1,
+      aligned,
       modifiers,
       null,
     );
-    expect(html).toContain("Selected 1 time");
-    expect(html).not.toContain("Selected 1 times");
+    expect(html).toContain('href="/admin/questions/1"');
+    expect(html).toContain("Back to question");
+  });
+
+  test("links to the recalculate flow", () => {
+    const html = adminAnswerEditPage(
+      question,
+      answer,
+      TEST_SESSION,
+      undefined,
+      aligned,
+      modifiers,
+      null,
+    );
+    expect(html).toContain('href="/admin/questions/1/answers/11/recalculate"');
+  });
+
+  test("shows no drift warning when the total matches attendee answers", () => {
+    const html = adminAnswerEditPage(
+      question,
+      answer,
+      TEST_SESSION,
+      undefined,
+      aligned,
+      modifiers,
+      null,
+    );
+    expect(html).not.toContain("expected-actual-notice");
+  });
+
+  test("warns and shows expected/actual when the total has drifted", () => {
+    const html = adminAnswerEditPage(
+      question,
+      answer,
+      TEST_SESSION,
+      undefined,
+      drifted,
+      modifiers,
+      null,
+    );
+    expect(html).toContain("expected-actual-notice");
+    // Expected (rebuilt from attendee answers) then got (stored).
+    expect(html).toContain("<strong>5</strong>");
+    expect(html).toContain("<strong>7</strong>");
   });
 
   test("lists modifier options and marks the linked one selected", () => {
@@ -317,7 +383,7 @@ describe("adminAnswerEditPage", () => {
       answer,
       TEST_SESSION,
       undefined,
-      0,
+      aligned,
       modifiers,
       5,
     );
@@ -333,7 +399,7 @@ describe("adminAnswerEditPage", () => {
       answer,
       TEST_SESSION,
       undefined,
-      0,
+      aligned,
       modifiers,
       null,
     );
@@ -346,7 +412,7 @@ describe("adminAnswerEditPage", () => {
       answer,
       TEST_SESSION,
       undefined,
-      0,
+      aligned,
       modifiers,
       null,
     );
@@ -359,11 +425,60 @@ describe("adminAnswerEditPage", () => {
       answer,
       TEST_SESSION,
       "Invalid modifier",
-      0,
+      aligned,
       modifiers,
       null,
     );
     expect(html).toContain("Invalid modifier");
+  });
+});
+
+describe("adminAnswerRecalculatePage", () => {
+  const question = {
+    answers: [{ id: 11, question_id: 1, sort_order: 1, text: "Large" }],
+    display_type: "radio" as const,
+    id: 1,
+    text: "T-shirt size?",
+  };
+  const answer = question.answers[0]!;
+  const snapshot = { times_selected: { current: 7, recalculated: 5 } };
+
+  test("renders the recalculate form for the answer", () => {
+    const html = adminAnswerRecalculatePage(
+      question,
+      answer,
+      snapshot,
+      TEST_SESSION,
+    );
+    expect(html).toContain(
+      'action="/admin/questions/1/answers/11/recalculate"',
+    );
+    // Current (stored) and recalculated (from attendee answers) columns.
+    expect(html).toContain("<td>7</td>");
+    expect(html).toContain("<td>5</td>");
+    expect(html).toContain('name="recalculate_fields"');
+  });
+
+  test("renders error and success flashes", () => {
+    expect(
+      adminAnswerRecalculatePage(
+        question,
+        answer,
+        snapshot,
+        TEST_SESSION,
+        "Choose at least one total to recalculate",
+      ),
+    ).toContain("Choose at least one total to recalculate");
+    expect(
+      adminAnswerRecalculatePage(
+        question,
+        answer,
+        snapshot,
+        TEST_SESSION,
+        undefined,
+        "Selection total recalculated",
+      ),
+    ).toContain("Selection total recalculated");
   });
 });
 

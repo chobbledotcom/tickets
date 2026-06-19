@@ -15,6 +15,7 @@ import {
   insert,
   queryAll,
   queryOne,
+  resetAggregates,
 } from "#shared/db/client.ts";
 import { swapSortOrder } from "#shared/db/query.ts";
 import { col, defineTable } from "#shared/db/table.ts";
@@ -275,6 +276,30 @@ export const getListingQuestionIds = async (
       [listingId],
     ),
   );
+
+/** Map from question id to the ids of the listings it is directly assigned to,
+ * for the questions list table's Listings column. Assign-all questions are
+ * omitted (the caller renders "All" for them). The caller resolves ids to
+ * (decrypted) names from its already-loaded listing list. */
+export const getAllQuestionListingIds = async (): Promise<
+  Map<number, number[]>
+> => {
+  const rows = await queryAll<{ question_id: number; listing_id: number }>(
+    `SELECT question_id, listing_id FROM listing_questions
+     ORDER BY question_id, listing_id`,
+  );
+  return reduce(
+    (
+      acc: Map<number, number[]>,
+      row: { question_id: number; listing_id: number },
+    ) => {
+      const ids = acc.get(row.question_id) ?? [];
+      ids.push(row.listing_id);
+      return acc.set(row.question_id, ids);
+    },
+    new Map<number, number[]>(),
+  )(rows);
+};
 
 /** Get the IDs of the listings a question is assigned to */
 export const getQuestionListingIds = async (
@@ -626,24 +651,80 @@ export const getQuestionWithAnswers = async (
   return (await groupJoinedRows(rows))[0]!;
 };
 
-/** Get total counts for each answer across all bookings */
-export const getAnswerCountsForQuestion = async (
+// ---------------------------------------------------------------------------
+// Answer selection aggregate (answers.times_selected)
+// ---------------------------------------------------------------------------
+
+/** The owner-editable, trigger-maintained aggregate columns on an answer. */
+export const ANSWER_AGGREGATE_FIELDS = ["times_selected"] as const;
+
+export type AnswerAggregateField = (typeof ANSWER_AGGREGATE_FIELDS)[number];
+
+export type AnswerAggregateValues = Record<AnswerAggregateField, number>;
+
+export type AnswerAggregateRecalculation = Record<
+  AnswerAggregateField,
+  { current: number; recalculated: number }
+>;
+
+/** The stored selection total (times_selected) for every answer of a question,
+ * keyed by answer id. Reads the trigger-maintained column directly rather than
+ * scanning attendee_answers, so the question detail page is a single row read. */
+export const getAnswerSelectionTotals = async (
   questionId: number,
 ): Promise<Map<number, number>> => {
-  const rows = await queryAll<{ answer_id: number; cnt: number }>(
-    `SELECT a.id AS answer_id, COUNT(aa.id) AS cnt
-     FROM answers a
-     LEFT JOIN attendee_answers aa ON aa.answer_id = a.id
-     WHERE a.question_id = ?
-     GROUP BY a.id`,
+  const rows = await queryAll<{ id: number; times_selected: number }>(
+    "SELECT id, times_selected FROM answers WHERE question_id = ?",
     [questionId],
   );
   return new Map(
     map(
-      ({ answer_id, cnt }: { answer_id: number; cnt: number }) =>
-        [answer_id, cnt] as const,
+      ({ id, times_selected }: { id: number; times_selected: number }) =>
+        [id, times_selected] as const,
     )(rows),
   );
+};
+
+/** The answer's stored times_selected together with the value it would hold if
+ * rebuilt from attendee_answers, so the edit page can flag (and the recalculate
+ * flow can repair) a drifted aggregate. */
+export const getAnswerAggregateRecalculation = async (
+  answerId: number,
+): Promise<AnswerAggregateRecalculation> => {
+  const row = (await queryOne<{ current: number; recalculated: number }>(
+    `SELECT times_selected AS current,
+            (SELECT COUNT(*) FROM attendee_answers WHERE answer_id = answers.id)
+              AS recalculated
+     FROM answers WHERE id = ?`,
+    [answerId],
+  ))!;
+  return {
+    times_selected: { current: row.current, recalculated: row.recalculated },
+  };
+};
+
+/** Manually set an answer's editable aggregate from the edit form. */
+export const updateAnswerAggregateValues = async (
+  answerId: number,
+  values: AnswerAggregateValues,
+): Promise<void> => {
+  await execute("UPDATE answers SET times_selected = ? WHERE id = ?", [
+    values.times_selected,
+    answerId,
+  ]);
+};
+
+const answerAggregateResetSql: Record<AnswerAggregateField, string> = {
+  times_selected:
+    "times_selected = COALESCE((SELECT COUNT(*) FROM attendee_answers WHERE answer_id = ?), 0)",
+};
+
+/** Reset selected answer aggregate columns from the actual attendee_answers. */
+export const resetAnswerAggregateFields = async (
+  answerId: number,
+  fields: AnswerAggregateField[],
+): Promise<void> => {
+  await resetAggregates("answers", answerId, fields, answerAggregateResetSql);
 };
 
 /** Get the price-modifier id a single answer triggers, or null when it has
