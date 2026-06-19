@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
-import { getDb } from "#shared/db/client.ts";
+import { execute, getDb } from "#shared/db/client.ts";
 import {
   ALL_SETTINGS_KEYS,
   CONFIG_KEYS,
@@ -34,6 +34,21 @@ describeWithEnv("db > settings", { db: true }, () => {
       await settings.loadKeys(["key"]);
       const value = settings.getCachedRaw("key");
       expect(value).toBe("value2");
+    });
+
+    test("settings table writes invalidate the loaded settings cache", async () => {
+      await settings.update.paymentProvider("stripe");
+      settings.invalidateCache();
+      await settings.loadKeys([CONFIG_KEYS.PAYMENT_PROVIDER]);
+      expect(settings.paymentProvider).toBe("stripe");
+
+      await execute("UPDATE settings SET value = ? WHERE key = ?", [
+        "square",
+        CONFIG_KEYS.PAYMENT_PROVIDER,
+      ]);
+      await settings.loadKeys([CONFIG_KEYS.PAYMENT_PROVIDER]);
+
+      expect(settings.paymentProvider).toBe("square");
     });
   });
 
