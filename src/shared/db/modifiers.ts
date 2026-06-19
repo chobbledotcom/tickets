@@ -9,8 +9,8 @@
 
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import {
+  execute,
   executeBatch,
-  getDb,
   inPlaceholders,
   queryAll,
   queryOne,
@@ -134,15 +134,10 @@ export const updateModifierAggregateValues = async (
   modifierId: number,
   values: ModifierAggregateValues,
 ): Promise<void> => {
-  await getDb().execute({
-    args: [
-      values.total_uses,
-      values.usage_count,
-      values.total_revenue,
-      modifierId,
-    ],
-    sql: "UPDATE modifiers SET total_uses = ?, usage_count = ?, total_revenue = ? WHERE id = ?",
-  });
+  await execute(
+    "UPDATE modifiers SET total_uses = ?, usage_count = ?, total_revenue = ? WHERE id = ?",
+    [values.total_uses, values.usage_count, values.total_revenue, modifierId],
+  );
 };
 
 const aggregateResetSql: Record<ModifierAggregateField, string> = {

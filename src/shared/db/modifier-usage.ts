@@ -11,8 +11,8 @@
 import type { InValue } from "@libsql/client";
 import { deleteAttendee } from "#shared/db/attendees/delete.ts";
 import {
+  execute,
   executeBatchWithResults,
-  getDb,
   inPlaceholders,
   queryAll,
 } from "#shared/db/client.ts";
@@ -83,10 +83,9 @@ export const consumeModifierStock = async (
     usages.map((u) => guardedUsageInsert(attendeeId, u)),
   );
   if (results.every((r) => r.rowsAffected > 0)) return true;
-  await getDb().execute({
-    args: [attendeeId],
-    sql: "DELETE FROM modifier_usages WHERE attendee_id = ?",
-  });
+  await execute("DELETE FROM modifier_usages WHERE attendee_id = ?", [
+    attendeeId,
+  ]);
   return false;
 };
 

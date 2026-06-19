@@ -2,7 +2,7 @@
  * Attendee phone blind-index reads/writes (see #shared/sms/phone-index.ts).
  */
 
-import { getDb, queryOne } from "#shared/db/client.ts";
+import { execute, queryOne } from "#shared/db/client.ts";
 
 /**
  * Store the phone blind-index on an attendee, but only if one isn't set yet.
@@ -13,10 +13,10 @@ export const setAttendeePhoneIndexIfEmpty = async (
   phoneIndex: string,
 ): Promise<void> => {
   if (!phoneIndex) return;
-  await getDb().execute({
-    args: [phoneIndex, attendeeId],
-    sql: "UPDATE attendees SET phone_index = ? WHERE id = ? AND phone_index = ''",
-  });
+  await execute(
+    "UPDATE attendees SET phone_index = ? WHERE id = ? AND phone_index = ''",
+    [phoneIndex, attendeeId],
+  );
 };
 
 /** Find the attendee id whose phone blind-index matches, if any. */

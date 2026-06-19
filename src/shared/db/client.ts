@@ -15,11 +15,97 @@ import {
 } from "@libsql/client";
 import { lazyRef } from "#fp";
 import {
+  invalidateCachesForWrite,
+  type WriteVerb,
+} from "#shared/cache-registry.ts";
+import {
   addQueryLogEntry,
   isQueryLogEnabled,
   trackQuery,
 } from "#shared/db/query-log.ts";
 import { getEnv } from "#shared/env.ts";
+
+/**
+ * Match the target table of a mutating statement (INSERT/UPDATE/DELETE/REPLACE),
+ * the mirror of query-log's read detector. Anchored at the start so it fails
+ * fast on the SELECTs that dominate the call volume. The optional
+ * `OR <action>` / `OR <action> INTO` clauses cover libsql's conflict variants.
+ */
+const WRITE_TABLE_RE =
+  /^\s*(?:insert(?:\s+or\s+\w+)?\s+into|replace\s+into|update(?:\s+or\s+\w+)?|delete\s+from)\s+["'`]?(\w+)/i;
+
+/**
+ * Parse the column names assigned by an UPDATE SET clause.
+ * Returns a lower-cased Set, or null if the SET clause cannot be found.
+ * Each `col = expr` left-hand side is extracted; commas inside parentheses
+ * are skipped so subexpressions don't split assignments. If extraction yields
+ * no columns the caller falls back to unconditional invalidation.
+ * Exported for unit testing; not part of the public db-client API.
+ */
+export const extractUpdateColumns = (
+  sql: string,
+): ReadonlySet<string> | null => {
+  const setMatch = /\bSET\s+([\s\S]*?)(?:\s+WHERE\b|$)/i.exec(sql);
+  if (!setMatch) return null;
+  const setClause = setMatch[1]!.trim();
+  const columns = new Set<string>();
+  const addAssignment = (frag: string): void => {
+    const eqIdx = frag.indexOf("=");
+    if (eqIdx < 0) return;
+    const col = frag
+      .slice(0, eqIdx)
+      .trim()
+      .split(".")
+      .pop()!
+      .replace(/["`[\]]/g, "")
+      .toLowerCase();
+    if (col) columns.add(col);
+  };
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < setClause.length; i++) {
+    const ch = setClause[i]!;
+    if (ch === "(") depth++;
+    else if (ch === ")") depth--;
+    else if (ch === "," && depth === 0) {
+      addAssignment(setClause.slice(start, i).trim());
+      start = i + 1;
+    }
+  }
+  addAssignment(setClause.slice(start).trim());
+  return columns.size > 0 ? columns : null;
+};
+
+/**
+ * After a successful write, invalidate every cache that declared a dependency
+ * on the mutated table. A no-op for reads (the regex doesn't match) and for
+ * tables no cache depends on. For UPDATEs, the SET-clause columns are
+ * extracted so column-gated dependencies (e.g. listings ← listing_attendees
+ * only when quantity / price_paid / listing_id are written) can skip the
+ * invalidation when only unrelated columns are touched. If column extraction
+ * fails the write is treated as unconditional — safe over stale.
+ */
+const invalidateForSql = (sql: string): void => {
+  const match = WRITE_TABLE_RE.exec(sql);
+  if (!match) return;
+  const table = match[1]!.toLowerCase();
+  const firstWord = sql.trimStart().split(/\s/)[0]!.toLowerCase();
+  const verb: WriteVerb =
+    firstWord === "delete" || firstWord === "update" || firstWord === "replace"
+      ? (firstWord as WriteVerb)
+      : "insert";
+  if (verb === "update") {
+    const columns = extractUpdateColumns(sql);
+    if (columns === null) {
+      // Parse failure: fall back to unconditional (treat as INSERT-like)
+      invalidateCachesForWrite(table, { columns: new Set(), verb: "insert" });
+    } else {
+      invalidateCachesForWrite(table, { columns, verb: "update" });
+    }
+  } else {
+    invalidateCachesForWrite(table, { columns: new Set(), verb });
+  }
+};
 
 const createDbClient = (): Client => {
   const url = getEnv("DB_URL");
@@ -48,13 +134,29 @@ export const setDb = (client: Client | null): void => dbSetter(client);
 export const resultRows = <T>(result: ResultSet): T[] =>
   result.rows as unknown as T[];
 
+/**
+ * Run a single statement: track it for the query log / N+1 guard, then fire any
+ * table-scoped cache invalidation. Every single-statement read and write goes
+ * through here (queryOne/queryAll wrap it), so cache invalidation is driven by
+ * the write itself rather than by each call site remembering to invalidate.
+ */
+export const execute = async (
+  sql: string,
+  args?: InValue[],
+): Promise<ResultSet> => {
+  const result = await trackQuery(sql, () =>
+    args ? getDb().execute({ args, sql }) : getDb().execute(sql),
+  );
+  invalidateForSql(sql);
+  return result;
+};
+
 /** Query single row, returning null if not found */
 export const queryOne = async <T>(
   sql: string,
   args: InValue[],
 ): Promise<T | null> => {
-  const result = await trackQuery(sql, () => getDb().execute({ args, sql }));
-  const rows = resultRows<T>(result);
+  const rows = resultRows<T>(await execute(sql, args));
   return rows.length === 0 ? null : rows[0]!;
 };
 
@@ -62,12 +164,7 @@ export const queryOne = async <T>(
 export const queryAll = async <T>(
   sql: string,
   args?: InValue[],
-): Promise<T[]> => {
-  const result = await trackQuery(sql, () =>
-    args ? getDb().execute({ args, sql }) : getDb().execute(sql),
-  );
-  return resultRows<T>(result);
-};
+): Promise<T[]> => resultRows<T>(await execute(sql, args));
 
 /** Count all rows in a table. `table` must be a trusted constant, not input. */
 export const countRows = async (table: string): Promise<number> => {
@@ -85,8 +182,7 @@ export const deleteByField = async (
   field: string,
   value: InValue,
 ): Promise<void> => {
-  const sql = `DELETE FROM ${table} WHERE ${field} = ?`;
-  await trackQuery(sql, () => getDb().execute({ args: [value], sql }));
+  await execute(`DELETE FROM ${table} WHERE ${field} = ?`, [value]);
 };
 
 /** Delete rows from multiple tables in a single batch transaction */
@@ -114,24 +210,26 @@ export const resetAggregates = async <T extends string>(
   const sql = `UPDATE ${table} SET ${fields
     .map((field) => resetSql[field])
     .join(", ")} WHERE id = ?`;
-  await trackQuery(sql, () =>
-    getDb().execute({
-      args: fields.map(() => entityId).concat(entityId),
-      sql,
-    }),
-  );
+  await execute(sql, fields.map(() => entityId).concat(entityId));
 };
 
-/** Execute a batch with optional query logging and timing */
+/**
+ * Execute a batch with optional query logging, then invalidate caches for every
+ * table the batch mutated. Invalidation runs once the transaction has
+ * committed; if the batch throws (rollback) it is skipped, so a cache is never
+ * cleared for a write that did not land.
+ */
 const trackedBatch = async (
   statements: Array<{ sql: string; args: InValue[] }>,
   mode: TransactionMode,
 ): Promise<ResultSet[]> => {
-  if (!isQueryLogEnabled()) return getDb().batch(statements, mode);
   const start = performance.now();
   const results = await getDb().batch(statements, mode);
-  const elapsed = performance.now() - start;
-  for (const stmt of statements) addQueryLogEntry(stmt.sql, elapsed);
+  if (isQueryLogEnabled()) {
+    const elapsed = performance.now() - start;
+    for (const stmt of statements) addQueryLogEntry(stmt.sql, elapsed);
+  }
+  for (const stmt of statements) invalidateForSql(stmt.sql);
   return results;
 };
 

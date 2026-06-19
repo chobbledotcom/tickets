@@ -13,8 +13,8 @@ import {
 } from "#shared/db/attendees.ts";
 import { dateToRange } from "#shared/db/capacity.ts";
 import {
+  execute,
   executeBatch,
-  getDb,
   inPlaceholders,
   queryAll,
   queryBatch,
@@ -28,6 +28,7 @@ import {
   encryptedNameSchema,
   idAndEncryptedSlugSchema,
 } from "#shared/db/common-schema.ts";
+import { LISTING_AGGREGATE_WRITE_COLUMNS } from "#shared/db/migrations/schema.ts";
 import { col } from "#shared/db/table.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
@@ -255,27 +256,42 @@ const queryOneListingWithCount = async (
 
 /**
  * Listings cache: single-record reads (by id / slug) load and decrypt only the
- * one listing they need; getAll/getByType load the whole set. Writes through
- * {@link listingsTable} (and the explicit invalidate calls in the attendee
- * write paths) clear it.
+ * one listing they need; getAll/getByType load the whole set.
+ *
+ * The cache holds the trigger-maintained aggregate columns (booked_quantity,
+ * tickets_count, income), which are mutated by writes to `listing_attendees`,
+ * not to `listings` itself — so the cache declares a dependency on that table
+ * and the db client clears it on any listing_attendees write, the same as for a
+ * direct listings write. This replaces the explicit invalidate calls that every
+ * attendee write path used to have to remember.
  */
 const LISTINGS_CACHE_TTL_MS = 30_000;
 const listingsEntity = cachedEntityTable<
   Listing,
   ListingInput,
   ListingWithCount
->("listings", rawListingsTable, {
-  fetchAll: () => queryListingsWithCounts(),
-  fetchById: (id) => queryOneListingWithCount("e.id = ?", [id]),
-  fetchByKeys: (slugIndexes) =>
-    queryListingsWithCounts(
-      `WHERE e.slug_index IN (${inPlaceholders(slugIndexes)})`,
-      slugIndexes,
-    ),
-  idOf: (e) => e.id,
-  keyOf: (e) => e.slug_index,
-  ttlMs: LISTINGS_CACHE_TTL_MS,
-});
+>(
+  "listings",
+  rawListingsTable,
+  {
+    fetchAll: () => queryListingsWithCounts(),
+    fetchById: (id) => queryOneListingWithCount("e.id = ?", [id]),
+    fetchByKeys: (slugIndexes) =>
+      queryListingsWithCounts(
+        `WHERE e.slug_index IN (${inPlaceholders(slugIndexes)})`,
+        slugIndexes,
+      ),
+    idOf: (e) => e.id,
+    keyOf: (e) => e.slug_index,
+    ttlMs: LISTINGS_CACHE_TTL_MS,
+  },
+  [
+    {
+      table: "listing_attendees",
+      whenColumns: [...LISTING_AGGREGATE_WRITE_COLUMNS],
+    },
+  ],
+);
 const listingsCache = listingsEntity.cache;
 
 /** Listings table with CRUD operations — writes auto-invalidate the cache */
@@ -302,7 +318,7 @@ export const isSlugTaken = async (
   const args = excludeListingId
     ? [slugIndex, excludeListingId, slugIndex]
     : [slugIndex, slugIndex];
-  const result = await getDb().execute({ args, sql });
+  const result = await execute(sql, args);
   return result.rows.length > 0;
 };
 
@@ -325,7 +341,6 @@ export const deleteListing = async (listingId: number): Promise<void> => {
     { args: [listingId], sql: "DELETE FROM activity_log WHERE listing_id = ?" },
     { args: [listingId], sql: "DELETE FROM listings WHERE id = ?" },
   ]);
-  invalidateListingsCache();
 };
 
 /** The precomputed aggregate columns every `SELECT * FROM listings` row carries. */
@@ -432,16 +447,10 @@ export const updateListingAggregateValues = async (
   listingId: number,
   values: ListingAggregateValues,
 ): Promise<void> => {
-  await getDb().execute({
-    args: [
-      values.booked_quantity,
-      values.tickets_count,
-      values.income,
-      listingId,
-    ],
-    sql: "UPDATE listings SET booked_quantity = ?, tickets_count = ?, income = ? WHERE id = ?",
-  });
-  invalidateListingsCache();
+  await execute(
+    "UPDATE listings SET booked_quantity = ?, tickets_count = ?, income = ? WHERE id = ?",
+    [values.booked_quantity, values.tickets_count, values.income, listingId],
+  );
 };
 
 const aggregateResetSql: Record<ListingAggregateField, string> = {
@@ -459,7 +468,6 @@ export const resetListingAggregateFields = async (
   fields: ListingAggregateField[],
 ): Promise<void> => {
   await resetAggregates("listings", listingId, fields, aggregateResetSql);
-  invalidateListingsCache();
 };
 
 /** Result type for combined listing + attendees query */

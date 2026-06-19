@@ -9,7 +9,7 @@
  */
 
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import { executeBatch, getDb, queryAll } from "#shared/db/client.ts";
+import { execute, executeBatch, queryAll } from "#shared/db/client.ts";
 import { queryAndMap, swapSortOrder } from "#shared/db/query.ts";
 import { cachedTable, col, defineTable } from "#shared/db/table.ts";
 
@@ -153,9 +153,8 @@ export const ensureDefaultAttendeeStatus = async (): Promise<void> => {
     reservationAmount: "0",
     sortOrder: 0,
   });
-  await getDb().execute({
-    args: [status.id],
-    sql: "UPDATE attendees SET status_id = ? WHERE status_id IS NULL",
-  });
+  await execute("UPDATE attendees SET status_id = ? WHERE status_id IS NULL", [
+    status.id,
+  ]);
   invalidateAttendeeStatusesCache();
 };
