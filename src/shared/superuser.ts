@@ -1,12 +1,18 @@
+import { ttlCache } from "#fp";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { hashPassword } from "#shared/crypto/hashing.ts";
 import { deriveKEK, wrapKey } from "#shared/crypto/keys.ts";
 import { settings } from "#shared/db/settings.ts";
-import { createUser, getUserByUsername } from "#shared/db/users.ts";
+import {
+  createUser,
+  getUserByUsername,
+  onUsersInvalidated,
+} from "#shared/db/users.ts";
 import { type EmailConfig, sendEmail } from "#shared/email.ts";
 import { getEnv } from "#shared/env.ts";
 import { escapeHtml } from "#shared/jsx/jsx-runtime.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
+import { nowMs } from "#shared/now.ts";
 import type { SuperuserChoice } from "#shared/types.ts";
 import {
   emailLocalPart,
@@ -56,6 +62,39 @@ export const getSuperuserUsername = (email: ValidEmail): string | null => {
   return username;
 };
 
+/** Whether the derived superuser account exists and has been activated. */
+type SuperuserAccount = { userExists: boolean; activated: boolean };
+
+/**
+ * Cache of the superuser account-state lookup — the only DB-touching part of the
+ * owner settings nag, recomputed on every owner page view. Keyed by the derived
+ * username so a username change (tests only) gets its own entry. Cleared on any
+ * user write: createUser / activateUser / deleteUser all funnel through
+ * invalidateUsersCache, which fires the registered listener below. The TTL
+ * matches the users cache so cross-isolate staleness is bounded identically.
+ */
+const SUPERUSER_ACCOUNT_TTL_MS = 15_000;
+const superuserAccountCache = ttlCache<string, SuperuserAccount>(
+  SUPERUSER_ACCOUNT_TTL_MS,
+  nowMs,
+);
+onUsersInvalidated(() => superuserAccountCache.clear());
+
+/** Resolve the superuser account state, serving from cache when warm. */
+const getSuperuserAccount = async (
+  username: string,
+): Promise<SuperuserAccount> => {
+  const cached = superuserAccountCache.get(username);
+  if (cached) return cached;
+  const user = await getUserByUsername(username);
+  const account: SuperuserAccount = {
+    activated: user !== null && user.wrapped_data_key !== null,
+    userExists: user !== null,
+  };
+  superuserAccountCache.set(username, account);
+  return account;
+};
+
 export const getSuperuserState = async (): Promise<SuperuserState> => {
   const raw = getEnv("ADMIN_EMAIL_ADDRESS");
   const email = getAdminEmailAddress();
@@ -66,9 +105,7 @@ export const getSuperuserState = async (): Promise<SuperuserState> => {
   const username = getSuperuserUsername(email);
   if (!username) return { available: false, reason: "invalid-username" };
 
-  const user = await getUserByUsername(username);
-  const userExists = user !== null;
-  const activated = userExists && user.wrapped_data_key !== null;
+  const { userExists, activated } = await getSuperuserAccount(username);
 
   const choice = settings.superuserChoice;
 

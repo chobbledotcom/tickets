@@ -20,8 +20,21 @@ import { createKeyedCache, registerCache } from "#shared/db/common-schema.ts";
 import { now } from "#shared/now.ts";
 import { type AdminLevel, isAdminLevel, type User } from "#shared/types.ts";
 
-const USER_SELECT =
-  "SELECT id, username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry FROM users ORDER BY id ASC";
+const USER_COLUMNS =
+  "id, username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry";
+
+const USER_SELECT = `SELECT ${USER_COLUMNS} FROM users ORDER BY id ASC`;
+
+/** Fetch only the users matching the given blind-index keys, in one query, so a
+ * by-username read never loads the whole table. Powers the cache's targeted
+ * `getByKey`/`getByKeys` path. */
+const fetchUsersByIndex = (keys: string[]): Promise<User[]> =>
+  queryAll<User>(
+    `SELECT ${USER_COLUMNS} FROM users WHERE username_index IN (${keys
+      .map(() => "?")
+      .join(", ")})`,
+    keys,
+  );
 
 export type UserDisplayFields = Pick<
   User,
@@ -49,10 +62,22 @@ export type UserAuthFields = Pick<User, "admin_level" | "id">;
 const USERS_CACHE_TTL_MS = 15_000;
 const usersCache = createKeyedCache<User>({
   fetchAll: () => queryAll<User>(USER_SELECT),
+  fetchByKeys: fetchUsersByIndex,
   idOf: (u) => u.id,
   keyOf: (u) => u.username_index,
   ttlMs: USERS_CACHE_TTL_MS,
 });
+
+/**
+ * Callbacks fired on every users-cache invalidation, so derived caches (e.g.
+ * the superuser account-state cache) can clear in lockstep with user writes.
+ */
+const usersInvalidationListeners = new Set<() => void>();
+
+/** Register a callback to run whenever the users cache is invalidated. */
+export const onUsersInvalidated = (listener: () => void): void => {
+  usersInvalidationListeners.add(listener);
+};
 
 const loadAllUsers = (): Promise<User[]> => usersCache.getAll();
 
@@ -61,6 +86,7 @@ registerCache(() => ({ entries: usersCache.size(), name: "users" }));
 /** Invalidate the users cache (for testing or after writes). */
 export const invalidateUsersCache = (): void => {
   usersCache.invalidate();
+  for (const listener of usersInvalidationListeners) listener();
 };
 
 /** Shared user creation logic */
