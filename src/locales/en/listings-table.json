@@ -74,7 +74,7 @@
   "listings_table.delete_listing": "Delete Listing",
   "listings_table.listing_name": "Listing name",
   "listings_table.warning": "Warning",
-  "listings_table.delete_warning_text": "This will permanently delete the listing, all {count} attendee(s), any associated payment records, and all activity log entries for this listing.",
+  "listings_table.delete_warning_text": "This permanently deletes the listing and its activity log entries. Its {count} attendee(s) will be unlinked from this listing rather than deleted — their attendee records and any payments are kept, and any bookings they have on other listings are unaffected.",
   "listings_table.delete_confirmation_text": "To delete this listing, type its name \"{name}\" into the box below:",
   "listings_table.deactivate_listing_title": "Deactivate: {name}",
   "listings_table.deactivate_listing": "Deactivate Listing",

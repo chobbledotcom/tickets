@@ -56,7 +56,7 @@
   "admin.listings.remove_image": "Remove Image",
   "admin.listings.current_attachment": "Current attachment:",
   "admin.listings.remove_attachment": "Remove Attachment",
-  "admin.listings.delete_listing.warning": "Warning: This will permanently delete the listing, all {count, plural, one {1 attendee} other {{count} attendees}}, any associated payment records, and all activity log entries for this listing.",
+  "admin.listings.delete_listing.warning": "Warning: This permanently deletes the listing and its activity log entries. Its {count, plural, one {1 attendee} other {{count} attendees}} will be unlinked from this listing rather than deleted — their attendee records and any payments are kept, and any bookings on other listings are unaffected.",
   "admin.listings.delete_listing.confirm_prompt": "To delete this listing, type its name \"{name}\" into the box below:",
   "admin.listings.delete_listing.label": "Listing name",
   "admin.listings.delete_listing.submit": "Delete Listing",

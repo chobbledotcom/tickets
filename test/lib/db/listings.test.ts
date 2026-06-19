@@ -12,7 +12,7 @@ import {
   getAttendeeRaw,
   getAttendeesRaw,
 } from "#shared/db/attendees.ts";
-import { getDb } from "#shared/db/client.ts";
+import { getDb, queryAll } from "#shared/db/client.ts";
 import {
   computeSlugIndex,
   deleteListing,
@@ -37,6 +37,7 @@ import {
   getAttendeeAnswersBatch,
   questionsTable,
   saveAttendeeAnswers,
+  setListingQuestions,
 } from "#shared/db/questions.ts";
 import { MAX_DURATION_DAYS } from "#shared/types.ts";
 import {
@@ -398,6 +399,28 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
 
       const answers = await getAttendeeAnswersBatch([attendeeId]);
       expect(answers.get(attendeeId)).toEqual([answer.id]);
+    });
+
+    test("removes the deleted listing's question assignments, keeping other listings'", async () => {
+      const listing1 = await createTestListing({ maxAttendees: 50 });
+      const listing2 = await createTestListing({ maxAttendees: 50 });
+      const question = await questionsTable.insert({
+        displayType: "radio",
+        text: "Meal choice?",
+      });
+      await setListingQuestions(listing1.id, [question.id]);
+      await setListingQuestions(listing2.id, [question.id]);
+
+      await deleteListing(listing1.id);
+
+      // Only the deleted listing's assignment is removed; listing2 keeps its
+      // own. Leaving it behind would orphan the row (and, on databases migrated
+      // from the legacy schema, the listing_questions → listings FK would have
+      // blocked the delete entirely).
+      const rows = await queryAll<{ listing_id: number }>(
+        "SELECT listing_id FROM listing_questions ORDER BY listing_id",
+      );
+      expect(rows.map((r) => r.listing_id)).toEqual([listing2.id]);
     });
 
     test("keeps the shared attendee's processed payment when one listing is deleted", async () => {

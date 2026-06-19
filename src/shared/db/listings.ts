@@ -326,17 +326,30 @@ export const isSlugTaken = async (
  * Delete a listing and its own bookings in a single database round-trip.
  *
  * Only the deleted listing's rows are touched: its `listing_attendees` links,
- * its `activity_log` entries, and the listing itself. Attendees are deliberately
- * left alone — an attendee booked onto another listing keeps that booking (and
- * all of its answers/payments) completely untouched, and an attendee left with
- * no bookings is simply orphaned rather than purged. This scoping guarantees
- * that deleting one listing can never affect another listing's attendees.
+ * its `listing_questions` assignments, its `activity_log` entries, and the
+ * listing itself. Attendees are deliberately left alone — an attendee booked
+ * onto another listing keeps that booking (and all of its answers/payments)
+ * completely untouched, and an attendee left with no bookings is simply
+ * orphaned rather than purged. This scoping guarantees that deleting one
+ * listing can never affect another listing's attendees.
+ *
+ * The `listing_questions` assignments must be cleared before the listing row.
+ * Databases migrated from the legacy schema still carry that table's original
+ * `FOREIGN KEY (listing_id) REFERENCES listings(id)` constraint — the migration
+ * only rebuilds the attendee-related tables to drop their FKs, never this one —
+ * so deleting a listing that had any questions assigned would otherwise fail
+ * with "FOREIGN KEY constraint failed". Clearing the links first also stops
+ * orphaned rows accumulating on fresh databases that have no such constraint.
  */
 export const deleteListing = async (listingId: number): Promise<void> => {
   await executeBatch([
     {
       args: [listingId],
       sql: "DELETE FROM listing_attendees WHERE listing_id = ?",
+    },
+    {
+      args: [listingId],
+      sql: "DELETE FROM listing_questions WHERE listing_id = ?",
     },
     { args: [listingId], sql: "DELETE FROM activity_log WHERE listing_id = ?" },
     { args: [listingId], sql: "DELETE FROM listings WHERE id = ?" },
