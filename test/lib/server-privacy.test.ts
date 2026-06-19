@@ -2,11 +2,13 @@
  * Tests for the admin Privacy page (GET render + the orphan-purge and GDPR
  * erasure POST handlers).
  *
- * Note on the background prune: every request flushes the fire-and-forget prune
- * scheduler before responding, and orphan auto-purge is ON by default. Tests
- * that assert on an *old* orphan therefore turn auto-purge off first, so the
- * only thing that can delete it is the handler under test. The count render
- * test uses a fresh orphan, which no retention window would remove.
+ * Note on the background prune: most requests flush the fire-and-forget prune
+ * scheduler before responding, but POST /admin/privacy/orphans deliberately
+ * skips it (see prepareRequestEnvironment) so a request that changes the
+ * retention or switches auto-purge off is never raced by a purge enqueued with
+ * the pre-change settings. These tests rely on that: they leave auto-purge on
+ * (its default) and assert the *handler* — not a background prune — decides an
+ * old orphan's fate.
  */
 
 import { expect } from "@std/expect";
@@ -107,20 +109,22 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
       method: "POST",
     });
 
-    test("saves the age and toggle without deleting, on Save", async () => {
-      await settings.update.autoPurgeOrphans(false);
+    test("saving with auto-purge switched off does not purge with the old settings", async () => {
+      // Auto-purge is on by default and the orphan prune is due (fresh DB), so
+      // unless this route skips the scheduler, the request that turns auto-purge
+      // off would still reap this old orphan with the previous retention.
       const id = await insertOrphan(oldIso());
 
       const { response } = await adminFormPost("/admin/privacy/orphans", {
         action: "save",
-        retention: "365",
+        retention: "1825",
       });
 
       expectRedirectWithFlash(
         "/admin/privacy",
         "Saved your orphaned-record settings.",
       )(response);
-      expect(settings.orphanPurgeRetention).toBe("365");
+      expect(settings.orphanPurgeRetention).toBe("1825");
       expect(settings.autoPurgeOrphans).toBe(false);
       expect(await attendeeExists(id)).toBe(true);
     });
@@ -137,7 +141,6 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
     });
 
     test("deletes matching orphans now, on Purge", async () => {
-      await settings.update.autoPurgeOrphans(false);
       const id = await insertOrphan(oldIso());
 
       const { response } = await adminFormPost("/admin/privacy/orphans", {

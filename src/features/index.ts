@@ -748,10 +748,16 @@ const prepareRequestEnvironment = async (
   // targeted query. The cache is a no-op when still valid (60 s TTL).
   await settings.loadKeys(settingsForPath(path));
 
-  // Schedule DB pruning as fire-and-forget pending work. Each
-  // prune task self-guards via its last_pruned_* timestamp, so
-  // this is near-free on most requests.
-  addPendingWork(maybeRunPrunes());
+  // Schedule DB pruning as fire-and-forget pending work. Each prune task
+  // self-guards via its last_pruned_* timestamp, so this is near-free on most
+  // requests. Skipped on the one request that edits the orphan-purge settings
+  // themselves: scheduling here runs before the handler can save the submitted
+  // retention or auto-purge toggle, so an enqueued orphan purge could delete
+  // records with the pre-change settings (or run despite auto-purge being
+  // switched off). The next request reschedules with the saved settings.
+  if (!(method === "POST" && path === "/admin/privacy/orphans")) {
+    addPendingWork(maybeRunPrunes());
+  }
 
   // Load effective domain (custom_domain from DB if set, else request hostname)
   loadEffectiveDomain(request.url);
