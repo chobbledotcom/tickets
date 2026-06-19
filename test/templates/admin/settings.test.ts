@@ -444,6 +444,8 @@ describe("adminAdvancedSettingsPage", () => {
     bunnyDnsSubdomainSuffix: "",
     bunnySubdomain: "",
     businessEmail: "",
+    calendarFeedsEnabled: false,
+    calendarFeedsGroupBy: "attendees",
     cdnHostname: "",
     confirmationTemplates: { html: "", subject: "", text: "" },
     customDomain: "",

@@ -422,3 +422,204 @@ describeWithEnv("feeds", { db: true }, () => {
     });
   });
 });
+
+describeWithEnv("calendar attendee feeds", { db: true }, () => {
+  test("returns not found when disabled", async () => {
+    const response = await handleRequest(mockRequest("/caldav/events.ics"));
+    expect(response.status).toBe(404);
+  });
+
+  test("requires an API key when enabled", async () => {
+    await settings.update.calendarFeedsEnabled(true);
+    const response = await handleRequest(mockRequest("/caldav/events.ics"));
+    expect(response.status).toBe(401);
+  });
+
+  test("returns attendee-grouped events for API keys", async () => {
+    const { createTestApiKeyFull, requestAsApiKey } = await import(
+      "#test-utils/session.ts"
+    );
+    const { createTestAttendee } = await import("#test-utils/db-helpers.ts");
+    await settings.update.calendarFeedsEnabled(true);
+    await settings.update.calendarFeedsGroupBy("attendees");
+    const { apiKey } = await createTestApiKeyFull("Calendar");
+    const listing = await createTestListing({
+      date: "2026-08-01T09:30",
+      location: "Main Hall",
+      maxAttendees: 10,
+      name: "Summer Show",
+    });
+    await createTestAttendee(
+      listing.id,
+      listing.slug,
+      "Alice Example",
+      "a@test.com",
+    );
+
+    const response = await handleRequest(
+      requestAsApiKey("/caldav/events.ics", apiKey),
+    );
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe(
+      "text/calendar; charset=utf-8",
+    );
+    expect(body).toContain("BEGIN:VEVENT");
+    expect(body).toContain("SUMMARY:Alice Example");
+    expect(body).toContain("DESCRIPTION:Summer Show");
+    expect(body).toContain("DTSTART:20260801T093000Z");
+    expect(body).toContain("LOCATION:Main Hall");
+    expect(body).toContain("/admin/attendees/");
+  });
+
+  test("returns listing-grouped events for API keys", async () => {
+    const { createTestApiKeyFull, requestAsApiKey } = await import(
+      "#test-utils/session.ts"
+    );
+    const { createTestAttendee } = await import("#test-utils/db-helpers.ts");
+    await settings.update.calendarFeedsEnabled(true);
+    await settings.update.calendarFeedsGroupBy("listings");
+    const { apiKey } = await createTestApiKeyFull("Calendar Listings");
+    const listing = await createTestListing({
+      date: "2026-09-02T10:00",
+      maxAttendees: 10,
+      name: "Autumn Show",
+    });
+    await createTestAttendee(
+      listing.id,
+      listing.slug,
+      "Bob Example",
+      "b@test.com",
+    );
+
+    const response = await handleRequest(
+      requestAsApiKey("/caldav/events.ics", apiKey),
+    );
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(body).toContain("SUMMARY:Autumn Show");
+    expect(body).toContain("DESCRIPTION:Bob Example");
+  });
+
+  test("omits dateless bookings and falls back to attendee id for blank names", async () => {
+    const { createTestApiKeyFull, requestAsApiKey } = await import(
+      "#test-utils/session.ts"
+    );
+    const { createTestAttendeeDirect } = await import(
+      "#test-utils/db-helpers.ts"
+    );
+    await settings.update.calendarFeedsEnabled(true);
+    const { apiKey } = await createTestApiKeyFull("Calendar Blank");
+    const dated = await createTestListing({
+      date: "2026-11-04T12:00",
+      maxAttendees: 10,
+      name: "Dated Blank",
+    });
+    const dateless = await createTestListing({
+      maxAttendees: 10,
+      name: "Dateless",
+    });
+    const attendee = await createTestAttendeeDirect(
+      dated.id,
+      "",
+      "blank@test.com",
+    );
+    await createTestAttendeeDirect(dateless.id, "No Date", "nodate@test.com");
+
+    const response = await handleRequest(
+      requestAsApiKey("/caldav/events.ics", apiKey),
+    );
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(body).toContain("SUMMARY:Attendee 1");
+    expect(body).not.toContain("No Date");
+  });
+
+  test("forbids API keys when the private key cannot be derived", async () => {
+    const { createTestApiKeyFull, requestAsApiKey } = await import(
+      "#test-utils/session.ts"
+    );
+    await settings.update.calendarFeedsEnabled(true);
+    const { apiKey } = await createTestApiKeyFull("Calendar Forbidden");
+    settings.setForTest({ wrapped_private_key: "" });
+    try {
+      const response = await handleRequest(
+        requestAsApiKey("/caldav/events.ics", apiKey),
+      );
+      expect(response.status).toBe(403);
+    } finally {
+      settings.clearTestOverride("wrapped_private_key");
+    }
+  });
+
+  test("limits agent API keys to assigned attendees", async () => {
+    const { createApiKey } = await import("#shared/db/api-keys.ts");
+    const { createUser } = await import("#shared/db/users.ts");
+    const { setLogisticsAssignments } = await import("#shared/db/logistics.ts");
+    const { logisticsAgentsTable } = await import(
+      "#shared/db/logistics-agents.ts"
+    );
+    const { setUserAgentIds } = await import("#shared/db/user-agents.ts");
+    const { generateSecureToken } = await import("#shared/crypto/utils.ts");
+    const { getTestDataKeyForApiKey, requestAsApiKey } = await import(
+      "#test-utils/session.ts"
+    );
+    const { createTestAttendee } = await import("#test-utils/db-helpers.ts");
+    await settings.update.calendarFeedsEnabled(true);
+    const dataKey = await getTestDataKeyForApiKey();
+    const user = await createUser("feed-agent", "", null, "agent");
+    const agent = await logisticsAgentsTable.insert({ name: "Van 1" });
+    await setUserAgentIds(user.id, [agent.id]);
+    const { apiKey } = await createApiKey(
+      user.id,
+      "Agent Calendar",
+      dataKey,
+      generateSecureToken,
+    );
+    const listing = await createTestListing({
+      date: "2026-10-03T11:00",
+      maxAttendees: 10,
+      name: "Delivery Show",
+      usesLogistics: true,
+    });
+    const visible = await createTestAttendee(
+      listing.id,
+      listing.slug,
+      "Visible Person",
+      "v@test.com",
+    );
+    await setLogisticsAssignments(
+      visible.id,
+      false,
+      new Map([
+        [
+          listing.id,
+          {
+            endAgentId: null,
+            endTime: "",
+            startAgentId: agent.id,
+            startTime: "",
+          },
+        ],
+      ]),
+    );
+    await createTestAttendee(
+      listing.id,
+      listing.slug,
+      "Hidden Person",
+      "h@test.com",
+    );
+
+    const response = await handleRequest(
+      requestAsApiKey("/caldav/events.ics", apiKey),
+    );
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(body).toContain("Visible Person");
+    expect(body).not.toContain("Hidden Person");
+  });
+});

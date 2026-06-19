@@ -7,6 +7,7 @@ import type { AdminSession, Theme } from "#shared/types.ts";
 import { ResetDatabaseForm } from "#templates/admin/database-reset.tsx";
 import { AdminNav, SettingsSubNav } from "#templates/admin/nav.tsx";
 import { AppleWalletForm } from "#templates/admin/settings/apple-wallet.tsx";
+import { CalendarFeedsForm } from "#templates/admin/settings/calendar-feeds.tsx";
 import {
   AttendeeColumnOrderForm,
   ListingColumnOrderForm,
@@ -38,6 +39,8 @@ export type AdvancedSettingsPageState = {
     html: string;
     text: string;
   };
+  calendarFeedsEnabled: boolean;
+  calendarFeedsGroupBy: "attendees" | "listings";
   bunnyCdnEnabled: boolean;
   bunnyDnsEnabled: boolean;
   bunnySubdomain: string;
@@ -89,6 +92,7 @@ export const adminAdvancedSettingsPage = (
       {ListingColumnOrderForm(s)}
       {AttendeeColumnOrderForm(s)}
       {PublicApiForm(s)}
+      {CalendarFeedsForm(s)}
       {GoogleWalletForm(s)}
       {AppleWalletForm(s)}
       {SmsGatewayForm(s)}
