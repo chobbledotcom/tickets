@@ -626,8 +626,15 @@ const processSubmission = async (
     // Record modifier usage (and consume stock) on every completion, including
     // disabled-payments free bookings, so a stock-limited answer tier is capped
     // across all bookings — not just the paid ones the webhook would have
-    // consumed.
-    modifierUsages: finalPricedOrder.modifierApplications,
+    // consumed. With payments disabled the booking collects nothing, so the
+    // applied amounts are zeroed: stock is still consumed (it's keyed on
+    // quantity) while the modifier revenue aggregates correctly stay at zero.
+    modifierUsages: paymentsEnabled
+      ? finalPricedOrder.modifierApplications
+      : finalPricedOrder.modifierApplications.map((m) => ({
+          ...m,
+          amountApplied: 0,
+        })),
     paymentBreakdown: paymentsEnabled
       ? ticketPaymentBreakdown(intent)
       : undefined,

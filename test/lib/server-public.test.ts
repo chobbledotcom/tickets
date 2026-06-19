@@ -7,7 +7,11 @@ import { builderApi } from "#shared/builder.ts";
 import { addDays } from "#shared/dates.ts";
 import { insertBuiltSite } from "#shared/db/built-sites.ts";
 import { hashPhone, recordVisit } from "#shared/db/contact-preferences.ts";
-import { modifiersTable, setModifierAnswers } from "#shared/db/modifiers.ts";
+import {
+  getAllModifiers,
+  modifiersTable,
+  setModifierAnswers,
+} from "#shared/db/modifiers.ts";
 import {
   answersTable,
   getAttendeeAnswersBatch,
@@ -4603,6 +4607,14 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
         [`question_${question.id}`]: String(answer1.id),
       });
       expectReservedRedirectWithTokens(first);
+
+      // The unit was consumed, but with payments off nothing was collected: the
+      // usage is recorded without inflating the tier's reported revenue.
+      const afterFirst = (await getAllModifiers()).find(
+        (m) => m.id === tier.id,
+      );
+      expect(afterFirst?.total_uses).toBe(1);
+      expect(afterFirst?.total_revenue).toBe(0);
 
       // The single unit is now spent, so the next booking of the tier is blocked.
       const second = await submitTicketForm(listing.slug, {
