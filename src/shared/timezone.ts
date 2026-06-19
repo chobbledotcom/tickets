@@ -1,10 +1,17 @@
 /**
- * Timezone conversion utilities built on the standard Temporal API.
+ * Timezone conversion utilities built on the Temporal API.
+ *
+ * Temporal is imported from `temporal-polyfill` rather than used as a runtime
+ * global: the deployed Bunny Edge bundle must run on whichever Deno the edge
+ * happens to use, and Deno only exposes `Temporal` as a stable global from
+ * 2.7+. Bundling the polyfill keeps behaviour identical across runtimes (and
+ * in tests) instead of depending on an API the baseline runtime lacks.
  *
  * Provides simple string-in/string-out functions for the rest of the
  * codebase, with correct DST handling and explicit disambiguation.
  */
 
+import { Temporal } from "temporal-polyfill";
 import { formatIsoForPreview } from "#shared/bulk-replace.ts";
 
 /** Default timezone when none is configured */
