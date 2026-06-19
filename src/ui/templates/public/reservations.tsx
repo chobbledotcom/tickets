@@ -205,9 +205,7 @@ export const renderQuestions = (
       const answered = savedFormValue(`question_${q.id}`);
       const options =
         q.display_type === "select"
-          ? `<label><span class="sr-only">${escapeHtml(
-              q.text,
-            )}</span><select name="question_${q.id}" required><option value="">${t(
+          ? `<select name="question_${q.id}" required><option value="">${t(
               "public.ticket.select_answer_placeholder",
             )}</option>${q.answers
               .map(
@@ -216,7 +214,7 @@ export const renderQuestions = (
                     answered === String(a.id) ? " selected" : ""
                   }>${escapeHtml(a.text)}</option>`,
               )
-              .join("")}</select></label>`
+              .join("")}</select>`
           : q.answers
               .map(
                 (a) =>

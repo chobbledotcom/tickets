@@ -237,20 +237,17 @@ export const EditQuestions = ({
       <fieldset class="custom-question">
         <legend>{q.text}</legend>
         {q.display_type === "select" ? (
-          <label>
-            <span class="sr-only">{q.text}</span>
-            <select name={`question_${q.id}`}>
-              <option value="">No answer</option>
-              {q.answers.map((a) => (
-                <option
-                  selected={selectedAnswerIds.includes(a.id) || undefined}
-                  value={String(a.id)}
-                >
-                  {a.text}
-                </option>
-              ))}
-            </select>
-          </label>
+          <select name={`question_${q.id}`}>
+            <option value="">No answer</option>
+            {q.answers.map((a) => (
+              <option
+                selected={selectedAnswerIds.includes(a.id) || undefined}
+                value={String(a.id)}
+              >
+                {a.text}
+              </option>
+            ))}
+          </select>
         ) : (
           q.answers.map((a) => (
             <label>
