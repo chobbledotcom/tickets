@@ -13,7 +13,11 @@
  * drift apart — the failure mode this whole module exists to remove.
  */
 
-import { hmacHash, hmacHashSync } from "#shared/crypto/hashing.ts";
+import {
+  constantTimeEqualBytes,
+  hmacHash,
+  hmacHashSync,
+} from "#shared/crypto/hashing.ts";
 
 /** Bump when the signed-payload layout changes, so old digests never validate
  * against new code. */
@@ -73,17 +77,6 @@ const canonicalPricePayload = (fields: PriceSignatureFields): string =>
     fields.date,
   ]);
 
-/** Constant-time equality for two equal-length digests. Length is allowed to
- * leak (digests are fixed length); content comparison does not short-circuit. */
-const constantTimeEqual = (a: string, b: string): boolean => {
-  if (a.length !== b.length) return false;
-  let result = 0;
-  for (let i = 0; i < a.length; i++) {
-    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  }
-  return result === 0;
-};
-
 /** HMAC the canonical price payload with the server encryption key. */
 export const signPrice = (fields: PriceSignatureFields): Promise<string> =>
   hmacHash(`price-sig:${canonicalPricePayload(fields)}`);
@@ -100,6 +93,12 @@ export const verifyPrice = async (
   signature: string,
 ): Promise<boolean> => {
   if (!signature) return false;
-  const expected = await signPrice(fields);
-  return constantTimeEqual(expected, signature);
+  // Compare digest bytes in constant time (lengths, fixed for a digest, may
+  // leak). Reuses the crypto module's comparison rather than re-rolling one.
+  const expected = new TextEncoder().encode(await signPrice(fields));
+  const provided = new TextEncoder().encode(signature);
+  return (
+    expected.length === provided.length &&
+    constantTimeEqualBytes(expected, provided)
+  );
 };

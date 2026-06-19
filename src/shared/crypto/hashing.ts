@@ -30,7 +30,10 @@ const PASSWORD_PREFIX = "pbkdf2";
  * Constant-time comparison for Uint8Arrays of equal length
  * Caller must ensure arrays have the same length (validated by verifyPassword)
  */
-const constantTimeEqualBytes = (a: Uint8Array, b: Uint8Array): boolean => {
+export const constantTimeEqualBytes = (
+  a: Uint8Array,
+  b: Uint8Array,
+): boolean => {
   let result = 0;
   for (let i = 0; i < a.length; i++) {
     result |= a[i]! ^ b[i]!;
