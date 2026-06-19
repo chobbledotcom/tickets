@@ -218,6 +218,35 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
     }
   });
 
+  test("a signed session for a missing listing is refunded, not stranded", async () => {
+    await setupStripe();
+    // No listing with this id exists (as if deleted between checkout and the
+    // webhook). The signature still proves the session is ours, so the 404 must
+    // refund rather than take the foreign-session no-refund path that would
+    // leave the customer charged.
+    const metadata = signMeta(
+      webhookMeta({
+        email: "gone@example.com",
+        items: singleItem(999999, 1, 1000),
+        name: "Gone Buyer",
+      }),
+      1000,
+    );
+    const mockVerify = await stubCompletedSession({
+      amount_total: 1000,
+      id: "cs_missing_listing",
+      metadata,
+    });
+    try {
+      await assertJson(webhookRequest(), 200, (json) => {
+        expect(json.processed).toBe(false);
+        expect(json.error).toContain("price");
+      });
+    } finally {
+      mockVerify.restore();
+    }
+  });
+
   test("a malformed price proof is rejected, not silently downgraded", async () => {
     await setupStripe();
     const listing = await createTestListing({

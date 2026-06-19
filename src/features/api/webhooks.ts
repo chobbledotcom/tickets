@@ -276,7 +276,7 @@ const refundAndFail = async (
   listingId: number,
   status: number | undefined,
   detail?: string,
-): Promise<PaymentResult> => {
+): Promise<PaymentFailureResult> => {
   const refunded = await refundAndLog(session, message, listingId);
   return { detail, error: message, refunded, status, success: false };
 };
@@ -291,7 +291,7 @@ const validationFailure = (
   session: ValidatedPaymentSession,
   validation: { error: string; status?: number },
   listingId: number,
-): Promise<PaymentResult> | PaymentResult => {
+): Promise<PaymentFailureResult> | PaymentFailureResult => {
   if (validation.status === 404) {
     return {
       detail: `Post-payment listing not found (session=${session.id})`,
@@ -541,7 +541,7 @@ const handleReservationConflict = async (
 const validateAllItems = async (
   session: ValidatedPaymentSession,
   intent: BookingIntent,
-): Promise<{ ok: true; items: ValidatedItem[] } | PaymentResult> => {
+): Promise<{ ok: true; items: ValidatedItem[] } | PaymentFailureResult> => {
   const includeListingName = intent.items.length > 1;
   const validatedItems: ValidatedItem[] = [];
   for (const item of intent.items) {
@@ -656,14 +656,14 @@ const checkPriceSignature = async (
 /**
  * Verify a paid session's prices. Returns null on success, or a refund result.
  *
- * A session our checkout signed (every production session) is verified against
- * its signed agreed total — the oracle the buyer paid — and the re-derivation
- * (which still drives stock and per-listing pricing) must reproduce it; a
+ * `signature` is the result of the earlier checkPriceSignature gate (run before
+ * validation so a signed session is never lost down the no-refund 404 path):
+ * the trusted agreed total for a session we signed, or null for an unsigned
+ * one. A signed session's re-derivation must reproduce the agreed total; a
  * divergence while every modifier ref still resolves is a code bug, not a
- * mid-checkout change, so it pages. An unsigned session (a signing outage, or a
- * legacy/hand-built one) falls back to the older check of the charge against
- * the re-derived total: a safer degraded mode than refunding everyone if
- * signing ever breaks.
+ * mid-checkout change, so it pages. An unsigned session falls back to the older
+ * check of the charge against the re-derived total — a safer degraded mode than
+ * refunding everyone if signing ever breaks.
  */
 const verifyPaidPricing = async (
   session: ValidatedPaymentSession,
@@ -671,6 +671,7 @@ const verifyPaidPricing = async (
   validatedItems: ValidatedItem[],
   pricedOrder: PricedOrder,
   inputsIntact: boolean,
+  signature: { agreed: number } | null,
 ): Promise<PaymentResult | null> => {
   const listingId = validatedItems[0]!.listing.id;
   const hasPaidItems = intent.items.some((item) => item.p > 0);
@@ -688,7 +689,6 @@ const verifyPaidPricing = async (
     }
   }
 
-  const signature = await checkPriceSignature(session, listingId);
   if (signature === null) {
     // Unsigned fallback: validate the charge against the re-derived total.
     if (session.amountTotal !== pricedOrder.total) {
@@ -700,7 +700,6 @@ const verifyPaidPricing = async (
     }
     return null;
   }
-  if (!("agreed" in signature)) return signature; // signed but unusable: refund
 
   // Signed and charged correctly: the re-derivation must reproduce the total.
   if (pricedOrder.total !== signature.agreed) {
@@ -925,9 +924,30 @@ const processReservedSession = async (
     return settleBalanceSession(sessionId, session, intent);
   }
 
+  // Verify our price signature before validation: a session we signed must
+  // never be lost to the foreign-session 404 path. A present-but-invalid proof
+  // is our own tampered session and refunds now; a valid proof marks the
+  // session as ours, so a deleted/corrupted listing still refunds rather than
+  // leaving the customer charged with only a "listing not found" failure.
+  const signedListingId = intent.items[0]!.e;
+  const signature = await checkPriceSignature(session, signedListingId);
+  if (signature !== null && !("agreed" in signature)) return signature;
+
   // Phase 2: Validate listings and create attendees atomically
   const validated = await validateAllItems(session, intent);
-  if ("success" in validated) return validated;
+  if ("success" in validated) {
+    // validateAllItems leaves a 404 un-refunded (it may be a foreign instance
+    // sharing the provider). For a session we signed it is our own missing
+    // listing, so refund instead of stranding the paid customer.
+    if (validated.status === 404 && signature !== null) {
+      return priceMismatchRefund(
+        session,
+        `Listing not found for a signed session (session=${session.id})`,
+        signedListingId,
+      );
+    }
+    return validated;
+  }
   const validatedItems = validated.items;
 
   // Resolve the applied modifiers once (re-fetched by id from the database);
@@ -963,6 +983,7 @@ const processReservedSession = async (
     validatedItems,
     pricedOrder,
     inputsIntact,
+    signature,
   );
   if (pricingError) return pricingError;
 
