@@ -32,6 +32,7 @@ The `.tool-versions` file is kept in sync for asdf-compatible tooling.
 ## Preferences
 
 - **Use FP methods**: Prefer curried functional utilities from `#fp` over imperative loops
+- **Zero code duplication**: jscpd runs at a non-negotiable 0% threshold. Fix duplication with a helper or currying — see [Code Duplication](#code-duplication). `jscpd:ignore` is reserved for import blocks, essentially nothing else.
 - **100% test coverage**: All code must have complete test coverage - run `deno coverage` to find uncovered lines/branches
 - **Trust application invariants**: Do not design normal code paths around database states the application says are impossible. If an impossible state is observed, raise it as an error and repair the data explicitly rather than silently accepting or normalising it.
 - **Select only needed columns**: Avoid `SELECT *` and broad "load every row" helpers — query the specific columns a caller actually uses. See [Database Queries](#database-queries).
@@ -92,6 +93,25 @@ the `pipe`-based code. Note `@std/collections` has **no** `groupBy` export
 | `chunk(size)`      | Split array into chunks (std chunk) |
 | `sumOf(selector)`  | Sum by selector (std sumOf)        |
 | `sum(arr)`         | Sum an array of numbers         |
+
+## Code Duplication
+
+`deno task cpd` (run as part of `deno task precommit`) runs jscpd with a **0%
+threshold — this is non-negotiable**. When it fails it prints this same
+guidance. Fix the duplication; do not silence it:
+
+1. **Write a helper.** This is the answer in ~99.999% of cases. If an obvious
+   shared function jumps out, extract it and call it from both sites.
+2. **No obvious helper? Curry.** Lift the parts that differ into arguments of a
+   function that returns the specialised version, then call it at each site.
+   **Then review your work before committing — zoom out one step further.** The
+   first small curry you reach for is often not the best one; a larger, more
+   holistic curry across the call sites is very frequently far better.
+3. **`jscpd:ignore` is the last resort.** It is excusable for basically *one*
+   thing: **import blocks** (plus the rare unavoidable scrap of
+   boilerplate/infrastructure we have no control over). If the duplicated code
+   is not an import block, you almost certainly want option 1 or 2 — an
+   `jscpd:ignore` tag anywhere else is a code smell, not a fix.
 
 ## Database Queries
 
