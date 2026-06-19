@@ -422,6 +422,64 @@ describe("adminListingPage", () => {
     expect(html).toContain("Test Listing");
   });
 
+  test("shows the listing ticket price in the details table", () => {
+    const paidListing = testListingWithCount({ unit_price: 1250 });
+    const html = adminListingPage({
+      allowedDomain: "localhost",
+      attendees: [],
+      listing: paidListing,
+      session: TEST_SESSION,
+    });
+    expect(html).toContain("Ticket Price");
+    expect(html).toContain("£12.50");
+  });
+
+  test("shows pay-more price bounds in the details table", () => {
+    const payMoreListing = testListingWithCount({
+      can_pay_more: true,
+      max_price: 2500,
+      unit_price: 1000,
+    });
+    const html = adminListingPage({
+      allowedDomain: "localhost",
+      attendees: [],
+      listing: payMoreListing,
+      session: TEST_SESSION,
+    });
+    expect(html).toContain("Ticket Price");
+    expect(html).toContain("£10");
+    expect(html).toContain("pay more: £10–£25");
+  });
+
+  test("shows pay-more enabled when no higher maximum is configured", () => {
+    const payMoreListing = testListingWithCount({
+      can_pay_more: true,
+      max_price: 0,
+      unit_price: 0,
+    });
+    const html = adminListingPage({
+      allowedDomain: "localhost",
+      attendees: [],
+      listing: payMoreListing,
+      session: TEST_SESSION,
+    });
+    expect(html).toContain("Ticket Price");
+    expect(html).toContain("Free");
+    expect(html).toContain("pay more enabled");
+  });
+
+  test("shows free when the listing has no ticket price", () => {
+    const freeListing = testListingWithCount({ unit_price: 0 });
+    const html = adminListingPage({
+      allowedDomain: "localhost",
+      attendees: [],
+      listing: freeListing,
+      session: TEST_SESSION,
+    });
+    expect(html).toContain("Ticket Price");
+    expect(html).toContain("Free");
+  });
+
   test("shows attendees row with count and remaining", () => {
     const html = adminListingPage({
       allowedDomain: "localhost",
