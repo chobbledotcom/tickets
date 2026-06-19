@@ -340,6 +340,27 @@ describeWithEnv("getSuperuserState account lookup", { db: true }, () => {
       expect(getQueryLog().length).toBeGreaterThan(0);
     });
   });
+
+  test("discards a lookup that a concurrent user write raced, never caching stale state", async () => {
+    restoreEnv = setTestEnv({ ADMIN_EMAIL_ADDRESS: "admin@example.com" });
+    // Start a lookup: it runs synchronously until getUserByUsername suspends on
+    // its hashing await, having already captured the cache generation.
+    const inflight = getSuperuserState();
+    // A concurrent user write lands while that lookup is in flight, clearing the
+    // derived cache and bumping the generation.
+    invalidateUsersCache();
+    await inflight;
+    // The raced result predates the write, so it must not have been written
+    // back. A follow-up read therefore misses the cache and re-queries rather
+    // than serving the poisoned entry for the rest of the TTL.
+    await runWithQueryLogContext(async () => {
+      enableQueryLog();
+      await getSuperuserState();
+      expect(
+        getQueryLog().some((q) => q.sql.includes("username_index IN")),
+      ).toBe(true);
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
