@@ -318,18 +318,19 @@ export const SQUARE_METADATA_MAX_ENTRIES = 10;
  *
  * Payment providers cap how many metadata entries a session may carry (Square
  * allows only 10), and a fully-populated checkout otherwise overflows it. These
- * fields are individually short — a date, a day count, a couple of modifier
- * refs — so JSON-packing them into one entry frees slots without risking the
- * per-value length cap. Large or length-sensitive fields (items, answer_ids,
- * address, special_instructions) and the integrity-critical ones (_origin,
- * name, email, price_proof) stay top-level, where they remain individually
- * length-checked and directly readable by the metadata guards.
+ * fields are individually short — a date, a day count, a reservation snapshot —
+ * so JSON-packing them into one entry frees slots without risking the per-value
+ * length cap. Large or length-sensitive fields (items, answer_ids, address,
+ * special_instructions, and modifiers — whose compact refs would double-encode
+ * inside `b` and could exceed Square's 255-char value cap) and the
+ * integrity-critical ones (_origin, name, email, price_proof) stay top-level,
+ * where they keep their full per-value headroom, remain individually
+ * length-checked, and are directly readable by the metadata guards.
  */
 const PACKED_KEYS = [
   "phone",
   "date",
   "day_count",
-  "modifiers",
   "reservation_amount",
   "balance_attendee_id",
   "site_token_index",
