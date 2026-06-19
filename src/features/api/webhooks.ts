@@ -793,12 +793,14 @@ const isForeignWebhookSession = async (
  * Gate a paid session on the agreed total its checkout signed into metadata —
  * the oracle the buyer paid, which the provider can't forge. Returns the
  * trusted total; null when the session carries no proof at all (a genuine
- * legacy/unsigned session); or a refund when a proof is present but unusable.
+ * legacy/unsigned session); or a non-null result when a proof is present but
+ * unusable — a refund/page for our own tampered session, or a non-refunding
+ * rejection for one we can't prove is ours.
  *
- * A present-but-corrupt proof — malformed, a bad signature, or a charge that
- * differs from the signed total — is never silently downgraded to the unsigned
- * path (that would let tampering reinstate the weaker check); each pages and
- * refunds, since none should happen for a session we created and billed.
+ * A present-but-invalid proof is never downgraded to the unsigned fallback (that
+ * would let tampering reinstate the weaker amount-only check, which the redirect
+ * path could then accept), so a session we created and billed never slips
+ * through on a corrupt proof.
  */
 const checkPriceSignature = async (
   session: ValidatedPaymentSession,
@@ -814,15 +816,24 @@ const checkPriceSignature = async (
   };
 
   if (!evaluation.valid) {
-    // Invalid proof: either a foreign instance sharing the provider (it signs
-    // with its own key) or our own tampered session. Only refund when it claims
-    // our origin — refunding a foreign session would refund another instance's
-    // payment, and a foreign session can't forge _origin since only its own
-    // merchant sets its metadata. A VALID proof above is honoured regardless of
-    // origin, so tampering the unsigned _origin can't downgrade an ours session.
-    return session.metadata._origin === getEffectiveDomain()
-      ? refuse(`Invalid price signature (session=${session.id})`)
-      : null;
+    // Invalid proof: either our own tampered session or a foreign instance
+    // sharing the provider (it signs with its own key). When it claims our
+    // origin it is ours — refund and page. Otherwise we can't prove it is ours,
+    // so neither accept it (refusing the unsigned fallback) nor refund it
+    // (which could refund another instance's payment); reject it outright.
+    if (session.metadata._origin === getEffectiveDomain()) {
+      return refuse(`Invalid price signature (session=${session.id})`);
+    }
+    logError({
+      code: ErrorCode.WEBHOOK_PRICE_SIGNATURE,
+      detail: `Invalid price signature on an unrecognized session (session=${session.id})`,
+    });
+    return {
+      detail: `Unrecognized signed session (session=${session.id})`,
+      error: "Payment session not recognized.",
+      status: 404,
+      success: false,
+    };
   }
   if (session.amountTotal !== evaluation.total) {
     return refuse(

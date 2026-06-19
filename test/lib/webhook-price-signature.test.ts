@@ -329,6 +329,57 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
     }
   });
 
+  test("a tampered signed field plus a tampered origin is rejected, not accepted via fallback", async () => {
+    await setupStripe();
+    const listing = await createTestListing({
+      maxAttendees: 50,
+      unitPrice: 1000,
+    });
+    // Signed correctly, then a signed field (name) and _origin are both altered.
+    // The re-derived price is unaffected by name and the charge matches, so the
+    // old amount-only fallback would have ACCEPTED this. A present-but-invalid
+    // proof must instead reject it: no attendee, and no refund (we can't prove
+    // it is ours, and refunding could refund another instance's payment).
+    const metadata = {
+      ...signMeta(
+        webhookMeta({
+          email: "tamper-origin@example.com",
+          items: singleItem(listing.id, 1, 1000),
+          name: "Real Name",
+        }),
+        1000,
+      ),
+      _origin: "other-instance.example.test",
+      name: "Tampered Name",
+    };
+    const refund = stub(stripeApi, "refundPayment", () =>
+      Promise.resolve({ id: "re_should_not_happen" } as unknown as Awaited<
+        ReturnType<typeof stripeApi.refundPayment>
+      >),
+    );
+    const retrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+      Promise.resolve({
+        amount_total: 1000,
+        id: "cs_tamper_origin",
+        metadata,
+        payment_intent: "pi_tamper_origin",
+        payment_status: "paid",
+      } as unknown as Awaited<
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      >),
+    );
+    try {
+      await handleRequest(
+        mockRequest("/payment/success?session_id=cs_tamper_origin"),
+      );
+      expect((await getAttendeesRaw(listing.id)).length).toBe(0);
+      expect(refund.calls.length).toBe(0);
+    } finally {
+      retrieve.restore();
+      refund.restore();
+    }
+  });
+
   test("an unsigned session still succeeds via the re-derived fallback", async () => {
     await setupStripe();
     const listing = await createTestListing({
