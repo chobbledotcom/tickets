@@ -429,10 +429,43 @@ describeWithEnv("calendar attendee feeds", { db: true }, () => {
     expect(response.status).toBe(404);
   });
 
-  test("requires an API key when enabled", async () => {
+  test("rejects unauthenticated requests when enabled", async () => {
     await settings.update.calendarFeedsEnabled(true);
     const response = await handleRequest(mockRequest("/caldav/events.ics"));
     expect(response.status).toBe(401);
+  });
+
+  test("serves a cookie session without a CSRF header", async () => {
+    const { getTestSession } = await import("#test-utils/session.ts");
+    const { createTestAttendee } = await import("#test-utils/db-helpers.ts");
+    await settings.update.calendarFeedsEnabled(true);
+    await settings.update.calendarFeedsGroupBy("attendees");
+    const listing = await createTestListing({
+      date: "2026-08-01T09:30",
+      maxAttendees: 10,
+      name: "Cookie Show",
+    });
+    await createTestAttendee(
+      listing.id,
+      listing.slug,
+      "Cookie Person",
+      "cookie@test.com",
+    );
+
+    // A calendar client subscribing to the feed sends its session cookie but
+    // cannot attach an x-csrf-token header, so this safe GET must not demand
+    // one — otherwise the feed is unusable from a browser/calendar session.
+    const { cookie } = await getTestSession();
+    const response = await handleRequest(
+      mockRequest("/caldav/events.ics", { headers: { cookie } }),
+    );
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe(
+      "text/calendar; charset=utf-8",
+    );
+    expect(body).toContain("SUMMARY:Cookie Person");
   });
 
   test("returns attendee-grouped events for API keys", async () => {
