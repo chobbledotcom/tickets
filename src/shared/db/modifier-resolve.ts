@@ -190,6 +190,36 @@ export const answerModifierQuantities = async (
   return quantities;
 };
 
+/**
+ * Names of answer-triggered modifiers the buyer over-subscribed: active,
+ * stock-limited "answer" modifiers whose requested quantity exceeds the stock
+ * remaining. Because an answer is recorded on every ticket that picked it (it
+ * can't be partially fulfilled like an opt-in add-on), the submission must be
+ * blocked rather than silently clamped to the units still available.
+ */
+export const oversubscribedAnswerTiers = async (
+  answerQuantities: Map<number, number>,
+): Promise<string[]> => {
+  if (answerQuantities.size === 0) return [];
+  const byId = await activeModifiersById();
+  const limited = [...answerQuantities]
+    .map(([id, requested]) => ({ modifier: byId.get(id), requested }))
+    .filter(
+      (c): c is { modifier: Modifier; requested: number } =>
+        c.modifier !== undefined &&
+        c.modifier.trigger === "answer" &&
+        c.modifier.stock !== null,
+    );
+  const used = await modifierUsedQuantities(limited.map((c) => c.modifier.id));
+  return limited
+    .filter(
+      // stock is non-null here (the guard above filtered the unlimited ones).
+      ({ modifier, requested }) =>
+        requested > Math.max(0, modifier.stock! - (used.get(modifier.id) ?? 0)),
+    )
+    .map(({ modifier }) => modifier.name);
+};
+
 export type PricingContext = { visits: number };
 
 const NO_VISITS: PricingContext = { visits: 0 };

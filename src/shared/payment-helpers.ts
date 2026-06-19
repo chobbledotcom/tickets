@@ -292,8 +292,9 @@ export const SQUARE_METADATA_MAX_VALUE_LENGTH = 255;
 /**
  * Enforce metadata value length limits for a payment provider.
  *
- * Only items and answer_ids can realistically exceed provider limits —
- * they grow with the number of listings/options selected. All other fields
+ * Only items, answer_ids and modifiers can realistically exceed provider
+ * limits — they grow with the number of listings/options/modifiers selected
+ * (answer-triggered modifiers ride the modifiers refs). All other fields
  * (name, email, address, etc.) are already constrained by form validation
  * to lengths well below the smallest provider limit (255).
  */
@@ -309,7 +310,11 @@ export const enforceMetadataLimits = (
   }
 
   const answerIds = metadata.answer_ids;
-  if (answerIds && answerIds.length > maxValueLength) {
+  const modifiers = metadata.modifiers;
+  if (
+    (answerIds && answerIds.length > maxValueLength) ||
+    (modifiers && modifiers.length > maxValueLength)
+  ) {
     throw new PaymentUserError(
       "Too many options selected for a single checkout. Please book in smaller batches.",
     );

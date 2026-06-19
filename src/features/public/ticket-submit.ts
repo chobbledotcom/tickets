@@ -19,6 +19,7 @@ import { getPublicDefaultStatus } from "#shared/db/attendee-statuses.ts";
 import {
   answerModifierQuantities,
   buyerVisits,
+  oversubscribedAnswerTiers,
   resolveModifiers,
 } from "#shared/db/modifier-resolve.ts";
 import { consumeModifierStockOrRollback } from "#shared/db/modifier-usage.ts";
@@ -388,6 +389,7 @@ const parseBookingDate = (
 
 type SubmissionPricingParams = Omit<CheckoutIntentParams, "modifiers"> & {
   addOns: Map<number, number>;
+  answerQuantities: Map<number, number>;
   promoCode: string;
   quantities: Map<number, number>;
 };
@@ -413,23 +415,19 @@ const priceSubmission = (
   return { intent, pricedOrder: priceCheckout(intent) };
 };
 
-const resolveSubmissionModifiers = async (
+const resolveSubmissionModifiers = (
   params: SubmissionPricingParams,
   visits = 0,
-): Promise<CheckoutIntent["modifiers"]> => {
-  const listingAnswerIds = computeListingAnswerMap(params.ctx, params.info);
+): Promise<CheckoutIntent["modifiers"]> =>
   // Answer-triggered modifiers join the same single resolve pass as automatic,
-  // code, and opt-in add-on modifiers — one engine, one eligibility check.
-  return resolveModifiers(params.items, {
+  // code, and opt-in add-on modifiers — one engine, one eligibility check. The
+  // answer quantities were computed (scope-aware) and sold-out-checked upstream.
+  resolveModifiers(params.items, {
     addOns: params.addOns,
-    answerQuantities: await answerModifierQuantities(
-      listingAnswerIds,
-      params.quantities,
-    ),
+    answerQuantities: params.answerQuantities,
     code: params.promoCode,
     ctx: { visits },
   });
-};
 
 const priceSubmissionBeforeContact = async (
   params: SubmissionPricingParams,
@@ -531,8 +529,25 @@ const processSubmission = async (
   const promoCode = form.getString("promo_code");
   const paymentsEnabled = isPaymentsEnabled();
   const reservationAmount = await publicReservationAmount();
+
+  // Resolve the answer-triggered modifier quantities once (scope-aware). An
+  // answer is recorded on every ticket that picked it, so a stock-limited answer
+  // tier the buyer over-subscribed must block the whole submission rather than
+  // silently charging fewer than chose it.
+  const answerQuantities = await answerModifierQuantities(
+    computeListingAnswerMap(ctx, info),
+    quantities,
+  );
+  const soldOutTiers = await oversubscribedAnswerTiers(answerQuantities);
+  if (soldOutTiers.length > 0) {
+    return errorResponse(
+      `Sorry, ${soldOutTiers.join(", ")} is no longer available. Please choose a different option.`,
+    );
+  }
+
   const pricingParams = {
     addOns,
+    answerQuantities,
     ctx,
     date,
     dayCount,

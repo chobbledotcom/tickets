@@ -14,6 +14,7 @@ import {
   buyerVisits,
   getOptionalAddOns,
   hasPromoCodeModifiers,
+  oversubscribedAnswerTiers,
   resolveModifiers,
   specsFromRefs,
 } from "#shared/db/modifier-resolve.ts";
@@ -292,6 +293,47 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
         ]),
       );
       expect(quantities).toEqual(new Map([[m.id, 1]]));
+    });
+
+    test("oversubscribedAnswerTiers flags an answer tier requested beyond its stock", async () => {
+      const m = await insertModifier({ name: "VIP tier", stock: 2 });
+      await patchModifier(m.id, { trigger: "answer" });
+      // Requested 3 > stock 2 → over-subscribed; 2 <= 2 → fine.
+      expect(await oversubscribedAnswerTiers(new Map([[m.id, 3]]))).toEqual([
+        "VIP tier",
+      ]);
+      expect(await oversubscribedAnswerTiers(new Map([[m.id, 2]]))).toEqual([]);
+    });
+
+    test("oversubscribedAnswerTiers accounts for stock already consumed", async () => {
+      const m = await insertModifier({ name: "Limited", stock: 5 });
+      await patchModifier(m.id, { trigger: "answer" });
+      await consumeModifierStock(1, [
+        { amountApplied: 0, modifierId: m.id, quantity: 4 },
+      ]);
+      // 1 remaining: requesting 2 over-subscribes, 1 is fine.
+      expect(await oversubscribedAnswerTiers(new Map([[m.id, 2]]))).toEqual([
+        "Limited",
+      ]);
+      expect(await oversubscribedAnswerTiers(new Map([[m.id, 1]]))).toEqual([]);
+    });
+
+    test("oversubscribedAnswerTiers ignores empty, unlimited, non-answer, and inactive", async () => {
+      expect(await oversubscribedAnswerTiers(new Map())).toEqual([]);
+      const unlimited = await insertModifier({ name: "Unlimited" });
+      await patchModifier(unlimited.id, { trigger: "answer" });
+      const automatic = await insertModifier({ name: "Auto", stock: 1 });
+      const inactive = await insertModifier({ name: "Inactive", stock: 1 });
+      await patchModifier(inactive.id, { active: 0, trigger: "answer" });
+      expect(
+        await oversubscribedAnswerTiers(
+          new Map([
+            [unlimited.id, 9],
+            [automatic.id, 9],
+            [inactive.id, 9],
+          ]),
+        ),
+      ).toEqual([]);
     });
 
     test("answerModifierQuantities ignores an unlinked answer picked alongside a linked one", async () => {

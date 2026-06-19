@@ -561,6 +561,24 @@ describe("payment-helpers", () => {
       );
     });
 
+    test("throws PaymentUserError when modifiers exceeds limit", () => {
+      const longModifiers = JSON.stringify(
+        Array.from({ length: 40 }, (_, i) => ({ i, q: 1 })),
+      );
+      const metadata = {
+        email: "john@example.com",
+        items: '[{"e":1,"q":1,"p":0}]',
+        modifiers: longModifiers,
+        name: "John",
+      };
+      expect(() => enforceMetadataLimits(metadata, 255)).toThrow(
+        PaymentUserError,
+      );
+      expect(() => enforceMetadataLimits(metadata, 255)).toThrow(
+        /too many options/i,
+      );
+    });
+
     test("items within Stripe limit (500) but over Square limit (255)", () => {
       const items = JSON.stringify(
         Array.from({ length: 15 }, (_, i) => ({ e: i, p: 100, q: 1 })),
