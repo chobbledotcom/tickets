@@ -19,6 +19,7 @@ import {
   followRedirect,
   mockRequest,
   setupStripe,
+  signMeta,
   singleItem,
   submitTicketForm,
   withMocks,
@@ -145,12 +146,16 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           ),
           mockRetrieve: stub(stripeApi, "retrieveCheckoutSession", () =>
             Promise.resolve({
+              amount_total: 1000,
               id: "cs_test",
-              metadata: {
-                email: "john@example.com",
-                items: singleItem(listing.id, 1, 1000),
-                name: "John",
-              },
+              metadata: signMeta(
+                {
+                  email: "john@example.com",
+                  items: singleItem(listing.id, 1, 1000),
+                  name: "John",
+                },
+                1000,
+              ),
               payment_intent: "pi_test_123",
               payment_status: "paid",
             } as unknown as Awaited<
@@ -205,11 +210,14 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
             Promise.resolve({
               amount_total: 1000,
               id: "cs_test",
-              metadata: {
-                email: "second@example.com",
-                items: singleItem(listing.id, 1, 1000),
-                name: "Second",
-              },
+              metadata: signMeta(
+                {
+                  email: "second@example.com",
+                  items: singleItem(listing.id, 1, 1000),
+                  name: "Second",
+                },
+                1000,
+              ),
               payment_intent: "pi_second",
               payment_status: "paid",
             } as unknown as Awaited<
@@ -259,7 +267,9 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
         Promise.resolve({
           amount_total: amountTotal,
           id: sessionId,
-          metadata,
+          // Sign at amountTotal (as production checkout does) so the session
+          // classifies as trusted — an unsigned session would be ignored.
+          metadata: signMeta(metadata, amountTotal),
           payment_intent: `pi_${sessionId}`,
           payment_status: "paid",
         } as unknown as Awaited<
@@ -415,7 +425,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
       );
     });
 
-    test("a failed refund is left unrecorded so a retry can re-attempt it", async () => {
+    test("a failed refund releases the reservation so the next retry re-attempts it", async () => {
       const { stub } = await import("@std/testing/mock");
       const { stripeApi } = await import("#shared/stripe.ts");
       const { stripePaymentProvider } = await import(
@@ -434,19 +444,26 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
 
       await withMocks(
         () => ({
-          // The provider's refund call fails (e.g. transiently down).
+          // The provider's refund call fails (e.g. transiently down) and the
+          // payment is not already refunded, so the refund genuinely failed.
           mockRefund: stub(stripePaymentProvider, "refundPayment", () =>
+            Promise.resolve(false),
+          ),
+          mockRefunded: stub(stripePaymentProvider, "isPaymentRefunded", () =>
             Promise.resolve(false),
           ),
           mockRetrieve: stub(stripeApi, "retrieveCheckoutSession", () =>
             Promise.resolve({
               amount_total: 1000,
               id: "cs_refund_failed",
-              metadata: {
-                email: "john@example.com",
-                items: singleItem(listing.id, 1, 1000),
-                name: "John",
-              },
+              metadata: signMeta(
+                {
+                  email: "john@example.com",
+                  items: singleItem(listing.id, 1, 1000),
+                  name: "John",
+                },
+                1000,
+              ),
               payment_intent: "pi_refund_failed",
               payment_status: "paid",
             } as unknown as Awaited<
@@ -459,14 +476,18 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
             mockRequest("/payment/success?session_id=cs_refund_failed"),
           );
           expect(mockRefund.calls.length).toBe(1);
-          const html = await response.text();
-          expect(html).toContain("contact support");
-          // Crucially the failure is NOT frozen as terminal: failure_data stays
-          // empty and the row stays unfinalized, so a later retry re-validates
-          // and re-attempts the refund instead of replaying "contact support".
-          const row = await isSessionProcessed("cs_refund_failed");
-          expect(row?.failure_data).toBe("");
-          expect(row?.attendee_id).toBeNull();
+          expect(await response.text()).toContain("contact support");
+          // The failure is NOT frozen as terminal AND the reservation is not
+          // left held: the row is released (deleted) so the next delivery
+          // re-claims and re-attempts the refund immediately, rather than
+          // colliding with the lock until the row goes stale.
+          expect(await isSessionProcessed("cs_refund_failed")).toBeNull();
+
+          // The next retry re-attempts the refund (proof the lock was released).
+          await handleRequest(
+            mockRequest("/payment/success?session_id=cs_refund_failed"),
+          );
+          expect(mockRefund.calls.length).toBe(2);
         },
         resetStripeClient,
       );
@@ -663,6 +684,38 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
         async () => {
           const response = await handleRequest(
             mockRequest("/payment/cancel?session_id=cs_test_cancel_bad_multi"),
+          );
+          await expectHtmlResponse(response, 404, "Listing not found");
+        },
+        resetStripeClient,
+      );
+    });
+
+    test("returns 404 for ticket session with unparseable items", async () => {
+      const { stub } = await import("@std/testing/mock");
+      const { stripeApi } = await import("#shared/stripe.ts");
+      await setupStripe();
+
+      await withMocks(
+        () =>
+          stub(stripeApi, "retrieveCheckoutSession", () =>
+            Promise.resolve({
+              id: "cs_test_cancel_unparseable",
+              metadata: {
+                email: "john@example.com",
+                items: "not-json", // Unparseable JSON → parseBookingItems null
+                name: "John",
+              },
+              payment_status: "unpaid",
+            } as unknown as Awaited<
+              ReturnType<typeof stripeApi.retrieveCheckoutSession>
+            >),
+          ),
+        async () => {
+          const response = await handleRequest(
+            mockRequest(
+              "/payment/cancel?session_id=cs_test_cancel_unparseable",
+            ),
           );
           await expectHtmlResponse(response, 404, "Listing not found");
         },
@@ -992,7 +1045,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
       expect(location?.startsWith("https://")).toBe(true);
     });
 
-    test("returns error when listing not found in session metadata without refund", async () => {
+    test("an unsigned session for an unknown listing is ignored without refunding", async () => {
       const { spy, stub } = await import("@std/testing/mock");
       const { stripeApi } = await import("#shared/stripe.ts");
       await setupStripe();
@@ -1019,8 +1072,9 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
           const response = await handleRequest(
             mockRequest("/payment/success?session_id=cs_test"),
           );
-          await expectHtmlResponse(response, 404, "Listing not found");
-          // Listing not found should NOT trigger a refund (webhook may be for a different instance)
+          // No valid proof → ignored as not ours: shown the not-recognized page
+          // and never refunded (the session may belong to a different instance).
+          await expectHtmlResponse(response, 400, "not recognized");
           expect(mockRefund.calls.length).toBe(0);
         },
         resetStripeClient,
@@ -1045,11 +1099,14 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
             Promise.resolve({
               amount_total: 1000,
               id: "cs_test_paid",
-              metadata: {
-                email: "john@example.com",
-                items: singleItem(listing.id, 1, 1000),
-                name: "John",
-              },
+              metadata: signMeta(
+                {
+                  email: "john@example.com",
+                  items: singleItem(listing.id, 1, 1000),
+                  name: "John",
+                },
+                1000,
+              ),
               payment_intent: "pi_test_123",
               payment_status: "paid",
             } as unknown as Awaited<
@@ -1119,11 +1176,14 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
             Promise.resolve({
               amount_total: 1000,
               id: "cs_test_paid",
-              metadata: {
-                email: "john@example.com",
-                items: singleItem(listing.id, 1, 1000),
-                name: "John",
-              },
+              metadata: signMeta(
+                {
+                  email: "john@example.com",
+                  items: singleItem(listing.id, 1, 1000),
+                  name: "John",
+                },
+                1000,
+              ),
               payment_intent: "pi_test_123",
               payment_status: "paid",
             } as unknown as Awaited<
@@ -1164,11 +1224,14 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
             Promise.resolve({
               amount_total: 3000,
               id: "cs_test_paid",
-              metadata: {
-                email: "john@example.com",
-                items: singleItem(listing.id, 3, 3000),
-                name: "John",
-              },
+              metadata: signMeta(
+                {
+                  email: "john@example.com",
+                  items: singleItem(listing.id, 3, 3000),
+                  name: "John",
+                },
+                3000,
+              ),
               payment_intent: "pi_test_123",
               payment_status: "paid",
             } as unknown as Awaited<
@@ -1257,11 +1320,14 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
             Promise.resolve({
               amount_total: 1000,
               id: "cs_test",
-              metadata: {
-                email: "john@example.com",
-                items: singleItem(listing.id, 1, 1000),
-                name: "John",
-              },
+              metadata: signMeta(
+                {
+                  email: "john@example.com",
+                  items: singleItem(listing.id, 1, 1000),
+                  name: "John",
+                },
+                1000,
+              ),
               payment_intent: "pi_test_123",
               payment_status: "paid",
             } as unknown as Awaited<

@@ -102,13 +102,19 @@ const execWithSessionId = (sessionId: string, sql: string): Promise<unknown> =>
   execute(sql, [sessionId]);
 
 /**
- * Delete a stale reservation to allow retry. Only abandoned, outcome-less rows
- * qualify — a recorded terminal failure (failure_data set) is an outcome, not
- * an in-progress reservation, so it is left for idempotent replay.
+ * Release an in-progress reservation so the very next delivery can re-claim it.
+ * Deletes only a still-unresolved row, so it never clobbers a finalized success
+ * or a recorded terminal failure that a racing delivery may have written.
+ *
+ * Two callers:
+ *  - {@link reserveSession} releases a *stale* reservation (abandoned by a
+ *    crashed process) before retrying the claim.
+ *  - the webhook releases a *fresh* reservation whose refund of a real payment
+ *    just failed: recording no outcome but holding the lock would make the next
+ *    redelivery collide and return 409 until the row goes stale (~5 min),
+ *    gating refund recovery on a local timer instead of provider redelivery.
  */
-export const deleteStaleReservation = async (
-  sessionId: string,
-): Promise<void> => {
+export const releaseReservation = async (sessionId: string): Promise<void> => {
   await execWithSessionId(
     sessionId,
     `DELETE FROM processed_payments WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION}`,
@@ -166,12 +172,12 @@ export const reserveSession = async (
         isUnresolvedReservation(existing) &&
         isReservationStale(existing.processed_at)
       ) {
-        // Delete the abandoned row and retry the claim. This recurses at most
+        // Release the abandoned row and retry the claim. This recurses at most
         // one extra level: any row present after the delete must have been
         // inserted at ~now (by this retry or a racing request), so it is fresh
         // — isReservationStale is false for it and we fall through to the
         // conflict return rather than looping.
-        await deleteStaleReservation(sessionId);
+        await releaseReservation(sessionId);
         return reserveSession(sessionId);
       }
 

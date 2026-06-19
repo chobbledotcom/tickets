@@ -14,6 +14,7 @@ import {
   mockRequest,
   setTestEnv,
   setupStripe,
+  signMeta,
   singleItem,
 } from "#test-utils";
 
@@ -41,15 +42,17 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         Promise.resolve({
           amount_total: 2500,
           id: "cs_multi_success",
-          metadata: {
-            email: "multi@example.com",
-
-            items: JSON.stringify([
-              { e: listing1.id, p: 500, q: 1 },
-              { e: listing2.id, p: 2000, q: 2 },
-            ]),
-            name: "Multi Payer",
-          },
+          metadata: signMeta(
+            {
+              email: "multi@example.com",
+              items: JSON.stringify([
+                { e: listing1.id, p: 500, q: 1 },
+                { e: listing2.id, p: 2000, q: 2 },
+              ]),
+              name: "Multi Payer",
+            },
+            2500,
+          ),
           payment_intent: "pi_multi_success",
           payment_status: "paid",
         } as unknown as Awaited<
@@ -107,7 +110,8 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_bad_multi"),
         );
-        await expectHtmlResponse(response, 400, "Invalid session data");
+        // No valid proof (unsigned, and the items don't parse) → ignored.
+        await expectHtmlResponse(response, 400, "not recognized");
       } finally {
         mockRetrieve.restore();
       }
@@ -138,8 +142,9 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_multi_notfound"),
         );
-        await expectHtmlResponse(response, 404, "Listing not found");
-        // Listing not found should NOT trigger a refund (webhook may be for a different instance)
+        // Unsigned → ignored as not ours: not-recognized page, never refunded
+        // (the session may belong to a different instance sharing the provider).
+        await expectHtmlResponse(response, 400, "not recognized");
         expect(mockRefund.calls.length).toBe(0);
       } finally {
         mockRetrieve.restore();
@@ -159,13 +164,16 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
+          amount_total: 500,
           id: "cs_multi_inactive",
-          metadata: {
-            email: "inactive@example.com",
-
-            items: JSON.stringify([{ e: listing.id, p: 500, q: 1 }]),
-            name: "Inactive Listing",
-          },
+          metadata: signMeta(
+            {
+              email: "inactive@example.com",
+              items: JSON.stringify([{ e: listing.id, p: 500, q: 1 }]),
+              name: "Inactive Listing",
+            },
+            500,
+          ),
           payment_intent: "pi_multi_inactive",
           payment_status: "paid",
         } as unknown as Awaited<
@@ -214,11 +222,14 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         Promise.resolve({
           amount_total: 1000,
           id: "cs_refund_fail",
-          metadata: {
-            email: "refund@example.com",
-            items: singleItem(listing.id, 1, 1000),
-            name: "Refund Fail",
-          },
+          metadata: signMeta(
+            {
+              email: "refund@example.com",
+              items: singleItem(listing.id, 1, 1000),
+              name: "Refund Fail",
+            },
+            1000,
+          ),
           payment_intent: "pi_refund_fail",
           payment_status: "paid",
         } as unknown as Awaited<
@@ -226,9 +237,17 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         >),
       );
 
-      // Mock refund to fail
+      // Mock refund to fail, and the payment is not already refunded, so the
+      // refund genuinely failed (→ contact-support, not an idempotent success).
       const mockRefund = stub(stripeApi, "refundPayment", () =>
         Promise.resolve(null),
+      );
+      const mockIntent = stub(stripeApi, "retrievePaymentIntent", () =>
+        Promise.resolve({
+          latest_charge: { refunded: false },
+        } as unknown as Awaited<
+          ReturnType<typeof stripeApi.retrievePaymentIntent>
+        >),
       );
 
       try {
@@ -239,6 +258,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       } finally {
         mockRetrieve.restore();
         mockRefund.restore();
+        mockIntent.restore();
       }
     });
 
@@ -267,15 +287,17 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         Promise.resolve({
           amount_total: 1500,
           id: "cs_multi_rollback",
-          metadata: {
-            email: "rollback@example.com",
-
-            items: JSON.stringify([
-              { e: listing1.id, p: 500, q: 1 },
-              { e: listing2.id, p: 1000, q: 1 },
-            ]),
-            name: "Rollback User",
-          },
+          metadata: signMeta(
+            {
+              email: "rollback@example.com",
+              items: JSON.stringify([
+                { e: listing1.id, p: 500, q: 1 },
+                { e: listing2.id, p: 1000, q: 1 },
+              ]),
+              name: "Rollback User",
+            },
+            1500,
+          ),
           payment_intent: "pi_multi_rollback",
           payment_status: "paid",
         } as unknown as Awaited<
@@ -318,11 +340,14 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         Promise.resolve({
           amount_total: 500,
           id: "cs_single_thankyou",
-          metadata: {
-            email: "single@example.com",
-            items: singleItem(listing.id, 1, 500),
-            name: "Single",
-          },
+          metadata: signMeta(
+            {
+              email: "single@example.com",
+              items: singleItem(listing.id, 1, 500),
+              name: "Single",
+            },
+            500,
+          ),
           payment_intent: "pi_single_thankyou",
           payment_status: "paid",
         } as unknown as Awaited<
@@ -360,11 +385,14 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         Promise.resolve({
           amount_total: 1000,
           id: "cs_dupe_session",
-          metadata: {
-            email: "dupe@example.com",
-            items: singleItem(listing.id, 1, 1000),
-            name: "Dupe",
-          },
+          metadata: signMeta(
+            {
+              email: "dupe@example.com",
+              items: singleItem(listing.id, 1, 1000),
+              name: "Dupe",
+            },
+            1000,
+          ),
           payment_intent: "pi_dupe",
           payment_status: "paid",
         } as unknown as Awaited<
@@ -411,12 +439,14 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         Promise.resolve({
           amount_total: 800,
           id: "cs_cart_single",
-          metadata: {
-            email: "cartsingle@example.com",
-
-            items: JSON.stringify([{ e: listing.id, p: 800, q: 1 }]),
-            name: "Cart Single Buyer",
-          },
+          metadata: signMeta(
+            {
+              email: "cartsingle@example.com",
+              items: JSON.stringify([{ e: listing.id, p: 800, q: 1 }]),
+              name: "Cart Single Buyer",
+            },
+            800,
+          ),
           payment_intent: "pi_cart_single",
           payment_status: "paid",
         } as unknown as Awaited<
@@ -469,15 +499,17 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         Promise.resolve({
           amount_total: 1500,
           id: "cs_multi_dupe",
-          metadata: {
-            email: "multireplay@example.com",
-
-            items: JSON.stringify([
-              { e: listing1.id, p: 500, q: 1 },
-              { e: listing2.id, p: 1000, q: 1 },
-            ]),
-            name: "Multi Replay",
-          },
+          metadata: signMeta(
+            {
+              email: "multireplay@example.com",
+              items: JSON.stringify([
+                { e: listing1.id, p: 500, q: 1 },
+                { e: listing2.id, p: 1000, q: 1 },
+              ]),
+              name: "Multi Replay",
+            },
+            1500,
+          ),
           payment_intent: "pi_multi_dupe",
           payment_status: "paid",
         } as unknown as Awaited<
@@ -548,11 +580,14 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         Promise.resolve({
           amount_total: 500,
           id: "cs_token_verify",
-          metadata: {
-            email: "verify@example.com",
-            items: singleItem(listing.id, 1, 500),
-            name: "Token Verify",
-          },
+          metadata: signMeta(
+            {
+              email: "verify@example.com",
+              items: singleItem(listing.id, 1, 500),
+              name: "Token Verify",
+            },
+            500,
+          ),
           payment_intent: "pi_token_verify",
           payment_status: "paid",
         } as unknown as Awaited<

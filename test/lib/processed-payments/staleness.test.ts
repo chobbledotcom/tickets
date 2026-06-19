@@ -3,10 +3,10 @@ import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { getDb, insert } from "#shared/db/client.ts";
 import {
   deleteAllStaleReservations,
-  deleteStaleReservation,
   finalizeSession,
   isReservationStale,
   isSessionProcessed,
+  releaseReservation,
   reserveSession,
   STALE_RESERVATION_MS,
 } from "#shared/db/processed-payments.ts";
@@ -50,24 +50,24 @@ describeWithEnv("processed-payments / staleness", { db: true }, () => {
     });
   });
 
-  describe("deleteStaleReservation", () => {
+  describe("releaseReservation", () => {
     test("deletes an unfinalized reservation", async () => {
       await reserveSession("cs_stale_to_delete");
-      await deleteStaleReservation("cs_stale_to_delete");
+      await releaseReservation("cs_stale_to_delete");
       expect(await isSessionProcessed("cs_stale_to_delete")).toBeNull();
     });
 
     test("does not delete a finalized reservation", async () => {
       await reserveSession("cs_finalized_no_delete");
       await finalizeSession("cs_finalized_no_delete", attendeeId);
-      await deleteStaleReservation("cs_finalized_no_delete");
+      await releaseReservation("cs_finalized_no_delete");
 
       const record = await isSessionProcessed("cs_finalized_no_delete");
       expect(record?.attendee_id).toBe(attendeeId);
     });
 
     test("is a no-op for a non-existent session", async () => {
-      await deleteStaleReservation("cs_nonexistent");
+      await releaseReservation("cs_nonexistent");
       // No error thrown — verified by reaching here
     });
   });

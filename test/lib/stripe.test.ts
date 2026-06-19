@@ -2,6 +2,8 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { settings } from "#shared/db/settings.ts";
+import { extractSessionMetadata } from "#shared/payment-helpers.ts";
+import type { SessionMetadata } from "#shared/payments.ts";
 import {
   constructTestWebhookEvent,
   createCheckoutSession,
@@ -426,7 +428,7 @@ describeWithEnv(
               };
               quantity: number;
             }[];
-            metadata: { items: string; reservation_amount: string };
+            metadata: Record<string, string>;
           };
           const ticketItem = params.line_items.find((li) =>
             li.price_data.product_data.name.startsWith("Ticket:"),
@@ -440,11 +442,16 @@ describeWithEnv(
           // Fee is still 5% of the full £20.00 order, not of the deposit.
           expect(feeItem!.price_data.unit_amount).toBe(100);
           // Metadata records the FULL line price + the snapshot so the webhook
-          // can re-derive the deposit and compute the outstanding balance.
-          expect(JSON.parse(params.metadata.items)).toEqual([
+          // can re-derive the deposit and compute the outstanding balance. The
+          // snapshot is packed into `b` on the wire; decode it the way the
+          // webhook does rather than reading the raw entry.
+          const metadata = extractSessionMetadata(
+            params.metadata as unknown as SessionMetadata,
+          );
+          expect(JSON.parse(metadata.items)).toEqual([
             { e: listing.id, p: 2000, q: 2 },
           ]);
-          expect(params.metadata.reservation_amount).toBe("10%");
+          expect(metadata.reservation_amount).toBe("10%");
         } finally {
           createSpy.restore();
         }

@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { ErrorCode } from "#shared/logger.ts";
 import {
@@ -11,12 +12,14 @@ import {
   extractSessionMetadata,
   hasRequiredSessionMetadata,
   PaymentUserError,
+  packMetadata,
   safeAsync,
   singleListingAnswerIds,
   toBookingItems,
   toCheckoutResult,
   toModifierRefs,
 } from "#shared/payment-helpers.ts";
+import { verifyPrice } from "#shared/payment-signature.ts";
 import {
   type CheckoutIntent,
   isPaymentStatus,
@@ -599,6 +602,31 @@ describe("payment-helpers", () => {
       expect(enforceMetadataLimits(metadata, 255)).toEqual(metadata);
     });
 
+    test("throws PaymentUserError when the packed `b` exceeds the limit", () => {
+      const metadata = {
+        b: "X".repeat(256),
+        email: "j@x.com",
+        items: '[{"e":1,"q":1,"p":0}]',
+        name: "John",
+      };
+      expect(() => enforceMetadataLimits(metadata, 255)).toThrow(
+        PaymentUserError,
+      );
+      expect(() => enforceMetadataLimits(metadata, 255)).toThrow(
+        /too much booking detail/i,
+      );
+    });
+
+    test("passes through a packed `b` within the limit", () => {
+      const metadata = {
+        b: JSON.stringify({ phone: "555" }),
+        email: "j@x.com",
+        items: '[{"e":1,"q":1,"p":0}]',
+        name: "John",
+      };
+      expect(enforceMetadataLimits(metadata, 255)).toEqual(metadata);
+    });
+
     test("throws when the entry count exceeds the cap (Square's 10-key limit)", () => {
       // 11 short values — only the key count is over the cap, not any length.
       const metadata = Object.fromEntries(
@@ -622,6 +650,97 @@ describe("payment-helpers", () => {
         Array.from({ length: 20 }, (_, i) => [`k${i}`, "x"]),
       );
       expect(enforceMetadataLimits(manyKeys, 500)).toEqual(manyKeys);
+    });
+  });
+
+  describe("metadata packing codec", () => {
+    test("packs the small fields into one `b` entry and drops them", () => {
+      const packed = packMetadata({
+        _origin: "x",
+        date: "2026-07-01",
+        email: "a@b.com",
+        items: "[]",
+        name: "Al",
+        phone: "555",
+        site_token_index: "hash",
+      });
+      // Small fields move into `b`; large/identity fields stay top-level.
+      expect("phone" in packed).toBe(false);
+      expect("date" in packed).toBe(false);
+      expect("site_token_index" in packed).toBe(false);
+      expect(packed.email).toBe("a@b.com");
+      expect(packed.items).toBe("[]");
+      expect(packed.name).toBe("Al");
+      expect(packed._origin).toBe("x");
+      expect(JSON.parse(packed.b!)).toEqual({
+        date: "2026-07-01",
+        phone: "555",
+        site_token_index: "hash",
+      });
+    });
+
+    test("omits `b` when no small field is present (falsy ones don't pack)", () => {
+      const packed = packMetadata({
+        email: "a@b.com",
+        items: "[]",
+        name: "Al",
+        phone: "",
+      });
+      expect("b" in packed).toBe(false);
+      expect("phone" in packed).toBe(false);
+      expect(packed).toEqual({ email: "a@b.com", items: "[]", name: "Al" });
+    });
+
+    test("round-trips packed fields back through extractSessionMetadata", () => {
+      const wire = packMetadata({
+        _origin: "x",
+        date: "2026-07-01",
+        email: "a@b.com",
+        items: "[]",
+        modifiers: '[{"i":1,"q":1}]',
+        name: "Al",
+        phone: "555",
+      });
+      const extracted = extractSessionMetadata(
+        wire as unknown as SessionMetadata,
+      );
+      expect(extracted.phone).toBe("555");
+      expect(extracted.date).toBe("2026-07-01");
+      expect(extracted.modifiers).toBe('[{"i":1,"q":1}]');
+      expect(extracted.email).toBe("a@b.com");
+    });
+
+    test("a malformed `b` blob degrades packed fields to empty, never throws", () => {
+      const extracted = extractSessionMetadata({
+        b: "not json{",
+        email: "a@b.com",
+        items: "[]",
+        name: "Al",
+      } as unknown as SessionMetadata);
+      expect(extracted.phone).toBe("");
+      expect(extracted.date).toBe("");
+      expect(extracted.email).toBe("a@b.com");
+    });
+
+    test("a non-object or null `b` is ignored", () => {
+      for (const b of ["123", "null", '"a string"']) {
+        const extracted = extractSessionMetadata({
+          b,
+          items: "[]",
+          name: "Al",
+        } as unknown as SessionMetadata);
+        expect(extracted.phone).toBe("");
+      }
+    });
+
+    test("a non-string packed field is dropped, string siblings kept", () => {
+      const extracted = extractSessionMetadata({
+        b: '{"phone":123,"date":"2026-07-01"}',
+        items: "[]",
+        name: "Al",
+      } as unknown as SessionMetadata);
+      expect(extracted.phone).toBe("");
+      expect(extracted.date).toBe("2026-07-01");
     });
   });
 });
@@ -651,21 +770,80 @@ describeWithEnv(
     });
 
     test("emits site_token_index as the HMAC of the plain token", async () => {
-      const metadata = await buildItemsMetadata(baseIntent("plain-token-xyz"));
+      const metadata = await buildItemsMetadata(
+        baseIntent("plain-token-xyz"),
+        0,
+      );
       const expected = await hmacHash("plain-token-xyz");
-      expect(metadata.site_token_index).toBe(expected);
+      // site_token_index is packed into `b` on the wire; the webhook recovers it
+      // via extractSessionMetadata, so assert on that recovered value.
+      expect(
+        extractSessionMetadata(metadata as unknown as SessionMetadata)
+          .site_token_index,
+      ).toBe(expected);
     });
 
     test("plain token never appears in metadata", async () => {
-      const metadata = await buildItemsMetadata(baseIntent("plain-token-xyz"));
+      const metadata = await buildItemsMetadata(
+        baseIntent("plain-token-xyz"),
+        0,
+      );
       for (const value of Object.values(metadata)) {
         expect(value.includes("plain-token-xyz")).toBe(false);
       }
     });
 
     test("omits site_token_index when siteToken is absent", async () => {
-      const metadata = await buildItemsMetadata(baseIntent());
+      const metadata = await buildItemsMetadata(baseIntent(), 0);
       expect("site_token_index" in metadata).toBe(false);
+    });
+  },
+);
+
+// The proof is signed over the logical metadata; Square then packs the small
+// fields. This proves the webhook's unpack-then-verify reproduces the proof, and
+// that tampering a packed field is still caught after the round-trip.
+describeWithEnv(
+  "buildItemsMetadata price proof survives packing",
+  { encryptionKey: true },
+  () => {
+    const intent: CheckoutIntent = {
+      address: "",
+      date: "2026-07-01",
+      email: "buyer@example.com",
+      items: [
+        { listingId: 1, name: "Tier", quantity: 2, slug: "t", unitPrice: 1000 },
+      ],
+      name: "Buyer",
+      phone: "07700900000",
+      special_instructions: "",
+    };
+
+    test("the signed proof verifies against the unpacked metadata", async () => {
+      const total = priceCheckout(intent).total;
+      // Apply the Square packing step over the signed metadata.
+      const wire = packMetadata(await buildItemsMetadata(intent, total));
+      // Small fields (phone, date, …) are packed on the wire.
+      expect("phone" in wire).toBe(false);
+      expect(typeof wire.b).toBe("string");
+
+      const extracted = extractSessionMetadata(
+        wire as unknown as SessionMetadata,
+      );
+      const dot = extracted.price_proof.indexOf(".");
+      const signedTotal = Number(extracted.price_proof.slice(0, dot));
+      const sig = extracted.price_proof.slice(dot + 1);
+      expect(signedTotal).toBe(total);
+      expect(await verifyPrice(extracted, signedTotal, sig)).toBe(true);
+
+      // Tampering a field that was packed-then-unpacked is still detected.
+      expect(
+        await verifyPrice(
+          { ...extracted, phone: "07000000000" },
+          signedTotal,
+          sig,
+        ),
+      ).toBe(false);
     });
   },
 );

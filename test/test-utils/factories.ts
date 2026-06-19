@@ -1,6 +1,7 @@
 import type { BuiltSite } from "#shared/db/built-sites.ts";
 import type { ListingInput } from "#shared/db/listings.ts";
 import type { EmailEntry, EmailListing } from "#shared/email.ts";
+import { signPriceSync } from "#shared/payment-signature.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
 import type {
   Attendee,
@@ -165,11 +166,40 @@ export const webhookMeta = (
   items: "",
   modifiers: "",
   phone: "",
+  price_proof: "",
   reservation_amount: "",
   site_token_index: "",
   special_instructions: "",
   ...metadata,
 });
+
+/**
+ * Add a valid price signature to a metadata record, the way production's
+ * buildItemsMetadata does, so a webhook test can exercise the signed-oracle
+ * path. agreedTotal is the total the buyer was charged (the session
+ * amount_total). Unsigned metadata (plain webhookMeta) takes the webhook's
+ * legacy re-derived fallback instead.
+ */
+export const signMeta = (
+  metadata: Record<string, string>,
+  agreedTotal: number,
+): Record<string, string> => ({
+  ...metadata,
+  price_proof: `${agreedTotal}.${signPriceSync(metadata, agreedTotal)}`,
+});
+
+/**
+ * webhookMeta plus a valid price signature in one step — the common shape for a
+ * webhook/redirect test whose session should be PROCESSED (a "trusted"
+ * session). `agreedTotal` must equal the session's amount_total so the session
+ * classifies as trusted; an unsigned (plain webhookMeta) session now classifies
+ * as "ignore" and is acknowledged without processing or refunding.
+ */
+export const signedMeta = (
+  metadata: Partial<SessionMetadata> & { name: string },
+  agreedTotal: number,
+): SessionMetadata =>
+  signMeta(webhookMeta(metadata), agreedTotal) as SessionMetadata;
 
 export const singleItem = (
   listingId: number,

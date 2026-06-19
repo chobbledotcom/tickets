@@ -175,6 +175,10 @@ const ERROR_DEFS = {
   VALIDATION_FORM: ["E_VALIDATION_FORM", "Form validation error"],
 
   // Webhook errors
+  WEBHOOK_PRICE_SIGNATURE: [
+    "E_WEBHOOK_PRICE_SIGNATURE",
+    "Webhook price signature invalid, missing, or charge differs from it",
+  ],
   WEBHOOK_SEND: ["E_WEBHOOK_SEND", "Webhook send failed"],
 } as const;
 

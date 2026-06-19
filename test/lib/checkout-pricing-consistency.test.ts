@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
+import { getDb } from "#shared/db/client.ts";
 import {
   answerModifierQuantities,
   resolveModifiers,
@@ -331,6 +332,67 @@ describeWithEnv(
       expect(toModifierRefs(publicSpecs)).toEqual([{ i: tier.id, q: 2 }]);
 
       await expectConsistent(items, publicSpecs);
+    });
+
+    test("property: random modifier mixes re-price identically on both paths", async () => {
+      // A repeatable PRNG so a failure is reproducible from the seed.
+      let seed = 0x5eed1234;
+      const rand = () => {
+        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+        return seed / 0x7fffffff;
+      };
+      const pick = <T>(xs: T[]): T => xs[Math.floor(rand() * xs.length)]!;
+      const randInt = (lo: number, hi: number) =>
+        lo + Math.floor(rand() * (hi - lo + 1));
+      const db = getDb();
+
+      for (let iter = 0; iter < 40; iter++) {
+        // Each iteration is an independent cart + modifier set.
+        await db.execute("DELETE FROM modifier_usages");
+        await db.execute("DELETE FROM modifiers");
+
+        const items = Array.from({ length: randInt(1, 3) }, (_, i) =>
+          checkoutItem({
+            listingId: i + 1,
+            quantity: randInt(1, 3),
+            slug: `gen-${i}`,
+            unitPrice: randInt(10, 60) * 100,
+          }),
+        );
+
+        const addOns = new Map<number, number>();
+        let code: string | undefined;
+        for (let m = 0; m < randInt(0, 4); m++) {
+          const kind = pick(["fixed", "percent", "multiply"] as const);
+          const inserted = await insertModifier({
+            calcKind: kind,
+            calcValue:
+              kind === "multiply"
+                ? pick([1.25, 1.5, 2])
+                : kind === "percent"
+                  ? randInt(5, 25)
+                  : randInt(1, 5),
+            direction: pick(["charge", "discount"] as const),
+            name: `gen-${iter}-${m}`,
+            stock: pick([null, 5]),
+          });
+          const trigger = pick(["automatic", "optional", "code"] as const);
+          const patch: Record<string, string | number> = {
+            min_visits: pick([0, 0, 1]),
+            trigger,
+          };
+          if (trigger === "optional") addOns.set(inserted.id, randInt(1, 3));
+          if (trigger === "code") {
+            code = "PROMO";
+            patch.code_index = await hmacHash(normalizeCode("PROMO"));
+          }
+          await patchModifier(inserted.id, patch);
+        }
+
+        const ctx = { visits: randInt(0, 2) };
+        const specs = await resolveModifiers(items, { addOns, code, ctx });
+        await expectConsistent(items, specs, { ctx });
+      }
     });
   },
 );

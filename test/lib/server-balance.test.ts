@@ -21,7 +21,9 @@ import {
   mockFormRequest,
   mockRequest,
   setupStripe,
+  signMeta,
   testCsrfToken,
+  webhookMeta,
 } from "#test-utils";
 
 /** POST a pay form for a token as the customer. */
@@ -189,14 +191,15 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
     }
   });
 
-  test("the webhook settles the balance on payment success", async () => {
+  test("an unsigned balance webhook is ignored, leaving the balance outstanding", async () => {
     await setupStripe();
     const attendeeId = await createReserved(1500);
-    const paid = await getPaidDefaultStatus();
+    // No price proof: we cannot prove this balance session is ours, so it is
+    // ignored — neither settled nor refunded.
     const session = stub(stripeApi, "retrieveCheckoutSession", () =>
       Promise.resolve({
         amount_total: 1500,
-        id: "cs_balance",
+        id: "cs_balance_unsigned",
         metadata: {
           balance_attendee_id: String(attendeeId),
           items: JSON.stringify([{ e: 1, p: 1500, q: 1 }]),
@@ -210,7 +213,42 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
     );
     try {
       const response = await handleRequest(
-        mockRequest("/payment/success?session_id=cs_balance"),
+        mockRequest("/payment/success?session_id=cs_balance_unsigned"),
+      );
+      expect(await response.text()).toContain("not recognized");
+      // The balance is untouched — nothing was settled.
+      const state = await getAttendeeBalanceState(attendeeId);
+      expect(state?.remainingBalance).toBe(1500);
+    } finally {
+      session.restore();
+    }
+  });
+
+  test("the webhook settles a signed balance checkout", async () => {
+    await setupStripe();
+    const attendeeId = await createReserved(1500);
+    const paid = await getPaidDefaultStatus();
+    const session = stub(stripeApi, "retrieveCheckoutSession", () =>
+      Promise.resolve({
+        amount_total: 1500,
+        id: "cs_balance_signed",
+        metadata: signMeta(
+          webhookMeta({
+            balance_attendee_id: String(attendeeId),
+            items: JSON.stringify([{ e: 1, p: 1500, q: 1 }]),
+            name: "Balance payment",
+          }),
+          1500,
+        ),
+        payment_intent: "pi_balance_signed",
+        payment_status: "paid",
+      } as unknown as Awaited<
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      >),
+    );
+    try {
+      const response = await handleRequest(
+        mockRequest("/payment/success?session_id=cs_balance_signed"),
       );
       expect(response.status).toBe(200);
       const state = await getAttendeeBalanceState(attendeeId);
@@ -218,6 +256,51 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
       expect(state?.statusId).toBe(paid!.id);
     } finally {
       session.restore();
+    }
+  });
+
+  test("a balance checkout with a tampered signature is ignored, not settled", async () => {
+    await setupStripe();
+    const attendeeId = await createReserved(1500);
+    const refund = stub(stripeApi, "refundPayment", () =>
+      Promise.resolve({ id: "re_bal" } as unknown as Awaited<
+        ReturnType<typeof stripeApi.refundPayment>
+      >),
+    );
+    const session = stub(stripeApi, "retrieveCheckoutSession", () =>
+      Promise.resolve({
+        amount_total: 1500,
+        id: "cs_balance_tampered",
+        metadata: {
+          ...signMeta(
+            webhookMeta({
+              balance_attendee_id: String(attendeeId),
+              items: JSON.stringify([{ e: 1, p: 1500, q: 1 }]),
+              name: "Balance payment",
+            }),
+            1500,
+          ),
+          // Valid total, wrong digest — an invalid proof, so the session is
+          // ignored: not settled, and not refunded (we can't prove it is ours).
+          price_proof: `1500.${"A".repeat(44)}`,
+        },
+        payment_intent: "pi_balance_tampered",
+        payment_status: "paid",
+      } as unknown as Awaited<
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      >),
+    );
+    try {
+      await handleRequest(
+        mockRequest("/payment/success?session_id=cs_balance_tampered"),
+      );
+      // Ignored: the balance is left outstanding and no refund was issued.
+      expect(refund.calls.length).toBe(0);
+      const state = await getAttendeeBalanceState(attendeeId);
+      expect(state?.remainingBalance).toBe(1500);
+    } finally {
+      session.restore();
+      refund.restore();
     }
   });
 
@@ -229,11 +312,14 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
       Promise.resolve({
         amount_total: 1500,
         id: "cs_bal_nolisting",
-        metadata: {
-          balance_attendee_id: String(attendeeId),
-          items: JSON.stringify([{ e: 98765, p: 1500, q: 1 }]),
-          name: "Balance payment",
-        },
+        metadata: signMeta(
+          webhookMeta({
+            balance_attendee_id: String(attendeeId),
+            items: JSON.stringify([{ e: 98765, p: 1500, q: 1 }]),
+            name: "Balance payment",
+          }),
+          1500,
+        ),
         payment_intent: "pi_bal_nolisting",
         payment_status: "paid",
       } as unknown as Awaited<
@@ -271,11 +357,14 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
       Promise.resolve({
         amount_total: 1500,
         id: "cs_bal_stale",
-        metadata: {
-          balance_attendee_id: String(attendeeId),
-          items: JSON.stringify([{ e: 1, p: 1500, q: 1 }]),
-          name: "Balance payment",
-        },
+        metadata: signMeta(
+          webhookMeta({
+            balance_attendee_id: String(attendeeId),
+            items: JSON.stringify([{ e: 1, p: 1500, q: 1 }]),
+            name: "Balance payment",
+          }),
+          1500,
+        ),
         payment_intent: "pi_bal_stale",
         payment_status: "paid",
       } as unknown as Awaited<
@@ -301,8 +390,8 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
 
   test("refunds when the provider charged a different amount than the checkout", async () => {
     await setupStripe();
-    // Checkout line was for 1500, but the provider reports charging only 1000.
-    // The mismatch is refused before any settlement (defence in depth).
+    // The checkout was signed for 1500, but the provider reports charging only
+    // 1000 — a charge/signed-total mismatch, refunded before any settlement.
     const attendeeId = await createReserved(1500);
     const refund = stub(stripeApi, "refundPayment", () =>
       Promise.resolve({ id: "re_amt" } as unknown as Awaited<
@@ -313,11 +402,14 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
       Promise.resolve({
         amount_total: 1000,
         id: "cs_bal_amt",
-        metadata: {
-          balance_attendee_id: String(attendeeId),
-          items: JSON.stringify([{ e: 1, p: 1500, q: 1 }]),
-          name: "Balance payment",
-        },
+        metadata: signMeta(
+          webhookMeta({
+            balance_attendee_id: String(attendeeId),
+            items: JSON.stringify([{ e: 1, p: 1500, q: 1 }]),
+            name: "Balance payment",
+          }),
+          1500,
+        ),
         payment_intent: "pi_bal_amt",
         payment_status: "paid",
       } as unknown as Awaited<
@@ -329,54 +421,7 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
         mockRequest("/payment/success?session_id=cs_bal_amt"),
       );
       expect(refund.calls[0]!.args).toEqual(["pi_bal_amt"]);
-      expect(await response.text()).toContain(
-        "balance for this booking changed",
-      );
-      const state = await getAttendeeBalanceState(attendeeId);
-      expect(state?.remainingBalance).toBe(1500);
-    } finally {
-      session.restore();
-      refund.restore();
-    }
-  });
-
-  test("refunds a malformed balance session carrying more than one line", async () => {
-    await setupStripe();
-    // A balance checkout is always a single synthetic line. A multi-line
-    // session is malformed/foreign, so settling items[0].p would clear a
-    // guessed amount — it must refund and leave the balance untouched instead.
-    const attendeeId = await createReserved(1500);
-    const refund = stub(stripeApi, "refundPayment", () =>
-      Promise.resolve({ id: "re_multi" } as unknown as Awaited<
-        ReturnType<typeof stripeApi.refundPayment>
-      >),
-    );
-    const session = stub(stripeApi, "retrieveCheckoutSession", () =>
-      Promise.resolve({
-        amount_total: 1500,
-        id: "cs_bal_multi",
-        metadata: {
-          balance_attendee_id: String(attendeeId),
-          items: JSON.stringify([
-            { e: 1, p: 1000, q: 1 },
-            { e: 1, p: 500, q: 1 },
-          ]),
-          name: "Balance payment",
-        },
-        payment_intent: "pi_bal_multi",
-        payment_status: "paid",
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >),
-    );
-    try {
-      const response = await handleRequest(
-        mockRequest("/payment/success?session_id=cs_bal_multi"),
-      );
-      expect(refund.calls[0]!.args).toEqual(["pi_bal_multi"]);
-      expect(await response.text()).toContain(
-        "balance for this booking changed",
-      );
+      expect(await response.text()).toContain("price for this listing changed");
       const state = await getAttendeeBalanceState(attendeeId);
       expect(state?.remainingBalance).toBe(1500);
     } finally {

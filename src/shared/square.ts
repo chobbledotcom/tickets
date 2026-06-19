@@ -27,6 +27,7 @@ import {
   enforceMetadataLimits,
   errorMessage,
   PaymentUserError,
+  packMetadata,
   SQUARE_METADATA_MAX_ENTRIES,
   SQUARE_METADATA_MAX_VALUE_LENGTH,
 } from "#shared/payment-helpers.ts";
@@ -567,14 +568,18 @@ export const squareApi: {
     intent: CheckoutIntent,
     baseUrl: string,
   ): Promise<PaymentLinkResult> => {
+    // Price the order once and reuse that total for both the charged line items
+    // and the signed proof, so the two can never disagree (see #1300).
+    const order = priceCheckout(intent);
+
     const prep = await preparePaymentLink(
-      await buildItemsMetadata(intent),
+      packMetadata(await buildItemsMetadata(intent, order.total)),
       `payment link for ${intent.items.length} listing(s)`,
     );
     if (!prep) return null;
 
     const lineItems = buildProviderLineItems<SquareLineItem>(
-      priceCheckout(intent),
+      order,
       prep.config.currency,
       {
         extra: (extra, cur) => ({

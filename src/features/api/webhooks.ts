@@ -22,6 +22,7 @@ import type {
   PaymentFailureResult,
   PaymentResult,
   SessionValidation,
+  SignedVerdict,
   ValidatedSession,
 } from "#routes/api/webhook-types.ts";
 import {
@@ -68,6 +69,7 @@ import {
   markSessionFailed,
   type ProcessedPayment,
   parseSessionFailure,
+  releaseReservation,
   reserveSession,
 } from "#shared/db/processed-payments.ts";
 import {
@@ -75,6 +77,8 @@ import {
   saveAttendeeAnswers,
 } from "#shared/db/questions.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
+import { sendNtfyError } from "#shared/ntfy.ts";
+import { verifyPrice } from "#shared/payment-signature.ts";
 import {
   type BookingItem,
   type CheckoutIntent,
@@ -84,6 +88,7 @@ import {
   type ValidatedPaymentSession,
   type WebhookEvent,
 } from "#shared/payments.ts";
+import { addPendingWork } from "#shared/pending-work.ts";
 import { dayPriceFor, type ListingWithCount } from "#shared/types.ts";
 import { logAndNotifyRegistration } from "#shared/webhook.ts";
 import { paymentCancelPage, successPage } from "#templates/payment.tsx";
@@ -185,27 +190,23 @@ const validatePaidSession = async (
     };
   }
 
-  const intent = extractIntent(session);
-  if (!intent) {
-    logRedirectError(`Invalid session data (session=${sessionId})`);
-    return {
-      ok: false,
-      response: paymentErrorResponse("Invalid session data"),
-    };
-  }
-  if (
-    intent.siteTokenIndex &&
-    session.metadata._origin !== getEffectiveDomain()
-  ) {
-    logRedirectError(
-      `Unrecognized renewal payment session origin (session=${sessionId}, origin=${session.metadata._origin})`,
-    );
+  // Only a session carrying a valid price proof is provably ours. Without one we
+  // cannot prove ownership (foreign instance sharing the provider, replayed or
+  // corrupt data), so we neither process nor refund it — refunding an
+  // unverifiable session could refund another instance's payment.
+  const verdict = await classifySession(session);
+  if (verdict.verdict === "ignore") {
+    logRedirectError(`Unrecognized payment session (session=${sessionId})`);
     return {
       ok: false,
       response: paymentErrorResponse("Payment session not recognized"),
     };
   }
-  return { data: { intent, session }, ok: true };
+  // A valid proof means the metadata is byte-for-byte what we signed, so the
+  // intent always parses — extractIntent only returns null on metadata we never
+  // produced.
+  const intent = extractIntent(session)!;
+  return { data: { intent, session, verdict }, ok: true };
 };
 
 /**
@@ -228,19 +229,29 @@ const tryRefund = async (
     return false;
   }
 
-  const refunded = await provider.refundPayment(paymentReference);
-
-  if (refunded) {
+  if (await provider.refundPayment(paymentReference)) {
     logDebug("Payment", "Refund issued");
-  } else {
-    logError({
-      code: ErrorCode.PAYMENT_REFUND,
-      detail: `Failed to refund payment ${paymentReference}`,
-      listingId,
-    });
+    return true;
   }
 
-  return refunded;
+  // A false return can simply mean the payment was ALREADY fully refunded: each
+  // provider rejects a second full refund (Stripe errors on an already-refunded
+  // intent; Square and SumUp reject a re-refund), and that rejection surfaces
+  // here as false. That is success, not failure — the money is back with the
+  // customer — so confirm via the provider's refund-status query before
+  // reporting failure. Without this, a redelivery after a recovered refund would
+  // loop on a 503 retry for money already returned.
+  if (await provider.isPaymentRefunded(paymentReference)) {
+    logDebug("Payment", "Payment already fully refunded");
+    return true;
+  }
+
+  logError({
+    code: ErrorCode.PAYMENT_REFUND,
+    detail: `Failed to refund payment ${paymentReference}`,
+    listingId,
+  });
+  return false;
 };
 
 /** Attempt refund and log activity if successful */
@@ -268,7 +279,7 @@ const refundAndFail = async (
   listingId: number,
   status: number | undefined,
   detail?: string,
-): Promise<PaymentResult> => {
+): Promise<PaymentFailureResult> => {
   const refunded = await refundAndLog(session, message, listingId);
   return { detail, error: message, refunded, status, success: false };
 };
@@ -283,7 +294,7 @@ const validationFailure = (
   session: ValidatedPaymentSession,
   validation: { error: string; status?: number },
   listingId: number,
-): Promise<PaymentResult> | PaymentResult => {
+): Promise<PaymentFailureResult> | PaymentFailureResult => {
   if (validation.status === 404) {
     return {
       detail: `Post-payment listing not found (session=${session.id})`,
@@ -412,24 +423,15 @@ const alreadyProcessedResult = async (
 };
 
 /**
- * Parse booking items from metadata JSON.
+ * Parse booking items from metadata JSON. Returns null when the JSON is
+ * unparseable, not an array, or empty.
  *
- * Precondition: the session has passed _origin verification, so this JSON
- * was serialized by our own buildMetadata(). We parse with JSON.parse
- * (which is safe) and do a basic structural check. Returns null only if the
- * JSON is unparseable or the array is empty — a corrupt item (e.g. missing
- * field) throws so the bug surfaces immediately.
+ * Every fulfilment caller reaches this only for a session carrying a valid price
+ * proof, so the items are exactly what our checkout serialized — a non-empty
+ * array of well-formed items. The cancel page also parses here, but only on a
+ * best-effort basis to find a listing id for its back-link, so a session that
+ * never came through our checkout degrades to null rather than throwing.
  */
-const isBookingItem = (item: unknown): item is BookingItem =>
-  typeof item === "object" &&
-  item !== null &&
-  "e" in item &&
-  "q" in item &&
-  "p" in item &&
-  Number.isInteger((item as BookingItem).e) &&
-  Number.isInteger((item as BookingItem).q) &&
-  Number.isInteger((item as BookingItem).p);
-
 const parseBookingItems = (itemsJson: string): BookingItem[] | null => {
   let parsed: unknown;
   try {
@@ -440,15 +442,6 @@ const parseBookingItems = (itemsJson: string): BookingItem[] | null => {
 
   if (!Array.isArray(parsed) || parsed.length === 0) return null;
 
-  for (const item of parsed) {
-    if (!isBookingItem(item)) {
-      throw new Error(
-        `Corrupt booking item in session metadata: ${JSON.stringify(item)}`,
-      );
-    }
-  }
-
-  // Every element validated by the type guard above
   return parsed as BookingItem[];
 };
 
@@ -533,7 +526,7 @@ const handleReservationConflict = async (
 const validateAllItems = async (
   session: ValidatedPaymentSession,
   intent: BookingIntent,
-): Promise<{ ok: true; items: ValidatedItem[] } | PaymentResult> => {
+): Promise<{ ok: true; items: ValidatedItem[] } | PaymentFailureResult> => {
   const includeListingName = intent.items.length > 1;
   const validatedItems: ValidatedItem[] = [];
   for (const item of intent.items) {
@@ -595,13 +588,106 @@ const paidByListing = (order: PricedOrder): Map<number, number> => {
   return paid;
 };
 
-/** Verify per-item and total prices for paid sessions. Returns null on success. */
+/** Split the `total.sig` price proof into a non-negative integer total and a
+ * non-empty signature, or null when the field is absent or malformed. */
+const parsePriceProof = (
+  proof: string,
+): { total: number; sig: string } | null => {
+  const match = /^(\d+)\.(.+)$/.exec(proof);
+  return match ? { sig: match[2]!, total: Number(match[1]) } : null;
+};
+
+/**
+ * Evaluate a session's price proof against its metadata:
+ *  - `null`: no proof at all.
+ *  - `{ valid: false }`: a proof is present but doesn't verify (tampered
+ *    metadata, or a foreign instance that signed with its own key).
+ *  - `{ valid: true, total }`: a genuine proof binding `total`.
+ *
+ * Only the third case proves the session is ours; the first two both classify as
+ * `ignore` (see {@link classifySession}).
+ */
+const evaluatePriceProof = async (
+  session: ValidatedPaymentSession,
+): Promise<null | { valid: false } | { valid: true; total: number }> => {
+  const proof = session.metadata.price_proof;
+  if (!proof) return null;
+  const parsed = parsePriceProof(proof);
+  if (
+    parsed === null ||
+    !(await verifyPrice(session.metadata, parsed.total, parsed.sig))
+  ) {
+    return { valid: false };
+  }
+  return { total: parsed.total, valid: true };
+};
+
+/**
+ * The single classification of a paid session — the one place the trust matrix
+ * lives, so every downstream decision reads one verdict. A valid price proof is
+ * the *only* signal that a session is ours: it cannot be forged without our key,
+ * and our checkout always attaches one, so the `_origin` marker plays no part in
+ * the decision (it is unsigned and forgeable).
+ *
+ *  - `trusted` — valid proof and the charge matches the signed total: process,
+ *    using `agreed` as the price oracle.
+ *  - `mismatch` — valid proof but the provider charged a different amount than we
+ *    signed: refund (defensive — we create the checkout with the exact total).
+ *  - `ignore` — no valid proof (absent, malformed, tampered, or signed by another
+ *    instance). We cannot prove it is ours, so we neither process nor refund it:
+ *    refunding an unverifiable session could refund another instance's payment,
+ *    and a corrupted one of ours is a support case, not an automatic refund.
+ */
+type SessionClass = SignedVerdict | { verdict: "ignore" };
+
+const classifySession = async (
+  session: ValidatedPaymentSession,
+): Promise<SessionClass> => {
+  const evaluation = await evaluatePriceProof(session);
+  if (evaluation === null || !evaluation.valid) return { verdict: "ignore" };
+  return session.amountTotal === evaluation.total
+    ? { agreed: evaluation.total, verdict: "trusted" }
+    : { agreed: evaluation.total, verdict: "mismatch" };
+};
+
+/**
+ * Refund a session the provider charged for an amount other than our signed
+ * total. Defers the alert so a slow ntfy never delays the money.
+ */
+const refuseMismatch = (
+  session: ValidatedPaymentSession,
+  agreed: number,
+  listingId: number,
+): Promise<PaymentResult> => {
+  addPendingWork(sendNtfyError(ErrorCode.WEBHOOK_PRICE_SIGNATURE));
+  return priceMismatchRefund(
+    session,
+    `Provider charged ${session.amountTotal} but signed total was ${agreed}`,
+    listingId,
+  );
+};
+
+/**
+ * Verify a trusted session's prices against the live listing data. Returns null
+ * on success, or a refund result.
+ *
+ * `agreed` is the signed total carried by the trusted verdict. The proof already
+ * pins every pricing input (items, modifier refs, answer ids, reservation
+ * snapshot) and the charge already equals `agreed`, so the only thing that can
+ * still differ is the *current* database price — a listing/modifier/answer price
+ * edited between checkout and this webhook. Both checks below catch that
+ * legitimate mid-checkout price change and refund. Pricing-code divergence on
+ * identical inputs is caught at dev time by the property-based consistency test,
+ * so this runtime path refunds without paging.
+ */
 const verifyPaidPricing = async (
   session: ValidatedPaymentSession,
   intent: BookingIntent,
   validatedItems: ValidatedItem[],
   pricedOrder: PricedOrder,
+  agreed: number,
 ): Promise<PaymentResult | null> => {
+  const listingId = validatedItems[0]!.listing.id;
   const hasPaidItems = intent.items.some((item) => item.p > 0);
 
   // Per-item prices are ticket-only (no fee), so validate without booking fee
@@ -617,15 +703,11 @@ const verifyPaidPricing = async (
     }
   }
 
-  // Re-derive the expected total with the same pricing pipeline the checkout
-  // used: deposit-aware ticket charges, modifiers (re-fetched from the database
-  // by id, never trusting metadata amounts), and the booking fee on top.
-  const expectedTotal = pricedOrder.total;
-  if (session.amountTotal !== expectedTotal) {
-    return await priceMismatchRefund(
+  if (pricedOrder.total !== agreed) {
+    return priceMismatchRefund(
       session,
-      `Total mismatch: provider charged ${session.amountTotal} but expected ${expectedTotal}`,
-      validatedItems[0]!.listing.id,
+      `Re-derived total ${pricedOrder.total} differs from signed total ${agreed}`,
+      listingId,
     );
   }
   return null;
@@ -739,15 +821,16 @@ const BALANCE_CHANGED_MESSAGE =
 /**
  * Settle a reserved attendee's balance instead of creating a new attendee.
  *
- * The amount this checkout was created for is the single balance line's price
- * (`items[0].p`); since balance payments add no booking fee, the provider must
- * have charged exactly that (`session.amountTotal`). The settle then clears
- * the balance only if the live `remaining_balance` still equals that amount — so
- * a balance the owner edited, or one a concurrent/stale checkout already
- * settled, can't be cleared for the wrong figure — and finalizes the session in
- * the SAME transaction so a crash between settle and finalize can't leave a
- * paid-but-unfinalized row (which a later stale-replay would wrongly refund). A
- * mismatch refunds and returns a terminal failure rather than mutating anything.
+ * Reached only for a trusted session (the mismatch verdict refunds upstream), so
+ * the proof has already bound `balance_attendee_id` and the single balance line,
+ * and the charge equals the signed total. The amount this checkout was created
+ * for is that line's price (`items[0].p`); the settle clears the balance only if
+ * the live `remaining_balance` still equals it — so a balance the owner edited,
+ * or one a concurrent/stale checkout already settled, can't be cleared for the
+ * wrong figure — and finalizes the session in the SAME transaction so a crash
+ * between settle and finalize can't leave a paid-but-unfinalized row (which a
+ * later stale-replay would wrongly refund). A mismatch refunds and returns a
+ * terminal failure rather than mutating anything.
  */
 const settleBalanceSession = async (
   sessionId: string,
@@ -756,34 +839,19 @@ const settleBalanceSession = async (
 ): Promise<PaymentResult> => {
   const attendeeId = intent.balanceAttendeeId as number;
   // A balance checkout is always a single synthetic line whose price is the
-  // outstanding balance it was created to clear.
+  // outstanding balance it was created to clear (proof-bound: see handleBalancePost).
   const expectedAmount = intent.items[0]!.p;
   const listingId = intent.items[0]!.e;
-
-  const fail = (detail: string): Promise<PaymentResult> =>
-    refundAndFail(session, BALANCE_CHANGED_MESSAGE, listingId, 409, detail);
-
-  // Enforce the single-line invariant the amount above relies on (see
-  // handleBalancePost). A balance session with more than one line is malformed
-  // or foreign; settling items[0].p would clear a guessed amount, so refund and
-  // record a terminal failure instead.
-  if (intent.items.length !== 1) {
-    return fail(
-      `Balance session for attendee ${attendeeId} has ${intent.items.length} line(s); expected exactly one`,
-    );
-  }
-
-  if (session.amountTotal !== expectedAmount) {
-    return fail(
-      `Balance amount mismatch (attendee ${attendeeId}): provider charged ${session.amountTotal} but checkout was for ${expectedAmount}`,
-    );
-  }
 
   const settled = await settleAttendeeBalance(attendeeId, expectedAmount, [
     balanceFinalizeStatement(sessionId, attendeeId, expectedAmount),
   ]);
   if (!settled.settled) {
-    return fail(
+    return refundAndFail(
+      session,
+      BALANCE_CHANGED_MESSAGE,
+      listingId,
+      409,
       `Balance not settled (${settled.reason}) for attendee ${attendeeId}; paid ${session.amountTotal}`,
     );
   }
@@ -829,7 +897,15 @@ const processReservedSession = async (
   data: ValidatedSession,
   options?: { storeTokens?: boolean },
 ): Promise<PaymentResult> => {
-  const { session, intent } = data;
+  const { session, intent, verdict } = data;
+  const signedListingId = intent.items[0]!.e;
+
+  // The provider charged an amount other than our signed total — refund. Inside
+  // the reservation so the refund is idempotent (a later delivery replays this
+  // outcome, never re-refunds). Covers ticket and balance sessions uniformly.
+  if (verdict.verdict === "mismatch") {
+    return refuseMismatch(session, verdict.agreed, signedListingId);
+  }
 
   // Balance payment: settle the existing attendee rather than create one.
   if (intent.balanceAttendeeId) {
@@ -838,7 +914,20 @@ const processReservedSession = async (
 
   // Phase 2: Validate listings and create attendees atomically
   const validated = await validateAllItems(session, intent);
-  if ("success" in validated) return validated;
+  if ("success" in validated) {
+    // validateAllItems leaves a 404 un-refunded (a foreign instance sharing the
+    // provider would land there). This is a trusted session we signed, so a 404
+    // is our own since-deleted listing — refund instead of stranding the paid
+    // customer behind a bare "listing not found".
+    if (validated.status === 404) {
+      return priceMismatchRefund(
+        session,
+        `Listing not found for a signed session (session=${session.id})`,
+        signedListingId,
+      );
+    }
+    return validated;
+  }
   const validatedItems = validated.items;
 
   // Resolve the applied modifiers once (re-fetched by id from the database);
@@ -860,6 +949,7 @@ const processReservedSession = async (
     intent,
     validatedItems,
     pricedOrder,
+    verdict.agreed,
   );
   if (pricingError) return pricingError;
 
@@ -920,28 +1010,29 @@ const processPaymentSession = async (
 
   const result = await processReservedSession(sessionId, data, options);
 
-  // Record a handled failure as the session's terminal outcome so a later
-  // redirect/webhook for the same paid session replays it (same message and
-  // refund status) instead of re-refunding or getting stuck behind the lock.
-  // A refund that FAILED (refunded === false) is deliberately left unrecorded:
-  // the reservation stays retryable so a later attempt can re-issue the refund
-  // and self-heal, rather than freezing a "contact support" outcome forever.
-  // The transient "another request is processing" conflict returns above and
-  // never reaches here, so it stays retryable too.
-  //
-  // The refund (issued inside processReservedSession) and this write are NOT
-  // atomic — an external refund can't be transactional with a local DB write.
-  // If the process crashes in between, the row stays reserved with no recorded
-  // outcome; once it goes stale (STALE_RESERVATION_MS) a retry deletes it and
-  // re-processes, re-attempting the refund. This CANNOT double-pay: every
-  // provider refunds the full charge amount and rejects a refund that exceeds
-  // the already-refunded balance (Stripe errors on an already-refunded intent;
-  // Square caps at the refundable amount — its idempotency key is a fresh UUID,
-  // so the amount cap, not the key, is the safeguard; SumUp rejects a
-  // re-refund). Worst case is a declined retry that shows the customer a
-  // misleading "contact support for a refund" even though the money was already
-  // returned — never a duplicate payout.
-  if (!result.success && result.refunded !== false) {
+  // A refund of a real payment that FAILED must stay retryable, and the very
+  // next provider redelivery should re-attempt it. Releasing the reservation
+  // now (rather than leaving it held with no recorded outcome) is what makes
+  // that happen: a held reservation would make the redelivery collide with the
+  // lock and return 409 until the row goes stale (~5 min), gating refund
+  // recovery on a local timer instead of provider redelivery. Releasing lets
+  // the next delivery re-claim and re-refund immediately. This CANNOT
+  // double-pay: every provider refunds the full charge amount and rejects a
+  // refund that exceeds the already-refunded balance, and tryRefund treats an
+  // already-refunded payment as success — so a redelivery after a refund that
+  // actually went through (but reported failure) records success, not a second
+  // payout.
+  if (!result.success && result.refunded === false) {
+    await releaseReservation(sessionId);
+    return result;
+  }
+
+  // Otherwise record a handled failure as the session's terminal outcome so a
+  // later redirect/webhook for the same paid session replays it (same message
+  // and refund status) instead of re-refunding or stalling behind the lock. The
+  // transient "another request is processing" conflict returns above and never
+  // reaches here, so it stays retryable too.
+  if (!result.success) {
     await markSessionFailed(sessionId, {
       error: result.error,
       refunded: result.refunded,
@@ -1128,6 +1219,39 @@ const handlePaymentCancel = withSessionId(async (sid) => {
 const webhookAckResponse = (extra?: Record<string, unknown>): Response =>
   jsonResponse({ received: true, ...extra });
 
+/**
+ * Map a processed-payment result to the webhook's HTTP response.
+ *  - success → 200 ack (processed).
+ *  - another request holds the reservation (transient lock, no refund) → 409 so
+ *    the provider retries.
+ *  - a refund of a real payment failed → 503 (reservation left retryable) so the
+ *    provider re-delivers and we re-attempt; guarded on a payment reference so a
+ *    session with nothing to refund can't trigger a retry loop.
+ *  - any other handled failure (refund issued, or nothing to retry) → 200 ack.
+ */
+const webhookResultResponse = (
+  result: PaymentResult,
+  session: ValidatedPaymentSession,
+  payload: string,
+  listingIdForLog: number | undefined,
+): Response => {
+  if (result.success) return webhookAckResponse({ processed: true });
+  // Log once at the boundary — inner functions pass structured context via detail.
+  logError({
+    code: ErrorCode.PAYMENT_SESSION,
+    detail: result.detail ?? result.error,
+    listingId: listingIdForLog,
+  });
+  logDebug("Webhook", `Failed payload: ${payload}`);
+  if (result.status === 409 && result.refunded === undefined) {
+    return plainResponse(result.error, 409);
+  }
+  if (result.refunded === false && session.paymentReference) {
+    return plainResponse(result.error, 503);
+  }
+  return webhookAckResponse({ error: result.error, processed: false });
+};
+
 /** Detect which provider sent the webhook based on request headers */
 const getWebhookSignatureHeader = (request: Request): string | null =>
   request.headers.get("stripe-signature") ??
@@ -1238,19 +1362,8 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
 
   const session = sessionResult;
 
-  // Verify session originated from this instance. Sessions created by a
-  // different application sharing the same payment provider account will not
-  // carry our _origin marker.
-  const origin = session.metadata._origin;
-  if (origin !== getEffectiveDomain()) {
-    logDebug(
-      "Webhook",
-      `Ignoring webhook for unrecognized payment session (origin=${origin}): ${payload}`,
-    );
-    return webhookAckResponse();
-  }
-
-  // Verify payment is complete
+  // Verify payment is complete before classifying — an unpaid session may carry
+  // a charge amount that would otherwise classify as trusted.
   if (session.paymentStatus !== "paid") {
     logError({
       code: ErrorCode.PAYMENT_SESSION,
@@ -1260,43 +1373,32 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
     return webhookAckResponse({ status: "pending" });
   }
 
-  const intent = extractIntent(session);
-  if (!intent) {
-    logError({
-      code: ErrorCode.PAYMENT_SESSION,
-      detail: `Invalid session data for ${session.id}`,
-    });
-    logDebug("Webhook", `Rejected payload: ${payload}`);
-    return plainResponse("Invalid session data", 400);
+  // A valid price proof is the only signal that the session is ours: it cannot
+  // be forged without our key, and our checkout always attaches one. Without it
+  // we cannot prove ownership (a different application sharing the provider
+  // account, or replayed/corrupt data), so we acknowledge without processing or
+  // refunding — refunding an unverifiable session could refund another
+  // instance's payment.
+  const verdict = await classifySession(session);
+  if (verdict.verdict === "ignore") {
+    logDebug(
+      "Webhook",
+      `Ignoring webhook for unverifiable session (origin=${session.metadata._origin}): ${payload}`,
+    );
+    return webhookAckResponse();
   }
 
+  // A valid proof means the metadata is byte-for-byte what we signed, so the
+  // intent always parses — extractIntent only returns null on metadata we never
+  // produced.
+  const intent = extractIntent(session)!;
   const listingIdForLog = intent.items[0]?.e;
   const result = await processPaymentSession(session.id, {
     intent,
     session,
+    verdict,
   });
-
-  if (!result.success) {
-    // Log once at the boundary — inner functions pass structured context via result.detail
-    logError({
-      code: ErrorCode.PAYMENT_SESSION,
-      detail: result.detail ?? result.error,
-      listingId: listingIdForLog,
-    });
-    logDebug("Webhook", `Failed payload: ${payload}`);
-
-    // If another request holds the reservation (no refund attempted,
-    // just a transient lock), return 409 so the provider retries the webhook.
-    // Handled outcomes (refund issued) keep the 200 ack — retrying wouldn't help.
-    if (result.status === 409 && result.refunded === undefined) {
-      return plainResponse(result.error, 409);
-    }
-  }
-
-  return webhookAckResponse({
-    error: result.success ? undefined : result.error,
-    processed: result.success,
-  });
+  return webhookResultResponse(result, session, payload, listingIdForLog);
 };
 
 /** Payment routes definition */
