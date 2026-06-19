@@ -36,6 +36,9 @@ const FORBIDDEN_PATTERNS = [
  * rule is src-only; test code may use Maps/Sets freely).
  */
 const ALLOWED_FILES_STATE = [
+  // Process-local registry of cache-invalidation callbacks, wired at module
+  // load (like the providers array beside it); not persistent app state.
+  "shared/cache-registry.ts",
   // Session cache with 10s TTL - legitimate performance optimization
   "shared/db/sessions.ts",
   // Settings test overrides Map for injecting test values into the snapshot
@@ -357,6 +360,44 @@ describe("code quality", () => {
     });
   });
 
+  describe("db writes go through the client", () => {
+    // Direct getDb().execute / .batch calls bypass the single client choke
+    // point that drives automatic, table-scoped cache invalidation, so a write
+    // through them can silently leave a cache stale. All callers must use
+    // execute()/queryOne()/queryAll()/executeBatch() instead. Only the client
+    // itself and the migrator (which runs DDL/backfill before caches matter)
+    // may touch the raw connection.
+    const ALLOWED_RAW_DB = [
+      "shared/db/client.ts",
+      // The migrator runs DDL / schema setup / backfill before the app serves
+      // requests, so cache invalidation does not apply to it.
+      "shared/db/migrations.ts",
+      "shared/db/migrations/",
+    ];
+    const RAW_DB_PATTERN = /getDb\(\)\.(?:execute|batch)\s*\(/;
+
+    test("no source file calls getDb().execute/.batch directly", async () => {
+      await ensureLoaded();
+      const violations: string[] = [];
+
+      for (const file of srcFiles) {
+        const relativePath = getRelativePath(file);
+        if (
+          ALLOWED_RAW_DB.some((allowed) => relativePath.startsWith(allowed))
+        ) {
+          continue;
+        }
+        if (RAW_DB_PATTERN.test(srcContents.get(file)!)) {
+          violations.push(
+            `${relativePath}: use execute()/queryOne()/queryAll()/executeBatch() from #shared/db/client.ts instead of getDb().execute/.batch`,
+          );
+        }
+      }
+
+      expect(violations).toEqual([]);
+    });
+  });
+
   /**
    * Scan src and test files line by line, collecting violations via a callback.
    * Test code is held to the same line-level standards as production code.
@@ -575,6 +616,11 @@ describe("code quality", () => {
       "shared/test-overrides.ts:setTouchOverrideForTest",
       // Reset the in-memory form re-fill stash between tests
       "shared/form-stash.ts:clearFormStash",
+      // Backward-compat wrapper: fires all invalidators unconditionally (no production caller now
+      // that client.ts uses invalidateCachesForWrite, but kept for external callers and tests)
+      "shared/cache-registry.ts:invalidateCachesForTable",
+      // SET-clause column extractor: internal parser exposed for unit testing only
+      "shared/db/client.ts:extractUpdateColumns",
     ];
 
     /**

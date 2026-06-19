@@ -5,6 +5,7 @@
 import { fromFileUrl } from "@std/path";
 import type { Plugin } from "esbuild";
 import * as esbuild from "esbuild";
+import * as sass from "sass";
 
 const denoConfig = JSON.parse(await Deno.readTextFile("./deno.json"));
 const denoImports: Record<string, string> = denoConfig.imports;
@@ -21,11 +22,26 @@ const STATIC_DIR = "./src/ui/static";
 export const STATIC_ASSET_OUTFILES = {
   admin: `${STATIC_DIR}/admin.js`,
   contact: `${STATIC_DIR}/contact.js`,
+  css: `${STATIC_DIR}/style.css`,
   embed: `${STATIC_DIR}/embed.js`,
   iframeResizerChild: `${STATIC_DIR}/iframe-resizer-child.js`,
   iframeResizerParent: `${STATIC_DIR}/iframe-resizer-parent.js`,
   scanner: `${STATIC_DIR}/scanner.js`,
 } as const;
+
+/** Source SCSS stylesheet compiled to {@link STATIC_ASSET_OUTFILES.css}. */
+const CSS_ENTRY = `${STATIC_DIR}/style.scss`;
+
+/**
+ * Compile the SCSS stylesheet to the served CSS file. Kept expanded (not
+ * minified) for dev/serving parity with the previous hand-written CSS; the edge
+ * build minifies it separately when inlining.
+ */
+const buildCss = async (quiet = false): Promise<void> => {
+  const { css } = sass.compile(CSS_ENTRY, { style: "expanded" });
+  await Deno.writeTextFile(STATIC_ASSET_OUTFILES.css, css);
+  if (!quiet) console.log(`CSS build complete: ${STATIC_ASSET_OUTFILES.css}`);
+};
 
 const buildBundle = async (
   label: string,
@@ -120,6 +136,8 @@ export const buildStaticAssets = async (
 ): Promise<void> => {
   const quiet = options.quiet ?? false;
   await Promise.all([
+    buildCss(quiet),
+
     buildBundle(
       "Scanner",
       {

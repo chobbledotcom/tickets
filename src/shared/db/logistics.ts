@@ -10,8 +10,8 @@
 
 import { compact, flatMap } from "#fp";
 import {
+  execute,
   executeBatch,
-  getDb,
   inPlaceholders,
   queryAll,
 } from "#shared/db/client.ts";
@@ -223,12 +223,12 @@ export const setLegDone = async (
   if (agentIds.length === 0) return false;
   const doneColumn = kind === "start" ? "start_done" : "end_done";
   const agentColumn = kind === "start" ? "start_agent_id" : "end_agent_id";
-  const result = await getDb().execute({
-    args: [done ? 1 : 0, attendeeId, listingId, ...agentIds],
-    sql: `UPDATE listing_attendees SET ${doneColumn} = ?
+  const result = await execute(
+    `UPDATE listing_attendees SET ${doneColumn} = ?
           WHERE attendee_id = ? AND listing_id = ?
             AND ${agentColumn} IN (${inPlaceholders(agentIds)})`,
-  });
+    [done ? 1 : 0, attendeeId, listingId, ...agentIds],
+  );
   return result.rowsAffected > 0;
 };
 

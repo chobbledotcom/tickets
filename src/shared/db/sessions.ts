@@ -6,7 +6,7 @@ import { registerCache } from "#shared/cache-registry.ts";
 import { hashSessionToken } from "#shared/crypto/hashing.ts";
 import {
   deleteByField,
-  getDb,
+  execute,
   insert,
   queryAll,
   queryOne,
@@ -86,23 +86,17 @@ export const createSession = async (
   userId: number,
 ): Promise<void> => {
   const tokenHash = await hashSessionToken(token);
-  await getDb().execute(
-    insert("sessions", {
-      csrf_token: csrfToken,
-      expires,
-      token: tokenHash,
-      user_id: userId,
-      wrapped_data_key: wrappedDataKey,
-    }),
-  );
-  // Pre-cache the new session using token hash as key
-  cacheSession(tokenHash, {
+  const session = {
     csrf_token: csrfToken,
     expires,
     token: tokenHash,
     user_id: userId,
     wrapped_data_key: wrappedDataKey,
-  });
+  };
+  const { sql, args } = insert("sessions", session);
+  await execute(sql, args);
+  // Pre-cache the new session using token hash as key
+  cacheSession(tokenHash, session);
 };
 
 /**
@@ -140,7 +134,7 @@ export const deleteSession = async (token: string): Promise<void> => {
  */
 export const deleteAllSessions = async (): Promise<void> => {
   clearSessionCache();
-  await getDb().execute("DELETE FROM sessions");
+  await execute("DELETE FROM sessions");
 };
 
 /**
@@ -167,8 +161,5 @@ export const deleteOtherSessions = async (
     sessionCache.set(tokenHash, currentEntry);
   }
 
-  await getDb().execute({
-    args: [tokenHash],
-    sql: "DELETE FROM sessions WHERE token != ?",
-  });
+  await execute("DELETE FROM sessions WHERE token != ?", [tokenHash]);
 };

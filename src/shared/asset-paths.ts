@@ -5,7 +5,7 @@
  */
 
 /** CSS stylesheet path, cache-busted at build time */
-export const CSS_PATH = "/mvp.css";
+export const CSS_PATH = "/style.css";
 
 /** Admin JS path, cache-busted at build time */
 export const JS_PATH = "/admin.js";

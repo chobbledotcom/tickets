@@ -23,7 +23,6 @@ import {
   hashPhone,
   recordVisit,
 } from "#shared/db/contact-preferences.ts";
-import { invalidateListingsCache } from "#shared/db/listings.ts";
 import { type Attendee, normalizeDurationDays } from "#shared/types.ts";
 
 /**
@@ -240,6 +239,5 @@ export const createAttendeeAtomicImpl = async (
   // the customer on future checkouts.
   await recordOrderVisit(email, phone);
 
-  invalidateListingsCache();
   return { attendees: successfulBookings, success: true };
 };

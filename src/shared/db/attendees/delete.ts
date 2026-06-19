@@ -4,7 +4,6 @@
 
 import type { InValue } from "@libsql/client";
 import { executeBatch, queryAll } from "#shared/db/client.ts";
-import { invalidateListingsCache } from "#shared/db/listings.ts";
 
 type DeleteAttendeeOptions = { releaseBookings?: boolean };
 type ListingContribution = {
@@ -73,5 +72,4 @@ export const deleteAttendee = async (
     ? []
     : await attendeeListingContributions(attendeeId);
   await purgeAttendee(attendeeId, contributions);
-  invalidateListingsCache();
 };

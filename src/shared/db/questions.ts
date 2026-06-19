@@ -9,8 +9,8 @@ import type { InValue } from "@libsql/client";
 import { filter, map, reduce } from "#fp";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import {
+  execute,
   executeBatch,
-  getDb,
   inPlaceholders,
   insert,
   queryAll,
@@ -747,10 +747,10 @@ export const setAnswerModifier = async (
   answerId: number,
   modifierId: number | null,
 ): Promise<void> => {
-  await getDb().execute({
-    args: [modifierId, answerId],
-    sql: "UPDATE answers SET modifier_id = ? WHERE id = ?",
-  });
+  await execute("UPDATE answers SET modifier_id = ? WHERE id = ?", [
+    modifierId,
+    answerId,
+  ]);
 };
 
 /** Swap the sort_order of two answers by their IDs */

@@ -40,7 +40,6 @@ import {
 } from "#shared/db/attendees/capacity.ts";
 import { buildCapacityCondition } from "#shared/db/capacity.ts";
 import { executeBatchWithResults, queryAll } from "#shared/db/client.ts";
-import { invalidateListingsCache } from "#shared/db/listings.ts";
 
 /**
  * A guard statement that aborts the whole write batch when the immediately
@@ -238,7 +237,6 @@ export const applyAttendeeAtomicEdit = async (
   // thrown error (the caller retries), never a partial write.
   await executeBatchWithResults(statements);
 
-  invalidateListingsCache();
   return { success: true };
 };
 

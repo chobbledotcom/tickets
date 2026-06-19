@@ -2,7 +2,11 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import {
   getAllCacheStats,
+  invalidateCachesForTable,
+  invalidateCachesForWrite,
   registerCache,
+  registerDependencies,
+  registerTableInvalidation,
   resetCacheRegistry,
 } from "#shared/cache-registry.ts";
 import { getAllHolidays, holidaysTable } from "#shared/db/holidays.ts";
@@ -56,6 +60,221 @@ describe("cache-registry", () => {
     expect(getAllCacheStats()).toHaveLength(1);
     resetCacheRegistry();
     expect(getAllCacheStats()).toHaveLength(0);
+  });
+});
+
+describe("table invalidation registry", () => {
+  beforeEach(() => {
+    resetCacheRegistry();
+  });
+
+  afterEach(() => {
+    resetCacheRegistry();
+  });
+
+  test("fires the invalidator registered for a written table", () => {
+    let fired = 0;
+    registerTableInvalidation(["listings"], () => {
+      fired++;
+    });
+    invalidateCachesForTable("listings");
+    expect(fired).toBe(1);
+  });
+
+  test("ignores tables with no registered invalidator", () => {
+    let fired = 0;
+    registerTableInvalidation(["listings"], () => {
+      fired++;
+    });
+    invalidateCachesForTable("sessions");
+    expect(fired).toBe(0);
+  });
+
+  test("one invalidator can depend on several tables", () => {
+    let fired = 0;
+    registerTableInvalidation(["listings", "listing_attendees"], () => {
+      fired++;
+    });
+    invalidateCachesForTable("listing_attendees");
+    expect(fired).toBe(1);
+  });
+
+  test("fires every invalidator registered against the same table", () => {
+    let a = 0;
+    let b = 0;
+    registerTableInvalidation(["users"], () => {
+      a++;
+    });
+    registerTableInvalidation(["users"], () => {
+      b++;
+    });
+    invalidateCachesForTable("users");
+    expect(a).toBe(1);
+    expect(b).toBe(1);
+  });
+
+  test("resetCacheRegistry clears table invalidators", () => {
+    let fired = 0;
+    registerTableInvalidation(["listings"], () => {
+      fired++;
+    });
+    resetCacheRegistry();
+    invalidateCachesForTable("listings");
+    expect(fired).toBe(0);
+  });
+});
+
+describe("column-gated invalidation", () => {
+  beforeEach(() => {
+    resetCacheRegistry();
+  });
+
+  afterEach(() => {
+    resetCacheRegistry();
+  });
+
+  test("column-gated UPDATE fires when it touches a listed column", () => {
+    let fired = 0;
+    registerTableInvalidation(
+      ["listing_attendees"],
+      () => {
+        fired++;
+      },
+      {
+        whenColumns: ["quantity", "price_paid"],
+      },
+    );
+    invalidateCachesForWrite("listing_attendees", {
+      columns: new Set(["quantity"]),
+      verb: "update",
+    });
+    expect(fired).toBe(1);
+  });
+
+  test("column-gated UPDATE does not fire when only other columns are touched", () => {
+    let fired = 0;
+    registerTableInvalidation(
+      ["listing_attendees"],
+      () => {
+        fired++;
+      },
+      {
+        whenColumns: ["quantity", "price_paid"],
+      },
+    );
+    invalidateCachesForWrite("listing_attendees", {
+      columns: new Set(["checked_in"]),
+      verb: "update",
+    });
+    expect(fired).toBe(0);
+  });
+
+  test("column-gated dependency always fires for INSERT", () => {
+    let fired = 0;
+    registerTableInvalidation(
+      ["listing_attendees"],
+      () => {
+        fired++;
+      },
+      {
+        whenColumns: ["quantity"],
+      },
+    );
+    invalidateCachesForWrite("listing_attendees", {
+      columns: new Set(),
+      verb: "insert",
+    });
+    expect(fired).toBe(1);
+  });
+
+  test("column-gated dependency always fires for DELETE", () => {
+    let fired = 0;
+    registerTableInvalidation(
+      ["listing_attendees"],
+      () => {
+        fired++;
+      },
+      {
+        whenColumns: ["quantity"],
+      },
+    );
+    invalidateCachesForWrite("listing_attendees", {
+      columns: new Set(),
+      verb: "delete",
+    });
+    expect(fired).toBe(1);
+  });
+
+  test("column-gated dependency always fires for REPLACE", () => {
+    let fired = 0;
+    registerTableInvalidation(
+      ["listing_attendees"],
+      () => {
+        fired++;
+      },
+      {
+        whenColumns: ["quantity"],
+      },
+    );
+    invalidateCachesForWrite("listing_attendees", {
+      columns: new Set(),
+      verb: "replace",
+    });
+    expect(fired).toBe(1);
+  });
+
+  test("ungated dependency fires for any UPDATE regardless of columns", () => {
+    let fired = 0;
+    registerTableInvalidation(["users"], () => {
+      fired++;
+    });
+    invalidateCachesForWrite("users", {
+      columns: new Set(["some_col"]),
+      verb: "update",
+    });
+    expect(fired).toBe(1);
+  });
+
+  test("fallback (INSERT verb) fires column-gated entries unconditionally", () => {
+    let fired = 0;
+    registerTableInvalidation(
+      ["listing_attendees"],
+      () => {
+        fired++;
+      },
+      {
+        whenColumns: ["quantity"],
+      },
+    );
+    invalidateCachesForWrite("listing_attendees", {
+      columns: new Set(),
+      verb: "insert",
+    });
+    expect(fired).toBe(1);
+  });
+
+  test("invalidateCachesForTable fires column-gated entries unconditionally", () => {
+    let fired = 0;
+    registerTableInvalidation(
+      ["listing_attendees"],
+      () => {
+        fired++;
+      },
+      {
+        whenColumns: ["quantity"],
+      },
+    );
+    invalidateCachesForTable("listing_attendees");
+    expect(fired).toBe(1);
+  });
+
+  test("registerDependencies wires a plain-string dep unconditionally", () => {
+    let fired = 0;
+    registerDependencies("own_table", ["other_table"], () => {
+      fired++;
+    });
+    invalidateCachesForTable("other_table");
+    expect(fired).toBe(1);
   });
 });
 

@@ -169,6 +169,19 @@ describe("adminModifierDeletePage", () => {
   });
 });
 
+describe("adminModifierEditPage promo-code visibility", () => {
+  // The promo-code field is shown only when the Trigger select has "Promo code"
+  // chosen, handled entirely in CSS (see style.scss). This locks in the markup that
+  // rule depends on: a trigger select carrying the "code" option, and the
+  // promo-code input wrapped by its "Promo code" label so the association stays
+  // intact for screen readers when the field is revealed.
+  test("renders the trigger 'code' option and labelled promo-code field the CSS toggle hooks into", () => {
+    const html = adminModifierEditPage(mod(), SESSION);
+    expect(html).toContain('<option value="code">Promo code</option>');
+    expect(html).toContain('<label>Promo code<input name="code"');
+  });
+});
+
 describe("adminModifierEditPage scope editor", () => {
   test("renders listing checkboxes (with current links checked)", () => {
     const html = adminModifierEditPage(

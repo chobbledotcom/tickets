@@ -13,8 +13,8 @@ import {
 } from "#shared/db/attendees.ts";
 import { dateToRange } from "#shared/db/capacity.ts";
 import {
+  execute,
   executeBatch,
-  getDb,
   inPlaceholders,
   queryAll,
   queryBatch,
@@ -28,6 +28,7 @@ import {
   encryptedNameSchema,
   idAndEncryptedSlugSchema,
 } from "#shared/db/common-schema.ts";
+import { LISTING_AGGREGATE_WRITE_COLUMNS } from "#shared/db/migrations/schema.ts";
 import { col } from "#shared/db/table.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
@@ -200,8 +201,8 @@ const rawListingsTable = defineIdTable<Listing, ListingInput>("listings", {
  * so the count source lives in one place. The count reads the precomputed
  * `booked_quantity` column (maintained by triggers on listing_attendees), so
  * this no longer joins or scans the attendee rows. */
-export const LISTING_COUNT_SELECT = `SELECT e.*, e.booked_quantity AS attendee_count
-     FROM listings e`;
+export const LISTING_COUNT_SELECT = `SELECT listing.*, listing.booked_quantity AS attendee_count
+     FROM listings AS listing`;
 
 /** GROUP BY clause that pairs with {@link LISTING_COUNT_SELECT}. Empty now that
  * the count comes from a column rather than an aggregate over a join. */
@@ -240,7 +241,7 @@ export const queryListingsWithCounts = async (
   args: InValue[] = [],
 ): Promise<ListingWithCount[]> => {
   const rows = await queryAll<ListingWithCount>(
-    `${LISTING_COUNT_SELECT} ${whereClause} ${LISTING_COUNT_GROUP_BY} ORDER BY e.created DESC, e.id DESC`,
+    `${LISTING_COUNT_SELECT} ${whereClause} ${LISTING_COUNT_GROUP_BY} ORDER BY listing.created DESC, listing.id DESC`,
     args,
   );
   return mapParallel(decryptListingWithCount)(rows);
@@ -255,27 +256,42 @@ const queryOneListingWithCount = async (
 
 /**
  * Listings cache: single-record reads (by id / slug) load and decrypt only the
- * one listing they need; getAll/getByType load the whole set. Writes through
- * {@link listingsTable} (and the explicit invalidate calls in the attendee
- * write paths) clear it.
+ * one listing they need; getAll/getByType load the whole set.
+ *
+ * The cache holds the trigger-maintained aggregate columns (booked_quantity,
+ * tickets_count, income), which are mutated by writes to `listing_attendees`,
+ * not to `listings` itself — so the cache declares a dependency on that table
+ * and the db client clears it on any listing_attendees write, the same as for a
+ * direct listings write. This replaces the explicit invalidate calls that every
+ * attendee write path used to have to remember.
  */
 const LISTINGS_CACHE_TTL_MS = 30_000;
 const listingsEntity = cachedEntityTable<
   Listing,
   ListingInput,
   ListingWithCount
->("listings", rawListingsTable, {
-  fetchAll: () => queryListingsWithCounts(),
-  fetchById: (id) => queryOneListingWithCount("e.id = ?", [id]),
-  fetchByKeys: (slugIndexes) =>
-    queryListingsWithCounts(
-      `WHERE e.slug_index IN (${inPlaceholders(slugIndexes)})`,
-      slugIndexes,
-    ),
-  idOf: (e) => e.id,
-  keyOf: (e) => e.slug_index,
-  ttlMs: LISTINGS_CACHE_TTL_MS,
-});
+>(
+  "listings",
+  rawListingsTable,
+  {
+    fetchAll: () => queryListingsWithCounts(),
+    fetchById: (id) => queryOneListingWithCount("listing.id = ?", [id]),
+    fetchByKeys: (slugIndexes) =>
+      queryListingsWithCounts(
+        `WHERE listing.slug_index IN (${inPlaceholders(slugIndexes)})`,
+        slugIndexes,
+      ),
+    idOf: (e) => e.id,
+    keyOf: (e) => e.slug_index,
+    ttlMs: LISTINGS_CACHE_TTL_MS,
+  },
+  [
+    {
+      table: "listing_attendees",
+      whenColumns: [...LISTING_AGGREGATE_WRITE_COLUMNS],
+    },
+  ],
+);
 const listingsCache = listingsEntity.cache;
 
 /** Listings table with CRUD operations — writes auto-invalidate the cache */
@@ -302,7 +318,7 @@ export const isSlugTaken = async (
   const args = excludeListingId
     ? [slugIndex, excludeListingId, slugIndex]
     : [slugIndex, slugIndex];
-  const result = await getDb().execute({ args, sql });
+  const result = await execute(sql, args);
   return result.rows.length > 0;
 };
 
@@ -325,7 +341,6 @@ export const deleteListing = async (listingId: number): Promise<void> => {
     { args: [listingId], sql: "DELETE FROM activity_log WHERE listing_id = ?" },
     { args: [listingId], sql: "DELETE FROM listings WHERE id = ?" },
   ]);
-  invalidateListingsCache();
 };
 
 /** The precomputed aggregate columns every `SELECT * FROM listings` row carries. */
@@ -432,16 +447,10 @@ export const updateListingAggregateValues = async (
   listingId: number,
   values: ListingAggregateValues,
 ): Promise<void> => {
-  await getDb().execute({
-    args: [
-      values.booked_quantity,
-      values.tickets_count,
-      values.income,
-      listingId,
-    ],
-    sql: "UPDATE listings SET booked_quantity = ?, tickets_count = ?, income = ? WHERE id = ?",
-  });
-  invalidateListingsCache();
+  await execute(
+    "UPDATE listings SET booked_quantity = ?, tickets_count = ?, income = ? WHERE id = ?",
+    [values.booked_quantity, values.tickets_count, values.income, listingId],
+  );
 };
 
 const aggregateResetSql: Record<ListingAggregateField, string> = {
@@ -459,7 +468,6 @@ export const resetListingAggregateFields = async (
   fields: ListingAggregateField[],
 ): Promise<void> => {
   await resetAggregates("listings", listingId, fields, aggregateResetSql);
-  invalidateListingsCache();
 };
 
 /** Result type for combined listing + attendees query */
@@ -505,8 +513,8 @@ export const getDailyListingAttendeeDates = async (): Promise<string[]> => {
   // filtering on both being non-null lets the row type stay honestly non-null.
   const rows = await queryAll<{ start_at: string; end_at: string }>(
     `SELECT DISTINCT ea.start_at, ea.end_at FROM listing_attendees ea
-     INNER JOIN listings e ON ea.listing_id = e.id
-     WHERE e.listing_type = 'daily'
+     INNER JOIN listings AS listing ON ea.listing_id = listing.id
+     WHERE listing.listing_type = 'daily'
        AND ea.start_at IS NOT NULL AND ea.end_at IS NOT NULL`,
   );
   // Expand each booking's [start_at, end_at) span into every calendar date it
@@ -538,8 +546,8 @@ export const getDailyListingAttendeesByDate = (
     `SELECT ${ATTENDEE_JOIN_SELECT}
      FROM attendees a
      JOIN listing_attendees ea ON ea.attendee_id = a.id
-     JOIN listings e ON ea.listing_id = e.id
-     WHERE e.listing_type = 'daily' AND ea.start_at < ? AND ea.end_at > ?
+     JOIN listings AS listing ON ea.listing_id = listing.id
+     WHERE listing.listing_type = 'daily' AND ea.start_at < ? AND ea.end_at > ?
      ORDER BY a.created DESC`,
     [endAt, startAt],
   );

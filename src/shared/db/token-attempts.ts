@@ -21,7 +21,7 @@
  */
 
 import { hmacHash } from "#shared/crypto/hashing.ts";
-import { deleteByField, getDb, queryOne } from "#shared/db/client.ts";
+import { deleteByField, execute, queryOne } from "#shared/db/client.ts";
 import {
   MAX_TOKEN_404S,
   TOKEN_LOCKOUT_MS,
@@ -82,17 +82,17 @@ export const recordTokenFailure = async (
 
   if (merged.size >= MAX_TOKEN_404S) {
     const lockedUntil = currentMs + TOKEN_LOCKOUT_MS;
-    await getDb().execute({
-      args: [hashedIp, "[]", lockedUntil, currentMs, currentMs],
-      sql: "INSERT OR REPLACE INTO token_attempts (ip, recent_tokens, locked_until, window_start, last_attempt) VALUES (?, ?, ?, ?, ?)",
-    });
+    await execute(
+      "INSERT OR REPLACE INTO token_attempts (ip, recent_tokens, locked_until, window_start, last_attempt) VALUES (?, ?, ?, ?, ?)",
+      [hashedIp, "[]", lockedUntil, currentMs, currentMs],
+    );
     return true;
   }
 
-  await getDb().execute({
-    args: [hashedIp, JSON.stringify([...merged]), windowStart, currentMs],
-    sql: "INSERT OR REPLACE INTO token_attempts (ip, recent_tokens, locked_until, window_start, last_attempt) VALUES (?, ?, NULL, ?, ?)",
-  });
+  await execute(
+    "INSERT OR REPLACE INTO token_attempts (ip, recent_tokens, locked_until, window_start, last_attempt) VALUES (?, ?, NULL, ?, ?)",
+    [hashedIp, JSON.stringify([...merged]), windowStart, currentMs],
+  );
   return false;
 };
 

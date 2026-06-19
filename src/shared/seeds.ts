@@ -11,7 +11,6 @@ import {
   encryptAttendeeFields,
 } from "#shared/db/attendees.ts";
 import { executeBatch, insert, queryAll, rawSql } from "#shared/db/client.ts";
-import { invalidateListingsCache } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   DEMO_ADDRESSES,
@@ -211,7 +210,6 @@ export const createSeeds = async (
     )(listingData),
   );
   await executeBatch(listingStatements);
-  invalidateListingsCache();
 
   // Query the newly created listing IDs (ordered by id DESC, limit to listingCount)
   const rows = await queryAll<{ id: number }>(
@@ -241,8 +239,6 @@ export const createSeeds = async (
       totalAttendees += batchSize;
     }
   }
-
-  invalidateListingsCache();
 
   return {
     attendeesCreated: totalAttendees,

@@ -8,7 +8,7 @@
  */
 
 import { unique } from "#fp";
-import { executeBatch, getDb, queryAll } from "#shared/db/client.ts";
+import { execute, executeBatch, queryAll } from "#shared/db/client.ts";
 
 /** The logistics agent ids assigned to a user, ascending. */
 export const getUserAgentIds = async (userId: number): Promise<number[]> => {
@@ -71,8 +71,7 @@ export const setAgentUserIds = (
 export const clearUserAgentLinksForAgent = async (
   agentId: number,
 ): Promise<void> => {
-  await getDb().execute({
-    args: [agentId],
-    sql: "DELETE FROM user_logistics_agents WHERE agent_id = ?",
-  });
+  await execute("DELETE FROM user_logistics_agents WHERE agent_id = ?", [
+    agentId,
+  ]);
 };

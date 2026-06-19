@@ -14,7 +14,7 @@ import { hmacHash } from "#shared/crypto/hashing.ts";
 import { wrapKeyWithToken } from "#shared/crypto/keys.ts";
 import {
   deleteByField,
-  getDb,
+  execute,
   insert,
   queryAll,
   queryOne,
@@ -39,16 +39,15 @@ export const createApiKey = async (
   const wrappedDataKey = await wrapKeyWithToken(dataKey, apiKey);
   const encryptedName = await encrypt(name);
 
-  const result = await getDb().execute(
-    insert("api_keys", {
-      created: nowIso(),
-      key_index: keyIndex,
-      last_used: "",
-      name: encryptedName,
-      user_id: userId,
-      wrapped_data_key: wrappedDataKey,
-    }),
-  );
+  const { sql, args } = insert("api_keys", {
+    created: nowIso(),
+    key_index: keyIndex,
+    last_used: "",
+    name: encryptedName,
+    user_id: userId,
+    wrapped_data_key: wrappedDataKey,
+  });
+  const result = await execute(sql, args);
 
   return { apiKey, id: Number(result.lastInsertRowid) };
 };
@@ -123,10 +122,10 @@ export const deleteApiKey = async (
   id: number,
   userId: number,
 ): Promise<boolean> => {
-  const result = await getDb().execute({
-    args: [id, userId],
-    sql: "DELETE FROM api_keys WHERE id = ? AND user_id = ?",
-  });
+  const result = await execute(
+    "DELETE FROM api_keys WHERE id = ? AND user_id = ?",
+    [id, userId],
+  );
   return result.rowsAffected > 0;
 };
 
@@ -143,10 +142,10 @@ export const deleteAllApiKeysForUser = (userId: number): Promise<void> =>
 export const touchApiKeyLastUsed = async (id: number): Promise<void> => {
   const override = getTouchOverride();
   if (override) throw override;
-  await getDb().execute({
-    args: [nowIso(), id],
-    sql: "UPDATE api_keys SET last_used = ? WHERE id = ?",
-  });
+  await execute("UPDATE api_keys SET last_used = ? WHERE id = ?", [
+    nowIso(),
+    id,
+  ]);
 };
 
 export const apiKeysApi = {
