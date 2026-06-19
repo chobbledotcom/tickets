@@ -1,13 +1,13 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { signCsrfToken } from "#shared/csrf.ts";
-import { bookingAssignmentKey } from "#shared/db/logistics.ts";
-import { appleMapsUrl, googleMapsUrl } from "#shared/maps.ts";
 import {
   type CalendarAttendee,
   type CalendarLogisticsCsv,
   generateCalendarCsv,
-} from "#templates/csv.ts";
+} from "#routes/admin/calendar-csv.ts";
+import { signCsrfToken } from "#shared/csrf.ts";
+import { bookingAssignmentKey } from "#shared/db/logistics.ts";
+import { appleMapsUrl, googleMapsUrl } from "#shared/maps.ts";
 import { setupTestEncryptionKey, testAttendee } from "#test-utils";
 
 const calAttendee = (

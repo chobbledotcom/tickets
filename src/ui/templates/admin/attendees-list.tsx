@@ -46,6 +46,23 @@ export type AttendeesListPageProps = {
   phonePrefix: string;
 };
 
+/** The listing + type filter query params shared by the page and CSV links. */
+const filterParams = (
+  listingId: number | null,
+  type: ListingFilter,
+): URLSearchParams => {
+  const params = new URLSearchParams();
+  if (listingId !== null) params.set("listing", String(listingId));
+  if (type !== "all") params.set("type", type);
+  return params;
+};
+
+/** Append a query string to an /admin/attendees path, omitting "?" when empty. */
+const attendeesUrl = (path: string, params: URLSearchParams): string => {
+  const query = params.toString();
+  return query ? `${path}?${query}` : path;
+};
+
 /** Build a /admin/attendees URL preserving the filters + sort for a given page */
 const pageHref = (
   listingId: number | null,
@@ -53,14 +70,15 @@ const pageHref = (
   sortOrder: AttendeeSort,
   page: number,
 ): string => {
-  const params = new URLSearchParams();
-  if (listingId !== null) params.set("listing", String(listingId));
-  if (type !== "all") params.set("type", type);
+  const params = filterParams(listingId, type);
   if (sortOrder === "oldest") params.set("sort", "oldest");
   if (page > 0) params.set("page", String(page));
-  const query = params.toString();
-  return query ? `/admin/attendees?${query}` : "/admin/attendees";
+  return attendeesUrl("/admin/attendees", params);
 };
+
+/** Build the /admin/attendees/csv export URL, carrying the active filters. */
+const csvHref = (listingId: number | null, type: ListingFilter): string =>
+  attendeesUrl("/admin/attendees/csv", filterParams(listingId, type));
 
 /** A type-filter bar link: select a type (or "all"), keep the sort, reset the
  * specific-listing filter and the page. */
@@ -208,6 +226,12 @@ export const adminAttendeesListPage = (props: AttendeesListPageProps): string =>
             })}
           />
         </div>
+
+        <p class="table-footer-actions">
+          <a href={csvHref(props.listingId, props.type)}>
+            {t("listings_table.export_csv")}
+          </a>
+        </p>
       </div>
 
       <Pagination

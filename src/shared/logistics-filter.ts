@@ -5,6 +5,7 @@
  * so the calendar drives the same kind of control.
  */
 
+import { renderFilterBar } from "#shared/filter-bar.ts";
 import { escapeHtml } from "#shared/jsx/jsx-runtime.ts";
 import type { LogisticsAgent } from "#shared/types.ts";
 import { parsePositiveIntId } from "#shared/validation/number.ts";
@@ -55,13 +56,12 @@ export const renderAgentFilter = (
     { filter: "none", label: "None" },
     ...agents.map((a) => ({ filter: a.id, label: a.name })),
   ];
-  const links = options
-    .map(({ filter, label }) => {
-      const safe = escapeHtml(label);
-      return filter === active
-        ? `<strong><u>${safe}</u></strong>`
-        : `<a href="${hrefFor(filter)}">${safe}</a>`;
-    })
-    .join(" / ");
-  return `<p class="type-filter">Agent: ${links}</p>`;
+  return renderFilterBar(
+    "Agent",
+    options.map(({ filter, label }) => ({
+      active: filter === active,
+      href: hrefFor(filter),
+      label: escapeHtml(label),
+    })),
+  );
 };

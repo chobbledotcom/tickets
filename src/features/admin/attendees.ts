@@ -40,7 +40,10 @@ import {
   handleAttendeeNewPost,
 } from "./attendee-form-routes.ts";
 import { handleRefreshPayment } from "./attendees-edit.ts";
-import { handleAttendeesListGet } from "./attendees-list.ts";
+import {
+  handleAttendeesCsvExport,
+  handleAttendeesListGet,
+} from "./attendees-list.ts";
 import { handleMergeGet, handleMergePost } from "./attendees-merge.ts";
 import {
   type AttendeeWithListing,
@@ -306,6 +309,7 @@ export const attendeesRoutes = defineRoutes({
   "GET /admin/attendees/:attendeeId": handleAttendeeEditGet,
   "GET /admin/attendees/:attendeeId/balance": handleAttendeeBalanceGet,
   "GET /admin/attendees/:attendeeId/merge": handleMergeGet,
+  "GET /admin/attendees/csv": handleAttendeesCsvExport,
   "GET /admin/attendees/new": handleAttendeeNewGet,
   "GET /admin/listing/:listingId/attendee/:attendeeId/delete":
     handleAdminAttendeeDeleteGet,

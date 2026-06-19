@@ -2223,10 +2223,30 @@ a.cal-day-selected:hover {
   max-width: 15rem;
 }
 
-.attendees-table-controls {
+/* Stack a table with its header/footer action rows, evenly spaced. */
+.attendees-table-controls,
+.table-block {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: var(--space-m);
+}
+
+/* Action rows attached to a table: filters above (left-aligned), table-wide
+   utilities (CSV export, …) below — right-aligned on desktop, left on mobile.
+   No margin of their own; the surrounding flex container supplies the gap. */
+.table-header-actions,
+.table-footer-actions {
+  margin: 0;
+}
+
+.table-footer-actions {
+  text-align: left;
+}
+
+@media (min-width: 769px) {
+  .table-footer-actions {
+    text-align: right;
+  }
 }
 
 /* Previous/next pagination */

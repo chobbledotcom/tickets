@@ -251,7 +251,7 @@ const FailedPaymentsTable = ({
 export type CheckinMessage = { name: string; status: string } | null;
 
 /** Filter attendees by check-in status */
-const filterAttendees = (
+export const filterAttendees = (
   attendees: Attendee[],
   activeFilter: AttendeeFilter,
 ): Attendee[] => {
@@ -343,13 +343,11 @@ export type AdminListingPageOptions = {
 /** Top action nav for the listing detail page */
 const ListingActionNav = ({
   listing,
-  dateFilter,
   hasPaidListing,
   isOwner,
   hasEmailableAttendees,
 }: {
   listing: ListingWithCount;
-  dateFilter: string | null;
   hasPaidListing: boolean;
   isOwner: boolean;
   hasEmailableAttendees: boolean;
@@ -412,15 +410,6 @@ const ListingActionNav = ({
             </MaybeButtonLink>
           </li>
         )}
-        <li>
-          <a
-            href={`/admin/listing/${listing.id}/export${
-              dateFilter ? `?date=${dateFilter}` : ""
-            }`}
-          >
-            {t("listings_table.export_csv")}
-          </a>
-        </li>
         {hasPaidListing && (
           <li>
             <a class="danger" href={`/admin/listing/${listing.id}/refund-all`}>
@@ -964,6 +953,15 @@ const AttendeesSection = ({
     checkinMessage?.status === "in"
       ? "checkin-message-in"
       : "checkin-message-out";
+  // The export mirrors the current view: the date filter plus the active
+  // check-in filter (/in or /out), so the CSV matches the rows on screen.
+  const exportParams = new URLSearchParams();
+  if (dateFilter) exportParams.set("date", dateFilter);
+  if (activeFilter !== "all") exportParams.set("checkin", activeFilter);
+  const exportQuery = exportParams.toString();
+  const exportHref = `${basePath}/export${
+    exportQuery ? `?${exportQuery}` : ""
+  }`;
   return (
     <article>
       <div class="prose">
@@ -1006,6 +1004,9 @@ const AttendeesSection = ({
           })}
         />
       </div>
+      <p class="table-footer-actions">
+        <a href={exportHref}>{t("listings_table.export_csv")}</a>
+      </p>
     </article>
   );
 };
@@ -1060,6 +1061,20 @@ const AddAttendeeSection = ({
   </article>
 );
 
+/**
+ * The attendees shown in the main detail table: on a paid listing the rows
+ * with unresolved payments are split out into the Failed Payments section, so
+ * they are excluded here. The CSV export reuses this so the download matches
+ * the rows on screen.
+ */
+export const completePaymentAttendees = (
+  listing: ListingWithCount,
+  attendees: Attendee[],
+): Attendee[] =>
+  isPaidListing(listing)
+    ? filter((a: Attendee) => !isIncompletePayment(a, true))(attendees)
+    : attendees;
+
 /** Compute derived attendee stats needed by the detail page */
 const computeAttendeeStats = (
   listing: ListingWithCount,
@@ -1074,9 +1089,7 @@ const computeAttendeeStats = (
   const incompleteAttendees = hasPaidListing
     ? filter((a: Attendee) => isIncompletePayment(a, true))(attendees)
     : [];
-  const completeAttendees = hasPaidListing
-    ? filter((a: Attendee) => !isIncompletePayment(a, true))(attendees)
-    : attendees;
+  const completeAttendees = completePaymentAttendees(listing, attendees);
   const adjustedCount =
     listing.attendee_count - sumQuantity(incompleteAttendees);
   const completeQuantitySum = sumQuantity(completeAttendees);
@@ -1151,7 +1164,6 @@ export const adminListingPage = ({
     <Layout title={t("listings_table.detail_title", { name: listing.name })}>
       <AdminNav active="/admin/" session={session} />
       <ListingActionNav
-        dateFilter={dateFilter}
         hasEmailableAttendees={hasEmailableAttendees}
         hasPaidListing={hasPaidListing}
         isOwner={session.adminLevel === "owner"}

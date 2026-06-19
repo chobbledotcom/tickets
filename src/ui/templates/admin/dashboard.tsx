@@ -20,6 +20,7 @@ import { isReadOnly } from "#shared/env.ts";
 import { Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
+  filterListingsByType,
   type ListingFilter,
   listingCategory,
   renderTypeFilter,
@@ -226,6 +227,34 @@ const renderListingsTableSection = (
   );
 };
 
+/** A listings table with an optional filter row above it. When `csvExport` is
+ * set, a CSV-export footer is shown below (spaced by the .table-block
+ * container). Shared by the dashboard (active-only table, no export) and the
+ * listings index (active + deactivated, exports all). */
+const ListingsTableBlock = ({
+  listings,
+  columnKeys,
+  filters,
+  csvExport = false,
+  headerHtml = "",
+}: {
+  listings: ListingWithCount[];
+  columnKeys: string[];
+  filters: Map<string, string>;
+  csvExport?: boolean;
+  headerHtml?: string;
+}): JSX.Element => (
+  <div class="table-block">
+    <Raw html={headerHtml} />
+    <Raw html={renderListingsTableSection(listings, columnKeys, filters)} />
+    {csvExport && (
+      <p class="table-footer-actions">
+        <a href="/admin/listings/csv">{t("listings_table.export_csv")}</a>
+      </p>
+    )}
+  </div>
+);
+
 /**
  * Admin dashboard page
  */
@@ -252,12 +281,7 @@ export const adminDashboardPage = (
   // listing type is present.
   const activeListings = filter((e: ListingWithCount) => e.active)(listings);
   const categories = unique(listings.map(listingCategory));
-  const shownListings =
-    activeType === "all"
-      ? activeListings
-      : filter((e: ListingWithCount) => listingCategory(e) === activeType)(
-          activeListings,
-        );
+  const shownListings = filterListingsByType(activeType)(activeListings);
   const typeFilterHtml =
     categories.length > 1
       ? renderTypeFilter(activeType, categories, (f) =>
@@ -279,10 +303,11 @@ export const adminDashboardPage = (
         </p>
       )}
 
-      <Raw html={typeFilterHtml} />
-
-      <Raw
-        html={renderListingsTableSection(shownListings, columnKeys, filters)}
+      <ListingsTableBlock
+        columnKeys={columnKeys}
+        filters={filters}
+        headerHtml={typeFilterHtml}
+        listings={shownListings}
       />
 
       {stats && <Raw html={activeListingStatsSection(stats)} />}
@@ -330,8 +355,11 @@ export const adminListingsPage = (
         </p>
       )}
 
-      <Raw
-        html={renderListingsTableSection(activeListings, columnKeys, filters)}
+      <ListingsTableBlock
+        columnKeys={columnKeys}
+        csvExport
+        filters={filters}
+        listings={activeListings}
       />
 
       {deactivatedListings.length > 0 && (

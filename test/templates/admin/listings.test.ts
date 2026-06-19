@@ -9,6 +9,7 @@ import {
   adminListingNewPage,
   adminListingPage,
   adminListingRecalculatePage,
+  completePaymentAttendees,
   isIncompletePayment,
   nearCapacity,
 } from "#templates/admin/listings.tsx";
@@ -956,6 +957,17 @@ describe("adminListingPage export button", () => {
     expect(html).toContain("/admin/listing/1/export");
     expect(html).toContain("Export CSV");
   });
+
+  test("the export link carries the active check-in filter", () => {
+    const html = adminListingPage({
+      activeFilter: "in",
+      allowedDomain: "localhost",
+      attendees: [testAttendee({ checked_in: true })],
+      listing: testListingWithCount({ attendee_count: 1 }),
+      session: TEST_SESSION,
+    });
+    expect(html).toContain("/admin/listing/1/export?checkin=in");
+  });
 });
 
 describe("adminListingPage filter links", () => {
@@ -1228,6 +1240,26 @@ describe("isIncompletePayment", () => {
       price_paid: "1000",
     });
     expect(isIncompletePayment(attendee, true)).toBe(false);
+  });
+});
+
+describe("completePaymentAttendees", () => {
+  test("drops unresolved-payment rows on a paid listing", () => {
+    const listing = testListingWithCount({ unit_price: 1000 });
+    const paid = testAttendee({
+      id: 1,
+      payment_id: "pi_ok",
+      price_paid: "1000",
+    });
+    const failed = testAttendee({ id: 2, payment_id: "", price_paid: "1000" });
+    expect(completePaymentAttendees(listing, [paid, failed])).toEqual([paid]);
+  });
+
+  test("keeps every row on a free listing", () => {
+    const listing = testListingWithCount({ unit_price: 0 });
+    const a = testAttendee({ id: 1, payment_id: "", price_paid: "0" });
+    const b = testAttendee({ id: 2, payment_id: "", price_paid: "1000" });
+    expect(completePaymentAttendees(listing, [a, b])).toEqual([a, b]);
   });
 });
 

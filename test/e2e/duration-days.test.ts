@@ -10,6 +10,7 @@
 
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
+import { generateAttendeesCsv } from "#routes/admin/attendees-csv.ts";
 import { addDays, getAvailableDates } from "#shared/dates.ts";
 import { getListingActivityLog } from "#shared/db/activityLog.ts";
 import {
@@ -23,7 +24,6 @@ import { getListing, getListingWithCount } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
 import { buildTemplateData } from "#shared/email-renderer.ts";
 import { MAX_DURATION_DAYS } from "#shared/types.ts";
-import { generateAttendeesCsv } from "#templates/csv.ts";
 import {
   adminFormPost,
   apiRequest,

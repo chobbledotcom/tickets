@@ -14,6 +14,10 @@ import {
   parseEditableAggregateForm,
   selectedRecalculationFields,
 } from "#routes/admin/aggregate-recalculation.ts";
+import {
+  type CsvQuestionData,
+  generateAttendeesCsv,
+} from "#routes/admin/attendees-csv.ts";
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
 import {
@@ -107,9 +111,10 @@ import {
   adminListingPage,
   adminListingRecalculatePage,
   adminReactivateListingPage,
+  completePaymentAttendees,
+  filterAttendees,
   type GroupContext,
 } from "#templates/admin/listings.tsx";
-import { type CsvQuestionData, generateAttendeesCsv } from "#templates/csv.ts";
 import type {
   ListingAggregateFormValues,
   ListingEditFormValues,
@@ -789,6 +794,12 @@ const handleListingRecalculatePost: TypedRouteHandler<
     }),
   );
 
+/** Parse the ?checkin= filter on the export route, defaulting to "all". */
+const checkinFromRequest = (request: Request): AttendeeFilter => {
+  const raw = getSearchParam(request, "checkin");
+  return raw === "in" || raw === "out" ? raw : "all";
+};
+
 /**
  * Handle GET /admin/listing/:id/export (CSV export)
  */
@@ -806,9 +817,16 @@ const handleAdminListingExport: TypedRouteHandler<
         request,
       );
       const isDaily = listing.listing_type === "daily";
+      // Mirror the on-screen attendee table: drop the failed-payment rows
+      // that are split into the Failed Payments section, then apply the
+      // /in /out check-in filter.
+      const exported = filterAttendees(
+        completePaymentAttendees(listing, filteredByDate),
+        checkinFromRequest(request),
+      );
 
       // Load questions and attendee answers for CSV
-      const attendeeIds = filteredByDate.map((a) => a.id);
+      const attendeeIds = exported.map((a) => a.id);
       const [questions, attendeeAnswerMap] = await Promise.all([
         getQuestionsForListing(listing.id),
         getAttendeeAnswersBatch(attendeeIds),
@@ -817,13 +835,14 @@ const handleAdminListingExport: TypedRouteHandler<
         questions.length > 0 ? { attendeeAnswerMap, questions } : undefined;
 
       const csv = generateAttendeesCsv(
-        filteredByDate,
+        exported,
         isDaily,
         {
           listingDate: listing.date,
           listingLocation: listing.location,
         },
         questionData,
+        settings.timezone,
       );
       const sanitizedName = listing.name.replace(/[^a-zA-Z0-9]/g, "_");
       const filename = dateFilter

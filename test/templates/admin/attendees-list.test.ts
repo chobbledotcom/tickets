@@ -85,6 +85,26 @@ describe("adminAttendeesListPage", () => {
     expect(html).toContain("No attendees yet");
   });
 
+  test("renders a plain CSV export link when no filters are active", () => {
+    const html = adminAttendeesListPage(buildProps());
+    expect(html).toContain('class="table-footer-actions"');
+    expect(html).toContain('href="/admin/attendees/csv"');
+    expect(html).toContain("Export CSV");
+  });
+
+  test("the CSV export link carries the active listing and type filters", () => {
+    const html = adminAttendeesListPage(
+      buildProps({
+        listingId: 7,
+        listings: [testListingWithCount({ id: 7, name: "Festival" })],
+        type: "daily",
+      }),
+    );
+    expect(html).toContain(
+      'href="/admin/attendees/csv?listing=7&amp;type=daily"',
+    );
+  });
+
   test("lists every listing in the filter, plus an All option", () => {
     const html = adminAttendeesListPage(
       buildProps({
