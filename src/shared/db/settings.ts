@@ -15,7 +15,10 @@
  */
 
 import { lazyRef, unique } from "#fp";
-import { registerCache } from "#shared/cache-registry.ts";
+import {
+  registerCache,
+  registerTableInvalidation,
+} from "#shared/cache-registry.ts";
 import { DEFAULT_COUNTRY, getCountry } from "#shared/countries.ts";
 import { decrypt, encrypt, encryptWithKey } from "#shared/crypto/encryption.ts";
 import { hashPassword } from "#shared/crypto/hashing.ts";
@@ -26,7 +29,11 @@ import {
   unwrapKey,
   wrapKey,
 } from "#shared/crypto/keys.ts";
-import { execute, queryAll } from "#shared/db/client.ts";
+import {
+  execute,
+  executeWithoutCacheInvalidation,
+  queryAll,
+} from "#shared/db/client.ts";
 import { deleteAllSessions } from "#shared/db/sessions.ts";
 import {
   recordSettingRead,
@@ -411,10 +418,10 @@ const syncCache = (mutate: (state: CacheState) => void): void => {
 
 /** Write a setting to the DB and update the raw cache in-place. */
 const writeRaw = async (key: string, value: string): Promise<void> => {
-  await execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", [
-    key,
-    value,
-  ]);
+  await executeWithoutCacheInvalidation(
+    "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+    [key, value],
+  );
   // A write makes the key's value known this request, so reading it back is
   // safe in production too — record it as available for the read audit.
   recordSettingsLoaded([key]);
@@ -426,7 +433,9 @@ const writeRaw = async (key: string, value: string): Promise<void> => {
 
 /** Delete a setting from the DB and remove it from the raw cache. */
 const deleteRaw = async (key: string): Promise<void> => {
-  await execute("DELETE FROM settings WHERE key = ?", [key]);
+  await executeWithoutCacheInvalidation("DELETE FROM settings WHERE key = ?", [
+    key,
+  ]);
   recordSettingsLoaded([key]);
   syncCache((s) => {
     s.values.delete(key);
@@ -759,6 +768,8 @@ const invalidateCache = (): void => {
   }
 };
 
+registerTableInvalidation(["settings"], invalidateCache);
+
 // ---------------------------------------------------------------------------
 // Setup-complete permanent cache
 // ---------------------------------------------------------------------------
@@ -868,11 +879,12 @@ const withCurrentTask = async <T>(
   fn: () => Promise<T>,
 ): Promise<{ ok: true; value: T } | { ok: false; error: string }> => {
   // Ensure the row exists (no-op if already present)
-  await execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, '')", [
-    CONFIG_KEYS.CURRENT_TASK,
-  ]);
+  await executeWithoutCacheInvalidation(
+    "INSERT OR IGNORE INTO settings (key, value) VALUES (?, '')",
+    [CONFIG_KEYS.CURRENT_TASK],
+  );
   // Atomic claim: only succeeds when no task is running
-  const claim = await execute(
+  const claim = await executeWithoutCacheInvalidation(
     "UPDATE settings SET value = ? WHERE key = ? AND value = ''",
     [taskName, CONFIG_KEYS.CURRENT_TASK],
   );

@@ -134,6 +134,14 @@ export const setDb = (client: Client | null): void => dbSetter(client);
 export const resultRows = <T>(result: ResultSet): T[] =>
   result.rows as unknown as T[];
 
+const executeTrackedStatement = (
+  sql: string,
+  args?: InValue[],
+): Promise<ResultSet> =>
+  trackQuery(sql, () =>
+    args ? getDb().execute({ args, sql }) : getDb().execute(sql),
+  );
+
 /**
  * Run a single statement: track it for the query log / N+1 guard, then fire any
  * table-scoped cache invalidation. Every single-statement read and write goes
@@ -144,12 +152,22 @@ export const execute = async (
   sql: string,
   args?: InValue[],
 ): Promise<ResultSet> => {
-  const result = await trackQuery(sql, () =>
-    args ? getDb().execute({ args, sql }) : getDb().execute(sql),
-  );
+  const result = await executeTrackedStatement(sql, args);
   invalidateForSql(sql);
   return result;
 };
+
+/**
+ * Run a single statement without table-scoped cache invalidation.
+ *
+ * This is intentionally narrow: callers that maintain their own cache state
+ * during a write can avoid a broad invalidation/reset while still preserving
+ * query tracking. Other writes should use `execute`.
+ */
+export const executeWithoutCacheInvalidation = async (
+  sql: string,
+  args?: InValue[],
+): Promise<ResultSet> => executeTrackedStatement(sql, args);
 
 /** Query single row, returning null if not found */
 export const queryOne = async <T>(
