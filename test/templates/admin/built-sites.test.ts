@@ -245,3 +245,70 @@ describe("adminBuiltSiteEditPage — secrets panel", () => {
     expect(html).toContain("Secrets status is unavailable");
   });
 });
+
+describe("adminBuiltSiteEditPage — update panel", () => {
+  const site = testBuiltSite({ id: 42, name: "Panel Site" });
+  const baseState = {
+    bunnyConfigured: true,
+    hasScriptId: true,
+    latestVersion: "v2099-01-01-120000",
+    latestVersionName: "2099-01-01 - Big Update",
+    siteVersionError: null as string | null,
+    siteVersionLabel: "Thu, 01 Jan 2026 00:00:00 UTC" as string | null,
+    updateAvailable: true,
+    upToDate: false,
+  };
+  const render = (overrides: Partial<typeof baseState> = {}): string =>
+    adminBuiltSiteEditPage(
+      site,
+      TEST_SESSION,
+      undefined,
+      undefined,
+      undefined,
+      { ...baseState, ...overrides },
+    );
+
+  test("shows the version, latest release, and an update button when behind", () => {
+    const html = render();
+    expect(html).toContain("Software update");
+    expect(html).toContain("Thu, 01 Jan 2026 00:00:00 UTC");
+    expect(html).toContain("2099-01-01 - Big Update (v2099-01-01-120000)");
+    expect(html).toContain("An update is available");
+    expect(html).toContain("/admin/built-sites/42/update");
+    expect(html).toContain("Update this site");
+  });
+
+  test("shows up to date when the site is on the latest release", () => {
+    const html = render({ updateAvailable: false, upToDate: true });
+    expect(html).toContain("on the latest known release");
+  });
+
+  test("shows unknown when no database keys are stored", () => {
+    const html = render({ siteVersionLabel: null, updateAvailable: false });
+    expect(html).toContain("no read-only database credentials");
+  });
+
+  test("shows the read error when the site database is unreachable", () => {
+    const html = render({
+      siteVersionError: "connection refused",
+      siteVersionLabel: null,
+      updateAvailable: false,
+    });
+    expect(html).toContain("connection refused");
+  });
+
+  test("notes when the host has not checked for a release yet", () => {
+    const html = render({ latestVersion: "", updateAvailable: false });
+    expect(html).toContain("None checked yet");
+  });
+
+  test("explains when automatic update is unavailable", () => {
+    const html = render({
+      bunnyConfigured: false,
+      updateAvailable: false,
+      upToDate: false,
+    });
+    expect(html).toContain("Automatic update needs BUNNY_API_KEY");
+    expect(html).not.toContain("Update this site");
+  });
+});

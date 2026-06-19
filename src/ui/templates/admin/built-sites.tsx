@@ -19,6 +19,7 @@ import {
   hostInfraSecretNames,
   type SiteSecretsView,
 } from "#shared/site-secrets.ts";
+import type { BuiltSiteUpdateState } from "#shared/site-update.ts";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import { AdminNav, SettingsSubNav } from "#templates/admin/nav.tsx";
 import {
@@ -411,6 +412,60 @@ const SecretsPanel = ({
 };
 
 /**
+ * Update panel: shows the version the site reported (read through its read-only
+ * database keys) against the latest release the host knows about, and a button
+ * that deploys the latest release to the site — the same process as our own
+ * self-update, just targeting the site's edge script.
+ */
+const UpdatePanel = ({
+  site,
+  state,
+}: {
+  site: BuiltSite;
+  state: BuiltSiteUpdateState;
+}): JSX.Element => (
+  <div class="prose">
+    <p>
+      <strong>{t("built_sites.update_site_version_label")}</strong>{" "}
+      {state.siteVersionLabel ??
+        (state.siteVersionError
+          ? t("built_sites.update_version_error", {
+              error: state.siteVersionError,
+            })
+          : t("built_sites.update_unknown_version"))}
+    </p>
+    <p>
+      <strong>{t("built_sites.update_latest_label")}</strong>{" "}
+      {state.latestVersion
+        ? `${state.latestVersionName} (${state.latestVersion})`
+        : t("built_sites.update_latest_none")}
+    </p>
+    {state.updateAvailable ? (
+      <p>
+        <strong>{t("built_sites.update_available")}</strong>
+      </p>
+    ) : state.upToDate ? (
+      <output class="success">{t("built_sites.update_up_to_date")}</output>
+    ) : null}
+    {state.bunnyConfigured && state.hasScriptId ? (
+      <SiteActionForm action="update" siteId={site.id}>
+        <button
+          onclick={`return confirm('${t("built_sites.update_confirm")}')`}
+          type="submit"
+        >
+          <Icon name="rotate-ccw" />
+          <span>{t("built_sites.update_button")}</span>
+        </button>
+      </SiteActionForm>
+    ) : (
+      <p>
+        <em>{t("built_sites.update_unavailable")}</em>
+      </p>
+    )}
+  </div>
+);
+
+/**
  * Admin built site edit page
  */
 export const adminBuiltSiteEditPage = (
@@ -419,6 +474,7 @@ export const adminBuiltSiteEditPage = (
   error?: string,
   success?: string,
   secretsView?: SiteSecretsView,
+  updateState?: BuiltSiteUpdateState,
 ): string => {
   const provisioned = isProvisioned(site);
 
@@ -447,6 +503,13 @@ export const adminBuiltSiteEditPage = (
 
       <h2>{t("built_sites.secrets_title")}</h2>
       <SecretsPanel site={site} view={secretsView} />
+
+      {updateState && (
+        <>
+          <h2>{t("built_sites.update_title")}</h2>
+          <UpdatePanel site={site} state={updateState} />
+        </>
+      )}
 
       <h2>{t("common.delete")}</h2>
       <p class="prose">

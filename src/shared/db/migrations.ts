@@ -20,6 +20,7 @@ import { getEnv } from "#shared/env.ts";
 import { logDebug } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
+import { recordScriptVersion } from "#shared/update.ts";
 import currentSchemaMigration from "./migrations/2026-06-11_current_schema.ts";
 import sumupCheckoutsMigration from "./migrations/2026-06-12_sumup_checkouts.ts";
 import eventAttendeesOverlapIndexMigration from "./migrations/2026-06-13_event_attendees_overlap_index.ts";
@@ -381,6 +382,9 @@ export const initDb = async (opts: InitDbOptions = {}): Promise<void> => {
   const client = getDb();
   if (client === getReadyClient()) return;
   await initDbUncached(opts.allowMissingSettings ?? false);
+  // Self-record the running build's version so a parent host can read it back.
+  // Best-effort and once per isolate (initDb caches the ready client below).
+  await recordScriptVersion();
   setReadyClient(client);
 };
 

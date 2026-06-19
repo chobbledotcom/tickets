@@ -18,6 +18,8 @@ import {
   builtSitesCrudTable,
   getAllBuiltSites,
 } from "#shared/db/built-sites.ts";
+import { settings } from "#shared/db/settings.ts";
+import { getEnv } from "#shared/env.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { isProvisioned } from "#shared/renewal-helpers.ts";
 import { defineNamedResource } from "#shared/rest/resource.ts";
@@ -34,6 +36,8 @@ import {
   addMissingSiteSecrets,
   loadSiteSecretsStatus,
 } from "#shared/site-secrets.ts";
+import { loadBuiltSiteUpdateState } from "#shared/site-update.ts";
+import { deployLatestReleaseToScript } from "#shared/update.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
 import {
   adminBuiltSiteDeletePage,
@@ -153,7 +157,10 @@ const ownerPost =
 const handleEditGet = (request: Request, params: RouteParams) =>
   withOwnerAndSite(request, params, async ({ site }, session) => {
     const flash = applyFlash(request);
-    const secrets = await loadSiteSecretsStatus(site);
+    const [secrets, updateState] = await Promise.all([
+      loadSiteSecretsStatus(site),
+      loadBuiltSiteUpdateState(site),
+    ]);
     return htmlResponse(
       adminBuiltSiteEditPage(
         site,
@@ -161,9 +168,44 @@ const handleEditGet = (request: Request, params: RouteParams) =>
         flash.error,
         flash.success,
         secrets,
+        updateState,
       ),
     );
   });
+
+/** POST /admin/built-sites/:id/update — deploy the latest release to the site.
+ *
+ * Runs the exact self-update path (fetch latest GitHub release, upload + publish
+ * its asset) but targets the site's own Bunny script instead of this host's. */
+const handleUpdateSite = ownerPost(async (site, _form, id) => {
+  if (!getEnv("BUNNY_API_KEY")) {
+    return editError(
+      id,
+      "BUNNY_API_KEY is not configured on this host, so sites can't be updated.",
+    );
+  }
+  if (!site.bunnyScriptId) {
+    return editError(
+      id,
+      "This site has no Bunny script ID, so it can't be updated.",
+    );
+  }
+  try {
+    const result = await settings.withCurrentTask("update", () =>
+      deployLatestReleaseToScript(site.bunnyScriptId),
+    );
+    if (!result.ok) return editError(id, result.error);
+    await logActivity(
+      `Updated built site '${site.name}' to ${result.value.name} (${result.value.tagName})`,
+    );
+    return editSuccess(
+      id,
+      `Updated '${site.name}' to ${result.value.name} — the new version will be active shortly`,
+    );
+  } catch (e) {
+    return editError(id, `Update failed: ${(e as Error).message}`);
+  }
+});
 
 /** POST /admin/built-sites/:id/rotate-renewal-token */
 const handleRotateToken = ownerPost(async (site, _form, id) => {
@@ -305,4 +347,5 @@ export const builtSitesRoutes = {
   "POST /admin/built-sites/:id/provision-renewal": handleProvisionRenewal,
   "POST /admin/built-sites/:id/re-sync-deadline": handleReSyncDeadline,
   "POST /admin/built-sites/:id/rotate-renewal-token": handleRotateToken,
+  "POST /admin/built-sites/:id/update": handleUpdateSite,
 };

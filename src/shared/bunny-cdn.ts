@@ -555,12 +555,14 @@ const updatePullZoneImpl = (
 // ---------------------------------------------------------------------------
 
 /**
- * Upload new code to a Bunny edge script and publish it.
- * Used by the admin self-update feature.
+ * Upload new code to a Bunny edge script and publish it. Defaults to this
+ * host's own script (self-update); pass `scriptId` to deploy the same release
+ * to another edge script, e.g. updating a built site.
  */
-const deployScriptCodeImpl = async (code: string): Promise<BunnyApiResult> => {
-  const scriptId = getBunnyScriptId();
-
+const deployScriptCodeImpl = async (
+  code: string,
+  scriptId: number | string = getBunnyScriptId(),
+): Promise<BunnyApiResult> => {
   const upload = await scriptAction(
     scriptId,
     "code",
@@ -610,6 +612,9 @@ export const registerBunnySubdomain = (subdomain: string) =>
 export const getCdnHostname = (): Promise<CdnHostnameResult> =>
   bunnyCdnApi.getCdnHostname();
 
-/** Upload and publish new script code to Bunny CDN. */
-export const deployScriptCode = (code: string): Promise<BunnyApiResult> =>
-  bunnyCdnApi.deployScriptCode(code);
+/** Upload and publish new script code to a Bunny edge script (defaults to this
+ * host's own script when `scriptId` is omitted). */
+export const deployScriptCode = (
+  code: string,
+  scriptId?: number | string,
+): Promise<BunnyApiResult> => bunnyCdnApi.deployScriptCode(code, scriptId);

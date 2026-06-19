@@ -48,5 +48,16 @@
   "built_sites.delete_confirmation_prompt": "Type the site name \"{name}\" to confirm:",
   "built_sites.delete_built_site_button": "Delete Built Site",
   "built_sites.resync_deadline_button": "Re-sync deadline",
+  "built_sites.update_title": "Software update",
+  "built_sites.update_site_version_label": "Site version:",
+  "built_sites.update_unknown_version": "Unknown — no read-only database credentials are stored for this site (or it predates version reporting).",
+  "built_sites.update_version_error": "Couldn't read the site's version: {error}",
+  "built_sites.update_latest_label": "Latest known release:",
+  "built_sites.update_latest_none": "None checked yet — use the Update page to check for the latest release.",
+  "built_sites.update_available": "An update is available for this site.",
+  "built_sites.update_up_to_date": "This site is on the latest known release.",
+  "built_sites.update_button": "Update this site",
+  "built_sites.update_confirm": "Deploy the latest release to this site now?",
+  "built_sites.update_unavailable": "Automatic update needs BUNNY_API_KEY on this host and a Bunny script ID on this site.",
   "built_sites.delete_label": "Site name"
 }

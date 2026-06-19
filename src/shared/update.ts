@@ -9,9 +9,20 @@
 import { lazyRef } from "#fp";
 import { BUILD_TIMESTAMP } from "#shared/build-info.ts";
 import { deployScriptCode } from "#shared/bunny-cdn.ts";
+import { execute, queryOne } from "#shared/db/client.ts";
+import { logDebug } from "#shared/logger.ts";
 
 /** GitHub repo URL — update here if the repo moves */
 export const GITHUB_REPO = "chobbledotcom/tickets";
+
+/**
+ * Plaintext settings key under which the running build records its own version
+ * (the build timestamp). Stored unencrypted on purpose: a parent host reads it
+ * from a built site's database using only the site's read-only keys, so it can
+ * tell which release the site is on. Mirrors the raw schema markers written by
+ * the migrator (db_schema_hash / latest_db_update), not a snapshot setting.
+ */
+export const CURRENT_SCRIPT_VERSION_KEY = "current_script_version";
 
 /** GitHub releases page URL */
 export const GITHUB_RELEASES_URL = `https://github.com/${GITHUB_REPO}/releases`;
@@ -56,14 +67,47 @@ const getEffectiveBuildTimestamp = (): string =>
   getBuildTimestampOverride() ?? BUILD_TIMESTAMP;
 
 /**
- * Check if a release tag represents a version newer than the current build.
- * Returns false in development (no build timestamp) or for unparseable tags.
+ * Check if a release tag is newer than a build timestamp. Defaults to this
+ * host's own build (self-update check); pass `buildTimestamp` to compare a
+ * built site's recorded version against the latest release. Returns false when
+ * the timestamp is empty (development) or the tag is unparseable.
  */
-export const isNewerVersion = (tagName: string): boolean => {
+export const isNewerVersion = (
+  tagName: string,
+  buildTimestamp: string = getEffectiveBuildTimestamp(),
+): boolean => {
   const releaseDate = parseReleaseTag(tagName);
-  const ts = getEffectiveBuildTimestamp();
-  if (!releaseDate || !ts) return false;
-  return releaseDate.getTime() > new Date(ts).getTime();
+  if (!releaseDate || !buildTimestamp) return false;
+  return releaseDate.getTime() > new Date(buildTimestamp).getTime();
+};
+
+/**
+ * Record the running build's version into this database's `settings` table so a
+ * parent host can read it back (read-only) and tell which release we are on.
+ * Writes only when the stored value differs from the running build, so the
+ * common unchanged path costs a single indexed read and no write. Best-effort:
+ * any failure is logged and swallowed so it can never block boot, and it is a
+ * no-op for development/test builds where the timestamp is empty.
+ */
+export const recordScriptVersion = async (): Promise<void> => {
+  const version = getEffectiveBuildTimestamp();
+  if (!version) return;
+  try {
+    const row = await queryOne<{ value: string }>(
+      "SELECT value FROM settings WHERE key = ?",
+      [CURRENT_SCRIPT_VERSION_KEY],
+    );
+    if (row?.value === version) return;
+    await execute(
+      "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+      [CURRENT_SCRIPT_VERSION_KEY, version],
+    );
+  } catch (e) {
+    logDebug(
+      "Migration",
+      `Failed to record script version: ${(e as Error).message}`,
+    );
+  }
 };
 
 /**
@@ -99,10 +143,14 @@ export const fetchLatestRelease = async (): Promise<ReleaseInfo> => {
 };
 
 /**
- * Download a release asset from GitHub and deploy it to Bunny CDN.
- * Uses the shared bunny-cdn module for the upload + publish step.
+ * Download a release asset from GitHub and deploy it to a Bunny edge script.
+ * Defaults to this host's own script; pass `scriptId` to deploy the same
+ * release to another site. Uses the shared bunny-cdn module for upload+publish.
  */
-export const deployRelease = async (assetUrl: string): Promise<void> => {
+export const deployRelease = async (
+  assetUrl: string,
+  scriptId?: number | string,
+): Promise<void> => {
   const assetResponse = await fetch(assetUrl);
   if (!assetResponse.ok) {
     throw new Error(
@@ -111,8 +159,25 @@ export const deployRelease = async (assetUrl: string): Promise<void> => {
   }
   const code = await assetResponse.text();
 
-  const result = await deployScriptCode(code);
+  const result = await deployScriptCode(code, scriptId);
   if (!result.ok) {
     throw new Error(result.error);
   }
+};
+
+/**
+ * Fetch the latest GitHub release and deploy its asset to a Bunny edge script,
+ * returning the release on success. This is the exact deploy our self-update
+ * runs; pass `scriptId` to run it against a built site's script instead.
+ * Throws on any failure (no release asset, download, or deploy error).
+ */
+export const deployLatestReleaseToScript = async (
+  scriptId?: number | string,
+): Promise<ReleaseInfo> => {
+  const release = await fetchLatestRelease();
+  if (!release.assetUrl) {
+    throw new Error("Release has no downloadable asset");
+  }
+  await deployRelease(release.assetUrl, scriptId);
+  return release;
 };

@@ -260,6 +260,22 @@ describeWithEnv(
       );
     });
 
+    test("deploys to an explicit script id instead of the host's", async () => {
+      await withMocks(
+        () => stubFetchRecorder(),
+        async (recorder) => {
+          const result = await bunnyCdnApi.deployScriptCode("code", 12345);
+          expect(result).toEqual({ ok: true });
+          expect(recorder.calls[0]!.url).toContain(
+            "/compute/script/12345/code",
+          );
+          expect(recorder.calls[1]!.url).toContain(
+            "/compute/script/12345/publish",
+          );
+        },
+      );
+    });
+
     test("returns error when code upload fails", async () => {
       await withMocks(
         () =>
