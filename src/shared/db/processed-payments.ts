@@ -121,10 +121,6 @@ export const releaseReservation = async (sessionId: string): Promise<void> => {
   );
 };
 
-/** Delete a stale reservation to allow retry — an alias for
- * {@link releaseReservation} kept for call sites that check staleness first. */
-export const deleteStaleReservation = releaseReservation;
-
 /**
  * Delete all stale reservations (unfinalized, outcome-less, and older than
  * STALE_RESERVATION_MS). Called from admin listing views to clean up abandoned
@@ -177,12 +173,12 @@ export const reserveSession = async (
         isUnresolvedReservation(existing) &&
         isReservationStale(existing.processed_at)
       ) {
-        // Delete the abandoned row and retry the claim. This recurses at most
+        // Release the abandoned row and retry the claim. This recurses at most
         // one extra level: any row present after the delete must have been
         // inserted at ~now (by this retry or a racing request), so it is fresh
         // — isReservationStale is false for it and we fall through to the
         // conflict return rather than looping.
-        await deleteStaleReservation(sessionId);
+        await releaseReservation(sessionId);
         return reserveSession(sessionId);
       }
 
