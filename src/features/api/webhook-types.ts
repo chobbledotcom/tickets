@@ -10,10 +10,28 @@ import type { Attendee, ListingWithCount } from "#shared/types.ts";
 
 export type { BookingIntent };
 
+/**
+ * A paid session that carries a cryptographically valid price proof, so it is
+ * provably ours. The two outcomes a valid proof can have:
+ *  - `trusted`: the provider charged exactly the signed total — process it,
+ *    using `agreed` as the price oracle.
+ *  - `mismatch`: the provider charged a different amount than we signed —
+ *    refund it. (Defensive: we create the checkout with the exact total, so this
+ *    only fires if the provider charged wrong.)
+ *
+ * A session with no valid proof never reaches this type — it classifies as
+ * `ignore` and is acknowledged without processing or refunding (see
+ * classifySession). So every ValidatedSession is one we have proven is ours.
+ */
+export type SignedVerdict =
+  | { verdict: "trusted"; agreed: number }
+  | { verdict: "mismatch"; agreed: number };
+
 /** Validated session data ready for processing */
 export type ValidatedSession = {
   session: ValidatedPaymentSession;
   intent: BookingIntent;
+  verdict: SignedVerdict;
 };
 
 /** Result of session validation: either valid data or an error response */

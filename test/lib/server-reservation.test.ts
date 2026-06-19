@@ -24,6 +24,7 @@ import {
   expectFlash,
   mockRequest,
   setupStripe,
+  signMeta,
   submitTicketForm,
 } from "#test-utils";
 
@@ -38,7 +39,9 @@ const setPublicReservation = async (amount: string): Promise<number> => {
   return status!.id;
 };
 
-/** Stub a paid Stripe checkout session with the given metadata and total. */
+/** Stub a paid Stripe checkout session with the given metadata and total. The
+ * metadata is signed at `amountTotal` (as production checkout does) so the
+ * session classifies as trusted — an unsigned session would now be ignored. */
 const stubPaidSession = (
   id: string,
   metadata: Record<string, string>,
@@ -48,7 +51,7 @@ const stubPaidSession = (
     Promise.resolve({
       amount_total: amountTotal,
       id,
-      metadata,
+      metadata: signMeta(metadata, amountTotal),
       payment_intent: `pi_${id}`,
       payment_status: "paid",
     } as unknown as Awaited<

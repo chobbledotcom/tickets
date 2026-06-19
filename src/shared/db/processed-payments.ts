@@ -102,18 +102,28 @@ const execWithSessionId = (sessionId: string, sql: string): Promise<unknown> =>
   getDb().execute({ args: [sessionId], sql });
 
 /**
- * Delete a stale reservation to allow retry. Only abandoned, outcome-less rows
- * qualify — a recorded terminal failure (failure_data set) is an outcome, not
- * an in-progress reservation, so it is left for idempotent replay.
+ * Release an in-progress reservation so the very next delivery can re-claim it.
+ * Deletes only a still-unresolved row, so it never clobbers a finalized success
+ * or a recorded terminal failure that a racing delivery may have written.
+ *
+ * Two callers:
+ *  - {@link reserveSession} releases a *stale* reservation (abandoned by a
+ *    crashed process) before retrying the claim.
+ *  - the webhook releases a *fresh* reservation whose refund of a real payment
+ *    just failed: recording no outcome but holding the lock would make the next
+ *    redelivery collide and return 409 until the row goes stale (~5 min),
+ *    gating refund recovery on a local timer instead of provider redelivery.
  */
-export const deleteStaleReservation = async (
-  sessionId: string,
-): Promise<void> => {
+export const releaseReservation = async (sessionId: string): Promise<void> => {
   await execWithSessionId(
     sessionId,
     `DELETE FROM processed_payments WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION}`,
   );
 };
+
+/** Delete a stale reservation to allow retry — an alias for
+ * {@link releaseReservation} kept for call sites that check staleness first. */
+export const deleteStaleReservation = releaseReservation;
 
 /**
  * Delete all stale reservations (unfinalized, outcome-less, and older than

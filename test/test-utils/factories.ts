@@ -188,6 +188,19 @@ export const signMeta = (
   price_proof: `${agreedTotal}.${signPriceSync(metadata, agreedTotal)}`,
 });
 
+/**
+ * webhookMeta plus a valid price signature in one step — the common shape for a
+ * webhook/redirect test whose session should be PROCESSED (a "trusted"
+ * session). `agreedTotal` must equal the session's amount_total so the session
+ * classifies as trusted; an unsigned (plain webhookMeta) session now classifies
+ * as "ignore" and is acknowledged without processing or refunding.
+ */
+export const signedMeta = (
+  metadata: Partial<SessionMetadata> & { name: string },
+  agreedTotal: number,
+): SessionMetadata =>
+  signMeta(webhookMeta(metadata), agreedTotal) as SessionMetadata;
+
 export const singleItem = (
   listingId: number,
   quantity: number,

@@ -39,10 +39,11 @@ import {
   mockRequest,
   mockWebhookRequest,
   setupStripe,
+  signedMeta,
+  signMeta,
   singleItem,
   stubWebhookVerify,
   webhookMeta,
-  withExpectedError,
 } from "#test-utils";
 
 describeWithEnv("server (webhooks)", { db: true }, () => {
@@ -417,11 +418,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                 object: {
                   amount_total: 1000,
                   id: "cs_webhook_test",
-                  metadata: webhookMeta({
-                    email: "webhook@example.com",
-                    items: singleItem(listing.id, 1, 1000),
-                    name: "Webhook User",
-                  }),
+                  metadata: signedMeta(
+                    {
+                      email: "webhook@example.com",
+                      items: singleItem(listing.id, 1, 1000),
+                      name: "Webhook User",
+                    },
+                    1000,
+                  ),
                   payment_intent: "pi_webhook_test",
                   payment_status: "paid",
                 },
@@ -489,12 +493,15 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   // £10 ticket + 10% service charge = £11.00.
                   amount_total: 1100,
                   id: "cs_modifier_ok",
-                  metadata: webhookMeta({
-                    email: "mod@example.com",
-                    items: singleItem(listing.id, 1, 1000),
-                    modifiers: JSON.stringify([{ i: modifier.id, q: 1 }]),
-                    name: "Mod Buyer",
-                  }),
+                  metadata: signedMeta(
+                    {
+                      email: "mod@example.com",
+                      items: singleItem(listing.id, 1, 1000),
+                      modifiers: JSON.stringify([{ i: modifier.id, q: 1 }]),
+                      name: "Mod Buyer",
+                    },
+                    1100,
+                  ),
                   payment_intent: "pi_modifier_ok",
                   payment_status: "paid",
                 },
@@ -556,15 +563,18 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   // £20 in-scope subtotal + £25 out-of-scope subtotal + £2 fee.
                   amount_total: 4700,
                   id: "cs_listing_scope",
-                  metadata: webhookMeta({
-                    email: "scope@example.com",
-                    items: JSON.stringify([
-                      { e: listing1.id, p: 2000, q: 2 },
-                      { e: listing2.id, p: 2500, q: 1 },
-                    ]),
-                    modifiers: JSON.stringify([{ i: modifier.id, q: 1 }]),
-                    name: "Scope Buyer",
-                  }),
+                  metadata: signedMeta(
+                    {
+                      email: "scope@example.com",
+                      items: JSON.stringify([
+                        { e: listing1.id, p: 2000, q: 2 },
+                        { e: listing2.id, p: 2500, q: 1 },
+                      ]),
+                      modifiers: JSON.stringify([{ i: modifier.id, q: 1 }]),
+                      name: "Scope Buyer",
+                    },
+                    4700,
+                  ),
                   payment_intent: "pi_listing_scope",
                   payment_status: "paid",
                 },
@@ -632,15 +642,18 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   // £20 grouped subtotal + £25 outside the group + £2 fee.
                   amount_total: 4700,
                   id: "cs_group_scope",
-                  metadata: webhookMeta({
-                    email: "group@example.com",
-                    items: JSON.stringify([
-                      { e: listing1.id, p: 2000, q: 2 },
-                      { e: listing2.id, p: 2500, q: 1 },
-                    ]),
-                    modifiers: JSON.stringify([{ i: modifier.id, q: 1 }]),
-                    name: "Group Buyer",
-                  }),
+                  metadata: signedMeta(
+                    {
+                      email: "group@example.com",
+                      items: JSON.stringify([
+                        { e: listing1.id, p: 2000, q: 2 },
+                        { e: listing2.id, p: 2500, q: 1 },
+                      ]),
+                      modifiers: JSON.stringify([{ i: modifier.id, q: 1 }]),
+                      name: "Group Buyer",
+                    },
+                    4700,
+                  ),
                   payment_intent: "pi_group_scope",
                   payment_status: "paid",
                 },
@@ -701,12 +714,15 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   // £10 ticket + (£5 × 3 add-ons) = £25.00.
                   amount_total: 2500,
                   id: "cs_modifier_quantity",
-                  metadata: webhookMeta({
-                    email: "addons@example.com",
-                    items: singleItem(listing.id, 1, 1000),
-                    modifiers: JSON.stringify([{ i: modifier.id, q: 3 }]),
-                    name: "Add-on Buyer",
-                  }),
+                  metadata: signedMeta(
+                    {
+                      email: "addons@example.com",
+                      items: singleItem(listing.id, 1, 1000),
+                      modifiers: JSON.stringify([{ i: modifier.id, q: 3 }]),
+                      name: "Add-on Buyer",
+                    },
+                    2500,
+                  ),
                   payment_intent: "pi_modifier_quantity",
                   payment_status: "paid",
                 },
@@ -767,12 +783,15 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   // £10 ticket minus £1 promo discount = £9.00.
                   amount_total: 900,
                   id: "cs_promo_log",
-                  metadata: webhookMeta({
-                    email: "promo@example.com",
-                    items: singleItem(listing.id, 1, 1000),
-                    modifiers: JSON.stringify([{ i: modifier.id, q: 1 }]),
-                    name: "Promo Buyer",
-                  }),
+                  metadata: signedMeta(
+                    {
+                      email: "promo@example.com",
+                      items: singleItem(listing.id, 1, 1000),
+                      modifiers: JSON.stringify([{ i: modifier.id, q: 1 }]),
+                      name: "Promo Buyer",
+                    },
+                    900,
+                  ),
                   payment_intent: "pi_promo_log",
                   payment_status: "paid",
                 },
@@ -837,12 +856,15 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   // £10 ticket + £1 promo surcharge = £11.00.
                   amount_total: 1100,
                   id: "cs_promo_surcharge",
-                  metadata: webhookMeta({
-                    email: "surcharge@example.com",
-                    items: singleItem(listing.id, 1, 1000),
-                    modifiers: JSON.stringify([{ i: modifier.id, q: 1 }]),
-                    name: "Surcharge Buyer",
-                  }),
+                  metadata: signedMeta(
+                    {
+                      email: "surcharge@example.com",
+                      items: singleItem(listing.id, 1, 1000),
+                      modifiers: JSON.stringify([{ i: modifier.id, q: 1 }]),
+                      name: "Surcharge Buyer",
+                    },
+                    1100,
+                  ),
                   payment_intent: "pi_promo_surcharge",
                   payment_status: "paid",
                 },
@@ -907,12 +929,15 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   // £10 ticket multiplied by 0.8 = £8.00.
                   amount_total: 800,
                   id: "cs_promo_multiplier",
-                  metadata: webhookMeta({
-                    email: "multiplier@example.com",
-                    items: singleItem(listing.id, 1, 1000),
-                    modifiers: JSON.stringify([{ i: modifier.id, q: 1 }]),
-                    name: "Multiplier Buyer",
-                  }),
+                  metadata: signedMeta(
+                    {
+                      email: "multiplier@example.com",
+                      items: singleItem(listing.id, 1, 1000),
+                      modifiers: JSON.stringify([{ i: modifier.id, q: 1 }]),
+                      name: "Multiplier Buyer",
+                    },
+                    800,
+                  ),
                   payment_intent: "pi_promo_multiplier",
                   payment_status: "paid",
                 },
@@ -970,12 +995,15 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   // Paid only the ticket, not the surcharge the metadata records.
                   amount_total: 1000,
                   id: "cs_modifier_mismatch",
-                  metadata: webhookMeta({
-                    email: "mod@example.com",
-                    items: singleItem(listing.id, 1, 1000),
-                    modifiers: JSON.stringify([{ i: modifier.id, q: 1 }]),
-                    name: "Mod Buyer",
-                  }),
+                  metadata: signedMeta(
+                    {
+                      email: "mod@example.com",
+                      items: singleItem(listing.id, 1, 1000),
+                      modifiers: JSON.stringify([{ i: modifier.id, q: 1 }]),
+                      name: "Mod Buyer",
+                    },
+                    1000,
+                  ),
                   payment_intent: "pi_modifier_mismatch",
                   payment_status: "paid",
                 },
@@ -1028,12 +1056,15 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
             // Expected total is the £5 add-on; simulate a stale £4 session.
             amount_total: 400,
             id: "cs_addon_only_mismatch",
-            metadata: webhookMeta({
-              email: "mod@example.com",
-              items: singleItem(listing.id, 1, 0),
-              modifiers: JSON.stringify([{ i: modifier.id, q: 1 }]),
-              name: "Mod Buyer",
-            }),
+            metadata: signedMeta(
+              {
+                email: "mod@example.com",
+                items: singleItem(listing.id, 1, 0),
+                modifiers: JSON.stringify([{ i: modifier.id, q: 1 }]),
+                name: "Mod Buyer",
+              },
+              400,
+            ),
             payment_intent: "pi_addon_only_mismatch",
             payment_status: "paid",
           },
@@ -1100,12 +1131,15 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                 object: {
                   amount_total: 1100,
                   id: "cs_modifier_soldout",
-                  metadata: webhookMeta({
-                    email: "mod@example.com",
-                    items: singleItem(listing.id, 1, 1000),
-                    modifiers: JSON.stringify([{ i: modifier.id, q: 1 }]),
-                    name: "Mod Buyer",
-                  }),
+                  metadata: signedMeta(
+                    {
+                      email: "mod@example.com",
+                      items: singleItem(listing.id, 1, 1000),
+                      modifiers: JSON.stringify([{ i: modifier.id, q: 1 }]),
+                      name: "Mod Buyer",
+                    },
+                    1100,
+                  ),
                   payment_intent: "pi_modifier_soldout",
                   payment_status: "paid",
                 },
@@ -1168,13 +1202,16 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   // 3-day price (2500), not the 1-day unit price.
                   amount_total: 2500,
                   id: "cs_customisable",
-                  metadata: webhookMeta({
-                    date: "2026-07-01",
-                    day_count: "3",
-                    email: "trip@example.com",
-                    items: singleItem(listing.id, 1, 2500),
-                    name: "Trip Buyer",
-                  }),
+                  metadata: signedMeta(
+                    {
+                      date: "2026-07-01",
+                      day_count: "3",
+                      email: "trip@example.com",
+                      items: singleItem(listing.id, 1, 2500),
+                      name: "Trip Buyer",
+                    },
+                    2500,
+                  ),
                   payment_intent: "pi_customisable",
                   payment_status: "paid",
                 },
@@ -1235,12 +1272,15 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                   amount_total: 1000,
                   id: "cs_no_daycount",
                   // No day_count → the booking falls back to the 1-day price.
-                  metadata: webhookMeta({
-                    date: "2026-07-01",
-                    email: "trip@example.com",
-                    items: singleItem(listing.id, 1, 1000),
-                    name: "Trip Buyer",
-                  }),
+                  metadata: signedMeta(
+                    {
+                      date: "2026-07-01",
+                      email: "trip@example.com",
+                      items: singleItem(listing.id, 1, 1000),
+                      name: "Trip Buyer",
+                    },
+                    1000,
+                  ),
                   payment_intent: "pi_no_daycount",
                   payment_status: "paid",
                 },
@@ -1294,15 +1334,18 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                 object: {
                   amount_total: 2500,
                   id: "cs_bad_daycount",
-                  metadata: webhookMeta({
-                    date: "2026-07-01",
-                    // 9 isn't an offered count, so the expected price is 0 and
-                    // the charged amount can't be reconciled.
-                    day_count: "9",
-                    email: "trip@example.com",
-                    items: singleItem(listing.id, 1, 2500),
-                    name: "Trip Buyer",
-                  }),
+                  metadata: signedMeta(
+                    {
+                      date: "2026-07-01",
+                      // 9 isn't an offered count, so the expected price is 0 and
+                      // the charged amount can't be reconciled.
+                      day_count: "9",
+                      email: "trip@example.com",
+                      items: singleItem(listing.id, 1, 2500),
+                      name: "Trip Buyer",
+                    },
+                    2500,
+                  ),
                   payment_intent: "pi_bad_daycount",
                   payment_status: "paid",
                 },
@@ -1365,15 +1408,18 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                 object: {
                   amount_total: 2000,
                   id: "cs_multi_webhook",
-                  metadata: webhookMeta({
-                    email: "multi@example.com",
-                    items: JSON.stringify([
-                      { e: listing1.id, p: 1000, q: 2 },
-                      { e: listing2.id, p: 1000, q: 1 },
-                    ]),
-                    name: "Multi User",
-                    phone: "123456",
-                  }),
+                  metadata: signedMeta(
+                    {
+                      email: "multi@example.com",
+                      items: JSON.stringify([
+                        { e: listing1.id, p: 1000, q: 2 },
+                        { e: listing2.id, p: 1000, q: 1 },
+                      ]),
+                      name: "Multi User",
+                      phone: "123456",
+                    },
+                    2000,
+                  ),
                   payment_intent: "pi_multi_webhook",
                   payment_status: "paid",
                 },
@@ -1419,7 +1465,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         unitPrice: 500,
       });
 
-      // Items without p field throw — corrupt data from a verified origin is a bug
+      // Items without a p field can't carry a valid price proof, so the session
+      // has no proof and classifies as "ignore": acknowledged (200) without
+      // processing or refunding, never a throw.
       const mockVerify = await stubWebhookVerify({
         data: {
           object: {
@@ -1439,13 +1487,18 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       });
 
       try {
-        await withExpectedError(async () => {
-          const response = await handleRequest(
+        await assertJson(
+          handleRequest(
             mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
-          );
-          // Corrupt metadata from a verified origin is a bug — surfaces as 503
-          expect(response.status).toBe(503);
-        });
+          ),
+          200,
+          (json) => {
+            expect(json.received).toBe(true);
+            expect(json.processed).toBeUndefined();
+          },
+        );
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+        expect((await getAttendeesRaw(listing1.id)).length).toBe(0);
       } finally {
         mockVerify.restore();
       }
@@ -1484,10 +1537,18 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       );
 
       try {
-        const response = await handleRequest(
-          mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+        // Unparseable items can't carry a valid price proof, so the session has
+        // no proof and is ignored: acknowledged (200) without processing.
+        await assertJson(
+          handleRequest(
+            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+          ),
+          200,
+          (json) => {
+            expect(json.received).toBe(true);
+            expect(json.processed).toBeUndefined();
+          },
         );
-        await expectHtmlResponse(response, 400, "Invalid session data");
       } finally {
         mockVerify.restore();
       }
@@ -1521,11 +1582,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                 object: {
                   amount_total: 1000,
                   id: "cs_soldout",
-                  metadata: webhookMeta({
-                    email: "late@example.com",
-                    items: singleItem(listing.id, 1, 1000),
-                    name: "Late Buyer",
-                  }),
+                  metadata: signedMeta(
+                    {
+                      email: "late@example.com",
+                      items: singleItem(listing.id, 1, 1000),
+                      name: "Late Buyer",
+                    },
+                    1000,
+                  ),
                   payment_intent: "pi_soldout",
                   payment_status: "paid",
                 },
@@ -1580,11 +1644,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           object: {
             amount_total: 1000,
             id: "cs_webhook_concurrent",
-            metadata: webhookMeta({
-              email: "concurrent@example.com",
-              items: singleItem(listing.id, 1, 1000),
-              name: "Concurrent Webhook",
-            }),
+            metadata: signedMeta(
+              {
+                email: "concurrent@example.com",
+                items: singleItem(listing.id, 1, 1000),
+                name: "Concurrent Webhook",
+              },
+              1000,
+            ),
             payment_intent: "pi_webhook_concurrent",
             payment_status: "paid",
           },
@@ -1666,11 +1733,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         Promise.resolve({
           amount_total: 0,
           id: "cs_qty_zero",
-          metadata: {
-            email: "john@example.com",
-            items: singleItem(listing.id, 0, 0),
-            name: "John",
-          },
+          metadata: signMeta(
+            webhookMeta({
+              email: "john@example.com",
+              items: singleItem(listing.id, 0, 0),
+              name: "John",
+            }),
+            0,
+          ),
           payment_intent: "pi_qty_zero",
           payment_status: "paid",
         } as unknown as Awaited<
@@ -1735,13 +1805,15 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         Promise.resolve({
           amount_total: 1000,
           id: "cs_site_token",
-          metadata: {
-            _origin: "localhost",
-            email: "renew@example.com",
-            items: singleItem(tier.id, 1, 1000),
-            name: "Renewer",
-            site_token_index: tokenIndex,
-          },
+          metadata: signMeta(
+            webhookMeta({
+              email: "renew@example.com",
+              items: singleItem(tier.id, 1, 1000),
+              name: "Renewer",
+              site_token_index: tokenIndex,
+            }),
+            1000,
+          ),
           payment_intent: "pi_site_token",
           payment_status: "paid",
         } as unknown as Awaited<
@@ -1866,16 +1938,18 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         Promise.resolve({
           amount_total: 3000,
           id: "cs_multi_tier_renewal",
-          metadata: {
-            _origin: "localhost",
-            email: "renew@example.com",
-            items: JSON.stringify([
-              { e: monthly.id, p: 2000, q: 2 },
-              { e: annual.id, p: 1000, q: 1 },
-            ]),
-            name: "Renewer",
-            site_token_index: tokenIndex,
-          },
+          metadata: signMeta(
+            webhookMeta({
+              email: "renew@example.com",
+              items: JSON.stringify([
+                { e: monthly.id, p: 2000, q: 2 },
+                { e: annual.id, p: 1000, q: 1 },
+              ]),
+              name: "Renewer",
+              site_token_index: tokenIndex,
+            }),
+            3000,
+          ),
           payment_intent: "pi_multi_tier_renewal",
           payment_status: "paid",
         } as unknown as Awaited<
@@ -1917,11 +1991,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         Promise.resolve({
           amount_total: 1000,
           id: "cs_square_order",
-          metadata: {
-            email: "square@example.com",
-            items: singleItem(listing.id, 1, 1000),
-            name: "Square User",
-          },
+          metadata: signMeta(
+            webhookMeta({
+              email: "square@example.com",
+              items: singleItem(listing.id, 1, 1000),
+              name: "Square User",
+            }),
+            1000,
+          ),
           payment_intent: "pi_square_order",
           payment_status: "paid",
         } as unknown as Awaited<
@@ -1953,12 +2030,16 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
+          amount_total: 1000,
           id: "cs_null_ref",
-          metadata: {
-            email: "john@example.com",
-            items: singleItem(listing.id, 1, 1000),
-            name: "John",
-          },
+          metadata: signMeta(
+            webhookMeta({
+              email: "john@example.com",
+              items: singleItem(listing.id, 1, 1000),
+              name: "John",
+            }),
+            1000,
+          ),
           payment_intent: null, // No payment reference
           payment_status: "paid",
         } as unknown as Awaited<
@@ -2003,11 +2084,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                 object: {
                   amount_total: 1000,
                   id: "cs_pi_extract",
-                  metadata: webhookMeta({
-                    email: "pi@example.com",
-                    items: singleItem(listing.id, 1, 1000),
-                    name: "PI User",
-                  }),
+                  metadata: signedMeta(
+                    {
+                      email: "pi@example.com",
+                      items: singleItem(listing.id, 1, 1000),
+                      name: "PI User",
+                    },
+                    1000,
+                  ),
                   payment_intent: "pi_extracted_ref",
                   payment_status: "paid",
                 },
@@ -2073,10 +2157,18 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       );
 
       try {
-        const response = await handleRequest(
-          mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+        // Non-array items can't carry a valid price proof, so the session has no
+        // proof and is ignored: acknowledged (200) without processing.
+        await assertJson(
+          handleRequest(
+            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+          ),
+          200,
+          (json) => {
+            expect(json.received).toBe(true);
+            expect(json.processed).toBeUndefined();
+          },
         );
-        await expectHtmlResponse(response, 400, "Invalid session data");
       } finally {
         mockVerify.restore();
       }
@@ -2147,12 +2239,16 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
+          amount_total: 500,
           id: "cs_multi_concurrent",
-          metadata: {
-            email: "concurrent@example.com",
-            items: JSON.stringify([{ e: listing.id, p: 500, q: 1 }]),
-            name: "Concurrent",
-          },
+          metadata: signMeta(
+            webhookMeta({
+              email: "concurrent@example.com",
+              items: JSON.stringify([{ e: listing.id, p: 500, q: 1 }]),
+              name: "Concurrent",
+            }),
+            500,
+          ),
           payment_intent: "pi_multi_concurrent",
           payment_status: "paid",
         } as unknown as Awaited<
@@ -2186,12 +2282,16 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
+          amount_total: 1000,
           id: "cs_single_concurrent",
-          metadata: {
-            email: "concurrent@example.com",
-            items: singleItem(listing.id, 1, 1000),
-            name: "Concurrent",
-          },
+          metadata: signMeta(
+            webhookMeta({
+              email: "concurrent@example.com",
+              items: singleItem(listing.id, 1, 1000),
+              name: "Concurrent",
+            }),
+            1000,
+          ),
           payment_intent: "pi_single_concurrent",
           payment_status: "paid",
         } as unknown as Awaited<
@@ -2222,11 +2322,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         Promise.resolve({
           amount_total: 1500,
           id: "cs_multi_price",
-          metadata: {
-            email: "price@example.com",
-            items: JSON.stringify([{ e: listing.id, p: 1500, q: 3 }]),
-            name: "Price Test",
-          },
+          metadata: signMeta(
+            webhookMeta({
+              email: "price@example.com",
+              items: JSON.stringify([{ e: listing.id, p: 1500, q: 3 }]),
+              name: "Price Test",
+            }),
+            1500,
+          ),
           payment_intent: "pi_multi_price",
           payment_status: "paid",
         } as unknown as Awaited<
@@ -2267,11 +2370,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         Promise.resolve({
           amount_total: 2000,
           id: "cs_single_price",
-          metadata: {
-            email: "price@example.com",
-            items: singleItem(listing.id, 2, 2000),
-            name: "Price Single",
-          },
+          metadata: signMeta(
+            webhookMeta({
+              email: "price@example.com",
+              items: singleItem(listing.id, 2, 2000),
+              name: "Price Single",
+            }),
+            2000,
+          ),
           payment_intent: "pi_single_price",
           payment_status: "paid",
         } as unknown as Awaited<
@@ -2360,11 +2466,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         Promise.resolve({
           amount_total: 500,
           id: "cs_multi_enc_err",
-          metadata: {
-            email: "enc@example.com",
-            items: JSON.stringify([{ e: listing.id, p: 500, q: 1 }]),
-            name: "Enc Error",
-          },
+          metadata: signMeta(
+            webhookMeta({
+              email: "enc@example.com",
+              items: JSON.stringify([{ e: listing.id, p: 500, q: 1 }]),
+              name: "Enc Error",
+            }),
+            500,
+          ),
           payment_intent: "pi_multi_enc_err",
           payment_status: "paid",
         } as unknown as Awaited<
@@ -2487,11 +2596,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                 object: {
                   amount_total: 500,
                   id: "cs_multi_already_done",
-                  metadata: webhookMeta({
-                    email: "already@example.com",
-                    items: JSON.stringify([{ e: listing.id, p: 500, q: 1 }]),
-                    name: "Already Done",
-                  }),
+                  metadata: signedMeta(
+                    {
+                      email: "already@example.com",
+                      items: JSON.stringify([{ e: listing.id, p: 500, q: 1 }]),
+                      name: "Already Done",
+                    },
+                    500,
+                  ),
                   payment_intent: "pi_already_done",
                   payment_status: "paid",
                 },
@@ -2546,14 +2658,17 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                 object: {
                   amount_total: 1000,
                   id: "cs_multi_inactive_wh",
-                  metadata: webhookMeta({
-                    email: "inactive@example.com",
-                    items: JSON.stringify([
-                      { e: listing1.id, p: 500, q: 1 },
-                      { e: listing2.id, p: 500, q: 1 },
-                    ]),
-                    name: "Multi Inactive",
-                  }),
+                  metadata: signedMeta(
+                    {
+                      email: "inactive@example.com",
+                      items: JSON.stringify([
+                        { e: listing1.id, p: 500, q: 1 },
+                        { e: listing2.id, p: 500, q: 1 },
+                      ]),
+                      name: "Multi Inactive",
+                    },
+                    1000,
+                  ),
                   payment_intent: "pi_multi_inactive_wh",
                   payment_status: "paid",
                 },
@@ -2625,14 +2740,17 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                 object: {
                   amount_total: 1000,
                   id: "cs_multi_soldout_wh",
-                  metadata: webhookMeta({
-                    email: "soldout@example.com",
-                    items: JSON.stringify([
-                      { e: listing1.id, p: 500, q: 1 },
-                      { e: listing2.id, p: 500, q: 1 },
-                    ]),
-                    name: "Sold Out Multi",
-                  }),
+                  metadata: signedMeta(
+                    {
+                      email: "soldout@example.com",
+                      items: JSON.stringify([
+                        { e: listing1.id, p: 500, q: 1 },
+                        { e: listing2.id, p: 500, q: 1 },
+                      ]),
+                      name: "Sold Out Multi",
+                    },
+                    1000,
+                  ),
                   payment_intent: "pi_multi_soldout_wh",
                   payment_status: "paid",
                 },
@@ -2744,14 +2862,17 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                 object: {
                   amount_total: 1100,
                   id: "cs_multi_ok",
-                  metadata: webhookMeta({
-                    email: "multi@example.com",
-                    items: JSON.stringify([
-                      { e: listing1.id, p: 500, q: 1 },
-                      { e: listing2.id, p: 600, q: 2 },
-                    ]),
-                    name: "Multi Buyer",
-                  }),
+                  metadata: signedMeta(
+                    {
+                      email: "multi@example.com",
+                      items: JSON.stringify([
+                        { e: listing1.id, p: 500, q: 1 },
+                        { e: listing2.id, p: 600, q: 2 },
+                      ]),
+                      name: "Multi Buyer",
+                    },
+                    1100,
+                  ),
                   payment_intent: "pi_multi_ok",
                   payment_status: "paid",
                 },
@@ -2818,14 +2939,17 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                 object: {
                   amount_total: 500,
                   id: "cs_answer",
-                  metadata: webhookMeta({
-                    answer_ids: JSON.stringify({
-                      [String(listing1.id)]: [a.id],
-                    }),
-                    email: "answer@example.com",
-                    items: JSON.stringify([{ e: listing1.id, p: 500, q: 1 }]),
-                    name: "Answer Buyer",
-                  }),
+                  metadata: signedMeta(
+                    {
+                      answer_ids: JSON.stringify({
+                        [String(listing1.id)]: [a.id],
+                      }),
+                      email: "answer@example.com",
+                      items: JSON.stringify([{ e: listing1.id, p: 500, q: 1 }]),
+                      name: "Answer Buyer",
+                    },
+                    500,
+                  ),
                   payment_intent: "pi_answer",
                   payment_status: "paid",
                 },
@@ -2890,16 +3014,20 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       const mockRefund = spy(stripeApi, "refundPayment");
 
       try {
+        // Unsigned session (no valid price proof) for a listing we don't have:
+        // ignored (200 ack) without processing — and crucially without a refund,
+        // since the webhook may be for a different instance sharing the provider.
         await assertJson(
           handleRequest(
             mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
           ),
           200,
           (json) => {
-            expect(json.error).toContain("Listing not found");
+            expect(json.received).toBe(true);
+            expect(json.processed).toBeUndefined();
           },
         );
-        // Listing not found should NOT trigger a refund (webhook may be for a different instance)
+        // An unverifiable session must NOT trigger a refund.
         expect(mockRefund.calls.length).toBe(0);
       } finally {
         mockVerify.restore();
@@ -2941,14 +3069,17 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                 object: {
                   amount_total: 800,
                   id: "cs_multi_cap",
-                  metadata: webhookMeta({
-                    email: "cap@example.com",
-                    items: JSON.stringify([
-                      { e: listing1.id, p: 500, q: 1 },
-                      { e: listing2.id, p: 300, q: 1 },
-                    ]),
-                    name: "Multi Cap",
-                  }),
+                  metadata: signedMeta(
+                    {
+                      email: "cap@example.com",
+                      items: JSON.stringify([
+                        { e: listing1.id, p: 500, q: 1 },
+                        { e: listing2.id, p: 300, q: 1 },
+                      ]),
+                      name: "Multi Cap",
+                    },
+                    800,
+                  ),
                   payment_intent: "pi_multi_cap",
                   payment_status: "paid",
                 },
@@ -3026,11 +3157,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                 object: {
                   amount_total: 1000,
                   id: "cs_del_listing_wh",
-                  metadata: webhookMeta({
-                    email: "deleted@example.com",
-                    items: singleItem(99999, 1, 1000),
-                    name: "Deleted Listing",
-                  }),
+                  metadata: signedMeta(
+                    {
+                      email: "deleted@example.com",
+                      items: singleItem(99999, 1, 1000),
+                      name: "Deleted Listing",
+                    },
+                    1000,
+                  ),
                   payment_intent: "pi_del_listing_wh",
                   payment_status: "paid",
                 },
@@ -3081,11 +3215,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                 object: {
                   amount_total: 500,
                   id: "cs_noref",
-                  metadata: webhookMeta({
-                    email: "noref@example.com",
-                    items: singleItem(listing.id, 1, 500),
-                    name: "No Ref",
-                  }),
+                  metadata: signedMeta(
+                    {
+                      email: "noref@example.com",
+                      items: singleItem(listing.id, 1, 500),
+                      name: "No Ref",
+                    },
+                    500,
+                  ),
                   payment_status: "paid",
                 },
               },
@@ -3120,8 +3257,8 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
     test("webhook returns 400 when items is missing from metadata", async () => {
       await setupStripe();
 
-      // Session with missing items: metadata has _origin but no items field,
-      // which means the session data is invalid.
+      // Session with missing items carries no valid price proof, so it can't be
+      // proven ours and is ignored: acknowledged (200) without processing.
       const { stripePaymentProvider } = await import(
         "#shared/stripe-provider.ts"
       );
@@ -3162,10 +3299,16 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       );
 
       try {
-        const response = await handleRequest(
-          mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+        await assertJson(
+          handleRequest(
+            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+          ),
+          200,
+          (json) => {
+            expect(json.received).toBe(true);
+            expect(json.processed).toBeUndefined();
+          },
         );
-        await expectHtmlResponse(response, 400, "Invalid session data");
       } finally {
         mockVerify.restore();
         mockRetrieveSession.restore();
@@ -3211,11 +3354,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                 object: {
                   amount_total: 500,
                   id: "cs_tryrefund_noprov",
-                  metadata: webhookMeta({
-                    email: "noprov@example.com",
-                    items: singleItem(listing.id, 1, 500),
-                    name: "No Provider",
-                  }),
+                  metadata: signedMeta(
+                    {
+                      email: "noprov@example.com",
+                      items: singleItem(listing.id, 1, 500),
+                      name: "No Provider",
+                    },
+                    500,
+                  ),
                   payment_intent: "pi_tryrefund_noprov",
                   payment_status: "paid",
                 },
@@ -3287,20 +3433,23 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       const mockRefund = spy(stripeApi, "refundPayment");
 
       try {
+        // Unsigned session (no valid price proof): ignored (200 ack) without
+        // processing, without a refund, and without creating any attendee.
         await assertJson(
           handleRequest(
             mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
           ),
           200,
           (json) => {
-            expect(json.error).toContain("Listing not found");
+            expect(json.received).toBe(true);
+            expect(json.processed).toBeUndefined();
           },
         );
 
-        // Listing not found should NOT trigger a refund (webhook may be for a different instance)
+        // An unverifiable session must NOT trigger a refund.
         expect(mockRefund.calls.length).toBe(0);
 
-        // No attendees created (validation fails before creation pass)
+        // No attendees created (the session is ignored before any creation pass)
         const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
         const attendees = await getAttendeesRaw(listing1.id);
         expect(attendees.length).toBe(0);
@@ -3322,11 +3471,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         Promise.resolve({
           amount_total: 0,
           id: "cs_multi_free",
-          metadata: {
-            email: "freemulti@example.com",
-            items: JSON.stringify([{ e: listing.id, p: 0, q: 2 }]),
-            name: "Free Multi",
-          },
+          metadata: signMeta(
+            webhookMeta({
+              email: "freemulti@example.com",
+              items: JSON.stringify([{ e: listing.id, p: 0, q: 2 }]),
+              name: "Free Multi",
+            }),
+            0,
+          ),
           payment_intent: "pi_multi_free",
           payment_status: "paid",
         } as unknown as Awaited<
@@ -3366,11 +3518,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         Promise.resolve({
           amount_total: 0,
           id: "cs_single_free",
-          metadata: {
-            email: "freesingle@example.com",
-            items: singleItem(listing.id, 2, 0),
-            name: "Free Single",
-          },
+          metadata: signMeta(
+            webhookMeta({
+              email: "freesingle@example.com",
+              items: singleItem(listing.id, 2, 0),
+              name: "Free Single",
+            }),
+            0,
+          ),
           payment_intent: "pi_single_free",
           payment_status: "paid",
         } as unknown as Awaited<
@@ -3549,11 +3704,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         Promise.resolve({
           amount_total: 500,
           id: "cs_multi_no_att",
-          metadata: {
-            email: "noatt@example.com",
-            items: JSON.stringify([{ e: listing.id, p: 500, q: 1 }]),
-            name: "No Att",
-          },
+          metadata: signMeta(
+            webhookMeta({
+              email: "noatt@example.com",
+              items: JSON.stringify([{ e: listing.id, p: 500, q: 1 }]),
+              name: "No Att",
+            }),
+            500,
+          ),
           payment_intent: "pi_multi_no_att",
           payment_status: "paid",
         } as unknown as Awaited<
@@ -3600,11 +3758,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         Promise.resolve({
           amount_total: 500,
           id: "cs_single_cap",
-          metadata: {
-            email: "cap@example.com",
-            items: singleItem(listing.id, 1, 500),
-            name: "Cap User",
-          },
+          metadata: signMeta(
+            webhookMeta({
+              email: "cap@example.com",
+              items: singleItem(listing.id, 1, 500),
+              name: "Cap User",
+            }),
+            500,
+          ),
           payment_intent: "pi_single_cap",
           payment_status: "paid",
         } as unknown as Awaited<
@@ -3706,11 +3867,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                 object: {
                   amount_total: 2500,
                   id: "cs_amount_total",
-                  metadata: webhookMeta({
-                    email: "amount@example.com",
-                    items: singleItem(listing.id, 1, 2500),
-                    name: "Amount User",
-                  }),
+                  metadata: signedMeta(
+                    {
+                      email: "amount@example.com",
+                      items: singleItem(listing.id, 1, 2500),
+                      name: "Amount User",
+                    },
+                    2500,
+                  ),
                   payment_intent: "pi_amount_total",
                   payment_status: "paid",
                 },
@@ -3767,11 +3931,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                 object: {
                   amount_total: 1200,
                   id: "cs_mismatch",
-                  metadata: webhookMeta({
-                    email: "mismatch@example.com",
-                    items: singleItem(listing.id, 1, 1000),
-                    name: "Mismatch User",
-                  }),
+                  metadata: signedMeta(
+                    {
+                      email: "mismatch@example.com",
+                      items: singleItem(listing.id, 1, 1000),
+                      name: "Mismatch User",
+                    },
+                    1200,
+                  ),
                   payment_intent: "pi_mismatch",
                   payment_status: "paid",
                 },
@@ -3844,14 +4011,17 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                 object: {
                   amount_total: 1000,
                   id: "cs_multi_mismatch",
-                  metadata: webhookMeta({
-                    email: "multimismatch@example.com",
-                    items: JSON.stringify([
-                      { e: listing1.id, p: 400, q: 1 },
-                      { e: listing2.id, p: 600, q: 2 },
-                    ]),
-                    name: "Multi Mismatch",
-                  }),
+                  metadata: signedMeta(
+                    {
+                      email: "multimismatch@example.com",
+                      items: JSON.stringify([
+                        { e: listing1.id, p: 400, q: 1 },
+                        { e: listing2.id, p: 600, q: 2 },
+                      ]),
+                      name: "Multi Mismatch",
+                    },
+                    1000,
+                  ),
                   payment_intent: "pi_multi_mismatch",
                   payment_status: "paid",
                 },
@@ -3911,11 +4081,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         Promise.resolve({
           amount_total: 800,
           id: "cs_redirect_mismatch",
-          metadata: {
-            email: "redirect@example.com",
-            items: singleItem(listing.id, 1, 1000),
-            name: "Redirect Mismatch",
-          },
+          metadata: signMeta(
+            webhookMeta({
+              email: "redirect@example.com",
+              items: singleItem(listing.id, 1, 1000),
+              name: "Redirect Mismatch",
+            }),
+            800,
+          ),
           payment_intent: "pi_redirect_mismatch",
           payment_status: "paid",
         } as unknown as Awaited<
@@ -3969,11 +4142,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                 object: {
                   amount_total: 1000,
                   id: "cs_wh_no_email_single",
-                  metadata: webhookMeta({
-                    email: 12345 as unknown as string, // not a string -> coerced to "" by extractSessionMetadata
-                    items: singleItem(listing.id, 1, 1000),
-                    name: "No Email Single",
-                  }),
+                  metadata: signedMeta(
+                    {
+                      email: 12345 as unknown as string, // not a string -> coerced to "" by extractSessionMetadata
+                      items: singleItem(listing.id, 1, 1000),
+                      name: "No Email Single",
+                    },
+                    1000,
+                  ),
                   payment_intent: "pi_wh_no_email_single",
                   payment_status: "paid",
                 },
@@ -4025,11 +4201,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                 object: {
                   amount_total: 500,
                   id: "cs_wh_no_email_multi",
-                  metadata: webhookMeta({
-                    email: true as unknown as string, // not a string -> coerced to "" by extractSessionMetadata
-                    items: JSON.stringify([{ e: listing.id, p: 500, q: 1 }]),
-                    name: "No Email Multi",
-                  }),
+                  metadata: signedMeta(
+                    {
+                      email: true as unknown as string, // not a string -> coerced to "" by extractSessionMetadata
+                      items: JSON.stringify([{ e: listing.id, p: 500, q: 1 }]),
+                      name: "No Email Multi",
+                    },
+                    500,
+                  ),
                   payment_intent: "pi_wh_no_email_multi",
                   payment_status: "paid",
                 },
@@ -4078,12 +4257,16 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve({
+          amount_total: 1000,
           id: "cs_closed",
-          metadata: {
-            email: "john@example.com",
-            items: singleItem(listing.id, 1, 1000),
-            name: "John",
-          },
+          metadata: signMeta(
+            webhookMeta({
+              email: "john@example.com",
+              items: singleItem(listing.id, 1, 1000),
+              name: "John",
+            }),
+            1000,
+          ),
           payment_intent: "pi_closed",
           payment_status: "paid",
         } as unknown as Awaited<
@@ -4136,11 +4319,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                 object: {
                   amount_total: 1000,
                   id: "cs_closed_wh",
-                  metadata: webhookMeta({
-                    email: "jane@example.com",
-                    items: singleItem(listing.id, 1, 1000),
-                    name: "Jane",
-                  }),
+                  metadata: signedMeta(
+                    {
+                      email: "jane@example.com",
+                      items: singleItem(listing.id, 1, 1000),
+                      name: "Jane",
+                    },
+                    1000,
+                  ),
                   payment_intent: "pi_closed_wh",
                   payment_status: "paid",
                 },
@@ -4202,14 +4388,17 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                 object: {
                   amount_total: 1500,
                   id: "cs_multi_closed",
-                  metadata: webhookMeta({
-                    email: "jane@example.com",
-                    items: JSON.stringify([
-                      { e: listing1.id, p: 1000, q: 1 },
-                      { e: listing2.id, p: 500, q: 1 },
-                    ]),
-                    name: "Jane",
-                  }),
+                  metadata: signedMeta(
+                    {
+                      email: "jane@example.com",
+                      items: JSON.stringify([
+                        { e: listing1.id, p: 1000, q: 1 },
+                        { e: listing2.id, p: 500, q: 1 },
+                      ]),
+                      name: "Jane",
+                    },
+                    1500,
+                  ),
                   payment_intent: "pi_multi_closed",
                   payment_status: "paid",
                 },
@@ -4288,15 +4477,18 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                 object: {
                   amount_total: 800,
                   id: "cs_multi_daily",
-                  metadata: webhookMeta({
-                    date: "2026-02-10",
-                    email: "multidaily@example.com",
-                    items: JSON.stringify([
-                      { e: listing1.id, p: 500, q: 1 },
-                      { e: listing2.id, p: 300, q: 1 },
-                    ]),
-                    name: "Multi Daily Buyer",
-                  }),
+                  metadata: signedMeta(
+                    {
+                      date: "2026-02-10",
+                      email: "multidaily@example.com",
+                      items: JSON.stringify([
+                        { e: listing1.id, p: 500, q: 1 },
+                        { e: listing2.id, p: 300, q: 1 },
+                      ]),
+                      name: "Multi Daily Buyer",
+                    },
+                    800,
+                  ),
                   payment_intent: "pi_multi_daily",
                   payment_status: "paid",
                 },
@@ -4539,11 +4731,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                 object: {
                   amount_total: 1000,
                   id: "cs_refund_log",
-                  metadata: webhookMeta({
-                    email: "refundlog@example.com",
-                    items: singleItem(listing.id, 1, 1000),
-                    name: "Refund Log",
-                  }),
+                  metadata: signedMeta(
+                    {
+                      email: "refundlog@example.com",
+                      items: singleItem(listing.id, 1, 1000),
+                      name: "Refund Log",
+                    },
+                    1000,
+                  ),
                   payment_intent: "pi_refund_log",
                   payment_status: "paid",
                 },
@@ -4623,11 +4818,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                 object: {
                   amount_total: 500,
                   id: "cs_refund_activity",
-                  metadata: webhookMeta({
-                    email: "activity@example.com",
-                    items: singleItem(listing.id, 1, 1000),
-                    name: "Activity Log User",
-                  }),
+                  metadata: signedMeta(
+                    {
+                      email: "activity@example.com",
+                      items: singleItem(listing.id, 1, 1000),
+                      name: "Activity Log User",
+                    },
+                    500,
+                  ),
                   payment_intent: "pi_refund_activity",
                   payment_status: "paid",
                 },
@@ -4689,11 +4887,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                 object: {
                   amount_total: 2500,
                   id: "cs_pay_more",
-                  metadata: webhookMeta({
-                    email: "generous@example.com",
-                    items: singleItem(listing.id, 1, 2500),
-                    name: "Generous User",
-                  }),
+                  metadata: signedMeta(
+                    {
+                      email: "generous@example.com",
+                      items: singleItem(listing.id, 1, 2500),
+                      name: "Generous User",
+                    },
+                    2500,
+                  ),
                   payment_intent: "pi_pay_more",
                   payment_status: "paid",
                 },
@@ -4758,14 +4959,17 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                 object: {
                   amount_total: 3000,
                   id: "cs_multi_pay_more",
-                  metadata: webhookMeta({
-                    email: "generous@example.com",
-                    items: JSON.stringify([
-                      { e: listing1.id, p: 2000, q: 1 },
-                      { e: listing2.id, p: 1000, q: 1 },
-                    ]),
-                    name: "Multi Generous",
-                  }),
+                  metadata: signedMeta(
+                    {
+                      email: "generous@example.com",
+                      items: JSON.stringify([
+                        { e: listing1.id, p: 2000, q: 1 },
+                        { e: listing2.id, p: 1000, q: 1 },
+                      ]),
+                      name: "Multi Generous",
+                    },
+                    3000,
+                  ),
                   payment_intent: "pi_multi_pay_more",
                   payment_status: "paid",
                 },
@@ -4833,14 +5037,17 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                 object: {
                   amount_total: 3000,
                   id: "cs_no_pay_more",
-                  metadata: webhookMeta({
-                    email: "over@example.com",
-                    items: JSON.stringify([
-                      { e: listing1.id, p: 2000, q: 1 },
-                      { e: listing2.id, p: 1000, q: 1 },
-                    ]),
-                    name: "Over Payer",
-                  }),
+                  metadata: signedMeta(
+                    {
+                      email: "over@example.com",
+                      items: JSON.stringify([
+                        { e: listing1.id, p: 2000, q: 1 },
+                        { e: listing2.id, p: 1000, q: 1 },
+                      ]),
+                      name: "Over Payer",
+                    },
+                    3000,
+                  ),
                   payment_intent: "pi_no_pay_more",
                   payment_status: "paid",
                 },
@@ -4897,11 +5104,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                 object: {
                   amount_total: 500,
                   id: "cs_pay_less",
-                  metadata: webhookMeta({
-                    email: "cheap@example.com",
-                    items: singleItem(listing.id, 1, 500),
-                    name: "Cheap User",
-                  }),
+                  metadata: signedMeta(
+                    {
+                      email: "cheap@example.com",
+                      items: singleItem(listing.id, 1, 500),
+                      name: "Cheap User",
+                    },
+                    500,
+                  ),
                   payment_intent: "pi_pay_less",
                   payment_status: "paid",
                 },
@@ -4958,11 +5168,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                 object: {
                   amount_total: 20000,
                   id: "cs_pay_too_much",
-                  metadata: webhookMeta({
-                    email: "overpay@example.com",
-                    items: singleItem(listing.id, 1, 20000),
-                    name: "Overpay User",
-                  }),
+                  metadata: signedMeta(
+                    {
+                      email: "overpay@example.com",
+                      items: singleItem(listing.id, 1, 20000),
+                      name: "Overpay User",
+                    },
+                    20000,
+                  ),
                   payment_intent: "pi_pay_too_much",
                   payment_status: "paid",
                 },
@@ -5035,13 +5248,20 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       );
 
       try {
-        await withExpectedError(async () => {
-          const response = await handleRequest(
+        // A corrupt session can't carry a valid price proof, so it has no proof
+        // and is ignored: acknowledged (200) without processing, no throw.
+        await assertJson(
+          handleRequest(
             mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
-          );
-          // Corrupt metadata from a verified origin is a bug — surfaces as 503
-          expect(response.status).toBe(503);
-        });
+          ),
+          200,
+          (json) => {
+            expect(json.received).toBe(true);
+            expect(json.processed).toBeUndefined();
+          },
+        );
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+        expect((await getAttendeesRaw(listing.id)).length).toBe(0);
       } finally {
         mockVerify.restore();
       }
@@ -5088,13 +5308,20 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       );
 
       try {
-        await withExpectedError(async () => {
-          const response = await handleRequest(
+        // A corrupt session can't carry a valid price proof, so it has no proof
+        // and is ignored: acknowledged (200) without processing, no throw.
+        await assertJson(
+          handleRequest(
             mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
-          );
-          // Corrupt metadata from a verified origin is a bug — surfaces as 503
-          expect(response.status).toBe(503);
-        });
+          ),
+          200,
+          (json) => {
+            expect(json.received).toBe(true);
+            expect(json.processed).toBeUndefined();
+          },
+        );
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+        expect((await getAttendeesRaw(listing.id)).length).toBe(0);
       } finally {
         mockVerify.restore();
       }
@@ -5122,11 +5349,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                 object: {
                   amount_total: 500,
                   id: "cs_item_mismatch",
-                  metadata: webhookMeta({
-                    email: "mismatch@example.com",
-                    items: JSON.stringify([{ e: listing.id, p: 500, q: 1 }]),
-                    name: "Mismatch User",
-                  }),
+                  metadata: signedMeta(
+                    {
+                      email: "mismatch@example.com",
+                      items: JSON.stringify([{ e: listing.id, p: 500, q: 1 }]),
+                      name: "Mismatch User",
+                    },
+                    500,
+                  ),
                   payment_intent: "pi_item_mismatch",
                   payment_status: "paid",
                 },
@@ -5184,11 +5414,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                 object: {
                   amount_total: 1500,
                   id: "cs_total_mismatch",
-                  metadata: webhookMeta({
-                    email: "total@example.com",
-                    items: JSON.stringify([{ e: listing.id, p: 2000, q: 1 }]),
-                    name: "Total Mismatch",
-                  }),
+                  metadata: signedMeta(
+                    {
+                      email: "total@example.com",
+                      items: JSON.stringify([{ e: listing.id, p: 2000, q: 1 }]),
+                      name: "Total Mismatch",
+                    },
+                    1500,
+                  ),
                   payment_intent: "pi_total_mismatch",
                   payment_status: "paid",
                 },
@@ -5248,11 +5481,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                 object: {
                   amount_total: 20000,
                   id: "cs_qty2_at_max",
-                  metadata: webhookMeta({
-                    email: "boundary@example.com",
-                    items: singleItem(listing.id, 2, 20000),
-                    name: "Boundary User",
-                  }),
+                  metadata: signedMeta(
+                    {
+                      email: "boundary@example.com",
+                      items: singleItem(listing.id, 2, 20000),
+                      name: "Boundary User",
+                    },
+                    20000,
+                  ),
                   payment_intent: "pi_qty2_at_max",
                   payment_status: "paid",
                 },
@@ -5310,11 +5546,14 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
                 object: {
                   amount_total: 20001,
                   id: "cs_qty2_over_max",
-                  metadata: webhookMeta({
-                    email: "overpay-qty2@example.com",
-                    items: singleItem(listing.id, 2, 20001),
-                    name: "Overpay Qty2 User",
-                  }),
+                  metadata: signedMeta(
+                    {
+                      email: "overpay-qty2@example.com",
+                      items: singleItem(listing.id, 2, 20001),
+                      name: "Overpay Qty2 User",
+                    },
+                    20001,
+                  ),
                   payment_intent: "pi_qty2_over_max",
                   payment_status: "paid",
                 },
@@ -5427,17 +5666,20 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           object: {
             amount_total: 1000,
             id: "cs_multi_q",
-            metadata: webhookMeta({
-              answer_ids: JSON.stringify({
-                [String(listing1.id)]: [a1.id],
-              }),
-              email: "qbuyer@example.com",
-              items: JSON.stringify([
-                { e: listing1.id, p: 1000, q: 1 },
-                { e: listing2.id, p: 0, q: 1 },
-              ]),
-              name: "Q Buyer",
-            }),
+            metadata: signedMeta(
+              {
+                answer_ids: JSON.stringify({
+                  [String(listing1.id)]: [a1.id],
+                }),
+                email: "qbuyer@example.com",
+                items: JSON.stringify([
+                  { e: listing1.id, p: 1000, q: 1 },
+                  { e: listing2.id, p: 0, q: 1 },
+                ]),
+                name: "Q Buyer",
+              },
+              1000,
+            ),
             payment_intent: "pi_multi_q",
             payment_status: "paid",
           },
@@ -5501,14 +5743,17 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           object: {
             amount_total: 1000,
             id: "cs_single_q",
-            metadata: webhookMeta({
-              answer_ids: JSON.stringify({
-                [String(listing.id)]: [a1.id],
-              }),
-              email: "qsingle@example.com",
-              items: singleItem(listing.id, 1, 1000),
-              name: "Q Single Buyer",
-            }),
+            metadata: signedMeta(
+              {
+                answer_ids: JSON.stringify({
+                  [String(listing.id)]: [a1.id],
+                }),
+                email: "qsingle@example.com",
+                items: singleItem(listing.id, 1, 1000),
+                name: "Q Single Buyer",
+              },
+              1000,
+            ),
             payment_intent: "pi_single_q",
             payment_status: "paid",
           },
