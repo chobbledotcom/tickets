@@ -16,6 +16,7 @@ import { bunnyDbApi, type CreateDatabaseResult } from "#shared/bunny-db.ts";
 import { toBase64 } from "#shared/crypto/utils.ts";
 import { getEnv } from "#shared/env.ts";
 import { fetchText } from "#shared/fetch.ts";
+import { withSiteDb } from "#shared/site-db.ts";
 import { fetchLatestRelease } from "#shared/update.ts";
 
 /**
@@ -99,14 +100,10 @@ export const testDbConnection = async (
   dbUrl: string,
   dbToken: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> => {
-  try {
-    const { createClient } = await import("@libsql/client");
-    const client = createClient({ authToken: dbToken, url: dbUrl });
-    await client.execute("SELECT 1");
-    return { ok: true };
-  } catch (e) {
-    return { error: (e as Error).message, ok: false };
-  }
+  const result = await withSiteDb({ dbToken, dbUrl }, (client) =>
+    client.execute("SELECT 1"),
+  );
+  return result.ok ? { ok: true } : { error: result.error, ok: false };
 };
 
 /**

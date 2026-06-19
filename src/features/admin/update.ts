@@ -12,7 +12,7 @@ import { logActivity } from "#shared/db/activityLog.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import {
-  deployRelease,
+  deployLatestReleaseToScript,
   fetchLatestRelease,
   formatBuildDate,
   isNewerVersion,
@@ -78,14 +78,9 @@ const deployUpdate = async (): Promise<Response> => {
   }
 
   try {
-    const result = await settings.withCurrentTask("update", async () => {
-      const release = await fetchLatestRelease();
-      if (!release.assetUrl) {
-        throw new Error("Release has no downloadable asset");
-      }
-      await deployRelease(release.assetUrl);
-      return release;
-    });
+    const result = await settings.withCurrentTask("update", () =>
+      deployLatestReleaseToScript(),
+    );
 
     if (!result.ok) {
       return errorRedirect(UPDATE_PATH, result.error);
