@@ -5,7 +5,7 @@
 
 import type { InValue } from "@libsql/client";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import { execute, queryAll, queryOne } from "#shared/db/client.ts";
+import { queryAll, queryOne } from "#shared/db/client.ts";
 import type { ColumnDef, Table } from "#shared/db/table.ts";
 import { cachedTable, col, defineTable } from "#shared/db/table.ts";
 import { nowIso } from "#shared/now.ts";
@@ -296,35 +296,44 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
   },
 };
 
-/** Normalize a site's bunny URL to an absolute origin without a trailing slash
- * (bunnyUrl may be stored as a bare hostname), so callers can append a path. */
+/** Normalize a site's bunny URL to its absolute origin — scheme + host only,
+ * with any path, query, hash, or trailing slash dropped — so callers can safely
+ * append a path. bunnyUrl may be stored as a bare hostname, so a default scheme
+ * is added first; `new URL(...).origin` then collapses anything past the host. */
 export const siteBaseUrl = (siteUrl: string): string => {
-  const base = /^https?:\/\//.test(siteUrl) ? siteUrl : `https://${siteUrl}`;
-  return base.replace(/\/+$/, "");
+  const withScheme = /^https?:\/\//.test(siteUrl)
+    ? siteUrl
+    : `https://${siteUrl}`;
+  return new URL(withScheme).origin;
 };
 
 /**
- * Pick the least-recently-pruned built site, stamp it as pruned now, and return
- * its id and bunny URL — the scheduler forwards a prune to it. `last_pruned`
- * empty ('') sorts first, so never-pruned sites go before any dated one and the
- * master walks every site in round-robin order. The stamp is written before the
- * forward so a slow or failing site doesn't stall the rotation. Returns null
- * when there are no built sites.
+ * Atomically claim the least-recently-pruned built site and return its id and
+ * bunny URL — the scheduler forwards a prune to it. A single UPDATE picks the
+ * row via its WHERE subquery and stamps `last_pruned` in the same statement, so
+ * two overlapping cron forwards can't both grab the same site: SQLite serialises
+ * the writes and the second claim sees the first's fresh stamp, stepping on to
+ * the next site. `last_pruned` empty ('') sorts first, so never-pruned sites go
+ * before any dated one and the master walks every site in round-robin order.
+ * The stamp lands before the caller forwards the prune, so a slow or failing
+ * site doesn't stall the rotation. Returns null when there are no built sites.
  */
 export const claimNextBuiltSiteForPrune = async (): Promise<{
   id: number;
   bunnyUrl: string;
 } | null> => {
   const row = await queryOne<{ id: number; site_data: string }>(
-    "SELECT id, site_data FROM built_sites ORDER BY last_pruned ASC, id ASC LIMIT 1",
-    [],
+    `UPDATE built_sites SET last_pruned = ?
+     WHERE id = (
+       SELECT builtSite.id FROM built_sites AS builtSite
+       ORDER BY builtSite.last_pruned ASC, builtSite.id ASC
+       LIMIT 1
+     )
+     RETURNING id, site_data`,
+    [nowIso()],
   );
   if (!row) return null;
   const bunnyUrl = parseSiteDataBlob(await decrypt(row.site_data)).u;
-  await execute("UPDATE built_sites SET last_pruned = ? WHERE id = ?", [
-    nowIso(),
-    row.id,
-  ]);
   return { bunnyUrl, id: row.id };
 };
 

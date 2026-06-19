@@ -28,6 +28,12 @@ describe("siteBaseUrl", () => {
   test("strips a trailing slash so a path can be appended", () => {
     expect(siteBaseUrl("https://example.com/")).toBe("https://example.com");
   });
+
+  test("collapses a path, query, and hash to the origin", () => {
+    expect(siteBaseUrl("https://example.com/admin?x=1#y")).toBe(
+      "https://example.com",
+    );
+  });
 });
 
 describeWithEnv("claimNextBuiltSiteForPrune", { db: true }, () => {
