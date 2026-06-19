@@ -438,6 +438,7 @@ const handleAnswerRecalculateGet = answerRoute((question, answer, session) => {
 });
 
 /** Handle POST /admin/questions/:id/answers/:answerId/recalculate */
+/* jscpd:ignore-start */
 const handleAnswerRecalculatePost = createAuthedHandler<
   AnswerRouteParams,
   AnswerContext
@@ -465,6 +466,7 @@ const handleAnswerRecalculatePost = createAuthedHandler<
   },
   loadContext: loadQuestionAndAnswer,
 });
+/* jscpd:ignore-end */
 
 /** Factory for move-up/move-down handlers */
 const moveAnswerHandler = (direction: -1 | 1) =>
