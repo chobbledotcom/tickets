@@ -71,6 +71,20 @@ describe("generateListingsCsv", () => {
     expect(csv).not.toContain("Free");
   });
 
+  test("uses day prices for a customisable listing with a non-zero base price", () => {
+    // Checkout charges from day_prices; the legacy unit_price must be ignored.
+    const csv = generateListingsCsv([
+      testListingWithCount({
+        customisable_days: true,
+        day_prices: { 1: 1000, 2: 1800 },
+        duration_days: 2,
+        unit_price: 5000,
+      }),
+    ]);
+    expect(csv).toContain("10.00–18.00");
+    expect(csv).not.toContain("50.00");
+  });
+
   test("labels a daily listing's type", () => {
     const csv = generateListingsCsv([
       testListingWithCount({ listing_type: "daily", name: "Day Pass" }),

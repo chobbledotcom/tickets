@@ -14,18 +14,22 @@ import {
   type ListingWithCount,
 } from "#shared/types.ts";
 
-/** The export's Price cell: the unit price, or — for a customisable-days
- * listing whose base price is 0 — the range of its day prices, or "Free" when
- * genuinely free. Avoids labelling paid day-priced listings as Free. */
+/** The export's Price cell. For a customisable-days listing it shows the range
+ * of configured day prices — what checkout actually charges via `dayPriceFor`,
+ * regardless of any legacy base `unit_price`. Otherwise it shows the unit price,
+ * or "Free" when genuinely free. */
 const listingPriceLabel = (l: ListingWithCount): string => {
-  if (l.unit_price > 0) return toMajorUnits(l.unit_price);
   const dayPrices = availableDayCounts(l).map((n) => dayPriceFor(l, n)!);
-  if (dayPrices.length === 0) return t("listings_table.free");
-  const min = Math.min(...dayPrices);
-  const max = Math.max(...dayPrices);
-  return min === max
-    ? toMajorUnits(min)
-    : `${toMajorUnits(min)}–${toMajorUnits(max)}`;
+  if (dayPrices.length > 0) {
+    const min = Math.min(...dayPrices);
+    const max = Math.max(...dayPrices);
+    return min === max
+      ? toMajorUnits(min)
+      : `${toMajorUnits(min)}–${toMajorUnits(max)}`;
+  }
+  return l.unit_price > 0
+    ? toMajorUnits(l.unit_price)
+    : t("listings_table.free");
 };
 
 /** Ordered listing CSV columns. Built per call so the active locale applies. */
