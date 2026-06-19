@@ -19,10 +19,13 @@ export const initQuestionVisibility = (): void => {
         return qty !== null && Number.parseInt(qty.value, 10) > 0;
       });
       field.hidden = !hasSelected;
-      for (const radio of field.querySelectorAll<HTMLInputElement>(
-        'input[type="radio"]',
-      )) {
-        radio.required = hasSelected;
+      // A select question is a single required control; radios are a required
+      // group. Either way, drop `required` while the question is hidden so a
+      // collapsed control can't silently block form submission.
+      for (const control of field.querySelectorAll<
+        HTMLInputElement | HTMLSelectElement
+      >('input[type="radio"], select')) {
+        control.required = hasSelected;
       }
     }
   };

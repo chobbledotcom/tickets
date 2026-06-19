@@ -7,7 +7,7 @@ import { renderQuestions } from "#templates/public.tsx";
 
 describe("renderQuestions", () => {
   test("returns empty string for no questions", () => {
-    expect(renderQuestions([])).toBe("");
+    expect(renderQuestions([]).toString()).toBe("");
   });
 
   test("renders radio buttons for each answer", () => {
@@ -23,7 +23,7 @@ describe("renderQuestions", () => {
       },
     ];
 
-    const html = renderQuestions(questions);
+    const html = renderQuestions(questions).toString();
 
     expect(html).toContain("Favourite colour?");
     expect(html).toContain('name="question_1"');
@@ -48,8 +48,13 @@ describe("renderQuestions", () => {
       },
     ];
 
-    const html = renderQuestions(questions);
+    const html = renderQuestions(questions).toString();
 
+    // The question text labels the <select> via a wrapping <label>, so the
+    // control has an accessible name without a separate screen-reader element.
+    expect(html).toContain(
+      '<label class="custom-question">Favourite colour?<select',
+    );
     expect(html).toContain('<select name="question_1" required>');
     expect(html).toContain('<option value="">Select an answer</option>');
     expect(html).toContain('<option value="10">Red</option>');
@@ -70,11 +75,11 @@ describe("renderQuestions", () => {
       },
     ];
 
-    const html = renderQuestions(questions);
+    const html = renderQuestions(questions).toString();
     clearSavedFormData();
 
-    expect(html).toContain('<option value="11" selected>Blue</option>');
-    expect(html).not.toContain('<option value="10" selected>Red</option>');
+    expect(html).toContain('<option selected value="11">Blue</option>');
+    expect(html).not.toContain('<option selected value="10">Red</option>');
   });
 
   test("renders multiple questions", () => {
@@ -93,7 +98,7 @@ describe("renderQuestions", () => {
       },
     ];
 
-    const html = renderQuestions(questions);
+    const html = renderQuestions(questions).toString();
 
     expect(html).toContain('name="question_1"');
     expect(html).toContain('name="question_2"');
@@ -109,7 +114,7 @@ describe("renderQuestions", () => {
       },
     ];
 
-    const html = renderQuestions(questions);
+    const html = renderQuestions(questions).toString();
 
     expect(html).toContain("&lt;b&gt;");
     expect(html).toContain("S&amp;M");
@@ -136,7 +141,7 @@ describe("renderQuestions", () => {
       [2, [200]],
     ]);
 
-    const html = renderQuestions(questions, listingMap);
+    const html = renderQuestions(questions, listingMap).toString();
 
     expect(html).toContain('data-listing-ids="100 200"');
     expect(html).toContain('data-listing-ids="200"');
@@ -152,7 +157,7 @@ describe("renderQuestions", () => {
       },
     ];
 
-    const html = renderQuestions(questions);
+    const html = renderQuestions(questions).toString();
 
     expect(html).not.toContain("data-listing-ids");
   });
