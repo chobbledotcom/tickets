@@ -201,8 +201,8 @@ const rawListingsTable = defineIdTable<Listing, ListingInput>("listings", {
  * so the count source lives in one place. The count reads the precomputed
  * `booked_quantity` column (maintained by triggers on listing_attendees), so
  * this no longer joins or scans the attendee rows. */
-export const LISTING_COUNT_SELECT = `SELECT e.*, e.booked_quantity AS attendee_count
-     FROM listings e`;
+export const LISTING_COUNT_SELECT = `SELECT listing.*, listing.booked_quantity AS attendee_count
+     FROM listings AS listing`;
 
 /** GROUP BY clause that pairs with {@link LISTING_COUNT_SELECT}. Empty now that
  * the count comes from a column rather than an aggregate over a join. */
@@ -241,7 +241,7 @@ export const queryListingsWithCounts = async (
   args: InValue[] = [],
 ): Promise<ListingWithCount[]> => {
   const rows = await queryAll<ListingWithCount>(
-    `${LISTING_COUNT_SELECT} ${whereClause} ${LISTING_COUNT_GROUP_BY} ORDER BY e.created DESC, e.id DESC`,
+    `${LISTING_COUNT_SELECT} ${whereClause} ${LISTING_COUNT_GROUP_BY} ORDER BY listing.created DESC, listing.id DESC`,
     args,
   );
   return mapParallel(decryptListingWithCount)(rows);
@@ -275,10 +275,10 @@ const listingsEntity = cachedEntityTable<
   rawListingsTable,
   {
     fetchAll: () => queryListingsWithCounts(),
-    fetchById: (id) => queryOneListingWithCount("e.id = ?", [id]),
+    fetchById: (id) => queryOneListingWithCount("listing.id = ?", [id]),
     fetchByKeys: (slugIndexes) =>
       queryListingsWithCounts(
-        `WHERE e.slug_index IN (${inPlaceholders(slugIndexes)})`,
+        `WHERE listing.slug_index IN (${inPlaceholders(slugIndexes)})`,
         slugIndexes,
       ),
     idOf: (e) => e.id,
@@ -513,8 +513,8 @@ export const getDailyListingAttendeeDates = async (): Promise<string[]> => {
   // filtering on both being non-null lets the row type stay honestly non-null.
   const rows = await queryAll<{ start_at: string; end_at: string }>(
     `SELECT DISTINCT ea.start_at, ea.end_at FROM listing_attendees ea
-     INNER JOIN listings e ON ea.listing_id = e.id
-     WHERE e.listing_type = 'daily'
+     INNER JOIN listings AS listing ON ea.listing_id = listing.id
+     WHERE listing.listing_type = 'daily'
        AND ea.start_at IS NOT NULL AND ea.end_at IS NOT NULL`,
   );
   // Expand each booking's [start_at, end_at) span into every calendar date it
@@ -546,8 +546,8 @@ export const getDailyListingAttendeesByDate = (
     `SELECT ${ATTENDEE_JOIN_SELECT}
      FROM attendees a
      JOIN listing_attendees ea ON ea.attendee_id = a.id
-     JOIN listings e ON ea.listing_id = e.id
-     WHERE e.listing_type = 'daily' AND ea.start_at < ? AND ea.end_at > ?
+     JOIN listings AS listing ON ea.listing_id = listing.id
+     WHERE listing.listing_type = 'daily' AND ea.start_at < ? AND ea.end_at > ?
      ORDER BY a.created DESC`,
     [endAt, startAt],
   );

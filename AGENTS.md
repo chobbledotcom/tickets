@@ -36,6 +36,7 @@ The `.tool-versions` file is kept in sync for asdf-compatible tooling.
 - **100% test coverage**: All code must have complete test coverage - run `deno coverage` to find uncovered lines/branches
 - **Trust application invariants**: Do not design normal code paths around database states the application says are impossible. If an impossible state is observed, raise it as an error and repair the data explicitly rather than silently accepting or normalising it.
 - **Select only needed columns**: Avoid `SELECT *` and broad "load every row" helpers — query the specific columns a caller actually uses. See [Database Queries](#database-queries).
+- **SQL table aliases**: Alias tables with the full singular word using `AS`, not a single letter — write `FROM listings AS listing`, never `FROM listings e` (the `e` is a leftover from when listings were called "events"). When one query references the same table more than once (e.g. correlated subqueries that compare a row against its group), give each occurrence a descriptive word alias — `listing` for the row being checked, `groupListing` for sibling rows in its group.
 - **Final check**: Run `deno task precommit` (via `mise exec -- deno task precommit` when using the pinned toolchain) before finishing any job with code or documentation changes.
 
 ## FP Imports
@@ -122,7 +123,7 @@ Avoid `SELECT *`, and avoid loading more rows or columns than the caller needs.
 
 Some reads legitimately need the full row — these are the exceptions, not the rule:
 
-- **An entity cache that also backs single-record reads.** When one request-scoped cache serves both the collection view and the `getById`/`getByKey` detail/auth reads (listings, users, groups, holidays, built-sites, attendee-statuses), it loads the full entity once so the detail, edit, and login paths it feeds have every column. Narrowing the cache load would break those reads. (`getAllListings`' `SELECT e.*` is deliberately wide — it also carries the trigger-maintained `booked_quantity`/`income`/`tickets_count` aggregate columns.)
+- **An entity cache that also backs single-record reads.** When one request-scoped cache serves both the collection view and the `getById`/`getByKey` detail/auth reads (listings, users, groups, holidays, built-sites, attendee-statuses), it loads the full entity once so the detail, edit, and login paths it feeds have every column. Narrowing the cache load would break those reads. (`getAllListings`' `SELECT listing.*` is deliberately wide — it also carries the trigger-maintained `booked_quantity`/`income`/`tickets_count` aggregate columns.)
 - **Full-table backup/restore** (`backup.ts`) — a dump needs every column to round-trip.
 - **The generic `Table.findById`/`findAll` helpers** (`table.ts`) — they `SELECT *` by design and feed edit pages that need the whole row; specific tables narrow at the cache `fetchAll` layer instead.
 

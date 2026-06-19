@@ -110,8 +110,8 @@ const queryGroupListings = (
 ): Promise<ListingWithCount[]> =>
   queryListingsWithCounts(
     activeOnly
-      ? "WHERE e.active = 1 AND e.group_id = ?"
-      : "WHERE e.group_id = ?",
+      ? "WHERE listing.active = 1 AND listing.group_id = ?"
+      : "WHERE listing.group_id = ?",
     [groupId],
   );
 
@@ -164,7 +164,7 @@ export const validateGroupListingType = async (
  * Get ungrouped listings (group_id = 0) with attendee counts.
  */
 export const getUngroupedListings = (): Promise<ListingWithCount[]> =>
-  queryListingsWithCounts("WHERE e.group_id = 0");
+  queryListingsWithCounts("WHERE listing.group_id = 0");
 
 /**
  * Assign listings to a group by updating their group_id.

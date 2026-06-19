@@ -135,10 +135,10 @@ export const checkGroupCapAfterDurationChange = async (
     end_at: string | null;
     quantity: number;
   }>(
-    `SELECT ea.listing_id, e.listing_type, ea.start_at, ea.end_at, ea.quantity
+    `SELECT ea.listing_id, listing.listing_type, ea.start_at, ea.end_at, ea.quantity
      FROM listing_attendees ea
-     JOIN listings e ON e.id = ea.listing_id
-     WHERE e.group_id = ?`,
+     JOIN listings AS listing ON listing.id = ea.listing_id
+     WHERE listing.group_id = ?`,
     [groupId],
   );
 

@@ -52,21 +52,21 @@ export const getGroupRemainingByGroupId = async (
   const range = date ? dateToRange(date) : null;
   const datedCount = date
     ? `COALESCE((
-        SELECT SUM(e.booked_quantity)
-          FROM listings e
-         WHERE e.group_id = g.id AND e.listing_type != 'daily'
+        SELECT SUM(listing.booked_quantity)
+          FROM listings AS listing
+         WHERE listing.group_id = g.id AND listing.listing_type != 'daily'
       ), 0) + COALESCE((
         SELECT SUM(ea.quantity)
           FROM listing_attendees ea
-          JOIN listings e ON e.id = ea.listing_id
-         WHERE e.group_id = g.id
-           AND e.listing_type = 'daily'
+          JOIN listings AS listing ON listing.id = ea.listing_id
+         WHERE listing.group_id = g.id
+           AND listing.listing_type = 'daily'
            AND ea.start_at < ? AND ea.end_at > ?
       ), 0)`
     : `COALESCE((
-        SELECT SUM(e.booked_quantity)
-          FROM listings e
-         WHERE e.group_id = g.id
+        SELECT SUM(listing.booked_quantity)
+          FROM listings AS listing
+         WHERE listing.group_id = g.id
       ), 0)`;
   const countArgs = range ? [range.endAt, range.startAt] : [];
   const rows = await queryAll<{
@@ -379,10 +379,10 @@ export const checkBatchAvailabilityImpl = async (
   const listingIds = map((i: BatchAvailabilityItem) => i.listingId)(items);
 
   const listingRows = await queryAll<ListingRow>(
-    `SELECT e.id, e.max_attendees, e.group_id, e.listing_type,
-            e.booked_quantity as attendee_count
-     FROM listings e
-     WHERE e.id IN (${inPlaceholders(listingIds)})`,
+    `SELECT listing.id, listing.max_attendees, listing.group_id, listing.listing_type,
+            listing.booked_quantity as attendee_count
+     FROM listings AS listing
+     WHERE listing.id IN (${inPlaceholders(listingIds)})`,
     listingIds,
   );
   const listingsById = new Map(listingRows.map((r) => [r.id, r]));
@@ -477,9 +477,9 @@ const groupPerDayRemainingByGroup = async (
   }>(
     `SELECT g.id, g.max_attendees,
             COALESCE((
-              SELECT SUM(e.booked_quantity)
-                FROM listings e
-               WHERE e.group_id = g.id AND e.listing_type != 'daily'
+              SELECT SUM(listing.booked_quantity)
+                FROM listings AS listing
+               WHERE listing.group_id = g.id AND listing.listing_type != 'daily'
             ), 0) AS base
        FROM groups g
      WHERE g.id IN (${inPlaceholders(ids)}) AND g.max_attendees > 0`,
@@ -490,11 +490,11 @@ const groupPerDayRemainingByGroup = async (
   const { startAt, endAt } = daySpan(days);
   type GroupRow = IntervalRow & { group_id: number };
   const rows = await queryAll<GroupRow>(
-    `SELECT e.group_id, ea.start_at, ea.end_at, ea.quantity
+    `SELECT listing.group_id, ea.start_at, ea.end_at, ea.quantity
      FROM listing_attendees ea
-     JOIN listings e ON e.id = ea.listing_id
-     WHERE e.group_id IN (${inPlaceholders(cappedIds)})
-       AND e.listing_type = 'daily'
+     JOIN listings AS listing ON listing.id = ea.listing_id
+     WHERE listing.group_id IN (${inPlaceholders(cappedIds)})
+       AND listing.listing_type = 'daily'
        AND ea.start_at < ? AND ea.end_at > ?`,
     [...cappedIds, endAt, startAt],
   );

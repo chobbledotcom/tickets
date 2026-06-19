@@ -178,8 +178,8 @@ export const getModifierGroupListingIds = (
   modifierId: number,
 ): Promise<number[]> =>
   modifierIdColumn(
-    `SELECT e.id FROM listings e
-       JOIN modifier_groups mg ON mg.group_id = e.group_id
+    `SELECT listing.id FROM listings AS listing
+       JOIN modifier_groups mg ON mg.group_id = listing.group_id
      WHERE mg.modifier_id = ?`,
     modifierId,
   );
