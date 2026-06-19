@@ -27,6 +27,7 @@ import {
   enforceMetadataLimits,
   errorMessage,
   PaymentUserError,
+  packMetadata,
   SQUARE_METADATA_MAX_ENTRIES,
   SQUARE_METADATA_MAX_VALUE_LENGTH,
 } from "#shared/payment-helpers.ts";
@@ -572,7 +573,7 @@ export const squareApi: {
     const order = priceCheckout(intent);
 
     const prep = await preparePaymentLink(
-      await buildItemsMetadata(intent, order.total),
+      packMetadata(await buildItemsMetadata(intent, order.total)),
       `payment link for ${intent.items.length} listing(s)`,
     );
     if (!prep) return null;

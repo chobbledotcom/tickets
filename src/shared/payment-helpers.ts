@@ -201,10 +201,13 @@ export const buildItemsMetadata = async (
   });
   // Sign the agreed total bound to every stored booking field, so the webhook
   // can trust it as an oracle rather than re-deriving and hoping they agree.
-  // Signing happens over the logical (pre-packing) fields, the same shape the
-  // webhook verifies after unpacking, so packing can never change the digest.
+  // Returns the logical (unpacked) shape; only Square packs the small fields
+  // into `b` (for its 10-entry cap), so Stripe/SumUp keep each field top-level
+  // and at their full per-value headroom. Signing is over this logical shape,
+  // which the webhook reproduces after unpacking, so packing never changes the
+  // digest.
   const sig = signPriceSync(base, total);
-  return packMetadata({ ...base, price_proof: `${total}.${sig}` });
+  return { ...base, price_proof: `${total}.${sig}` };
 };
 
 /**

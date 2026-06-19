@@ -800,9 +800,9 @@ describeWithEnv(
   },
 );
 
-// The proof is signed over the logical metadata, then the small fields are
-// packed; this proves the webhook's unpack-then-verify reproduces it, and that
-// tampering a packed field is still caught after the round-trip.
+// The proof is signed over the logical metadata; Square then packs the small
+// fields. This proves the webhook's unpack-then-verify reproduces the proof, and
+// that tampering a packed field is still caught after the round-trip.
 describeWithEnv(
   "buildItemsMetadata price proof survives packing",
   { encryptionKey: true },
@@ -821,7 +821,8 @@ describeWithEnv(
 
     test("the signed proof verifies against the unpacked metadata", async () => {
       const total = priceCheckout(intent).total;
-      const wire = await buildItemsMetadata(intent, total);
+      // Apply the Square packing step over the signed metadata.
+      const wire = packMetadata(await buildItemsMetadata(intent, total));
       // Small fields (phone, date, …) are packed on the wire.
       expect("phone" in wire).toBe(false);
       expect(typeof wire.b).toBe("string");
