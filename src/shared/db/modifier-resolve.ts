@@ -138,7 +138,7 @@ const answerModifierScopes = async (
   await Promise.all(
     ids.map(async (id) => {
       const modifier = byId.get(id);
-      if (!modifier || modifier.trigger !== "answer") return;
+      if (modifier?.trigger !== "answer") return;
       const listingIds = listingIdsFor(modifier);
       scopes.set(id, listingIds === null ? null : await listingIds);
     }),

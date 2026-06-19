@@ -36,6 +36,13 @@ export const buildCurlArgs = (
   return args;
 };
 
+export const curlFailureMessage = (stderr: string, stdout: string): string => {
+  const stderrText = stderr.trim();
+  if (stderrText) return stderrText;
+  const stdoutText = stdout.trim();
+  return stdoutText || "curl request failed";
+};
+
 export const curlJson = async <T>(
   config: CliConfig,
   options: CurlOptions,
@@ -49,7 +56,7 @@ export const curlJson = async <T>(
   const stdout = new TextDecoder().decode(output.stdout);
   const stderr = new TextDecoder().decode(output.stderr);
   if (!output.success) {
-    throw new Error(stderr.trim() || stdout.trim() || "curl request failed");
+    throw new Error(curlFailureMessage(stderr, stdout));
   }
   return JSON.parse(stdout) as T;
 };

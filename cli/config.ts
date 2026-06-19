@@ -10,9 +10,8 @@ const parseDotEnv = (text: string): Record<string, string> => {
     if (!trimmed || trimmed.startsWith("#")) continue;
     const match = trimmed.match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
     if (!match) continue;
-    const key = match[1];
-    const rawValue = match[2] ?? "";
-    if (!key) continue;
+    const key = match[1] as string;
+    const rawValue = match[2] as string;
     values[key] = rawValue.trim().replace(/^(['"])(.*)\1$/, "$2");
   }
   return values;
