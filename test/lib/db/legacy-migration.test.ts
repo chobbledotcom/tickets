@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { insert, setDb } from "#shared/db/client.ts";
+import { deleteListing } from "#shared/db/listings.ts";
 import { initDb, invalidateInitDbCache } from "#shared/db/migrations.ts";
 import { resetDb, setupTestEncryptionKey } from "#test-utils";
 
@@ -371,6 +372,43 @@ describe("db > listing_attendees migration from legacy schema", () => {
     expect(answers.rows).toEqual([
       { id: 1, question_id: 1, text: "Encrypted answer" },
     ]);
+  });
+
+  test("deletes a migrated listing that still has a legacy listing_questions FK", async () => {
+    const client = await createLegacyDb();
+    await client.execute("PRAGMA foreign_keys = ON");
+
+    await client.execute(
+      insert("listings", {
+        created: "2024-01-01T00:00:00Z",
+        id: 1,
+        max_attendees: 100,
+        name: "Test Listing",
+      }),
+    );
+    await client.execute(insert("questions", { id: 1, text: "Encrypted" }));
+    await client.execute(
+      insert("listing_questions", { id: 1, listing_id: 1, question_id: 1 }),
+    );
+
+    const pragmaStub = stubPragmaForeignKeysOff(client);
+    try {
+      await initDb();
+    } finally {
+      pragmaStub.restore();
+    }
+
+    // Migration only rebuilds the attendee tables, so listing_questions keeps
+    // its original FOREIGN KEY (listing_id) REFERENCES listings(id). With FK
+    // enforcement on (as on the Turso primary), deleting a listing that has a
+    // question assigned must clear those rows first, or libsql rejects the
+    // whole delete with "FOREIGN KEY constraint failed".
+    await deleteListing(1);
+
+    const listings = await client.execute("SELECT id FROM listings");
+    expect(listings.rows.length).toBe(0);
+    const links = await client.execute("SELECT id FROM listing_questions");
+    expect(links.rows.length).toBe(0);
   });
 
   test("drops PII columns when listing_id was dropped in a prior partial run", async () => {
