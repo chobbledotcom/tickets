@@ -48,7 +48,6 @@ import {
   MigrationInProgressError,
   MissingSettingsTableError,
 } from "#shared/db/migrations.ts";
-import { maybeRunPrunes } from "#shared/db/prune.ts";
 import {
   enableQueryLog,
   runWithQueryLogContext,
@@ -76,7 +75,7 @@ import {
   logRequest,
   runWithRequestId,
 } from "#shared/logger.ts";
-import { addPendingWork, flushPendingWork } from "#shared/pending-work.ts";
+import { flushPendingWork } from "#shared/pending-work.ts";
 import { runWithRequestCache } from "#shared/request-cache.ts";
 import { runWithSessionContext } from "#shared/session-context.ts";
 import { getRethrowErrors } from "#shared/test-overrides.ts";
@@ -173,6 +172,11 @@ const loadAttachmentRoutes = once(async () =>
 /** Lazy-load admin API routes */
 const loadAdminApiRoutes = once(async () =>
   createRouter((await import("#routes/admin/api.ts")).adminApiRoutes),
+);
+
+/** Lazy-load the scheduled-tasks (cron) endpoint */
+const loadScheduledRoutes = once(async () =>
+  createRouter((await import("#routes/scheduled.ts")).scheduledRoutes),
 );
 
 /** Lazy-load unsubscribe routes */
@@ -402,6 +406,9 @@ const PREFIX_SETTINGS: Record<string, readonly string[]> = {
   payment: [...PAYMENT_SETTINGS, ...EMAIL_SETTINGS],
   "read-only": [],
   renew: BOOKING_FLOW_SETTINGS,
+  // Cron prune trigger: maybeRunPrunes only reads the last_pruned_*/orphan
+  // settings, which are all in INFRA, so infra alone is enough.
+  scheduled: [],
   setup: [],
   // --- Inbound SMS webhook (JSON only) ---
   sms: [
@@ -578,6 +585,7 @@ const prefixHandlers: Record<string, RouterFn> = {
       ? Promise.resolve(htmlResponse(readOnlyPage()))
       : Promise.resolve(null),
   renew: lazyRoute(loadRenewalRoutes),
+  scheduled: lazyRoute(loadScheduledRoutes),
   sms: lazyRoute(loadSmsWebhookRoutes),
   t: lazyRoute(loadTicketViewRoutes),
   ticket: lazyRoute(loadTicketRoutes),
@@ -748,16 +756,8 @@ const prepareRequestEnvironment = async (
   // targeted query. The cache is a no-op when still valid (60 s TTL).
   await settings.loadKeys(settingsForPath(path));
 
-  // Schedule DB pruning as fire-and-forget pending work. Each prune task
-  // self-guards via its last_pruned_* timestamp, so this is near-free on most
-  // requests. Skipped on the one request that edits the orphan-purge settings
-  // themselves: scheduling here runs before the handler can save the submitted
-  // retention or auto-purge toggle, so an enqueued orphan purge could delete
-  // records with the pre-change settings (or run despite auto-purge being
-  // switched off). The next request reschedules with the saved settings.
-  if (!(method === "POST" && path === "/admin/privacy/orphans")) {
-    addPendingWork(maybeRunPrunes());
-  }
+  // DB pruning is no longer triggered per-request; a cron drives it through the
+  // POST /scheduled endpoint (see features/scheduled.ts).
 
   // Load effective domain (custom_domain from DB if set, else request hostname)
   loadEffectiveDomain(request.url);

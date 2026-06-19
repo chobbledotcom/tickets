@@ -33,6 +33,9 @@ type HostSecret = { name: string; hostInfra?: boolean };
 const HOST_SECRETS: readonly HostSecret[] = [
   { name: "NTFY_URL" },
   { name: "ADMIN_EMAIL_ADDRESS" },
+  // Shared so the builder can call each client's /scheduled endpoint with the
+  // same bearer key it uses itself, letting one cron walk every site.
+  { name: "SCHEDULED_TASKS_KEY" },
   { hostInfra: true, name: "STORAGE_ZONE_NAME" },
   { hostInfra: true, name: "STORAGE_ZONE_KEY" },
   { name: "HOST_EMAIL_PROVIDER" },

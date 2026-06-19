@@ -131,6 +131,12 @@ export const isValidContentType = (request: Request, path: string): boolean => {
   if (request.method !== "POST") {
     return true;
   }
+  // The scheduled-tasks cron trigger carries no body (it's bearer-authed, not
+  // cookie-authed, so there's no CSRF concern), so a bare `curl -X POST` with
+  // no content-type must be accepted.
+  if (path === "/scheduled") {
+    return true;
+  }
   const contentType = (request.headers.get("content-type") || "").toLowerCase();
 
   // Webhook and JSON API endpoints accept JSON

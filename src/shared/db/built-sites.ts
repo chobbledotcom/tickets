@@ -5,7 +5,7 @@
 
 import type { InValue } from "@libsql/client";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import { queryAll } from "#shared/db/client.ts";
+import { execute, queryAll, queryOne } from "#shared/db/client.ts";
 import type { ColumnDef, Table } from "#shared/db/table.ts";
 import { cachedTable, col, defineTable } from "#shared/db/table.ts";
 import { nowIso } from "#shared/now.ts";
@@ -294,6 +294,38 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
     )) as BuiltSiteRow;
     return rowToBuiltSite(row);
   },
+};
+
+/** Normalize a site's bunny URL to an absolute origin without a trailing slash
+ * (bunnyUrl may be stored as a bare hostname), so callers can append a path. */
+export const siteBaseUrl = (siteUrl: string): string => {
+  const base = /^https?:\/\//.test(siteUrl) ? siteUrl : `https://${siteUrl}`;
+  return base.replace(/\/+$/, "");
+};
+
+/**
+ * Pick the least-recently-pruned built site, stamp it as pruned now, and return
+ * its id and bunny URL — the scheduler forwards a prune to it. `last_pruned`
+ * empty ('') sorts first, so never-pruned sites go before any dated one and the
+ * master walks every site in round-robin order. The stamp is written before the
+ * forward so a slow or failing site doesn't stall the rotation. Returns null
+ * when there are no built sites.
+ */
+export const claimNextBuiltSiteForPrune = async (): Promise<{
+  id: number;
+  bunnyUrl: string;
+} | null> => {
+  const row = await queryOne<{ id: number; site_data: string }>(
+    "SELECT id, site_data FROM built_sites ORDER BY last_pruned ASC, id ASC LIMIT 1",
+    [],
+  );
+  if (!row) return null;
+  const bunnyUrl = parseSiteDataBlob(await decrypt(row.site_data)).u;
+  await execute("UPDATE built_sites SET last_pruned = ? WHERE id = ?", [
+    nowIso(),
+    row.id,
+  ]);
+  return { bunnyUrl, id: row.id };
 };
 
 /** Insert a new built site record */

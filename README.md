@@ -265,6 +265,7 @@ Optional:
 | `SUPPORT_FORM_NAG_DAYS` | Optional positive integer (default `7`): how long the Support page shows a "you last submitted this form …" notice after a submission, to discourage duplicates.                                                                            |
 | `BOTPOISON_PUBLIC_KEY`  | Optional [Botpoison](https://botpoison.com) public key. When set with `BOTPOISON_SECRET_KEY`, adds proof-of-work spam protection to the contact form (which otherwise works without it).                                                       |
 | `BOTPOISON_SECRET_KEY`  | Optional Botpoison secret key. Used server-side to verify contact form submissions when Botpoison is enabled.                                                                                                                                |
+| `SCHEDULED_TASKS_KEY`   | Enables the cron endpoint `POST /scheduled` (authed with `Authorization: Bearer <key>`) that runs this site's database pruning; unset means the endpoint 404s. Point a daily cron at it. On a builder, `POST /scheduled?built=true` also forwards a prune to the least-recently-pruned built site, so one cron on the master walks every client at a steady pace (the key is shared with built sites automatically). |
 
 Optional:
 

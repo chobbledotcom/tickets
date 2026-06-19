@@ -287,11 +287,9 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
 
     test("refuses to delete a status that is in use", async () => {
       const inUse = await attendeeStatusesTable.insert({ name: "Active" });
-      // A current `created` keeps this booking-less attendee out of the
-      // orphaned-record auto-purge so it still counts as "in use".
       await getDb().execute({
-        args: [new Date().toISOString(), inUse.id],
-        sql: "INSERT INTO attendees (created, pii_blob, status_id) VALUES (?, '', ?)",
+        args: [inUse.id],
+        sql: "INSERT INTO attendees (created, pii_blob, status_id) VALUES ('2024-01-01T00:00:00Z', '', ?)",
       });
       const { response } = await adminFormPost(`${PATH}/${inUse.id}/delete`, {
         confirm_identifier: "Active",

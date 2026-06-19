@@ -37,11 +37,9 @@ const insertBareAttendee = async (
   statusId: number | null,
   remainingBalance: number,
 ): Promise<number> => {
-  // A current `created` keeps this bare (booking-less) attendee out of the
-  // orphaned-record auto-purge, which reaps orphans older than the retention.
   await getDb().execute({
-    args: [new Date().toISOString(), statusId, remainingBalance],
-    sql: "INSERT INTO attendees (created, pii_blob, status_id, remaining_balance) VALUES (?, '', ?, ?)",
+    args: [statusId, remainingBalance],
+    sql: "INSERT INTO attendees (created, pii_blob, status_id, remaining_balance) VALUES ('2024-01-01T00:00:00Z', '', ?, ?)",
   });
   const { rows } = await getDb().execute(
     "SELECT id FROM attendees ORDER BY id DESC LIMIT 1",
