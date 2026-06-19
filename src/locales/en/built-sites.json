@@ -9,7 +9,7 @@
   "built_sites.status_available": "Available",
   "built_sites.status_not_assignable": "Not assignable",
   "built_sites.renewal_tiers_title": "Renewal tiers",
-  "built_sites.no_renewal_tier": "No renewal tier listing is configured. Customers won't be able to renew their sites until you create one (a purchase-only, hidden listing with &lt;em&gt;Months Per Unit&lt;/em&gt; &gt; 0).",
+  "built_sites.no_renewal_tier": "No renewal tier listing is configured. Customers won't be able to renew their sites until you create one (a no-check-in, hidden listing with &lt;em&gt;Months Per Unit&lt;/em&gt; &gt; 0).",
   "built_sites.tier_table_tier": "Tier",
   "built_sites.tier_table_months": "Months per unit",
   "built_sites.tier_table_price": "Unit price",

@@ -217,7 +217,7 @@ describeWithEnv("server (admin attendees list)", { db: true }, () => {
       const html = await response.text();
       expect(html).toContain("MerchBuyer");
       expect(html).not.toContain("StdGoer");
-      expect(html).toContain("<strong>Purchase Only</strong>");
+      expect(html).toContain("<strong>No Check-In</strong>");
     });
 
     test("shows the type filter bar when several types exist", async () => {
