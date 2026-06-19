@@ -30,6 +30,7 @@ const context: MigrationContext = {
     verify: async () => {},
   }),
   applySchemaChanges,
+  backfillAnswerAggregates: unused,
   backfillListingAggregates: unused,
   backfillModifierAggregates: unused,
   ensureDefaultAttendeeStatus: unused,

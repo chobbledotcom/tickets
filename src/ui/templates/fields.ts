@@ -825,6 +825,14 @@ export const modifierAggregateFields: Field[] = [
   aggregateMoneyField("total_revenue", t("fields.modifier.total_revenue")),
 ];
 
+export type AnswerAggregateFormValues = {
+  times_selected: number;
+};
+
+export const answerAggregateFields: Field[] = [
+  aggregateIntegerField("times_selected", t("fields.answer.times_selected")),
+];
+
 /** Modifier form fields (same for create and edit — no slug). */
 export const modifierFields: Field[] = [
   {

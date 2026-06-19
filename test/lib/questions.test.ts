@@ -6,8 +6,10 @@ import {
   assignNextQuestionSortOrder,
   deleteAnswer,
   deleteQuestion,
+  getAllQuestionListingIds,
   getAllQuestionsWithAnswers,
-  getAnswerCountsForQuestion,
+  getAnswerAggregateRecalculation,
+  getAnswerSelectionTotals,
   getAttendeeAnswersBatch,
   getListingQuestionIds,
   getNextAnswerSortOrder,
@@ -18,11 +20,13 @@ import {
   questionDisplayTypeError,
   questionsTable,
   requireQuestionDisplayType,
+  resetAnswerAggregateFields,
   saveAttendeeAnswers,
   setListingQuestions,
   setQuestionListings,
   swapAnswerOrder,
   swapQuestionOrder,
+  updateAnswerAggregateValues,
 } from "#shared/db/questions.ts";
 import { createTestListing, describeWithEnv } from "#test-utils";
 
@@ -722,50 +726,88 @@ describeWithEnv("custom questions", { db: true }, () => {
     });
   });
 
-  describe("getAnswerCountsForQuestion", () => {
-    test("returns zero counts when no attendees have answered", async () => {
+  describe("getAllQuestionListingIds", () => {
+    test("maps each question to its assigned listing ids", async () => {
       const q = await questionsTable.insert({
         displayType: "radio",
-        text: "Color?",
+        text: "Q",
       });
-      const a1 = await answersTable.insert({
-        questionId: q.id,
-        sortOrder: 0,
-        text: "Red",
-      });
-      const a2 = await answersTable.insert({
-        questionId: q.id,
-        sortOrder: 1,
-        text: "Blue",
-      });
-      const counts = await getAnswerCountsForQuestion(q.id);
-      expect(counts.get(a1.id)).toBe(0);
-      expect(counts.get(a2.id)).toBe(0);
+      const l1 = await createTestListing({ name: "Alpha" });
+      const l2 = await createTestListing({ name: "Beta" });
+      await setQuestionListings(q.id, [l1.id, l2.id]);
+
+      const map = await getAllQuestionListingIds();
+      expect(map.get(q.id)!.sort()).toEqual([l1.id, l2.id].sort());
     });
 
-    test("counts attendee answers correctly", async () => {
-      const listing = await createTestListing();
+    test("omits questions assigned to no listings", async () => {
+      const q = await questionsTable.insert({
+        displayType: "radio",
+        text: "Lonely",
+      });
+      const map = await getAllQuestionListingIds();
+      expect(map.has(q.id)).toBe(false);
+    });
+  });
+
+  describe("answer selection aggregate", () => {
+    const seedAnswer = async () => {
       const q = await questionsTable.insert({
         displayType: "radio",
         text: "Size?",
       });
-      const a1 = await answersTable.insert({
+      const a = await answersTable.insert({
         questionId: q.id,
         sortOrder: 0,
-        text: "S",
+        text: "Small",
       });
-      const a2 = await answersTable.insert({
-        questionId: q.id,
-        sortOrder: 1,
-        text: "M",
-      });
-      const att1 = await createAttendee(listing.id, "Alice");
-      const att2 = await createAttendee(listing.id, "Bob");
-      await saveAttendeeAnswers(new Map([[att1.id, [a1.id]]]));
-      await saveAttendeeAnswers(new Map([[att2.id, [a1.id]]]));
-      const counts = await getAnswerCountsForQuestion(q.id);
-      expect(counts.get(a1.id)).toBe(2);
-      expect(counts.get(a2.id)).toBe(0);
+      return { a, q };
+    };
+
+    test("getAnswerSelectionTotals returns the stored times_selected", async () => {
+      const { a, q } = await seedAnswer();
+      await updateAnswerAggregateValues(a.id, { times_selected: 9 });
+      const totals = await getAnswerSelectionTotals(q.id);
+      expect(totals.get(a.id)).toBe(9);
+    });
+
+    test("the attendee_answers trigger maintains times_selected", async () => {
+      const { a, q } = await seedAnswer();
+      const listing = await createTestListing();
+      const att = await createAttendee(listing.id);
+
+      await saveAttendeeAnswers(new Map([[att.id, [a.id]]]));
+      expect((await getAnswerSelectionTotals(q.id)).get(a.id)).toBe(1);
+
+      await saveAttendeeAnswers(new Map([[att.id, []]]));
+      expect((await getAnswerSelectionTotals(q.id)).get(a.id)).toBe(0);
+    });
+
+    test("getAnswerAggregateRecalculation flags drift from attendee answers", async () => {
+      const { a } = await seedAnswer();
+      const listing = await createTestListing();
+      const attendee = await createAttendee(listing.id);
+      await saveAttendeeAnswers(new Map([[attendee.id, [a.id]]]));
+      // Force the stored total out of step with the one real selection.
+      await updateAnswerAggregateValues(a.id, { times_selected: 42 });
+
+      const recalc = await getAnswerAggregateRecalculation(a.id);
+      expect(recalc.times_selected.current).toBe(42);
+      expect(recalc.times_selected.recalculated).toBe(1);
+    });
+
+    test("resetAnswerAggregateFields rebuilds the stored total", async () => {
+      const { a } = await seedAnswer();
+      const listing = await createTestListing();
+      const attendee = await createAttendee(listing.id);
+      await saveAttendeeAnswers(new Map([[attendee.id, [a.id]]]));
+      await updateAnswerAggregateValues(a.id, { times_selected: 42 });
+
+      await resetAnswerAggregateFields(a.id, ["times_selected"]);
+
+      const recalc = await getAnswerAggregateRecalculation(a.id);
+      expect(recalc.times_selected.current).toBe(1);
+      expect(recalc.times_selected.recalculated).toBe(1);
     });
   });
 

@@ -2,6 +2,12 @@
  * Admin routes for custom questions management (owner-only)
  */
 
+import { mapNotNullish } from "#fp";
+import { t } from "#i18n";
+import {
+  parseEditableAggregateForm,
+  selectedRecalculationFields,
+} from "#routes/admin/aggregate-recalculation.ts";
 import {
   createConfirmedHandlers,
   createVerifiedFormRoute,
@@ -24,14 +30,18 @@ import { logActivity } from "#shared/db/activityLog.ts";
 import { getAllListings, getListingWithCount } from "#shared/db/listings.ts";
 import { getAllModifiers } from "#shared/db/modifiers.ts";
 import {
+  ANSWER_AGGREGATE_FIELDS,
   type Answer,
+  type AnswerAggregateValues,
   answersTable,
   assignNextQuestionSortOrder,
   deleteAnswer,
   deleteQuestion,
+  getAllQuestionListingIds,
   getAllQuestionsWithAnswers,
-  getAnswerCountsForQuestion,
+  getAnswerAggregateRecalculation,
   getAnswerModifierId,
+  getAnswerSelectionTotals,
   getListingQuestionIds,
   getNextAnswerSortOrder,
   getQuestionListingIds,
@@ -42,11 +52,13 @@ import {
   questionDisplayTypeError,
   questionsTable,
   requireQuestionDisplayType,
+  resetAnswerAggregateFields,
   setAnswerModifier,
   setListingQuestions,
   setQuestionListings,
   swapAnswerOrder,
   swapQuestionOrder,
+  updateAnswerAggregateValues,
 } from "#shared/db/questions.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { defineForm } from "#shared/forms.tsx";
@@ -55,11 +67,16 @@ import {
   type AnswerModifierOption,
   adminAnswerDeletePage,
   adminAnswerEditPage,
+  adminAnswerRecalculatePage,
   adminListingQuestionsPage,
   adminQuestionDeletePage,
   adminQuestionPage,
   adminQuestionsPage,
 } from "#templates/admin/questions.tsx";
+import {
+  type AnswerAggregateFormValues,
+  answerAggregateFields,
+} from "#templates/fields.ts";
 
 /* jscpd:ignore-end */
 
@@ -104,10 +121,27 @@ export const answerTextForm = defineForm({
 /** Handle GET /admin/questions */
 const handleQuestionsGet = ownerPage(async (session) => {
   const flash = getFlash();
+  const [questions, questionListingIds, allListings] = await Promise.all([
+    getAllQuestionsWithAnswers(),
+    getAllQuestionListingIds(),
+    getAllListings(),
+  ]);
+  // Resolve listing ids to their decrypted names for the Listings column,
+  // dropping any ids whose listing has since been deleted (listing_questions
+  // rows are not pruned on listing deletion, so orphans can linger).
+  const nameById = new Map(allListings.map((l) => [l.id, l.name]));
+  const listingNames = new Map(
+    [...questionListingIds].map(([questionId, ids]) => [
+      questionId,
+      mapNotNullish((id: number) => nameById.get(id))(ids),
+    ]),
+  );
   return adminQuestionsPage(
-    await getAllQuestionsWithAnswers(),
+    questions,
     session,
     flash.error,
+    listingNames,
+    allListings.length,
   );
 });
 
@@ -137,7 +171,7 @@ const handleQuestionGet = ownerGetById(
   async (q, session) => {
     const flash = getFlash();
     const [answerCounts, allListings, assignedListingIds] = await Promise.all([
-      getAnswerCountsForQuestion(q.id),
+      getAnswerSelectionTotals(q.id),
       getAllListings(),
       getQuestionListingIds(q.id),
     ]);
@@ -303,8 +337,8 @@ const editAnswerPath = ({ id, answerId }: AnswerRouteParams): string =>
 /** Handle GET /admin/questions/:id/answers/:answerId/edit */
 const handleEditAnswerGet = answerRoute(async (question, answer, session) => {
   const flash = getFlash();
-  const [counts, modifiers, modifierId] = await Promise.all([
-    getAnswerCountsForQuestion(question.id),
+  const [aggregateRecalculation, modifiers, modifierId] = await Promise.all([
+    getAnswerAggregateRecalculation(answer.id),
     answerTriggerModifiers(),
     getAnswerModifierId(answer.id),
   ]);
@@ -314,13 +348,18 @@ const handleEditAnswerGet = answerRoute(async (question, answer, session) => {
       answer,
       session,
       flash.error,
-      // getAnswerCountsForQuestion returns a row per answer of the question, and
-      // this answer belongs to it, so its count entry always exists.
-      counts.get(answer.id)!,
+      aggregateRecalculation,
       modifiers,
       modifierId,
     ),
   );
+});
+
+/** Map the validated aggregate form values onto the stored aggregate columns. */
+const extractAnswerAggregateValues = (
+  values: AnswerAggregateFormValues,
+): AnswerAggregateValues => ({
+  times_selected: values.times_selected,
 });
 
 /** Handle POST /admin/questions/:id/answers/:answerId/edit (text + modifier) */
@@ -348,11 +387,83 @@ const handleEditAnswerPost = createAuthedFormRoute<
     ) {
       return errorRedirect(editAnswerPath(params), "Invalid modifier");
     }
+    const aggregates = parseEditableAggregateForm<
+      AnswerAggregateFormValues,
+      AnswerAggregateValues
+    >(form, answerAggregateFields, extractAnswerAggregateValues);
+    if (!aggregates.ok) {
+      return errorRedirect(editAnswerPath(params), aggregates.error);
+    }
     await answersTable.update(answer.id, { text });
     await setAnswerModifier(answer.id, modifierId);
+    if (aggregates.input) {
+      await updateAnswerAggregateValues(answer.id, aggregates.input);
+    }
     await logActivity(`Answer '${text}' updated in question ${question.id}`);
     return redirect(`/admin/questions/${question.id}`, "Answer updated", true);
   },
+});
+
+/** Render the answer running-total recalculation page from the current,
+ * freshly-snapshotted stored vs attendee-answer values. */
+const renderAnswerRecalculatePage = async (
+  question: QuestionWithAnswers,
+  answer: Answer,
+  session: AdminSession,
+  error?: string,
+  success?: string,
+): Promise<Response> =>
+  htmlResponse(
+    adminAnswerRecalculatePage(
+      question,
+      answer,
+      await getAnswerAggregateRecalculation(answer.id),
+      session,
+      error,
+      success,
+    ),
+    error ? 400 : 200,
+  );
+
+/** Handle GET /admin/questions/:id/answers/:answerId/recalculate */
+const handleAnswerRecalculateGet = answerRoute((question, answer, session) => {
+  const flash = getFlash();
+  return renderAnswerRecalculatePage(
+    question,
+    answer,
+    session,
+    flash.error,
+    flash.success,
+  );
+});
+
+/** Handle POST /admin/questions/:id/answers/:answerId/recalculate */
+const handleAnswerRecalculatePost = createAuthedHandler<
+  AnswerRouteParams,
+  AnswerContext
+>({
+  auth: OWNER_FORM,
+  handle: async ({ context: { answer, question }, form, params, session }) => {
+    const selected = selectedRecalculationFields(form, ANSWER_AGGREGATE_FIELDS);
+    if (selected.length === 0) {
+      return renderAnswerRecalculatePage(
+        question,
+        answer,
+        session,
+        t("questions.recalculate.choose"),
+      );
+    }
+    await resetAnswerAggregateFields(answer.id, selected);
+    await logActivity(
+      `Answer '${answer.text}' selection total recalculated in question ${question.id}`,
+    );
+    return redirect(
+      editAnswerPath(params),
+      t("questions.recalculate.success"),
+      true,
+    );
+  },
+  loadContext: loadQuestionAndAnswer,
 });
 
 /** Factory for move-up/move-down handlers */
@@ -445,6 +556,8 @@ export const questionsRoutes = {
     "GET /admin/questions/:id": handleQuestionGet,
     "GET /admin/questions/:id/answers/:answerId/delete": handleDeleteAnswerGet,
     "GET /admin/questions/:id/answers/:answerId/edit": handleEditAnswerGet,
+    "GET /admin/questions/:id/answers/:answerId/recalculate":
+      handleAnswerRecalculateGet,
     "POST /admin/listing/:id/questions": handleListingQuestionsPost,
     "POST /admin/questions": handleQuestionsPost,
     "POST /admin/questions/:id/answers": handleAddAnswer,
@@ -454,6 +567,8 @@ export const questionsRoutes = {
     "POST /admin/questions/:id/answers/:answerId/move-down":
       handleMoveAnswerDown,
     "POST /admin/questions/:id/answers/:answerId/move-up": handleMoveAnswerUp,
+    "POST /admin/questions/:id/answers/:answerId/recalculate":
+      handleAnswerRecalculatePost,
     "POST /admin/questions/:id/edit": handleQuestionEdit,
     "POST /admin/questions/:id/listings": handleQuestionListings,
     "POST /admin/questions/:id/move-down": handleMoveQuestionDown,

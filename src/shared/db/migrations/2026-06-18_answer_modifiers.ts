@@ -7,7 +7,7 @@ export default schemaMigration(
     columns: { answers: ["modifier_id"] },
     indexes: ["idx_answers_modifier_id"],
   },
-  async ({ recreateTable }) => {
+  async ({ getDb, recreateTable, syncTriggers }) => {
     // Rebuild attendee_answers and answers from the trimmed SCHEMA. Recreating
     // attendee_answers first drops its three answer-aggregate triggers (a
     // table's triggers go when the table does), so the subsequent answers
@@ -17,6 +17,19 @@ export default schemaMigration(
     // database that never ran the earlier answer-pricing migration this just
     // reshapes the tables to their current definition.
     await recreateTable("attendee_answers");
+    // recreateTable re-installs the *current* attendee_answers triggers, which
+    // now include the times_selected aggregate triggers that reference the
+    // answers table. Drop them before rebuilding answers so the rebuild can't
+    // trip over a trigger pointing at a table mid-recreation, then let
+    // syncTriggers reinstall every declared trigger against the new answers.
+    for (const name of [
+      "trg_attendee_answers_aggregates_insert",
+      "trg_attendee_answers_aggregates_delete",
+      "trg_attendee_answers_aggregates_update",
+    ]) {
+      await getDb().execute(`DROP TRIGGER IF EXISTS ${name}`);
+    }
     await recreateTable("answers");
+    await syncTriggers();
   },
 );
