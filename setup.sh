@@ -2,15 +2,20 @@
 set -euo pipefail
 
 DENO_INSTALL="${DENO_INSTALL:-$HOME/.deno}"
+DENO_VERSION="${DENO_VERSION:-2.5.6}"
 DENO_BIN="$DENO_INSTALL/bin/deno"
 
-if command -v deno >/dev/null 2>&1; then
+deno_version() {
+  "$1" --version | sed -n 's/^deno \([^ ]*\).*/\1/p'
+}
+
+if command -v deno >/dev/null 2>&1 && [[ "$(deno_version "$(command -v deno)")" == "$DENO_VERSION" ]]; then
   DENO_BIN="$(command -v deno)"
-  echo "Using existing Deno at: $DENO_BIN"
-elif [[ -x "$DENO_BIN" ]]; then
-  echo "Using existing Deno at: $DENO_BIN"
+  echo "Using existing Deno $DENO_VERSION at: $DENO_BIN"
+elif [[ -x "$DENO_BIN" ]] && [[ "$(deno_version "$DENO_BIN")" == "$DENO_VERSION" ]]; then
+  echo "Using existing Deno $DENO_VERSION at: $DENO_BIN"
 else
-  echo "Installing Deno..."
+  echo "Installing Deno $DENO_VERSION..."
   INSTALL_SOURCES=(
     "https://deno.land/install.sh"
     "https://raw.githubusercontent.com/denoland/deno_install/main/install.sh"
@@ -19,7 +24,7 @@ else
   install_success=false
   for source in "${INSTALL_SOURCES[@]}"; do
     echo "  trying $source"
-    if curl -fsSL "$source" | DENO_INSTALL="$DENO_INSTALL" sh; then
+    if curl -fsSL "$source" | DENO_INSTALL="$DENO_INSTALL" sh -s -- "v$DENO_VERSION"; then
       install_success=true
       break
     fi
