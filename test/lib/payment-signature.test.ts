@@ -71,12 +71,12 @@ describe("priceFieldsFromMetadata", () => {
   });
 
   test("defaults absent fields to empty strings", () => {
-    expect(priceFieldsFromMetadata({ items: "ITEMS" }, 0)).toEqual({
+    expect(priceFieldsFromMetadata({}, 0)).toEqual({
       answerIds: "",
       balanceAttendeeId: "",
       date: "",
       dayCount: "",
-      items: "ITEMS",
+      items: "",
       modifiers: "",
       reservationAmount: "",
       total: 0,

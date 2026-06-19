@@ -78,6 +78,11 @@ import {
   saveAttendeeAnswers,
 } from "#shared/db/questions.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
+import { sendNtfyError } from "#shared/ntfy.ts";
+import {
+  priceFieldsFromMetadata,
+  verifyPrice,
+} from "#shared/payment-signature.ts";
 import {
   type BookingItem,
   type CheckoutIntent,
@@ -598,13 +603,80 @@ const paidByListing = (order: PricedOrder): Map<number, number> => {
   return paid;
 };
 
-/** Verify per-item and total prices for paid sessions. Returns null on success. */
+/** The signed agreed total carried in metadata: a non-negative integer of
+ * minor units, or null when absent or malformed. */
+const parseAgreedTotal = (session: ValidatedPaymentSession): number | null => {
+  const raw = session.metadata.price_total;
+  if (!raw) return null;
+  const total = Number(raw);
+  return Number.isInteger(total) && total >= 0 ? total : null;
+};
+
+/**
+ * Verify a session whose checkout signed an agreed total into metadata — the
+ * oracle the buyer paid and the provider can't forge. The signature must be
+ * valid and the provider must have charged exactly it; then the re-derivation
+ * (which still drives stock and per-listing pricing) must reproduce it. A bad
+ * signature, a charge that differs from it, or a re-derivation that diverges
+ * while every modifier ref still resolves should never happen for a session we
+ * created and billed, so each pages. Returns null on success or a refund.
+ */
+const verifySignedPricing = async (
+  session: ValidatedPaymentSession,
+  agreed: number,
+  pricedOrder: PricedOrder,
+  inputsIntact: boolean,
+  listingId: number,
+): Promise<PaymentResult | null> => {
+  const signed = await verifyPrice(
+    priceFieldsFromMetadata(session.metadata, agreed),
+    session.metadata.price_sig,
+  );
+  if (!signed) {
+    await sendNtfyError(ErrorCode.WEBHOOK_PRICE_SIGNATURE);
+    return priceMismatchRefund(
+      session,
+      `Invalid price signature (session=${session.id})`,
+      listingId,
+    );
+  }
+  if (session.amountTotal !== agreed) {
+    await sendNtfyError(ErrorCode.WEBHOOK_PRICE_SIGNATURE);
+    return priceMismatchRefund(
+      session,
+      `Provider charged ${session.amountTotal} but signed agreed total was ${agreed}`,
+      listingId,
+    );
+  }
+  if (pricedOrder.total !== agreed) {
+    if (inputsIntact) await sendNtfyError(ErrorCode.WEBHOOK_PRICE_DIVERGENCE);
+    return priceMismatchRefund(
+      session,
+      `Re-derived total ${pricedOrder.total} differs from signed total ${agreed} (modifier inputs intact: ${inputsIntact})`,
+      listingId,
+    );
+  }
+  return null;
+};
+
+/**
+ * Verify a paid session's prices. Returns null on success, or a refund result.
+ *
+ * A session our checkout signed (every production session) is verified against
+ * its signed agreed total — the oracle the buyer paid — rather than against a
+ * re-derivation that might silently disagree. An unsigned session (a signing
+ * outage, or a legacy/hand-built one) falls back to the older check of the
+ * charge against the re-derived total: a safer degraded mode than refunding
+ * everyone if signing ever breaks.
+ */
 const verifyPaidPricing = async (
   session: ValidatedPaymentSession,
   intent: BookingIntent,
   validatedItems: ValidatedItem[],
   pricedOrder: PricedOrder,
+  inputsIntact: boolean,
 ): Promise<PaymentResult | null> => {
+  const listingId = validatedItems[0]!.listing.id;
   const hasPaidItems = intent.items.some((item) => item.p > 0);
 
   // Per-item prices are ticket-only (no fee), so validate without booking fee
@@ -620,15 +692,23 @@ const verifyPaidPricing = async (
     }
   }
 
-  // Re-derive the expected total with the same pricing pipeline the checkout
-  // used: deposit-aware ticket charges, modifiers (re-fetched from the database
-  // by id, never trusting metadata amounts), and the booking fee on top.
-  const expectedTotal = pricedOrder.total;
-  if (session.amountTotal !== expectedTotal) {
+  const agreed = parseAgreedTotal(session);
+  if (agreed !== null) {
+    return verifySignedPricing(
+      session,
+      agreed,
+      pricedOrder,
+      inputsIntact,
+      listingId,
+    );
+  }
+
+  // Unsigned fallback: validate the charge against the re-derived total.
+  if (session.amountTotal !== pricedOrder.total) {
     return await priceMismatchRefund(
       session,
-      `Total mismatch: provider charged ${session.amountTotal} but expected ${expectedTotal}`,
-      validatedItems[0]!.listing.id,
+      `Total mismatch: provider charged ${session.amountTotal} but expected ${pricedOrder.total}`,
+      listingId,
     );
   }
   return null;
@@ -861,6 +941,10 @@ const processReservedSession = async (
     specsFromRefs(intent.modifiers, { visits }),
     answerModifierSpecs(answerIds, answerQuantities),
   ]);
+  // Every stored modifier ref still resolving means a price divergence can't be
+  // blamed on a mid-checkout change — it would be a re-derivation bug worth
+  // paging on. (Refs hold only real modifiers; answers re-derive separately.)
+  const inputsIntact = modifierSpecs.length === intent.modifiers.length;
   const pricingIntent = checkoutIntentForSession(intent, validatedItems, [
     ...modifierSpecs,
     ...answerSpecs,
@@ -872,6 +956,7 @@ const processReservedSession = async (
     intent,
     validatedItems,
     pricedOrder,
+    inputsIntact,
   );
   if (pricingError) return pricingError;
 

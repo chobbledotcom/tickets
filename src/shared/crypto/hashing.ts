@@ -130,11 +130,14 @@ export const hashSessionToken = async (token: string): Promise<string> => {
  * Used for blind indexes and hashing limited keyspace values
  * Returns deterministic output for same input (unlike encrypt)
  */
-export const hmacHash = async (value: string): Promise<string> => {
+export const hmacHashSync = (value: string): string => {
   const mac = createHmac("sha256", getEncryptionKeyBytes());
   mac.update(new TextEncoder().encode(value));
   return toBase64(new Uint8Array(mac.digest()));
 };
+
+export const hmacHash = async (value: string): Promise<string> =>
+  hmacHashSync(value);
 
 /**
  * Compute ticket token index using HMAC for blind lookups

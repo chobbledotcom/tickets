@@ -13,7 +13,7 @@
  * drift apart — the failure mode this whole module exists to remove.
  */
 
-import { hmacHash } from "#shared/crypto/hashing.ts";
+import { hmacHash, hmacHashSync } from "#shared/crypto/hashing.ts";
 
 /** Bump when the signed-payload layout changes, so old digests never validate
  * against new code. */
@@ -87,6 +87,11 @@ const constantTimeEqual = (a: string, b: string): boolean => {
 /** HMAC the canonical price payload with the server encryption key. */
 export const signPrice = (fields: PriceSignatureFields): Promise<string> =>
   hmacHash(`price-sig:${canonicalPricePayload(fields)}`);
+
+/** Synchronous signPrice, for callers (e.g. test factories) that build metadata
+ * outside an async context. Produces the identical digest to signPrice. */
+export const signPriceSync = (fields: PriceSignatureFields): string =>
+  hmacHashSync(`price-sig:${canonicalPricePayload(fields)}`);
 
 /** Whether `signature` is a valid server signature for `fields`. False for any
  * tampered field, a wrong total, or a malformed/empty signature. */

@@ -16,7 +16,7 @@ import type { ErrorCodeType, LogCategory } from "#shared/logger.ts";
 import { logDebug, logError } from "#shared/logger.ts";
 import {
   priceFieldsFromMetadata,
-  signPrice,
+  signPriceSync,
 } from "#shared/payment-signature.ts";
 import type {
   BookingIntent,
@@ -201,7 +201,7 @@ export const buildItemsMetadata = async (
   // bills from), bound to the stored price/booking fields, so the webhook can
   // trust it as an oracle rather than re-deriving and hoping they agree.
   const total = priceCheckout(intent).total;
-  const price_sig = await signPrice(priceFieldsFromMetadata(base, total));
+  const price_sig = signPriceSync(priceFieldsFromMetadata(base, total));
   return { ...base, price_sig, price_total: String(total) };
 };
 
