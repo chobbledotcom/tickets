@@ -43,11 +43,20 @@ export const todayInTz = (tz: string): string =>
 /**
  * Strict datetime-local shape: a calendar date optionally followed by a
  * wall-clock time. Deliberately excludes any UTC designator (`Z`), numeric
- * offset, or bracketed IANA zone — the rest of the app interprets these values
- * in the configured timezone, and `Temporal.PlainDateTime.from` would silently
- * *discard* such a suffix rather than reject it, storing a different instant.
+ * offset, or bracketed IANA zone, since the rest of the app interprets these
+ * values in the configured timezone. `Temporal.PlainDateTime.from` handles
+ * those suffixes inconsistently — it *rejects* a `Z` but silently *discards* a
+ * numeric offset or bracketed zone (storing a different instant than written) —
+ * so the regex rejects all three up front rather than relying on that.
+ *
+ * The time fields are range-constrained (`HH` 00–23, `MM`/`SS` 00–59) rather
+ * than bare `\d{2}`: Temporal rejects an out-of-range hour/minute, but it
+ * *clamps* a `:60` leap second to `:59` even under `overflow: "reject"`, which
+ * would silently shift the stored time. The regex rejects it instead. Calendar
+ * validity (real month/day) is still delegated to Temporal's `overflow`.
  */
-const NAIVE_DATETIME = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d+)?)?)?$/;
+const NAIVE_DATETIME =
+  /^\d{4}-\d{2}-\d{2}(T([01]\d|2[0-3]):[0-5]\d(:[0-5]\d(\.\d+)?)?)?$/;
 
 /**
  * Parse a naive datetime-local value into a PlainDateTime, rejecting

@@ -300,6 +300,12 @@ describe("timezone", () => {
     test("rejects a datetime carrying a bracketed IANA zone", () => {
       expect(isValidDatetime("2026-06-15T14:30[Asia/Tokyo]")).toBe(false);
     });
+
+    test("rejects a :60 leap second instead of clamping it to :59", () => {
+      // Temporal clamps :60 to :59 even under overflow:"reject"; the naive
+      // shape guard rejects it so a crafted value never stores a shifted time.
+      expect(isValidDatetime("2026-06-15T14:30:60")).toBe(false);
+    });
   });
 
   describe("round-trip: localToUtc -> utcToLocalInput", () => {
