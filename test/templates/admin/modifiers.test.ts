@@ -171,7 +171,7 @@ describe("adminModifierDeletePage", () => {
 
 describe("adminModifierEditPage promo-code visibility", () => {
   // The promo-code field is shown only when the Trigger select has "Promo code"
-  // chosen, handled entirely in CSS (see mvp.css). This locks in the markup that
+  // chosen, handled entirely in CSS (see style.scss). This locks in the markup that
   // rule depends on: a trigger select carrying the "code" option, and the
   // promo-code input wrapped by its "Promo code" label so the association stays
   // intact for screen readers when the field is revealed.

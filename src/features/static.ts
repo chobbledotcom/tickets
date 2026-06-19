@@ -11,9 +11,9 @@ import {
   handleIcons,
   handleIframeResizerChildJs,
   handleIframeResizerParentJs,
-  handleMvpCss,
   handleRobotsTxt,
   handleScannerJs,
+  handleStyleCss,
 } from "#routes/assets.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 
@@ -27,9 +27,9 @@ const staticRoutes = defineRoutes({
   "GET /icons.svg": () => handleIcons(),
   "GET /iframe-resizer-child.js": () => handleIframeResizerChildJs(),
   "GET /iframe-resizer-parent.js": () => handleIframeResizerParentJs(),
-  "GET /mvp.css": () => handleMvpCss(),
   "GET /robots.txt": () => handleRobotsTxt(),
   "GET /scanner.js": () => handleScannerJs(),
+  "GET /style.css": () => handleStyleCss(),
 });
 
 /** Route static asset requests */

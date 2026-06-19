@@ -1414,55 +1414,87 @@ label.terms-agree {
   border-bottom: 1px solid var(--color-bg-secondary);
 }
 
-/* Daily-only scheduling fields are grouped in one section, hidden entirely for
-   standard listings (which book a single fixed date instead). */
-form:has(select[name="listing_type"] option[value="standard"]:checked)
-  .listing-section--daily {
-  display: none;
+// ---------------------------------------------------------------------------
+// Conditional field visibility
+//
+// Several admin forms reveal a control only while another input is in a given
+// state. It is done purely in CSS via :has() so no JavaScript runs and every
+// field keeps its real <label>, so the label association survives for screen
+// readers when the field is shown. These mixins capture the shared shape: hide
+// a target inside a form whenever the form matches (or fails to match) a
+// controlling state.
+// ---------------------------------------------------------------------------
+
+// Core: hide $target inside any form whose state matches $when — a chain of
+// :has()/:not() pseudo-classes appended directly to `form`.
+@mixin hidden-in-form($when, $target) {
+  form#{$when} #{$target} {
+    display: none;
+  }
 }
 
-/* Booking duration applies to daily listings, or to any listing using
-   customisable day pricing (where it caps how many days a visitor may pick). */
-form:has(select[name="listing_type"] option[value="standard"]:checked):not(
-  :has(input[name="customisable_days"]:checked)
-)
-  label:has([name="duration_days"]) {
-  display: none;
+// Reveal $target only while the checkbox named $name is ticked.
+@mixin reveal-when-checked($name, $target) {
+  @include hidden-in-form(':not(:has(input[name="#{$name}"]:checked))', $target);
 }
 
-/* Hide listing date field when listing type is "daily" (dates are chosen per
-   booking instead). */
-form:has(select[name="listing_type"] option[value="daily"]:checked)
-  label:has([name="date_date"]) {
-  display: none;
+// Reveal $target only while the <select> named $name has $value chosen.
+@mixin reveal-when-selected($name, $value, $target) {
+  @include hidden-in-form(
+    ':not(:has(select[name="#{$name}"] option[value="#{$value}"]:checked))',
+    $target
+  );
 }
 
-/* Day prices only apply when "Customisable Days" is enabled; revealed in place
-   right beneath the checkbox that controls them. */
-form:not(:has(input[name="customisable_days"]:checked)) #day-prices {
-  display: none;
+// Hide $target while the <select> named $name has $value chosen.
+@mixin hidden-when-selected($name, $value, $target) {
+  @include hidden-in-form(
+    ':has(select[name="#{$name}"] option[value="#{$value}"]:checked)',
+    $target
+  );
 }
 
-/* Hide max price field when "Allow Pay More" is not checked */
-form:not(:has(input[name="can_pay_more"]:checked))
-  label:has([name="max_price"]) {
-  display: none;
-}
+// Daily-only scheduling fields are grouped in one section, hidden entirely for
+// standard listings (which book a single fixed date instead).
+@include hidden-when-selected(
+  "listing_type",
+  "standard",
+  ".listing-section--daily"
+);
 
-/* Hide reservation amount field when "This is a reservation" is not checked */
-form:not(:has(input[name="is_reservation"]:checked))
-  > label:has([name="reservation_amount"]) {
-  display: none;
-}
+// Booking duration applies to daily listings, or any listing using customisable
+// day pricing (where it caps how many days a visitor may pick), so it is hidden
+// only for a standard listing without customisable days.
+@include hidden-in-form(
+  ':has(select[name="listing_type"] option[value="standard"]:checked):not(:has(input[name="customisable_days"]:checked))',
+  'label:has([name="duration_days"])'
+);
 
-/* The promo-code field only applies to a promo-code-triggered modifier, so it
-   is shown only when the Trigger select has "Promo code" chosen — mirroring the
-   listing_type rule above. CSS-only show/hide keeps the single labelled field in
-   the DOM, so its "Promo code" label stays associated for screen readers. */
-form:not(:has(select[name="trigger"] option[value="code"]:checked))
-  label:has([name="code"]) {
-  display: none;
-}
+// Hide the listing date field for daily listings (dates are chosen per booking).
+@include hidden-when-selected(
+  "listing_type",
+  "daily",
+  'label:has([name="date_date"])'
+);
+
+// Day prices only apply when "Customisable Days" is enabled; revealed in place
+// right beneath the checkbox that controls them.
+@include reveal-when-checked("customisable_days", "#day-prices");
+
+// Hide the max price field unless "Allow Pay More" is checked.
+@include reveal-when-checked("can_pay_more", 'label:has([name="max_price"])');
+
+// Hide the reservation amount field unless "This is a reservation" is checked.
+@include reveal-when-checked(
+  "is_reservation",
+  '> label:has([name="reservation_amount"])'
+);
+
+// The promo-code field only applies to a promo-code-triggered modifier, so it is
+// shown only when the Trigger select has "Promo code" chosen. CSS-only show/hide
+// keeps the single labelled field in the DOM, so its "Promo code" label stays
+// associated for screen readers.
+@include reveal-when-selected("trigger", "code", 'label:has([name="code"])');
 
 /* Utility classes for strict CSP (no inline styles) */
 .hidden {
