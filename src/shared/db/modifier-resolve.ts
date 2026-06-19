@@ -8,6 +8,7 @@
  * rebuilds the same specs, so provider metadata amounts are never trusted.
  */
 
+import { unique } from "#fp";
 import { itemsSubtotal } from "#shared/booking-fee.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { formatCurrency, toMinorUnits } from "#shared/currency.ts";
@@ -121,23 +122,69 @@ const triggerQuantity = (
   return 1;
 };
 
+/** All active modifiers keyed by id, for the re-fetch-by-id lookups that
+ * rebuild specs from refs and resolve answer-trigger scopes. */
+const activeModifiersById = async (): Promise<Map<number, Modifier>> =>
+  new Map((await getActiveModifiers()).map((m) => [m.id, m]));
+
+/** Resolve the in-scope listing ids (null = whole order) of every active
+ * answer-trigger modifier among `ids`. Ids that aren't an active answer
+ * modifier are omitted, so a stale link never contributes a quantity. */
+const answerModifierScopes = async (
+  ids: number[],
+): Promise<Map<number, number[] | null>> => {
+  const byId = await activeModifiersById();
+  const scopes = new Map<number, number[] | null>();
+  await Promise.all(
+    ids.map(async (id) => {
+      const modifier = byId.get(id);
+      if (!modifier || modifier.trigger !== "answer") return;
+      const listingIds = listingIdsFor(modifier);
+      scopes.set(id, listingIds === null ? null : await listingIds);
+    }),
+  );
+  return scopes;
+};
+
+/** Whether a resolved scope covers a listing: null = whole order (always),
+ * an array = only its listings, undefined = not an eligible modifier (never). */
+const scopeCoversListing = (
+  scope: number[] | null | undefined,
+  listingId: number,
+): boolean =>
+  scope === null || (Array.isArray(scope) && scope.includes(listingId));
+
 /**
- * Total quantity each "answer"-triggered modifier is requested for, given how
- * many times the buyer selected each answer (answerId → count, as produced by
- * `answerQuantitiesFromListingAnswers`). A modifier linked to several chosen
- * answers sums their counts, so one "Large size +£5" modifier wired to several
- * answers is applied once for every matching selection.
+ * Total quantity each "answer"-triggered modifier is requested for, respecting
+ * the modifier's own scope. A linked answer counts only when it was selected on
+ * a listing the modifier applies to (every booked listing, for a whole-order
+ * modifier), so a listing/group-scoped answer modifier is never inflated by the
+ * same shared answer being picked on a listing outside its scope. Each in-scope
+ * selection adds that listing's ticket quantity, so one "Large size +£5"
+ * modifier wired to several answers is applied once per matching ticket.
  */
 export const answerModifierQuantities = async (
-  answerCounts: Map<number, number>,
+  listingAnswerIds: Record<string, number[]> | undefined,
+  listingQuantities: Map<number, number>,
 ): Promise<Map<number, number>> => {
-  const byAnswer = await modifierIdsByAnswerId([...answerCounts.keys()]);
+  const entries = Object.entries(listingAnswerIds ?? {});
+  const answerIds = unique(entries.flatMap(([, ids]) => ids));
+  const modifiersByAnswer = await modifierIdsByAnswerId(answerIds);
+  if (modifiersByAnswer.size === 0) return new Map();
+  const scopes = await answerModifierScopes(
+    unique([...modifiersByAnswer.values()].flat()),
+  );
+
   const quantities = new Map<number, number>();
-  for (const [answerId, modifierIds] of byAnswer) {
-    // byAnswer is keyed from answerCounts.keys(), so the count is always present.
-    const count = answerCounts.get(answerId)!;
+  for (const [listingIdStr, ids] of entries) {
+    const listingId = Number(listingIdStr);
+    // Every key here is a selected listing, so it always has a chosen quantity.
+    const count = listingQuantities.get(listingId)!;
+    const modifierIds = ids.flatMap((id) => modifiersByAnswer.get(id) ?? []);
     for (const modifierId of modifierIds) {
-      quantities.set(modifierId, (quantities.get(modifierId) ?? 0) + count);
+      if (scopeCoversListing(scopes.get(modifierId), listingId)) {
+        quantities.set(modifierId, (quantities.get(modifierId) ?? 0) + count);
+      }
     }
   }
   return quantities;
@@ -318,7 +365,7 @@ export const specsFromRefs = async (
   ctx: PricingContext = NO_VISITS,
 ): Promise<ModifierSpec[]> => {
   if (refs.length === 0) return [];
-  const byId = new Map((await getActiveModifiers()).map((m) => [m.id, m]));
+  const byId = await activeModifiersById();
   const specs = await Promise.all(
     refs.map(async (ref) => {
       const modifier = byId.get(ref.i);

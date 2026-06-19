@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { createAttendeeAtomic } from "#shared/db/attendees.ts";
 import {
-  answerQuantitiesFromListingAnswers,
   answersTable,
   assignNextQuestionSortOrder,
   deleteAnswer,
@@ -748,32 +747,6 @@ describeWithEnv("custom questions", { db: true }, () => {
       // After swap, "Second" should come first (sort_order 0) and "First" second (sort_order 1)
       expect(updated!.answers[0]!.text).toBe("Second");
       expect(updated!.answers[1]!.text).toBe("First");
-    });
-  });
-
-  describe("answerQuantitiesFromListingAnswers", () => {
-    test("counts selections per answer from each listing's chosen quantity", () => {
-      const quantities = answerQuantitiesFromListingAnswers(
-        { "1": [10, 11], "2": [10], "3": [12] },
-        new Map([
-          [1, 2],
-          [2, 3],
-        ]),
-      );
-
-      expect(quantities).toEqual(
-        new Map([
-          [10, 5],
-          [11, 2],
-          [12, 0],
-        ]),
-      );
-    });
-
-    test("returns an empty map when no listing answers were submitted", () => {
-      expect(
-        answerQuantitiesFromListingAnswers(undefined, new Map([[1, 2]])),
-      ).toEqual(new Map());
     });
   });
 

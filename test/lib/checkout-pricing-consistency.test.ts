@@ -275,9 +275,12 @@ describeWithEnv(
       await linkModifierAnswer(tier.id, 555);
 
       const items = [checkoutItem({ quantity: 2 })];
-      // The buyer picked the linked answer on both tickets.
+      // The buyer picked the linked answer on both tickets of listing 1.
       const publicSpecs = await resolveModifiers(items, {
-        answerQuantities: await answerModifierQuantities(new Map([[555, 2]])),
+        answerQuantities: await answerModifierQuantities(
+          { "1": [555] },
+          new Map([[1, 2]]),
+        ),
       });
       expect(publicSpecs.map((s) => s.trigger)).toEqual(["answer"]);
       // Carried in the refs by id+quantity, exactly like every other trigger.
@@ -303,7 +306,10 @@ describeWithEnv(
 
       const items = [checkoutItem({ quantity: 5 })];
       const publicSpecs = await resolveModifiers(items, {
-        answerQuantities: await answerModifierQuantities(new Map([[555, 5]])),
+        answerQuantities: await answerModifierQuantities(
+          { "1": [555] },
+          new Map([[1, 5]]),
+        ),
       });
       expect(publicSpecs.find((s) => s.trigger === "answer")?.quantity).toBe(2);
       expect(toModifierRefs(publicSpecs)).toEqual([{ i: tier.id, q: 2 }]);

@@ -683,27 +683,3 @@ export const assignNextQuestionSortOrder = async (
     },
   ]);
 };
-
-/**
- * How many times each selected answer is chosen across a submission
- * (answerId → count), summing the per-listing ticket quantity for every listing
- * whose answer set includes it. Feeds `answerModifierQuantities`, which turns
- * these counts into the quantity each "answer"-triggered modifier applies.
- */
-export function answerQuantitiesFromListingAnswers(
-  listingAnswerIds: Record<string, number[]> | undefined,
-  listingQuantities: Map<number, number>,
-): Map<number, number> {
-  const totalsByAnswerId = new Map<number, number>();
-  if (listingAnswerIds === undefined) return totalsByAnswerId;
-  for (const [listingId, answerIds] of Object.entries(listingAnswerIds)) {
-    const selectedCount = listingQuantities.get(Number(listingId)) ?? 0;
-    for (const answerId of answerIds) {
-      totalsByAnswerId.set(
-        answerId,
-        (totalsByAnswerId.get(answerId) ?? 0) + selectedCount,
-      );
-    }
-  }
-  return totalsByAnswerId;
-}

@@ -23,7 +23,6 @@ import {
 } from "#shared/db/modifier-resolve.ts";
 import { consumeModifierStockOrRollback } from "#shared/db/modifier-usage.ts";
 import {
-  answerQuantitiesFromListingAnswers,
   groupListingAnswers,
   parseQuestionAnswers,
   saveAttendeeAnswers,
@@ -419,15 +418,14 @@ const resolveSubmissionModifiers = async (
   visits = 0,
 ): Promise<CheckoutIntent["modifiers"]> => {
   const listingAnswerIds = computeListingAnswerMap(params.ctx, params.info);
-  const answerCounts = answerQuantitiesFromListingAnswers(
-    listingAnswerIds,
-    params.quantities,
-  );
   // Answer-triggered modifiers join the same single resolve pass as automatic,
   // code, and opt-in add-on modifiers — one engine, one eligibility check.
   return resolveModifiers(params.items, {
     addOns: params.addOns,
-    answerQuantities: await answerModifierQuantities(answerCounts),
+    answerQuantities: await answerModifierQuantities(
+      listingAnswerIds,
+      params.quantities,
+    ),
     code: params.promoCode,
     ctx: { visits },
   });
