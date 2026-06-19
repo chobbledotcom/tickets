@@ -3,11 +3,12 @@ import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { getAttendeesRaw } from "#shared/db/attendees.ts";
-import { resetStripeClient } from "#shared/stripe.ts";
+import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import {
   assertJson,
   createTestListing,
   describeWithEnv,
+  mockRequest,
   mockWebhookRequest,
   setupStripe,
   signMeta,
@@ -275,6 +276,51 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
       expect((await getAttendeesRaw(listing.id)).length).toBe(0);
     } finally {
       mockVerify.restore();
+    }
+  });
+
+  test("a foreign-origin session is never refunded by the signature gate", async () => {
+    await setupStripe();
+    // A paid session from another instance sharing the provider, arriving on the
+    // success-redirect path (which doesn't reject normal-session origins). Its
+    // proof was signed with a different key (so it's invalid to us) and its
+    // _origin isn't ours, so we must not refund another instance's payment.
+    const metadata = {
+      ...signMeta(
+        webhookMeta({
+          email: "foreign@example.com",
+          items: singleItem(999999, 1, 1000),
+          name: "Foreign Buyer",
+        }),
+        1000,
+      ),
+      _origin: "other-instance.example.test",
+      price_proof: `1000.${"A".repeat(44)}`,
+    };
+    const refund = stub(stripeApi, "refundPayment", () =>
+      Promise.resolve({ id: "re_should_not_happen" } as unknown as Awaited<
+        ReturnType<typeof stripeApi.refundPayment>
+      >),
+    );
+    const retrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+      Promise.resolve({
+        amount_total: 1000,
+        id: "cs_foreign",
+        metadata,
+        payment_intent: "pi_foreign",
+        payment_status: "paid",
+      } as unknown as Awaited<
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      >),
+    );
+    try {
+      await handleRequest(
+        mockRequest("/payment/success?session_id=cs_foreign"),
+      );
+      expect(refund.calls.length).toBe(0);
+    } finally {
+      retrieve.restore();
+      refund.restore();
     }
   });
 

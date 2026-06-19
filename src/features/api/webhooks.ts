@@ -628,15 +628,8 @@ const checkPriceSignature = async (
   session: ValidatedPaymentSession,
   listingId: number,
 ): Promise<{ agreed: number } | null | PaymentResult> => {
-  // Only act on sessions claiming our origin. A foreign instance sharing the
-  // provider account signs with its own key, so its proof looks invalid to us —
-  // refunding it would let anyone who knows such a session id trigger a refund
-  // for another instance's payment. Foreign sessions fall through to the
-  // existing no-refund handling; _origin can't be forged onto one, since only
-  // its own merchant can set its metadata.
-  if (session.metadata._origin !== getEffectiveDomain()) return null;
   const proof = session.metadata.price_proof;
-  if (!proof) return null; // our session, but genuinely unsigned (legacy)
+  if (!proof) return null; // genuinely unsigned (legacy fallback)
 
   const refuse = (detail: string): Promise<PaymentResult> => {
     // Refund first; defer the alert so a slow ntfy never delays the money.
@@ -645,14 +638,22 @@ const checkPriceSignature = async (
   };
 
   const parsed = parsePriceProof(proof);
-  const valid =
-    parsed !== null &&
-    (await verifyPrice(
+  if (
+    parsed === null ||
+    !(await verifyPrice(
       priceFieldsFromMetadata(session.metadata, parsed.total),
       parsed.sig,
-    ));
-  if (!valid) {
-    return refuse(`Invalid price signature (session=${session.id})`);
+    ))
+  ) {
+    // Invalid proof: either a foreign instance sharing the provider (it signs
+    // with its own key) or our own tampered session. Only refund when it claims
+    // our origin — refunding a foreign session would refund another instance's
+    // payment, and a foreign session can't forge _origin since only its own
+    // merchant sets its metadata. A VALID proof below is honoured regardless of
+    // origin, so tampering the unsigned _origin can't downgrade an ours session.
+    return session.metadata._origin === getEffectiveDomain()
+      ? refuse(`Invalid price signature (session=${session.id})`)
+      : null;
   }
   if (session.amountTotal !== parsed.total) {
     return refuse(
