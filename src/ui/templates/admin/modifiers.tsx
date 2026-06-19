@@ -24,7 +24,11 @@ import {
   adminRecalculatePage,
   type RecalculateRow,
 } from "#templates/admin/recalculate.tsx";
-import { ActionButton, SubmitButton } from "#templates/components/actions.tsx";
+import {
+  ActionButton,
+  GuideLink,
+  SubmitButton,
+} from "#templates/components/actions.tsx";
 import { modifierAggregateFields, modifierFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
@@ -237,13 +241,16 @@ export const adminModifiersPage = (
     <Layout title={t("terms.modifiers")}>
       <AdminNav active="/admin/modifiers" session={session} />
       <Flash success={successMessage} />
-      {!isReadOnly() && (
-        <p class="actions">
+      <p class="actions">
+        {!isReadOnly() && (
           <ActionButton href="/admin/modifiers/new" icon="plus">
             {t("modifiers.add_modifier")}
           </ActionButton>
-        </p>
-      )}
+        )}
+        <GuideLink href="/admin/guide#modifiers">
+          {t("modifiers.guide_link")}
+        </GuideLink>
+      </p>
       {modifiers.length === 0 ? (
         <p>{t("modifiers.no_modifiers")}</p>
       ) : (
@@ -287,6 +294,11 @@ export const adminModifierNewPage = (
       <AdminNav active="/admin/modifiers" session={session} />
       <CsrfForm action="/admin/modifiers">
         <h1>{t("modifiers.add.heading")}</h1>
+        <p class="actions">
+          <GuideLink href="/admin/guide#modifiers">
+            {t("modifiers.guide_link")}
+          </GuideLink>
+        </p>
         <Flash error={error} />
         <Raw html={renderFields(modifierFields, modifierToFieldValues())} />
         <SubmitButton icon="plus">{t("modifiers.add.submit")}</SubmitButton>
@@ -312,6 +324,11 @@ export const adminModifierEditPage = (
       <AdminNav active="/admin/modifiers" session={session} />
       <CsrfForm action={`/admin/modifiers/${modifier.id}/edit`}>
         <h1>{t("modifiers.edit.heading")}</h1>
+        <p class="actions">
+          <GuideLink href="/admin/guide#modifiers">
+            {t("modifiers.guide_link")}
+          </GuideLink>
+        </p>
         <Flash error={error} success={success} />
         <Raw
           html={renderFields(modifierFields, modifierToFieldValues(modifier))}

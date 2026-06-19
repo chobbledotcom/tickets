@@ -170,6 +170,14 @@ export const adminQuestionPage = (
           id="question-listings"
         >
           <fieldset class="checkboxes">
+            <label>
+              <input
+                checked={question.assign_all || undefined}
+                name="assign_all"
+                type="checkbox"
+              />
+              {" Assign to all listings"}
+            </label>
             {map((e: ListingWithCount) => (
               <label>
                 <input

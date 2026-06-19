@@ -41,6 +41,7 @@ export const requireQuestionDisplayType = (
 };
 
 export interface Question {
+  assign_all: boolean;
   display_type: QuestionDisplayType;
   id: number;
   text: string; // encrypted
@@ -65,7 +66,10 @@ export interface ListingQuestion {
 }
 
 /** Question with its answer options (decrypted) */
-export type QuestionWithAnswers = Question & { answers: Answer[] };
+export type QuestionWithAnswers = Omit<Question, "assign_all"> & {
+  answers: Answer[];
+  assign_all?: boolean;
+};
 
 // ---------------------------------------------------------------------------
 // Table definitions
@@ -79,12 +83,17 @@ const questionIdAndSortOrder = {
   sort_order: col.simple<number>(),
 };
 
-type QuestionInput = { displayType: QuestionDisplayType; text: string };
+type QuestionInput = {
+  assignAll?: boolean;
+  displayType: QuestionDisplayType;
+  text: string;
+};
 
 export const questionsTable = defineTable<Question, QuestionInput>({
   name: "questions",
   primaryKey: "id",
   schema: {
+    assign_all: col.boolean(false),
     display_type: col.simple<QuestionDisplayType>(),
     id: generatedId,
     text: encryptedText,
@@ -133,6 +142,7 @@ export const listingQuestionsTable = defineTable<
 /** Flat row from a question ← LEFT JOIN answers query */
 type JoinedRow = {
   q_id: number;
+  q_assign_all: boolean;
   q_display_type: QuestionDisplayType;
   q_text: string;
   a_id: number | null;
@@ -142,7 +152,7 @@ type JoinedRow = {
 };
 
 /** Shared SELECT columns and JOIN for question + answers */
-const QA_COLS = `q.id AS q_id, q.display_type AS q_display_type, q.text AS q_text,
+const QA_COLS = `q.id AS q_id, q.assign_all AS q_assign_all, q.display_type AS q_display_type, q.text AS q_text,
        a.id AS a_id, a.text AS a_text,
        a.question_id AS a_question_id, a.sort_order AS a_sort_order`;
 const QA_JOIN = "questions q LEFT JOIN answers a ON a.question_id = q.id";
@@ -151,6 +161,7 @@ const QA_JOIN = "questions q LEFT JOIN answers a ON a.question_id = q.id";
  * Decrypts question and answer text in parallel. */
 const groupJoinedRows = (rows: JoinedRow[]): Promise<QuestionWithAnswers[]> => {
   type Group = {
+    assignAll: boolean;
     displayType: QuestionDisplayType;
     text: string;
     answers: Answer[];
@@ -158,6 +169,7 @@ const groupJoinedRows = (rows: JoinedRow[]): Promise<QuestionWithAnswers[]> => {
   const questionMap = reduce((acc: Map<number, Group>, row: JoinedRow) => {
     const group = acc.get(row.q_id) ?? {
       answers: [],
+      assignAll: row.q_assign_all,
       displayType: row.q_display_type,
       text: row.q_text,
     };
@@ -175,10 +187,15 @@ const groupJoinedRows = (rows: JoinedRow[]): Promise<QuestionWithAnswers[]> => {
   const entries = [...questionMap.entries()];
   return Promise.all(
     map(
-      ([id, { displayType, text, answers }]: [
+      ([id, { assignAll, displayType, text, answers }]: [
         number,
-        { displayType: QuestionDisplayType; text: string; answers: Answer[] },
-      ]) => decryptQuestion(id, displayType, text, answers),
+        {
+          assignAll: boolean;
+          displayType: QuestionDisplayType;
+          text: string;
+          answers: Answer[];
+        },
+      ]) => decryptQuestion(id, assignAll, displayType, text, answers),
     )(entries),
   );
 };
@@ -189,12 +206,18 @@ const withAnswers = filter((q: QuestionWithAnswers) => q.answers.length > 0);
 /** Decrypt a single question and its answers */
 const decryptQuestion = async (
   id: number,
+  assignAll: boolean,
   displayType: QuestionDisplayType,
   rawText: string,
   rawAnswers: Answer[],
 ): Promise<QuestionWithAnswers> => {
   const [question, ...answers] = await Promise.all([
-    questionsTable.fromDb({ display_type: displayType, id, text: rawText }),
+    questionsTable.fromDb({
+      assign_all: assignAll,
+      display_type: displayType,
+      id,
+      text: rawText,
+    }),
     ...map((a: Answer) => answersTable.fromDb(a))(rawAnswers),
   ]);
   return { ...question, answers };
@@ -226,10 +249,10 @@ export const getQuestionsForListing = async (
     await groupJoinedRows(
       await queryAll<JoinedRow>(
         `SELECT ${QA_COLS}
-       FROM listing_questions eq
-       JOIN questions q ON q.id = eq.question_id
+       FROM questions q
+       LEFT JOIN listing_questions eq ON q.id = eq.question_id AND eq.listing_id = ?
        LEFT JOIN answers a ON a.question_id = q.id
-       WHERE eq.listing_id = ?
+       WHERE q.assign_all = 1 OR eq.listing_id IS NOT NULL
        ORDER BY q.sort_order, q.id, a.sort_order`,
         [listingId],
       ),
@@ -242,10 +265,10 @@ export const getListingQuestionIds = async (
 ): Promise<number[]> =>
   map((r: { question_id: number }) => r.question_id)(
     await queryAll<{ question_id: number }>(
-      `SELECT eq.question_id
-       FROM listing_questions eq
-       JOIN questions q ON q.id = eq.question_id
-       WHERE eq.listing_id = ?
+      `SELECT q.id AS question_id
+       FROM questions q
+       LEFT JOIN listing_questions eq ON q.id = eq.question_id AND eq.listing_id = ?
+       WHERE q.assign_all = 1 OR eq.listing_id IS NOT NULL
        ORDER BY q.sort_order, q.id`,
       [listingId],
     ),
@@ -295,7 +318,7 @@ const emptyQuestionsWithListingIds = (): {
 } => ({ questionListingMap: new Map(), questions: [] });
 
 /** Joined row including the comma-separated listing IDs from GROUP_CONCAT */
-type JoinedRowWithListings = JoinedRow & { listing_ids: string };
+type JoinedRowWithListings = JoinedRow & { listing_ids: string | null };
 
 /** Get questions for multiple listings with listing-ID mapping (for conditional display).
  * Uses a single query with a subquery filter to avoid row multiplication. */
@@ -310,11 +333,13 @@ export const getQuestionsWithListingIds = async (
   const ph = inPlaceholders(listingIds);
   const rows = await queryAll<JoinedRowWithListings>(
     `SELECT ${QA_COLS},
-            (SELECT GROUP_CONCAT(eq.listing_id) FROM listing_questions eq
-             WHERE eq.question_id = q.id AND eq.listing_id IN (${ph})) AS listing_ids
+            CASE WHEN q.assign_all = 1 THEN NULL ELSE
+              (SELECT GROUP_CONCAT(eq.listing_id) FROM listing_questions eq
+               WHERE eq.question_id = q.id AND eq.listing_id IN (${ph}))
+            END AS listing_ids
      FROM ${QA_JOIN}
-     WHERE q.id IN (SELECT question_id FROM listing_questions WHERE listing_id IN (${ph}))
-     ORDER BY a.sort_order`,
+     WHERE q.assign_all = 1 OR q.id IN (SELECT question_id FROM listing_questions WHERE listing_id IN (${ph}))
+     ORDER BY q.sort_order, q.id, a.sort_order`,
     [...listingIds, ...listingIds],
   );
 
@@ -322,7 +347,7 @@ export const getQuestionsWithListingIds = async (
 
   const questionListingMap = reduce(
     (acc: QuestionListingMap, row: JoinedRowWithListings) => {
-      if (!acc.has(row.q_id)) {
+      if (!acc.has(row.q_id) && row.listing_ids !== null) {
         acc.set(row.q_id, map(Number)(row.listing_ids.split(",")));
       }
       return acc;

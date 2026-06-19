@@ -333,11 +333,13 @@ export const applySchemaChanges = async (): Promise<void> => {
       }
     }
   }
-  // Single batched write (one subrequest) instead of one execute per
-  // CREATE/ALTER. Pre-filtering against the snapshot means every statement is
-  // genuinely needed, so the batch never hits the "already exists" errors that
-  // runMigration used to swallow; a real failure rolls the batch back as a unit.
-  if (statements.length > 0) await executeBatch(statements);
+  // Run statements through runMigration rather than a single batch so another
+  // edge isolate can safely win the same additive schema race after our
+  // snapshot. runMigration ignores idempotent duplicate/already-exists DDL
+  // errors but still surfaces real failures.
+  for (const statement of statements) {
+    await runMigration(statement.sql);
+  }
 };
 
 /** Create missing indexes and drop legacy ones */

@@ -82,6 +82,8 @@ const getAdvancedSettingsPageState = async (
       : "",
     bunnySubdomain: settings.bunnySubdomain,
     businessEmail: settings.businessEmail,
+    calendarFeedsEnabled: settings.calendarFeedsEnabled,
+    calendarFeedsGroupBy: settings.calendarFeedsGroupBy,
     cdnHostname: cdnResult?.ok ? cdnResult.hostname : "",
     confirmationTemplates,
     customDomain: (bunnyCdnConfigured ? settings.customDomain : null) ?? "",

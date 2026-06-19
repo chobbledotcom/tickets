@@ -237,6 +237,27 @@ describeWithEnv("custom questions", { db: true }, () => {
       expect(questions[0]!.text).toBe("Q2");
     });
 
+    test("includes assign-all questions for every listing", async () => {
+      const q = await questionsTable.insert({
+        assignAll: true,
+        displayType: "radio",
+        text: "Universal Q",
+      });
+      await answersTable.insert({
+        questionId: q.id,
+        sortOrder: 0,
+        text: "Yes",
+      });
+
+      const listing = await createTestListing();
+
+      const questions = await getQuestionsForListing(listing.id);
+      expect(questions.map((question) => question.text)).toEqual([
+        "Universal Q",
+      ]);
+      expect(await getListingQuestionIds(listing.id)).toEqual([q.id]);
+    });
+
     test("returns empty array for listing with no questions", async () => {
       const listing = await createTestListing();
       const questions = await getQuestionsForListing(listing.id);
@@ -469,6 +490,28 @@ describeWithEnv("custom questions", { db: true }, () => {
       expect(questionListingMap.get(q1.id)).toEqual([listing1.id]);
       const q2Listings = questionListingMap.get(q2.id)!;
       expect(q2Listings.sort()).toEqual([listing1.id, listing2.id].sort());
+    });
+
+    test("omits mapping for assign-all questions", async () => {
+      const q = await questionsTable.insert({
+        assignAll: true,
+        displayType: "radio",
+        text: "Universal Q",
+      });
+      await answersTable.insert({
+        questionId: q.id,
+        sortOrder: 0,
+        text: "Yes",
+      });
+      const listing = await createTestListing();
+
+      const { questionListingMap, questions } =
+        await getQuestionsWithListingIds([listing.id]);
+
+      expect(questions.map((question) => question.text)).toEqual([
+        "Universal Q",
+      ]);
+      expect(questionListingMap.has(q.id)).toBe(false);
     });
 
     test("returns empty for no listings", async () => {

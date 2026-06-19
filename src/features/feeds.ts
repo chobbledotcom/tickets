@@ -4,6 +4,7 @@
  */
 
 import { map, pipe } from "#fp";
+import { getPrivateKey, withAuth } from "#routes/auth.ts";
 import { isRegistrationClosed } from "#routes/format.ts";
 import {
   icsResponse,
@@ -12,11 +13,22 @@ import {
 } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
+import { decryptAttendees } from "#shared/db/attendees.ts";
+import {
+  getAllListings,
+  getAttendeesByListingIds,
+} from "#shared/db/listings.ts";
+import {
+  bookingAssignmentKey,
+  getLogisticsAssignmentsForAttendees,
+} from "#shared/db/logistics.ts";
 import { settings } from "#shared/db/settings.ts";
+import { getUserAgentIds } from "#shared/db/user-agents.ts";
 import {
   type ListingWithCount,
   loadSortedListings,
 } from "#shared/sort-listings.ts";
+import type { Attendee } from "#shared/types.ts";
 import { escapeHtml } from "#templates/layout.tsx";
 
 /** Escape text for ICS (RFC 5545): backslash-escape special characters */
@@ -63,6 +75,14 @@ const requirePublicSite = <T>(fn: () => Promise<T>): Promise<T> | Response =>
   settings.showPublicSite ? fn() : redirectResponse("/admin/login");
 
 /** Build a single VLISTING block */
+const appendListingSchedule = (
+  lines: string[],
+  listing: ListingWithCount,
+): void => {
+  if (listing.date) lines.push(`DTSTART:${formatIcsDate(listing.date)}`);
+  if (listing.location) lines.push(`LOCATION:${escapeIcs(listing.location)}`);
+};
+
 const buildVListing = (
   listing: ListingWithCount,
   domain: string,
@@ -78,8 +98,7 @@ const buildVListing = (
   if (listing.description) {
     lines.push(`DESCRIPTION:${escapeIcs(listing.description)}`);
   }
-  if (listing.date) lines.push(`DTSTART:${formatIcsDate(listing.date)}`);
-  if (listing.location) lines.push(`LOCATION:${escapeIcs(listing.location)}`);
+  appendListingSchedule(lines, listing);
   lines.push("END:VLISTING");
   return lines.join("\r\n");
 };
@@ -143,6 +162,115 @@ const buildRss = ({ listings, domain, title }: FeedData): string => {
   ].join("\n");
 };
 
+const eventUrl = (domain: string, attendee: Attendee): string =>
+  `https://${domain}/admin/attendees/${attendee.id}`;
+
+const attendeeName = (attendee: Attendee): string =>
+  attendee.name || `Attendee ${attendee.id}`;
+
+const buildVEvent = (opts: {
+  attendee: Attendee;
+  domain: string;
+  dtstamp: string;
+  listing: ListingWithCount;
+}): string => {
+  const { attendee, domain, dtstamp, listing } = opts;
+  const summary =
+    settings.calendarFeedsGroupBy === "listings"
+      ? listing.name
+      : attendeeName(attendee);
+  const description =
+    settings.calendarFeedsGroupBy === "listings"
+      ? attendeeName(attendee)
+      : listing.name;
+  const lines = [
+    "BEGIN:VEVENT",
+    `UID:attendee-${attendee.id}-listing-${listing.id}@${domain}`,
+    `DTSTAMP:${dtstamp}`,
+    `SUMMARY:${escapeIcs(summary)}`,
+    `DESCRIPTION:${escapeIcs(`${description} — open the site for details`)}`,
+    `URL:${eventUrl(domain, attendee)}`,
+  ];
+  appendListingSchedule(lines, listing);
+  lines.push("END:VEVENT");
+  return lines.join("\r\n");
+};
+
+const assignmentIncludesUser = (
+  assignment: { endAgentId: number | null; startAgentId: number | null },
+  userId: number,
+): boolean => [assignment.startAgentId, assignment.endAgentId].includes(userId);
+
+const filterCalendarFeedAttendees = async (
+  attendees: Attendee[],
+  session: { adminLevel: string; userId: number },
+): Promise<Attendee[]> => {
+  if (session.adminLevel !== "agent") return attendees;
+  const [assignments, agentIds] = await Promise.all([
+    getLogisticsAssignmentsForAttendees(attendees.map((a) => a.id)),
+    getUserAgentIds(session.userId),
+  ]);
+  const visible = new Set<string>();
+  for (const assignment of assignments) {
+    if (
+      agentIds.some((agentId) => assignmentIncludesUser(assignment, agentId))
+    ) {
+      visible.add(
+        bookingAssignmentKey(assignment.attendeeId, assignment.listingId),
+      );
+    }
+  }
+  return attendees.filter((a) =>
+    visible.has(bookingAssignmentKey(a.id, a.listing_id)),
+  );
+};
+
+/* jscpd:ignore-start */
+const buildCalendarFeed = async (request: Request): Promise<Response> => {
+  if (!settings.calendarFeedsEnabled)
+    return new Response("Not found", { status: 404 });
+  return withAuth(
+    request,
+    { allowApiKey: true, body: "json", roles: ["owner", "manager", "agent"] },
+    async (session) => {
+      const privateKey = await getPrivateKey(session);
+      if (!privateKey) return new Response("Forbidden", { status: 403 });
+      const listings = await getAllListings();
+      const listingById = new Map(listings.map((l) => [l.id, l]));
+      const rawAttendees = await getAttendeesByListingIds(
+        listings.map((l) => l.id),
+      );
+      const attendees = await filterCalendarFeedAttendees(
+        await decryptAttendees(
+          rawAttendees,
+          privateKey,
+          listings.some((l) => l.unit_price > 0),
+        ),
+        session,
+      );
+      const domain = getEffectiveDomain();
+      const dtstamp = formatIcsDate(new Date().toISOString());
+      const events = attendees.flatMap((attendee) => {
+        const listing = listingById.get(attendee.listing_id);
+        return listing?.date
+          ? [buildVEvent({ attendee, domain, dtstamp, listing })]
+          : [];
+      });
+      return icsResponse(
+        [
+          "BEGIN:VCALENDAR",
+          "VERSION:2.0",
+          "PRODID:-//Chobble Tickets//EN",
+          `X-WR-CALNAME:${escapeIcs(settings.websiteTitle || "Tickets")}`,
+          ...events,
+          "END:VCALENDAR",
+        ].join("\r\n"),
+      );
+    },
+  );
+};
+/* jscpd:ignore-end */
+
 /** Handle GET /feeds/listings.ics */
 const handleIcs = (): Promise<Response> =>
   requirePublicSite(async () =>
@@ -158,6 +286,7 @@ const handleRss = (): Promise<Response> =>
 /** Feed routes */
 export const routeFeed = createRouter(
   defineRoutes({
+    "GET /caldav/events.ics": buildCalendarFeed,
     "GET /feeds/listings.ics": handleIcs,
     "GET /feeds/listings.rss": handleRss,
   }),
