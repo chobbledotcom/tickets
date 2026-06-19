@@ -14,7 +14,7 @@
     "lint": "deno run -A scripts/biome.ts check --write --error-on-warnings src test scripts",
     "lint:ci": "deno run -A scripts/biome.ts check --error-on-warnings src test scripts",
     "typecheck": "deno check --unstable-tsgo src/**/*.ts src/**/*.tsx test/**/*.ts",
-    "cpd": "deno run -A npm:jscpd src --config .jscpd.json",
+    "cpd": "deno run -A scripts/cpd.ts src --config .jscpd.json",
     "precommit": "deno run -A scripts/precommit.ts",
     "find-unused-src": "deno run --allow-read scripts/find-unused-src.ts",
     "upgrade": "deno run --allow-read --allow-write --allow-net scripts/safe-upgrade.ts"

@@ -15,10 +15,21 @@
  */
 
 import { AsyncLocalStorage } from "node:async_hooks";
-import { lazyRef } from "#fp";
+import { lazyRef, map, pipe, reduce, sort } from "#fp";
 
 /** A single logged query */
-export type QueryLogEntry = { sql: string; durationMs: number };
+export type QueryLogEntry = {
+  sql: string;
+  durationMs: number;
+  /**
+   * `performance.now()` captured when the query started. Stored so the footer
+   * can report the *wall-clock* time the request spent in SQL — the union of
+   * overlapping query intervals — instead of naively summing durations. Summing
+   * double-counts queries that ran concurrently (`Promise.all`) and statements
+   * folded into a single batch round-trip, which both overlap in real time.
+   */
+  startedAtMs: number;
+};
 
 type QueryLogState = {
   enabled: boolean;
@@ -75,13 +86,65 @@ export const isFooterDebugEnabled = (): boolean => getState().footerVisible;
 export const getQueryLogStartTime = (): number => getState().startTime;
 
 /** Record a query (no-op when logging is disabled) */
-export const addQueryLogEntry = (sql: string, durationMs: number): void => {
+export const addQueryLogEntry = (
+  sql: string,
+  durationMs: number,
+  startedAtMs: number,
+): void => {
   const state = getState();
-  if (state.enabled) state.entries.push({ durationMs, sql });
+  if (state.enabled) state.entries.push({ durationMs, sql, startedAtMs });
 };
 
 /** Return a snapshot of all logged queries */
 export const getQueryLog = (): QueryLogEntry[] => [...getState().entries];
+
+/** A query's [start, end) window on the `performance.now()` clock. */
+type Interval = readonly [start: number, end: number];
+
+/** Reduce accumulator: the open interval being extended, plus settled total. */
+type MergedSpan = { total: number; start: number; end: number };
+
+/**
+ * Wall-clock milliseconds during which at least one query was in flight: the
+ * combined length of the query intervals with overlaps merged.
+ *
+ * Summing `durationMs` answers "how much query work ran" but double-counts
+ * concurrency, so it is wrong as a measure of how long the request *waited* on
+ * the database. Reads fanned out with `Promise.all` overlap in wall-clock time,
+ * and every statement in a `queryBatch` shares one round-trip window; merging
+ * overlaps counts that shared time once. Because every query runs within the
+ * request, the result is always ≤ the render time, so `render − sqlWallClock`
+ * is a non-negative "everything that wasn't SQL" figure.
+ */
+export const sqlWallClockMs = (entries: readonly QueryLogEntry[]): number => {
+  if (entries.length === 0) return 0;
+  const intervals: Interval[] = pipe(
+    map(
+      (e: QueryLogEntry): Interval => [
+        e.startedAtMs,
+        e.startedAtMs + e.durationMs,
+      ],
+    ),
+    sort((a: Interval, b: Interval) => a[0] - b[0]),
+  )(entries as QueryLogEntry[]);
+  const [firstStart, firstEnd] = intervals[0]!;
+  const merged = reduce(
+    (span: MergedSpan, [start, end]: Interval): MergedSpan => {
+      if (start > span.end) {
+        // Disjoint from the open interval: settle it and open a new one.
+        span.total += span.end - span.start;
+        span.start = start;
+        span.end = end;
+      } else if (end > span.end) {
+        // Overlapping or adjacent: extend the open interval.
+        span.end = end;
+      }
+      return span;
+    },
+    { end: firstEnd, start: firstStart, total: 0 },
+  )(intervals);
+  return merged.total + (merged.end - merged.start);
+};
 
 /**
  * Max times one parameterized read may run as a separate round-trip within a
@@ -147,6 +210,10 @@ export const trackQuery = async <T>(
   if (!state.enabled) return fn();
   const start = performance.now();
   const result = await fn();
-  state.entries.push({ durationMs: performance.now() - start, sql });
+  state.entries.push({
+    durationMs: performance.now() - start,
+    sql,
+    startedAtMs: start,
+  });
   return result;
 };

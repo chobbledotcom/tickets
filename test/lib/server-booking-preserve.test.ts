@@ -148,7 +148,9 @@ describeWithEnv("server (booking input preservation)", { db: true }, () => {
       [`question_${question.id}`]: String(answer.id),
       [`quantity_${listing.id}`]: "1",
     });
-    expect(html).toContain(`value="${answer.id}" checked`);
+    expect(html).toContain(
+      `<input checked name="question_${question.id}" required type="radio" value="${answer.id}">`,
+    );
   });
 
   test("keeps the terms box ticked when another field fails", async () => {
