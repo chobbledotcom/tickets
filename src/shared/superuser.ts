@@ -1,4 +1,4 @@
-import { ttlCache } from "#fp";
+import { lazyRef, ttlCache } from "#fp";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { hashPassword } from "#shared/crypto/hashing.ts";
 import { deriveKEK, wrapKey } from "#shared/crypto/keys.ts";
@@ -78,7 +78,14 @@ const superuserAccountCache = ttlCache<string, SuperuserAccount>(
   SUPERUSER_ACCOUNT_TTL_MS,
   nowMs,
 );
-onUsersInvalidated(() => superuserAccountCache.clear());
+// Bumped on every users-cache invalidation. A lookup that began before an
+// invalidation captured the pre-write generation, so it must not write that
+// now-stale result back — mirroring the keyed cache's own generation guard.
+const [getCacheGeneration, setCacheGeneration] = lazyRef<number>(() => 0);
+onUsersInvalidated(() => {
+  superuserAccountCache.clear();
+  setCacheGeneration(getCacheGeneration() + 1);
+});
 
 /** Resolve the superuser account state, serving from cache when warm. */
 const getSuperuserAccount = async (
@@ -86,12 +93,18 @@ const getSuperuserAccount = async (
 ): Promise<SuperuserAccount> => {
   const cached = superuserAccountCache.get(username);
   if (cached) return cached;
+  // Snapshot the generation before the await; if a user write invalidates the
+  // cache while getUserByUsername is in flight, this result predates the write,
+  // so it is handed back to this caller but never cached.
+  const generation = getCacheGeneration();
   const user = await getUserByUsername(username);
   const account: SuperuserAccount = {
     activated: user !== null && user.wrapped_data_key !== null,
     userExists: user !== null,
   };
-  superuserAccountCache.set(username, account);
+  if (generation === getCacheGeneration()) {
+    superuserAccountCache.set(username, account);
+  }
   return account;
 };
 
