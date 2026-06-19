@@ -1455,6 +1455,15 @@ form:not(:has(input[name="is_reservation"]:checked))
   display: none;
 }
 
+/* The promo-code field only applies to a promo-code-triggered modifier, so it
+   is shown only when the Trigger select has "Promo code" chosen — mirroring the
+   listing_type rule above. CSS-only show/hide keeps the single labelled field in
+   the DOM, so its "Promo code" label stays associated for screen readers. */
+form:not(:has(select[name="trigger"] option[value="code"]:checked))
+  label:has([name="code"]) {
+  display: none;
+}
+
 /* Utility classes for strict CSP (no inline styles) */
 .hidden {
   display: none;
