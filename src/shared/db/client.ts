@@ -227,7 +227,9 @@ const trackedBatch = async (
   const results = await getDb().batch(statements, mode);
   if (isQueryLogEnabled()) {
     const elapsed = performance.now() - start;
-    for (const stmt of statements) addQueryLogEntry(stmt.sql, elapsed);
+    // Every statement shares the one round-trip window [start, start+elapsed],
+    // so the footer's wall-clock union counts that time once (not N times).
+    for (const stmt of statements) addQueryLogEntry(stmt.sql, elapsed, start);
   }
   for (const stmt of statements) invalidateForSql(stmt.sql);
   return results;
