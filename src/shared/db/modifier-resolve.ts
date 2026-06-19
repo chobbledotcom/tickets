@@ -190,36 +190,6 @@ export const answerModifierQuantities = async (
   return quantities;
 };
 
-/**
- * Names of answer-triggered modifiers the buyer over-subscribed: active,
- * stock-limited "answer" modifiers whose requested quantity exceeds the stock
- * remaining. Because an answer is recorded on every ticket that picked it (it
- * can't be partially fulfilled like an opt-in add-on), the submission must be
- * blocked rather than silently clamped to the units still available.
- */
-export const oversubscribedAnswerTiers = async (
-  answerQuantities: Map<number, number>,
-): Promise<string[]> => {
-  if (answerQuantities.size === 0) return [];
-  const byId = await activeModifiersById();
-  const limited = [...answerQuantities]
-    .map(([id, requested]) => ({ modifier: byId.get(id), requested }))
-    .filter(
-      (c): c is { modifier: Modifier; requested: number } =>
-        c.modifier !== undefined &&
-        c.modifier.trigger === "answer" &&
-        c.modifier.stock !== null,
-    );
-  const used = await modifierUsedQuantities(limited.map((c) => c.modifier.id));
-  return limited
-    .filter(
-      // stock is non-null here (the guard above filtered the unlimited ones).
-      ({ modifier, requested }) =>
-        requested > Math.max(0, modifier.stock! - (used.get(modifier.id) ?? 0)),
-    )
-    .map(({ modifier }) => modifier.name);
-};
-
 export type PricingContext = { visits: number };
 
 const NO_VISITS: PricingContext = { visits: 0 };
@@ -241,7 +211,7 @@ export const buyerVisits = async (
   return Math.max(0, ...counts);
 };
 
-type ResolveOptions = {
+export type ResolveOptions = {
   code?: string;
   addOns?: Map<number, number>;
   answerQuantities?: Map<number, number>;
@@ -249,26 +219,28 @@ type ResolveOptions = {
 };
 
 /**
- * The modifiers that apply to a cart: active, triggered, in scope, past their
- * minimum subtotal, past their minimum visit count, and with stock remaining.
- * Automatic modifiers always trigger; a "code" modifier triggers only when the
- * buyer entered its matching code; an "optional" add-on triggers only when the
- * buyer selected it (`opts.addOns` maps modifier id → chosen quantity); an
- * "answer" modifier triggers when the buyer selected a linked answer
- * (`opts.answerQuantities` maps modifier id → selection count). Each is applied
- * its requested number of times.
+ * Active modifiers eligible for a cart, each with the quantity the buyer asked
+ * for, *before* any stock clamp: past the visit gate, actually triggered
+ * (quantity >= 1), in scope, and past the minimum subtotal. Automatic modifiers
+ * always trigger; a "code" modifier triggers only on a matching code; an
+ * "optional" add-on triggers per chosen unit (`opts.addOns`); an "answer"
+ * modifier triggers per linked answer selected (`opts.answerQuantities`).
+ *
+ * `resolveModifiers` clamps these to the stock remaining; the sold-out check
+ * reads the requested quantity straight off them, so both share one eligibility
+ * pass and agree on which modifiers apply.
  */
-export const resolveModifiers = async (
+const eligibleCandidates = async (
   items: CheckoutItem[],
-  opts: ResolveOptions = {},
-): Promise<ModifierSpec[]> => {
+  opts: ResolveOptions,
+): Promise<Candidate[]> => {
   const addOns = opts.addOns ?? new Map<number, number>();
   const answerQuantities = opts.answerQuantities ?? new Map<number, number>();
   const ctx = opts.ctx ?? NO_VISITS;
   const codeIndex = opts.code?.trim()
     ? await hmacHash(normalizeCode(opts.code))
     : null;
-  const candidates = (
+  return (
     await Promise.all(
       (
         await getActiveModifiers()
@@ -291,7 +263,19 @@ export const resolveModifiers = async (
       }),
     )
   ).filter((c): c is Candidate => c !== null);
+};
 
+/**
+ * The modifiers that apply to a cart: {@link eligibleCandidates} with their
+ * quantities clamped to the stock remaining (a candidate clamped to zero drops
+ * out). Each surviving modifier is applied its (possibly clamped) number of
+ * times.
+ */
+export const resolveModifiers = async (
+  items: CheckoutItem[],
+  opts: ResolveOptions = {},
+): Promise<ModifierSpec[]> => {
+  const candidates = await eligibleCandidates(items, opts);
   // One batched usage lookup for every stock-limited candidate.
   const used = await modifierUsedQuantities(
     candidates
@@ -307,6 +291,37 @@ export const resolveModifiers = async (
     .map(({ candidate, quantity }) =>
       toSpec(candidate.modifier, quantity, candidate.listingIds),
     );
+};
+
+/**
+ * Names of answer-triggered modifiers the buyer over-subscribed: tiers that
+ * would actually apply to this cart — the same eligibility `resolveModifiers`
+ * uses (scope, minimum subtotal, visit gate) — and are stock-limited, but whose
+ * requested quantity exceeds the stock remaining. Because an answer is recorded
+ * on every ticket that picked it (it can't be partially fulfilled like an
+ * opt-in add-on), the submission is blocked rather than silently clamped.
+ *
+ * Gating on eligibility, not stock alone, means a tier the cart is too small
+ * for — or that the buyer lacks the visits for — isn't reported sold out when
+ * no surcharge would apply.
+ */
+export const oversubscribedAnswerTiers = async (
+  items: CheckoutItem[],
+  opts: ResolveOptions = {},
+): Promise<string[]> => {
+  const limited = (await eligibleCandidates(items, opts)).filter(
+    (c) => c.modifier.trigger === "answer" && c.modifier.stock !== null,
+  );
+  if (limited.length === 0) return [];
+  const used = await modifierUsedQuantities(limited.map((c) => c.modifier.id));
+  return limited
+    .filter(
+      // stock is non-null here (filtered just above).
+      (c) =>
+        c.quantity >
+        Math.max(0, c.modifier.stock! - (used.get(c.modifier.id) ?? 0)),
+    )
+    .map((c) => c.modifier.name);
 };
 
 /** Whether any active modifier is unlocked by a promo code, so the public

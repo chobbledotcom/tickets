@@ -320,11 +320,18 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
     test("oversubscribedAnswerTiers flags an answer tier requested beyond its stock", async () => {
       const m = await insertModifier({ name: "VIP tier", stock: 2 });
       await patchModifier(m.id, { trigger: "answer" });
+      const items = [checkoutItem()];
       // Requested 3 > stock 2 → over-subscribed; 2 <= 2 → fine.
-      expect(await oversubscribedAnswerTiers(new Map([[m.id, 3]]))).toEqual([
-        "VIP tier",
-      ]);
-      expect(await oversubscribedAnswerTiers(new Map([[m.id, 2]]))).toEqual([]);
+      expect(
+        await oversubscribedAnswerTiers(items, {
+          answerQuantities: new Map([[m.id, 3]]),
+        }),
+      ).toEqual(["VIP tier"]);
+      expect(
+        await oversubscribedAnswerTiers(items, {
+          answerQuantities: new Map([[m.id, 2]]),
+        }),
+      ).toEqual([]);
     });
 
     test("oversubscribedAnswerTiers accounts for stock already consumed", async () => {
@@ -333,28 +340,80 @@ describeWithEnv("db > modifier-resolve", { db: true }, () => {
       await consumeModifierStock(1, [
         { amountApplied: 0, modifierId: m.id, quantity: 4 },
       ]);
+      const items = [checkoutItem()];
       // 1 remaining: requesting 2 over-subscribes, 1 is fine.
-      expect(await oversubscribedAnswerTiers(new Map([[m.id, 2]]))).toEqual([
-        "Limited",
-      ]);
-      expect(await oversubscribedAnswerTiers(new Map([[m.id, 1]]))).toEqual([]);
+      expect(
+        await oversubscribedAnswerTiers(items, {
+          answerQuantities: new Map([[m.id, 2]]),
+        }),
+      ).toEqual(["Limited"]);
+      expect(
+        await oversubscribedAnswerTiers(items, {
+          answerQuantities: new Map([[m.id, 1]]),
+        }),
+      ).toEqual([]);
     });
 
     test("oversubscribedAnswerTiers ignores empty, unlimited, non-answer, and inactive", async () => {
-      expect(await oversubscribedAnswerTiers(new Map())).toEqual([]);
+      const items = [checkoutItem()];
+      expect(await oversubscribedAnswerTiers(items, {})).toEqual([]);
       const unlimited = await insertModifier({ name: "Unlimited" });
       await patchModifier(unlimited.id, { trigger: "answer" });
       const automatic = await insertModifier({ name: "Auto", stock: 1 });
       const inactive = await insertModifier({ name: "Inactive", stock: 1 });
       await patchModifier(inactive.id, { active: 0, trigger: "answer" });
       expect(
-        await oversubscribedAnswerTiers(
-          new Map([
+        await oversubscribedAnswerTiers(items, {
+          answerQuantities: new Map([
             [unlimited.id, 9],
             [automatic.id, 9],
             [inactive.id, 9],
           ]),
-        ),
+        }),
+      ).toEqual([]);
+    });
+
+    test("oversubscribedAnswerTiers ignores a tier the cart is too small for", async () => {
+      // Stock 1, requested 3 — over-subscribed on stock alone — but the tier's
+      // minimum subtotal isn't met, so resolveModifiers wouldn't apply it and
+      // the booking must not be blocked.
+      const m = await insertModifier({ name: "Big spenders", stock: 1 });
+      await patchModifier(m.id, { min_subtotal: 999999, trigger: "answer" });
+      expect(
+        await oversubscribedAnswerTiers([checkoutItem({ unitPrice: 1000 })], {
+          answerQuantities: new Map([[m.id, 3]]),
+        }),
+      ).toEqual([]);
+    });
+
+    test("oversubscribedAnswerTiers respects the returning-buyer visit gate", async () => {
+      const m = await insertModifier({ name: "Loyalty tier", stock: 1 });
+      await patchModifier(m.id, { min_visits: 1, trigger: "answer" });
+      const items = [checkoutItem()];
+      const answerQuantities = new Map([[m.id, 3]]);
+      // No visits → the gate blocks the tier, so it can't be over-subscribed.
+      expect(
+        await oversubscribedAnswerTiers(items, { answerQuantities }),
+      ).toEqual([]);
+      // Enough visits → the tier applies, and 3 > stock 1 over-subscribes it.
+      expect(
+        await oversubscribedAnswerTiers(items, {
+          answerQuantities,
+          ctx: { visits: 1 },
+        }),
+      ).toEqual(["Loyalty tier"]);
+    });
+
+    test("oversubscribedAnswerTiers ignores a tier scoped to listings not in the cart", async () => {
+      const m = await insertModifier({ name: "L9 tier", stock: 1 });
+      await patchModifier(m.id, { scope: "listings", trigger: "answer" });
+      await linkModifierListing(m.id, 9);
+      // The cart is listing 1; the tier is scoped to listing 9, so it can't
+      // apply and isn't reported sold out despite the over-subscription.
+      expect(
+        await oversubscribedAnswerTiers([checkoutItem({ listingId: 1 })], {
+          answerQuantities: new Map([[m.id, 3]]),
+        }),
       ).toEqual([]);
     });
 
