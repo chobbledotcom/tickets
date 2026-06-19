@@ -16,7 +16,10 @@ import {
   queryAll,
   queryOne,
 } from "#shared/db/client.ts";
-import { getListingWithCount } from "#shared/db/listings.ts";
+import {
+  getListingWithCount,
+  invalidateListingsCache,
+} from "#shared/db/listings.ts";
 
 /** Plaintext reservation state for an attendee. */
 export type AttendeeBalanceState = {
@@ -180,6 +183,8 @@ export const settleAttendeeBalance = async (
   // changed the balance between our read and this write.
   if (results[results.length - 1]!.rowsAffected === 0)
     return { reason: "amount_mismatch", settled: false };
+
+  invalidateListingsCache();
 
   const firstListing = await queryOne<{ listing_id: number }>(
     "SELECT listing_id FROM listing_attendees WHERE attendee_id = ? ORDER BY id LIMIT 1",
