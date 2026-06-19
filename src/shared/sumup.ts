@@ -166,12 +166,18 @@ export const sumupApi: {
     const merchantCode = getMerchantCode();
     if (!merchantCode) return null;
 
+    // Price the order once and reuse that total for both the signed proof
+    // (stored in metadata) and the amount charged below, so the two can never
+    // disagree even if pricing settings change mid-checkout (see #1300).
+    const totalMinor = priceCheckout(intent).total;
+
     // Persist metadata before creating the checkout so it is present when the
     // webhook or redirect arrives. An orphaned row (if create fails) is pruned.
     const reference = crypto.randomUUID();
-    await storeSumupCheckout(reference, await buildItemsMetadata(intent));
-
-    const totalMinor = priceCheckout(intent).total;
+    await storeSumupCheckout(
+      reference,
+      await buildItemsMetadata(intent, totalMinor),
+    );
 
     return withClient(async (client) => {
       const checkout = await client.checkouts.create({

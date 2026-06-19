@@ -2,8 +2,11 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { settings } from "#shared/db/settings.ts";
-import { PaymentUserError } from "#shared/payment-helpers.ts";
-import type { WebhookEvent } from "#shared/payments.ts";
+import {
+  extractSessionMetadata,
+  PaymentUserError,
+} from "#shared/payment-helpers.ts";
+import type { SessionMetadata, WebhookEvent } from "#shared/payments.ts";
 import {
   type CreatePaymentLinkInput,
   constructTestWebhookEvent,
@@ -429,11 +432,15 @@ describe("square", () => {
           );
           expect(args.order.lineItems[0]!.note).toBe("3 Tickets");
 
-          // Verify metadata includes intent fields
-          expect(args.order.metadata.name).toBe("Jane Smith");
-          expect(args.order.metadata.email).toBe("jane@example.com");
-          expect(args.order.metadata.phone).toBe("555-9876");
-          const items = JSON.parse(args.order.metadata.items!);
+          // Verify metadata includes intent fields. Small fields (phone, …) are
+          // packed into `b` on the wire, so decode the way the webhook does.
+          const metadata = extractSessionMetadata(
+            args.order.metadata as unknown as SessionMetadata,
+          );
+          expect(metadata.name).toBe("Jane Smith");
+          expect(metadata.email).toBe("jane@example.com");
+          expect(metadata.phone).toBe("555-9876");
+          const items = JSON.parse(metadata.items);
           expect(items).toEqual([{ e: 7, p: 7500, q: 3 }]);
 
           // Verify checkout options
@@ -759,11 +766,14 @@ describe("square", () => {
           );
           expect(args.order.lineItems[1]!.note).toBe("Ticket");
 
-          // Verify multi-intent metadata
-          expect(args.order.metadata.name).toBe("Alice Wonder");
-          expect(args.order.metadata.email).toBe("alice@example.com");
-          expect(args.order.metadata.phone).toBe("555-1111");
-          const items = JSON.parse(args.order.metadata.items!);
+          // Verify multi-intent metadata (small fields packed into `b`).
+          const metadata = extractSessionMetadata(
+            args.order.metadata as unknown as SessionMetadata,
+          );
+          expect(metadata.name).toBe("Alice Wonder");
+          expect(metadata.email).toBe("alice@example.com");
+          expect(metadata.phone).toBe("555-1111");
+          const items = JSON.parse(metadata.items);
           expect(items).toHaveLength(2);
           expect(items[0]).toEqual({ e: 10, p: 3000, q: 2 });
           expect(items[1]).toEqual({ e: 20, p: 3000, q: 1 });

@@ -1,40 +1,58 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
-import {
-  type PriceSignatureFields,
-  priceFieldsFromMetadata,
-  signPrice,
-  verifyPrice,
-} from "#shared/payment-signature.ts";
+import { it as test } from "@std/testing/bdd";
+import { signPrice, verifyPrice } from "#shared/payment-signature.ts";
 import { describeWithEnv } from "#test-utils";
 
-const baseFields = (
-  overrides: Partial<PriceSignatureFields> = {},
-): PriceSignatureFields => ({
-  answerIds: "",
-  balanceAttendeeId: "",
+const TOTAL = 4500;
+
+/** A representative logical metadata record (the shape the webhook verifies and
+ * the checkout signs). Empty fields use "" — the codebase's "absent" convention. */
+const baseMeta = (
+  overrides: Record<string, string> = {},
+): Record<string, string> => ({
+  _origin: "tickets.example.test",
+  address: "1 High St",
+  answer_ids: "",
+  balance_attendee_id: "",
   date: "",
-  dayCount: "",
+  day_count: "",
+  email: "buyer@example.com",
   items: JSON.stringify([{ e: 1, p: 2000, q: 2 }]),
   modifiers: JSON.stringify([{ i: 3, q: 1 }]),
-  reservationAmount: "",
-  total: 4500,
+  name: "Buyer",
+  phone: "",
+  reservation_amount: "",
+  site_token_index: "",
+  special_instructions: "",
   ...overrides,
 });
 
-/** Each price-determining field paired with a different value, so a tamper of
- * any one of them can be checked against an untouched signature. */
-const fieldMutations: Array<
-  [keyof PriceSignatureFields, PriceSignatureFields]
-> = [
-  ["total", baseFields({ total: 4501 })],
-  ["items", baseFields({ items: JSON.stringify([{ e: 1, p: 1, q: 2 }]) })],
-  ["modifiers", baseFields({ modifiers: JSON.stringify([{ i: 3, q: 2 }]) })],
-  ["answerIds", baseFields({ answerIds: JSON.stringify({ "1": [9] }) })],
-  ["reservationAmount", baseFields({ reservationAmount: "10%" })],
-  ["balanceAttendeeId", baseFields({ balanceAttendeeId: "7" })],
-  ["dayCount", baseFields({ dayCount: "3" })],
-  ["date", baseFields({ date: "2026-07-01" })],
+/** Each signed field paired with a changed value, so tampering any one of them
+ * can be checked against an untouched signature. Includes the contact and
+ * fulfilment fields (email/phone/site_token_index) that feed pricing or renewal
+ * indirectly and so must be bound, not just the obvious price fields. */
+const fieldMutations: Array<[string, Record<string, string>]> = [
+  ["email", { email: "attacker@example.com" }],
+  ["phone", { phone: "07700900000" }],
+  ["site_token_index", { site_token_index: "deadbeefcafe" }],
+  ["name", { name: "Someone Else" }],
+  ["address", { address: "99 Other Rd" }],
+  ["special_instructions", { special_instructions: "leave at door" }],
+  ["items", { items: JSON.stringify([{ e: 1, p: 1, q: 2 }]) }],
+  ["modifiers", { modifiers: JSON.stringify([{ i: 3, q: 2 }]) }],
+  ["answer_ids", { answer_ids: JSON.stringify({ "1": [9] }) }],
+  ["reservation_amount", { reservation_amount: "10%" }],
+  ["balance_attendee_id", { balance_attendee_id: "7" }],
+  ["day_count", { day_count: "3" }],
+  ["date", { date: "2026-07-01" }],
+];
+
+/** Keys deliberately left out of the signed payload — changing them must not
+ * invalidate a signature (see the module doc for why each is excluded). */
+const excludedKeys: Array<[string, Record<string, string>]> = [
+  ["_origin", { _origin: "other-instance.example.test" }],
+  ["price_proof", { price_proof: "9999.somedigest" }],
+  ["b", { b: '{"phone":"07700900000"}' }],
 ];
 
 /** Tiny deterministic PRNG so the fuzz loop is repeatable. */
@@ -43,90 +61,87 @@ const lcg = (seed: number) => () => {
   return seed / 0x7fffffff;
 };
 
-describe("priceFieldsFromMetadata", () => {
-  test("maps metadata keys onto the signed field set", () => {
-    expect(
-      priceFieldsFromMetadata(
-        {
-          answer_ids: '{"1":[9]}',
-          balance_attendee_id: "7",
-          date: "2026-07-01",
-          day_count: "3",
-          items: "ITEMS",
-          modifiers: "MODS",
-          reservation_amount: "10%",
-        },
-        4500,
-      ),
-    ).toEqual({
-      answerIds: '{"1":[9]}',
-      balanceAttendeeId: "7",
-      date: "2026-07-01",
-      dayCount: "3",
-      items: "ITEMS",
-      modifiers: "MODS",
-      reservationAmount: "10%",
-      total: 4500,
-    });
-  });
-
-  test("defaults absent fields to empty strings", () => {
-    expect(priceFieldsFromMetadata({}, 0)).toEqual({
-      answerIds: "",
-      balanceAttendeeId: "",
-      date: "",
-      dayCount: "",
-      items: "",
-      modifiers: "",
-      reservationAmount: "",
-      total: 0,
-    });
-  });
-});
-
 describeWithEnv("payment price signature", { encryptionKey: true }, () => {
-  test("signing the same fields is deterministic", async () => {
-    expect(await signPrice(baseFields())).toBe(await signPrice(baseFields()));
+  test("signing the same metadata and total is deterministic", async () => {
+    expect(await signPrice(baseMeta(), TOTAL)).toBe(
+      await signPrice(baseMeta(), TOTAL),
+    );
   });
 
   test("a fresh signature verifies", async () => {
-    const fields = baseFields();
-    expect(await verifyPrice(fields, await signPrice(fields))).toBe(true);
+    const meta = baseMeta();
+    expect(await verifyPrice(meta, TOTAL, await signPrice(meta, TOTAL))).toBe(
+      true,
+    );
+  });
+
+  test("an omitted field and an explicit empty field sign identically", async () => {
+    // The checkout builds metadata without empty optionals; the webhook's
+    // extracted metadata carries them as "". Both sides must produce the same
+    // signature, or every optional-free checkout would fail verification.
+    const full = baseMeta();
+    const sparse: Record<string, string> = {
+      _origin: full._origin!,
+      address: full.address!,
+      email: full.email!,
+      items: full.items!,
+      modifiers: full.modifiers!,
+      name: full.name!,
+    };
+    expect(await signPrice(sparse, TOTAL)).toBe(await signPrice(full, TOTAL));
   });
 
   test("an empty signature never verifies", async () => {
-    expect(await verifyPrice(baseFields(), "")).toBe(false);
+    expect(await verifyPrice(baseMeta(), TOTAL, "")).toBe(false);
   });
 
   test("a wrong-length signature never verifies", async () => {
-    const sig = await signPrice(baseFields());
-    expect(await verifyPrice(baseFields(), sig.slice(0, -1))).toBe(false);
+    const sig = await signPrice(baseMeta(), TOTAL);
+    expect(await verifyPrice(baseMeta(), TOTAL, sig.slice(0, -1))).toBe(false);
   });
 
   test("a foreign-but-valid-length signature does not verify", async () => {
-    // A signature for different fields, same length, must not pass.
-    const other = await signPrice(baseFields({ total: 9999 }));
-    expect(await verifyPrice(baseFields(), other)).toBe(false);
+    // A signature for a different total, same length, must not pass.
+    const other = await signPrice(baseMeta(), 9999);
+    expect(await verifyPrice(baseMeta(), TOTAL, other)).toBe(false);
   });
 
-  for (const [field, mutated] of fieldMutations) {
+  test("tampering the total invalidates the signature", async () => {
+    const meta = baseMeta();
+    const sig = await signPrice(meta, TOTAL);
+    expect(await verifyPrice(meta, TOTAL + 1, sig)).toBe(false);
+  });
+
+  for (const [field, override] of fieldMutations) {
     test(`tampering ${field} invalidates the original signature`, async () => {
-      const original = await signPrice(baseFields());
-      expect(await verifyPrice(mutated, original)).toBe(false);
-      // The mutated fields still produce their own valid signature.
-      expect(await verifyPrice(mutated, await signPrice(mutated))).toBe(true);
+      const original = await signPrice(baseMeta(), TOTAL);
+      const mutated = baseMeta(override);
+      expect(await verifyPrice(mutated, TOTAL, original)).toBe(false);
+      // The mutated metadata still produces its own valid signature.
+      expect(
+        await verifyPrice(mutated, TOTAL, await signPrice(mutated, TOTAL)),
+      ).toBe(true);
     });
   }
 
-  test("fuzz: every field set round-trips and any single mutation fails", async () => {
+  for (const [key, override] of excludedKeys) {
+    test(`changing the unsigned ${key} keeps the signature valid`, async () => {
+      const original = await signPrice(baseMeta(), TOTAL);
+      expect(await verifyPrice(baseMeta(override), TOTAL, original)).toBe(true);
+    });
+  }
+
+  test("fuzz: every metadata set round-trips and any single mutation fails", async () => {
     const rand = lcg(20260618);
     const pick = <T>(xs: T[]): T => xs[Math.floor(rand() * xs.length)]!;
     for (let i = 0; i < 60; i++) {
-      const fields = baseFields({
-        answerIds: pick(["", '{"1":[2]}', '{"4":[5,6]}']),
-        balanceAttendeeId: pick(["", "1", "42"]),
+      const total = Math.floor(rand() * 100000);
+      const meta = baseMeta({
+        answer_ids: pick(["", '{"1":[2]}', '{"4":[5,6]}']),
+        balance_attendee_id: pick(["", "1", "42"]),
         date: pick(["", "2026-07-01", "2026-12-25"]),
-        dayCount: pick(["", "2", "5"]),
+        day_count: pick(["", "2", "5"]),
+        email: pick(["a@x.com", "b@y.com"]),
         items: JSON.stringify([
           {
             e: Math.floor(rand() * 5) + 1,
@@ -135,15 +150,14 @@ describeWithEnv("payment price signature", { encryptionKey: true }, () => {
           },
         ]),
         modifiers: pick(["", '[{"i":1,"q":1}]', '[{"i":2,"q":3}]']),
-        reservationAmount: pick(["", "10%", "£5"]),
-        total: Math.floor(rand() * 100000),
+        phone: pick(["", "07700900000"]),
+        reservation_amount: pick(["", "10%", "£5"]),
+        site_token_index: pick(["", "abc123"]),
       });
-      const sig = await signPrice(fields);
-      expect(await verifyPrice(fields, sig)).toBe(true);
+      const sig = await signPrice(meta, total);
+      expect(await verifyPrice(meta, total, sig)).toBe(true);
       // Flipping the total by one minor unit must break the signature.
-      expect(
-        await verifyPrice({ ...fields, total: fields.total + 1 }, sig),
-      ).toBe(false);
+      expect(await verifyPrice(meta, total + 1, sig)).toBe(false);
     }
   });
 });

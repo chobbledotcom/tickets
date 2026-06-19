@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
+import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { setEffectiveDomainForTest } from "#shared/config.ts";
 import { getAllActivityLog } from "#shared/db/activityLog.ts";
 import { getDb } from "#shared/db/client.ts";
@@ -23,6 +24,7 @@ import {
 } from "#shared/db/sumup-checkouts.ts";
 import { setSuppressDebugLogs } from "#shared/logger.ts";
 import { buildItemsMetadata } from "#shared/payment-helpers.ts";
+import type { CheckoutIntent } from "#shared/payments.ts";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import { sumupApi } from "#shared/sumup.ts";
 import {
@@ -84,7 +86,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       await settings.update.sumup.merchantCode("MC1");
       setEffectiveDomainForTest("localhost");
       const reference = crypto.randomUUID();
-      const metadata = await buildItemsMetadata({
+      const intent: CheckoutIntent = {
         address: "",
         date: null,
         email: "alice@example.com",
@@ -100,7 +102,12 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         name: "Alice",
         phone: "",
         special_instructions: "",
-      });
+      };
+      // Price once and sign that total, exactly as production checkout does.
+      const metadata = await buildItemsMetadata(
+        intent,
+        priceCheckout(intent).total,
+      );
       await storeSumupCheckout(reference, metadata);
       await setSumupCheckoutId(reference, "co_e2e");
       return reference;

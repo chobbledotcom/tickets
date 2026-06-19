@@ -132,6 +132,11 @@ export type CheckoutSessionResult =
  * are normalized to "" by extractSessionMetadata. Domain types (e.g.
  * RegistrationIntent.date) may use null for "not provided"; conversion
  * between "" and null happens at the extraction boundary.
+ *
+ * This is the *logical* shape. On the wire, several small fields are collapsed
+ * into a single packed entry to stay within providers' metadata-entry caps (see
+ * packMetadata); extractSessionMetadata unpacks them back to this shape, so no
+ * consumer beyond that boundary needs to know packing happened.
  */
 export type SessionMetadata = {
   _origin: string;

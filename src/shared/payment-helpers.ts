@@ -4,20 +4,16 @@
  */
 
 import { lazyRef, map } from "#fp";
-import {
-  type ExtraLine,
-  type PricedLine,
-  type PricedOrder,
-  priceCheckout,
+import type {
+  ExtraLine,
+  PricedLine,
+  PricedOrder,
 } from "#shared/checkout-pricing.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import type { ErrorCodeType, LogCategory } from "#shared/logger.ts";
 import { logDebug, logError } from "#shared/logger.ts";
-import {
-  priceFieldsFromMetadata,
-  signPriceSync,
-} from "#shared/payment-signature.ts";
+import { signPriceSync } from "#shared/payment-signature.ts";
 import type {
   BookingIntent,
   BookingItem,
@@ -185,9 +181,15 @@ export const singleListingAnswerIds = (
  *
  * Hashes the plain `siteToken` into `site_token_index` before storing so the
  * provider never sees a value that can be used at /renew.
+ *
+ * `total` is the agreed order total the provider is billing for. The caller
+ * prices the order once and passes that same total here, so the signed proof
+ * and the charged amount can never disagree even if pricing settings change
+ * mid-checkout (re-pricing here would reopen that window — see #1300).
  */
 export const buildItemsMetadata = async (
   intent: CheckoutIntent,
+  total: number,
 ): Promise<Record<string, string>> => {
   const base = buildMetadata({
     ...intent,
@@ -197,12 +199,12 @@ export const buildItemsMetadata = async (
       ? await hmacHash(intent.siteToken)
       : undefined,
   });
-  // Sign the total the buyer is charged (the same priceCheckout the provider
-  // bills from), bound to the stored price/booking fields, so the webhook can
-  // trust it as an oracle rather than re-deriving and hoping they agree.
-  const total = priceCheckout(intent).total;
-  const sig = signPriceSync(priceFieldsFromMetadata(base, total));
-  return { ...base, price_proof: `${total}.${sig}` };
+  // Sign the agreed total bound to every stored booking field, so the webhook
+  // can trust it as an oracle rather than re-deriving and hoping they agree.
+  // Signing happens over the logical (pre-packing) fields, the same shape the
+  // webhook verifies after unpacking, so packing can never change the digest.
+  const sig = signPriceSync(base, total);
+  return packMetadata({ ...base, price_proof: `${total}.${sig}` });
 };
 
 /**
@@ -302,6 +304,75 @@ export const STRIPE_METADATA_MAX_VALUE_LENGTH = 500;
 export const SQUARE_METADATA_MAX_VALUE_LENGTH = 255;
 
 /**
+ * Small, bounded booking fields collapsed into a single packed `b` entry.
+ *
+ * Payment providers cap how many metadata entries a session may carry (Square
+ * allows only 10), and a fully-populated checkout otherwise overflows it. These
+ * fields are individually short — a date, a day count, a couple of modifier
+ * refs — so JSON-packing them into one entry frees slots without risking the
+ * per-value length cap. Large or length-sensitive fields (items, answer_ids,
+ * address, special_instructions) and the integrity-critical ones (_origin,
+ * name, email, price_proof) stay top-level, where they remain individually
+ * length-checked and directly readable by the metadata guards.
+ */
+const PACKED_KEYS = [
+  "phone",
+  "date",
+  "day_count",
+  "modifiers",
+  "reservation_amount",
+  "balance_attendee_id",
+  "site_token_index",
+] as const;
+
+/** The single metadata key the packed small fields are stored under. */
+const PACKED_FIELD = "b";
+
+/**
+ * Collapse the packable small fields into one JSON `b` entry, dropping them
+ * from the top level. Falsy values are omitted (the "" = absent convention), so
+ * the `b` entry only appears when at least one packed field is actually present.
+ */
+export const packMetadata = (
+  metadata: Record<string, string>,
+): Record<string, string> => {
+  const rest: Record<string, string> = { ...metadata };
+  const packed: Record<string, string> = {};
+  for (const key of PACKED_KEYS) {
+    const value = rest[key];
+    if (value) packed[key] = value;
+    delete rest[key];
+  }
+  return Object.keys(packed).length > 0
+    ? { ...rest, [PACKED_FIELD]: JSON.stringify(packed) }
+    : rest;
+};
+
+/**
+ * Recover the packed small fields from a `b` JSON blob.
+ *
+ * Defensive by design: a malformed blob, a non-object, or a non-string field
+ * is treated as "no packed data" rather than throwing, so a corrupt `b` reaching
+ * the webhook degrades each packed field to absent instead of crashing the
+ * handler before the price signature can even be checked.
+ */
+const parsePackedFields = (raw: string): Partial<Record<string, string>> => {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return {};
+    const source = parsed as Record<string, unknown>;
+    const result: Record<string, string> = {};
+    for (const key of PACKED_KEYS) {
+      const value = source[key];
+      if (typeof value === "string") result[key] = value;
+    }
+    return result;
+  } catch {
+    return {};
+  }
+};
+
+/**
  * Enforce metadata value length limits for a payment provider.
  *
  * Only items and answer_ids can realistically exceed provider limits —
@@ -327,6 +398,16 @@ export const enforceMetadataLimits = (
     );
   }
 
+  // The packed `b` entry combines several small fields; with enough modifiers
+  // (or a long site-token hash alongside them) the JSON blob can itself exceed
+  // a provider's per-value cap, so it is length-checked like items/answer_ids.
+  const packed = metadata[PACKED_FIELD];
+  if (packed && packed.length > maxValueLength) {
+    throw new PaymentUserError(
+      "Too much booking detail for a single checkout. Please book in smaller batches.",
+    );
+  }
+
   return metadata;
 };
 
@@ -343,26 +424,36 @@ export const hasRequiredSessionMetadata = (
 /**
  * Normalize validated session metadata into the canonical SessionMetadata shape.
  *
- * Must only be called after hasRequiredSessionMetadata narrows the type —
- * name is guaranteed non-empty by that guard. Optional fields that were
- * omitted during metadata creation are normalized to "" here.
+ * This is the single boundary where the provider wire format becomes the logical
+ * shape the rest of the app (and the price-signature check) reads: any small
+ * fields packed into `b` are merged back to the top level first, so every
+ * consumer sees one consistent shape regardless of how it was stored. Must only
+ * be called after hasRequiredSessionMetadata narrows the type — name is
+ * guaranteed non-empty by that guard. Fields omitted at creation (or absent from
+ * a malformed `b`) normalize to "".
  */
 export const extractSessionMetadata = (
   metadata: SessionMetadata,
-): ValidatedPaymentSession["metadata"] => ({
-  _origin: metadata._origin || "",
-  address: metadata.address || "",
-  answer_ids: metadata.answer_ids || "",
-  balance_attendee_id: metadata.balance_attendee_id || "",
-  date: metadata.date || "",
-  day_count: metadata.day_count || "",
-  email: metadata.email || "",
-  items: metadata.items || "",
-  modifiers: metadata.modifiers || "",
-  name: metadata.name,
-  phone: metadata.phone || "",
-  price_proof: metadata.price_proof || "",
-  reservation_amount: metadata.reservation_amount || "",
-  site_token_index: metadata.site_token_index || "",
-  special_instructions: metadata.special_instructions || "",
-});
+): ValidatedPaymentSession["metadata"] => {
+  const raw = (metadata as { [PACKED_FIELD]?: string })[PACKED_FIELD];
+  const packed = raw ? parsePackedFields(raw) : {};
+  const get = (key: keyof SessionMetadata): string =>
+    packed[key] || metadata[key] || "";
+  return {
+    _origin: get("_origin"),
+    address: get("address"),
+    answer_ids: get("answer_ids"),
+    balance_attendee_id: get("balance_attendee_id"),
+    date: get("date"),
+    day_count: get("day_count"),
+    email: get("email"),
+    items: get("items"),
+    modifiers: get("modifiers"),
+    name: metadata.name,
+    phone: get("phone"),
+    price_proof: get("price_proof"),
+    reservation_amount: get("reservation_amount"),
+    site_token_index: get("site_token_index"),
+    special_instructions: get("special_instructions"),
+  };
+};

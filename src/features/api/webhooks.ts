@@ -79,10 +79,7 @@ import {
 } from "#shared/db/questions.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
-import {
-  priceFieldsFromMetadata,
-  verifyPrice,
-} from "#shared/payment-signature.ts";
+import { verifyPrice } from "#shared/payment-signature.ts";
 import {
   type BookingItem,
   type CheckoutIntent,
@@ -640,10 +637,7 @@ const checkPriceSignature = async (
   const parsed = parsePriceProof(proof);
   if (
     parsed === null ||
-    !(await verifyPrice(
-      priceFieldsFromMetadata(session.metadata, parsed.total),
-      parsed.sig,
-    ))
+    !(await verifyPrice(session.metadata, parsed.total, parsed.sig))
   ) {
     // Invalid proof: either a foreign instance sharing the provider (it signs
     // with its own key) or our own tampered session. Only refund when it claims

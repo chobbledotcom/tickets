@@ -1,10 +1,7 @@
 import type { BuiltSite } from "#shared/db/built-sites.ts";
 import type { ListingInput } from "#shared/db/listings.ts";
 import type { EmailEntry, EmailListing } from "#shared/email.ts";
-import {
-  priceFieldsFromMetadata,
-  signPriceSync,
-} from "#shared/payment-signature.ts";
+import { signPriceSync } from "#shared/payment-signature.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
 import type {
   Attendee,
@@ -188,7 +185,7 @@ export const signMeta = (
   agreedTotal: number,
 ): Record<string, string> => ({
   ...metadata,
-  price_proof: `${agreedTotal}.${signPriceSync(priceFieldsFromMetadata(metadata, agreedTotal))}`,
+  price_proof: `${agreedTotal}.${signPriceSync(metadata, agreedTotal)}`,
 });
 
 export const singleItem = (

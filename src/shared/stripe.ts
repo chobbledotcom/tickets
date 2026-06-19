@@ -254,10 +254,14 @@ export const stripeApi: {
     );
     const currency = settings.currency.toLowerCase();
 
+    // Price the order once and reuse that total for both the charged line items
+    // and the signed proof, so the two can never disagree (see #1300).
+    const order = priceCheckout(intent);
+
     // Build line items (tickets + extras like the booking fee) from the
     // provider-agnostic priced order.
     const lineItems = buildProviderLineItems<StripeCheckoutLineItem>(
-      priceCheckout(intent),
+      order,
       currency,
       {
         extra: (extra, cur) => ({
@@ -291,7 +295,7 @@ export const stripeApi: {
       success_url: `${baseUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
       ...(intent.email ? { customer_email: intent.email } : {}),
       metadata: enforceMetadataLimits(
-        await buildItemsMetadata(intent),
+        await buildItemsMetadata(intent, order.total),
         STRIPE_METADATA_MAX_VALUE_LENGTH,
       ),
     };
