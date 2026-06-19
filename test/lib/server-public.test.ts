@@ -4578,6 +4578,46 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
       );
     });
 
+    test("a free booking consumes answer-tier stock, blocking the next over it", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 50,
+        thankYouUrl: "",
+      });
+      const { question, answer1 } = await setupQuestionForListing(listing.id);
+      // Payments are disabled here, so bookings complete for free — but a
+      // stock-limited answer tier must still be consumed so it can't be
+      // over-sold across free bookings.
+      const tier = await modifiersTable.insert({
+        calcKind: "fixed",
+        calcValue: 5,
+        direction: "charge",
+        name: "VIP upgrade",
+        stock: 1,
+        trigger: "answer",
+      });
+      await setModifierAnswers(tier.id, [answer1.id]);
+
+      const first = await submitTicketForm(listing.slug, {
+        email: "first@example.com",
+        name: "First",
+        [`question_${question.id}`]: String(answer1.id),
+      });
+      expectReservedRedirectWithTokens(first);
+
+      // The single unit is now spent, so the next booking of the tier is blocked.
+      const second = await submitTicketForm(listing.slug, {
+        email: "second@example.com",
+        name: "Second",
+        [`question_${question.id}`]: String(answer1.id),
+      });
+      expect(second.status).toBe(302);
+      expectFlash(
+        second,
+        expect.stringContaining("no longer available"),
+        false,
+      );
+    });
+
     test("returns error when required question is unanswered", async () => {
       const listing = await createTestListing({ maxAttendees: 50 });
       await setupQuestionForListing(listing.id);
