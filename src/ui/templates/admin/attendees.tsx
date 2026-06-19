@@ -233,10 +233,10 @@ export const EditQuestions = ({
   selectedAnswerIds: number[];
 }): JSX.Element => (
   <>
-    {questions.map((q) => (
-      <fieldset class="custom-question">
-        <legend>{q.text}</legend>
-        {q.display_type === "select" ? (
+    {questions.map((q) =>
+      q.display_type === "select" ? (
+        <label class="custom-question">
+          {q.text}
           <select name={`question_${q.id}`}>
             <option value="">No answer</option>
             {q.answers.map((a) => (
@@ -248,8 +248,11 @@ export const EditQuestions = ({
               </option>
             ))}
           </select>
-        ) : (
-          q.answers.map((a) => (
+        </label>
+      ) : (
+        <fieldset class="custom-question">
+          <legend>{q.text}</legend>
+          {q.answers.map((a) => (
             <label>
               <input
                 checked={selectedAnswerIds.includes(a.id)}
@@ -259,10 +262,10 @@ export const EditQuestions = ({
               />{" "}
               {a.text}
             </label>
-          ))
-        )}
-      </fieldset>
-    ))}
+          ))}
+        </fieldset>
+      ),
+    )}
   </>
 );
 

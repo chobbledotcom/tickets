@@ -203,33 +203,40 @@ export const renderQuestions = (
     .map((q) => {
       // Restore the chosen answer when a validation error re-renders the page.
       const answered = savedFormValue(`question_${q.id}`);
-      const options =
-        q.display_type === "select"
-          ? `<select name="question_${q.id}" required><option value="">${t(
-              "public.ticket.select_answer_placeholder",
-            )}</option>${q.answers
-              .map(
-                (a) =>
-                  `<option value="${a.id}"${
-                    answered === String(a.id) ? " selected" : ""
-                  }>${escapeHtml(a.text)}</option>`,
-              )
-              .join("")}</select>`
-          : q.answers
-              .map(
-                (a) =>
-                  `<label><input type="radio" name="question_${q.id}" value="${a.id}"${
-                    answered === String(a.id) ? " checked" : ""
-                  } required> ${escapeHtml(a.text)}</label>`,
-              )
-              .join("");
       const listingIds = questionListingMap?.get(q.id);
       const listingAttr = listingIds
         ? ` data-listing-ids="${listingIds.join(" ")}"`
         : "";
+      // A select is a single control, so a plain <label> names it like the text
+      // fields do. Radios are a set of controls, so they need a <fieldset> with
+      // a <legend> to label the group. Both carry .custom-question (plus any
+      // data-listing-ids) so the visibility script can show/hide them.
+      if (q.display_type === "select") {
+        const optionTags = q.answers
+          .map(
+            (a) =>
+              `<option value="${a.id}"${
+                answered === String(a.id) ? " selected" : ""
+              }>${escapeHtml(a.text)}</option>`,
+          )
+          .join("");
+        return `<label class="custom-question"${listingAttr}>${escapeHtml(
+          q.text,
+        )}<select name="question_${q.id}" required><option value="">${t(
+          "public.ticket.select_answer_placeholder",
+        )}</option>${optionTags}</select></label>`;
+      }
+      const radioTags = q.answers
+        .map(
+          (a) =>
+            `<label><input type="radio" name="question_${q.id}" value="${a.id}"${
+              answered === String(a.id) ? " checked" : ""
+            } required> ${escapeHtml(a.text)}</label>`,
+        )
+        .join("");
       return `<fieldset class="custom-question"${listingAttr}><legend>${escapeHtml(
         q.text,
-      )}</legend>${options}</fieldset>`;
+      )}</legend>${radioTags}</fieldset>`;
     })
     .join("");
 };
