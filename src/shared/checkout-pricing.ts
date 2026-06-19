@@ -150,8 +150,9 @@ type ModifierPass = {
 };
 
 /** Apply one modifier: an additive delta becomes an extra line; a negative
- * delta is allocated across the in-scope units as a discount (clamped to what
- * those units can absorb). A zero delta is a no-op. */
+ * delta is multiplied by the selected quantity, then allocated across the
+ * in-scope units as a discount (clamped to what those units can absorb). A
+ * zero delta is a no-op. */
 const applyOne = (pass: ModifierPass, spec: ModifierSpec): ModifierPass => {
   const scoped = pass.units.filter((u) => inScope(spec, u));
   const delta = modifierDelta(
@@ -177,7 +178,7 @@ const applyOne = (pass: ModifierPass, spec: ModifierSpec): ModifierPass => {
 
   const reduced = allocateDiscount(
     scoped.map((u) => u.price),
-    -delta,
+    -delta * spec.quantity,
   );
   let next = 0;
   const units = pass.units.map((u) =>

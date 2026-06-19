@@ -876,13 +876,21 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
         unitPrice: 1000,
       });
 
-      // An opt-in add-on and a promo-code discount, both whole-order. A second
-      // add-on is offered but left unselected (its quantity field stays 0).
+      // An opt-in charge, an opt-in discount, and a promo-code discount, all
+      // whole-order. A second add-on is offered but left unselected (its
+      // quantity field stays 0).
       const addOn = await modifiersTable.insert({
         calcKind: "fixed",
         calcValue: 5,
         direction: "charge",
         name: "T-shirt",
+      });
+      const discountAddOn = await modifiersTable.insert({
+        calcKind: "fixed",
+        calcValue: 2,
+        direction: "discount",
+        name: "Member discount",
+        stock: 5,
       });
       const skippedAddOn = await modifiersTable.insert({
         calcKind: "fixed",
@@ -898,6 +906,10 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
       });
       await getDb().execute({
         args: ["optional", addOn.id],
+        sql: "UPDATE modifiers SET trigger = ? WHERE id = ?",
+      });
+      await getDb().execute({
+        args: ["optional", discountAddOn.id],
         sql: "UPDATE modifiers SET trigger = ? WHERE id = ?",
       });
       await getDb().execute({
@@ -932,6 +944,7 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
         const response = await submitTicketForm(listing.slug, {
           // The second add-on's field is omitted entirely (left unselected).
           [`addon_${addOn.id}`]: "2",
+          [`addon_${discountAddOn.id}`]: "3",
           email: "john@example.com",
           name: "John Doe",
           promo_code: "save10",
@@ -941,9 +954,11 @@ describeWithEnv("server (payment flow)", { db: true }, () => {
         const byId = new Map(
           (capturedIntent?.modifiers ?? []).map((m) => [m.id, m]),
         );
-        // The add-on is applied at the chosen quantity, the promo at quantity 1,
-        // and the unselected add-on is absent.
+        // Add-ons (including discounts) are applied at the chosen quantity, the
+        // promo at quantity 1, and the unselected add-on is absent.
         expect(byId.get(addOn.id)?.quantity).toBe(2);
+        expect(byId.get(discountAddOn.id)?.quantity).toBe(3);
+        expect(byId.get(discountAddOn.id)?.value).toBe(-200);
         expect(byId.get(promo.id)?.quantity).toBe(1);
         expect(byId.has(skippedAddOn.id)).toBe(false);
       } finally {

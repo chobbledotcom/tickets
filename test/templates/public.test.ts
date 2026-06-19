@@ -553,7 +553,14 @@ describe("ticketPage", () => {
       ),
     ];
     const html = ticketPage({
-      addOns: [{ id: 7, maxQuantity: 5, name: "T-shirt", priceLabel: "+£5" }],
+      addOns: [
+        {
+          id: 7,
+          maxQuantity: 5,
+          name: "T-shirt",
+          priceLabel: "+£5 each",
+        },
+      ],
       listings,
       slugs: ["ab12c"],
     });

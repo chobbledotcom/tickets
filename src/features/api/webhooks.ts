@@ -692,7 +692,8 @@ const createAttendeeForSession = async (
     const consumed = await consumeModifierStock(
       attendeeId,
       modifierSpecs.map((s) => ({
-        amountApplied: Math.abs(modifierDelta(fullTotal, s.kind, s.value)),
+        amountApplied:
+          Math.abs(modifierDelta(fullTotal, s.kind, s.value)) * s.quantity,
         modifierId: s.id,
         quantity: s.quantity,
       })),

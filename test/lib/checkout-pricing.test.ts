@@ -247,6 +247,55 @@ describe("applyModifiers", () => {
     expect(result.modifierTotal).toBe(1500);
   });
 
+  test("multiplies a fixed discount by its quantity", () => {
+    const result = applyModifiers(lines, [
+      modifier({ kind: "fixed", quantity: 3, value: -500 }),
+    ]);
+
+    expect(result.lines).toEqual([
+      { chargedUnitAmount: 667, item: item({ listingId: 1 }), quantity: 2 },
+      {
+        chargedUnitAmount: 1666,
+        item: item({ listingId: 2, slug: "vip" }),
+        quantity: 1,
+      },
+    ]);
+    expect(result.modifierTotal).toBe(-1500);
+  });
+
+  test("multiplies a percent discount by its quantity", () => {
+    const result = applyModifiers(lines, [
+      modifier({ kind: "percent", quantity: 3, value: -10 }),
+    ]);
+
+    // Quantity 3 of a 10% discount applies 30% of the original subtotal.
+    expect(result.modifierTotal).toBe(-1350);
+    expect(result.lines).toEqual([
+      { chargedUnitAmount: 700, item: item({ listingId: 1 }), quantity: 2 },
+      {
+        chargedUnitAmount: 1750,
+        item: item({ listingId: 2, slug: "vip" }),
+        quantity: 1,
+      },
+    ]);
+  });
+
+  test("clamps multiplied discounts so no charged unit goes negative", () => {
+    const result = applyModifiers(lines, [
+      modifier({ kind: "percent", quantity: 3, value: -50 }),
+    ]);
+
+    expect(result.lines).toEqual([
+      { chargedUnitAmount: 0, item: item({ listingId: 1 }), quantity: 2 },
+      {
+        chargedUnitAmount: 0,
+        item: item({ listingId: 2, slug: "vip" }),
+        quantity: 1,
+      },
+    ]);
+    expect(result.modifierTotal).toBe(-4500);
+  });
+
   test("treats a zero-delta modifier as a no-op", () => {
     const result = applyModifiers(lines, [
       modifier({ kind: "percent", value: 0 }),

@@ -39,8 +39,9 @@ const signedValue = (modifier: Modifier): number => {
 
 /** The listing ids a modifier is charged on, or null for the whole order. */
 const listingIdsFor = (modifier: Modifier): Promise<number[]> | null => {
-  if (modifier.scope === "groups")
+  if (modifier.scope === "groups") {
     return getModifierGroupListingIds(modifier.id);
+  }
   if (modifier.scope === "listings") return getModifierListingIds(modifier.id);
   return null;
 };
@@ -102,8 +103,9 @@ const triggerQuantity = (
   codeIndex: string | null,
   addOns: Map<number, number>,
 ): number => {
-  if (modifier.trigger === "code")
+  if (modifier.trigger === "code") {
     return codeIndex !== null && modifier.code_index === codeIndex ? 1 : 0;
+  }
   if (modifier.trigger === "optional") return addOns.get(modifier.id) ?? 0;
   return 1;
 };
@@ -186,7 +188,7 @@ const addOnPriceLabel = (modifier: Modifier): string => {
     modifier.calc_kind === "fixed"
       ? formatCurrency(toMinorUnits(modifier.calc_value))
       : `${modifier.calc_value}%`;
-  return `${sign}${amount}`;
+  return `${sign}${amount} each`;
 };
 
 /**
