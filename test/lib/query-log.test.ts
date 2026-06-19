@@ -10,6 +10,7 @@ import {
   N_PLUS_ONE_THRESHOLD,
   runWithQueryLogContext,
   setN1GuardNotifyOnly,
+  sqlWallClockMs,
   trackQuery,
 } from "#shared/db/query-log.ts";
 // Preloaded so the guard's dynamic `import("#shared/logger.ts")` is a cache hit,
@@ -36,8 +37,8 @@ describe("query-log", () => {
     test("records entries when enabled", () => {
       runWithQueryLogContext(() => {
         enableQueryLog();
-        addQueryLogEntry("SELECT 1", 1.5);
-        addQueryLogEntry("SELECT 2", 2.3);
+        addQueryLogEntry("SELECT 1", 1.5, 100);
+        addQueryLogEntry("SELECT 2", 2.3, 200);
         const log = getQueryLog();
         expect(log).toHaveLength(2);
         expect(log[0]!.sql).toBe("SELECT 1");
@@ -47,9 +48,17 @@ describe("query-log", () => {
       });
     });
 
+    test("records the query start time for wall-clock math", () => {
+      runWithQueryLogContext(() => {
+        enableQueryLog();
+        addQueryLogEntry("SELECT 1", 1.5, 100);
+        expect(getQueryLog()[0]!.startedAtMs).toBe(100);
+      });
+    });
+
     test("ignores entries when disabled", () => {
       runWithQueryLogContext(() => {
-        addQueryLogEntry("SELECT 1", 1.0);
+        addQueryLogEntry("SELECT 1", 1.0, 0);
         expect(getQueryLog()).toHaveLength(0);
       });
     });
@@ -59,7 +68,7 @@ describe("query-log", () => {
     test("clears log on enable", () => {
       runWithQueryLogContext(() => {
         enableQueryLog();
-        addQueryLogEntry("SELECT old", 1.0);
+        addQueryLogEntry("SELECT old", 1.0, 0);
         expect(getQueryLog()).toHaveLength(1);
 
         enableQueryLog();
@@ -72,12 +81,58 @@ describe("query-log", () => {
     test("returned array is independent of internal state", () => {
       runWithQueryLogContext(() => {
         enableQueryLog();
-        addQueryLogEntry("SELECT 1", 1.0);
+        addQueryLogEntry("SELECT 1", 1.0, 0);
         const snapshot = getQueryLog();
-        addQueryLogEntry("SELECT 2", 2.0);
+        addQueryLogEntry("SELECT 2", 2.0, 1);
         expect(snapshot).toHaveLength(1);
         expect(getQueryLog()).toHaveLength(2);
       });
+    });
+  });
+
+  describe("sqlWallClockMs", () => {
+    const entry = (
+      startedAtMs: number,
+      durationMs: number,
+    ): {
+      sql: string;
+      durationMs: number;
+      startedAtMs: number;
+    } => ({ durationMs, sql: "SELECT 1", startedAtMs });
+
+    test("is zero with no queries", () => {
+      expect(sqlWallClockMs([])).toBe(0);
+    });
+
+    test("equals the duration of a single query", () => {
+      expect(sqlWallClockMs([entry(100, 5)])).toBe(5);
+    });
+
+    test("sums durations of disjoint (sequential) queries", () => {
+      // [100,105] then [200,210] never overlap → 5 + 10.
+      expect(sqlWallClockMs([entry(100, 5), entry(200, 10)])).toBe(15);
+    });
+
+    test("counts overlapping (concurrent) time only once", () => {
+      // [100,110] and [105,115] overlap → union is [100,115] = 15ms,
+      // not the 20ms a naive sum of durations would report.
+      expect(sqlWallClockMs([entry(100, 10), entry(105, 10)])).toBe(15);
+    });
+
+    test("counts one query fully contained in another only once", () => {
+      // [100,120] contains [105,110] → union stays 20ms.
+      expect(sqlWallClockMs([entry(100, 20), entry(105, 5)])).toBe(20);
+    });
+
+    test("counts a shared batch round-trip window once", () => {
+      // Batch statements share one [start, start+elapsed] window.
+      const batch = [entry(100, 10), entry(100, 10), entry(100, 10)];
+      expect(sqlWallClockMs(batch)).toBe(10);
+    });
+
+    test("merges intervals regardless of insertion order", () => {
+      // Entries are appended in completion order, so the helper must sort.
+      expect(sqlWallClockMs([entry(200, 10), entry(100, 5)])).toBe(15);
     });
   });
 
@@ -106,6 +161,22 @@ describe("query-log", () => {
         enableQueryLog();
         const second = getQueryLogStartTime();
         expect(second).toBeGreaterThanOrEqual(first);
+      });
+    });
+  });
+
+  describe("trackQuery recording", () => {
+    test("records duration and start time when logging is enabled", async () => {
+      await runWithQueryLogContext(async () => {
+        enableQueryLog();
+        const before = performance.now();
+        await trackQuery("SELECT 1", () => Promise.resolve("ok"));
+        const after = performance.now();
+        const [logged] = getQueryLog();
+        expect(logged!.sql).toBe("SELECT 1");
+        expect(logged!.startedAtMs).toBeGreaterThanOrEqual(before);
+        expect(logged!.startedAtMs).toBeLessThanOrEqual(after);
+        expect(logged!.durationMs).toBeGreaterThanOrEqual(0);
       });
     });
   });

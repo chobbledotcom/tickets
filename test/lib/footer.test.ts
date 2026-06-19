@@ -48,8 +48,12 @@ describe("debugDetailsHtml", () => {
     const html = debugDetailsHtml({
       cacheStats: [],
       queries: [
-        { durationMs: 5.2, sql: "SELECT * FROM listings" },
-        { durationMs: 3.1, sql: "SELECT * FROM users WHERE id = ?" },
+        { durationMs: 5.2, sql: "SELECT * FROM listings", startedAtMs: 0 },
+        {
+          durationMs: 3.1,
+          sql: "SELECT * FROM users WHERE id = ?",
+          startedAtMs: 10,
+        },
       ],
       renderTimeMs: 20,
       uptimeSeconds: 0,
@@ -63,7 +67,9 @@ describe("debugDetailsHtml", () => {
   test("escapes HTML in SQL strings", () => {
     const html = debugDetailsHtml({
       cacheStats: [],
-      queries: [{ durationMs: 1.0, sql: "SELECT '<script>' FROM t" }],
+      queries: [
+        { durationMs: 1.0, sql: "SELECT '<script>' FROM t", startedAtMs: 0 },
+      ],
       renderTimeMs: 10,
       uptimeSeconds: 0,
     });
@@ -82,12 +88,13 @@ describe("debugDetailsHtml", () => {
     expect(html).not.toContain("SQL queries");
   });
 
-  test("shows query count and total SQL time in summary", () => {
+  test("summary SQL time is the wall-clock union, not the sum of durations", () => {
+    // Two sequential (disjoint) queries: union 10+15 = 25ms.
     const html = debugDetailsHtml({
       cacheStats: [],
       queries: [
-        { durationMs: 10, sql: "SELECT 1" },
-        { durationMs: 15, sql: "SELECT 2" },
+        { durationMs: 10, sql: "SELECT 1", startedAtMs: 0 },
+        { durationMs: 15, sql: "SELECT 2", startedAtMs: 20 },
       ],
       renderTimeMs: 50,
       uptimeSeconds: 0,
@@ -95,28 +102,99 @@ describe("debugDetailsHtml", () => {
     expect(html).toContain("2 queries 25ms");
   });
 
+  test("summary counts concurrent queries' overlap only once", () => {
+    // Two queries overlapping in wall-clock time: union [0,15] = 15ms, even
+    // though the durations sum to 25ms. The summary reports the honest 15ms.
+    const html = debugDetailsHtml({
+      cacheStats: [],
+      queries: [
+        { durationMs: 10, sql: "SELECT 1", startedAtMs: 0 },
+        { durationMs: 10, sql: "SELECT 2", startedAtMs: 5 },
+      ],
+      renderTimeMs: 50,
+      uptimeSeconds: 0,
+    });
+    expect(html).toContain("2 queries 15ms");
+  });
+
   test("shows singular query for single query", () => {
     const html = debugDetailsHtml({
       cacheStats: [],
-      queries: [{ durationMs: 5, sql: "SELECT 1" }],
+      queries: [{ durationMs: 5, sql: "SELECT 1", startedAtMs: 0 }],
       renderTimeMs: 20,
       uptimeSeconds: 0,
     });
     expect(html).toContain("1 query 5ms");
   });
 
-  test("shows render time breakdown with sql vs other", () => {
+  test("breakdown splits render into wall-clock sql and other", () => {
+    // Disjoint queries → wall-clock sql 50ms, leaving other 50ms of 100ms.
     const html = debugDetailsHtml({
       cacheStats: [],
       queries: [
-        { durationMs: 30, sql: "SELECT 1" },
-        { durationMs: 20, sql: "SELECT 2" },
+        { durationMs: 30, sql: "SELECT 1", startedAtMs: 0 },
+        { durationMs: 20, sql: "SELECT 2", startedAtMs: 30 },
       ],
       renderTimeMs: 100,
       uptimeSeconds: 0,
     });
     expect(html).toContain("sql 50.0ms");
     expect(html).toContain("other 50.0ms");
+  });
+
+  test("breakdown keeps other non-negative when queries overlap", () => {
+    // Durations sum to 60ms but only 35ms of wall-clock ([0,35]); without the
+    // union, other would be render − 60 = −10ms. With it, other is 5ms.
+    const html = debugDetailsHtml({
+      cacheStats: [],
+      queries: [
+        { durationMs: 30, sql: "SELECT 1", startedAtMs: 0 },
+        { durationMs: 30, sql: "SELECT 2", startedAtMs: 5 },
+      ],
+      renderTimeMs: 40,
+      uptimeSeconds: 0,
+    });
+    expect(html).toContain("sql 35.0ms");
+    expect(html).toContain("other 5.0ms");
+  });
+
+  test("reports total query work and the parallel factor", () => {
+    // 60ms of work folded into 35ms wall-clock → 60/35 ≈ 1.7×.
+    const html = debugDetailsHtml({
+      cacheStats: [],
+      queries: [
+        { durationMs: 30, sql: "SELECT 1", startedAtMs: 0 },
+        { durationMs: 30, sql: "SELECT 2", startedAtMs: 5 },
+      ],
+      renderTimeMs: 40,
+      uptimeSeconds: 0,
+    });
+    expect(html).toContain("60.0ms work across 2 queries");
+    expect(html).toContain("1.7&times; parallel");
+  });
+
+  test("reports a 1.0x parallel factor for sequential queries", () => {
+    const html = debugDetailsHtml({
+      cacheStats: [],
+      queries: [
+        { durationMs: 10, sql: "SELECT 1", startedAtMs: 0 },
+        { durationMs: 15, sql: "SELECT 2", startedAtMs: 20 },
+      ],
+      renderTimeMs: 50,
+      uptimeSeconds: 0,
+    });
+    expect(html).toContain("25.0ms work across 2 queries");
+    expect(html).toContain("1.0&times; parallel");
+  });
+
+  test("omits the SQL work line when there are no queries", () => {
+    const html = debugDetailsHtml({
+      cacheStats: [],
+      queries: [],
+      renderTimeMs: 10,
+      uptimeSeconds: 0,
+    });
+    expect(html).not.toContain("parallel");
   });
 
   test("shows cache stats section", () => {
