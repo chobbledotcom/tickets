@@ -92,6 +92,7 @@ import {
   type ValidatedPaymentSession,
   type WebhookEvent,
 } from "#shared/payments.ts";
+import { addPendingWork } from "#shared/pending-work.ts";
 import { dayPriceFor, type ListingWithCount } from "#shared/types.ts";
 import { logAndNotifyRegistration } from "#shared/webhook.ts";
 import { paymentCancelPage, successPage } from "#templates/payment.tsx";
@@ -627,11 +628,19 @@ const checkPriceSignature = async (
   session: ValidatedPaymentSession,
   listingId: number,
 ): Promise<{ agreed: number } | null | PaymentResult> => {
+  // Only act on sessions claiming our origin. A foreign instance sharing the
+  // provider account signs with its own key, so its proof looks invalid to us —
+  // refunding it would let anyone who knows such a session id trigger a refund
+  // for another instance's payment. Foreign sessions fall through to the
+  // existing no-refund handling; _origin can't be forged onto one, since only
+  // its own merchant can set its metadata.
+  if (session.metadata._origin !== getEffectiveDomain()) return null;
   const proof = session.metadata.price_proof;
-  if (!proof) return null; // genuinely unsigned (legacy)
+  if (!proof) return null; // our session, but genuinely unsigned (legacy)
 
-  const refuse = async (detail: string): Promise<PaymentResult> => {
-    await sendNtfyError(ErrorCode.WEBHOOK_PRICE_SIGNATURE);
+  const refuse = (detail: string): Promise<PaymentResult> => {
+    // Refund first; defer the alert so a slow ntfy never delays the money.
+    addPendingWork(sendNtfyError(ErrorCode.WEBHOOK_PRICE_SIGNATURE));
     return priceMismatchRefund(session, detail, listingId);
   };
 
@@ -703,7 +712,10 @@ const verifyPaidPricing = async (
 
   // Signed and charged correctly: the re-derivation must reproduce the total.
   if (pricedOrder.total !== signature.agreed) {
-    if (inputsIntact) await sendNtfyError(ErrorCode.WEBHOOK_PRICE_DIVERGENCE);
+    // Refund first; defer the alert so a slow ntfy never delays the money.
+    if (inputsIntact) {
+      addPendingWork(sendNtfyError(ErrorCode.WEBHOOK_PRICE_DIVERGENCE));
+    }
     return priceMismatchRefund(
       session,
       `Re-derived total ${pricedOrder.total} differs from signed total ${signature.agreed} (modifier inputs intact: ${inputsIntact})`,

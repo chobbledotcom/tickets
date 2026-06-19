@@ -23,6 +23,7 @@ import {
   setupStripe,
   signMeta,
   testCsrfToken,
+  webhookMeta,
 } from "#test-utils";
 
 /** POST a pay form for a token as the customer. */
@@ -231,11 +232,11 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
         amount_total: 1500,
         id: "cs_balance_signed",
         metadata: signMeta(
-          {
+          webhookMeta({
             balance_attendee_id: String(attendeeId),
             items: JSON.stringify([{ e: 1, p: 1500, q: 1 }]),
             name: "Balance payment",
-          },
+          }),
           1500,
         ),
         payment_intent: "pi_balance_signed",
@@ -271,11 +272,11 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
         id: "cs_balance_tampered",
         metadata: {
           ...signMeta(
-            {
+            webhookMeta({
               balance_attendee_id: String(attendeeId),
               items: JSON.stringify([{ e: 1, p: 1500, q: 1 }]),
               name: "Balance payment",
-            },
+            }),
             1500,
           ),
           // Valid total, wrong digest — the gate must reject before settling.
