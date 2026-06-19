@@ -34,6 +34,7 @@ The `.tool-versions` file is kept in sync for asdf-compatible tooling.
 - **Use FP methods**: Prefer curried functional utilities from `#fp` over imperative loops
 - **100% test coverage**: All code must have complete test coverage - run `deno coverage` to find uncovered lines/branches
 - **Trust application invariants**: Do not design normal code paths around database states the application says are impossible. If an impossible state is observed, raise it as an error and repair the data explicitly rather than silently accepting or normalising it.
+- **Select only needed columns**: Avoid `SELECT *` and broad "load every row" helpers — query the specific columns a caller actually uses. See [Database Queries](#database-queries).
 - **Final check**: Run `deno task precommit` (via `mise exec -- deno task precommit` when using the pinned toolchain) before finishing any job with code or documentation changes.
 
 ## FP Imports
@@ -91,6 +92,21 @@ the `pipe`-based code. Note `@std/collections` has **no** `groupBy` export
 | `chunk(size)`      | Split array into chunks (std chunk) |
 | `sumOf(selector)`  | Sum by selector (std sumOf)        |
 | `sum(arr)`         | Sum an array of numbers         |
+
+## Database Queries
+
+Avoid `SELECT *`, and avoid loading more rows or columns than the caller needs.
+
+- **Prefer explicit, narrow column lists.** Write `SELECT id, name, admin_level FROM …`, never `SELECT *` — list only the columns the caller reads. This keeps less plaintext/PII in memory, skips decrypting columns nobody uses, and makes each query's data dependencies obvious. Copy the existing examples: `getUserDisplayFields` (`id, username_hash, admin_level`), `getAllUserIds` (`id`), `getAllAttendeePiiBlobs` (`pii_blob`), `getAllRawEmailTemplates` (`id, subject, body`).
+- **"Get all rows" is rarely the right shape.** About the only legitimate reason to read a whole table is rendering an admin collection page (e.g. `/admin/listings`, `/admin/questions`) — and even then, select only the columns those rows display, not every column on the table. Everything else should be a bounded query (by id, by key, or with a `WHERE`/`LIMIT`).
+
+Some reads legitimately need the full row — these are the exceptions, not the rule:
+
+- **An entity cache that also backs single-record reads.** When one request-scoped cache serves both the collection view and the `getById`/`getByKey` detail/auth reads (listings, users, groups, holidays, built-sites, attendee-statuses), it loads the full entity once so the detail, edit, and login paths it feeds have every column. Narrowing the cache load would break those reads. (`getAllListings`' `SELECT e.*` is deliberately wide — it also carries the trigger-maintained `booked_quantity`/`income`/`tickets_count` aggregate columns.)
+- **Full-table backup/restore** (`backup.ts`) — a dump needs every column to round-trip.
+- **The generic `Table.findById`/`findAll` helpers** (`table.ts`) — they `SELECT *` by design and feed edit pages that need the whole row; specific tables narrow at the cache `fetchAll` layer instead.
+
+Even when a caller genuinely needs many columns, list them explicitly rather than `SELECT *`, so adding a column later doesn't silently widen every read.
 
 ## Scripts
 
