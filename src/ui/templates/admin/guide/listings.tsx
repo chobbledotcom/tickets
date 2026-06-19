@@ -32,6 +32,12 @@ export const Listings = (): JSX.Element => (
 
       <Faq id="what_is_purchase_only_mode" />
 
+      <Section id="modifiers" title={t("guide.sections.modifiers")}>
+        <Faq id="what_are_modifiers" />
+
+        <Faq id="how_modifier_values_work" />
+      </Section>
+
       <Faq id="registration_deadlines" />
 
       <Faq id="embed_booking_form" />
