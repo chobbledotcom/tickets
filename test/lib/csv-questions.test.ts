@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { generateAttendeesCsv } from "#shared/csv/attendees.ts";
+import { generateAttendeesCsv } from "#shared/attendees-csv.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import { testAttendee } from "#test-utils";
 

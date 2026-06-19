@@ -481,23 +481,10 @@ describe("adminDashboardPage type filter", () => {
     expect(html).toContain('data-multi-booking-slug="day01"');
   });
 
-  test("links to the listings CSV export, carrying the active type", () => {
-    const all = adminDashboardPage([standard, daily], TEST_SESSION);
-    expect(all).toContain('class="table-footer-actions"');
-    expect(all).toContain('href="/admin/listings/csv"');
-    expect(all).toContain("Export CSV");
-
-    const filtered = adminDashboardPage(
-      [standard, daily],
-      TEST_SESSION,
-      undefined,
-      [],
-      undefined,
-      null,
-      undefined,
-      "daily",
-    );
-    expect(filtered).toContain('href="/admin/listings/csv?type=daily"');
+  test("does not show a CSV export footer (the dashboard table is active-only)", () => {
+    const html = adminDashboardPage([standard, daily], TEST_SESSION);
+    expect(html).not.toContain("/admin/listings/csv");
+    expect(html).not.toContain("table-footer-actions");
   });
 });
 

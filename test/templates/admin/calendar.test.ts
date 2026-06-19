@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
+import { generateCalendarCsv } from "#shared/calendar-csv.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { generateCalendarCsv } from "#shared/csv/calendar.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import type { AvailabilityRow } from "#templates/admin/availability-checker.tsx";
 import {

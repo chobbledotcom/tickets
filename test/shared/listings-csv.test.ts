@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { generateListingsCsv } from "#shared/csv/listings.ts";
+import { generateListingsCsv } from "#shared/listings-csv.ts";
 import { setupTestEncryptionKey, testListingWithCount } from "#test-utils";
 
 beforeAll(async () => {

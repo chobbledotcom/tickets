@@ -10,11 +10,11 @@ import { type AuthSession, requireSessionOr } from "#routes/auth.ts";
 import { htmlResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
-import { getEffectiveDomain } from "#shared/config.ts";
 import {
   generateCalendarCsv,
   toCalendarAttendees,
-} from "#shared/csv/calendar.ts";
+} from "#shared/calendar-csv.ts";
+import { getEffectiveDomain } from "#shared/config.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
   type AttendeeSort,

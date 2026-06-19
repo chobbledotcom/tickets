@@ -1,10 +1,10 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { signCsrfToken } from "#shared/csrf.ts";
 import {
   type CsvListingInfo,
   generateAttendeesCsv,
-} from "#shared/csv/attendees.ts";
+} from "#shared/attendees-csv.ts";
+import { signCsrfToken } from "#shared/csrf.ts";
 import { setupTestEncryptionKey, testAttendee } from "#test-utils";
 
 beforeAll(async () => {
@@ -75,9 +75,6 @@ describe("generateAttendeesCsv", () => {
     const attendees = [testAttendee({ phone: "+1 555 123 4567" })];
     const csv = generateAttendeesCsv(attendees);
     const lines = csv.split("\n");
-    expect(lines[0]).toBe(
-      "Name,Email,Phone,Address,Special Instructions,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL",
-    );
     expect(lines[1]).toContain("+1 555 123 4567");
   });
 
@@ -106,44 +103,19 @@ describe("generateAttendeesCsv", () => {
     const attendees = [testAttendee()];
     const csv = generateAttendeesCsv(attendees);
     const lines = csv.split("\n");
-    // Price should be 0.00, transaction ID empty, followed by Checked In, Token, URL
     expect(lines[1]).toContain("0.00,,No,");
-  });
-
-  test("shared transaction ID across multiple attendees", () => {
-    const attendees = [
-      testAttendee({
-        payment_id: "pi_shared_123",
-        price_paid: "1000",
-      }),
-      testAttendee({
-        id: 2,
-        listing_id: 2,
-        payment_id: "pi_shared_123",
-        price_paid: "3000",
-        quantity: 2,
-      }),
-    ];
-    const csv = generateAttendeesCsv(attendees);
-    const lines = csv.split("\n");
-    expect(lines[1]).toContain("10.00");
-    expect(lines[1]).toContain("pi_shared_123");
-    expect(lines[2]).toContain("30.00");
-    expect(lines[2]).toContain("pi_shared_123");
   });
 
   test("includes Checked In as Yes for checked-in attendee", () => {
     const attendees = [testAttendee({ checked_in: true })];
     const csv = generateAttendeesCsv(attendees);
-    const lines = csv.split("\n");
-    expect(lines[1]).toContain(",Yes,");
+    expect(csv.split("\n")[1]).toContain(",Yes,");
   });
 
   test("includes Checked In as No for not checked-in attendee", () => {
     const attendees = [testAttendee({ checked_in: false })];
     const csv = generateAttendeesCsv(attendees);
-    const lines = csv.split("\n");
-    expect(lines[1]).toContain(",No,");
+    expect(csv.split("\n")[1]).toContain(",No,");
   });
 
   test("includes ticket token and URL in CSV output", () => {

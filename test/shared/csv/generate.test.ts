@@ -1,51 +1,52 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { toCsv } from "#shared/csv/generate.ts";
+import { type Column, CSV } from "#shared/csv/index.ts";
 
-describe("toCsv", () => {
-  const keys = ["Name", "Age"] as const;
+type Person = { name: string; age: number };
+const columns: Column<Person>[] = [
+  { header: "Name", value: (p) => p.name },
+  { header: "Age", value: (p) => String(p.age) },
+];
 
-  test("emits just the header when there are no rows", () => {
-    expect(toCsv([], keys)).toBe("Name,Age");
+describe("CSV.generate", () => {
+  test("emits just the header when there are no items", () => {
+    expect(CSV.generate([], columns)).toBe("Name,Age");
   });
 
-  test("emits one line per row in column order", () => {
-    const csv = toCsv(
+  test("emits one line per item, reading each cell via its column", () => {
+    const csv = CSV.generate(
       [
-        { Age: "30", Name: "Alice" },
-        { Age: "25", Name: "Bob" },
+        { age: 30, name: "Alice" },
+        { age: 25, name: "Bob" },
       ],
-      keys,
+      columns,
     );
     expect(csv).toBe("Name,Age\nAlice,30\nBob,25");
   });
 
-  test("escapes values and headers containing commas or quotes", () => {
-    const csv = toCsv([{ "A,B": 'a "x"', C: "plain" }], ["A,B", "C"]);
-    expect(csv).toBe('"A,B",C\n"a ""x""",plain');
+  test("escapes headers and cells with commas, quotes or newlines", () => {
+    const csv = CSV.generate(
+      [{ value: 'a "x"\nb' }],
+      [{ header: "A,B", value: (r: { value: string }) => r.value }],
+    );
+    expect(csv).toBe('"A,B"\n"a ""x""\nb"');
   });
 
   test("throws when given no columns", () => {
-    expect(() => toCsv([{ a: "1" }], [])).toThrow(
-      "at least one column key is required",
+    expect(() => CSV.generate([{ a: 1 }], [])).toThrow(
+      "at least one column is required",
     );
   });
 
-  test("throws on duplicate column keys", () => {
-    expect(() => toCsv([], ["Name", "Name"])).toThrow("duplicate column keys");
-  });
-
-  test("throws when a row has more keys than columns", () => {
-    expect(() => toCsv([{ Age: "1", Extra: "x", Name: "A" }], keys)).toThrow(
-      "do not match columns",
-    );
-  });
-
-  test("throws when a row is missing a column it should have", () => {
-    // Same key count as the column list, but "Age" is replaced by "Nope", so
-    // the per-column presence check is what catches the mismatch. The row type
-    // is widened so the deliberately-mismatched keys still type-check.
-    const rows: Record<string, string>[] = [{ Name: "A", Nope: "x" }];
-    expect(() => toCsv(rows, keys)).toThrow('row is missing column "Age"');
+  test("throws on duplicate column headers", () => {
+    expect(() =>
+      CSV.generate(
+        [],
+        [
+          { header: "X", value: () => "1" },
+          { header: "X", value: () => "2" },
+        ],
+      ),
+    ).toThrow("duplicate column headers");
   });
 });

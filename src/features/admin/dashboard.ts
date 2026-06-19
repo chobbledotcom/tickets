@@ -9,7 +9,6 @@ import { htmlResponse, redirectResponse } from "#routes/response.ts";
 /* jscpd:ignore-start */
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { generateListingsCsv } from "#shared/csv/listings.ts";
 import { getAllActivityLog, logActivity } from "#shared/db/activityLog.ts";
 import {
   decryptAttendees,
@@ -24,6 +23,7 @@ import {
   filterListingsByType,
   listingTypeFromRequest,
 } from "#shared/listing-filter.ts";
+import { generateListingsCsv } from "#shared/listings-csv.ts";
 import { sortListings } from "#shared/sort-listings.ts";
 /* jscpd:ignore-end */
 import { adminGlobalActivityLogPage } from "#templates/admin/activityLog.tsx";

@@ -28,11 +28,11 @@ import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
-import { getEffectiveDomain } from "#shared/config.ts";
 import {
   type CsvQuestionData,
   generateAttendeesCsv,
-} from "#shared/csv/attendees.ts";
+} from "#shared/attendees-csv.ts";
+import { getEffectiveDomain } from "#shared/config.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import { formatDateLabel, normalizeDatetime } from "#shared/dates.ts";
 import {

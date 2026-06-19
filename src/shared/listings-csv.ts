@@ -1,25 +1,16 @@
 /**
- * Listings CSV export — the first consumer of the generic {@link toCsv}
- * utility. Each listing becomes a typed row keyed by localised column headers;
- * the headers double as the ordered column list passed to `toCsv`, which keeps
- * the two in lock-step and validates them against each other.
+ * Listings CSV export. Describes each listing column once (header + how to read
+ * the cell) and hands the listings and columns to the pure {@link CSV.generate}.
  */
 
 import { t } from "#i18n";
-import { toCsv } from "#shared/csv/generate.ts";
+import { type Column, CSV } from "#shared/csv/index.ts";
 import { toMajorUnits } from "#shared/currency.ts";
 import { listingCategory, listingFilterLabel } from "#shared/listing-filter.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 
-/** A listing CSV column: its header and how to render a listing's cell. */
-type ListingCsvColumn = {
-  header: string;
-  value: (listing: ListingWithCount) => string;
-};
-
-/** Ordered listing CSV columns. Headers are resolved at call time so the
- * active locale applies. */
-const listingCsvColumns = (): ListingCsvColumn[] => [
+/** Ordered listing CSV columns. Built per call so the active locale applies. */
+const listingColumns = (): Column<ListingWithCount>[] => [
   { header: t("common.name"), value: (l) => l.name },
   {
     header: t("common.status"),
@@ -51,11 +42,5 @@ const listingCsvColumns = (): ListingCsvColumn[] => [
 ];
 
 /** Generate CSV content for a set of listings (one row per listing). */
-export const generateListingsCsv = (listings: ListingWithCount[]): string => {
-  const columns = listingCsvColumns();
-  const keys = columns.map((c) => c.header);
-  const rows = listings.map((listing) =>
-    Object.fromEntries(columns.map((c) => [c.header, c.value(listing)])),
-  );
-  return toCsv(rows, keys);
-};
+export const generateListingsCsv = (listings: ListingWithCount[]): string =>
+  CSV.generate(listings, listingColumns());
