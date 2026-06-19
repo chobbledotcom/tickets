@@ -34,6 +34,7 @@ The `.tool-versions` file is kept in sync for asdf-compatible tooling.
 - **Use FP methods**: Prefer curried functional utilities from `#fp` over imperative loops
 - **100% test coverage**: All code must have complete test coverage - run `deno coverage` to find uncovered lines/branches
 - **Trust application invariants**: Do not design normal code paths around database states the application says are impossible. If an impossible state is observed, raise it as an error and repair the data explicitly rather than silently accepting or normalising it.
+- **SQL table aliases**: Alias tables with the full singular word using `AS`, not a single letter — write `FROM listings AS listing`, never `FROM listings e` (the `e` is a leftover from when listings were called "events"). When one query references the same table more than once (e.g. correlated subqueries that compare a row against its group), give each occurrence a descriptive word alias — `listing` for the row being checked, `groupListing` for sibling rows in its group.
 - **Final check**: Run `deno task precommit` (via `mise exec -- deno task precommit` when using the pinned toolchain) before finishing any job with code or documentation changes.
 
 ## FP Imports
