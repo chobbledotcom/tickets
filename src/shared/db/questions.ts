@@ -10,9 +10,11 @@ import { filter, map, reduce } from "#fp";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import {
   executeBatch,
+  getDb,
   inPlaceholders,
   insert,
   queryAll,
+  queryOne,
 } from "#shared/db/client.ts";
 import { swapSortOrder } from "#shared/db/query.ts";
 import { col, defineTable } from "#shared/db/table.ts";
@@ -642,6 +644,32 @@ export const getAnswerCountsForQuestion = async (
         [answer_id, cnt] as const,
     )(rows),
   );
+};
+
+/** Get the price-modifier id a single answer triggers, or null when it has
+ * none. The modifier_id column isn't part of the decrypted Answer shape, so the
+ * answer edit page reads it directly to pre-select the modifier dropdown. */
+export const getAnswerModifierId = async (
+  answerId: number,
+): Promise<number | null> => {
+  const row = await queryOne<{ modifier_id: number | null }>(
+    "SELECT modifier_id FROM answers WHERE id = ?",
+    [answerId],
+  );
+  return row?.modifier_id ?? null;
+};
+
+/** Point a single answer at an "answer"-trigger modifier, or clear the link
+ * (null). The inverse of setModifierAnswers, driven from the answer's own edit
+ * page so an answer carries at most one modifier. */
+export const setAnswerModifier = async (
+  answerId: number,
+  modifierId: number | null,
+): Promise<void> => {
+  await getDb().execute({
+    args: [modifierId, answerId],
+    sql: "UPDATE answers SET modifier_id = ? WHERE id = ?",
+  });
 };
 
 /** Swap the sort_order of two answers by their IDs */
