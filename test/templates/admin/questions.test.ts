@@ -453,6 +453,7 @@ describe("adminAnswerRecalculatePage", () => {
     expect(html).toContain(
       'action="/admin/questions/1/answers/11/recalculate"',
     );
+    expect(html).toContain('<div class="table-scroll">');
     // Current (stored) and recalculated (from attendee answers) columns.
     expect(html).toContain("<td>7</td>");
     expect(html).toContain("<td>5</td>");
