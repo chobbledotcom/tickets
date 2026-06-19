@@ -8,6 +8,7 @@
  * rebuilds the same specs, so provider metadata amounts are never trusted.
  */
 
+import { unique } from "#fp";
 import { itemsSubtotal } from "#shared/booking-fee.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { formatCurrency, toMinorUnits } from "#shared/currency.ts";
@@ -21,6 +22,7 @@ import {
   getActiveModifiers,
   getModifierGroupListingIds,
   getModifierListingIds,
+  modifierIdsByAnswerId,
 } from "#shared/db/modifiers.ts";
 import type {
   CheckoutItem,
@@ -100,19 +102,122 @@ const stockedQuantity = (
 };
 
 /** How many times a modifier is requested for a cart: automatic modifiers
- * apply once, a "code" modifier applies once when the entered code matches, and
- * an opt-in add-on applies as many times as the buyer chose (0 = not selected).
+ * apply once, a "code" modifier applies once when the entered code matches, an
+ * opt-in add-on applies as many times as the buyer chose, and an "answer"
+ * modifier applies once per selected answer linked to it (0 = none chosen).
  * A result below 1 means the modifier doesn't trigger at all. */
 const triggerQuantity = (
   modifier: Modifier,
   codeIndex: string | null,
   addOns: Map<number, number>,
+  answerQuantities: Map<number, number>,
 ): number => {
   if (modifier.trigger === "code") {
     return codeIndex !== null && modifier.code_index === codeIndex ? 1 : 0;
   }
   if (modifier.trigger === "optional") return addOns.get(modifier.id) ?? 0;
+  if (modifier.trigger === "answer") {
+    return answerQuantities.get(modifier.id) ?? 0;
+  }
   return 1;
+};
+
+/** All active modifiers keyed by id, for the re-fetch-by-id lookups that
+ * rebuild specs from refs and resolve answer-trigger scopes. */
+const activeModifiersById = async (): Promise<Map<number, Modifier>> =>
+  new Map((await getActiveModifiers()).map((m) => [m.id, m]));
+
+/** Resolve the in-scope listing ids (null = whole order) of every active
+ * answer-trigger modifier among `ids`. Ids that aren't an active answer
+ * modifier are omitted, so a stale link never contributes a quantity. */
+const answerModifierScopes = async (
+  ids: number[],
+): Promise<Map<number, number[] | null>> => {
+  const byId = await activeModifiersById();
+  const scopes = new Map<number, number[] | null>();
+  await Promise.all(
+    ids.map(async (id) => {
+      const modifier = byId.get(id);
+      if (!modifier || modifier.trigger !== "answer") return;
+      const listingIds = listingIdsFor(modifier);
+      scopes.set(id, listingIds === null ? null : await listingIds);
+    }),
+  );
+  return scopes;
+};
+
+/** Whether a resolved scope covers a listing: null = whole order (always),
+ * an array = only its listings, undefined = not an eligible modifier (never). */
+const scopeCoversListing = (
+  scope: number[] | null | undefined,
+  listingId: number,
+): boolean =>
+  scope === null || (Array.isArray(scope) && scope.includes(listingId));
+
+/**
+ * Total quantity each "answer"-triggered modifier is requested for, respecting
+ * the modifier's own scope. A linked answer counts only when it was selected on
+ * a listing the modifier applies to (every booked listing, for a whole-order
+ * modifier), so a listing/group-scoped answer modifier is never inflated by the
+ * same shared answer being picked on a listing outside its scope. Each in-scope
+ * selection adds that listing's ticket quantity, so one "Large size +£5"
+ * modifier wired to several answers is applied once per matching ticket.
+ */
+export const answerModifierQuantities = async (
+  listingAnswerIds: Record<string, number[]> | undefined,
+  listingQuantities: Map<number, number>,
+): Promise<Map<number, number>> => {
+  const entries = Object.entries(listingAnswerIds ?? {});
+  const answerIds = unique(entries.flatMap(([, ids]) => ids));
+  const modifiersByAnswer = await modifierIdsByAnswerId(answerIds);
+  if (modifiersByAnswer.size === 0) return new Map();
+  const scopes = await answerModifierScopes(
+    unique([...modifiersByAnswer.values()].flat()),
+  );
+
+  const quantities = new Map<number, number>();
+  for (const [listingIdStr, ids] of entries) {
+    const listingId = Number(listingIdStr);
+    // Every key here is a selected listing, so it always has a chosen quantity.
+    const count = listingQuantities.get(listingId)!;
+    const modifierIds = ids.flatMap((id) => modifiersByAnswer.get(id) ?? []);
+    for (const modifierId of modifierIds) {
+      if (scopeCoversListing(scopes.get(modifierId), listingId)) {
+        quantities.set(modifierId, (quantities.get(modifierId) ?? 0) + count);
+      }
+    }
+  }
+  return quantities;
+};
+
+/**
+ * Names of answer-triggered modifiers the buyer over-subscribed: active,
+ * stock-limited "answer" modifiers whose requested quantity exceeds the stock
+ * remaining. Because an answer is recorded on every ticket that picked it (it
+ * can't be partially fulfilled like an opt-in add-on), the submission must be
+ * blocked rather than silently clamped to the units still available.
+ */
+export const oversubscribedAnswerTiers = async (
+  answerQuantities: Map<number, number>,
+): Promise<string[]> => {
+  if (answerQuantities.size === 0) return [];
+  const byId = await activeModifiersById();
+  const limited = [...answerQuantities]
+    .map(([id, requested]) => ({ modifier: byId.get(id), requested }))
+    .filter(
+      (c): c is { modifier: Modifier; requested: number } =>
+        c.modifier !== undefined &&
+        c.modifier.trigger === "answer" &&
+        c.modifier.stock !== null,
+    );
+  const used = await modifierUsedQuantities(limited.map((c) => c.modifier.id));
+  return limited
+    .filter(
+      // stock is non-null here (the guard above filtered the unlimited ones).
+      ({ modifier, requested }) =>
+        requested > Math.max(0, modifier.stock! - (used.get(modifier.id) ?? 0)),
+    )
+    .map(({ modifier }) => modifier.name);
 };
 
 export type PricingContext = { visits: number };
@@ -139,6 +244,7 @@ export const buyerVisits = async (
 type ResolveOptions = {
   code?: string;
   addOns?: Map<number, number>;
+  answerQuantities?: Map<number, number>;
   ctx?: PricingContext;
 };
 
@@ -147,14 +253,17 @@ type ResolveOptions = {
  * minimum subtotal, past their minimum visit count, and with stock remaining.
  * Automatic modifiers always trigger; a "code" modifier triggers only when the
  * buyer entered its matching code; an "optional" add-on triggers only when the
- * buyer selected it (`opts.addOns` maps modifier id → chosen quantity), and is
- * applied that many times.
+ * buyer selected it (`opts.addOns` maps modifier id → chosen quantity); an
+ * "answer" modifier triggers when the buyer selected a linked answer
+ * (`opts.answerQuantities` maps modifier id → selection count). Each is applied
+ * its requested number of times.
  */
 export const resolveModifiers = async (
   items: CheckoutItem[],
   opts: ResolveOptions = {},
 ): Promise<ModifierSpec[]> => {
   const addOns = opts.addOns ?? new Map<number, number>();
+  const answerQuantities = opts.answerQuantities ?? new Map<number, number>();
   const ctx = opts.ctx ?? NO_VISITS;
   const codeIndex = opts.code?.trim()
     ? await hmacHash(normalizeCode(opts.code))
@@ -165,7 +274,12 @@ export const resolveModifiers = async (
         await getActiveModifiers()
       ).map(async (modifier): Promise<Candidate | null> => {
         if (modifier.min_visits > ctx.visits) return null;
-        const quantity = triggerQuantity(modifier, codeIndex, addOns);
+        const quantity = triggerQuantity(
+          modifier,
+          codeIndex,
+          addOns,
+          answerQuantities,
+        );
         if (quantity < 1) return null;
         const listingIds = await listingIdsFor(modifier);
         const base = inScopeSubtotal(items, listingIds);
@@ -281,7 +395,7 @@ export const specsFromRefs = async (
   ctx: PricingContext = NO_VISITS,
 ): Promise<ModifierSpec[]> => {
   if (refs.length === 0) return [];
-  const byId = new Map((await getActiveModifiers()).map((m) => [m.id, m]));
+  const byId = await activeModifiersById();
   const specs = await Promise.all(
     refs.map(async (ref) => {
       const modifier = byId.get(ref.i);

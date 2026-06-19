@@ -25,11 +25,13 @@ export const ModifierDirectionSchema = v.picklist(["charge", "discount"]);
 export type ModifierDirection = v.InferOutput<typeof ModifierDirectionSchema>;
 
 /** How a modifier becomes part of a checkout: applied automatically, unlocked
- * by a promo code, or an opt-in add-on the buyer chooses. */
+ * by a promo code, an opt-in add-on the buyer chooses, or attached to the
+ * answer(s) of a custom question, applying when the buyer selects one. */
 export const ModifierTriggerSchema = v.picklist([
   "automatic",
   "code",
   "optional",
+  "answer",
 ]);
 export type ModifierTrigger = v.InferOutput<typeof ModifierTriggerSchema>;
 

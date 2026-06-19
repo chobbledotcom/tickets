@@ -6,12 +6,7 @@ import { map } from "#fp";
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { answerTextForm, questionTextForm } from "#routes/admin/questions.ts";
-import { formatCurrency } from "#shared/currency.ts";
-import {
-  type Answer,
-  answerPriceLabel,
-  type QuestionWithAnswers,
-} from "#shared/db/questions.ts";
+import type { Answer, QuestionWithAnswers } from "#shared/db/questions.ts";
 import { ConfirmForm, CsrfForm, Flash } from "#shared/forms.tsx";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import { AdminNav, SettingsSubNav } from "#templates/admin/nav.tsx";
@@ -130,15 +125,7 @@ export const adminQuestionPage = (
           {question.answers.map((a, i) => (
             <li>
               {a.text}
-              {answerPriceLabel(a) && <small>{answerPriceLabel(a)}</small>}
-              {answerCounts && <small>({answerCounts.get(a.id)})</small>}
-              {(a.total_uses ?? 0) > 0 && (
-                <small>
-                  {` ${a.total_uses} uses · ${formatCurrency(
-                    a.total_revenue ?? 0,
-                  )}`}
-                </small>
-              )}{" "}
+              {answerCounts && <small>({answerCounts.get(a.id)})</small>}{" "}
               {i > 0 && (
                 <CsrfForm
                   action={`/admin/questions/${question.id}/answers/${a.id}/move-up`}

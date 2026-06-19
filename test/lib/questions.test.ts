@@ -1,12 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { createAttendeeAtomic } from "#shared/db/attendees.ts";
-import { queryOne } from "#shared/db/client.ts";
 import {
-  answerAmountAllocations,
-  answerModifierSpecs,
-  answerPriceLabel,
-  answerQuantitiesFromListingAnswers,
   answersTable,
   assignNextQuestionSortOrder,
   deleteAnswer,
@@ -576,28 +571,6 @@ describeWithEnv("custom questions", { db: true }, () => {
       expect(batch.get(attendee.id)).toEqual([a1.id]);
     });
 
-    test("defaults amount applied when inserting an attendee answer", async () => {
-      const q = await questionsTable.insert({
-        displayType: "radio",
-        text: "Size?",
-      });
-      const answer = await answersTable.insert({
-        questionId: q.id,
-        sortOrder: 0,
-        text: "Small",
-      });
-      const listing = await createTestListing();
-      const attendee = await createAttendee(listing.id);
-
-      await saveAttendeeAnswers(new Map([[attendee.id, [answer.id]]]));
-      const stored = await queryOne<{ amount_applied: number }>(
-        "SELECT amount_applied FROM attendee_answers WHERE attendee_id = ? AND answer_id = ?",
-        [attendee.id, answer.id],
-      );
-
-      expect(stored?.amount_applied).toBe(0);
-    });
-
     test("batch retrieval for multiple attendees", async () => {
       const q = await questionsTable.insert({
         displayType: "radio",
@@ -817,168 +790,6 @@ describeWithEnv("custom questions", { db: true }, () => {
       // After swap, "Second" should come first (sort_order 0) and "First" second (sort_order 1)
       expect(updated!.answers[0]!.text).toBe("Second");
       expect(updated!.answers[1]!.text).toBe("First");
-    });
-  });
-
-  describe("answer price modifiers", () => {
-    test("stores answer modifier fields and resolves them as checkout specs", async () => {
-      const q = await questionsTable.insert({
-        displayType: "radio",
-        text: "Meal?",
-      });
-      const answer = await answersTable.insert({
-        calcKind: "fixed",
-        calcValue: 2.5,
-        direction: "charge",
-        questionId: q.id,
-        sortOrder: 0,
-        text: "Premium meal",
-      });
-      const discount = await answersTable.insert({
-        calcKind: "percent",
-        calcValue: 10,
-        direction: "discount",
-        questionId: q.id,
-        sortOrder: 1,
-        text: "Member discount",
-      });
-      const multiplier = await answersTable.insert({
-        calcKind: "multiply",
-        calcValue: 1.5,
-        direction: "charge",
-        questionId: q.id,
-        sortOrder: 2,
-        text: "VIP multiplier",
-      });
-
-      const specs = await answerModifierSpecs([
-        answer.id,
-        discount.id,
-        multiplier.id,
-      ]);
-
-      expect(answerPriceLabel(answer)).toBe("+£2.50");
-      expect(answerPriceLabel(discount)).toBe("−10%");
-      expect(answerPriceLabel(multiplier)).toBe("×1.5");
-      expect(specs).toEqual([
-        {
-          id: answer.id,
-          kind: "fixed",
-          listingIds: null,
-          name: "Premium meal",
-          quantity: 1,
-          source: "answer",
-          trigger: "automatic",
-          value: 250,
-        },
-        {
-          id: discount.id,
-          kind: "percent",
-          listingIds: null,
-          name: "Member discount",
-          quantity: 1,
-          source: "answer",
-          trigger: "automatic",
-          value: -10,
-        },
-        {
-          id: multiplier.id,
-          kind: "multiply",
-          listingIds: null,
-          name: "VIP multiplier",
-          quantity: 1,
-          source: "answer",
-          trigger: "automatic",
-          value: 1.5,
-        },
-      ]);
-    });
-
-    test("counts answer modifier quantities from selected listing quantities", () => {
-      const quantities = answerQuantitiesFromListingAnswers(
-        { "1": [10, 11], "2": [10], "3": [12] },
-        new Map([
-          [1, 2],
-          [2, 3],
-        ]),
-      );
-
-      expect(quantities).toEqual(
-        new Map([
-          [10, 5],
-          [11, 2],
-          [12, 0],
-        ]),
-      );
-    });
-
-    test("allocates answer modifier revenue across attendee answer rows", () => {
-      expect(
-        answerAmountAllocations([
-          {
-            amountApplied: 250,
-            delta: 250,
-            modifierId: 9,
-            quantity: 1,
-            scopedSubtotal: 1000,
-            source: "modifier",
-          },
-          {
-            amountApplied: 500,
-            delta: 500,
-            modifierId: 10,
-            quantity: 3,
-            scopedSubtotal: 1000,
-            source: "answer",
-          },
-        ]),
-      ).toEqual(new Map([[10, [167, 167, 166]]]));
-    });
-
-    test("answer aggregate triggers track uses and revenue", async () => {
-      const listing = await createTestListing();
-      const attendees = await Promise.all([
-        createAttendee(listing.id, "Alice"),
-        createAttendee(listing.id, "Bob"),
-        createAttendee(listing.id, "Cara"),
-      ]);
-      const q = await questionsTable.insert({
-        displayType: "radio",
-        text: "Meal?",
-      });
-      const answer = await answersTable.insert({
-        calcKind: "fixed",
-        calcValue: 5,
-        direction: "charge",
-        questionId: q.id,
-        sortOrder: 0,
-        text: "Premium meal",
-      });
-
-      await saveAttendeeAnswers(
-        new Map(attendees.map((attendee) => [attendee.id, [answer.id]])),
-        new Map([[answer.id, [167, 167, 166]]]),
-      );
-
-      const updated = (await answersTable.findById(answer.id))!;
-      expect(updated.total_uses).toBe(3);
-      expect(updated.usage_count).toBe(3);
-      expect(updated.total_revenue).toBe(500);
-    });
-
-    test("ignores answers without a complete price modifier", async () => {
-      const q = await questionsTable.insert({
-        displayType: "radio",
-        text: "Meal?",
-      });
-      const answer = await answersTable.insert({
-        questionId: q.id,
-        sortOrder: 0,
-        text: "Standard meal",
-      });
-
-      expect(answerPriceLabel(answer)).toBe("");
-      expect(await answerModifierSpecs([answer.id])).toEqual([]);
     });
   });
 

@@ -2,11 +2,12 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
-import { toMinorUnits } from "#shared/currency.ts";
 import {
+  answerModifierQuantities,
   resolveModifiers,
   specsFromRefs,
 } from "#shared/db/modifier-resolve.ts";
+import { answersTable, questionsTable } from "#shared/db/questions.ts";
 import { toModifierRefs } from "#shared/payment-helpers.ts";
 import type {
   CheckoutIntent,
@@ -19,6 +20,7 @@ import {
   checkoutItem,
   describeWithEnv,
   insertModifier,
+  linkModifierAnswer,
   linkModifierListing,
   patchModifier,
   useSetting,
@@ -44,6 +46,19 @@ const buyer = {
   name: "Buyer",
   phone: "",
   special_instructions: "",
+};
+
+/** Create a real question answer and return its id. The answer→modifier link is
+ * a column on the answers row, so the answer must actually exist for the link
+ * (and the resolve that reads it back) to take effect. */
+const createAnswer = async (): Promise<number> => {
+  const q = await questionsTable.insert({ displayType: "radio", text: "Q?" });
+  const a = await answersTable.insert({
+    questionId: q.id,
+    sortOrder: 0,
+    text: "A",
+  });
+  return a.id;
 };
 
 const pricingIntent = (
@@ -262,51 +277,60 @@ describeWithEnv(
       });
     });
 
-    test("an answer modifier whose id collides with an active modifier is not re-applied as that modifier", async () => {
-      // An active opt-in add-on the buyer did NOT select, so resolveModifiers
-      // skips it for this cart. specsFromRefs does not re-check the opt-in
-      // trigger, so a metadata ref carrying this id would wrongly revive it.
-      const addOn = await insertModifier({
+    test("an answer-triggered modifier round-trips through metadata refs like an add-on", async () => {
+      // A pricing-tier modifier wired to a question answer.
+      const answerId = await createAnswer();
+      const tier = await insertModifier({
         calcKind: "fixed",
-        calcValue: 5,
+        calcValue: 3,
         direction: "charge",
-        name: "Unselected add-on",
-      });
-      await patchModifier(addOn.id, { trigger: "optional" });
-
-      // An answer price modifier the buyer DID pick, sharing the add-on's id
-      // (answer ids and modifier ids autoincrement in separate tables, so low
-      // ids collide). The webhook re-derives answer specs from answer_ids, not
-      // from modifier refs, so the add-on's id must never leak into the refs.
-      const answerSpec: ModifierSpec = {
-        id: addOn.id,
-        kind: "fixed",
-        listingIds: null,
         name: "Premium answer",
-        quantity: 1,
-        source: "answer",
-        trigger: "automatic",
-        value: toMinorUnits(3),
-      };
-      const items = [checkoutItem()];
+      });
+      await patchModifier(tier.id, { trigger: "answer" });
+      await linkModifierAnswer(tier.id, answerId);
 
-      // Public total: just the +£3 answer. Add-on was not selected.
-      const publicSpecs = [answerSpec];
-      const publicTotal = priceCheckout(
-        pricingIntent(items, publicSpecs),
-      ).total;
+      const items = [checkoutItem({ quantity: 2 })];
+      // The buyer picked the linked answer on both tickets of listing 1.
+      const publicSpecs = await resolveModifiers(items, {
+        answerQuantities: await answerModifierQuantities(
+          { "1": [answerId] },
+          new Map([[1, 2]]),
+        ),
+      });
+      expect(publicSpecs.map((s) => s.trigger)).toEqual(["answer"]);
+      // Carried in the refs by id+quantity, exactly like every other trigger.
+      expect(toModifierRefs(publicSpecs)).toEqual([{ i: tier.id, q: 2 }]);
 
-      // Webhook: real modifiers come from the refs, answers are re-added from
-      // answer_ids. The unselected add-on must not reappear via the refs.
-      const refs = toModifierRefs(publicSpecs) ?? [];
-      const fromMetadata = JSON.parse(JSON.stringify(refs)) as ModifierRef[];
-      const webhookModifiers = await specsFromRefs(fromMetadata);
-      const webhookSpecs = [...webhookModifiers, answerSpec];
-      const webhookTotal = priceCheckout(
-        pricingIntent(items, webhookSpecs),
-      ).total;
+      await expectConsistent(items, publicSpecs);
+    });
 
-      expect(webhookTotal).toBe(publicTotal);
+    test("a stock-clamped answer modifier re-prices on its clamped quantity", async () => {
+      // Selecting the answer on 5 tickets, but only 2 in stock: the resolve
+      // clamps the quantity to 2 and that clamped count is what the refs carry,
+      // so the webhook re-prices the same total instead of refunding a good
+      // order on a phantom mismatch.
+      const answerId = await createAnswer();
+      const tier = await insertModifier({
+        calcKind: "fixed",
+        calcValue: 3,
+        direction: "charge",
+        name: "Limited tier",
+        stock: 2,
+      });
+      await patchModifier(tier.id, { trigger: "answer" });
+      await linkModifierAnswer(tier.id, answerId);
+
+      const items = [checkoutItem({ quantity: 5 })];
+      const publicSpecs = await resolveModifiers(items, {
+        answerQuantities: await answerModifierQuantities(
+          { "1": [answerId] },
+          new Map([[1, 5]]),
+        ),
+      });
+      expect(publicSpecs.find((s) => s.trigger === "answer")?.quantity).toBe(2);
+      expect(toModifierRefs(publicSpecs)).toEqual([{ i: tier.id, q: 2 }]);
+
+      await expectConsistent(items, publicSpecs);
     });
   },
 );

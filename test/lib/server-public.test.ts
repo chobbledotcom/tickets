@@ -7,7 +7,7 @@ import { builderApi } from "#shared/builder.ts";
 import { addDays } from "#shared/dates.ts";
 import { insertBuiltSite } from "#shared/db/built-sites.ts";
 import { hashPhone, recordVisit } from "#shared/db/contact-preferences.ts";
-import { modifiersTable } from "#shared/db/modifiers.ts";
+import { modifiersTable, setModifierAnswers } from "#shared/db/modifiers.ts";
 import {
   answersTable,
   getAttendeeAnswersBatch,
@@ -4549,6 +4549,33 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
       const attendees = await getAttendeesRaw(listing.id);
       const batch = await getAttendeeAnswersBatch([attendees[0]!.id]);
       expect(batch.get(attendees[0]!.id)).toEqual([answer1.id]);
+    });
+
+    test("blocks the booking when a sold-out answer tier is selected", async () => {
+      const listing = await createTestListing({ maxAttendees: 50 });
+      const { question, answer1 } = await setupQuestionForListing(listing.id);
+      // A stock-limited answer tier with no stock left, linked to "Small".
+      const tier = await modifiersTable.insert({
+        calcKind: "fixed",
+        calcValue: 5,
+        direction: "charge",
+        name: "VIP upgrade",
+        stock: 0,
+        trigger: "answer",
+      });
+      await setModifierAnswers(tier.id, [answer1.id]);
+
+      const response = await submitTicketForm(listing.slug, {
+        email: "vip@example.com",
+        name: "VIP User",
+        [`question_${question.id}`]: String(answer1.id),
+      });
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining("no longer available"),
+        false,
+      );
     });
 
     test("returns error when required question is unanswered", async () => {

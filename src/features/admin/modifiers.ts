@@ -28,6 +28,7 @@ import { getAllListings } from "#shared/db/listings.ts";
 import {
   getAllModifiers,
   getModifierAggregateRecalculation,
+  getModifierAnswerIds,
   getModifierGroupIds,
   getModifierListingIds,
   MODIFIER_AGGREGATE_FIELDS,
@@ -35,10 +36,12 @@ import {
   type ModifierInput,
   modifiersTable,
   resetModifierAggregateFields,
+  setModifierAnswers,
   setModifierGroups,
   setModifierListings,
   updateModifierAggregateValues,
 } from "#shared/db/modifiers.ts";
+import { getAllQuestionsWithAnswers } from "#shared/db/questions.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import {
@@ -56,6 +59,7 @@ import {
 import { defineNamedResource } from "#shared/rest/resource.ts";
 import type { Modifier } from "#shared/types.ts";
 import {
+  type AnswerLinks,
   adminModifierDeletePage,
   adminModifierEditPage,
   adminModifierNewPage,
@@ -187,9 +191,29 @@ const scopeLinksFor = async (
   return null;
 };
 
+/** The candidate answers + current links for an "answer"-triggered modifier's
+ * editor, or null otherwise. Options are flattened across every question so the
+ * owner can wire several answers (across questions) to one pricing modifier. */
+const answerLinksFor = async (
+  modifier: Modifier,
+): Promise<AnswerLinks | null> => {
+  if (modifier.trigger !== "answer") return null;
+  const [questions, selected] = await Promise.all([
+    getAllQuestionsWithAnswers(),
+    getModifierAnswerIds(modifier.id),
+  ]);
+  return {
+    options: questions.flatMap((q) =>
+      q.answers.map((a) => ({ id: a.id, name: `${q.text} — ${a.text}` })),
+    ),
+    selected,
+  };
+};
+
 const withModifier = withEntityLoader(modifiersTable.findById);
 
-/** Edit page with the scope link editor for listing/group-scoped modifiers. */
+/** Edit page with the scope link editor (listing/group-scoped modifiers) and
+ * the answer link editor (answer-triggered modifiers). */
 const handleEditGet: TypedRouteHandler<"GET /admin/modifiers/:id/edit"> = (
   request,
   { id },
@@ -197,7 +221,10 @@ const handleEditGet: TypedRouteHandler<"GET /admin/modifiers/:id/edit"> = (
   requireSessionOr(request, (session) =>
     withModifier(id)(async (modifier) => {
       const flash = applyFlash(request);
-      const links = await scopeLinksFor(modifier);
+      const [links, answerLinks] = await Promise.all([
+        scopeLinksFor(modifier),
+        answerLinksFor(modifier),
+      ]);
       return htmlResponse(
         adminModifierEditPage(
           modifier,
@@ -205,6 +232,7 @@ const handleEditGet: TypedRouteHandler<"GET /admin/modifiers/:id/edit"> = (
           flash.error,
           links,
           flash.success,
+          answerLinks,
         ),
       );
     }),
@@ -290,29 +318,54 @@ const selectedIds = (form: FormParams, field: string): number[] =>
     .map(Number)
     .filter((n) => Number.isInteger(n) && n > 0);
 
+/** Run a modifier-link save (scope or answer) for the loaded modifier, then
+ * redirect back to its edit page with a flash. Shared by the scope and answer
+ * link forms so the auth/load/redirect boilerplate lives once. */
+const saveModifierLinks = (
+  request: Request,
+  id: number,
+  save: (modifier: Modifier, form: FormParams) => Promise<unknown>,
+  message: string,
+): Promise<Response> =>
+  createAuthedHandler<{ id: number }, Modifier>({
+    handle: async ({ context: modifier, form }) => {
+      await save(modifier, form);
+      return redirect(`/admin/modifiers/${modifier.id}/edit`, message, true);
+    },
+    loadContext: ({ id: modifierId }) => modifiersTable.findById(modifierId),
+  })(request, { id });
+
+/** Write a scoped modifier's listing/group links from the submitted form. */
+const writeScopeLinks = (
+  modifier: Modifier,
+  form: FormParams,
+): Promise<unknown> => {
+  if (modifier.scope === "listings") {
+    return setModifierListings(modifier.id, selectedIds(form, "listing_ids"));
+  }
+  if (modifier.scope === "groups") {
+    return setModifierGroups(modifier.id, selectedIds(form, "group_ids"));
+  }
+  return Promise.resolve();
+};
+
 /** POST handler that saves a scoped modifier's listing/group links. */
 const handleScopeLinks: TypedRouteHandler<"POST /admin/modifiers/:id/links"> = (
   request,
   { id },
-) =>
-  createAuthedHandler<{ id: number }, Modifier>({
-    handle: async ({ context: modifier, form }) => {
-      if (modifier.scope === "listings") {
-        await setModifierListings(
-          modifier.id,
-          selectedIds(form, "listing_ids"),
-        );
-      } else if (modifier.scope === "groups") {
-        await setModifierGroups(modifier.id, selectedIds(form, "group_ids"));
-      }
-      return redirect(
-        `/admin/modifiers/${modifier.id}/edit`,
-        "Scope updated",
-        true,
-      );
-    },
-    loadContext: ({ id: modifierId }) => modifiersTable.findById(modifierId),
-  })(request, { id });
+) => saveModifierLinks(request, id, writeScopeLinks, "Scope updated");
+
+/** POST handler that saves an answer-triggered modifier's answer links. */
+const handleAnswerLinks: TypedRouteHandler<
+  "POST /admin/modifiers/:id/answers"
+> = (request, { id }) =>
+  saveModifierLinks(
+    request,
+    id,
+    (modifier, form) =>
+      setModifierAnswers(modifier.id, selectedIds(form, "answer_ids")),
+    "Answers updated",
+  );
 
 /** Modifier routes */
 export const modifiersRoutes = {
@@ -321,6 +374,7 @@ export const modifiersRoutes = {
     "GET /admin/modifiers/:id/edit": handleEditGet,
     "GET /admin/modifiers/recalculate/:modifierId":
       handleModifierRecalculateGet,
+    "POST /admin/modifiers/:id/answers": handleAnswerLinks,
     "POST /admin/modifiers/:id/edit": handleEditPost,
     "POST /admin/modifiers/:id/links": handleScopeLinks,
     "POST /admin/modifiers/recalculate/:modifierId":

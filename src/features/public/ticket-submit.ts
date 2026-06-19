@@ -16,12 +16,14 @@ import { isPaymentsEnabled } from "#shared/config.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { getPublicDefaultStatus } from "#shared/db/attendee-statuses.ts";
-import { buyerVisits, resolveModifiers } from "#shared/db/modifier-resolve.ts";
+import {
+  answerModifierQuantities,
+  buyerVisits,
+  oversubscribedAnswerTiers,
+  resolveModifiers,
+} from "#shared/db/modifier-resolve.ts";
 import { consumeModifierStockOrRollback } from "#shared/db/modifier-usage.ts";
 import {
-  answerAmountAllocations,
-  answerModifierSpecs,
-  answerQuantitiesFromListingAnswers,
   groupListingAnswers,
   parseQuestionAnswers,
   saveAttendeeAnswers,
@@ -334,15 +336,13 @@ const handleFreePath = async (
   // Persist the exact usage amounts returned by the pricing engine. A
   // stock-limited modifier that sold out between resolution and consumption
   // rolls the new attendee back so the buyer isn't granted a free order they
-  // shouldn't have.
-  const stockModifierUsages = modifierUsages.filter(
-    (usage) => usage.source !== "answer",
-  );
-  if (stockModifierUsages.length > 0) {
+  // shouldn't have. Answer-triggered modifiers are ordinary modifiers now, so
+  // they consume stock and record usage just like the rest.
+  if (modifierUsages.length > 0) {
     const attendeeId = result.entries[0]!.attendee.id;
     const consumed = await consumeModifierStockOrRollback(
       attendeeId,
-      stockModifierUsages,
+      modifierUsages,
     );
     if (!consumed) {
       return ticketFormErrorResponse(ctx)(MODIFIER_SOLD_OUT_MESSAGE);
@@ -367,7 +367,6 @@ const handleFreePath = async (
     );
     await saveAttendeeAnswers(
       groupListingAnswers(result.entries, listingAnswerMap),
-      answerAmountAllocations(modifierUsages),
     );
   }
 
@@ -390,6 +389,7 @@ const parseBookingDate = (
 
 type SubmissionPricingParams = Omit<CheckoutIntentParams, "modifiers"> & {
   addOns: Map<number, number>;
+  answerQuantities: Map<number, number>;
   promoCode: string;
   quantities: Map<number, number>;
 };
@@ -415,25 +415,19 @@ const priceSubmission = (
   return { intent, pricedOrder: priceCheckout(intent) };
 };
 
-const resolveSubmissionModifiers = async (
+const resolveSubmissionModifiers = (
   params: SubmissionPricingParams,
   visits = 0,
-): Promise<CheckoutIntent["modifiers"]> => {
-  const listingAnswerIds = computeListingAnswerMap(params.ctx, params.info);
-  const answerQuantities = answerQuantitiesFromListingAnswers(
-    listingAnswerIds,
-    params.quantities,
-  );
-  const [resolvedModifiers, answerModifiers] = await Promise.all([
-    resolveModifiers(params.items, {
-      addOns: params.addOns,
-      code: params.promoCode,
-      ctx: { visits },
-    }),
-    answerModifierSpecs(params.info.answerIds, answerQuantities),
-  ]);
-  return [...resolvedModifiers, ...answerModifiers];
-};
+): Promise<CheckoutIntent["modifiers"]> =>
+  // Answer-triggered modifiers join the same single resolve pass as automatic,
+  // code, and opt-in add-on modifiers — one engine, one eligibility check. The
+  // answer quantities were computed (scope-aware) and sold-out-checked upstream.
+  resolveModifiers(params.items, {
+    addOns: params.addOns,
+    answerQuantities: params.answerQuantities,
+    code: params.promoCode,
+    ctx: { visits },
+  });
 
 const priceSubmissionBeforeContact = async (
   params: SubmissionPricingParams,
@@ -535,8 +529,25 @@ const processSubmission = async (
   const promoCode = form.getString("promo_code");
   const paymentsEnabled = isPaymentsEnabled();
   const reservationAmount = await publicReservationAmount();
+
+  // Resolve the answer-triggered modifier quantities once (scope-aware). An
+  // answer is recorded on every ticket that picked it, so a stock-limited answer
+  // tier the buyer over-subscribed must block the whole submission rather than
+  // silently charging fewer than chose it.
+  const answerQuantities = await answerModifierQuantities(
+    computeListingAnswerMap(ctx, info),
+    quantities,
+  );
+  const soldOutTiers = await oversubscribedAnswerTiers(answerQuantities);
+  if (soldOutTiers.length > 0) {
+    return errorResponse(
+      `Sorry, ${soldOutTiers.join(", ")} is no longer available. Please choose a different option.`,
+    );
+  }
+
   const pricingParams = {
     addOns,
+    answerQuantities,
     ctx,
     date,
     dayCount,

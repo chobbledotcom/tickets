@@ -192,7 +192,7 @@ export const rebuildTableWithColumns = async ({
  * We do NOT use PRAGMA foreign_keys=OFF because it doesn't persist across
  * HTTP requests in remote libsql (Turso).
  */
-const recreateTable = async (tableName: string): Promise<void> => {
+export const recreateTable = async (tableName: string): Promise<void> => {
   const tableSchema = currentSchemaTable(tableName);
   await rebuildTableWithColumns({
     columns: tableSchema.columns,

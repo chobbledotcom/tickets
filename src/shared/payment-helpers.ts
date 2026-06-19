@@ -196,20 +196,20 @@ export const buildItemsMetadata = async (
 /**
  * Compact the resolved modifier specs to id/quantity references for metadata.
  *
- * Answer price modifiers are excluded: the webhook re-derives them from the
- * stored `answer_ids`, not from these refs, and an answer id can collide with
- * an unrelated modifier id (the two tables autoincrement independently). Were
- * they included, `specsFromRefs` would re-fetch that id from the modifiers
- * table and wrongly revive a same-id modifier on payment completion.
+ * Every trigger (automatic, code, opt-in add-on, and answer) is carried the
+ * same way — its modifier id and the resolved quantity — and the webhook
+ * re-fetches each by id, re-checking eligibility (the returning-customer visit
+ * gate) and re-deriving the amount, so provider metadata amounts are never
+ * trusted. Answer-triggered modifiers are ordinary modifier rows now, so their
+ * ids can't collide with anything: the resolved (stock-clamped) quantity stored
+ * here is exactly what the webhook re-prices, keeping the two totals identical.
  */
 export const toModifierRefs = (
   specs: CheckoutIntent["modifiers"],
-): ModifierRef[] | undefined => {
-  const real = (specs ?? []).filter((s) => s.source !== "answer");
-  return real.length > 0
-    ? real.map((s) => ({ i: s.id, q: s.quantity }))
+): ModifierRef[] | undefined =>
+  specs && specs.length > 0
+    ? specs.map((s) => ({ i: s.id, q: s.quantity }))
     : undefined;
-};
 
 /** Input for buildMetadata — like BookingIntent but with optional contact fields */
 type MetadataInput = Pick<BookingIntent, "name" | "email" | "items" | "date"> &
@@ -289,17 +289,30 @@ export const STRIPE_METADATA_MAX_VALUE_LENGTH = 500;
 /** Square metadata constraint: each value max 255 characters */
 export const SQUARE_METADATA_MAX_VALUE_LENGTH = 255;
 
+/** Square metadata constraint: at most 10 key/value entries per order. Stripe's
+ * cap is far above anything we emit, so the entry count is only checked for
+ * Square (callers that pass `maxEntries`). */
+export const SQUARE_METADATA_MAX_ENTRIES = 10;
+
 /**
- * Enforce metadata value length limits for a payment provider.
+ * Enforce a payment provider's metadata limits.
  *
- * Only items and answer_ids can realistically exceed provider limits —
- * they grow with the number of listings/options selected. All other fields
- * (name, email, address, etc.) are already constrained by form validation
- * to lengths well below the smallest provider limit (255).
+ * Only items, answer_ids and modifiers can realistically exceed the per-value
+ * length limit — they grow with the number of listings/options/modifiers
+ * selected (answer-triggered modifiers ride the modifiers refs). All other
+ * fields (name, email, address, etc.) are already constrained by form
+ * validation to lengths well below the smallest provider limit (255).
+ *
+ * Square also caps the *number* of entries: a customisable-day checkout that
+ * fills its optional fields (date, day_count, answer_ids, …) plus a modifiers
+ * ref can reach the 10-entry limit, so when `maxEntries` is supplied the key
+ * count is checked too and surfaces the same batching error rather than a
+ * generic provider rejection.
  */
 export const enforceMetadataLimits = (
   metadata: Record<string, string>,
   maxValueLength: number,
+  maxEntries?: number,
 ): Record<string, string> => {
   const items = metadata.items;
   if (items && items.length > maxValueLength) {
@@ -309,7 +322,12 @@ export const enforceMetadataLimits = (
   }
 
   const answerIds = metadata.answer_ids;
-  if (answerIds && answerIds.length > maxValueLength) {
+  const modifiers = metadata.modifiers;
+  if (
+    (answerIds && answerIds.length > maxValueLength) ||
+    (modifiers && modifiers.length > maxValueLength) ||
+    (maxEntries !== undefined && Object.keys(metadata).length > maxEntries)
+  ) {
     throw new PaymentUserError(
       "Too many options selected for a single checkout. Please book in smaller batches.",
     );
