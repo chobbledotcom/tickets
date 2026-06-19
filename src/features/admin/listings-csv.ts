@@ -7,7 +7,7 @@ import { t } from "#i18n";
 import { type Column, CSV } from "#shared/csv/index.ts";
 import { toMajorUnits } from "#shared/currency.ts";
 import { listingCategory, listingFilterLabel } from "#shared/listing-filter.ts";
-import { DEFAULT_TIMEZONE, utcToDateInTz } from "#shared/timezone.ts";
+import { DEFAULT_TIMEZONE, formatDatetimeShortInTz } from "#shared/timezone.ts";
 import {
   availableDayCounts,
   dayPriceFor,
@@ -50,9 +50,9 @@ const listingColumns = (tz: string): Column<ListingWithCount>[] => [
   { header: t("csv.col.price"), value: listingPriceLabel },
   {
     header: t("common.date"),
-    // listing.date is a UTC ISO timestamp; show the calendar day in the
-    // configured timezone (slicing the raw string can give the wrong day).
-    value: (l) => (l.date ? utcToDateInTz(l.date, tz) : ""),
+    // listing.date is a UTC ISO timestamp; show the date and time in the
+    // configured timezone (the raw UTC string can be the wrong day).
+    value: (l) => (l.date ? formatDatetimeShortInTz(l.date, tz) : ""),
   },
   { header: t("listings_table.location"), value: (l) => l.location },
   {

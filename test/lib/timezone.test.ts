@@ -8,7 +8,6 @@ import {
   isValidTimezone,
   localToUtc,
   todayInTz,
-  utcToDateInTz,
   utcToLocalInput,
 } from "#shared/timezone.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
@@ -209,28 +208,6 @@ describe("timezone", () => {
       // 23:00 UTC = next day 08:00 JST
       const result = utcToLocalInput("2026-06-15T23:00:00.000Z", "Asia/Tokyo");
       expect(result).toBe("2026-06-16T08:00");
-    });
-  });
-
-  describe("utcToDateInTz", () => {
-    test("returns the calendar date in the given timezone", () => {
-      expect(utcToDateInTz("2026-06-15T14:30:00.000Z", "UTC")).toBe(
-        "2026-06-15",
-      );
-    });
-
-    test("rolls to the next day when the timezone is ahead of UTC", () => {
-      // 23:30 UTC = 00:30 the next day in BST (Europe/London, UTC+1)
-      expect(utcToDateInTz("2026-06-15T23:30:00.000Z", "Europe/London")).toBe(
-        "2026-06-16",
-      );
-    });
-
-    test("rolls to the previous day when the timezone is behind UTC", () => {
-      // 02:00 UTC = 21:00 the previous day in America/New_York (UTC-5)
-      expect(
-        utcToDateInTz("2026-01-15T02:00:00.000Z", "America/New_York"),
-      ).toBe("2026-01-14");
     });
   });
 

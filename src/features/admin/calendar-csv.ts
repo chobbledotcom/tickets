@@ -18,7 +18,7 @@ import {
   type LogisticsAssignment,
 } from "#shared/db/logistics.ts";
 import { appleMapsUrl, googleMapsUrl } from "#shared/maps.ts";
-import { DEFAULT_TIMEZONE, utcToDateInTz } from "#shared/timezone.ts";
+import { DEFAULT_TIMEZONE, formatDatetimeShortInTz } from "#shared/timezone.ts";
 import type { Attendee } from "#shared/types.ts";
 
 /** Attendee with associated listing info for calendar CSV. */
@@ -66,7 +66,7 @@ export const toCalendarAttendees = <
 };
 
 /** Optional Listing Date / Listing Location columns (per booking's listing).
- * The listing date is a UTC ISO datetime, shown as a calendar day in `tz`. */
+ * The listing date is a UTC ISO datetime, shown as a date + time in `tz`. */
 const listingInfoColumns = (
   tz: string,
   showDate: boolean,
@@ -77,7 +77,7 @@ const listingInfoColumns = (
         {
           header: t("csv.col.listing_date"),
           value: (a: CalendarAttendee) =>
-            a.listingDate ? utcToDateInTz(a.listingDate, tz) : "",
+            a.listingDate ? formatDatetimeShortInTz(a.listingDate, tz) : "",
         },
       ]
     : []),

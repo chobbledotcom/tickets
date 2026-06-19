@@ -473,8 +473,9 @@ describe("generateCalendarCsv", () => {
     const csv = generateCalendarCsv(attendees);
     const lines = csv.split("\n");
     expect(lines[0]).toContain("Listing,Listing Date,Date,Name");
-    // The UTC ISO listing datetime is shown as a calendar day in the tz.
-    expect(lines[1]).toContain("2026-06-15");
+    // The UTC ISO listing datetime is shown as a date + time in the tz
+    // (14:00 UTC = 15:00 BST in the default Europe/London timezone).
+    expect(lines[1]).toContain("2026-06-15 15:00");
     expect(lines[1]).not.toContain("2026-06-15T14:00:00.000Z");
   });
 

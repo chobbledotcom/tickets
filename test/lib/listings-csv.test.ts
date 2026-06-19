@@ -32,7 +32,8 @@ describe("generateListingsCsv", () => {
       }),
     ]);
     expect(csv.split("\n")[1]).toBe(
-      "Gala Night,Active,Standard,4,50,3,50.00,20.00,2026-06-15,Village Hall,2026-01-02T00:00:00.000Z,A fun night",
+      // 18:00 UTC = 19:00 BST (default timezone Europe/London)
+      "Gala Night,Active,Standard,4,50,3,50.00,20.00,2026-06-15 19:00,Village Hall,2026-01-02T00:00:00.000Z,A fun night",
     );
   });
 
@@ -99,14 +100,14 @@ describe("generateListingsCsv", () => {
     expect(csv).toContain('"Wine, Cheese"');
   });
 
-  test("renders the Date column in the configured timezone", () => {
+  test("renders the Date column (with time) in the configured timezone", () => {
     // 23:30 UTC is 00:30 the next calendar day in Europe/London (BST, UTC+1).
     const listing = testListingWithCount({ date: "2026-06-15T23:30:00Z" });
     expect(
       generateListingsCsv([listing], "Europe/London").split("\n")[1],
-    ).toContain(",2026-06-16,");
+    ).toContain(",2026-06-16 00:30,");
     expect(generateListingsCsv([listing], "UTC").split("\n")[1]).toContain(
-      ",2026-06-15,",
+      ",2026-06-15 23:30,",
     );
   });
 });
