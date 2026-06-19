@@ -2,7 +2,6 @@
  * Date computation for daily listings
  */
 
-import { fromAbsolute } from "@internationalized/date";
 import { filter } from "#fp";
 import { settings } from "#shared/db/settings.ts";
 import {
@@ -10,6 +9,7 @@ import {
   formatDatetimeShortInTz,
   localToUtc,
   todayInTz,
+  utcToZoned,
 } from "#shared/timezone.ts";
 import {
   type Holiday,
@@ -449,14 +449,9 @@ export const formatTimeAgo = (
  * Used by the calendar view to map standard listing dates to calendar days.
  */
 export const listingDateToCalendarDate = (utcIso: string): string | null => {
-  const tz = settings.timezone;
   if (!utcIso) return null;
   try {
-    const ms = new Date(utcIso).getTime();
-    if (Number.isNaN(ms)) return null;
-    const zoned = fromAbsolute(ms, tz);
-    const pad = (n: number) => String(n).padStart(2, "0");
-    return `${zoned.year}-${pad(zoned.month)}-${pad(zoned.day)}`;
+    return utcToZoned(utcIso, settings.timezone).toPlainDate().toString();
   } catch {
     return null;
   }
