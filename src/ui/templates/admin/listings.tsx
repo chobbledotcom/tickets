@@ -1061,6 +1061,20 @@ const AddAttendeeSection = ({
   </article>
 );
 
+/**
+ * The attendees shown in the main detail table: on a paid listing the rows
+ * with unresolved payments are split out into the Failed Payments section, so
+ * they are excluded here. The CSV export reuses this so the download matches
+ * the rows on screen.
+ */
+export const completePaymentAttendees = (
+  listing: ListingWithCount,
+  attendees: Attendee[],
+): Attendee[] =>
+  isPaidListing(listing)
+    ? filter((a: Attendee) => !isIncompletePayment(a, true))(attendees)
+    : attendees;
+
 /** Compute derived attendee stats needed by the detail page */
 const computeAttendeeStats = (
   listing: ListingWithCount,
@@ -1075,9 +1089,7 @@ const computeAttendeeStats = (
   const incompleteAttendees = hasPaidListing
     ? filter((a: Attendee) => isIncompletePayment(a, true))(attendees)
     : [];
-  const completeAttendees = hasPaidListing
-    ? filter((a: Attendee) => !isIncompletePayment(a, true))(attendees)
-    : attendees;
+  const completeAttendees = completePaymentAttendees(listing, attendees);
   const adjustedCount =
     listing.attendee_count - sumQuantity(incompleteAttendees);
   const completeQuantitySum = sumQuantity(completeAttendees);

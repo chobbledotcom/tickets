@@ -7,6 +7,7 @@ import { t } from "#i18n";
 import { type Column, CSV } from "#shared/csv/index.ts";
 import { toMajorUnits } from "#shared/currency.ts";
 import { listingCategory, listingFilterLabel } from "#shared/listing-filter.ts";
+import { DEFAULT_TIMEZONE, utcToLocalInput } from "#shared/timezone.ts";
 import {
   availableDayCounts,
   dayPriceFor,
@@ -28,7 +29,7 @@ const listingPriceLabel = (l: ListingWithCount): string => {
 };
 
 /** Ordered listing CSV columns. Built per call so the active locale applies. */
-const listingColumns = (): Column<ListingWithCount>[] => [
+const listingColumns = (tz: string): Column<ListingWithCount>[] => [
   { header: t("common.name"), value: (l) => l.name },
   {
     header: t("common.status"),
@@ -45,7 +46,9 @@ const listingColumns = (): Column<ListingWithCount>[] => [
   { header: t("csv.col.price"), value: listingPriceLabel },
   {
     header: t("common.date"),
-    value: (l) => (l.date ? l.date.slice(0, 10) : ""),
+    // listing.date is a UTC ISO timestamp; convert through the configured
+    // timezone so the calendar day matches what admins see elsewhere.
+    value: (l) => (l.date ? utcToLocalInput(l.date, tz).slice(0, 10) : ""),
   },
   { header: t("listings_table.location"), value: (l) => l.location },
   {
@@ -55,6 +58,9 @@ const listingColumns = (): Column<ListingWithCount>[] => [
   { header: t("common.description"), value: (l) => l.description },
 ];
 
-/** Generate CSV content for a set of listings (one row per listing). */
-export const generateListingsCsv = (listings: ListingWithCount[]): string =>
-  CSV.generate(listings, listingColumns());
+/** Generate CSV content for a set of listings (one row per listing). The Date
+ * column is rendered in `tz` (the site's configured timezone). */
+export const generateListingsCsv = (
+  listings: ListingWithCount[],
+  tz: string = DEFAULT_TIMEZONE,
+): string => CSV.generate(listings, listingColumns(tz));

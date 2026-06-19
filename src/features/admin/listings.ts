@@ -111,6 +111,7 @@ import {
   adminListingPage,
   adminListingRecalculatePage,
   adminReactivateListingPage,
+  completePaymentAttendees,
   filterAttendees,
   type GroupContext,
 } from "#templates/admin/listings.tsx";
@@ -816,9 +817,11 @@ const handleAdminListingExport: TypedRouteHandler<
         request,
       );
       const isDaily = listing.listing_type === "daily";
-      // Mirror the on-screen view: also apply the /in /out check-in filter.
+      // Mirror the on-screen attendee table: drop the failed-payment rows
+      // that are split into the Failed Payments section, then apply the
+      // /in /out check-in filter.
       const exported = filterAttendees(
-        filteredByDate,
+        completePaymentAttendees(listing, filteredByDate),
         checkinFromRequest(request),
       );
 

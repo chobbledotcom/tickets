@@ -113,7 +113,7 @@ const handleListingsCsvExport: TypedRouteHandler<"GET /admin/listings/csv"> = (
   requireSessionOr(request, async () => {
     const type = listingTypeFromRequest(request);
     const listings = filterListingsByType(type)(await loadSortedListings());
-    const csv = generateListingsCsv(listings);
+    const csv = generateListingsCsv(listings, settings.timezone);
     const suffix = type === "all" ? "" : `_${type}`;
     await logActivity(
       `Listings CSV exported${type === "all" ? "" : ` (type: ${type})`}`,

@@ -84,4 +84,15 @@ describe("generateListingsCsv", () => {
     ]);
     expect(csv).toContain('"Wine, Cheese"');
   });
+
+  test("renders the Date column in the configured timezone", () => {
+    // 23:30 UTC is 00:30 the next calendar day in Europe/London (BST, UTC+1).
+    const listing = testListingWithCount({ date: "2026-06-15T23:30:00Z" });
+    expect(
+      generateListingsCsv([listing], "Europe/London").split("\n")[1],
+    ).toContain(",2026-06-16,");
+    expect(generateListingsCsv([listing], "UTC").split("\n")[1]).toContain(
+      ",2026-06-15,",
+    );
+  });
 });
