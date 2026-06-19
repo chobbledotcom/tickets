@@ -1,5 +1,10 @@
 import { mapParallel } from "#fp";
-import { execute, executeBatch, queryAll, resultRows } from "#shared/db/client.ts";
+import {
+  execute,
+  executeBatch,
+  queryAll,
+  resultRows,
+} from "#shared/db/client.ts";
 
 /**
  * Execute a SQL query and map result rows through an async transformer.

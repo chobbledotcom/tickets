@@ -7,7 +7,7 @@
  * TEXT values.
  */
 
-import { countRows, getDb, queryAll, queryOne } from "#shared/db/client.ts";
+import { countRows, execute, queryAll, queryOne } from "#shared/db/client.ts";
 
 export type RawEmailTemplate = { id: number; subject: string; body: string };
 
@@ -27,10 +27,10 @@ export const insertEmailTemplate = async (
   subject: string,
   body: string,
 ): Promise<number> => {
-  const result = await getDb().execute({
-    args: [subject, body],
-    sql: "INSERT INTO email_templates (subject, body) VALUES (?, ?)",
-  });
+  const result = await execute(
+    "INSERT INTO email_templates (subject, body) VALUES (?, ?)",
+    [subject, body],
+  );
   return Number(result.lastInsertRowid);
 };
 
@@ -39,16 +39,13 @@ export const updateEmailTemplate = async (
   subject: string,
   body: string,
 ): Promise<void> => {
-  await getDb().execute({
-    args: [subject, body, id],
-    sql: "UPDATE email_templates SET subject = ?, body = ? WHERE id = ?",
-  });
+  await execute(
+    "UPDATE email_templates SET subject = ?, body = ? WHERE id = ?",
+    [subject, body, id],
+  );
 };
 
 export const deleteEmailTemplate = async (id: number): Promise<void> => {
-  await getDb().execute({
-    args: [id],
-    sql: "DELETE FROM email_templates WHERE id = ?",
-  });
+  await execute("DELETE FROM email_templates WHERE id = ?", [id]);
 };
 /* jscpd:ignore-end */

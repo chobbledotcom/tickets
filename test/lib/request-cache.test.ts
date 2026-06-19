@@ -2,7 +2,9 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import {
   getAllCacheStats,
+  invalidateCachesForTable,
   registerCache,
+  registerTableInvalidation,
   resetCacheRegistry,
 } from "#shared/cache-registry.ts";
 import { getAllHolidays, holidaysTable } from "#shared/db/holidays.ts";
@@ -56,6 +58,67 @@ describe("cache-registry", () => {
     expect(getAllCacheStats()).toHaveLength(1);
     resetCacheRegistry();
     expect(getAllCacheStats()).toHaveLength(0);
+  });
+});
+
+describe("table invalidation registry", () => {
+  beforeEach(() => {
+    resetCacheRegistry();
+  });
+
+  afterEach(() => {
+    resetCacheRegistry();
+  });
+
+  test("fires the invalidator registered for a written table", () => {
+    let fired = 0;
+    registerTableInvalidation(["listings"], () => {
+      fired++;
+    });
+    invalidateCachesForTable("listings");
+    expect(fired).toBe(1);
+  });
+
+  test("ignores tables with no registered invalidator", () => {
+    let fired = 0;
+    registerTableInvalidation(["listings"], () => {
+      fired++;
+    });
+    invalidateCachesForTable("sessions");
+    expect(fired).toBe(0);
+  });
+
+  test("one invalidator can depend on several tables", () => {
+    let fired = 0;
+    registerTableInvalidation(["listings", "listing_attendees"], () => {
+      fired++;
+    });
+    invalidateCachesForTable("listing_attendees");
+    expect(fired).toBe(1);
+  });
+
+  test("fires every invalidator registered against the same table", () => {
+    let a = 0;
+    let b = 0;
+    registerTableInvalidation(["users"], () => {
+      a++;
+    });
+    registerTableInvalidation(["users"], () => {
+      b++;
+    });
+    invalidateCachesForTable("users");
+    expect(a).toBe(1);
+    expect(b).toBe(1);
+  });
+
+  test("resetCacheRegistry clears table invalidators", () => {
+    let fired = 0;
+    registerTableInvalidation(["listings"], () => {
+      fired++;
+    });
+    resetCacheRegistry();
+    invalidateCachesForTable("listings");
+    expect(fired).toBe(0);
   });
 });
 

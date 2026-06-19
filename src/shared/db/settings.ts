@@ -26,7 +26,7 @@ import {
   unwrapKey,
   wrapKey,
 } from "#shared/crypto/keys.ts";
-import { getDb, queryAll } from "#shared/db/client.ts";
+import { execute, queryAll } from "#shared/db/client.ts";
 import { deleteAllSessions } from "#shared/db/sessions.ts";
 import {
   recordSettingRead,
@@ -399,10 +399,10 @@ const syncCache = (mutate: (state: CacheState) => void): void => {
 
 /** Write a setting to the DB and update the raw cache in-place. */
 const writeRaw = async (key: string, value: string): Promise<void> => {
-  await getDb().execute({
-    args: [key, value],
-    sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-  });
+  await execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", [
+    key,
+    value,
+  ]);
   // A write makes the key's value known this request, so reading it back is
   // safe in production too — record it as available for the read audit.
   recordSettingsLoaded([key]);
@@ -414,10 +414,7 @@ const writeRaw = async (key: string, value: string): Promise<void> => {
 
 /** Delete a setting from the DB and remove it from the raw cache. */
 const deleteRaw = async (key: string): Promise<void> => {
-  await getDb().execute({
-    args: [key],
-    sql: "DELETE FROM settings WHERE key = ?",
-  });
+  await execute("DELETE FROM settings WHERE key = ?", [key]);
   recordSettingsLoaded([key]);
   syncCache((s) => {
     s.values.delete(key);
@@ -821,10 +818,10 @@ const updateUserPassword = async (
   const encryptedNewHash = await encrypt(newHash);
   const newKek = await deriveKEK(newHash);
   const newWrappedDataKey = await wrapKey(dk, newKek);
-  await getDb().execute({
-    args: [encryptedNewHash, newWrappedDataKey, userId],
-    sql: "UPDATE users SET password_hash = ?, wrapped_data_key = ? WHERE id = ?",
-  });
+  await execute(
+    "UPDATE users SET password_hash = ?, wrapped_data_key = ? WHERE id = ?",
+    [encryptedNewHash, newWrappedDataKey, userId],
+  );
   invalidateUsersCache();
   await deleteAllSessions();
   return true;
@@ -848,15 +845,14 @@ const withCurrentTask = async <T>(
   fn: () => Promise<T>,
 ): Promise<{ ok: true; value: T } | { ok: false; error: string }> => {
   // Ensure the row exists (no-op if already present)
-  await getDb().execute({
-    args: [CONFIG_KEYS.CURRENT_TASK],
-    sql: "INSERT OR IGNORE INTO settings (key, value) VALUES (?, '')",
-  });
+  await execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, '')", [
+    CONFIG_KEYS.CURRENT_TASK,
+  ]);
   // Atomic claim: only succeeds when no task is running
-  const claim = await getDb().execute({
-    args: [taskName, CONFIG_KEYS.CURRENT_TASK],
-    sql: "UPDATE settings SET value = ? WHERE key = ? AND value = ''",
-  });
+  const claim = await execute(
+    "UPDATE settings SET value = ? WHERE key = ? AND value = ''",
+    [taskName, CONFIG_KEYS.CURRENT_TASK],
+  );
   if (claim.rowsAffected === 0) {
     return {
       error: "Another task is already in progress",

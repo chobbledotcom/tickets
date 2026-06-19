@@ -13,8 +13,8 @@ import {
   encryptWithOwnerKey,
 } from "#shared/crypto/keys.ts";
 import {
+  execute,
   executeBatch,
-  getDb,
   inPlaceholders,
   queryAll,
   queryOne,
@@ -45,7 +45,7 @@ export const hashPhone = (phone: string): Promise<string> =>
   contactHash("sms", phone);
 
 const run = async (sql: string, args: (string | number)[]): Promise<void> => {
-  await getDb().execute({ args, sql });
+  await execute(sql, args);
 };
 
 export const isHashUnsubscribed = async (hash: string): Promise<boolean> => {
