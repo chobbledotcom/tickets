@@ -204,7 +204,7 @@ describe("e2e: full booking flow", () => {
 
     // Answer the custom question — find the radio button for "Medium"
     const mediumMatch = browser.currentHtml.match(
-      /name="(question_\d+)"\s+value="(\d+)"[^>]*>\s*Medium/,
+      /name="(question_\d+)"[^>]*value="(\d+)"[^>]*>\s*Medium/,
     );
     expect(mediumMatch).toBeTruthy();
     formData[mediumMatch![1]!] = mediumMatch![2]!;
