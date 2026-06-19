@@ -532,8 +532,12 @@ type CorruptSessionOutcome = "not-ours" | "refunded" | "refund-failed";
 const refundCorruptOwnSession = async (
   session: ValidatedPaymentSession,
 ): Promise<CorruptSessionOutcome> => {
-  if (!session.metadata.price_proof) return "not-ours";
-  if (session.metadata._origin !== getEffectiveDomain()) return "not-ours";
+  // Corrupt metadata can't carry a valid proof, so this is only ever our own
+  // tampered session ("tampered") — anything else (foreign, or unsigned) keeps
+  // its loud handling and is never auto-refunded here.
+  if ((await classifySession(session)).verdict !== "tampered") {
+    return "not-ours";
+  }
 
   const reservation = await reserveSession(session.id);
   if (!reservation.reserved) {
@@ -745,8 +749,6 @@ const parsePriceProof = (
  *  - `{ valid: false }`: a proof is present but doesn't verify (our own tampered
  *    metadata, or a foreign instance that signed with its own key).
  *  - `{ valid: true, total }`: a genuine proof binding `total`.
- * The single place the proof is parsed + verified, shared by the pricing gate
- * and the early ownership check below so the two can never disagree.
  */
 const evaluatePriceProof = async (
   session: ValidatedPaymentSession,
@@ -764,24 +766,63 @@ const evaluatePriceProof = async (
 };
 
 /**
- * Whether the session carries a valid price proof — cryptographic proof that it
- * is ours, independent of the mutable `_origin` marker. Lets the webhook's
- * foreign-origin skip spare one of our own paid sessions whose `_origin` was
- * stripped or altered (the proof can't be forged without our key, so a valid one
- * is conclusive even when `_origin` no longer matches).
+ * The single classification of a paid session — the one place the trust matrix
+ * lives, so every downstream decision (process, refund, ignore, fall back) reads
+ * one verdict instead of re-deriving its own combination of proof/origin/charge:
+ *
+ *  - `trusted`  — valid proof and the charge matches the signed total: process,
+ *    using `agreed` as the price oracle.
+ *  - `mismatch` — valid proof but the provider charged a different amount: refund.
+ *  - `tampered` — a proof is present but invalid (or the metadata is corrupt) and
+ *    the session claims our origin — our own altered session: refund.
+ *  - `unrecognized` — a present-but-invalid proof and an origin that is not ours:
+ *    another instance sharing the provider — reject without refunding (we cannot
+ *    prove it is ours, and must not refund another's payment).
+ *  - `unsigned` — no proof: a legacy session, handled by the re-derived amount
+ *    fallback. (The webhook additionally ignores a foreign-origin unsigned session
+ *    via isForeignWebhookSession; the redirect falls back regardless of origin.)
+ *
+ * A valid proof is conclusive regardless of `_origin` (it cannot be forged
+ * without our key), so a stripped/altered origin on one of our signed sessions
+ * still classifies as trusted/mismatch, never unrecognized.
  */
+type SessionClass =
+  | { verdict: "trusted"; agreed: number }
+  | { verdict: "mismatch"; agreed: number }
+  | { verdict: "tampered" }
+  | { verdict: "unrecognized" }
+  | { verdict: "unsigned" };
+
+const classifySession = async (
+  session: ValidatedPaymentSession,
+): Promise<SessionClass> => {
+  const evaluation = await evaluatePriceProof(session);
+  if (evaluation === null) return { verdict: "unsigned" };
+  if (!evaluation.valid) {
+    return session.metadata._origin === getEffectiveDomain()
+      ? { verdict: "tampered" }
+      : { verdict: "unrecognized" };
+  }
+  return session.amountTotal === evaluation.total
+    ? { agreed: evaluation.total, verdict: "trusted" }
+    : { agreed: evaluation.total, verdict: "mismatch" };
+};
+
+/** Whether the proof verifies — proof the session is ours regardless of the
+ * mutable `_origin` (it cannot be forged without our key). */
 const hasValidPriceProof = async (
   session: ValidatedPaymentSession,
 ): Promise<boolean> => {
-  const evaluation = await evaluatePriceProof(session);
-  return evaluation?.valid ?? false;
+  const { verdict } = await classifySession(session);
+  return verdict === "trusted" || verdict === "mismatch";
 };
 
 /**
- * Whether the webhook should ignore a session as foreign: it does not carry our
- * origin marker and has no valid proof to prove it is ours (a different
- * application sharing the same payment provider account). A valid proof spares
- * one of our own sessions whose `_origin` was stripped or altered.
+ * Whether the webhook should ignore a session as another instance's: it does not
+ * carry our origin and has no valid proof to prove it is ours. A valid proof
+ * spares one of our own sessions whose `_origin` was stripped or altered. (The
+ * redirect has no such skip — an unsigned session there falls back regardless of
+ * origin, and an invalid-proof foreign session is rejected by the gate.)
  */
 const isForeignWebhookSession = async (
   session: ValidatedPaymentSession,
@@ -790,57 +831,50 @@ const isForeignWebhookSession = async (
   !(await hasValidPriceProof(session));
 
 /**
- * Gate a paid session on the agreed total its checkout signed into metadata —
- * the oracle the buyer paid, which the provider can't forge. Returns the
- * trusted total; null when the session carries no proof at all (a genuine
- * legacy/unsigned session); or a non-null result when a proof is present but
- * unusable — a refund/page for our own tampered session, or a non-refunding
- * rejection for one we can't prove is ours.
- *
- * A present-but-invalid proof is never downgraded to the unsigned fallback (that
- * would let tampering reinstate the weaker amount-only check, which the redirect
- * path could then accept), so a session we created and billed never slips
- * through on a corrupt proof.
+ * Gate a paid session on its signed price oracle, mapping the classification to
+ * the pricing pipeline's needs:
+ *  - the trusted agreed total to verify the re-derivation against;
+ *  - `null` for a legacy/unsigned session (the re-derived amount fallback);
+ *  - a refund (our tampered session / wrong charge) or a non-refunding rejection
+ *    (foreign) for anything we will not process.
+ * A present-but-invalid proof is never downgraded to the unsigned fallback.
  */
 const checkPriceSignature = async (
   session: ValidatedPaymentSession,
   listingId: number,
 ): Promise<{ agreed: number } | null | PaymentResult> => {
-  const evaluation = await evaluatePriceProof(session);
-  if (evaluation === null) return null; // genuinely unsigned (legacy fallback)
-
   const refuse = (detail: string): Promise<PaymentResult> => {
     // Refund first; defer the alert so a slow ntfy never delays the money.
     addPendingWork(sendNtfyError(ErrorCode.WEBHOOK_PRICE_SIGNATURE));
     return priceMismatchRefund(session, detail, listingId);
   };
 
-  if (!evaluation.valid) {
-    // Invalid proof: either our own tampered session or a foreign instance
-    // sharing the provider (it signs with its own key). When it claims our
-    // origin it is ours — refund and page. Otherwise we can't prove it is ours,
-    // so neither accept it (refusing the unsigned fallback) nor refund it
-    // (which could refund another instance's payment); reject it outright.
-    if (session.metadata._origin === getEffectiveDomain()) {
+  const cls = await classifySession(session);
+  switch (cls.verdict) {
+    case "unsigned":
+      return null;
+    case "trusted":
+      return { agreed: cls.agreed };
+    case "mismatch":
+      return refuse(
+        `Provider charged ${session.amountTotal} but signed total was ${cls.agreed}`,
+      );
+    case "tampered":
       return refuse(`Invalid price signature (session=${session.id})`);
-    }
-    logError({
-      code: ErrorCode.WEBHOOK_PRICE_SIGNATURE,
-      detail: `Invalid price signature on an unrecognized session (session=${session.id})`,
-    });
-    return {
-      detail: `Unrecognized signed session (session=${session.id})`,
-      error: "Payment session not recognized.",
-      status: 404,
-      success: false,
-    };
+    case "unrecognized":
+      // Can't prove it is ours, so neither accept it (refusing the unsigned
+      // fallback) nor refund it (which could refund another instance's payment).
+      logError({
+        code: ErrorCode.WEBHOOK_PRICE_SIGNATURE,
+        detail: `Invalid price signature on an unrecognized session (session=${session.id})`,
+      });
+      return {
+        detail: `Unrecognized signed session (session=${session.id})`,
+        error: "Payment session not recognized.",
+        status: 404,
+        success: false,
+      };
   }
-  if (session.amountTotal !== evaluation.total) {
-    return refuse(
-      `Provider charged ${session.amountTotal} but signed total was ${evaluation.total}`,
-    );
-  }
-  return { agreed: evaluation.total };
 };
 
 /**
