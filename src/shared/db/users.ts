@@ -71,12 +71,13 @@ const usersCache = createKeyedCache<User>({
 /**
  * Callbacks fired on every users-cache invalidation, so derived caches (e.g.
  * the superuser account-state cache) can clear in lockstep with user writes.
+ * Registered once per module at load time, mirroring the cache-stats registry.
  */
-const usersInvalidationListeners = new Set<() => void>();
+const usersInvalidationListeners: Array<() => void> = [];
 
 /** Register a callback to run whenever the users cache is invalidated. */
 export const onUsersInvalidated = (listener: () => void): void => {
-  usersInvalidationListeners.add(listener);
+  usersInvalidationListeners.push(listener);
 };
 
 const loadAllUsers = (): Promise<User[]> => usersCache.getAll();
