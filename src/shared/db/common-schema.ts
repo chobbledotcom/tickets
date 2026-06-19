@@ -1,5 +1,7 @@
 import {
+  type DependsOnEntry,
   registerCache,
+  registerDependencies,
   registerTableInvalidation,
 } from "#shared/cache-registry.ts";
 import {
@@ -23,18 +25,21 @@ export { createKeyedCache, registerCache, registerTableInvalidation };
  * trio that listings and groups would otherwise each repeat. `Cached` lets the
  * cache hold a richer row than the table writes (e.g. listings cached with
  * attendee counts).
+ *
+ * `dependsOn` entries may carry `whenColumns` to narrow the `listing_attendees`
+ * → `listings` dependency: the cache is only cleared on UPDATEs that touch one
+ * of those columns. INSERT / DELETE always clear.
  */
 export const cachedEntityTable = <Row, Input, Cached = Row>(
   name: string,
   table: Table<Row, Input>,
   config: KeyedCacheConfig<Cached>,
-  dependsOn: readonly string[] = [],
+  dependsOn: ReadonlyArray<DependsOnEntry> = [],
 ): { cache: KeyedCache<Cached>; table: Table<Row, Input> } => {
   const cache = createKeyedCache(config);
   registerCache(() => ({ entries: cache.size(), name }));
-  registerTableInvalidation([table.name, ...dependsOn], () =>
-    cache.invalidate(),
-  );
+  const invalidate = (): void => cache.invalidate();
+  registerDependencies(table.name, dependsOn, invalidate);
   return { cache, table };
 };
 

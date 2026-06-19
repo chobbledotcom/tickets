@@ -14,7 +14,10 @@ import {
   type TransactionMode,
 } from "@libsql/client";
 import { lazyRef } from "#fp";
-import { invalidateCachesForTable } from "#shared/cache-registry.ts";
+import {
+  invalidateCachesForWrite,
+  type WriteVerb,
+} from "#shared/cache-registry.ts";
 import {
   addQueryLogEntry,
   isQueryLogEnabled,
@@ -32,15 +35,76 @@ const WRITE_TABLE_RE =
   /^\s*(?:insert(?:\s+or\s+\w+)?\s+into|replace\s+into|update(?:\s+or\s+\w+)?|delete\s+from)\s+["'`]?(\w+)/i;
 
 /**
+ * Parse the column names assigned by an UPDATE SET clause.
+ * Returns a lower-cased Set, or null if the SET clause cannot be found.
+ * Each `col = expr` left-hand side is extracted; commas inside parentheses
+ * are skipped so subexpressions don't split assignments. If extraction yields
+ * no columns the caller falls back to unconditional invalidation.
+ * Exported for unit testing; not part of the public db-client API.
+ */
+export const extractUpdateColumns = (
+  sql: string,
+): ReadonlySet<string> | null => {
+  const setMatch = /\bSET\s+([\s\S]*?)(?:\s+WHERE\b|$)/i.exec(sql);
+  if (!setMatch) return null;
+  const setClause = setMatch[1]!.trim();
+  const columns = new Set<string>();
+  const addAssignment = (frag: string): void => {
+    const eqIdx = frag.indexOf("=");
+    if (eqIdx < 0) return;
+    const col = frag
+      .slice(0, eqIdx)
+      .trim()
+      .split(".")
+      .pop()!
+      .replace(/["`[\]]/g, "")
+      .toLowerCase();
+    if (col) columns.add(col);
+  };
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < setClause.length; i++) {
+    const ch = setClause[i]!;
+    if (ch === "(") depth++;
+    else if (ch === ")") depth--;
+    else if (ch === "," && depth === 0) {
+      addAssignment(setClause.slice(start, i).trim());
+      start = i + 1;
+    }
+  }
+  addAssignment(setClause.slice(start).trim());
+  return columns.size > 0 ? columns : null;
+};
+
+/**
  * After a successful write, invalidate every cache that declared a dependency
  * on the mutated table. A no-op for reads (the regex doesn't match) and for
- * tables no cache depends on. Over-invalidation is only a cache miss; the
- * failure we are designing out — a forgotten manual invalidate leaving stale
- * data — cannot happen because the write itself drives this.
+ * tables no cache depends on. For UPDATEs, the SET-clause columns are
+ * extracted so column-gated dependencies (e.g. listings ← listing_attendees
+ * only when quantity / price_paid / listing_id are written) can skip the
+ * invalidation when only unrelated columns are touched. If column extraction
+ * fails the write is treated as unconditional — safe over stale.
  */
 const invalidateForSql = (sql: string): void => {
   const match = WRITE_TABLE_RE.exec(sql);
-  if (match) invalidateCachesForTable(match[1]!.toLowerCase());
+  if (!match) return;
+  const table = match[1]!.toLowerCase();
+  const firstWord = sql.trimStart().split(/\s/)[0]!.toLowerCase();
+  const verb: WriteVerb =
+    firstWord === "delete" || firstWord === "update" || firstWord === "replace"
+      ? (firstWord as WriteVerb)
+      : "insert";
+  if (verb === "update") {
+    const columns = extractUpdateColumns(sql);
+    if (columns === null) {
+      // Parse failure: fall back to unconditional (treat as INSERT-like)
+      invalidateCachesForWrite(table, { columns: new Set(), verb: "insert" });
+    } else {
+      invalidateCachesForWrite(table, { columns, verb: "update" });
+    }
+  } else {
+    invalidateCachesForWrite(table, { columns: new Set(), verb });
+  }
 };
 
 const createDbClient = (): Client => {

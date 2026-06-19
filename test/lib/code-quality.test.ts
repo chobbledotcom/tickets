@@ -616,6 +616,11 @@ describe("code quality", () => {
       "shared/test-overrides.ts:setTouchOverrideForTest",
       // Reset the in-memory form re-fill stash between tests
       "shared/form-stash.ts:clearFormStash",
+      // Backward-compat wrapper: fires all invalidators unconditionally (no production caller now
+      // that client.ts uses invalidateCachesForWrite, but kept for external callers and tests)
+      "shared/cache-registry.ts:invalidateCachesForTable",
+      // SET-clause column extractor: internal parser exposed for unit testing only
+      "shared/db/client.ts:extractUpdateColumns",
     ];
 
     /**

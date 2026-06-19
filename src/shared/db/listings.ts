@@ -28,6 +28,7 @@ import {
   encryptedNameSchema,
   idAndEncryptedSlugSchema,
 } from "#shared/db/common-schema.ts";
+import { LISTING_AGGREGATE_WRITE_COLUMNS } from "#shared/db/migrations/schema.ts";
 import { col } from "#shared/db/table.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
@@ -284,7 +285,12 @@ const listingsEntity = cachedEntityTable<
     keyOf: (e) => e.slug_index,
     ttlMs: LISTINGS_CACHE_TTL_MS,
   },
-  ["listing_attendees"],
+  [
+    {
+      table: "listing_attendees",
+      whenColumns: [...LISTING_AGGREGATE_WRITE_COLUMNS],
+    },
+  ],
 );
 const listingsCache = listingsEntity.cache;
 

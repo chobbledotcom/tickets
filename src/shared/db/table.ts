@@ -12,8 +12,9 @@ import type { InValue } from "@libsql/client";
 import * as v from "valibot";
 import { compact, filter, mapParallel, reduce } from "#fp";
 import {
+  type DependsOnEntry,
   registerCache,
-  registerTableInvalidation,
+  registerDependencies,
 } from "#shared/cache-registry.ts";
 import { execute, queryAll, queryOne } from "#shared/db/client.ts";
 import { requestCache } from "#shared/request-cache.ts";
@@ -402,8 +403,9 @@ export const cachedTable = <Row, Input, Cached = Row>(config: {
   fetchAll: () => Promise<Cached[]>;
   name: string;
   table: Table<Row, Input>;
-  /** Extra tables (beyond the table itself) whose writes should clear it. */
-  dependsOn?: readonly string[];
+  /** Extra tables (beyond the table itself) whose writes should clear it.
+   * Entries may carry `whenColumns` to gate on specific UPDATE columns. */
+  dependsOn?: ReadonlyArray<DependsOnEntry>;
 }): {
   getAll: () => Promise<Cached[]>;
   invalidate: () => void;
@@ -414,10 +416,7 @@ export const cachedTable = <Row, Input, Cached = Row>(config: {
   const invalidate = (): void => {
     cache.invalidate();
   };
-  registerTableInvalidation(
-    [config.table.name, ...(config.dependsOn ?? [])],
-    invalidate,
-  );
+  registerDependencies(config.table.name, config.dependsOn ?? [], invalidate);
   return { getAll: () => cache.getAll(), invalidate, table: config.table };
 };
 

@@ -736,6 +736,18 @@ export const SCHEMA: [name: string, table: Table][] = [
 ];
 
 /**
+ * The listing_attendees columns that shift listing aggregates (booked_quantity,
+ * tickets_count, income). The UPDATE trigger fires on exactly these columns;
+ * the cache-invalidation gate in listings.ts reads the same constant so the
+ * two cannot drift.
+ */
+export const LISTING_AGGREGATE_WRITE_COLUMNS = [
+  "quantity",
+  "price_paid",
+  "listing_id",
+] as const;
+
+/**
  * Triggers that keep the listings aggregate columns (booked_quantity,
  * tickets_count, income) in lockstep with listing_attendees, so the hot
  * listing reads and the active-listing stats cost one row read instead of
@@ -783,7 +795,7 @@ END`,
   {
     name: "trg_listing_attendees_aggregates_update",
     sql: `CREATE TRIGGER IF NOT EXISTS trg_listing_attendees_aggregates_update
-AFTER UPDATE OF quantity, price_paid, listing_id ON listing_attendees
+AFTER UPDATE OF ${LISTING_AGGREGATE_WRITE_COLUMNS.join(", ")} ON listing_attendees
 FOR EACH ROW
 BEGIN
   UPDATE listings SET

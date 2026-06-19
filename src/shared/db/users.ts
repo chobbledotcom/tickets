@@ -87,14 +87,17 @@ export const onUsersInvalidated = (listener: () => void): void => {
 const loadAllUsers = (): Promise<User[]> => usersCache.getAll();
 
 registerCache(() => ({ entries: usersCache.size(), name: "users" }));
-// Any write to the users table clears the cache automatically (db-client layer).
-registerTableInvalidation(["users"], () => usersCache.invalidate());
 
 /** Invalidate the users cache (for testing or after writes). */
 export const invalidateUsersCache = (): void => {
   usersCache.invalidate();
   for (const listener of usersInvalidationListeners) listener();
 };
+
+// Any write to the users table clears the cache automatically (db-client layer).
+// Must call invalidateUsersCache() (not just usersCache.invalidate()) so that
+// onUsersInvalidated listeners such as the superuser account-state cache also fire.
+registerTableInvalidation(["users"], invalidateUsersCache);
 
 /** Shared user creation logic */
 const insertUser = async (opts: {
