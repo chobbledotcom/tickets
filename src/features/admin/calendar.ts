@@ -296,11 +296,22 @@ const buildAvailabilityRows = async (
  */
 const handleAdminCalendarGet = (request: Request) =>
   withCalendarSession(request, async (session, dateFilter) => {
-    const [listingCtx, attendeeDates, holidays] = await Promise.all([
-      loadListingContext(),
-      getDailyListingAttendeeDates(),
-      getActiveHolidays(),
-    ]);
+    // The availability rows need the listings list, so chain that query onto
+    // loadListingContext rather than awaiting it separately — it then fires the
+    // moment the listings resolve and overlaps with the date-picker and holiday
+    // queries still in flight (hiding under the slowest of them) instead of
+    // costing an extra serial round trip after this batch.
+    const listingCtxPromise = loadListingContext();
+    const availabilityRowsPromise = listingCtxPromise.then((ctx) =>
+      buildAvailabilityRows(ctx.allListings, dateFilter),
+    );
+    const [listingCtx, attendeeDates, holidays, availabilityRows] =
+      await Promise.all([
+        listingCtxPromise,
+        getDailyListingAttendeeDates(),
+        getActiveHolidays(),
+        availabilityRowsPromise,
+      ]);
 
     const {
       allListings,
@@ -352,10 +363,6 @@ const handleAdminCalendarGet = (request: Request) =>
     );
 
     const hasPaidListing = allListings.some(isPaidListing);
-    const availabilityRows = await buildAvailabilityRows(
-      allListings,
-      dateFilter,
-    );
 
     return htmlResponse(
       adminCalendarPage(
