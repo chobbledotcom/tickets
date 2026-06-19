@@ -159,7 +159,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
       test("static assets work without a settings table", async () => {
         await resetToBrandNewDatabase();
 
-        const response = await handleRequest(mockRequest("/mvp.css"));
+        const response = await handleRequest(mockRequest("/style.css"));
 
         expect(response.status).toBe(200);
         expect(response.headers.get("content-type")).toContain("text/css");
@@ -181,7 +181,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
             },
           );
 
-          const response = await handleRequest(mockRequest("/mvp.css"));
+          const response = await handleRequest(mockRequest("/style.css"));
           expect(response.status).toBe(200);
           expect(response.headers.get("content-type")).toContain("text/css");
         } finally {
