@@ -89,7 +89,7 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
         200,
         "Privacy",
         "not a CRM",
-        "HMAC",
+        "private fingerprint",
         "Delete matching records now",
       );
     });
