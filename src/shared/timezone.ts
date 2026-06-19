@@ -1,17 +1,17 @@
 /**
- * Timezone conversion utilities using @internationalized/date.
+ * Timezone conversion utilities built on the Temporal API.
  *
- * Wraps the library to provide simple string-in/string-out functions
- * for the rest of the codebase, with correct DST handling and
- * explicit disambiguation.
+ * Temporal is imported from `temporal-polyfill` rather than used as a runtime
+ * global: the deployed Bunny Edge bundle must run on whichever Deno the edge
+ * happens to use, and Deno only exposes `Temporal` as a stable global from
+ * 2.7+. Bundling the polyfill keeps behaviour identical across runtimes (and
+ * in tests) instead of depending on an API the baseline runtime lacks.
+ *
+ * Provides simple string-in/string-out functions for the rest of the
+ * codebase, with correct DST handling and explicit disambiguation.
  */
 
-import {
-  fromAbsolute,
-  today as libToday,
-  parseDateTime,
-  toZoned,
-} from "@internationalized/date";
+import { Temporal } from "temporal-polyfill";
 import { formatIsoForPreview } from "#shared/bulk-replace.ts";
 
 /** Default timezone when none is configured */
@@ -20,14 +20,56 @@ export const DEFAULT_TIMEZONE = "Europe/London";
 /** Pad a number to two digits */
 const pad2 = (n: number): string => String(n).padStart(2, "0");
 
+/** Convert epoch milliseconds to a ZonedDateTime in the given timezone */
+const msToZoned = (ms: number, tz: string): Temporal.ZonedDateTime =>
+  Temporal.Instant.fromEpochMilliseconds(ms).toZonedDateTimeISO(tz);
+
 /** Parse a UTC ISO string into a ZonedDateTime in the given timezone */
-const utcToZoned = (utcIso: string, tz: string) =>
-  fromAbsolute(new Date(utcIso).getTime(), tz);
+export const utcToZoned = (
+  utcIso: string,
+  tz: string,
+): Temporal.ZonedDateTime => msToZoned(new Date(utcIso).getTime(), tz);
 
 /**
  * Get today's date as YYYY-MM-DD in the given timezone.
+ *
+ * Reads the clock via `Date.now()` rather than `Temporal.Now` so the helper
+ * stays controllable under `@std/testing/time`'s `FakeTime`, which patches
+ * `Date`/timers but not `Temporal.Now`.
  */
-export const todayInTz = (tz: string): string => libToday(tz).toString();
+export const todayInTz = (tz: string): string =>
+  msToZoned(Date.now(), tz).toPlainDate().toString();
+
+/**
+ * Strict datetime-local shape: a calendar date optionally followed by a
+ * wall-clock time. Deliberately excludes any UTC designator (`Z`), numeric
+ * offset, or bracketed IANA zone, since the rest of the app interprets these
+ * values in the configured timezone. `Temporal.PlainDateTime.from` handles
+ * those suffixes inconsistently — it *rejects* a `Z` but silently *discards* a
+ * numeric offset or bracketed zone (storing a different instant than written) —
+ * so the regex rejects all three up front rather than relying on that.
+ *
+ * The time fields are range-constrained (`HH` 00–23, `MM`/`SS` 00–59) rather
+ * than bare `\d{2}`: Temporal rejects an out-of-range hour/minute, but it
+ * *clamps* a `:60` leap second to `:59` even under `overflow: "reject"`, which
+ * would silently shift the stored time. The regex rejects it instead. Calendar
+ * validity (real month/day) is still delegated to Temporal's `overflow`.
+ */
+const NAIVE_DATETIME =
+  /^\d{4}-\d{2}-\d{2}(T([01]\d|2[0-3]):[0-5]\d(:[0-5]\d(\.\d+)?)?)?$/;
+
+/**
+ * Parse a naive datetime-local value into a PlainDateTime, rejecting
+ * offset/zone-bearing input up front, then delegating real calendar-validity
+ * checks to Temporal (`overflow: "reject"` catches impossible dates like
+ * 2026-02-30 rather than silently clamping them).
+ */
+const parseNaiveDateTime = (value: string): Temporal.PlainDateTime => {
+  if (!NAIVE_DATETIME.test(value)) {
+    throw new RangeError(`Non-naive datetime: ${value}`);
+  }
+  return Temporal.PlainDateTime.from(value, { overflow: "reject" });
+};
 
 /**
  * Convert a naive datetime-local value (YYYY-MM-DDTHH:MM) to a UTC ISO string,
@@ -38,9 +80,10 @@ export const todayInTz = (tz: string): string => libToday(tz).toString();
  */
 export const localToUtc = (naive: string, tz: string): string => {
   try {
-    const dt = parseDateTime(naive);
-    const zoned = toZoned(dt, tz, "compatible");
-    return zoned.toAbsoluteString();
+    return parseNaiveDateTime(naive)
+      .toZonedDateTime(tz, { disambiguation: "compatible" })
+      .toInstant()
+      .toString({ fractionalSecondDigits: 3 });
   } catch {
     throw new Error(`Invalid datetime: ${naive}`);
   }
@@ -107,7 +150,7 @@ export const isValidTimezone = (tz: string): boolean => {
  */
 export const isValidDatetime = (value: string): boolean => {
   try {
-    parseDateTime(value);
+    parseNaiveDateTime(value);
     return true;
   } catch {
     return false;

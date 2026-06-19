@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { FakeTime } from "@std/testing/time";
 import {
   DEFAULT_TIMEZONE,
   formatDatetimeInTz,
@@ -32,6 +33,18 @@ describe("timezone", () => {
       const a = todayInTz("UTC");
       const b = todayInTz("UTC");
       expect(a).toBe(b);
+    });
+
+    test("is controllable under FakeTime (reads the fakeable clock)", () => {
+      // Temporal.Now bypasses FakeTime; todayInTz must derive "today" from
+      // Date.now() so date-dependent code stays deterministic in frozen-time
+      // tests (booking windows, holiday cutoffs, calendar/delivery pages).
+      const time = new FakeTime(new Date("2030-01-15T12:00:00Z"));
+      try {
+        expect(todayInTz("Europe/London")).toBe("2030-01-15");
+      } finally {
+        time.restore();
+      }
     });
   });
 
@@ -82,6 +95,27 @@ describe("timezone", () => {
 
     test("throws on invalid datetime", () => {
       expect(() => localToUtc("not-a-date", "UTC")).toThrow("Invalid datetime");
+    });
+
+    test("rejects a datetime carrying a numeric offset", () => {
+      // Input must be naive: an offset would otherwise be silently discarded
+      // and the wall-clock time reinterpreted in the target timezone, storing
+      // a different instant than the string implies.
+      expect(() =>
+        localToUtc("2026-06-15T14:30+09:00", "Europe/London"),
+      ).toThrow("Invalid datetime");
+    });
+
+    test("rejects a datetime carrying a bracketed IANA zone", () => {
+      expect(() =>
+        localToUtc("2026-06-15T14:30[Asia/Tokyo]", "Europe/London"),
+      ).toThrow("Invalid datetime");
+    });
+
+    test("rejects a datetime carrying a UTC designator", () => {
+      expect(() => localToUtc("2026-06-15T14:30Z", "Europe/London")).toThrow(
+        "Invalid datetime",
+      );
     });
 
     test("handles DST spring-forward gap with 'compatible' disambiguation", () => {
@@ -252,6 +286,25 @@ describe("timezone", () => {
 
     test("rejects empty string", () => {
       expect(isValidDatetime("")).toBe(false);
+    });
+
+    test("rejects an impossible calendar date", () => {
+      // overflow: "reject" must not clamp 2026-02-30 to a real day.
+      expect(isValidDatetime("2026-02-30T00:00")).toBe(false);
+    });
+
+    test("rejects a datetime carrying a numeric offset", () => {
+      expect(isValidDatetime("2026-06-15T14:30+09:00")).toBe(false);
+    });
+
+    test("rejects a datetime carrying a bracketed IANA zone", () => {
+      expect(isValidDatetime("2026-06-15T14:30[Asia/Tokyo]")).toBe(false);
+    });
+
+    test("rejects a :60 leap second instead of clamping it to :59", () => {
+      // Temporal clamps :60 to :59 even under overflow:"reject"; the naive
+      // shape guard rejects it so a crafted value never stores a shifted time.
+      expect(isValidDatetime("2026-06-15T14:30:60")).toBe(false);
     });
   });
 
