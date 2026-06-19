@@ -84,6 +84,27 @@ describe("timezone", () => {
       expect(() => localToUtc("not-a-date", "UTC")).toThrow("Invalid datetime");
     });
 
+    test("rejects a datetime carrying a numeric offset", () => {
+      // Input must be naive: an offset would otherwise be silently discarded
+      // and the wall-clock time reinterpreted in the target timezone, storing
+      // a different instant than the string implies.
+      expect(() =>
+        localToUtc("2026-06-15T14:30+09:00", "Europe/London"),
+      ).toThrow("Invalid datetime");
+    });
+
+    test("rejects a datetime carrying a bracketed IANA zone", () => {
+      expect(() =>
+        localToUtc("2026-06-15T14:30[Asia/Tokyo]", "Europe/London"),
+      ).toThrow("Invalid datetime");
+    });
+
+    test("rejects a datetime carrying a UTC designator", () => {
+      expect(() => localToUtc("2026-06-15T14:30Z", "Europe/London")).toThrow(
+        "Invalid datetime",
+      );
+    });
+
     test("handles DST spring-forward gap with 'compatible' disambiguation", () => {
       // 2026-03-29 01:30 Europe/London doesn't exist (clocks skip from 01:00 GMT to 02:00 BST)
       // 'compatible' maps to the later (post-transition) interpretation: 02:30 BST = 01:30 UTC
@@ -252,6 +273,19 @@ describe("timezone", () => {
 
     test("rejects empty string", () => {
       expect(isValidDatetime("")).toBe(false);
+    });
+
+    test("rejects an impossible calendar date", () => {
+      // overflow: "reject" must not clamp 2026-02-30 to a real day.
+      expect(isValidDatetime("2026-02-30T00:00")).toBe(false);
+    });
+
+    test("rejects a datetime carrying a numeric offset", () => {
+      expect(isValidDatetime("2026-06-15T14:30+09:00")).toBe(false);
+    });
+
+    test("rejects a datetime carrying a bracketed IANA zone", () => {
+      expect(isValidDatetime("2026-06-15T14:30[Asia/Tokyo]")).toBe(false);
     });
   });
 

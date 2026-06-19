@@ -29,17 +29,37 @@ export const todayInTz = (tz: string): string =>
   Temporal.Now.plainDateISO(tz).toString();
 
 /**
+ * Strict datetime-local shape: a calendar date optionally followed by a
+ * wall-clock time. Deliberately excludes any UTC designator (`Z`), numeric
+ * offset, or bracketed IANA zone — the rest of the app interprets these values
+ * in the configured timezone, and `Temporal.PlainDateTime.from` would silently
+ * *discard* such a suffix rather than reject it, storing a different instant.
+ */
+const NAIVE_DATETIME = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d+)?)?)?$/;
+
+/**
+ * Parse a naive datetime-local value into a PlainDateTime, rejecting
+ * offset/zone-bearing input up front, then delegating real calendar-validity
+ * checks to Temporal (`overflow: "reject"` catches impossible dates like
+ * 2026-02-30 rather than silently clamping them).
+ */
+const parseNaiveDateTime = (value: string): Temporal.PlainDateTime => {
+  if (!NAIVE_DATETIME.test(value)) {
+    throw new RangeError(`Non-naive datetime: ${value}`);
+  }
+  return Temporal.PlainDateTime.from(value, { overflow: "reject" });
+};
+
+/**
  * Convert a naive datetime-local value (YYYY-MM-DDTHH:MM) to a UTC ISO string,
  * interpreting the value as local time in the given timezone.
  *
  * Uses 'compatible' disambiguation: spring-forward gaps resolve to the later
  * (post-transition) time; fall-back overlaps resolve to the earlier occurrence.
- * `overflow: "reject"` rejects impossible calendar dates (e.g. 2026-02-30)
- * rather than silently clamping them.
  */
 export const localToUtc = (naive: string, tz: string): string => {
   try {
-    return Temporal.PlainDateTime.from(naive, { overflow: "reject" })
+    return parseNaiveDateTime(naive)
       .toZonedDateTime(tz, { disambiguation: "compatible" })
       .toInstant()
       .toString({ fractionalSecondDigits: 3 });
@@ -109,7 +129,7 @@ export const isValidTimezone = (tz: string): boolean => {
  */
 export const isValidDatetime = (value: string): boolean => {
   try {
-    Temporal.PlainDateTime.from(value, { overflow: "reject" });
+    parseNaiveDateTime(value);
     return true;
   } catch {
     return false;
