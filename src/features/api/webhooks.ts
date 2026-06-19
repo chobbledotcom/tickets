@@ -193,21 +193,7 @@ const validatePaidSession = async (
 
   const resolved = await resolvePaidIntent(session);
   if (!resolved.intent) {
-    // Our own signed-but-corrupt session was refunded above — show the refunded
-    // message. Otherwise it is unrecognized and we surface the generic error.
-    if (resolved.refunded) {
-      return {
-        ok: false,
-        response: paymentErrorResponse(
-          "Your payment could not be processed and has been refunded.",
-        ),
-      };
-    }
-    logRedirectError(`Invalid session data (session=${sessionId})`);
-    return {
-      ok: false,
-      response: paymentErrorResponse("Invalid session data"),
-    };
+    return corruptRedirectResponse(sessionId, resolved.corrupt);
   }
   const intent = resolved.intent;
   if (
@@ -518,58 +504,112 @@ const priceMismatchRefund = (
   refundAndFail(session, PRICE_CHANGED_MESSAGE, listingId, 409, detail);
 
 /**
+ * Outcome of trying to refund a paid session whose metadata won't parse:
+ *  - `not-ours`: unsigned or foreign data (no proof, or it doesn't claim our
+ *    origin) — never came through our signed pipeline, so keep the existing loud
+ *    handling and don't auto-refund another instance's payment.
+ *  - `refunded`: our own signed-but-corrupt session, refunded successfully.
+ *  - `refund-failed`: ours, but the provider refund failed — must NOT be reported
+ *    as handled, so a retry (or support) can still recover the customer's money.
+ */
+type CorruptSessionOutcome = "not-ours" | "refunded" | "refund-failed";
+
+/**
  * Refund a paid session whose metadata won't parse, when it is our own signed
  * session. A present `price_proof` means the session came through our checkout
  * (corrupt items merely invalidated the proof), so — exactly like the
  * invalid-proof branch of checkPriceSignature — we refund it when it also claims
  * our origin, rather than strand a charged customer behind a terminal error.
- * Returns true when it refunded. Unsigned or foreign corrupt data returns false
- * and keeps its existing loud handling (it never came through our signed
- * pipeline, so it is a bug or another instance's session, not ours to refund).
  *
- * The refund is keyed on the provider payment reference, and providers reject a
- * second refund of the same charge, so a repeated event can't double-pay even
+ * Returns the real refund result (`refund-failed` when the provider refund
+ * didn't go through) so callers never report a failed refund as handled. The
+ * refund is keyed on the provider payment reference, and providers reject a
+ * second refund of the same charge, so a retried event can't double-pay even
  * though this path doesn't take the reservation lock.
  */
 const refundCorruptOwnSession = async (
   session: ValidatedPaymentSession,
-): Promise<boolean> => {
-  if (!session.metadata.price_proof) return false;
-  if (session.metadata._origin !== getEffectiveDomain()) return false;
+): Promise<CorruptSessionOutcome> => {
+  if (!session.metadata.price_proof) return "not-ours";
+  if (session.metadata._origin !== getEffectiveDomain()) return "not-ours";
   // Refund first; defer the alert so a slow ntfy never delays the money.
   addPendingWork(sendNtfyError(ErrorCode.WEBHOOK_PRICE_SIGNATURE));
-  await refundAndLog(
+  const refunded = await refundAndLog(
     session,
     `Corrupt metadata on a paid session (session=${session.id})`,
     0,
   );
-  return true;
+  return refunded ? "refunded" : "refund-failed";
 };
 
 /**
  * Resolve a paid session's booking intent, refunding our own signed-but-corrupt
- * sessions along the way:
- *  - `{ intent }`: parsed successfully.
- *  - `{ intent: null, refunded: true }`: our signed session's metadata won't
- *    parse — refunded (see refundCorruptOwnSession); the caller acknowledges it.
- *  - `{ intent: null, refunded: false }`: unsigned/foreign unparseable data; the
- *    caller surfaces its own error.
- * A corrupt-item-shape throw on an unsigned/foreign session is re-raised to keep
- * the existing loud failure for data that never came through our signed pipeline.
+ * sessions along the way. Returns the parsed intent, or — when it won't parse —
+ * the CorruptSessionOutcome the caller turns into a response. A corrupt-item
+ * throw on `not-ours` data is re-raised to keep the existing loud failure for
+ * data that never came through our signed pipeline.
  */
 const resolvePaidIntent = async (
   session: ValidatedPaymentSession,
-): Promise<{ intent: BookingIntent } | { intent: null; refunded: boolean }> => {
+): Promise<
+  { intent: BookingIntent } | { intent: null; corrupt: CorruptSessionOutcome }
+> => {
   try {
     const intent = extractIntent(session);
     if (intent) return { intent };
   } catch (err) {
-    if (await refundCorruptOwnSession(session)) {
-      return { intent: null, refunded: true };
-    }
-    throw err;
+    const corrupt = await refundCorruptOwnSession(session);
+    if (corrupt === "not-ours") throw err;
+    return { corrupt, intent: null };
   }
-  return { intent: null, refunded: await refundCorruptOwnSession(session) };
+  return { corrupt: await refundCorruptOwnSession(session), intent: null };
+};
+
+/** Webhook response for a paid session whose intent didn't parse. */
+const corruptWebhookResponse = (
+  session: ValidatedPaymentSession,
+  corrupt: CorruptSessionOutcome,
+  payload: string,
+): Response => {
+  // Our signed session was refunded — acknowledge it.
+  if (corrupt === "refunded") return webhookAckResponse();
+  // Ours, but the refund failed: 5xx so the provider re-delivers and we retry
+  // the refund, rather than acknowledge a customer who is still charged.
+  if (corrupt === "refund-failed") {
+    return plainResponse("Refund failed; awaiting retry", 503);
+  }
+  // Unsigned/foreign invalid data: 400 as before.
+  logError({
+    code: ErrorCode.PAYMENT_SESSION,
+    detail: `Invalid session data for ${session.id}`,
+  });
+  logDebug("Webhook", `Rejected payload: ${payload}`);
+  return plainResponse("Invalid session data", 400);
+};
+
+/** Redirect SessionValidation for a paid session whose intent didn't parse. */
+const corruptRedirectResponse = (
+  sessionId: string,
+  corrupt: CorruptSessionOutcome,
+): SessionValidation => {
+  if (corrupt === "refunded") {
+    return {
+      ok: false,
+      response: paymentErrorResponse(
+        "Your payment could not be processed and has been refunded.",
+      ),
+    };
+  }
+  if (corrupt === "refund-failed") {
+    return {
+      ok: false,
+      response: paymentErrorResponse(
+        "Your payment could not be processed. Please contact support for a refund.",
+      ),
+    };
+  }
+  logRedirectError(`Invalid session data (session=${sessionId})`);
+  return { ok: false, response: paymentErrorResponse("Invalid session data") };
 };
 
 type ValidatedItem = {
@@ -1502,16 +1542,7 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
 
   const resolved = await resolvePaidIntent(session);
   if (!resolved.intent) {
-    // Our own signed-but-corrupt session was refunded above — acknowledge it.
-    // Otherwise it's unsigned/foreign invalid data: 400 (and the provider may
-    // retry, exactly as before).
-    if (resolved.refunded) return webhookAckResponse();
-    logError({
-      code: ErrorCode.PAYMENT_SESSION,
-      detail: `Invalid session data for ${session.id}`,
-    });
-    logDebug("Webhook", `Rejected payload: ${payload}`);
-    return plainResponse("Invalid session data", 400);
+    return corruptWebhookResponse(session, resolved.corrupt, payload);
   }
   const intent = resolved.intent;
 

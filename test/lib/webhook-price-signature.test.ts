@@ -585,4 +585,84 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
       refund.restore();
     }
   });
+
+  test("a signed corrupt session whose refund fails returns 503 for retry", async () => {
+    await setupStripe();
+    const listing = await createTestListing({
+      maxAttendees: 50,
+      unitPrice: 1000,
+    });
+    // The provider refund fails (returns null): the event must NOT be
+    // acknowledged as handled — return 503 so the provider re-delivers and the
+    // refund is re-attempted, rather than leave the customer charged.
+    const refund = stub(stripeApi, "refundPayment", () =>
+      Promise.resolve(null),
+    );
+    const metadata = {
+      ...signMeta(
+        webhookMeta({
+          email: "refundfail@example.com",
+          items: singleItem(listing.id, 1, 1000),
+          name: "Refund Fail",
+        }),
+        1000,
+      ),
+      items: "not-json",
+    };
+    const mockVerify = await stubCompletedSession({
+      amount_total: 1000,
+      id: "cs_refund_fail",
+      metadata,
+    });
+    try {
+      const response = await webhookRequest();
+      expect(response.status).toBe(503);
+      expect(refund.calls.length).toBe(1);
+      expect((await getAttendeesRaw(listing.id)).length).toBe(0);
+    } finally {
+      mockVerify.restore();
+      refund.restore();
+    }
+  });
+
+  test("a signed corrupt redirect whose refund fails shows contact-support", async () => {
+    await setupStripe();
+    // Refund fails on the redirect path too: show the contact-support message
+    // rather than claim the payment was refunded.
+    const refund = stub(stripeApi, "refundPayment", () =>
+      Promise.resolve(null),
+    );
+    const metadata = {
+      ...signMeta(
+        webhookMeta({
+          email: "refundfailredirect@example.com",
+          items: singleItem(1, 1, 1000),
+          name: "Refund Fail Redirect",
+        }),
+        1000,
+      ),
+      items: "not-json",
+    };
+    const retrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+      Promise.resolve({
+        amount_total: 1000,
+        id: "cs_refund_fail_redirect",
+        metadata,
+        payment_intent: "pi_refund_fail_redirect",
+        payment_status: "paid",
+      } as unknown as Awaited<
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      >),
+    );
+    try {
+      const response = await handleRequest(
+        mockRequest("/payment/success?session_id=cs_refund_fail_redirect"),
+      );
+      expect(await response.text()).toContain("contact support");
+      expect(refund.calls.length).toBe(1);
+    } finally {
+      retrieve.restore();
+      refund.restore();
+    }
+  });
 });
