@@ -21,6 +21,7 @@ import {
   mockFormRequest,
   mockRequest,
   setupStripe,
+  signMeta,
   testCsrfToken,
 } from "#test-utils";
 
@@ -218,6 +219,84 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
       expect(state?.statusId).toBe(paid!.id);
     } finally {
       session.restore();
+    }
+  });
+
+  test("the webhook settles a signed balance checkout", async () => {
+    await setupStripe();
+    const attendeeId = await createReserved(1500);
+    const paid = await getPaidDefaultStatus();
+    const session = stub(stripeApi, "retrieveCheckoutSession", () =>
+      Promise.resolve({
+        amount_total: 1500,
+        id: "cs_balance_signed",
+        metadata: signMeta(
+          {
+            balance_attendee_id: String(attendeeId),
+            items: JSON.stringify([{ e: 1, p: 1500, q: 1 }]),
+            name: "Balance payment",
+          },
+          1500,
+        ),
+        payment_intent: "pi_balance_signed",
+        payment_status: "paid",
+      } as unknown as Awaited<
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      >),
+    );
+    try {
+      const response = await handleRequest(
+        mockRequest("/payment/success?session_id=cs_balance_signed"),
+      );
+      expect(response.status).toBe(200);
+      const state = await getAttendeeBalanceState(attendeeId);
+      expect(state?.remainingBalance).toBe(0);
+      expect(state?.statusId).toBe(paid!.id);
+    } finally {
+      session.restore();
+    }
+  });
+
+  test("a balance checkout with a tampered signature is refunded, not settled", async () => {
+    await setupStripe();
+    const attendeeId = await createReserved(1500);
+    const refund = stub(stripeApi, "refundPayment", () =>
+      Promise.resolve({ id: "re_bal" } as unknown as Awaited<
+        ReturnType<typeof stripeApi.refundPayment>
+      >),
+    );
+    const session = stub(stripeApi, "retrieveCheckoutSession", () =>
+      Promise.resolve({
+        amount_total: 1500,
+        id: "cs_balance_tampered",
+        metadata: {
+          ...signMeta(
+            {
+              balance_attendee_id: String(attendeeId),
+              items: JSON.stringify([{ e: 1, p: 1500, q: 1 }]),
+              name: "Balance payment",
+            },
+            1500,
+          ),
+          // Valid total, wrong digest — the gate must reject before settling.
+          price_proof: `1500.${"A".repeat(44)}`,
+        },
+        payment_intent: "pi_balance_tampered",
+        payment_status: "paid",
+      } as unknown as Awaited<
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      >),
+    );
+    try {
+      await handleRequest(
+        mockRequest("/payment/success?session_id=cs_balance_tampered"),
+      );
+      // The signature gate refunded; the balance is left outstanding.
+      const state = await getAttendeeBalanceState(attendeeId);
+      expect(state?.remainingBalance).toBe(1500);
+    } finally {
+      session.restore();
+      refund.restore();
     }
   });
 

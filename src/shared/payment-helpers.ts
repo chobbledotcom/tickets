@@ -201,8 +201,8 @@ export const buildItemsMetadata = async (
   // bills from), bound to the stored price/booking fields, so the webhook can
   // trust it as an oracle rather than re-deriving and hoping they agree.
   const total = priceCheckout(intent).total;
-  const price_sig = signPriceSync(priceFieldsFromMetadata(base, total));
-  return { ...base, price_sig, price_total: String(total) };
+  const sig = signPriceSync(priceFieldsFromMetadata(base, total));
+  return { ...base, price_proof: `${total}.${sig}` };
 };
 
 /**
@@ -361,8 +361,7 @@ export const extractSessionMetadata = (
   modifiers: metadata.modifiers || "",
   name: metadata.name,
   phone: metadata.phone || "",
-  price_sig: metadata.price_sig || "",
-  price_total: metadata.price_total || "",
+  price_proof: metadata.price_proof || "",
   reservation_amount: metadata.reservation_amount || "",
   site_token_index: metadata.site_token_index || "",
   special_instructions: metadata.special_instructions || "",

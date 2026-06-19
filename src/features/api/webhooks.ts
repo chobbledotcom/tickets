@@ -603,71 +603,67 @@ const paidByListing = (order: PricedOrder): Map<number, number> => {
   return paid;
 };
 
-/** The signed agreed total carried in metadata: a non-negative integer of
- * minor units, or null when absent or malformed. */
-const parseAgreedTotal = (session: ValidatedPaymentSession): number | null => {
-  const raw = session.metadata.price_total;
-  if (!raw) return null;
-  const total = Number(raw);
-  return Number.isInteger(total) && total >= 0 ? total : null;
+/** Split the `total.sig` price proof into a non-negative integer total and a
+ * non-empty signature, or null when the field is absent or malformed. */
+const parsePriceProof = (
+  proof: string,
+): { total: number; sig: string } | null => {
+  const match = /^(\d+)\.(.+)$/.exec(proof);
+  return match ? { sig: match[2]!, total: Number(match[1]) } : null;
 };
 
 /**
- * Verify a session whose checkout signed an agreed total into metadata — the
- * oracle the buyer paid and the provider can't forge. The signature must be
- * valid and the provider must have charged exactly it; then the re-derivation
- * (which still drives stock and per-listing pricing) must reproduce it. A bad
- * signature, a charge that differs from it, or a re-derivation that diverges
- * while every modifier ref still resolves should never happen for a session we
- * created and billed, so each pages. Returns null on success or a refund.
+ * Gate a paid session on the agreed total its checkout signed into metadata —
+ * the oracle the buyer paid, which the provider can't forge. Returns the
+ * trusted total; null when the session carries no proof at all (a genuine
+ * legacy/unsigned session); or a refund when a proof is present but unusable.
+ *
+ * A present-but-corrupt proof — malformed, a bad signature, or a charge that
+ * differs from the signed total — is never silently downgraded to the unsigned
+ * path (that would let tampering reinstate the weaker check); each pages and
+ * refunds, since none should happen for a session we created and billed.
  */
-const verifySignedPricing = async (
+const checkPriceSignature = async (
   session: ValidatedPaymentSession,
-  agreed: number,
-  pricedOrder: PricedOrder,
-  inputsIntact: boolean,
   listingId: number,
-): Promise<PaymentResult | null> => {
-  const signed = await verifyPrice(
-    priceFieldsFromMetadata(session.metadata, agreed),
-    session.metadata.price_sig,
-  );
-  if (!signed) {
+): Promise<{ agreed: number } | null | PaymentResult> => {
+  const proof = session.metadata.price_proof;
+  if (!proof) return null; // genuinely unsigned (legacy)
+
+  const refuse = async (detail: string): Promise<PaymentResult> => {
     await sendNtfyError(ErrorCode.WEBHOOK_PRICE_SIGNATURE);
-    return priceMismatchRefund(
-      session,
-      `Invalid price signature (session=${session.id})`,
-      listingId,
+    return priceMismatchRefund(session, detail, listingId);
+  };
+
+  const parsed = parsePriceProof(proof);
+  const valid =
+    parsed !== null &&
+    (await verifyPrice(
+      priceFieldsFromMetadata(session.metadata, parsed.total),
+      parsed.sig,
+    ));
+  if (!valid) {
+    return refuse(`Invalid price signature (session=${session.id})`);
+  }
+  if (session.amountTotal !== parsed.total) {
+    return refuse(
+      `Provider charged ${session.amountTotal} but signed total was ${parsed.total}`,
     );
   }
-  if (session.amountTotal !== agreed) {
-    await sendNtfyError(ErrorCode.WEBHOOK_PRICE_SIGNATURE);
-    return priceMismatchRefund(
-      session,
-      `Provider charged ${session.amountTotal} but signed agreed total was ${agreed}`,
-      listingId,
-    );
-  }
-  if (pricedOrder.total !== agreed) {
-    if (inputsIntact) await sendNtfyError(ErrorCode.WEBHOOK_PRICE_DIVERGENCE);
-    return priceMismatchRefund(
-      session,
-      `Re-derived total ${pricedOrder.total} differs from signed total ${agreed} (modifier inputs intact: ${inputsIntact})`,
-      listingId,
-    );
-  }
-  return null;
+  return { agreed: parsed.total };
 };
 
 /**
  * Verify a paid session's prices. Returns null on success, or a refund result.
  *
  * A session our checkout signed (every production session) is verified against
- * its signed agreed total — the oracle the buyer paid — rather than against a
- * re-derivation that might silently disagree. An unsigned session (a signing
- * outage, or a legacy/hand-built one) falls back to the older check of the
- * charge against the re-derived total: a safer degraded mode than refunding
- * everyone if signing ever breaks.
+ * its signed agreed total — the oracle the buyer paid — and the re-derivation
+ * (which still drives stock and per-listing pricing) must reproduce it; a
+ * divergence while every modifier ref still resolves is a code bug, not a
+ * mid-checkout change, so it pages. An unsigned session (a signing outage, or a
+ * legacy/hand-built one) falls back to the older check of the charge against
+ * the re-derived total: a safer degraded mode than refunding everyone if
+ * signing ever breaks.
  */
 const verifyPaidPricing = async (
   session: ValidatedPaymentSession,
@@ -692,22 +688,26 @@ const verifyPaidPricing = async (
     }
   }
 
-  const agreed = parseAgreedTotal(session);
-  if (agreed !== null) {
-    return verifySignedPricing(
-      session,
-      agreed,
-      pricedOrder,
-      inputsIntact,
-      listingId,
-    );
+  const signature = await checkPriceSignature(session, listingId);
+  if (signature === null) {
+    // Unsigned fallback: validate the charge against the re-derived total.
+    if (session.amountTotal !== pricedOrder.total) {
+      return priceMismatchRefund(
+        session,
+        `Total mismatch: provider charged ${session.amountTotal} but expected ${pricedOrder.total}`,
+        listingId,
+      );
+    }
+    return null;
   }
+  if (!("agreed" in signature)) return signature; // signed but unusable: refund
 
-  // Unsigned fallback: validate the charge against the re-derived total.
-  if (session.amountTotal !== pricedOrder.total) {
-    return await priceMismatchRefund(
+  // Signed and charged correctly: the re-derivation must reproduce the total.
+  if (pricedOrder.total !== signature.agreed) {
+    if (inputsIntact) await sendNtfyError(ErrorCode.WEBHOOK_PRICE_DIVERGENCE);
+    return priceMismatchRefund(
       session,
-      `Total mismatch: provider charged ${session.amountTotal} but expected ${pricedOrder.total}`,
+      `Re-derived total ${pricedOrder.total} differs from signed total ${signature.agreed} (modifier inputs intact: ${inputsIntact})`,
       listingId,
     );
   }
@@ -845,6 +845,12 @@ const settleBalanceSession = async (
 
   const fail = (detail: string): Promise<PaymentResult> =>
     refundAndFail(session, BALANCE_CHANGED_MESSAGE, listingId, 409, detail);
+
+  // A signed balance checkout passes the same signature gate as a ticket
+  // checkout before anything settles, so tampering with balance_attendee_id,
+  // the items, or the amount can't slip through on the live balance alone.
+  const signature = await checkPriceSignature(session, listingId);
+  if (signature !== null && !("agreed" in signature)) return signature;
 
   // Enforce the single-line invariant the amount above relies on (see
   // handleBalancePost). A balance session with more than one line is malformed

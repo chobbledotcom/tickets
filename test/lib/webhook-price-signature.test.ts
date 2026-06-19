@@ -102,8 +102,8 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
         }),
         1000,
       ),
-      // A valid-length but wrong digest — as if the metadata were altered.
-      price_sig: "A".repeat(44),
+      // A valid total but a wrong digest — as if the metadata were altered.
+      price_proof: `1000.${"A".repeat(44)}`,
     };
     const mockVerify = await stubCompletedSession({
       amount_total: 1000,
@@ -218,14 +218,14 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
     }
   });
 
-  test("a malformed price_total is treated as unsigned and falls back", async () => {
+  test("a malformed price proof is rejected, not silently downgraded", async () => {
     await setupStripe();
     const listing = await createTestListing({
       maxAttendees: 50,
       unitPrice: 1000,
     });
-    // A non-numeric price_total can't be a trusted agreed total, so the webhook
-    // ignores it and falls back to the re-derived check rather than refunding.
+    // A present-but-corrupt proof must not fall back to the weaker unsigned
+    // check (that would let tampering reinstate it); it refunds instead.
     const mockVerify = await stubCompletedSession({
       amount_total: 1000,
       id: "cs_bad_total",
@@ -235,14 +235,15 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
           items: singleItem(listing.id, 1, 1000),
           name: "Bad Total Buyer",
         }),
-        price_total: "not-a-number",
+        price_proof: "not-a-number",
       },
     });
     try {
       await assertJson(webhookRequest(), 200, (json) => {
-        expect(json.processed).toBe(true);
+        expect(json.processed).toBe(false);
+        expect(json.error).toContain("price");
       });
-      expect((await getAttendeesRaw(listing.id)).length).toBe(1);
+      expect((await getAttendeesRaw(listing.id)).length).toBe(0);
     } finally {
       mockVerify.restore();
     }

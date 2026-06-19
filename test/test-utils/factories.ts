@@ -169,8 +169,7 @@ export const webhookMeta = (
   items: "",
   modifiers: "",
   phone: "",
-  price_sig: "",
-  price_total: "",
+  price_proof: "",
   reservation_amount: "",
   site_token_index: "",
   special_instructions: "",
@@ -189,8 +188,7 @@ export const signMeta = (
   agreedTotal: number,
 ): Record<string, string> => ({
   ...metadata,
-  price_sig: signPriceSync(priceFieldsFromMetadata(metadata, agreedTotal)),
-  price_total: String(agreedTotal),
+  price_proof: `${agreedTotal}.${signPriceSync(priceFieldsFromMetadata(metadata, agreedTotal))}`,
 });
 
 export const singleItem = (

@@ -151,12 +151,11 @@ export type SessionMetadata = {
   reservation_amount: string;
   /** JSON array of applied modifier references ("" when none applied). */
   modifiers: string;
-  /** Agreed order total (minor units) the buyer was charged, as a string. */
-  price_total: string;
-  /** Server HMAC over the price/booking fields + total, so the webhook can
-   * trust the agreed total instead of re-deriving it ("" only on legacy or
-   * tampered sessions, which the webhook rejects). */
-  price_sig: string;
+  /** The agreed order total (minor units) the buyer was charged, packed with a
+   * server HMAC over the price/booking fields as `total.sig` in a single key —
+   * one entry rather than two, to stay within providers' metadata-entry caps
+   * (Square allows only 10). "" only on legacy/unsigned sessions. */
+  price_proof: string;
 };
 
 /** Schema for valid payment status values. "failed" is a terminal non-payment
