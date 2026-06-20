@@ -433,24 +433,35 @@ Why `quantity = 0` works:
     current-vs-recalculated drift display;
   - the full backfill in `schema-sync.ts`
     (`tickets_count = COALESCE((SELECT COUNT(*) … ), 0)` → add `AND quantity > 0`).
+  - **the hold-delete restore in `attendees/delete.ts`.** `deleteAttendee(id,
+    { releaseBookings: false })` pre-computes per-listing contributions with
+    `COUNT(*) AS tickets_count`, deletes the lines (the delete trigger now
+    subtracts 0 for a quantity-0 line), then **adds the pre-computed count back**.
+    With a plain `COUNT(*)` it would add `1` back for a quantity-0 line the
+    trigger removed `0` for, permanently inflating `tickets_count` whenever an
+    owner deletes an imported cancelled/quoted attendee with "release bookings"
+    unchecked. Its `COUNT(*) AS tickets_count` must use the same predicate
+    (`SUM(CASE WHEN quantity > 0 THEN 1 ELSE 0 END)`). (`booked_quantity` and
+    `income` there already use `SUM(quantity)`/`SUM(price_paid)`, so they're fine.)
   Ship this as a migration that re-creates the triggers and recomputes
   `tickets_count` (a no-op on today's data, which has no quantity-0 lines), and
   update the listing-aggregates tests. `booked_quantity`/`income` need no change
   — `SUM` already handles 0.
-- **Keep the trigger and the repair SQL from drifting.** The three sites above
+- **Keep the trigger and the repair SQL from drifting.** The four sites above
   express the same rule — "a line counts as a ticket when `quantity > 0`" — in
   two different *shapes*: the triggers apply an incremental `± delta`, while the
-  reset/backfill do an absolute `COUNT(*)`. Sharing one whole SQL string across
-  both would be gross (delta vs absolute don't unify cleanly), but the **predicate
-  itself** should live in exactly one place: extract a single
+  reset/backfill/restore do an absolute count. Sharing one whole SQL string
+  across both would be gross (delta vs absolute don't unify cleanly), but the
+  **predicate itself** should live in exactly one place: extract a single
   `TICKET_COUNTS_WHEN = "quantity > 0"` constant (or a small helper that builds
-  the `CASE`/`WHERE` fragments from it) and reference it from the trigger builder,
-  the `listings.ts` reset SQL, and the `schema-sync.ts` backfill. This mirrors the
-  existing `LISTING_AGGREGATE_WRITE_COLUMNS`, which is already shared between the
-  UPDATE trigger and the cache-invalidation `whenColumns`. Add a guard test like
-  the existing "`LISTING_AGGREGATE_WRITE_COLUMNS` matches the trigger SQL" one,
-  asserting the shared predicate appears in both the trigger and the repair SQL —
-  so a future edit to one can't silently diverge from the other.
+  the `CASE`/`WHERE`/`SUM(CASE …)` fragments from it) and reference it from the
+  trigger builder, the `listings.ts` reset SQL, the `schema-sync.ts` backfill, and
+  the `delete.ts` restore. This mirrors the existing
+  `LISTING_AGGREGATE_WRITE_COLUMNS`, which is already shared between the UPDATE
+  trigger and the cache-invalidation `whenColumns`. Add a guard test like the
+  existing "`LISTING_AGGREGATE_WRITE_COLUMNS` matches the trigger SQL" one,
+  asserting the shared predicate appears in every site — so a future edit to one
+  can't silently diverge from the others.
 - The attendee has a real line, so it is **not** an orphan and survives
   auto-purge, and the products remain structured and matched to listings.
 
@@ -487,6 +498,71 @@ This is a small cross-cutting addition (attendee edit form + listing-line save
 path + one CSS mixin) that the importer depends on; build it alongside the
 writer rather than after.
 
+## Quantity-0 Sentinel: Reader/Writer Audit
+
+Introducing `quantity = 0` as a sentinel means **every** place that reads or
+writes `listing_attendees` and implicitly assumes "a row is a real booking" must
+be reviewed. Capacity aggregates that already `SUM(quantity)` are naturally
+correct (0 contributes 0); the risk is the `COUNT(*)`-style and "a row exists →
+treat as live" surfaces. The rule of thumb: **operational, public, and capacity
+surfaces exclude quantity-0; admin record/detail views keep them (shown with the
+"no quantity" indicator).** This audit is part of the no-quantity work, not the
+importer alone. Surfaces found by sweeping `listing_attendees` SQL across `src`:
+
+Must change (exclude / adjust):
+
+- `tickets_count` writers — triggers, `listings.ts` reset, `schema-sync.ts`
+  backfill, and `delete.ts` hold-delete restore — use the shared `quantity > 0`
+  predicate (see Zero-Quantity section).
+- **Daily operational calendar** — `getDailyListingAttendeeDates` /
+  `getDailyListingAttendeesByDate` (`listings.ts`, used by `admin/calendar.ts`)
+  select daily lines by date with no quantity filter, so a cancelled/quoted daily
+  line would mark the day occupied. **Decision: exclude quantity-0** — add
+  `AND quantity > 0` to both.
+- **Bulk-email audiences** — `getAttendeePiiBlobsForListings`
+  (`attendees/queries.ts`, `SELECT DISTINCT attendee_id … no quantity predicate`,
+  feeds `bulk-email-targets.ts` "Active listing attendees" / "Attendees of X").
+  **Decision: exclude quantity-0** — add `AND quantity > 0` so cancelled/quoted
+  imports are never emailed as if they had a live booking.
+- **Logistics / delivery runs** — the logistics flow reads `listing_attendees`
+  (start/end agent + done flags live on the line). **Decision: exclude
+  quantity-0** — a cancelled/quoted line is not a drop-off/collection, so it must
+  not appear in delivery runs.
+- **Public balance settlement** — `settleAttendeeBalance` (`attendees/balance.ts`)
+  folds payment into the `MIN(id)` line's `price_paid` (income is
+  `SUM(price_paid)`). A quantity-0-only import with a nonzero `Balance` and an
+  `is_reservation` status could be paid publicly, adding income to a no-capacity
+  ghost. **Decision: a `Balance` is a payable `remaining_balance` only when the
+  attendee has ≥1 real (`quantity > 0`) line** (in addition to the
+  reservation-status rule); otherwise it is audit metadata. Rejected alternative:
+  converting a quantity-0 line to a real line on payment (changes capacity at
+  pay-time, more complex).
+
+Writer side:
+
+- **Visit counts** — the writer bypasses `createAttendeeAtomic`, so it skips its
+  `recordOrderVisit(email, phone)` side effect; those HMAC counters drive
+  `buyerVisits` for visit-gated (`min_visits`) modifiers, so imported customers
+  would look like first-time visitors. **Decision: record visits for confirmed
+  (real-quantity) imported bookings only** — not cancelled or quote-only rows.
+  Do it inside the write transaction (or with the same rollback discipline as the
+  rest of the writer) so a failed import doesn't leave dangling visit counts.
+
+Intentionally unchanged (call out so nobody "fixes" them):
+
+- **Capacity** — `attendees/capacity.ts` and the `booked_quantity` aggregate use
+  `SUM(quantity)`; quantity-0 contributes 0. Correct as-is.
+- **Orphan auto-purge** — `orphan-attendees.ts` keys off row existence; a
+  quantity-0 line deliberately keeps the imported attendee non-orphan. Correct
+  as-is (this is the whole point of writing the line).
+- **Admin per-listing attendee / check-in lists and per-attendee detail** —
+  the `JOIN listing_attendees` reads in `attendees/queries.ts` and the edit/merge
+  views **keep** quantity-0 rows: owners should see cancelled/quoted records
+  (flagged via the "no quantity" indicator), they're real attendee data.
+
+When implementing, re-run the `listing_attendees` SQL sweep — treat this list as
+the known set, not a guarantee it's exhaustive.
+
 ## Financial Mapping
 
 The CSV has order-level totals and many modifier/payment columns. The current
@@ -500,15 +576,21 @@ system has:
 MVP recommendation:
 
 - Store `Balance` as `attendees.remaining_balance` in minor units **only when
-  the resolved status is a reservation status** (`is_reservation`). The public
-  balance route (`src/features/public/balance.ts`) only lets a customer pay when
+  the resolved status is a reservation status AND the attendee has ≥1 real
+  (`quantity > 0`) line** (`is_reservation`). The public balance route
+  (`src/features/public/balance.ts`) only lets a customer pay when
   `status.is_reservation` is set, so a non-zero `remaining_balance` on a
-  non-reservation status is an unpayable, permanently-outstanding balance. For a
-  non-reservation status, store the source balance as **audit metadata only**
-  (not as an actionable `remaining_balance`). Optionally, block a non-zero
-  `Balance` whose resolved status is not `is_reservation` and tell the operator
-  to either mark that status as a reservation status or accept it as audit-only —
-  do not silently create dead balances.
+  non-reservation status is an unpayable, permanently-outstanding balance. The
+  `quantity > 0` condition matters because `settleAttendeeBalance` folds payment
+  into the `MIN(id)` line's `price_paid` (income is `SUM(price_paid)`): a
+  quantity-0-only import (e.g. a quoted row with an `is_reservation` `Quote`
+  status) would otherwise be publicly payable and add income to a no-capacity
+  ghost (see Quantity-0 Reader/Writer Audit). For anything that doesn't meet both
+  conditions, store the source balance as **audit metadata only** (not an
+  actionable `remaining_balance`). Optionally, block a non-zero `Balance` whose
+  resolved status is not `is_reservation` and tell the operator to either mark
+  that status as a reservation status or accept it as audit-only — do not silently
+  create dead balances.
 - Store `0` on every `listing_attendees.price_paid` line. Imported financial
   totals must not affect trigger-maintained listing income.
 - Preserve raw `Total`, `Received`, `Balance`, payment columns, and modifier
@@ -743,10 +825,14 @@ Target algorithm:
     - insert `attendee_answers(attendee_id, question_id, string_id)` text-answer
       rows using the resolved string ids;
     - persist the raw audit-trail fields to their durable encrypted destination;
+    - record a visit (`recordOrderVisit`-equivalent) for candidates that have ≥1
+      real (`quantity > 0`) line, so imported repeat customers aren't treated as
+      first-time visitors by visit-gated modifiers — but **not** for cancelled or
+      quote-only (quantity-0-only) candidates;
     - insert `booking_imports(old_id, new_id)`.
 15. If any insert fails, the transaction rolls back and no attendees, listing
-    lines, text answers, new `strings` rows, audit-trail records, or import-map
-    rows survive.
+    lines, text answers, new `strings` rows, audit-trail records, visit counts, or
+    import-map rows survive.
 
 Implementation notes:
 
@@ -918,8 +1004,25 @@ Semantic-correctness tests (verified against live behaviour):
     back to `>0` increments it), exercising the UPDATE trigger, while
     `booked_quantity` tracks the quantity change;
   - deleting a quantity-0 line leaves `tickets_count` unchanged;
+  - **deleting an attendee whose only line is quantity-0 with `releaseBookings:
+    false` does not inflate `tickets_count`** (the `delete.ts` restore uses the
+    shared predicate);
   - `resetListingAggregateFields` / the recalculation drift display agree with
     the triggers for a mix of zero and non-zero lines (no spurious "Mismatch").
+- **Quantity-0 lines are absent from operational/marketing surfaces:** an
+  imported cancelled/quoted line does not appear in the daily calendar
+  (`getDailyListingAttendees*`), is not a recipient in bulk-email audiences
+  (`getAttendeePiiBlobsForListings`), and is not in logistics/delivery runs;
+  but the attendee still shows in the admin per-listing attendee list (with the
+  "no quantity" indicator).
+- **A quantity-0-only attendee's balance is not publicly payable:** even with an
+  `is_reservation` status and a nonzero source `Balance`, no actionable
+  `remaining_balance` is set, so `settleAttendeeBalance` cannot fold income onto
+  the quantity-0 line.
+- **Imported visit counts:** a confirmed (real-quantity) imported booking
+  increments the customer's visit counter (so visit-gated `min_visits` modifiers
+  see them as a returning customer); a cancelled or quote-only import does not;
+  a failed/rolled-back import leaves no visit counts.
 - **The public booking path never books `quantity = 0`.** Zero-quantity is an
   admin/importer-only concept; a public checkout/submit that somehow carries a
   quantity of 0 for a listing is rejected (or coerced to a real minimum), so a
@@ -975,33 +1078,45 @@ Semantic-correctness tests (verified against live behaviour):
      rows to each attendee via its generated `ticket_token_index`, not
      `last_insert_rowid()`.
    - Write status ids, free-text answers, logistics times, balances (actionable
-     `remaining_balance` only for reservation statuses), and zero listing income.
+     `remaining_balance` only for reservation statuses with ≥1 real line), and
+     zero listing income.
    - Write cancelled rows and interested-in/quoted products as `quantity = 0`
      lines (never zero lines); confirmed `Equipments` products get real
      quantities.
+   - Record visit counts for candidates with ≥1 real (`quantity > 0`) line only
+     (the writer bypasses `createAttendeeAtomic`/`recordOrderVisit`), within the
+     rollback boundary.
    - Allow overbooked legacy rows (active bookings only; quantity-0 lines don't
      count toward capacity).
    - Prove whole-file rollback (attendees, lines, text answers, new strings,
-     audit records, import map all gone).
-6. "No quantity" booking-line support (shared, build with the writer)
-   - Change `tickets_count` to exclude quantity-0 lines at all computation sites
-     (the three `LISTING_AGGREGATE_TRIGGERS`, the `listings.ts` reset/recalc SQL,
-     and the `schema-sync.ts` backfill), with the "counts as a ticket" predicate
-     extracted into one shared constant + a guard test that it appears in both the
-     trigger and repair SQL. Migration re-creates the triggers and recomputes
-     `tickets_count`.
+     audit records, visit counts, import map all gone).
+6. "No quantity" booking-line support + quantity-0 reader/writer audit (shared,
+   build with the writer)
+   - Change `tickets_count` to exclude quantity-0 lines at all **four** computation
+     sites (the three `LISTING_AGGREGATE_TRIGGERS`, the `listings.ts` reset/recalc
+     SQL, the `schema-sync.ts` backfill, and the `delete.ts` hold-delete restore),
+     with the "counts as a ticket" predicate extracted into one shared constant +
+     a guard test that it appears in every site. Migration re-creates the triggers
+     and recomputes `tickets_count`.
    - Add the per-line "no quantity" checkbox to the attendee edit form as a proxy
      for `quantity == 0`; render it checked when the stored quantity is 0 and hide
      the quantity input via the `hidden-in-form` CSS mixin family in `style.scss`.
    - Update the listing-line save path so a checked box stores `quantity = 0` and
      **keeps** the line, an unchecked box stores the entered quantity, and only an
      explicit remove control deletes a line (no auto-delete of quantity-0 lines).
+   - Apply the reader audit (see Quantity-0 Reader/Writer Audit): exclude
+     quantity-0 from the daily calendar (`getDailyListingAttendees*`), bulk-email
+     audiences (`getAttendeePiiBlobsForListings`), and logistics/delivery runs;
+     gate payable balances on ≥1 real line; keep quantity-0 in admin record views.
    - Guard the public booking/checkout path against quantity-0 lines (admin-only).
    - Tests: DB-stored `0` round-trips to a checked box and back; explicit removal
      still deletes; a quantity-0 line is excluded from orphan auto-purge; changing
      a line's quantity to 0 (and back) updates `tickets_count` and
-     `booked_quantity` correctly with no recalc drift; the public path refuses a
-     0 quantity.
+     `booked_quantity` correctly with no recalc drift; deleting a quantity-0
+     attendee with `releaseBookings: false` doesn't inflate `tickets_count`; the
+     public path refuses a 0 quantity; quantity-0 lines are absent from calendar,
+     bulk-email, and logistics queries; a quantity-0-only attendee's balance is
+     not publicly payable.
 7. Admin upload route
    - Wire upload form, parser, planner, writer, success/error redirects.
    - Add nav entry if desired.
@@ -1034,9 +1149,18 @@ Semantic-correctness tests (verified against live behaviour):
 - Legacy imports may overbook — for *active* bookings only; quantity-0 lines
   (cancelled/interested) never count toward capacity.
 - A non-zero source `Balance` becomes an actionable `remaining_balance` only when
-  the resolved status is a reservation status (`is_reservation`); otherwise it is
-  audit metadata, because the public balance route won't let a customer pay a
-  non-reservation balance.
+  the resolved status is a reservation status (`is_reservation`) **and** the
+  attendee has ≥1 real (`quantity > 0`) line; otherwise it is audit metadata. The
+  second condition stops a quantity-0-only import being publicly payable and
+  folding income onto a no-capacity line.
+- Quantity-0 (cancelled/quoted) imports are excluded from operational, public,
+  and marketing surfaces — daily calendar, logistics/delivery runs, and bulk-email
+  audiences all add `quantity > 0` — but kept in admin record/detail views with
+  the "no quantity" indicator. See Quantity-0 Reader/Writer Audit.
+- The writer records visit counts (`recordOrderVisit`) for confirmed
+  (real-quantity) imported bookings only, since it bypasses `createAttendeeAtomic`
+  and would otherwise leave imported customers looking like first-time visitors
+  for visit-gated modifiers.
 - A row with **no** products at all (no `Equipments` and no parseable quoted
   block) is a reported non-creatable row: not written, not added to the import
   map. Every booking needs ≥1 line, even if quantity-0.
