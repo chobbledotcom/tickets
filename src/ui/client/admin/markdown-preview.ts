@@ -1,4 +1,5 @@
 /// <reference lib="dom" />
+/// <reference lib="dom.iterable" />
 /**
  * Markdown preview: adds a "Preview" link under each markdown editor (opposite
  * the character counter) that renders the current content via the admin-only

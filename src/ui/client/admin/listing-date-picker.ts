@@ -1,4 +1,5 @@
 /// <reference lib="dom" />
+/// <reference lib="dom.iterable" />
 /** Listing link date picker: filter date <select> options based on selected listing. */
 export const initListingDatePicker = (): void => {
   const datesEl = document.getElementById("available-dates-data");

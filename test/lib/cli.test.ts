@@ -3,8 +3,10 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { adminApiRoutes } from "#routes/admin/api.ts";
 import { setTestEnv } from "#test-utils";
+import { buildRequest, parseBody } from "../../cli/api-request.ts";
 import { loadConfig } from "../../cli/config.ts";
 import { buildCurlArgs, curlFailureMessage, curlJson } from "../../cli/curl.ts";
+import { clearScreen, writeErr, writeOut } from "../../cli/io.ts";
 import { parseResource, resourcePath, resources } from "../../cli/resources.ts";
 
 const withTempCwd = async <T>(fn: () => Promise<T>): Promise<T> => {
@@ -229,5 +231,99 @@ describe("CLI resources", () => {
       ),
     ].sort();
     expect([...resources].sort()).toEqual(served);
+  });
+});
+
+describe("CLI api-request", () => {
+  test("parseBody returns undefined when no JSON argument is given", () => {
+    expect(parseBody(undefined)).toBeUndefined();
+    expect(parseBody("")).toBeUndefined();
+  });
+
+  test("parseBody parses a JSON string into a value", () => {
+    expect(parseBody('{"name":"Demo"}')).toEqual({ name: "Demo" });
+  });
+
+  test("builds a bodyless list request", () => {
+    expect(buildRequest("list", "listings")).toEqual({
+      path: "/api/admin/listings",
+    });
+  });
+
+  test("builds a get request addressing a single entity", () => {
+    expect(buildRequest("get", "listings", "5")).toEqual({
+      path: "/api/admin/listings/5",
+    });
+  });
+
+  test("builds a create request with a parsed JSON body", () => {
+    expect(buildRequest("create", "listings", '{"name":"Demo"}')).toEqual({
+      body: { name: "Demo" },
+      method: "POST",
+      path: "/api/admin/listings",
+    });
+  });
+
+  test("builds an update request from an id and JSON body", () => {
+    expect(buildRequest("update", "groups", "7", '{"name":"G"}')).toEqual({
+      body: { name: "G" },
+      method: "PUT",
+      path: "/api/admin/groups/7",
+    });
+  });
+
+  test("builds a delete request that defaults to no body", () => {
+    expect(buildRequest("delete", "holidays", "9")).toEqual({
+      body: undefined,
+      method: "DELETE",
+      path: "/api/admin/holidays/9",
+    });
+  });
+
+  test("returns null for an unrecognised command", () => {
+    expect(buildRequest("publish", "listings")).toBeNull();
+  });
+});
+
+describe("CLI io", () => {
+  const decode = (bytes: Uint8Array): string => new TextDecoder().decode(bytes);
+
+  // Stub both std streams while running `act`, returning whatever each received.
+  // A single curried recorder keeps the two stubs identical without repetition.
+  const captureStdio = async (
+    act: () => Promise<void>,
+  ): Promise<{ out: string[]; err: string[] }> => {
+    const out: string[] = [];
+    const err: string[] = [];
+    const recorder = (sink: string[]) => (bytes: Uint8Array) => {
+      sink.push(decode(bytes));
+      return Promise.resolve(bytes.length);
+    };
+    const outStub = stub(Deno.stdout, "write", recorder(out));
+    const errStub = stub(Deno.stderr, "write", recorder(err));
+    try {
+      await act();
+    } finally {
+      outStub.restore();
+      errStub.restore();
+    }
+    return { err, out };
+  };
+
+  test("writeOut writes encoded text to stdout", async () => {
+    const { out, err } = await captureStdio(() => writeOut("hello"));
+    expect(out).toEqual(["hello"]);
+    expect(err).toEqual([]);
+  });
+
+  test("writeErr writes encoded text to stderr", async () => {
+    const { out, err } = await captureStdio(() => writeErr("nope\n"));
+    expect(err).toEqual(["nope\n"]);
+    expect(out).toEqual([]);
+  });
+
+  test("clearScreen writes the ANSI clear-and-home sequence to stdout", async () => {
+    const { out } = await captureStdio(() => clearScreen());
+    expect(out).toEqual(["\x1b[2J\x1b[H"]);
   });
 });
