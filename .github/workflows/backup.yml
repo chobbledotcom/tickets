@@ -1,0 +1,56 @@
+name: Database Backup
+
+# Manually-triggered out-of-band database backup.
+#
+# Runs `deno task backup` (scripts/backup.ts) in a full Deno process — unlike
+# the in-app pre-migration backup it has no Bunny edge per-request subrequest
+# budget, so it can dump arbitrarily large databases. The dump is uploaded into
+# the configured Bunny storage zone, where it appears on the admin Backups page
+# and lets the next migration skip its own inline backup.
+#
+# Required repository secrets:
+#   DB_URL             libsql:// database URL
+#   DB_TOKEN           database auth token
+#   STORAGE_ZONE_NAME  Bunny storage zone name (upload target)
+#   STORAGE_ZONE_KEY   Bunny storage zone access key
+#
+# Backups are stored unencrypted (field-level PII is already encrypted), so
+# DB_ENCRYPTION_KEY is not required.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubicloud-standard-4
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Install dependencies
+        run: deno install --allow-scripts
+
+      - name: Create database backup
+        # `deno task backup` passes --env-file, so Deno logs a harmless
+        # "'.env' not found" warning in CI — the credentials below are read
+        # straight from the job environment.
+        env:
+          DB_URL: ${{ secrets.DB_URL }}
+          DB_TOKEN: ${{ secrets.DB_TOKEN }}
+          STORAGE_ZONE_NAME: ${{ secrets.STORAGE_ZONE_NAME }}
+          STORAGE_ZONE_KEY: ${{ secrets.STORAGE_ZONE_KEY }}
+        run: deno task backup
