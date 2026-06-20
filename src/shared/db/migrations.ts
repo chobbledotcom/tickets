@@ -48,7 +48,10 @@ import questionAssignAllMigration from "./migrations/2026-06-18_question_assign_
 import questionDisplayTypeMigration from "./migrations/2026-06-18_question_display_type.ts";
 import answerAggregatesMigration from "./migrations/2026-06-19_answer_aggregates.ts";
 import builtSitesLastPrunedMigration from "./migrations/2026-06-19_built_sites_last_pruned.ts";
+import answerActiveMigration from "./migrations/2026-06-20_answer_active.ts";
 import contactBookingCountsMigration from "./migrations/2026-06-20_contact_booking_counts.ts";
+import freeTextQuestionsMigration from "./migrations/2026-06-20_free_text_questions.ts";
+import stringCreatedMigration from "./migrations/2026-06-20_string_created.ts";
 import userKekV2Migration from "./migrations/2026-06-20_user_kek_v2.ts";
 import { repairLegacyRenames } from "./migrations/rename-utils.ts";
 import {
@@ -199,6 +202,9 @@ export const MIGRATIONS: Migration[] = [
   questionAssignAllMigration,
   answerAggregatesMigration,
   builtSitesLastPrunedMigration,
+  freeTextQuestionsMigration,
+  stringCreatedMigration,
+  answerActiveMigration,
   contactBookingCountsMigration,
   userKekV2Migration,
 ].map((build) => build(migrationContext));

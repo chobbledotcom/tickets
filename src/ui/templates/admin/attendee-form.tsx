@@ -13,10 +13,10 @@
  * listing. The form works without JavaScript.
  */
 
-import { compact } from "#fp";
 import { t } from "#i18n";
 import {
   ATTENDEE_FORM_ID,
+  type AttendeeBooking,
   type AttendeeFormLine,
   type BalanceNotice,
   DAY_COUNT_FIELD,
@@ -60,8 +60,10 @@ import {
 } from "#shared/types.ts";
 import {
   AttendeeAnswersTable,
+  AttendeeBookingsTable,
   AttendeeDetail,
   AttendeeLogSection,
+  BookingStatusBadges,
 } from "#templates/admin/attendee-detail.tsx";
 import { EditQuestions, PaymentDetails } from "#templates/admin/attendees.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
@@ -114,6 +116,8 @@ export type AttendeeFormTemplateData = {
   questions: QuestionWithAnswers[];
   /** Currently-selected answer ids for the rendered questions. */
   selectedAnswerIds: number[];
+  /** Currently-entered free-text answers, keyed by question id. */
+  selectedTextAnswers: Map<number, string>;
   /** Today's ISO date. */
   todayIso: string;
   /** Optional return URL the caller came from. */
@@ -126,27 +130,15 @@ export type AttendeeFormTemplateData = {
   phonePrefix: string;
   /** This attendee's activity log entries, newest first (edit mode only). */
   activityLog: ActivityLogEntry[];
+  /** The attendee's current bookings, for the read-only summary table at the top
+   * of the page (edit mode; empty in create mode). */
+  bookings: AttendeeBooking[];
   /** Overbooking / over-duration warnings per listing id (booked lines only). */
   lineWarnings: Map<number, string[]>;
   /** All warnings flattened, for the top-of-page summary. */
   topWarnings: string[];
   /** Logistics selectors data, or undefined when logistics doesn't apply. */
   logistics?: AttendeeLogisticsData;
-};
-
-/** Status badges for an existing booking — "Checked in" and/or "Refunded". */
-const bookingStatusBadges = (
-  booking: AttendeeFormLine["existingBooking"],
-): JSX.Element | null => {
-  const badges = compact([
-    booking?.checked_in ? <span class="badge">Checked in</span> : null,
-    booking?.refunded ? <span class="badge danger">Refunded</span> : null,
-  ]);
-  return badges.length > 0 ? (
-    <div class="muted small">
-      <Raw html={badges.join(" ")} />
-    </div>
-  ) : null;
 };
 
 /** One row of the listing editor — a listing and its quantity box. */
@@ -165,7 +157,10 @@ const ListingRow = ({
       <td>
         <a href={`/admin/listing/${listing.id}`}>{listing.name}</a>
         {listing.active ? "" : <span class="muted small">(inactive)</span>}
-        {bookingStatusBadges(line.existingBooking)}
+        {BookingStatusBadges({
+          checkedIn: Boolean(line.existingBooking?.checked_in),
+          refunded: Boolean(line.existingBooking?.refunded),
+        })}
       </td>
       <td>
         {isDaily ? (
@@ -804,6 +799,7 @@ const AttendeeEditForm = ({
           <EditQuestions
             questions={data.questions}
             selectedAnswerIds={data.selectedAnswerIds}
+            selectedTextAnswers={data.selectedTextAnswers}
           />
         </>
       )}
@@ -873,6 +869,8 @@ export const attendeeFormPage = (
           phonePrefix={data.phonePrefix}
         />
       )}
+
+      {isEdit && <AttendeeBookingsTable bookings={data.bookings} />}
 
       {isEdit && (
         <AttendeeAnswersTable

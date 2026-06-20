@@ -352,6 +352,7 @@ const handleAdminCalendarGet = (request: Request) =>
     const questionData = await loadAttendeeQuestionData(
       attendees.map((a) => a.listingId),
       attendees.map((a) => a.id),
+      (await getPrivateKey(session))!,
     );
 
     const hasPaidListing = allListings.some(isPaidListing);

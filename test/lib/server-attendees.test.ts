@@ -2265,7 +2265,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { getAttendeeAnswersBatch } = await import(
         "#shared/db/questions.ts"
       );
-      const answers = await getAttendeeAnswersBatch([attendee.id]);
+      const answers = await getAttendeeAnswersBatch([attendee.id], {
+        texts: false,
+      });
       expect(answers.get(attendee.id)).toEqual([a2.id]);
     });
 
@@ -2287,7 +2289,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
 
-      const answers = await getAttendeeAnswersBatch([attendee.id]);
+      const answers = await getAttendeeAnswersBatch([attendee.id], {
+        texts: false,
+      });
       expect(answers.get(attendee.id)).toEqual([a2.id]);
     });
 
@@ -2308,7 +2312,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
 
-      const answers = await getAttendeeAnswersBatch([attendee.id]);
+      const answers = await getAttendeeAnswersBatch([attendee.id], {
+        texts: false,
+      });
       const attendeeAnswers = answers.get(attendee.id) ?? [];
       expect(attendeeAnswers.length).toBe(0);
     });
@@ -2330,7 +2336,9 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { getAttendeeAnswersBatch } = await import(
         "#shared/db/questions.ts"
       );
-      const answers = await getAttendeeAnswersBatch([attendee.id]);
+      const answers = await getAttendeeAnswersBatch([attendee.id], {
+        texts: false,
+      });
       const attendeeAnswers = answers.get(attendee.id) ?? [];
       expect(attendeeAnswers.length).toBe(0);
     });

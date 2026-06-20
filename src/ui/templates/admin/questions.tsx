@@ -164,65 +164,94 @@ export const adminQuestionPage = (
       <Flash error={error} />
 
       <CsrfForm action={`/admin/questions/${question.id}/edit`}>
-        <Raw
-          html={questionTextForm.render({
-            display_type: question.display_type,
-            text: question.text,
-          })}
-        />
+        <Raw html={questionTextForm.field("text").render(question.text)} />
+        {question.display_type === "free_text" ? (
+          // Free-text questions can't become choice questions (it would orphan
+          // any stored text answers), so lock the type rather than offering it.
+          <input name="display_type" type="hidden" value="free_text" />
+        ) : (
+          <label>
+            Display as
+            <select name="display_type">
+              <option
+                selected={question.display_type === "radio"}
+                value="radio"
+              >
+                Radio buttons
+              </option>
+              <option
+                selected={question.display_type === "select"}
+                value="select"
+              >
+                Select box
+              </option>
+            </select>
+          </label>
+        )}
         <SubmitButton icon="save">{t("questions.edit.update")}</SubmitButton>
       </CsrfForm>
 
-      <h2>{t("questions.edit.answers_heading")}</h2>
-      <CsrfForm
-        action={`/admin/questions/${question.id}/answers`}
-        id="add-answer"
-      >
-        <Raw html={answerTextForm.render()} />
-        <SubmitButton icon="plus">
-          {t("questions.edit.add_answer")}
-        </SubmitButton>
-      </CsrfForm>
-
-      {question.answers.length === 0 ? (
+      {question.display_type === "free_text" ? (
         <p>
-          <em>{t("questions.edit.no_answers")}</em>
+          <em>
+            Free-text questions collect a typed answer, so they have no answer
+            options to manage.
+          </em>
         </p>
       ) : (
-        <div class="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>{t("questions.order_column")}</th>
-                <th>{t("questions.answer_column")}</th>
-                <th>{t("questions.selected_column")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {question.answers.map((a, i) => (
-                <tr>
-                  <td>
-                    <ReorderControls
-                      action={(d) =>
-                        `/admin/questions/${question.id}/answers/${a.id}/move-${d}`
-                      }
-                      count={question.answers.length}
-                      index={i}
-                    />
-                  </td>
-                  <td>
-                    <a
-                      href={`/admin/questions/${question.id}/answers/${a.id}/edit`}
-                    >
-                      {a.text}
-                    </a>
-                  </td>
-                  <td>{answerCounts?.get(a.id) ?? 0}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          <h2>{t("questions.edit.answers_heading")}</h2>
+          <CsrfForm
+            action={`/admin/questions/${question.id}/answers`}
+            id="add-answer"
+          >
+            <Raw html={answerTextForm.render()} />
+            <SubmitButton icon="plus">
+              {t("questions.edit.add_answer")}
+            </SubmitButton>
+          </CsrfForm>
+
+          {question.answers.length === 0 ? (
+            <p>
+              <em>{t("questions.edit.no_answers")}</em>
+            </p>
+          ) : (
+            <div class="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>{t("questions.order_column")}</th>
+                    <th>{t("questions.answer_column")}</th>
+                    <th>{t("questions.selected_column")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {question.answers.map((a, i) => (
+                    <tr>
+                      <td>
+                        <ReorderControls
+                          action={(d) =>
+                            `/admin/questions/${question.id}/answers/${a.id}/move-${d}`
+                          }
+                          count={question.answers.length}
+                          index={i}
+                        />
+                      </td>
+                      <td>
+                        <a
+                          href={`/admin/questions/${question.id}/answers/${a.id}/edit`}
+                        >
+                          {a.text}
+                        </a>
+                      </td>
+                      <td>{answerCounts?.get(a.id) ?? 0}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
 
       <h2>{t("questions.assign_to_listings")}</h2>
@@ -379,6 +408,19 @@ export const adminAnswerEditPage = (
             ))}
           </select>
           <small>{t("questions.edit_answer.modifier_hint")}</small>
+        </label>
+        <label>
+          <input
+            checked={answer.active || undefined}
+            name="active"
+            type="checkbox"
+            value="on"
+          />{" "}
+          Active
+          <small>
+            Deactivate to hide this answer on the booking form. Attendees who
+            already chose it keep it, and it still shows on their edit page.
+          </small>
         </label>
         <AnswerRunningTotalsSection
           aggregateRecalculation={aggregateRecalculation}

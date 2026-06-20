@@ -397,7 +397,9 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
 
       await deleteListing(listing1.id);
 
-      const answers = await getAttendeeAnswersBatch([attendeeId]);
+      const answers = await getAttendeeAnswersBatch([attendeeId], {
+        texts: false,
+      });
       expect(answers.get(attendeeId)).toEqual([answer.id]);
     });
 

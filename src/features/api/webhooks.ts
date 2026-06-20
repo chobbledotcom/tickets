@@ -86,6 +86,7 @@ import {
   getActivePaymentProvider,
   type ModifierRef,
   type ModifierSpec,
+  type TextAnswerRef,
   type ValidatedPaymentSession,
   type WebhookEvent,
 } from "#shared/payments.ts";
@@ -109,6 +110,11 @@ const parseListingAnswerIds = (
   json: string,
 ): Record<string, number[]> | undefined =>
   json ? (JSON.parse(json) as Record<string, number[]>) : undefined;
+
+const parseListingTextAnswerIds = (
+  json: string,
+): Record<string, TextAnswerRef[]> | undefined =>
+  json ? (JSON.parse(json) as Record<string, TextAnswerRef[]>) : undefined;
 
 /** Wrap handler with session ID extraction */
 const withSessionId =
@@ -476,6 +482,7 @@ const extractIntent = (
     email: metadata.email,
     items,
     listingAnswerIds: parseListingAnswerIds(metadata.answer_ids),
+    listingTextAnswerIds: parseListingTextAnswerIds(metadata.text_answer_ids),
     modifiers: parseModifierRefs(metadata.modifiers),
     name: metadata.name,
     phone: metadata.phone,
@@ -720,6 +727,42 @@ type CreatedAttendee = Extract<
 >["attendees"][number];
 
 type CreatedEntry = { attendee: CreatedAttendee; listing: ListingWithCount };
+
+const saveSessionAnswers = async (
+  createdEntries: CreatedEntry[],
+  intent: BookingIntent,
+): Promise<void> => {
+  if (!intent.listingAnswerIds && !intent.listingTextAnswerIds) return;
+  const choiceAnswers = groupListingAnswers(
+    createdEntries,
+    intent.listingAnswerIds ?? {},
+  );
+  const grouped: Map<
+    number,
+    {
+      answerIds: number[];
+      textAnswerIds?: { questionId: number; stringId: number }[];
+    }
+  > = new Map(
+    [...choiceAnswers].map(([attendeeId, answerIds]) => [
+      attendeeId,
+      { answerIds },
+    ]),
+  );
+  for (const { attendee, listing } of createdEntries) {
+    const refs = intent.listingTextAnswerIds?.[String(listing.id)] ?? [];
+    if (refs.length === 0) continue;
+    const existing = grouped.get(attendee.id) ?? { answerIds: [] };
+    grouped.set(attendee.id, {
+      ...existing,
+      textAnswerIds: [
+        ...(existing.textAnswerIds ?? []),
+        ...refs.map((ref) => ({ questionId: ref.q, stringId: ref.s })),
+      ],
+    });
+  }
+  await saveAttendeeAnswers(grouped);
+};
 
 /**
  * Create the attendee plus per-listing bookings atomically.
@@ -974,11 +1017,7 @@ const processReservedSession = async (
   if ("success" in created) return created;
   const createdEntries = created.entries;
 
-  if (intent.listingAnswerIds) {
-    await saveAttendeeAnswers(
-      groupListingAnswers(createdEntries, intent.listingAnswerIds),
-    );
-  }
+  await saveSessionAnswers(createdEntries, intent);
 
   const firstAttendee = createdEntries[0]!;
   const ticketToken = firstAttendee.attendee.ticket_token;

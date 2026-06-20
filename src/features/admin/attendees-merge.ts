@@ -285,6 +285,7 @@ const validateMergePostInput = async (
 
 /** Apply merge decisions and return the success redirect response */
 const applyMergeDecisions = async (
+  session: AuthSession,
   attendeeId: number,
   target: Attendee,
   source: MergeSource,
@@ -294,6 +295,7 @@ const applyMergeDecisions = async (
   const result = await applyAttendeeMerge({
     decision,
     diff,
+    privateKey: await requirePrivateKey(session),
     sourceId: source.id,
     sourcePii: extractSourcePii(source),
     targetId: attendeeId,
@@ -449,5 +451,12 @@ export const handleMergePost = handlers.post(async (session, form, target) => {
       ),
     );
   }
-  return applyMergeDecisions(target.id, target, source, diff, decision);
+  return applyMergeDecisions(
+    session,
+    target.id,
+    target,
+    source,
+    diff,
+    decision,
+  );
 });
