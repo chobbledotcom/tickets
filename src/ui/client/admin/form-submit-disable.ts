@@ -1,4 +1,5 @@
 /// <reference lib="dom" />
+/// <reference lib="dom.iterable" />
 /** Disable form controls on submit to prevent double-submission, and re-enable
  * them when the page is restored from bfcache (back/forward navigation).
  *
