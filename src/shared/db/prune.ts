@@ -16,6 +16,10 @@
  *   `last_activity` is bumped on booking and outreach; pruning subscribed rows
  *   bounds table growth and makes returning-customer recognition
  *   recency-bounded. Unsubscribed rows are suppression records and are kept.
+ * - strings: owner-key-encrypted free-text answer values. The attendee_answers
+ *   triggers maintain each row's reference count but never delete (a pending
+ *   paid checkout can hold a `string_id` in its metadata before finalizing), so
+ *   this age-based prune is the sole cleanup for unused rows.
  * - attendees (orphaned only): rows with no surviving listing booking, older
  *   than the age chosen on the Privacy page. Opt-in — only scheduled while
  *   `auto_purge_orphans` is on (see PRUNE_TASKS).
@@ -37,6 +41,7 @@ import {
   PRUNE_SESSIONS_RETENTION_MS,
   PRUNE_SUMUP_RETENTION_MS,
   PRUNE_TOKENS_RETENTION_MS,
+  PRUNE_UNUSED_STRINGS_RETENTION_MS,
   parsePositiveInt,
 } from "#shared/limits.ts";
 import { logDebug } from "#shared/logger.ts";
@@ -76,6 +81,12 @@ export const prunePayments = isoAgePruner(
 export const pruneSumupCheckouts = isoAgePruner(
   "DELETE FROM sumup_checkouts WHERE created_at < ?",
   PRUNE_SUMUP_RETENTION_MS,
+);
+
+/** Delete unreferenced encrypted free-text strings older than retention. */
+export const pruneUnusedStrings = isoAgePruner(
+  "DELETE FROM strings WHERE used_count = 0 AND created < ?",
+  PRUNE_UNUSED_STRINGS_RETENTION_MS,
 );
 
 /**
@@ -168,6 +179,12 @@ const PRUNE_TASKS = (): PruneTask[] => [
     name: "sumup_checkouts",
     run: pruneSumupCheckouts,
     writeLast: settings.update.lastPrunedSumup,
+  },
+  {
+    lastRaw: settings.lastPrunedStrings,
+    name: "strings",
+    run: pruneUnusedStrings,
+    writeLast: settings.update.lastPrunedStrings,
   },
   {
     lastRaw: settings.lastPrunedSessions,

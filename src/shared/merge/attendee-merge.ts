@@ -12,6 +12,7 @@ import { executeBatch, insert } from "#shared/db/client.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import {
   getAttendeeAnswersByQuestion,
+  getAttendeeTextAnswers,
   saveAttendeeAnswers,
 } from "#shared/db/questions.ts";
 import type {
@@ -476,7 +477,15 @@ const applyBookingDecisions = (
 export const applyAttendeeMerge = async (
   input: ApplyAttendeeMergeInput,
 ): Promise<AttendeeMergeApplyResult> => {
-  const { targetId, sourceId, targetPii, sourcePii, diff, decision } = input;
+  const {
+    targetId,
+    sourceId,
+    targetPii,
+    sourcePii,
+    diff,
+    decision,
+    privateKey,
+  } = input;
 
   // --- 1. Apply PII decisions ---
   const { piiFieldsFromSource } = applyPiiDecisions(
@@ -498,6 +507,20 @@ export const applyAttendeeMerge = async (
     bookingsSkipped,
     bookingsReplacedTarget,
   } = applyBookingDecisions(targetId, diff, decision);
+
+  // Free-text answers are not part of the merge diff UI. Load both attendees'
+  // text answers BEFORE the batch below deletes the source's rows, then merge
+  // them with the target taking precedence — so a source-only text answer is
+  // adopted (matching how source-only choice answers are) instead of being
+  // dropped, while a target answer is never silently overwritten.
+  const [targetTextAnswers, sourceTextAnswers] = await Promise.all([
+    getAttendeeTextAnswers(targetId, privateKey),
+    getAttendeeTextAnswers(sourceId, privateKey),
+  ]);
+  const mergedTextAnswers = new Map([
+    ...sourceTextAnswers,
+    ...targetTextAnswers,
+  ]);
 
   // --- 4. Execute all DB changes atomically ---
   await executeBatch([
@@ -521,8 +544,24 @@ export const applyAttendeeMerge = async (
     { args: [sourceId], sql: "DELETE FROM attendees WHERE id = ?" },
   ]);
 
-  // Save merged answers for target (one answer per question → flat id list).
-  await saveAttendeeAnswers(new Map([[targetId, [...finalAnswers.values()]]]));
+  // Save merged answers for target. The choice decisions reduce to one answer
+  // per question; re-supplying the merged free-text plaintext lets
+  // saveAttendeeAnswers' replace (delete-then-insert) re-create the encrypted
+  // strings it drops instead of wiping the answers.
+  await saveAttendeeAnswers(
+    new Map([
+      [
+        targetId,
+        {
+          answerIds: [...finalAnswers.values()],
+          textAnswers: [...mergedTextAnswers].map(([questionId, text]) => ({
+            questionId,
+            text,
+          })),
+        },
+      ],
+    ]),
+  );
 
   const summary: AttendeeMergeApplySummary = {
     answersCleared,

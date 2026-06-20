@@ -119,8 +119,20 @@ describe("detail-rows", () => {
         questions: [
           {
             answers: [
-              { id: 10, question_id: 1, sort_order: 0, text: "Small" },
-              { id: 11, question_id: 1, sort_order: 1, text: "Large" },
+              {
+                active: true,
+                id: 10,
+                question_id: 1,
+                sort_order: 0,
+                text: "Small",
+              },
+              {
+                active: true,
+                id: 11,
+                question_id: 1,
+                sort_order: 1,
+                text: "Large",
+              },
             ],
             display_type: "radio" as const,
             id: 1,
@@ -136,7 +148,15 @@ describe("detail-rows", () => {
         attendeeAnswerMap: new Map(),
         questions: [
           {
-            answers: [{ id: 10, question_id: 1, sort_order: 0, text: "A" }],
+            answers: [
+              {
+                active: true,
+                id: 10,
+                question_id: 1,
+                sort_order: 0,
+                text: "A",
+              },
+            ],
             display_type: "radio" as const,
             id: 1,
             text: "Q?",
@@ -281,7 +301,15 @@ describe("detail-rows", () => {
           attendeeAnswerMap: new Map(),
           questions: [
             {
-              answers: [{ id: 10, question_id: 1, sort_order: 0, text: "S" }],
+              answers: [
+                {
+                  active: true,
+                  id: 10,
+                  question_id: 1,
+                  sort_order: 0,
+                  text: "S",
+                },
+              ],
               display_type: "radio" as const,
               id: 1,
               text: "Size?",

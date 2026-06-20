@@ -8,6 +8,7 @@ import {
   csvResponse,
   getDateFilter,
   listingAttendeesLoader,
+  requirePrivateKey,
 } from "#routes/admin/actions.ts";
 import {
   createRecalculatePageRenderer,
@@ -23,6 +24,7 @@ import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
 import {
   AUTH_FORM,
   AUTH_MULTIPART,
+  type AuthSession,
   requireSessionOr,
   withAuth,
 } from "#routes/auth.ts";
@@ -396,10 +398,10 @@ const listingAttendeesHandler =
     _handler: (ctx: {
       listing: ListingWithCount;
       attendees: Attendee[];
-      session: AdminSession;
+      session: AuthSession;
     }) => Response | Promise<Response>,
   ) =>
-  (listing: ListingWithCount, attendees: Attendee[], session: AdminSession) =>
+  (listing: ListingWithCount, attendees: Attendee[], session: AuthSession) =>
     _handler({ attendees, listing, session });
 
 /**
@@ -529,19 +531,28 @@ const renderListingPage = async (
           flash,
           phonePrefix,
           questions,
-          attendeeAnswerMap,
+          answers,
           groupContext,
           aggregateRecalculation,
         ] = await Promise.all([
           Promise.resolve(getFlash()),
           Promise.resolve(settings.phonePrefix),
           getQuestionsForListing(listing.id),
-          getAttendeeAnswersBatch(attendeeIds),
+          getAttendeeAnswersBatch(attendeeIds, {
+            privateKey: await requirePrivateKey(session),
+            texts: true,
+          }),
           loadGroupContext(listing, dateFilter),
           getListingAggregateRecalculation(listing),
         ]);
         const questionData =
-          questions.length > 0 ? { attendeeAnswerMap, questions } : undefined;
+          questions.length > 0
+            ? {
+                attendeeAnswerMap: answers.answerIds,
+                questions,
+                textAnswerMap: answers.textAnswers,
+              }
+            : undefined;
         return htmlResponse(
           adminListingPage({
             activeFilter,
@@ -810,7 +821,7 @@ const handleAdminListingExport: TypedRouteHandler<
     request,
     id,
   )(
-    listingAttendeesHandler(async ({ listing, attendees }) => {
+    listingAttendeesHandler(async ({ listing, attendees, session }) => {
       const { dateFilter, filteredByDate } = applyDateFilter(
         listing,
         attendees,
@@ -825,14 +836,23 @@ const handleAdminListingExport: TypedRouteHandler<
         checkinFromRequest(request),
       );
 
-      // Load questions and attendee answers for CSV
+      // Load questions and attendee answers (including free-text) for CSV
       const attendeeIds = exported.map((a) => a.id);
-      const [questions, attendeeAnswerMap] = await Promise.all([
+      const [questions, answers] = await Promise.all([
         getQuestionsForListing(listing.id),
-        getAttendeeAnswersBatch(attendeeIds),
+        getAttendeeAnswersBatch(attendeeIds, {
+          privateKey: await requirePrivateKey(session),
+          texts: true,
+        }),
       ]);
       const questionData: CsvQuestionData | undefined =
-        questions.length > 0 ? { attendeeAnswerMap, questions } : undefined;
+        questions.length > 0
+          ? {
+              attendeeAnswerMap: answers.answerIds,
+              questions,
+              textAnswerMap: answers.textAnswers,
+            }
+          : undefined;
 
       const csv = generateAttendeesCsv(
         exported,

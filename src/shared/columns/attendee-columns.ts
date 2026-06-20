@@ -90,6 +90,26 @@ const special_instructions: AttendeeCol = {
   label: "Special Instructions",
 };
 
+/** Free-text answers for one attendee: the values plus their "Question: Answer"
+ * tooltip parts. Carry no answer id, so pulled per free_text question from the
+ * decrypted text map (present only when the loader fetched it). */
+const freeTextAnswerParts = (
+  attendeeId: number,
+  questionData: import("#templates/attendee-table.tsx").TableQuestionData,
+): { texts: string[]; tooltips: string[] } => {
+  const textByQuestion = questionData.textAnswerMap?.get(attendeeId);
+  const texts: string[] = [];
+  const tooltips: string[] = [];
+  for (const q of questionData.questions) {
+    if (q.display_type !== "free_text") continue;
+    const text = textByQuestion?.get(q.id);
+    if (!text) continue;
+    texts.push(text);
+    tooltips.push(`${q.text}: ${text}`);
+  }
+  return { texts, tooltips };
+};
+
 /** Get attendee answer display */
 const getAnswerDisplay = (
   attendeeId: number,
@@ -106,9 +126,10 @@ const getAnswerDisplay = (
     if (text) answerTexts.push(text);
     if (text && qText) tooltipParts.push(`${qText}: ${text}`);
   }
+  const freeText = freeTextAnswerParts(attendeeId, questionData);
   return {
-    short: answerTexts.join(", "),
-    tooltip: tooltipParts.join(", "),
+    short: [...answerTexts, ...freeText.texts].join(", "),
+    tooltip: [...tooltipParts, ...freeText.tooltips].join(", "),
   };
 };
 

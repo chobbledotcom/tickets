@@ -76,6 +76,7 @@ import {
 } from "#shared/db/logistics.ts";
 import { getAllLogisticsAgents } from "#shared/db/logistics-agents.ts";
 import {
+  getAttendeeTextAnswers,
   loadAttendeeQuestionData,
   parseQuestionAnswers,
   type QuestionWithAnswers,
@@ -314,6 +315,7 @@ const buildTemplateData = async (
     returnUrl?: string;
     questions?: QuestionWithAnswers[];
     selectedAnswerIds?: number[];
+    selectedTextAnswers?: Map<number, string>;
     contactRecords?: ContactRecordsByChannel;
   } = {},
 ): Promise<AttendeeFormTemplateData> => {
@@ -358,6 +360,7 @@ const buildTemplateData = async (
     questions: opts.questions ?? [],
     returnUrl: opts.returnUrl,
     selectedAnswerIds: opts.selectedAnswerIds ?? [],
+    selectedTextAnswers: opts.selectedTextAnswers ?? new Map(),
     statuses,
     todayIso: todayInTz(settings.timezone),
     topWarnings: warnings.top,
@@ -369,17 +372,37 @@ const buildTemplateData = async (
 const loadQuestionsForExisting = async (
   attendeeId: number,
   existing: ExistingLine[],
+  privateKey: CryptoKey,
 ): Promise<{
   questions: QuestionWithAnswers[];
   selectedAnswerIds: number[];
+  selectedTextAnswers: Map<number, string>;
 }> => {
   const listingIds = unique(existing.map((e) => e.booking.listing_id));
   const data = await loadAttendeeQuestionData(listingIds, [attendeeId]);
-  if (!data) return { questions: [], selectedAnswerIds: [] };
+  if (!data) {
+    return {
+      questions: [],
+      selectedAnswerIds: [],
+      selectedTextAnswers: new Map(),
+    };
+  }
   return {
     questions: data.questions,
     selectedAnswerIds: data.attendeeAnswerMap.get(attendeeId) ?? [],
+    selectedTextAnswers: await getAttendeeTextAnswers(attendeeId, privateKey),
   };
+};
+
+/** Resolve the session's private key and load the attendee's question context
+ * with it — the two always pair up at the edit-form call sites. */
+const loadQuestionsForSession = async (
+  session: AuthSession,
+  attendeeId: number,
+  existing: ExistingLine[],
+) => {
+  const privateKey = await requirePrivateKey(session);
+  return loadQuestionsForExisting(attendeeId, existing, privateKey);
 };
 
 /** Render the attendee form page as an HTML response. */
@@ -442,10 +465,8 @@ export const handleAttendeeEditGet: TypedRouteHandler<
       loaded.existing,
       renderListings,
     );
-    const { questions, selectedAnswerIds } = await loadQuestionsForExisting(
-      attendeeId,
-      loaded.existing,
-    );
+    const { questions, selectedAnswerIds, selectedTextAnswers } =
+      await loadQuestionsForSession(session, attendeeId, loaded.existing);
     const contactRecords = await loadContactRecords(session, loaded.attendee);
     const data = await buildTemplateData("edit", parsed, loaded.attendee, {
       contactRecords,
@@ -453,6 +474,7 @@ export const handleAttendeeEditGet: TypedRouteHandler<
       questions,
       returnUrl: getSearchParam(request, "return_url"),
       selectedAnswerIds,
+      selectedTextAnswers,
     });
     return renderAttendeeFormPage(request, data, session);
   });
@@ -529,6 +551,7 @@ type EditContext = {
   existingByKey: Map<string, ListingAttendeeRow>;
   questions: QuestionWithAnswers[];
   selectedAnswerIds: number[];
+  selectedTextAnswers: Map<number, string>;
 };
 
 /** Create mode has no attendee, lines, or questions to preload. */
@@ -537,6 +560,7 @@ const EMPTY_EDIT_CONTEXT: EditContext = {
   existingByKey: new Map(),
   questions: [],
   selectedAnswerIds: [],
+  selectedTextAnswers: new Map(),
 };
 
 /** Edit mode: load the attendee, its existing lines (indexed by key), and its
@@ -547,10 +571,8 @@ const loadEditContext = async (
 ): Promise<EditContext | null> => {
   const loaded = await loadAttendeeForEdit(session, attendeeId);
   if (!loaded) return null;
-  const { questions, selectedAnswerIds } = await loadQuestionsForExisting(
-    attendeeId,
-    loaded.existing,
-  );
+  const { questions, selectedAnswerIds, selectedTextAnswers } =
+    await loadQuestionsForSession(session, attendeeId, loaded.existing);
   return {
     attendee: loaded.attendee,
     existingByKey: new Map(
@@ -558,6 +580,7 @@ const loadEditContext = async (
     ),
     questions,
     selectedAnswerIds,
+    selectedTextAnswers,
   };
 };
 
@@ -587,7 +610,13 @@ const handleSubmitInner = async (
       ? await loadEditContext(session, attendeeId)
       : EMPTY_EDIT_CONTEXT;
   if (edit === null) return notFoundResponse();
-  const { attendee, existingByKey, questions, selectedAnswerIds } = edit;
+  const {
+    attendee,
+    existingByKey,
+    questions,
+    selectedAnswerIds,
+    selectedTextAnswers,
+  } = edit;
 
   const listingsById = listingsByIdMap(await getAllListings());
   // Coerce a missing/blank status back to the public default (the form offers
@@ -602,6 +631,7 @@ const handleSubmitInner = async (
     questions,
     returnUrl: parsed.returnUrl,
     selectedAnswerIds,
+    selectedTextAnswers,
   };
 
   const result = validateParsedForm(parsed);
@@ -639,7 +669,7 @@ const handleSubmitInner = async (
           parsed,
           attendee!,
           questions,
-          parseQuestionAnswers({ optional: true })(form, questions).answerIds,
+          parseQuestionAnswers({ optional: true })(form, questions),
           logisticsPlan,
         );
   if (outcome.ok) return outcome.response;
@@ -739,7 +769,7 @@ const applyEdit = async (
   parsed: ParsedAttendeeForm,
   attendee: Attendee,
   questions: QuestionWithAnswers[],
-  answerIds: number[],
+  answers: import("#shared/db/questions.ts").AttendeeAnswerSet,
   logisticsPlan: LogisticsPlan,
 ): Promise<SaveOutcome> => {
   const encryptedPiiBlob = (await encryptPiiBlob(
@@ -779,7 +809,7 @@ const applyEdit = async (
   await applyLogisticsPlan(attendeeId, logisticsPlan);
 
   if (questions.length > 0) {
-    await saveAttendeeAnswers(new Map([[attendeeId, answerIds]]));
+    await saveAttendeeAnswers(new Map([[attendeeId, answers]]));
   }
 
   const firstListingId = desired[0]?.listingId;
