@@ -1,7 +1,28 @@
 name: Deploy to Clients
 
+# Backs up and upgrades every built client site.
+#
+# The main instance holds each site's read-only DB credentials, so this workflow
+# no longer needs BUNNY_SCRIPT_DATA: it asks the main instance for the whole
+# fleet, backs each site up to our Bunny storage, then deploys the freshly built
+# script to that site.
+#
+# The MAIN_INSTANCE_KEY is pasted in at run time (a workflow input), never stored
+# as a GitHub secret — so the shared secret lives only on the main app and with
+# whoever triggers a deploy. It is masked out of the logs immediately. Note that
+# workflow_dispatch input values are visible in the run's metadata to anyone who
+# can view Actions, so treat it like a password you rotate if exposed.
+#
+# Stored secrets: MAIN_INSTANCE (url), BUNNY_ACCESS_KEY, STORAGE_ZONE_NAME,
+# STORAGE_ZONE_KEY.
+
 on:
   workflow_dispatch:
+    inputs:
+      main_instance_key:
+        description: "MAIN_INSTANCE_KEY (pasted per run; not stored)"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -19,43 +40,55 @@ jobs:
         with:
           build_commit: ${{ github.sha }}
 
-      - name: Deploy to clients
+      - name: Back up and deploy each client site
         env:
-          BUNNY_SCRIPT_DATA: ${{ secrets.BUNNY_SCRIPT_DATA }}
+          MAIN_INSTANCE: ${{ secrets.MAIN_INSTANCE }}
+          MAIN_INSTANCE_KEY: ${{ inputs.main_instance_key }}
           BUNNY_ACCESS_KEY: ${{ secrets.BUNNY_ACCESS_KEY }}
+          STORAGE_ZONE_NAME: ${{ secrets.STORAGE_ZONE_NAME }}
+          STORAGE_ZONE_KEY: ${{ secrets.STORAGE_ZONE_KEY }}
         run: |
+          set -euo pipefail
+          # Keep the pasted key out of the logs.
+          echo "::add-mask::$MAIN_INSTANCE_KEY"
+
           jq -Rs '{"Code": .}' bunny-script.ts > /tmp/code-payload.json
-          IFS='|' read -ra script_ids <<< "$BUNNY_SCRIPT_DATA"
-          for script_id in "${script_ids[@]}"; do
-            [ -z "$script_id" ] && continue
-            echo "Deploying to script $script_id..."
-            response=$(curl -s -w "\n%{http_code}" \
-              -X POST "https://api.bunny.net/compute/script/${script_id}/code" \
+
+          # Ask the main instance for every site's read-only DB credentials.
+          sites_json=$(curl -fsS -X POST \
+            "${MAIN_INSTANCE%/}/instance/site-credentials" \
+            -H "Authorization: Bearer ${MAIN_INSTANCE_KEY}")
+          count=$(jq '.sites | length' <<<"$sites_json")
+          echo "Got credentials for $count site(s)"
+
+          for i in $(seq 0 $((count - 1))); do
+            name=$(jq -r ".sites[$i].name" <<<"$sites_json")
+            script_id=$(jq -r ".sites[$i].scriptId" <<<"$sites_json")
+            db_url=$(jq -r ".sites[$i].dbUrl" <<<"$sites_json")
+            db_token=$(jq -r ".sites[$i].dbToken" <<<"$sites_json")
+            # The returned tokens are credentials — keep them out of the logs.
+            echo "::add-mask::$db_token"
+
+            echo "==> $name ($script_id): backing up"
+            DB_URL="$db_url" DB_TOKEN="$db_token" deno task backup
+
+            echo "==> $name ($script_id): deploying"
+            code=$(curl -s -o /tmp/resp -w "%{http_code}" -X POST \
+              "https://api.bunny.net/compute/script/${script_id}/code" \
               -H "AccessKey: ${BUNNY_ACCESS_KEY}" \
               -H "Content-Type: application/json" \
               -d @/tmp/code-payload.json)
-            status_code=$(echo "$response" | tail -1)
-            body=$(echo "$response" | sed '$d')
-            if [ "$status_code" -ge 200 ] && [ "$status_code" -lt 300 ]; then
-              echo " ✓ Code uploaded to $script_id (HTTP $status_code)"
-            else
-              echo " ✗ Failed to upload code to $script_id (HTTP $status_code)"
-              echo "   Response: $body"
+            if [ "$code" -lt 200 ] || [ "$code" -ge 300 ]; then
+              echo "  ✗ upload failed (HTTP $code): $(cat /tmp/resp)"
               exit 1
             fi
-            echo "  Publishing script $script_id..."
-            response=$(curl -s -w "\n%{http_code}" \
-              -X POST "https://api.bunny.net/compute/script/${script_id}/publish" \
+            code=$(curl -s -o /tmp/resp -w "%{http_code}" -X POST \
+              "https://api.bunny.net/compute/script/${script_id}/publish" \
               -H "AccessKey: ${BUNNY_ACCESS_KEY}" \
-              -H "Content-Type: application/json" \
-              -d '{}')
-            status_code=$(echo "$response" | tail -1)
-            body=$(echo "$response" | sed '$d')
-            if [ "$status_code" -ge 200 ] && [ "$status_code" -lt 300 ]; then
-              echo " ✓ Published $script_id (HTTP $status_code)"
-            else
-              echo " ✗ Failed to publish $script_id (HTTP $status_code)"
-              echo "   Response: $body"
+              -H "Content-Type: application/json" -d '{}')
+            if [ "$code" -lt 200 ] || [ "$code" -ge 300 ]; then
+              echo "  ✗ publish failed (HTTP $code): $(cat /tmp/resp)"
               exit 1
             fi
+            echo "  ✓ $name updated"
           done

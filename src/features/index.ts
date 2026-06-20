@@ -180,6 +180,11 @@ const loadScheduledRoutes = once(async () =>
   createRouter((await import("#routes/scheduled.ts")).scheduledRoutes),
 );
 
+/** Lazy-load the inter-instance machine endpoint (builder only) */
+const loadInstanceRoutes = once(async () =>
+  createRouter((await import("#routes/instance.ts")).instanceRoutes),
+);
+
 /** Lazy-load unsubscribe routes */
 const loadUnsubscribeRoutes = once(async () => {
   const { handleUnsubscribeGet, handleUnsubscribePost } = await import(
@@ -398,6 +403,8 @@ const PREFIX_SETTINGS: Record<string, readonly string[]> = {
   gwallet: [...GOOGLE_WALLET_SETTINGS, CONFIG_KEYS.COUNTRY],
   // --- Infra-only routes (binary/JSON responses or pure redirects) ---
   image: [],
+  // Inter-instance machine endpoint: reads built_sites + an env key only.
+  instance: [],
   join: [],
   listings: [...PUBLIC_NAV_SETTINGS, CONFIG_KEYS.COUNTRY],
   order: [
@@ -581,6 +588,7 @@ const prefixHandlers: Record<string, RouterFn> = {
   feeds: lazyRoute(loadFeedRoutes),
   gwallet: lazyRoute(loadGoogleWalletRoutes),
   image: lazyRoute(loadImageRoutes),
+  instance: lazyRoute(loadInstanceRoutes),
   join: lazyRoute(loadJoinRoutes),
   order: lazyRoute(loadOrderRoutes),
   pay: lazyRoute(loadBalanceRoutes),

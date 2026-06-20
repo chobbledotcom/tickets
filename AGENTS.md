@@ -136,6 +136,7 @@ Even when a caller genuinely needs many columns, list them explicitly rather tha
 - `deno task test:files <file>...` - Run only the given test files with the same setup as the full runner (builds static assets, starts stripe-mock, cleans up after)
 - `deno task lint` - Format and lint all code with Biome (`check --write`; auto-fixes in place). Biome is the sole formatter and linter.
 - `deno task build:edge` - Build for Bunny Edge deployment
+- `deno task backup` - Dump the database out-of-band to a `.zip`. Uploads to the configured storage zone by default (so it appears on the Backups page and lets the next migration skip its own inline backup); pass `--out <path>` to write a local file. Runs in a full Deno process, so unlike the in-edge backup it has no per-request subrequest budget and can dump arbitrarily large databases.
 - `deno task precommit` - Run all checks (typecheck, lint, tests)
 
 ### Running Individual Test Files
@@ -186,6 +187,8 @@ Environment variables are configured as **Bunny native secrets** in the Bunny Ed
 - `BUNNY_SCRIPT_ID` - Bunny Edge Script ID (required for custom domain management, with `BUNNY_API_KEY`)
 - `STORAGE_ZONE_NAME` - Bunny CDN storage zone name (required for image uploads)
 - `STORAGE_ZONE_KEY` - Bunny CDN storage zone access key (required for image uploads)
+- `BACKUP_PAGE_SIZE` - Rows read per keyset page when dumping a table for backup (default 500). Each page is one libsql response, so this bounds the response size to stay under libsqld's "Response is too large" payload cap. Used by `deno task backup` and the admin Backups page; migrations no longer back up inline (the edge subrequest budget can't fit a full dump), so backups are taken out-of-band.
+- `MAIN_INSTANCE_KEY` - Shared secret authorizing the inter-instance site-credentials endpoint (`POST /instance/site-credentials`). When set on a builder/main instance, that endpoint returns every built site's read-only DB URL + token to a caller presenting this key as a bearer token, so the upgrade workflow can back each site up to the builder's storage before deploying. Unset ⇒ the endpoint is disabled (404). The upgrade workflow receives it as a run-time input, not a stored GitHub secret.
 - `BUNNY_DNS_ZONE_ID` - Bunny DNS zone ID for subdomain registration (enables subdomain feature when set with `BUNNY_API_KEY`)
 - `BUNNY_DNS_SUBDOMAIN_SUFFIX` - Suffix appended to user-chosen subdomain (e.g. `.tickets`)
 - `NTFY_URL` - Ntfy endpoint URL for error notifications (e.g. `https://ntfy.sh/your-topic`). Sends domain and error code only, no personal or encrypted data.
