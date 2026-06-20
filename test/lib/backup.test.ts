@@ -2,17 +2,15 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { unzipSync, zipSync } from "fflate";
 import {
-  BACKUP_FRESHNESS_WINDOW_MS,
+  BACKUP_REQUIRED_WITHIN_MS,
   type BackupManifest,
   backupFilename,
   backupPrefix,
   backupTimestamp,
-  canBackupInline,
   countZipStatements,
   createBackup,
   createBackupZip,
   dbName,
-  estimateInlineBackupSubrequests,
   exportTable,
   hasRecentBackup,
   isRemoteDatabase,
@@ -104,42 +102,6 @@ describeWithEnv("backup", { db: true }, () => {
       // dumped column list.
       expect(sql.match(/INSERT INTO "listings"/g)).toHaveLength(2);
       expect(sql).not.toContain("__backup_rowid__");
-    });
-  });
-
-  describe("estimateInlineBackupSubrequests", () => {
-    test("adds a subrequest per page of rows on top of the per-table probes", async () => {
-      await createTestListing({ name: "Est" });
-      // Default 500-row pages: a handful of rows costs no extra page reads, so
-      // the estimate is just the per-table probes.
-      const widePages = await estimateInlineBackupSubrequests();
-
-      const restore = setTestEnv({ BACKUP_PAGE_SIZE: "1" });
-      try {
-        // One-row pages: every row adds a page read, so the estimate grows.
-        const narrowPages = await estimateInlineBackupSubrequests();
-        expect(narrowPages).toBeGreaterThan(widePages);
-      } finally {
-        restore();
-      }
-    });
-  });
-
-  describe("canBackupInline", () => {
-    test("is true when the export fits the inline subrequest budget", async () => {
-      expect(await canBackupInline()).toBe(true);
-    });
-
-    test("is false when the estimate plus reserved headroom exceeds the cap", async () => {
-      // One-row pages make the seeded rows blow the budget the same way a large
-      // table would at the default page size, exercising the real default cap
-      // (50) and the reserved migration headroom rather than an override.
-      const restore = setTestEnv({ BACKUP_PAGE_SIZE: "1" });
-      try {
-        expect(await canBackupInline()).toBe(false);
-      } finally {
-        restore();
-      }
     });
   });
 
@@ -259,6 +221,26 @@ describeWithEnv("backup", { db: true }, () => {
         restore();
       }
     });
+
+    test("names a database from an explicitly passed URL (another instance)", () => {
+      // The per-site upgrade gate passes a built site's own DB URL, not env.
+      expect(dbName("libsql://01ABC-client-acme.lite.bunnydb.net/")).toBe(
+        "client-acme",
+      );
+    });
+  });
+
+  describe("backupPrefix", () => {
+    test("defaults to the current DB's prefix", () => {
+      // Test env DB_URL is :memory:, so dbName() falls back to "local".
+      expect(backupPrefix()).toBe("backup-local-");
+    });
+
+    test("scopes to a named database when given one", () => {
+      expect(backupPrefix(dbName("libsql://01-client-acme.turso.io"))).toBe(
+        "backup-client-acme-",
+      );
+    });
   });
 
   describe("backupFilename / backupTimestamp", () => {
@@ -316,9 +298,29 @@ describeWithEnv("backup", { db: true }, () => {
       const restore = setTestEnv({ LOCAL_STORAGE_PATH: tmpDir });
       try {
         await seedBackup(
-          new Date(Date.now() - BACKUP_FRESHNESS_WINDOW_MS - 60_000),
+          new Date(Date.now() - BACKUP_REQUIRED_WITHIN_MS - 60_000),
         );
         expect(await hasRecentBackup()).toBe(false);
+      } finally {
+        restore();
+        Deno.removeSync(tmpDir, { recursive: true });
+      }
+    });
+
+    test("checks a passed maxAge and prefix (another instance's backup)", async () => {
+      const tmpDir = Deno.makeTempDirSync();
+      const restore = setTestEnv({ LOCAL_STORAGE_PATH: tmpDir });
+      try {
+        const sitePrefix = backupPrefix(
+          dbName("libsql://01-client-acme.lite.bunnydb.net"),
+        );
+        await uploadRaw(
+          new Uint8Array([1]),
+          `${sitePrefix}${backupTimestamp(new Date(Date.now() - 60_000))}.zip`,
+        );
+        // Found under the site's prefix, but not under the current DB's prefix.
+        expect(await hasRecentBackup(60 * 60 * 1000, sitePrefix)).toBe(true);
+        expect(await hasRecentBackup(60 * 60 * 1000)).toBe(false);
       } finally {
         restore();
         Deno.removeSync(tmpDir, { recursive: true });

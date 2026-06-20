@@ -137,3 +137,15 @@ export const getBotpoisonSecretKey = (): string =>
  */
 export const isBotpoisonEnabled = (): boolean =>
   !!getBotpoisonPublicKey() && !!getBotpoisonSecretKey();
+
+/**
+ * Whether the inter-instance site-credentials endpoint is enabled. Off unless
+ * MAIN_INSTANCE_KEY is set, so a non-builder instance never exposes it. The key
+ * is a high-entropy shared secret the operator passes to the upgrade workflow at
+ * trigger time (it is never stored in GitHub).
+ */
+export const isInstanceApiEnabled = (): boolean =>
+  !!getEnv("MAIN_INSTANCE_KEY");
+
+/** The shared secret authorizing the inter-instance site-credentials endpoint. */
+export const getMainInstanceKey = (): string => requireEnv("MAIN_INSTANCE_KEY");

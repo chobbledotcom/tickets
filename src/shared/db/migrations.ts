@@ -14,16 +14,10 @@
 import type { Client } from "@libsql/client";
 import { lazyRef } from "#fp";
 import { ensureDefaultAttendeeStatus } from "#shared/db/attendee-statuses.ts";
-import {
-  canBackupInline,
-  createAndUploadBackup,
-  hasRecentBackup,
-} from "#shared/db/backup.ts";
 import { getDb } from "#shared/db/client.ts";
 import { getEnv } from "#shared/env.ts";
 import { logDebug } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
-import { isStorageEnabled } from "#shared/storage.ts";
 import { recordScriptVersion } from "#shared/update.ts";
 import currentSchemaMigration from "./migrations/2026-06-11_current_schema.ts";
 import sumupCheckoutsMigration from "./migrations/2026-06-12_sumup_checkouts.ts";
@@ -445,35 +439,11 @@ const initDbUncached = async (allowMissingSettings: boolean): Promise<void> => {
       return;
     }
 
-    // Back up before migrating — but only for existing databases, not fresh installs.
-    // Skip if a recent backup already exists (e.g. a retried migration after a crash).
-    if (state === "needs_migration" && isStorageEnabled()) {
-      if (await hasRecentBackup()) {
-        logDebug(
-          "Migration",
-          "Recent backup exists, skipping pre-migration backup",
-        );
-      } else if (!(await canBackupInline())) {
-        // A database too large to dump within one request's edge subrequest
-        // budget must not wedge the migration (and the whole site) behind a
-        // backup that can never complete inline. Continue without it and alert
-        // the operator to take an out-of-band backup via `deno task backup`.
-        logDebug(
-          "Migration",
-          "Database too large for an inline pre-migration backup; " +
-            "continuing without one. Take an out-of-band backup with " +
-            "`deno task backup`.",
-        );
-        void sendNtfyError(
-          `E_BACKUP_TOO_LARGE ${getEnv("DB_URL") ?? "unknown"}`,
-        );
-      } else {
-        logDebug("Migration", "Creating pre-migration backup...");
-        const filename = await createAndUploadBackup();
-        logDebug("Migration", `Pre-migration backup saved: ${filename}`);
-      }
-    }
-
+    // Backups are no longer taken inline here: the Bunny edge subrequest budget
+    // can't fit a full dump of a 31-table schema alongside the migration. They
+    // run out-of-band instead — the upgrade GitHub Action backs each site up
+    // first, and /admin/update + the per-site update button refuse to run
+    // without a backup from the last hour (see hasRecentBackup).
     await runPendingMigrations(pending);
 
     logDebug("Migration", "Updating version marker...");

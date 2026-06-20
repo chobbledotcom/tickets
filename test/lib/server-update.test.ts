@@ -1,8 +1,10 @@
 import { expect } from "@std/expect";
-import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
+import { backupFilename, backupTimestamp } from "#shared/db/backup.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
+import { uploadRaw } from "#shared/storage.ts";
 import { setBuildTimestampForTest } from "#shared/update.ts";
 import {
   adminFormPost,
@@ -13,6 +15,7 @@ import {
   expectRedirect,
   FLASH_TEST_ID,
   flashCookieHeader,
+  setTestEnv,
   testCookie,
   testRequiresAuth,
   withMocks,
@@ -45,12 +48,18 @@ const simulateProductionBuild = () => {
   setBuildTimestampForTest("2026-01-01T00:00:00Z");
 };
 
-/** Set up state for a deploy test: production build + newer version stored */
+/** Seed a fresh backup so the pre-update gate passes. */
+const seedRecentBackup = (): Promise<string> =>
+  uploadRaw(new Uint8Array([1]), backupFilename(backupTimestamp()));
+
+/** Set up state for a deploy test: production build + newer version stored,
+ *  plus a recent backup so the pre-update gate is satisfied. */
 const setupForDeploy = async () => {
   simulateProductionBuild();
   await settings.update.latestScriptVersion("v2099-01-01-120000");
   settings.invalidateCache();
   await settings.loadKeys(ALL_SETTINGS_KEYS);
+  await seedRecentBackup();
 };
 
 /**
@@ -78,9 +87,20 @@ const stubSuccessfulDeploy = () => ({
 });
 
 describeWithEnv("server (admin update)", { db: true }, () => {
+  let storageTmp: string;
+  let restoreStorage: () => void;
+
+  beforeEach(() => {
+    // Local storage so the pre-update backup gate has somewhere to look.
+    storageTmp = Deno.makeTempDirSync();
+    restoreStorage = setTestEnv({ LOCAL_STORAGE_PATH: storageTmp });
+  });
+
   afterEach(() => {
     settings.clearTestOverrides();
     setBuildTimestampForTest(null);
+    restoreStorage?.();
+    if (storageTmp) Deno.removeSync(storageTmp, { recursive: true });
   });
 
   describe("GET /admin/update", () => {
@@ -269,6 +289,23 @@ describeWithEnv("server (admin update)", { db: true }, () => {
       expectFlash(
         response,
         expect.stringContaining("No update available"),
+        false,
+      );
+    });
+
+    test("blocks the update when no backup was taken in the last hour", async () => {
+      // A newer version is available (passes the version check), but storage
+      // holds no recent backup, so the gate refuses to deploy.
+      simulateProductionBuild();
+      await settings.update.latestScriptVersion("v2099-01-01-120000");
+      settings.invalidateCache();
+      await settings.loadKeys(ALL_SETTINGS_KEYS);
+
+      const { response } = await adminFormPost("/admin/update");
+      expectRedirect(response, "/admin/update");
+      expectFlash(
+        response,
+        expect.stringContaining("No database backup in the last hour"),
         false,
       );
     });

@@ -12,12 +12,7 @@
 
 import { unzipSync, zipSync } from "fflate";
 import { chunk, compact } from "#fp";
-import {
-  execute,
-  executeBatch,
-  queryAll,
-  queryOne,
-} from "#shared/db/client.ts";
+import { execute, executeBatch, queryAll } from "#shared/db/client.ts";
 import { invalidateGroupsCache } from "#shared/db/groups.ts";
 import { invalidateListingsCache } from "#shared/db/listings.ts";
 import {
@@ -106,8 +101,7 @@ export const isRemoteDatabase = (): boolean => {
  * e.g. "libsql://01KFXB...-tickets-spencer.lite.bunnydb.net/" → "tickets-spencer"
  * Falls back to "local" for non-remote or unparseable URLs.
  */
-export const dbName = (): string => {
-  const url = requireEnv("DB_URL");
+export const dbName = (url: string = requireEnv("DB_URL")): string => {
   if (!URL.canParse(url)) return "local";
 
   const host = new URL(url).hostname;
@@ -203,66 +197,6 @@ export const createBackup = async (): Promise<TableBackup[]> => {
   return backups;
 };
 
-/**
- * Bunny edge requests can issue at most 50 outbound subrequests
- * (https://docs.bunny.net/scripting/limits). Overridable via
- * BACKUP_MAX_INLINE_SUBREQUESTS for plans with a different cap.
- */
-const BUNNY_SUBREQUEST_LIMIT = 50;
-
-/**
- * Subrequests reserved for everything in the migration request that is *not* the
- * table-export reads: the db-state / lock / pending-migration checks and the
- * freshness + feasibility probes before the backup, the backup's own
- * table-name read plus upload and prune, and the migration's DDL, marker
- * writes, lock release and version record after it. Kept deliberately roomy —
- * overrunning the cap mid-migration would 503 the site, whereas skipping the
- * inline backup just defers it to `deno task backup`.
- */
-const RESERVED_MIGRATION_SUBREQUESTS = 15;
-
-/** Sum of rows across the given tables, counted in a single round-trip. */
-const sumRowCounts = async (tables: string[]): Promise<number> => {
-  // Lead with a literal 0 so an empty table list still yields valid SQL, and
-  // sum per-table COUNT(*) subqueries so the whole tally is one statement.
-  const expr = [
-    "0",
-    ...tables.map((t) => `(SELECT COUNT(*) FROM ${quoteId(t)})`),
-  ].join(" + ");
-  // A scalar sum over COUNT(*) always returns exactly one row.
-  const row = await queryOne<{ total: number }>(
-    `SELECT (${expr}) AS total`,
-    [],
-  );
-  return Number(row!.total);
-};
-
-/**
- * Estimate how many edge subrequests dumping every table would issue: one
- * keyset probe per table plus one page read per BACKUP_PAGE_SIZE rows. Because
- * Σ⌊rows_t / page⌋ ≤ ⌊totalRows / page⌋, the row total gives a safe upper bound
- * without per-table counts — all rows in one table is the worst case, and the
- * bound is exact there. This is the binding constraint, not raw row count: with
- * ~31 tables even a 10k-row single table needs ~51 reads.
- */
-export const estimateInlineBackupSubrequests = async (): Promise<number> => {
-  const tables = await existingSchemaTables();
-  const total = await sumRowCounts(tables);
-  const pageSize = readLimit("BACKUP_PAGE_SIZE", DEFAULT_BACKUP_PAGE_SIZE);
-  return tables.length + Math.floor(total / pageSize);
-};
-
-/**
- * Whether an inline pre-migration backup fits the edge subrequest budget once
- * headroom is reserved for the rest of the migration. With ~31 tables the
- * export alone is ~31 subrequests, so in practice only small databases qualify;
- * larger ones are dumped out-of-band (scripts/backup.ts / the backup workflow),
- * where the budget does not apply.
- */
-export const canBackupInline = async (): Promise<boolean> =>
-  RESERVED_MIGRATION_SUBREQUESTS + (await estimateInlineBackupSubrequests()) <=
-  readLimit("BACKUP_MAX_INLINE_SUBREQUESTS", BUNNY_SUBREQUEST_LIMIT);
-
 /** Generate a timestamped backup filename scoped to the current DB */
 export const backupFilename = (timestamp: string): string =>
   `backup-${dbName()}-${timestamp}.zip`;
@@ -311,15 +245,17 @@ export const createAndUploadBackup = async (): Promise<string> => {
   return filename;
 };
 
-/** Prefix for listing backups scoped to the current DB */
-export const backupPrefix = (): string => `backup-${dbName()}-`;
+/** Prefix for listing backups, scoped to a DB (defaults to the current DB).
+ *  Pass a name from `dbName(url)` to scope it to another instance's database. */
+export const backupPrefix = (name: string = dbName()): string =>
+  `backup-${name}-`;
 
 /**
- * A backup younger than this is reused rather than recreated. Migrations can
- * retry after a crash (the lock self-heals via TTL), so this avoids piling up
- * near-identical pre-migration backups on each retry.
+ * How fresh a backup must be to satisfy the pre-upgrade gate on /admin/update
+ * and the per-site update button — updates are blocked unless a backup for that
+ * database was taken within this window. One hour.
  */
-export const BACKUP_FRESHNESS_WINDOW_MS = 5 * 60 * 1000;
+export const BACKUP_REQUIRED_WITHIN_MS = 60 * 60 * 1000;
 
 /**
  * Parse the epoch-ms encoded in a backup filename, or null if it doesn't match.
@@ -334,13 +270,20 @@ export const parseBackupTime = (filename: string): number | null => {
   return Number.isNaN(ms) ? null : ms;
 };
 
-/** True if a backup younger than BACKUP_FRESHNESS_WINDOW_MS already exists */
-export const hasRecentBackup = async (): Promise<boolean> => {
+/**
+ * True if a backup younger than `maxAgeMs` exists for the given prefix. Defaults
+ * to the current DB within the upgrade-gate window; callers gating another
+ * instance pass `backupPrefix(dbName(site.dbUrl))`.
+ */
+export const hasRecentBackup = async (
+  maxAgeMs: number = BACKUP_REQUIRED_WITHIN_MS,
+  prefix: string = backupPrefix(),
+): Promise<boolean> => {
   const now = Date.now();
-  const files = await listFiles(backupPrefix());
+  const files = await listFiles(prefix);
   for (const file of files) {
     const ms = parseBackupTime(file);
-    if (ms !== null && now - ms < BACKUP_FRESHNESS_WINDOW_MS) return true;
+    if (ms !== null && now - ms < maxAgeMs) return true;
   }
   return false;
 };
