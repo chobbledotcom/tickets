@@ -880,10 +880,15 @@ Behavior:
   **free-text** question with that exact text (optionally a prefilled
   `?import_text=` link, mirroring the listing flow).
 - Render each product that matched a **`standard`-type listing** as its name plus
-  a link to that listing's edit page, with copy telling the operator the listing
-  must be a **daily** listing to import its bookings (the importer is daily-only —
-  see Product matching). Carry these as a separate repeated query param (e.g.
-  `&standard=Name`) so they render in their own section.
+  a link to that listing's edit page (`/admin/listing/:id/edit`), with copy
+  telling the operator the listing must be a **daily** listing to import its
+  bookings (the importer is daily-only — see Product matching). Carry the matched
+  listing's **id** (the resolver already has it from the match), not just its name
+  — e.g. a separate repeated `&standard=<id>` query param — so the GET page can
+  build the `/admin/listing/:id/edit` link and load the listing to display its
+  name. Listing names are encrypted at rest and can collide after
+  decryption/normalization, so the id can't be reconstructed from the name alone.
+  Render these in their own section.
 - Include a link back to the upload page.
 - Text should tell the user to create the missing setup, then upload the CSV
   again.
@@ -1026,6 +1031,12 @@ Semantic-correctness tests (verified against live behaviour):
 
 ## Implementation Phases
 
+These group the work by stream; the numbering is **not** a strict execution
+order. One hard cross-dependency to call out: the **no-quantity feature (item 6)
+is a prerequisite for the transactional writer (item 5)** — the writer emits
+`quantity = 0` lines and must not land until the no-quantity guards from
+[`no-quantity-spec.md`](./no-quantity-spec.md) exist.
+
 1. Schema and import-map helper
    - Add `booking_imports` (migration sequenced after
      `2026-06-20_free_text_questions`).
@@ -1066,6 +1077,13 @@ Semantic-correctness tests (verified against live behaviour):
    - Report skipped, creatable, non-creatable, missing setup, warnings, and
      unmapped metadata.
 5. Transactional writer
+   - **Blocked on the no-quantity feature (item 6): do not land/enable this
+     writer until that feature exists.** It writes `quantity = 0` lines
+     (cancelled and interested-in/quoted products), which depend on the
+     `tickets_count` aggregate change and the reader/writer/action guards in
+     [`no-quantity-spec.md`](./no-quantity-spec.md); landing the writer first
+     would let imported ghost rows inflate `tickets_count` and leak through the
+     token/calendar/email/logistics surfaces.
    - Resolve candidate text answers to string ids **inside the guarded
      transaction** (or clean up newly-created `used_count = 0` strings on
      failure) — not via the stock out-of-transaction `getOrCreateStringIds`.
