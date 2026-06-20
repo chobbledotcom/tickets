@@ -158,14 +158,19 @@ Add one table for import idempotency:
       ["new_id", "INTEGER NOT NULL"],
     ],
     indexes: [
-      { name: "idx_booking_imports_new_id", columns: ["new_id"], unique: true },
+      { name: "idx_booking_imports_new_id", columns: ["new_id"], unique: false },
     ],
   },
 ]
 ```
 
-- `old_id` is the source `Booking ID` from the CSV.
-- `new_id` is the created `attendees.id`.
+- `old_id` is the source `Booking ID` from the CSV and the **idempotency key** (a
+  re-upload skips any `old_id` already in the map).
+- `new_id` is the created `attendees.id`. The index on it is **not unique**:
+  after an attendee merge, several source `old_id`s can legitimately point at one
+  surviving attendee, so a unique `new_id` would wrongly forbid that — and force
+  deleting a mapping, which would let a re-upload recreate a duplicate booking.
+  Uniqueness lives on `old_id` (the PK), which is all idempotency needs.
 - No separate import-run table for the first pass. The user asked for only old
   id and new id, and idempotency does not require run metadata.
 - Add the table to the declarative schema and a migration. Keep the schema
@@ -347,9 +352,14 @@ Product matching:
   must set up listings with matching names or fix the CSV before importing.
 - **Every matched listing must be `daily`-type.** A product that matches a
   `standard`-type listing is a **blocking setup error** (listed on the
-  missing-setup page), not an import: the operator must convert that listing to a
-  daily listing (or the product cannot be imported). Verify the type at
-  resolution, before any writes. This gate is what lets the importer treat every
+  missing-setup page), not an import. Verify the type at resolution, before any
+  writes. The remedy depends on whether the standard listing is **populated**: an
+  *empty* one can be converted to daily in place, but a standard listing **with
+  existing bookings cannot** — its rows are stored undated and the daily
+  calendar/capacity paths only consider dated rows, so converting in place would
+  drop those bookings off date views and availability. Block the populated case as
+  an unresolvable setup error (the operator must migrate it deliberately); never
+  auto-convert. This gate is what lets the importer treat every
   imported booking as dated end-to-end — daily listings carry the
   delivery/collection range on the line's `start_at`/`end_at` (run sheets) and are
   day-calendar entities — **without** retrofitting line dates onto the
@@ -507,6 +517,14 @@ Owner UI — the "no quantity" checkbox (proxy for `quantity == 0`):
   line**; if unchecked, store the entered quantity (`>= 1`). The checkbox
   round-trips the intent both ways: a stored `0` re-checks the box on the next
   render, and a checked box re-stores `0`.
+- **Marking no-quantity must also clear `price_paid` on that line** (same write).
+  A quantity-0 line adds nothing to capacity/`tickets_count`, but income is
+  `SUM(price_paid)` — so leaving a paid line's `price_paid` would keep it counting
+  as income while it disappears from capacity. Either zero `price_paid` when the
+  box is checked (refunding/recording as appropriate) or forbid "no quantity" on a
+  line with `price_paid > 0`. (Importer-written quantity-0 lines already carry
+  `price_paid = 0`; this guard is for an owner toggling the box on an existing
+  paid line.)
 - **Do not auto-delete quantity-0 lines on save.** The save path must
   distinguish a deliberate quantity-0 line (checkbox checked → keep) from a real
   removal (the line's explicit remove control → delete). Any existing logic that
@@ -592,9 +610,15 @@ Must change (exclude / adjust):
   render and the check-in eligibility set, and guard the check-in actions
   (`/checkin/:tokens` POST, scanner, `updateCheckedIn`) so they reject a
   quantity-0 line, mirroring the existing refunded-ticket guard ("Cannot check in
-  refunded tickets") in `checkin.ts`. (`getAttendeesByTokens` has other consumers
-  — webhook/merge/group flows — so filter at these ticket/check-in call sites and
-  in the check-in action, not inside the shared helper.)
+  refunded tickets") in `checkin.ts`. **The same exclusion covers the wallet pass
+  routes**, which build passes from the same token data:
+  `lookupSingleTokenPassData` (`tickets/token-utils.ts`) → `getAttendeesByTokens`
+  feeds `/wallet/:token.pkpass`, `/gwallet/:token`, and
+  `/v1/passes/:passType/:token` — a quantity-0 line must not yield a wallet pass
+  (and for a mixed attendee the pass must target a real line, not a lower-id
+  ghost). (`getAttendeesByTokens` has other consumers — webhook/merge/group flows
+  — so filter at these ticket/check-in/wallet call sites and in the check-in
+  action, not inside the shared helper.)
 - **Public balance settlement** — `settleAttendeeBalance` (`attendees/balance.ts`)
   folds payment into the `MIN(id)` line's `price_paid` (income is
   `SUM(price_paid)`). A quantity-0-only import with a nonzero `Balance` and an
@@ -732,7 +756,20 @@ Use the source `Status` column.
 
 This section replaces the old "Custom Questions And Import Notes" plan now that
 free-text questions exist (PR #1335). Use free-text custom questions as the home
-for every legacy column we want surfaced per booking.
+for every legacy column we want surfaced and searchable per booking.
+
+**Public vs staff-only questions.** Assigning a question to a listing also puts
+it on that listing's **public booking form** (`getQuestionsWithListingIds` feeds
+the public path), so importing an internal legacy column (`Colour Name`, invoice
+numbers, alternate phone, contact-vs-delivery address) as an ordinary assigned
+question would start asking *future customers* for it. To avoid that, free-text
+questions used for import gain a **staff-only flag** (admin/import-only): a
+staff-only question still renders on the **admin attendee edit form** and holds
+answers, but is **never shown on the public booking form**. This is a required
+addition to the free-text-question feature (PR #1335) — the importer depends on
+it. Operators mark genuinely customer-facing columns (the party questions,
+`Surface`, `Age Group`) as normal public questions, and import-only columns as
+staff-only.
 
 Setup contract (operator's responsibility, mirrors products/statuses):
 
@@ -749,7 +786,10 @@ Setup contract (operator's responsibility, mirrors products/statuses):
   replaces an attendee's whole answer set from the *rendered* form — so the first
   admin edit of that attendee would silently delete the unrendered imported
   answer. Blocking forces the operator to fix the assignment before the data is
-  written, which fits the importer's "all setup must exist first" stance.
+  written, which fits the importer's "all setup must exist first" stance. The
+  **staff-only flag** is what makes this assignment safe for internal columns: the
+  question must still be assigned (so it renders on the admin edit form and isn't
+  dropped on save), but the flag keeps it off the public booking form.
 
 Resolution (pure, before any writes):
 
@@ -824,9 +864,12 @@ Good first-pass free-text question columns:
 Now that free-text questions exist, several columns the old plan dumped into a
 notes blob become first-class importable questions instead, if the operator
 chooses to create them: `Colour Name`, contact-vs-delivery address, alternate
-phone, invoice fields (`Invoice ID`, `Invoice Reference`, `Invoice Date`). They
-remain optional — only columns with a matching free-text question are imported as
-answers; everything else is left for the audit trail.
+phone, invoice fields (`Invoice ID`, `Invoice Reference`, `Invoice Date`). These
+are internal, not customer-facing, so they must be created as **staff-only**
+free-text questions (see Public vs staff-only above) — otherwise assigning them to
+a listing would put them on the public booking form. They remain optional — only
+columns with a matching free-text question are imported as answers; everything
+else is left for the audit trail.
 
 ## Where Legacy Metadata Goes
 
@@ -969,22 +1012,40 @@ Implementation notes:
   rows and deliberately keeps the attendee, so an import whose last listing is
   later deleted becomes an orphan and gets purged — and the purge still leaves its
   `booking_imports` row, permanently blocking re-import. **So the purge/delete
-  flow must also clean up `booking_imports`:** add it to the orphan purge's
-  dependent-table deletes and the canonical `deleteAttendee` purge set, keyed by
-  `new_id` (`DELETE FROM booking_imports WHERE new_id IN (…)`, since
-  `booking_imports` is keyed by `new_id`, not `attendee_id`). Then a purged import
-  frees its `old_id` and can be re-imported. (Quantity-0 lines were still chosen
-  over a `booking_imports`-aware exclusion in `ORPHAN_IDS` because they also keep
-  the products structured and matched while the attendee is live.)
-- **Attendee merge needs the same cleanup.** `applyAttendeeMerge`
+  flow must clean up `booking_imports` **only when the attendee's capacity is
+  actually released**, keyed by `new_id` (`DELETE FROM booking_imports WHERE
+  new_id IN (…)`, since it's keyed by `new_id`, not `attendee_id`):
+  - **Orphan auto-purge** and **`deleteAttendee` with `releaseBookings: true`**
+    fully remove the attendee and release its aggregates, so delete the mapping —
+    the `old_id` is freed and a re-upload cleanly recreates the booking.
+  - **`deleteAttendee` with `releaseBookings: false` (held delete)** deletes the
+    lines but *keeps* the listing aggregates held (it restores them — see
+    [Zero-Quantity](#zero-quantity-no-quantity-booking-lines)). Here the mapping
+    must be **kept as a tombstone**: if it were freed, a re-upload would recreate
+    the lines and increment the already-held aggregates a *second* time
+    (double-count). The booking stays "imported" and is not re-creatable until the
+    held capacity is released.
+  (Quantity-0 lines were still chosen over a `booking_imports`-aware exclusion in
+  `ORPHAN_IDS` because they also keep the products structured and matched while
+  the attendee is live.)
+- **Attendee merge needs special handling on two fronts.** `applyAttendeeMerge`
   (`shared/merge/attendee-merge.ts`) removes the source attendee with a raw
-  `DELETE FROM attendees` (not `deleteAttendee`), so it must resolve the source's
-  `booking_imports` row too. Prefer **remapping** it to the surviving target
-  (`UPDATE booking_imports SET new_id = targetId WHERE new_id = sourceId`) so the
-  old booking stays mapped and a re-upload still skips it (idempotent); but if the
-  target is itself an import (already has a mapping) the unique `new_id` index
-  forbids a second row, so delete the source's mapping instead. Cover merge in the
-  import-map cleanup alongside the orphan purge and `deleteAttendee`.
+  `DELETE FROM attendees` (not `deleteAttendee`):
+  - **Import map:** **remap** the source's `booking_imports` row to the surviving
+    target (`UPDATE booking_imports SET new_id = targetId WHERE new_id =
+    sourceId`) so the old `old_id` stays mapped and a re-upload still skips it.
+    Because `new_id` is **not unique** (see Data Model), this works even when the
+    target is itself an import — both `old_id`s then point at the merged attendee.
+    Never just drop the source mapping (that would let a re-upload recreate a
+    duplicate).
+  - **Free-text answers:** today the merge diff/save flow
+    (`getAttendeeAnswersByQuestion` + `saveAttendeeAnswers` with choice-answer
+    ids, then `DELETE FROM attendee_answers WHERE attendee_id = source`) only
+    handles *choice* answers. Imported answers are **text** answers (`string_id`),
+    so a merge would silently drop the source's legacy free-text answers (and the
+    save can wipe the target's text answers too). The merge work must diff/adopt
+    text answers, not just choice answers, **before the importer is enabled** —
+    otherwise merging an imported attendee loses imported data.
 - The `attendee_answers` XOR/validation triggers will `ABORT` a malformed answer
   row (e.g. both `answer_id` and `string_id` set). The importer only ever writes
   the text-answer shape (`answer_id` NULL, `question_id` + `string_id` set), so a
@@ -1204,7 +1265,9 @@ Semantic-correctness tests (verified against live behaviour):
    - Resolve source `Status` values to attendee status IDs.
    - Resolve configured columns to `free_text` question IDs (normalized exact
      text, free-text only); reject duplicate-text matches and require the
-     question to be assigned to the booking (block, don't warn).
+     question to be assigned to the booking (block, don't warn). Internal columns
+     resolve to **staff-only** free-text questions (off the public form); this
+     needs the staff-only flag added to the question feature (PR #1335).
    - Apply longest-match-first product resolution bounded to whole tokens, and no
      aliases.
    - Gate matched listings to `daily` type: a product matching a `standard`-type
@@ -1257,6 +1320,8 @@ Semantic-correctness tests (verified against live behaviour):
    - Update the listing-line save path so a checked box stores `quantity = 0` and
      **keeps** the line, an unchecked box stores the entered quantity, and only an
      explicit remove control deletes a line (no auto-delete of quantity-0 lines).
+     Marking no-quantity also clears the line's `price_paid` (or is forbidden on a
+     paid line), so income doesn't keep counting a no-capacity line.
    - Apply the reader audit (see Quantity-0 Reader/Writer Audit): exclude
      quantity-0 from the daily calendar (`getDailyListingAttendees*`), the
      `getAttendeesByListingIds` calendar surfaces (ICS feed `/caldav/events.ics`
@@ -1264,22 +1329,29 @@ Semantic-correctness tests (verified against live behaviour):
      **not** in the shared helper, which the group-detail roster also uses),
      bulk-email audiences (`getAttendeePiiBlobsForListings` *and* the `all`
      audience's `getAllAttendeePiiBlobs`, which drops quantity-0-only attendees),
-     logistics/delivery runs, and the ticket/check-in token flows
-     (`getAttendeesByTokens` → `/t/:tokens`, `/checkin/:tokens`, scanner, and
-     `updateCheckedIn` refuse quantity-0); gate payable balances on ≥1 real line
+     logistics/delivery runs, and the ticket/check-in/wallet token flows
+     (`getAttendeesByTokens` → `/t/:tokens`, `/checkin/:tokens`, scanner,
+     `updateCheckedIn`, and wallet passes via `lookupSingleTokenPassData` refuse
+     quantity-0); gate payable balances on ≥1 real line
      **and** add `quantity > 0` to `settleAttendeeBalance`'s `MIN(id)` target;
      keep quantity-0 in admin roster/record/group-detail views.
    - Guard the public booking/checkout path against quantity-0 lines (admin-only).
+   - Add a **staff-only / import-only flag** to free-text questions (a PR #1335
+     addition) so import-only legacy columns render on the admin edit form but
+     never on the public booking form; assignment is still required so answers
+     aren't dropped on save.
    - Re-order the two id-ordered attendee surfaces by `created` (with `id`
      tiebreaker, composite `(created, id)` index): the dashboard
      `getNewestAttendeesRaw` and the `/admin/attendees` browser + CSV
      `getAttendeesPage` — so imports' fresh ids don't make old bookings dominate
      "newest". (No edit-path date work is needed: the daily-only gate means every
      imported line is on a daily listing, which the edit form already dates.)
-   - Clean up `booking_imports` on every attendee-removal path: the orphan
-     auto-purge and `deleteAttendee` purge set (delete by `new_id`), and
-     `applyAttendeeMerge` (remap source→target, or delete on unique-`new_id`
-     conflict).
+   - `booking_imports`: drop the unique `new_id` index; clean up conditionally —
+     orphan purge and `deleteAttendee` with `releaseBookings: true` delete the
+     mapping, a held delete (`releaseBookings: false`) keeps it as a tombstone
+     (aggregates stay held), and `applyAttendeeMerge` remaps source→target (the
+     non-unique `new_id` allows it). Merge must also adopt free-text (`string_id`)
+     answers, not just choice answers.
    - On the admin per-listing roster, hide/disable the inline check-in control for
      quantity-0 rows (`CheckinButton` / `handleAttendeeCheckin`) while keeping the
      row visible — `updateCheckedIn` refuses quantity-0.
@@ -1294,9 +1366,13 @@ Semantic-correctness tests (verified against live behaviour):
      still shows them (with no check-in button); a quantity-0-only attendee's
      balance is not publicly payable, and on a mixed attendee settlement lands on
      the real line; both the dashboard and the `/admin/attendees` list/CSV order
-     imports by `created` (not fresh id); merging an imported source remaps its
-     `booking_imports` row; a later-orphaned import's `booking_imports` row is
-     purged so it can be re-imported.
+     imports by `created` (not fresh id); a quantity-0 line yields no wallet pass;
+     marking no-quantity on a paid line clears or blocks `price_paid`; a staff-only
+     question renders on the admin edit form but not the public booking form;
+     merging an imported source remaps its `booking_imports` row **and** preserves
+     its free-text answers; a held delete (`releaseBookings: false`) keeps the
+     `booking_imports` tombstone (no re-import double-count) while an orphan/
+     released delete frees the `old_id`.
 7. Admin upload route
    - Wire upload form, parser, planner, writer, success/error redirects.
    - Add nav entry if desired.
@@ -1340,9 +1416,10 @@ Semantic-correctness tests (verified against live behaviour):
   calendar surfaces (ICS feed `/caldav/events.ics` and the admin standard-listing
   calendar + CSV), logistics/delivery runs, bulk-email audiences (both the
   listing-scoped queries and the `all` audience, which excludes quantity-0-only
-  attendees), and the ticket/check-in token flows (`/t/:tokens`,
-  `/checkin/:tokens`, scanner, `updateCheckedIn`) all exclude or refuse
-  quantity-0 lines — but they are kept in admin roster/record/detail views
+  attendees), and the ticket/check-in/wallet token flows (`/t/:tokens`,
+  `/checkin/:tokens`, scanner, `updateCheckedIn`, and the wallet-pass routes via
+  `lookupSingleTokenPassData`) all exclude or refuse quantity-0 lines — but they
+  are kept in admin roster/record/detail views
   (including the group-detail roster) with the "no quantity" indicator. Because
   `getAttendeesByListingIds` is shared by the calendar/feed *and* the
   group-detail roster, its quantity-0 filter lives at the calendar/feed call
@@ -1377,7 +1454,11 @@ Semantic-correctness tests (verified against live behaviour):
   CSV headers; the importer stores source values as owner-key-encrypted,
   deduplicated `strings` referenced from `attendee_answers`. Missing required
   free-text questions, and matched questions not assigned to the booking, block
-  the upload before writes, like missing products and statuses.
+  the upload before writes, like missing products and statuses. Internal columns
+  (e.g. `Colour Name`, invoice fields) are created as **staff-only** free-text
+  questions — a required addition to PR #1335 — so they render on the admin edit
+  form but never on the public booking form (assigning a normal question would
+  expose it publicly).
 - The importer reuses PR #1335's `strings`/`attendee_answers` schema and helpers
   and does not redefine them; `booking_imports` is the only new table.
 - All-or-nothing means all-or-nothing: a rolled-back import leaves **no** new
@@ -1391,15 +1472,20 @@ Semantic-correctness tests (verified against live behaviour):
   is enabled — the import report is not a system of record. Only the *choice* of
   destination is deferred to align with the #1332/#1333 notes rework; imports that
   would otherwise drop unmapped audit fields must block, never lose data.
+- Marking a line "no quantity" (`quantity = 0`) also clears its `price_paid`
+  (same write), or is forbidden on a paid line — otherwise income
+  (`SUM(price_paid)`) keeps counting a line that no longer counts toward
+  capacity/`tickets_count`.
 - The importer **only imports products that match `daily`-type listings**; a
-  product matching a `standard`-type listing is a blocking setup error (the
-  operator must convert the listing to daily). This keeps every imported line
-  inherently dated — the daily listing carries the `Delivery`/`Collection` range
-  on `start_at`/`end_at`, so run sheets (`getAgentRunSheet`) and the day-calendar
-  (`getDailyListingAttendeesByDate`) work out of the box. Chosen over dating
-  standard lines, which would force new line-date paths through the calendar, the
-  ICS feed, and the edit form (standard listings date by `listing.date`, not the
-  line).
+  product matching a `standard`-type listing is a blocking setup error. An *empty*
+  standard listing can be converted to daily in place, but a **populated** one
+  cannot (its undated rows would drop off the daily calendar/capacity), so that
+  case is blocked as unresolvable, never auto-converted. Gating to daily keeps
+  every imported line inherently dated — the daily listing carries the
+  `Delivery`/`Collection` range on `start_at`/`end_at`, so run sheets
+  (`getAgentRunSheet`) and the day-calendar (`getDailyListingAttendeesByDate`)
+  work out of the box. Chosen over dating standard lines, which would force new
+  line-date paths through the calendar, the ICS feed, and the edit form.
 - `Date Booked` maps to `attendees.created` so admin "newest" views and
   calendar/list/CSV exports order imports by their original booking date, not
   import time; fall back to import time only when `Date Booked` is
@@ -1415,9 +1501,15 @@ Semantic-correctness tests (verified against live behaviour):
   listing, and the unique `(listing_id, attendee_id, start_at)` index would reject
   duplicate dated rows anyway — so the planner must collapse, not rely on the
   constraint.
-- `booking_imports` is cleaned up on every path that removes an imported attendee:
-  the orphan auto-purge and the canonical `deleteAttendee` purge set delete the
-  row by `new_id` (so a later-orphaned import frees its `old_id` for re-import),
-  and `applyAttendeeMerge` remaps the source's row to the surviving target (or
-  deletes it if the target is already an import, since `new_id` is unique). Never
-  leave a `booking_imports` row pointing at a removed attendee.
+- `booking_imports.new_id` is **not unique** — after a merge, several `old_id`s
+  can map to one surviving attendee. Idempotency keys on `old_id` (the PK).
+- `booking_imports` cleanup is conditional on capacity actually being released:
+  the orphan auto-purge and `deleteAttendee` with `releaseBookings: true` delete
+  the mapping (free the `old_id`); a **held** delete (`releaseBookings: false`,
+  which keeps the aggregates held) **keeps the mapping as a tombstone**, or a
+  re-upload would double-count the held capacity. `applyAttendeeMerge` **remaps**
+  the source's mapping to the target (never drops it), which the non-unique
+  `new_id` now allows.
+- Attendee merge must also **adopt free-text (`string_id`) answers**, not just
+  choice answers; today's merge flow would drop an imported attendee's legacy text
+  answers. This is a merge-path prerequisite before the importer is enabled.
