@@ -8,6 +8,13 @@ import {
 } from "#shared/db/attendee-statuses.ts";
 import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
 import { attendeesApi, createAttendeeAtomic } from "#shared/db/attendees.ts";
+import { getDb } from "#shared/db/client.ts";
+import {
+  getContactRecord,
+  hashEmail,
+  saveContactRecord,
+  toContactHashParam,
+} from "#shared/db/contact-preferences.ts";
 import {
   answersTable,
   getAttendeeAnswersBatch,
@@ -27,6 +34,7 @@ import {
   expectHtmlResponse,
   expectRedirect,
   getAttendeesRaw,
+  getTestPrivateKey,
   hasSelectedOption,
   mockFormRequest,
   setupListingAndLogin,
@@ -1356,6 +1364,135 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       // ...but the status is still submitted so a save can't clear it.
       expect(html).toContain(
         `<input name="status_id" type="hidden" value="${only!.id}">`,
+      );
+    });
+  });
+
+  // The attendee form writes booking stats but must never write contact notes
+  // (those are edited only on /admin/history). These guard the persisted
+  // contact_preferences side effects through a real form POST — the layer where
+  // the original blob bugs (leaked/overwritten notes, uncounted bookings) lived.
+  describe("contact_preferences side effects", () => {
+    const seededRecord = (adminNotes: string) => ({
+      adminBookingCount: 0,
+      adminNotes,
+      contactCount: 0,
+      lastContact: "",
+      lastSubject: "",
+      publicBookingCount: 0,
+      visits: 0,
+    });
+
+    test("admin create records an admin booking against the email contact", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 100,
+        maxQuantity: 5,
+      });
+      const { response } = await adminFormPost("/admin/attendees/new", {
+        email: "newbuyer@example.com",
+        name: "New Buyer",
+        [`qty_${listing.id}`]: "1",
+      });
+      expect(response.status).toBe(302);
+      const record = await getContactRecord(
+        await hashEmail("newbuyer@example.com"),
+        await getTestPrivateKey(),
+      );
+      // Counted as an admin booking, never an online one.
+      expect(record.adminBookingCount).toBe(1);
+      expect(record.publicBookingCount).toBe(0);
+    });
+
+    test("creating a second attendee with an existing email keeps that contact's note", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 100,
+        maxQuantity: 5,
+      });
+      const pk = await getTestPrivateKey();
+      const hash = await hashEmail("repeat@example.com");
+      // The contact already carries an operator note from a prior interaction.
+      await saveContactRecord(hash, seededRecord("Existing VIP note"));
+
+      const { response } = await adminFormPost("/admin/attendees/new", {
+        email: "repeat@example.com",
+        name: "Repeat Customer",
+        [`qty_${listing.id}`]: "1",
+      });
+      expect(response.status).toBe(302);
+
+      const record = await getContactRecord(hash, pk);
+      // The blank form does NOT clobber the stored note (the old create bug)...
+      expect(record.adminNotes).toBe("Existing VIP note");
+      // ...while the booking is still counted.
+      expect(record.adminBookingCount).toBe(1);
+    });
+
+    test("changing an attendee's email on edit never copies the note onto the new email", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 100,
+        maxQuantity: 5,
+      });
+      const pk = await getTestPrivateKey();
+      const aliceHash = await hashEmail("alice@example.com");
+      const bobHash = await hashEmail("bob@example.com");
+      // Alice's contact carries a private note; the attendee starts as Alice.
+      await saveContactRecord(aliceHash, seededRecord("Alice private note"));
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Alice",
+        "alice@example.com",
+      );
+
+      // Switch the attendee's email to Bob and save the form.
+      const form = await buildAttendeeEditForm(attendee.id, {
+        email: "bob@example.com",
+        name: "Alice",
+      });
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}`,
+        form,
+      );
+      expect(response.status).toBe(302);
+
+      // Bob's contact must NOT inherit Alice's note (the old leak bug)...
+      expect((await getContactRecord(bobHash, pk)).adminNotes).toBe("");
+      // ...and Alice's own note is left intact.
+      expect((await getContactRecord(aliceHash, pk)).adminNotes).toBe(
+        "Alice private note",
+      );
+    });
+
+    test("keeps the repair link when a contact's stats_blob is corrupt", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 100,
+        maxQuantity: 5,
+      });
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Corrupt Contact",
+        "corrupt@example.com",
+      );
+      const hash = await hashEmail("corrupt@example.com");
+      // Leave this contact's encrypted stats unreadable — the exact state the
+      // best-effort SMS write path can persist — but keep recent activity so
+      // the request's prune doesn't delete the row before it is read.
+      await getDb().execute({
+        args: [hash, Date.now()],
+        sql: `INSERT INTO contact_preferences (contact_hash, stats_blob, last_activity) VALUES (?, 'corrupt-blob', ?)
+              ON CONFLICT(contact_hash) DO UPDATE SET stats_blob = 'corrupt-blob', last_activity = excluded.last_activity`,
+      });
+
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendee.id}`,
+        { cookie: await testCookie() },
+      );
+      // The page renders AND keeps the /admin/history repair link for the bad
+      // row — dropping the channel would hide the only way to fix it.
+      expect(response.status).toBe(200);
+      expect(await response.text()).toContain(
+        `/admin/history/${toContactHashParam(hash)}`,
       );
     });
   });

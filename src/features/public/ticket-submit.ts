@@ -21,6 +21,7 @@ import { isPaymentsEnabled } from "#shared/config.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { getPublicDefaultStatus } from "#shared/db/attendee-statuses.ts";
+import { reverseOrderActivity } from "#shared/db/attendees.ts";
 import {
   answerModifierQuantities,
   buyerVisits,
@@ -36,6 +37,7 @@ import {
 } from "#shared/db/questions.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { bestEffort } from "#shared/logger.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { verifyQrBookToken } from "#shared/qr-token.ts";
 import { validateSiteAssignmentConfig } from "#shared/site-assignment.ts";
@@ -382,6 +384,14 @@ const handleFreePath = async (
       modifierUsages,
     );
     if (!consumed) {
+      // consumeModifierStockOrRollback deleted the attendee, but the greedy
+      // create already recorded a visit + public booking for this contact.
+      // Undo it so a sold-out free order leaves no contact-history trace.
+      // Best-effort, like the paid paths: a stats-write failure must not 500
+      // the buyer instead of showing the sold-out form error below.
+      await bestEffort("free-path reverseOrderActivity on rollback", () =>
+        reverseOrderActivity(contact.email, contact.phone, "public"),
+      );
       return ticketFormErrorResponse(ctx)(MODIFIER_SOLD_OUT_MESSAGE);
     }
   }

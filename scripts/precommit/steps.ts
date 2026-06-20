@@ -7,13 +7,13 @@ export interface Step {
   name: string;
 }
 
-export const getSteps = (ci: boolean): Step[] => {
+export const getSteps = (): Step[] => {
   return [
-    // Dev runs the auto-fixing `lint` (Biome `check --write`). CI runs the
-    // read-only `lint:ci`, which fails when code *would* be reformatted or has
-    // a lint warning - catching unformatted code without modifying the checkout
-    // or requiring a clean working tree.
-    { cmd: ["deno", "task", ci ? "lint:ci" : "lint"], name: "lint" },
+    // Always run the read-only `lint:ci` (Biome `check --error-on-warnings`) so
+    // precommit is exactly as strict locally as in CI: it fails on lint warnings
+    // and on code that *would* be reformatted, without modifying the checkout.
+    // Run `deno task lint` separately to auto-fix formatting before committing.
+    { cmd: ["deno", "task", "lint:ci"], name: "lint" },
     { cmd: ["deno", "task", "typecheck"], name: "typecheck" },
     { cmd: ["deno", "task", "cpd"], name: "cpd" },
     { cmd: ["deno", "task", "build:edge"], name: "build:edge" },

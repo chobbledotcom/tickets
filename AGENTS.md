@@ -32,8 +32,10 @@ The `.tool-versions` file is kept in sync for asdf-compatible tooling.
 
 - **Use FP methods**: Prefer curried functional utilities from `#fp` over imperative loops
 - **Zero code duplication**: jscpd runs at a non-negotiable 0% threshold. Fix duplication with a helper or currying — see [Code Duplication](#code-duplication). `jscpd:ignore` is reserved for import blocks, essentially nothing else.
-- **100% test coverage**: All code must have complete test coverage - run `deno coverage` to find uncovered lines/branches
+- **100% test coverage**: All code must have complete test coverage - run `deno coverage` to find uncovered lines/branches. Coverage must also be *deterministic*: a line or branch reached only through a spawned subprocess or e2e test (e.g. the `cli/` scripts, exercised by `test/e2e/cli-api.test.ts` via `deno run`) is covered non-deterministically — the child process's coverage is collected through `DENO_COVERAGE_DIR` and is environment-sensitive, so it can pass CI on one run and fail on the next. Give any branch that must stay covered a direct in-process unit test, not just incidental subprocess coverage.
+- **Good citizen — fix what you spot**: If you notice a bug, a coverage gap, or a flaky/fragile test while working — even in code you were not asked to touch and did not write — fix it in passing rather than stepping around it. A green build you helped produce is your responsibility too.
 - **Trust application invariants**: Do not design normal code paths around database states the application says are impossible. If an impossible state is observed, raise it as an error and repair the data explicitly rather than silently accepting or normalising it.
+- **Malleable software**: Prefer being up front with operators about the underlying data structure over hiding it. Where it's safe, expose stored records directly and give the operator a page to view and edit them — including aggregated/derived numbers — rather than treating the DB as a black box. The per-contact record editor at `/admin/history/:hmac` (raw booking/message counts plus the private note, keyed by the contact's HMAC) is the reference example. Repairing data should be a first-class operator action, not a manual DB surgery.
 - **Select only needed columns**: Avoid `SELECT *` and broad "load every row" helpers — query the specific columns a caller actually uses. See [Database Queries](#database-queries).
 - **SQL table aliases**: Alias tables with the full singular word using `AS`, not a single letter — write `FROM listings AS listing`, never `FROM listings e` (the `e` is a leftover from when listings were called "events"). When one query references the same table more than once (e.g. correlated subqueries that compare a row against its group), give each occurrence a descriptive word alias — `listing` for the row being checked, `groupListing` for sibling rows in its group.
 - **Final check**: Run `deno task precommit` (via `mise exec -- deno task precommit` when using the pinned toolchain) before finishing any job with code or documentation changes.
@@ -135,6 +137,7 @@ Even when a caller genuinely needs many columns, list them explicitly rather tha
 - `deno task test:coverage` - Run the full suite with coverage
 - `deno task test:files <file>...` - Run only the given test files with the same setup as the full runner (builds static assets, starts stripe-mock, cleans up after)
 - `deno task lint` - Format and lint all code with Biome (`check --write`; auto-fixes in place). Biome is the sole formatter and linter.
+- `deno task lint:ci` - Strict, read-only lint (`check --error-on-warnings`, no `--write`). Fails on lint warnings (e.g. cognitive complexity) and on any code that *would* be reformatted, without touching the checkout. This is the lint `deno task precommit` runs in **every** environment, so a clean `precommit` locally means the lint step will pass in CI too. Run `deno task lint` to auto-fix before re-running.
 - `deno task build:edge` - Build for Bunny Edge deployment
 - `deno task backup` - Dump the database out-of-band to a `.zip`. Uploads to the configured storage zone by default (so it appears on the Backups page and lets the next migration skip its own inline backup); pass `--out <path>` to write a local file. Runs in a full Deno process, so unlike the in-edge backup it has no per-request subrequest budget and can dump arbitrarily large databases.
 - `deno task precommit` - Run all checks (typecheck, lint, tests)
@@ -271,6 +274,16 @@ All tests must meet these mandatory criteria:
 
 - Each test has a single reason to fail
 - If you need "and" in the description, split the test
+
+### 7. Assertion Strength and Mutation Resistance
+
+- Treat 100% coverage as a hygiene floor, not proof that tests would catch meaningful regressions.
+- Prefer assertions that would fail under realistic mutants: wrong arithmetic/operator, skipped validation, inverted permission checks, missing persistence, or omitted escaping.
+- Avoid compound boolean assertions such as `expect(a && b).toBe(true)`; assert the observable contract directly with exact values, object shape, persisted rows, HTTP status/body, or rendered content.
+- Avoid ending a test at `toBeTruthy()` / `toBeDefined()` unless mere existence is the actual user-visible contract. If existence matters, pair it with format, value, range, ordering, persistence, or security invariants.
+- For pure functions, add table-driven or property-style examples that cover families of inputs and state the invariant being protected. Keep any generated cases deterministic.
+- For critical flows, include negative-path, idempotency, concurrency, and metamorphic tests: e.g. payment/webhook replay does not double-credit, capacity cannot go below zero across edits/deletes, role downgrades remove access, and PII/secrets remain encrypted or absent from responses/logs.
+- When generated or bulk-added tests are involved, run `deno task test:quality-audit` and review assertionless, truthiness, presence-only, and compound-boolean findings before trusting the coverage number.
 
 ### Coverage Requirements
 
