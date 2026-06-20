@@ -111,7 +111,16 @@ Two consequences that drive importer design:
 
 ## Current CSV Shape
 
-Observed from the checked-in `bookings.csv`:
+These numbers come from a real `bookings.csv` export observed **out of repo**.
+The file is **not** committed and must not be — it is a live customer export full
+of PII. Treat the figures below as observations from that external sample, and
+build a small **synthetic/anonymised** fixture (a handful of rows reproducing the
+awkward shapes: BOM, duplicate `Date` columns, slash-in-name products, empty
+`Equipments` with a `Quoted for Products` block) for the tests. If you have the
+real export locally, keep it outside the working tree (e.g. a gitignored path)
+when validating the parser against it.
+
+Observed from that sample export:
 
 - 226 booking rows.
 - 628 columns.
@@ -180,12 +189,14 @@ Attendee notes / legacy metadata storage:
   [Custom Questions](#custom-questions)), and treat the raw audit-trail dump as a
   smaller, secondary concern whose destination is decided once the notes rework
   settles. Keep `special_instructions` for customer-facing booking instructions.
-- If, when the importer is built, no suitable notes destination exists yet, the
-  importer should still preserve the raw legacy fields somewhere encrypted (a
-  labelled block on the per-contact record, or a minimal attendee `notes` column
-  added in agreement with the notes-rework work) — but free-text questions cover
-  the high-value columns either way, so this is no longer a blocking prerequisite
-  for a first importer pass.
+- A durable encrypted home for the raw audit trail is a **prerequisite for the
+  writer**, not an optional extra: the importer must preserve the raw legacy
+  fields somewhere encrypted (a labelled block on the per-contact record, or a
+  minimal attendee `notes` column added in agreement with the notes-rework work).
+  Free-text questions cover the high-value columns, but the writer must not be
+  enabled until the remaining audit fields have a persistent destination — see
+  [Where Legacy Metadata Goes](#where-legacy-metadata-goes). Only the *choice of
+  column/record* is deferred; persistence itself is not.
 
 ## Proposed Routes And UI
 
@@ -296,8 +307,17 @@ Product matching:
 - Match known listing names longest first over the raw `Equipments` text before
   splitting on separators. This lets a local listing named
   `Rodeo Bull / Bucking Bronco` win before the slash is considered a separator.
-- After consuming longest matches, split only the remaining unmatched text on
-  known separators and report unresolved fragments as missing products.
+- **Only accept a match that spans a whole source product token** — i.e. the
+  match must be bounded on both sides by a known separator or by the
+  start/end of the field. A listing name that is merely a *substring* of a token
+  must not be consumed. Otherwise a local listing named `Bull` would eat part of
+  the source product `Rodeo Bull / Bucking Bronco` and silently create a `Bull`
+  booking, when the correct behaviour is to report the full source product as
+  missing. Split the field into tokens on the known separators first (respecting
+  the longest-known-name exception for names that legitimately contain a
+  separator), then match each whole token.
+- After consuming whole-token matches, report any remaining unmatched tokens as
+  missing products.
 - Preserve the original source spelling in missing-product errors.
 - Do not silently fuzzy-match. If there is ambiguity, fail validation and show a
   row-level error.
@@ -345,8 +365,13 @@ Quantity:
 
 - If the same matched listing appears multiple times in one source booking, use
   a single line with `quantity` equal to the count.
-- Do not create duplicate `(listing_id, attendee_id, start_at)` rows; the
-  existing unique index would reject them.
+- **Dedupe in the planner, for dated and undated lines alike — do not lean on
+  the database constraint.** The unique `(listing_id, attendee_id, start_at)`
+  index would reject duplicate dated rows, but SQLite/libsql treats `NULL`s as
+  distinct, so duplicate `(listing_id, attendee_id, NULL)` rows for an *undated*
+  standard listing slip past the index and would inflate the trigger-maintained
+  booking aggregates. The planner must therefore collapse repeats into one
+  quantity line itself; the index is only a backstop for dated rows.
 
 ## Financial Mapping
 
@@ -364,8 +389,9 @@ MVP recommendation:
 - Store `0` on every `listing_attendees.price_paid` line. Imported financial
   totals must not affect trigger-maintained listing income.
 - Preserve raw `Total`, `Received`, `Balance`, payment columns, and modifier
-  columns as free-text answers and/or in the import report (and, for the raw
-  audit trail, wherever the notes rework lands).
+  columns as free-text answers and/or in the durable encrypted audit-trail
+  destination (see [Where Legacy Metadata Goes](#where-legacy-metadata-goes)).
+  The import report summarises them but is not their system of record.
 - Do not allocate `Received` across products in the first importer. Historical
   order totals are source metadata, not listing income.
 
@@ -401,16 +427,27 @@ Setup contract (operator's responsibility, mirrors products/statuses):
   `display_type` is `free_text` and whose text matches the CSV header exactly
   (after normalization). The create form is `POST /admin/questions` with `text`
   and `display_type` fields.
-- The question should be `assign_all`, or assigned to at least one listing the
+- The question must be `assign_all`, or assigned to at least one listing the
   booking matched, so the imported answer actually renders on the attendee edit
-  form. If a matched free-text question is assigned to none of the booking's
-  listings, warn (the answer is still stored against the attendee, but it won't
-  show in the per-listing UI).
+  form. **A matched free-text question that is assigned to none of the booking's
+  listings is a blocking validation error, not a warning.** Storing a hidden
+  answer would be a data-loss trap: the admin edit form only renders questions
+  assigned to the booking's listings, and the save path (`saveAttendeeAnswers`)
+  replaces an attendee's whole answer set from the *rendered* form — so the first
+  admin edit of that attendee would silently delete the unrendered imported
+  answer. Blocking forces the operator to fix the assignment before the data is
+  written, which fits the importer's "all setup must exist first" stance.
 
 Resolution (pure, before any writes):
 
 - Decrypt existing question text and build a normalized-exact lookup of
   `free_text` questions only. Radio/select questions are not import targets.
+- **Duplicate normalized text is an ambiguous-setup error, not a silent pick.**
+  The `questions` table does not enforce unique text, so two `free_text`
+  questions can normalize to the same header. If a CSV header matches more than
+  one, block the upload and tell the operator to disambiguate (rename or remove
+  the duplicate) — never guess which one to attach the answer to. This is the
+  same no-silent-matching rule the product resolver follows.
 - For each configured/importable column with a non-empty value, look up the
   matching free-text question. Normalize and **trim** the value (the public path
   trims free-text answers via `parseFreeTextAnswer`; match that so dedup keys
@@ -487,11 +524,18 @@ There are now three possible destinations; pick per column by value:
    Modifiers: ...
    ```
 
-   Keep this idea, but its **home is unresolved** until PRs #1332/#1333 settle
-   (they remove the per-attendee note textareas and move notes to per-contact
-   encrypted records). Treat the destination as a small follow-up decision, not a
-   blocker: the high-value columns are already covered by (1), and the import
-   report can carry the rest in the meantime.
+   Keep this idea. Which **column/record** it lands in is unresolved until PRs
+   #1332/#1333 settle (they remove the per-attendee note textareas and move notes
+   to per-contact encrypted records) — but *that* a durable encrypted destination
+   exists is a **hard prerequisite for enabling the writer**, not a follow-up.
+   The import report is an ephemeral page, so it is **not** a system of record:
+   if `Customer Notes`, `Operator Notes`, payment/modifier history, etc. are only
+   shown in the report, a successful import permanently loses them once the page
+   is gone. So: every audit-trail field must be written to a durable encrypted
+   store (the chosen notes column or per-contact record) before a booking is
+   created. If no destination is agreed yet, the writer must **block** imports
+   that carry unmapped audit fields rather than dropping them — never import with
+   data loss. The report only *summarises* what was persisted.
 
 Do not add a product/status/question alias mechanism. Matching is normalized
 exact matching everywhere.
@@ -520,17 +564,23 @@ Target algorithm:
 11. Do not preflight capacity. Legacy imports may overbook.
 12. Encrypt attendee PII blobs for every new candidate.
 13. Resolve free-text answers: collect every distinct trimmed answer text across
-    the whole file and call `getOrCreateStringIds(allTexts)` once to get a
-    `text → stringId` map (owner-public-key encryption; dedupes across bookings).
+    the whole file (owner-public-key encryption; dedupes across bookings). The
+    `strings` upserts must be unwound on failure — either performed inside the
+    write transaction in step 14, or tracked so newly-created rows can be deleted
+    on rollback (see implementation notes).
 14. Run one write transaction for all new candidates:
+    - upsert the deduped `strings` rows and resolve their ids (or do this such
+      that a rollback removes them);
     - insert attendee;
     - insert each `listing_attendees` line;
     - write logistics times if used;
     - insert `attendee_answers(attendee_id, question_id, string_id)` text-answer
       rows using the resolved string ids;
+    - persist the raw audit-trail fields to their durable encrypted destination;
     - insert `booking_imports(old_id, new_id)`.
-15. If any insert fails, the transaction rolls back and no import-map rows are
-    written.
+15. If any insert fails, the transaction rolls back and no attendees, listing
+    lines, text answers, new `strings` rows, audit-trail records, or import-map
+    rows survive.
 
 Implementation notes:
 
@@ -541,16 +591,20 @@ Implementation notes:
     and throw to roll back, or
   - batch statements that deliberately abort the transaction when any expected
     insert did not happen.
-- **`strings` rows are created outside the whole-file transaction.**
-  `getOrCreateStringIds` (step 13) runs its own `INSERT OR IGNORE` batch before
-  the main transaction, so if the transaction rolls back, any *newly created*
-  string rows linger with `used_count = 0`. This is harmless: they are deduped by
-  the unique `text_index`, reused on the next import attempt, and the
-  `attendee_answers` delete trigger only prunes strings that were actually
-  referenced. The importer must therefore **not** assume rollback removes string
-  rows. (If we later want truly zero side effects on failure, fold the string
-  upserts into the same guarded transaction and resolve ids within it — extra
-  complexity that is not worth it for the first pass.)
+- **`strings` writes must be atomic with the import — do not leave orphans.**
+  The stock `getOrCreateStringIds` runs its own `INSERT OR IGNORE` batch *before*
+  any `attendee_answers` insert, so a naive call there would persist every
+  distinct imported answer (notes, addresses, invoice fields — encrypted source
+  PII) even when the main transaction later rolls back. Those rows are created
+  with `used_count = 0`, are never referenced by `attendee_answers`, and so are
+  never pruned by the delete trigger: a failed "all-or-nothing" import would
+  leave imported PII behind. That breaks both atomicity and the privacy stance,
+  so it is **not** acceptable. The writer must do one of:
+  - fold the `strings` upserts into the same guarded transaction and resolve the
+    ids within it, so a rollback unwinds them too (preferred); or
+  - on any failure/rollback, explicitly delete the strings it newly created that
+    are still at `used_count = 0`.
+  Either way, a rolled-back import must leave **zero** new `strings` rows.
 - The `attendee_answers` XOR/validation triggers will `ABORT` a malformed answer
   row (e.g. both `answer_id` and `string_id` set). The importer only ever writes
   the text-answer shape (`answer_id` NULL, `question_id` + `string_id` set), so a
@@ -596,7 +650,10 @@ Add focused tests before broad route tests:
   - empty `Equipments` plus `Quoted for Products` fallback;
   - ignoring extra product-looking text in notes when `Equipments` is populated;
   - duplicate product names;
-  - names containing slash characters with longest known-name matching first.
+  - names containing slash characters with longest known-name matching first;
+  - a listing name that is only a *substring* of a source token is reported as
+    missing, not consumed (e.g. a local `Bull` listing must not match inside
+    `Rodeo Bull / Bucking Bronco`).
 - Product resolver reports missing names and does not write anything.
 - Status resolver maps source `Status` values to existing attendee statuses,
   reports missing status names, and does not write anything.
@@ -608,9 +665,15 @@ Add focused tests before broad route tests:
 - Import rejects duplicate source IDs in the same CSV.
 - Whole-file transaction rolls back all writes when a later row fails —
   explicitly assert that no `attendees`, `listing_attendees`, `attendee_answers`,
-  or `booking_imports` rows survive a forced late-row failure.
+  newly-created `strings`, audit-trail records, or `booking_imports` rows survive
+  a forced late-row failure.
 - Daily listings receive date ranges; standard listings get undated rows and a
   report warning.
+- A source booking repeating the same standard (undated) listing produces a
+  single quantity-collapsed line, not duplicate `(listing_id, attendee_id, NULL)`
+  rows — proving the planner dedupes rather than relying on the unique index.
+- The raw audit-trail fields are persisted to their durable encrypted
+  destination (read back after import), not just shown in the report.
 - Legacy rows can overbook without failing the import.
 - Financial mapping sets listing line `price_paid` to `0`, preserves raw totals
   in answers/report, and does not change listing income.
@@ -627,6 +690,10 @@ Free-text question tests (the PR #1335 surface):
   the import before writes and is listed on the missing-setup page.
 - Radio/select questions are **not** treated as import targets even if their text
   matches a CSV header.
+- A CSV header matching two `free_text` questions with the same normalized text
+  is rejected as ambiguous and writes nothing.
+- A matched `free_text` question assigned to none of the booking's listings
+  blocks the import (no hidden answer is written).
 - Identical answer text across two bookings is deduped into a single `strings`
   row (assert one row / shared `string_id`), and the import is written through a
   single `getOrCreateStringIds` call rather than per-attendee saves.
@@ -643,8 +710,9 @@ Free-text question tests (the PR #1335 surface):
      `2026-06-20_free_text_questions`).
    - Add narrow helpers to fetch existing old IDs and insert mappings.
    - Reconcile the legacy-notes destination with the #1332/#1333 notes rework
-     (decide column vs per-contact record vs report-only for the raw audit
-     trail). Free-text questions cover the high-value columns regardless.
+     (decide column vs per-contact record — report-only is **not** an option, it
+     loses data). A durable encrypted destination must exist before the writer is
+     enabled. Free-text questions cover the high-value columns regardless.
    - Tests for idempotency helpers.
 2. CSV parser and source model
    - Parse row arrays into typed `SourceBooking` values.
@@ -655,8 +723,10 @@ Free-text question tests (the PR #1335 surface):
    - Resolve source product names to listing IDs.
    - Resolve source `Status` values to attendee status IDs.
    - Resolve configured columns to `free_text` question IDs (normalized exact
-     text, free-text only).
-   - Apply longest-match-first product resolution and no aliases.
+     text, free-text only); reject duplicate-text matches and require the
+     question to be assigned to the booking (block, don't warn).
+   - Apply longest-match-first product resolution bounded to whole tokens, and no
+     aliases.
    - Missing-setup error route (products + statuses + questions).
    - Listing-name prefill/lock flow; optional status/question text prefill.
 4. Import planner
@@ -694,14 +764,25 @@ Free-text question tests (the PR #1335 surface):
   products to populated `Equipments` rows.
 - There is no product/status/question alias mechanism. Matching is normalized
   exact matching, with longest-match-first product scanning for names containing
-  slashes.
+  slashes — but matches must span whole source tokens, never substrings.
+- Product/status/question matching never guesses. A header that matches more than
+  one `free_text` question (duplicate text is allowed by the schema) is an
+  ambiguous-setup error, not a silent pick.
 - Legacy free-text columns are imported as **free-text question answers**
   (PR #1335): the operator creates `free_text` questions whose text matches the
   CSV headers; the importer stores source values as owner-key-encrypted,
   deduplicated `strings` referenced from `attendee_answers`. Missing required
-  free-text questions block the upload before writes, like missing products and
-  statuses.
+  free-text questions, and matched questions not assigned to the booking, block
+  the upload before writes, like missing products and statuses.
 - The importer reuses PR #1335's `strings`/`attendee_answers` schema and helpers
   and does not redefine them; `booking_imports` is the only new table.
-- The raw audit-trail dump's storage location is deferred to align with the
-  #1332/#1333 notes rework and is not a blocker for a first importer pass.
+- All-or-nothing means all-or-nothing: a rolled-back import leaves **no** new
+  rows, including `strings` rows created for text answers. String upserts are
+  unwound on failure rather than left as orphaned encrypted PII.
+- The raw audit trail must have a durable encrypted destination before the writer
+  is enabled — the import report is not a system of record. Only the *choice* of
+  destination is deferred to align with the #1332/#1333 notes rework; imports that
+  would otherwise drop unmapped audit fields must block, never lose data.
+- Per-booking line dedup happens in the planner for dated and undated rows alike;
+  the unique index is only a backstop for dated rows (NULL `start_at` values are
+  distinct in SQLite, so undated duplicates would slip through).
