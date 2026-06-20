@@ -62,12 +62,11 @@ import {
   updateAttendeeOrder,
 } from "#shared/db/attendees.ts";
 import {
-  type ContactStats,
-  getContactStats,
+  getContactRecord,
+  getRepairFallbackRecord,
   hashEmail,
   hashPhone,
-  recordBookingStats,
-  saveContactAdminNotes,
+  toContactHashParam,
 } from "#shared/db/contact-preferences.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import {
@@ -84,6 +83,7 @@ import {
 import { settings } from "#shared/db/settings.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { ErrorCode, logError } from "#shared/logger.ts";
 import {
   parseSelectedListingIds,
   START_DATE_FIELD,
@@ -94,6 +94,8 @@ import { isIsoDate } from "#shared/validation/date.ts";
 import {
   type AttendeeFormTemplateData,
   attendeeFormPage,
+  type ContactChannelData,
+  type ContactRecordsByChannel,
 } from "#templates/admin/attendee-form.tsx";
 
 /* jscpd:ignore-end */
@@ -166,11 +168,9 @@ const buildCreateForm = (
   address: "",
   dayCount: 1,
   email: "",
-  emailAdminNotes: "",
   lines: buildFormLines(renderListings, new Map(), preselectedQty),
   name: "",
   phone: "",
-  phoneAdminNotes: "",
   remainingBalance: 0,
   returnUrl: "",
   special_instructions: "",
@@ -192,7 +192,6 @@ const buildEditFormFromAttendee = (
       address: attendee.address || "",
       dayCount: shared.dayCount,
       email: attendee.email || "",
-      emailAdminNotes: "",
       lines: buildFormLines(
         renderListings,
         firstExistingByListingId(existing),
@@ -200,7 +199,6 @@ const buildEditFormFromAttendee = (
       ),
       name: attendee.name,
       phone: attendee.phone || "",
-      phoneAdminNotes: "",
       remainingBalance: attendee.remaining_balance,
       returnUrl: "",
       special_instructions: attendee.special_instructions || "",
@@ -315,7 +313,7 @@ const buildTemplateData = async (
     returnUrl?: string;
     questions?: QuestionWithAnswers[];
     selectedAnswerIds?: number[];
-    contactStats?: ContactStatsByChannel;
+    contactRecords?: ContactRecordsByChannel;
   } = {},
 ): Promise<AttendeeFormTemplateData> => {
   const statuses = await getAllAttendeeStatuses();
@@ -339,7 +337,7 @@ const buildTemplateData = async (
     attendee,
     attendeeError: opts.attendeeError ?? null,
     balanceNotice,
-    contactStats: opts.contactStats ?? EMPTY_CONTACT_STATS_BY_CHANNEL,
+    contactRecords: opts.contactRecords ?? EMPTY_CONTACT_RECORDS,
     dateError: opts.dateError ?? null,
     flashError: opts.flashError,
     flashSuccess: opts.flashSuccess,
@@ -446,11 +444,9 @@ export const handleAttendeeEditGet: TypedRouteHandler<
       attendeeId,
       loaded.existing,
     );
-    const contactStats = await loadContactStats(session, loaded.attendee);
-    parsed.emailAdminNotes = contactStats.email?.adminNotes ?? "";
-    parsed.phoneAdminNotes = contactStats.phone?.adminNotes ?? "";
+    const contactRecords = await loadContactRecords(session, loaded.attendee);
     const data = await buildTemplateData("edit", parsed, loaded.attendee, {
-      contactStats,
+      contactRecords,
       hasMixedTimings,
       questions,
       returnUrl: getSearchParam(request, "return_url"),
@@ -459,67 +455,58 @@ export const handleAttendeeEditGet: TypedRouteHandler<
     return renderAttendeeFormPage(request, data, session);
   });
 
-/** Read the attendee's bulk-email contact history (null when no email). */
-const loadContactStats = async (
-  session: AuthSession,
-  attendee: Attendee,
-): Promise<ContactStatsByChannel> => {
-  const pk = await requirePrivateKey(session);
-  return {
-    email: attendee.email
-      ? await getContactStats(await hashEmail(attendee.email), pk)
-      : null,
-    phone: attendee.phone
-      ? await getContactStats(await hashPhone(attendee.phone), pk)
-      : null,
-  };
-};
-
-type ContactHashesByChannel = { email: string | null; phone: string | null };
-type ContactStatsByChannel = {
-  email: ContactStats | null;
-  phone: ContactStats | null;
-};
-
-const EMPTY_CONTACT_STATS_BY_CHANNEL: ContactStatsByChannel = {
+const EMPTY_CONTACT_RECORDS: ContactRecordsByChannel = {
   email: null,
   phone: null,
 };
 
-const contactHashesFor = async (
-  email: string,
-  phone: string,
-): Promise<ContactHashesByChannel> => ({
-  email: email.trim() ? await hashEmail(email) : null,
-  phone: phone.trim() ? await hashPhone(phone) : null,
-});
-
-const compactContactHashes = (hashes: ContactHashesByChannel): string[] =>
-  [hashes.email, hashes.phone].filter((hash): hash is string => Boolean(hash));
-
-const saveContactPreferenceBlob = async (
-  parsed: ParsedAttendeeForm,
+/** Load and decrypt one channel's contact record (null when no value on file).
+ * Notes are owner-encrypted, so this needs the session private key. */
+const loadChannelRecord = async (
+  value: string,
+  hashOf: (value: string) => Promise<string>,
   privateKey: CryptoKey,
-  options: { recordBooking: boolean },
-): Promise<void> => {
-  const hashes = await contactHashesFor(parsed.email, parsed.phone);
-  if (options.recordBooking) {
-    await recordBookingStats(compactContactHashes(hashes), false, privateKey);
+): Promise<ContactChannelData | null> => {
+  if (!value.trim()) return null;
+  const hash = await hashOf(value);
+  try {
+    return {
+      hashParam: toContactHashParam(hash),
+      record: await getContactRecord(hash, privateKey),
+    };
+  } catch (error) {
+    // A corrupt/undecryptable stats_blob for one contact must not take down
+    // the whole attendee edit page. Surface it for repair and keep the channel
+    // with its surviving counts and (crucially) its /admin/history link, so the
+    // operator can still open the editor and overwrite the bad row — dropping
+    // the channel here would hide the only path to fix it.
+    logError({
+      code: ErrorCode.DECRYPT_FAILED,
+      detail: `contact history ${toContactHashParam(hash)}: ${error}`,
+    });
+    return {
+      hashParam: toContactHashParam(hash),
+      record: await getRepairFallbackRecord(hash),
+    };
   }
-  if (hashes.email) {
-    await saveContactAdminNotes(
-      hashes.email,
-      parsed.emailAdminNotes,
-      privateKey,
-    );
+};
+
+/** Read the attendee's per-channel contact history for the read-only panel.
+ * The private key is only needed (and only requested) when there is at least
+ * one contact value to decrypt, so an attendee with no email/phone never forces
+ * a key prompt. */
+const loadContactRecords = async (
+  session: AuthSession,
+  attendee: Attendee,
+): Promise<ContactRecordsByChannel> => {
+  if (!attendee.email.trim() && !attendee.phone.trim()) {
+    return EMPTY_CONTACT_RECORDS;
   }
-  if (hashes.phone) {
-    await saveContactAdminNotes(
-      hashes.phone,
-      parsed.phoneAdminNotes,
-      privateKey,
-    );
-  }
+  const pk = await requirePrivateKey(session);
+  return {
+    email: await loadChannelRecord(attendee.email, hashEmail, pk),
+    phone: await loadChannelRecord(attendee.phone, hashPhone, pk),
+  };
 };
 
 /** Load an attendee + all its listing_attendees rows for the edit page. */
@@ -644,7 +631,7 @@ const handleSubmitInner = async (
   // re-render the submitted form in place so entered data is never lost.
   const outcome =
     mode === "create"
-      ? await applyCreate(parsed, logisticsPlan, session)
+      ? await applyCreate(parsed, logisticsPlan)
       : await applyEdit(
           attendeeId!,
           parsed,
@@ -652,7 +639,6 @@ const handleSubmitInner = async (
           questions,
           parseQuestionAnswers({ optional: true })(form, questions).answerIds,
           logisticsPlan,
-          session,
         );
   if (outcome.ok) return outcome.response;
   return renderForm(session, {
@@ -706,18 +692,24 @@ const applyLogisticsPlan = (
 const applyCreate = async (
   parsed: ParsedAttendeeForm,
   logisticsPlan: LogisticsPlan,
-  session: AuthSession,
 ): Promise<SaveOutcome> => {
   const input = toCreateInput(parsed);
   if (input.bookings.length === 0) {
     return { flashError: NO_LINES_ERROR, ok: false };
   }
-  // Admin manual add may deliberately overbook (a warning is shown, not blocked).
+  // Admin manual add may deliberately overbook (a warning is shown, not blocked)
+  // and is tagged as an "admin" booking so it counts separately from online
+  // checkouts in the contact's booking history.
   const createResult = await createAttendeeAtomic({
     ...input,
     allowOverbook: true,
+    source: "admin",
   });
-  const check = await ensureAllBookings(createResult, input.bookings.length);
+  const check = await ensureAllBookings(
+    createResult,
+    input.bookings.length,
+    "admin",
+  );
   if (!check.ok) {
     return { flashError: CAPACITY_SAVE_ERROR, ok: false };
   }
@@ -727,9 +719,6 @@ const applyCreate = async (
   >;
   const firstListingId = input.bookings[0]!.listingId;
   const newId = attendees[0]!.id;
-  await saveContactPreferenceBlob(parsed, await requirePrivateKey(session), {
-    recordBooking: true,
-  });
   await applyLogisticsPlan(newId, logisticsPlan);
   await logActivity(
     `Attendee '${parsed.name}' added manually`,
@@ -750,7 +739,6 @@ const applyEdit = async (
   questions: QuestionWithAnswers[],
   answerIds: number[],
   logisticsPlan: LogisticsPlan,
-  session: AuthSession,
 ): Promise<SaveOutcome> => {
   const encryptedPiiBlob = (await encryptPiiBlob(
     buildPiiBlob({
@@ -785,10 +773,6 @@ const applyEdit = async (
     parsed.statusId,
     parsed.remainingBalance,
   );
-
-  await saveContactPreferenceBlob(parsed, await requirePrivateKey(session), {
-    recordBooking: false,
-  });
 
   await applyLogisticsPlan(attendeeId, logisticsPlan);
 

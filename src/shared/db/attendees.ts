@@ -50,6 +50,7 @@ export {
 export {
   buildAttendeeInsert,
   ensureAllBookings,
+  reverseOrderActivity,
 } from "#shared/db/attendees/create.ts";
 export { deleteAttendee } from "#shared/db/attendees/delete.ts";
 export {

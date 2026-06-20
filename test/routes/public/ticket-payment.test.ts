@@ -13,7 +13,14 @@ import {
   createAttendeeAtomic,
   ensureAllBookings,
   getAttendeesRaw,
+  reverseOrderActivity,
 } from "#shared/db/attendees.ts";
+import { getDb } from "#shared/db/client.ts";
+import {
+  getContactRecord,
+  getVisits,
+  hashEmail,
+} from "#shared/db/contact-preferences.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { todayInTz } from "#shared/timezone.ts";
@@ -79,10 +86,17 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
         email: contact.email,
         name: contact.name,
       });
-      const check = await ensureAllBookings(result, 2);
+      const check = await ensureAllBookings(result, 2, "public");
       expect(check.ok).toBe(true);
       expect((await getAttendeesRaw(e1.id)).length).toBe(1);
       expect((await getAttendeesRaw(e2.id)).length).toBe(1);
+      // A kept order leaves the recorded public booking in place.
+      const { getTestPrivateKey } = await import("#test-utils");
+      const record = await getContactRecord(
+        await hashEmail(contact.email),
+        await getTestPrivateKey(),
+      );
+      expect(record.publicBookingCount).toBe(1);
     });
 
     test("rolls back a partially-fulfilled cart and reports capacity_exceeded", async () => {
@@ -116,12 +130,22 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       expect(result.success).toBe(true);
       if (result.success) expect(result.attendees.length).toBe(1);
 
-      const check = await ensureAllBookings(result, 2);
+      const check = await ensureAllBookings(result, 2, "public");
       expect(check.ok).toBe(false);
       if (!check.ok) expect(check.reason).toBe("capacity_exceeded");
       // Full rollback: even the first line's row is gone.
       expect((await getAttendeesRaw(e1.id)).length).toBe(0);
       expect((await getAttendeesRaw(e2.id)).length).toBe(0);
+      // ...and the visit + booking the greedy create recorded are undone, so a
+      // rolled-back order leaves no phantom history on the contact.
+      const emailHash = await hashEmail(contact.email);
+      expect(await getVisits(emailHash)).toBe(0);
+      const { getTestPrivateKey } = await import("#test-utils");
+      const record = await getContactRecord(
+        emailHash,
+        await getTestPrivateKey(),
+      );
+      expect(record.publicBookingCount).toBe(0);
     });
 
     test("propagates the failure reason when the whole cart failed", async () => {
@@ -129,8 +153,18 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
         reason: "encryption_error" as const,
         success: false as const,
       };
-      const check = await ensureAllBookings(failure, 1);
+      const check = await ensureAllBookings(failure, 1, "public");
       expect(check).toEqual({ ok: false, reason: "encryption_error" });
+    });
+
+    test("reverseOrderActivity is a no-op for a contact with no email or phone", async () => {
+      // An order with neither identity yields no contact hashes, so the
+      // compensation loop never runs and nothing is written or thrown.
+      await reverseOrderActivity("", "", "public");
+      const { rows } = await getDb().execute(
+        "SELECT COUNT(*) AS c FROM contact_preferences",
+      );
+      expect(Number(rows[0]!.c)).toBe(0);
     });
   });
 

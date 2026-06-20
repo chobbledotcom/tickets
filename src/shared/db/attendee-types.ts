@@ -2,6 +2,7 @@
  * Types for attendee operations
  */
 
+import type { BookingSource } from "#shared/db/contact-preferences.ts";
 import type { Attendee, ContactFields, ContactInfo } from "#shared/types.ts";
 
 /** Aggregated statistics for active listings */
@@ -77,6 +78,11 @@ export type AttendeeInput = ContactFields & {
    * inserted unconditionally. Admin manual add only — public/webhook callers
    * leave it false so capacity is always enforced. */
   allowOverbook?: boolean;
+  /** Booking origin, used to split the per-contact booking count between online
+   * checkouts and admin manual adds. Defaults to "public" so a newly added
+   * checkout path can never be silently left uncounted; the admin manual-add
+   * paths pass "admin" explicitly. */
+  source?: BookingSource;
 };
 
 /** Row from listing_attendees — per-listing booking data */
