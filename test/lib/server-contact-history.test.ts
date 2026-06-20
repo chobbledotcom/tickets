@@ -173,16 +173,20 @@ describeWithEnv("server (/admin/history/:hmac)", { db: true }, () => {
         [hash, 9, 5, 2, "not-valid-ciphertext", Date.now()],
       );
 
-      // The editor still renders, pre-filling the surviving counts.
+      // The editor still renders (not a 500), and crucially pre-fills every
+      // surviving plaintext count — a fallback that blanked them would let a
+      // blind save zero a contact's real booking history.
       const getResponse = await awaitTestRequest(`/admin/history/${param}`, {
         cookie: await testCookie(),
       });
       expect(getResponse.status).toBe(200);
-      expect(await getResponse.text()).toMatch(
-        /name="public_booking_count"[^>]*value="5"/,
-      );
+      const html = await getResponse.text();
+      expect(html).toMatch(/name="visits"[^>]*value="9"/);
+      expect(html).toMatch(/name="public_booking_count"[^>]*value="5"/);
+      expect(html).toMatch(/name="admin_booking_count"[^>]*value="2"/);
 
-      // Saving overwrites the corrupt blob with a fresh, readable note.
+      // Saving (resubmitting the pre-filled counts) overwrites the corrupt
+      // blob with a fresh, readable note while keeping the counts intact.
       const { response } = await adminFormPost(`/admin/history/${param}`, {
         admin_booking_count: "2",
         admin_notes: "Repaired",
@@ -195,8 +199,9 @@ describeWithEnv("server (/admin/history/:hmac)", { db: true }, () => {
 
       const record = await getContactRecord(hash, pk);
       expect(record.adminNotes).toBe("Repaired");
-      expect(record.publicBookingCount).toBe(5);
       expect(record.visits).toBe(9);
+      expect(record.publicBookingCount).toBe(5);
+      expect(record.adminBookingCount).toBe(2);
     });
   });
 });
