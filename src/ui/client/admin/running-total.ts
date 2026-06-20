@@ -42,7 +42,11 @@ export const initRunningTotal = (): void => {
   // The calculate endpoint to post to (the button's no-JS new-tab target).
   const action = button.formAction;
   // Take over the form submit: render inline instead of opening a new tab.
+  // With JS the total updates live, so the button is redundant — hide it via
+  // the shared .hidden class and show the inline summary instead, one or the
+  // other rather than both.
   button.type = "button";
+  button.classList.add("hidden");
 
   let timer: ReturnType<typeof setTimeout> | undefined;
   let inFlight = false;
@@ -79,6 +83,5 @@ export const initRunningTotal = (): void => {
 
   form.addEventListener("input", schedule);
   form.addEventListener("change", schedule);
-  button.addEventListener("click", render);
   void render();
 };
