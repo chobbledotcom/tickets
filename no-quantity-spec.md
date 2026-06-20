@@ -60,8 +60,11 @@ fight the triggers:
      Do **not** add `AND quantity > 0` to that shared `WHERE` — it would also drop
      a quantity-0 row's `price_paid` from the recalculated `income` (which must
      stay `SUM(price_paid)`) and silently normalize an invariant violation instead
-     of surfacing it. Change only the count expression there to `SUM(CASE WHEN
-     quantity > 0 THEN 1 ELSE 0 END) AS tickets_count`, leaving
+     of surfacing it. Change only the count expression there to `COALESCE(SUM(CASE
+     WHEN quantity > 0 THEN 1 ELSE 0 END), 0) AS tickets_count` — the `COALESCE` is
+     required because `SUM` over zero rows returns `NULL` (unlike `COUNT(*)`'s
+     `0`), so an empty listing would otherwise report bogus drift against a stored
+     `0`; this matches the existing `income`/`booked_quantity` `COALESCE`. Leave
      `income`/`booked_quantity` summed over all rows.
    Missing the recalculation query makes the repair page report quantity-0 lines
    as drift and push owners to "fix" aggregates back to the wrong value.
@@ -83,6 +86,9 @@ from every site (note `listings.ts` contributes two). This mirrors the existing 
 `LISTING_AGGREGATE_WRITE_COLUMNS`. Add a guard test (like the existing
 "`LISTING_AGGREGATE_WRITE_COLUMNS` matches the trigger SQL" test) asserting the
 shared predicate appears in every site, so a future edit can't silently diverge.
+(Empty-set gotcha: every `SUM(CASE …)` count site — the recalc query and the
+`delete.ts` pre-compute — must `COALESCE(…, 0)`, since `SUM` over zero rows is
+`NULL`, not `0`.)
 
 **Migration:** ship a migration that re-creates the triggers and recomputes
 `tickets_count` for existing data (a no-op today, since no `quantity = 0` lines

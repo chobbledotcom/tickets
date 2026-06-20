@@ -216,10 +216,12 @@ Add admin routes:
     transaction.
   - Redirects to success with created/skipped counts.
 - `GET /admin/imports/bookings/missing`
-  - Error page populated from repeated `product`, `status`, and `question` query
-    params.
-  - Example:
-    `/admin/imports/bookings/missing?product=Foo&product=Bar&status=Cancelled&question=Surface`
+  - Error page populated from a **short-lived server-side stash**, addressed by a
+    single token in the URL (`?stash=<token>`) — **not** repeated `product` /
+    `status` / `question` params, which the first upload of a wide CSV can push
+    past Location/header limits and strand the operator before setup. The POST
+    writes the missing set to the stash and redirects with the token; this GET
+    reads it back.
   - Renders one link per missing product:
     `/admin/listing/new?import_name=Foo`
   - Renders missing statuses with the exact source name and a link to
@@ -1222,10 +1224,13 @@ is a prerequisite for the transactional writer (item 5)** — the writer emits
   indicator, per-row actions guarded). The full surface-by-surface audit belongs to
   the no-quantity feature — [`no-quantity-spec.md`](./no-quantity-spec.md) §6 — and
   is not duplicated here.
-- The writer records visit counts (`recordOrderVisit`) for confirmed
-  (real-quantity) imported bookings only, since it bypasses `createAttendeeAtomic`
-  and would otherwise leave imported customers looking like first-time visitors
-  for visit-gated modifiers.
+- The writer records visit counts for confirmed (real-quantity) imported bookings
+  only, since it bypasses `createAttendeeAtomic` and would otherwise leave
+  imported customers looking like first-time visitors for visit-gated modifiers.
+  It must **not** use `recordOrderVisit`/`recordVisit` (they stamp
+  `last_activity = nowMs()`); increment `visits` with the source `Date Booked` and
+  `last_activity = MAX(existing.last_activity, source)` so old imports don't look
+  freshly active to pruning (see the writer step).
 - A row with **no** products at all (no `Equipments` and no parseable quoted
   block) is a reported non-creatable row: not written, not added to the import
   map. Every booking needs ≥1 line, even if quantity-0.
@@ -1282,10 +1287,12 @@ is a prerequisite for the transactional writer (item 5)** — the writer emits
   standard siblings** (group members must share `listing_type`, so it can't be
   converted alone); never auto-convert. Gating to daily keeps
   every imported line inherently dated — the daily listing carries the
-  `Delivery`/`Collection` range on `start_at`/`end_at`, so run sheets
-  (`getAgentRunSheet`) and the day-calendar (`getDailyListingAttendeesByDate`)
-  work out of the box. Chosen over dating standard lines, which would force new
-  line-date paths through the calendar, the ICS feed, and the edit form.
+  `Delivery`/`Collection` range on `start_at`/`end_at`, so the **day-calendar**
+  (`getDailyListingAttendeesByDate`) works out of the box. (Run sheets need an
+  agent: `getAgentRunSheet` matches on `start_agent_id`/`end_agent_id`, which the
+  importer doesn't set, so imported lines reach a run sheet only after an admin
+  assigns an agent — see Dates.) Chosen over dating standard lines, which would
+  force new line-date paths through the calendar, the ICS feed, and the edit form.
 - `Date Booked` maps to `attendees.created` so admin "newest" views and
   calendar/list/CSV exports order imports by their original booking date, not
   import time; fall back to import time only when `Date Booked` is
