@@ -67,6 +67,27 @@ describeWithEnv("server (/admin/history/:hmac)", { db: true }, () => {
       expect(html).toContain(param);
     });
 
+    test("renders the private note in the shared markdown editor box, label without '(markdown)'", async () => {
+      const param = toContactHashParam(await hashEmail("mdbox@example.com"));
+      const response = await awaitTestRequest(`/admin/history/${param}`, {
+        cookie: await testCookie(),
+      });
+      const html = await response.text();
+      // The note textarea opts into the shared markdown editor: data-markdown-preview
+      // drives the Preview link, maxlength drives the character counter.
+      expect(html).toMatch(
+        /<textarea[^>]*\bdata-markdown-preview\b[^>]*\bname="admin_notes"/,
+      );
+      expect(html).toMatch(
+        new RegExp(
+          `<textarea[^>]*\\bmaxlength="${MAX_TEXTAREA_LENGTH}"[^>]*\\bname="admin_notes"`,
+        ),
+      );
+      // The "(markdown)" qualifier is dropped from the visible label.
+      expect(html).toContain("Private notes");
+      expect(html).not.toContain("Private notes (markdown)");
+    });
+
     test("renders an empty record with a 'Never' placeholder and no note preview", async () => {
       // An unseen hash has no row at all, so every field is zero/empty.
       const param = toContactHashParam(await hashEmail("unseen@example.com"));
