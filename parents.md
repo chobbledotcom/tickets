@@ -349,17 +349,68 @@ In `prepareOrder` (`ticket-submit.ts`), after `parseQuantities`:
    `(listing_id, date)` line with summed quantity** — the booking shape can't store
    duplicate slots (see Shared-child edge case). After this expansion a child is a
    normal line through `buildRegistrationItems` → `CheckoutIntent.items` → pricing
-   → payment metadata → webhook reconstruction with no further special-casing.
+   → payment metadata → webhook reconstruction.
    This is the key design property: **a child is a normal line once selected; only
    the gate and the line-set expansion are special.**
+
+### The fold must feed *every* per-listing path, not just availability
+
+"Expand the listing set" is load-bearing because `prepareOrder` runs several
+per-listing computations off `ctx.listings` / the selected set. Folding a child
+into `quantities` without expanding the listing set silently skips all of these.
+The expanded set (parent page listings ∪ selected children) must drive **all** of:
+
+- **Capacity & item building** — `checkAvailability` (via `listingsWithQuantity`)
+  and `buildRegistrationItems` iterate the listing set (`ticket-payment.ts`).
+- **Contact fields** — the form renders/validates contact fields from
+  `getTicketFieldsSetting(ctx.listings)` (`ticket-submit.ts:126`). A child with
+  stricter `fields` (e.g. requires phone/address) must contribute to the required
+  set **when selected** — but rendering *every* possible child's fields would make
+  unselected children's fields required. So `fields` needs the **same
+  selected-child / no-JS rule as questions**: render all children's contact fields
+  in the baseline, but only require/validate the chosen child's.
+- **Custom (pay-more) price** — for a `can_pay_more` child the submit path expects
+  `custom_price_<childId>` (`ticket-submit.ts:145`). The child controls must
+  include the custom-price input (namespaced/handled like the parent's), or we
+  **explicitly disallow pay-more children** in v1. Otherwise a pay-more child fails
+  with a missing price (or is silently charged its base price). (Open Question 15.)
+- **Optional add-ons** — `getOptionalAddOns(listingIds)` (`ticket-payment.ts:375`)
+  is scoped to the listing ids. Add-ons scoped *only* to a child won't load if we
+  pass just the parent page ids; loading add-ons for *every* possible child lets a
+  no-JS user opt into an add-on for an unchosen child that pricing then drops.
+  Either render/parse child-scoped add-ons **conditionally on the selected child**,
+  or **explicitly not support child-scoped add-ons** in v1. (Open Question 16.)
+- **Site-assignment validation** — `prepareOrder` calls
+  `validateSiteAssignmentConfig(selected)` (`ticket-submit.ts:578`) before
+  checkout. A child with `assign_built_site` set (parent without) must be in the
+  **expanded** set passed to this check, or a misconfigured builder order can
+  complete and then silently skip assignment post-booking.
+- **Quantity caps after aggregation** — when the same child is summed across
+  multiple parents, the aggregate line can exceed the child's `max_quantity` /
+  `maxPurchasable` even though each per-parent input was individually clamped. The
+  **folded** quantity must be re-validated against the child's max-purchasable
+  limit (clamp or reject) before building items.
 
 ### Pricing & payment round-trip
 
 - Because children become ordinary `items[]`, `priceCheckout`
-  (`checkout-pricing.ts`) and the provider metadata packing need **no changes** —
-  they already handle arbitrary multi-line orders.
+  (`checkout-pricing.ts`) and the provider metadata packing handle the extra lines
+  without structural change — they already price arbitrary multi-line orders.
+- **Per-child dates do not survive the paid round-trip as-is.** This is the one
+  place the "child is just a normal line" framing breaks: `CheckoutIntent` carries
+  a **single order-level `date`/`dayCount`**, the compact `BookingItem`s store only
+  listing id / quantity / price, and the webhook calls
+  `bookingDateFields(listing, intent.date, intent.dayCount)` **per item**
+  (`src/features/api/webhooks.ts:783`). So a paid parent order whose child sits on
+  a *different* day than the order-level date would book the child on the wrong
+  day. Two resolutions (Open Question 14):
+  - **Restrict child dates to the order/shared date** in v1 (simplest — a daily
+    child must be booked on the same date as the rest of the order), or
+  - **Add per-line date/duration** to `BookingItem`, the metadata packing, and
+    webhook reconstruction (larger change; needed only if independent child dates
+    are a real requirement).
 - The `/calculate` quote must include selected children; it shares the
-  `prepareOrder` path, so folding children into the lines there covers it.
+  `prepareOrder` path, so the fold + listing-set expansion there covers it.
 - The **webhook** reconstructs the booking from `CheckoutIntent` metadata. Since
   children are already in `items[]` before the session is created, the webhook
   needs no parent-awareness. **Verify** the gate is *not* re-run in the webhook
@@ -411,13 +462,21 @@ Enumerate each and decide:
 
 ## Edge cases
 
-- **Child unbookable** (inactive / closed / sold out / `purchase_only` mismatch).
-  The gate must only require selection from **currently bookable** children.
-  **`hidden` is *not* an unbookable condition** — the ticket flow still loads
-  hidden listings by direct slug; only the public index/gallery excludes them. A
-  child intentionally hidden from the index must still be selectable under its
-  parent (this matches the "Hidden children" note below). So do **not** filter on
-  `hidden` here. If a parent's *only* bookable child is sold out, the parent
+- **Child unbookable** (inactive / closed / sold out). The gate must only require
+  selection from **currently bookable** children. Two flags that look like
+  eligibility but are **not**, and must **not** be used to filter children:
+  - **`hidden`** — the ticket flow still loads hidden listings by direct slug;
+    only the public index/gallery excludes them. A child hidden from the index must
+    still be selectable under its parent (matches the "Hidden children" note
+    below).
+  - **`purchase_only`** — this is a *pricing* constraint (no free bookings), not a
+    booking-eligibility check; purchase-only listings still render a normal buy
+    button and create normal booking rows. A regular parent must be able to require
+    a valid purchase-only child (merch, an add-on-style ticket). Do **not** filter
+    on a parent/child `purchase_only` mismatch. If some specific combination really
+    is unsupported, define and enforce it explicitly rather than via a blanket
+    filter.
+   If a parent's *only* bookable child is sold out, the parent
   effectively cannot be booked — decide whether to (a) hide/disable the parent, or
   (b) show it with a "currently unavailable" note. Recommended: treat "no bookable
   children" the same as "parent sold out" and block, with a clear message. (Open
@@ -483,6 +542,15 @@ Enumerate each and decide:
   `listing_attendees` rows; paid path packs both into provider metadata; webhook
   reconstructs both **without** re-running the gate; `/calculate` quote includes
   the child.
+- **Fold coverage (the checklist)**: a selected child contributes to capacity,
+  contact-field requirements (`getTicketFieldsSetting`), custom pay-more price,
+  site-assignment validation, and aggregated-quantity cap enforcement; unselected
+  children contribute to **none** of these (their fields/questions aren't
+  required). Add a regression test per item — each is a distinct way the fold can
+  silently drop a child.
+- **Round-trip dates**: per the v1 decision, either a child date that differs from
+  the order date is rejected (restricted model) or survives reconstruction
+  (per-line model) — test whichever we ship.
 - **Negative paths**: parent without child rejected with the right message and
   form re-fill; capacity exceeded on child; child sold out blocks parent.
 - **API / admin add**: enforce-or-skip behaviour matches the decisions taken.
@@ -499,17 +567,18 @@ Enumerate each and decide:
 | 2 | DB layer: edge CRUD, `getChildrenOf` / `getParentsOf` / batch loader, dedicated edge cache, `deleteListing` cleanup. Unit-tested. |
 | 3 | Admin edit UI: configure parents (+ reverse view), with self/cycle/nesting validation and diff-save. **Ships behind a flag / hidden until step 4–5 land** (see note). |
 | 4 | Booking-page render: surface children under parents in `TicketCtx` (per-parent quantity fields, per-child dates, child questions); no-JS baseline incl. CSS-only reveal. |
-| 5 | Server-side gate in `prepareOrder`: validate (positive child qty; in-cart child lines count) + expand the listing set and fold children. Free + paid + webhook + `/calculate` all exercised. |
+| 5 | Server-side gate in `prepareOrder`: validate (positive child qty; in-cart child lines count) + expand the listing set and fold children (feeding **every** per-listing path in the fold checklist). **Plus the API + QR decisions (close those bypass paths).** Free + paid + webhook + `/calculate` all exercised. |
 | 6 | Progressive-enhancement JS: reveal/require child blocks on parent qty > 0; include in live quote. |
-| 7 | Decide & implement API / QR / admin-manual-add behaviour. |
-| 8 | Docs + any operator-facing help text. |
+| 7 | Admin-manual-add / attendee-edit behaviour; docs + operator-facing help text. |
 
-Steps 1–2 are behaviour-preserving. **Step 3 must not be exposed to operators
-before enforcement (steps 4–5) lands**: an admin UI that saves required-child
-relationships while checkout doesn't yet enforce them would let an operator
-configure a requirement that buyers silently bypass (parent checks out alone).
-Either gate the admin UI behind a feature flag until 4–5 are in, or merge 3–5 into
-a single shippable unit.
+Steps 1–2 are behaviour-preserving. **Parent configuration must not be exposed to
+operators until *every* booking path enforces the gate.** An admin UI that saves
+required-child relationships while *any* checkout path ignores them lets an
+operator configure a requirement that buyers silently bypass. That includes not
+just the website form (steps 4–5) but the **single-listing API and the signed-QR
+direct-checkout paths** — so the API/QR decisions move **into the enforcement step
+(5)**, not a later step. Gate the admin UI behind a feature flag until 4–5
+(website + API + QR) are all in, or merge 3–5 into a single shippable unit.
 
 ---
 
@@ -553,6 +622,16 @@ a single shippable unit.
     (e.g. `/ticket/<parent>+<child>`) satisfy the parent's requirement
     (recommended) vs explicitly forbid parent+child URLs to keep the gate's input
     single-sourced?
-14. **Child dates** — confirm daily children use per-child date controls evaluated
-    independently (recommended), rather than the shared `computeSharedDates`
-    selector that would intersect all children's date ranges.
+14. **Child dates & the paid round-trip** — daily children need per-child date
+    controls (not the shared `computeSharedDates` selector, which intersects all
+    children's ranges). But `CheckoutIntent` carries a single order-level date and
+    the webhook applies it per item, so independent child dates don't survive a
+    paid order. Resolve by either **restricting a child's date to the order/shared
+    date** (recommended for v1) or **adding per-line date/duration** to
+    `BookingItem` + metadata + webhook reconstruction.
+15. **Pay-more children** — include a `custom_price_<childId>` input in the child
+    controls so `can_pay_more` children work (recommended) vs **disallow pay-more
+    children** in v1?
+16. **Child-scoped add-ons** — render/parse add-ons conditionally on the selected
+    child vs **not support child-scoped add-ons** in v1 (recommended; add-ons stay
+    scoped to the page's parent listings)?
