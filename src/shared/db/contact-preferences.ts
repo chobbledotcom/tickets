@@ -98,6 +98,12 @@ export type BookingSource = "admin" | "public";
 /** Plaintext counter columns that the keyless public paths can increment. */
 type CountColumn = "visits" | "public_booking_count" | "admin_booking_count";
 
+/** The plaintext booking-count column for each source. */
+const BOOKING_COLUMN: Record<BookingSource, CountColumn> = {
+  admin: "admin_booking_count",
+  public: "public_booking_count",
+};
+
 /** Increment one plaintext counter, creating the row on first activity. Shared
  * by visits and the per-source booking counts so the upsert lives in one place.
  * The column is from a fixed internal union, never user input. */
@@ -109,17 +115,32 @@ const incrementCount =
       [hash, nowMs()],
     );
 
+/** Reverse one increment, clamped at zero. Only an existing row is touched: a
+ * missing row means nothing was recorded, so there is nothing to undo. Used to
+ * compensate a booking/visit when the order is rolled back after creation. */
+const decrementCount =
+  (column: CountColumn) =>
+  (hash: string): Promise<void> =>
+    run(
+      `UPDATE contact_preferences SET ${column} = MAX(${column} - 1, 0), last_activity = ? WHERE contact_hash = ?`,
+      [nowMs(), hash],
+    );
+
 export const recordVisit = incrementCount("visits");
-const recordPublicBooking = incrementCount("public_booking_count");
-const recordAdminBooking = incrementCount("admin_booking_count");
+export const unrecordVisit = decrementCount("visits");
 
 /** Record one booking against a contact, counted by its source. Plaintext, so
  * the public checkout/webhook paths can call it without the owner private key. */
 export const recordBooking = (
   hash: string,
   source: BookingSource,
-): Promise<void> =>
-  (source === "admin" ? recordAdminBooking : recordPublicBooking)(hash);
+): Promise<void> => incrementCount(BOOKING_COLUMN[source])(hash);
+
+/** Reverse a {@link recordBooking}, e.g. when an order is rolled back. */
+export const unrecordBooking = (
+  hash: string,
+  source: BookingSource,
+): Promise<void> => decrementCount(BOOKING_COLUMN[source])(hash);
 
 export const getVisits = async (hash: string): Promise<number> => {
   const row = await queryOne<{ visits: number }>(

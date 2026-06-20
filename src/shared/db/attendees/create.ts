@@ -24,6 +24,8 @@ import {
   hashPhone,
   recordBooking,
   recordVisit,
+  unrecordBooking,
+  unrecordVisit,
 } from "#shared/db/contact-preferences.ts";
 import { type Attendee, normalizeDurationDays } from "#shared/types.ts";
 
@@ -41,6 +43,7 @@ import { type Attendee, normalizeDurationDays } from "#shared/types.ts";
 export const ensureAllBookings = async (
   result: CreateAttendeeResult,
   expectedCount: number,
+  source: BookingSource,
 ): Promise<
   { ok: true } | { ok: false; reason: "capacity_exceeded" | "encryption_error" }
 > => {
@@ -48,7 +51,11 @@ export const ensureAllBookings = async (
     return { ok: true };
   }
   if (result.success && result.attendees.length > 0) {
-    await deleteAttendee(result.attendees[0]!.id);
+    const attendee = result.attendees[0]!;
+    await deleteAttendee(attendee.id);
+    // The greedy create already recorded a visit + booking for this contact;
+    // undo it now that the order is being rolled back.
+    await reverseOrderActivity(attendee.email, attendee.phone, source);
   }
   return {
     ok: false,
@@ -101,11 +108,11 @@ const buildAttendeeResult = (input: BuildAttendeeInput): Attendee => ({
   ticket_token_index: input.ticketTokenIndex,
 });
 
-const recordOrderActivity = async (
+/** Collect the contact-identity hashes for an order (email and/or phone). */
+const orderContactHashes = (
   email: unknown,
   phone: unknown,
-  source: BookingSource,
-) => {
+): Promise<string[]> => {
   const hashes: Promise<string>[] = [];
   if (typeof email === "string" && email.trim()) {
     hashes.push(hashEmail(email));
@@ -113,11 +120,32 @@ const recordOrderActivity = async (
   if (typeof phone === "string" && phone.trim()) {
     hashes.push(hashPhone(phone));
   }
-  for (const hash of await Promise.all(hashes)) {
-    await recordVisit(hash);
-    await recordBooking(hash, source);
-  }
+  return Promise.all(hashes);
 };
+
+/** Apply a visit + source-tagged booking change to every contact on an order.
+ * Curried over the per-hash primitives so recording and its exact reverse share
+ * one implementation. */
+const applyOrderActivity =
+  (
+    visitFn: (hash: string) => Promise<void>,
+    bookingFn: (hash: string, source: BookingSource) => Promise<void>,
+  ) =>
+  async (email: unknown, phone: unknown, source: BookingSource) => {
+    for (const hash of await orderContactHashes(email, phone)) {
+      await visitFn(hash);
+      await bookingFn(hash, source);
+    }
+  };
+
+const recordOrderActivity = applyOrderActivity(recordVisit, recordBooking);
+
+/** Reverse {@link recordOrderActivity} when an order is rolled back after the
+ * greedy create already recorded it (partial booking, post-payment refund). */
+export const reverseOrderActivity = applyOrderActivity(
+  unrecordVisit,
+  unrecordBooking,
+);
 
 /**
  * Atomically create an attendee linked to one or more listings.

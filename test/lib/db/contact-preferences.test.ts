@@ -20,6 +20,8 @@ import {
   resubscribeHash,
   saveContactRecord,
   toContactHashParam,
+  unrecordBooking,
+  unrecordVisit,
   unsubscribeHash,
 } from "#shared/db/contact-preferences.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -333,6 +335,27 @@ describeWithEnv("contact-preferences: contact history", { db: true }, () => {
     // No private key is passed — the public checkout/webhook paths rely on this.
     await recordBooking(hash, "public");
     expect((await getContactRecord(hash, pk)).publicBookingCount).toBe(1);
+  });
+
+  test("unrecordBooking reverses a recordBooking and clamps at zero", async () => {
+    const pk = await getTestPrivateKey();
+    const hash = await hashEmail("undo@example.com");
+    await recordBooking(hash, "public");
+    await recordBooking(hash, "public");
+    await unrecordBooking(hash, "public");
+    expect((await getContactRecord(hash, pk)).publicBookingCount).toBe(1);
+    // Decrementing past zero never goes negative.
+    await unrecordBooking(hash, "public");
+    await unrecordBooking(hash, "public");
+    expect((await getContactRecord(hash, pk)).publicBookingCount).toBe(0);
+  });
+
+  test("unrecordVisit reverses a recordVisit, clamped at zero", async () => {
+    const hash = await hashEmail("undovisit@example.com");
+    await recordVisit(hash);
+    await unrecordVisit(hash);
+    await unrecordVisit(hash);
+    expect(await getVisits(hash)).toBe(0);
   });
 
   test("saveContactRecord overwrites the counts and the encrypted note", async () => {

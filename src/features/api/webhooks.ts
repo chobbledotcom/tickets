@@ -57,6 +57,7 @@ import {
   deleteAttendee,
   ensureAllBookings,
   getAttendeesByTokens,
+  reverseOrderActivity,
 } from "#shared/db/attendees.ts";
 import { getListing, getListingWithCount } from "#shared/db/listings.ts";
 import { buyerVisits, specsFromRefs } from "#shared/db/modifier-resolve.ts";
@@ -756,7 +757,11 @@ const createAttendeeForSession = async (
   });
 
   // For paid bookings, require all-or-nothing: partial success = rollback + refund
-  const bookingCheck = await ensureAllBookings(result, bookings.length);
+  const bookingCheck = await ensureAllBookings(
+    result,
+    bookings.length,
+    "public",
+  );
   if (!bookingCheck.ok) {
     const error = formatPostPaymentError(
       bookingCheck.reason,
@@ -788,6 +793,9 @@ const createAttendeeForSession = async (
     );
     if (!consumed) {
       await deleteAttendee(attendeeId);
+      // Undo the visit + booking the greedy create recorded for this contact,
+      // since the paid order is being rolled back and refunded.
+      await reverseOrderActivity(intent.email, intent.phone, "public");
       return refundAndFail(
         session,
         MODIFIER_SOLD_OUT_MESSAGE,

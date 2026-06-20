@@ -303,7 +303,7 @@ export const createFreeReservation = async ({
     statusId: await getPublicStatusId(),
   });
 
-  const check = await ensureAllBookings(result, bookings.length);
+  const check = await ensureAllBookings(result, bookings.length, "public");
   if (!check.ok) {
     return {
       error: formatAtomicError(check.reason, selected[0]!.listing.name),

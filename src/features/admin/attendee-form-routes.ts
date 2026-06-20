@@ -687,7 +687,11 @@ const applyCreate = async (
     allowOverbook: true,
     source: "admin",
   });
-  const check = await ensureAllBookings(createResult, input.bookings.length);
+  const check = await ensureAllBookings(
+    createResult,
+    input.bookings.length,
+    "admin",
+  );
   if (!check.ok) {
     return { flashError: CAPACITY_SAVE_ERROR, ok: false };
   }

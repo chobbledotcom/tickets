@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { getAttendeeActivityLog } from "#shared/db/activityLog.ts";
+import { getContactRecord, hashPhone } from "#shared/db/contact-preferences.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   getSmsMessageByProviderId,
@@ -13,6 +14,7 @@ import {
   createTestAttendeeDirect,
   createTestListing,
   describeWithEnv,
+  getTestPrivateKey,
 } from "#test-utils";
 
 const PHONE = "+447700900123";
@@ -133,6 +135,15 @@ describeWithEnv("admin sms", { db: true }, () => {
     expect(
       log.some((e) => e.message.includes("queued for Jane Doe: Hello Jane")),
     ).toBe(true);
+
+    // The text counts against the phone contact, so the per-phone history
+    // panel's "Total messages" reflects SMS — not just bulk email.
+    const record = await getContactRecord(
+      await hashPhone(PHONE),
+      await getTestPrivateKey(),
+    );
+    expect(record.contactCount).toBe(1);
+    expect(record.lastSubject).toBe("Hello Jane");
   });
 
   it("POST on a gateway error logs the failure and records no row", async () => {

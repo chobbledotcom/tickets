@@ -13,6 +13,7 @@
  * gateway ids to attendees for status webhooks.
  */
 
+import { requirePrivateKey } from "#routes/admin/actions.ts";
 import {
   AUTH_FORM,
   type AuthSession,
@@ -24,6 +25,7 @@ import { defineRoutes } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { getAttendeeActivityLog, logActivity } from "#shared/db/activityLog.ts";
 import { setAttendeePhoneIndexIfEmpty } from "#shared/db/attendee-phone-index.ts";
+import { hashPhone, recordContacts } from "#shared/db/contact-preferences.ts";
 import { countSmsMessages, recordSmsMessage } from "#shared/db/sms-messages.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
@@ -126,6 +128,13 @@ const sendSms = (session: AuthSession, form: FormParams): Promise<Response> => {
     try {
       const { providerId } = await sendEncryptedMessage(config, payload);
       await recordSmsMessage({ attendeeId, listingId, providerId });
+      // Count the text against this phone contact so the per-phone history
+      // panel's "Total messages" reflects SMS, not just bulk email.
+      await recordContacts(
+        [await hashPhone(phone)],
+        message,
+        await requirePrivateKey(session),
+      );
       await logActivity(
         `${SMS_LOG_PREFIX} queued for ${data.attendee.name}: ${message}`,
         listingId,
