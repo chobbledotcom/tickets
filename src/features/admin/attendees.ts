@@ -197,6 +197,7 @@ const buildCreateAttendeeInput = (
     email: email || "",
     name,
     phone: phone || "",
+    source: "admin" as const,
     special_instructions: special_instructions || "",
   };
 };

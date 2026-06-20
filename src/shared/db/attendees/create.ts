@@ -19,8 +19,10 @@ import {
 } from "#shared/db/attendees/pii.ts";
 import { executeBatchWithResults, insert } from "#shared/db/client.ts";
 import {
+  type BookingSource,
   hashEmail,
   hashPhone,
+  recordBooking,
   recordVisit,
 } from "#shared/db/contact-preferences.ts";
 import { type Attendee, normalizeDurationDays } from "#shared/types.ts";
@@ -99,7 +101,11 @@ const buildAttendeeResult = (input: BuildAttendeeInput): Attendee => ({
   ticket_token_index: input.ticketTokenIndex,
 });
 
-const recordOrderVisit = async (email: unknown, phone: unknown) => {
+const recordOrderActivity = async (
+  email: unknown,
+  phone: unknown,
+  source: BookingSource,
+) => {
   const hashes: Promise<string>[] = [];
   if (typeof email === "string" && email.trim()) {
     hashes.push(hashEmail(email));
@@ -109,6 +115,7 @@ const recordOrderVisit = async (email: unknown, phone: unknown) => {
   }
   for (const hash of await Promise.all(hashes)) {
     await recordVisit(hash);
+    await recordBooking(hash, source);
   }
 };
 
@@ -134,6 +141,7 @@ export const createAttendeeAtomicImpl = async (
     statusId = null,
     remainingBalance = 0,
     allowOverbook = false,
+    source = "public",
   } = input;
   const order = { remainingBalance, statusId };
   if (bookings.length === 0) {
@@ -234,10 +242,10 @@ export const createAttendeeAtomicImpl = async (
     return { reason: "capacity_exceeded", success: false };
   }
 
-  // Record one order-level visit per contact identity. Multi-listing carts
-  // still count as one customer visit, while email and phone can both recognize
-  // the customer on future checkouts.
-  await recordOrderVisit(email, phone);
+  // Record one order-level visit and one source-tagged booking per contact
+  // identity. Multi-listing carts still count as one customer visit/booking,
+  // while email and phone can both recognize the customer on future checkouts.
+  await recordOrderActivity(email, phone, source);
 
   return { attendees: successfulBookings, success: true };
 };

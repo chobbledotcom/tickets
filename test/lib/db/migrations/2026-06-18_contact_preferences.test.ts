@@ -182,6 +182,8 @@ describeWithEnv(
           "contact_hash",
           "unsubscribed",
           "visits",
+          "public_booking_count",
+          "admin_booking_count",
           "stats_blob",
           "last_activity",
         ]);
