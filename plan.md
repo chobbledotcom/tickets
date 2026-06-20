@@ -311,7 +311,12 @@ Resolve product names for each unimported source booking before any writes.
 Extraction order:
 
 1. Use `Equipments` as authoritative when it is populated. These are
-   actually-booked products and become real lines (`quantity >= 1`).
+   actually-booked products and become real lines (`quantity >= 1`) — **unless the
+   row's `Status` is `Cancelled`, in which case every matched line is
+   `quantity = 0` regardless of `Equipments`** (see Status Mapping). Apply the
+   status verdict after extraction so a cancelled booking never consumes capacity
+   or leaks into public/operational surfaces, even with a populated `Equipments`
+   field.
 2. If `Equipments` is empty, parse `Operator Notes` blocks of the form
    `Quoted for Products: -- Product A -- Product B -- Products (xN) ...` as a
    fallback and report that fallback in the import summary. These are
@@ -917,7 +922,10 @@ Implementation notes:
 
 Input:
 
-- `GET /admin/imports/bookings/missing?product=Name%201&status=Cancelled&question=Surface`
+- `GET /admin/imports/bookings/missing?stash=<token>` — the token addresses the
+  durable server-side stash written by the upload POST (see Proposed Routes And
+  UI); the page reads the missing product/status/question set from the stash, not
+  from repeated query params.
 
 Behavior:
 
@@ -1309,9 +1317,10 @@ is a prerequisite for the transactional writer (item 5)** — the writer emits
   product matching a `standard`-type listing is a blocking setup error. An
   *empty, ungrouped* standard listing can be converted to daily in place, but
   conversion is blocked as unresolvable when the listing is **populated** (undated
-  rows would drop off the daily calendar/capacity) or in a **group with populated
-  standard siblings** (group members must share `listing_type`, so it can't be
-  converted alone); never auto-convert. Gating to daily keeps
+  rows would drop off the daily calendar/capacity) or in a **group with any
+  siblings** (`validateGroupListingType` forbids a single in-place type change
+  regardless of sibling bookings, so it can't be converted alone); never
+  auto-convert. Gating to daily keeps
   every imported line inherently dated — the daily listing carries the
   `Delivery`/`Collection` range on `start_at`/`end_at`, so the **day-calendar**
   (`getDailyListingAttendeesByDate`) works out of the box. (Run sheets need an

@@ -126,11 +126,19 @@ literal `0`.
   dead balance. When a save would leave an attendee with zero real lines, either
   block it or clear/zero `remaining_balance` (recording the prior value as audit
   metadata).
-- **No auto-delete.** The save path must distinguish a deliberate `quantity = 0`
-  line (box checked → keep) from a real removal (the line's explicit remove
-  control → delete). Any existing logic that drops a line because its quantity is
-  falsy/empty must be guarded so it only removes lines the owner actually removed.
-  This applies to **all** booking lines once the checkbox exists.
+- **No auto-delete — and a "retained line" predicate separate from "booked
+  line".** The save path must distinguish a deliberate `quantity = 0` line (box
+  checked → keep) from a real removal (the line's explicit remove control →
+  delete). The trap: `isBookedLine` (`attendee-form-model.ts`) is `quantity >= 1`,
+  and it feeds `toCreateInput`, `toDesiredLines`, the no-lines guard, line
+  validation, warnings, and logistics parsing — so simply mapping the checkbox to
+  `quantity = 0` makes a checked line fail `isBookedLine` and get **dropped**, and
+  a no-quantity-*only* save is rejected as "Book at least one listing". Introduce a
+  separate **retained-line** predicate (booked **or** checked-no-quantity) and
+  switch the persistence + no-lines paths to it, while capacity/validation keep
+  the `quantity >= 1` notion. A checked quantity-0 line must persist (not delete),
+  and a no-quantity-only attendee must save. This applies to **all** booking lines
+  once the checkbox exists.
 
 ## 5. Public-path guard (reject — do NOT coerce)
 
@@ -268,8 +276,12 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
     verifies the signed attendee/listing pair via `getAttendeeRaw` then calls
     `incrementAttachmentDownloads` — neither has a quantity predicate, so a
     customer holding a still-valid URL for a line later marked no-quantity could
-    keep downloading the protected listing attachment. Add `quantity > 0` to the
-    download authorization (and the counter).
+    keep downloading the protected listing attachment. Authorize against the
+    **exact `(attendee_id, listing_id)` row with `quantity > 0`** (an `EXISTS` /
+    targeted check), **not** `getAttendeeRaw`'s left-joined row — that row isn't
+    pinned to the signed listing, so for a mixed attendee the check can pass on a
+    ghost/other-listing row or wrongly 403 a valid real-line download. Guard the
+    counter the same way.
 - **Scanner manual list (separate preload).** Besides token resolution, the
   scanner page `GET /admin/listing/:id/scanner` (`src/features/admin/scanner.ts`)
   calls `getAttendeesRaw(listing.id)` and builds the manual check-in candidate
