@@ -123,6 +123,14 @@ The guard must keep treating public `0` as "not selected" while **rejecting any
 persisted/selected zero-quantity line**, so a visitor can't end up with a
 no-capacity "ghost" line. Keep this server-side, not just in the UI.
 
+**Cover the JSON API too, not just the HTML form.** `POST /api/listings/:slug/book`
+(`src/features/api/index.ts`) parses `body.quantity` with
+`parsePositiveInt(...) ?? 1`, so a submitted `quantity: 0` currently becomes a
+**one-ticket booking**. Put the rule below the form layer (at the shared
+booking/checkout entry, or in each entry point) so a `0` is rejected or treated as
+not-selected on the API route as well — otherwise API clients can still create
+real bookings from `0`.
+
 ## 6. Reader/writer audit — site-wide
 
 Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces:
@@ -193,6 +201,12 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
     customer holding a still-valid URL for a line later marked no-quantity could
     keep downloading the protected listing attachment. Add `quantity > 0` to the
     download authorization (and the counter).
+- **Scanner manual list (separate preload).** Besides token resolution, the
+  scanner page `GET /admin/listing/:id/scanner` (`src/features/admin/scanner.ts`)
+  calls `getAttendeesRaw(listing.id)` and builds the manual check-in candidate
+  list filtering only `!checked_in && !refunded` — so a quantity-0 row appears as
+  a manual candidate and then errors/behaves oddly once the `updateCheckedIn`
+  guard rejects it. Exclude `quantity = 0` from this manual list too.
 - **Public balance / pay flow** (`src/features/public/balance.ts` +
   `src/shared/db/attendees/balance.ts`) — three parts:
   - A `Balance` is publicly payable only when the attendee has ≥1 `quantity > 0`
@@ -230,12 +244,31 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
   non-orphan. That's the point of writing the line.
 - **Admin per-listing attendee roster / check-in *list*, group-detail roster,
   per-attendee detail, edit/merge views** — these reads **keep** `quantity = 0`
-  rows (show the "no quantity" indicator); they're real records. **One nuance on
-  the roster:** it keeps the *row* visible, but its inline check-in control
-  (`CheckinButton` in `src/ui/templates/attendee-table.tsx` →
-  `handleAttendeeCheckin` in `src/features/admin/attendees.ts` →
-  `updateCheckedIn`) must be hidden/disabled for quantity-0 rows (render the
-  indicator instead of a button), since `updateCheckedIn` now refuses them.
+  rows (show the "no quantity" indicator); they're real records. **But several
+  per-row *actions* must be guarded even though the row stays visible** — keeping
+  the record is not the same as keeping its operational/financial/customer-facing
+  buttons:
+  - **Check-in** — the inline `CheckinButton`
+    (`src/ui/templates/attendee-table.tsx`) → `handleAttendeeCheckin`
+    (`src/features/admin/attendees.ts`) → `updateCheckedIn` must be
+    hidden/disabled for quantity-0 rows (render the indicator instead), since
+    `updateCheckedIn` now refuses them.
+  - **Refunds (single + bulk).** `isRefundable`
+    (`src/ui/templates/admin/attendee-form.tsx`) and `getRefundable`
+    (`src/features/admin/attendee-refunds.ts`) gate only on
+    `payment_id`/`refunded`, and `markRefunded(..., listingId)` refunds against the
+    invoking listing page. A mixed attendee (real paid line + a no-quantity
+    interested/cancelled line on another listing) would expose refund / refund-all
+    from the **ghost** listing and refund the shared attendee-level payment. Add
+    the quantity guard to the single and bulk refund UI and actions (and target
+    the real line).
+  - **Re-send notification.** The edit-page `AttendeeActions`
+    (`src/ui/templates/admin/attendee-form.tsx`) "Re-send notification" →
+    `handleResendNotification` (`src/features/admin/attendees.ts`) calls
+    `logAndNotifyRegistration([{ attendee, listing }])`, emailing the customer a
+    confirmation with a ticket URL/SVG. For a quantity-0 row this sends a
+    customer-facing ticket for a non-booking — hide/refuse it, or retarget to a
+    real line.
 
 > Treat 6a as the known set, not a guarantee of completeness — re-run
 > `rg "listing_attendees" src` during implementation and apply the rule to
@@ -274,6 +307,11 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
   mixed attendee the pay-page product/checkout line, the settlement, **and the
   logged-activity listing** all land on the real line; marking the last real line
   no-quantity clears/blocks the now-unpayable `remaining_balance`.
+- Admin per-row action guards: a quantity-0 row shows no check-in button, no
+  refund / refund-all control, and no working re-send-notification (or it targets
+  a real line); the scanner manual list omits quantity-0 candidates.
+- Public API `POST /api/listings/:slug/book` rejects/ignores `quantity: 0` (no
+  one-ticket booking created).
 - Capacity unaffected (`SUM(quantity)`); orphan purge keeps a quantity-0 attendee.
 
 ## 8. Build order & independence
