@@ -12,6 +12,7 @@ import {
   getAttendeeOrderSummary,
 } from "#shared/db/attendees/balance.ts";
 import { getDb } from "#shared/db/client.ts";
+import { getVisits, hashEmail } from "#shared/db/contact-preferences.ts";
 import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -502,6 +503,16 @@ describeWithEnv(
         "SELECT COUNT(*) AS count FROM attendees",
       );
       expect(Number(attendeeCount.rows[0]!.count)).toBe(0);
+      // The greedy create recorded a visit + public booking for this contact;
+      // the stock rollback must undo both so a sold-out free order leaves no
+      // phantom contact history (matching the paid SumUp-webhook path).
+      const emailHash = await hashEmail("buyer@example.com");
+      expect(await getVisits(emailHash)).toBe(0);
+      const prefs = await getDb().execute({
+        args: [emailHash],
+        sql: "SELECT public_booking_count FROM contact_preferences WHERE contact_hash = ?",
+      });
+      expect(Number(prefs.rows[0]?.public_booking_count ?? 0)).toBe(0);
     });
 
     test("full-payment promo discount stores the discounted price paid", async () => {

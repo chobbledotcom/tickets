@@ -16,6 +16,7 @@ import { isPaymentsEnabled } from "#shared/config.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { getPublicDefaultStatus } from "#shared/db/attendee-statuses.ts";
+import { reverseOrderActivity } from "#shared/db/attendees.ts";
 import {
   answerModifierQuantities,
   buyerVisits,
@@ -346,6 +347,11 @@ const handleFreePath = async (
       modifierUsages,
     );
     if (!consumed) {
+      // consumeModifierStockOrRollback deleted the attendee, but the greedy
+      // create already recorded a visit + public booking for this contact.
+      // Undo it so a sold-out free order leaves no contact-history trace,
+      // matching the paid path's rollback in the SumUp webhook handler.
+      await reverseOrderActivity(contact.email, contact.phone, "public");
       return ticketFormErrorResponse(ctx)(MODIFIER_SOLD_OUT_MESSAGE);
     }
   }
