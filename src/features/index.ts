@@ -379,6 +379,9 @@ const PREFIX_SETTINGS: Record<string, readonly string[]> = {
   admin: ADMIN_SETTINGS,
   api: ALL_SNAPSHOT_SETTINGS,
   attachment: [],
+  // Booking running total: reprices the cart with the same code path as
+  // /ticket, so it needs the same booking-flow settings (not the full snapshot).
+  calculate: [...BOOKING_FLOW_SETTINGS, CONFIG_KEYS.EMBED_HOSTS],
   caldav: ALL_SNAPSHOT_SETTINGS,
   // --- Check-in (owner-authenticated admin view) ---
   checkin: [
@@ -569,6 +572,7 @@ const prefixHandlers: Record<string, RouterFn> = {
       : null;
   },
   attachment: lazyRoute(loadAttachmentRoutes),
+  calculate: lazyRoute(loadTicketRoutes),
   caldav: lazyRoute(loadFeedRoutes),
   checkin: lazyRoute(loadCheckinRoutes),
   contact: contactPrefixHandler,
