@@ -5,7 +5,7 @@
 
 import type { InValue } from "@libsql/client";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import { queryAll } from "#shared/db/client.ts";
+import { queryAll, queryOne } from "#shared/db/client.ts";
 import type { ColumnDef, Table } from "#shared/db/table.ts";
 import { cachedTable, col, defineTable } from "#shared/db/table.ts";
 import { nowIso } from "#shared/now.ts";
@@ -294,6 +294,49 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
     )) as BuiltSiteRow;
     return rowToBuiltSite(row);
   },
+};
+
+/** Normalize a site's bunny URL to its absolute origin — scheme + host only,
+ * with any path, query, hash, or trailing slash dropped — so callers can safely
+ * append a path. bunnyUrl may be stored as a bare hostname, so a default scheme
+ * is added first (scheme detection is case-insensitive, so an `HTTPS://` URL
+ * isn't mistaken for a hostname); `new URL(...).origin` then collapses anything
+ * past the host and lower-cases the scheme. */
+export const siteBaseUrl = (siteUrl: string): string => {
+  const withScheme = /^https?:\/\//i.test(siteUrl)
+    ? siteUrl
+    : `https://${siteUrl}`;
+  return new URL(withScheme).origin;
+};
+
+/**
+ * Atomically claim the least-recently-poked built site and return its id and
+ * bunny URL — the scheduler pokes it to trigger its prune. A single UPDATE picks
+ * the row via its WHERE subquery and stamps `last_pruned` in the same statement,
+ * so two overlapping cron pokes can't both grab the same site: SQLite serialises
+ * the writes and the second claim sees the first's fresh stamp, stepping on to
+ * the next site. `last_pruned` empty ('') sorts first, so never-poked sites go
+ * before any dated one and the master walks every site in round-robin order.
+ * The stamp lands before the caller pokes the site, so a slow or failing site
+ * doesn't stall the rotation. Returns null when there are no built sites.
+ */
+export const claimNextBuiltSiteForPrune = async (): Promise<{
+  id: number;
+  bunnyUrl: string;
+} | null> => {
+  const row = await queryOne<{ id: number; site_data: string }>(
+    `UPDATE built_sites AS builtSite SET last_pruned = ?
+     WHERE builtSite.id = (
+       SELECT candidate.id FROM built_sites AS candidate
+       ORDER BY candidate.last_pruned ASC, candidate.id ASC
+       LIMIT 1
+     )
+     RETURNING id, site_data`,
+    [nowIso()],
+  );
+  if (!row) return null;
+  const bunnyUrl = parseSiteDataBlob(await decrypt(row.site_data)).u;
+  return { bunnyUrl, id: row.id };
 };
 
 /** Insert a new built site record */

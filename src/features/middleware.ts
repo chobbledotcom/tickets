@@ -131,6 +131,12 @@ export const isValidContentType = (request: Request, path: string): boolean => {
   if (request.method !== "POST") {
     return true;
   }
+  // The scheduled maintenance ping carries no body and uses no cookie/session
+  // auth, so there's nothing to CSRF-protect — accept a bare `curl -X POST`
+  // with no content-type.
+  if (path === "/scheduled") {
+    return true;
+  }
   const contentType = (request.headers.get("content-type") || "").toLowerCase();
 
   // Webhook and JSON API endpoints accept JSON
