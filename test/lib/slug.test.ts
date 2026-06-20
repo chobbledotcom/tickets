@@ -71,6 +71,20 @@ describe("slug", () => {
     test("handles combined transformations", () => {
       expect(normalizeSlug("  My Listing Name  ")).toBe("my-listing-name");
     });
+
+    test("is idempotent for representative user-entered names", () => {
+      const examples = [
+        "  Summer Gala  ",
+        "Already-normal",
+        "multiple   spaces",
+        "MIXED_case  Name",
+      ];
+
+      for (const example of examples) {
+        const once = normalizeSlug(example);
+        expect(normalizeSlug(once)).toBe(once);
+      }
+    });
   });
 
   describe("validateSlug", () => {

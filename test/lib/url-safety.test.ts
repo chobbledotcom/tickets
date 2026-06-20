@@ -22,6 +22,8 @@ describe("url-safety", () => {
       "not a url", // unparseable
       "https://example", // not a proper domain
       "https://localhost/hook",
+      "https://example.com@localhost/hook",
+      "https://example.com%2f@localhost/hook",
       "https://api.localhost/hook",
       "https://example.local/hook",
       "https://service.internal/hook",
@@ -44,6 +46,21 @@ describe("url-safety", () => {
     ];
     for (const url of unsafe) {
       test(url, () => expect(isSafeServerFetchUrl(url)).toBe(false));
+    }
+  });
+
+  test("keeps host safety decisions stable when paths, credentials, and ports change", () => {
+    const variants = [
+      ["https://example.com", true],
+      ["https://user:pass@example.com:8443/path?next=http://localhost", true],
+      ["https://127.0.0.1", false],
+      ["https://user:pass@127.0.0.1:8443/path?next=https://example.com", false],
+      ["https://service.internal", false],
+      ["https://user:pass@service.internal:8443/path", false],
+    ] as const;
+
+    for (const [url, expected] of variants) {
+      expect(isSafeServerFetchUrl(url)).toBe(expected);
     }
   });
 });
