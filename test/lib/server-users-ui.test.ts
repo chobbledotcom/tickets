@@ -9,11 +9,10 @@ import {
   adminFormPost,
   assertPublicHtml,
   awaitTestRequest,
-  createTestInvite,
+  createPendingUser,
   createTestManagerSession,
   describeWithEnv,
   mockFormRequest,
-  submitJoinForm,
   testCookie,
 } from "#test-utils";
 
@@ -101,12 +100,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     });
 
     test("shows Pending Activation status and Activate button for user with password but no data key", async () => {
-      const { inviteCode, cookie } = await createTestInvite("pending-user");
-
-      await submitJoinForm(inviteCode, {
-        password: "newpassword123",
-        password_confirm: "newpassword123",
-      });
+      const { cookie } = await createPendingUser("pending-user");
 
       const usersResponse = await awaitTestRequest("/admin/users", { cookie });
       const html = await usersResponse.text();
@@ -166,13 +160,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     });
 
     test("logs activity when user is activated", async () => {
-      const { inviteCode, cookie, csrfToken } =
-        await createTestInvite("auditactivate");
-
-      await submitJoinForm(inviteCode, {
-        password: "newpassword123",
-        password_confirm: "newpassword123",
-      });
+      const { cookie, csrfToken } = await createPendingUser("auditactivate");
 
       await handleRequest(
         mockFormRequest(

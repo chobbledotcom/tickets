@@ -24,10 +24,11 @@ import { decrypt, encrypt, encryptWithKey } from "#shared/crypto/encryption.ts";
 import { hashPassword } from "#shared/crypto/hashing.ts";
 import {
   deriveKEK,
+  deriveKEKFromPassword,
   generateDataKey,
   generateKeyPair,
   unwrapKey,
-  wrapKey,
+  wrapDataKeyForPassword,
 } from "#shared/crypto/keys.ts";
 import {
   execute,
@@ -812,8 +813,9 @@ const completeSetup = async (
   const hashedPassword = await hashPassword(adminPassword);
   const dataKey = await generateDataKey();
   const { publicKey, privateKey } = await generateKeyPair();
-  const kek = await deriveKEK(hashedPassword);
-  const wrappedDataKey = await wrapKey(dataKey, kek);
+  // Bind the owner's wrapped DATA_KEY to the raw password (v2), so the DATA_KEY
+  // — and therefore all attendee PII — can't be unwrapped from a DB dump alone.
+  const wrappedDataKey = await wrapDataKeyForPassword(dataKey, adminPassword);
   await createUser(username, hashedPassword, wrappedDataKey, "owner");
   const encryptedPrivateKey = await encryptWithKey(privateKey, dataKey);
   await writeRaw(CONFIG_KEYS.WRAPPED_PRIVATE_KEY, encryptedPrivateKey);
@@ -837,23 +839,31 @@ const completeSetup = async (
 
 const updateUserPassword = async (
   userId: number,
-  oldPasswordHash: string,
-  oldWrappedDataKey: string,
-  newPassword: string,
+  opts: {
+    oldPassword: string;
+    oldPasswordHash: string;
+    oldWrappedDataKey: string;
+    oldKekVersion: number;
+    newPassword: string;
+  },
 ): Promise<boolean> => {
-  const oldKek = await deriveKEK(oldPasswordHash);
+  // Unwrap with the account's current scheme (v2 from the raw old password, v1
+  // from its stored hash), then always re-wrap under the v2 password-bound KEK.
+  const oldKek =
+    opts.oldKekVersion >= 2
+      ? await deriveKEKFromPassword(opts.oldPassword)
+      : await deriveKEK(opts.oldPasswordHash);
   let dk: CryptoKey;
   try {
-    dk = await unwrapKey(oldWrappedDataKey, oldKek);
+    dk = await unwrapKey(opts.oldWrappedDataKey, oldKek);
   } catch {
     return false;
   }
-  const newHash = await hashPassword(newPassword);
+  const newHash = await hashPassword(opts.newPassword);
   const encryptedNewHash = await encrypt(newHash);
-  const newKek = await deriveKEK(newHash);
-  const newWrappedDataKey = await wrapKey(dk, newKek);
+  const newWrappedDataKey = await wrapDataKeyForPassword(dk, opts.newPassword);
   await execute(
-    "UPDATE users SET password_hash = ?, wrapped_data_key = ? WHERE id = ?",
+    "UPDATE users SET password_hash = ?, wrapped_data_key = ?, kek_version = 2 WHERE id = ?",
     [encryptedNewHash, newWrappedDataKey, userId],
   );
   invalidateUsersCache();

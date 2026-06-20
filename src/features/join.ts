@@ -9,10 +9,10 @@ import { createRouter, defineRoutes } from "#routes/router.ts";
 import { createFormRoute } from "#shared/app-forms.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import {
+  acceptInvite,
   decryptUsername,
   getUserByInviteCode,
   isInviteValid,
-  setUserPassword,
 } from "#shared/db/users.ts";
 import { defineForm } from "#shared/forms.tsx";
 import type { User } from "#shared/types.ts";
@@ -108,7 +108,9 @@ const setPasswordRoute = (code: string, user: User) =>
       if (values.password !== values.password_confirm) {
         return errorRedirect(`/join/${code}`, t("error.passwords_mismatch"));
       }
-      await setUserPassword(user.id, values.password);
+      // Sets the password and, for handoff invites, self-activates by re-wrapping
+      // the DATA_KEY under the new password's KEK (unwrapped with this code).
+      await acceptInvite(user, code, values.password);
       return redirect("/join/complete", "Password set successfully", true);
     },
   });

@@ -68,17 +68,7 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
       );
       expect(joinResponse.status).toBe(302);
 
-      // Owner activates the manager
-      const activateResponse = await handleRequest(
-        mockFormRequest(
-          "/admin/users/2/activate",
-          {
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
-      expect(activateResponse.status).toBe(302);
+      // Joining self-activates the manager — no separate admin activation step.
 
       // Login as manager
       const loginResponse = await handleRequest(

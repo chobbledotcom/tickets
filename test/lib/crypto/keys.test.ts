@@ -3,6 +3,7 @@ import { describe, it } from "@std/testing/bdd";
 import { decryptWithKey, encryptWithKey } from "#shared/crypto/encryption.ts";
 import {
   deriveKEK,
+  deriveKEKFromPassword,
   generateDataKey,
   generateKeyPair,
   hybridDecrypt,
@@ -12,6 +13,7 @@ import {
   setRsaKeySizeForTest,
   unwrapKey,
   unwrapKeyWithToken,
+  wrapDataKeyForPassword,
   wrapKey,
   wrapKeyWithToken,
 } from "#shared/crypto/keys.ts";
@@ -47,6 +49,55 @@ describeWithEnv("KEK derivation", { encryptionKey: true }, () => {
 
     // Should fail to unwrap with different KEK
     await expect(unwrapKey(wrapped, kek2)).rejects.toThrow();
+  });
+
+  it("deriveKEKFromPassword round-trips a data key", async () => {
+    const dataKey = await generateDataKey();
+    const wrapped = await wrapKey(
+      dataKey,
+      await deriveKEKFromPassword("hunter2"),
+    );
+    const unwrapped = await unwrapKey(
+      wrapped,
+      await deriveKEKFromPassword("hunter2"),
+    );
+    const encrypted = await encryptWithKey("payload", dataKey);
+    expect(await decryptWithKey(encrypted, unwrapped)).toBe("payload");
+  });
+
+  it("deriveKEKFromPassword differs from deriveKEK for the same input", async () => {
+    // Domain separation: a v2 (password-derived) wrap can't be unwrapped by the
+    // v1 KEK from the same string, so a recovered password hash is useless.
+    const dataKey = await generateDataKey();
+    const wrappedV2 = await wrapKey(
+      dataKey,
+      await deriveKEKFromPassword("same-string"),
+    );
+    await expect(
+      unwrapKey(wrappedV2, await deriveKEK("same-string")),
+    ).rejects.toThrow();
+  });
+
+  it("deriveKEKFromPassword produces different keys for different passwords", async () => {
+    const dataKey = await generateDataKey();
+    const wrapped = await wrapKey(
+      dataKey,
+      await deriveKEKFromPassword("pw-one"),
+    );
+    await expect(
+      unwrapKey(wrapped, await deriveKEKFromPassword("pw-two")),
+    ).rejects.toThrow();
+  });
+
+  it("wrapDataKeyForPassword wraps so only the password's KEK unwraps", async () => {
+    const dataKey = await generateDataKey();
+    const wrapped = await wrapDataKeyForPassword(dataKey, "s3cret");
+    const unwrapped = await unwrapKey(
+      wrapped,
+      await deriveKEKFromPassword("s3cret"),
+    );
+    const encrypted = await encryptWithKey("ok", dataKey);
+    expect(await decryptWithKey(encrypted, unwrapped)).toBe("ok");
   });
 });
 

@@ -18,7 +18,7 @@ import { getSearchParam } from "#routes/url.ts";
 import { createAuthedFormRoute } from "#shared/app-forms.ts";
 /* jscpd:ignore-start */
 import { getEffectiveDomain } from "#shared/config.ts";
-import { unwrapKeyWithToken } from "#shared/crypto/keys.ts";
+import { unwrapKeyWithToken, wrapKeyWithToken } from "#shared/crypto/keys.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getAllLogisticsAgents } from "#shared/db/logistics-agents.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -219,7 +219,7 @@ const handleUsersPost = createAuthedFormRoute<InviteUserFormValues>({
       validateForm<InviteUserFormValues>(form, getInviteUserFields()),
   },
   onInvalid: ({ error }) => errorRedirect("/admin/user/new", error),
-  onValid: async ({ values, form }) => {
+  onValid: async ({ values, form, session }) => {
     const { username, admin_level: adminLevel } = values;
 
     if (!VALID_ADMIN_LEVELS.includes(adminLevel)) {
@@ -228,16 +228,29 @@ const handleUsersPost = createAuthedFormRoute<InviteUserFormValues>({
     if (await isUsernameTaken(username)) {
       return errorRedirect("/admin/user/new", t("error.username_taken"));
     }
+    if (!session.wrappedDataKey) {
+      return errorRedirect("/admin/user/new", t("error.session_lacks_key"));
+    }
 
     const inviteCode = generateSecureToken();
     const codeHash = await hashInviteCode(inviteCode);
     const expiry = new Date(nowMs() + INVITE_EXPIRY_MS).toISOString();
+
+    // Hand the shared DATA_KEY to the invitee wrapped under their single-use
+    // invite code, so they self-activate at /join under the password-bound (v2)
+    // KEK instead of an admin re-keying them from a stored password hash.
+    const dataKey = await unwrapKeyWithToken(
+      session.wrappedDataKey,
+      session.token,
+    );
+    const inviteWrappedDataKey = await wrapKeyWithToken(dataKey, inviteCode);
 
     const user = await createInvitedUser(
       username,
       adminLevel,
       codeHash,
       expiry,
+      inviteWrappedDataKey,
     );
 
     // Agent users carry the logistics agents they drive; ignored for staff.

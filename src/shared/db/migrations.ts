@@ -48,6 +48,7 @@ import questionAssignAllMigration from "./migrations/2026-06-18_question_assign_
 import questionDisplayTypeMigration from "./migrations/2026-06-18_question_display_type.ts";
 import answerAggregatesMigration from "./migrations/2026-06-19_answer_aggregates.ts";
 import builtSitesLastPrunedMigration from "./migrations/2026-06-19_built_sites_last_pruned.ts";
+import userKekV2Migration from "./migrations/2026-06-20_user_kek_v2.ts";
 import { repairLegacyRenames } from "./migrations/rename-utils.ts";
 import {
   LATEST_UPDATE,
@@ -197,6 +198,7 @@ export const MIGRATIONS: Migration[] = [
   questionAssignAllMigration,
   answerAggregatesMigration,
   builtSitesLastPrunedMigration,
+  userKekV2Migration,
 ].map((build) => build(migrationContext));
 
 export const MIGRATION_IDS: string[] = MIGRATIONS.map(

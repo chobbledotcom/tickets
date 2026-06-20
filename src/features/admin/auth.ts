@@ -22,7 +22,12 @@ import {
   clearSessionCookie,
   getSessionCookieName,
 } from "#shared/cookies.ts";
-import { deriveKEK, unwrapKey, wrapKeyWithToken } from "#shared/crypto/keys.ts";
+import {
+  deriveKEK,
+  deriveKEKFromPassword,
+  unwrapKey,
+  wrapKeyWithToken,
+} from "#shared/crypto/keys.ts";
 import { verifySignedCsrfToken } from "#shared/csrf.ts";
 import {
   clearLoginAttempts,
@@ -33,6 +38,7 @@ import { createSession, deleteSession } from "#shared/db/sessions.ts";
 import {
   decryptAdminLevel,
   getUserByUsername,
+  migrateUserToV2Kek,
   verifyUserPassword,
 } from "#shared/db/users.ts";
 import { validateForm } from "#shared/forms.tsx";
@@ -128,14 +134,28 @@ const handleAdminLogin = async (
     return fail("/admin", t("error.account_not_activated"));
   }
 
-  // Unwrap DATA_KEY using password-derived KEK
-  const kek = await deriveKEK(passwordHash);
+  // Unwrap DATA_KEY using the user's KEK scheme. v2 derives the KEK from the raw
+  // password (so the wrap can't be reproduced from a DB dump); v1 (legacy)
+  // derives it from the stored hash. A correct password is the only thing that
+  // makes either unwrap succeed.
   let dataKey: CryptoKey;
   try {
-    dataKey = await unwrapKey(user.wrapped_data_key, kek);
+    dataKey =
+      user.kek_version >= 2
+        ? await unwrapKey(
+            user.wrapped_data_key,
+            await deriveKEKFromPassword(password),
+          )
+        : await unwrapKey(user.wrapped_data_key, await deriveKEK(passwordHash));
   } catch {
     // KEK mismatch - this shouldn't happen if password verification passed
     return failedCredentialsRedirect();
+  }
+
+  // Upgrade a legacy wrap to the password-bound scheme now that we hold the raw
+  // password — closes the DB-dump-recoverable path for this user going forward.
+  if (user.kek_version < 2) {
+    await migrateUserToV2Kek(user.id, dataKey, password);
   }
 
   const adminLevel = await decryptAdminLevel(user);

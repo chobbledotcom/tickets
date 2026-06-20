@@ -7,12 +7,11 @@ import { getAllUsers } from "#shared/db/users.ts";
 import {
   adminFormPost,
   awaitTestRequest,
-  createTestInvite,
+  createPendingUser,
   describeWithEnv,
   expectHtmlResponse,
   expectRedirectWithFlash,
   mockFormRequest,
-  submitJoinForm,
   TEST_ADMIN_USERNAME,
   testCookie,
 } from "#test-utils";
@@ -144,14 +143,8 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
   });
 
   describe("POST /admin/users/:id/activate", () => {
-    test("activates user who has set password", async () => {
-      const { inviteCode, cookie, csrfToken } =
-        await createTestInvite("activateme");
-
-      await submitJoinForm(inviteCode, {
-        password: "newpassword123",
-        password_confirm: "newpassword123",
-      });
+    test("activates a legacy pending user who has set a password", async () => {
+      const { cookie, csrfToken } = await createPendingUser("activateme");
 
       const activateResponse = await handleRequest(
         mockFormRequest(
@@ -195,11 +188,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         1,
       );
 
-      const { inviteCode } = await createTestInvite("needsactivation");
-      await submitJoinForm(inviteCode, {
-        password: "newpassword123",
-        password_confirm: "newpassword123",
-      });
+      await createPendingUser("needsactivation");
 
       const { signCsrfToken } = await import("#shared/csrf.ts");
       const csrfToken = await signCsrfToken();

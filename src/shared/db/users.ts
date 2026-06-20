@@ -9,7 +9,12 @@ import {
   hmacHash,
   verifyPassword,
 } from "#shared/crypto/hashing.ts";
-import { deriveKEK, wrapKey } from "#shared/crypto/keys.ts";
+import {
+  deriveKEK,
+  unwrapKeyWithToken,
+  wrapDataKeyForPassword,
+  wrapKey,
+} from "#shared/crypto/keys.ts";
 import {
   deleteByFieldBatch,
   execute,
@@ -25,7 +30,7 @@ import { now } from "#shared/now.ts";
 import { type AdminLevel, isAdminLevel, type User } from "#shared/types.ts";
 
 const USER_COLUMNS =
-  "id, username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry";
+  "id, username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry, kek_version, invite_wrapped_data_key";
 
 const USER_SELECT = `SELECT ${USER_COLUMNS} FROM users ORDER BY id ASC`;
 
@@ -107,6 +112,8 @@ const insertUser = async (opts: {
   wrappedDataKey: string | null;
   inviteCodeHash: string | null;
   inviteExpiry: string | null;
+  kekVersion: number;
+  inviteWrappedDataKey: string | null;
 }): Promise<User> => {
   const usernameIndex = await hmacHash(opts.username.toLowerCase());
   const encryptedUsername = await encrypt(opts.username.toLowerCase());
@@ -125,6 +132,8 @@ const insertUser = async (opts: {
     admin_level: encryptedAdminLevel,
     invite_code_hash: encryptedInviteCode,
     invite_expiry: encryptedInviteExpiry,
+    invite_wrapped_data_key: opts.inviteWrappedDataKey,
+    kek_version: opts.kekVersion,
     password_hash: encryptedPasswordHash,
     username_hash: encryptedUsername,
     username_index: usernameIndex,
@@ -137,36 +146,48 @@ const insertUser = async (opts: {
 };
 
 /**
- * Create a new user with encrypted fields
+ * Create a new (already-activated) user with encrypted fields. Activated users
+ * are created at the password-bound KEK scheme (v2); the caller computes the
+ * matching wrapped_data_key via wrapDataKeyForPassword.
  */
 export const createUser = (
   username: string,
   passwordHash: string,
   wrappedDataKey: string | null,
   adminLevel: AdminLevel,
+  kekVersion = 2,
 ): Promise<User> =>
   insertUser({
     adminLevel,
     inviteCodeHash: null,
     inviteExpiry: null,
+    inviteWrappedDataKey: null,
+    kekVersion,
     passwordHash,
     username,
     wrappedDataKey,
   });
 
 /**
- * Create an invited user (no password yet, has invite code)
+ * Create an invited user (no password yet, has invite code). When the inviter
+ * passes a wrapped DATA_KEY handoff, the invitee self-activates at /join under
+ * the v2 scheme; otherwise an admin activates them later (legacy v1 path).
+ * kek_version is a placeholder here — there is no wrapped_data_key until
+ * activation, which sets the real version.
  */
 export const createInvitedUser = (
   username: string,
   adminLevel: AdminLevel,
   inviteCodeHash: string,
   inviteExpiry: string,
+  inviteWrappedDataKey: string | null = null,
 ): Promise<User> =>
   insertUser({
     adminLevel,
     inviteCodeHash,
     inviteExpiry,
+    inviteWrappedDataKey,
+    kekVersion: 1,
     passwordHash: "",
     username,
     wrappedDataKey: null,
@@ -248,26 +269,77 @@ export const decryptUsername = (
 ): Promise<string> => decrypt(user.username_hash);
 
 /**
- * Set a user's password (for invite flow)
+ * Hash a new password and encrypt it alongside the two cleared invite columns —
+ * the values every invite-acceptance path writes, shared so the encryption lives
+ * in one place.
+ */
+const passwordSetValues = async (
+  password: string,
+): Promise<{
+  passwordHash: string;
+  encryptedHash: string;
+  encryptedEmpty: string;
+}> => {
+  const passwordHash = await hashPassword(password);
+  const [encryptedHash, encryptedEmpty] = await Promise.all([
+    encrypt(passwordHash),
+    encrypt(""),
+  ]);
+  return { encryptedEmpty, encryptedHash, passwordHash };
+};
+
+/**
+ * Set a user's password without provisioning a data key (legacy invite flow:
+ * an admin activates the account separately). Returns the new password hash.
  */
 export const setUserPassword = async (
   userId: number,
   password: string,
 ): Promise<string> => {
-  const passwordHash = await hashPassword(password);
-  const encryptedHash = await encrypt(passwordHash);
-  const encryptedNull = await encrypt("");
-
+  const { passwordHash, encryptedHash, encryptedEmpty } =
+    await passwordSetValues(password);
   await execute(
     "UPDATE users SET password_hash = ?, invite_code_hash = ?, invite_expiry = ? WHERE id = ?",
-    [encryptedHash, encryptedNull, encryptedNull, userId],
+    [encryptedHash, encryptedEmpty, encryptedEmpty, userId],
   );
-
   return passwordHash;
 };
 
 /**
- * Activate a user by wrapping the data key with their KEK
+ * Complete an invite. When the invite carried a wrapped DATA_KEY handoff, the
+ * user self-activates: unwrap that handoff with the (single-use) invite code,
+ * re-wrap the DATA_KEY under the new password's v2 KEK, and clear the handoff.
+ * Pre-handoff invites fall back to {@link setUserPassword} (admin activates
+ * later). Returns the new password hash.
+ */
+export const acceptInvite = async (
+  user: Pick<User, "id" | "invite_wrapped_data_key">,
+  inviteCode: string,
+  password: string,
+): Promise<string> => {
+  if (!user.invite_wrapped_data_key) {
+    return setUserPassword(user.id, password);
+  }
+  const { passwordHash, encryptedHash, encryptedEmpty } =
+    await passwordSetValues(password);
+  const dataKey = await unwrapKeyWithToken(
+    user.invite_wrapped_data_key,
+    inviteCode,
+  );
+  const wrappedDataKey = await wrapDataKeyForPassword(dataKey, password);
+  await execute(
+    "UPDATE users SET password_hash = ?, wrapped_data_key = ?, kek_version = 2, invite_wrapped_data_key = NULL, invite_code_hash = ?, invite_expiry = ? WHERE id = ?",
+    [encryptedHash, wrappedDataKey, encryptedEmpty, encryptedEmpty, user.id],
+  );
+  return passwordHash;
+};
+
+/**
+ * Activate a pre-handoff invited user by wrapping the DATA_KEY with their
+ * legacy (v1) KEK, derived from their stored password hash. Used only for
+ * invites created before the self-activation handoff existed; the resulting v1
+ * wrap is upgraded to v2 on the user's next login. New invites self-activate
+ * via {@link acceptInvite} and never reach here.
  */
 export const activateUser = async (
   userId: number,
@@ -281,6 +353,24 @@ export const activateUser = async (
     wrappedDataKey,
     userId,
   ]);
+};
+
+/**
+ * Re-wrap a user's DATA_KEY under the password-bound (v2) KEK. Called at login —
+ * the one place both the raw password and the freshly-unwrapped DATA_KEY are in
+ * hand — for users still on the legacy v1 wrap, replacing the DB-recoverable
+ * wrap in place without touching any encrypted data.
+ */
+export const migrateUserToV2Kek = async (
+  userId: number,
+  dataKey: CryptoKey,
+  password: string,
+): Promise<void> => {
+  const wrappedDataKey = await wrapDataKeyForPassword(dataKey, password);
+  await execute(
+    "UPDATE users SET wrapped_data_key = ?, kek_version = 2 WHERE id = ?",
+    [wrappedDataKey, userId],
+  );
 };
 
 /**
@@ -356,6 +446,7 @@ export const hasPassword = async (user: User): Promise<boolean> => {
  * Stubbable API for testing
  */
 export const usersApi = {
+  acceptInvite,
   activateUser,
   createInvitedUser,
   createUser,
@@ -374,6 +465,7 @@ export const usersApi = {
   isInviteExpired,
   isInviteValid,
   isUsernameTaken,
+  migrateUserToV2Kek,
   setUserPassword,
   verifyUserPassword,
 };
