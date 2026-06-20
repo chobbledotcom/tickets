@@ -488,54 +488,57 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
   });
 
   describe("guide section structure", () => {
-    // Map each <h3> section heading to the FAQ <summary> texts that fall under
-    // it (everything up to the next <h3>). A sub-section nested in the middle of
-    // another section's FAQ list pulls every later FAQ visually under the
-    // sub-section's heading — e.g. listing FAQs appearing under "Modifiers".
-    // Grouping the rendered output this way lets each test assert that a heading
-    // owns exactly its own questions and nothing has leaked in from elsewhere.
-    const sectionSummaries = (html: string): Map<string, string[]> => {
-      const sections = new Map<string, string[]>();
-      for (const chunk of html.split(/<h3\b/).slice(1)) {
-        const heading = chunk.match(/^[^>]*>(.*?)<\/h3>/s);
-        if (!heading) continue;
-        const body = chunk.slice(heading[0]?.length ?? 0);
-        const summaries = [...body.matchAll(/<summary>(.*?)<\/summary>/gs)].map(
-          (match) => match[1] ?? "",
-        );
-        sections.set(heading[1] ?? "", summaries);
-      }
-      return sections;
+    const guideHtml = async (): Promise<string> => {
+      const { response } = await adminGet("/admin/guide");
+      return response.text();
     };
 
-    test("Modifiers heading owns only the two modifier FAQs", async () => {
-      const { response } = await adminGet("/admin/guide");
-      const sections = sectionSummaries(await response.text());
+    // Modifiers renders as its own <h3> section immediately before Booking
+    // Questions, so the slice between those two headings is exactly the
+    // Modifiers section's body — every <summary> in it is a Modifiers FAQ.
+    test("Modifiers section contains exactly its own two FAQs", async () => {
+      const html = await guideHtml();
+      const start = html.indexOf(`>${t("guide.sections.modifiers")}</h3>`);
+      const end = html.indexOf(
+        `>${t("guide.sections.booking_questions")}</h3>`,
+      );
+      expect(start).toBeGreaterThanOrEqual(0);
+      expect(end).toBeGreaterThan(start);
 
-      expect(sections.get(t("guide.sections.modifiers"))).toEqual([
+      const summaries = [
+        ...html.slice(start, end).matchAll(/<summary>(.*?)<\/summary>/gs),
+      ].map((match) => match[1] ?? "");
+
+      expect(summaries).toEqual([
         t("guide.q.what_are_modifiers"),
         t("guide.q.how_modifier_values_work"),
       ]);
     });
 
-    test("listing FAQs stay under Listings and never leak into Modifiers", async () => {
-      const { response } = await adminGet("/admin/guide");
-      const sections = sectionSummaries(await response.text());
+    // The original bug nested the Modifiers <Section> in the middle of the
+    // Listings FAQ list, so its <h3> rendered before later listing FAQs and
+    // pulled them under its heading. Pinning the Modifiers heading after the
+    // last listing FAQ and before the next section catches any such regression.
+    test("Modifiers heading sits after the listing FAQs, not in the middle", async () => {
+      const html = await guideHtml();
+      const indexOf = (needle: string): number => {
+        const i = html.indexOf(needle);
+        expect(i).toBeGreaterThanOrEqual(0);
+        return i;
+      };
 
-      const listings = sections.get(t("guide.sections.listings")) ?? [];
-      const modifiers = sections.get(t("guide.sections.modifiers")) ?? [];
+      const lastListingFaq = indexOf(
+        `<summary>${t("guide.q.add_terms_and_conditions")}</summary>`,
+      );
+      const modifiersHeading = indexOf(
+        `>${t("guide.sections.modifiers")}</h3>`,
+      );
+      const nextSection = indexOf(
+        `>${t("guide.sections.booking_questions")}</h3>`,
+      );
 
-      // FAQs that previously rendered under "Modifiers" because the sub-section
-      // was nested mid-list. They belong to Listings.
-      for (const key of [
-        "guide.q.registration_deadlines",
-        "guide.q.embed_booking_form",
-        "guide.q.duplicate_listing",
-        "guide.q.add_terms_and_conditions",
-      ]) {
-        expect(listings).toContain(t(key));
-        expect(modifiers).not.toContain(t(key));
-      }
+      expect(modifiersHeading).toBeGreaterThan(lastListingFaq);
+      expect(modifiersHeading).toBeLessThan(nextSection);
     });
   });
 });
