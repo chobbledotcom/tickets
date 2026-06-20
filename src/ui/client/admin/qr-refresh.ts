@@ -1,4 +1,5 @@
 /// <reference lib="dom" />
+/// <reference lib="dom.iterable" />
 /** Auto-refresh the admin QR result panel every minute so stale links are
  *  obvious to anyone watching the screen. Fades the old QR out (500ms), swaps
  *  in the new SVG + URL, then fades the new one in (500ms). */

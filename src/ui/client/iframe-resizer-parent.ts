@@ -1,4 +1,5 @@
 /// <reference lib="dom" />
+/// <reference lib="dom.iterable" />
 /** iframe-resizer parent - bundled for embedders to load from our domain */
 
 import iframeResize from "@iframe-resizer/parent";

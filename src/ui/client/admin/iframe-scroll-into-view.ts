@@ -1,4 +1,5 @@
 /// <reference lib="dom" />
+/// <reference lib="dom.iterable" />
 /** Scroll parent page so the iframe is visible on checkout and success pages.
  * parentIframe is created synchronously by iframe-resizer-child (loaded before
  * this deferred script) and buffers calls until the parent handshake completes.

@@ -339,6 +339,25 @@ export const logError = (context: ErrorContext): void => {
 };
 
 /**
+ * Run a non-critical follow-up write, logging any failure (under DB_QUERY) but
+ * never throwing. Use it to isolate a bookkeeping/stats write from a critical
+ * operation that has already succeeded — a sent text, or a charged order being
+ * refunded — so a stats failure can neither report that success as a failure
+ * nor block the refund. The failure is still surfaced to the error log so the
+ * underlying data can be repaired.
+ */
+export const bestEffort = async (
+  detail: string,
+  op: () => Promise<void>,
+): Promise<void> => {
+  try {
+    await op();
+  } catch (error) {
+    logError({ code: ErrorCode.DB_QUERY, detail: `${detail}: ${error}` });
+  }
+};
+
+/**
  * Create a request timer for measuring duration
  */
 export const createRequestTimer = (): (() => number) => {

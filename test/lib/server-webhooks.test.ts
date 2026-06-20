@@ -1169,6 +1169,18 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         );
         const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
         expect((await getAttendeesRaw(listing.id)).length).toBe(0);
+        // The visit + booking the greedy create recorded are reversed too, so
+        // the refunded order leaves no phantom history on the buyer's contact.
+        const { getContactRecord, getVisits, hashEmail } = await import(
+          "#shared/db/contact-preferences.ts"
+        );
+        const { getTestPrivateKey } = await import("#test-utils");
+        const buyerHash = await hashEmail("mod@example.com");
+        expect(await getVisits(buyerHash)).toBe(0);
+        expect(
+          (await getContactRecord(buyerHash, await getTestPrivateKey()))
+            .publicBookingCount,
+        ).toBe(0);
       } finally {
         mockVerify.restore();
         mockRefund.restore();

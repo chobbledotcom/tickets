@@ -7,13 +7,22 @@ on:
         description: "Override Bunny production script ID (defaults to BUNNY_SCRIPT_ID secret)"
         required: false
         type: string
+      main_instance_key:
+        description: "MAIN_INSTANCE_KEY (paste per run, or fall back to the secret)"
+        required: false
+        type: string
+      run_backup:
+        description: "Back up the database before deploying (uncheck only if the backup is broken)"
+        required: false
+        default: true
+        type: boolean
 
 permissions:
   contents: write
 
 jobs:
   deploy:
-    runs-on: ubicloud-standard-16
+    runs-on: ubicloud-standard-4
 
     steps:
       - name: Checkout repository
@@ -23,6 +32,19 @@ jobs:
         uses: ./.github/actions/build-bunny-script
         with:
           build_commit: ${{ github.sha }}
+
+      # Back up the production site's database before deploying (it migrates on
+      # its next request). Fails unless exactly one site matches the script id.
+      # Uncheck run_backup to deploy without a backup (e.g. if backups break).
+      - name: Back up the production site
+        if: ${{ inputs.run_backup }}
+        uses: ./.github/actions/backup-site
+        with:
+          main_instance: ${{ secrets.MAIN_INSTANCE }}
+          main_instance_key: ${{ inputs.main_instance_key || secrets.MAIN_INSTANCE_KEY }}
+          script_id: ${{ inputs.script_id || secrets.BUNNY_SCRIPT_ID }}
+          storage_zone_name: ${{ secrets.STORAGE_ZONE_NAME }}
+          storage_zone_key: ${{ secrets.STORAGE_ZONE_KEY }}
 
       - name: Deploy to production
         uses: ./.github/actions/deploy-bunny-script

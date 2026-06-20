@@ -1,4 +1,5 @@
 /// <reference lib="dom" />
+/// <reference lib="dom.iterable" />
 /** Embed loader: creates an iframe and wires iframe-resizer. */
 
 (() => {

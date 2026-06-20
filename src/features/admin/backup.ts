@@ -15,9 +15,11 @@ import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import { getEncryptionKeyString } from "#shared/crypto/encryption.ts";
 import { formatDatetimeLabel } from "#shared/dates.ts";
 import {
-  backupPrefix,
+  backupDir,
   countZipStatements,
   createAndUploadBackup,
+  isBackupLeaf,
+  isBackupPath,
   isRemoteDatabase,
   parseBackupTime,
   readManifest,
@@ -28,6 +30,7 @@ import { formatBytes, MAX_BACKUPS } from "#shared/limits.ts";
 import {
   deleteFile,
   downloadRaw,
+  getBasename,
   isStorageEnabled,
   listFilesWithMeta,
   type StorageFileMeta,
@@ -53,21 +56,22 @@ const isSafeBackupFilename = (filename: string): boolean =>
   !filename.includes("\\") &&
   !filename.includes("..");
 
-/** Parse a backup file into display info (friendly date + human size).
- *  Filenames are server-generated, so parseBackupTime always succeeds. */
+/** Parse a backup file into display info (friendly date + human size). The
+ *  download link uses the bare leaf; filenames are server-generated, so
+ *  parseBackupTime always succeeds. */
 const parseBackupEntry = (file: StorageFileMeta): BackupEntry => ({
-  filename: file.name,
+  filename: getBasename(file.name),
   label: formatDatetimeLabel(
     new Date(parseBackupTime(file.name)!).toISOString(),
   ),
   sizeLabel: formatBytes(file.size),
 });
 
-/** Pick out this DB's backups from a zone listing, newest first.
- *  Filenames embed ISO timestamps, so name order is chronological. */
+/** Pick out the backups from a folder listing, newest first. Filenames embed
+ *  ISO timestamps, so name order is chronological. */
 const toBackupEntries = (files: StorageFileMeta[]): BackupEntry[] =>
   files
-    .filter((f) => f.name.startsWith(backupPrefix()) && f.name.endsWith(".zip"))
+    .filter((f) => isBackupPath(f.name))
     .reverse()
     .map(parseBackupEntry);
 
@@ -80,8 +84,8 @@ const cleanupStalePendingFiles = (files: StorageFileMeta[]): Promise<unknown> =>
       .map((f) => deleteFile(f.name)),
   );
 
-/** Build page state. The Bunny listing has no server-side prefix filter, so we
- *  fetch the zone once and reuse it for both the backup list and temp cleanup. */
+/** Build page state: this DB's backups (from its own folder) plus a best-effort
+ *  sweep of stale restore-pending temp files at the storage root. */
 const getBackupPageState = async (): Promise<BackupPageState> => {
   const base = {
     encryptionKey: getEncryptionKeyString(),
@@ -92,9 +96,14 @@ const getBackupPageState = async (): Promise<BackupPageState> => {
   if (!isStorageEnabled()) return { ...base, backups: [] };
 
   try {
-    const files = await listFilesWithMeta("");
-    await cleanupStalePendingFiles(files);
-    return { ...base, backups: toBackupEntries(files) };
+    // Backups live in this DB's folder; restore-pending temp files sit at the
+    // storage root. One listing each, in parallel.
+    const [backupFiles, rootFiles] = await Promise.all([
+      listFilesWithMeta(backupDir()),
+      listFilesWithMeta(""),
+    ]);
+    await cleanupStalePendingFiles(rootFiles);
+    return { ...base, backups: toBackupEntries(backupFiles) };
   } catch {
     // Storage listing unavailable — still render the page (encryption key,
     // forms) rather than failing the whole request on a transient CDN error.
@@ -128,15 +137,14 @@ const handleBackupDownload: TypedRouteHandler<
   "GET /admin/backup/download/:filename"
 > = (request, { filename }) =>
   requireOwnerOr(request, async () => {
-    if (
-      !filename.startsWith(backupPrefix()) ||
-      !filename.endsWith(".zip") ||
-      !isSafeBackupFilename(filename)
-    ) {
+    // The route param is a bare leaf. The anchored leaf check rejects anything
+    // that isn't "backup-{timestamp}.zip" (path separators included), and we
+    // resolve it inside this DB's own folder — so it can only reach our backups.
+    if (!isBackupLeaf(filename)) {
       return htmlResponse("Invalid backup filename", 400);
     }
 
-    const data = await downloadRaw(filename);
+    const data = await downloadRaw(`${backupDir()}${filename}`);
     if (!data) return htmlResponse("Backup file not found", 404);
 
     const body = data.buffer.slice(

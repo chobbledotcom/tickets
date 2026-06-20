@@ -18,6 +18,7 @@ import { builtSitesRoutes } from "#routes/admin/built-sites.ts";
 import { bulkActionsRoutes } from "#routes/admin/bulk-actions.ts";
 import { bulkEmailRoutes } from "#routes/admin/bulk-email.ts";
 import { calendarRoutes } from "#routes/admin/calendar.ts";
+import { contactHistoryRoutes } from "#routes/admin/contact-history.ts";
 import { dashboardRoutes } from "#routes/admin/dashboard.ts";
 import { debugRoutes } from "#routes/admin/debug.ts";
 import { deliveriesRoutes } from "#routes/admin/deliveries.ts";
@@ -63,6 +64,7 @@ const adminRouteModules: Record<string, RouteHandlerFn>[] = [
   listingQrRoutes,
   markdownPreviewRoutes,
   attendeesRoutes,
+  contactHistoryRoutes,
   smsRoutes,
   attendeeRefundRoutes,
   usersRoutes,

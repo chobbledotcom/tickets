@@ -12,6 +12,11 @@ import {
   getAttendeeOrderSummary,
 } from "#shared/db/attendees/balance.ts";
 import { getDb } from "#shared/db/client.ts";
+import {
+  hashEmail,
+  recordBooking,
+  recordVisit,
+} from "#shared/db/contact-preferences.ts";
 import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -94,6 +99,55 @@ const modifierUsageCount = async (modifierId: number): Promise<number> => {
     sql: "SELECT COALESCE(SUM(quantity), 0) AS c FROM modifier_usages WHERE modifier_id = ?",
   });
   return Number(rows[0]!.c);
+};
+
+/** Create a listing plus a one-unit, stock-limited discount modifier whose unit
+ * is consumed by a concurrent order — simulated with an AFTER INSERT trigger on
+ * attendees — so the checkout's own consumeModifierStock loses the race and
+ * rolls the just-created attendee back. The discount zeroes the total, routing
+ * the order through the free path. `fields` selects an email or phone listing. */
+const setupSoldOutModifierRace = async (
+  fields: "email" | "phone" = "email",
+) => {
+  const listing = await createTestListing({
+    fields,
+    maxAttendees: 10,
+    thankYouUrl: "https://example.com",
+    unitPrice: 1000,
+  });
+  const modifier = await modifiersTable.insert({
+    calcKind: "fixed",
+    calcValue: 10,
+    direction: "discount",
+    name: "Comp",
+    stock: 1,
+  });
+  await getDb().execute(
+    `CREATE TRIGGER test_consume_modifier_before_order
+     AFTER INSERT ON attendees
+     BEGIN
+       INSERT INTO modifier_usages
+         (modifier_id, attendee_id, quantity, amount_applied, created)
+       VALUES (${modifier.id}, NEW.id, 1, 1000, '2024-01-01T00:00:00Z');
+     END`,
+  );
+  return { listing, modifier };
+};
+
+/** Total recorded contact activity across every contact. Zero means a
+ * rolled-back order left no phantom visit or booking behind — for any identity,
+ * email or phone — without the test needing to know which hash was used. */
+const totalContactActivity = async (): Promise<{
+  visits: number;
+  bookings: number;
+}> => {
+  const { rows } = await getDb().execute(
+    "SELECT COALESCE(SUM(visits), 0) AS visits, COALESCE(SUM(public_booking_count), 0) AS bookings FROM contact_preferences",
+  );
+  return {
+    bookings: Number(rows[0]!.bookings),
+    visits: Number(rows[0]!.visits),
+  };
 };
 
 const modifierUsageAmount = async (modifierId: number): Promise<number> => {
@@ -460,27 +514,7 @@ describeWithEnv(
 
     test("rolls back a zero-total modifier booking when stock sells out after pricing", async () => {
       await setupStripe();
-      const listing = await createTestListing({
-        maxAttendees: 10,
-        thankYouUrl: "https://example.com",
-        unitPrice: 1000,
-      });
-      const modifier = await modifiersTable.insert({
-        calcKind: "fixed",
-        calcValue: 10,
-        direction: "discount",
-        name: "Comp",
-        stock: 1,
-      });
-      await getDb().execute(
-        `CREATE TRIGGER test_consume_modifier_before_order
-         AFTER INSERT ON attendees
-         BEGIN
-           INSERT INTO modifier_usages
-             (modifier_id, attendee_id, quantity, amount_applied, created)
-           VALUES (${modifier.id}, NEW.id, 1, 1000, '2024-01-01T00:00:00Z');
-         END`,
-      );
+      const { listing, modifier } = await setupSoldOutModifierRace();
 
       const response = await submitTicketForm(listing.slug, {
         [`quantity_${listing.id}`]: "1",
@@ -498,10 +532,59 @@ describeWithEnv(
         false,
       );
       expect(await modifierUsedQuantities([modifier.id])).toEqual(new Map());
-      const attendeeCount = await getDb().execute(
-        "SELECT COUNT(*) AS count FROM attendees",
+      expect(await attendeeCount()).toBe(0);
+      // The greedy create recorded a visit + public booking for this contact;
+      // the stock rollback must undo both so a sold-out free order leaves no
+      // phantom contact history (matching the paid SumUp-webhook path).
+      expect(await totalContactActivity()).toEqual({ bookings: 0, visits: 0 });
+    });
+
+    test("reverses a phone contact's counters when a free order's stock rolls back", async () => {
+      await setupStripe();
+      // A phone-only listing identifies the buyer by phone hash, exercising the
+      // SMS-reachable contact path rather than email.
+      const { listing } = await setupSoldOutModifierRace("phone");
+
+      const response = await submitTicketForm(listing.slug, {
+        [`quantity_${listing.id}`]: "1",
+        name: "Buyer",
+        phone: "07700900123",
+      });
+
+      expectFlash(
+        response,
+        "An extra you selected sold out while you were checking out. Please try again.",
+        false,
       );
-      expect(Number(attendeeCount.rows[0]!.count)).toBe(0);
+      expect(await attendeeCount()).toBe(0);
+      // The phone identity must be compensated just like email: a sold-out free
+      // order leaves no visit or booking on the texted contact.
+      expect(await totalContactActivity()).toEqual({ bookings: 0, visits: 0 });
+    });
+
+    test("keeps a returning contact's earlier booking when a later free order rolls back", async () => {
+      await setupStripe();
+      // This contact already has one genuine public booking + visit on record.
+      const emailHash = await hashEmail("buyer@example.com");
+      await recordVisit(emailHash);
+      await recordBooking(emailHash, "public");
+
+      const { listing } = await setupSoldOutModifierRace();
+      const response = await submitTicketForm(listing.slug, {
+        [`quantity_${listing.id}`]: "1",
+        email: "buyer@example.com",
+        name: "Buyer",
+      });
+
+      expectFlash(
+        response,
+        "An extra you selected sold out while you were checking out. Please try again.",
+        false,
+      );
+      expect(await attendeeCount()).toBe(0);
+      // The rollback decrements by exactly one (clamped at zero), so the earlier
+      // booking survives — a rejected order must never wipe real history.
+      expect(await totalContactActivity()).toEqual({ bookings: 1, visits: 1 });
     });
 
     test("full-payment promo discount stores the discounted price paid", async () => {

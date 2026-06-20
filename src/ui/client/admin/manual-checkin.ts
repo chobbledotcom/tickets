@@ -1,4 +1,5 @@
 /// <reference lib="dom" />
+/// <reference lib="dom.iterable" />
 /** Manual check-in: custom combobox + fetch-based form submission.
  * Posts to the scan JSON API without a page reload so the camera keeps running. */
 export const initManualCheckin = (): void => {
