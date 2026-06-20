@@ -173,18 +173,6 @@ export const getModifierListingIds = (modifierId: number): Promise<number[]> =>
     modifierId,
   );
 
-/** Listing ids belonging to the groups a modifier is linked to (scope = "groups"). */
-export const getModifierGroupListingIds = (
-  modifierId: number,
-): Promise<number[]> =>
-  modifierIdColumn(
-    `SELECT listing.id FROM listings AS listing
-       JOIN modifier_groups AS modifierGroup
-         ON modifierGroup.group_id = listing.group_id
-     WHERE modifierGroup.modifier_id = ?`,
-    modifierId,
-  );
-
 type ModifierListingLinkRow = { listing_id: number; modifier_id: number };
 
 const emptyModifierScopeMap = (modifierIds: number[]): Map<number, number[]> =>
@@ -200,33 +188,36 @@ const appendModifierListingLinks = (
   return links;
 };
 
+/** Build a batched modifier->listing scope lookup: the returned function runs
+ * `buildSql` (given the bound `IN (...)` placeholders) and buckets the rows by
+ * modifier id. */
+const modifierScopeListingIdsLookup =
+  (buildSql: (placeholders: string) => string) =>
+  async (modifierIds: number[]): Promise<Map<number, number[]>> => {
+    if (modifierIds.length === 0) return new Map();
+    const rows = await queryAll<ModifierListingLinkRow>(
+      buildSql(inPlaceholders(modifierIds)),
+      modifierIds,
+    );
+    return appendModifierListingLinks(emptyModifierScopeMap(modifierIds), rows);
+  };
+
 /** Listing ids directly linked to each listing-scoped modifier id. */
-export const getModifierListingIdsByModifierId = async (
-  modifierIds: number[],
-): Promise<Map<number, number[]>> => {
-  if (modifierIds.length === 0) return new Map();
-  const rows = await queryAll<ModifierListingLinkRow>(
+export const getModifierListingIdsByModifierId = modifierScopeListingIdsLookup(
+  (placeholders) =>
     `SELECT modifier_id, listing_id FROM modifier_listings
-     WHERE modifier_id IN (${inPlaceholders(modifierIds)})`,
-    modifierIds,
-  );
-  return appendModifierListingLinks(emptyModifierScopeMap(modifierIds), rows);
-};
+     WHERE modifier_id IN (${placeholders})`,
+);
 
 /** Listing ids belonging to linked groups for each group-scoped modifier id. */
-export const getModifierGroupListingIdsByModifierId = async (
-  modifierIds: number[],
-): Promise<Map<number, number[]>> => {
-  if (modifierIds.length === 0) return new Map();
-  const rows = await queryAll<ModifierListingLinkRow>(
-    `SELECT modifierGroup.modifier_id, listing.id AS listing_id
-     FROM modifier_groups AS modifierGroup
-       JOIN listings AS listing ON listing.group_id = modifierGroup.group_id
-     WHERE modifierGroup.modifier_id IN (${inPlaceholders(modifierIds)})`,
-    modifierIds,
+export const getModifierGroupListingIdsByModifierId =
+  modifierScopeListingIdsLookup(
+    (placeholders) =>
+      `SELECT modifierGroup.modifier_id, listing.id AS listing_id
+       FROM modifier_groups AS modifierGroup
+         JOIN listings AS listing ON listing.group_id = modifierGroup.group_id
+       WHERE modifierGroup.modifier_id IN (${placeholders})`,
   );
-  return appendModifierListingLinks(emptyModifierScopeMap(modifierIds), rows);
-};
 
 /** Group ids a modifier is linked to (for the admin scope editor). */
 export const getModifierGroupIds = (modifierId: number): Promise<number[]> =>

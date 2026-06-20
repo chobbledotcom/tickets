@@ -58,12 +58,10 @@ const listingIdsByModifierId = async (
     getModifierListingIdsByModifierId(listingScoped.map((m) => m.id)),
     getModifierGroupListingIdsByModifierId(groupScoped.map((m) => m.id)),
   ]);
-  for (const modifier of listingScoped) {
-    scopes.set(modifier.id, listingLinks.get(modifier.id) ?? []);
-  }
-  for (const modifier of groupScoped) {
-    scopes.set(modifier.id, groupLinks.get(modifier.id) ?? []);
-  }
+  // Each lookup seeds an entry for every id it was given, so these maps cover
+  // exactly the scoped modifiers — copy their links straight in.
+  for (const [id, ids] of listingLinks) scopes.set(id, ids);
+  for (const [id, ids] of groupLinks) scopes.set(id, ids);
   return scopes;
 };
 
