@@ -4,10 +4,15 @@
 
 import { sum } from "#fp";
 import { applyFlash, withCsrfForm } from "#routes/csrf.ts";
-import { errorRedirect, redirectResponse } from "#routes/response.ts";
+import {
+  errorRedirect,
+  htmlResponse,
+  redirectResponse,
+} from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
 import {
   type ModifierApplication,
+  type PricedOrder,
   priceCheckout,
   type TicketPaymentBreakdown,
   ticketPaymentBreakdown,
@@ -44,10 +49,12 @@ import {
   type TicketFormValues,
   tryValidateTicketFields,
 } from "#templates/fields.ts";
-import type {
-  BookingPrefill,
-  TicketListing,
-  TicketPrefill,
+import {
+  type BookingPrefill,
+  orderSummary,
+  orderSummaryMessage,
+  type TicketListing,
+  type TicketPrefill,
 } from "#templates/public.tsx";
 import {
   buildListingAnswerMap,
@@ -79,31 +86,26 @@ import {
   type TicketSharedContext,
 } from "./types.ts";
 
-/** Validate page-level form state before deeper parsing. */
-const validateFormState = (
-  form: FormParams,
-  ctx: TicketCtx,
-): Response | null => {
-  const errorResponse = ticketFormErrorResponse(ctx);
+/** Validate page-level form state before deeper parsing. Returns an error
+ * message, or null when the form state is acceptable. */
+const validateFormState = (form: FormParams, ctx: TicketCtx): string | null => {
   if (ctx.terms && form.get("agree_terms") !== "1") {
-    return errorResponse("You must agree to the terms and conditions");
+    return "You must agree to the terms and conditions";
   }
 
   const allUnavailable = ctx.listings.every((e) => e.isSoldOut || e.isClosed);
   if (allUnavailable) {
     const allClosed = ctx.listings.every((e) => e.isClosed);
-    return errorResponse(
-      allClosed
-        ? REGISTRATION_CLOSED_SUBMIT_MESSAGE
-        : "Sorry, not enough spots available",
-    );
+    return allClosed
+      ? REGISTRATION_CLOSED_SUBMIT_MESSAGE
+      : "Sorry, not enough spots available";
   }
 
   for (const { listing, isClosed } of ctx.listings) {
     const selectedQty =
       parseNonNegativeInt(form.get(`quantity_${listing.id}`) ?? "0") ?? 0;
     if (isClosed && selectedQty > 0) {
-      return errorResponse(REGISTRATION_CLOSED_SUBMIT_MESSAGE);
+      return REGISTRATION_CLOSED_SUBMIT_MESSAGE;
     }
   }
   return null;
@@ -122,13 +124,13 @@ const validateTicketFields = (
     requiresPayment,
   );
 
-/** Parse custom prices for pay-more listings. Returns Response on validation error. */
+/** Parse custom prices for pay-more listings. Returns an error message string
+ * on validation failure, or the custom-price map otherwise. */
 const parseCustomPrices = (
   form: FormParams,
   ctx: TicketCtx,
   quantities: Map<number, number>,
-): Response | Map<number, number> => {
-  const errorResponse = ticketFormErrorResponse(ctx);
+): string | Map<number, number> => {
   const customPrices = new Map<number, number>();
   for (const { listing } of ctx.listings) {
     if (!listing.can_pay_more) continue;
@@ -141,7 +143,7 @@ const parseCustomPrices = (
       listing.max_price,
     );
     if (!priceResult.ok) {
-      return errorResponse(`${listing.name}: ${priceResult.error}`);
+      return `${listing.name}: ${priceResult.error}`;
     }
     customPrices.set(listing.id, priceResult.price);
   }
@@ -379,15 +381,6 @@ const handleFreePath = async (
   return redirectResponse(`/ticket/reserved?tokens=${token}`);
 };
 
-const parseBookingDate = (
-  form: FormParams,
-  ctx: TicketCtx,
-): Response | string | null => {
-  if (ctx.dates.length === 0) return null;
-  const date = validateSubmittedDate(form, ctx.dates);
-  return date ?? ticketFormErrorResponse(ctx)("Please select a valid date");
-};
-
 type SubmissionPricingParams = Omit<CheckoutIntentParams, "modifiers"> & {
   addOns: Map<number, number>;
   answerQuantities: Map<number, number>;
@@ -473,28 +466,44 @@ const validatePaymentUpgrade = (
   return validateTicketFields(form, ctx, true);
 };
 
-/** Process submitted form after CSRF and demo overrides. */
-const processSubmission = async (
-  request: Request,
+/** A parsed-and-priced submission, or the message explaining why it could not
+ * be priced. `prepareOrder` runs every step shared by the booking submit and
+ * the `/calculate` quote: page-state and field validation, item building, and
+ * the pre-contact pricing pass. */
+type PrepareResult =
+  | {
+      ok: true;
+      pricingParams: SubmissionPricingParams;
+      pricedOrder: PricedOrder;
+    }
+  | { ok: false; error: string };
+
+/**
+ * Validate and price a submitted booking form up to (but not including) contact
+ * details and any database writes. Shared by {@link processSubmission} (which
+ * continues on to charge/save) and {@link calculateTicket} (which renders the
+ * priced order as a quote). Errors surface as messages so each caller can map
+ * them to its own response shape — a flash redirect for submit, inline HTML for
+ * the running total.
+ */
+const prepareOrder = async (
   ctx: TicketCtx,
   form: FormParams,
-): Promise<Response> => {
-  const errorResponse = ticketFormErrorResponse(ctx);
-
-  const formStateError = validateFormState(form, ctx);
-  if (formStateError) return formStateError;
+): Promise<PrepareResult> => {
+  const stateError = validateFormState(form, ctx);
+  if (stateError) return { error: stateError, ok: false };
 
   const quantities = parseQuantities(form, ctx.listings);
   const totalQuantity = sum(Array.from(quantities.values()));
   if (totalQuantity === 0) {
-    return errorResponse("Please select at least one ticket");
+    return { error: "Please select at least one ticket", ok: false };
   }
 
   const selected = listingsWithQuantity(ctx.listings, quantities);
   const selectedListingIds = new Set(quantities.keys());
   const siteAssignmentCheck = await validateSiteAssignmentConfig(selected);
   if (!siteAssignmentCheck.ok) {
-    return errorResponse(siteAssignmentCheck.message);
+    return { error: siteAssignmentCheck.message, ok: false };
   }
 
   const activeQuestions = ctx.questions.filter((q) => {
@@ -505,22 +514,25 @@ const processSubmission = async (
     form,
     activeQuestions,
   );
-  if (!answersResult.ok) {
-    return errorResponse(answersResult.error);
-  }
+  if (!answersResult.ok) return { error: answersResult.error, ok: false };
 
-  const date = parseBookingDate(form, ctx);
-  if (date instanceof Response) return date;
+  let date: string | null = null;
+  if (ctx.dates.length > 0) {
+    date = validateSubmittedDate(form, ctx.dates);
+    if (!date) return { error: "Please select a valid date", ok: false };
+  }
 
   const hasCustomisable = selected.some(
     ({ listing }) => listing.customisable_days,
   );
   const dayResult = await resolveDayCount(selected, form, date);
-  if ("error" in dayResult) return errorResponse(dayResult.error);
+  if ("error" in dayResult) return { error: dayResult.error, ok: false };
   const dayCount = dayResult.dayCount;
 
   const customPricesResult = parseCustomPrices(form, ctx, quantities);
-  if (customPricesResult instanceof Response) return customPricesResult;
+  if (typeof customPricesResult === "string") {
+    return { error: customPricesResult, ok: false };
+  }
 
   await applyQrTokenOverride(form, ctx, customPricesResult);
 
@@ -539,7 +551,6 @@ const processSubmission = async (
 
   const addOns = parseAddOnSelections(form, ctx.addOns);
   const promoCode = form.getString("promo_code");
-  const paymentsEnabled = isPaymentsEnabled();
   const reservationAmount = await publicReservationAmount();
 
   // Resolve the answer-triggered modifier quantities once (scope-aware); these
@@ -549,7 +560,7 @@ const processSubmission = async (
     quantities,
   );
 
-  const pricingParams = {
+  const pricingParams: SubmissionPricingParams = {
     addOns,
     answerQuantities,
     ctx,
@@ -563,8 +574,25 @@ const processSubmission = async (
     reservationAmount,
   };
   const { pricedOrder } = await priceSubmissionBeforeContact(pricingParams);
-  const pricedTotal = pricedOrder.total;
-  const requiresPaidFields = pricedTotal > 0;
+  return { ok: true, pricedOrder, pricingParams };
+};
+
+/** Process submitted form after CSRF and demo overrides. */
+const processSubmission = async (
+  request: Request,
+  ctx: TicketCtx,
+  form: FormParams,
+): Promise<Response> => {
+  const errorResponse = ticketFormErrorResponse(ctx);
+
+  const prepared = await prepareOrder(ctx, form);
+  if (!prepared.ok) return errorResponse(prepared.error);
+  const { pricingParams, pricedOrder } = prepared;
+  const { date, dayCount, hasCustomisable, info, items, quantities } =
+    pricingParams;
+
+  const paymentsEnabled = isPaymentsEnabled();
+  const requiresPaidFields = pricedOrder.total > 0;
   const validated = validateTicketFields(form, ctx, requiresPaidFields);
   if (validated instanceof Response) return validated;
   let contact = extractContact(validated);
@@ -658,6 +686,27 @@ const submitTicket = (request: Request, ctx: TicketCtx): Promise<Response> =>
   );
 
 /**
+ * Handle POST for the `/calculate` running total. Runs the same parse-and-price
+ * path as a real submission but stops before contact validation or any database
+ * write, returning the priced order as an HTML fragment. PII fields are never
+ * read here — a quote prices the cart with an empty contact — so the client
+ * strips them before sending and the server ignores any that arrive.
+ */
+const calculateTicket = (request: Request, ctx: TicketCtx): Promise<Response> =>
+  withCsrfForm(
+    request,
+    (message) => htmlResponse(orderSummaryMessage(message), 403),
+    async (form) => {
+      const prepared = await prepareOrder(ctx, form);
+      return htmlResponse(
+        prepared.ok
+          ? orderSummary(prepared.pricedOrder)
+          : orderSummaryMessage(prepared.error),
+      );
+    },
+  );
+
+/**
  * Inputs to the booking-page framework: the listings to offer, a context
  * provider that derives the fields/dates/questions/terms from them, the slugs
  * that form the default `/ticket/<slugs>` action, and an optional per-listing
@@ -671,6 +720,9 @@ export type BookingRequest = {
   listings: TicketListing[];
   getContext: TicketContextProvider;
   prefill?: TicketCtx["prefill"];
+  /** When "calculate", a POST returns a priced quote instead of completing the
+   * booking. GET requests still render the page regardless. */
+  mode?: "calculate";
 };
 
 /** Build the rendering context: derive the booking context from the listings
@@ -695,14 +747,17 @@ const buildTicketCtx = async ({
   };
 };
 
-/** Handle ticket GET/POST orchestrator: render on GET, submit otherwise. */
+/** Handle ticket GET/POST orchestrator: render on GET, quote when in calculate
+ * mode, otherwise submit. */
 export const handleTicket = async (args: BookingRequest): Promise<Response> => {
-  const { request, listings } = args;
+  const { request, listings, mode } = args;
   const ctx = await buildTicketCtx(args);
   const response =
     request.method === "GET"
       ? ticketResponse(ctx)(applyFlash(request).error)
-      : await submitTicket(request, ctx);
+      : mode === "calculate"
+        ? await calculateTicket(request, ctx)
+        : await submitTicket(request, ctx);
   return applyHiddenNoindex(
     response,
     listings.some((e) => e.listing.hidden),
@@ -745,6 +800,22 @@ export const handleTicketBySlugs = (
     }),
   );
 
+/** Handle a `/calculate/<slugs>` running-total POST: load the same active
+ * listings the booking submit would, then price them as a quote. */
+export const handleCalculateBySlugs = (
+  request: Request,
+  slugs: string[],
+): Promise<Response> =>
+  withActiveListings(slugs, (listings) =>
+    handleTicket({
+      getContext: getTicketContext,
+      listings,
+      mode: "calculate",
+      request,
+      slugs,
+    }),
+  );
+
 /**
  * The booking-page framework entrypoint: render a booking page for an arbitrary
  * set of listings, letting {@link getTicketContext} derive the fields, dates,
@@ -755,7 +826,8 @@ export const handleTicketBySlugs = (
  * Caller supplies the listings; `group` flows into getTicketContext, `overrides`
  * win over its result (e.g. renewal's actionUrl/siteToken, or the order page's
  * header + action), and `prefill` pre-selects per-listing quantities (the order
- * cart's selected products).
+ * cart's selected products). `mode` carries through to {@link handleTicket} so a
+ * group quote prices via the same flow as a group booking.
  */
 export const renderTicketFlow =
   (
@@ -765,6 +837,7 @@ export const renderTicketFlow =
       group?: Group;
       overrides?: Partial<TicketSharedContext>;
       prefill?: BookingPrefill;
+      mode?: "calculate";
     } = {},
   ) =>
   async (listings: ListingWithCount[]): Promise<Response> => {
@@ -775,6 +848,7 @@ export const renderTicketFlow =
         ...options.overrides,
       }),
       listings: activeListings,
+      mode: options.mode,
       prefill: options.prefill,
       request,
       slugs,

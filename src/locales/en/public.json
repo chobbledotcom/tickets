@@ -29,6 +29,8 @@
   "public.ticket.select_answer_placeholder": "Select an answer",
   "public.ticket.no_dates_available": "No dates are currently available for booking.",
   "public.ticket.number_of_tickets": "Number of Tickets",
+  "public.ticket.show_total": "Show total",
+  "public.ticket.order_total": "Total",
   "public.ticket.price_input_title": "A non-negative number (e.g. 10.00)",
   "public.ticket.agree_terms": "I agree to the terms above",
   "public.ticket.reserve_ticket": "Reserve Ticket",

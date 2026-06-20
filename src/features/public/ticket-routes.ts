@@ -15,7 +15,10 @@ import { generateQrSvg } from "#shared/qr.ts";
 import { successPage } from "#templates/payment.tsx";
 import { handleGroupTicketBySlug } from "./groups.ts";
 import { handleQrBookGet } from "./qr-book.ts";
-import { handleTicketBySlugs } from "./ticket-submit.ts";
+import {
+  handleCalculateBySlugs,
+  handleTicketBySlugs,
+} from "./ticket-submit.ts";
 import { parseSlugs } from "./types.ts";
 
 /** Get the email from-address if email is configured. Returns empty string if not. */
@@ -50,6 +53,22 @@ const handleTicketBySlug = async (
   return response;
 };
 
+/** Handle the `/calculate/<slugs>` running-total POST. Mirrors
+ * {@link handleTicketBySlug}: try listings by slug, falling back to a group
+ * quote for a single unmatched slug (the group booking form posts its group
+ * slug). */
+const handleCalculateBySlug = async (
+  request: Request,
+  { slug }: { slug: string },
+): Promise<Response> => {
+  const slugs = parseSlugs(slug);
+  const response = await handleCalculateBySlugs(request, slugs);
+  if (response.status === 404 && slugs.length === 1) {
+    return handleGroupTicketBySlug(request, slugs[0]!, "calculate");
+  }
+  return response;
+};
+
 /** Generate a QR code SVG response for a given slug */
 const qrResponse = async (slug: string): Promise<Response> => {
   const ticketUrl = `https://${getEffectiveDomain()}/ticket/${slug}`;
@@ -80,6 +99,7 @@ const publicRoutes = defineRoutes({
   "GET /ticket/:slug/qr": handleTicketQrGet,
   "GET /ticket/:slug/qr-book": handleQrBookGet,
   "GET /ticket/reserved": handleReservedGet,
+  "POST /calculate/:slug": handleCalculateBySlug,
   "POST /ticket/:slug": handleTicketBySlug,
 });
 

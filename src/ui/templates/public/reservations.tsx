@@ -606,6 +606,20 @@ const TicketPageForm = ({
       {addOns && addOns.length > 0 && <AddOnsFieldset addOns={addOns} />}
       {promoCodesEnabled && <PromoCodeField />}
       {terms && <Raw html={renderTermsAndCheckbox(terms)} />}
+      {!actionUrl && (
+        <div class="running-total">
+          <button
+            data-running-total
+            formaction={`/calculate/${slugs.join("+")}`}
+            formnovalidate
+            formtarget="_blank"
+            type="submit"
+          >
+            {t("public.ticket.show_total")}
+          </button>
+          <output class="order-summary-output" data-running-total-output />
+        </div>
+      )}
       <button type="submit">{t("common.continue")}</button>
     </CsrfForm>
   );

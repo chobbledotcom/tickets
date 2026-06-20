@@ -11,6 +11,7 @@ export {
 } from "./public/errors.tsx";
 export { homepagePage } from "./public/homepage.tsx";
 export { orderGalleryPage } from "./public/order-gallery.tsx";
+export { orderSummary, orderSummaryMessage } from "./public/order-summary.tsx";
 export {
   type BookingPrefill,
   buildOgTags,

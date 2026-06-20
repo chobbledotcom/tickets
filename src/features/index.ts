@@ -569,6 +569,7 @@ const prefixHandlers: Record<string, RouterFn> = {
       : null;
   },
   attachment: lazyRoute(loadAttachmentRoutes),
+  calculate: lazyRoute(loadTicketRoutes),
   caldav: lazyRoute(loadFeedRoutes),
   checkin: lazyRoute(loadCheckinRoutes),
   contact: contactPrefixHandler,
