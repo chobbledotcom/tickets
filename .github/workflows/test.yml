@@ -10,7 +10,7 @@ env:
 
 jobs:
   test:
-    runs-on: ubicloud-standard-16
+    runs-on: ubicloud-standard-30
 
     steps:
       - name: Checkout repository
