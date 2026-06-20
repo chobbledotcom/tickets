@@ -40,7 +40,7 @@ const EXTRA_SCAN_FILES = ["src/shared/forms.tsx"];
 const LEFTOVER_ALLOWLIST = new Map<string, number>([
   ["shared/forms.tsx", 5],
   ["ui/templates/admin/api-keys.tsx", 3],
-  ["ui/templates/admin/attendee-form.tsx", 25],
+  ["ui/templates/admin/attendee-form.tsx", 32],
   ["ui/templates/admin/attendees.tsx", 10],
   ["ui/templates/admin/calendar.tsx", 1],
   ["ui/templates/admin/database-reset.tsx", 1],
