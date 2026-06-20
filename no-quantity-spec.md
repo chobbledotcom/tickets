@@ -1,0 +1,265 @@
+# Spec: "No-quantity" booking lines (`quantity = 0` sentinel), site-wide
+
+> Standalone feature spec, extracted from the importer plan and hardened across
+> six rounds of review. This feature is **independent** of the CSV importer and
+> of PR #1335 — it can be built and shipped on its own; the importer is just one
+> future consumer. Every file/function reference below was verified against the
+> current codebase.
+
+## 1. Concept
+
+Introduce a first-class notion of a **booking line that exists but consumes
+nothing**: a `listing_attendees` row with `quantity = 0`. It keeps the
+attendee↔listing link (so the product stays structured/matched and the attendee
+isn't an orphan) but counts toward **neither capacity nor ticket counts**,
+carries **no income**, and is **hidden from operational, public, and marketing
+surfaces** — while remaining **visible in admin record/detail views** with a
+"no quantity" indicator.
+
+Use cases this enables: placeholder / cancelled / quoted / "interested-in" lines
+(owners get a manual checkbox; the importer will write them programmatically).
+
+**Rule of thumb applied everywhere:** *operational, public, and capacity surfaces
+exclude `quantity = 0`; admin record/detail views keep them.*
+
+**Invariant:** a `quantity = 0` line always has `price_paid = 0`. Enforce on every
+write path that can set `quantity = 0`.
+
+## 2. Data model
+
+- **No column change for quantity.** `listing_attendees.quantity` is
+  `INTEGER NOT NULL DEFAULT 1` with **no CHECK constraint**, so `0` is already
+  legal.
+- `booked_quantity` (`SUM(quantity)`) and `income` (`SUM(price_paid)`) need **no
+  change** — `SUM` already treats 0 correctly. Do not touch them.
+- The **one** aggregate that must change is `tickets_count`, currently a plain
+  `COUNT(*)`. See §3.
+
+## 3. `tickets_count` → "count lines where `quantity > 0`"
+
+`tickets_count` (the "Total Ticket Records" aggregate on `listings`) must stop
+counting `quantity = 0` lines. It is computed in **four** places that must all
+change consistently, or the recalculate/repair flow will fight the triggers:
+
+1. **The three `LISTING_AGGREGATE_TRIGGERS`** (INSERT/DELETE/UPDATE) in
+   `src/shared/db/migrations/schema.ts`. Today each does
+   `tickets_count = tickets_count ± 1`. Change to
+   `± CASE WHEN <row>.quantity > 0 THEN 1 ELSE 0 END`. The UPDATE trigger already
+   fires on `quantity` (it's in `LISTING_AGGREGATE_WRITE_COLUMNS`), so toggling a
+   line 0↔n recomputes correctly via the OLD/NEW CASE deltas.
+2. **The reset/recalc SQL in `src/shared/db/listings.ts`** (used by
+   `resetListingAggregateFields` and the current-vs-recalculated drift display):
+   the `tickets_count = (SELECT COUNT(*) … WHERE listing_id = ?)` gains
+   `AND quantity > 0`.
+3. **The full backfill in `src/shared/db/migrations/schema-sync.ts`**: the
+   `tickets_count = COALESCE((SELECT COUNT(*) …), 0)` gains `AND quantity > 0`.
+4. **The hold-delete restore in `src/shared/db/attendees/delete.ts`.**
+   `deleteAttendee(id, { releaseBookings: false })` pre-computes per-listing
+   contributions with `COUNT(*) AS tickets_count`, deletes the lines, then **adds
+   the count back**. With a plain `COUNT(*)` it would add `1` back for a
+   `quantity = 0` line the (now-fixed) delete trigger removed `0` for —
+   permanently inflating `tickets_count`. Change its `COUNT(*) AS tickets_count`
+   to `SUM(CASE WHEN quantity > 0 THEN 1 ELSE 0 END)`. (`booked_quantity`/`income`
+   there already use `SUM(quantity)`/`SUM(price_paid)` — leave them.)
+
+**Anti-drift requirement:** the predicate (`quantity > 0`) must live in **one**
+place — extract a constant (e.g. `TICKET_COUNTS_WHEN = "quantity > 0"`, or a tiny
+helper that builds the `CASE`/`WHERE`/`SUM(CASE …)` fragments) and reference it
+from all four sites. This mirrors the existing shared
+`LISTING_AGGREGATE_WRITE_COLUMNS`. Add a guard test (like the existing
+"`LISTING_AGGREGATE_WRITE_COLUMNS` matches the trigger SQL" test) asserting the
+shared predicate appears in every site, so a future edit can't silently diverge.
+
+**Migration:** ship a migration that re-creates the triggers and recomputes
+`tickets_count` for existing data (a no-op today, since no `quantity = 0` lines
+exist yet). Update the listing-aggregates tests.
+
+## 4. Owner UI — the "no quantity" checkbox (proxy for `quantity == 0`)
+
+On the attendee edit form (`src/features/admin/attendee-form-model.ts` + its
+template), each booking line gets a **"no quantity"** checkbox. Owners never see a
+literal `0`.
+
+- **Render:** a line read with `quantity = 0` renders with the box **checked** and
+  its quantity input **hidden via CSS** — use the existing `hidden-in-form` mixin
+  family in `src/ui/static/style.scss` (add a `hidden-when-checked` companion to
+  the existing `reveal-when-checked` if absent). **No JavaScript** — pure
+  checkbox-driven CSS.
+- **Save:** box checked → store `quantity = 0` and **keep the line**; unchecked →
+  store the entered quantity (`>= 1`). Round-trips both ways.
+- **Clear `price_paid` when marking no-quantity** (same write), or forbid the box
+  on a line with `price_paid > 0`. Income is `SUM(price_paid)`, so a paid line
+  marked no-quantity would vanish from capacity/`tickets_count` yet keep
+  contributing income. (Enforces the §1 invariant.)
+- **No auto-delete.** The save path must distinguish a deliberate `quantity = 0`
+  line (box checked → keep) from a real removal (the line's explicit remove
+  control → delete). Any existing logic that drops a line because its quantity is
+  falsy/empty must be guarded so it only removes lines the owner actually removed.
+  This applies to **all** booking lines once the checkbox exists.
+
+## 5. Public-path guard (reject — do NOT coerce)
+
+`quantity = 0` is **admin-only**. The public booking/checkout path must never
+**persist** a quantity-0 line.
+
+**Do not implement this by coercing submitted `0`s to the listing minimum.** The
+public form deliberately renders `0` as the **"not selected"** option per listing,
+and `parseQuantities` (`src/features/public/ticket-form.ts`) already drops entries
+with `quantity <= 0`. So a `quantity_<id>=0` field means *"not in the cart"* —
+coercing it to the minimum would book products the visitor left unselected
+(especially on multi-listing checkouts).
+
+The guard must keep treating public `0` as "not selected" while **rejecting any
+persisted/selected zero-quantity line**, so a visitor can't end up with a
+no-capacity "ghost" line. Keep this server-side, not just in the UI.
+
+## 6. Reader/writer audit — site-wide
+
+Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces:
+
+### 6a. MUST exclude / refuse `quantity = 0`
+
+- **Daily calendar** — `getDailyListingAttendeeDates` and
+  `getDailyListingAttendeesByDate` (`listings.ts`), used by `admin/calendar.ts`:
+  add `AND quantity > 0` to both.
+- **`getAttendeesByListingIds`** (`listings.ts`) — **filter at the call sites, NOT
+  in the helper.** It feeds (a) the ICS calendar feed `buildCalendarFeed` in
+  `src/features/feeds.ts` (`GET /caldav/events.ics`) and (b) the admin calendar's
+  standard-listing rows + CSV via `loadStandardListingAttendees` in
+  `admin/calendar.ts` — both operational, exclude — **but it also feeds the admin
+  group-detail roster in `src/features/admin/groups.ts`, which must keep
+  `quantity = 0`.** Add an opt-in `quantity > 0` param the feed/calendar callers
+  pass, or split off a dedicated active-only helper. Never filter the shared
+  helper unconditionally. (This is the easiest thing to get wrong — it'll look
+  like you should just add the predicate to the helper.)
+- **Bulk email** (`src/shared/bulk-email-targets.ts`) — two queries:
+  - Listing-scoped ("Active listing attendees" / "Attendees of X") via
+    `getAttendeePiiBlobsForListings` (`attendees/queries.ts`): add
+    `AND quantity > 0`.
+  - The **`all`** audience via `getAllAttendeePiiBlobs()` bypasses the listing
+    filter — restrict it to attendees with `EXISTS` a `quantity > 0` line, so a
+    quantity-0-**only** attendee isn't emailed.
+- **Logistics / delivery runs** (`src/shared/db/logistics.ts`) — guard **both the
+  read and the write**:
+  - Read: `getAgentRunSheet` — exclude `quantity = 0` (a no-quantity line is not a
+    drop-off/collection).
+  - Write: the mark-done action `setLegDone` (called from
+    `src/features/admin/deliveries.ts`) scopes its update by
+    `attendee_id`/`listing_id`/agent with **no quantity predicate**, so a
+    quantity-0 line that still has an agent assigned could be marked done by a
+    stale/crafted delivery form. Add the same `quantity > 0` guard to the
+    mark-done action, not just the run-sheet query.
+- **Ticket / check-in / scanner / wallet token flows** — `getAttendeesByTokens`
+  (`attendees/queries.ts`) returns every line with no quantity filter and feeds:
+  - the customer ticket page `/t/:tokens`,
+  - the check-in flow `/checkin/:tokens` (`src/features/checkin.ts`),
+  - the admin scanner (`src/features/admin/scanner.ts`),
+  - the wallet pass routes `/wallet/:token.pkpass`, `/gwallet/:token`,
+    `/v1/passes/:passType/:token` via `lookupSingleTokenPassData`
+    (`src/features/tickets/token-utils.ts`).
+
+  Quantity-0 lines must not render as a ticket, not produce a wallet pass, and not
+  be checkable. Filter them from the ticket/wallet render and the check-in
+  eligibility set, and **guard the check-in action**: `updateCheckedIn`
+  (`attendees/update.ts`) has no quantity guard — make it refuse `quantity = 0`,
+  mirroring the existing refunded-ticket guard ("Cannot check in refunded
+  tickets") in `checkin.ts`. Because `getAttendeesByTokens` has other consumers
+  (webhook/merge/group flows), filter at these call sites + the action, **not** in
+  the shared helper. For a mixed attendee, any "primary line" selection must
+  prefer a `quantity > 0` line, not a lower-id ghost.
+- **Public balance / pay flow** (`src/features/public/balance.ts` +
+  `src/shared/db/attendees/balance.ts`) — three parts:
+  - A `Balance` is publicly payable only when the attendee has ≥1 `quantity > 0`
+    line (the public pay route already gates on `status.is_reservation`; add the
+    real-line condition), so a quantity-0-only attendee can't be paid into a
+    ghost.
+  - **Settlement must target a real line.** `settleAttendeeBalance` folds payment
+    into `id = (SELECT MIN(id) FROM listing_attendees WHERE attendee_id = ?)` with
+    no quantity predicate. Add `AND quantity > 0` so even a *mixed* attendee folds
+    payment onto the lowest-id **real** line, never a lower-id ghost.
+  - **The pay page itself must pick a real line.** `/pay/:token` renders
+    `getAttendeeOrderSummary()`, which selects every `listing_attendees` row
+    ordered by id, and the POST uses `summary.lines[0]?.listingId` as the checkout
+    item. For a mixed attendee whose lower-id line is quantity-0, the page would
+    show the ghost product and tag the checkout/activity to the ghost listing.
+    Exclude quantity-0 from the order summary and the checkout-line selection so
+    the displayed product and the tagged listing are the real one.
+
+### 6b. Writer side
+
+- **`updateCheckedIn`** — add the `quantity > 0` guard (refuse), as above.
+- **`setLegDone`** — add the `quantity > 0` guard, as above.
+- The edit-form save enforces the **`price_paid = 0` when `quantity = 0`**
+  invariant (§4).
+
+### 6c. INTENTIONALLY UNCHANGED (call out so nobody "fixes" them)
+
+- **Capacity** — `attendees/capacity.ts` and `booked_quantity` use
+  `SUM(quantity)`; 0 contributes 0. Correct as-is.
+- **Orphan auto-purge** — `src/shared/db/orphan-attendees.ts` (`ORPHAN_IDS`) keys
+  off row existence; a `quantity = 0` line deliberately keeps the attendee
+  non-orphan. That's the point of writing the line.
+- **Admin per-listing attendee roster / check-in *list*, group-detail roster,
+  per-attendee detail, edit/merge views** — these reads **keep** `quantity = 0`
+  rows (show the "no quantity" indicator); they're real records. **One nuance on
+  the roster:** it keeps the *row* visible, but its inline check-in control
+  (`CheckinButton` in `src/ui/templates/attendee-table.tsx` →
+  `handleAttendeeCheckin` in `src/features/admin/attendees.ts` →
+  `updateCheckedIn`) must be hidden/disabled for quantity-0 rows (render the
+  indicator instead of a button), since `updateCheckedIn` now refuses them.
+
+> Treat 6a as the known set, not a guarantee of completeness — re-run
+> `rg "listing_attendees" src` during implementation and apply the rule to
+> anything new.
+
+## 7. Tests (must cover)
+
+- Aggregates via live triggers: inserting a `quantity = 0` line leaves
+  `tickets_count` unchanged (a `quantity-n` line +1); changing a line 0↔n updates
+  `tickets_count` and `booked_quantity` correctly (UPDATE trigger) with **no
+  recalc drift** (`resetListingAggregateFields`/drift display agree); deleting a
+  `quantity = 0` line leaves `tickets_count` unchanged; deleting an attendee whose
+  only line is `quantity = 0` with `releaseBookings: false` does **not** inflate
+  `tickets_count`.
+- The shared-predicate guard test (predicate present at all four sites).
+- Checkbox round-trip: stored `0` → box checked; save checked → re-stores `0` and
+  keeps the line; uncheck + quantity → stores it; explicit remove still deletes;
+  marking no-quantity clears/blocks `price_paid`.
+- Public path: a selected/persisted 0 is rejected, **and** a normal
+  `quantity_<id>=0` ("not selected") field is still treated as not-in-cart (not
+  coerced to a booking) — including a multi-listing checkout where only some
+  listings are selected.
+- `quantity = 0` lines are absent from: daily calendar, ICS feed, standard-listing
+  calendar + CSV, bulk email (listing **and** `all`), logistics run sheet,
+  `/t/:tokens`, `/checkin/:tokens`, scanner, wallet passes, and the `/pay/:token`
+  order summary — **while still present** in the per-listing roster and the
+  group-detail roster (with no check-in button) and per-attendee detail.
+- Logistics mark-done (`setLegDone`) refuses a quantity-0 line even with an agent
+  assigned.
+- Balance: a quantity-0-only attendee's balance isn't publicly payable; for a
+  mixed attendee, both the pay-page product/checkout line and the settlement land
+  on the real line.
+- Capacity unaffected (`SUM(quantity)`); orphan purge keeps a quantity-0 attendee.
+
+## 8. Build order & independence
+
+This feature stands alone — it does **not** depend on the CSV importer or on PRs
+#1335/#1332/#1333, and should land first. Recommended order:
+
+1. `tickets_count` shared predicate + migration + guard test.
+2. Edit-form "no quantity" checkbox + save path (incl. `price_paid`).
+3. The reader/writer audit surfaces (§6a/§6b).
+4. Public guard (§5).
+
+Each is independently testable.
+
+### Out of scope (related, but NOT this feature)
+
+These came up alongside the sentinel but belong to the importer / staff-only
+questions work, not the no-quantity feature:
+
+- QR direct-checkout gating (`listingSupportsDirectCheckout`, `src/shared/qr.ts`)
+  filtering out *staff-only questions* — that's the staff-only-question flag, a
+  separate change.
+- Imported visit history using the source booking date instead of `nowMs()` —
+  that's the importer's visit-recording writer.
