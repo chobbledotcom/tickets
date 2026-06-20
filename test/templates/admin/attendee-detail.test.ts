@@ -11,7 +11,11 @@ import {
   AttendeeLogSection,
   BookingStatusBadges,
 } from "#templates/admin/attendee-detail.tsx";
-import { setupTestEncryptionKey, testAttendee } from "#test-utils";
+import {
+  expectListingRowQuantity,
+  setupTestEncryptionKey,
+  testAttendee,
+} from "#test-utils";
 
 const booking = (
   overrides: Partial<AttendeeBooking> = {},
@@ -29,14 +33,6 @@ const booking = (
 
 const renderBookings = (bookings: AttendeeBooking[]): string =>
   String(AttendeeBookingsTable({ bookings }));
-
-// A quantity cell only proves the summary is right if it sits in the *same*
-// row as its listing link — otherwise swapping two bookings' quantities would
-// still pass. The tempered `(?!</tr>)` keeps the match inside one <tr>.
-const listingRowQuantity = (listingId: number, quantity: number): RegExp =>
-  new RegExp(
-    `/admin/listing/${listingId}"(?:(?!</tr>)[\\s\\S])*?<td>${quantity}</td>`,
-  );
 
 const ALLOWED_DOMAIN = "tickets.example.com";
 
@@ -154,8 +150,8 @@ describe("AttendeeBookingsTable", () => {
     expect(html).toContain("Canoe");
     // Each listing's row shows its own quantity (Kayak→2, Canoe→3), so a
     // swapped grouping fails here, not just a wrong sum...
-    expect(html).toMatch(listingRowQuantity(7, 2));
-    expect(html).toMatch(listingRowQuantity(8, 3));
+    expectListingRowQuantity(html, 7, 2);
+    expectListingRowQuantity(html, 8, 3);
     // ...and the footer totals them (2 + 3); only the total cell holds 5.
     expect(html).toContain("Total");
     expect(html).toContain("<td>5</td>");
