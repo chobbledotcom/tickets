@@ -205,14 +205,21 @@ export const createBackup = async (): Promise<TableBackup[]> => {
 
 /**
  * Bunny edge requests can issue at most 50 outbound subrequests
- * (https://docs.bunny.net/scripting/limits). The inline pre-migration backup
- * spends them on one keyset probe per table plus one page read per
- * BACKUP_PAGE_SIZE rows, on top of a handful for the freshness check, row
- * tally, upload and prune. This default caps the *table-export* estimate below
- * that ceiling with headroom for the rest. Overridable via the
- * BACKUP_MAX_INLINE_SUBREQUESTS env var.
+ * (https://docs.bunny.net/scripting/limits). Overridable via
+ * BACKUP_MAX_INLINE_SUBREQUESTS for plans with a different cap.
  */
-const DEFAULT_MAX_INLINE_SUBREQUESTS = 40;
+const BUNNY_SUBREQUEST_LIMIT = 50;
+
+/**
+ * Subrequests reserved for everything in the migration request that is *not* the
+ * table-export reads: the db-state / lock / pending-migration checks and the
+ * freshness + feasibility probes before the backup, the backup's own
+ * table-name read plus upload and prune, and the migration's DDL, marker
+ * writes, lock release and version record after it. Kept deliberately roomy —
+ * overrunning the cap mid-migration would 503 the site, whereas skipping the
+ * inline backup just defers it to `deno task backup`.
+ */
+const RESERVED_MIGRATION_SUBREQUESTS = 15;
 
 /** Sum of rows across the given tables, counted in a single round-trip. */
 const sumRowCounts = async (tables: string[]): Promise<number> => {
@@ -246,13 +253,15 @@ export const estimateInlineBackupSubrequests = async (): Promise<number> => {
 };
 
 /**
- * Whether the database is small enough to back up inline within one edge
- * request's subrequest budget. Larger databases must be dumped out-of-band
- * (see scripts/backup.ts), where the budget does not apply.
+ * Whether an inline pre-migration backup fits the edge subrequest budget once
+ * headroom is reserved for the rest of the migration. With ~31 tables the
+ * export alone is ~31 subrequests, so in practice only small databases qualify;
+ * larger ones are dumped out-of-band (scripts/backup.ts / the backup workflow),
+ * where the budget does not apply.
  */
 export const canBackupInline = async (): Promise<boolean> =>
-  (await estimateInlineBackupSubrequests()) <=
-  readLimit("BACKUP_MAX_INLINE_SUBREQUESTS", DEFAULT_MAX_INLINE_SUBREQUESTS);
+  RESERVED_MIGRATION_SUBREQUESTS + (await estimateInlineBackupSubrequests()) <=
+  readLimit("BACKUP_MAX_INLINE_SUBREQUESTS", BUNNY_SUBREQUEST_LIMIT);
 
 /** Generate a timestamped backup filename scoped to the current DB */
 export const backupFilename = (timestamp: string): string =>

@@ -169,7 +169,7 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
     test("skips the inline backup but still migrates when the DB is too large", async () => {
       const tmpDir = Deno.makeTempDirSync();
       const restore = setTestEnv({
-        BACKUP_MAX_INLINE_SUBREQUESTS: "1",
+        BACKUP_PAGE_SIZE: "1",
         DB_URL: "libsql://abc-tickets-spencer.lite.bunnydb.net",
         LOCAL_STORAGE_PATH: tmpDir,
         NTFY_URL: "https://ntfy.sh/test-topic",

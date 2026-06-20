@@ -130,10 +130,11 @@ describeWithEnv("backup", { db: true }, () => {
       expect(await canBackupInline()).toBe(true);
     });
 
-    test("is false once the estimate exceeds BACKUP_MAX_INLINE_SUBREQUESTS", async () => {
-      // The seeded test database has several tables, so a ceiling of 1
-      // subrequest forces the inline backup to be considered infeasible.
-      const restore = setTestEnv({ BACKUP_MAX_INLINE_SUBREQUESTS: "1" });
+    test("is false when the estimate plus reserved headroom exceeds the cap", async () => {
+      // One-row pages make the seeded rows blow the budget the same way a large
+      // table would at the default page size, exercising the real default cap
+      // (50) and the reserved migration headroom rather than an override.
+      const restore = setTestEnv({ BACKUP_PAGE_SIZE: "1" });
       try {
         expect(await canBackupInline()).toBe(false);
       } finally {
