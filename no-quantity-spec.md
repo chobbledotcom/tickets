@@ -203,7 +203,12 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
     `deliveredBookedLines` entry (any `existingBooking`) and `parseLogisticsPlan`
     persists the agents/times — so a quantity-0 line would keep accepting
     assignments that then vanish from run sheets (scheduled work silently
-    disappears). Clear/hide the logistics fields for a no-quantity line.
+    disappears). Clear/hide the logistics fields for a no-quantity line — **and
+    reset the completion flags `start_done`/`end_done`, not just the agents/times.**
+    `setLogisticsAssignments` writes only agents/times, while `buildLeg`
+    (`getAgentRunSheet`) reads the done flags; if a *completed* leg is marked
+    no-quantity and later re-activated (un-checked + reassigned), it would
+    reappear as already-done. Reset the flags on the no-quantity transition.
 - **Ticket / check-in / scanner / wallet token flows** — `getAttendeesByTokens`
   (`attendees/queries.ts`) returns every line with no quantity filter and feeds:
   - the customer ticket page `/t/:tokens`,
@@ -308,6 +313,15 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
   the merge writer: force `price_paid = 0` on copied quantity-0 lines, clear
   `checked_in` on any line it makes quantity-0, and block/clear
   `remaining_balance` when the merged result has no `quantity > 0` line.
+- **Visit recording on create.** `createAttendeeAtomic` (`attendees/create.ts`)
+  calls `recordOrderVisit` after a successful insert, bumping
+  `contact_preferences.visits` for the attendee's email/phone. Once a create path
+  can persist a no-quantity-only attendee (owner UI checkbox, or a future importer
+  consumer), that would count an interested/cancelled placeholder as a real visit
+  — and `buyerVisits` feeds `min_visits` modifier gating, so a ghost-only contact
+  could qualify as "returning". Gate the visit on the attendee having ≥1
+  `quantity > 0` line, mirroring the importer writer's rule (plan step 14) — on
+  every no-quantity-capable create path, not just the importer.
 
 ### 6c. INTENTIONALLY UNCHANGED (call out so nobody "fixes" them)
 
@@ -423,7 +437,8 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
   to the real single listing.
 - Logistics: mark-done (`setLegDone`) refuses a quantity-0 line even with an agent
   assigned; the edit/save path doesn't render or persist logistics assignments for
-  a no-quantity line.
+  a no-quantity line, and resets `start_done`/`end_done` so a completed leg marked
+  no-quantity doesn't reappear as done after re-activation.
 - Check-in state: marking a checked-in line no-quantity (via the save **and** via
   merge) clears `checked_in`, so the row drops out of the "checked-in" filter
   (`filterAttendees`) and `countCheckedInRows`; `updateCheckedIn` still refuses a
@@ -431,6 +446,9 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
 - Edit-form answers: a quantity-0-only attendee's custom-question answers still
   render on the admin edit form and survive a save (no `quantity > 0` filter on
   the question loading drops them).
+- Visit recording: creating a no-quantity-only attendee records **no** contact
+  visit (`contact_preferences.visits` unchanged), so `min_visits` gating via
+  `buyerVisits` doesn't count a placeholder as a returning customer.
 - Balance: a quantity-0-only attendee's balance isn't publicly payable; for a
   mixed attendee the pay-page product/checkout line, the settlement, **and the
   logged-activity listing** all land on the real line; marking the last real line

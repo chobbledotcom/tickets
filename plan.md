@@ -178,8 +178,11 @@ Add one table for import idempotency:
 
 The importer does **not** add the `strings` table or the `attendee_answers`
 `question_id`/`string_id` columns — those arrive with PR #1335's migration
-`2026-06-20_free_text_questions`. `booking_imports` is the only new table the
-importer introduces. Sequence the importer's migration after the free-text one.
+`2026-06-20_free_text_questions`. Besides `booking_imports`, the importer adds one
+more table: a **short-lived missing-setup stash** (token PK, JSON payload,
+created/expires) so the POST→`/missing` redirect survives Bunny's cross-isolate
+runtime (see Proposed Routes And UI). Both go in the importer's migration,
+sequenced after the free-text one.
 
 Attendee notes / legacy metadata storage:
 
@@ -216,12 +219,18 @@ Add admin routes:
     transaction.
   - Redirects to success with created/skipped counts.
 - `GET /admin/imports/bookings/missing`
-  - Error page populated from a **short-lived server-side stash**, addressed by a
+  - Error page populated from a **short-lived, durable stash**, addressed by a
     single token in the URL (`?stash=<token>`) — **not** repeated `product` /
     `status` / `question` params, which the first upload of a wide CSV can push
     past Location/header limits and strand the operator before setup. The POST
     writes the missing set to the stash and redirects with the token; this GET
-    reads it back.
+    reads it back. **Store the stash in libsql with a TTL** (a small table +
+    cleanup pass), **not process-local memory:** production runs on Bunny Edge
+    Scripting, where the POST and the redirected GET can hit different isolates,
+    so an in-memory stash would often read back empty (the codebase already
+    handles cross-isolate staleness elsewhere). A signed/encrypted self-contained
+    token is a fallback only for *small* sets — a large missing list would re-hit
+    the URL limit.
   - Renders one link per missing product:
     `/admin/listing/new?import_name=Foo`
   - Renders missing statuses with the exact source name and a link to
