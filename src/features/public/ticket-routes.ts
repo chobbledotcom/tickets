@@ -15,10 +15,7 @@ import { generateQrSvg } from "#shared/qr.ts";
 import { successPage } from "#templates/payment.tsx";
 import { handleGroupTicketBySlug } from "./groups.ts";
 import { handleQrBookGet } from "./qr-book.ts";
-import {
-  handleCalculateBySlugs,
-  handleTicketBySlugs,
-} from "./ticket-submit.ts";
+import { handleBySlugs } from "./ticket-submit.ts";
 import { parseSlugs } from "./types.ts";
 
 /** Get the email from-address if email is configured. Returns empty string if not. */
@@ -39,35 +36,30 @@ const handleReservedGet = async (request: Request): Promise<Response> => {
   return htmlResponse(successPage({ fromEmail, ticketUrl }));
 };
 
-/** Handle ticket request: try listings by slugs, fall back to group for single slugs */
-const handleTicketBySlug = async (
-  request: Request,
-  { slug }: { slug: string },
-): Promise<Response> => {
-  const slugs = parseSlugs(slug);
-  const response = await handleTicketBySlugs(request, slugs);
-  // For single slugs, fall back to group lookup on 404
-  if (response.status === 404 && slugs.length === 1) {
-    return handleGroupTicketBySlug(request, slugs[0]!);
-  }
-  return response;
-};
+/**
+ * Build a `/ticket` (book) or `/calculate` (quote) slug handler. `mode` drives
+ * the whole flow: it picks booking vs quote for the listings lookup, and — for
+ * a single slug that 404s (no such listing) — carries through to the group
+ * fallback, since the group booking form posts its group slug, not its member
+ * slugs.
+ */
+const slugHandler =
+  (mode?: "calculate") =>
+  async (request: Request, { slug }: { slug: string }): Promise<Response> => {
+    const slugs = parseSlugs(slug);
+    const response = await handleBySlugs(request, slugs, mode);
+    if (response.status === 404 && slugs.length === 1) {
+      return handleGroupTicketBySlug(request, slugs[0]!, mode);
+    }
+    return response;
+  };
 
-/** Handle the `/calculate/<slugs>` running-total POST. Mirrors
- * {@link handleTicketBySlug}: try listings by slug, falling back to a group
- * quote for a single unmatched slug (the group booking form posts its group
- * slug). */
-const handleCalculateBySlug = async (
-  request: Request,
-  { slug }: { slug: string },
-): Promise<Response> => {
-  const slugs = parseSlugs(slug);
-  const response = await handleCalculateBySlugs(request, slugs);
-  if (response.status === 404 && slugs.length === 1) {
-    return handleGroupTicketBySlug(request, slugs[0]!, "calculate");
-  }
-  return response;
-};
+/** Handle ticket request: try listings by slugs, fall back to group for single slugs */
+const handleTicketBySlug = slugHandler();
+
+/** Handle the `/calculate/<slugs>` running-total POST, with the same group
+ * fallback as {@link handleTicketBySlug} but pricing rather than booking. */
+const handleCalculateBySlug = slugHandler("calculate");
 
 /** Generate a QR code SVG response for a given slug */
 const qrResponse = async (slug: string): Promise<Response> => {

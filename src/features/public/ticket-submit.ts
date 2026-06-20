@@ -785,32 +785,23 @@ const parseQuantityPrefill = (
   return map.size > 0 ? { listings: map } : undefined;
 };
 
-/** Handle ticket page by slugs (multi-listing) */
-export const handleTicketBySlugs = (
+/**
+ * Handle a booking page by slugs (multi-listing). `mode` selects between
+ * completing the booking (the default) and pricing it as a `/calculate`
+ * running-total quote; both load the same active listings and share one
+ * rendering/submission path.
+ */
+export const handleBySlugs = (
   request: Request,
   slugs: string[],
+  mode?: "calculate",
 ): Promise<Response> =>
   withActiveListings(slugs, (listings) =>
     handleTicket({
       getContext: getTicketContext,
       listings,
+      mode,
       prefill: parseQuantityPrefill(request, listings),
-      request,
-      slugs,
-    }),
-  );
-
-/** Handle a `/calculate/<slugs>` running-total POST: load the same active
- * listings the booking submit would, then price them as a quote. */
-export const handleCalculateBySlugs = (
-  request: Request,
-  slugs: string[],
-): Promise<Response> =>
-  withActiveListings(slugs, (listings) =>
-    handleTicket({
-      getContext: getTicketContext,
-      listings,
-      mode: "calculate",
       request,
       slugs,
     }),
