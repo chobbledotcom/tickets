@@ -39,9 +39,10 @@ jobs:
         run: deno install --allow-scripts
 
       # Runs the same battery as a local `deno task precommit` (lint, typecheck,
-      # cpd, build:edge, test:coverage) so CI and precommit can never drift. The
-      # --ci flag makes the lint step fail on unformatted code instead of
-      # silently fixing it.
+      # cpd, build:edge, test:coverage) so CI and precommit can never drift.
+      # precommit always runs the read-only `lint:ci`, so the lint step is just
+      # as strict here as it is locally. The --ci flag only suppresses the
+      # interactive push prompt and the progress spinner.
       - name: Run precommit checks
         env:
           DB_ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=

@@ -242,6 +242,7 @@ deno task start          # Run server
 deno task test           # Run tests
 deno task test:coverage  # Tests with coverage report
 deno task lint           # Format + lint with Biome — fixes in place
+deno task lint:ci        # Strict read-only lint (what precommit runs everywhere)
 deno task typecheck      # Type check
 deno task build:edge     # Build for Bunny Edge
 deno task deploy:edge <script-id> # Build, upload, and publish to Bunny Edge using BUNNY_ACCESS_KEY from .env
