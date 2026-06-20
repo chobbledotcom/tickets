@@ -1249,10 +1249,12 @@ is a prerequisite for the transactional writer (item 5)** — the writer emits
 - Imported financial totals do not affect listing income; line `price_paid` is
   always `0`.
 - Raw emails are imported as source data, including concatenated or invalid
-  values, stored as-is in `attendees.email`. Accepted tradeoff: the attendee edit
-  form (`type="email"` + `validateEmail` on POST) blocks the first admin re-save
-  of such a row until the operator fixes/clears the email; the importer does not
-  relax the edit path or relocate the raw value.
+  values, stored as-is inside the attendee's **encrypted `pii_blob`** (via
+  `buildPiiBlob`) — there is no `attendees.email` column, and the importer must
+  **not** add a cleartext one. Accepted tradeoff: once the value is decrypted for
+  editing, the attendee edit form (`type="email"` + `validateEmail` on POST)
+  blocks the first admin re-save of such a row until the operator fixes/clears the
+  email; the importer does not relax the edit path or relocate the raw value.
 - `Equipments` is authoritative when populated. Notes/modifiers do not add
   products to populated `Equipments` rows.
 - There is no product/status/question alias mechanism. Matching is normalized
@@ -1272,7 +1274,8 @@ is a prerequisite for the transactional writer (item 5)** — the writer emits
   form but never on the public booking form (assigning a normal question would
   expose it publicly).
 - The importer reuses PR #1335's `strings`/`attendee_answers` schema and helpers
-  and does not redefine them; `booking_imports` is the only new table.
+  and does not redefine them; it adds **two** tables of its own —
+  `booking_imports` and the short-lived missing-setup stash (see Data Model).
 - All-or-nothing means all-or-nothing: a rolled-back import leaves **no** new
   rows, including `strings` rows created for text answers. String upserts are
   unwound on failure rather than left as orphaned encrypted PII, and text strings

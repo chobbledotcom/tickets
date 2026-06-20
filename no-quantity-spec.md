@@ -190,6 +190,15 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
     `quantity > 0` line), or classify this one-off admin send as **transactional**
     and out of the marketing rule — but note it still emits a `{{ ticket_url }}`
     that 404s for an all-ghost attendee.
+- **Group aggregate drift check** (`groupAggregateMismatchItems`,
+  `src/ui/templates/admin/groups.tsx`) compares the group's summed `tickets_count`
+  (`totalTicketCount`) against `attendees.length`. Once `tickets_count` counts only
+  `quantity > 0` (§3), the **expected** side must match: count only `quantity > 0`
+  rows there (`attendees.filter(quantity > 0).length`), or every group holding a
+  no-quantity row shows a bogus tickets_count drift warning. Its
+  `booked_quantity`/`income` checks use `SUM(quantity)`/`SUM(price_paid)`, so a
+  ghost contributes 0 to both sides — leave those. The roster itself still
+  **displays** the ghost row.
 - **Logistics / delivery runs** (`src/shared/db/logistics.ts`) — guard the read,
   the completion write, **and the assignment write**:
   - Read: `getAgentRunSheet` — exclude `quantity = 0` (a no-quantity line is not a
@@ -428,7 +437,8 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
   `/t/:tokens`, `/checkin/:tokens`, scanner, wallet passes, the `/pay/:token`
   order summary, and signed attachment downloads (`/attachment/:id`) — **while
   still present** in the per-listing roster and the group-detail roster (with no
-  check-in button) and per-attendee detail.
+  check-in button) and per-attendee detail; the group aggregate drift check
+  excludes ghosts from its expected `tickets_count` (no bogus drift warning).
 - A quantity-0-*only* token returns **not found** on `/t/:tokens` and
   `/t/:token/svg` (no empty page, no QR), an **invalid-callback** page on
   `/payment/success?tokens=`, and a not-found / no-CTA result on the reservation
