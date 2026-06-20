@@ -278,6 +278,15 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
     could return a 200 page with no cards and `handleTicketSvg` (`/t/:token/svg`)
     could emit a QR without resolving entries. Treat an empty filtered set as
     not-found on both `/t/:tokens` and `/t/:token/svg`.
+  - **Invalidate already-cached token artifacts on the no-quantity transition.**
+    A 404 from the guard isn't enough for artifacts already served and cached:
+    `handleTicketSvg` (`/t/:token/svg`) sets `public, max-age=<1 year>, immutable`
+    and the wallet passes use `WALLET_CACHE_CONTROL`
+    (`public, max-age=300, s-maxage=3600`), so a CDN/browser can keep serving the
+    QR/pass past the guard for up to a year. When a line is marked no-quantity (or
+    merged to quantity-0), the feature must purge / cache-bypass / version the key
+    for that token's SVG and wallet artifacts — otherwise the ghosted ticket stays
+    live in cache.
   - **The post-payment success page must filter ghosts and reject an all-ghost
     set.** `renderSuccessFromTokens` verifies the URL tokens via
     `getAttendeesByTokens`, then builds the ticket link `/t/:tokens` and the
@@ -356,9 +365,14 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
   quantity-0 line with `price_paid > 0` (violating the §1 invariant) and leave an
   attendee with no real line but a surviving, now-unpayable `remaining_balance`
   (the §4 dead-balance case via merge, not the checkbox). Apply the same rules in
-  the merge writer: force `price_paid = 0` on copied quantity-0 lines, clear
-  `checked_in` on any line it makes quantity-0, and block/clear
-  `remaining_balance` when the merged result has no `quantity > 0` line.
+  the merge writer: clear `checked_in` on any line it makes quantity-0, and
+  block/clear `remaining_balance` when the merged result has no `quantity > 0`
+  line. **Do not silently zero `price_paid` on a copied quantity-0 line** — same
+  as §4, a paid quantity-0 line drops income and strands the charge behind the
+  refund guards. Treat a merge that would produce a quantity-0 line with
+  `price_paid > 0` (or leave an attendee-level `payment_id` against no real line)
+  as an invalid merge/data-repair case: block it, or require the charge
+  refunded/retargeted to a real line first — never normalize it during the copy.
 - **Visit recording on create.** `createAttendeeAtomic` (`attendees/create.ts`)
   calls `recordOrderVisit` after a successful insert, bumping
   `contact_preferences.visits` for the attendee's email/phone. Once a create path

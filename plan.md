@@ -356,6 +356,14 @@ Product matching:
 
 - Normalize for matching by trimming and collapsing whitespace.
 - Start with case-insensitive exact matching after normalization.
+- **Duplicate local listing names are an ambiguous-setup error, like duplicate
+  statuses/questions.** Listing names aren't unique in the schema (and are
+  encrypted), so a token can match **two** local listings — most likely after the
+  standard→daily repair path leaves the old standard listing alongside the new
+  daily one. A normalized-name map would silently pick/overwrite one (importing to
+  the wrong listing, or still blocking on the old standard). When a product token
+  matches more than one listing, block the upload and tell the operator to
+  disambiguate — never guess.
 - Match known listing names longest first over the raw `Equipments` text before
   splitting on separators. This lets a local listing named
   `Rodeo Bull / Bucking Bronco` win before the slash is considered a separator.
