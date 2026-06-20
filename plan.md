@@ -1177,8 +1177,9 @@ is a prerequisite for the transactional writer (item 5)** — the writer emits
      lines (never zero lines); confirmed `Equipments` products get real
      quantities.
    - Record visit counts for candidates with ≥1 real (`quantity > 0`) line only
-     (the writer bypasses `createAttendeeAtomic`/`recordOrderVisit`), within the
-     rollback boundary.
+     (the writer bypasses `createAttendeeAtomic`/`recordOrderVisit`), using the
+     source `Date Booked` with `last_activity = MAX(existing, source)` (see step
+     14), within the rollback boundary.
    - Allow overbooked legacy rows (active bookings only; quantity-0 lines don't
      count toward capacity).
    - Prove whole-file rollback (attendees, lines, text answers, new strings,

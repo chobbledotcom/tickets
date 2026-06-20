@@ -76,8 +76,11 @@ fight the triggers:
    the count back**. With a plain `COUNT(*)` it would add `1` back for a
    `quantity = 0` line the (now-fixed) delete trigger removed `0` for —
    permanently inflating `tickets_count`. Change its `COUNT(*) AS tickets_count`
-   to `SUM(CASE WHEN quantity > 0 THEN 1 ELSE 0 END)`. (`booked_quantity`/`income`
-   there already use `SUM(quantity)`/`SUM(price_paid)` — leave them.)
+   to `COALESCE(SUM(CASE WHEN quantity > 0 THEN 1 ELSE 0 END), 0) AS tickets_count`
+   (the `COALESCE` matches the recalc site's empty-set rule; each per-listing group
+   here always has ≥1 deleted row so it can't actually be NULL, but keep it
+   consistent). (`booked_quantity`/`income` there already use
+   `SUM(quantity)`/`SUM(price_paid)` — leave them.)
 
 **Anti-drift requirement:** the predicate (`quantity > 0`) must live in **one**
 place — extract a constant (e.g. `TICKET_COUNTS_WHEN = "quantity > 0"`, or a tiny
