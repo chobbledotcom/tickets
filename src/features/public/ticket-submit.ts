@@ -25,7 +25,7 @@ import {
 } from "#shared/db/modifier-resolve.ts";
 import { consumeModifierStockOrRollback } from "#shared/db/modifier-usage.ts";
 import {
-  groupListingAnswers,
+  getOrCreateStringIds,
   parseQuestionAnswers,
   saveAttendeeAnswers,
 } from "#shared/db/questions.ts";
@@ -51,8 +51,10 @@ import type {
 } from "#templates/public.tsx";
 import {
   buildListingAnswerMap,
+  buildListingTextAnswerMap,
   extractContact,
   getTicketFieldsSetting,
+  groupListingAnswerSets,
   listingsWithQuantity,
   parseAddOnSelections,
   parseCustomPrice,
@@ -174,10 +176,37 @@ const applyQrTokenOverride = async (
 type AnswerInfo = {
   activeQuestions: TicketCtx["questions"];
   answerIds: number[];
+  textAnswers: import("#shared/db/questions.ts").TextAnswer[];
   selectedListingIds: Set<number>;
 };
 
 /** Compute listing-answer map if answers exist */
+
+const computeListingTextAnswerIdMap = async (
+  ctx: TicketCtx,
+  info: AnswerInfo,
+): Promise<CheckoutIntent["listingTextAnswerIds"]> => {
+  if (info.textAnswers.length === 0) return undefined;
+  const stringIds = await getOrCreateStringIds(
+    info.textAnswers.map((answer) => answer.text),
+  );
+  return Object.fromEntries(
+    Object.entries(
+      buildListingTextAnswerMap(
+        info.textAnswers,
+        ctx.questionListingMap,
+        info.selectedListingIds,
+      ),
+    ).map(([listingId, answers]) => [
+      listingId,
+      answers.map((answer) => ({
+        q: answer.questionId,
+        s: stringIds.get(answer.text)!,
+      })),
+    ]),
+  );
+};
+
 const computeListingAnswerMap = (
   ctx: TicketCtx,
   info: AnswerInfo,
@@ -359,15 +388,22 @@ const handleFreePath = async (
     : undefined;
   await logAndNotifyRegistration(result.entries, siteTokenIndex);
 
-  if (info.answerIds.length > 0) {
-    const listingAnswerMap = buildListingAnswerMap(
-      info.activeQuestions,
-      info.answerIds,
-      ctx.questionListingMap,
-      info.selectedListingIds,
-    );
+  if (info.answerIds.length > 0 || info.textAnswers.length > 0) {
     await saveAttendeeAnswers(
-      groupListingAnswers(result.entries, listingAnswerMap),
+      groupListingAnswerSets(
+        result.entries,
+        buildListingAnswerMap(
+          info.activeQuestions,
+          info.answerIds,
+          ctx.questionListingMap,
+          info.selectedListingIds,
+        ),
+        buildListingTextAnswerMap(
+          info.textAnswers,
+          ctx.questionListingMap,
+          info.selectedListingIds,
+        ),
+      ),
     );
   }
 
@@ -535,6 +571,7 @@ const processSubmission = async (
     activeQuestions,
     answerIds: answersResult.answerIds,
     selectedListingIds,
+    textAnswers: answersResult.textAnswers,
   };
 
   const addOns = parseAddOnSelections(form, ctx.addOns);
@@ -608,6 +645,10 @@ const processSubmission = async (
   const finalRequiresPayment = paymentsEnabled && finalRequiresPaidFields;
 
   if (finalRequiresPayment) {
+    intent.listingTextAnswerIds = await computeListingTextAnswerIdMap(
+      ctx,
+      info,
+    );
     return handlePaidPath(request, {
       ctx,
       date,

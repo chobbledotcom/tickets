@@ -169,6 +169,13 @@ const listingAnswerIdsField = (
     ? { answer_ids: JSON.stringify(listingAnswerIds) }
     : {};
 
+const listingTextAnswerIdsField = (
+  listingTextAnswerIds?: BookingIntent["listingTextAnswerIds"],
+): Record<string, string> =>
+  listingTextAnswerIds && Object.keys(listingTextAnswerIds).length > 0
+    ? { text_answer_ids: JSON.stringify(listingTextAnswerIds) }
+    : {};
+
 /** Convert single-listing answerIds to the per-listing format used in metadata */
 export const singleListingAnswerIds = (
   listingId: number,
@@ -238,6 +245,7 @@ type MetadataInput = Pick<BookingIntent, "name" | "email" | "items" | "date"> &
       | "special_instructions"
       | "dayCount"
       | "listingAnswerIds"
+      | "listingTextAnswerIds"
       | "siteTokenIndex"
       | "balanceAttendeeId"
       | "reservationAmount"
@@ -257,6 +265,7 @@ export const buildMetadata = (
   name: intent.name,
   ...optionalFields(intent),
   ...listingAnswerIdsField(intent.listingAnswerIds),
+  ...listingTextAnswerIdsField(intent.listingTextAnswerIds),
   ...(intent.siteTokenIndex ? { site_token_index: intent.siteTokenIndex } : {}),
   ...(intent.balanceAttendeeId
     ? { balance_attendee_id: String(intent.balanceAttendeeId) }
@@ -411,9 +420,11 @@ export const enforceMetadataLimits = (
   }
 
   const answerIds = metadata.answer_ids;
+  const textAnswerIds = metadata.text_answer_ids;
   const modifiers = metadata.modifiers;
   if (
     (answerIds && answerIds.length > maxValueLength) ||
+    (textAnswerIds && textAnswerIds.length > maxValueLength) ||
     (modifiers && modifiers.length > maxValueLength) ||
     (maxEntries !== undefined && Object.keys(metadata).length > maxEntries)
   ) {
@@ -479,5 +490,6 @@ export const extractSessionMetadata = (
     reservation_amount: get("reservation_amount"),
     site_token_index: get("site_token_index"),
     special_instructions: get("special_instructions"),
+    text_answer_ids: get("text_answer_ids"),
   };
 };

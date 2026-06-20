@@ -170,6 +170,7 @@ export const webhookMeta = (
   reservation_amount: "",
   site_token_index: "",
   special_instructions: "",
+  text_answer_ids: "",
   ...metadata,
 });
 

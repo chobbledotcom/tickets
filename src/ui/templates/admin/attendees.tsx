@@ -228,13 +228,24 @@ export const PaymentDetails = ({
 export const EditQuestions = ({
   questions,
   selectedAnswerIds,
+  selectedTextAnswers,
 }: {
   questions: QuestionWithAnswers[];
   selectedAnswerIds: number[];
+  selectedTextAnswers: Map<number, string>;
 }): JSX.Element => (
   <>
     {questions.map((q) =>
-      q.display_type === "select" ? (
+      q.display_type === "free_text" ? (
+        <label class="custom-question">
+          {q.text}
+          <input
+            name={`question_${q.id}`}
+            type="text"
+            value={selectedTextAnswers.get(q.id) ?? ""}
+          />
+        </label>
+      ) : q.display_type === "select" ? (
         <label class="custom-question">
           {q.text}
           <select name={`question_${q.id}`}>

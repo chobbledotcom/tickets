@@ -57,6 +57,8 @@ export type BookingItem = { e: number; q: number; p: number };
  * trusted. */
 export type ModifierRef = { i: number; q: number };
 
+export type TextAnswerRef = { q: number; s: number };
+
 /** Processed booking intent extracted from payment session metadata */
 export type BookingIntent = ContactInfo & {
   date: string | null;
@@ -69,6 +71,8 @@ export type BookingIntent = ContactInfo & {
   modifiers: ModifierRef[];
   /** Per-listing answer IDs: maps listingId → answerIds for that listing's questions */
   listingAnswerIds?: Record<string, number[]>;
+  /** Per-listing free-text string refs: maps listingId → question/string ids. */
+  listingTextAnswerIds?: Record<string, TextAnswerRef[]>;
   /** HMAC index of the site renewal token. The plain token never reaches the
    * payment provider, so a compromised provider cannot use it at /renew. */
   siteTokenIndex?: string;
@@ -92,6 +96,8 @@ export type CheckoutIntent = ContactInfo & {
   modifiers?: ModifierSpec[];
   /** Per-listing answer IDs: maps listingId → answerIds for that listing's questions */
   listingAnswerIds?: Record<string, number[]>;
+  /** Per-listing free-text string refs: maps listingId → question/string ids. */
+  listingTextAnswerIds?: Record<string, TextAnswerRef[]>;
   /** Plain site renewal token from /renew. Hashed before storage in provider
    * metadata; never stored at the provider in plaintext. */
   siteToken?: string;
@@ -148,6 +154,7 @@ export type SessionMetadata = {
   date: string;
   day_count: string;
   answer_ids: string;
+  text_answer_ids: string;
   site_token_index: string;
   /** Attendee id when this session settles an outstanding balance ("" if not). */
   balance_attendee_id: string;

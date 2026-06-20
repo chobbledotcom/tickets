@@ -101,6 +101,8 @@ export type AttendeeFormTemplateData = {
   questions: QuestionWithAnswers[];
   /** Currently-selected answer ids for the rendered questions. */
   selectedAnswerIds: number[];
+  /** Currently-entered free-text answers, keyed by question id. */
+  selectedTextAnswers: Map<number, string>;
   /** Today's ISO date. */
   todayIso: string;
   /** Optional return URL the caller came from. */
@@ -738,6 +740,7 @@ const AttendeeEditForm = ({
           <EditQuestions
             questions={data.questions}
             selectedAnswerIds={data.selectedAnswerIds}
+            selectedTextAnswers={data.selectedTextAnswers}
           />
         </>
       )}

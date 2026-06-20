@@ -8,6 +8,11 @@
 import type { InValue } from "@libsql/client";
 import { filter, map, reduce } from "#fp";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
+import { hmacHash } from "#shared/crypto/hashing.ts";
+import {
+  decryptWithOwnerKey,
+  encryptWithOwnerKey,
+} from "#shared/crypto/keys.ts";
 import {
   execute,
   executeBatch,
@@ -18,6 +23,7 @@ import {
   resetAggregates,
 } from "#shared/db/client.ts";
 import { swapSortOrder } from "#shared/db/query.ts";
+import { settings } from "#shared/db/settings.ts";
 import { col, defineTable } from "#shared/db/table.ts";
 
 // ---------------------------------------------------------------------------
@@ -25,7 +31,7 @@ import { col, defineTable } from "#shared/db/table.ts";
 // ---------------------------------------------------------------------------
 
 /** A custom multiple-choice question */
-export const QUESTION_DISPLAY_TYPES = ["radio", "select"] as const;
+export const QUESTION_DISPLAY_TYPES = ["radio", "select", "free_text"] as const;
 export type QuestionDisplayType = (typeof QUESTION_DISPLAY_TYPES)[number];
 
 export const isQuestionDisplayType = (
@@ -34,7 +40,7 @@ export const isQuestionDisplayType = (
   QUESTION_DISPLAY_TYPES.includes(value as QuestionDisplayType);
 
 export const questionDisplayTypeError =
-  "Display as must be radio buttons or a select box";
+  "Display as must be radio buttons, a select box, or free text";
 
 export const requireQuestionDisplayType = (
   value: string,
@@ -204,7 +210,10 @@ const groupJoinedRows = (rows: JoinedRow[]): Promise<QuestionWithAnswers[]> => {
 };
 
 /** Keep only questions that have at least one answer */
-const withAnswers = filter((q: QuestionWithAnswers) => q.answers.length > 0);
+const withAnswers = filter(
+  (q: QuestionWithAnswers) =>
+    q.display_type === "free_text" || q.answers.length > 0,
+);
 
 /** Decrypt a single question and its answers */
 const decryptQuestion = async (
@@ -427,8 +436,10 @@ export const readQuestionAnswer = (
 };
 
 /** Outcome of parsing a form's submitted answers. */
+export type TextAnswer = { questionId: number; text: string };
+export type TextAnswerId = { questionId: number; stringId: number };
 export type ParsedQuestionAnswers =
-  | { ok: true; answerIds: number[] }
+  | { ok: true; answerIds: number[]; textAnswers: TextAnswer[] }
   | { ok: false; error: string };
 
 /**
@@ -441,12 +452,58 @@ export type ParsedQuestionAnswers =
  * - `{ optional: true }` (admin edit) — unanswered or invalid questions are
  *   skipped, so the result is always `ok: true` with the valid answers found.
  */
+type MutableParsedQuestionAnswers = {
+  answerIds: number[];
+  textAnswers: TextAnswer[];
+};
+
+const parseFreeTextAnswer = (
+  form: URLSearchParams,
+  question: QuestionWithAnswers,
+  parsed: MutableParsedQuestionAnswers,
+  optional: boolean,
+): string | null => {
+  const text = (form.get(`question_${question.id}`) ?? "").trim();
+  if (text) {
+    parsed.textAnswers.push({ questionId: question.id, text });
+    return null;
+  }
+  return optional ? null : `Please answer: ${question.text}`;
+};
+
+const parseChoiceAnswer = (
+  form: URLSearchParams,
+  question: QuestionWithAnswers,
+  parsed: MutableParsedQuestionAnswers,
+  optional: boolean,
+): string | null => {
+  const answer = readQuestionAnswer(form, question);
+  if (answer.status === "ok") {
+    parsed.answerIds.push(answer.answerId);
+    return null;
+  }
+  if (optional) return null;
+  const lead =
+    answer.status === "missing" ? "Please answer" : "Invalid answer for";
+  return `${lead}: ${question.text}`;
+};
+
+const parseQuestionAnswer = (
+  form: URLSearchParams,
+  question: QuestionWithAnswers,
+  parsed: MutableParsedQuestionAnswers,
+  optional: boolean,
+): string | null =>
+  question.display_type === "free_text"
+    ? parseFreeTextAnswer(form, question, parsed, optional)
+    : parseChoiceAnswer(form, question, parsed, optional);
+
 export function parseQuestionAnswers(opts: {
   optional: true;
 }): (
   form: URLSearchParams,
   questions: QuestionWithAnswers[],
-) => { ok: true; answerIds: number[] };
+) => { ok: true; answerIds: number[]; textAnswers: TextAnswer[] };
 export function parseQuestionAnswers(opts: {
   optional: false;
 }): (
@@ -458,19 +515,15 @@ export function parseQuestionAnswers(opts: { optional: boolean }) {
     form: URLSearchParams,
     questions: QuestionWithAnswers[],
   ): ParsedQuestionAnswers => {
-    const answerIds: number[] = [];
-    for (const q of questions) {
-      const answer = readQuestionAnswer(form, q);
-      if (answer.status === "ok") {
-        answerIds.push(answer.answerId);
-        continue;
-      }
-      if (opts.optional) continue;
-      const lead =
-        answer.status === "missing" ? "Please answer" : "Invalid answer for";
-      return { error: `${lead}: ${q.text}`, ok: false };
+    const parsed: MutableParsedQuestionAnswers = {
+      answerIds: [],
+      textAnswers: [],
+    };
+    for (const question of questions) {
+      const error = parseQuestionAnswer(form, question, parsed, opts.optional);
+      if (error) return { error, ok: false };
     }
-    return { answerIds, ok: true };
+    return { ok: true, ...parsed };
   };
 }
 
@@ -484,20 +537,110 @@ export function parseQuestionAnswers(opts: { optional: boolean }) {
  * an id (e.g. an attendee whose booked events share a question), which the
  * unique `(attendee_id, answer_id)` index would otherwise reject.
  */
+export const getOrCreateStringIds = async (
+  texts: string[],
+): Promise<Map<string, number>> => {
+  if (texts.length === 0) return new Map();
+  const uniqueTexts = [...new Set(texts)];
+  const rows = await Promise.all(
+    uniqueTexts.map(async (text) => ({
+      encrypted: await encryptWithOwnerKey(text, settings.publicKey),
+      text,
+      textIndex: await hmacHash(text),
+    })),
+  );
+  await executeBatch(
+    rows.map((row) => ({
+      args: [row.textIndex, row.encrypted],
+      sql: "INSERT OR IGNORE INTO strings (text_index, encrypted_text) VALUES (?, ?)",
+    })),
+  );
+  const found = await queryAll<{ id: number; text_index: string }>(
+    `SELECT id, text_index FROM strings WHERE text_index IN (${inPlaceholders(rows.map((r) => r.textIndex))})`,
+    rows.map((r) => r.textIndex),
+  );
+  const idByIndex = new Map(found.map((row) => [row.text_index, row.id]));
+  return new Map(rows.map((row) => [row.text, idByIndex.get(row.textIndex)!]));
+};
+
+export type AttendeeAnswerSet = {
+  answerIds: number[];
+  textAnswerIds?: TextAnswerId[];
+  textAnswers?: TextAnswer[];
+};
+
+const normalizeAnswerSet = (
+  answerIdsOrSet: number[] | AttendeeAnswerSet,
+): AttendeeAnswerSet =>
+  Array.isArray(answerIdsOrSet)
+    ? { answerIds: answerIdsOrSet }
+    : answerIdsOrSet;
+
+const questionIdsByAnswerId = async (
+  answerIds: number[],
+): Promise<Map<number, number>> => {
+  if (answerIds.length === 0) return new Map();
+  const rows = await queryAll<{ id: number; question_id: number }>(
+    `SELECT id, question_id FROM answers WHERE id IN (${inPlaceholders(answerIds)})`,
+    answerIds,
+  );
+  return new Map(rows.map((row) => [row.id, row.question_id]));
+};
+
 export const saveAttendeeAnswers = async (
-  answersByAttendee: Map<number, number[]>,
+  answersByAttendee: Map<number, number[] | AttendeeAnswerSet>,
 ): Promise<void> => {
+  const normalized = new Map(
+    [...answersByAttendee].map(([id, set]) => [id, normalizeAnswerSet(set)]),
+  );
+  const [stringIds, questionIdsByAnswer] = await Promise.all([
+    getOrCreateStringIds(
+      [...normalized.values()].flatMap(
+        (set) => set.textAnswers?.map((a) => a.text) ?? [],
+      ),
+    ),
+    questionIdsByAnswerId([
+      ...new Set([...normalized.values()].flatMap((set) => set.answerIds)),
+    ]),
+  ]);
   const statements: { sql: string; args: InValue[] }[] = [];
-  for (const [attendeeId, answerIds] of answersByAttendee) {
+  for (const [
+    attendeeId,
+    { answerIds, textAnswerIds = [], textAnswers = [] },
+  ] of normalized) {
     statements.push({
       args: [attendeeId],
       sql: "DELETE FROM attendee_answers WHERE attendee_id = ?",
     });
     if (answerIds.length > 0) {
-      const placeholders = answerIds.map(() => "(?, ?)").join(", ");
+      const placeholders = answerIds.map(() => "(?, ?, ?)").join(", ");
       statements.push({
-        args: answerIds.flatMap((id) => [attendeeId, id]),
-        sql: `INSERT OR IGNORE INTO attendee_answers (attendee_id, answer_id) VALUES ${placeholders}`,
+        args: answerIds.flatMap((id) => [
+          attendeeId,
+          questionIdsByAnswer.get(id)!,
+          id,
+        ]),
+        sql: `INSERT OR REPLACE INTO attendee_answers (attendee_id, question_id, answer_id) VALUES ${placeholders}`,
+      });
+    }
+    const resolvedTextAnswerIds = [
+      ...textAnswerIds,
+      ...textAnswers.map((answer) => ({
+        questionId: answer.questionId,
+        stringId: stringIds.get(answer.text)!,
+      })),
+    ];
+    if (resolvedTextAnswerIds.length > 0) {
+      const placeholders = resolvedTextAnswerIds
+        .map(() => "(?, ?, ?)")
+        .join(", ");
+      statements.push({
+        args: resolvedTextAnswerIds.flatMap((answer) => [
+          attendeeId,
+          answer.questionId,
+          answer.stringId,
+        ]),
+        sql: `INSERT OR REPLACE INTO attendee_answers (attendee_id, question_id, string_id) VALUES ${placeholders}`,
       });
     }
   }
@@ -535,7 +678,7 @@ export const getAttendeeAnswersBatch = async (
 
   const rows = await queryAll<{ attendee_id: number; answer_id: number }>(
     `SELECT attendee_id, answer_id FROM attendee_answers
-     WHERE attendee_id IN (${inPlaceholders(attendeeIds)})`,
+     WHERE answer_id IS NOT NULL AND attendee_id IN (${inPlaceholders(attendeeIds)})`,
     attendeeIds,
   );
 
@@ -578,6 +721,31 @@ export const loadAttendeeQuestionData = async (
   return questions.length > 0 ? { attendeeAnswerMap, questions } : undefined;
 };
 
+/** Get free-text answers for one attendee, decrypted for owner/admin edit. */
+export const getAttendeeTextAnswers = async (
+  attendeeId: number,
+  privateKey: CryptoKey,
+): Promise<Map<number, string>> => {
+  const rows = await queryAll<{ question_id: number; encrypted_text: string }>(
+    `SELECT attendee_answer.question_id, string.encrypted_text
+     FROM attendee_answers AS attendee_answer
+     JOIN strings AS string ON string.id = attendee_answer.string_id
+     WHERE attendee_answer.attendee_id = ?
+       AND attendee_answer.question_id IS NOT NULL`,
+    [attendeeId],
+  );
+  const entries = await Promise.all(
+    rows.map(
+      async (row) =>
+        [
+          row.question_id,
+          await decryptWithOwnerKey(row.encrypted_text, privateKey),
+        ] as const,
+    ),
+  );
+  return new Map(entries);
+};
+
 /** Get attendee answers mapped by question ID.
  * Returns Map<questionId, { answerId, answerText }> for a single attendee. */
 export const getAttendeeAnswersByQuestion = async (
@@ -591,7 +759,7 @@ export const getAttendeeAnswersByQuestion = async (
     `SELECT a.question_id, aa.answer_id, a.text AS answer_text
      FROM attendee_answers aa
      JOIN answers a ON a.id = aa.answer_id
-     WHERE aa.attendee_id = ?`,
+     WHERE aa.answer_id IS NOT NULL AND aa.attendee_id = ?`,
     [attendeeId],
   );
 
@@ -617,8 +785,8 @@ export const getAttendeeAnswersByQuestion = async (
 export const deleteQuestion = async (questionId: number): Promise<void> => {
   await executeBatch([
     {
-      args: [questionId],
-      sql: "DELETE FROM attendee_answers WHERE answer_id IN (SELECT id FROM answers WHERE question_id = ?)",
+      args: [questionId, questionId],
+      sql: "DELETE FROM attendee_answers WHERE question_id = ? OR answer_id IN (SELECT id FROM answers WHERE question_id = ?)",
     },
     { args: [questionId], sql: "DELETE FROM answers WHERE question_id = ?" },
     {

@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { createAttendeeAtomic } from "#shared/db/attendees.ts";
+import { queryAll } from "#shared/db/client.ts";
 import {
   answersTable,
   assignNextQuestionSortOrder,
@@ -11,6 +12,7 @@ import {
   getAnswerAggregateRecalculation,
   getAnswerSelectionTotals,
   getAttendeeAnswersBatch,
+  getAttendeeTextAnswers,
   getListingQuestionIds,
   getNextAnswerSortOrder,
   getQuestionListingIds,
@@ -29,6 +31,7 @@ import {
   updateAnswerAggregateValues,
 } from "#shared/db/questions.ts";
 import { createTestListing, describeWithEnv } from "#test-utils";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
 
 /** Create a test attendee directly via the DB (bypasses routes) */
 const createAttendee = async (listingId: number, name = "Alice") => {
@@ -645,6 +648,76 @@ describeWithEnv("custom questions", { db: true }, () => {
 
       const after = await getAttendeeAnswersBatch([att.id]);
       expect(after.get(att.id)).toEqual([a2.id]);
+    });
+
+    test("saves text-only answers and decrypts them for editing", async () => {
+      const q = await questionsTable.insert({
+        displayType: "free_text",
+        text: "Accessibility needs?",
+      });
+      const listing = await createTestListing();
+      const attendee = await createAttendee(listing.id);
+
+      await saveAttendeeAnswers(
+        new Map([
+          [
+            attendee.id,
+            {
+              answerIds: [],
+              textAnswers: [{ questionId: q.id, text: "Front row please" }],
+            },
+          ],
+        ]),
+      );
+
+      const textAnswers = await getAttendeeTextAnswers(
+        attendee.id,
+        await getTestPrivateKey(),
+      );
+      expect(textAnswers.get(q.id)).toBe("Front row please");
+
+      const strings = await queryAll<{ used_count: number }>(
+        "SELECT used_count FROM strings",
+      );
+      expect(strings.map((row) => row.used_count)).toEqual([1]);
+    });
+
+    test("deduplicates identical text answers and prunes them when unused", async () => {
+      const q = await questionsTable.insert({
+        displayType: "free_text",
+        text: "Dietary needs?",
+      });
+      const listing = await createTestListing();
+      const att1 = await createAttendee(listing.id, "Alice");
+      const att2 = await createAttendee(listing.id, "Bob");
+      const answerSet = {
+        answerIds: [],
+        textAnswers: [{ questionId: q.id, text: "Vegan" }],
+      };
+
+      await saveAttendeeAnswers(
+        new Map([
+          [att1.id, answerSet],
+          [att2.id, answerSet],
+        ]),
+      );
+
+      const afterInsert = await queryAll<{ used_count: number }>(
+        "SELECT used_count FROM strings",
+      );
+      expect(afterInsert.map((row) => row.used_count)).toEqual([2]);
+
+      await saveAttendeeAnswers(new Map([[att1.id, []]]));
+      const afterOneClear = await queryAll<{ used_count: number }>(
+        "SELECT used_count FROM strings",
+      );
+      expect(afterOneClear.map((row) => row.used_count)).toEqual([1]);
+
+      await saveAttendeeAnswers(new Map([[att2.id, []]]));
+      const afterAllClear = await queryAll<{ id: number }>(
+        "SELECT id FROM strings",
+      );
+      expect(afterAllClear).toEqual([]);
     });
 
     test("saveAttendeeAnswers with empty answerIds clears answers", async () => {

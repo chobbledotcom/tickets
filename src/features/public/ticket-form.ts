@@ -8,8 +8,10 @@ import { errorRedirect, htmlResponse } from "#routes/response.ts";
 import { validatePrice } from "#shared/currency.ts";
 import type { AddOnOption } from "#shared/db/modifier-resolve.ts";
 import type {
+  AttendeeAnswerSet,
   QuestionListingMap,
   QuestionWithAnswers,
+  TextAnswer,
 } from "#shared/db/questions.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { ListingFields } from "#shared/types.ts";
@@ -47,6 +49,14 @@ export const formatAtomicError = capacityErrorFormatter({
 
 /** Build a per-listing answer map from parsed answers and the question-listing mapping.
  * Each listing gets only the answer IDs for questions assigned to it. */
+const listingIdsForQuestion = (
+  questionId: number,
+  questionListingMap: QuestionListingMap,
+  selectedListingIds: Set<number>,
+): number[] => questionListingMap.get(questionId) ?? [...selectedListingIds];
+
+/** Build a per-listing answer map from parsed answers and the question-listing mapping.
+ * Each listing gets only the answer IDs for questions assigned to it. */
 export const buildListingAnswerMap = (
   questions: QuestionWithAnswers[],
   answerIds: number[],
@@ -54,17 +64,62 @@ export const buildListingAnswerMap = (
   selectedListingIds: Set<number>,
 ): Record<string, number[]> => {
   const result: Record<string, number[]> = {};
-  for (let i = 0; i < questions.length; i++) {
-    const question = questions[i]!;
-    const answerId = answerIds[i]!;
-    // questionListingMap always contains entries for all questions from getQuestionsWithListingIds
-    for (const listingId of questionListingMap.get(question.id)!) {
+  let answerIndex = 0;
+  for (const question of questions) {
+    if (question.display_type === "free_text") continue;
+    const answerId = answerIds[answerIndex++]!;
+    for (const listingId of listingIdsForQuestion(
+      question.id,
+      questionListingMap,
+      selectedListingIds,
+    )) {
       if (!selectedListingIds.has(listingId)) continue;
       const key = String(listingId);
       (result[key] ??= []).push(answerId);
     }
   }
   return result;
+};
+
+export const buildListingTextAnswerMap = (
+  textAnswers: TextAnswer[],
+  questionListingMap: QuestionListingMap,
+  selectedListingIds: Set<number>,
+): Record<string, TextAnswer[]> => {
+  const result: Record<string, TextAnswer[]> = {};
+  for (const answer of textAnswers) {
+    for (const listingId of listingIdsForQuestion(
+      answer.questionId,
+      questionListingMap,
+      selectedListingIds,
+    )) {
+      if (!selectedListingIds.has(listingId)) continue;
+      const key = String(listingId);
+      (result[key] ??= []).push(answer);
+    }
+  }
+  return result;
+};
+
+export const groupListingAnswerSets = (
+  entries: { attendee: { id: number }; listing: { id: number } }[],
+  listingAnswerIds: Record<string, number[]>,
+  listingTextAnswers: Record<string, TextAnswer[]>,
+): Map<number, AttendeeAnswerSet> => {
+  const answersByAttendee = new Map<number, AttendeeAnswerSet>();
+  for (const { attendee, listing } of entries) {
+    const key = String(listing.id);
+    const answerIds = listingAnswerIds[key] ?? [];
+    const textAnswers = listingTextAnswers[key] ?? [];
+    if (answerIds.length === 0 && textAnswers.length === 0) continue;
+    const existing = answersByAttendee.get(attendee.id) ?? { answerIds: [] };
+    existing.answerIds.push(...answerIds);
+    if (textAnswers.length > 0) {
+      existing.textAnswers = [...(existing.textAnswers ?? []), ...textAnswers];
+    }
+    answersByAttendee.set(attendee.id, existing);
+  }
+  return answersByAttendee;
 };
 
 /** Validate submitted date against available dates; returns the date or null if invalid */

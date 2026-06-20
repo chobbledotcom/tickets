@@ -207,6 +207,19 @@ export const renderQuestions = (
       // fields do. Radios are a set of controls, so they need a <fieldset> with
       // a <legend> to label the group. Both carry .custom-question (plus any
       // data-listing-ids) so the visibility script can show/hide them.
+      if (q.display_type === "free_text") {
+        return (
+          <label class="custom-question" data-listing-ids={listingIds}>
+            {q.text}
+            <input
+              name={`question_${q.id}`}
+              required
+              type="text"
+              value={answered}
+            />
+          </label>
+        );
+      }
       if (q.display_type === "select") {
         return (
           <label class="custom-question" data-listing-ids={listingIds}>

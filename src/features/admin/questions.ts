@@ -94,7 +94,12 @@ export const questionTextForm = defineForm({
       label: "Display as",
       name: "display_type",
       options: QUESTION_DISPLAY_TYPES.map((value) => ({
-        label: value === "radio" ? "Radio buttons" : "Select box",
+        label:
+          value === "radio"
+            ? "Radio buttons"
+            : value === "select"
+              ? "Select box"
+              : "Free text",
         value,
       })),
       required: true,
