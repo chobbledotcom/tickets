@@ -257,6 +257,10 @@ const checkoutIntentForSubmission = (
   };
 };
 
+/** Shown when a cart's tickets sell out between page load and submission. */
+const TICKETS_UNAVAILABLE_MESSAGE =
+  "Sorry, some tickets are no longer available";
+
 /** Handle the paid registration path */
 const handlePaidPath = async (
   request: Request,
@@ -270,9 +274,7 @@ const handlePaidPath = async (
     dayCount,
   );
   if (!available) {
-    return ticketFormErrorResponse(ctx)(
-      "Sorry, some tickets are no longer available",
-    );
+    return ticketFormErrorResponse(ctx)(TICKETS_UNAVAILABLE_MESSAGE);
   }
   return handlePaymentFlow(request, intent, ctx);
 };
@@ -439,6 +441,29 @@ const priceSubmissionBeforeContact = async (
     await resolveSubmissionModifiers(params),
   );
 
+/** Message shown when a selected answer tier has sold out. */
+const soldOutTierMessage = (tiers: string[]): string =>
+  `Sorry, ${tiers.join(", ")} is no longer available. Please choose a different option.`;
+
+/**
+ * An answer is recorded on every ticket that picked it, so a stock-limited
+ * answer tier the buyer over-subscribed can't be partially fulfilled. Returns
+ * the user-facing rejection message, or null when nothing is sold out. Shared
+ * by the submit path (run at the buyer's real visit count) and the quote (run
+ * at zero visits, since a quote strips the PII needed to look the count up), so
+ * both reject the same selection identically.
+ */
+const checkSoldOutTiers = async (
+  pricingParams: SubmissionPricingParams,
+  visits: number,
+): Promise<string | null> => {
+  const tiers = await oversubscribedAnswerTiers(
+    pricingParams.items,
+    submissionModifierOpts(pricingParams, visits),
+  );
+  return tiers.length > 0 ? soldOutTierMessage(tiers) : null;
+};
+
 /** Price with the buyer's real visit count, returning that count so the caller
  * can run the sold-out check against the same eligibility this pricing used. */
 const priceSubmissionWithContact = async (
@@ -588,8 +613,7 @@ const processSubmission = async (
   const prepared = await prepareOrder(ctx, form);
   if (!prepared.ok) return errorResponse(prepared.error);
   const { pricingParams, pricedOrder } = prepared;
-  const { date, dayCount, hasCustomisable, info, items, quantities } =
-    pricingParams;
+  const { date, dayCount, hasCustomisable, info, quantities } = pricingParams;
 
   const paymentsEnabled = isPaymentsEnabled();
   const requiresPaidFields = pricedOrder.total > 0;
@@ -617,20 +641,11 @@ const processSubmission = async (
     } = await priceSubmissionWithContact(contact, pricingParams));
   }
 
-  // An answer is recorded on every ticket that picked it, so a stock-limited
-  // answer tier the buyer over-subscribed can't be partially fulfilled — block
-  // the submission. Run against the same eligibility the pricing resolve used
-  // (now that the buyer's visit count is known), so a tier that wouldn't apply
-  // — cart below its minimum, or too few visits — isn't reported sold out.
-  const soldOutTiers = await oversubscribedAnswerTiers(
-    items,
-    submissionModifierOpts(pricingParams, visits),
-  );
-  if (soldOutTiers.length > 0) {
-    return errorResponse(
-      `Sorry, ${soldOutTiers.join(", ")} is no longer available. Please choose a different option.`,
-    );
-  }
+  // Run the sold-out check at the buyer's real visit count (now known), so a
+  // tier that wouldn't apply — cart below its minimum, or too few visits — isn't
+  // reported sold out.
+  const soldOut = await checkSoldOutTiers(pricingParams, visits);
+  if (soldOut) return errorResponse(soldOut);
 
   const finalRequiresPaidFields = finalPricedOrder.total > 0;
   const finalRequiresPayment = paymentsEnabled && finalRequiresPaidFields;
@@ -686,6 +701,45 @@ const submitTicket = (request: Request, ctx: TicketCtx): Promise<Response> =>
   );
 
 /**
+ * Build the running-total fragment for a parsed-and-priced quote, matching what
+ * the submit path would actually collect:
+ * - a sold-out answer tier is rejected (as submit would), run at zero visits
+ *   since a quote strips the PII needed to look the buyer's count up;
+ * - with no payment provider configured every booking completes free (see
+ *   {@link handleFreePath}), so the quote shows no amount owed.
+ *
+ * A returning buyer's `min_visits` modifiers are not reflected — that needs the
+ * stripped contact details — so the quote is a zero-visits estimate; the submit
+ * path reprices with the real count before charging.
+ */
+const renderQuote = async (
+  ctx: TicketCtx,
+  form: FormParams,
+): Promise<Response> => {
+  const prepared = await prepareOrder(ctx, form);
+  if (!prepared.ok) return htmlResponse(orderSummaryMessage(prepared.error));
+  const { pricingParams, pricedOrder } = prepared;
+  const soldOut = await checkSoldOutTiers(pricingParams, 0);
+  if (soldOut) return htmlResponse(orderSummaryMessage(soldOut));
+  // Reject a cart that has exhausted capacity (e.g. a dated daily listing whose
+  // capped group is full for the chosen day), as the booking submit would.
+  const available = await checkAvailability(
+    ctx.listings,
+    pricingParams.quantities,
+    pricingParams.date,
+    pricingParams.dayCount,
+  );
+  if (!available) {
+    return htmlResponse(orderSummaryMessage(TICKETS_UNAVAILABLE_MESSAGE));
+  }
+  return htmlResponse(
+    isPaymentsEnabled()
+      ? orderSummary(pricedOrder)
+      : orderSummaryMessage("No payment required for this booking."),
+  );
+};
+
+/**
  * Handle POST for the `/calculate` running total. Runs the same parse-and-price
  * path as a real submission but stops before contact validation or any database
  * write, returning the priced order as an HTML fragment. PII fields are never
@@ -696,14 +750,7 @@ const calculateTicket = (request: Request, ctx: TicketCtx): Promise<Response> =>
   withCsrfForm(
     request,
     (message) => htmlResponse(orderSummaryMessage(message), 403),
-    async (form) => {
-      const prepared = await prepareOrder(ctx, form);
-      return htmlResponse(
-        prepared.ok
-          ? orderSummary(prepared.pricedOrder)
-          : orderSummaryMessage(prepared.error),
-      );
-    },
+    (form) => renderQuote(ctx, form),
   );
 
 /**

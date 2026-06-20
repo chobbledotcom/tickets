@@ -1,7 +1,14 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { formatCurrency } from "#shared/currency.ts";
+import { modifiersTable, setModifierAnswers } from "#shared/db/modifiers.ts";
+import {
+  answersTable,
+  questionsTable,
+  setListingQuestions,
+} from "#shared/db/questions.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   createTestGroup,
@@ -10,6 +17,7 @@ import {
   extractCsrfToken,
   mockFormRequest,
   mockRequest,
+  setupStripe,
 } from "#test-utils";
 
 /** GET the booking page for `pageSlug` to mint a CSRF token, then POST the
@@ -28,6 +36,7 @@ const calculate = async (
 
 describeWithEnv("server (/calculate running total)", { db: true }, () => {
   test("returns a priced summary for a valid selection", async () => {
+    await setupStripe();
     const listing = await createTestListing({
       maxQuantity: 5,
       name: "Adult Ticket",
@@ -47,6 +56,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
   });
 
   test("prices a multi-unit line with a booking-fee extra line", async () => {
+    await setupStripe();
     await settings.update.bookingFee("10");
     const listing = await createTestListing({
       maxQuantity: 5,
@@ -70,6 +80,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
   });
 
   test("totals without any contact details (PII is stripped)", async () => {
+    await setupStripe();
     const listing = await createTestListing({
       maxQuantity: 5,
       name: "Free Entry",
@@ -110,6 +121,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
   });
 
   test("prices a group booking posted to the group slug", async () => {
+    await setupStripe();
     const group = await createTestGroup({ name: "Festival", slug: "festival" });
     const listing = await createTestListing({
       groupId: group.id,
@@ -125,6 +137,84 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     const html = await response.text();
     expect(html).toContain("Day Pass");
     expect(html).toContain(formatCurrency(2000));
+  });
+
+  test("shows no amount owed when payments are disabled", async () => {
+    // No payment provider configured: the submit path completes the booking for
+    // free, so the quote must not imply an amount is due.
+    const listing = await createTestListing({
+      maxQuantity: 5,
+      name: "Paid Seat",
+      unitPrice: 2500,
+    });
+
+    const html = await (
+      await calculate(listing.slug, listing.slug, {
+        [`quantity_${listing.id}`]: "1",
+      })
+    ).text();
+    expect(html).toContain("No payment required");
+    expect(html).not.toContain(formatCurrency(2500));
+  });
+
+  test("rejects a sold-out answer tier in the quote", async () => {
+    await setupStripe();
+    const listing = await createTestListing({ maxAttendees: 50 });
+    const question = await questionsTable.insert({
+      displayType: "radio",
+      text: "T-shirt size?",
+    });
+    const answer = await answersTable.insert({
+      questionId: question.id,
+      sortOrder: 0,
+      text: "Small",
+    });
+    await setListingQuestions(listing.id, [question.id]);
+    // A stock-limited answer tier with no stock left, selected by the quote.
+    const tier = await modifiersTable.insert({
+      calcKind: "fixed",
+      calcValue: 5,
+      direction: "charge",
+      name: "VIP upgrade",
+      stock: 0,
+      trigger: "answer",
+    });
+    await setModifierAnswers(tier.id, [answer.id]);
+
+    const html = await (
+      await calculate(listing.slug, listing.slug, {
+        [`question_${question.id}`]: String(answer.id),
+        [`quantity_${listing.id}`]: "1",
+      })
+    ).text();
+    expect(html).toContain("no longer available");
+  });
+
+  test("reports unavailable tickets when capacity is exhausted", async () => {
+    await setupStripe();
+    const listing = await createTestListing({
+      maxQuantity: 5,
+      name: "Capped",
+      unitPrice: 1000,
+    });
+
+    // Simulate capacity exhausted between page load and the quote (e.g. a dated
+    // group day filling up), as the submit path's availability check would catch.
+    const { attendeesApi } = await import("#shared/db/attendees.ts");
+    const mockBatch = stub(attendeesApi, "checkBatchAvailability", () =>
+      Promise.resolve(false),
+    );
+    try {
+      const html = await (
+        await calculate(listing.slug, listing.slug, {
+          [`quantity_${listing.id}`]: "1",
+        })
+      ).text();
+      expect(html).toContain("no longer available");
+      expect(html).not.toContain("order-summary-total");
+    } finally {
+      mockBatch.restore();
+    }
   });
 
   test("returns 404 for an unknown single slug", async () => {
