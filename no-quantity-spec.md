@@ -49,9 +49,20 @@ fight the triggers:
    fires on `quantity` (it's in `LISTING_AGGREGATE_WRITE_COLUMNS`), so toggling a
    line 0↔n recomputes correctly via the OLD/NEW CASE deltas.
 2. **Two separate queries in `src/shared/db/listings.ts`**, each with its own
-   `COUNT(*) AS tickets_count` — add `AND quantity > 0` to **both**:
-   `aggregateResetSql` (used by `resetListingAggregateFields`) **and**
-   `getListingAggregateRecalculation` (the current-vs-recalculated drift display).
+   `tickets_count` — but they need **different** fragments, because one shares its
+   `SELECT` with `income`:
+   - `aggregateResetSql` (used by `resetListingAggregateFields`) builds a
+     **separate** per-field subquery (`tickets_count = (SELECT COUNT(*) … WHERE
+     listing_id = ?)`), independent of the `income`/`booked_quantity` fragments —
+     so add `AND quantity > 0` to **its** `WHERE`.
+   - `getListingAggregateRecalculation` computes `booked_quantity`,
+     `tickets_count`, **and** `income` in **one** `SELECT … WHERE listing_id = ?`.
+     Do **not** add `AND quantity > 0` to that shared `WHERE` — it would also drop
+     a quantity-0 row's `price_paid` from the recalculated `income` (which must
+     stay `SUM(price_paid)`) and silently normalize an invariant violation instead
+     of surfacing it. Change only the count expression there to `SUM(CASE WHEN
+     quantity > 0 THEN 1 ELSE 0 END) AS tickets_count`, leaving
+     `income`/`booked_quantity` summed over all rows.
    Missing the recalculation query makes the repair page report quantity-0 lines
    as drift and push owners to "fix" aggregates back to the wrong value.
 3. **The full backfill in `src/shared/db/migrations/schema-sync.ts`**: the
@@ -257,7 +268,16 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
     payment onto the lowest-id **real** line, never a lower-id ghost. It then runs
     a *separate* `SELECT listing_id … ORDER BY id LIMIT 1` to pick the listing it
     logs the payment activity against (and returns) — add `AND quantity > 0` there
-    too, or the activity/returned listing is still the ghost.
+    too, or the activity/returned listing is still the ghost. **And make the
+    finalize conditional on that fold hitting a real line.** Today the settle
+    verdict is the *last* statement — the `remaining_balance = 0` clear — which is
+    independent of the price_paid fold. If the last real line is marked no-quantity
+    after checkout but before settlement, the (now `quantity > 0`-guarded) fold
+    affects **zero** rows while the clear still finalizes, paying off the balance
+    with **no income recorded on any line**. Abort when the fold touches no row
+    (guard the clear on `EXISTS` a `quantity > 0` line, or treat the fold's
+    `rowsAffected = 0` as the mismatch verdict) — don't rely on the §4
+    balance-clear or the pay-page gate alone to close this race.
   - **The pay page itself must pick a real line.** `/pay/:token` renders
     `getAttendeeOrderSummary()`, which selects every `listing_attendees` row
     ordered by id, and the POST uses `summary.lines[0]?.listingId` as the checkout

@@ -411,11 +411,17 @@ Dates — every imported booking is dated (daily listings only):
   dated. Store `date` from `Delivery Date` and `durationDays` as the day span
   through `Collection Date`; the daily listing's `start_at`/`end_at` then carry the
   delivery/collection range.
-- This makes the operational surfaces work **out of the box, without touching the
-  standard-listing model**: logistics run sheets read the line's
-  `start_at`/`end_at` (`getAgentRunSheet`), and the day-calendar dates daily
-  listings by the line's `start_at` (`getDailyListingAttendeesByDate`). Both are
-  already correct for daily listings.
+- This makes the **day-calendar** work out of the box, without touching the
+  standard-listing model: it dates daily listings by the line's `start_at`
+  (`getDailyListingAttendeesByDate`), which the import populates. **Run sheets are
+  not automatic, though:** `getAgentRunSheet` filters on the row's
+  `start_agent_id`/`end_agent_id` matching the querying agent, and the importer
+  does **not** assign agents (the CSV carries delivery/collection *times*, not
+  staff). So an imported line carries the right `start_at`/`end_at`/`start_time`/
+  `end_time` and appears on the day-calendar immediately, but reaches an agent's
+  run sheet only once an admin assigns an agent. Accept that (the realistic
+  choice) or add agent assignment to the importer — don't claim run sheets work
+  out of the box.
 - The daily-only gate is deliberate: standard-type listings date by `listing.date`
   (the calendar's `buildStandardListingDateMap` and the ICS feed's `DTSTART`),
   **not** the line, so retrofitting line dates onto them would force new line-date
@@ -751,9 +757,12 @@ Target algorithm:
    status that matches more than one local status as ambiguous.
 8. Resolve configured text custom-question columns to existing `free_text`
    questions by normalized exact text.
-9. If any products, statuses, or required question mappings are missing,
-   redirect to the missing-setup page with repeated query params. No writes have
-   happened.
+9. If any products, statuses, or required question mappings are missing, stash
+   the missing set server-side (short-lived) and redirect to the missing-setup
+   page with **only a stash token** — not repeated query params, which a wide
+   first import can push past proxy/browser URL limits (see Proposed Routes And
+   UI). No writes have happened. Tests assert the redirect carries a token, not a
+   param list.
 10. Validate dates, quantities, money, and required raw fields.
 11. Do not preflight capacity. Legacy imports may overbook.
 12. Encrypt attendee PII blobs for every new candidate.
@@ -777,10 +786,16 @@ Target algorithm:
     - insert `attendee_answers(attendee_id, question_id, string_id)` text-answer
       rows using the resolved string ids;
     - persist the raw audit-trail fields to their durable encrypted destination;
-    - record a visit (`recordOrderVisit`-equivalent) for candidates that have ≥1
-      real (`quantity > 0`) line, so imported repeat customers aren't treated as
-      first-time visitors by visit-gated modifiers — but **not** for cancelled or
-      quote-only (quantity-0-only) candidates;
+    - record a visit for candidates that have ≥1 real (`quantity > 0`) line, so
+      imported repeat customers aren't treated as first-time visitors by
+      visit-gated modifiers — but **not** for cancelled or quote-only
+      (quantity-0-only) candidates. Do **not** reuse `recordOrderVisit` /
+      `recordVisit` as-is: they set `last_activity = nowMs()`, which makes an old
+      imported booking look freshly active to `pruneContacts`. Increment `visits`
+      using the **source booking date** (`Date Booked`) while keeping the **newer**
+      timestamp — `last_activity = MAX(existing.last_activity, source)` — so import
+      never moves a recently-active contact backwards into prune range nor
+      refreshes a stale one;
     - insert `booking_imports(old_id, new_id)`.
 15. If any insert fails, the transaction rolls back and no attendees, listing
     lines, text answers, new `strings` rows, audit-trail records, visit counts, or
@@ -909,7 +924,14 @@ Behavior:
   build the `/admin/listing/:id/edit` link and load the listing to display its
   name. Listing names are encrypted at rest and can collide after
   decryption/normalization, so the id can't be reconstructed from the name alone.
-  Render these in their own section.
+  **Carry the resolver's convertibility verdict too** (see Product matching): an
+  *empty, ungrouped* standard listing can be converted in place, so the "make it
+  daily" edit-link copy fits; but a **populated** listing, or one in a **group
+  with populated standard siblings**, is *unconvertible* (converting strands its
+  undated rows) — render those in a separate group with migrate / ungroup /
+  replace guidance, **not** a plain "edit → make daily" link that walks the
+  operator into an unsafe conversion or a retry loop. Render these in their own
+  section.
 - Include a link back to the upload page.
 - Text should tell the user to create the missing setup, then upload the CSV
   again.
@@ -947,9 +969,10 @@ Add focused tests before broad route tests:
   a forced late-row failure.
 - A product matching a `daily`-type listing imports a dated line
   (`start_at`/`end_at` from `Delivery Date`/`Collection Date`) that appears on the
-  assigned agent's run sheet (`getAgentRunSheet`); a product matching a
-  `standard`-type listing **blocks** the upload (listed on the missing-setup page
-  as must-be-daily) and writes nothing.
+  **day-calendar** (`getDailyListingAttendeesByDate`) — and on an agent run sheet
+  (`getAgentRunSheet`) only **after** an agent is assigned, since the importer
+  doesn't assign one; a product matching a `standard`-type listing **blocks** the
+  upload (listed on the missing-setup page as must-be-daily) and writes nothing.
 - A source booking repeating the same matched listing — same date or different
   dates — produces a single quantity-collapsed line (one row per
   `(attendee, listing)`, widest date range), proving the planner collapses rather
@@ -1028,9 +1051,11 @@ Semantic-correctness tests (verified against live behaviour):
   import leaves none.
 - **Imported daily hires land on the right operational dates:** an imported
   booking on a daily listing appears on the day-calendar
-  (`getDailyListingAttendeesByDate`) and the agent run sheet at its `Delivery
-  Date` (the line's `start_at`), confirming the daily-only gate makes per-booking
-  dates work without new standard-listing line-date paths.
+  (`getDailyListingAttendeesByDate`) at its `Delivery Date` (the line's
+  `start_at`); once an agent is assigned it also shows on that agent's run sheet
+  (`getAgentRunSheet`) — the importer populates the dates/times but not the agent.
+  Confirms the daily-only gate makes per-booking dates work without new
+  standard-listing line-date paths.
 - **A later-orphaned import frees its `old_id`:** deleting an imported booking's
   last listing, then running the orphan auto-purge, removes the attendee *and* its
   `booking_imports` row, so re-uploading the same CSV re-creates the booking
