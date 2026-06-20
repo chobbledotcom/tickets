@@ -351,6 +351,11 @@ Product matching:
 - Match known listing names longest first over the raw `Equipments` text before
   splitting on separators. This lets a local listing named
   `Rodeo Bull / Bucking Bronco` win before the slash is considered a separator.
+  **But if the split tokens are *also* each a viable local match (e.g. both
+  `Rodeo Bull` and `Bucking Bronco` exist as listings), the token is genuinely
+  ambiguous — fail validation with a row-level error rather than silently
+  preferring the combined listing**, since ` / ` is the source export's own
+  product separator and either reading is plausible.
 - **Only accept a match that spans a whole source product token** — i.e. the
   match must be bounded on both sides by a known separator or by the
   start/end of the field. A listing name that is merely a *substring* of a token
@@ -374,10 +379,12 @@ Product matching:
   its group: an *empty, ungrouped* standard listing can be converted in place, but
   conversion is **unsafe** when (a) the listing **has existing bookings** — its
   undated rows would drop off the daily calendar/capacity, which only consider
-  dated rows; or (b) the listing is in a **group** whose other members are
-  populated standard listings — the admin edit path forces every listing in a
-  group to share `listing_type`, so the operator can't convert just this one, and
-  converting the whole group pushes the siblings' undated rows into the same hole.
+  dated rows; or (b) the listing is in a **group with any other listings** —
+  `validateGroupListingType` forces every listing in a group to share
+  `listing_type` *regardless of whether the siblings are populated*, so the
+  operator can't convert just this one in place (they must ungroup it first); and
+  if the siblings are populated standard listings, converting the whole group
+  would push their undated rows into the same hole.
   Block both cases as unresolvable setup errors (the operator must migrate /
   ungroup / replace deliberately); never auto-convert. This gate is what lets the importer treat every
   imported booking as dated end-to-end — daily listings carry the
@@ -401,7 +408,7 @@ Suggested field mapping:
 | --- | --- | --- |
 | `Booking ID` | `booking_imports.old_id` | Required, unique per CSV. |
 | created attendee id | `booking_imports.new_id` | Write only after attendee creation succeeds. |
-| `Date Booked` | attendee `created` | Parse the source booking date into `attendees.created` so admin "newest" views and calendar/list/CSV exports order imports by when they were originally booked, not import time. Fall back to import time only if `Date Booked` is missing/unparseable. **Two id-ordered surfaces must also change** (they order by `a.id`, and imports get fresh ids despite old `created`): the dashboard `getNewestAttendeesRaw` (`ORDER BY a.id DESC`) and the `/admin/attendees` browser + CSV `getAttendeesPage` (`ORDER BY a.id ASC/DESC`, paginated). Switch both to order by `created` with `id` as a deterministic tiebreaker (`ORDER BY a.created DESC, a.id DESC`; ascending for the `oldest` variant), backed by a composite index on `(created, id)` so the scan and pagination stay cheap. |
+| `Date Booked` | attendee `created` | Parse the source booking date into `attendees.created` so admin "newest" views and calendar/list/CSV exports order imports by when they were originally booked, not import time. Fall back to import time only if `Date Booked` is missing/unparseable. **Two id-ordered surfaces must also change** (they order by `a.id`, and imports get fresh ids despite old `created`): the dashboard `getNewestAttendeesRaw` (`ORDER BY a.id DESC`) and the `/admin/attendees` browser + CSV `getAttendeesPage` (`ORDER BY a.id ASC/DESC`, paginated). Switch both to order by `created` with `id` as the next key (`ORDER BY a.created DESC, a.id DESC`; ascending for the `oldest` variant), backed by a composite index on `(created, id)`. **`getAttendeesPage` JOINs `listing_attendees` and returns one row per booking line**, so a multi-listing import has several rows sharing `created`+`id`; add a stable booking-line tiebreaker (`ea.listing_id`, `ea.start_at`) after `a.id` for that query so OFFSET pagination and CSV export are deterministic (apply the same key to `getNewestAttendeesRaw` if it also joins per line). |
 | `Customer Name` | attendee `name` | If blank, decide whether to reject or use `Imported booking {id}`. |
 | `Email` | attendee `email` | Import the raw source value, including invalid or concatenated emails. Add importer-specific support so these rows do not get rejected or split. **Accepted tradeoff:** the edit form renders `email` as `type="email"` and POST runs `validateEmail`, so the first admin re-save of an imported row with an invalid/concatenated email is blocked until the operator fixes or clears it; the importer does not relax the edit path or relocate the raw value (decision: keep raw). |
 | `Mobile`, `Telephone` | attendee `phone` | Prefer mobile; append alternate phone to a free-text answer / notes if both exist. |
@@ -870,6 +877,13 @@ Implementation notes:
     the lines and increment the already-held aggregates a *second* time
     (double-count). The booking stays "imported" and is not re-creatable until the
     held capacity is released.
+  - **`deleteListing`** deletes the listing's `listing_attendees` rows outright
+    (releasing aggregates immediately) and keeps the attendee. By the
+    capacity-released principle above, free the mapping **here too** for any
+    attendee this leaves with zero lines (`DELETE FROM booking_imports WHERE
+    new_id IN (newly-orphaned ids)`) rather than waiting for orphan auto-purge,
+    which may be disabled or age-gated: until it runs, the attendee holds no
+    capacity yet its `old_id` would still block a clean re-import.
   (Quantity-0 lines were still chosen over a `booking_imports`-aware exclusion in
   `ORPHAN_IDS` because they also keep the products structured and matched while
   the attendee is live.)
@@ -938,11 +952,11 @@ Behavior:
   **Carry the resolver's convertibility verdict too** (see Product matching): an
   *empty, ungrouped* standard listing can be converted in place, so the "make it
   daily" edit-link copy fits; but a **populated** listing, or one in a **group
-  with populated standard siblings**, is *unconvertible* (converting strands its
-  undated rows) — render those in a separate group with migrate / ungroup /
-  replace guidance, **not** a plain "edit → make daily" link that walks the
-  operator into an unsafe conversion or a retry loop. Render these in their own
-  section.
+  with any siblings** (a single in-place type change is rejected by
+  `validateGroupListingType` regardless of sibling population), is *unconvertible*
+  — render those in a separate group with migrate / ungroup / replace guidance,
+  **not** a plain "edit → make daily" link that walks the operator into a save
+  that can't succeed or a retry loop. Render these in their own section.
 - Include a link back to the upload page.
 - Text should tell the user to create the missing setup, then upload the CSV
   again.
