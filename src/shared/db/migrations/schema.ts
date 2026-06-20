@@ -1018,7 +1018,6 @@ AFTER DELETE ON attendee_answers
 WHEN OLD.string_id IS NOT NULL
 BEGIN
   UPDATE strings SET used_count = used_count - 1 WHERE id = OLD.string_id;
-  DELETE FROM strings WHERE id = OLD.string_id AND used_count <= 0;
 END`,
     table: "attendee_answers",
   },
@@ -1029,7 +1028,6 @@ AFTER UPDATE OF string_id ON attendee_answers
 WHEN OLD.string_id IS NOT NEW.string_id
 BEGIN
   UPDATE strings SET used_count = used_count - 1 WHERE id = OLD.string_id;
-  DELETE FROM strings WHERE id = OLD.string_id AND used_count <= 0;
   UPDATE strings SET used_count = used_count + 1 WHERE id = NEW.string_id;
 END`,
     table: "attendee_answers",

@@ -16,9 +16,10 @@
  *   `last_activity` is bumped on booking and outreach; pruning subscribed rows
  *   bounds table growth and makes returning-customer recognition
  *   recency-bounded. Unsubscribed rows are suppression records and are kept.
- * - strings: owner-key-encrypted free-text answer values. Referenced rows are
- *   maintained by attendee_answers triggers; this prunes unused rows left by
- *   abandoned paid checkouts.
+ * - strings: owner-key-encrypted free-text answer values. The attendee_answers
+ *   triggers maintain each row's reference count but never delete (a pending
+ *   paid checkout can hold a `string_id` in its metadata before finalizing), so
+ *   this age-based prune is the sole cleanup for unused rows.
  * - attendees (orphaned only): rows with no surviving listing booking, older
  *   than the age chosen on the Privacy page. Opt-in — only scheduled while
  *   `auto_purge_orphans` is on (see PRUNE_TASKS).

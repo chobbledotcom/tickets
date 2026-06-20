@@ -254,6 +254,16 @@ const handleAddAnswer = createAuthedFormRoute<
   form: answerTextForm,
   onInvalid: redirectToQuestion,
   onValid: async ({ params, values: { text } }) => {
+    const question = await getQuestionWithAnswers(params.id);
+    if (!question) return notFoundResponse();
+    // Free-text questions collect a typed value, never an answer id, so answer
+    // options (and any answer-triggered modifiers) would be silently ignored.
+    if (question.display_type === "free_text") {
+      return errorRedirect(
+        `/admin/questions/${params.id}`,
+        "Free-text questions don't have answer options",
+      );
+    }
     const sortOrder = await getNextAnswerSortOrder(params.id);
     await answersTable.insert({ questionId: params.id, sortOrder, text });
     await logActivity(`Answer '${text}' added to question ${params.id}`);

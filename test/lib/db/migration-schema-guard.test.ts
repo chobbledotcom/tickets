@@ -41,7 +41,7 @@ describe("db > migrations > schema change guard", () => {
         "2026-06-20_string_created",
         "2026-06-20_answer_active",
       ],
-      schemaHash: "1sl3gfc",
+      schemaHash: "1l3usso",
     });
   });
 });

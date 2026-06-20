@@ -582,14 +582,16 @@ export const getOrCreateStringIds = async (
       args: [row.textIndex, row.encrypted, created],
       sql: "INSERT OR IGNORE INTO strings (text_index, encrypted_text, created) VALUES (?, ?, ?)",
     })),
-    // Refresh `created` on any pre-existing but still-unattached (used_count = 0)
-    // row we are about to reference. INSERT OR IGNORE leaves an abandoned older
-    // row's timestamp untouched, so without this the age-based prune could
-    // delete it while this checkout is still at the payment provider — leaving
-    // the signed metadata pointing at a missing string_id.
+    // Refresh `created` on every referenced row. INSERT OR IGNORE leaves an
+    // existing row's timestamp untouched, so without this the age-based prune
+    // could delete a row a checkout still references in its signed metadata
+    // (the trigger no longer deletes on used_count = 0, so the pruner is the
+    // only thing that removes strings). Refreshing a row that is reused now —
+    // even one currently attached to another attendee — keeps it alive past
+    // that other attendee later freeing it, until this checkout finalizes.
     {
       args: [created, ...textIndexes],
-      sql: `UPDATE strings SET created = ? WHERE used_count = 0 AND text_index IN (${inPlaceholders(textIndexes)})`,
+      sql: `UPDATE strings SET created = ? WHERE text_index IN (${inPlaceholders(textIndexes)})`,
     },
   ]);
   const found = await queryAll<{ id: number; text_index: string }>(

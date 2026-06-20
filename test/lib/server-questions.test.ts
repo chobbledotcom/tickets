@@ -350,6 +350,37 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       );
     });
 
+    test("returns 404 when adding an answer to a non-existent question", async () => {
+      const { response } = await adminFormPost("/admin/questions/999/answers", {
+        text: "Orphan option",
+      });
+      expectStatus(404)(response);
+    });
+
+    test("rejects adding an answer to a free-text question", async () => {
+      const { questionsTable, getQuestionWithAnswers } = await import(
+        "#shared/db/questions.ts"
+      );
+      const q = await questionsTable.insert({
+        displayType: "free_text",
+        text: "Notes?",
+      });
+      const { response } = await adminFormPost(
+        `/admin/questions/${q.id}/answers`,
+        { text: "Ignored option" },
+      );
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining(
+          "Free-text questions don't have answer options",
+        ),
+        false,
+      );
+      const question = await getQuestionWithAnswers(q.id);
+      expect(question!.answers).toEqual([]);
+    });
+
     test("assigns correct sort order to answers", async () => {
       const id = await createQuestion("Sort order test");
       await addAnswer(id, "First");

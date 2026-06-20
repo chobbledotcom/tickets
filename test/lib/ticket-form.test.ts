@@ -83,6 +83,31 @@ describe("ticket form answer grouping", () => {
     });
   });
 
+  test("skips an inactive-only choice question so answer ids stay aligned", () => {
+    const inactiveOnly: QuestionWithAnswers = {
+      answers: [
+        { active: false, id: 10, question_id: 1, sort_order: 0, text: "Gone" },
+      ],
+      display_type: "radio",
+      id: 1,
+      text: "Q1",
+    };
+    // The parser skips the inactive-only question, so answerIds holds only the
+    // active question's answer (20). The map must put it on Q2's listing (202),
+    // not consume the slot for the skipped Q1 (101).
+    const choiceMap = buildListingAnswerMap(
+      [inactiveOnly, question(2, "radio")],
+      [20],
+      new Map([
+        [1, [101]],
+        [2, [202]],
+      ]),
+      new Set([101, 202]),
+    );
+
+    expect(choiceMap).toEqual({ "202": [20] });
+  });
+
   test("applies an assign-all question (absent from the map) to every selected listing", () => {
     const selectedListingIds = new Set([101, 202]);
 

@@ -180,6 +180,21 @@ describe("adminQuestionPage", () => {
     expect(html).not.toContain("Radio buttons");
   });
 
+  test("hides answer management for a free-text question", () => {
+    const html = adminQuestionPage(
+      {
+        answers: [],
+        display_type: "free_text" as const,
+        id: 1,
+        text: "Notes?",
+      },
+      TEST_SESSION,
+    );
+    // No add-answer form or answer heading — just an explanatory note.
+    expect(html).not.toContain("/admin/questions/1/answers");
+    expect(html).toContain("they have no answer options");
+  });
+
   test("renders answers in a table with their selection totals", () => {
     const counts = new Map([
       [10, 5],

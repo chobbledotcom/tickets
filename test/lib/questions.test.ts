@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { createAttendeeAtomic } from "#shared/db/attendees.ts";
 import { execute, queryAll } from "#shared/db/client.ts";
+import { pruneUnusedStrings } from "#shared/db/prune.ts";
 import {
   answersTable,
   assignNextQuestionSortOrder,
@@ -762,7 +763,7 @@ describeWithEnv("custom questions", { db: true }, () => {
       expect(textAnswers.get(q.id)).toBe("Keep me");
     });
 
-    test("deduplicates identical text answers and prunes them when unused", async () => {
+    test("deduplicates identical text answers and leaves freed rows for the pruner", async () => {
       const q = await questionsTable.insert({
         displayType: "free_text",
         text: "Dietary needs?",
@@ -793,11 +794,21 @@ describeWithEnv("custom questions", { db: true }, () => {
       );
       expect(afterOneClear.map((row) => row.used_count)).toEqual([1]);
 
+      // Freeing the last reference does NOT delete the row — a pending paid
+      // checkout could still reference it in its signed metadata. The row
+      // lingers at used_count 0 until the age-based pruner removes it.
       await saveAttendeeAnswers(new Map([[att2.id, []]]));
-      const afterAllClear = await queryAll<{ id: number }>(
-        "SELECT id FROM strings",
+      const afterAllClear = await queryAll<{ used_count: number }>(
+        "SELECT used_count FROM strings",
       );
-      expect(afterAllClear).toEqual([]);
+      expect(afterAllClear.map((row) => row.used_count)).toEqual([0]);
+
+      // Once aged past retention, the pruner deletes the unused row.
+      await execute(
+        "UPDATE strings SET created = '2000-01-01T00:00:00Z' WHERE used_count = 0",
+      );
+      await pruneUnusedStrings();
+      expect(await queryAll("SELECT id FROM strings")).toEqual([]);
     });
 
     test("skips a text answer whose question was deleted at finalize", async () => {

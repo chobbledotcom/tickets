@@ -86,7 +86,11 @@ export const buildListingAnswerMap = (
   const result: Record<string, number[]> = {};
   let answerIndex = 0;
   for (const question of questions) {
+    // Skip exactly what parseQuestionAnswers skips, so answerIds stays aligned:
+    // free-text questions (no answer id) and choice questions whose answers are
+    // all deactivated (treated as not applicable, so no answer id either).
     if (question.display_type === "free_text") continue;
+    if (!question.answers.some((a) => a.active)) continue;
     pushToListings(
       result,
       question.id,

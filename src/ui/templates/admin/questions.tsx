@@ -191,56 +191,67 @@ export const adminQuestionPage = (
         <SubmitButton icon="save">{t("questions.edit.update")}</SubmitButton>
       </CsrfForm>
 
-      <h2>{t("questions.edit.answers_heading")}</h2>
-      <CsrfForm
-        action={`/admin/questions/${question.id}/answers`}
-        id="add-answer"
-      >
-        <Raw html={answerTextForm.render()} />
-        <SubmitButton icon="plus">
-          {t("questions.edit.add_answer")}
-        </SubmitButton>
-      </CsrfForm>
-
-      {question.answers.length === 0 ? (
+      {question.display_type === "free_text" ? (
         <p>
-          <em>{t("questions.edit.no_answers")}</em>
+          <em>
+            Free-text questions collect a typed answer, so they have no answer
+            options to manage.
+          </em>
         </p>
       ) : (
-        <div class="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>{t("questions.order_column")}</th>
-                <th>{t("questions.answer_column")}</th>
-                <th>{t("questions.selected_column")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {question.answers.map((a, i) => (
-                <tr>
-                  <td>
-                    <ReorderControls
-                      action={(d) =>
-                        `/admin/questions/${question.id}/answers/${a.id}/move-${d}`
-                      }
-                      count={question.answers.length}
-                      index={i}
-                    />
-                  </td>
-                  <td>
-                    <a
-                      href={`/admin/questions/${question.id}/answers/${a.id}/edit`}
-                    >
-                      {a.text}
-                    </a>
-                  </td>
-                  <td>{answerCounts?.get(a.id) ?? 0}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          <h2>{t("questions.edit.answers_heading")}</h2>
+          <CsrfForm
+            action={`/admin/questions/${question.id}/answers`}
+            id="add-answer"
+          >
+            <Raw html={answerTextForm.render()} />
+            <SubmitButton icon="plus">
+              {t("questions.edit.add_answer")}
+            </SubmitButton>
+          </CsrfForm>
+
+          {question.answers.length === 0 ? (
+            <p>
+              <em>{t("questions.edit.no_answers")}</em>
+            </p>
+          ) : (
+            <div class="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>{t("questions.order_column")}</th>
+                    <th>{t("questions.answer_column")}</th>
+                    <th>{t("questions.selected_column")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {question.answers.map((a, i) => (
+                    <tr>
+                      <td>
+                        <ReorderControls
+                          action={(d) =>
+                            `/admin/questions/${question.id}/answers/${a.id}/move-${d}`
+                          }
+                          count={question.answers.length}
+                          index={i}
+                        />
+                      </td>
+                      <td>
+                        <a
+                          href={`/admin/questions/${question.id}/answers/${a.id}/edit`}
+                        >
+                          {a.text}
+                        </a>
+                      </td>
+                      <td>{answerCounts?.get(a.id) ?? 0}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
 
       <h2>{t("questions.assign_to_listings")}</h2>
