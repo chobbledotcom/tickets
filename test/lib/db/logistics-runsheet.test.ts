@@ -203,7 +203,7 @@ describeWithEnv("db setLegDone", { db: true }, () => {
   });
 
   test("returns false for no agent ids", async () => {
-    expect(await setLegDone(1, 1, "start", true, [])).toBe(false);
+    expect(await setLegDone(1, 1, "start", D1, true, [])).toBe(false);
   });
 
   test("marks the start leg done for the owning agent", async () => {
@@ -213,7 +213,9 @@ describeWithEnv("db setLegDone", { db: true }, () => {
       startAgentId: van,
       startDate: D1,
     });
-    const ok = await setLegDone(attendeeId, listingId, "start", true, [van]);
+    const ok = await setLegDone(attendeeId, listingId, "start", D1, true, [
+      van,
+    ]);
     expect(ok).toBe(true);
     const legs = await getAgentRunSheet([van], [D1]);
     expect(legs[0]?.done).toBe(true);
@@ -227,7 +229,7 @@ describeWithEnv("db setLegDone", { db: true }, () => {
       startAgentId: van,
       startDate: D1,
     });
-    await setLegDone(attendeeId, listingId, "end", true, [van]);
+    await setLegDone(attendeeId, listingId, "end", D1, true, [van]);
     const legs = await getAgentRunSheet([van], [D1]);
     expect(legs.find((l) => l.kind === "start")?.done).toBe(false);
     expect(legs.find((l) => l.kind === "end")?.done).toBe(true);
@@ -241,8 +243,23 @@ describeWithEnv("db setLegDone", { db: true }, () => {
       startDate: D1,
       startDone: true,
     });
-    await setLegDone(attendeeId, listingId, "start", false, [van]);
+    await setLegDone(attendeeId, listingId, "start", D1, false, [van]);
     const legs = await getAgentRunSheet([van], [D1]);
+    expect(legs[0]?.done).toBe(false);
+  });
+
+  test("refuses to update an owning agent leg on a different date", async () => {
+    const { attendeeId, listingId } = await makeBooking({
+      endAgentId: null,
+      endDate: D4,
+      startAgentId: van,
+      startDate: D3,
+    });
+    const ok = await setLegDone(attendeeId, listingId, "start", D1, true, [
+      van,
+    ]);
+    expect(ok).toBe(false);
+    const legs = await getAgentRunSheet([van], [D3]);
     expect(legs[0]?.done).toBe(false);
   });
 
@@ -254,7 +271,7 @@ describeWithEnv("db setLegDone", { db: true }, () => {
       startDate: D1,
     });
     const kind: DeliveryLegKind = "start";
-    const ok = await setLegDone(attendeeId, listingId, kind, true, [van]);
+    const ok = await setLegDone(attendeeId, listingId, kind, D1, true, [van]);
     expect(ok).toBe(false);
     const legs = await getAgentRunSheet([other], [D1]);
     expect(legs[0]?.done).toBe(false);
