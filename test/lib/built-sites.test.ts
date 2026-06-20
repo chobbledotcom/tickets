@@ -34,6 +34,10 @@ describe("siteBaseUrl", () => {
       "https://example.com",
     );
   });
+
+  test("normalizes an uppercase scheme to a lowercase origin", () => {
+    expect(siteBaseUrl("HTTPS://example.com")).toBe("https://example.com");
+  });
 });
 
 describeWithEnv("claimNextBuiltSiteForPrune", { db: true }, () => {

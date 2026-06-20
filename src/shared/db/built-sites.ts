@@ -299,9 +299,11 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
 /** Normalize a site's bunny URL to its absolute origin — scheme + host only,
  * with any path, query, hash, or trailing slash dropped — so callers can safely
  * append a path. bunnyUrl may be stored as a bare hostname, so a default scheme
- * is added first; `new URL(...).origin` then collapses anything past the host. */
+ * is added first (scheme detection is case-insensitive, so an `HTTPS://` URL
+ * isn't mistaken for a hostname); `new URL(...).origin` then collapses anything
+ * past the host and lower-cases the scheme. */
 export const siteBaseUrl = (siteUrl: string): string => {
-  const withScheme = /^https?:\/\//.test(siteUrl)
+  const withScheme = /^https?:\/\//i.test(siteUrl)
     ? siteUrl
     : `https://${siteUrl}`;
   return new URL(withScheme).origin;
