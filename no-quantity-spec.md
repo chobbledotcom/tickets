@@ -110,10 +110,14 @@ literal `0`.
   checkbox-driven CSS.
 - **Save:** box checked → store `quantity = 0` and **keep the line**; unchecked →
   store the entered quantity (`>= 1`). Round-trips both ways.
-- **Clear `price_paid` when marking no-quantity** (same write), or forbid the box
-  on a line with `price_paid > 0`. Income is `SUM(price_paid)`, so a paid line
-  marked no-quantity would vanish from capacity/`tickets_count` yet keep
-  contributing income. (Enforces the §1 invariant.)
+- **Forbid marking a paid line no-quantity.** A line with `price_paid > 0` (and
+  especially a provider `payment_id`) must be **refunded or retargeted to a real
+  line first** — do *not* silently clear `price_paid` to satisfy the §1 invariant.
+  A silent clear drops listing income **and** strands the charge: the attendee
+  keeps its `payment_id` while §6c hides/refuses the refund actions on the now
+  quantity-0 row, so the payment can never be refunded/refreshed. Only a line with
+  `price_paid = 0` may be marked no-quantity. (Enforces the §1 invariant by
+  construction.)
 - **Clear `checked_in` when marking no-quantity** (same write). The §6b
   `updateCheckedIn` guard only refuses *future* check-ins; a line already
   `checked_in = 1` keeps that flag when flipped to quantity-0, and the roster
@@ -355,17 +359,22 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
 - **Orphan auto-purge** — `src/shared/db/orphan-attendees.ts` (`ORPHAN_IDS`) keys
   off row existence; a `quantity = 0` line deliberately keeps the attendee
   non-orphan. That's the point of writing the line.
-- **Built-site assignment release** — *not* handled here, deliberately. Flipping
-  an `assign_built_site` line to no-quantity leaves the
+- **Built-site assignment + renewal** — the broad *release* work is out of scope
+  (pre-existing), but **block no-quantity on an assigned built-site line.**
+  Flipping an `assign_built_site` line to no-quantity leaves the
   `built_sites.assigned_attendee_id`/`assigned_listing_id` assignment in place
-  (the site stays `assignable = 0`, out of `getAssignableBuiltSites`) and renewal
-  access tied to the line. But this is **pre-existing built-sites behaviour, not a
-  no-quantity divergence**: no release/unassign path exists for **any**
-  booking-ending action today — deleting or refunding the attendee doesn't release
-  the site either (no FK on `assigned_attendee_id`, no unassign helper). So
-  no-quantity matches current behaviour; site release belongs to the built-sites
-  feature and must cover delete/refund/no-quantity uniformly, not be bolted onto
-  the no-quantity save path alone.
+  (the site stays `assignable = 0`, out of `getAssignableBuiltSites`) **and leaves
+  the public renewal path live**: `/renew/?t=…` (`handleRenewal` →
+  `getBuiltSiteByRenewalTokenIndex`, `src/features/public/renewal.ts`) resolves the
+  `built_sites` token with **no `listing_attendees` check**, so the customer could
+  still pay to renew a site whose booking was just hidden. No release/unassign path
+  exists for **any** booking-ending action today (delete/refund don't release the
+  site or kill renewal either — no FK on `assigned_attendee_id`, no unassign
+  helper), so the *cleanup* belongs to the built-sites feature uniformly, **not**
+  this save path. But because no-quantity is meant to hide a line from **public**
+  surfaces and `/renew/` is one, this feature should at least **forbid marking an
+  assigned built-site line no-quantity** (like the paid-line rule, §4) until the
+  site is unassigned — rather than silently creating a hidden-but-renewable line.
 - **Edit-form custom-question loading + answer save** — must **keep** quantity-0
   lines. `loadQuestionsForExisting` (`attendee-form-routes.ts`) derives its
   `listingIds` from **all** of the attendee's bookings (`existing.map`, no

@@ -465,10 +465,18 @@ Quantity:
   `buildFormLines` keep one row per listing), and the logistics/check-in/refund
   helpers update by `(attendee_id, listing_id)` — so the system **cannot represent
   two lines for the same listing under one attendee**, even on different dates.
-  The planner must therefore collapse all repeats of a matched listing within a
-  booking into a single line: sum the quantities, and if the source rows carry
-  different delivery dates, span the widest range (`min(start)`…`max(end)`) and
-  note the collapse in the import report. (Emitting two dated rows for one listing
+  The planner must therefore collapse repeats of a matched listing within a
+  booking into a single line. **This is only safe when the repeats share or
+  overlap into one contiguous range:** the daily calendar/capacity treat
+  `start_at`/`end_at` as an *occupied interval* — `getDailyListingAttendeeDates`
+  expands every covered day and `getDailyListingAttendeesByDate` selects by
+  overlap — so widening across **non-contiguous** dates (e.g. Jan 1 and Jan 10)
+  would falsely occupy every day in between and consume capacity Jan 1–10. For
+  contiguous/overlapping repeats, sum quantities and span `min(start)`…`max(end)`;
+  for **separate, non-adjacent** ranges of the same listing the data model can't
+  hold two rows (helpers update by `(attendee_id, listing_id)`), so **reject the
+  booking as unrepresentable** (report it) rather than silently widening. Note the
+  collapse/rejection in the import report. (Emitting two dated rows for one listing
   would also be *rejected* by the unique `(listing_id, attendee_id, start_at)`
   index and would break the first admin edit/action.) **Dedupe in the planner —
   do not lean on the database constraint.**
@@ -652,13 +660,21 @@ Resolution (pure, before any writes):
   one, block the upload and tell the operator to disambiguate (rename or remove
   the duplicate) — never guess which one to attach the answer to. This is the
   same no-silent-matching rule the product resolver follows.
-- For each configured/importable column with a non-empty value, look up the
+- Split the importable-column config into **required question columns** and
+  **optional audit-only columns** — the blocking rule below applies only to the
+  former. Otherwise the hard-coded list would force the operator to create a
+  free-text question for *every* non-empty legacy column even when they intend it
+  to live only in the encrypted audit trail (see Where Legacy Metadata Goes), so
+  the first upload could never proceed.
+- For each configured **question** column with a non-empty value, look up the
   matching free-text question. Normalize and **trim** the value (the public path
   trims free-text answers via `parseFreeTextAnswer`; match that so dedup keys
   line up).
-- If a non-empty importable column has no matching free-text question, block the
-  upload before writes and list the missing question text on the missing-setup
-  page (link to `/admin/questions`).
+- If a non-empty **required-question** column has no matching free-text question,
+  block the upload before writes and list the missing question text on the
+  missing-setup page (link to `/admin/questions`). A non-empty **audit-only**
+  column with no question is **not** a setup error — its value goes to the
+  encrypted audit trail.
 - Dedupe per booking: at most one text answer per `(attendee, question)` — the
   schema's unique `(attendee_id, question_id)` index enforces this, so the
   planner must not emit two answers for the same question on one booking.
