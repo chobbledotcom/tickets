@@ -8,11 +8,13 @@
 import { t } from "#i18n";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import type { ContactRecord } from "#shared/db/contact-preferences.ts";
-import { CsrfForm, Flash } from "#shared/forms.tsx";
+import { CsrfForm, Flash, renderField } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
+import { FORMATTING_HINT } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
 export type ContactHistoryPageData = {
@@ -96,12 +98,19 @@ export const contactHistoryPage = ({
           <input name="last_subject" type="text" value={record.lastSubject} />
         </label>
 
-        <label>
-          {t("contact_history.notes_label")}
-          <textarea name="admin_notes" rows={6}>
-            {record.adminNotes}
-          </textarea>
-        </label>
+        <Raw
+          html={renderField(
+            {
+              hintHtml: FORMATTING_HINT,
+              label: t("contact_history.notes_label"),
+              markdown: true,
+              maxlength: MAX_TEXTAREA_LENGTH,
+              name: "admin_notes",
+              type: "textarea",
+            },
+            record.adminNotes,
+          )}
+        />
 
         <p class="muted small">
           {t("contact_history.last_contacted_label")}:{" "}
