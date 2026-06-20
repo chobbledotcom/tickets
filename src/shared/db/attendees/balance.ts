@@ -8,6 +8,7 @@
 
 import type { InValue } from "@libsql/client";
 import { compact, mapParallel, sumOf } from "#fp";
+import { decrypt } from "#shared/crypto/encryption.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getPaidDefaultStatus } from "#shared/db/attendee-statuses.ts";
@@ -16,7 +17,6 @@ import {
   queryAll,
   queryOne,
 } from "#shared/db/client.ts";
-import { getListingWithCount } from "#shared/db/listings.ts";
 
 /** Plaintext reservation state for an attendee. */
 export type AttendeeBalanceState = {
@@ -65,35 +65,50 @@ export type OrderSummary = {
  * full order price (current listing prices), the quantity and what's been paid
  * so far. Used by the admin balance panel and the public balance page.
  */
-type OrderRow = { listing_id: number; quantity: number; price_paid: number };
+type OrderRow = {
+  listing_id: number;
+  quantity: number;
+  price_paid: number;
+  listing_name: string | null;
+  listing_unit_price: number | null;
+};
+
+const getAttendeeOrderRows = (attendeeId: number): Promise<OrderRow[]> =>
+  queryAll<OrderRow>(
+    `SELECT listingAttendee.listing_id,
+            listingAttendee.quantity,
+            listingAttendee.price_paid,
+            listing.name AS listing_name,
+            listing.unit_price AS listing_unit_price
+       FROM listing_attendees AS listingAttendee
+       LEFT JOIN listings AS listing ON listing.id = listingAttendee.listing_id
+      WHERE listingAttendee.attendee_id = ?
+      ORDER BY listingAttendee.id`,
+    [attendeeId],
+  );
+
+const orderLineFromRow = async (row: OrderRow): Promise<OrderLine | null> =>
+  row.listing_name === null || row.listing_unit_price === null
+    ? null
+    : {
+        listingId: row.listing_id,
+        name: await decrypt(row.listing_name),
+        pricePaid: row.price_paid,
+        quantity: row.quantity,
+        unitPrice: row.listing_unit_price,
+      };
 
 export const getAttendeeOrderSummary = async (
   attendeeId: number,
 ): Promise<OrderSummary> => {
   const [rows, state] = await Promise.all([
-    queryAll<OrderRow>(
-      "SELECT listing_id, quantity, price_paid FROM listing_attendees WHERE attendee_id = ? ORDER BY id",
-      [attendeeId],
-    ),
+    getAttendeeOrderRows(attendeeId),
     getAttendeeBalanceState(attendeeId),
   ]);
 
-  // Resolve each line's current listing (concurrently); drop lines whose
-  // listing has since been deleted.
-  const lines = compact(
-    await mapParallel(async (row: OrderRow): Promise<OrderLine | null> => {
-      const listing = await getListingWithCount(row.listing_id);
-      return listing
-        ? {
-            listingId: row.listing_id,
-            name: listing.name,
-            pricePaid: row.price_paid,
-            quantity: row.quantity,
-            unitPrice: listing.unit_price,
-          }
-        : null;
-    })(rows),
-  );
+  // The LEFT JOIN keeps dangling booking rows visible so we can preserve the
+  // previous behavior of dropping lines whose listing has since been deleted.
+  const lines = compact(await mapParallel(orderLineFromRow)(rows));
 
   const depositPaid = sumOf((l: OrderLine) => l.pricePaid)(lines);
   const listedFullPrice = sumOf((l: OrderLine) => l.unitPrice * l.quantity)(
