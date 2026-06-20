@@ -4,7 +4,7 @@ import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { getAllActivityLog } from "#shared/db/activityLog.ts";
-import { backupPrefix, backupTimestamp, dbName } from "#shared/db/backup.ts";
+import { backupKey, backupTimestamp, dbName } from "#shared/db/backup.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import { uploadRaw } from "#shared/storage.ts";
 import {
@@ -16,15 +16,12 @@ import {
   testCookie,
 } from "#test-utils";
 
-/** A built site database URL whose backups land under a site-specific prefix. */
+/** A built site database URL whose backups land in a site-specific folder. */
 const SITE_DB_URL = "libsql://01ABC-client-site.lite.bunnydb.net";
 
 /** Seed a fresh backup for the given site so the pre-update gate passes. */
 const seedSiteBackup = (dbUrl: string): Promise<string> =>
-  uploadRaw(
-    new Uint8Array([1]),
-    `${backupPrefix(dbName(dbUrl))}${backupTimestamp()}.zip`,
-  );
+  uploadRaw(new Uint8Array([1]), backupKey(backupTimestamp(), dbName(dbUrl)));
 
 const MOCK_RELEASE = {
   assets: [

@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { zipSync } from "fflate";
 import { handleRequest } from "#routes";
-import { createBackupZip } from "#shared/db/backup.ts";
+import { backupDir, createBackupZip } from "#shared/db/backup.ts";
 import { downloadRaw, uploadRaw } from "#shared/storage.ts";
 import { RESTORE_CONFIRM_PHRASE } from "#templates/admin/backup.tsx";
 import {
@@ -82,9 +82,10 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
       });
     });
 
-    test("lists only .zip files on backup page", async () => {
+    test("lists only valid backup files on backup page", async () => {
       await withLocalStorageEnabled(async () => {
-        await uploadRaw(new Uint8Array(0), "backup-stale.tmp");
+        // A non-backup file sharing the folder must not appear in the list.
+        await uploadRaw(new Uint8Array(0), `${backupDir()}backup-stale.tmp`);
         await adminFormPost("/admin/backup/create");
         const { response } = await adminGet("/admin/backup");
         const html = await response.text();
@@ -116,8 +117,9 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
 
     test("returns 404 for missing file", async () => {
       await withLocalStorageEnabled(async () => {
+        // Validly formatted leaf, but no such backup exists in this DB's folder.
         const { response } = await adminGet(
-          "/admin/backup/download/backup-local-2024-test.zip",
+          "/admin/backup/download/backup-2024-01-15T12-30-00-000Z.zip",
         );
         expect(response.status).toBe(404);
       });

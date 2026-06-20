@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
-import { backupFilename, backupTimestamp } from "#shared/db/backup.ts";
+import { backupKey, backupTimestamp } from "#shared/db/backup.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import { uploadRaw } from "#shared/storage.ts";
 import { setBuildTimestampForTest } from "#shared/update.ts";
@@ -50,7 +50,7 @@ const simulateProductionBuild = () => {
 
 /** Seed a fresh backup so the pre-update gate passes. */
 const seedRecentBackup = (): Promise<string> =>
-  uploadRaw(new Uint8Array([1]), backupFilename(backupTimestamp()));
+  uploadRaw(new Uint8Array([1]), backupKey(backupTimestamp()));
 
 /** Set up state for a deploy test: production build + newer version stored,
  *  plus a recent backup so the pre-update gate is satisfied. */

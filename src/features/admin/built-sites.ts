@@ -13,7 +13,7 @@ import {
 } from "#routes/response.ts";
 import type { RouteParams } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { backupPrefix, dbName, hasRecentBackup } from "#shared/db/backup.ts";
+import { dbName, hasRecentBackup } from "#shared/db/backup.ts";
 import type { BuiltSite, BuiltSiteFormInput } from "#shared/db/built-sites.ts";
 import {
   builtSitesCrudTable,
@@ -194,7 +194,7 @@ const handleUpdateSite = ownerPost(async (site, _form, id) => {
   // The site migrates on its next request after deploy, so require a recent
   // backup of *this site's* database (taken to our storage by the upgrade
   // workflow) before pushing a new version.
-  if (!(await hasRecentBackup(undefined, backupPrefix(dbName(site.dbUrl))))) {
+  if (!(await hasRecentBackup(undefined, dbName(site.dbUrl)))) {
     return editError(
       id,
       "No backup of this site in the last hour — back it up before updating.",
