@@ -1034,11 +1034,13 @@ Add focused tests before broad route tests:
   (`getAgentRunSheet`) only **after** an agent is assigned, since the importer
   doesn't assign one; a product matching a `standard`-type listing **blocks** the
   upload (listed on the missing-setup page as must-be-daily) and writes nothing.
-- A source booking repeating the same matched listing — same date or different
-  dates — produces a single quantity-collapsed line (one row per
-  `(attendee, listing)`, widest date range), proving the planner collapses rather
-  than emitting two rows the edit form / per-`(attendee, listing)` actions can't
-  represent.
+- A source booking repeating the same matched listing on the **same or
+  contiguous/overlapping** dates produces a single quantity-collapsed line (one row
+  per `(attendee, listing)`, widest date range), proving the planner collapses
+  rather than emitting two rows the edit form / per-`(attendee, listing)` actions
+  can't represent. **Non-adjacent** ranges of the same listing (e.g. Jan 1 and
+  Jan 10) are **rejected as unrepresentable** (reported, not widened — widening
+  would occupy every intervening day on the daily calendar/capacity).
 - The raw audit-trail fields are persisted to their durable encrypted
   destination (read back after import), not just shown in the report.
 - Legacy rows can overbook without failing the import.
@@ -1338,10 +1340,12 @@ is a prerequisite for the transactional writer (item 5)** — the writer emits
   is enabled — the import report is not a system of record. Only the *choice* of
   destination is deferred to align with the #1332/#1333 notes rework; imports that
   would otherwise drop unmapped audit fields must block, never lose data.
-- Marking a line "no quantity" (`quantity = 0`) also clears its `price_paid`
-  (same write), or is forbidden on a paid line — otherwise income
-  (`SUM(price_paid)`) keeps counting a line that no longer counts toward
-  capacity/`tickets_count`.
+- Marking a line "no quantity" (`quantity = 0`) is **forbidden on a paid line**
+  (`price_paid > 0`, especially with a `payment_id`): refund or retarget the charge
+  first. Don't silently clear `price_paid` — that drops income **and** strands the
+  charge, since the quantity-0 refund guards then hide/refuse the row (see
+  `no-quantity-spec.md` §4). Only an already-`price_paid = 0` line (e.g. an
+  imported cancelled/quoted line) may become no-quantity.
 - The importer **only imports products that match `daily`-type listings**; a
   product matching a `standard`-type listing is a blocking setup error. An
   *empty, ungrouped* standard listing can be converted to daily in place, but

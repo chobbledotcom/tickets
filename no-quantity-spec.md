@@ -131,8 +131,14 @@ literal `0`.
   reads key off it with **no quantity predicate** — `filterAttendees`
   (`listings.tsx`) and `countCheckedInRows` (`detail-rows.tsx`, "ignoring
   quantity") — so the ghost stays in the "checked-in" filter and inflates
-  row-level check-in progress. Clear the flag on the write (and in merge, §6b);
-  excluding quantity-0 from those reads is a secondary defence, not a substitute.
+  row-level check-in progress. Clear the flag on the write (and in merge, §6b).
+  Clearing the flag fixes the *numerator*, but the **totals** still count ghosts:
+  `getCheckedInStats` (`detail-rows.tsx`) sets `rowsTotal = attendees.length` and
+  `hasMultiQuantity = sumQuantity ≠ attendees.length`, so one real + one ghost row
+  inflates the row total/remaining and forces a spurious multi-quantity split.
+  Compute the check-in stats and the in/out filters over `quantity > 0` rows (the
+  ghost still shows in the unfiltered admin roster) — required here, not just a
+  secondary defence.
 - **Resolve `remaining_balance` when the last real line becomes no-quantity.** The
   public pay gate (§6a) refuses payment once an attendee has no `quantity > 0`
   line, but `attendees.remaining_balance` survives, so the admin balance page would
@@ -404,7 +410,13 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
   *write* path is a different matter — see §6b). **But several
   per-row *actions* must be guarded even though the row stays visible** — keeping
   the record is not the same as keeping its operational/financial/customer-facing
-  buttons:
+  buttons. **Guard each listing-scoped action against the exact
+  `(attendee_id, listing_id)` row's `quantity`, not the loaded attendee's** —
+  `getListingWithAttendeeRaw` (and similar loaders) left-join `listing_attendees`
+  by `attendee_id` only, so `data.attendee.quantity` is an arbitrary sibling row;
+  for a mixed attendee it can read a real line while the action targets the ghost
+  (or vice versa). Each guard/update below must check the `quantity > 0` of the
+  acted-on `(attendee_id, listing_id)` row:
   - **Check-in** — the inline `CheckinButton`
     (`src/ui/templates/attendee-table.tsx`) → `handleAttendeeCheckin`
     (`src/features/admin/attendees.ts`) → `updateCheckedIn` must be
@@ -439,8 +451,11 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
     `handleResendNotification` (`src/features/admin/attendees.ts`) calls
     `logAndNotifyRegistration([{ attendee, listing }])`, emailing the customer a
     confirmation with a ticket URL/SVG. For a quantity-0 row this sends a
-    customer-facing ticket for a non-booking — hide/refuse it, or retarget to a
-    real line.
+    customer-facing ticket for a non-booking — **hide/refuse it on the invoked
+    quantity-0 row**, do **not** retarget to a real line: the route is
+    listing-scoped and `logAndNotifyRegistration` builds the customer email/webhook
+    and registration side-effects from the supplied listing, so retargeting from a
+    ghost row would notify/log the wrong product.
   - **Customer ticket URL display / export.** The row stays visible, but the
     ticket link in `AttendeeDetail`, the attendee table's `ticket` column
     (`src/ui/templates/attendee-table.tsx`), and the attendees CSV `ticket_url`
@@ -498,7 +513,9 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
 - Check-in state: marking a checked-in line no-quantity (via the save **and** via
   merge) clears `checked_in`, so the row drops out of the "checked-in" filter
   (`filterAttendees`) and `countCheckedInRows`; `updateCheckedIn` still refuses a
-  fresh check-in of a quantity-0 line.
+  fresh check-in of a quantity-0 line; and the check-in stats count only
+  `quantity > 0` rows (a real + ghost attendee shows `rowsTotal`/remaining and the
+  multi-quantity split as if the ghost weren't there).
 - Edit-form answers: a quantity-0-only attendee's custom-question answers still
   render on the admin edit form and survive a save (no `quantity > 0` filter on
   the question loading drops them).
@@ -513,8 +530,10 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
   line clears the balance and never copies a `price_paid > 0` quantity-0 line).
 - Admin per-row action guards: a quantity-0 row shows no check-in button, no
   refund / refund-all control, no working re-send-notification (or it targets
-  a real line), and no live customer ticket URL (the detail/table link and the
-  CSV `ticket_url` show the indicator / blank for an all-ghost record); the
+  a real line), and no live customer ticket URL on a quantity-0 row (the
+  detail/table link and the CSV `ticket_url` show the indicator / blank for **any**
+  quantity-0 row, including a mixed attendee whose token still renders other real
+  bookings — not only all-ghost records); the
   refresh-payment route refunds the real line, never a ghost-first row; the
   scanner manual list omits quantity-0 candidates.
 - Public API `POST /api/listings/:slug/book` rejects/ignores `quantity: 0` (no
