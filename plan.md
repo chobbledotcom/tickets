@@ -286,27 +286,35 @@ Resolve product names for each unimported source booking before any writes.
 
 Extraction order:
 
-1. Use `Equipments` as authoritative when it is populated.
+1. Use `Equipments` as authoritative when it is populated. These are
+   actually-booked products and become real lines (`quantity >= 1`).
 2. If `Equipments` is empty, parse `Operator Notes` blocks of the form
    `Quoted for Products: -- Product A -- Product B -- Products (xN) ...` as a
-   fallback and report that fallback in the import summary.
+   fallback and report that fallback in the import summary. These are
+   **interested-in / quoted** products, not confirmed bookings, so they are
+   matched to real listing names exactly like `Equipments` but stored as
+   **zero-quantity lines** (see
+   [Zero-Quantity Booking Lines](#zero-quantity-no-quantity-booking-lines)).
+   Unmatched names here are still *missing products* (→ missing-setup page), the
+   same as unmatched `Equipments` names.
 3. Never use `Operator Notes`, modifier columns, or payment columns to add extra
    required products when `Equipments` is populated. Preserve those fields as
    free-text answers / notes instead.
 4. Dedupe product names within a booking and convert duplicates to quantity
    only when we are confident they are repeated whole products.
-5. A row that resolves to **zero** products (empty `Equipments` and no parseable
-   `Quoted for Products` fallback) cannot become a booking — every source
-   booking is assumed to create at least one `listing_attendees` line. Treat such
+5. A row with **no products at all** — empty `Equipments` *and* no parseable
+   `Quoted for Products` block — cannot become a booking (every source booking
+   creates at least one `listing_attendees` line, even if quantity-0). Treat such
    rows as a defined, **reported non-creatable category**, removed from the
    candidate set before any writes (like already-imported rows), so the importer
    never creates an attendee/import-map row with no booking lines and never
-   discovers the problem only mid-transaction. This is distinct from a non-empty
-   `Equipments` whose names don't match locally — that is a *missing product*
-   (fixable by creating listings, → missing-setup page), whereas a productless
-   row is a source-data gap the operator must fix in the CSV. (If preferred,
-   surface it as a hard validation error instead of a skip; the requirement is
-   only that it is caught before writes, not left to fail the transaction.)
+   discovers the problem only mid-transaction. This is distinct from: (a)
+   unmatched product *names* in `Equipments` or the quoted block — those are
+   *missing products* fixable via the missing-setup page; and (b) a quote row
+   *with* a parseable `Quoted for Products` block — that is creatable, as
+   quantity-0 interested lines. (If preferred, surface a no-products row as a hard
+   validation error instead of a skip; the requirement is only that it is caught
+   before writes, not left to fail the transaction.)
 
 Important caveat: the export uses ` / ` as a product separator, but some product
 names appear to contain slashes, for example names like
@@ -385,7 +393,57 @@ Quantity:
   booking aggregates. The planner must therefore collapse repeats into one
   quantity line itself; the index is only a backstop for dated rows.
 
-## Financial Mapping
+## Zero-Quantity ("No Quantity") Booking Lines
+
+The importer represents two kinds of "matched a product, but it did not actually
+consume a slot" with a `listing_attendees` line whose **`quantity = 0`**, rather
+than omitting the line. This is the chosen resolution to the cancelled-vs-orphan
+tension (a cancelled booking with no lines would be auto-purged as an orphan, see
+[orphan note](#all-or-nothing-write-strategy)), and it generalises neatly to
+"interested-in" products.
+
+When the importer writes a quantity-0 line:
+
+- **Cancelled rows** — every matched product on a `Cancelled` booking.
+- **Interested-in / quoted products** — products parsed from the `Quoted for
+  Products` notes block (quotes, not confirmed bookings). They are matched to
+  real listing names exactly like `Equipments` products, but stored at
+  `quantity = 0` because the customer was only quoted, not booked.
+
+Why `quantity = 0` works:
+
+- `listing_attendees.quantity` is `INTEGER NOT NULL DEFAULT 1` with **no CHECK
+  constraint**, so `0` is a legal value — no schema change needed.
+- The listing-aggregate triggers do `booked_quantity += NEW.quantity`, so a
+  quantity-0 line adds nothing to capacity. (It still does `tickets_count += 1`
+  and `income += price_paid` where `price_paid = 0`; the small `tickets_count`
+  effect is accepted.)
+- The attendee has a real line, so it is **not** an orphan and survives
+  auto-purge, and the products remain structured and matched to listings.
+
+Owner UI — the "no quantity" checkbox (proxy for `quantity == 0`):
+
+- Owners never see a literal "0". On the attendee edit form each booking line
+  gets a **"no quantity"** checkbox that is just a proxy for `quantity == 0`.
+- **Render:** a line read from the DB with `quantity = 0` renders with the
+  checkbox **checked**, and its quantity input **hidden via CSS** using the
+  existing `hidden-in-form` mixin family in `style.scss` (a checkbox-driven,
+  pure-CSS show/hide — add a `hidden-when-checked` companion to the existing
+  `reveal-when-checked` if one isn't already present). No JavaScript.
+- **Save:** if "no quantity" is checked, store `quantity = 0` and **keep the
+  line**; if unchecked, store the entered quantity (`>= 1`). The checkbox
+  round-trips the intent both ways: a stored `0` re-checks the box on the next
+  render, and a checked box re-stores `0`.
+- **Do not auto-delete quantity-0 lines on save.** The save path must
+  distinguish a deliberate quantity-0 line (checkbox checked → keep) from a real
+  removal (the line's explicit remove control → delete). Any existing logic that
+  would drop a line because its quantity is falsy/empty has to be guarded so it
+  only removes lines the owner actually removed. This applies to all booking
+  lines, not just imported ones, once the checkbox exists.
+
+This is a small cross-cutting addition (attendee edit form + listing-line save
+path + one CSS mixin) that the importer depends on; build it alongside the
+writer rather than after.
 
 The CSV has order-level totals and many modifier/payment columns. The current
 system has:
@@ -436,19 +494,19 @@ Use the source `Status` column.
   behaviour. If a source `Status` matches more than one local status, block the
   upload as an ambiguous-setup error rather than picking a row — the same rule as
   free-text questions.
-- Import cancelled rows too, but **do not give them capacity-bearing booking
-  lines.** A source row with `Status` = `Cancelled` becomes an attendee with the
-  matching local `Cancelled` status, but the importer does **not** create
-  `listing_attendees` lines for it, because the listing-aggregate triggers
-  increment `booked_quantity`/`tickets_count` for *every* inserted line
-  regardless of status (capacity in this system is status-blind — there is no
-  capacity-freeing status flag, only `is_reservation`/`is_paid_default`). Giving
-  a cancelled legacy booking real lines would permanently consume availability
-  and make listings look sold out. Instead, record the products the cancelled
-  booking referenced as audit metadata / free-text answers, and note the cancelled
-  row in the import report. (This is a deliberate semantic choice — see Resolved
-  Decisions; the alternative, importing the lines and accepting inflated
-  aggregates, is rejected because it corrupts current availability.)
+- Import cancelled rows too, but give them **zero-quantity booking lines**, not
+  capacity-bearing ones. A source row with `Status` = `Cancelled` becomes an
+  attendee with the matching local `Cancelled` status, and its matched products
+  are written as `listing_attendees` lines with `quantity = 0` (see
+  [Zero-Quantity Booking Lines](#zero-quantity-no-quantity-booking-lines)). The
+  listing-aggregate triggers add `NEW.quantity` to `booked_quantity`, so a
+  quantity-0 line consumes **no** capacity (capacity in this system is
+  status-blind — there is no capacity-freeing status flag, only
+  `is_reservation`/`is_paid_default`), while still leaving a real line so the
+  attendee is not an orphan and the products stay structured/matched. Note the
+  `tickets_count`/income triggers still count the line (`tickets_count += 1`,
+  `income += 0`); that minor stat effect is accepted. Note the cancelled row in
+  the import report.
 - Preserve `Colour Name` as a free-text answer / in the import report, but do not
   use it for status resolution.
 - Do not add status aliases or fuzzy matching. The operator is responsible for
@@ -634,7 +692,9 @@ Target algorithm:
       that a rollback removes them);
     - insert attendee, and resolve its **stable id** via a per-attendee lookup
       key, not `last_insert_rowid()` (see implementation notes);
-    - insert each `listing_attendees` line (none for cancelled rows);
+    - insert each `listing_attendees` line — `quantity = 0` for cancelled rows
+      and for interested-in/quoted products, a real quantity otherwise (every
+      candidate writes at least one line, so no attendee is an orphan);
     - write logistics times if used;
     - insert `attendee_answers(attendee_id, question_id, string_id)` text-answer
       rows using the resolved string ids;
@@ -677,6 +737,16 @@ Implementation notes:
   ticket_token_index = ?)`. The importer must generate a distinct
   `ticket_token_index` per source booking and key every child insert off it (or
   use an equivalent `RETURNING` strategy if the helper moves to one).
+- **Orphan auto-purge interaction.** `orphan-attendees.ts` (`ORPHAN_IDS`) treats
+  any attendee with no `listing_attendees` rows as a purgeable orphan, and
+  auto-purge is on by default; it deletes the attendee and its `attendee_answers`
+  but leaves `booking_imports`, so a purged import could never be re-created
+  (its `old_id` stays in the map). The importer avoids this by always writing at
+  least one line per attendee — `quantity = 0` for cancelled/interested rows (see
+  [Zero-Quantity Booking Lines](#zero-quantity-no-quantity-booking-lines)) — so
+  imported attendees are never orphans. (Quantity-0 lines were chosen over a
+  `booking_imports`-aware exclusion in `ORPHAN_IDS` because they also keep the
+  products structured and matched.)
 - The `attendee_answers` XOR/validation triggers will `ABORT` a malformed answer
   row (e.g. both `answer_id` and `string_id` set). The importer only ever writes
   the text-answer shape (`answer_id` NULL, `question_id` + `string_id` set), so a
@@ -786,8 +856,17 @@ Semantic-correctness tests (verified against live behaviour):
 - A source `Status` matching two local statuses is rejected as ambiguous;
   writes nothing.
 - A cancelled source row imports as an attendee with the `Cancelled` status and
-  **no** `listing_attendees` lines, leaving `booked_quantity`/`tickets_count`
-  unchanged for the referenced listings.
+  `quantity = 0` `listing_attendees` lines for its matched products, leaving the
+  referenced listings' `booked_quantity` unchanged.
+- A quote row (empty `Equipments` with a `Quoted for Products` block) imports its
+  interested-in products as `quantity = 0` lines matched to real listings.
+- An imported attendee with only quantity-0 lines is **not** treated as an orphan
+  and survives an orphan auto-purge run (its `attendee_answers` and
+  `booking_imports` row also survive).
+- The "no quantity" checkbox round-trips: a DB line with `quantity = 0` renders
+  with the box checked; saving with the box checked re-stores `0` and keeps the
+  line; unchecking and entering a quantity stores that quantity; the explicit
+  remove control still deletes the line.
 - A non-zero `Balance` on a non-reservation status does not become an actionable
   `remaining_balance` (stored as audit metadata or blocked, per the chosen rule).
 - A row with empty `Equipments` and no `Quoted for Products` fallback is reported
@@ -839,14 +918,26 @@ Semantic-correctness tests (verified against live behaviour):
      `last_insert_rowid()`.
    - Write status ids, free-text answers, logistics times, balances (actionable
      `remaining_balance` only for reservation statuses), and zero listing income.
-   - Create no `listing_attendees` lines for cancelled rows.
-   - Allow overbooked legacy rows (active bookings only).
+   - Write cancelled rows and interested-in/quoted products as `quantity = 0`
+     lines (never zero lines); confirmed `Equipments` products get real
+     quantities.
+   - Allow overbooked legacy rows (active bookings only; quantity-0 lines don't
+     count toward capacity).
    - Prove whole-file rollback (attendees, lines, text answers, new strings,
      audit records, import map all gone).
-6. Admin upload route
+6. "No quantity" booking-line support (shared, build with the writer)
+   - Add the per-line "no quantity" checkbox to the attendee edit form as a proxy
+     for `quantity == 0`; render it checked when the stored quantity is 0 and hide
+     the quantity input via the `hidden-in-form` CSS mixin family in `style.scss`.
+   - Update the listing-line save path so a checked box stores `quantity = 0` and
+     **keeps** the line, an unchecked box stores the entered quantity, and only an
+     explicit remove control deletes a line (no auto-delete of quantity-0 lines).
+   - Tests: DB-stored `0` round-trips to a checked box and back; explicit removal
+     still deletes; a quantity-0 line is excluded from orphan auto-purge.
+7. Admin upload route
    - Wire upload form, parser, planner, writer, success/error redirects.
    - Add nav entry if desired.
-7. Full coverage and precommit
+8. Full coverage and precommit
    - Route tests, DB tests, parser tests, and coverage closure.
 
 ## Resolved Decisions
@@ -855,20 +946,25 @@ Semantic-correctness tests (verified against live behaviour):
 - Missing source statuses block the upload before writes, like missing products.
   A source status matching more than one local status (names aren't unique) is an
   ambiguous-setup error, not a silent pick.
-- Cancelled rows import as an attendee with the matching local `Cancelled`
-  status but get **no** `listing_attendees` lines, because capacity in this
-  system is status-blind (the aggregate triggers count every line) and a
-  cancelled booking must not consume availability. The products they referenced
-  are preserved as audit metadata, not as booking lines. (Alternative rejected:
-  importing the lines and accepting inflated aggregates — it corrupts current
-  availability.)
-- Legacy imports may overbook — for *active* bookings only, not cancelled ones.
+- Cancelled rows, and interested-in/quoted products parsed from notes, import as
+  `listing_attendees` lines with `quantity = 0` (not omitted). Capacity here is
+  status-blind (the aggregate triggers count every line), so quantity-0 keeps
+  `booked_quantity` unaffected while leaving a real, matched line — which also
+  keeps the attendee from being auto-purged as an orphan. Confirmed `Equipments`
+  products get real quantities. Owners see/edit this as a per-line "no quantity"
+  checkbox (a proxy for `quantity == 0`, quantity input hidden by CSS); the save
+  path keeps deliberate quantity-0 lines and only deletes on an explicit removal.
+  (Alternative rejected: omitting lines for cancelled rows — they'd be purged as
+  orphans while `booking_imports.old_id` blocks re-import.)
+- Legacy imports may overbook — for *active* bookings only; quantity-0 lines
+  (cancelled/interested) never count toward capacity.
 - A non-zero source `Balance` becomes an actionable `remaining_balance` only when
   the resolved status is a reservation status (`is_reservation`); otherwise it is
   audit metadata, because the public balance route won't let a customer pay a
   non-reservation balance.
-- A source row that resolves to zero products is a reported non-creatable row: it
-  is not written and not added to the import map (every booking needs ≥1 line).
+- A row with **no** products at all (no `Equipments` and no parseable quoted
+  block) is a reported non-creatable row: not written, not added to the import
+  map. Every booking needs ≥1 line, even if quantity-0.
 - Two CSV columns mapping to the same free-text question with different non-empty
   values are an ambiguous source-data error (the schema stores one answer per
   `(attendee, question)`); identical values collapse to one.
