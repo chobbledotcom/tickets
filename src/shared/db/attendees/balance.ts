@@ -70,7 +70,7 @@ type OrderRow = {
   quantity: number;
   price_paid: number;
   listing_name: string | null;
-  listing_unit_price: number | null;
+  listing_unit_price: number;
 };
 
 const getAttendeeOrderRows = (attendeeId: number): Promise<OrderRow[]> =>
@@ -79,7 +79,7 @@ const getAttendeeOrderRows = (attendeeId: number): Promise<OrderRow[]> =>
             listingAttendee.quantity,
             listingAttendee.price_paid,
             listing.name AS listing_name,
-            listing.unit_price AS listing_unit_price
+            COALESCE(listing.unit_price, 0) AS listing_unit_price
        FROM listing_attendees AS listingAttendee
        LEFT JOIN listings AS listing ON listing.id = listingAttendee.listing_id
       WHERE listingAttendee.attendee_id = ?
@@ -87,8 +87,10 @@ const getAttendeeOrderRows = (attendeeId: number): Promise<OrderRow[]> =>
     [attendeeId],
   );
 
+// `name` is NOT NULL, so a null here means the LEFT JOIN found no listing —
+// i.e. the listing was deleted — and the dangling booking row is dropped.
 const orderLineFromRow = async (row: OrderRow): Promise<OrderLine | null> =>
-  row.listing_name === null || row.listing_unit_price === null
+  row.listing_name === null
     ? null
     : {
         listingId: row.listing_id,
