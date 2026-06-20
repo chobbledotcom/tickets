@@ -43,6 +43,14 @@ import {
   withMocks,
 } from "#test-utils";
 
+// A booking's quantity cell only proves the summary is right if it sits in the
+// same row as its listing link — the tempered `(?!</tr>)` keeps the match inside
+// one <tr>, so swapping two bookings' quantities is caught, not just a bad sum.
+const listingRowQuantity = (listingId: number, quantity: number): RegExp =>
+  new RegExp(
+    `/admin/listing/${listingId}"(?:(?!</tr>)[\\s\\S])*?<td>${quantity}</td>`,
+  );
+
 describeWithEnv("server (unified attendee form)", { db: true }, () => {
   describe("GET /admin/attendees/new", () => {
     testRequiresAuth("/admin/attendees/new");
@@ -521,12 +529,11 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         "Kayak Trip",
         "Canoe Trip",
       );
-      // Each booking renders its own quantity cell...
-      expect(html).toContain("<td>2</td>");
-      expect(html).toContain("<td>3</td>");
-      // ...and the summary footer totals them (2 + 3 = 5). Asserting the rows
-      // as well as the total means a wrong per-row grouping fails here too,
-      // not just a wrong sum.
+      // Each listing's own row shows its quantity (Kayak→2, Canoe→3), so a
+      // swapped grouping fails here, not just a wrong sum...
+      expect(html).toMatch(listingRowQuantity(kayak.id, 2));
+      expect(html).toMatch(listingRowQuantity(canoe.id, 3));
+      // ...and the summary footer totals them (2 + 3 = 5).
       expect(html).toContain("<td>5</td>");
     });
 

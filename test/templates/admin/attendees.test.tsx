@@ -66,7 +66,10 @@ describe("EditQuestions", () => {
 
   test("keeps a deactivated select answer the attendee already selected", () => {
     const html = withDeactivated("select", [11]);
-    expect(html).toContain("Blue");
+    // Asserting the full option markup (not just the label) proves the
+    // `selected` attribute is preserved — without it the edit form would
+    // silently drop the attendee's existing answer on save.
+    expect(html).toContain('<option selected value="11">Blue</option>');
   });
 
   test("renders radio inputs by default", () => {
