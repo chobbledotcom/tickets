@@ -11,6 +11,7 @@ const question = (
   answers: { id: number; text: string }[],
 ): QuestionWithAnswers => ({
   answers: answers.map((a, i) => ({
+    active: true,
     id: a.id,
     question_id: id,
     sort_order: i,
@@ -65,6 +66,27 @@ describe("CSV with custom questions", () => {
     // Question columns are the last two: ...,<size>,<diet>
     expect(aliceRow!.endsWith(",Small,Vegetarian")).toBe(true);
     expect(bobRow!.endsWith(",Large,None")).toBe(true);
+  });
+
+  test("renders free-text answers from the text-answer map", () => {
+    const freeTextQ: QuestionWithAnswers = {
+      answers: [],
+      display_type: "free_text",
+      id: 3,
+      text: "Notes",
+    };
+    const [header, row] = generateAttendeesCsv(
+      [testAttendee({ id: 1 })],
+      false,
+      undefined,
+      {
+        attendeeAnswerMap: new Map(),
+        questions: [freeTextQ],
+        textAnswerMap: new Map([[1, new Map([[3, "Coeliac, no nuts"]])]]),
+      },
+    ).split("\n");
+    expect(header!.endsWith(",Notes")).toBe(true);
+    expect(row!.endsWith(',"Coeliac, no nuts"')).toBe(true);
   });
 
   test("leaves the question column blank when the attendee did not answer it", () => {

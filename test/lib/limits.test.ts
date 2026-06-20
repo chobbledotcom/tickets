@@ -25,6 +25,7 @@ import {
   PRUNE_PAYMENTS_RETENTION_DAYS,
   PRUNE_SESSIONS_RETENTION_DAYS,
   PRUNE_SUMUP_RETENTION_HOURS,
+  PRUNE_UNUSED_STRINGS_RETENTION_DAYS,
   parsePositiveInt,
   readLimit,
   SCANNER_CSRF_MAX_AGE_S,
@@ -148,6 +149,7 @@ describe("limits", () => {
         "PRUNE_LOGINS_RETENTION_DAYS",
         "PRUNE_TOKENS_RETENTION_DAYS",
         "PRUNE_SUMUP_RETENTION_HOURS",
+        "PRUNE_UNUSED_STRINGS_RETENTION_DAYS",
         "PRUNE_CONTACTS_RETENTION_DAYS",
         "PRUNE_INTERVAL_HOURS",
         "FORM_STASH_TTL_MS",
@@ -194,6 +196,9 @@ describe("limits", () => {
       );
       expect(currentByKey.get("PRUNE_SUMUP_RETENTION_HOURS")).toBe(
         PRUNE_SUMUP_RETENTION_HOURS,
+      );
+      expect(currentByKey.get("PRUNE_UNUSED_STRINGS_RETENTION_DAYS")).toBe(
+        PRUNE_UNUSED_STRINGS_RETENTION_DAYS,
       );
       expect(currentByKey.get("PRUNE_CONTACTS_RETENTION_DAYS")).toBe(
         PRUNE_CONTACTS_RETENTION_DAYS,

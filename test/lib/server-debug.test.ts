@@ -76,7 +76,12 @@ const makeDebugState = (
     provider: "",
     webhookConfigured: false,
   },
-  prune: { logins: "Never", payments: "Never", sessions: "Never" },
+  prune: {
+    logins: "Never",
+    payments: "Never",
+    sessions: "Never",
+    strings: "Never",
+  },
   runtime: {
     arch: "",
     denoVersion: "",
@@ -637,6 +642,7 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
       await settings.update.lastPrunedPayments(String(ts));
       await settings.update.lastPrunedSessions(String(ts));
       await settings.update.lastPrunedLogins(String(ts));
+      await settings.update.lastPrunedStrings(String(ts));
       const expected = new Date(ts).toISOString();
       await assertAdminHtml("/admin/debug", "Database pruning", expected);
     });

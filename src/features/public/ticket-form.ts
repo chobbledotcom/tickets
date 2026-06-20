@@ -8,8 +8,11 @@ import { errorRedirect, htmlResponse } from "#routes/response.ts";
 import { validatePrice } from "#shared/currency.ts";
 import type { AddOnOption } from "#shared/db/modifier-resolve.ts";
 import type {
+  AttendeeAnswerSet,
+  AttendeeListingEntry,
   QuestionListingMap,
   QuestionWithAnswers,
+  TextAnswer,
 } from "#shared/db/questions.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { ListingFields } from "#shared/types.ts";
@@ -45,8 +48,35 @@ export const formatAtomicError = capacityErrorFormatter({
   withName: (name) => `Sorry, ${name} no longer has enough spots available`,
 });
 
-/** Build a per-listing answer map from parsed answers and the question-listing mapping.
- * Each listing gets only the answer IDs for questions assigned to it. */
+/** Resolve which listings a question applies to: its assigned listings, or
+ * every selected listing when the question is assigned to none. */
+const listingIdsForQuestion = (
+  questionId: number,
+  questionListingMap: QuestionListingMap,
+  selectedListingIds: Set<number>,
+): number[] => questionListingMap.get(questionId) ?? [...selectedListingIds];
+
+/** Append `value` to the per-listing bucket (keyed by `String(listingId)`) of
+ * every selected listing the question applies to. */
+const pushToListings = <T>(
+  result: Record<string, T[]>,
+  questionId: number,
+  value: T,
+  questionListingMap: QuestionListingMap,
+  selectedListingIds: Set<number>,
+): void => {
+  for (const listingId of listingIdsForQuestion(
+    questionId,
+    questionListingMap,
+    selectedListingIds,
+  )) {
+    if (!selectedListingIds.has(listingId)) continue;
+    (result[String(listingId)] ??= []).push(value);
+  }
+};
+
+/** Build a per-listing answer map from parsed answers and the question-listing
+ * mapping. Each listing gets only the answer IDs for questions assigned to it. */
 export const buildListingAnswerMap = (
   questions: QuestionWithAnswers[],
   answerIds: number[],
@@ -54,17 +84,75 @@ export const buildListingAnswerMap = (
   selectedListingIds: Set<number>,
 ): Record<string, number[]> => {
   const result: Record<string, number[]> = {};
-  for (let i = 0; i < questions.length; i++) {
-    const question = questions[i]!;
-    const answerId = answerIds[i]!;
-    // questionListingMap always contains entries for all questions from getQuestionsWithListingIds
-    for (const listingId of questionListingMap.get(question.id)!) {
-      if (!selectedListingIds.has(listingId)) continue;
-      const key = String(listingId);
-      (result[key] ??= []).push(answerId);
-    }
+  let answerIndex = 0;
+  for (const question of questions) {
+    // Skip exactly what parseQuestionAnswers skips, so answerIds stays aligned:
+    // free-text questions (no answer id) and choice questions whose answers are
+    // all deactivated (treated as not applicable, so no answer id either).
+    if (question.display_type === "free_text") continue;
+    if (!question.answers.some((a) => a.active)) continue;
+    pushToListings(
+      result,
+      question.id,
+      answerIds[answerIndex++]!,
+      questionListingMap,
+      selectedListingIds,
+    );
   }
   return result;
+};
+
+export const buildListingTextAnswerMap = (
+  textAnswers: TextAnswer[],
+  questionListingMap: QuestionListingMap,
+  selectedListingIds: Set<number>,
+): Record<string, TextAnswer[]> => {
+  const result: Record<string, TextAnswer[]> = {};
+  for (const answer of textAnswers) {
+    pushToListings(
+      result,
+      answer.questionId,
+      answer,
+      questionListingMap,
+      selectedListingIds,
+    );
+  }
+  return result;
+};
+
+const mergeTextAnswersByQuestion = (
+  existing: TextAnswer[] | undefined,
+  incoming: TextAnswer[],
+): TextAnswer[] => {
+  const byQuestion = new Map(
+    (existing ?? []).map((answer) => [answer.questionId, answer]),
+  );
+  for (const answer of incoming) byQuestion.set(answer.questionId, answer);
+  return [...byQuestion.values()];
+};
+
+export const groupListingAnswerSets = (
+  entries: AttendeeListingEntry[],
+  listingAnswerIds: Record<string, number[]>,
+  listingTextAnswers: Record<string, TextAnswer[]>,
+): Map<number, AttendeeAnswerSet> => {
+  const answersByAttendee = new Map<number, AttendeeAnswerSet>();
+  for (const { attendee, listing } of entries) {
+    const key = String(listing.id);
+    const answerIds = listingAnswerIds[key] ?? [];
+    const textAnswers = listingTextAnswers[key] ?? [];
+    if (answerIds.length === 0 && textAnswers.length === 0) continue;
+    const existing = answersByAttendee.get(attendee.id) ?? { answerIds: [] };
+    existing.answerIds.push(...answerIds);
+    if (textAnswers.length > 0) {
+      existing.textAnswers = mergeTextAnswersByQuestion(
+        existing.textAnswers,
+        textAnswers,
+      );
+    }
+    answersByAttendee.set(attendee.id, existing);
+  }
+  return answersByAttendee;
 };
 
 /** Validate submitted date against available dates; returns the date or null if invalid */

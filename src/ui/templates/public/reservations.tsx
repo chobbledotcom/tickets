@@ -20,6 +20,7 @@ import {
 } from "#shared/forms.tsx";
 import { getIframeMode } from "#shared/iframe.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import { getImageProxyUrl } from "#shared/storage.ts";
 import {
@@ -199,52 +200,76 @@ export const renderQuestions = (
   questionListingMap?: QuestionListingMap,
 ): JSX.Element => (
   <>
-    {questions.map((q) => {
-      // Restore the chosen answer when a validation error re-renders the page.
-      const answered = savedFormValue(`question_${q.id}`);
-      const listingIds = questionListingMap?.get(q.id)?.join(" ");
-      // A select is a single control, so a plain <label> names it like the text
-      // fields do. Radios are a set of controls, so they need a <fieldset> with
-      // a <legend> to label the group. Both carry .custom-question (plus any
-      // data-listing-ids) so the visibility script can show/hide them.
-      if (q.display_type === "select") {
-        return (
-          <label class="custom-question" data-listing-ids={listingIds}>
-            {q.text}
-            <select name={`question_${q.id}`} required>
-              <option value="">
-                {t("public.ticket.select_answer_placeholder")}
-              </option>
-              {q.answers.map((a) => (
-                <option
-                  selected={answered === String(a.id)}
-                  value={String(a.id)}
-                >
-                  {a.text}
-                </option>
-              ))}
-            </select>
-          </label>
-        );
-      }
-      return (
-        <fieldset class="custom-question" data-listing-ids={listingIds}>
-          <legend>{q.text}</legend>
-          {q.answers.map((a) => (
-            <label>
+    {questions
+      // A choice question whose answers are all deactivated has nothing
+      // selectable, so drop it rather than render a required control a buyer
+      // can't satisfy (the parser likewise treats it as not applicable).
+      .filter(
+        (q) =>
+          q.display_type === "free_text" || q.answers.some((a) => a.active),
+      )
+      .map((q) => {
+        // Restore the chosen answer when a validation error re-renders the page.
+        const answered = savedFormValue(`question_${q.id}`);
+        const listingIds = questionListingMap?.get(q.id)?.join(" ");
+        // Deactivated answers are never offered on the public booking form.
+        const options = q.answers.filter((a) => a.active);
+        // A select is a single control, so a plain <label> names it like the text
+        // fields do. Radios are a set of controls, so they need a <fieldset> with
+        // a <legend> to label the group. Both carry .custom-question (plus any
+        // data-listing-ids) so the visibility script can show/hide them.
+        if (q.display_type === "free_text") {
+          return (
+            <label class="custom-question" data-listing-ids={listingIds}>
+              {q.text}
               <input
-                checked={answered === String(a.id)}
+                maxlength={MAX_TEXTAREA_LENGTH}
                 name={`question_${q.id}`}
                 required
-                type="radio"
-                value={String(a.id)}
-              />{" "}
-              {a.text}
+                type="text"
+                value={answered}
+              />
             </label>
-          ))}
-        </fieldset>
-      );
-    })}
+          );
+        }
+        if (q.display_type === "select") {
+          return (
+            <label class="custom-question" data-listing-ids={listingIds}>
+              {q.text}
+              <select name={`question_${q.id}`} required>
+                <option value="">
+                  {t("public.ticket.select_answer_placeholder")}
+                </option>
+                {options.map((a) => (
+                  <option
+                    selected={answered === String(a.id)}
+                    value={String(a.id)}
+                  >
+                    {a.text}
+                  </option>
+                ))}
+              </select>
+            </label>
+          );
+        }
+        return (
+          <fieldset class="custom-question" data-listing-ids={listingIds}>
+            <legend>{q.text}</legend>
+            {options.map((a) => (
+              <label>
+                <input
+                  checked={answered === String(a.id)}
+                  name={`question_${q.id}`}
+                  required
+                  type="radio"
+                  value={String(a.id)}
+                />{" "}
+                {a.text}
+              </label>
+            ))}
+          </fieldset>
+        );
+      })}
   </>
 );
 

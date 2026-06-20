@@ -219,6 +219,7 @@ const getDebugPageState = async (): Promise<DebugPageState> => {
       logins: formatLastPruned(settings.lastPrunedLogins),
       payments: formatLastPruned(settings.lastPrunedPayments),
       sessions: formatLastPruned(settings.lastPrunedSessions),
+      strings: formatLastPruned(settings.lastPrunedStrings),
     },
     runtime: getRuntimeInfo(),
     site: {

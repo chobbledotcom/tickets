@@ -193,6 +193,7 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/groups/:id"> = (
       const questionData = await loadAttendeeQuestionData(
         listingIds,
         attendees.map((a) => a.id),
+        await requirePrivateKey(session),
       );
 
       return htmlResponse(
