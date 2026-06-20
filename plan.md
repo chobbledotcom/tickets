@@ -353,13 +353,16 @@ Product matching:
 - **Every matched listing must be `daily`-type.** A product that matches a
   `standard`-type listing is a **blocking setup error** (listed on the
   missing-setup page), not an import. Verify the type at resolution, before any
-  writes. The remedy depends on whether the standard listing is **populated**: an
-  *empty* one can be converted to daily in place, but a standard listing **with
-  existing bookings cannot** — its rows are stored undated and the daily
-  calendar/capacity paths only consider dated rows, so converting in place would
-  drop those bookings off date views and availability. Block the populated case as
-  an unresolvable setup error (the operator must migrate it deliberately); never
-  auto-convert. This gate is what lets the importer treat every
+  writes. Whether the standard listing can be made daily depends on its data and
+  its group: an *empty, ungrouped* standard listing can be converted in place, but
+  conversion is **unsafe** when (a) the listing **has existing bookings** — its
+  undated rows would drop off the daily calendar/capacity, which only consider
+  dated rows; or (b) the listing is in a **group** whose other members are
+  populated standard listings — the admin edit path forces every listing in a
+  group to share `listing_type`, so the operator can't convert just this one, and
+  converting the whole group pushes the siblings' undated rows into the same hole.
+  Block both cases as unresolvable setup errors (the operator must migrate /
+  ungroup / replace deliberately); never auto-convert. This gate is what lets the importer treat every
   imported booking as dated end-to-end — daily listings carry the
   delivery/collection range on the line's `start_at`/`end_at` (run sheets) and are
   day-calendar entities — **without** retrofitting line dates onto the
@@ -1232,9 +1235,11 @@ Semantic-correctness tests (verified against live behaviour):
   `booking_imports` row, so re-uploading the same CSV re-creates the booking
   rather than skipping it as already-imported.
 - **Merging an imported source keeps the import map consistent:**
-  `applyAttendeeMerge` on an imported source remaps its `booking_imports` row to
-  the surviving target (or deletes it when the target is itself an import), so no
-  row points at the removed source id.
+  `applyAttendeeMerge` on an imported source **remaps** its `booking_imports` row
+  to the surviving target — even when the target is itself an import, since
+  `new_id` is non-unique, so two `old_id`s then point at the merged attendee. It
+  never deletes the source mapping (that would let a re-upload recreate a
+  duplicate), so no row points at the removed source id.
 - **The admin roster won't check in a quantity-0 line:** a cancelled/quoted row
   stays visible on `/admin/listing/:id` but renders the "no quantity" indicator
   instead of a check-in button, and `handleAttendeeCheckin`/`updateCheckedIn`
@@ -1477,10 +1482,12 @@ Semantic-correctness tests (verified against live behaviour):
   (`SUM(price_paid)`) keeps counting a line that no longer counts toward
   capacity/`tickets_count`.
 - The importer **only imports products that match `daily`-type listings**; a
-  product matching a `standard`-type listing is a blocking setup error. An *empty*
-  standard listing can be converted to daily in place, but a **populated** one
-  cannot (its undated rows would drop off the daily calendar/capacity), so that
-  case is blocked as unresolvable, never auto-converted. Gating to daily keeps
+  product matching a `standard`-type listing is a blocking setup error. An
+  *empty, ungrouped* standard listing can be converted to daily in place, but
+  conversion is blocked as unresolvable when the listing is **populated** (undated
+  rows would drop off the daily calendar/capacity) or in a **group with populated
+  standard siblings** (group members must share `listing_type`, so it can't be
+  converted alone); never auto-convert. Gating to daily keeps
   every imported line inherently dated — the daily listing carries the
   `Delivery`/`Collection` range on `start_at`/`end_at`, so run sheets
   (`getAgentRunSheet`) and the day-calendar (`getDailyListingAttendeesByDate`)
