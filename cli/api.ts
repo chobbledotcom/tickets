@@ -2,11 +2,10 @@
 import { loadConfig } from "./config.ts";
 import { type CurlOptions, curlJson } from "./curl.ts";
 import { writeErr, writeOut } from "./io.ts";
-import { parseResource, resourcePath } from "./resources.ts";
+import { parseResource, resourcePath, resources } from "./resources.ts";
 
 const [command, resourceRaw, idOrBody, maybeBody] = Deno.args;
-const usage =
-  "Usage: deno task cli:api <list|get|create|update|delete> <listings|attendees|modifiers> [id] [json]\n";
+const usage = `Usage: deno task cli:api <list|get|create|update|delete> <${resources.join("|")}> [id] [json]\n`;
 
 const parseBody = (raw?: string): unknown =>
   raw ? JSON.parse(raw) : undefined;
