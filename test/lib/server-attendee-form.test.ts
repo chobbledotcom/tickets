@@ -487,6 +487,67 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     });
   });
 
+  describe("bookings summary on the edit page", () => {
+    test("lists each booked listing with its quantity and a total", async () => {
+      const kayak = await createTestListing({
+        maxAttendees: 50,
+        maxQuantity: 5,
+        name: "Kayak Trip",
+      });
+      const canoe = await createTestListing({
+        maxAttendees: 50,
+        maxQuantity: 5,
+        name: "Canoe Trip",
+      });
+      const created = await createAttendeeAtomic({
+        bookings: [
+          { listingId: kayak.id, quantity: 2 },
+          { listingId: canoe.id, quantity: 3 },
+        ],
+        email: "booker@example.com",
+        name: "Booker",
+      });
+      if (!created.success) throw new Error("setup");
+      const attendeeId = created.attendees[0]!.id;
+
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendeeId}`,
+        { cookie: await testCookie() },
+      );
+      const html = await expectHtmlResponse(
+        response,
+        200,
+        "Bookings",
+        "Kayak Trip",
+        "Canoe Trip",
+      );
+      // The summary footer totals the booked quantities (2 + 3 = 5).
+      expect(html).toContain("<td>5</td>");
+    });
+
+    test("surfaces the checked-in status of a booking", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 50,
+        name: "Tour",
+      });
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Arrived",
+        "arrived@example.com",
+      );
+      const { updateCheckedIn } = await import("#shared/db/attendees.ts");
+      await updateCheckedIn(attendee.id, listing.id, true);
+
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendee.id}`,
+        { cookie: await testCookie() },
+      );
+      const html = await expectHtmlResponse(response, 200, "Bookings");
+      expect(html).toContain("Checked in");
+    });
+  });
+
   describe("daily defaults + mixed-timing alert on the edit page", () => {
     test("shows the mixed-timing alert when daily bookings differ in start date", async () => {
       const daily = await createTestListing({
