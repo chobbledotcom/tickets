@@ -1,31 +1,23 @@
-/**
- * Pure request-planning for the api CLI.
- *
- * No I/O, no process exit, no network — just a transform from the raw
- * positional arguments to either a curl request or a usage error. Keeping it
- * side-effect free is what makes it unit-testable in-process (and so its
- * coverage is deterministic); the thin `cli/api.ts` shell does the actual
- * reading, writing and exiting.
- */
-
 import type { CurlOptions } from "./curl.ts";
-import { parseResource, resourcePath, resources } from "./resources.ts";
+import { parseResource, resourcePath } from "./resources.ts";
 
-const usage = `Usage: deno task cli:api <list|get|create|update|delete> <${resources.join("|")}> [id] [json]\n`;
-
-/** Parse an optional JSON request body, undefined when none was supplied. */
-const parseBody = (raw?: string): unknown =>
+/** Parse an optional JSON body argument; an absent/empty value means no body. */
+export const parseBody = (raw?: string): unknown =>
   raw ? JSON.parse(raw) : undefined;
 
-/** Translate the verb + positional args into a curl request, or null when the
- * command verb is not recognised. */
-const buildRequest = (
+/**
+ * Build the curl request for a CLI command, or null when the command is not a
+ * recognised verb. Pure over its arguments (the entrypoint passes the parsed
+ * `Deno.args`) so the request-building logic can be unit-tested in-process
+ * without running the CLI.
+ */
+export const buildRequest = (
   command: string,
-  resourceRaw: string,
+  resourceRawValue: string,
   idOrBody?: string,
   maybeBody?: string,
 ): CurlOptions | null => {
-  const resource = parseResource(resourceRaw);
+  const resource = parseResource(resourceRawValue);
   if (command === "list") return { path: resourcePath(resource) };
   if (command === "get") return { path: resourcePath(resource, idOrBody) };
   if (command === "create") {
@@ -50,18 +42,4 @@ const buildRequest = (
     };
   }
   return null;
-};
-
-/** Either a ready-to-send request or the usage text to print on stderr. */
-export type ApiPlan = { request: CurlOptions } | { usageError: string };
-
-/**
- * Plan an api CLI invocation from its raw argument list. Missing a verb or
- * resource, or an unknown verb, yields a usage error rather than a request.
- */
-export const planApiCall = (args: string[]): ApiPlan => {
-  const [command, resourceRaw, idOrBody, maybeBody] = args;
-  if (!command || !resourceRaw) return { usageError: usage };
-  const request = buildRequest(command, resourceRaw, idOrBody, maybeBody);
-  return request ? { request } : { usageError: usage };
 };

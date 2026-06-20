@@ -1,4 +1,5 @@
 /// <reference lib="dom" />
+/// <reference lib="dom.iterable" />
 import { csrfPost } from "./csrf.ts";
 
 /** Wire up a payment provider "Test Connection" button.

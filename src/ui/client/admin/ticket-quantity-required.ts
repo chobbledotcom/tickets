@@ -1,4 +1,5 @@
 /// <reference lib="dom" />
+/// <reference lib="dom.iterable" />
 /** Block submission of the public ticket form when no tickets are selected.
  *
  * Mirrors the server-side check in processSubmission so users get immediate

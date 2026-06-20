@@ -1,4 +1,5 @@
 /// <reference lib="dom" />
+/// <reference lib="dom.iterable" />
 /** Scroll-hide nav: once the sticky main nav is "stuck" (scrolled past its
  * natural place), hide it while scrolling down and show it again on scroll up;
  * while it is still in its natural place near the top of the page, leave it put.

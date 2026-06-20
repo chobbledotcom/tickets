@@ -1,4 +1,5 @@
 /// <reference lib="dom" />
+/// <reference lib="dom.iterable" />
 /** Stripe checkout popup: opens Stripe in a new window when embedded in an iframe.
  * No-JS fallback: the Pay Now link has target="_blank" and works as a plain link. */
 export const initCheckoutPopup = (): void => {

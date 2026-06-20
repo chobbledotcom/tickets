@@ -99,11 +99,6 @@ const metricFailure = (
 
 // Files excluded from coverage enforcement
 const COVERAGE_EXCLUSIONS = [
-  // Thin I/O shell for the api CLI — bare arg-reading, output and exit. Its
-  // request-planning logic lives in cli/api-request.ts (fully unit-tested);
-  // this entry point is only smoke-tested by the e2e subprocess run, whose
-  // coverage is environment-dependent, so it is not enforced here.
-  "cli/api.ts",
   "scripts/compact-test-reporter.ts",
   "src/shared/db/migrations.ts",
   "test/test-utils/",

@@ -1,20 +1,23 @@
 #!/usr/bin/env -S deno run --allow-env --allow-read --allow-run
-// Thin I/O shell: read args, plan the call (pure, in cli/api-request.ts), then
-// do the only side effects — write output, or write usage and exit. Excluded
-// from coverage enforcement (see COVERAGE_EXCLUSIONS); the e2e run smoke-tests
-// it and api-request.ts carries the testable logic.
-import { planApiCall } from "./api-request.ts";
+import { buildRequest } from "./api-request.ts";
 import { loadConfig } from "./config.ts";
 import { curlJson } from "./curl.ts";
 import { writeErr, writeOut } from "./io.ts";
+import { resources } from "./resources.ts";
 
-const plan = planApiCall(Deno.args);
-if ("usageError" in plan) {
-  await writeErr(plan.usageError);
+const [command, resourceRaw, idOrBody, maybeBody] = Deno.args;
+const usage = `Usage: deno task cli:api <list|get|create|update|delete> <${resources.join("|")}> [id] [json]\n`;
+
+if (!command || !resourceRaw) {
+  await writeErr(usage);
+  Deno.exit(2);
+}
+
+const request = buildRequest(command, resourceRaw, idOrBody, maybeBody);
+if (!request) {
+  await writeErr(usage);
   Deno.exit(2);
 }
 
 const config = await loadConfig();
-await writeOut(
-  `${JSON.stringify(await curlJson(config, plan.request), null, 2)}\n`,
-);
+await writeOut(`${JSON.stringify(await curlJson(config, request), null, 2)}\n`);
