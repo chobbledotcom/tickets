@@ -60,29 +60,30 @@ describeWithEnv("server (listing export check-in filter)", { db: true }, () => {
     expect(csv).toContain("BobOut");
   });
 
-  /** A listing with one attendee who gave a free-text answer. */
+  /** A listing with two attendees: Alice (a choice answer plus a free-text
+   * answer) and Bob (no answers). Together they drive the answer-cell renderer
+   * through every branch — choice + free-text, an unanswered free-text
+   * question, a non-free-text question, and an attendee with no answers. */
   const setupFreeText = async () => {
     const listing = await createTestListing({
       maxAttendees: 100,
       name: "Gala",
     });
-    const { attendee } = await createTestAttendeeDirect(
+    const { attendee: alice } = await createTestAttendeeDirect(
       listing.id,
       "Alice",
       "alice@example.com",
     );
+    await createTestAttendeeDirect(listing.id, "Bob", "bob@example.com");
     const question = await questionsTable.insert({
       displayType: "free_text",
       text: "Dietary needs?",
     });
-    // A choice question (with an option, so it survives the answer filter) and a
-    // second, unanswered free-text question so the answer-cell renderer
-    // exercises its non-free-text and unanswered branches.
     const choiceQuestion = await questionsTable.insert({
       displayType: "radio",
       text: "Seat?",
     });
-    await answersTable.insert({
+    const aisle = await answersTable.insert({
       questionId: choiceQuestion.id,
       sortOrder: 0,
       text: "Aisle",
@@ -99,9 +100,9 @@ describeWithEnv("server (listing export check-in filter)", { db: true }, () => {
     await saveAttendeeAnswers(
       new Map([
         [
-          attendee.id,
+          alice.id,
           {
-            answerIds: [],
+            answerIds: [aisle.id],
             textAnswers: [{ questionId: question.id, text: "Coeliac" }],
           },
         ],
