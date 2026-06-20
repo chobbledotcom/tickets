@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { unzipSync, zipSync } from "fflate";
 import {
-  BACKUP_FRESHNESS_WINDOW_MS,
+  BACKUP_REQUIRED_WITHIN_MS,
   type BackupManifest,
   backupFilename,
   backupPrefix,
@@ -86,6 +86,22 @@ describeWithEnv("backup", { db: true }, () => {
       await createTestListing({ name: "Null Test" });
       const { sql } = await exportTable("listings");
       expect(sql).toContain("NULL");
+    });
+
+    test("keyset-paginates across multiple pages without losing rows", async () => {
+      await createTestListing({ name: "Page One" });
+      await createTestListing({ name: "Page Two" });
+      await createTestListing({ name: "Page Three" });
+
+      // A page size of 2 forces two reads (2 rows, then 1) so the keyset loop
+      // must continue past the first full page and stop on the short one.
+      const { sql, rowCount } = await exportTable("listings", 2);
+
+      expect(rowCount).toBe(3);
+      // One INSERT statement per page, and the cursor alias never leaks into the
+      // dumped column list.
+      expect(sql.match(/INSERT INTO "listings"/g)).toHaveLength(2);
+      expect(sql).not.toContain("__backup_rowid__");
     });
   });
 
@@ -205,6 +221,26 @@ describeWithEnv("backup", { db: true }, () => {
         restore();
       }
     });
+
+    test("names a database from an explicitly passed URL (another instance)", () => {
+      // The per-site upgrade gate passes a built site's own DB URL, not env.
+      expect(dbName("libsql://01ABC-client-acme.lite.bunnydb.net/")).toBe(
+        "client-acme",
+      );
+    });
+  });
+
+  describe("backupPrefix", () => {
+    test("defaults to the current DB's prefix", () => {
+      // Test env DB_URL is :memory:, so dbName() falls back to "local".
+      expect(backupPrefix()).toBe("backup-local-");
+    });
+
+    test("scopes to a named database when given one", () => {
+      expect(backupPrefix(dbName("libsql://01-client-acme.turso.io"))).toBe(
+        "backup-client-acme-",
+      );
+    });
   });
 
   describe("backupFilename / backupTimestamp", () => {
@@ -262,9 +298,29 @@ describeWithEnv("backup", { db: true }, () => {
       const restore = setTestEnv({ LOCAL_STORAGE_PATH: tmpDir });
       try {
         await seedBackup(
-          new Date(Date.now() - BACKUP_FRESHNESS_WINDOW_MS - 60_000),
+          new Date(Date.now() - BACKUP_REQUIRED_WITHIN_MS - 60_000),
         );
         expect(await hasRecentBackup()).toBe(false);
+      } finally {
+        restore();
+        Deno.removeSync(tmpDir, { recursive: true });
+      }
+    });
+
+    test("checks a passed maxAge and prefix (another instance's backup)", async () => {
+      const tmpDir = Deno.makeTempDirSync();
+      const restore = setTestEnv({ LOCAL_STORAGE_PATH: tmpDir });
+      try {
+        const sitePrefix = backupPrefix(
+          dbName("libsql://01-client-acme.lite.bunnydb.net"),
+        );
+        await uploadRaw(
+          new Uint8Array([1]),
+          `${sitePrefix}${backupTimestamp(new Date(Date.now() - 60_000))}.zip`,
+        );
+        // Found under the site's prefix, but not under the current DB's prefix.
+        expect(await hasRecentBackup(60 * 60 * 1000, sitePrefix)).toBe(true);
+        expect(await hasRecentBackup(60 * 60 * 1000)).toBe(false);
       } finally {
         restore();
         Deno.removeSync(tmpDir, { recursive: true });

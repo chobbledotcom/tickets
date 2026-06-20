@@ -31,11 +31,13 @@ const withActiveGroupListingsBySlug = async (
   return sorted.length === 0 ? notFoundResponse() : handler(group, sorted);
 };
 
-/** Handle group ticket page by slug */
+/** Handle group ticket page by slug. With `mode: "calculate"` a POST prices the
+ * group booking as a quote instead of completing it. */
 export const handleGroupTicketBySlug = (
   request: Request,
   slug: string,
+  mode?: "calculate",
 ): Promise<Response> =>
   withActiveGroupListingsBySlug(slug, (group, listings) =>
-    renderTicketFlow(request, [slug], { group })(listings),
+    renderTicketFlow(request, [slug], { group, mode })(listings),
   );

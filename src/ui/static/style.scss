@@ -1338,6 +1338,40 @@ fieldset {
   gap: var(--space-s);
 }
 
+/* Booking-form running total: the "show total" button and the live summary the
+   running-total script renders into the adjacent <output>. */
+.running-total {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-s);
+}
+
+.order-summary-output {
+  display: block;
+}
+
+.order-summary {
+  width: 100%;
+}
+
+.order-summary th {
+  font-weight: normal;
+  text-align: left;
+}
+
+.order-summary td {
+  text-align: right;
+}
+
+.order-summary-total th,
+.order-summary-total td {
+  font-weight: bold;
+}
+
+.order-summary-message {
+  margin: 0;
+}
+
 .checkboxes,
 .radios {
   border: 0;

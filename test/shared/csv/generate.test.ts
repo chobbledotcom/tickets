@@ -48,4 +48,25 @@ describe("CSV.generate", () => {
     );
     expect(csv).toBe("Q,Q\n1,2");
   });
+
+  test("preserves empty cells while escaping every RFC 4180 special character", () => {
+    const csv = CSV.generate(
+      [
+        { note: "", title: "plain" },
+        { note: "line\rbreak", title: 'quoted, "value"' },
+      ],
+      [
+        {
+          header: "Title",
+          value: (row: { note: string; title: string }) => row.title,
+        },
+        {
+          header: "Note",
+          value: (row: { note: string; title: string }) => row.note,
+        },
+      ],
+    );
+
+    expect(csv).toBe('Title,Note\nplain,\n"quoted, ""value""","line\rbreak"');
+  });
 });

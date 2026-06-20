@@ -183,7 +183,7 @@ describe("adminListingRecalculatePage", () => {
     expect(html).toContain("Current");
     expect(html).toContain("From attendee data");
     expect(html).toContain("Compare the stored listing totals");
-    expect(html).toContain('class="checkboxes"');
+    expect(html).toContain('class="table-scroll"');
     expect(html).toContain('name="recalculate_fields"');
     expect(html).toContain('value="booked_quantity"');
     expect(html).toContain(">9<");

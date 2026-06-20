@@ -1,4 +1,5 @@
 /// <reference lib="dom" />
+/// <reference lib="dom.iterable" />
 import { buildEmbedSnippets } from "#shared/embed.ts";
 
 /** Multi-booking link builder: track checkbox selection order and

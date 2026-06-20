@@ -25,7 +25,7 @@ import {
 } from "#shared/db/migrations.ts";
 import { invalidateUsersCache } from "#shared/db/users.ts";
 import { requireEnv } from "#shared/env.ts";
-import { MAX_BACKUPS } from "#shared/limits.ts";
+import { MAX_BACKUPS, readLimit } from "#shared/limits.ts";
 import { deleteFile, listFiles, uploadRaw } from "#shared/storage.ts";
 
 // ─── Types ──────────────────────────────────────────────────────
@@ -60,6 +60,15 @@ const getExistingTableNames = async (): Promise<Set<string>> => {
   return new Set(rows.map((row) => row.name));
 };
 
+/**
+ * The schema's tables that currently exist, in SCHEMA (FK-dependency) order.
+ * Skips tables a pending migration has not created yet.
+ */
+const existingSchemaTables = async (): Promise<string[]> => {
+  const existing = await getExistingTableNames();
+  return SCHEMA_TABLE_NAMES.filter((table) => existing.has(table));
+};
+
 /** Escape a SQL string value (single quotes doubled) */
 const escapeSql = (value: unknown): string => {
   if (value === null || value === undefined) return "NULL";
@@ -92,8 +101,7 @@ export const isRemoteDatabase = (): boolean => {
  * e.g. "libsql://01KFXB...-tickets-spencer.lite.bunnydb.net/" → "tickets-spencer"
  * Falls back to "local" for non-remote or unparseable URLs.
  */
-export const dbName = (): string => {
-  const url = requireEnv("DB_URL");
+export const dbName = (url: string = requireEnv("DB_URL")): string => {
   if (!URL.canParse(url)) return "local";
 
   const host = new URL(url).hostname;
@@ -112,38 +120,66 @@ export const dbName = (): string => {
  *  cutting the number of statements replayed on restore. */
 const ROWS_PER_INSERT = 100;
 
+/**
+ * Rows fetched per keyset page when exporting a table. A whole-table
+ * `SELECT *` makes libsqld (the server behind Bunny's databases) serialize the
+ * entire result into one response, which trips its "Response is too large"
+ * payload cap on big tables. Paging by rowid keeps each read's response
+ * bounded. Overridable per call (tests) and via the `BACKUP_PAGE_SIZE` env var.
+ */
+const DEFAULT_BACKUP_PAGE_SIZE = 500;
+
+/** Result-set key carrying the keyset cursor (rowid); stripped from the dump. */
+const ROWID_ALIAS = "__backup_rowid__";
+
 /** Export a single table as multi-row INSERT statements (deterministic order).
- *  Column names come from the row keys, so no extra schema query is needed. */
+ *  Reads are keyset-paginated by rowid so no single response exceeds libsqld's
+ *  payload cap. Column names come from the row keys (minus the cursor alias),
+ *  so no extra schema query is needed. */
 export const exportTable = async (
   table: string,
+  pageSize: number = readLimit("BACKUP_PAGE_SIZE", DEFAULT_BACKUP_PAGE_SIZE),
 ): Promise<{ sql: string; rowCount: number }> => {
-  const rows = await queryAll<Record<string, unknown>>(
-    `SELECT * FROM ${quoteId(table)} ORDER BY rowid`,
-  );
-  if (rows.length === 0) return { rowCount: 0, sql: "" };
-
-  const cols = Object.keys(rows[0]!);
-  const colList = cols.map(quoteId).join(", ");
+  const quoted = quoteId(table);
+  const statements: string[] = [];
+  let rowCount = 0;
+  let cols: string[] = [];
+  let colList = "";
   const tuple = (row: Record<string, unknown>): string =>
     `(${cols.map((c) => escapeSql(row[c])).join(", ")})`;
-  const sql = chunk(ROWS_PER_INSERT)(rows)
-    .map(
-      (group) =>
-        `INSERT INTO ${quoteId(table)} (${colList}) VALUES ${group
+  // App invariant: every table's rowids are positive autoincrement ids, so a
+  // cursor starting below 1 reads the whole table.
+  let cursor = 0;
+
+  for (;;) {
+    const rows = await queryAll<Record<string, unknown>>(
+      `SELECT rowid AS ${ROWID_ALIAS}, * FROM ${quoted} ` +
+        "WHERE rowid > ? ORDER BY rowid LIMIT ?",
+      [cursor, pageSize],
+    );
+    if (rows.length === 0) break;
+    if (rowCount === 0) {
+      cols = Object.keys(rows[0]!).filter((c) => c !== ROWID_ALIAS);
+      colList = cols.map(quoteId).join(", ");
+    }
+    for (const group of chunk(ROWS_PER_INSERT)(rows)) {
+      statements.push(
+        `INSERT INTO ${quoted} (${colList}) VALUES ${group
           .map(tuple)
           .join(", ")};`,
-    )
-    .join("\n");
-  return { rowCount: rows.length, sql };
+      );
+    }
+    rowCount += rows.length;
+    cursor = Number(rows[rows.length - 1]![ROWID_ALIAS]);
+    if (rows.length < pageSize) break;
+  }
+  return { rowCount, sql: statements.join("\n") };
 };
 
 /** Create a full backup — one TableBackup per table in SCHEMA order.
  *  Skips tables that don't exist yet (e.g. new tables about to be created by a migration). */
 export const createBackup = async (): Promise<TableBackup[]> => {
-  const existingTables = await getExistingTableNames();
-  const tables = SCHEMA_TABLE_NAMES.filter((table) =>
-    existingTables.has(table),
-  );
+  const tables = await existingSchemaTables();
   const backups: TableBackup[] = [];
 
   const concurrency = 4;
@@ -209,15 +245,17 @@ export const createAndUploadBackup = async (): Promise<string> => {
   return filename;
 };
 
-/** Prefix for listing backups scoped to the current DB */
-export const backupPrefix = (): string => `backup-${dbName()}-`;
+/** Prefix for listing backups, scoped to a DB (defaults to the current DB).
+ *  Pass a name from `dbName(url)` to scope it to another instance's database. */
+export const backupPrefix = (name: string = dbName()): string =>
+  `backup-${name}-`;
 
 /**
- * A backup younger than this is reused rather than recreated. Migrations can
- * retry after a crash (the lock self-heals via TTL), so this avoids piling up
- * near-identical pre-migration backups on each retry.
+ * How fresh a backup must be to satisfy the pre-upgrade gate on /admin/update
+ * and the per-site update button — updates are blocked unless a backup for that
+ * database was taken within this window. One hour.
  */
-export const BACKUP_FRESHNESS_WINDOW_MS = 5 * 60 * 1000;
+export const BACKUP_REQUIRED_WITHIN_MS = 60 * 60 * 1000;
 
 /**
  * Parse the epoch-ms encoded in a backup filename, or null if it doesn't match.
@@ -232,13 +270,20 @@ export const parseBackupTime = (filename: string): number | null => {
   return Number.isNaN(ms) ? null : ms;
 };
 
-/** True if a backup younger than BACKUP_FRESHNESS_WINDOW_MS already exists */
-export const hasRecentBackup = async (): Promise<boolean> => {
+/**
+ * True if a backup younger than `maxAgeMs` exists for the given prefix. Defaults
+ * to the current DB within the upgrade-gate window; callers gating another
+ * instance pass `backupPrefix(dbName(site.dbUrl))`.
+ */
+export const hasRecentBackup = async (
+  maxAgeMs: number = BACKUP_REQUIRED_WITHIN_MS,
+  prefix: string = backupPrefix(),
+): Promise<boolean> => {
   const now = Date.now();
-  const files = await listFiles(backupPrefix());
+  const files = await listFiles(prefix);
   for (const file of files) {
     const ms = parseBackupTime(file);
-    if (ms !== null && now - ms < BACKUP_FRESHNESS_WINDOW_MS) return true;
+    if (ms !== null && now - ms < maxAgeMs) return true;
   }
   return false;
 };

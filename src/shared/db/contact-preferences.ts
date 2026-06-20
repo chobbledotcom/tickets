@@ -100,16 +100,32 @@ export const forgetContact = async (hash: string): Promise<number> => {
   return result.rowsAffected;
 };
 
-export type EmailStats = {
+export type ContactStats = {
   contactCount: number;
   lastContact: string;
   lastSubject: string;
+  bookingCount: number;
+  lastBookedOnline: boolean;
+  lastBookingDate: string;
+  adminNotes: string;
 };
 
-type StatsBlob = { c: number; t: string; s: string };
+type StatsBlob = {
+  c?: number;
+  t?: string;
+  s?: string;
+  b?: number;
+  o?: boolean;
+  d?: string;
+  n?: string;
+};
 
-const EMPTY_STATS: EmailStats = {
+const EMPTY_STATS: ContactStats = {
+  adminNotes: "",
+  bookingCount: 0,
   contactCount: 0,
+  lastBookedOnline: false,
+  lastBookingDate: "",
   lastContact: "",
   lastSubject: "",
 };
@@ -117,12 +133,20 @@ const EMPTY_STATS: EmailStats = {
 const parseStats = async (
   blob: string,
   privateKey: CryptoKey,
-): Promise<EmailStats> => {
+): Promise<ContactStats> => {
   if (!blob) return EMPTY_STATS;
-  const { c, t, s } = JSON.parse(
+  const { b, c, d, n, o, s, t } = JSON.parse(
     await decryptWithOwnerKey(blob, privateKey),
   ) as StatsBlob;
-  return { contactCount: c, lastContact: t, lastSubject: s };
+  return {
+    adminNotes: n ?? "",
+    bookingCount: b ?? 0,
+    contactCount: c ?? 0,
+    lastBookedOnline: o ?? false,
+    lastBookingDate: d ?? "",
+    lastContact: t ?? "",
+    lastSubject: s ?? "",
+  };
 };
 
 const loadStatsBlobs = async (
@@ -136,10 +160,10 @@ const loadStatsBlobs = async (
   return new Map(rows.map((r) => [r.contact_hash, r.stats_blob]));
 };
 
-export const getEmailStats = async (
+export const getContactStats = async (
   hash: string,
   privateKey: CryptoKey,
-): Promise<EmailStats> => {
+): Promise<ContactStats> => {
   const row = await queryOne<{ stats_blob: string }>(
     "SELECT stats_blob FROM contact_preferences WHERE contact_hash = ?",
     [hash],
@@ -161,32 +185,86 @@ export const getContactCounts = async (
   );
 };
 
-export const recordContacts = async (
+const statsToBlob = (stats: ContactStats): StatsBlob => ({
+  b: stats.bookingCount,
+  c: stats.contactCount,
+  d: stats.lastBookingDate,
+  n: stats.adminNotes,
+  o: stats.lastBookedOnline,
+  s: stats.lastSubject,
+  t: stats.lastContact,
+});
+
+const saveStats = async (
+  hash: string,
+  stats: ContactStats,
+  lastActivity = nowMs(),
+): Promise<{ args: (string | number)[]; sql: string }> => ({
+  args: [
+    hash,
+    await encryptWithOwnerKey(
+      JSON.stringify(statsToBlob(stats)),
+      settings.publicKey,
+    ),
+    lastActivity,
+  ],
+  sql: "INSERT INTO contact_preferences (contact_hash, stats_blob, last_activity) VALUES (?, ?, ?) ON CONFLICT(contact_hash) DO UPDATE SET stats_blob = excluded.stats_blob, last_activity = excluded.last_activity",
+});
+
+const updateStatsForHashes = async (
+  hashes: string[],
+  privateKey: CryptoKey,
+  update: (current: ContactStats) => ContactStats,
+): Promise<void> => {
+  if (hashes.length === 0) return;
+  const lastActivity = nowMs();
+  const byHash = await loadStatsBlobs(hashes);
+  const statements = await Promise.all(
+    hashes.map(async (hash) =>
+      saveStats(
+        hash,
+        update(await parseStats(byHash.get(hash) ?? "", privateKey)),
+        lastActivity,
+      ),
+    ),
+  );
+  await executeBatch(statements);
+};
+
+export const recordContacts = (
   hashes: string[],
   subject: string,
   privateKey: CryptoKey,
 ): Promise<void> => {
-  if (hashes.length === 0) return;
-  const now = nowIso();
-  const nowMillis = nowMs();
-  const byHash = await loadStatsBlobs(hashes);
-  const statements = await Promise.all(
-    hashes.map(async (hash) => {
-      const current = await parseStats(byHash.get(hash) ?? "", privateKey);
-      const blob: StatsBlob = {
-        c: current.contactCount + 1,
-        s: subject,
-        t: now,
-      };
-      const encrypted = await encryptWithOwnerKey(
-        JSON.stringify(blob),
-        settings.publicKey,
-      );
-      return {
-        args: [hash, encrypted, nowMillis],
-        sql: "INSERT INTO contact_preferences (contact_hash, stats_blob, last_activity) VALUES (?, ?, ?) ON CONFLICT(contact_hash) DO UPDATE SET stats_blob = excluded.stats_blob, last_activity = excluded.last_activity",
-      };
-    }),
-  );
-  await executeBatch(statements);
+  const contactedAt = nowIso();
+  return updateStatsForHashes(hashes, privateKey, (current) => ({
+    ...current,
+    contactCount: current.contactCount + 1,
+    lastContact: contactedAt,
+    lastSubject: subject,
+  }));
 };
+
+export const recordBookingStats = (
+  hashes: string[],
+  bookedOnline: boolean,
+  privateKey: CryptoKey,
+): Promise<void> => {
+  const bookedAt = nowIso();
+  return updateStatsForHashes(hashes, privateKey, (current) => ({
+    ...current,
+    bookingCount: current.bookingCount + 1,
+    lastBookedOnline: bookedOnline,
+    lastBookingDate: bookedAt,
+  }));
+};
+
+export const saveContactAdminNotes = (
+  hash: string,
+  adminNotes: string,
+  privateKey: CryptoKey,
+): Promise<void> =>
+  updateStatsForHashes([hash], privateKey, (current) => ({
+    ...current,
+    adminNotes,
+  }));
