@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -73,7 +73,7 @@ jobs:
 
   deploy:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
