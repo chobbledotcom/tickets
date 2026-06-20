@@ -5,6 +5,7 @@ import { adminApiRoutes } from "#routes/admin/api.ts";
 import { setTestEnv } from "#test-utils";
 import { loadConfig } from "../../cli/config.ts";
 import { buildCurlArgs, curlFailureMessage, curlJson } from "../../cli/curl.ts";
+import { clearScreen, writeErr } from "../../cli/io.ts";
 import { parseResource, resourcePath, resources } from "../../cli/resources.ts";
 
 const withTempCwd = async <T>(fn: () => Promise<T>): Promise<T> => {
@@ -229,5 +230,39 @@ describe("CLI resources", () => {
       ),
     ].sort();
     expect([...resources].sort()).toEqual(served);
+  });
+});
+
+describe("CLI io", () => {
+  const captureWrites = (
+    target: typeof Deno.stdout | typeof Deno.stderr,
+  ): { writes: string[]; restore: () => void } => {
+    const writes: string[] = [];
+    const decoder = new TextDecoder();
+    const writeStub = stub(target, "write", (bytes: Uint8Array) => {
+      writes.push(decoder.decode(bytes));
+      return Promise.resolve(bytes.length);
+    });
+    return { restore: () => writeStub.restore(), writes };
+  };
+
+  test("writeErr writes the text to stderr", async () => {
+    const cap = captureWrites(Deno.stderr);
+    try {
+      await writeErr("nope\n");
+    } finally {
+      cap.restore();
+    }
+    expect(cap.writes).toEqual(["nope\n"]);
+  });
+
+  test("clearScreen writes the terminal reset sequence to stdout", async () => {
+    const cap = captureWrites(Deno.stdout);
+    try {
+      await clearScreen();
+    } finally {
+      cap.restore();
+    }
+    expect(cap.writes).toEqual(["\x1b[2J\x1b[H"]);
   });
 });

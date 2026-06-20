@@ -13,7 +13,9 @@ import {
   createAttendeeAtomic,
   ensureAllBookings,
   getAttendeesRaw,
+  reverseOrderActivity,
 } from "#shared/db/attendees.ts";
+import { getDb } from "#shared/db/client.ts";
 import {
   getContactRecord,
   getVisits,
@@ -153,6 +155,16 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       };
       const check = await ensureAllBookings(failure, 1, "public");
       expect(check).toEqual({ ok: false, reason: "encryption_error" });
+    });
+
+    test("reverseOrderActivity is a no-op for a contact with no email or phone", async () => {
+      // An order with neither identity yields no contact hashes, so the
+      // compensation loop never runs and nothing is written or thrown.
+      await reverseOrderActivity("", "", "public");
+      const { rows } = await getDb().execute(
+        "SELECT COUNT(*) AS c FROM contact_preferences",
+      );
+      expect(Number(rows[0]!.c)).toBe(0);
     });
   });
 

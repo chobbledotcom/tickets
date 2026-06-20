@@ -27,6 +27,7 @@ import {
   unrecordBooking,
   unrecordVisit,
 } from "#shared/db/contact-preferences.ts";
+import { bestEffort } from "#shared/logger.ts";
 import { type Attendee, normalizeDurationDays } from "#shared/types.ts";
 
 /**
@@ -54,8 +55,12 @@ export const ensureAllBookings = async (
     const attendee = result.attendees[0]!;
     await deleteAttendee(attendee.id);
     // The greedy create already recorded a visit + booking for this contact;
-    // undo it now that the order is being rolled back.
-    await reverseOrderActivity(attendee.email, attendee.phone, source);
+    // undo it now that the order is being rolled back. Best-effort: callers
+    // such as the paid webhook refund after this returns, so a contact-stats
+    // write failure must not escape here and skip the refund.
+    await bestEffort("reverseOrderActivity on partial rollback", () =>
+      reverseOrderActivity(attendee.email, attendee.phone, source),
+    );
   }
   return {
     ok: false,
