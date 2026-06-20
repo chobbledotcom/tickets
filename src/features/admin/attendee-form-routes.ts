@@ -63,6 +63,7 @@ import {
 } from "#shared/db/attendees.ts";
 import {
   getContactRecord,
+  getRepairFallbackRecord,
   hashEmail,
   hashPhone,
   toContactHashParam,
@@ -475,15 +476,18 @@ const loadChannelRecord = async (
     };
   } catch (error) {
     // A corrupt/undecryptable stats_blob for one contact must not take down
-    // the whole attendee edit page. Surface it for repair (the row can be
-    // fixed via the per-contact record editor) and render the attendee
-    // without this channel's history — mirroring the best-effort SMS path
-    // that lets bad phone stats persist without blocking sends.
+    // the whole attendee edit page. Surface it for repair and keep the channel
+    // with its surviving counts and (crucially) its /admin/history link, so the
+    // operator can still open the editor and overwrite the bad row — dropping
+    // the channel here would hide the only path to fix it.
     logError({
       code: ErrorCode.DECRYPT_FAILED,
       detail: `contact history ${toContactHashParam(hash)}: ${error}`,
     });
-    return null;
+    return {
+      hashParam: toContactHashParam(hash),
+      record: await getRepairFallbackRecord(hash),
+    };
   }
 };
 

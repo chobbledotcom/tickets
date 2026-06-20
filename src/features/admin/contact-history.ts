@@ -18,8 +18,8 @@ import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
   type ContactRecord,
   fromContactHashParam,
-  getContactCountFields,
   getContactRecord,
+  getRepairFallbackRecord,
   saveContactRecord,
   toContactHashParam,
 } from "#shared/db/contact-preferences.ts";
@@ -46,13 +46,7 @@ const loadForRepair = async (
       code: ErrorCode.DECRYPT_FAILED,
       detail: `contact history editor ${toContactHashParam(hash)}: ${error}`,
     });
-    return {
-      ...(await getContactCountFields(hash)),
-      adminNotes: "",
-      contactCount: 0,
-      lastContact: "",
-      lastSubject: "",
-    };
+    return getRepairFallbackRecord(hash);
   }
 };
 

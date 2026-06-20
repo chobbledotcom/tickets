@@ -13,6 +13,7 @@ import {
   getContactRecord,
   hashEmail,
   saveContactRecord,
+  toContactHashParam,
 } from "#shared/db/contact-preferences.ts";
 import {
   answersTable,
@@ -1457,7 +1458,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       );
     });
 
-    test("renders the edit page when a contact's stats_blob is corrupt", async () => {
+    test("keeps the repair link when a contact's stats_blob is corrupt", async () => {
       const listing = await createTestListing({
         maxAttendees: 100,
         maxQuantity: 5,
@@ -1468,20 +1469,26 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         "Corrupt Contact",
         "corrupt@example.com",
       );
+      const hash = await hashEmail("corrupt@example.com");
       // Leave this contact's encrypted stats unreadable — the exact state the
-      // best-effort SMS write path can persist. Loading the per-channel
-      // history must not take the whole edit page down.
+      // best-effort SMS write path can persist — but keep recent activity so
+      // the request's prune doesn't delete the row before it is read.
       await getDb().execute({
-        args: [await hashEmail("corrupt@example.com")],
-        sql: `INSERT INTO contact_preferences (contact_hash, stats_blob) VALUES (?, 'corrupt-blob')
-              ON CONFLICT(contact_hash) DO UPDATE SET stats_blob = 'corrupt-blob'`,
+        args: [hash, Date.now()],
+        sql: `INSERT INTO contact_preferences (contact_hash, stats_blob, last_activity) VALUES (?, 'corrupt-blob', ?)
+              ON CONFLICT(contact_hash) DO UPDATE SET stats_blob = 'corrupt-blob', last_activity = excluded.last_activity`,
       });
 
       const response = await awaitTestRequest(
         `/admin/attendees/${attendee.id}`,
         { cookie: await testCookie() },
       );
+      // The page renders AND keeps the /admin/history repair link for the bad
+      // row — dropping the channel would hide the only way to fix it.
       expect(response.status).toBe(200);
+      expect(await response.text()).toContain(
+        `/admin/history/${toContactHashParam(hash)}`,
+      );
     });
   });
 });

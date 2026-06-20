@@ -271,6 +271,17 @@ export const getContactCountFields = async (
   return countFieldsFromRow(row);
 };
 
+/** A repairable view of a contact whose encrypted note cannot be read: the real
+ * plaintext counts with blank note fields. Both the attendee history panel and
+ * the record editor fall back to this so a corrupt row stays visible (and its
+ * repair link reachable) instead of vanishing. */
+export const getRepairFallbackRecord = async (
+  hash: string,
+): Promise<ContactRecord> => ({
+  ...EMPTY_STATS,
+  ...(await getContactCountFields(hash)),
+});
+
 export const getContactCounts = async (
   hashes: string[],
   privateKey: CryptoKey,
