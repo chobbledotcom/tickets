@@ -92,6 +92,29 @@ describe("ticket form answer grouping", () => {
     });
   });
 
+  test("deduplicates assign-all text answers by question for one attendee", () => {
+    const selectedListingIds = new Set([101, 202]);
+    const textMap = buildListingTextAnswerMap(
+      [{ questionId: 1, text: "Window seat" }],
+      new Map(),
+      selectedListingIds,
+    );
+
+    const grouped = groupListingAnswerSets(
+      [
+        { attendee: { id: 501 }, listing: { id: 101 } },
+        { attendee: { id: 501 }, listing: { id: 202 } },
+      ],
+      {},
+      textMap,
+    );
+
+    expect(grouped.get(501)).toEqual({
+      answerIds: [],
+      textAnswers: [{ questionId: 1, text: "Window seat" }],
+    });
+  });
+
   test("skips an attendee whose listing collected no answers", () => {
     const grouped = groupListingAnswerSets(
       [

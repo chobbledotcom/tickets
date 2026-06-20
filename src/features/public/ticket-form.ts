@@ -116,6 +116,17 @@ export const buildListingTextAnswerMap = (
   return result;
 };
 
+const mergeTextAnswersByQuestion = (
+  existing: TextAnswer[] | undefined,
+  incoming: TextAnswer[],
+): TextAnswer[] => {
+  const byQuestion = new Map(
+    (existing ?? []).map((answer) => [answer.questionId, answer]),
+  );
+  for (const answer of incoming) byQuestion.set(answer.questionId, answer);
+  return [...byQuestion.values()];
+};
+
 export const groupListingAnswerSets = (
   entries: AttendeeListingEntry[],
   listingAnswerIds: Record<string, number[]>,
@@ -130,7 +141,10 @@ export const groupListingAnswerSets = (
     const existing = answersByAttendee.get(attendee.id) ?? { answerIds: [] };
     existing.answerIds.push(...answerIds);
     if (textAnswers.length > 0) {
-      existing.textAnswers = [...(existing.textAnswers ?? []), ...textAnswers];
+      existing.textAnswers = mergeTextAnswersByQuestion(
+        existing.textAnswers,
+        textAnswers,
+      );
     }
     answersByAttendee.set(attendee.id, existing);
   }

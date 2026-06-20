@@ -27,6 +27,7 @@ import {
 import { columnMapByIds, swapSortOrder } from "#shared/db/query.ts";
 import { settings } from "#shared/db/settings.ts";
 import { col, defineTable } from "#shared/db/table.ts";
+import { nowIso } from "#shared/now.ts";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -535,9 +536,8 @@ export function parseQuestionAnswers(opts: { optional: boolean }) {
  * `Map<attendeeId, answerIds>` is the single shape every save situation reduces
  * to — one answer set shared across attendees, a by-question selection, or the
  * per-listing grouping from `groupListingAnswers` — so callers build the map and
- * this builds the SQL. `INSERT OR IGNORE` tolerates an answer set that repeats
- * an id (e.g. an attendee whose booked events share a question), which the
- * unique `(attendee_id, answer_id)` index would otherwise reject.
+ * this builds the SQL. Repeated question answers collapse to the last value
+ * before insert, matching the single-answer-per-question invariant.
  */
 export const getOrCreateStringIds = async (
   texts: string[],
@@ -551,10 +551,11 @@ export const getOrCreateStringIds = async (
       textIndex: await hmacHash(text),
     })),
   );
+  const created = nowIso();
   await executeBatch(
     rows.map((row) => ({
-      args: [row.textIndex, row.encrypted],
-      sql: "INSERT OR IGNORE INTO strings (text_index, encrypted_text) VALUES (?, ?)",
+      args: [row.textIndex, row.encrypted, created],
+      sql: "INSERT OR IGNORE INTO strings (text_index, encrypted_text, created) VALUES (?, ?, ?)",
     })),
   );
   const found = await queryAll<{ id: number; text_index: string }>(
@@ -583,16 +584,61 @@ const questionIdsByAnswerId = (
 ): Promise<Map<number, number>> =>
   columnMapByIds("answers", "question_id", answerIds);
 
+const dedupeByQuestion = <T extends { questionId: number }>(
+  answers: T[],
+): T[] => {
+  const answerByQuestion = new Map<number, T>();
+  for (const answer of answers) {
+    answerByQuestion.set(answer.questionId, answer);
+  }
+  return [...answerByQuestion.values()];
+};
+
+const dedupeAnswerIdsByQuestion = (
+  answerIds: number[],
+  questionIdsByAnswer: Map<number, number>,
+): number[] => {
+  const answerIdByQuestion = new Map<number, number>();
+  for (const answerId of answerIds) {
+    const questionId = questionIdsByAnswer.get(answerId);
+    if (questionId === undefined) {
+      throw new Error(`No question found for answer ${answerId}`);
+    }
+    answerIdByQuestion.set(questionId, answerId);
+  }
+  return [...answerIdByQuestion.values()];
+};
+
+const dedupeTextAnswerIdsByQuestion = (
+  textAnswerIds: TextAnswerId[],
+): TextAnswerId[] => dedupeByQuestion(textAnswerIds);
+
 export const saveAttendeeAnswers = async (
   answersByAttendee: Map<number, number[] | AttendeeAnswerSet>,
 ): Promise<void> => {
-  const normalized = new Map(
-    [...answersByAttendee].map(([id, set]) => [id, normalizeAnswerSet(set)]),
+  const normalized = new Map<
+    number,
+    AttendeeAnswerSet & {
+      textAnswerIds: TextAnswerId[];
+      textAnswers: TextAnswer[];
+    }
+  >(
+    [...answersByAttendee].map(([id, set]) => {
+      const answerSet = normalizeAnswerSet(set);
+      return [
+        id,
+        {
+          ...answerSet,
+          textAnswerIds: dedupeByQuestion(answerSet.textAnswerIds ?? []),
+          textAnswers: dedupeByQuestion(answerSet.textAnswers ?? []),
+        },
+      ];
+    }),
   );
   const [stringIds, questionIdsByAnswer] = await Promise.all([
     getOrCreateStringIds(
-      [...normalized.values()].flatMap(
-        (set) => set.textAnswers?.map((a) => a.text) ?? [],
+      [...normalized.values()].flatMap((set) =>
+        set.textAnswers.map((a) => a.text),
       ),
     ),
     questionIdsByAnswerId([
@@ -602,30 +648,34 @@ export const saveAttendeeAnswers = async (
   const statements: { sql: string; args: InValue[] }[] = [];
   for (const [
     attendeeId,
-    { answerIds, textAnswerIds = [], textAnswers = [] },
+    { answerIds, textAnswerIds, textAnswers },
   ] of normalized) {
+    const dedupedAnswerIds = dedupeAnswerIdsByQuestion(
+      answerIds,
+      questionIdsByAnswer,
+    );
     statements.push({
       args: [attendeeId],
       sql: "DELETE FROM attendee_answers WHERE attendee_id = ?",
     });
-    if (answerIds.length > 0) {
-      const placeholders = answerIds.map(() => "(?, ?, ?)").join(", ");
+    if (dedupedAnswerIds.length > 0) {
+      const placeholders = dedupedAnswerIds.map(() => "(?, ?, ?)").join(", ");
       statements.push({
-        args: answerIds.flatMap((id) => [
+        args: dedupedAnswerIds.flatMap((id) => [
           attendeeId,
           questionIdsByAnswer.get(id)!,
           id,
         ]),
-        sql: `INSERT OR REPLACE INTO attendee_answers (attendee_id, question_id, answer_id) VALUES ${placeholders}`,
+        sql: `INSERT INTO attendee_answers (attendee_id, question_id, answer_id) VALUES ${placeholders}`,
       });
     }
-    const resolvedTextAnswerIds = [
+    const resolvedTextAnswerIds = dedupeTextAnswerIdsByQuestion([
       ...textAnswerIds,
       ...textAnswers.map((answer) => ({
         questionId: answer.questionId,
         stringId: stringIds.get(answer.text)!,
       })),
-    ];
+    ]);
     if (resolvedTextAnswerIds.length > 0) {
       const placeholders = resolvedTextAnswerIds
         .map(() => "(?, ?, ?)")
@@ -636,7 +686,7 @@ export const saveAttendeeAnswers = async (
           answer.questionId,
           answer.stringId,
         ]),
-        sql: `INSERT OR REPLACE INTO attendee_answers (attendee_id, question_id, string_id) VALUES ${placeholders}`,
+        sql: `INSERT INTO attendee_answers (attendee_id, question_id, string_id) VALUES ${placeholders}`,
       });
     }
   }

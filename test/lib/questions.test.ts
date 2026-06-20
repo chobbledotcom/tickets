@@ -621,6 +621,12 @@ describeWithEnv("custom questions", { db: true }, () => {
       // No error thrown, no rows inserted (delete-only path)
     });
 
+    test("saveAttendeeAnswers rejects answer ids without a question", async () => {
+      await expect(
+        saveAttendeeAnswers(new Map([[1, [999_999]]])),
+      ).rejects.toThrow("No question found for answer 999999");
+    });
+
     test("saveAttendeeAnswers replaces existing answers atomically", async () => {
       const q = await questionsTable.insert({
         displayType: "radio",
@@ -675,6 +681,42 @@ describeWithEnv("custom questions", { db: true }, () => {
         await getTestPrivateKey(),
       );
       expect(textAnswers.get(q.id)).toBe("Front row please");
+
+      const strings = await queryAll<{ created: string; used_count: number }>(
+        "SELECT created, used_count FROM strings",
+      );
+      expect(strings.map((row) => row.used_count)).toEqual([1]);
+      expect(Number.isNaN(Date.parse(strings[0]!.created))).toBe(false);
+    });
+
+    test("deduplicates repeated text answers by question before saving", async () => {
+      const q = await questionsTable.insert({
+        displayType: "free_text",
+        text: "Accessibility needs?",
+      });
+      const listing = await createTestListing();
+      const attendee = await createAttendee(listing.id);
+
+      await saveAttendeeAnswers(
+        new Map([
+          [
+            attendee.id,
+            {
+              answerIds: [],
+              textAnswers: [
+                { questionId: q.id, text: "First answer" },
+                { questionId: q.id, text: "Final answer" },
+              ],
+            },
+          ],
+        ]),
+      );
+
+      const textAnswers = await getAttendeeTextAnswers(
+        attendee.id,
+        await getTestPrivateKey(),
+      );
+      expect(textAnswers.get(q.id)).toBe("Final answer");
 
       const strings = await queryAll<{ used_count: number }>(
         "SELECT used_count FROM strings",

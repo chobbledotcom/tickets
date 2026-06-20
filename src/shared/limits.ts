@@ -222,6 +222,17 @@ export const PRUNE_SUMUP_RETENTION_HOURS = readLimit(
 );
 
 /**
+ * Retention (days) for encrypted string rows that have not been attached to an
+ * attendee answer (default: 7). These are usually abandoned paid checkouts:
+ * short-lived enough to avoid retaining free-text PII indefinitely, but long
+ * enough to survive checkout lifetime plus delayed provider webhook retries.
+ */
+export const PRUNE_UNUSED_STRINGS_RETENTION_DAYS = readLimit(
+  "PRUNE_UNUSED_STRINGS_RETENTION_DAYS",
+  7,
+);
+
+/**
  * Retention (days) past last contact activity for contact_preferences rows
  * (default: 1825 = 5 years). Bounds the opaque repeat-customer recognition
  * table and makes loyalty status recency-bounded.
@@ -264,6 +275,8 @@ export const PRUNE_LOGINS_RETENTION_MS = PRUNE_LOGINS_RETENTION_DAYS * DAY_MS;
 export const PRUNE_TOKENS_RETENTION_MS = PRUNE_TOKENS_RETENTION_DAYS * DAY_MS;
 export const PRUNE_SUMUP_RETENTION_MS =
   PRUNE_SUMUP_RETENTION_HOURS * 60 * 60 * 1000;
+export const PRUNE_UNUSED_STRINGS_RETENTION_MS =
+  PRUNE_UNUSED_STRINGS_RETENTION_DAYS * DAY_MS;
 export const PRUNE_CONTACTS_RETENTION_MS =
   PRUNE_CONTACTS_RETENTION_DAYS * DAY_MS;
 
@@ -522,6 +535,13 @@ export const LIMIT_ENTRIES: readonly LimitEntry[] = [
     envKey: "PRUNE_SUMUP_RETENTION_HOURS",
     label: "Prune: SumUp checkout staging retention",
     unit: "hours",
+  },
+  {
+    current: PRUNE_UNUSED_STRINGS_RETENTION_DAYS,
+    defaultValue: 7,
+    envKey: "PRUNE_UNUSED_STRINGS_RETENTION_DAYS",
+    label: "Prune: unused encrypted strings retention",
+    unit: "days",
   },
   {
     current: PRUNE_CONTACTS_RETENTION_DAYS,

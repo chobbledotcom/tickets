@@ -83,6 +83,7 @@ export type DebugPageState = {
   prune: {
     payments: string;
     sessions: string;
+    strings: string;
     logins: string;
   };
   theme: Theme;
@@ -643,6 +644,10 @@ const PruneSection = ({
         <tr>
           <td>sessions</td>
           <td>{prune.sessions}</td>
+        </tr>
+        <tr>
+          <td>strings</td>
+          <td>{prune.strings}</td>
         </tr>
         <tr>
           <td>login_attempts</td>
