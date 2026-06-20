@@ -13,7 +13,7 @@
   "join.success.title": "Account Created",
   "join.success.heading": "Password Set",
   "join.success.message": "Your password has been set successfully.",
-  "join.success.wait_activation": "Please wait for the site owner to activate your account before logging in.",
+  "join.success.ready": "Your account is ready — you can log in now.",
   "join.invalid.title": "Invalid Invite",
   "join.invalid.heading": "Invalid Invite",
   "password.current": "Current Password",

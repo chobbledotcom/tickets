@@ -26,7 +26,6 @@ export interface DisplayUser {
   /** For agent users: the names of the logistics agents they're assigned to. */
   agentNames?: string[];
   hasDataKey: boolean;
-  hasPassword: boolean;
   id: number;
   inviteExpired: boolean;
   username: string;
@@ -62,8 +61,9 @@ const AgentSelector = ({
 
 /** Status label for a user */
 const userStatus = (user: DisplayUser): string => {
-  if (user.hasDataKey && user.hasPassword) return t("users.status.active");
-  if (user.hasPassword && !user.hasDataKey) return t("users.status.pending");
+  // A user with a data key has joined and self-activated; otherwise they are an
+  // outstanding invite, which is either still open or expired.
+  if (user.hasDataKey) return t("users.status.active");
   if (user.inviteExpired) return t("users.status.expired");
   return t("users.status.invited");
 };
@@ -190,11 +190,6 @@ export const adminUserManagePage = (
       </div>
 
       <p class="actions">
-        {user.hasPassword && !user.hasDataKey && (
-          <CsrfForm action={`/admin/users/${user.id}/activate`} class="inline">
-            <SubmitButton icon="check">{t("users.activate")}</SubmitButton>
-          </CsrfForm>
-        )}
         {user.adminLevel === "agent" && (
           <ActionButton
             href={`/admin/users/${user.id}/agents`}

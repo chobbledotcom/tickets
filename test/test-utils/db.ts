@@ -129,6 +129,8 @@ export const createTestDbWithSetup = async (
             id: row.id as InValue,
             invite_code_hash: row.invite_code_hash as InValue,
             invite_expiry: row.invite_expiry as InValue,
+            invite_wrapped_data_key: row.invite_wrapped_data_key as InValue,
+            kek_version: row.kek_version as InValue,
             password_hash: row.password_hash as InValue,
             username_hash: row.username_hash as InValue,
             username_index: row.username_index as InValue,
@@ -191,7 +193,7 @@ const createDirectAdminSession = async (): Promise<{
   csrfToken: string;
 }> => {
   const { generateSecureToken } = await import("#shared/crypto/utils.ts");
-  const { deriveKEK, unwrapKey, wrapKeyWithToken } = await import(
+  const { deriveKEKFromPassword, unwrapKey, wrapKeyWithToken } = await import(
     "#shared/crypto/keys.ts"
   );
   const { createSession: createDbSession } = await import(
@@ -207,11 +209,8 @@ const createDirectAdminSession = async (): Promise<{
   if (!user?.wrapped_data_key) {
     throw new Error("Admin user not found after setup");
   }
-  const passwordHash = await verifyUserPassword(user, TEST_ADMIN_PASSWORD);
-  if (!passwordHash) {
-    throw new Error("Admin password verification failed after setup");
-  }
-  const kek = await deriveKEK(passwordHash);
+  const ownerHash = (await verifyUserPassword(user, TEST_ADMIN_PASSWORD))!;
+  const kek = await deriveKEKFromPassword(TEST_ADMIN_PASSWORD, ownerHash);
   const dataKey = await unwrapKey(user.wrapped_data_key, kek);
 
   const token = generateSecureToken();

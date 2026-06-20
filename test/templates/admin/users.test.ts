@@ -22,7 +22,6 @@ describe("adminUsersPage", () => {
       {
         adminLevel: "owner",
         hasDataKey: true,
-        hasPassword: true,
         id: 1,
         inviteExpired: false,
         username: "owner",
@@ -30,7 +29,6 @@ describe("adminUsersPage", () => {
       {
         adminLevel: "manager",
         hasDataKey: false,
-        hasPassword: true,
         id: 2,
         inviteExpired: false,
         username: "pending",
@@ -38,7 +36,6 @@ describe("adminUsersPage", () => {
       {
         adminLevel: "manager",
         hasDataKey: false,
-        hasPassword: false,
         id: 3,
         inviteExpired: false,
         username: "invited",
@@ -51,10 +48,10 @@ describe("adminUsersPage", () => {
       success: "",
     });
     expect(html).toContain("Active");
-    expect(html).toContain("Pending Activation");
     expect(html).toContain("Invited");
-    // The username links to the per-user manage page; the activate/delete
-    // actions live there now, not inline in the table.
+    // The username links to the per-user manage page; the delete action lives
+    // there now, not inline in the table. There is no activate action — invited
+    // users self-activate at /join.
     expect(html).toContain('<a href="/admin/users/2">pending</a>');
     expect(html).toContain('<a href="/admin/users/3">invited</a>');
     expect(html).not.toContain("/activate");
@@ -66,7 +63,6 @@ describe("adminUsersPage", () => {
       {
         adminLevel: "owner",
         hasDataKey: true,
-        hasPassword: true,
         id: 1,
         inviteExpired: false,
         username: "owner",
@@ -74,7 +70,6 @@ describe("adminUsersPage", () => {
       {
         adminLevel: "manager",
         hasDataKey: false,
-        hasPassword: false,
         id: 2,
         inviteExpired: true,
         username: "expired-user",
@@ -94,7 +89,6 @@ describe("adminUsersPage", () => {
       {
         adminLevel: "owner",
         hasDataKey: true,
-        hasPassword: true,
         id: 1,
         inviteExpired: false,
         username: "owner",
@@ -117,18 +111,10 @@ describe("adminUserManagePage", () => {
   const manager: DisplayUser = {
     adminLevel: "manager",
     hasDataKey: false,
-    hasPassword: true,
     id: 2,
     inviteExpired: false,
     username: "pending",
   };
-
-  test("shows the activate form for a pending user", () => {
-    const html = adminUserManagePage(manager, TEST_SESSION, {
-      currentUserId: 1,
-    });
-    expect(html).toContain('action="/admin/users/2/activate"');
-  });
 
   test("shows the delete section for another user", () => {
     const html = adminUserManagePage(manager, TEST_SESSION, {
@@ -149,7 +135,6 @@ describe("adminUserManagePage", () => {
       adminLevel: "agent",
       agentNames: ["Van 1"],
       hasDataKey: true,
-      hasPassword: true,
       id: 4,
       inviteExpired: false,
       username: "driver",
@@ -164,7 +149,6 @@ describe("adminUserManagePage", () => {
       adminLevel: "agent",
       agentNames: [],
       hasDataKey: true,
-      hasPassword: true,
       id: 4,
       inviteExpired: false,
       username: "driver",
@@ -179,7 +163,6 @@ describe("adminUserDeletePage", () => {
     const user: DisplayUser = {
       adminLevel: "manager",
       hasDataKey: true,
-      hasPassword: true,
       id: 5,
       inviteExpired: false,
       username: "targetuser",
@@ -196,7 +179,6 @@ describe("adminUserDeletePage", () => {
     const user: DisplayUser = {
       adminLevel: "owner",
       hasDataKey: true,
-      hasPassword: true,
       id: 5,
       inviteExpired: false,
       username: "targetuser",

@@ -92,7 +92,7 @@ export const createTestManagerSession = async (
 ): Promise<string> => {
   const { encrypt: enc } = await import("#shared/crypto/encryption.ts");
   const { hmacHash } = await import("#shared/crypto/hashing.ts");
-  const { deriveKEK, unwrapKey, wrapKeyWithToken } = await import(
+  const { deriveKEKFromPassword, unwrapKey, wrapKeyWithToken } = await import(
     "#shared/crypto/keys.ts"
   );
   const { getDb } = await import("#shared/db/client.ts");
@@ -100,18 +100,18 @@ export const createTestManagerSession = async (
   const { createSession } = await import("#shared/db/sessions.ts");
   const {
     getUserByUsername,
-    verifyUserPassword,
     invalidateUsersCache: invalidateUsers,
+    verifyUserPassword,
   } = await import("#shared/db/users.ts");
 
+  // The owner is created at the v2 (password-bound) KEK scheme by setup; its KEK
+  // is salted with the owner's stored password hash.
   const user = await getUserByUsername(TEST_ADMIN_USERNAME);
-  if (!user) throw new Error("Admin user not found");
-  const passwordHash = await verifyUserPassword(user, TEST_ADMIN_PASSWORD);
-  if (!passwordHash) throw new Error("Admin password verification failed");
-  const kek = await deriveKEK(passwordHash);
-  if (!user.wrapped_data_key) {
+  if (!user?.wrapped_data_key) {
     throw new Error("Admin user has no wrapped data key");
   }
+  const ownerHash = (await verifyUserPassword(user, TEST_ADMIN_PASSWORD))!;
+  const kek = await deriveKEKFromPassword(TEST_ADMIN_PASSWORD, ownerHash);
   const dataKey = await unwrapKey(user.wrapped_data_key, kek);
 
   const managerIdx = await hmacHash(username);
@@ -166,26 +166,34 @@ export const createTestAgentSession = async (
   const username = opts.username ?? "testagent";
   const { encrypt: enc } = await import("#shared/crypto/encryption.ts");
   const { hashPassword, hmacHash } = await import("#shared/crypto/hashing.ts");
-  const { deriveKEK, unwrapKey, wrapKey, wrapKeyWithToken } = await import(
-    "#shared/crypto/keys.ts"
-  );
+  const {
+    deriveKEK,
+    deriveKEKFromPassword,
+    unwrapKey,
+    wrapKey,
+    wrapKeyWithToken,
+  } = await import("#shared/crypto/keys.ts");
   const { getDb, insert } = await import("#shared/db/client.ts");
   const { createSession } = await import("#shared/db/sessions.ts");
   const {
     getUserByUsername,
-    verifyUserPassword,
     invalidateUsersCache: invalidateUsers,
+    verifyUserPassword,
   } = await import("#shared/db/users.ts");
 
+  // The owner is created at the v2 (password-bound) KEK scheme by setup; its KEK
+  // is salted with the owner's stored password hash.
   const owner = await getUserByUsername(TEST_ADMIN_USERNAME);
   if (!owner?.wrapped_data_key) throw new Error("Admin user not set up");
-  const ownerHash = await verifyUserPassword(owner, TEST_ADMIN_PASSWORD);
-  if (!ownerHash) throw new Error("Admin password verification failed");
+  const ownerHash = (await verifyUserPassword(owner, TEST_ADMIN_PASSWORD))!;
   const dataKey = await unwrapKey(
     owner.wrapped_data_key,
-    await deriveKEK(ownerHash),
+    await deriveKEKFromPassword(TEST_ADMIN_PASSWORD, ownerHash),
   );
 
+  // When given a password the agent is wrapped at the legacy v1 scheme with
+  // kek_version defaulting to 1, so logging in as the agent exercises the
+  // login-time v1→v2 migration.
   let passwordHashEnc = "";
   let userWrappedKey: string;
   if (opts.password) {

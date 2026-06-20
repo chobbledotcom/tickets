@@ -52,6 +52,7 @@ import answerActiveMigration from "./migrations/2026-06-20_answer_active.ts";
 import contactBookingCountsMigration from "./migrations/2026-06-20_contact_booking_counts.ts";
 import freeTextQuestionsMigration from "./migrations/2026-06-20_free_text_questions.ts";
 import stringCreatedMigration from "./migrations/2026-06-20_string_created.ts";
+import userKekV2Migration from "./migrations/2026-06-20_user_kek_v2.ts";
 import { repairLegacyRenames } from "./migrations/rename-utils.ts";
 import {
   LATEST_UPDATE,
@@ -205,6 +206,7 @@ export const MIGRATIONS: Migration[] = [
   stringCreatedMigration,
   answerActiveMigration,
   contactBookingCountsMigration,
+  userKekV2Migration,
 ].map((build) => build(migrationContext));
 
 export const MIGRATION_IDS: string[] = MIGRATIONS.map(
