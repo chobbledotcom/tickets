@@ -1,11 +1,13 @@
 /**
- * Tests for the public maintenance-ping endpoint (GET/POST /scheduled).
+ * Tests for the maintenance-ping endpoint (GET/POST /scheduled).
  *
  * Pruning runs as interval-gated pending work on every request, so hitting
- * /scheduled (like any request) prunes this site. On a builder, POST /scheduled
- * also pokes the least-recently-poked built site with a plain GET to trigger
- * its prune (the outbound call is stubbed here). There is no auth: the only
- * side effects are interval-gated prunes of already-expired data.
+ * /scheduled (like any request) prunes this site — no auth needed. The one
+ * privileged action is the builder fleet-walk: on a builder, POST /scheduled
+ * pokes the least-recently-poked built site with a plain GET (stubbed here) to
+ * trigger its prune, and that is gated behind the master-only
+ * SCHEDULED_TASKS_KEY bearer token. The response never echoes a client
+ * hostname.
  */
 
 import { expect } from "@std/expect";
@@ -17,9 +19,13 @@ import { getDb, insert, queryOne } from "#shared/db/client.ts";
 import { nowMs } from "#shared/now.ts";
 import { describeWithEnv, mockRequest } from "#test-utils";
 
-/** GET or POST /scheduled. */
-const scheduled = (method: "GET" | "POST"): Promise<Response> =>
-  handleRequest(mockRequest("/scheduled", { method }));
+const SECRET = "fleet-walk-secret";
+
+/** GET or POST /scheduled, optionally bearer-authenticated. */
+const scheduled = (method: "GET" | "POST", key?: string): Promise<Response> => {
+  const headers = key ? { authorization: `Bearer ${key}` } : undefined;
+  return handleRequest(mockRequest("/scheduled", { headers, method }));
+};
 
 /** Insert an orphaned attendee created `days` ago (no listing booking). */
 const insertOldOrphan = async (days: number): Promise<number> => {
@@ -48,8 +54,13 @@ const lastPrunedOf = async (siteId: number): Promise<string> =>
     )
   )?.last_pruned ?? "";
 
-describeWithEnv("server (scheduled tasks): self-prune", { db: true }, () => {
-  test("pinging /scheduled prunes this site", async () => {
+const stubOkFetch = () =>
+  stub(globalThis, "fetch", () =>
+    Promise.resolve(new Response("ok", { status: 200 })),
+  );
+
+describeWithEnv("server (scheduled tasks): public ping", { db: true }, () => {
+  test("GET prunes this site and never walks", async () => {
     const orphanId = await insertOldOrphan(365);
 
     const response = await scheduled("GET");
@@ -60,29 +71,35 @@ describeWithEnv("server (scheduled tasks): self-prune", { db: true }, () => {
     expect(await attendeeExists(orphanId)).toBe(false);
   });
 
-  test("needs no auth — a bare POST is accepted", async () => {
-    const response = await scheduled("POST");
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ ok: true, poked: null });
+  test("POST is an unauthenticated ping when not a builder", async () => {
+    const fetchStub = stubOkFetch();
+    try {
+      const response = await scheduled("POST");
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ ok: true, poked: null });
+      expect(fetchStub.calls.length).toBe(0);
+    } finally {
+      fetchStub.restore();
+    }
   });
 });
 
 describeWithEnv(
-  "server (scheduled tasks): built forwarding",
-  { db: true, env: { CAN_BUILD_SITES: "true" } },
+  "server (scheduled tasks): builder fleet-walk",
+  { db: true, env: { CAN_BUILD_SITES: "true", SCHEDULED_TASKS_KEY: SECRET } },
   () => {
-    test("POST pokes the least-recently-poked built site with a GET", async () => {
+    test("an authenticated POST pokes the next built site with a GET", async () => {
       const site = await insertBuiltSite("Client", "client.b-cdn.net");
-      const fetchStub = stub(globalThis, "fetch", () =>
-        Promise.resolve(new Response("ok", { status: 200 })),
-      );
+      const fetchStub = stubOkFetch();
       try {
-        const response = await scheduled("POST");
+        const response = await scheduled("POST", SECRET);
 
         expect(response.status).toBe(200);
-        const body = await response.json();
-        // No client hostname in the response — this endpoint is public.
-        expect(body.poked).toEqual({ ok: true, status: 200 });
+        // No client hostname in the response — callers can't enumerate sites.
+        expect((await response.json()).poked).toEqual({
+          ok: true,
+          status: 200,
+        });
 
         // It poked the client's /scheduled with a plain unauthenticated GET.
         expect(fetchStub.calls.length).toBe(1);
@@ -93,33 +110,47 @@ describeWithEnv(
         // Redirects are followed only after SSRF re-validation, never blindly.
         expect(init.redirect).toBe("manual");
 
-        // The site's rotation stamp was bumped so the next call walks onward.
+        // The rotation stamp was bumped so the next walk steps onward.
         expect(await lastPrunedOf(site.id)).not.toBe("");
       } finally {
         fetchStub.restore();
       }
     });
 
-    test("GET does not walk the fleet", async () => {
+    test("a POST without the key is rejected but still self-prunes", async () => {
       await insertBuiltSite("Client", "client.b-cdn.net");
-      const fetchStub = stub(globalThis, "fetch", () =>
-        Promise.resolve(new Response("ok")),
-      );
-      try {
-        const response = await scheduled("GET");
-        expect((await response.json()).poked).toBe(null);
-        expect(fetchStub.calls.length).toBe(0);
-      } finally {
-        fetchStub.restore();
-      }
-    });
-
-    test("reports poked null when the builder has no built sites", async () => {
-      const fetchStub = stub(globalThis, "fetch", () =>
-        Promise.resolve(new Response("ok")),
-      );
+      const orphanId = await insertOldOrphan(365);
+      const fetchStub = stubOkFetch();
       try {
         const response = await scheduled("POST");
+
+        expect(response.status).toBe(401);
+        expect(fetchStub.calls.length).toBe(0);
+        // The gate blocks the walk, not this site's own per-request prune.
+        expect(await attendeeExists(orphanId)).toBe(false);
+      } finally {
+        fetchStub.restore();
+      }
+    });
+
+    test("a POST with the wrong key is rejected", async () => {
+      await insertBuiltSite("Client", "client.b-cdn.net");
+      const fetchStub = stubOkFetch();
+      try {
+        const response = await scheduled("POST", "wrong-key");
+        expect(response.status).toBe(401);
+        expect(fetchStub.calls.length).toBe(0);
+      } finally {
+        fetchStub.restore();
+      }
+    });
+
+    test("GET stays a public ping and never walks", async () => {
+      await insertBuiltSite("Client", "client.b-cdn.net");
+      const fetchStub = stubOkFetch();
+      try {
+        const response = await scheduled("GET");
+        expect(response.status).toBe(200);
         expect((await response.json()).poked).toBe(null);
         expect(fetchStub.calls.length).toBe(0);
       } finally {
@@ -127,14 +158,24 @@ describeWithEnv(
       }
     });
 
-    test("reports an error when the built site is unreachable", async () => {
+    test("an authenticated POST reports null when there are no built sites", async () => {
+      const fetchStub = stubOkFetch();
+      try {
+        const response = await scheduled("POST", SECRET);
+        expect((await response.json()).poked).toBe(null);
+        expect(fetchStub.calls.length).toBe(0);
+      } finally {
+        fetchStub.restore();
+      }
+    });
+
+    test("an unreachable built site is reported without leaking its hostname", async () => {
       await insertBuiltSite("Client", "client.b-cdn.net");
       const fetchStub = stub(globalThis, "fetch", () =>
         Promise.reject(new Error("network down")),
       );
       try {
-        const response = await scheduled("POST");
-        // The failure is reported without leaking the client hostname.
+        const response = await scheduled("POST", SECRET);
         expect((await response.json()).poked).toEqual({ failed: true });
       } finally {
         fetchStub.restore();
@@ -143,18 +184,21 @@ describeWithEnv(
   },
 );
 
-describeWithEnv("server (scheduled tasks): not a builder", { db: true }, () => {
-  test("POST does not poke built sites when not a builder", async () => {
-    await insertBuiltSite("Client", "client.b-cdn.net");
-    const fetchStub = stub(globalThis, "fetch", () =>
-      Promise.resolve(new Response("ok")),
-    );
-    try {
-      const response = await scheduled("POST");
-      expect((await response.json()).poked).toBe(null);
-      expect(fetchStub.calls.length).toBe(0);
-    } finally {
-      fetchStub.restore();
-    }
-  });
-});
+describeWithEnv(
+  "server (scheduled tasks): builder without a key",
+  { db: true, env: { CAN_BUILD_SITES: "true" } },
+  () => {
+    test("the fleet-walk is disabled — POST is rejected", async () => {
+      await insertBuiltSite("Client", "client.b-cdn.net");
+      const fetchStub = stubOkFetch();
+      try {
+        // Even presenting a bearer can't authenticate when no key is configured.
+        const response = await scheduled("POST", SECRET);
+        expect(response.status).toBe(401);
+        expect(fetchStub.calls.length).toBe(0);
+      } finally {
+        fetchStub.restore();
+      }
+    });
+  },
+);

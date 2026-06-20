@@ -245,6 +245,10 @@ fi
 # Secrets from .env
 set_from_env "NTFY_URL"
 set_from_env "ADMIN_EMAIL_ADDRESS"
+# Master-only: gates the builder's POST /scheduled fleet-walk. Deliberately NOT
+# in HOST_SECRETS (builder.ts), so it is never copied to built sites — the
+# master pokes them with an unauthenticated GET.
+set_from_env "SCHEDULED_TASKS_KEY"
 set_from_env "WEBHOOK_URL"
 set_from_env "STORAGE_ZONE_NAME"
 set_from_env "STORAGE_ZONE_KEY"

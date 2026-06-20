@@ -1,5 +1,5 @@
 /**
- * Public maintenance-ping endpoint.
+ * Maintenance-ping endpoint.
  *
  * Database pruning runs as interval-gated pending work on *every* request (see
  * `prepareRequestEnvironment`), so any traffic keeps a site pruned. This
@@ -7,24 +7,29 @@
  * no organic traffic: hitting `/scheduled` is just a cheap request that — like
  * any dynamic request — triggers this site's prune, then returns a tiny JSON
  * body. (Static asset routes short-circuit before pruning, so a cron must hit a
- * dynamic path like this one, not `/favicon.ico`.)
+ * dynamic path like this one, not `/favicon.ico`.) GET is always a public ping.
  *
- * On a builder (`CAN_BUILD_SITES`), `POST /scheduled` additionally pokes the
- * least-recently-poked built site with a plain GET, which triggers *that*
- * site's own per-request prune. So one cron on the master walks every client at
- * the cron's pace, and quiet client sites get pruned with no shared secret —
- * the poke is an ordinary unauthenticated request, and pruning only ever
- * deletes already-expired rows. Only POST walks, so a crawler's GET can't make
- * the master fan out.
+ * On a builder (`CAN_BUILD_SITES`), `POST /scheduled` additionally walks the
+ * fleet: it pokes the least-recently-poked built site with a plain GET, which
+ * triggers *that* site's own per-request prune, so one cron on the master keeps
+ * every quiet client pruned. That walk advances a rotation and makes an
+ * outbound request, so it is gated behind the master-only `SCHEDULED_TASKS_KEY`
+ * (sent as a bearer token) — without a matching key the POST is rejected and no
+ * walk happens. The poke sent to each client stays unauthenticated (any request
+ * prunes them); the key only protects the master's trigger and is never shared
+ * with the built sites, so there's no fleet-wide distribution or rotation.
  */
 
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
+import { getBearerToken } from "#routes/auth.ts";
 import { jsonResponse } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
+import { constantTimeEqual } from "#shared/crypto/utils.ts";
 import {
   claimNextBuiltSiteForPrune,
   siteBaseUrl,
 } from "#shared/db/built-sites.ts";
+import { getEnv } from "#shared/env.ts";
 import { fetchTextFollowingSafeRedirects } from "#shared/safe-fetch.ts";
 
 const SCHEDULED_PATH = "/scheduled";
@@ -35,9 +40,23 @@ const SCHEDULED_PATH = "/scheduled";
 const POKE_TIMEOUT_MS = 30_000;
 
 /** Outcome of poking a built site. Deliberately free of any client-identifying
- * detail (hostname, error text): this endpoint is public on a builder, so the
- * response must not let a caller enumerate which sites the builder operates. */
+ * detail (hostname, error text): a caller who can reach this endpoint must not
+ * be able to enumerate which sites the builder operates. */
 type PokeResult = { ok: boolean; status: number } | { failed: true };
+
+/**
+ * True when the request carries the master's `SCHEDULED_TASKS_KEY` as a bearer
+ * token. The key is master-only — it gates the builder's fleet-walk trigger and
+ * is never copied to built sites (they're poked unauthenticated) — so there's
+ * no fleet-wide distribution or rotation to manage. Unset means the walk is
+ * disabled and every POST is rejected.
+ */
+const scheduledKeyMatches = (request: Request): boolean => {
+  const expected = getEnv("SCHEDULED_TASKS_KEY");
+  if (!expected) return false;
+  const provided = getBearerToken(request);
+  return provided !== null && constantTimeEqual(provided, expected);
+};
 
 /**
  * Poke the least-recently-poked built site with a plain GET so its own
@@ -66,17 +85,23 @@ const pokeNextBuiltSite = async (): Promise<PokeResult | null> => {
 
 /**
  * Handle a scheduled-tasks ping. This site's own prune is already scheduled as
- * pending work for the request (`prepareRequestEnvironment`), so the handler
- * just steps the built-site rotation when a builder is POSTed to.
+ * pending work for the request, so the handler only needs to (optionally) step
+ * the fleet. The fleet-walk is the one privileged action — it advances the
+ * rotation and makes an outbound request — so on a builder it requires the
+ * master's bearer key; everything else is a public no-op ping.
  */
 const handleScheduled = async (request: Request): Promise<Response> => {
-  const walk = request.method === "POST" && isBuilderEnabled();
-  const poked = walk ? await pokeNextBuiltSite() : null;
-  return jsonResponse({ ok: true, poked });
+  if (request.method === "POST" && isBuilderEnabled()) {
+    if (!scheduledKeyMatches(request)) {
+      return jsonResponse({ error: "Unauthorized" }, 401);
+    }
+    return jsonResponse({ ok: true, poked: await pokeNextBuiltSite() });
+  }
+  return jsonResponse({ ok: true, poked: null });
 };
 
-/** Scheduled-tasks routes — any hit self-prunes (via the request); POST on a
- * builder also pokes the next built site. */
+/** Scheduled-tasks routes — any hit self-prunes (via the request); an
+ * authenticated POST on a builder also walks the built-site fleet. */
 export const scheduledRoutes = defineRoutes({
   "GET /scheduled": handleScheduled,
   "POST /scheduled": handleScheduled,
