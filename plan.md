@@ -359,7 +359,7 @@ Suggested field mapping:
 | --- | --- | --- |
 | `Booking ID` | `booking_imports.old_id` | Required, unique per CSV. |
 | created attendee id | `booking_imports.new_id` | Write only after attendee creation succeeds. |
-| `Date Booked` | attendee `created` | Parse the source booking date into `attendees.created` so admin "newest" views and calendar/list/CSV exports (all `ORDER BY a.created DESC`) order imports by when they were originally booked, not import time. Fall back to import time only if `Date Booked` is missing/unparseable. |
+| `Date Booked` | attendee `created` | Parse the source booking date into `attendees.created` so admin "newest" views and calendar/list/CSV exports (all `ORDER BY a.created DESC`) order imports by when they were originally booked, not import time. Fall back to import time only if `Date Booked` is missing/unparseable. **Also update the dashboard:** `getNewestAttendeesRaw` (`attendees/queries.ts`) currently orders "newest registrations" by `a.id DESC` (assuming id is co-monotonic with `created`, which imports break), so change it to `ORDER BY a.created DESC` and add an index on `created` to keep the scan fast — otherwise imports show as newest there despite old dates. |
 | `Customer Name` | attendee `name` | If blank, decide whether to reject or use `Imported booking {id}`. |
 | `Email` | attendee `email` | Import the raw source value, including invalid or concatenated emails. Add importer-specific support so these rows do not get rejected or split. **Accepted tradeoff:** the edit form renders `email` as `type="email"` and POST runs `validateEmail`, so the first admin re-save of an imported row with an invalid/concatenated email is blocked until the operator fixes or clears it; the importer does not relax the edit path or relocate the raw value (decision: keep raw). |
 | `Mobile`, `Telephone` | attendee `phone` | Prefer mobile; append alternate phone to a free-text answer / notes if both exist. |
@@ -389,6 +389,16 @@ Dates — all imported bookings are dated (daily-style):
   standard-listing capacity is total `SUM(quantity)` and date-blind, so the
   stored range does not change capacity — it only feeds the operational/logistics
   surfaces. (Replaces the old plan's "undated standard line + warning" rule.)
+- **Edit-path support is required** for dated standard lines to survive. The
+  attendee edit form's `lineDate` (`admin/attendee-form-model.ts`) currently
+  returns `{ date: null }` for every non-daily listing, and
+  `toCreateInput`/`toDesiredLines` feed that into the atomic update — so the first
+  admin save of an imported standard hire would set its `start_at`/`end_at` back
+  to `NULL` and drop it from run sheets. The all-dated rule therefore requires the
+  edit/save path to preserve per-line dates for non-daily listings too (e.g.
+  `lineDate` returning the existing line's stored range for a non-daily listing).
+  Build this alongside the importer; it's the same cross-cutting edit-form surface
+  as the "no quantity" checkbox.
 - Duration should be at least 1 day. Same-day delivery/collection is 1 day.
 
 Quantity:
@@ -532,21 +542,34 @@ Must change (exclude / adjust):
   line would mark the day occupied. **Decision: exclude quantity-0** — add
   `AND quantity > 0` to both.
 - **Calendar via `getAttendeesByListingIds`** (`listings.ts`) — this helper has
-  no quantity filter and feeds two more operational surfaces the daily-calendar
-  bullet misses: (a) the **ICS calendar feed** `buildCalendarFeed`
-  (`feeds.ts`, `GET /caldav/events.ics`) builds a VEVENT for every attendee on a
-  dated listing, and (b) the **admin calendar's standard-listing rows + calendar
-  CSV** via `loadStandardListingAttendees` (`admin/calendar.ts`). A
-  cancelled/quoted quantity-0 line on a dated/matching listing would publish an
-  operational calendar event / show in the calendar and its CSV. **Decision:
-  exclude quantity-0** — add `AND ea.quantity > 0` to `getAttendeesByListingIds`
-  itself; its only callers are these operational surfaces (the feed and the
-  calendar), so filtering in the shared helper is correct.
-- **Bulk-email audiences** — `getAttendeePiiBlobsForListings`
-  (`attendees/queries.ts`, `SELECT DISTINCT attendee_id … no quantity predicate`,
-  feeds `bulk-email-targets.ts` "Active listing attendees" / "Attendees of X").
-  **Decision: exclude quantity-0** — add `AND quantity > 0` so cancelled/quoted
-  imports are never emailed as if they had a live booking.
+  no quantity filter and feeds two operational surfaces the daily-calendar bullet
+  misses: (a) the **ICS calendar feed** `buildCalendarFeed` (`feeds.ts`,
+  `GET /caldav/events.ics`) builds a VEVENT for every attendee on a dated
+  listing, and (b) the **admin calendar's standard-listing rows + calendar CSV**
+  via `loadStandardListingAttendees` (`admin/calendar.ts`). A cancelled/quoted
+  quantity-0 line on a dated/matching listing would publish an operational
+  calendar event / show in the calendar and its CSV. **Decision: exclude
+  quantity-0 at these two call sites only — NOT in the shared helper.** The same
+  helper is also called by the admin **group-detail roster** (`admin/groups.ts`),
+  a record/detail view that must *keep* quantity-0 rows (see Intentionally
+  unchanged); filtering inside `getAttendeesByListingIds` would wrongly hide
+  cancelled/quoted records there. So either add an opt-in `quantity > 0` filter
+  param that the feed/calendar callers pass (group-detail does not), or split off
+  a dedicated active-only helper for them — never filter the shared helper
+  unconditionally.
+- **Bulk-email audiences** — two recipient queries in `bulk-email-targets.ts`
+  need the no-quantity rule:
+  - **Listing-scoped** ("Active listing attendees" / "Attendees of X") use
+    `getAttendeePiiBlobsForListings` (`attendees/queries.ts`, `SELECT DISTINCT
+    attendee_id … no quantity predicate`). **Decision: exclude quantity-0** — add
+    `AND quantity > 0`.
+  - **The `all` audience** ("All attendees") calls `getAllAttendeePiiBlobs()`
+    directly, bypassing the listing filter, so a quantity-0-*only* import would
+    still be emailed. **Decision: exclude quantity-0-only attendees** — restrict
+    `all` to attendees with an `EXISTS` `quantity > 0` line, so cancelled/quoted-
+    only imports aren't marketed to as live customers.
+  Both ensure cancelled/quoted imports are never emailed as if they had a live
+  booking.
 - **Logistics / delivery runs** — the logistics flow reads `listing_attendees`
   (start/end agent + done flags live on the line). **Decision: exclude
   quantity-0** — a cancelled/quoted line is not a drop-off/collection, so it must
@@ -569,11 +592,18 @@ Must change (exclude / adjust):
   folds payment into the `MIN(id)` line's `price_paid` (income is
   `SUM(price_paid)`). A quantity-0-only import with a nonzero `Balance` and an
   `is_reservation` status could be paid publicly, adding income to a no-capacity
-  ghost. **Decision: a `Balance` is a payable `remaining_balance` only when the
-  attendee has ≥1 real (`quantity > 0`) line** (in addition to the
-  reservation-status rule); otherwise it is audit metadata. Rejected alternative:
-  converting a quantity-0 line to a real line on payment (changes capacity at
-  pay-time, more complex).
+  ghost. **Decision (two parts):**
+  - A `Balance` is a payable `remaining_balance` only when the attendee has ≥1
+    real (`quantity > 0`) line (in addition to the reservation-status rule);
+    otherwise it is audit metadata.
+  - **Settlement must target a real line.** `settleAttendeeBalance` currently
+    folds payment into `id = (SELECT MIN(id) FROM listing_attendees WHERE
+    attendee_id = ?)` with no quantity predicate, so for a *mixed* attendee (a
+    quantity-0 line with a lower id plus a real line) the income would still land
+    on the ghost. Add `AND quantity > 0` to that `MIN(id)` subquery so payment
+    always targets the lowest-id **real** line.
+  Rejected alternative: converting a quantity-0 line to a real line on payment
+  (changes capacity at pay-time, more complex).
 
 Writer side:
 
@@ -592,16 +622,20 @@ Intentionally unchanged (call out so nobody "fixes" them):
 - **Orphan auto-purge** — `orphan-attendees.ts` keys off row existence; a
   quantity-0 line deliberately keeps the imported attendee non-orphan. Correct
   as-is (this is the whole point of writing the line).
-- **Admin per-listing attendee roster / check-in *list* and per-attendee
-  detail** — the per-listing `JOIN listing_attendees` roster reads in
-  `attendees/queries.ts` and the edit/merge views **keep** quantity-0 rows:
-  owners should see cancelled/quoted records (flagged via the "no quantity"
-  indicator), they're real attendee data. This is the admin *roster/record* view
-  only — the **token-based ticket page and check-in actions**
-  (`getAttendeesByTokens` → `/t/:tokens`, `/checkin/:tokens`, scanner,
-  `updateCheckedIn`) are operational/customer-facing and instead **exclude /
-  refuse** quantity-0 lines (see the "Ticket & check-in token flows" entry under
-  Must change).
+- **Admin per-listing attendee roster / check-in *list*, group-detail roster,
+  and per-attendee detail** — the per-listing `JOIN listing_attendees` roster
+  reads in `attendees/queries.ts`, the **admin group-detail roster**
+  (`admin/groups.ts`, which also calls `getAttendeesByListingIds`), and the
+  edit/merge views **keep** quantity-0 rows: owners should see cancelled/quoted
+  records (flagged via the "no quantity" indicator), they're real attendee data.
+  Because group-detail shares `getAttendeesByListingIds` with the calendar/feed,
+  the quantity-0 filter for those must live at the calendar/feed call sites (or a
+  dedicated helper), **not** in the shared helper — see the calendar bullet under
+  Must change. This is the admin *roster/record* view only — the **token-based
+  ticket page and check-in actions** (`getAttendeesByTokens` → `/t/:tokens`,
+  `/checkin/:tokens`, scanner, `updateCheckedIn`) are operational/customer-facing
+  and instead **exclude / refuse** quantity-0 lines (see the "Ticket & check-in
+  token flows" entry under Must change).
 
 When implementing, re-run the `listing_attendees` SQL sweep — treat this list as
 the known set, not a guarantee it's exhaustive.
@@ -914,12 +948,21 @@ Implementation notes:
   any attendee with no `listing_attendees` rows as a purgeable orphan, and
   auto-purge is on by default; it deletes the attendee and its `attendee_answers`
   but leaves `booking_imports`, so a purged import could never be re-created
-  (its `old_id` stays in the map). The importer avoids this by always writing at
-  least one line per attendee — `quantity = 0` for cancelled/interested rows (see
-  [Zero-Quantity Booking Lines](#zero-quantity-no-quantity-booking-lines)) — so
-  imported attendees are never orphans. (Quantity-0 lines were chosen over a
-  `booking_imports`-aware exclusion in `ORPHAN_IDS` because they also keep the
-  products structured and matched.)
+  (its `old_id` stays in the map). Writing ≥1 line per attendee — `quantity = 0`
+  for cancelled/interested rows (see
+  [Zero-Quantity Booking Lines](#zero-quantity-no-quantity-booking-lines)) —
+  stops imported attendees being orphans **at import time**, but it does not
+  cover *later* orphaning: `deleteListing` removes a listing's `listing_attendees`
+  rows and deliberately keeps the attendee, so an import whose last listing is
+  later deleted becomes an orphan and gets purged — and the purge still leaves its
+  `booking_imports` row, permanently blocking re-import. **So the purge/delete
+  flow must also clean up `booking_imports`:** add it to the orphan purge's
+  dependent-table deletes and the canonical `deleteAttendee` purge set, keyed by
+  `new_id` (`DELETE FROM booking_imports WHERE new_id IN (…)`, since
+  `booking_imports` is keyed by `new_id`, not `attendee_id`). Then a purged import
+  frees its `old_id` and can be re-imported. (Quantity-0 lines were still chosen
+  over a `booking_imports`-aware exclusion in `ORPHAN_IDS` because they also keep
+  the products structured and matched while the attendee is live.)
 - The `attendee_answers` XOR/validation triggers will `ABORT` a malformed answer
   row (e.g. both `answer_id` and `string_id` set). The importer only ever writes
   the text-answer shape (`answer_id` NULL, `question_id` + `string_id` set), so a
@@ -1000,7 +1043,9 @@ Add focused tests before broad route tests:
   by the edit form's `validateEmail` until the operator fixes/clears the email.)
 - `Date Booked` is written to `attendees.created`: an imported booking with an old
   source date is ordered by that date (not import time) in a `created`-ordered
-  query; a missing/unparseable `Date Booked` falls back to import time.
+  query; a missing/unparseable `Date Booked` falls back to import time. The
+  dashboard `getNewestAttendeesRaw` (now `ORDER BY a.created DESC`) places an
+  imported old booking *below* a newer real registration, not above it by id.
 
 Free-text question tests (the PR #1335 surface):
 
@@ -1063,15 +1108,20 @@ Semantic-correctness tests (verified against live behaviour):
   imported cancelled/quoted line does not appear in the daily calendar
   (`getDailyListingAttendees*`), the `getAttendeesByListingIds` calendar surfaces
   (ICS feed `/caldav/events.ics` and the admin standard-listing calendar + CSV),
-  bulk-email audiences (`getAttendeePiiBlobsForListings`), or logistics/delivery
-  runs, and does not render as a ticket on `/t/:tokens` nor as a checkable line in
-  the `/checkin/:tokens` / scanner flow (`updateCheckedIn` refuses it); but the
-  attendee still shows in the admin per-listing roster (with the "no quantity"
-  indicator).
+  bulk-email audiences (the listing-scoped `getAttendeePiiBlobsForListings` *and*
+  the `all` audience, where a quantity-0-only attendee is dropped), or
+  logistics/delivery runs, and does not render as a ticket on `/t/:tokens` nor as
+  a checkable line in the `/checkin/:tokens` / scanner flow (`updateCheckedIn`
+  refuses it); but the attendee still shows in the admin per-listing roster **and
+  the group-detail roster** (which share `getAttendeesByListingIds` with the
+  calendar yet keep quantity-0, proving the filter is at the calendar/feed call
+  sites, not the helper) with the "no quantity" indicator.
 - **A quantity-0-only attendee's balance is not publicly payable:** even with an
   `is_reservation` status and a nonzero source `Balance`, no actionable
   `remaining_balance` is set, so `settleAttendeeBalance` cannot fold income onto
-  the quantity-0 line.
+  the quantity-0 line. **And for a *mixed* attendee** (a quantity-0 line with a
+  lower id plus a real line), settlement targets the real line — the
+  `MIN(id) … AND quantity > 0` guard keeps income off the ghost.
 - **Imported visit counts:** a confirmed (real-quantity) imported booking
   increments the customer's visit counter (so visit-gated `min_visits` modifiers
   see them as a returning customer); a cancelled or quote-only import does not;
@@ -1081,6 +1131,14 @@ Semantic-correctness tests (verified against live behaviour):
   quantity of 0 for a listing is rejected (or coerced to a real minimum), so a
   visitor can't create a no-capacity "ghost" booking. Test the public submit
   path rejects/ignores a 0 quantity.
+- **Editing an imported standard hire keeps its dates:** an imported (all-dated)
+  booking on a standard-type listing, after a no-op admin edit/save, still has its
+  `start_at`/`end_at` and still appears on the agent run sheet (proving the
+  `lineDate` edit-path fix preserves non-daily dates).
+- **A later-orphaned import frees its `old_id`:** deleting an imported booking's
+  last listing, then running the orphan auto-purge, removes the attendee *and* its
+  `booking_imports` row, so re-uploading the same CSV re-creates the booking
+  rather than skipping it as already-imported.
 - A non-zero `Balance` on a non-reservation status does not become an actionable
   `remaining_balance` (stored as audit metadata or blocked, per the chosen rule).
 - A row with empty `Equipments` and no `Quoted for Products` fallback is reported
@@ -1160,21 +1218,38 @@ Semantic-correctness tests (verified against live behaviour):
    - Apply the reader audit (see Quantity-0 Reader/Writer Audit): exclude
      quantity-0 from the daily calendar (`getDailyListingAttendees*`), the
      `getAttendeesByListingIds` calendar surfaces (ICS feed `/caldav/events.ics`
-     and the admin standard-listing calendar + CSV), bulk-email audiences
-     (`getAttendeePiiBlobsForListings`), logistics/delivery runs, and the
-     ticket/check-in token flows (`getAttendeesByTokens` → `/t/:tokens`,
-     `/checkin/:tokens`, scanner, and `updateCheckedIn` refuse quantity-0); gate
-     payable balances on ≥1 real line; keep quantity-0 in admin roster/record
-     views.
+     and the admin standard-listing calendar + CSV — filter at those call sites,
+     **not** in the shared helper, which the group-detail roster also uses),
+     bulk-email audiences (`getAttendeePiiBlobsForListings` *and* the `all`
+     audience's `getAllAttendeePiiBlobs`, which drops quantity-0-only attendees),
+     logistics/delivery runs, and the ticket/check-in token flows
+     (`getAttendeesByTokens` → `/t/:tokens`, `/checkin/:tokens`, scanner, and
+     `updateCheckedIn` refuse quantity-0); gate payable balances on ≥1 real line
+     **and** add `quantity > 0` to `settleAttendeeBalance`'s `MIN(id)` target;
+     keep quantity-0 in admin roster/record/group-detail views.
    - Guard the public booking/checkout path against quantity-0 lines (admin-only).
+   - Preserve per-line dates on edit for non-daily listings (`lineDate` in
+     `attendee-form-model.ts`) so the first admin save of an imported (all-dated)
+     standard hire keeps its `start_at`/`end_at` and stays on run sheets.
+   - Change the dashboard's `getNewestAttendeesRaw` from `ORDER BY a.id DESC` to
+     `ORDER BY a.created DESC` (add an index on `created`) so imports ordered by
+     their `Date Booked`-derived `created` don't dominate "newest registrations".
+   - Clean up `booking_imports` in the orphan auto-purge and `deleteAttendee`
+     purge set (delete by `new_id`) so a later-orphaned import frees its `old_id`
+     for re-import.
    - Tests: DB-stored `0` round-trips to a checked box and back; explicit removal
      still deletes; a quantity-0 line is excluded from orphan auto-purge; changing
      a line's quantity to 0 (and back) updates `tickets_count` and
      `booked_quantity` correctly with no recalc drift; deleting a quantity-0
      attendee with `releaseBookings: false` doesn't inflate `tickets_count`; the
-     public path refuses a 0 quantity; quantity-0 lines are absent from calendar,
-     bulk-email, and logistics queries; a quantity-0-only attendee's balance is
-     not publicly payable.
+     public path refuses a 0 quantity; quantity-0 lines are absent from the
+     calendar, ICS feed, standard-listing calendar/CSV, bulk-email (listing *and*
+     `all`), logistics, and ticket/check-in flows, while the group-detail roster
+     still shows them; a quantity-0-only attendee's balance is not publicly
+     payable, and on a mixed attendee settlement lands on the real line; editing
+     an imported standard hire keeps its dates; the dashboard orders imports by
+     `created`; a later-orphaned import's `booking_imports` row is purged so it
+     can be re-imported.
 7. Admin upload route
    - Wire upload form, parser, planner, writer, success/error redirects.
    - Add nav entry if desired.
@@ -1209,16 +1284,22 @@ Semantic-correctness tests (verified against live behaviour):
 - A non-zero source `Balance` becomes an actionable `remaining_balance` only when
   the resolved status is a reservation status (`is_reservation`) **and** the
   attendee has ≥1 real (`quantity > 0`) line; otherwise it is audit metadata. The
-  second condition stops a quantity-0-only import being publicly payable and
-  folding income onto a no-capacity line.
+  second condition stops a quantity-0-only import being publicly payable. In
+  addition, `settleAttendeeBalance`'s `MIN(id)` target gains `AND quantity > 0`
+  so payment on a *mixed* attendee folds income onto the lowest-id real line, not
+  a quantity-0 ghost that happens to have a lower id.
 - Quantity-0 (cancelled/quoted) imports are excluded from operational, public,
   and marketing surfaces — the daily calendar, the `getAttendeesByListingIds`
   calendar surfaces (ICS feed `/caldav/events.ics` and the admin standard-listing
-  calendar + CSV), logistics/delivery runs, bulk-email audiences, and the
-  ticket/check-in token flows (`/t/:tokens`, `/checkin/:tokens`, scanner,
-  `updateCheckedIn`) all exclude or refuse quantity-0 lines — but they are kept in
-  admin roster/record/detail views with the "no quantity" indicator. See
-  Quantity-0 Reader/Writer Audit.
+  calendar + CSV), logistics/delivery runs, bulk-email audiences (both the
+  listing-scoped queries and the `all` audience, which excludes quantity-0-only
+  attendees), and the ticket/check-in token flows (`/t/:tokens`,
+  `/checkin/:tokens`, scanner, `updateCheckedIn`) all exclude or refuse
+  quantity-0 lines — but they are kept in admin roster/record/detail views
+  (including the group-detail roster) with the "no quantity" indicator. Because
+  `getAttendeesByListingIds` is shared by the calendar/feed *and* the
+  group-detail roster, its quantity-0 filter lives at the calendar/feed call
+  sites, not in the helper. See Quantity-0 Reader/Writer Audit.
 - The writer records visit counts (`recordOrderVisit`) for confirmed
   (real-quantity) imported bookings only, since it bypasses `createAttendeeAtomic`
   and would otherwise leave imported customers looking like first-time visitors
@@ -1268,12 +1349,22 @@ Semantic-correctness tests (verified against live behaviour):
   imported lines regardless of the matched listing's `listing_type`, so logistics
   run sheets (`getAgentRunSheet`) can schedule them. For a matched standard
   listing this is capacity-neutral (standard capacity is date-blind
-  `SUM(quantity)`). Replaces the old "undated standard line + warning" rule.
+  `SUM(quantity)`). Replaces the old "undated standard line + warning" rule. This
+  also requires the attendee edit/save path (`lineDate` in
+  `attendee-form-model.ts`) to preserve per-line dates for non-daily listings, or
+  the first admin save would null them back out.
 - `Date Booked` maps to `attendees.created` so admin "newest" views and
   calendar/list/CSV exports (all `ORDER BY a.created DESC`) order imports by their
   original booking date, not import time; fall back to import time only when
-  `Date Booked` is missing/unparseable.
+  `Date Booked` is missing/unparseable. The dashboard's `getNewestAttendeesRaw`
+  is changed from `ORDER BY a.id DESC` to `ORDER BY a.created DESC` (with an index
+  on `created`) so imports don't dominate "newest registrations" there.
 - Per-booking line dedup happens in the planner: every imported line is dated, so
   same-listing/same-date repeats would be *rejected* by the unique `(listing_id,
   attendee_id, start_at)` index (it rejects, it does not merge) — the planner
   collapses them into one `quantity`-N line itself.
+- `booking_imports` is cleaned up when an imported attendee is later purged: the
+  orphan auto-purge and the canonical `deleteAttendee` purge set delete the
+  `booking_imports` row by `new_id`, so an import whose last listing is later
+  deleted (orphaning + purging the attendee) frees its `old_id` for re-import
+  rather than being permanently stuck in the map.
