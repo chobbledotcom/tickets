@@ -270,14 +270,25 @@ When the booking page renders a listing that has children, render each child as 
 - Extend `TicketCtx` (`types.ts:13-35`) with the parent→children mapping for the
   listings on the page, and load children in the context provider alongside
   questions/add-ons.
-- The children are rendered as part of the same `<form>` using a distinct field
-  namespace so parsing is unambiguous, e.g. a radio/checkbox group
-  `child_of_<parentId>` whose values are child listing ids, plus the child's own
-  `quantity_<childId>` (children are real listings, so they reuse the normal
-  per-listing quantity/price/answer fields).
-- Because children are real listings, they bring their own price, capacity, dates,
-  and questions. Their questions must be merged into `questionListingMap` and
-  shown only when the child is selected.
+- **Field shape — one field carries both choice and quantity, namespaced per
+  parent.** Use `child_<parentId>_<childId>` whose *value is the quantity* (blank
+  or `0` = not chosen). Do **not** use a separate `child_of_<parentId>` selector
+  plus a shared `quantity_<childId>`: that split is ambiguous when two parents pick
+  the same child (you can't tell whether `quantity_C=1` means one total or one per
+  parent) and lets a buyer "select" a child while leaving its quantity zero. With
+  one per-parent quantity field, the per-parent requirement and the fold are both
+  computed from the same numbers.
+- **Child dates must be per-child, not the shared selector.** The page's shared
+  date control feeds `computeSharedDates`, which **intersects** the bookable dates
+  of *every* daily listing it receives. If we drop all of a parent's daily
+  children into that set, their date ranges intersect *before* the buyer picks one,
+  so a parent can look like it has no available dates even though each child is
+  bookable on its own day. So daily children need their **own** per-child date
+  control (`child_date_<parentId>_<childId>`) evaluated independently — do not feed
+  unselected children into `computeSharedDates`.
+- **Child questions** are merged into `questionListingMap` keyed by the child's
+  listing id (children are real listings). See the no-JS note below for how they're
+  rendered and which answers are read at submit.
 
 ### Progressive enhancement
 
@@ -288,10 +299,19 @@ client scripts). The child selector should:
   truth. If a parent is in the cart and no child is chosen, the submit is rejected
   with a clear error via the existing PRG error-redirect
   (`ticketFormErrorResponse`, `ticket-form.ts:181-184`) and the form re-fills.
-- Be **enhanced with JS** to (a) reveal each parent's child selector only when the
-  parent quantity > 0, and (b) mark it required, and (c) include children in the
-  live `/calculate` quote. Add this to the client booking enhancement script
-  (new or existing `src/ui/client/*`).
+- **Child questions must be answerable without JS.** This is in tension with
+  "show child questions only when the child is selected": on a server-rendered page
+  the server doesn't know the buyer's child choice until submit, so hiding child
+  questions behind a JS reveal would leave no-JS users unable to answer a required
+  child question. Resolve it by **rendering every child's questions in the no-JS
+  baseline** (always in the DOM, optionally hidden via a **CSS-only reveal** tied
+  to the per-parent child selector), and at submit **reading answers only for the
+  child that was actually chosen**. No JS and no extra round-trip required.
+- Be **enhanced with JS** to (a) reveal each parent's child block (selector + its
+  date/questions) only when the parent quantity > 0, (b) mark the required child
+  fields required, and (c) include selected children in the live `/calculate`
+  quote. Add this to the client booking enhancement script (new or existing
+  `src/ui/client/*`).
 
 ### Server-side validation (authoritative)
 
@@ -300,17 +320,38 @@ In `prepareOrder` (`ticket-submit.ts`), after `parseQuantities`:
 1. Determine the set of in-cart listings with `qty > 0`.
 2. For each such listing that is a **parent** (has children), read its required
    child rule (default: exactly one child selected).
-3. Read the buyer's child selections (`child_of_<parentId>` + the child's
-   `quantity_<childId>`).
-4. **Reject** if the rule isn't satisfied (none selected / too few / too many),
+3. Read the buyer's per-parent child quantities from `child_<parentId>_<childId>`
+   (and `child_date_<parentId>_<childId>` for daily children). **Only a positive
+   quantity counts as a selection** — a child named with a blank/zero quantity is
+   *not* selected, so it can never satisfy the rule while contributing no line.
+4. **Also count any child the buyer already has as a normal in-cart line.** The
+   booking page accepts multi-listing URLs (`/ticket/<parent>+<child>`) and
+   order-prefill quantities, so a buyer can arrive with a parent *and* one of its
+   children already selected as ordinary rows. A standalone in-cart line for an
+   eligible child **satisfies** that parent's requirement — do not reject it or
+   force a second parent-scoped pick. (Alternative, if we'd rather keep the model
+   simple: explicitly forbid parent+child in the same URL. Decide — Open Question
+   13.)
+5. **Reject** if the rule isn't satisfied (none selected / too few / too many),
    with a message naming the parent. Use `REGISTRATION_CLOSED_SUBMIT_MESSAGE`'s
    sibling pattern for messaging.
-5. On success, **fold the selected children into the booking lines** exactly like
-   any other listing: add them to `quantities` / the `ListingBooking[]` so they
-   flow through `buildRegistrationItems` → `CheckoutIntent.items` →
-   capacity check → pricing → payment metadata → webhook reconstruction with no
-   special-casing downstream. This is the key design property: **a child is a
-   normal line once selected; only the gate is special.**
+6. On success, **fold the selected children into the order as real listings —
+   lines *and* the listing set.** Adding them to `quantities` alone is **not**
+   enough: `checkAvailability` (via `listingsWithQuantity`) and
+   `buildRegistrationItems` both iterate the **`TicketListing[]` they are passed**,
+   not the quantity map. An implicit child that isn't one of the URL slugs is not
+   in `ctx.listings`, so a parent+child submission could pass the gate yet **omit
+   the child from capacity checks, pricing, and payment metadata**. The fold must
+   therefore **expand the `TicketListing` set** with the selected child listings
+   (loaded via the relationship accessor, with per-child date/availability
+   resolved) *before* calling those helpers. When the **same child** is chosen by
+   multiple parents (or also present as a URL line), **merge to a single
+   `(listing_id, date)` line with summed quantity** — the booking shape can't store
+   duplicate slots (see Shared-child edge case). After this expansion a child is a
+   normal line through `buildRegistrationItems` → `CheckoutIntent.items` → pricing
+   → payment metadata → webhook reconstruction with no further special-casing.
+   This is the key design property: **a child is a normal line once selected; only
+   the gate and the line-set expansion are special.**
 
 ### Pricing & payment round-trip
 
@@ -387,17 +428,19 @@ Enumerate each and decide:
   quantity. Recommended default: **independent** (simplest, and a "pick one of"
   rule reads as a type choice, not a quantity match). (Open Question 4.)
 - **Shared child across multiple in-cart parents.** If parents P1 and P2 both have
-  child C and both are in the cart, does one selection of C satisfy both, or does
-  each parent need its own pick? Per-parent namespacing (`child_of_<parentId>`)
-  makes each requirement independent by default (recommended). **But the downstream
-  booking shape cannot represent two separate lines for the same listing+date:**
-  `parseQuantities` is keyed by listing id (`ticket-form.ts:187-204`) and
-  `createAttendeeAtomicImpl` rejects a duplicate `(listing_id, date)` booking slot.
-  So when per-parent selection picks the *same* child for P1 and P2, the fold step
-  **must apply an explicit aggregate-or-disallow rule**, decided up front:
-  - **Aggregate (recommended):** sum the child's quantity across the parents that
-    chose it into a single booking line (one C with the combined quantity). The
-    per-parent requirement is still satisfied; only the persisted line is merged.
+  child C and both are in the cart, the per-parent field shape
+  (`child_<parentId>_<childId>`) keeps each requirement independent by default
+  (recommended) and records *how many* of C each parent wants — so the ambiguity a
+  single shared `quantity_C` would create does not arise. **But the downstream
+  booking shape still cannot represent two separate lines for the same
+  listing+date:** `parseQuantities` is keyed by listing id
+  (`ticket-form.ts:187-204`) and `createAttendeeAtomicImpl` rejects a duplicate
+  `(listing_id, date)` booking slot. So when both parents pick the *same* child,
+  the fold step **must apply an explicit aggregate-or-disallow rule**, decided up
+  front:
+  - **Aggregate (recommended):** sum the per-parent child quantities into a single
+    `(listing_id, date)` line. Each parent's requirement is still satisfied; only
+    the persisted line is merged.
   - **Disallow:** reject choosing the same child for more than one parent in one
     order, with a clear message.
   Whichever we pick, the gate must enforce it *before* building `ListingBooking[]`,
@@ -422,9 +465,15 @@ Enumerate each and decide:
 
 ## Testing plan (100% coverage, mutation-resistant per AGENTS.md)
 
-- **DB layer**: insert/read/delete edges; `getChildrenOf` returns only bookable
-  children; `getParentsOf`; batch loader avoids N+1; `deleteListing` removes edges
-  from both sides; cache invalidation on edge writes.
+- **DB layer**: insert/read/delete edges; `getChildrenOf` returns the
+  **relationship only** (assert it returns *all* linked children regardless of
+  date/availability — do **not** lock in "bookable-only" filtering here, which
+  would re-introduce the wrong-date bug for daily children/group caps);
+  `getParentsOf`; batch loader avoids N+1; `deleteListing` removes edges from both
+  sides; cache invalidation on edge writes.
+- **Availability**: bookability of a child is tested at render/submit against a
+  given `date`/`durationDays` (daily child bookable on its own day even when a
+  sibling child isn't), not on the relationship accessor.
 - **Admin**: saving parents diffs correctly; self-edge rejected; cycle/nesting
   rule rejected; reverse view renders.
 - **Gate (unit)**: rule satisfied / unsatisfied (none, too few, too many);
@@ -448,15 +497,19 @@ Enumerate each and decide:
 | --- | --- |
 | 1 | Migration: `listing_parents` table + indexes; (if adopting config (a)) the two parent rule columns on `listings`. No behaviour yet. |
 | 2 | DB layer: edge CRUD, `getChildrenOf` / `getParentsOf` / batch loader, dedicated edge cache, `deleteListing` cleanup. Unit-tested. |
-| 3 | Admin edit UI: configure parents (+ reverse view), with self/cycle/nesting validation and diff-save. |
-| 4 | Booking-page render: surface children under parents in `TicketCtx`; merge child questions; no-JS baseline. |
-| 5 | Server-side gate in `prepareOrder`: validate + fold children into booking lines. Free + paid + webhook + `/calculate` all exercised. |
-| 6 | Progressive-enhancement JS: reveal/require child selectors on parent qty > 0; include in live quote. |
-| 7 | Decide & implement API / admin-manual-add behaviour. |
+| 3 | Admin edit UI: configure parents (+ reverse view), with self/cycle/nesting validation and diff-save. **Ships behind a flag / hidden until step 4–5 land** (see note). |
+| 4 | Booking-page render: surface children under parents in `TicketCtx` (per-parent quantity fields, per-child dates, child questions); no-JS baseline incl. CSS-only reveal. |
+| 5 | Server-side gate in `prepareOrder`: validate (positive child qty; in-cart child lines count) + expand the listing set and fold children. Free + paid + webhook + `/calculate` all exercised. |
+| 6 | Progressive-enhancement JS: reveal/require child blocks on parent qty > 0; include in live quote. |
+| 7 | Decide & implement API / QR / admin-manual-add behaviour. |
 | 8 | Docs + any operator-facing help text. |
 
-Steps 1–3 are behaviour-preserving for buyers (no gate until step 5), so they can
-land independently.
+Steps 1–2 are behaviour-preserving. **Step 3 must not be exposed to operators
+before enforcement (steps 4–5) lands**: an admin UI that saves required-child
+relationships while checkout doesn't yet enforce them would let an operator
+configure a requirement that buyers silently bypass (parent checks out alone).
+Either gate the admin UI behind a feature flag until 4–5 are in, or merge 3–5 into
+a single shippable unit.
 
 ---
 
@@ -496,3 +549,10 @@ land independently.
 12. **Public discoverability** — should being a child auto-hide a listing from the
     public index, or is that left to the existing `hidden` flag? (Note: `hidden`
     must *not* make a child unselectable under its parent — see Edge cases.)
+13. **Parent + child in the same URL/cart** — let an existing in-cart child line
+    (e.g. `/ticket/<parent>+<child>`) satisfy the parent's requirement
+    (recommended) vs explicitly forbid parent+child URLs to keep the gate's input
+    single-sourced?
+14. **Child dates** — confirm daily children use per-child date controls evaluated
+    independently (recommended), rather than the shared `computeSharedDates`
+    selector that would intersect all children's date ranges.
