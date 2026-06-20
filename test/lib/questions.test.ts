@@ -621,10 +621,16 @@ describeWithEnv("custom questions", { db: true }, () => {
       // No error thrown, no rows inserted (delete-only path)
     });
 
-    test("saveAttendeeAnswers rejects answer ids without a question", async () => {
-      await expect(
-        saveAttendeeAnswers(new Map([[1, [999_999]]])),
-      ).rejects.toThrow("No question found for answer 999999");
+    test("saveAttendeeAnswers skips answer ids whose answer was deleted", async () => {
+      // An answer (and its question) can be removed between checkout and
+      // finalize. A dangling answer id is dropped rather than throwing, so an
+      // already-captured payment's finalize still completes instead of failing
+      // repeatedly.
+      const listing = await createTestListing();
+      const att = await createAttendee(listing.id);
+      await saveAttendeeAnswers(new Map([[att.id, [999_999]]]));
+      const after = await getAttendeeAnswersBatch([att.id]);
+      expect(after.get(att.id)).toBeUndefined();
     });
 
     test("saveAttendeeAnswers replaces existing answers atomically", async () => {
@@ -722,6 +728,31 @@ describeWithEnv("custom questions", { db: true }, () => {
         "SELECT used_count FROM strings",
       );
       expect(strings.map((row) => row.used_count)).toEqual([1]);
+    });
+
+    test("re-saving an unchanged sole-user text answer keeps it readable", async () => {
+      // Regression: strings used to be resolved before the per-attendee delete,
+      // so a sole user re-saving the same text had its string dropped by the
+      // delete trigger and the re-insert pointed at a now-missing row.
+      const q = await questionsTable.insert({
+        displayType: "free_text",
+        text: "Notes?",
+      });
+      const listing = await createTestListing();
+      const att = await createAttendee(listing.id);
+      const answerSet = {
+        answerIds: [],
+        textAnswers: [{ questionId: q.id, text: "Keep me" }],
+      };
+
+      await saveAttendeeAnswers(new Map([[att.id, answerSet]]));
+      await saveAttendeeAnswers(new Map([[att.id, answerSet]]));
+
+      const textAnswers = await getAttendeeTextAnswers(
+        att.id,
+        await getTestPrivateKey(),
+      );
+      expect(textAnswers.get(q.id)).toBe("Keep me");
     });
 
     test("deduplicates identical text answers and prunes them when unused", async () => {

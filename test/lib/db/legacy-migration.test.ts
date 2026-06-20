@@ -374,7 +374,7 @@ describe("db > listing_attendees migration from legacy schema", () => {
     ]);
   });
 
-  test("deletes a migrated listing that still has a legacy listing_questions FK", async () => {
+  test("deletes a migrated listing and its question links under FK enforcement", async () => {
     const client = await createLegacyDb();
     await client.execute("PRAGMA foreign_keys = ON");
 
@@ -398,11 +398,12 @@ describe("db > listing_attendees migration from legacy schema", () => {
       pragmaStub.restore();
     }
 
-    // Migration only rebuilds the attendee tables, so listing_questions keeps
-    // its original FOREIGN KEY (listing_id) REFERENCES listings(id). With FK
-    // enforcement on (as on the Turso primary), deleting a listing that has a
-    // question assigned must clear those rows first, or libsql rejects the
-    // whole delete with "FOREIGN KEY constraint failed".
+    // The free-text migration rebuilds listing_questions FK-free (so the
+    // questions table it references can itself be rebuilt to relax the
+    // display_type CHECK). deleteListing still clears the link rows as part of
+    // its cascade, so — even with FK enforcement on, as on the Turso primary —
+    // deleting a listing with an assigned question succeeds and leaves no
+    // orphaned links.
     await deleteListing(1);
 
     const listings = await client.execute("SELECT id FROM listings");

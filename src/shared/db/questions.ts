@@ -601,9 +601,11 @@ const dedupeAnswerIdsByQuestion = (
   const answerIdByQuestion = new Map<number, number>();
   for (const answerId of answerIds) {
     const questionId = questionIdsByAnswer.get(answerId);
-    if (questionId === undefined) {
-      throw new Error(`No question found for answer ${answerId}`);
-    }
+    // The answer may have been deleted between checkout and finalize (e.g. the
+    // owner removed it while the buyer was at the payment provider). Skip it:
+    // there is no question to attach it to, and throwing here would repeatedly
+    // break the finalize of an already-captured payment.
+    if (questionId === undefined) continue;
     answerIdByQuestion.set(questionId, answerId);
   }
   return [...answerIdByQuestion.values()];
@@ -635,6 +637,20 @@ export const saveAttendeeAnswers = async (
       ];
     }),
   );
+  if (normalized.size === 0) return;
+  // Clear each attendee's existing answers FIRST, in its own committed batch.
+  // The delete fires the string-refcount trigger, which drops any free-text
+  // string this attendee was the last user of — so it has to run before we
+  // resolve/create the strings we re-insert. Resolving first (the old order)
+  // meant a re-saved unchanged answer pointed at a string the delete then
+  // dropped, silently losing the value. getOrCreateStringIds below re-creates
+  // any string the delete removed.
+  await executeBatch(
+    [...normalized.keys()].map((attendeeId) => ({
+      args: [attendeeId],
+      sql: "DELETE FROM attendee_answers WHERE attendee_id = ?",
+    })),
+  );
   const [stringIds, questionIdsByAnswer] = await Promise.all([
     getOrCreateStringIds(
       [...normalized.values()].flatMap((set) =>
@@ -654,10 +670,6 @@ export const saveAttendeeAnswers = async (
       answerIds,
       questionIdsByAnswer,
     );
-    statements.push({
-      args: [attendeeId],
-      sql: "DELETE FROM attendee_answers WHERE attendee_id = ?",
-    });
     if (dedupedAnswerIds.length > 0) {
       const placeholders = dedupedAnswerIds.map(() => "(?, ?, ?)").join(", ");
       statements.push({

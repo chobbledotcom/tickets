@@ -143,4 +143,7 @@ export type ApplyAttendeeMergeInput = {
   sourcePii: ContactInfo;
   diff: AttendeeMergeDiff;
   decision: AttendeeMergeDecisionInput;
+  /** Owner private key, used to decrypt the target's free-text answers so they
+   * survive the answer re-save. */
+  privateKey: CryptoKey;
 };
