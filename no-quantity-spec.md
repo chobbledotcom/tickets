@@ -178,7 +178,10 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
   - the admin scanner (`src/features/admin/scanner.ts`),
   - the wallet pass routes `/wallet/:token.pkpass`, `/gwallet/:token`,
     `/v1/passes/:passType/:token` via `lookupSingleTokenPassData`
-    (`src/features/tickets/token-utils.ts`).
+    (`src/features/tickets/token-utils.ts`),
+  - the post-payment success page `/payment/success?tokens=`
+    (`renderSuccessFromTokens`, `src/features/api/webhooks.ts`) — builds the
+    customer ticket link and thank-you URL from the resolved tokens.
 
   Quantity-0 lines must not render as a ticket, not produce a wallet pass, and not
   be checkable. Filter them from the ticket/wallet render and the check-in
@@ -195,6 +198,17 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
     could return a 200 page with no cards and `handleTicketSvg` (`/t/:token/svg`)
     could emit a QR without resolving entries. Treat an empty filtered set as
     not-found on both `/t/:tokens` and `/t/:token/svg`.
+  - **The post-payment success page must filter ghosts and reject an all-ghost
+    set.** `renderSuccessFromTokens` verifies the URL tokens via
+    `getAttendeesByTokens`, then builds the ticket link `/t/:tokens` and the
+    single-listing thank-you URL from **every** returned booking's `listing_id`.
+    A quantity-0-*only* (or crafted/stale) token would render a "paid" page
+    linking to a `/t/:token` that now 404s; and for a **mixed** attendee the
+    ghost line inflates `uniqueListingIds`, silently suppressing the real
+    single-listing thank-you redirect. Exclude quantity-0 bookings when
+    collecting listing IDs, and treat a token resolving only to quantity-0 lines
+    as an invalid callback (the same `paymentErrorResponse` the existing
+    `verifiedTokens.length === 0` path returns).
   - **Signed attachment downloads need the guard too.** `GET /attachment/:id`
     verifies the signed attendee/listing pair via `getAttendeeRaw` then calls
     `incrementAttachmentDownloads` — neither has a quantity predicate, so a
@@ -262,6 +276,16 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
     from the **ghost** listing and refund the shared attendee-level payment. Add
     the quantity guard to the single and bulk refund UI and actions (and target
     the real line).
+  - **Refresh-payment route.** `POST /admin/attendees/:id/refresh-payment`
+    (`handleRefreshPayment` → `loadRefreshContext`,
+    `src/features/admin/attendees-edit.ts`) picks the attendee's first booking
+    row via `ORDER BY start_at, listing_id LIMIT 1` (no quantity predicate) and,
+    when the provider reports the payment refunded, calls
+    `markRefunded(attendeeId, listing.id)` against it. For a mixed attendee whose
+    first row is quantity-0, this marks the **ghost** `(attendee_id, listing_id)`
+    row refunded while the real paid line stays active. Pick a `quantity > 0` row
+    as the refund target and the logged-activity listing, mirroring the
+    manual-refund guard above.
   - **Re-send notification.** The edit-page `AttendeeActions`
     (`src/ui/templates/admin/attendee-form.tsx`) "Re-send notification" →
     `handleResendNotification` (`src/features/admin/attendees.ts`) calls
@@ -299,7 +323,10 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
   still present** in the per-listing roster and the group-detail roster (with no
   check-in button) and per-attendee detail.
 - A quantity-0-*only* token returns **not found** on `/t/:tokens` and
-  `/t/:token/svg` (no empty page, no QR).
+  `/t/:token/svg` (no empty page, no QR), and an **invalid-callback** page on
+  `/payment/success?tokens=` (no "paid" page linking to a dead ticket); a mixed
+  attendee's payment-success thank-you URL still resolves to the real single
+  listing.
 - Logistics: mark-done (`setLegDone`) refuses a quantity-0 line even with an agent
   assigned; the edit/save path doesn't render or persist logistics assignments for
   a no-quantity line.
@@ -309,7 +336,8 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
   no-quantity clears/blocks the now-unpayable `remaining_balance`.
 - Admin per-row action guards: a quantity-0 row shows no check-in button, no
   refund / refund-all control, and no working re-send-notification (or it targets
-  a real line); the scanner manual list omits quantity-0 candidates.
+  a real line); the refresh-payment route refunds the real line, never a
+  ghost-first row; the scanner manual list omits quantity-0 candidates.
 - Public API `POST /api/listings/:slug/book` rejects/ignores `quantity: 0` (no
   one-ticket booking created).
 - Capacity unaffected (`SUM(quantity)`); orphan purge keeps a quantity-0 attendee.
