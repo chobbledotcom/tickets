@@ -11,6 +11,7 @@ const question = (
   answers: { id: number; text: string }[],
 ): QuestionWithAnswers => ({
   answers: answers.map((a, i) => ({
+    active: true,
     id: a.id,
     question_id: id,
     sort_order: i,

@@ -39,8 +39,9 @@ describe("db > migrations > schema change guard", () => {
         "2026-06-19_built_sites_last_pruned",
         "2026-06-20_free_text_questions",
         "2026-06-20_string_created",
+        "2026-06-20_answer_active",
       ],
-      schemaHash: "1yx8v44",
+      schemaHash: "1sl3gfc",
     });
   });
 });

@@ -755,6 +755,34 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       expect(question!.answers.find((a) => a.id === aId)!.text).toBe("After");
     });
 
+    test("deactivates an answer when the active box is unchecked", async () => {
+      const qId = await createQuestion("Deactivate question");
+      const aId = await addAnswer(qId, "Retired option");
+      const { getQuestionWithAnswers } = await import(
+        "#shared/db/questions.ts"
+      );
+      // New answers start active.
+      const before = await getQuestionWithAnswers(qId);
+      expect(before!.answers.find((a) => a.id === aId)!.active).toBe(true);
+
+      // An unchecked checkbox is simply absent from the POST body.
+      await adminFormPost(`/admin/questions/${qId}/answers/${aId}/edit`, {
+        modifier_id: "",
+        text: "Retired option",
+      });
+      const after = await getQuestionWithAnswers(qId);
+      expect(after!.answers.find((a) => a.id === aId)!.active).toBe(false);
+
+      // Re-checking it reactivates the answer.
+      await adminFormPost(`/admin/questions/${qId}/answers/${aId}/edit`, {
+        active: "on",
+        modifier_id: "",
+        text: "Retired option",
+      });
+      const reactivated = await getQuestionWithAnswers(qId);
+      expect(reactivated!.answers.find((a) => a.id === aId)!.active).toBe(true);
+    });
+
     test("links the chosen modifier to the answer", async () => {
       const qId = await createQuestion("Link modifier question");
       const aId = await addAnswer(qId, "Large");

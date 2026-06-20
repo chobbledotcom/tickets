@@ -204,6 +204,8 @@ export const renderQuestions = (
       // Restore the chosen answer when a validation error re-renders the page.
       const answered = savedFormValue(`question_${q.id}`);
       const listingIds = questionListingMap?.get(q.id)?.join(" ");
+      // Deactivated answers are never offered on the public booking form.
+      const options = q.answers.filter((a) => a.active);
       // A select is a single control, so a plain <label> names it like the text
       // fields do. Radios are a set of controls, so they need a <fieldset> with
       // a <legend> to label the group. Both carry .custom-question (plus any
@@ -230,7 +232,7 @@ export const renderQuestions = (
               <option value="">
                 {t("public.ticket.select_answer_placeholder")}
               </option>
-              {q.answers.map((a) => (
+              {options.map((a) => (
                 <option
                   selected={answered === String(a.id)}
                   value={String(a.id)}
@@ -245,7 +247,7 @@ export const renderQuestions = (
       return (
         <fieldset class="custom-question" data-listing-ids={listingIds}>
           <legend>{q.text}</legend>
-          {q.answers.map((a) => (
+          {options.map((a) => (
             <label>
               <input
                 checked={answered === String(a.id)}

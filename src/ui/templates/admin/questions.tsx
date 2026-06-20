@@ -398,6 +398,19 @@ export const adminAnswerEditPage = (
           </select>
           <small>{t("questions.edit_answer.modifier_hint")}</small>
         </label>
+        <label>
+          <input
+            checked={answer.active || undefined}
+            name="active"
+            type="checkbox"
+            value="on"
+          />{" "}
+          Active
+          <small>
+            Deactivate to hide this answer on the booking form. Attendees who
+            already chose it keep it, and it still shows on their edit page.
+          </small>
+        </label>
         <AnswerRunningTotalsSection
           aggregateRecalculation={aggregateRecalculation}
           answer={answer}

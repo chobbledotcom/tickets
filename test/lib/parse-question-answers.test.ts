@@ -17,7 +17,15 @@ const freeText = (
 });
 
 const radio = (id: number): QuestionWithAnswers => ({
-  answers: [{ id: id * 10, question_id: id, sort_order: 0, text: "Answer" }],
+  answers: [
+    {
+      active: true,
+      id: id * 10,
+      question_id: id,
+      sort_order: 0,
+      text: "Answer",
+    },
+  ],
   display_type: "radio",
   id,
   text: `Question ${id}`,

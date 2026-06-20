@@ -421,7 +421,10 @@ const handleEditAnswerPost = createAuthedFormRoute<
     if (!aggregates.ok) {
       return errorRedirect(editAnswerPath(params), aggregates.error);
     }
-    await answersTable.update(answer.id, { text });
+    await answersTable.update(answer.id, {
+      active: form.get("active") === "on",
+      text,
+    });
     await setAnswerModifier(answer.id, modifierId);
     if (aggregates.input) {
       await updateAnswerAggregateValues(answer.id, aggregates.input);

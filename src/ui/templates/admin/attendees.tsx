@@ -252,30 +252,34 @@ export const EditQuestions = ({
           {q.text}
           <select name={`question_${q.id}`}>
             <option value="">No answer</option>
-            {q.answers.map((a) => (
-              <option
-                selected={selectedAnswerIds.includes(a.id) || undefined}
-                value={String(a.id)}
-              >
-                {a.text}
-              </option>
-            ))}
+            {q.answers
+              .filter((a) => a.active || selectedAnswerIds.includes(a.id))
+              .map((a) => (
+                <option
+                  selected={selectedAnswerIds.includes(a.id) || undefined}
+                  value={String(a.id)}
+                >
+                  {a.text}
+                </option>
+              ))}
           </select>
         </label>
       ) : (
         <fieldset class="custom-question">
           <legend>{q.text}</legend>
-          {q.answers.map((a) => (
-            <label>
-              <input
-                checked={selectedAnswerIds.includes(a.id)}
-                name={`question_${q.id}`}
-                type="radio"
-                value={String(a.id)}
-              />{" "}
-              {a.text}
-            </label>
-          ))}
+          {q.answers
+            .filter((a) => a.active || selectedAnswerIds.includes(a.id))
+            .map((a) => (
+              <label>
+                <input
+                  checked={selectedAnswerIds.includes(a.id)}
+                  name={`question_${q.id}`}
+                  type="radio"
+                  value={String(a.id)}
+                />{" "}
+                {a.text}
+              </label>
+            ))}
         </fieldset>
       ),
     )}

@@ -14,8 +14,8 @@ describe("renderQuestions", () => {
     const questions: QuestionWithAnswers[] = [
       {
         answers: [
-          { id: 10, question_id: 1, sort_order: 0, text: "Red" },
-          { id: 11, question_id: 1, sort_order: 1, text: "Blue" },
+          { active: true, id: 10, question_id: 1, sort_order: 0, text: "Red" },
+          { active: true, id: 11, question_id: 1, sort_order: 1, text: "Blue" },
         ],
         display_type: "radio" as const,
         id: 1,
@@ -35,12 +35,38 @@ describe("renderQuestions", () => {
     expect(html).toContain("<fieldset");
   });
 
+  test("omits deactivated answers from the public form", () => {
+    const questions: QuestionWithAnswers[] = [
+      {
+        answers: [
+          { active: true, id: 10, question_id: 1, sort_order: 0, text: "Red" },
+          {
+            active: false,
+            id: 11,
+            question_id: 1,
+            sort_order: 1,
+            text: "Blue",
+          },
+        ],
+        display_type: "radio" as const,
+        id: 1,
+        text: "Favourite colour?",
+      },
+    ];
+
+    const html = renderQuestions(questions).toString();
+
+    expect(html).toContain("Red");
+    expect(html).not.toContain("Blue");
+    expect(html).not.toContain('value="11"');
+  });
+
   test("renders select boxes when configured", () => {
     const questions: QuestionWithAnswers[] = [
       {
         answers: [
-          { id: 10, question_id: 1, sort_order: 0, text: "Red" },
-          { id: 11, question_id: 1, sort_order: 1, text: "Blue" },
+          { active: true, id: 10, question_id: 1, sort_order: 0, text: "Red" },
+          { active: true, id: 11, question_id: 1, sort_order: 1, text: "Blue" },
         ],
         display_type: "select" as const,
         id: 1,
@@ -105,8 +131,8 @@ describe("renderQuestions", () => {
     const questions: QuestionWithAnswers[] = [
       {
         answers: [
-          { id: 10, question_id: 1, sort_order: 0, text: "Red" },
-          { id: 11, question_id: 1, sort_order: 1, text: "Blue" },
+          { active: true, id: 10, question_id: 1, sort_order: 0, text: "Red" },
+          { active: true, id: 11, question_id: 1, sort_order: 1, text: "Blue" },
         ],
         display_type: "select" as const,
         id: 1,
@@ -124,13 +150,17 @@ describe("renderQuestions", () => {
   test("renders multiple questions", () => {
     const questions: QuestionWithAnswers[] = [
       {
-        answers: [{ id: 10, question_id: 1, sort_order: 0, text: "A1" }],
+        answers: [
+          { active: true, id: 10, question_id: 1, sort_order: 0, text: "A1" },
+        ],
         display_type: "radio" as const,
         id: 1,
         text: "Q1",
       },
       {
-        answers: [{ id: 20, question_id: 2, sort_order: 0, text: "A2" }],
+        answers: [
+          { active: true, id: 20, question_id: 2, sort_order: 0, text: "A2" },
+        ],
         display_type: "radio" as const,
         id: 2,
         text: "Q2",
@@ -146,7 +176,9 @@ describe("renderQuestions", () => {
   test("escapes HTML in question and answer text", () => {
     const questions: QuestionWithAnswers[] = [
       {
-        answers: [{ id: 10, question_id: 1, sort_order: 0, text: "S&M" }],
+        answers: [
+          { active: true, id: 10, question_id: 1, sort_order: 0, text: "S&M" },
+        ],
         display_type: "radio" as const,
         id: 1,
         text: "What <b>size</b>?",
@@ -163,13 +195,17 @@ describe("renderQuestions", () => {
   test("adds data-listing-ids when questionListingMap is provided", () => {
     const questions: QuestionWithAnswers[] = [
       {
-        answers: [{ id: 10, question_id: 1, sort_order: 0, text: "A1" }],
+        answers: [
+          { active: true, id: 10, question_id: 1, sort_order: 0, text: "A1" },
+        ],
         display_type: "radio" as const,
         id: 1,
         text: "Q1",
       },
       {
-        answers: [{ id: 20, question_id: 2, sort_order: 0, text: "A2" }],
+        answers: [
+          { active: true, id: 20, question_id: 2, sort_order: 0, text: "A2" },
+        ],
         display_type: "radio" as const,
         id: 2,
         text: "Q2",
@@ -189,7 +225,9 @@ describe("renderQuestions", () => {
   test("omits data-listing-ids when no map provided", () => {
     const questions: QuestionWithAnswers[] = [
       {
-        answers: [{ id: 10, question_id: 1, sort_order: 0, text: "A1" }],
+        answers: [
+          { active: true, id: 10, question_id: 1, sort_order: 0, text: "A1" },
+        ],
         display_type: "radio" as const,
         id: 1,
         text: "Q1",

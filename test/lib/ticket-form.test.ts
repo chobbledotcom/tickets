@@ -14,7 +14,15 @@ const question = (
   answers:
     display_type === "free_text"
       ? []
-      : [{ id: id * 10, question_id: id, sort_order: 0, text: "Answer" }],
+      : [
+          {
+            active: true,
+            id: id * 10,
+            question_id: id,
+            sort_order: 0,
+            text: "Answer",
+          },
+        ],
   display_type,
   id,
   text: `Question ${id}`,

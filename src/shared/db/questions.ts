@@ -66,6 +66,10 @@ export interface Answer {
   question_id: number;
   sort_order: number;
   text: string; // encrypted
+  /** Deactivated answers are hidden on the public booking form; the admin edit
+   * form still shows one an attendee already selected so it isn't silently
+   * dropped on the next save. */
+  active: boolean;
 }
 
 /** Link between listing and question. Membership only — display order comes
@@ -117,12 +121,14 @@ type AnswerInput = {
   questionId: number;
   text: string;
   sortOrder: number;
+  active?: boolean;
 };
 
 export const answersTable = defineTable<Answer, AnswerInput>({
   name: "answers",
   primaryKey: "id",
   schema: {
+    active: col.boolean(true),
     id: generatedId,
     ...questionIdAndSortOrder,
     text: encryptedText,
@@ -162,12 +168,13 @@ type JoinedRow = {
   a_text: string | null;
   a_question_id: number | null;
   a_sort_order: number | null;
+  a_active: boolean | null;
 };
 
 /** Shared SELECT columns and JOIN for question + answers */
 const QA_COLS = `q.id AS q_id, q.assign_all AS q_assign_all, q.display_type AS q_display_type, q.text AS q_text,
        a.id AS a_id, a.text AS a_text,
-       a.question_id AS a_question_id, a.sort_order AS a_sort_order`;
+       a.question_id AS a_question_id, a.sort_order AS a_sort_order, a.active AS a_active`;
 const QA_JOIN = "questions q LEFT JOIN answers a ON a.question_id = q.id";
 
 /** Group flat joined rows into QuestionWithAnswers[], preserving row order.
@@ -188,6 +195,7 @@ const groupJoinedRows = (rows: JoinedRow[]): Promise<QuestionWithAnswers[]> => {
     };
     if (row.a_id !== null) {
       group.answers.push({
+        active: row.a_active!,
         id: row.a_id,
         question_id: row.a_question_id!,
         sort_order: row.a_sort_order!,
@@ -929,6 +937,7 @@ export const getAttendeeAnswersByQuestion = async (
   const result = new Map<number, { answerId: number; answerText: string }>();
   for (const row of rows) {
     const decrypted = await answersTable.fromDb({
+      active: true,
       id: row.answer_id,
       question_id: row.question_id,
       sort_order: 0,

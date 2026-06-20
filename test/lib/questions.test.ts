@@ -829,10 +829,10 @@ describeWithEnv("custom questions", { db: true }, () => {
       const ids = await getOrCreateStringIds(["reuse me"]);
       const id = ids.get("reuse me")!;
       // Backdate it as if abandoned by an earlier checkout.
-      await execute({
-        args: ["2000-01-01T00:00:00Z", id],
-        sql: "UPDATE strings SET created = ? WHERE id = ?",
-      });
+      await execute("UPDATE strings SET created = ? WHERE id = ?", [
+        "2000-01-01T00:00:00Z",
+        id,
+      ]);
 
       const reused = await getOrCreateStringIds(["reuse me"]);
       expect(reused.get("reuse me")).toBe(id);

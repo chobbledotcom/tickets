@@ -16,11 +16,67 @@ const render = (
   );
 
 describe("EditQuestions", () => {
+  const withDeactivated = (
+    displayType: "radio" | "select",
+    selectedAnswerIds: number[],
+  ) =>
+    render(
+      [
+        {
+          answers: [
+            {
+              active: true,
+              id: 10,
+              question_id: 1,
+              sort_order: 0,
+              text: "Red",
+            },
+            {
+              active: false,
+              id: 11,
+              question_id: 1,
+              sort_order: 1,
+              text: "Blue",
+            },
+          ],
+          display_type: displayType,
+          id: 1,
+          text: "Colour?",
+        },
+      ],
+      { answerIds: selectedAnswerIds },
+    );
+
+  test("hides a deactivated radio answer the attendee has not selected", () => {
+    const html = withDeactivated("radio", [10]);
+    expect(html).toContain("Red");
+    expect(html).not.toContain("Blue");
+  });
+
+  test("keeps a deactivated radio answer the attendee already selected", () => {
+    const html = withDeactivated("radio", [11]);
+    expect(html).toContain("Blue");
+  });
+
+  test("hides a deactivated select answer the attendee has not selected", () => {
+    const html = withDeactivated("select", [10]);
+    expect(html).toContain("Red");
+    expect(html).not.toContain("Blue");
+  });
+
   test("renders radio inputs by default", () => {
     const html = render(
       [
         {
-          answers: [{ id: 10, question_id: 1, sort_order: 0, text: "Small" }],
+          answers: [
+            {
+              active: true,
+              id: 10,
+              question_id: 1,
+              sort_order: 0,
+              text: "Small",
+            },
+          ],
           display_type: "radio",
           id: 1,
           text: "Size?",
@@ -39,8 +95,20 @@ describe("EditQuestions", () => {
       [
         {
           answers: [
-            { id: 10, question_id: 1, sort_order: 0, text: "Small" },
-            { id: 11, question_id: 1, sort_order: 1, text: "Large" },
+            {
+              active: true,
+              id: 10,
+              question_id: 1,
+              sort_order: 0,
+              text: "Small",
+            },
+            {
+              active: true,
+              id: 11,
+              question_id: 1,
+              sort_order: 1,
+              text: "Large",
+            },
           ],
           display_type: "select",
           id: 1,
