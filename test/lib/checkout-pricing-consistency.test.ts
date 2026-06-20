@@ -8,6 +8,11 @@ import {
   resolveModifiers,
   specsFromRefs,
 } from "#shared/db/modifier-resolve.ts";
+import {
+  enableQueryLog,
+  getQueryLog,
+  runWithQueryLogContext,
+} from "#shared/db/query-log.ts";
 import { answersTable, questionsTable } from "#shared/db/questions.ts";
 import { toModifierRefs } from "#shared/payment-helpers.ts";
 import type {
@@ -161,6 +166,36 @@ describeWithEnv(
       const specs = await resolveModifiers(items);
       expect(specs[0]!.listingIds).toEqual([1]);
       await expectConsistent(items, specs);
+    });
+
+    test("listing-scoped modifier resolution batches scope links", async () => {
+      const modifiers = await Promise.all(
+        [1, 2, 3].map(async (listingId) => {
+          const m = await insertModifier({
+            calcKind: "fixed",
+            calcValue: 1,
+            direction: "charge",
+            name: `Scope ${listingId}`,
+          });
+          await patchModifier(m.id, { scope: "listings" });
+          await linkModifierListing(m.id, listingId);
+          return m;
+        }),
+      );
+
+      const { scopeQueries, specs } = await runWithQueryLogContext(async () => {
+        enableQueryLog();
+        const specs = await resolveModifiers([checkoutItem({ listingId: 1 })]);
+        return {
+          scopeQueries: getQueryLog().filter((entry) =>
+            entry.sql.includes("FROM modifier_listings"),
+          ),
+          specs,
+        };
+      });
+
+      expect(specs.map((s) => s.id)).toEqual([modifiers[0]!.id]);
+      expect(scopeQueries).toHaveLength(1);
     });
 
     test("a code modifier is re-applied on the webhook without re-entering the code", async () => {
