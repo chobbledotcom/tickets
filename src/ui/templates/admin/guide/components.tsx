@@ -56,6 +56,63 @@ export const Faq = ({ id }: { id: string }): JSX.Element => (
   </Q>
 );
 
+/**
+ * The guide as data.
+ *
+ * The page is a flat, ordered list of {@link GuideSection}s, each owning a flat
+ * list of {@link GuideEntry}s. The types make the structure explicit so it
+ * cannot drift: a section's `entries` are FAQs/custom Q&As only — an entry can
+ * never itself be a section. That removes a whole class of layout bug where a
+ * sub-section authored in the middle of another section's entries renders its
+ * `<h3>` mid-list, pulling every later entry under the wrong heading. New
+ * sections go in the top-level array (see `guideSections` in ../guide.tsx);
+ * there is simply nowhere to "nest" one incorrectly.
+ */
+
+/** A FAQ entry whose question and answer come from guide.q.* / guide.a.* keys. */
+export type GuideFaq = { faq: string };
+
+/** A hand-authored entry: a question with a bespoke answer body, used where the
+ * answer depends on host configuration or contains rich/structured HTML. */
+export type GuideCustom = { question: string; body: JSX.Element };
+
+/** One entry beneath a section heading — never a section itself. */
+export type GuideEntry = GuideFaq | GuideCustom;
+
+/** A guide section: one <h3> heading and the flat list of entries under it. */
+export type GuideSection = {
+  id?: string;
+  title: string;
+  entries: GuideEntry[];
+};
+
+/** Author a data-driven FAQ entry from its locale-key id. */
+export const faq = (id: string): GuideFaq => ({ faq: id });
+
+/** Author a custom question/answer entry with a bespoke body. */
+export const custom = (question: string, body: JSX.Element): GuideCustom => ({
+  body,
+  question,
+});
+
+const renderEntry = (entry: GuideEntry): JSX.Element =>
+  "faq" in entry ? (
+    <Faq id={entry.faq} />
+  ) : (
+    <Q q={entry.question}>{entry.body}</Q>
+  );
+
+/** Render the guide from its schema: one <Section> per section, in order. */
+export const renderGuideSections = (sections: GuideSection[]): JSX.Element => (
+  <>
+    {sections.map((section) => (
+      <Section id={section.id} title={section.title}>
+        {section.entries.map(renderEntry)}
+      </Section>
+    ))}
+  </>
+);
+
 /** Render a column reference table from column generators */
 export const columnReferenceTable = (
   columns: Record<string, { label: string; description: string }>,
