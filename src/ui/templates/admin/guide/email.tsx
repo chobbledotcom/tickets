@@ -2,7 +2,6 @@
  * Admin guide — Email sections.
  */
 
-import { t } from "#i18n";
 import {
   custom,
   faq,
@@ -16,7 +15,7 @@ export const emailSections = (hostConfig?: GuideHostConfig): GuideSection[] => [
       faq("what_are_email_notifications"),
       faq("supported_email_providers"),
       custom(
-        t("guide.q.setup_email"),
+        "setup_email",
         <>
           {hostConfig?.hostEmailProvider && (
             <p>
@@ -58,13 +57,13 @@ export const emailSections = (hostConfig?: GuideHostConfig): GuideSection[] => [
       faq("admin_notification_email_content"),
     ],
     id: "email",
-    title: t("guide.sections.email_notifications"),
+    titleKey: "email_notifications",
   },
   {
     entries: [
       faq("customise_emails"),
       custom(
-        t("guide.q.template_variables"),
+        "template_variables",
         <>
           <ul>
             <li>
@@ -102,7 +101,7 @@ export const emailSections = (hostConfig?: GuideHostConfig): GuideSection[] => [
         </>,
       ),
       custom(
-        t("guide.q.template_filters"),
+        "template_filters",
         <>
           <p>Two custom filters are built in:</p>
           <ul>
@@ -120,7 +119,7 @@ export const emailSections = (hostConfig?: GuideHostConfig): GuideSection[] => [
       faq("template_error"),
     ],
     id: "email-templates",
-    title: t("guide.sections.email_templates"),
+    titleKey: "email_templates",
   },
   {
     entries: [
@@ -133,6 +132,6 @@ export const emailSections = (hostConfig?: GuideHostConfig): GuideSection[] => [
       faq("can_i_see_how_often_i_ve"),
     ],
     id: "bulk-email",
-    title: "Bulk Email",
+    titleKey: "bulk_email",
   },
 ];

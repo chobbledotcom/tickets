@@ -2,7 +2,6 @@
  * Admin guide — Integrations sections.
  */
 
-import { t } from "#i18n";
 import {
   API_AVAILABILITY_EXAMPLE_JSON,
   API_BOOK_FREE_EXAMPLE_JSON,
@@ -23,7 +22,7 @@ export const integrationsSections = (): GuideSection[] => [
     entries: [
       faq("listing_feeds"),
       custom(
-        t("guide.q.connect_to_mobilizon"),
+        "connect_to_mobilizon",
         <>
           <p>
             <a href="https://mobilizon.org/">Mobilizon</a> is a federated events
@@ -53,12 +52,12 @@ export const integrationsSections = (): GuideSection[] => [
         </>,
       ),
     ],
-    title: t("guide.sections.feeds_and_mobilizon"),
+    titleKey: "feeds_and_mobilizon",
   },
   {
     entries: [
       custom(
-        "What is the SMS gateway?",
+        "what_is_sms_gateway",
         <p>
           The SMS gateway lets you send text messages to attendees from an
           attendee's <strong>Contact</strong> page, using a spare Android phone
@@ -69,7 +68,7 @@ export const integrationsSections = (): GuideSection[] => [
         </p>,
       ),
       custom(
-        "How is my data kept private?",
+        "sms_data_privacy",
         <p>
           Message text and recipient phone numbers are{" "}
           <strong>end-to-end encrypted</strong> with a passphrase you choose,
@@ -81,7 +80,7 @@ export const integrationsSections = (): GuideSection[] => [
         </p>,
       ),
       custom(
-        "How do I set it up?",
+        "sms_setup",
         <ol>
           <li>
             Install the{" "}
@@ -113,7 +112,7 @@ export const integrationsSections = (): GuideSection[] => [
         </ol>,
       ),
       custom(
-        "Can I receive replies and delivery updates?",
+        "sms_replies",
         <p>
           Yes. When you set a webhook signing secret and point the app's webhook
           at <code>/sms/webhook</code> on this site, delivery confirmations,
@@ -125,13 +124,13 @@ export const integrationsSections = (): GuideSection[] => [
       ),
     ],
     id: "sms",
-    title: "SMS Gateway",
+    titleKey: "sms_gateway",
   },
   {
     entries: [
       faq("what_is_public_api"),
       custom(
-        t("guide.q.available_endpoints"),
+        "available_endpoints",
         <>
           <p>
             The base URL is your domain (e.g.{" "}
@@ -166,7 +165,7 @@ export const integrationsSections = (): GuideSection[] => [
         </>,
       ),
       custom(
-        t("guide.q.list_listings_api"),
+        "list_listings_api",
         <>
           <pre>
             <code>{`GET /api/listings\n\nResponse:\n${API_LIST_EXAMPLE_JSON}`}</code>
@@ -179,7 +178,7 @@ export const integrationsSections = (): GuideSection[] => [
         </>,
       ),
       custom(
-        t("guide.q.get_single_listing_api"),
+        "get_single_listing_api",
         <>
           <pre>
             <code>{`GET /api/listings/summer-workshop\n\nResponse:\n${API_SINGLE_EXAMPLE_JSON}`}</code>
@@ -192,7 +191,7 @@ export const integrationsSections = (): GuideSection[] => [
         </>,
       ),
       custom(
-        t("guide.q.check_availability_api"),
+        "check_availability_api",
         <>
           <pre>
             <code>{`GET /api/listings/summer-workshop/availability?quantity=2\n\nResponse:\n${API_AVAILABILITY_EXAMPLE_JSON}`}</code>
@@ -204,7 +203,7 @@ export const integrationsSections = (): GuideSection[] => [
         </>,
       ),
       custom(
-        t("guide.q.create_booking_api"),
+        "create_booking_api",
         <>
           <pre>
             <code>{`POST /api/listings/summer-workshop/book\nContent-Type: application/json\n\n${API_BOOK_REQUEST_JSON}`}</code>
@@ -240,7 +239,7 @@ export const integrationsSections = (): GuideSection[] => [
       faq("where_can_i_find_the_full_api"),
     ],
     id: "api",
-    title: t("guide.sections.public_api"),
+    titleKey: "public_api",
   },
   {
     entries: [
@@ -252,6 +251,6 @@ export const integrationsSections = (): GuideSection[] => [
       faq("what_happens_to_api_keys_if_their"),
     ],
     id: "admin-api",
-    title: "Admin API",
+    titleKey: "admin_api",
   },
 ];

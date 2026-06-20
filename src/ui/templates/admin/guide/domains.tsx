@@ -3,7 +3,6 @@
  */
 
 import { compact } from "#fp";
-import { t } from "#i18n";
 import {
   custom,
   faq,
@@ -16,7 +15,7 @@ export const domainsSections = (hostConfig?: GuideHostConfig): GuideSection[] =>
     {
       entries: [
         custom(
-          "What is a host subdomain?",
+          "what_is_host_subdomain",
           <p>
             If your server administrator has enabled subdomain registration, you
             can claim a pretty subdomain for your tickets site (e.g.{" "}
@@ -33,7 +32,7 @@ export const domainsSections = (hostConfig?: GuideHostConfig): GuideSection[] =>
         faq("can_i_use_both_a_subdomain_and"),
       ],
       id: "host-subdomain",
-      title: "Host Subdomain",
+      titleKey: "host_subdomain",
     },
     {
       entries: [
@@ -43,7 +42,7 @@ export const domainsSections = (hostConfig?: GuideHostConfig): GuideSection[] =>
         faq("which_domain_is_used_for_ticket_links"),
       ],
       id: "custom-domain",
-      title: t("guide.sections.custom_domain"),
+      titleKey: "custom_domain",
     },
     {
       entries: [
@@ -53,7 +52,7 @@ export const domainsSections = (hostConfig?: GuideHostConfig): GuideSection[] =>
         faq("what_is_debug_page"),
         faq("what_is_the_debug_footer"),
       ],
-      title: t("guide.sections.settings_overview"),
+      titleKey: "settings_overview",
     },
     hostConfig?.builderEnabled
       ? {
@@ -64,7 +63,7 @@ export const domainsSections = (hostConfig?: GuideHostConfig): GuideSection[] =>
             faq("can_i_add_a_site_record_without"),
           ],
           id: "built-sites",
-          title: "Built Sites",
+          titleKey: "built_sites",
         }
       : null,
   ]);

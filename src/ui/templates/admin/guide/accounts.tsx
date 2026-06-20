@@ -2,7 +2,6 @@
  * Admin guide — Accounts sections.
  */
 
-import { t } from "#i18n";
 import { LOGIN_LOCKOUT_MS, MAX_LOGIN_ATTEMPTS } from "#shared/limits.ts";
 import { WEBHOOK_EXAMPLE_JSON } from "#shared/webhook-example.ts";
 import {
@@ -19,7 +18,7 @@ export const accountsSections = (): GuideSection[] => [
       faq("invite_link_expiry"),
     ],
     id: "user-classes",
-    title: t("guide.sections.users_and_permissions"),
+    titleKey: "users_and_permissions",
   },
   {
     entries: [
@@ -29,7 +28,7 @@ export const accountsSections = (): GuideSection[] => [
       faq("how_are_admin_sessions_secured"),
     ],
     id: "login-security",
-    title: "Login & Security",
+    titleKey: "login_security",
   },
   {
     entries: [
@@ -39,14 +38,14 @@ export const accountsSections = (): GuideSection[] => [
       faq("export_attendee_data"),
       faq("reset_database"),
     ],
-    title: t("guide.sections.data_and_privacy"),
+    titleKey: "data_and_privacy",
   },
   {
     entries: [
       faq("what_are_webhooks"),
       faq("setup_webhook"),
       custom(
-        t("guide.q.webhook_json_format"),
+        "webhook_json_format",
         <>
           <p>
             Each webhook is an HTTP POST with{" "}
@@ -66,7 +65,7 @@ export const accountsSections = (): GuideSection[] => [
       ),
     ],
     id: "webhooks",
-    title: t("guide.sections.webhooks"),
+    titleKey: "webhooks",
   },
   {
     entries: [
@@ -74,7 +73,7 @@ export const accountsSections = (): GuideSection[] => [
       faq("what_happens_when_i_change_my_password"),
       faq("how_do_i_log_out_other_users"),
       custom(
-        "What happens after too many failed login attempts?",
+        "failed_login_attempts",
         <>
           <p>
             The login form is protected by per-IP rate limiting. After{" "}
@@ -95,16 +94,16 @@ export const accountsSections = (): GuideSection[] => [
       ),
     ],
     id: "login",
-    title: "Login & Sessions",
+    titleKey: "login_sessions",
   },
   {
     entries: [faq("what_is_calendar")],
     id: "calendar",
-    title: t("guide.sections.calendar"),
+    titleKey: "calendar",
   },
   {
     entries: [faq("what_is_activity_log")],
     id: "activity-log",
-    title: t("guide.sections.activity_log"),
+    titleKey: "activity_log",
   },
 ];

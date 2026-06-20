@@ -2,7 +2,6 @@
  * Admin guide — Payments sections.
  */
 
-import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
 import { MAX_DURATION_DAYS } from "#shared/types.ts";
 import {
@@ -21,7 +20,7 @@ export const paymentsSections = (): GuideSection[] => [
       faq("listing_sells_out_while_paying"),
       faq("how_refunds_work"),
       custom(
-        t("guide.q.what_is_booking_fee"),
+        "what_is_booking_fee",
         <>
           <p>
             The booking fee is an optional percentage-based charge added to
@@ -39,7 +38,7 @@ export const paymentsSections = (): GuideSection[] => [
         </>,
       ),
     ],
-    title: t("guide.sections.payments"),
+    titleKey: "payments",
   },
   {
     entries: [
@@ -54,7 +53,7 @@ export const paymentsSections = (): GuideSection[] => [
       faq("test_or_live_credentials"),
     ],
     id: "payment-setup",
-    title: t("guide.sections.payment_setup"),
+    titleKey: "payment_setup",
   },
   {
     entries: [
@@ -69,14 +68,14 @@ export const paymentsSections = (): GuideSection[] => [
       faq("refund_same_attendee_twice"),
     ],
     id: "refunds",
-    title: t("guide.sections.refunds"),
+    titleKey: "refunds",
   },
   {
     entries: [
       faq("how_daily_listings_work"),
       faq("what_are_bookable_days"),
       custom(
-        "What is the Booking Duration field?",
+        "booking_duration_field",
         <>
           <p>
             For daily listings, <strong>Booking Duration (days)</strong> sets
@@ -104,6 +103,6 @@ export const paymentsSections = (): GuideSection[] => [
       faq("what_are_holidays"),
     ],
     id: "holidays",
-    title: t("guide.sections.daily_listings_and_holidays"),
+    titleKey: "daily_listings_and_holidays",
   },
 ];

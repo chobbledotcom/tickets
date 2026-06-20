@@ -2,21 +2,21 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { unique } from "#fp";
 import en from "#locales/en/index.ts";
-import type {
-  GuideEntry,
-  GuideSection,
-} from "#templates/admin/guide/components.tsx";
+import type { GuideSection } from "#templates/admin/guide/components.tsx";
 import { guideSections } from "#templates/admin/guide.tsx";
 
 /**
  * The admin guide is authored as data (a flat list of sections, each with a
- * flat list of entries) rather than hand-nested JSX. These tests enforce the
- * invariants that make that schema trustworthy, so authoring mistakes fail here
- * instead of shipping a broken page:
- *   - every data-driven FAQ id resolves to a real question/answer locale key
- *     (a typo would otherwise render the raw id as the question text);
+ * flat list of entries) and holds no inline copy — every heading and question
+ * is a locale id. These tests enforce the invariants that make that schema
+ * trustworthy, so authoring mistakes fail here instead of shipping a broken
+ * page:
+ *   - every section heading resolves to a guide.sections.<titleKey> string;
+ *   - every entry's question resolves to guide.q.<id>, and every data-driven
+ *     faq entry's answer to guide.a.<id> (a typo would otherwise render the raw
+ *     id in place of the heading/question/answer);
  *   - section anchor ids are unique (duplicates break the #anchor deep-links
- *     that other admin pages use, e.g. /admin/guide#modifiers);
+ *     other admin pages use, e.g. /admin/guide#modifiers);
  *   - every section is non-empty (a heading with no entries is dead markup).
  *
  * `builderEnabled` is set so the conditionally-included Built Sites section is
@@ -34,21 +34,25 @@ const allSections = (): GuideSection[] =>
     hostGoogleWalletIssuerId: null,
   });
 
-const allEntries = (): GuideEntry[] =>
-  allSections().flatMap((section) => section.entries);
-
 describe("guide schema", () => {
-  test("every FAQ id resolves to a question and answer locale key", () => {
+  test("every heading, question and answer resolves to a locale key", () => {
     const missing: string[] = [];
-    for (const entry of allEntries()) {
-      if (!("faq" in entry)) continue;
-      if (!(`guide.q.${entry.faq}` in messages)) {
-        missing.push(`guide.q.${entry.faq}`);
-      }
-      if (!(`guide.a.${entry.faq}` in messages)) {
-        missing.push(`guide.a.${entry.faq}`);
+    const require = (key: string): void => {
+      if (!(key in messages)) missing.push(key);
+    };
+
+    for (const section of allSections()) {
+      require(`guide.sections.${section.titleKey}`);
+      for (const entry of section.entries) {
+        if ("faq" in entry) {
+          require(`guide.q.${entry.faq}`);
+          require(`guide.a.${entry.faq}`);
+        } else {
+          require(`guide.q.${entry.custom}`);
+        }
       }
     }
+
     expect(missing).toEqual([]);
   });
 
@@ -60,17 +64,9 @@ describe("guide schema", () => {
     expect(ids).toEqual(unique(ids));
   });
 
-  test("every custom entry has a non-empty question", () => {
-    const blank = allEntries().filter(
-      (entry) => "question" in entry && entry.question.trim() === "",
-    );
-
-    expect(blank).toEqual([]);
-  });
-
-  test("every section has a title and at least one entry", () => {
+  test("every section has at least one entry", () => {
     const empty = allSections().filter(
-      (section) => section.title.trim() === "" || section.entries.length === 0,
+      (section) => section.entries.length === 0,
     );
 
     expect(empty).toEqual([]);

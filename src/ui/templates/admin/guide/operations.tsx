@@ -2,7 +2,6 @@
  * Admin guide — Operations sections.
  */
 
-import { t } from "#i18n";
 import { buildDefaultTemplate } from "#shared/column-order.ts";
 import {
   ATTENDEE_DEFAULT_ORDER,
@@ -31,12 +30,12 @@ export const operationsSections = (): GuideSection[] => [
       faq("do_backups_require_any_special_configuration"),
     ],
     id: "backups",
-    title: "Backups",
+    titleKey: "backups",
   },
   {
     entries: [faq("why_does_my_site_say_it_s")],
     id: "read-only-mode",
-    title: "Read-only Mode",
+    titleKey: "read_only_mode",
   },
   {
     entries: [
@@ -45,7 +44,7 @@ export const operationsSections = (): GuideSection[] => [
       faq("how_do_i_install_an_update"),
       faq("where_can_i_read_the_release_notes"),
     ],
-    title: "Software Updates",
+    titleKey: "software_updates",
   },
   {
     entries: [
@@ -53,12 +52,12 @@ export const operationsSections = (): GuideSection[] => [
       faq("customise_for_me"),
       faq("hosting_and_images"),
     ],
-    title: t("guide.sections.customising_your_site"),
+    titleKey: "customising_your_site",
   },
   {
     entries: [
       custom(
-        "How do I customise which columns appear in tables?",
+        "customise_table_columns",
         <>
           <p>
             Go to <strong>Advanced Settings</strong> and find the{" "}
@@ -80,7 +79,7 @@ export const operationsSections = (): GuideSection[] => [
         </>,
       ),
       custom(
-        "What listing table columns are available?",
+        "listing_table_columns",
         <>
           <p>
             Default order:{" "}
@@ -90,7 +89,7 @@ export const operationsSections = (): GuideSection[] => [
         </>,
       ),
       custom(
-        "What attendee table columns are available?",
+        "attendee_table_columns",
         <>
           <p>
             Default order:{" "}
@@ -105,7 +104,7 @@ export const operationsSections = (): GuideSection[] => [
         </>,
       ),
       custom(
-        "Can I use custom date or currency formatting?",
+        "column_format_filters",
         <>
           <p>
             Yes. Date and price columns support Liquid filters. Add a pipe (
@@ -156,6 +155,6 @@ export const operationsSections = (): GuideSection[] => [
       ),
     ],
     id: "column-order",
-    title: "Column Order",
+    titleKey: "column_order",
   },
 ];

@@ -2,7 +2,6 @@
  * Admin guide — Listings sections.
  */
 
-import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
 import {
   custom,
@@ -19,7 +18,7 @@ export const listingsSections = (): GuideSection[] => [
       faq("listing_date_and_location"),
       faq("max_tickets_per_purchase"),
       custom(
-        t("guide.q.allow_pay_more"),
+        "allow_pay_more",
         <p>
           When enabled, attendees can choose their own price instead of paying a
           fixed amount. The ticket price becomes a minimum. You can set a
@@ -48,12 +47,12 @@ export const listingsSections = (): GuideSection[] => [
       faq("how_do_i_resend_a_confirmation_email"),
       faq("add_terms_and_conditions"),
     ],
-    title: t("guide.sections.listings"),
+    titleKey: "listings",
   },
   {
     entries: [faq("what_are_modifiers"), faq("how_modifier_values_work")],
     id: "modifiers",
-    title: t("guide.sections.modifiers"),
+    titleKey: "modifiers",
   },
   {
     entries: [
@@ -64,11 +63,11 @@ export const listingsSections = (): GuideSection[] => [
       faq("where_to_see_answers"),
     ],
     id: "questions",
-    title: t("guide.sections.booking_questions"),
+    titleKey: "booking_questions",
   },
   {
     entries: [faq("facebook_403_error")],
-    title: t("guide.sections.public_links"),
+    titleKey: "public_links",
   },
   {
     entries: [
@@ -76,7 +75,7 @@ export const listingsSections = (): GuideSection[] => [
       faq("hide_listing_from_public_list"),
       faq("edit_homepage_and_contact"),
     ],
-    title: t("guide.sections.public_site"),
+    titleKey: "public_site",
   },
   {
     entries: [
@@ -84,6 +83,6 @@ export const listingsSections = (): GuideSection[] => [
       faq("what_formatting_can_i_use"),
     ],
     id: "text-formatting",
-    title: t("guide.sections.text_formatting"),
+    titleKey: "text_formatting",
   },
 ];

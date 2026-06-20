@@ -67,46 +67,56 @@ export const Faq = ({ id }: { id: string }): JSX.Element => (
  * `<h3>` mid-list, pulling every later entry under the wrong heading. New
  * sections go in the top-level array (see `guideSections` in ../guide.tsx);
  * there is simply nowhere to "nest" one incorrectly.
+ *
+ * All user-facing copy lives in the locale: a section's heading comes from
+ * `guide.sections.<titleKey>` and every entry's question from `guide.q.<id>`.
+ * `faq(id)` additionally renders its answer from `guide.a.<id>`; `custom(id,
+ * body)` keeps the same localized question but supplies a bespoke answer body
+ * for answers that need dynamic content (config, currency, JSON examples). The
+ * two constructors are therefore symmetric — both keyed by a locale id — and
+ * the schema holds no inline copy.
  */
 
 /** A FAQ entry whose question and answer come from guide.q.* / guide.a.* keys. */
 export type GuideFaq = { faq: string };
 
-/** A hand-authored entry: a question with a bespoke answer body, used where the
- * answer depends on host configuration or contains rich/structured HTML. */
-export type GuideCustom = { question: string; body: JSX.Element };
+/** A hand-authored entry: a `guide.q.<custom>` question with a bespoke answer
+ * body, used where the answer depends on host configuration or contains
+ * rich/structured HTML that cannot be a static locale string. */
+export type GuideCustom = { custom: string; body: JSX.Element };
 
 /** One entry beneath a section heading — never a section itself. */
 export type GuideEntry = GuideFaq | GuideCustom;
 
-/** A guide section: one <h3> heading and the flat list of entries under it. */
+/** A guide section: one <h3> heading (from guide.sections.<titleKey>) and the
+ * flat list of entries under it. */
 export type GuideSection = {
   id?: string;
-  title: string;
+  titleKey: string;
   entries: GuideEntry[];
 };
 
 /** Author a data-driven FAQ entry from its locale-key id. */
 export const faq = (id: string): GuideFaq => ({ faq: id });
 
-/** Author a custom question/answer entry with a bespoke body. */
-export const custom = (question: string, body: JSX.Element): GuideCustom => ({
+/** Author a custom entry: a localized question plus a bespoke answer body. */
+export const custom = (id: string, body: JSX.Element): GuideCustom => ({
   body,
-  question,
+  custom: id,
 });
 
 const renderEntry = (entry: GuideEntry): JSX.Element =>
   "faq" in entry ? (
     <Faq id={entry.faq} />
   ) : (
-    <Q q={entry.question}>{entry.body}</Q>
+    <Q q={t(`guide.q.${entry.custom}`)}>{entry.body}</Q>
   );
 
 /** Render the guide from its schema: one <Section> per section, in order. */
 export const renderGuideSections = (sections: GuideSection[]): JSX.Element => (
   <>
     {sections.map((section) => (
-      <Section id={section.id} title={section.title}>
+      <Section id={section.id} title={t(`guide.sections.${section.titleKey}`)}>
         {section.entries.map(renderEntry)}
       </Section>
     ))}

@@ -2,7 +2,6 @@
  * Admin guide — Tickets sections.
  */
 
-import { t } from "#i18n";
 import {
   custom,
   faq,
@@ -25,13 +24,13 @@ export const ticketsSections = (
       faq("how_do_i_filter_attendees_by_check"),
     ],
     id: "checkin",
-    title: t("guide.sections.check_in_and_qr_scanner"),
+    titleKey: "check_in_and_qr_scanner",
   },
   {
     entries: [
       faq("what_is_apple_wallet"),
       custom(
-        t("guide.q.setup_apple_wallet"),
+        "setup_apple_wallet",
         <>
           {hostConfig?.hostAppleWalletPassTypeId && (
             <p>
@@ -80,13 +79,13 @@ export const ticketsSections = (
       faq("wallet_passes_update"),
     ],
     id: "apple-wallet",
-    title: t("guide.sections.apple_wallet"),
+    titleKey: "apple_wallet",
   },
   {
     entries: [
       faq("what_is_google_wallet_integration"),
       custom(
-        "How do I set up Google Wallet?",
+        "setup_google_wallet",
         <>
           {hostConfig?.hostGoogleWalletIssuerId && (
             <p>
@@ -129,6 +128,6 @@ export const ticketsSections = (
       faq("do_google_wallet_passes_update_automatically"),
     ],
     id: "google-wallet",
-    title: "Google Wallet",
+    titleKey: "google_wallet",
   },
 ];
