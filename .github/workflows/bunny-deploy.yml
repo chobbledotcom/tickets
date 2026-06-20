@@ -10,7 +10,7 @@ on:
         required: false
         type: string
       main_instance_key:
-        description: "MAIN_INSTANCE_KEY (optional; falls back to the secret, which the push trigger requires)"
+        description: "MAIN_INSTANCE_KEY (optional; falls back to the secret). Only used by the backup step on manual runs."
         required: false
         type: string
       run_backup:
@@ -36,12 +36,12 @@ jobs:
           build_commit: ${{ github.sha }}
 
       # Back up the staging site's database before deploying (it migrates on its
-      # next request). Pushes to main have no inputs, so the key comes from the
-      # secret then; a manual run may paste it instead. A manual run can also
-      # uncheck run_backup to deploy without a backup (e.g. if backups are
-      # broken); the push trigger always backs up.
+      # next request). Only manual runs back up: a push to main (a merge) skips
+      # the backup, so it needs no MAIN_INSTANCE_KEY. A manual run pastes the key
+      # (or falls back to the secret) and can uncheck run_backup to skip the
+      # backup too (e.g. if backups are broken).
       - name: Back up the staging site
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.run_backup }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_backup }}
         uses: ./.github/actions/backup-site
         with:
           main_instance: ${{ secrets.MAIN_INSTANCE }}
