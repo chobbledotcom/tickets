@@ -36,7 +36,7 @@
   "contact_history.admin_bookings_label": "Admin bookings",
   "contact_history.messages_label": "Messages sent",
   "contact_history.last_subject_label": "Last message subject",
-  "contact_history.notes_label": "Private notes (markdown)",
+  "contact_history.notes_label": "Private notes",
   "contact_history.last_contacted_label": "Last contacted",
   "contact_history.never": "Never",
   "contact_history.note_preview_label": "Note preview",
