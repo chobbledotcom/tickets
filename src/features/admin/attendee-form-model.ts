@@ -11,6 +11,7 @@
  * needs no server round-trips to edit the line set.
  */
 
+import { mapNotNullish } from "#fp";
 import { t } from "#i18n";
 import { formatCurrency, toMinorUnits } from "#shared/currency.ts";
 import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
@@ -73,6 +74,23 @@ export type AttendeeFormLine = {
   key: string;
   /** Line-level validation error (set by validateParsedForm). */
   error: string | null;
+};
+
+/**
+ * A read-only summary of one listing the attendee currently books, shown in the
+ * bookings table at the top of the edit page. Derived from a stored
+ * `listing_attendees` row joined to its listing, so it reflects exactly what is
+ * saved: quantity, dates (daily listings), and check-in / refund status.
+ */
+export type AttendeeBooking = {
+  listingId: number;
+  listingName: string;
+  listingActive: boolean;
+  quantity: number;
+  startAt: string | null;
+  endAt: string | null;
+  checkedIn: boolean;
+  refunded: boolean;
 };
 
 /** The full parsed form — attendee fields, the shared range, and line items. */
@@ -140,6 +158,31 @@ export const bookingDurationDays = (
   const days = Math.round(ms / 86_400_000);
   return days >= 1 ? days : null;
 };
+
+/**
+ * Project the form's listing lines into read-only booking summaries: one per
+ * line that carries a saved booking (the attendee's current registrations),
+ * dropping not-yet-booked rows. A booked line always resolves its listing; the
+ * `listing` guard only keeps a hand-crafted POST — one pairing a saved booking
+ * key with an unknown listing id — from throwing by dropping that bogus line.
+ */
+export const attendeeBookingsFromLines = (
+  lines: AttendeeFormLine[],
+): AttendeeBooking[] =>
+  mapNotNullish((line: AttendeeFormLine): AttendeeBooking | null => {
+    const { existingBooking: booking, listing } = line;
+    if (!booking || !listing) return null;
+    return {
+      checkedIn: Boolean(booking.checked_in),
+      endAt: booking.end_at,
+      listingActive: listing.active,
+      listingId: line.listingId,
+      listingName: listing.name,
+      quantity: booking.quantity,
+      refunded: Boolean(booking.refunded),
+      startAt: booking.start_at,
+    };
+  })(lines);
 
 /** Clamp a submitted day count to the valid range; blank defaults to 1. */
 const clampDayCount = (raw: number | null): number =>
