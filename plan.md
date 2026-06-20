@@ -179,10 +179,13 @@ Add one table for import idempotency:
 The importer does **not** add the `strings` table or the `attendee_answers`
 `question_id`/`string_id` columns — those arrive with PR #1335's migration
 `2026-06-20_free_text_questions`. Besides `booking_imports`, the importer adds one
-more table: a **short-lived missing-setup stash** (token PK, JSON payload,
+more table: a **short-lived missing-setup stash** (token PK, **encrypted** payload,
 created/expires) so the POST→`/missing` redirect survives Bunny's cross-isolate
-runtime (see Proposed Routes And UI). Both go in the importer's migration,
-sequenced after the free-text one.
+runtime (see Proposed Routes And UI). Encrypt the payload at rest: it holds the
+missing product / status / question names and internal column headers (potential
+PII-field labels), which are encrypted everywhere else, so a failed first upload
+must not leave them in plaintext until TTL cleanup. Both go in the importer's
+migration, sequenced after the free-text one.
 
 Attendee notes / legacy metadata storage:
 
@@ -881,7 +884,15 @@ Implementation notes:
     must be **kept as a tombstone**: if it were freed, a re-upload would recreate
     the lines and increment the already-held aggregates a *second* time
     (double-count). The booking stays "imported" and is not re-creatable until the
-    held capacity is released.
+    held capacity is released. **Caveat — this holds only for aggregate-based
+    capacity (standard listings); imports are daily-only, where capacity / calendar
+    / logistics read the dated `listing_attendees` rows directly, not the restored
+    aggregate.** A held delete removes those rows, so a daily import has no
+    operational presence afterwards while the tombstone blocks re-import forever —
+    the worst outcome. For daily held-deletes, either keep a real held row (so the
+    aggregate and the row agree) or, preferably, **fully release** the aggregate
+    (don't hold it) and **free/remap** the mapping when the dated row is removed,
+    so a re-upload cleanly recreates the booking without double-counting.
   - **`deleteListing`** deletes the listing's `listing_attendees` rows outright
     (releasing aggregates immediately) and keeps the attendee. By the
     capacity-released principle above, free the mapping **here too** for any
@@ -951,13 +962,14 @@ Behavior:
 - Render each product that matched a **`standard`-type listing** as its name plus
   a link to that listing's edit page (`/admin/listing/:id/edit`), with copy
   telling the operator the listing must be a **daily** listing to import its
-  bookings (the importer is daily-only — see Product matching). Carry the matched
-  listing's **id** (the resolver already has it from the match), not just its name
-  — e.g. a separate repeated `&standard=<id>` query param — so the GET page can
+  bookings (the importer is daily-only — see Product matching). Store the matched
+  listing's **id** (the resolver already has it from the match), not just its name,
+  **in the stash payload** — not a `&standard=<id>` query param (the page is
+  token-only, and many standard matches would re-bloat the URL) — so the GET page can
   build the `/admin/listing/:id/edit` link and load the listing to display its
   name. Listing names are encrypted at rest and can collide after
   decryption/normalization, so the id can't be reconstructed from the name alone.
-  **Carry the resolver's convertibility verdict too** (see Product matching): an
+  **Store the resolver's convertibility verdict in the stash too** (see Product matching): an
   *empty, ungrouped* standard listing can be converted in place, so the "make it
   daily" edit-link copy fits; but a **populated** listing, or one in a **group
   with any siblings** (a single in-place type change is rejected by

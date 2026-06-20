@@ -196,11 +196,12 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
   - The **single-attendee** target (`/admin/emails?attendee=<token>`,
     `attendeeSpec` → `getAttendeePiiBlobForToken`) skips `listing_attendees`
     entirely, so an owner can compose to a quantity-0-only attendee through the
-    bulk-email system. Decide explicitly: either include the attendee-token target
-    in the real-line guard (no recipients / refuse when the attendee has no
-    `quantity > 0` line), or classify this one-off admin send as **transactional**
-    and out of the marketing rule — but note it still emits a `{{ ticket_url }}`
-    that 404s for an all-ghost attendee.
+    bulk-email system. **Apply the real-line guard here too** (no recipients /
+    refuse when the attendee has no `quantity > 0` line) — it emits a
+    `{{ ticket_url }}` that 404s for an all-ghost attendee, and the §7 tests
+    require the single-attendee target to exclude quantity-0 like the listing and
+    `all` audiences. (A genuinely transactional one-off admin mail would be a
+    *separate* path outside this bulk-email registry, not an unguarded branch.)
 - **Group aggregate drift check** (`groupAggregateMismatchItems`,
   `src/ui/templates/admin/groups.tsx`) compares the group's summed `tickets_count`
   (`totalTicketCount`) against `attendees.length`. Once `tickets_count` counts only
