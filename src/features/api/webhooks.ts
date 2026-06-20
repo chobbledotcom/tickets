@@ -77,7 +77,7 @@ import {
   groupListingAnswers,
   saveAttendeeAnswers,
 } from "#shared/db/questions.ts";
-import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
+import { bestEffort, ErrorCode, logDebug, logError } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import { verifyPrice } from "#shared/payment-signature.ts";
 import {
@@ -794,8 +794,12 @@ const createAttendeeForSession = async (
     if (!consumed) {
       await deleteAttendee(attendeeId);
       // Undo the visit + booking the greedy create recorded for this contact,
-      // since the paid order is being rolled back and refunded.
-      await reverseOrderActivity(intent.email, intent.phone, "public");
+      // since the paid order is being rolled back and refunded. Best-effort:
+      // the buyer has already been charged, so a contact-stats write failure
+      // must never block the refund below.
+      await bestEffort("reverseOrderActivity on rollback", () =>
+        reverseOrderActivity(intent.email, intent.phone, "public"),
+      );
       return refundAndFail(
         session,
         MODIFIER_SOLD_OUT_MESSAGE,
