@@ -14,16 +14,15 @@
  */
 
 import { compact } from "#fp";
+import { t } from "#i18n";
 import {
   ATTENDEE_FORM_ID,
   type AttendeeFormLine,
   type BalanceNotice,
   DAY_COUNT_FIELD,
-  EMAIL_ADMIN_NOTES_FIELD,
   isBookedLine,
   LINE_KEY_PREFIX,
   type ParsedAttendeeForm,
-  PHONE_ADMIN_NOTES_FIELD,
   QTY_PREFIX,
   REMAINING_BALANCE_FIELD,
   resolveStatusId,
@@ -48,11 +47,11 @@ import {
 } from "#shared/dates.ts";
 import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
 import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
-import type { ContactStats } from "#shared/db/contact-preferences.ts";
+import type { ContactRecord } from "#shared/db/contact-preferences.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
-import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import { renderMarkdown } from "#shared/markdown.ts";
 import { START_DATE_FIELD } from "#shared/order-select.ts";
 import {
   type AdminSession,
@@ -73,6 +72,17 @@ import {
   SubmitButton,
 } from "#templates/components/actions.tsx";
 import { Layout } from "#templates/layout.tsx";
+
+/** One channel's contact record plus the URL-safe HMAC param that keys its
+ * /admin/history editor link. Null when the attendee has no value for that
+ * channel. */
+export type ContactChannelData = { hashParam: string; record: ContactRecord };
+
+/** Per-channel contact records shown in the read-only history panel. */
+export type ContactRecordsByChannel = {
+  email: ContactChannelData | null;
+  phone: ContactChannelData | null;
+};
 
 /** Template data for the unified attendee form. */
 export type AttendeeFormTemplateData = {
@@ -109,7 +119,7 @@ export type AttendeeFormTemplateData = {
   /** Optional return URL the caller came from. */
   returnUrl?: string;
   /** Contact history by channel (edit mode only). */
-  contactStats: { email: ContactStats | null; phone: ContactStats | null };
+  contactRecords: ContactRecordsByChannel;
   /** Public site domain, for the read-only ticket link (edit mode). */
   allowedDomain: string;
   /** Country dialling code, for the read-only phone links. */
@@ -439,95 +449,88 @@ const SharedDateFields = ({
   );
 };
 
-/** True when a contact stats blob has any operator-visible history. */
-const hasContactStats = (stats: ContactStats | null): stats is ContactStats =>
-  Boolean(
-    stats &&
-      (stats.contactCount > 0 || stats.bookingCount > 0 || stats.adminNotes),
-  );
-
-/** Render one channel's encrypted contact history and notes. */
-const ContactStatsSection = ({
-  emptyMessage,
+/** Render one channel's contact record: the per-source booking/message counts,
+ * the markdown-rendered private note, and an Edit link to its history page. */
+const ContactRecordSection = ({
+  channel,
   label,
-  stats,
 }: {
-  emptyMessage: string;
+  channel: ContactChannelData;
   label: string;
-  stats: ContactStats | null;
-}): JSX.Element => (
-  <section>
-    <h4>{label}</h4>
-    {hasContactStats(stats) ? (
+}): JSX.Element => {
+  const { hashParam, record } = channel;
+  return (
+    <section>
+      <h4>{label}</h4>
       <ul>
         <li>
-          <strong>Total messages:</strong> {stats.contactCount}
+          <strong>{t("attendee_form.online_bookings")}:</strong>{" "}
+          {record.publicBookingCount}
         </li>
         <li>
-          <strong>Total bookings:</strong> {stats.bookingCount}
+          <strong>{t("attendee_form.admin_bookings")}:</strong>{" "}
+          {record.adminBookingCount}
         </li>
-        {stats.lastContact && (
+        <li>
+          <strong>{t("attendee_form.total_messages")}:</strong>{" "}
+          {record.contactCount}
+        </li>
+        {record.lastContact && (
           <li>
-            <strong>Last contacted:</strong>{" "}
-            {formatDatetimeShort(stats.lastContact)}
+            <strong>{t("attendee_form.last_contacted")}:</strong>{" "}
+            {formatDatetimeShort(record.lastContact)}
           </li>
         )}
-        {stats.lastSubject && (
+        {record.lastSubject && (
           <li>
-            <strong>Last subject:</strong> {stats.lastSubject}
-          </li>
-        )}
-        {stats.lastBookingDate && (
-          <li>
-            <strong>Last booking:</strong>{" "}
-            {formatDatetimeShort(stats.lastBookingDate)} (
-            {stats.lastBookedOnline ? "online" : "admin"})
-          </li>
-        )}
-        {stats.adminNotes && (
-          <li>
-            <strong>Admin notes:</strong> {stats.adminNotes}
+            <strong>{t("attendee_form.last_subject")}:</strong>{" "}
+            {record.lastSubject}
           </li>
         )}
       </ul>
-    ) : (
-      <p>{emptyMessage}</p>
-    )}
-  </section>
-);
+      {record.adminNotes && (
+        <div class="contact-notes">
+          <Raw html={renderMarkdown(record.adminNotes)} />
+        </div>
+      )}
+      <p>
+        <a href={`/admin/history/${hashParam}`}>
+          {t("attendee_form.edit_contact_record")}
+        </a>
+      </p>
+    </section>
+  );
+};
 
 /** Render contact history for each available channel (edit mode only). */
 const ContactHistory = ({
   attendee,
-  contactStats,
+  contactRecords,
   isOwner,
 }: {
   attendee: Attendee;
-  contactStats: AttendeeFormTemplateData["contactStats"];
+  contactRecords: ContactRecordsByChannel;
   isOwner: boolean;
 }): JSX.Element => {
   const hasEmail = Boolean(attendee.email);
-  const hasPhone = Boolean(attendee.phone);
   return (
     <article>
-      <h3>Contact History</h3>
-      {hasEmail ? (
-        <ContactStatsSection
-          emptyMessage="No email contact history."
-          label="Email"
-          stats={contactStats.email}
+      <h3>{t("attendee_form.contact_history")}</h3>
+      {contactRecords.email ? (
+        <ContactRecordSection
+          channel={contactRecords.email}
+          label={t("attendee_form.stats_for", { value: attendee.email })}
         />
       ) : (
-        <p>No email address on file.</p>
+        <p>{t("attendee_form.no_email_on_file")}</p>
       )}
-      {hasPhone ? (
-        <ContactStatsSection
-          emptyMessage="No phone contact history."
-          label="Phone"
-          stats={contactStats.phone}
+      {contactRecords.phone ? (
+        <ContactRecordSection
+          channel={contactRecords.phone}
+          label={t("attendee_form.stats_for", { value: attendee.phone })}
         />
       ) : (
-        <p>No phone number on file.</p>
+        <p>{t("attendee_form.no_phone_on_file")}</p>
       )}
       {isOwner && (
         <p>
@@ -539,12 +542,10 @@ const ContactHistory = ({
               token: attendee.ticket_token,
             })}`}
             title={
-              hasEmail
-                ? undefined
-                : "This attendee has no email address on file"
+              hasEmail ? undefined : t("attendee_form.no_email_disabled_title")
             }
           >
-            Send an email to this attendee
+            {t("attendee_form.send_email_to_attendee")}
           </MaybeButtonLink>
         </p>
       )}
@@ -758,20 +759,6 @@ const AttendeeEditForm = ({
         />
       </label>
 
-      <label for={EMAIL_ADMIN_NOTES_FIELD}>
-        Email admin notes
-        <textarea
-          autocomplete="off"
-          id={EMAIL_ADMIN_NOTES_FIELD}
-          maxlength={MAX_TEXTAREA_LENGTH}
-          name={EMAIL_ADMIN_NOTES_FIELD}
-          rows={3}
-        >
-          {data.parsed.emailAdminNotes || ""}
-        </textarea>
-        <small>Private markdown notes stored with this email contact.</small>
-      </label>
-
       <label for="phone">
         Phone
         <input
@@ -783,20 +770,6 @@ const AttendeeEditForm = ({
           type="text"
           value={data.parsed.phone || ""}
         />
-      </label>
-
-      <label for={PHONE_ADMIN_NOTES_FIELD}>
-        Phone admin notes
-        <textarea
-          autocomplete="off"
-          id={PHONE_ADMIN_NOTES_FIELD}
-          maxlength={MAX_TEXTAREA_LENGTH}
-          name={PHONE_ADMIN_NOTES_FIELD}
-          rows={3}
-        >
-          {data.parsed.phoneAdminNotes || ""}
-        </textarea>
-        <small>Private markdown notes stored with this phone contact.</small>
       </label>
 
       <label for="address">
@@ -932,7 +905,7 @@ export const attendeeFormPage = (
       {isEdit && a && (
         <ContactHistory
           attendee={a}
-          contactStats={data.contactStats}
+          contactRecords={data.contactRecords}
           isOwner={session.adminLevel === "owner"}
         />
       )}

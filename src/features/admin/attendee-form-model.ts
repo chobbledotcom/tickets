@@ -20,7 +20,6 @@ import type {
   ListingBooking,
 } from "#shared/db/attendee-types.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { START_DATE_FIELD } from "#shared/order-select.ts";
 import { type ListingWithCount, normalizeDurationDays } from "#shared/types.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
@@ -52,8 +51,6 @@ export const LINE_KEY_PREFIX = "line_key_";
 export const SHOW_ALL_FIELD = "show_all";
 export const STATUS_FIELD = "status_id";
 export const REMAINING_BALANCE_FIELD = "remaining_balance";
-export const EMAIL_ADMIN_NOTES_FIELD = "email_admin_notes";
-export const PHONE_ADMIN_NOTES_FIELD = "phone_admin_notes";
 
 /** DOM id of the add/edit form, also the post-save scroll anchor. */
 export const ATTENDEE_FORM_ID = "attendee-form";
@@ -95,8 +92,6 @@ export type ParsedAttendeeForm = {
   dayCount: number;
   lines: AttendeeFormLine[];
   returnUrl: string;
-  emailAdminNotes: string;
-  phoneAdminNotes: string;
 };
 
 /** Attendee-level validation error. */
@@ -250,14 +245,12 @@ export const parseAttendeeForm = (
     address: form.getString("address"),
     dayCount: clampDayCount(form.getOptionalInt(DAY_COUNT_FIELD)),
     email: form.getString("email"),
-    emailAdminNotes: form.getString(EMAIL_ADMIN_NOTES_FIELD),
     lines: parseLines(form, (id, key) => ({
       existingBooking: key ? (existingByKey.get(key) ?? null) : null,
       listing: listingsById.get(id) ?? null,
     })),
     name: form.getString("name"),
     phone: form.getString("phone"),
-    phoneAdminNotes: form.getString(PHONE_ADMIN_NOTES_FIELD),
     remainingBalance: parseMoneyMinor(form.getString(REMAINING_BALANCE_FIELD)),
     returnUrl: form.getString("return_url"),
     special_instructions: form.getString("special_instructions"),
@@ -273,15 +266,6 @@ export const parseAttendeeForm = (
 const validateAttendeeBlock = (
   parsed: ParsedAttendeeForm,
 ): AttendeeFieldError | null => {
-  if (
-    parsed.emailAdminNotes.length > MAX_TEXTAREA_LENGTH ||
-    parsed.phoneAdminNotes.length > MAX_TEXTAREA_LENGTH
-  ) {
-    return {
-      field: "special_instructions",
-      message: `Admin notes must be ${MAX_TEXTAREA_LENGTH} characters or fewer`,
-    };
-  }
   if (!parsed.name.trim()) {
     return { field: "name", message: t("error.name_required") };
   }
