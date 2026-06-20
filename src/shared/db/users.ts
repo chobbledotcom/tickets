@@ -272,13 +272,18 @@ export const decryptUsername = (
  * and clear the invite (code, expiry, and the handoff blob). The caller has
  * already verified the invite is valid and carries a handoff, so every current
  * invite reaches here — there is no separate admin activation step.
+ *
+ * Single-use: the UPDATE is guarded on `invite_wrapped_data_key IS NOT NULL`, so
+ * if two submissions for the same code race (or one is replayed), only the first
+ * affects a row — the rest no-op and return false rather than overwriting the
+ * password/key that the first accept already set.
  */
 export const acceptInvite = async (
   userId: number,
   inviteWrappedDataKey: string,
   inviteCode: string,
   password: string,
-): Promise<void> => {
+): Promise<boolean> => {
   const passwordHash = await hashPassword(password);
   const [encryptedHash, encryptedEmpty, dataKey] = await Promise.all([
     encrypt(passwordHash),
@@ -286,10 +291,11 @@ export const acceptInvite = async (
     unwrapKeyWithToken(inviteWrappedDataKey, inviteCode),
   ]);
   const wrappedDataKey = await wrapDataKeyForPassword(dataKey, password);
-  await execute(
-    "UPDATE users SET password_hash = ?, wrapped_data_key = ?, kek_version = 2, invite_wrapped_data_key = NULL, invite_code_hash = ?, invite_expiry = ? WHERE id = ?",
+  const result = await execute(
+    "UPDATE users SET password_hash = ?, wrapped_data_key = ?, kek_version = 2, invite_wrapped_data_key = NULL, invite_code_hash = ?, invite_expiry = ? WHERE id = ? AND invite_wrapped_data_key IS NOT NULL",
     [encryptedHash, wrappedDataKey, encryptedEmpty, encryptedEmpty, userId],
   );
+  return result.rowsAffected > 0;
 };
 
 /**
@@ -371,16 +377,20 @@ export const isInviteExpired = async (user: User): Promise<boolean> =>
   user.invite_code_hash !== null && !(await isInviteValid(user));
 
 /**
- * Delete invited users whose invite has expired and who never activated (no
- * wrapped_data_key). This removes the invite_wrapped_data_key handoff — a copy
- * of the DATA_KEY wrapped under the invite code — so an intercepted invite link
- * can no longer be used to unwrap it from a database dump once the invite has
- * expired. invite_expiry is encrypted per row, but only a handful of invites are
- * ever outstanding, so decrypting each candidate is cheap.
+ * Delete invited users whose invite has expired and who never activated. This
+ * removes the invite_wrapped_data_key handoff — a copy of the DATA_KEY wrapped
+ * under the invite code — so an intercepted invite link can no longer be used to
+ * unwrap it from a database dump once the invite has expired.
+ *
+ * Only un-activated invites are ever eligible: a row must have no DATA_KEY wrap
+ * AND no password set. acceptInvite writes both in one atomic UPDATE, so an
+ * activated user (or anyone who has set a password) can never match — the prune
+ * cannot delete an active account. invite_expiry is encrypted per row, but only
+ * a handful of invites are ever outstanding, so decrypting each is cheap.
  */
 export const pruneExpiredInvites = async (): Promise<number> => {
   const rows = await queryAll<Pick<User, "id" | "invite_expiry">>(
-    "SELECT id, invite_expiry FROM users WHERE wrapped_data_key IS NULL AND invite_expiry IS NOT NULL",
+    "SELECT id, invite_expiry FROM users WHERE wrapped_data_key IS NULL AND password_hash = '' AND invite_expiry IS NOT NULL",
   );
   const cutoff = now().getTime();
   let pruned = 0;

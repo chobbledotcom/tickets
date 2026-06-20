@@ -20,6 +20,7 @@ import { getDb, insert } from "#shared/db/client.ts";
 import { createSession } from "#shared/db/sessions.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
+  acceptInvite,
   createInvitedUser,
   getUserByUsername,
   hashInviteCode,
@@ -125,6 +126,30 @@ describeWithEnv("KEK v2 (password-bound DATA_KEY)", { db: true }, () => {
       expect(cookie).toBeDefined();
     });
 
+    test("acceptInvite is single-use: a replay cannot overwrite the account", async () => {
+      const { inviteCode } = await createTestInvite("single-use");
+      const invited = (await getUserByUsername("single-use"))!;
+      const handoff = invited.invite_wrapped_data_key!;
+
+      // First accept consumes the invite and sets the password.
+      expect(
+        await acceptInvite(invited.id, handoff, inviteCode, "firstpass123"),
+      ).toBe(true);
+      const wrapAfterFirst = (await getUserByUsername("single-use"))!
+        .wrapped_data_key;
+
+      // Replaying with the same (now-stale) handoff must not overwrite.
+      expect(
+        await acceptInvite(invited.id, handoff, inviteCode, "attacker9999"),
+      ).toBe(false);
+
+      const after = (await getUserByUsername("single-use"))!;
+      expect(after.wrapped_data_key).toBe(wrapAfterFirst);
+      // The first password still works; the replay's password never took.
+      expect(await verifyUserPassword(after, "firstpass123")).not.toBeNull();
+      expect(await verifyUserPassword(after, "attacker9999")).toBeNull();
+    });
+
     test("the invite is rejected when the owner session has no data key", async () => {
       const owner = (await getUserByUsername(TEST_ADMIN_USERNAME))!;
       await createSession(
@@ -197,6 +222,33 @@ describeWithEnv("KEK v2 (password-bound DATA_KEY)", { db: true }, () => {
       // remains so the invitee can still join.
       expect(await getUserByUsername("expired-invitee")).toBeNull();
       expect(await getUserByUsername("valid-invitee")).not.toBeNull();
+    });
+
+    test("never deletes a user that has a password set, even with an expired invite", async () => {
+      const dataKey = await ownerDataKey();
+      // Worst case: no DATA_KEY wrap, but a password IS set, plus an already-
+      // expired invite_expiry and a handoff. The password guard must keep it —
+      // the prune must never touch an account that has been set up.
+      await getDb().execute(
+        insert("users", {
+          admin_level: await encrypt("manager"),
+          invite_expiry: await encrypt(
+            new Date(Date.now() - 1000).toISOString(),
+          ),
+          invite_wrapped_data_key: await wrapKeyWithToken(
+            dataKey,
+            "pw-set-code",
+          ),
+          password_hash: await encrypt("pbkdf2:1000:c2FsdA==:aGFzaA=="),
+          username_hash: await encrypt("has-password"),
+          username_index: await hmacHash("has-password"),
+        }),
+      );
+      invalidateUsersCache();
+
+      const pruned = await pruneExpiredInvites();
+      expect(pruned).toBe(0);
+      expect(await getUserByUsername("has-password")).not.toBeNull();
     });
   });
 
