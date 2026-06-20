@@ -417,7 +417,13 @@ describeWithEnv("backup", { db: true }, () => {
       const tmpDir = Deno.makeTempDirSync();
       const restore = setTestEnv({ LOCAL_STORAGE_PATH: tmpDir });
       try {
-        await uploadRaw(new Uint8Array([1]), `${backupDir()}garbage.zip`);
+        // A fresh file with a valid timestamp tail but not a "backup-…" name
+        // must NOT satisfy the gate — parseBackupTime alone would accept it, so
+        // the recency check filters to real backups first.
+        await uploadRaw(
+          new Uint8Array([1]),
+          `${backupDir()}manual-${backupTimestamp()}.zip`,
+        );
         expect(await hasRecentBackup()).toBe(false);
       } finally {
         restore();

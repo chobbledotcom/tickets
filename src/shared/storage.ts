@@ -491,12 +491,17 @@ export const listFilesWithMeta = async (
     headers: { AccessKey: config.zoneKey },
   });
   // A folder with no objects yet (e.g. a site that has never been backed up)
-  // 404s rather than returning an empty list; treat that as "no files", the
-  // same way the local backend's readDirSafe does for a missing directory.
-  if (!response.ok) return [];
+  // 404s; treat only that as "no files", the same way the local backend's
+  // readDirSafe handles a missing directory. Other failures (401/403 bad
+  // credentials, 5xx outages) must surface, not masquerade as an empty zone.
+  if (response.status === 404) return [];
   const items = (await response.json()) as Array<Record<string, unknown>>;
   return byName(
     items
+      // Bunny lists directories alongside files; keep only files so per-site
+      // backup folders don't surface as entries (the local backend filters to
+      // isFile for the same reason).
+      .filter((item) => !item.IsDirectory)
       .map((item) => ({
         name: String(item.ObjectName ?? ""),
         size: Number(item.Length) || 0,

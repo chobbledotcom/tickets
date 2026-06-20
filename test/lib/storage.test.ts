@@ -799,7 +799,7 @@ describeWithEnv(
           );
         });
 
-        test("treats a missing folder (non-OK response) as empty", async () => {
+        test("treats a missing folder (404) as empty", async () => {
           await runWithStorageConfig(
             { zoneKey: "testkey", zoneName: "testzone" },
             () =>
@@ -814,6 +814,49 @@ describeWithEnv(
                 // A brand-new site's backup folder doesn't exist yet, so the
                 // listing must resolve to [] rather than throwing.
                 expect(await listFiles("newsite/")).toEqual([]);
+              }),
+          );
+        });
+
+        test("surfaces a non-404 listing failure instead of reporting empty", async () => {
+          await runWithStorageConfig(
+            { zoneKey: "testkey", zoneName: "testzone" },
+            () =>
+              withFetchMock(async (originalFetch) => {
+                installUrlHandler(originalFetch, (url) =>
+                  url.includes("storage.bunnycdn.com")
+                    ? Promise.resolve(
+                        new Response("Server Error", { status: 500 }),
+                      )
+                    : null,
+                );
+                // A 5xx/auth error must not masquerade as "no files" — it would
+                // make the gate report "no backup" when backups exist.
+                await expect(listFiles("acme/")).rejects.toThrow();
+              }),
+          );
+        });
+
+        test("excludes directory entries from the listing", async () => {
+          await runWithStorageConfig(
+            { zoneKey: "testkey", zoneName: "testzone" },
+            () =>
+              withFetchMock(async (originalFetch) => {
+                installUrlHandler(originalFetch, (url) =>
+                  url.includes("storage.bunnycdn.com")
+                    ? Promise.resolve(
+                        Response.json([
+                          { IsDirectory: true, ObjectName: "tickets" },
+                          {
+                            IsDirectory: false,
+                            ObjectName: "restore-pending-x.zip",
+                          },
+                        ]),
+                      )
+                    : null,
+                );
+                // The per-site folder entry must not come back as a file.
+                expect(await listFiles("")).toEqual(["restore-pending-x.zip"]);
               }),
           );
         });

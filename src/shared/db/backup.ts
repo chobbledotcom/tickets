@@ -317,6 +317,10 @@ export const hasRecentBackup = async (
   const now = Date.now();
   const files = await listFiles(backupDir(name));
   for (const file of files) {
+    // Only real backups count — ignore anything else left in the folder, so a
+    // stray "{name}/manual-…Z.zip" can't spoof the freshness gate (mirrors
+    // pruneOldBackups).
+    if (!isBackupPath(file)) continue;
     const ms = parseBackupTime(file);
     if (ms !== null && now - ms < maxAgeMs) return true;
   }
