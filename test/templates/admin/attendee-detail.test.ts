@@ -144,7 +144,11 @@ describe("AttendeeBookingsTable", () => {
     expect(html).toContain("Kayak");
     expect(html).toContain('href="/admin/listing/8"');
     expect(html).toContain("Canoe");
-    // The footer totals the quantities (2 + 3); only the total cell holds 5.
+    // Each row renders its own quantity cell...
+    expect(html).toContain("<td>2</td>");
+    expect(html).toContain("<td>3</td>");
+    // ...and the footer totals them (2 + 3); only the total cell holds 5, so a
+    // wrong sum or a wrong per-row grouping both fail here.
     expect(html).toContain("Total");
     expect(html).toContain("<td>5</td>");
   });

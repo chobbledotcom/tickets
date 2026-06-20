@@ -204,7 +204,6 @@ describe("payment-helpers", () => {
         special_instructions: "",
       });
 
-      expect(metadata.text_answer_ids).toBeDefined();
       expect(JSON.parse(metadata.text_answer_ids!)).toEqual({
         "7": [{ q: 3, s: 99 }],
       });

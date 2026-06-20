@@ -64,6 +64,11 @@ describe("EditQuestions", () => {
     expect(html).not.toContain("Blue");
   });
 
+  test("keeps a deactivated select answer the attendee already selected", () => {
+    const html = withDeactivated("select", [11]);
+    expect(html).toContain("Blue");
+  });
+
   test("renders radio inputs by default", () => {
     const html = render(
       [

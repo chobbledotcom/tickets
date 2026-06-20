@@ -521,7 +521,12 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         "Kayak Trip",
         "Canoe Trip",
       );
-      // The summary footer totals the booked quantities (2 + 3 = 5).
+      // Each booking renders its own quantity cell...
+      expect(html).toContain("<td>2</td>");
+      expect(html).toContain("<td>3</td>");
+      // ...and the summary footer totals them (2 + 3 = 5). Asserting the rows
+      // as well as the total means a wrong per-row grouping fails here too,
+      // not just a wrong sum.
       expect(html).toContain("<td>5</td>");
     });
 
@@ -544,7 +549,9 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         { cookie: await testCookie() },
       );
       const html = await expectHtmlResponse(response, 200, "Bookings");
-      expect(html).toContain("Checked in");
+      // Assert the rendered badge markup, not just the words "Checked in",
+      // so a mutant that drops the badge styling/element is still caught.
+      expect(html).toContain('<span class="badge">Checked in</span>');
     });
   });
 
