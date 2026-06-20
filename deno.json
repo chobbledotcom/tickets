@@ -11,13 +11,15 @@
     "test:coverage": "deno run -A scripts/run-tests.ts --coverage",
     "test:files": "deno run -A scripts/run-test-files.ts",
     "test:raw": "deno task build:static && deno test --no-check --allow-net --allow-env --allow-read --allow-write --allow-run --allow-sys --allow-ffi test/",
-    "lint": "deno run -A scripts/biome.ts check --write --error-on-warnings src test scripts",
-    "lint:ci": "deno run -A scripts/biome.ts check --error-on-warnings src test scripts",
-    "typecheck": "deno check --unstable-tsgo src/**/*.ts src/**/*.tsx test/**/*.ts",
+    "lint": "deno run -A scripts/biome.ts check --write --error-on-warnings src test scripts cli",
+    "lint:ci": "deno run -A scripts/biome.ts check --error-on-warnings src test scripts cli",
+    "typecheck": "deno check --unstable-tsgo src/**/*.ts src/**/*.tsx test/**/*.ts cli/**/*.ts",
     "cpd": "deno run -A scripts/cpd.ts src --config .jscpd.json",
     "precommit": "deno run -A scripts/precommit.ts",
     "find-unused-src": "deno run --allow-read scripts/find-unused-src.ts",
-    "upgrade": "deno run --allow-read --allow-write --allow-net scripts/safe-upgrade.ts"
+    "upgrade": "deno run --allow-read --allow-write --allow-net scripts/safe-upgrade.ts",
+    "cli:tui": "deno run --allow-env --allow-read --allow-run cli/tui.ts",
+    "cli:api": "deno run --allow-env --allow-read --allow-run cli/api.ts"
   },
   "imports": {
     "#fp": "./src/fp.ts",
@@ -78,6 +80,8 @@
     "jsxImportSource": "#jsx"
   },
   "test": {
-    "include": ["test/"]
+    "include": [
+      "test/"
+    ]
   }
 }

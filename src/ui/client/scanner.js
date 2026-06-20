@@ -40,9 +40,17 @@ const postScan = async (
   return res.json();
 };
 
-const formatTicketCount = (count) => {
+const interpolate = (template, values) =>
+  template.replace(/\{(\w+)\}/g, (_, key) => String(values[key] ?? ""));
+
+const getMessage = (messages, key, fallback) => messages[key] ?? fallback;
+
+const formatTicketCount = (messages, count) => {
   const safeCount = Number.isFinite(count) ? count : 1;
-  return `${safeCount} ticket${safeCount === 1 ? "" : "s"}`;
+  const key = safeCount === 1 ? "messageTicketCountOne" : "messageTicketCountOther";
+  return interpolate(getMessage(messages, key, "{count} ticket"), {
+    count: safeCount,
+  });
 };
 
 let fadeTimer = 0;
@@ -68,27 +76,36 @@ const showStatus = (el, message, type) => {
 };
 
 /** Handle a scan result and display status */
-const handleResult = (el, result) => {
+const handleResult = (el, result, messages) => {
   switch (result.status) {
     case "checked_in":
       showStatus(
         el,
-        `${result.name} checked in (${formatTicketCount(result.quantity)})`,
+        interpolate(getMessage(messages, "messageCheckedIn", "{name} checked in ({tickets})"), {
+          name: result.name,
+          tickets: formatTicketCount(messages, result.quantity),
+        }),
         "success",
       );
       break;
     case "already_checked_in":
       showStatus(
         el,
-        `${result.name} already checked in (${formatTicketCount(result.quantity)})`,
+        interpolate(
+          getMessage(messages, "messageAlreadyCheckedIn", "{name} already checked in ({tickets})"),
+          {
+            name: result.name,
+            tickets: formatTicketCount(messages, result.quantity),
+          },
+        ),
         "warning",
       );
       break;
     case "refunded":
-      showStatus(el, `${result.name} has been refunded`, "error");
+      showStatus(el, interpolate(getMessage(messages, "messageRefunded", "{name} has been refunded"), { name: result.name }), "error");
       break;
     case "not_found":
-      showStatus(el, "Ticket not found", "error");
+      showStatus(el, getMessage(messages, "messageNotFound", "Ticket not found"), "error");
       break;
     case "error":
       showStatus(el, result.message, "error");
@@ -97,7 +114,7 @@ const handleResult = (el, result) => {
 };
 
 /** Main scanner loop */
-const startScanner = (video, canvas, statusEl, listingId, csrfToken) => {
+const startScanner = (video, canvas, statusEl, listingId, csrfToken, messages) => {
   const ctx = canvas.getContext("2d");
   let lastScanTime = 0;
   let processing = false;
@@ -129,7 +146,7 @@ const startScanner = (video, canvas, statusEl, listingId, csrfToken) => {
 
     const token = extractToken(code.data);
     if (!token) {
-      showStatus(statusEl, "Invalid QR code", "error");
+      showStatus(statusEl, getMessage(messages, "messageInvalidQr", "Invalid QR code"), "error");
       lastScanTime = Date.now();
       setTimeout(scan, SCAN_INTERVAL_MS);
       return;
@@ -152,32 +169,39 @@ const startScanner = (video, canvas, statusEl, listingId, csrfToken) => {
       .then(async (result) => {
         if (result.status === "wrong_listing") {
           const ok = await showConfirm(
-            `${result.name} is registered for "${result.listingName}", not this listing. Check in anyway?`,
+            interpolate(
+              getMessage(
+                messages,
+                "messageWrongListingConfirm",
+                '{name} is registered for "{listingName}", not this listing. Check in anyway?',
+              ),
+              { listingName: result.listingName, name: result.name },
+            ),
           );
           if (ok) {
             const forced = await postScan(listingId, token, csrfToken, {
               force: true,
             });
-            handleResult(statusEl, forced);
+            handleResult(statusEl, forced, messages);
           } else {
-            showStatus(statusEl, `Skipped ${result.name}`, "warning");
+            showStatus(statusEl, interpolate(getMessage(messages, "messageSkipped", "Skipped {name}"), { name: result.name }), "warning");
           }
         } else if (result.status === "verify_id") {
-          const ok = await showConfirm(`Does their ID match "${result.name}"?`);
+          const ok = await showConfirm(interpolate(getMessage(messages, "messageVerifyIdConfirm", 'Does their ID match "{name}"?'), { name: result.name }));
           if (ok) {
             const verified = await postScan(listingId, token, csrfToken, {
               idVerified: true,
             });
-            handleResult(statusEl, verified);
+            handleResult(statusEl, verified, messages);
           } else {
-            showStatus(statusEl, `ID does not match ${result.name}`, "error");
+            showStatus(statusEl, interpolate(getMessage(messages, "messageIdMismatch", "ID does not match {name}"), { name: result.name }), "error");
           }
         } else {
-          handleResult(statusEl, result);
+          handleResult(statusEl, result, messages);
         }
       })
       .catch(() => {
-        showStatus(statusEl, "Network error", "error");
+        showStatus(statusEl, getMessage(messages, "messageNetworkError", "Network error"), "error");
       })
       .finally(() => {
         processing = false;
@@ -231,8 +255,11 @@ const init = () => {
   const canvas = document.createElement("canvas");
   const statusEl = document.getElementById("scanner-status");
   const startBtn = document.getElementById("scanner-start");
+  const scannerContainer = document.getElementById("scanner-container");
 
-  if (!video || !statusEl || !startBtn) return;
+  if (!video || !statusEl || !startBtn || !scannerContainer) return;
+
+  const messages = scannerContainer.dataset;
 
   const listingId = video.dataset.listingId;
   const csrfMeta = document.querySelector('meta[name="csrf-token"]');
@@ -260,10 +287,10 @@ const init = () => {
       await video.play();
       startBtn.classList.add("hidden");
       video.classList.remove("hidden");
-      showStatus(statusEl, "Scanning...", "success");
-      startScanner(video, canvas, statusEl, listingId, csrfToken);
+      showStatus(statusEl, getMessage(messages, "messageScanning", "Scanning..."), "success");
+      startScanner(video, canvas, statusEl, listingId, csrfToken, messages);
     } catch {
-      showStatus(statusEl, "Camera access denied", "error");
+      showStatus(statusEl, getMessage(messages, "messageCameraDenied", "Camera access denied"), "error");
     }
   });
 };

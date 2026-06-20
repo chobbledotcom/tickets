@@ -15,6 +15,22 @@ export const initManualCheckin = (): void => {
   const csrfInput = form.querySelector<HTMLInputElement>(
     'input[name="csrf_token"]',
   )!;
+  const messages = form.dataset;
+
+  const interpolate = (template: string, values: Record<string, unknown>) =>
+    template.replace(/\{(\w+)\}/g, (_, key) => String(values[key] ?? ""));
+
+  const getMessage = (key: string, fallback: string) =>
+    messages[key] ?? fallback;
+
+  const formatTicketCount = (count: number) =>
+    interpolate(
+      getMessage(
+        count === 1 ? "messageTicketCountOne" : "messageTicketCountOther",
+        "{count} ticket",
+      ),
+      { count },
+    );
 
   const allOptions = () =>
     listbox.querySelectorAll<HTMLLIElement>("[role='option']");
@@ -43,7 +59,7 @@ export const initManualCheckin = (): void => {
 
   const selectOption = (opt: HTMLLIElement) => {
     tokenInput.value = opt.dataset.token!;
-    input.value = `${opt.dataset.name} (${opt.dataset.quantity} ticket${opt.dataset.quantity === "1" ? "" : "s"})`;
+    input.value = `${opt.dataset.name} (${formatTicketCount(Number(opt.dataset.quantity))})`;
     hideList();
   };
 
@@ -137,9 +153,17 @@ export const initManualCheckin = (): void => {
     const qty = Number.isFinite(result.quantity)
       ? (result.quantity as number)
       : 1;
-    const idNote = idVerified ? " — verify their ID" : "";
+    const idNote = idVerified
+      ? getMessage("messageVerifyIdNote", " — verify their ID")
+      : "";
     showCheckinStatus(
-      `${result.name} checked in (${qty} ticket${qty === 1 ? "" : "s"})${idNote}`,
+      `${interpolate(
+        getMessage("messageCheckedIn", "{name} checked in ({tickets})"),
+        {
+          name: result.name,
+          tickets: formatTicketCount(qty),
+        },
+      )}${idNote}`,
       "success",
     );
     for (const opt of allOptions()) {
@@ -170,13 +194,33 @@ export const initManualCheckin = (): void => {
         idVerified,
       );
     } else if (result.status === "already_checked_in") {
-      showCheckinStatus(`${result.name} already checked in`, "warning");
+      showCheckinStatus(
+        interpolate(
+          getMessage("messageAlreadyCheckedIn", "{name} already checked in"),
+          {
+            name: result.name,
+            tickets: formatTicketCount(Number(result.quantity) || 1),
+          },
+        ),
+        "warning",
+      );
     } else if (result.status === "refunded") {
-      showCheckinStatus(`${result.name} has been refunded`, "error");
+      showCheckinStatus(
+        interpolate(getMessage("messageRefunded", "{name} has been refunded"), {
+          name: result.name,
+        }),
+        "error",
+      );
     } else if (result.status === "not_found") {
-      showCheckinStatus("Ticket not found", "error");
+      showCheckinStatus(
+        getMessage("messageNotFound", "Ticket not found"),
+        "error",
+      );
     } else {
-      showCheckinStatus(result.error ?? result.message ?? "Error", "error");
+      showCheckinStatus(
+        result.error ?? result.message ?? getMessage("messageError", "Error"),
+        "error",
+      );
     }
   };
 
@@ -215,7 +259,10 @@ export const initManualCheckin = (): void => {
 
       dispatchScanResult(result, token, idVerified);
     } catch {
-      showCheckinStatus("Network error", "error");
+      showCheckinStatus(
+        getMessage("messageNetworkError", "Network error"),
+        "error",
+      );
     }
 
     submitBtn.disabled = false;

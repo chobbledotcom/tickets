@@ -56,7 +56,6 @@ const LEFTOVER_ALLOWLIST = new Map<string, number>([
   ["ui/templates/admin/guide/tickets.tsx", 17],
   ["ui/templates/admin/listings.tsx", 1],
   ["ui/templates/admin/questions.tsx", 4],
-  ["ui/templates/admin/scanner.tsx", 2],
   ["ui/templates/admin/sessions.tsx", 1],
   ["ui/templates/admin/settings/apple-wallet.tsx", 2],
   ["ui/templates/admin/settings/business-email.tsx", 1],

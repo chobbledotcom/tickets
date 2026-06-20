@@ -4,6 +4,7 @@
   outputs =
     { nixpkgs, ... }:
     let
+      denoVersion = "2.5.6";
       systems = [
         "x86_64-linux"
         "aarch64-linux"
@@ -26,6 +27,12 @@
             pkgs.buildah
           ];
           shellHook = ''
+            deno_version="$(${pkgs.deno}/bin/deno --version | sed -n 's/^deno \([^ ]*\).*/\1/p')"
+            if [ "$deno_version" != "${denoVersion}" ]; then
+              echo "tickets requires Deno ${denoVersion}, but nixpkgs provides $deno_version" >&2
+              return 1
+            fi
+
             echo "tickets dev shell"
             echo "  deno task start      - run server"
             echo "  deno task test       - run tests"

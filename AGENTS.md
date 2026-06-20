@@ -16,9 +16,8 @@ Code must work in both environments. The edge runtime is Deno-based, so developm
 
 ## Deno Version
 
-Bunny Edge Scripting currently runs Deno 2.7.12, so local development should use
-that version too. As of June 18, 2026, Bunny's runtime includes TypeScript
-5.9.2 and Node compatibility 24.2.0.
+This repo pins Deno 2.5.6, the lowest Bunny Edge Scripting runtime version this
+project is expected to run on. Local development should use that version too.
 
 This repo pins Deno with mise:
 
