@@ -10,24 +10,28 @@ type Finding = {
 };
 
 const TEST_FILE_PATTERN = /\.(?:test|spec)\.tsx?$/;
-const EXPECT_PATTERN =
-  /\bexpect\s*\(|\bassert\w*\s*\(|\bassertRejects\s*\(|\bassertThrows\s*\(/;
+// Count bare `expect(`/`assert*(` as well as project assertion helpers that
+// wrap them (e.g. `expectHtmlResponse(...)`, `expectRedirectWithFlash(...)`),
+// otherwise tests that only assert through those helpers look assertionless.
+const EXPECT_PATTERN = /\bexpect\w*\s*\(|\bassert\w*\s*\(/;
 const WEAK_ASSERTION_PATTERNS: { message: string; pattern: RegExp }[] = [
   {
     message:
       "presence-only assertion; prefer checking the value, shape, or invariant",
-    pattern: /expect\s*\([^\n]+\)\s*\.\s*toBe(?:Defined|Undefined)\s*\(/g,
+    // `[^;]+?` (lazy) lets the call span multiple lines while staying within a
+    // single statement, so wrapped `expect(...)` calls are still matched.
+    pattern: /expect\s*\([^;]+?\)\s*\.\s*toBe(?:Defined|Undefined)\s*\(/g,
   },
   {
     message:
       "truthiness assertion; prefer an exact value or contract-specific matcher",
-    pattern: /expect\s*\([^\n]+\)\s*\.\s*toBe(?:Truthy|Falsy)\s*\(/g,
+    pattern: /expect\s*\([^;]+?\)\s*\.\s*toBe(?:Truthy|Falsy)\s*\(/g,
   },
   {
     message:
       "compound boolean assertion; split into contract-specific assertions",
     pattern:
-      /expect\s*\([^\n)]*(?:&&|\|\||===|!==|>=|<=|>|<)[^\n)]*\)\s*\.\s*toBe\s*\(\s*(?:true|false)\s*\)/g,
+      /expect\s*\([^)]*(?:&&|\|\||===|!==|>=|<=|>|<)[^)]*\)\s*\.\s*toBe\s*\(\s*(?:true|false)\s*\)/g,
   },
 ];
 
@@ -39,7 +43,10 @@ const lineColumnAt = (content: string, index: number) => {
 
 const testBlockRanges = (content: string): { end: number; start: number }[] => {
   const ranges: { end: number; start: number }[] = [];
-  const startPattern = /\b(?:test|it)\s*\(/g;
+  // Match `test(`/`it(` declarations and `Deno.test(`, but not predicate method
+  // calls such as `someRegex.test(value)` (the lookbehind rejects a leading
+  // `.`/identifier char) which would otherwise be flagged as assertionless.
+  const startPattern = /\bDeno\.test\s*\(|(?<![.\w$])(?:test|it)\s*\(/g;
   for (const match of content.matchAll(startPattern)) {
     const start = match.index ?? 0;
     let depth = 0;
