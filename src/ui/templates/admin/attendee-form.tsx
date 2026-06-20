@@ -19,9 +19,11 @@ import {
   type AttendeeFormLine,
   type BalanceNotice,
   DAY_COUNT_FIELD,
+  EMAIL_ADMIN_NOTES_FIELD,
   isBookedLine,
   LINE_KEY_PREFIX,
   type ParsedAttendeeForm,
+  PHONE_ADMIN_NOTES_FIELD,
   QTY_PREFIX,
   REMAINING_BALANCE_FIELD,
   resolveStatusId,
@@ -46,10 +48,11 @@ import {
 } from "#shared/dates.ts";
 import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
 import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
-import type { EmailStats } from "#shared/db/contact-preferences.ts";
+import type { ContactStats } from "#shared/db/contact-preferences.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { START_DATE_FIELD } from "#shared/order-select.ts";
 import {
   type AdminSession,
@@ -107,8 +110,8 @@ export type AttendeeFormTemplateData = {
   todayIso: string;
   /** Optional return URL the caller came from. */
   returnUrl?: string;
-  /** Bulk-email contact history (edit mode only). */
-  emailStats?: EmailStats | null;
+  /** Contact history by channel (edit mode only). */
+  contactStats: { email: ContactStats | null; phone: ContactStats | null };
   /** Public site domain, for the read-only ticket link (edit mode). */
   allowedDomain: string;
   /** Country dialling code, for the read-only phone links. */
@@ -153,7 +156,7 @@ const ListingRow = ({
     <tr class={booked ? "attendee-line" : "attendee-line attendee-line-empty"}>
       <td>
         <a href={`/admin/listing/${listing.id}`}>{listing.name}</a>
-        {listing.active ? "" : <span class="muted small"> (inactive)</span>}
+        {listing.active ? "" : <span class="muted small">(inactive)</span>}
         {bookingStatusBadges(line.existingBooking)}
       </td>
       <td>
@@ -372,7 +375,9 @@ const dayCountOptions = (
   const options: JSX.Element[] = [];
   for (let n = 1; n <= MAX_DURATION_DAYS; n++) {
     const label = startDate
-      ? `${n} day${n === 1 ? "" : "s"}: ${formatDateLabel(addDays(startDate, n - 1))}`
+      ? `${n} day${n === 1 ? "" : "s"}: ${formatDateLabel(
+          addDays(startDate, n - 1),
+        )}`
       : `${n} day${n === 1 ? "" : "s"}`;
     options.push(
       <option selected={n === selected} value={n}>
@@ -436,37 +441,95 @@ const SharedDateFields = ({
   );
 };
 
-/** Render the bulk-email contact history (edit mode only). */
-const EmailHistory = ({
+/** True when a contact stats blob has any operator-visible history. */
+const hasContactStats = (stats: ContactStats | null): stats is ContactStats =>
+  Boolean(
+    stats &&
+      (stats.contactCount > 0 || stats.bookingCount > 0 || stats.adminNotes),
+  );
+
+/** Render one channel's encrypted contact history and notes. */
+const ContactStatsSection = ({
+  emptyMessage,
+  label,
+  stats,
+}: {
+  emptyMessage: string;
+  label: string;
+  stats: ContactStats | null;
+}): JSX.Element => (
+  <section>
+    <h4>{label}</h4>
+    {hasContactStats(stats) ? (
+      <ul>
+        <li>
+          <strong>Total messages:</strong> {stats.contactCount}
+        </li>
+        <li>
+          <strong>Total bookings:</strong> {stats.bookingCount}
+        </li>
+        {stats.lastContact && (
+          <li>
+            <strong>Last contacted:</strong>{" "}
+            {formatDatetimeShort(stats.lastContact)}
+          </li>
+        )}
+        {stats.lastSubject && (
+          <li>
+            <strong>Last subject:</strong> {stats.lastSubject}
+          </li>
+        )}
+        {stats.lastBookingDate && (
+          <li>
+            <strong>Last booking:</strong>{" "}
+            {formatDatetimeShort(stats.lastBookingDate)} (
+            {stats.lastBookedOnline ? "online" : "admin"})
+          </li>
+        )}
+        {stats.adminNotes && (
+          <li>
+            <strong>Admin notes:</strong> {stats.adminNotes}
+          </li>
+        )}
+      </ul>
+    ) : (
+      <p>{emptyMessage}</p>
+    )}
+  </section>
+);
+
+/** Render contact history for each available channel (edit mode only). */
+const ContactHistory = ({
   attendee,
-  emailStats,
+  contactStats,
   isOwner,
 }: {
   attendee: Attendee;
-  emailStats: EmailStats | null;
+  contactStats: AttendeeFormTemplateData["contactStats"];
   isOwner: boolean;
 }): JSX.Element => {
   const hasEmail = Boolean(attendee.email);
+  const hasPhone = Boolean(attendee.phone);
   return (
     <article>
-      <h3>Email History</h3>
-      {!hasEmail ? (
-        <p>No email address on file.</p>
-      ) : emailStats && emailStats.contactCount > 0 ? (
-        <ul>
-          <li>
-            <strong>Total messages:</strong> {emailStats.contactCount}
-          </li>
-          <li>
-            <strong>Last contacted:</strong>{" "}
-            {formatDatetimeShort(emailStats.lastContact)}
-          </li>
-          <li>
-            <strong>Last subject:</strong> {emailStats.lastSubject}
-          </li>
-        </ul>
+      <h3>Contact History</h3>
+      {hasEmail ? (
+        <ContactStatsSection
+          emptyMessage="No email contact history."
+          label="Email"
+          stats={contactStats.email}
+        />
       ) : (
-        <p>Never contacted by bulk email.</p>
+        <p>No email address on file.</p>
+      )}
+      {hasPhone ? (
+        <ContactStatsSection
+          emptyMessage="No phone contact history."
+          label="Phone"
+          stats={contactStats.phone}
+        />
+      ) : (
+        <p>No phone number on file.</p>
       )}
       {isOwner && (
         <p>
@@ -504,7 +567,9 @@ const isRefundable = (attendee: Attendee): boolean =>
  */
 const AttendeeActions = ({ attendee }: { attendee: Attendee }): JSX.Element => {
   const base = `/admin/listing/${attendee.listing_id}/attendee/${attendee.id}`;
-  const ret = `?return_url=${encodeURIComponent(`/admin/attendees/${attendee.id}`)}`;
+  const ret = `?return_url=${encodeURIComponent(
+    `/admin/attendees/${attendee.id}`,
+  )}`;
   return (
     <article>
       <h3>Actions</h3>
@@ -695,6 +760,20 @@ const AttendeeEditForm = ({
         />
       </label>
 
+      <label for={EMAIL_ADMIN_NOTES_FIELD}>
+        Email admin notes
+        <textarea
+          autocomplete="off"
+          id={EMAIL_ADMIN_NOTES_FIELD}
+          maxlength={MAX_TEXTAREA_LENGTH}
+          name={EMAIL_ADMIN_NOTES_FIELD}
+          rows={3}
+        >
+          {data.parsed.emailAdminNotes || ""}
+        </textarea>
+        <small>Private markdown notes stored with this email contact.</small>
+      </label>
+
       <label for="phone">
         Phone
         <input
@@ -706,6 +785,20 @@ const AttendeeEditForm = ({
           type="text"
           value={data.parsed.phone || ""}
         />
+      </label>
+
+      <label for={PHONE_ADMIN_NOTES_FIELD}>
+        Phone admin notes
+        <textarea
+          autocomplete="off"
+          id={PHONE_ADMIN_NOTES_FIELD}
+          maxlength={MAX_TEXTAREA_LENGTH}
+          name={PHONE_ADMIN_NOTES_FIELD}
+          rows={3}
+        >
+          {data.parsed.phoneAdminNotes || ""}
+        </textarea>
+        <small>Private markdown notes stored with this phone contact.</small>
       </label>
 
       <label for="address">
@@ -840,9 +933,9 @@ export const attendeeFormPage = (
       )}
 
       {isEdit && a && (
-        <EmailHistory
+        <ContactHistory
           attendee={a}
-          emailStats={data.emailStats ?? null}
+          contactStats={data.contactStats}
           isOwner={session.adminLevel === "owner"}
         />
       )}

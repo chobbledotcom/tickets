@@ -1,4 +1,5 @@
 /// <reference lib="dom" />
+/// <reference lib="dom.iterable" />
 /** Question visibility: show custom questions only when at least one
  * associated listing has quantity > 0. Questions are tagged .custom-question.
  * Questions without data-listing-ids are always visible (single-listing pages).

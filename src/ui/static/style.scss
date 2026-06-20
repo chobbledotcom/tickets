@@ -716,36 +716,18 @@ input[type="file"] {
 }
 
 textarea {
-  aspect-ratio: 4 / 3;
   resize: vertical;
 }
 
-textarea[name="address"],
-textarea[name="special_instructions"] {
-  aspect-ratio: 4 / 1;
-}
-
-@media (min-width: 769px) {
-  textarea {
-    aspect-ratio: 16 / 9;
-  }
-
-  textarea[name="address"],
-  textarea[name="special_instructions"] {
-    aspect-ratio: 16 / 3;
-  }
-}
-
-/* On admin pages, textareas grow to fit their content via field-sizing rather
-   than the fixed aspect-ratios above (width stays 100% so they only grow
-   vertically). Tidy bounds keep an empty field a few lines tall and stop very
-   long content from running off the page — past the cap it scrolls. Public
-   ticket forms keep the aspect-ratio sizing. Guarded by @supports so browsers
-   without field-sizing fall back to that sizing. */
+/* On admin pages, textareas grow to fit their content via field-sizing (width
+   stays 100% so they only grow vertically). Tidy bounds keep an empty field a
+   few lines tall and stop very long content from running off the page — past
+   the cap it scrolls. Public ticket forms fall back to the browser's default
+   textarea size. Guarded by @supports so browsers without field-sizing get
+   that default too. */
 @supports (field-sizing: content) {
   body:has(#main-nav) textarea {
     field-sizing: content;
-    aspect-ratio: auto;
     min-block-size: 3lh;
     max-block-size: 30lh;
   }
@@ -1336,6 +1318,40 @@ fieldset {
   display: flex;
   flex-direction: column;
   gap: var(--space-s);
+}
+
+/* Booking-form running total: the "show total" button and the live summary the
+   running-total script renders into the adjacent <output>. */
+.running-total {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-s);
+}
+
+.order-summary-output {
+  display: block;
+}
+
+.order-summary {
+  width: 100%;
+}
+
+.order-summary th {
+  font-weight: normal;
+  text-align: left;
+}
+
+.order-summary td {
+  text-align: right;
+}
+
+.order-summary-total th,
+.order-summary-total td {
+  font-weight: bold;
+}
+
+.order-summary-message {
+  margin: 0;
 }
 
 .checkboxes,

@@ -1,4 +1,5 @@
 /// <reference lib="dom" />
+/// <reference lib="dom.iterable" />
 /** Listing edit form: warn + gate save when booking duration changes, since
  * saving rewrites end_at on every existing booking for the listing. */
 export const initDurationWarning = (): void => {

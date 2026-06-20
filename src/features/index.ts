@@ -180,6 +180,11 @@ const loadScheduledRoutes = once(async () =>
   createRouter((await import("#routes/scheduled.ts")).scheduledRoutes),
 );
 
+/** Lazy-load the inter-instance machine endpoint (builder only) */
+const loadInstanceRoutes = once(async () =>
+  createRouter((await import("#routes/instance.ts")).instanceRoutes),
+);
+
 /** Lazy-load unsubscribe routes */
 const loadUnsubscribeRoutes = once(async () => {
   const { handleUnsubscribeGet, handleUnsubscribePost } = await import(
@@ -380,6 +385,9 @@ const PREFIX_SETTINGS: Record<string, readonly string[]> = {
   admin: ADMIN_SETTINGS,
   api: ALL_SNAPSHOT_SETTINGS,
   attachment: [],
+  // Booking running total: reprices the cart with the same code path as
+  // /ticket, so it needs the same booking-flow settings (not the full snapshot).
+  calculate: [...BOOKING_FLOW_SETTINGS, CONFIG_KEYS.EMBED_HOSTS],
   caldav: ALL_SNAPSHOT_SETTINGS,
   // --- Check-in (owner-authenticated admin view) ---
   checkin: [
@@ -396,6 +404,8 @@ const PREFIX_SETTINGS: Record<string, readonly string[]> = {
   gwallet: [...GOOGLE_WALLET_SETTINGS, CONFIG_KEYS.COUNTRY],
   // --- Infra-only routes (binary/JSON responses or pure redirects) ---
   image: [],
+  // Inter-instance machine endpoint: reads built_sites + an env key only.
+  instance: [],
   join: [],
   listings: [...PUBLIC_NAV_SETTINGS, CONFIG_KEYS.COUNTRY],
   order: [
@@ -570,6 +580,7 @@ const prefixHandlers: Record<string, RouterFn> = {
       : null;
   },
   attachment: lazyRoute(loadAttachmentRoutes),
+  calculate: lazyRoute(loadTicketRoutes),
   caldav: lazyRoute(loadFeedRoutes),
   checkin: lazyRoute(loadCheckinRoutes),
   contact: contactPrefixHandler,
@@ -578,6 +589,7 @@ const prefixHandlers: Record<string, RouterFn> = {
   feeds: lazyRoute(loadFeedRoutes),
   gwallet: lazyRoute(loadGoogleWalletRoutes),
   image: lazyRoute(loadImageRoutes),
+  instance: lazyRoute(loadInstanceRoutes),
   join: lazyRoute(loadJoinRoutes),
   order: lazyRoute(loadOrderRoutes),
   pay: lazyRoute(loadBalanceRoutes),

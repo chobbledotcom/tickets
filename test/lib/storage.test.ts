@@ -240,6 +240,47 @@ describeWithEnv(
           ]);
         });
       });
+
+      test("lists a subfolder, returning names that include the folder", async () => {
+        await withLocalStorageEnabled(async () => {
+          // uploadRaw creates the nested folder on demand.
+          await uploadRaw(new Uint8Array(0), "acme/backup-a.zip");
+          await uploadRaw(new Uint8Array(0), "acme/backup-b.zip");
+          const files = await listFiles("acme/");
+          expect(files).toEqual(["acme/backup-a.zip", "acme/backup-b.zip"]);
+        });
+      });
+
+      test("a folder listing filters by the leaf name after the slash", async () => {
+        await withLocalStorageEnabled(async () => {
+          await uploadRaw(new Uint8Array(0), "acme/backup-a.zip");
+          await uploadRaw(new Uint8Array(0), "acme/notes.txt");
+          const files = await listFiles("acme/backup-");
+          expect(files).toEqual(["acme/backup-a.zip"]);
+        });
+      });
+
+      test("a folder named like a prefix of another stays separate", async () => {
+        await withLocalStorageEnabled(async () => {
+          await uploadRaw(new Uint8Array(0), "tickets/backup-a.zip");
+          await uploadRaw(new Uint8Array(0), "tickets-spencer/backup-b.zip");
+          // Listing "tickets/" must not leak "tickets-spencer/"'s file even
+          // though "tickets" is a string prefix of "tickets-spencer".
+          expect(await listFiles("tickets/")).toEqual(["tickets/backup-a.zip"]);
+          expect(await listFiles("tickets-spencer/")).toEqual([
+            "tickets-spencer/backup-b.zip",
+          ]);
+        });
+      });
+
+      test("a root listing does not descend into subfolders", async () => {
+        await withLocalStorageEnabled(async () => {
+          await uploadRaw(new Uint8Array(0), "root-file.zip");
+          await uploadRaw(new Uint8Array(0), "acme/backup-a.zip");
+          // Only the root-level file; the subfolder's contents are not listed.
+          expect(await listFiles("")).toEqual(["root-file.zip"]);
+        });
+      });
     });
 
     describe("getImageProxyUrl", () => {
@@ -727,6 +768,95 @@ describeWithEnv(
 
                 const files = await listFiles("backup-");
                 expect(files).toEqual(["backup-2024.zip", "backup-2025.zip"]);
+              }),
+          );
+        });
+
+        test("listFiles requests a subfolder URL and prefixes returned names", async () => {
+          await runWithStorageConfig(
+            { zoneKey: "testkey", zoneName: "testzone" },
+            () =>
+              withFetchMock(async (originalFetch) => {
+                let listedUrl = "";
+                installUrlHandler(originalFetch, (url) => {
+                  if (url.includes("storage.bunnycdn.com")) {
+                    listedUrl = url;
+                    // Bunny returns leaf names within the requested folder.
+                    return Promise.resolve(
+                      Response.json([{ ObjectName: "backup-2024.zip" }]),
+                    );
+                  }
+                  return null;
+                });
+
+                const files = await listFiles("acme/");
+
+                // The folder is part of the request path, not a name filter…
+                expect(listedUrl).toContain("/testzone/acme/");
+                // …and returned names carry the folder so callers can act on them.
+                expect(files).toEqual(["acme/backup-2024.zip"]);
+              }),
+          );
+        });
+
+        test("treats a missing folder (404) as empty", async () => {
+          await runWithStorageConfig(
+            { zoneKey: "testkey", zoneName: "testzone" },
+            () =>
+              withFetchMock(async (originalFetch) => {
+                installUrlHandler(originalFetch, (url) =>
+                  url.includes("storage.bunnycdn.com")
+                    ? Promise.resolve(
+                        new Response("Not Found", { status: 404 }),
+                      )
+                    : null,
+                );
+                // A brand-new site's backup folder doesn't exist yet, so the
+                // listing must resolve to [] rather than throwing.
+                expect(await listFiles("newsite/")).toEqual([]);
+              }),
+          );
+        });
+
+        test("surfaces a non-404 listing failure instead of reporting empty", async () => {
+          await runWithStorageConfig(
+            { zoneKey: "testkey", zoneName: "testzone" },
+            () =>
+              withFetchMock(async (originalFetch) => {
+                installUrlHandler(originalFetch, (url) =>
+                  url.includes("storage.bunnycdn.com")
+                    ? Promise.resolve(
+                        new Response("Server Error", { status: 500 }),
+                      )
+                    : null,
+                );
+                // A 5xx/auth error must not masquerade as "no files" — it would
+                // make the gate report "no backup" when backups exist.
+                await expect(listFiles("acme/")).rejects.toThrow();
+              }),
+          );
+        });
+
+        test("excludes directory entries from the listing", async () => {
+          await runWithStorageConfig(
+            { zoneKey: "testkey", zoneName: "testzone" },
+            () =>
+              withFetchMock(async (originalFetch) => {
+                installUrlHandler(originalFetch, (url) =>
+                  url.includes("storage.bunnycdn.com")
+                    ? Promise.resolve(
+                        Response.json([
+                          { IsDirectory: true, ObjectName: "tickets" },
+                          {
+                            IsDirectory: false,
+                            ObjectName: "restore-pending-x.zip",
+                          },
+                        ]),
+                      )
+                    : null,
+                );
+                // The per-site folder entry must not come back as a file.
+                expect(await listFiles("")).toEqual(["restore-pending-x.zip"]);
               }),
           );
         });

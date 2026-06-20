@@ -1,22 +1,26 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { hmacHash } from "#shared/crypto/hashing.ts";
-import { queryOne } from "#shared/db/client.ts";
+import { encryptWithOwnerKey } from "#shared/crypto/keys.ts";
+import { execute, queryOne } from "#shared/db/client.ts";
 import {
   contactHash,
   forgetContact,
   getContactCounts,
-  getEmailStats,
+  getContactStats,
   getUnsubscribedHashSet,
   getVisits,
   hashEmail,
   hashPhone,
   isHashUnsubscribed,
+  recordBookingStats,
   recordContacts,
   recordVisit,
   resubscribeHash,
+  saveContactAdminNotes,
   unsubscribeHash,
 } from "#shared/db/contact-preferences.ts";
+import { settings } from "#shared/db/settings.ts";
 import { describeWithEnv, getTestPrivateKey } from "#test-utils";
 import {
   createTestAttendeeDirect,
@@ -132,7 +136,7 @@ describeWithEnv("contact-preferences: unsubscribe state", { db: true }, () => {
     await recordContacts([hash], "Hello", pk);
     await unsubscribeHash(hash);
     expect(await isHashUnsubscribed(hash)).toBe(true);
-    expect((await getEmailStats(hash, pk)).contactCount).toBe(1);
+    expect((await getContactStats(hash, pk)).contactCount).toBe(1);
   });
 });
 
@@ -206,15 +210,46 @@ describeWithEnv("contact-preferences: contact history", { db: true }, () => {
   test("an unseen address has zeroed stats", async () => {
     const pk = await getTestPrivateKey();
     expect(
-      await getEmailStats(await hashEmail("unseen@example.com"), pk),
-    ).toEqual({ contactCount: 0, lastContact: "", lastSubject: "" });
+      await getContactStats(await hashEmail("unseen@example.com"), pk),
+    ).toEqual({
+      adminNotes: "",
+      bookingCount: 0,
+      contactCount: 0,
+      lastBookedOnline: false,
+      lastBookingDate: "",
+      lastContact: "",
+      lastSubject: "",
+    });
   });
 
   test("a visited address has zero contacts", async () => {
     const pk = await getTestPrivateKey();
     const hash = await hashEmail("booked@example.com");
     await recordVisit(hash);
-    expect((await getEmailStats(hash, pk)).contactCount).toBe(0);
+    expect((await getContactStats(hash, pk)).contactCount).toBe(0);
+  });
+
+  test("legacy stats blobs default newly-added fields", async () => {
+    const pk = await getTestPrivateKey();
+    const hash = await hashEmail("legacy@example.com");
+    const encrypted = await encryptWithOwnerKey(
+      JSON.stringify({}),
+      settings.publicKey,
+    );
+    await execute(
+      "INSERT INTO contact_preferences (contact_hash, stats_blob) VALUES (?, ?)",
+      [hash, encrypted],
+    );
+
+    expect(await getContactStats(hash, pk)).toEqual({
+      adminNotes: "",
+      bookingCount: 0,
+      contactCount: 0,
+      lastBookedOnline: false,
+      lastBookingDate: "",
+      lastContact: "",
+      lastSubject: "",
+    });
   });
 
   test("recordContacts bumps count and stores subject + time", async () => {
@@ -223,7 +258,7 @@ describeWithEnv("contact-preferences: contact history", { db: true }, () => {
     await recordContacts([hash], "First campaign", pk);
     await recordContacts([hash], "Second campaign", pk);
 
-    const stats = await getEmailStats(hash, pk);
+    const stats = await getContactStats(hash, pk);
     expect(stats.contactCount).toBe(2);
     expect(stats.lastSubject).toBe("Second campaign");
     expect(stats.lastContact).not.toBe("");
@@ -254,6 +289,31 @@ describeWithEnv("contact-preferences: contact history", { db: true }, () => {
     const pk = await getTestPrivateKey();
     expect(await getContactCounts([], pk)).toEqual([]);
     await recordContacts([], "Nothing", pk);
+  });
+
+  test("recordBookingStats bumps booking history while preserving email stats", async () => {
+    const pk = await getTestPrivateKey();
+    const hash = await hashEmail("bookings@example.com");
+    await recordContacts([hash], "Newsletter", pk);
+    await recordBookingStats([hash], false, pk);
+    await recordBookingStats([hash], true, pk);
+
+    const stats = await getContactStats(hash, pk);
+    expect(stats.contactCount).toBe(1);
+    expect(stats.bookingCount).toBe(2);
+    expect(stats.lastBookedOnline).toBe(true);
+    expect(stats.lastBookingDate).not.toBe("");
+  });
+
+  test("saveContactAdminNotes stores private notes without changing counts", async () => {
+    const pk = await getTestPrivateKey();
+    const hash = await hashEmail("notes@example.com");
+    await recordBookingStats([hash], false, pk);
+    await saveContactAdminNotes(hash, "**VIP** customer", pk);
+
+    const stats = await getContactStats(hash, pk);
+    expect(stats.adminNotes).toBe("**VIP** customer");
+    expect(stats.bookingCount).toBe(1);
   });
 });
 

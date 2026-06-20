@@ -8,8 +8,11 @@ import {
 } from "#shared/db/activityLog.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
-  getEmailStats,
+  getContactStats,
   hashEmail,
+  hashPhone,
+  recordBookingStats,
+  saveContactAdminNotes,
   unsubscribeHash,
 } from "#shared/db/contact-preferences.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -696,6 +699,8 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
         listing.id,
         "Alice",
         "alice@example.com",
+        1,
+        "07700 900333",
       );
       const cookie = await createTestManagerSession();
       const html = await (
@@ -1025,7 +1030,7 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
       await adminFormPost("/admin/emails/send", {});
 
       // Each recipient now has one contact.
-      const stats = await getEmailStats(
+      const stats = await getContactStats(
         await hashEmail("alice@example.com"),
         await getTestPrivateKey(),
       );
@@ -1048,6 +1053,8 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
         listing.id,
         "Alice",
         "alice@example.com",
+        1,
+        "07700 900333",
       );
 
       const before = await (
@@ -1055,8 +1062,9 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
           cookie: await testCookie(),
         })
       ).text();
-      expect(before).toContain("Email History");
-      expect(before).toContain("Never contacted by bulk email.");
+      expect(before).toContain("Contact History");
+      expect(before).toContain("No email contact history.");
+      expect(before).toContain("No phone contact history.");
 
       await adminFormPost("/admin/emails/preview", {
         body: "Hello",
@@ -1070,8 +1078,46 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
           cookie: await testCookie(),
         })
       ).text();
+      await recordBookingStats(
+        [await hashEmail("alice@example.com")],
+        false,
+        await getTestPrivateKey(),
+      );
+      const withAdminBooking = await (
+        await awaitTestRequest(`/admin/attendees/${attendee.id}`, {
+          cookie: await testCookie(),
+        })
+      ).text();
+      expect(withAdminBooking).toContain("admin");
+      await recordBookingStats(
+        [await hashEmail("alice@example.com")],
+        true,
+        await getTestPrivateKey(),
+      );
+      await saveContactAdminNotes(
+        await hashEmail("alice@example.com"),
+        "**Email VIP** customer",
+        await getTestPrivateKey(),
+      );
+      await saveContactAdminNotes(
+        await hashPhone("07700 900333"),
+        "**Phone VIP** customer",
+        await getTestPrivateKey(),
+      );
+
+      const withBooking = await (
+        await awaitTestRequest(`/admin/attendees/${attendee.id}`, {
+          cookie: await testCookie(),
+        })
+      ).text();
       expect(after).toContain("Total messages:");
       expect(after).toContain("Newsletter");
+      expect(withBooking).toContain("Total bookings:");
+      expect(withBooking).toContain("Last booking:");
+      expect(withBooking).toContain("online");
+      expect(withBooking).toContain("Admin notes:");
+      expect(withBooking).toContain("**Email VIP** customer");
+      expect(withBooking).toContain("**Phone VIP** customer");
     });
   });
 });

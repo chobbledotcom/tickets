@@ -1,4 +1,5 @@
 /// <reference lib="dom" />
+/// <reference lib="dom.iterable" />
 /**
  * Public contact form: solve the Botpoison proof-of-work challenge on submit
  * and inject the resulting solution as a hidden field before the form posts.
