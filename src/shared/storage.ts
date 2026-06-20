@@ -208,14 +208,15 @@ export const generateImageFilename = (detectedType: string): string => {
 // Local filesystem backend
 // ---------------------------------------------------------------------------
 
-/** Write encrypted bytes to the local storage directory */
+/** Write encrypted bytes to the local storage directory. Filenames may include
+ *  a subfolder (e.g. "acme/backup-…zip"), so create the file's parent first. */
 const localWrite = async (
   data: Uint8Array,
   filename: string,
 ): Promise<void> => {
-  const dir = getLocalStoragePath() as string;
-  await Deno.mkdir(dir, { recursive: true });
-  await Deno.writeFile(`${dir}/${filename}`, data);
+  const path = `${getLocalStoragePath() as string}/${filename}`;
+  await Deno.mkdir(path.slice(0, path.lastIndexOf("/")), { recursive: true });
+  await Deno.writeFile(path, data);
 };
 
 /** Read encrypted bytes from the local storage directory. Returns null if missing. */
@@ -444,38 +445,69 @@ export type StorageFileMeta = { name: string; size: number };
 const byName = sort<StorageFileMeta>((a, b) => (a.name < b.name ? -1 : 1));
 
 /**
- * List files (with size metadata) matching a prefix, sorted by name.
- * For Bunny CDN the size comes from the `Length` field of the listing API.
+ * Split a listing prefix into the directory to read and the leaf-name filter
+ * applied within it. The directory is matched as a real path component, not a
+ * string prefix, so listing one folder can never leak into a sibling whose name
+ * extends it ("acme/" vs "acme-test/"):
+ *   "backup-"      → read the root,   keep names starting "backup-"
+ *   "acme/"        → read "acme",     keep everything
+ *   "acme/backup-" → read "acme",     keep names starting "backup-"
+ */
+const splitListingPrefix = (
+  prefix: string,
+): { dir: string; namePrefix: string } => {
+  const slash = prefix.lastIndexOf("/");
+  return slash === -1
+    ? { dir: "", namePrefix: prefix }
+    : { dir: prefix.slice(0, slash + 1), namePrefix: prefix.slice(slash + 1) };
+};
+
+/**
+ * List files (with size metadata) matching a path prefix, sorted by name. The
+ * prefix may name a subfolder (see `splitListingPrefix`); returned names always
+ * include that folder so callers can download/delete them directly. For Bunny
+ * CDN the size comes from the `Length` field of the listing API.
  */
 export const listFilesWithMeta = async (
   prefix: string,
 ): Promise<StorageFileMeta[]> => {
+  const { dir, namePrefix } = splitListingPrefix(prefix);
   if (getLocalStoragePath() !== null) {
-    const dir = getLocalStoragePath() as string;
-    const entries = await readDirSafe(dir);
+    const base = `${getLocalStoragePath() as string}/${dir}`;
+    const entries = await readDirSafe(base);
     const files = await Promise.all(
       entries
-        .filter((e) => e.isFile && e.name.startsWith(prefix))
+        .filter((e) => e.isFile && e.name.startsWith(namePrefix))
         .map(async (e) => ({
-          name: e.name,
-          size: (await Deno.stat(`${dir}/${e.name}`)).size,
+          name: `${dir}${e.name}`,
+          size: (await Deno.stat(`${base}${e.name}`)).size,
         })),
     );
     return byName(files);
   }
   const config = getStorageConfig();
-  const url = `https://storage.bunnycdn.com/${config.zoneName}/`;
+  const url = `https://storage.bunnycdn.com/${config.zoneName}/${dir}`;
   const response = await fetch(url, {
     headers: { AccessKey: config.zoneKey },
   });
+  // A folder with no objects yet (e.g. a site that has never been backed up)
+  // 404s; treat only that as "no files", the same way the local backend's
+  // readDirSafe handles a missing directory. Other failures (401/403 bad
+  // credentials, 5xx outages) must surface, not masquerade as an empty zone.
+  if (response.status === 404) return [];
   const items = (await response.json()) as Array<Record<string, unknown>>;
   return byName(
     items
+      // Bunny lists directories alongside files; keep only files so per-site
+      // backup folders don't surface as entries (the local backend filters to
+      // isFile for the same reason).
+      .filter((item) => !item.IsDirectory)
       .map((item) => ({
         name: String(item.ObjectName ?? ""),
         size: Number(item.Length) || 0,
       }))
-      .filter((f) => f.name.startsWith(prefix)),
+      .filter((f) => f.name !== "" && f.name.startsWith(namePrefix))
+      .map((f) => ({ name: `${dir}${f.name}`, size: f.size })),
   );
 };
 
