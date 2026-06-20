@@ -413,11 +413,44 @@ When the importer writes a quantity-0 line:
 Why `quantity = 0` works:
 
 - `listing_attendees.quantity` is `INTEGER NOT NULL DEFAULT 1` with **no CHECK
-  constraint**, so `0` is a legal value — no schema change needed.
-- The listing-aggregate triggers do `booked_quantity += NEW.quantity`, so a
-  quantity-0 line adds nothing to capacity. (It still does `tickets_count += 1`
-  and `income += price_paid` where `price_paid = 0`; the small `tickets_count`
-  effect is accepted.)
+  constraint**, so `0` is a legal value — no column change needed.
+- `booked_quantity` is `SUM(quantity)`, so a quantity-0 line adds nothing to
+  capacity; `income` is `SUM(price_paid)`, and these lines carry `price_paid = 0`.
+- **`tickets_count` must exclude quantity-0 lines.** A quantity-0 line is not a
+  real ticket record, so it should not bump `tickets_count` (the
+  "Total Ticket Records" aggregate). Today `tickets_count` is a plain
+  `COUNT(*)`, so this is a deliberate change to the aggregate definition —
+  applied consistently at **every** site that computes it, or the
+  recalculate/repair flow will fight the triggers:
+  - the three `LISTING_AGGREGATE_TRIGGERS` (insert/delete/update) in `schema.ts`
+    — `tickets_count = tickets_count ± CASE WHEN <row>.quantity > 0 THEN 1 ELSE 0
+    END` instead of `± 1` (the UPDATE trigger already fires on `quantity`, since
+    it's in `LISTING_AGGREGATE_WRITE_COLUMNS`, so toggling "no quantity"
+    recomputes correctly);
+  - the reset/recalculation SQL in `listings.ts`
+    (`tickets_count = (SELECT COUNT(*) … WHERE listing_id = ?)` → add
+    `AND quantity > 0`), used by `resetListingAggregateFields` and the
+    current-vs-recalculated drift display;
+  - the full backfill in `schema-sync.ts`
+    (`tickets_count = COALESCE((SELECT COUNT(*) … ), 0)` → add `AND quantity > 0`).
+  Ship this as a migration that re-creates the triggers and recomputes
+  `tickets_count` (a no-op on today's data, which has no quantity-0 lines), and
+  update the listing-aggregates tests. `booked_quantity`/`income` need no change
+  — `SUM` already handles 0.
+- **Keep the trigger and the repair SQL from drifting.** The three sites above
+  express the same rule — "a line counts as a ticket when `quantity > 0`" — in
+  two different *shapes*: the triggers apply an incremental `± delta`, while the
+  reset/backfill do an absolute `COUNT(*)`. Sharing one whole SQL string across
+  both would be gross (delta vs absolute don't unify cleanly), but the **predicate
+  itself** should live in exactly one place: extract a single
+  `TICKET_COUNTS_WHEN = "quantity > 0"` constant (or a small helper that builds
+  the `CASE`/`WHERE` fragments from it) and reference it from the trigger builder,
+  the `listings.ts` reset SQL, and the `schema-sync.ts` backfill. This mirrors the
+  existing `LISTING_AGGREGATE_WRITE_COLUMNS`, which is already shared between the
+  UPDATE trigger and the cache-invalidation `whenColumns`. Add a guard test like
+  the existing "`LISTING_AGGREGATE_WRITE_COLUMNS` matches the trigger SQL" one,
+  asserting the shared predicate appears in both the trigger and the repair SQL —
+  so a future edit to one can't silently diverge from the other.
 - The attendee has a real line, so it is **not** an orphan and survives
   auto-purge, and the products remain structured and matched to listings.
 
@@ -441,9 +474,20 @@ Owner UI — the "no quantity" checkbox (proxy for `quantity == 0`):
   only removes lines the owner actually removed. This applies to all booking
   lines, not just imported ones, once the checkbox exists.
 
+Public-booking constraint:
+
+- **Quantity-0 is admin/importer-only.** The "no quantity" checkbox lives only on
+  admin surfaces; the public booking/checkout path must never create a
+  quantity-0 line. A public submit that somehow carries a 0 quantity for a
+  listing is rejected (or coerced to the real minimum), so a visitor can't book a
+  no-capacity "ghost" line. Keep this guard on the public path, not just in the
+  UI.
+
 This is a small cross-cutting addition (attendee edit form + listing-line save
 path + one CSS mixin) that the importer depends on; build it alongside the
 writer rather than after.
+
+## Financial Mapping
 
 The CSV has order-level totals and many modifier/payment columns. The current
 system has:
@@ -503,10 +547,10 @@ Use the source `Status` column.
   quantity-0 line consumes **no** capacity (capacity in this system is
   status-blind — there is no capacity-freeing status flag, only
   `is_reservation`/`is_paid_default`), while still leaving a real line so the
-  attendee is not an orphan and the products stay structured/matched. Note the
-  `tickets_count`/income triggers still count the line (`tickets_count += 1`,
-  `income += 0`); that minor stat effect is accepted. Note the cancelled row in
-  the import report.
+  attendee is not an orphan and the products stay structured/matched. With the
+  `tickets_count` change in the Zero-Quantity section, these lines also leave
+  `tickets_count` and `income` untouched. Note the cancelled row in the import
+  report.
 - Preserve `Colour Name` as a free-text answer / in the import report, but do not
   use it for status resolution.
 - Do not add status aliases or fuzzy matching. The operator is responsible for
@@ -867,6 +911,20 @@ Semantic-correctness tests (verified against live behaviour):
   with the box checked; saving with the box checked re-stores `0` and keeps the
   line; unchecking and entering a quantity stores that quantity; the explicit
   remove control still deletes the line.
+- **`tickets_count` aggregate excludes quantity-0 lines, via the live triggers:**
+  - inserting a quantity-0 line leaves `tickets_count` unchanged (and a
+    quantity-`n` line increments it by 1);
+  - **changing an existing line's quantity to 0 decrements `tickets_count`** (and
+    back to `>0` increments it), exercising the UPDATE trigger, while
+    `booked_quantity` tracks the quantity change;
+  - deleting a quantity-0 line leaves `tickets_count` unchanged;
+  - `resetListingAggregateFields` / the recalculation drift display agree with
+    the triggers for a mix of zero and non-zero lines (no spurious "Mismatch").
+- **The public booking path never books `quantity = 0`.** Zero-quantity is an
+  admin/importer-only concept; a public checkout/submit that somehow carries a
+  quantity of 0 for a listing is rejected (or coerced to a real minimum), so a
+  visitor can't create a no-capacity "ghost" booking. Test the public submit
+  path rejects/ignores a 0 quantity.
 - A non-zero `Balance` on a non-reservation status does not become an actionable
   `remaining_balance` (stored as audit metadata or blocked, per the chosen rule).
 - A row with empty `Equipments` and no `Quoted for Products` fallback is reported
@@ -926,14 +984,24 @@ Semantic-correctness tests (verified against live behaviour):
    - Prove whole-file rollback (attendees, lines, text answers, new strings,
      audit records, import map all gone).
 6. "No quantity" booking-line support (shared, build with the writer)
+   - Change `tickets_count` to exclude quantity-0 lines at all computation sites
+     (the three `LISTING_AGGREGATE_TRIGGERS`, the `listings.ts` reset/recalc SQL,
+     and the `schema-sync.ts` backfill), with the "counts as a ticket" predicate
+     extracted into one shared constant + a guard test that it appears in both the
+     trigger and repair SQL. Migration re-creates the triggers and recomputes
+     `tickets_count`.
    - Add the per-line "no quantity" checkbox to the attendee edit form as a proxy
      for `quantity == 0`; render it checked when the stored quantity is 0 and hide
      the quantity input via the `hidden-in-form` CSS mixin family in `style.scss`.
    - Update the listing-line save path so a checked box stores `quantity = 0` and
      **keeps** the line, an unchecked box stores the entered quantity, and only an
      explicit remove control deletes a line (no auto-delete of quantity-0 lines).
+   - Guard the public booking/checkout path against quantity-0 lines (admin-only).
    - Tests: DB-stored `0` round-trips to a checked box and back; explicit removal
-     still deletes; a quantity-0 line is excluded from orphan auto-purge.
+     still deletes; a quantity-0 line is excluded from orphan auto-purge; changing
+     a line's quantity to 0 (and back) updates `tickets_count` and
+     `booked_quantity` correctly with no recalc drift; the public path refuses a
+     0 quantity.
 7. Admin upload route
    - Wire upload form, parser, planner, writer, success/error redirects.
    - Add nav entry if desired.
@@ -947,15 +1015,22 @@ Semantic-correctness tests (verified against live behaviour):
   A source status matching more than one local status (names aren't unique) is an
   ambiguous-setup error, not a silent pick.
 - Cancelled rows, and interested-in/quoted products parsed from notes, import as
-  `listing_attendees` lines with `quantity = 0` (not omitted). Capacity here is
-  status-blind (the aggregate triggers count every line), so quantity-0 keeps
-  `booked_quantity` unaffected while leaving a real, matched line — which also
-  keeps the attendee from being auto-purged as an orphan. Confirmed `Equipments`
-  products get real quantities. Owners see/edit this as a per-line "no quantity"
-  checkbox (a proxy for `quantity == 0`, quantity input hidden by CSS); the save
-  path keeps deliberate quantity-0 lines and only deletes on an explicit removal.
-  (Alternative rejected: omitting lines for cancelled rows — they'd be purged as
-  orphans while `booking_imports.old_id` blocks re-import.)
+  `listing_attendees` lines with `quantity = 0` (not omitted), leaving a real,
+  matched line that keeps the attendee from being auto-purged as an orphan.
+  Confirmed `Equipments` products get real quantities. Owners see/edit this as a
+  per-line "no quantity" checkbox (a proxy for `quantity == 0`, quantity input
+  hidden by CSS); the save path keeps deliberate quantity-0 lines and only
+  deletes on an explicit removal. (Alternative rejected: omitting lines for
+  cancelled rows — they'd be purged as orphans while `booking_imports.old_id`
+  blocks re-import.)
+- A quantity-0 line counts toward **neither** capacity (`booked_quantity`,
+  `SUM(quantity)`) **nor** `tickets_count`. `tickets_count` is changed from a
+  plain `COUNT(*)` to "count lines where `quantity > 0`" at every site (triggers,
+  reset/recalc SQL, schema-sync backfill), with the predicate shared in one place
+  and a guard test against trigger/repair drift. `income` is unaffected
+  (`price_paid = 0`).
+- Quantity-0 is admin/importer-only; the public booking/checkout path must never
+  create a quantity-0 line.
 - Legacy imports may overbook — for *active* bookings only; quantity-0 lines
   (cancelled/interested) never count toward capacity.
 - A non-zero source `Balance` becomes an actionable `remaining_balance` only when
