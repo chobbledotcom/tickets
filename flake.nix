@@ -35,7 +35,6 @@
               (pkgs.writeShellScriptBin "pc" ''
                 exec ${deno}/bin/deno task precommit "$@"
               '')
-              pkgs.typescript-go
               pkgs.biome
               pkgs.openssl
               pkgs.buildah
