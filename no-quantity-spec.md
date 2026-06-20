@@ -157,6 +157,14 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
   - The **`all`** audience via `getAllAttendeePiiBlobs()` bypasses the listing
     filter — restrict it to attendees with `EXISTS` a `quantity > 0` line, so a
     quantity-0-**only** attendee isn't emailed.
+  - The **single-attendee** target (`/admin/emails?attendee=<token>`,
+    `attendeeSpec` → `getAttendeePiiBlobForToken`) skips `listing_attendees`
+    entirely, so an owner can compose to a quantity-0-only attendee through the
+    bulk-email system. Decide explicitly: either include the attendee-token target
+    in the real-line guard (no recipients / refuse when the attendee has no
+    `quantity > 0` line), or classify this one-off admin send as **transactional**
+    and out of the marketing rule — but note it still emits a `{{ ticket_url }}`
+    that 404s for an all-ghost attendee.
 - **Logistics / delivery runs** (`src/shared/db/logistics.ts`) — guard the read,
   the completion write, **and the assignment write**:
   - Read: `getAgentRunSheet` — exclude `quantity = 0` (a no-quantity line is not a
@@ -191,8 +199,8 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
   tickets") in `checkin.ts`. Because `getAttendeesByTokens` has other consumers
   (webhook/merge/group flows), filter at these call sites + the action, **not** in
   the shared helper. For a mixed attendee, any "primary line" selection must
-  prefer a `quantity > 0` line, not a lower-id ghost. Two consequences of
-  filtering (rather than changing the shared helper):
+  prefer a `quantity > 0` line, not a lower-id ghost. Consequences of filtering
+  (rather than changing the shared helper), plus related token-trusting pages:
   - **An empty filtered set must 404, not render an empty surface.** A
     quantity-0-*only* token still passes `lookupAttendees`, so `handleTicketView`
     could return a 200 page with no cards and `handleTicketSvg` (`/t/:token/svg`)
@@ -209,6 +217,14 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
     collecting listing IDs, and treat a token resolving only to quantity-0 lines
     as an invalid callback (the same `paymentErrorResponse` the existing
     `verifiedTokens.length === 0` path returns).
+  - **The reservation success page must validate its tokens too.** `GET
+    /ticket/reserved?tokens=` (`handleReservedGet`,
+    `src/features/public/ticket-routes.ts`) never calls `getAttendeesByTokens` —
+    it builds a `/t/:tokens` "booking confirmed" CTA straight from the query
+    string. A stale/crafted quantity-0-only token renders a success page linking
+    to a ticket URL that now 404s. Resolve and filter the tokens here too (as
+    `/payment/success` does) and treat an all-ghost/empty set as not-found, so the
+    CTA only appears when a real line exists.
   - **Signed attachment downloads need the guard too.** `GET /attachment/:id`
     verifies the signed attendee/listing pair via `getAttendeeRaw` then calls
     `incrementAttachmentDownloads` — neither has a quantity predicate, so a
@@ -248,6 +264,16 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
 - **`setLegDone`** — add the `quantity > 0` guard, as above.
 - The edit-form save enforces the **`price_paid = 0` when `quantity = 0`**
   invariant (§4).
+- **Merge writer.** `applyAttendeeMerge` (`src/shared/merge/attendee-merge.ts`)
+  copies a source `ListingAttendeeRow`'s `quantity` and `price_paid` **verbatim**
+  and can delete a target's real line while inserting a source `quantity = 0`
+  line, without touching `attendees.remaining_balance`. So merge can create a
+  quantity-0 line with `price_paid > 0` (violating the §1 invariant) and leave an
+  attendee with no real line but a surviving, now-unpayable `remaining_balance`
+  (the §4 dead-balance case via merge, not the checkbox). Apply the same rules in
+  the merge writer: force `price_paid = 0` on copied quantity-0 lines, and
+  block/clear `remaining_balance` when the merged result has no `quantity > 0`
+  line.
 
 ### 6c. INTENTIONALLY UNCHANGED (call out so nobody "fixes" them)
 
@@ -256,9 +282,21 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
 - **Orphan auto-purge** — `src/shared/db/orphan-attendees.ts` (`ORPHAN_IDS`) keys
   off row existence; a `quantity = 0` line deliberately keeps the attendee
   non-orphan. That's the point of writing the line.
+- **Built-site assignment release** — *not* handled here, deliberately. Flipping
+  an `assign_built_site` line to no-quantity leaves the
+  `built_sites.assigned_attendee_id`/`assigned_listing_id` assignment in place
+  (the site stays `assignable = 0`, out of `getAssignableBuiltSites`) and renewal
+  access tied to the line. But this is **pre-existing built-sites behaviour, not a
+  no-quantity divergence**: no release/unassign path exists for **any**
+  booking-ending action today — deleting or refunding the attendee doesn't release
+  the site either (no FK on `assigned_attendee_id`, no unassign helper). So
+  no-quantity matches current behaviour; site release belongs to the built-sites
+  feature and must cover delete/refund/no-quantity uniformly, not be bolted onto
+  the no-quantity save path alone.
 - **Admin per-listing attendee roster / check-in *list*, group-detail roster,
   per-attendee detail, edit/merge views** — these reads **keep** `quantity = 0`
-  rows (show the "no quantity" indicator); they're real records. **But several
+  rows (show the "no quantity" indicator); they're real records (merge as a
+  *write* path is a different matter — see §6b). **But several
   per-row *actions* must be guarded even though the row stays visible** — keeping
   the record is not the same as keeping its operational/financial/customer-facing
   buttons:
@@ -293,6 +331,14 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
     confirmation with a ticket URL/SVG. For a quantity-0 row this sends a
     customer-facing ticket for a non-booking — hide/refuse it, or retarget to a
     real line.
+  - **Customer ticket URL display / export.** The row stays visible, but the
+    ticket link in `AttendeeDetail`, the attendee table's `ticket` column
+    (`src/ui/templates/attendee-table.tsx`), and the attendees CSV `ticket_url`
+    column (`src/features/admin/attendees-csv.ts`, built unconditionally as
+    `…/t/:ticket_token`) are **dead public URLs** once `/t` 404s for an all-ghost
+    token — staff can still click or copy them to a customer. When the attendee
+    has no `quantity > 0` line, show the "no quantity" indicator / plain token
+    text instead of a ticket link, and omit or blank the CSV `ticket_url`.
 
 > Treat 6a as the known set, not a guarantee of completeness — re-run
 > `rg "listing_attendees" src` during implementation and apply the rule to
@@ -317,27 +363,33 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
   coerced to a booking) — including a multi-listing checkout where only some
   listings are selected.
 - `quantity = 0` lines are absent from: daily calendar, ICS feed, standard-listing
-  calendar + CSV, bulk email (listing **and** `all`), logistics run sheet,
+  calendar + CSV, bulk email (listing, `all`, **and** single-attendee target),
+  logistics run sheet,
   `/t/:tokens`, `/checkin/:tokens`, scanner, wallet passes, the `/pay/:token`
   order summary, and signed attachment downloads (`/attachment/:id`) — **while
   still present** in the per-listing roster and the group-detail roster (with no
   check-in button) and per-attendee detail.
 - A quantity-0-*only* token returns **not found** on `/t/:tokens` and
-  `/t/:token/svg` (no empty page, no QR), and an **invalid-callback** page on
-  `/payment/success?tokens=` (no "paid" page linking to a dead ticket); a mixed
-  attendee's payment-success thank-you URL still resolves to the real single
-  listing.
+  `/t/:token/svg` (no empty page, no QR), an **invalid-callback** page on
+  `/payment/success?tokens=`, and a not-found / no-CTA result on the reservation
+  success page `/ticket/reserved?tokens=` (no "booking confirmed" page linking to
+  a dead ticket); a mixed attendee's payment-success thank-you URL still resolves
+  to the real single listing.
 - Logistics: mark-done (`setLegDone`) refuses a quantity-0 line even with an agent
   assigned; the edit/save path doesn't render or persist logistics assignments for
   a no-quantity line.
 - Balance: a quantity-0-only attendee's balance isn't publicly payable; for a
   mixed attendee the pay-page product/checkout line, the settlement, **and the
   logged-activity listing** all land on the real line; marking the last real line
-  no-quantity clears/blocks the now-unpayable `remaining_balance`.
+  no-quantity clears/blocks the now-unpayable `remaining_balance` — **via the
+  merge writer as well as the checkbox save** (a merge that removes the last real
+  line clears the balance and never copies a `price_paid > 0` quantity-0 line).
 - Admin per-row action guards: a quantity-0 row shows no check-in button, no
-  refund / refund-all control, and no working re-send-notification (or it targets
-  a real line); the refresh-payment route refunds the real line, never a
-  ghost-first row; the scanner manual list omits quantity-0 candidates.
+  refund / refund-all control, no working re-send-notification (or it targets
+  a real line), and no live customer ticket URL (the detail/table link and the
+  CSV `ticket_url` show the indicator / blank for an all-ghost record); the
+  refresh-payment route refunds the real line, never a ghost-first row; the
+  scanner manual list omits quantity-0 candidates.
 - Public API `POST /api/listings/:slug/book` rejects/ignores `quantity: 0` (no
   one-ticket booking created).
 - Capacity unaffected (`SUM(quantity)`); orphan purge keeps a quantity-0 attendee.
