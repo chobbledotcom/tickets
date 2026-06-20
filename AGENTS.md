@@ -135,6 +135,7 @@ Even when a caller genuinely needs many columns, list them explicitly rather tha
 - `deno task test:coverage` - Run the full suite with coverage
 - `deno task test:files <file>...` - Run only the given test files with the same setup as the full runner (builds static assets, starts stripe-mock, cleans up after)
 - `deno task lint` - Format and lint all code with Biome (`check --write`; auto-fixes in place). Biome is the sole formatter and linter.
+- `deno task lint:ci` - Strict, read-only lint (`check --error-on-warnings`, no `--write`). Fails on lint warnings (e.g. cognitive complexity) and on any code that *would* be reformatted, without touching the checkout. This is the lint `deno task precommit` runs in **every** environment, so a clean `precommit` locally means the lint step will pass in CI too. Run `deno task lint` to auto-fix before re-running.
 - `deno task build:edge` - Build for Bunny Edge deployment
 - `deno task backup` - Dump the database out-of-band to a `.zip`. Uploads to the configured storage zone by default (so it appears on the Backups page and lets the next migration skip its own inline backup); pass `--out <path>` to write a local file. Runs in a full Deno process, so unlike the in-edge backup it has no per-request subrequest budget and can dump arbitrarily large databases.
 - `deno task precommit` - Run all checks (typecheck, lint, tests)
