@@ -543,8 +543,8 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
   merge writer as well as the checkbox save** (a merge that removes the last real
   line clears the balance and never copies a `price_paid > 0` quantity-0 line).
 - Admin per-row action guards: a quantity-0 row shows no check-in button, no
-  refund / refund-all control, no working re-send-notification (or it targets
-  a real line), and no live customer ticket URL on a quantity-0 row (the
+  refund / refund-all control, no working re-send-notification (refused on the
+  ghost row, **not** retargeted to another listing), and no live customer ticket URL on a quantity-0 row (the
   detail/table link and the CSV `ticket_url` show the indicator / blank for **any**
   quantity-0 row, including a mixed attendee whose token still renders other real
   bookings — not only all-ghost records); the

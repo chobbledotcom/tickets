@@ -511,7 +511,7 @@ structured/matched.
 > its own standalone spec — [`no-quantity-spec.md`](./no-quantity-spec.md) — which
 > is the single source of truth.** It covers the mechanism (the `tickets_count`
 > aggregate change across all five query sites + shared predicate; the owner
-> "no quantity" checkbox; clearing `price_paid` / `remaining_balance`) and the full
+> "no quantity" checkbox; forbidding paid-line conversion, clearing `remaining_balance`) and the full
 > reader/writer/action audit. **The importer depends on that feature; build it
 > first, per the spec.** This plan deliberately does **not** re-document those
 > surfaces, so they can't drift between the two files.
@@ -1227,7 +1227,7 @@ is a prerequisite for the transactional writer (item 5)** — the writer emits
    - The importer writes `quantity = 0` lines, so the whole no-quantity feature
      must exist first: the `tickets_count` aggregate change (+ shared predicate +
      guard test + migration), the owner "no quantity" checkbox and save path
-     (clearing `price_paid` / `remaining_balance`), the full reader/writer/action
+     (forbid converting a paid line; clear `remaining_balance`), the full reader/writer/action
      audit, and the public form + JSON API guard. All of that — and its tests —
      lives in the spec; don't restate it here.
    - Importer-specific work alongside it (NOT part of the no-quantity spec):
@@ -1241,14 +1241,17 @@ is a prerequisite for the transactional writer (item 5)** — the writer emits
        `getAttendeesPage`, so imports' fresh ids don't dominate "newest".
      - `booking_imports`: drop the unique `new_id` index; clean up conditionally —
        orphan purge and `deleteAttendee` with `releaseBookings: true` delete the
-       mapping, a held delete (`releaseBookings: false`) keeps it as a tombstone
-       (aggregates stay held), and `applyAttendeeMerge` remaps source→target (the
-       non-unique `new_id` allows it). Merge must also adopt free-text
-       (`string_id`) answers, not just choice answers.
+       mapping; a held delete (`releaseBookings: false`) on these **daily-only**
+       rows also frees/remaps the mapping (the keep-as-tombstone rule is the
+       standard-listing aggregate case, which imports never hit — see the daily
+       held-delete caveat in the cleanup section); and `applyAttendeeMerge` remaps
+       source→target (the non-unique `new_id` allows it). Merge must also adopt
+       free-text (`string_id`) answers, not just choice answers.
      - Tests: imports order by `created` (not fresh id); a staff-only question
        renders on admin edit but not the public form; merging an imported source
        remaps its `booking_imports` row and preserves its free-text answers; a held
-       delete keeps the tombstone (no re-import double-count) while an
+       delete of a daily import frees/remaps the mapping (re-importable, no
+       double-count, since the operational dated row is gone) and an
        orphan/released delete frees the `old_id`.
 
 7. Admin upload route
@@ -1388,9 +1391,11 @@ is a prerequisite for the transactional writer (item 5)** — the writer emits
   can map to one surviving attendee. Idempotency keys on `old_id` (the PK).
 - `booking_imports` cleanup is conditional on capacity actually being released:
   the orphan auto-purge and `deleteAttendee` with `releaseBookings: true` delete
-  the mapping (free the `old_id`); a **held** delete (`releaseBookings: false`,
-  which keeps the aggregates held) **keeps the mapping as a tombstone**, or a
-  re-upload would double-count the held capacity. `applyAttendeeMerge` **remaps**
+  the mapping (free the `old_id`); a **held** delete (`releaseBookings: false`)
+  keeps the mapping as a tombstone **only for aggregate-held standard listings** —
+  but imports are **daily-only**, where a held delete removes the dated row the
+  calendar/capacity read, so it frees/remaps instead (see the daily held-delete
+  caveat) rather than stranding a re-import forever. `applyAttendeeMerge` **remaps**
   the source's mapping to the target (never drops it), which the non-unique
   `new_id` now allows.
 - Attendee merge must also **adopt free-text (`string_id`) answers**, not just
