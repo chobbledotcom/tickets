@@ -93,9 +93,16 @@ shared predicate appears in every site, so a future edit can't silently diverge.
 `delete.ts` pre-compute — must `COALESCE(…, 0)`, since `SUM` over zero rows is
 `NULL`, not `0`.)
 
-**Migration:** ship a migration that re-creates the triggers and recomputes
-`tickets_count` for existing data (a no-op today, since no `quantity = 0` lines
-exist yet). Update the listing-aggregates tests.
+**Migration:** ship a migration that **explicitly `DROP TRIGGER IF EXISTS`** the
+three listing-aggregate triggers **before** `syncTriggers()` and the backfill.
+`syncTriggers` only creates a trigger when its name is *missing* (`CREATE TRIGGER
+IF NOT EXISTS` runs only for absent names), so reusing the same three names with
+new `CASE` bodies would otherwise leave the old `COUNT(*)` bodies installed and
+upgraded databases would keep incrementing `tickets_count` for `quantity = 0`
+writes. (Mirrors the existing answer-/modifier-aggregate migrations, which drop
+their triggers before re-syncing.) Then recompute `tickets_count` for existing
+data (a no-op today, since no `quantity = 0` lines exist yet). Update the
+listing-aggregates tests.
 
 ## 4. Owner UI — the "no quantity" checkbox (proxy for `quantity == 0`)
 
@@ -218,7 +225,11 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
 - **Logistics / delivery runs** (`src/shared/db/logistics.ts`) — guard the read,
   the completion write, **and the assignment write**:
   - Read: `getAgentRunSheet` — exclude `quantity = 0` (a no-quantity line is not a
-    drop-off/collection).
+    drop-off/collection). Its `WHERE` is `(start_agent… AND start_date…) OR
+    (end_agent… AND end_date…)`; because `AND` binds tighter than `OR`, a bare
+    appended `AND quantity > 0` attaches to the **collection arm only**, leaving
+    no-quantity drop-offs on start-leg run sheets. **Wrap the whole OR** —
+    `(<existing OR>) AND quantity > 0` — or add the predicate to **both** arms.
   - Completion: the mark-done action `setLegDone` (called from
     `src/features/admin/deliveries.ts`) scopes its update by
     `attendee_id`/`listing_id`/agent with **no quantity predicate**, so a
@@ -406,8 +417,13 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
     invoking listing page. A mixed attendee (real paid line + a no-quantity
     interested/cancelled line on another listing) would expose refund / refund-all
     from the **ghost** listing and refund the shared attendee-level payment. Add
-    the quantity guard to the single and bulk refund UI and actions (and target
-    the real line).
+    the quantity guard to the single and bulk refund UI and actions: **hide/refuse
+    the refund on a no-quantity row** rather than retargeting to a real line on
+    another listing — these routes are listing-scoped (`markRefunded(...,
+    listingId)` marks the invoking listing's row), so retargeting would refund a
+    charge outside the operator's current scope. (The attendee-level
+    refresh-payment route, below, *does* pick the real line — it isn't
+    listing-scoped.)
   - **Refresh-payment route.** `POST /admin/attendees/:id/refresh-payment`
     (`handleRefreshPayment` → `loadRefreshContext`,
     `src/features/admin/attendees-edit.ts`) picks the attendee's first booking
@@ -430,9 +446,14 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
     (`src/ui/templates/attendee-table.tsx`), and the attendees CSV `ticket_url`
     column (`src/features/admin/attendees-csv.ts`, built unconditionally as
     `…/t/:ticket_token`) are **dead public URLs** once `/t` 404s for an all-ghost
-    token — staff can still click or copy them to a customer. When the attendee
-    has no `quantity > 0` line, show the "no quantity" indicator / plain token
-    text instead of a ticket link, and omit or blank the CSV `ticket_url`.
+    token — staff can still click or copy them to a customer. Suppress them **per
+    quantity-0 row**, not only when the whole attendee is all-ghost: for an
+    all-ghost attendee the `/t` link 404s outright; for a **mixed** attendee it
+    still resolves but renders the attendee's *other* real bookings, so showing it
+    on a quantity-0 row lets staff copy a customer-facing ticket that doesn't
+    correspond to that row's cancelled/interested listing. On any `quantity = 0`
+    row show the "no quantity" indicator / plain token text instead of a ticket
+    link, and omit or blank the CSV `ticket_url`.
 
 > Treat 6a as the known set, not a guarantee of completeness — re-run
 > `rg "listing_attendees" src` during implementation and apply the rule to
