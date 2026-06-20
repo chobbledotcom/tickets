@@ -1,0 +1,57 @@
+name: Back up one built site
+description: >-
+  Fetch a single built site's read-only DB credentials from the main instance
+  (matched by Bunny script id) and dump its database to our storage before it is
+  upgraded. Fails unless exactly one site matches the script id. Requires Deno on
+  PATH and dependencies installed — run the build-bunny-script action first.
+inputs:
+  main_instance:
+    description: Main instance base URL (serves POST /instance/site-credentials).
+    required: true
+  main_instance_key:
+    description: Shared secret authorizing the credentials endpoint (bearer token).
+    required: true
+  script_id:
+    description: Bunny script id of the site to back up.
+    required: true
+  storage_zone_name:
+    description: Bunny storage zone name (backup upload target).
+    required: true
+  storage_zone_key:
+    description: Bunny storage zone access key.
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Back up the matching site
+      shell: bash
+      env:
+        MAIN_INSTANCE: ${{ inputs.main_instance }}
+        MAIN_INSTANCE_KEY: ${{ inputs.main_instance_key }}
+        SCRIPT_ID: ${{ inputs.script_id }}
+        STORAGE_ZONE_NAME: ${{ inputs.storage_zone_name }}
+        STORAGE_ZONE_KEY: ${{ inputs.storage_zone_key }}
+      run: |
+        set -euo pipefail
+        # Keep the shared secret and any returned token out of the logs.
+        echo "::add-mask::$MAIN_INSTANCE_KEY"
+
+        sites_json=$(curl -fsS -X POST \
+          "${MAIN_INSTANCE%/}/instance/site-credentials" \
+          -H "Authorization: Bearer ${MAIN_INSTANCE_KEY}")
+
+        # Narrow the fleet to the one site with this script id.
+        match=$(jq -c --arg id "$SCRIPT_ID" \
+          '[.sites[] | select(.scriptId == $id)]' <<<"$sites_json")
+        count=$(jq 'length' <<<"$match")
+        if [ "$count" -ne 1 ]; then
+          echo "Expected exactly 1 site for script id $SCRIPT_ID, found $count" >&2
+          exit 1
+        fi
+
+        db_url=$(jq -r '.[0].dbUrl' <<<"$match")
+        db_token=$(jq -r '.[0].dbToken' <<<"$match")
+        echo "::add-mask::$db_token"
+
+        echo "Backing up $(jq -r '.[0].name' <<<"$match") ($SCRIPT_ID)"
+        DB_URL="$db_url" DB_TOKEN="$db_token" deno task backup
