@@ -1,4 +1,5 @@
 /// <reference lib="dom" />
+/// <reference lib="dom.iterable" />
 /**
  * Persist the calendar availability checker's open state across a single
  * navigation.

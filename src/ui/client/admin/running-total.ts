@@ -1,4 +1,5 @@
 /// <reference lib="dom" />
+/// <reference lib="dom.iterable" />
 /** Booking-form running total.
  *
  * Progressively enhances the "show total" button — which, without JS, POSTs the

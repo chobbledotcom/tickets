@@ -1,4 +1,5 @@
 /// <reference lib="dom" />
+/// <reference lib="dom.iterable" />
 /** Admin page behaviors - bundled by build-static-assets.ts for strict CSP.
  *
  * Thin entry point: each behavior lives in its own module under ./admin/
