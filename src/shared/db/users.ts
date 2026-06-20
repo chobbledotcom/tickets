@@ -9,7 +9,10 @@ import {
   hmacHash,
   verifyPassword,
 } from "#shared/crypto/hashing.ts";
-import { deriveKEK, wrapKey } from "#shared/crypto/keys.ts";
+import {
+  unwrapKeyWithToken,
+  wrapDataKeyForPassword,
+} from "#shared/crypto/keys.ts";
 import {
   deleteByFieldBatch,
   execute,
@@ -25,7 +28,7 @@ import { now } from "#shared/now.ts";
 import { type AdminLevel, isAdminLevel, type User } from "#shared/types.ts";
 
 const USER_COLUMNS =
-  "id, username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry";
+  "id, username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry, kek_version, invite_wrapped_data_key";
 
 const USER_SELECT = `SELECT ${USER_COLUMNS} FROM users ORDER BY id ASC`;
 
@@ -107,6 +110,8 @@ const insertUser = async (opts: {
   wrappedDataKey: string | null;
   inviteCodeHash: string | null;
   inviteExpiry: string | null;
+  kekVersion: number;
+  inviteWrappedDataKey: string | null;
 }): Promise<User> => {
   const usernameIndex = await hmacHash(opts.username.toLowerCase());
   const encryptedUsername = await encrypt(opts.username.toLowerCase());
@@ -125,6 +130,8 @@ const insertUser = async (opts: {
     admin_level: encryptedAdminLevel,
     invite_code_hash: encryptedInviteCode,
     invite_expiry: encryptedInviteExpiry,
+    invite_wrapped_data_key: opts.inviteWrappedDataKey,
+    kek_version: opts.kekVersion,
     password_hash: encryptedPasswordHash,
     username_hash: encryptedUsername,
     username_index: usernameIndex,
@@ -137,36 +144,48 @@ const insertUser = async (opts: {
 };
 
 /**
- * Create a new user with encrypted fields
+ * Create a new (already-activated) user with encrypted fields. Activated users
+ * are created at the password-bound KEK scheme (v2); the caller computes the
+ * matching wrapped_data_key via wrapDataKeyForPassword.
  */
 export const createUser = (
   username: string,
   passwordHash: string,
   wrappedDataKey: string | null,
   adminLevel: AdminLevel,
+  kekVersion = 2,
 ): Promise<User> =>
   insertUser({
     adminLevel,
     inviteCodeHash: null,
     inviteExpiry: null,
+    inviteWrappedDataKey: null,
+    kekVersion,
     passwordHash,
     username,
     wrappedDataKey,
   });
 
 /**
- * Create an invited user (no password yet, has invite code)
+ * Create an invited user (no password yet, has invite code). When the inviter
+ * passes a wrapped DATA_KEY handoff, the invitee self-activates at /join under
+ * the v2 scheme; otherwise an admin activates them later (legacy v1 path).
+ * kek_version is a placeholder here — there is no wrapped_data_key until
+ * activation, which sets the real version.
  */
 export const createInvitedUser = (
   username: string,
   adminLevel: AdminLevel,
   inviteCodeHash: string,
   inviteExpiry: string,
+  inviteWrappedDataKey: string | null = null,
 ): Promise<User> =>
   insertUser({
     adminLevel,
     inviteCodeHash,
     inviteExpiry,
+    inviteWrappedDataKey,
+    kekVersion: 1,
     passwordHash: "",
     username,
     wrappedDataKey: null,
@@ -248,39 +267,68 @@ export const decryptUsername = (
 ): Promise<string> => decrypt(user.username_hash);
 
 /**
- * Set a user's password (for invite flow)
+ * Complete an invite by self-activating the user: unwrap the DATA_KEY handoff
+ * with the single-use invite code, re-wrap it under the new password's v2 KEK,
+ * and clear the invite (code, expiry, and the handoff blob). The caller has
+ * already verified the invite is valid and carries a handoff, so every current
+ * invite reaches here — there is no separate admin activation step.
+ *
+ * Single-use: the UPDATE is guarded on `invite_wrapped_data_key IS NOT NULL`, so
+ * if two submissions for the same code race (or one is replayed), only the first
+ * affects a row — the rest no-op and return false rather than overwriting the
+ * password/key that the first accept already set.
  */
-export const setUserPassword = async (
+export const acceptInvite = async (
   userId: number,
+  inviteWrappedDataKey: string,
+  inviteCode: string,
   password: string,
-): Promise<string> => {
+): Promise<boolean> => {
   const passwordHash = await hashPassword(password);
-  const encryptedHash = await encrypt(passwordHash);
-  const encryptedNull = await encrypt("");
-
-  await execute(
-    "UPDATE users SET password_hash = ?, invite_code_hash = ?, invite_expiry = ? WHERE id = ?",
-    [encryptedHash, encryptedNull, encryptedNull, userId],
+  const [encryptedHash, encryptedEmpty, dataKey] = await Promise.all([
+    encrypt(passwordHash),
+    encrypt(""),
+    unwrapKeyWithToken(inviteWrappedDataKey, inviteCode),
+  ]);
+  const wrappedDataKey = await wrapDataKeyForPassword(
+    dataKey,
+    password,
+    passwordHash,
   );
-
-  return passwordHash;
+  const result = await execute(
+    "UPDATE users SET password_hash = ?, wrapped_data_key = ?, kek_version = 2, invite_wrapped_data_key = NULL, invite_code_hash = ?, invite_expiry = ? WHERE id = ? AND invite_wrapped_data_key IS NOT NULL",
+    [encryptedHash, wrappedDataKey, encryptedEmpty, encryptedEmpty, userId],
+  );
+  return result.rowsAffected > 0;
 };
 
 /**
- * Activate a user by wrapping the data key with their KEK
+ * Re-wrap a user's DATA_KEY under the password-bound (v2) KEK. Called at login —
+ * the one place both the raw password and the freshly-unwrapped DATA_KEY are in
+ * hand — for users still on the legacy v1 wrap, replacing the DB-recoverable
+ * wrap in place without touching any encrypted data.
  */
-export const activateUser = async (
+export const migrateUserToV2Kek = async (
   userId: number,
   dataKey: CryptoKey,
-  decryptedPasswordHash: string,
+  password: string,
+  passwordHash: string,
 ): Promise<void> => {
-  const kek = await deriveKEK(decryptedPasswordHash);
-  const wrappedDataKey = await wrapKey(dataKey, kek);
-
-  await execute("UPDATE users SET wrapped_data_key = ? WHERE id = ?", [
-    wrappedDataKey,
-    userId,
-  ]);
+  const wrappedDataKey = await wrapDataKeyForPassword(
+    dataKey,
+    password,
+    passwordHash,
+  );
+  // Guard on the row still being v1. A login can reach here off a stale cached
+  // user row whose password was changed in another isolate — that change already
+  // wrote a v2 wrap bound to the *new* password. Overwriting it with a wrap
+  // derived from this (old) password would leave password_hash and
+  // wrapped_data_key bound to different passwords and lock the account out. A
+  // no-op is safe: the login already holds the DATA_KEY for its own session.
+  await execute(
+    "UPDATE users SET wrapped_data_key = ?, kek_version = 2 WHERE id = ? AND kek_version < 2",
+    [wrappedDataKey, userId],
+  );
 };
 
 /**
@@ -344,19 +392,40 @@ export const isInviteExpired = async (user: User): Promise<boolean> =>
   user.invite_code_hash !== null && !(await isInviteValid(user));
 
 /**
- * Check if a user has set their password (password_hash is non-empty encrypted value)
+ * Delete invited users whose invite has expired and who never activated. This
+ * removes the invite_wrapped_data_key handoff — a copy of the DATA_KEY wrapped
+ * under the invite code — so an intercepted invite link can no longer be used to
+ * unwrap it from a database dump once the invite has expired.
+ *
+ * Only un-activated invites are ever eligible: a row must have no DATA_KEY wrap
+ * AND no password set. acceptInvite writes both in one atomic UPDATE, so an
+ * activated user (or anyone who has set a password) can never match — the prune
+ * cannot delete an active account. invite_expiry is encrypted per row, but only
+ * a handful of invites are ever outstanding, so decrypting each is cheap.
  */
-export const hasPassword = async (user: User): Promise<boolean> => {
-  if (!user.password_hash) return false;
-  const decrypted = await decrypt(user.password_hash);
-  return decrypted.length > 0;
+export const pruneExpiredInvites = async (): Promise<number> => {
+  const rows = await queryAll<Pick<User, "id" | "invite_expiry">>(
+    "SELECT id, invite_expiry FROM users WHERE wrapped_data_key IS NULL AND password_hash = '' AND invite_expiry IS NOT NULL",
+  );
+  const cutoff = now().getTime();
+  let pruned = 0;
+  for (const row of rows) {
+    // An unparseable expiry yields NaN, which compares false — such a row is
+    // left alone rather than deleted on a bad value.
+    const expiryMs = new Date(await decrypt(row.invite_expiry!)).getTime();
+    if (expiryMs < cutoff) {
+      await deleteUser(row.id);
+      pruned += 1;
+    }
+  }
+  return pruned;
 };
 
 /**
  * Stubbable API for testing
  */
 export const usersApi = {
-  activateUser,
+  acceptInvite,
   createInvitedUser,
   createUser,
   decryptAdminLevel,
@@ -369,11 +438,11 @@ export const usersApi = {
   getUserByUsername,
   getUserDisplayFields,
   hashInviteCode,
-  hasPassword,
   invalidateUsersCache,
   isInviteExpired,
   isInviteValid,
   isUsernameTaken,
-  setUserPassword,
+  migrateUserToV2Kek,
+  pruneExpiredInvites,
   verifyUserPassword,
 };

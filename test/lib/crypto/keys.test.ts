@@ -3,6 +3,7 @@ import { describe, it } from "@std/testing/bdd";
 import { decryptWithKey, encryptWithKey } from "#shared/crypto/encryption.ts";
 import {
   deriveKEK,
+  deriveKEKFromPassword,
   generateDataKey,
   generateKeyPair,
   hybridDecrypt,
@@ -12,11 +13,17 @@ import {
   setRsaKeySizeForTest,
   unwrapKey,
   unwrapKeyWithToken,
+  wrapDataKeyForPassword,
   wrapKey,
   wrapKeyWithToken,
 } from "#shared/crypto/keys.ts";
 import { generateSecureToken } from "#shared/crypto/utils.ts";
 import { describeWithEnv } from "#test-utils";
+
+// Two stored-password-hash stand-ins. The v2 KEK folds the account's password
+// hash into its salt, so these stand in for two different users' hashes.
+const HASH_A = "pbkdf2:1000:c2FsdEE=:aGFzaEE=";
+const HASH_B = "pbkdf2:1000:c2FsdEI=:aGFzaEI=";
 
 describeWithEnv("KEK derivation", { encryptionKey: true }, () => {
   it("derives a usable CryptoKey", async () => {
@@ -47,6 +54,70 @@ describeWithEnv("KEK derivation", { encryptionKey: true }, () => {
 
     // Should fail to unwrap with different KEK
     await expect(unwrapKey(wrapped, kek2)).rejects.toThrow();
+  });
+
+  it("deriveKEKFromPassword round-trips a data key", async () => {
+    const dataKey = await generateDataKey();
+    const wrapped = await wrapKey(
+      dataKey,
+      await deriveKEKFromPassword("hunter2", HASH_A),
+    );
+    const unwrapped = await unwrapKey(
+      wrapped,
+      await deriveKEKFromPassword("hunter2", HASH_A),
+    );
+    const encrypted = await encryptWithKey("payload", dataKey);
+    expect(await decryptWithKey(encrypted, unwrapped)).toBe("payload");
+  });
+
+  it("deriveKEKFromPassword differs from deriveKEK for the same input", async () => {
+    // Domain separation: a v2 (password-derived) wrap can't be unwrapped by the
+    // v1 KEK from the same string, so a recovered password hash is useless.
+    const dataKey = await generateDataKey();
+    const wrappedV2 = await wrapKey(
+      dataKey,
+      await deriveKEKFromPassword("same-string", HASH_A),
+    );
+    await expect(
+      unwrapKey(wrappedV2, await deriveKEK("same-string")),
+    ).rejects.toThrow();
+  });
+
+  it("deriveKEKFromPassword produces different keys for different passwords", async () => {
+    // Same per-user hash, different password → the password alone must change
+    // the KEK, so the v2 wrap is bound to the secret and not just the salt.
+    const dataKey = await generateDataKey();
+    const wrapped = await wrapKey(
+      dataKey,
+      await deriveKEKFromPassword("pw-one", HASH_A),
+    );
+    await expect(
+      unwrapKey(wrapped, await deriveKEKFromPassword("pw-two", HASH_A)),
+    ).rejects.toThrow();
+  });
+
+  it("deriveKEKFromPassword is salted per user: same password, different hash", async () => {
+    // Per-user salt: two accounts that happen to share a password still get
+    // distinct KEKs, so cracking one wrap doesn't unwrap everyone's DATA_KEY.
+    const dataKey = await generateDataKey();
+    const wrapped = await wrapKey(
+      dataKey,
+      await deriveKEKFromPassword("shared-pw", HASH_A),
+    );
+    await expect(
+      unwrapKey(wrapped, await deriveKEKFromPassword("shared-pw", HASH_B)),
+    ).rejects.toThrow();
+  });
+
+  it("wrapDataKeyForPassword wraps so only the password's KEK unwraps", async () => {
+    const dataKey = await generateDataKey();
+    const wrapped = await wrapDataKeyForPassword(dataKey, "s3cret", HASH_A);
+    const unwrapped = await unwrapKey(
+      wrapped,
+      await deriveKEKFromPassword("s3cret", HASH_A),
+    );
+    const encrypted = await encryptWithKey("ok", dataKey);
+    expect(await decryptWithKey(encrypted, unwrapped)).toBe("ok");
   });
 });
 

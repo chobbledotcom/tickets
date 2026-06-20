@@ -88,7 +88,7 @@ export const getTestDataKey = async (): Promise<CryptoKey> => {
 
 export const getTestPrivateKey = async (): Promise<CryptoKey> => {
   const { decryptWithKey } = await import("#shared/crypto/encryption.ts");
-  const { deriveKEK, importPrivateKey, unwrapKey } = await import(
+  const { deriveKEKFromPassword, importPrivateKey, unwrapKey } = await import(
     "#shared/crypto/keys.ts"
   );
   const { getUserByUsername, verifyUserPassword } = await import(
@@ -100,13 +100,11 @@ export const getTestPrivateKey = async (): Promise<CryptoKey> => {
   );
 
   const user = await getUserByUsername(TEST_ADMIN_USERNAME);
-  if (!user) throw new Error("Test setup failed: user not found");
-  const passwordHash = await verifyUserPassword(user, TEST_ADMIN_PASSWORD);
-  if (!passwordHash) throw new Error("Test setup failed: invalid password");
-  if (!user.wrapped_data_key) {
+  if (!user?.wrapped_data_key) {
     throw new Error("Test setup failed: no wrapped data key");
   }
-  const kek = await deriveKEK(passwordHash);
+  const ownerHash = (await verifyUserPassword(user, TEST_ADMIN_PASSWORD))!;
+  const kek = await deriveKEKFromPassword(TEST_ADMIN_PASSWORD, ownerHash);
   const dataKey = await unwrapKey(user.wrapped_data_key, kek);
   const wrappedPrivateKey = settings.wrappedPrivateKey;
   if (!wrappedPrivateKey) {

@@ -31,7 +31,7 @@ export const joinPage = (
   );
 
 /**
- * Join complete page - password set, waiting for activation
+ * Join complete page - password set and account self-activated, ready to log in
  */
 export const joinCompletePage = (): string =>
   String(
@@ -39,7 +39,7 @@ export const joinCompletePage = (): string =>
       <h1>{t("join.success.heading")}</h1>
       <div class="success" role="alert">
         <p>{t("join.success.message")}</p>
-        <p>{t("join.success.wait_activation")}</p>
+        <p>{t("join.success.ready")}</p>
       </div>
     </Layout>,
   );

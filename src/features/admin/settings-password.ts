@@ -80,12 +80,13 @@ export const handleAdminSettingsPost = settingsRoute(
       );
     }
 
-    const success = await settings.updateUserPassword(
-      session.userId,
-      passwordHash,
-      user.wrapped_data_key!,
-      validation.newPassword,
-    );
+    const success = await settings.updateUserPassword(session.userId, {
+      newPassword: validation.newPassword,
+      oldKekVersion: user.kek_version,
+      oldPassword: validation.currentPassword,
+      oldPasswordHash: passwordHash,
+      oldWrappedDataKey: user.wrapped_data_key!,
+    });
     if (!success) {
       return errorPage(
         t("error.password_update_failed"),
