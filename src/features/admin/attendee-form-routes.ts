@@ -82,6 +82,7 @@ import {
 import { settings } from "#shared/db/settings.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { ErrorCode, logError } from "#shared/logger.ts";
 import {
   parseSelectedListingIds,
   START_DATE_FIELD,
@@ -467,10 +468,23 @@ const loadChannelRecord = async (
 ): Promise<ContactChannelData | null> => {
   if (!value.trim()) return null;
   const hash = await hashOf(value);
-  return {
-    hashParam: toContactHashParam(hash),
-    record: await getContactRecord(hash, privateKey),
-  };
+  try {
+    return {
+      hashParam: toContactHashParam(hash),
+      record: await getContactRecord(hash, privateKey),
+    };
+  } catch (error) {
+    // A corrupt/undecryptable stats_blob for one contact must not take down
+    // the whole attendee edit page. Surface it for repair (the row can be
+    // fixed via the per-contact record editor) and render the attendee
+    // without this channel's history — mirroring the best-effort SMS path
+    // that lets bad phone stats persist without blocking sends.
+    logError({
+      code: ErrorCode.DECRYPT_FAILED,
+      detail: `contact history ${toContactHashParam(hash)}: ${error}`,
+    });
+    return null;
+  }
 };
 
 /** Read the attendee's per-channel contact history for the read-only panel.

@@ -8,6 +8,7 @@ import {
 } from "#shared/db/attendee-statuses.ts";
 import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
 import { attendeesApi, createAttendeeAtomic } from "#shared/db/attendees.ts";
+import { getDb } from "#shared/db/client.ts";
 import {
   getContactRecord,
   hashEmail,
@@ -1454,6 +1455,33 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       expect((await getContactRecord(aliceHash, pk)).adminNotes).toBe(
         "Alice private note",
       );
+    });
+
+    test("renders the edit page when a contact's stats_blob is corrupt", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 100,
+        maxQuantity: 5,
+      });
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Corrupt Contact",
+        "corrupt@example.com",
+      );
+      // Leave this contact's encrypted stats unreadable — the exact state the
+      // best-effort SMS write path can persist. Loading the per-channel
+      // history must not take the whole edit page down.
+      await getDb().execute({
+        args: [await hashEmail("corrupt@example.com")],
+        sql: `INSERT INTO contact_preferences (contact_hash, stats_blob) VALUES (?, 'corrupt-blob')
+              ON CONFLICT(contact_hash) DO UPDATE SET stats_blob = 'corrupt-blob'`,
+      });
+
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendee.id}`,
+        { cookie: await testCookie() },
+      );
+      expect(response.status).toBe(200);
     });
   });
 });
