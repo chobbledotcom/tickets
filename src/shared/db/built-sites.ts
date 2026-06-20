@@ -325,10 +325,10 @@ export const claimNextBuiltSiteForPrune = async (): Promise<{
   bunnyUrl: string;
 } | null> => {
   const row = await queryOne<{ id: number; site_data: string }>(
-    `UPDATE built_sites SET last_pruned = ?
-     WHERE id = (
-       SELECT builtSite.id FROM built_sites AS builtSite
-       ORDER BY builtSite.last_pruned ASC, builtSite.id ASC
+    `UPDATE built_sites AS builtSite SET last_pruned = ?
+     WHERE builtSite.id = (
+       SELECT candidate.id FROM built_sites AS candidate
+       ORDER BY candidate.last_pruned ASC, candidate.id ASC
        LIMIT 1
      )
      RETURNING id, site_data`,

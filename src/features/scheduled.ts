@@ -5,7 +5,9 @@
  * `prepareRequestEnvironment`), so any traffic keeps a site pruned. This
  * endpoint exists so a cron can guarantee pruning still happens on a site with
  * no organic traffic: hitting `/scheduled` is just a cheap request that — like
- * any request — triggers this site's prune, then returns a tiny JSON body.
+ * any dynamic request — triggers this site's prune, then returns a tiny JSON
+ * body. (Static asset routes short-circuit before pruning, so a cron must hit a
+ * dynamic path like this one, not `/favicon.ico`.)
  *
  * On a builder (`CAN_BUILD_SITES`), `POST /scheduled` additionally pokes the
  * least-recently-poked built site with a plain GET, which triggers *that*
@@ -23,7 +25,7 @@ import {
   claimNextBuiltSiteForPrune,
   siteBaseUrl,
 } from "#shared/db/built-sites.ts";
-import { fetchText } from "#shared/fetch.ts";
+import { fetchTextFollowingSafeRedirects } from "#shared/safe-fetch.ts";
 
 const SCHEDULED_PATH = "/scheduled";
 
@@ -32,31 +34,33 @@ const SCHEDULED_PATH = "/scheduled";
  * walked again next cycle rather than stalling the rotation. */
 const POKE_TIMEOUT_MS = 30_000;
 
-/** Result of poking a built site to trigger its prune. */
-type PokeResult =
-  | { site: string; status: number; ok: boolean }
-  | { site: string; error: string };
+/** Outcome of poking a built site. Deliberately free of any client-identifying
+ * detail (hostname, error text): this endpoint is public on a builder, so the
+ * response must not let a caller enumerate which sites the builder operates. */
+type PokeResult = { ok: boolean; status: number } | { failed: true };
 
 /**
  * Poke the least-recently-poked built site with a plain GET so its own
  * per-request pruning runs. The site's rotation stamp is bumped (inside
  * `claimNextBuiltSiteForPrune`) before the request goes out, so a slow or
- * failing site never stalls the round-robin. Returns null when the builder has
- * no built sites yet. Resolving the URL is inside the try so a malformed stored
- * hostname yields a structured error rather than a 500.
+ * failing site never stalls the round-robin. The poke goes through the
+ * safe-redirect fetch, which validates the origin and every redirect hop
+ * against the SSRF policy, so a built site whose stored URL redirects to an
+ * internal address can't make the master follow it. Returns null when the
+ * builder has no built sites yet.
  */
 const pokeNextBuiltSite = async (): Promise<PokeResult | null> => {
   const next = await claimNextBuiltSiteForPrune();
   if (!next) return null;
   try {
     const url = `${siteBaseUrl(next.bunnyUrl)}${SCHEDULED_PATH}`;
-    const result = await fetchText(url, {
+    const result = await fetchTextFollowingSafeRedirects(url, {
       method: "GET",
       signal: AbortSignal.timeout(POKE_TIMEOUT_MS),
     });
-    return { ok: result.ok, site: next.bunnyUrl, status: result.status };
-  } catch (e) {
-    return { error: (e as Error).message, site: next.bunnyUrl };
+    return { ok: result.ok, status: result.status };
+  } catch {
+    return { failed: true };
   }
 };
 

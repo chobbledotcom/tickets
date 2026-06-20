@@ -81,11 +81,8 @@ describeWithEnv(
 
         expect(response.status).toBe(200);
         const body = await response.json();
-        expect(body.poked).toEqual({
-          ok: true,
-          site: "client.b-cdn.net",
-          status: 200,
-        });
+        // No client hostname in the response — this endpoint is public.
+        expect(body.poked).toEqual({ ok: true, status: 200 });
 
         // It poked the client's /scheduled with a plain unauthenticated GET.
         expect(fetchStub.calls.length).toBe(1);
@@ -93,6 +90,8 @@ describeWithEnv(
         expect(url).toBe("https://client.b-cdn.net/scheduled");
         expect(init.method).toBe("GET");
         expect(init.headers).toBeUndefined();
+        // Redirects are followed only after SSRF re-validation, never blindly.
+        expect(init.redirect).toBe("manual");
 
         // The site's rotation stamp was bumped so the next call walks onward.
         expect(await lastPrunedOf(site.id)).not.toBe("");
@@ -135,10 +134,8 @@ describeWithEnv(
       );
       try {
         const response = await scheduled("POST");
-        expect((await response.json()).poked).toEqual({
-          error: "network down",
-          site: "client.b-cdn.net",
-        });
+        // The failure is reported without leaking the client hostname.
+        expect((await response.json()).poked).toEqual({ failed: true });
       } finally {
         fetchStub.restore();
       }
