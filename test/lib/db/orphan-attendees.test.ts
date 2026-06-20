@@ -110,7 +110,11 @@ describeWithEnv("db > orphan-attendees", { db: true }, () => {
     test("removes the orphan's dependent answer and payment rows", async () => {
       const id = await insertOrphan(daysAgoIso(365));
       await getDb().execute(
-        insert("attendee_answers", { answer_id: 1, attendee_id: id }),
+        insert("attendee_answers", {
+          answer_id: 1,
+          attendee_id: id,
+          question_id: 1,
+        }),
       );
       await getDb().execute(
         insert("processed_payments", {

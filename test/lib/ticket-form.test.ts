@@ -74,4 +74,36 @@ describe("ticket form answer grouping", () => {
       textAnswers: [{ questionId: 2, text: "Vegan" }],
     });
   });
+
+  test("applies an assign-all question (absent from the map) to every selected listing", () => {
+    const selectedListingIds = new Set([101, 202]);
+
+    // An empty map means the question is assigned to no listing in particular,
+    // so it applies to every selected listing.
+    const textMap = buildListingTextAnswerMap(
+      [{ questionId: 1, text: "Window seat" }],
+      new Map(),
+      selectedListingIds,
+    );
+
+    expect(textMap).toEqual({
+      "101": [{ questionId: 1, text: "Window seat" }],
+      "202": [{ questionId: 1, text: "Window seat" }],
+    });
+  });
+
+  test("skips an attendee whose listing collected no answers", () => {
+    const grouped = groupListingAnswerSets(
+      [
+        { attendee: { id: 501 }, listing: { id: 101 } },
+        { attendee: { id: 902 }, listing: { id: 202 } },
+      ],
+      { "101": [10] },
+      {},
+    );
+
+    expect(grouped.get(501)).toEqual({ answerIds: [10] });
+    // Listing 202 asked nothing, so its attendee is left out entirely.
+    expect(grouped.has(902)).toBe(false);
+  });
 });

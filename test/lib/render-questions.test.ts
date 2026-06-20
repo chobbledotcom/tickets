@@ -61,6 +61,45 @@ describe("renderQuestions", () => {
     expect(html).not.toContain('type="radio"');
   });
 
+  test("renders a free-text input when configured", () => {
+    const questions: QuestionWithAnswers[] = [
+      {
+        answers: [],
+        display_type: "free_text" as const,
+        id: 1,
+        text: "Your name?",
+      },
+    ];
+
+    const html = renderQuestions(questions).toString();
+
+    // The question text labels the text input via a wrapping <label>, matching
+    // the select case, so the control has an accessible name on its own.
+    expect(html).toContain('<label class="custom-question">Your name?<input');
+    expect(html).toContain('name="question_1"');
+    expect(html).toContain('type="text"');
+    expect(html).toContain("required");
+    expect(html).not.toContain("<select");
+    expect(html).not.toContain('type="radio"');
+  });
+
+  test("restores a saved free-text answer from saved form data", () => {
+    setSavedFormData(new FormParams({ question_1: "Ada Lovelace" }));
+    const questions: QuestionWithAnswers[] = [
+      {
+        answers: [],
+        display_type: "free_text" as const,
+        id: 1,
+        text: "Your name?",
+      },
+    ];
+
+    const html = renderQuestions(questions).toString();
+    clearSavedFormData();
+
+    expect(html).toContain('value="Ada Lovelace"');
+  });
+
   test("restores selected select answers from saved form data", () => {
     setSavedFormData(new FormParams({ question_1: "11" }));
     const questions: QuestionWithAnswers[] = [

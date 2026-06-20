@@ -59,59 +59,62 @@ export type ModifierRef = { i: number; q: number };
 
 export type TextAnswerRef = { q: number; s: number };
 
-/** Processed booking intent extracted from payment session metadata */
-export type BookingIntent = ContactInfo & {
-  date: string | null;
-  /** Visitor-chosen day count for "customisable days" listings (shared across
-   * the checkout). Absent when no selected listing is customisable. */
-  dayCount?: number;
-  items: BookingItem[];
-  /** Modifier references applied to this checkout, re-derived in the webhook.
-   * Always present (an empty array when none applied), parsed from metadata. */
-  modifiers: ModifierRef[];
+/** Per-listing answer references carried through a checkout, shared by the
+ * booking and checkout intents. */
+export type ListingAnswerRefs = {
   /** Per-listing answer IDs: maps listingId → answerIds for that listing's questions */
   listingAnswerIds?: Record<string, number[]>;
   /** Per-listing free-text string refs: maps listingId → question/string ids. */
   listingTextAnswerIds?: Record<string, TextAnswerRef[]>;
-  /** HMAC index of the site renewal token. The plain token never reaches the
-   * payment provider, so a compromised provider cannot use it at /renew. */
-  siteTokenIndex?: string;
-  /** When set, this session settles a reserved attendee's outstanding balance
-   * (rather than creating a new attendee). */
-  balanceAttendeeId?: number;
-  /** Reservation amount snapshot — present when the items are deposit-priced,
-   * so the webhook can re-derive the deposit and the remaining balance. */
-  reservationAmount?: string;
 };
 
+/** Processed booking intent extracted from payment session metadata */
+export type BookingIntent = ContactInfo &
+  ListingAnswerRefs & {
+    date: string | null;
+    /** Visitor-chosen day count for "customisable days" listings (shared across
+     * the checkout). Absent when no selected listing is customisable. */
+    dayCount?: number;
+    items: BookingItem[];
+    /** Modifier references applied to this checkout, re-derived in the webhook.
+     * Always present (an empty array when none applied), parsed from metadata. */
+    modifiers: ModifierRef[];
+    /** HMAC index of the site renewal token. The plain token never reaches the
+     * payment provider, so a compromised provider cannot use it at /renew. */
+    siteTokenIndex?: string;
+    /** When set, this session settles a reserved attendee's outstanding balance
+     * (rather than creating a new attendee). */
+    balanceAttendeeId?: number;
+    /** Reservation amount snapshot — present when the items are deposit-priced,
+     * so the webhook can re-derive the deposit and the remaining balance. */
+    reservationAmount?: string;
+  };
+
 /** Registration intent for checkout (one or more listings) */
-export type CheckoutIntent = ContactInfo & {
-  date: string | null;
-  /** Visitor-chosen day count for "customisable days" listings (shared across
-   * the checkout). Absent when no selected listing is customisable. */
-  dayCount?: number;
-  items: CheckoutItem[];
-  /** Modifiers (surcharges, add-ons, …) resolved for this checkout. Absent or
-   * empty when none apply. Applied to the price by the checkout-pricing layer. */
-  modifiers?: ModifierSpec[];
-  /** Per-listing answer IDs: maps listingId → answerIds for that listing's questions */
-  listingAnswerIds?: Record<string, number[]>;
-  /** Per-listing free-text string refs: maps listingId → question/string ids. */
-  listingTextAnswerIds?: Record<string, TextAnswerRef[]>;
-  /** Plain site renewal token from /renew. Hashed before storage in provider
-   * metadata; never stored at the provider in plaintext. */
-  siteToken?: string;
-  /** Settle this attendee's outstanding balance instead of creating an attendee. */
-  balanceAttendeeId?: number;
-  /** Override the subtotal the booking fee is calculated on (defaults to the
-   * item subtotal). Used so a deposit charges the fee on the full order, and a
-   * balance payment charges no fee (the fee was collected up front). */
-  feeSubtotal?: number;
-  /** Reservation-amount mini-language string (e.g. "10%"). When set, each line
-   * is charged the per-unit deposit instead of its full price, while metadata
-   * still records the full price so the webhook can compute the balance owed. */
-  reservationAmount?: string;
-};
+export type CheckoutIntent = ContactInfo &
+  ListingAnswerRefs & {
+    date: string | null;
+    /** Visitor-chosen day count for "customisable days" listings (shared across
+     * the checkout). Absent when no selected listing is customisable. */
+    dayCount?: number;
+    items: CheckoutItem[];
+    /** Modifiers (surcharges, add-ons, …) resolved for this checkout. Absent or
+     * empty when none apply. Applied to the price by the checkout-pricing layer. */
+    modifiers?: ModifierSpec[];
+    /** Plain site renewal token from /renew. Hashed before storage in provider
+     * metadata; never stored at the provider in plaintext. */
+    siteToken?: string;
+    /** Settle this attendee's outstanding balance instead of creating an attendee. */
+    balanceAttendeeId?: number;
+    /** Override the subtotal the booking fee is calculated on (defaults to the
+     * item subtotal). Used so a deposit charges the fee on the full order, and a
+     * balance payment charges no fee (the fee was collected up front). */
+    feeSubtotal?: number;
+    /** Reservation-amount mini-language string (e.g. "10%"). When set, each line
+     * is charged the per-unit deposit instead of its full price, while metadata
+     * still records the full price so the webhook can compute the balance owed. */
+    reservationAmount?: string;
+  };
 
 /** Result of creating a checkout session.
  * - Success: { sessionId, checkoutUrl }

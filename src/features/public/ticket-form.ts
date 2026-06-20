@@ -9,6 +9,7 @@ import { validatePrice } from "#shared/currency.ts";
 import type { AddOnOption } from "#shared/db/modifier-resolve.ts";
 import type {
   AttendeeAnswerSet,
+  AttendeeListingEntry,
   QuestionListingMap,
   QuestionWithAnswers,
   TextAnswer,
@@ -47,16 +48,35 @@ export const formatAtomicError = capacityErrorFormatter({
   withName: (name) => `Sorry, ${name} no longer has enough spots available`,
 });
 
-/** Build a per-listing answer map from parsed answers and the question-listing mapping.
- * Each listing gets only the answer IDs for questions assigned to it. */
+/** Resolve which listings a question applies to: its assigned listings, or
+ * every selected listing when the question is assigned to none. */
 const listingIdsForQuestion = (
   questionId: number,
   questionListingMap: QuestionListingMap,
   selectedListingIds: Set<number>,
 ): number[] => questionListingMap.get(questionId) ?? [...selectedListingIds];
 
-/** Build a per-listing answer map from parsed answers and the question-listing mapping.
- * Each listing gets only the answer IDs for questions assigned to it. */
+/** Append `value` to the per-listing bucket (keyed by `String(listingId)`) of
+ * every selected listing the question applies to. */
+const pushToListings = <T>(
+  result: Record<string, T[]>,
+  questionId: number,
+  value: T,
+  questionListingMap: QuestionListingMap,
+  selectedListingIds: Set<number>,
+): void => {
+  for (const listingId of listingIdsForQuestion(
+    questionId,
+    questionListingMap,
+    selectedListingIds,
+  )) {
+    if (!selectedListingIds.has(listingId)) continue;
+    (result[String(listingId)] ??= []).push(value);
+  }
+};
+
+/** Build a per-listing answer map from parsed answers and the question-listing
+ * mapping. Each listing gets only the answer IDs for questions assigned to it. */
 export const buildListingAnswerMap = (
   questions: QuestionWithAnswers[],
   answerIds: number[],
@@ -67,16 +87,13 @@ export const buildListingAnswerMap = (
   let answerIndex = 0;
   for (const question of questions) {
     if (question.display_type === "free_text") continue;
-    const answerId = answerIds[answerIndex++]!;
-    for (const listingId of listingIdsForQuestion(
+    pushToListings(
+      result,
       question.id,
+      answerIds[answerIndex++]!,
       questionListingMap,
       selectedListingIds,
-    )) {
-      if (!selectedListingIds.has(listingId)) continue;
-      const key = String(listingId);
-      (result[key] ??= []).push(answerId);
-    }
+    );
   }
   return result;
 };
@@ -88,21 +105,19 @@ export const buildListingTextAnswerMap = (
 ): Record<string, TextAnswer[]> => {
   const result: Record<string, TextAnswer[]> = {};
   for (const answer of textAnswers) {
-    for (const listingId of listingIdsForQuestion(
+    pushToListings(
+      result,
       answer.questionId,
+      answer,
       questionListingMap,
       selectedListingIds,
-    )) {
-      if (!selectedListingIds.has(listingId)) continue;
-      const key = String(listingId);
-      (result[key] ??= []).push(answer);
-    }
+    );
   }
   return result;
 };
 
 export const groupListingAnswerSets = (
-  entries: { attendee: { id: number }; listing: { id: number } }[],
+  entries: AttendeeListingEntry[],
   listingAnswerIds: Record<string, number[]>,
   listingTextAnswers: Record<string, TextAnswer[]>,
 ): Map<number, AttendeeAnswerSet> => {

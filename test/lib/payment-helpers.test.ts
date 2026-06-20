@@ -193,6 +193,37 @@ describe("payment-helpers", () => {
       expect(extracted.answer_ids).toBe("");
     });
 
+    test("serializes per-listing free-text answer references into metadata", () => {
+      const metadata = buildMetadata({
+        address: "",
+        date: null,
+        email: "free@example.com",
+        items: [{ e: 7, p: 0, q: 1 }],
+        listingTextAnswerIds: { "7": [{ q: 3, s: 99 }] },
+        name: "Freya",
+        special_instructions: "",
+      });
+
+      expect(metadata.text_answer_ids).toBeDefined();
+      expect(JSON.parse(metadata.text_answer_ids!)).toEqual({
+        "7": [{ q: 3, s: 99 }],
+      });
+    });
+
+    test("omits text_answer_ids when the free-text map is empty", () => {
+      const metadata = buildMetadata({
+        address: "",
+        date: null,
+        email: "free@example.com",
+        items: [{ e: 7, p: 0, q: 1 }],
+        listingTextAnswerIds: {},
+        name: "Freya",
+        special_instructions: "",
+      });
+
+      expect("text_answer_ids" in metadata).toBe(false);
+    });
+
     test("cart with no phone, empty listingAnswerIds omits optional fields", () => {
       const intent = {
         address: "",
@@ -555,6 +586,29 @@ describe("payment-helpers", () => {
         email: "john@example.com",
         items: '[{"e":1,"q":1,"p":0}]',
         name: "John",
+      };
+      expect(() => enforceMetadataLimits(metadata, 255)).toThrow(
+        PaymentUserError,
+      );
+      expect(() => enforceMetadataLimits(metadata, 255)).toThrow(
+        /too many options/i,
+      );
+    });
+
+    test("throws PaymentUserError when text_answer_ids exceeds limit", () => {
+      const longTextAnswerIds = JSON.stringify(
+        Object.fromEntries(
+          Array.from({ length: 20 }, (_, i) => [
+            String(i),
+            Array.from({ length: 10 }, (_, j) => ({ q: j, s: j })),
+          ]),
+        ),
+      );
+      const metadata = {
+        email: "john@example.com",
+        items: '[{"e":1,"q":1,"p":0}]',
+        name: "John",
+        text_answer_ids: longTextAnswerIds,
       };
       expect(() => enforceMetadataLimits(metadata, 255)).toThrow(
         PaymentUserError,

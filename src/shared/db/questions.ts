@@ -7,6 +7,7 @@
 
 import type { InValue } from "@libsql/client";
 import { filter, map, reduce } from "#fp";
+/* jscpd:ignore-start */
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import {
@@ -22,7 +23,8 @@ import {
   queryOne,
   resetAggregates,
 } from "#shared/db/client.ts";
-import { swapSortOrder } from "#shared/db/query.ts";
+/* jscpd:ignore-end */
+import { columnMapByIds, swapSortOrder } from "#shared/db/query.ts";
 import { settings } from "#shared/db/settings.ts";
 import { col, defineTable } from "#shared/db/table.ts";
 
@@ -457,12 +459,22 @@ type MutableParsedQuestionAnswers = {
   textAnswers: TextAnswer[];
 };
 
-const parseFreeTextAnswer = (
+/** Validate one question's submitted answer, recording any valid answer into
+ * `parsed` and returning an error message (or null when valid, or skippable
+ * because `optional`). */
+type AnswerParser = (
   form: URLSearchParams,
   question: QuestionWithAnswers,
   parsed: MutableParsedQuestionAnswers,
   optional: boolean,
-): string | null => {
+) => string | null;
+
+const parseFreeTextAnswer: AnswerParser = (
+  form,
+  question,
+  parsed,
+  optional,
+) => {
   const text = (form.get(`question_${question.id}`) ?? "").trim();
   if (text) {
     parsed.textAnswers.push({ questionId: question.id, text });
@@ -471,12 +483,7 @@ const parseFreeTextAnswer = (
   return optional ? null : `Please answer: ${question.text}`;
 };
 
-const parseChoiceAnswer = (
-  form: URLSearchParams,
-  question: QuestionWithAnswers,
-  parsed: MutableParsedQuestionAnswers,
-  optional: boolean,
-): string | null => {
+const parseChoiceAnswer: AnswerParser = (form, question, parsed, optional) => {
   const answer = readQuestionAnswer(form, question);
   if (answer.status === "ok") {
     parsed.answerIds.push(answer.answerId);
@@ -488,12 +495,7 @@ const parseChoiceAnswer = (
   return `${lead}: ${question.text}`;
 };
 
-const parseQuestionAnswer = (
-  form: URLSearchParams,
-  question: QuestionWithAnswers,
-  parsed: MutableParsedQuestionAnswers,
-  optional: boolean,
-): string | null =>
+const parseQuestionAnswer: AnswerParser = (form, question, parsed, optional) =>
   question.display_type === "free_text"
     ? parseFreeTextAnswer(form, question, parsed, optional)
     : parseChoiceAnswer(form, question, parsed, optional);
@@ -576,16 +578,10 @@ const normalizeAnswerSet = (
     ? { answerIds: answerIdsOrSet }
     : answerIdsOrSet;
 
-const questionIdsByAnswerId = async (
+const questionIdsByAnswerId = (
   answerIds: number[],
-): Promise<Map<number, number>> => {
-  if (answerIds.length === 0) return new Map();
-  const rows = await queryAll<{ id: number; question_id: number }>(
-    `SELECT id, question_id FROM answers WHERE id IN (${inPlaceholders(answerIds)})`,
-    answerIds,
-  );
-  return new Map(rows.map((row) => [row.id, row.question_id]));
-};
+): Promise<Map<number, number>> =>
+  columnMapByIds("answers", "question_id", answerIds);
 
 export const saveAttendeeAnswers = async (
   answersByAttendee: Map<number, number[] | AttendeeAnswerSet>,
@@ -649,6 +645,13 @@ export const saveAttendeeAnswers = async (
   }
 };
 
+/** One booked line: an attendee paired with one listing they are booked into.
+ * The per-listing answer maps are keyed by `String(listing.id)`. */
+export type AttendeeListingEntry = {
+  attendee: { id: number };
+  listing: { id: number };
+};
+
 /**
  * Reduce per-listing answer selections to one answer set per attendee. An
  * attendee booking several listings in the same submission accumulates every
@@ -656,7 +659,7 @@ export const saveAttendeeAnswers = async (
  * straight into `saveAttendeeAnswers`.
  */
 export const groupListingAnswers = (
-  entries: { attendee: { id: number }; listing: { id: number } }[],
+  entries: AttendeeListingEntry[],
   listingAnswerIds: Record<string, number[]>,
 ): Map<number, number[]> => {
   const answersByAttendee = new Map<number, number[]>();
@@ -779,14 +782,15 @@ export const getAttendeeAnswersByQuestion = async (
   return result;
 };
 
-/** Delete a question and all related data in a single batch.
- * Uses a subquery for attendee_answers so the entire cascade is atomic. The
+/** Delete a question and all related data in a single batch. Every
+ * attendee_answers row carries question_id (choice and free-text alike, the
+ * validate trigger enforces it), so the answers delete by it directly. The
  * answer→modifier link is a column on answers, so it's removed with the rows. */
 export const deleteQuestion = async (questionId: number): Promise<void> => {
   await executeBatch([
     {
-      args: [questionId, questionId],
-      sql: "DELETE FROM attendee_answers WHERE question_id = ? OR answer_id IN (SELECT id FROM answers WHERE question_id = ?)",
+      args: [questionId],
+      sql: "DELETE FROM attendee_answers WHERE question_id = ?",
     },
     { args: [questionId], sql: "DELETE FROM answers WHERE question_id = ?" },
     {

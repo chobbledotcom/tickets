@@ -153,7 +153,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       expectFlash(
         response,
         expect.stringContaining(
-          "Display as must be radio buttons or a select box",
+          "Display as must be radio buttons, a select box, or free text",
         ),
         false,
       );
@@ -250,7 +250,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       expectFlash(
         response,
         expect.stringContaining(
-          "Display as must be radio buttons or a select box",
+          "Display as must be radio buttons, a select box, or free text",
         ),
         false,
       );

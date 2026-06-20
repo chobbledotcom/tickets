@@ -11,7 +11,6 @@ import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import {
   execute,
   executeBatch,
-  inPlaceholders,
   queryAll,
   queryOne,
   resetAggregates,
@@ -20,7 +19,7 @@ import {
   defineIdTable,
   encryptedNameSchema,
 } from "#shared/db/common-schema.ts";
-import { queryAndMap } from "#shared/db/query.ts";
+import { columnMapByIds, queryAndMap } from "#shared/db/query.ts";
 import { col } from "#shared/db/table.ts";
 import type {
   CalcKind,
@@ -261,12 +260,14 @@ export const setModifierAnswers = (
  * points at it. */
 export const modifierIdsByAnswerId = async (
   answerIds: number[],
-): Promise<Map<number, number[]>> => {
-  if (answerIds.length === 0) return new Map();
-  const rows = await queryAll<{ id: number; modifier_id: number }>(
-    `SELECT id, modifier_id FROM answers
-     WHERE id IN (${inPlaceholders(answerIds)}) AND modifier_id IS NOT NULL`,
-    answerIds,
+): Promise<Map<number, number[]>> =>
+  new Map(
+    [
+      ...(await columnMapByIds(
+        "answers",
+        "modifier_id",
+        answerIds,
+        " AND modifier_id IS NOT NULL",
+      )),
+    ].map(([id, modifierId]) => [id, [modifierId]]),
   );
-  return new Map(rows.map((r) => [r.id, [r.modifier_id]]));
-};

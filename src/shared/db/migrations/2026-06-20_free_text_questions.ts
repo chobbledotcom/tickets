@@ -11,6 +11,7 @@ export default schemaMigration(
       "idx_strings_text_index",
       "idx_attendee_answers_question_id",
       "idx_attendee_answers_string_id",
+      "idx_attendee_string_answers_unique",
     ],
     newTables: ["strings"],
     triggers: [

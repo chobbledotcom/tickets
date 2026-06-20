@@ -383,6 +383,17 @@ const loadQuestionsForExisting = async (
   };
 };
 
+/** Resolve the session's private key and load the attendee's question context
+ * with it — the two always pair up at the edit-form call sites. */
+const loadQuestionsForSession = async (
+  session: AuthSession,
+  attendeeId: number,
+  existing: ExistingLine[],
+) => {
+  const privateKey = await requirePrivateKey(session);
+  return loadQuestionsForExisting(attendeeId, existing, privateKey);
+};
+
 /** Render the attendee form page as an HTML response. */
 const renderForm = (
   session: AuthSession,
@@ -443,9 +454,8 @@ export const handleAttendeeEditGet: TypedRouteHandler<
       loaded.existing,
       renderListings,
     );
-    const privateKey = await requirePrivateKey(session);
     const { questions, selectedAnswerIds, selectedTextAnswers } =
-      await loadQuestionsForExisting(attendeeId, loaded.existing, privateKey);
+      await loadQuestionsForSession(session, attendeeId, loaded.existing);
     const emailStats = await loadEmailStats(session, loaded.attendee);
     const data = await buildTemplateData("edit", parsed, loaded.attendee, {
       emailStats,
@@ -506,9 +516,8 @@ const loadEditContext = async (
 ): Promise<EditContext | null> => {
   const loaded = await loadAttendeeForEdit(session, attendeeId);
   if (!loaded) return null;
-  const privateKey = await requirePrivateKey(session);
   const { questions, selectedAnswerIds, selectedTextAnswers } =
-    await loadQuestionsForExisting(attendeeId, loaded.existing, privateKey);
+    await loadQuestionsForSession(session, attendeeId, loaded.existing);
   return {
     attendee: loaded.attendee,
     existingByKey: new Map(

@@ -2,6 +2,7 @@ import { mapParallel } from "#fp";
 import {
   execute,
   executeBatch,
+  inPlaceholders,
   queryAll,
   resultRows,
 } from "#shared/db/client.ts";
@@ -42,3 +43,38 @@ export const swapSortOrder = async (
     },
   ]);
 };
+
+/**
+ * Run an integer-keyed lookup query, short-circuiting to an empty map when
+ * `ids` is empty. `buildSql` receives the bound `?`-placeholder list for `ids`
+ * (so `ids` are the only query args); `toEntry` turns each row into a
+ * `[key, value]` pair. The base for the id-map helpers below.
+ */
+export const mapByIds = async <Row>(
+  ids: number[],
+  buildSql: (placeholders: string) => string,
+  toEntry: (row: Row) => [number, number],
+): Promise<Map<number, number>> => {
+  if (ids.length === 0) return new Map();
+  const rows = await queryAll<Row>(buildSql(inPlaceholders(ids)), ids);
+  return new Map(rows.map(toEntry));
+};
+
+/**
+ * Map each row's `id` to one of its integer columns (`id → column`) for the
+ * rows of `table` whose id is in `ids`, optionally narrowed by an extra `where`
+ * fragment appended verbatim (e.g. ` AND modifier_id IS NOT NULL`). `table`,
+ * `column` and `where` are always internal constants, never user input.
+ */
+export const columnMapByIds = (
+  table: string,
+  column: string,
+  ids: number[],
+  where = "",
+): Promise<Map<number, number>> =>
+  mapByIds<{ id: number; value: number }>(
+    ids,
+    (placeholders) =>
+      `SELECT id, ${column} AS value FROM ${table} WHERE id IN (${placeholders})${where}`,
+    (row) => [row.id, row.value],
+  );

@@ -10,12 +10,8 @@
 
 import type { InValue } from "@libsql/client";
 import { deleteAttendee } from "#shared/db/attendees/delete.ts";
-import {
-  execute,
-  executeBatchWithResults,
-  inPlaceholders,
-  queryAll,
-} from "#shared/db/client.ts";
+import { execute, executeBatchWithResults } from "#shared/db/client.ts";
+import { mapByIds } from "#shared/db/query.ts";
 import { nowIso } from "#shared/now.ts";
 
 /** One modifier consumed by an order: the modifier, how many, and the amount
@@ -27,18 +23,17 @@ export type ModifierUsage = {
 };
 
 /** Used quantity per modifier id, for remaining-stock checks at resolve time. */
-export const modifierUsedQuantities = async (
+export const modifierUsedQuantities = (
   ids: number[],
-): Promise<Map<number, number>> => {
-  if (ids.length === 0) return new Map();
-  const rows = await queryAll<{ modifier_id: number; used: number }>(
-    `SELECT modifier_id, COALESCE(SUM(quantity), 0) AS used
-     FROM modifier_usages WHERE modifier_id IN (${inPlaceholders(ids)})
-     GROUP BY modifier_id`,
+): Promise<Map<number, number>> =>
+  mapByIds<{ modifier_id: number; used: number }>(
     ids,
+    (placeholders) =>
+      `SELECT modifier_id, COALESCE(SUM(quantity), 0) AS used
+       FROM modifier_usages WHERE modifier_id IN (${placeholders})
+       GROUP BY modifier_id`,
+    (row) => [row.modifier_id, row.used],
   );
-  return new Map(rows.map((r) => [r.modifier_id, r.used]));
-};
 
 /** Insert a usage row only while the modifier's remaining stock allows it
  * (unlimited when stock is null). Atomic, so it is also the concurrency guard. */
