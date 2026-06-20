@@ -19,6 +19,10 @@
  * - attendees (orphaned only): rows with no surviving listing booking, older
  *   than the age chosen on the Privacy page. Opt-in — only scheduled while
  *   `auto_purge_orphans` is on (see PRUNE_TASKS).
+ * - users (expired invites only): un-activated invited users whose invite has
+ *   expired. Removing the row drops its invite_wrapped_data_key handoff — a
+ *   DATA_KEY wrapped under the emailed invite code — so an intercepted but
+ *   expired invite link can no longer unwrap it from a database dump.
  *
  * The scheduler is fire-and-forget via `addPendingWork` from the request
  * handler. Each table has its own `last_pruned_*` timestamp; a table is
@@ -29,6 +33,7 @@ import { execute } from "#shared/db/client.ts";
 import { purgeOrphanedAttendees } from "#shared/db/orphan-attendees.ts";
 import { RESOLVED_OUTCOME } from "#shared/db/processed-payments.ts";
 import { settings } from "#shared/db/settings.ts";
+import { pruneExpiredInvites } from "#shared/db/users.ts";
 import {
   PRUNE_CONTACTS_RETENTION_MS,
   PRUNE_INTERVAL_MS,
@@ -192,6 +197,12 @@ const PRUNE_TASKS = (): PruneTask[] => [
     name: "contact_preferences",
     run: pruneContacts,
     writeLast: settings.update.lastPrunedContacts,
+  },
+  {
+    lastRaw: settings.lastPrunedInvites,
+    name: "expired_invites",
+    run: pruneExpiredInvites,
+    writeLast: settings.update.lastPrunedInvites,
   },
   // Opt-in: scheduled only while the owner leaves automatic orphan purging on.
   ...(settings.autoPurgeOrphans

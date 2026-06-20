@@ -810,37 +810,6 @@ export const createTestInvite = async (
   return { cookie, csrfToken, inviteCode: codeMatch[1] };
 };
 
-/**
- * Create a legacy "pending activation" user — invited without a DATA_KEY handoff
- * (as invites were before self-activation) and given a password directly, so the
- * user is left password-set but key-less. This is the state the manual Activate
- * flow still handles for invites created before self-activation existed. Returns
- * the new user's id plus an admin session.
- */
-export const createPendingUser = async (
-  username: string,
-  password = "newpassword123",
-): Promise<{ userId: number; cookie: string; csrfToken: string }> => {
-  const {
-    createInvitedUser,
-    getUserByUsername,
-    hashInviteCode,
-    setUserPassword,
-  } = await import("#shared/db/users.ts");
-  const { getTestSession } = await import("#test-utils/session.ts");
-  const expiry = new Date(Date.now() + 600_000).toISOString();
-  await createInvitedUser(
-    username,
-    "manager",
-    await hashInviteCode(`${username}-code`),
-    expiry,
-  );
-  const user = (await getUserByUsername(username))!;
-  await setUserPassword(user.id, password);
-  const { cookie, csrfToken } = await getTestSession();
-  return { cookie, csrfToken, userId: user.id };
-};
-
 export const getEmbeddableTicketResponse = async (): Promise<Response> => {
   const { handleRequest } = await import("#routes");
   const { mockRequest } = await import("#test-utils/mocks.ts");

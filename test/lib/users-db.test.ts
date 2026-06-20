@@ -9,7 +9,6 @@ import {
   decryptUsername,
   getAllUsers,
   getUserByUsername,
-  hasPassword,
   invalidateUsersCache,
   isInviteExpired,
   isInviteValid,
@@ -84,9 +83,6 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
       const username = await decryptUsername(user);
       expect(username).toBe("invitee");
-
-      const hasPwd = await hasPassword(user);
-      expect(hasPwd).toBe(false);
     });
 
     test("isInviteValid returns true for valid invite", async () => {
@@ -166,9 +162,6 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     });
 
     test("isInviteValid returns false when invite was already used (empty decrypted hash)", async () => {
-      const { setUserPassword: setUserPwd } = await import(
-        "#shared/db/users.ts"
-      );
       const expiry = new Date(Date.now() + 86400000).toISOString();
       const user = await createInvitedUser(
         "used-invite",
@@ -177,23 +170,16 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         expiry,
       );
 
-      await setUserPwd(user.id, "newpassword123");
+      // Accepting an invite clears its code to an encrypted empty string.
+      await getDb().execute(
+        "UPDATE users SET invite_code_hash = ? WHERE id = ?",
+        [await encrypt(""), user.id],
+      );
 
       const { getUserById: getUser } = await import("#shared/db/users.ts");
       const updatedUser = await getUser(user.id);
       const valid = await isInviteValid(updatedUser!);
       expect(valid).toBe(false);
-    });
-
-    test("hasPassword returns false for user with empty encrypted password", async () => {
-      const user = await createInvitedUser(
-        "nopwd2",
-        "manager",
-        "hash2",
-        new Date(Date.now() + 86400000).toISOString(),
-      );
-      const hasPwd = await hasPassword(user);
-      expect(hasPwd).toBe(false);
     });
 
     test("isInviteValid returns false when invite_expiry is null", async () => {

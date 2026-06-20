@@ -220,6 +220,7 @@ const clearAllLastPruned = async (): Promise<void> => {
   await settings.update.lastPrunedTokens("");
   await settings.update.lastPrunedSumup("");
   await settings.update.lastPrunedContacts("");
+  await settings.update.lastPrunedInvites("");
   await settings.update.lastPrunedOrphans("");
 };
 
@@ -231,6 +232,7 @@ const setAllLastPruned = async (value: string): Promise<void> => {
   await settings.update.lastPrunedTokens(value);
   await settings.update.lastPrunedSumup(value);
   await settings.update.lastPrunedContacts(value);
+  await settings.update.lastPrunedInvites(value);
   await settings.update.lastPrunedOrphans(value);
 };
 
@@ -560,6 +562,17 @@ describeWithEnv("db > prune", { db: true }, () => {
       await maybeRunPrunes();
 
       const ts = Number.parseInt(settings.lastPrunedContacts, 10);
+      expect(ts).toBeGreaterThanOrEqual(before);
+      expect(ts).toBeLessThanOrEqual(nowMs());
+    });
+
+    test("records fresh invites timestamp after running", async () => {
+      await clearAllLastPruned();
+      const before = nowMs();
+
+      await maybeRunPrunes();
+
+      const ts = Number.parseInt(settings.lastPrunedInvites, 10);
       expect(ts).toBeGreaterThanOrEqual(before);
       expect(ts).toBeLessThanOrEqual(nowMs());
     });

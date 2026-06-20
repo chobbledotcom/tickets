@@ -2,11 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { getSessionCookieName } from "#shared/cookies.ts";
-import {
-  createInvitedUser,
-  getUserByUsername,
-  hasPassword,
-} from "#shared/db/users.ts";
+import { createInvitedUser, getUserByUsername } from "#shared/db/users.ts";
 import {
   assertPublicHtml,
   createTestInvite,
@@ -92,7 +88,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       await assertPublicHtml("/join/complete", "Password Set");
     });
 
-    test("POST /join/:code sets password for invited user", async () => {
+    test("POST /join/:code self-activates the invited user", async () => {
       const { inviteCode } = await createTestInvite("joiner2");
 
       const joinPostResponse = await submitJoinForm(inviteCode, {
@@ -105,10 +101,11 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         "Password set successfully",
       )(joinPostResponse);
 
+      // Joining unwraps the DATA_KEY handoff and re-wraps it under the new
+      // password (v2), so the user is active immediately — no admin step.
       const user = await getUserByUsername("joiner2");
-      expect(user).not.toBeNull();
-      const hasPwd = await hasPassword(user!);
-      expect(hasPwd).toBe(true);
+      expect(user!.wrapped_data_key).not.toBeNull();
+      expect(user!.kek_version).toBe(2);
     });
 
     test("POST /join/:code rejects mismatched passwords", async () => {

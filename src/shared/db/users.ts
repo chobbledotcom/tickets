@@ -10,10 +10,8 @@ import {
   verifyPassword,
 } from "#shared/crypto/hashing.ts";
 import {
-  deriveKEK,
   unwrapKeyWithToken,
   wrapDataKeyForPassword,
-  wrapKey,
 } from "#shared/crypto/keys.ts";
 import {
   deleteByFieldBatch,
@@ -269,90 +267,29 @@ export const decryptUsername = (
 ): Promise<string> => decrypt(user.username_hash);
 
 /**
- * Hash a new password and encrypt it alongside the two cleared invite columns —
- * the values every invite-acceptance path writes, shared so the encryption lives
- * in one place.
- */
-const passwordSetValues = async (
-  password: string,
-): Promise<{
-  passwordHash: string;
-  encryptedHash: string;
-  encryptedEmpty: string;
-}> => {
-  const passwordHash = await hashPassword(password);
-  const [encryptedHash, encryptedEmpty] = await Promise.all([
-    encrypt(passwordHash),
-    encrypt(""),
-  ]);
-  return { encryptedEmpty, encryptedHash, passwordHash };
-};
-
-/**
- * Set a user's password without provisioning a data key (legacy invite flow:
- * an admin activates the account separately). Returns the new password hash.
- */
-export const setUserPassword = async (
-  userId: number,
-  password: string,
-): Promise<string> => {
-  const { passwordHash, encryptedHash, encryptedEmpty } =
-    await passwordSetValues(password);
-  await execute(
-    "UPDATE users SET password_hash = ?, invite_code_hash = ?, invite_expiry = ? WHERE id = ?",
-    [encryptedHash, encryptedEmpty, encryptedEmpty, userId],
-  );
-  return passwordHash;
-};
-
-/**
- * Complete an invite. When the invite carried a wrapped DATA_KEY handoff, the
- * user self-activates: unwrap that handoff with the (single-use) invite code,
- * re-wrap the DATA_KEY under the new password's v2 KEK, and clear the handoff.
- * Pre-handoff invites fall back to {@link setUserPassword} (admin activates
- * later). Returns the new password hash.
+ * Complete an invite by self-activating the user: unwrap the DATA_KEY handoff
+ * with the single-use invite code, re-wrap it under the new password's v2 KEK,
+ * and clear the invite (code, expiry, and the handoff blob). The caller has
+ * already verified the invite is valid and carries a handoff, so every current
+ * invite reaches here — there is no separate admin activation step.
  */
 export const acceptInvite = async (
-  user: Pick<User, "id" | "invite_wrapped_data_key">,
+  userId: number,
+  inviteWrappedDataKey: string,
   inviteCode: string,
   password: string,
-): Promise<string> => {
-  if (!user.invite_wrapped_data_key) {
-    return setUserPassword(user.id, password);
-  }
-  const { passwordHash, encryptedHash, encryptedEmpty } =
-    await passwordSetValues(password);
-  const dataKey = await unwrapKeyWithToken(
-    user.invite_wrapped_data_key,
-    inviteCode,
-  );
+): Promise<void> => {
+  const passwordHash = await hashPassword(password);
+  const [encryptedHash, encryptedEmpty, dataKey] = await Promise.all([
+    encrypt(passwordHash),
+    encrypt(""),
+    unwrapKeyWithToken(inviteWrappedDataKey, inviteCode),
+  ]);
   const wrappedDataKey = await wrapDataKeyForPassword(dataKey, password);
   await execute(
     "UPDATE users SET password_hash = ?, wrapped_data_key = ?, kek_version = 2, invite_wrapped_data_key = NULL, invite_code_hash = ?, invite_expiry = ? WHERE id = ?",
-    [encryptedHash, wrappedDataKey, encryptedEmpty, encryptedEmpty, user.id],
+    [encryptedHash, wrappedDataKey, encryptedEmpty, encryptedEmpty, userId],
   );
-  return passwordHash;
-};
-
-/**
- * Activate a pre-handoff invited user by wrapping the DATA_KEY with their
- * legacy (v1) KEK, derived from their stored password hash. Used only for
- * invites created before the self-activation handoff existed; the resulting v1
- * wrap is upgraded to v2 on the user's next login. New invites self-activate
- * via {@link acceptInvite} and never reach here.
- */
-export const activateUser = async (
-  userId: number,
-  dataKey: CryptoKey,
-  decryptedPasswordHash: string,
-): Promise<void> => {
-  const kek = await deriveKEK(decryptedPasswordHash);
-  const wrappedDataKey = await wrapKey(dataKey, kek);
-
-  await execute("UPDATE users SET wrapped_data_key = ? WHERE id = ?", [
-    wrappedDataKey,
-    userId,
-  ]);
 };
 
 /**
@@ -434,12 +371,29 @@ export const isInviteExpired = async (user: User): Promise<boolean> =>
   user.invite_code_hash !== null && !(await isInviteValid(user));
 
 /**
- * Check if a user has set their password (password_hash is non-empty encrypted value)
+ * Delete invited users whose invite has expired and who never activated (no
+ * wrapped_data_key). This removes the invite_wrapped_data_key handoff — a copy
+ * of the DATA_KEY wrapped under the invite code — so an intercepted invite link
+ * can no longer be used to unwrap it from a database dump once the invite has
+ * expired. invite_expiry is encrypted per row, but only a handful of invites are
+ * ever outstanding, so decrypting each candidate is cheap.
  */
-export const hasPassword = async (user: User): Promise<boolean> => {
-  if (!user.password_hash) return false;
-  const decrypted = await decrypt(user.password_hash);
-  return decrypted.length > 0;
+export const pruneExpiredInvites = async (): Promise<number> => {
+  const rows = await queryAll<Pick<User, "id" | "invite_expiry">>(
+    "SELECT id, invite_expiry FROM users WHERE wrapped_data_key IS NULL AND invite_expiry IS NOT NULL",
+  );
+  const cutoff = now().getTime();
+  let pruned = 0;
+  for (const row of rows) {
+    // An unparseable expiry yields NaN, which compares false — such a row is
+    // left alone rather than deleted on a bad value.
+    const expiryMs = new Date(await decrypt(row.invite_expiry!)).getTime();
+    if (expiryMs < cutoff) {
+      await deleteUser(row.id);
+      pruned += 1;
+    }
+  }
+  return pruned;
 };
 
 /**
@@ -447,7 +401,6 @@ export const hasPassword = async (user: User): Promise<boolean> => {
  */
 export const usersApi = {
   acceptInvite,
-  activateUser,
   createInvitedUser,
   createUser,
   decryptAdminLevel,
@@ -460,12 +413,11 @@ export const usersApi = {
   getUserByUsername,
   getUserDisplayFields,
   hashInviteCode,
-  hasPassword,
   invalidateUsersCache,
   isInviteExpired,
   isInviteValid,
   isUsernameTaken,
   migrateUserToV2Kek,
-  setUserPassword,
+  pruneExpiredInvites,
   verifyUserPassword,
 };

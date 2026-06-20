@@ -55,6 +55,13 @@ const validateInvite = async (
     return htmlResponse(joinErrorPage(t("error.invite_expired")), 410);
   }
 
+  // Self-activation needs the DATA_KEY handoff wrapped under this invite code.
+  // Invites created before self-activation existed carry none and can't be
+  // completed; the owner re-invites (such invites expire within a week anyway).
+  if (!user.invite_wrapped_data_key) {
+    return htmlResponse(joinErrorPage(t("error.invite_invalid")), 404);
+  }
+
   return { user, username: await decryptUsername(user) };
 };
 
@@ -108,9 +115,15 @@ const setPasswordRoute = (code: string, user: User) =>
       if (values.password !== values.password_confirm) {
         return errorRedirect(`/join/${code}`, t("error.passwords_mismatch"));
       }
-      // Sets the password and, for handoff invites, self-activates by re-wrapping
-      // the DATA_KEY under the new password's KEK (unwrapped with this code).
-      await acceptInvite(user, code, values.password);
+      // Self-activates: unwrap the DATA_KEY handoff with this invite code and
+      // re-wrap it under the new password's KEK. validateInvite guaranteed the
+      // handoff is present.
+      await acceptInvite(
+        user.id,
+        user.invite_wrapped_data_key!,
+        code,
+        values.password,
+      );
       return redirect("/join/complete", "Password set successfully", true);
     },
   });

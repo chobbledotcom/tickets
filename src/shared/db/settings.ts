@@ -110,6 +110,7 @@ export const CONFIG_KEYS = {
   HEADER_IMAGE_URL: "header_image_url",
   HOMEPAGE_TEXT: "homepage_text",
   LAST_PRUNED_CONTACTS: "last_pruned_contacts",
+  LAST_PRUNED_INVITES: "last_pruned_invites",
   LAST_PRUNED_LOGINS: "last_pruned_logins",
   LAST_PRUNED_ORPHANS: "last_pruned_orphans",
   LAST_PRUNED_PAYMENTS: "last_pruned_payments",
@@ -254,6 +255,7 @@ const PLAINTEXT_KEYS = [
   CONFIG_KEYS.LAST_PRUNED_LOGINS,
   CONFIG_KEYS.LAST_PRUNED_TOKENS,
   CONFIG_KEYS.LAST_PRUNED_CONTACTS,
+  CONFIG_KEYS.LAST_PRUNED_INVITES,
   CONFIG_KEYS.LAST_PRUNED_ORPHANS,
   CONFIG_KEYS.SMS_GATEWAY_BASE_URL,
 ] as const;
@@ -501,6 +503,7 @@ const STRING_ACCESSORS = {
   headerImageUrl: { key: CONFIG_KEYS.HEADER_IMAGE_URL },
   homepageText: { key: CONFIG_KEYS.HOMEPAGE_TEXT },
   lastPrunedContacts: { key: CONFIG_KEYS.LAST_PRUNED_CONTACTS },
+  lastPrunedInvites: { key: CONFIG_KEYS.LAST_PRUNED_INVITES },
   lastPrunedLogins: { key: CONFIG_KEYS.LAST_PRUNED_LOGINS },
   lastPrunedOrphans: { key: CONFIG_KEYS.LAST_PRUNED_ORPHANS },
   lastPrunedPayments: { key: CONFIG_KEYS.LAST_PRUNED_PAYMENTS },

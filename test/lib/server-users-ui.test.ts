@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { handleRequest } from "#routes";
 import { encrypt } from "#shared/crypto/encryption.ts";
 import { getAllActivityLog } from "#shared/db/activityLog.ts";
 import { getDb } from "#shared/db/client.ts";
@@ -9,10 +8,8 @@ import {
   adminFormPost,
   assertPublicHtml,
   awaitTestRequest,
-  createPendingUser,
   createTestManagerSession,
   describeWithEnv,
-  mockFormRequest,
   testCookie,
 } from "#test-utils";
 
@@ -98,23 +95,6 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       const html = await response.text();
       expect(html).toContain("Invite Expired");
     });
-
-    test("shows Pending Activation status and Activate button for user with password but no data key", async () => {
-      const { cookie } = await createPendingUser("pending-user");
-
-      const usersResponse = await awaitTestRequest("/admin/users", { cookie });
-      const html = await usersResponse.text();
-      expect(html).toContain("Pending Activation");
-      // The Activate action moved off the list onto the per-user manage page.
-      expect(html).toContain('href="/admin/users/2"');
-      expect(html).not.toContain("Activate");
-
-      const manageResponse = await awaitTestRequest("/admin/users/2", {
-        cookie,
-      });
-      const manageHtml = await manageResponse.text();
-      expect(manageHtml).toContain("Activate");
-    });
   });
 
   describe("fields.ts (username validation)", () => {
@@ -156,23 +136,6 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         logs.some((l) =>
           l.message.includes("User 'auditinvite' invited as manager"),
         ),
-      ).toBe(true);
-    });
-
-    test("logs activity when user is activated", async () => {
-      const { cookie, csrfToken } = await createPendingUser("auditactivate");
-
-      await handleRequest(
-        mockFormRequest(
-          "/admin/users/2/activate",
-          { csrf_token: csrfToken },
-          cookie,
-        ),
-      );
-
-      const logs = await getAllActivityLog();
-      expect(
-        logs.some((l) => l.message.includes("User 'auditactivate' activated")),
       ).toBe(true);
     });
 

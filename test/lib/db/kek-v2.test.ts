@@ -13,19 +13,18 @@ import {
   deriveKEKFromPassword,
   unwrapKey,
   wrapKey,
+  wrapKeyWithToken,
 } from "#shared/crypto/keys.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { getDb, insert } from "#shared/db/client.ts";
 import { createSession } from "#shared/db/sessions.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
-  activateUser,
   createInvitedUser,
   getUserByUsername,
   hashInviteCode,
-  hasPassword,
   invalidateUsersCache,
-  setUserPassword,
+  pruneExpiredInvites,
   verifyUserPassword,
 } from "#shared/db/users.ts";
 import type { User } from "#shared/types.ts";
@@ -34,6 +33,7 @@ import {
   describeWithEnv,
   mockAdminLoginRequest,
   mockFormRequest,
+  mockRequest,
   submitJoinForm,
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
@@ -154,53 +154,49 @@ describeWithEnv("KEK v2 (password-bound DATA_KEY)", { db: true }, () => {
   });
 
   describe("legacy invite (no key handoff)", () => {
-    test("joining sets the password but leaves the key to admin activation", async () => {
-      const expiry = new Date(Date.now() + 600_000).toISOString();
+    test("a pre-handoff invite cannot self-activate and is rejected at /join", async () => {
       await createInvitedUser(
         "legacy-join",
         "manager",
         await hashInviteCode("legacy-join-code"),
-        expiry,
+        new Date(Date.now() + 600_000).toISOString(),
       );
 
-      await submitJoinForm("legacy-join-code", {
-        password: "legacypass123",
-        password_confirm: "legacypass123",
-      });
-
-      const user = (await getUserByUsername("legacy-join"))!;
-      expect(user.wrapped_data_key).toBeNull();
-      expect(await hasPassword(user)).toBe(true);
+      // No invite_wrapped_data_key handoff → /join treats it as invalid.
+      const response = await handleRequest(
+        mockRequest("/join/legacy-join-code"),
+      );
+      expect(response.status).toBe(404);
+      expect(
+        (await getUserByUsername("legacy-join"))!.wrapped_data_key,
+      ).toBeNull();
     });
+  });
 
-    test("admin activation provisions a legacy v1 wrap", async () => {
-      const expiry = new Date(Date.now() + 600_000).toISOString();
+  describe("pruneExpiredInvites clears stale handoffs", () => {
+    test("deletes expired un-activated invites and keeps valid ones", async () => {
+      const dataKey = await ownerDataKey();
       await createInvitedUser(
-        "legacy-activate",
+        "expired-invitee",
         "manager",
-        await hashInviteCode("legacy-activate-code"),
-        expiry,
+        await hashInviteCode("expired-code"),
+        new Date(Date.now() - 1000).toISOString(),
+        await wrapKeyWithToken(dataKey, "expired-code"),
       );
-      const hash = await setUserPassword(
-        (await getUserByUsername("legacy-activate"))!.id,
-        "legacypass123",
-      );
-
-      await activateUser(
-        (await getUserByUsername("legacy-activate"))!.id,
-        await ownerDataKey(),
-        hash,
+      await createInvitedUser(
+        "valid-invitee",
+        "manager",
+        await hashInviteCode("valid-code"),
+        new Date(Date.now() + 600_000).toISOString(),
+        await wrapKeyWithToken(dataKey, "valid-code"),
       );
 
-      const user = (await getUserByUsername("legacy-activate"))!;
-      expect(user.wrapped_data_key).not.toBeNull();
-      expect(user.kek_version).toBe(1);
-      // Legacy wrap unwraps with the hash-derived (v1) KEK.
-      const dataKey = await unwrapKey(
-        user.wrapped_data_key!,
-        await deriveKEK(hash),
-      );
-      expect(await sharesOwnerDataKey(dataKey)).toBe(true);
+      const pruned = await pruneExpiredInvites();
+      expect(pruned).toBe(1);
+      // The expired invite (and its DATA_KEY handoff) is gone; the valid one
+      // remains so the invitee can still join.
+      expect(await getUserByUsername("expired-invitee")).toBeNull();
+      expect(await getUserByUsername("valid-invitee")).not.toBeNull();
     });
   });
 
