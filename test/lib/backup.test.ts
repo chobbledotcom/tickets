@@ -8,11 +8,11 @@ import {
   backupPrefix,
   backupTimestamp,
   canBackupInline,
-  countBackupRows,
   countZipStatements,
   createBackup,
   createBackupZip,
   dbName,
+  estimateInlineBackupSubrequests,
   exportTable,
   hasRecentBackup,
   isRemoteDatabase,
@@ -107,24 +107,33 @@ describeWithEnv("backup", { db: true }, () => {
     });
   });
 
-  describe("countBackupRows", () => {
-    test("totals rows across every existing table", async () => {
-      const before = await countBackupRows();
-      await createTestListing({ name: "Counted" });
-      const after = await countBackupRows();
-      expect(after).toBeGreaterThan(before);
+  describe("estimateInlineBackupSubrequests", () => {
+    test("adds a subrequest per page of rows on top of the per-table probes", async () => {
+      await createTestListing({ name: "Est" });
+      // Default 500-row pages: a handful of rows costs no extra page reads, so
+      // the estimate is just the per-table probes.
+      const widePages = await estimateInlineBackupSubrequests();
+
+      const restore = setTestEnv({ BACKUP_PAGE_SIZE: "1" });
+      try {
+        // One-row pages: every row adds a page read, so the estimate grows.
+        const narrowPages = await estimateInlineBackupSubrequests();
+        expect(narrowPages).toBeGreaterThan(widePages);
+      } finally {
+        restore();
+      }
     });
   });
 
   describe("canBackupInline", () => {
-    test("is true when the database is within the inline row budget", async () => {
+    test("is true when the export fits the inline subrequest budget", async () => {
       expect(await canBackupInline()).toBe(true);
     });
 
-    test("is false once the row count exceeds BACKUP_MAX_INLINE_ROWS", async () => {
-      // The seeded test database already holds more than one row, so a ceiling
-      // of 1 forces the inline backup to be considered infeasible.
-      const restore = setTestEnv({ BACKUP_MAX_INLINE_ROWS: "1" });
+    test("is false once the estimate exceeds BACKUP_MAX_INLINE_SUBREQUESTS", async () => {
+      // The seeded test database has several tables, so a ceiling of 1
+      // subrequest forces the inline backup to be considered infeasible.
+      const restore = setTestEnv({ BACKUP_MAX_INLINE_SUBREQUESTS: "1" });
       try {
         expect(await canBackupInline()).toBe(false);
       } finally {

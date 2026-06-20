@@ -188,7 +188,7 @@ Environment variables are configured as **Bunny native secrets** in the Bunny Ed
 - `STORAGE_ZONE_NAME` - Bunny CDN storage zone name (required for image uploads)
 - `STORAGE_ZONE_KEY` - Bunny CDN storage zone access key (required for image uploads)
 - `BACKUP_PAGE_SIZE` - Rows read per keyset page when dumping a table for backup (default 500). Each page is one libsql response, so this bounds the response size to stay under libsqld's "Response is too large" payload cap.
-- `BACKUP_MAX_INLINE_ROWS` - Maximum total rows for which the automatic pre-migration backup runs inline, inside the triggering edge request (default 20000). Above this the inline backup is skipped (the migration still proceeds) because dumping every table by page would exceed one request's outbound-subrequest budget — take an out-of-band backup with `deno task backup` instead.
+- `BACKUP_MAX_INLINE_SUBREQUESTS` - Subrequest budget for the automatic pre-migration backup, which runs inline inside the triggering edge request (default 40, under Bunny's hard limit of 50). Dumping costs ~one subrequest per table plus one per `BACKUP_PAGE_SIZE` rows; when the estimate exceeds this the inline backup is skipped (the migration still proceeds) — take an out-of-band backup with `deno task backup` instead.
 - `BUNNY_DNS_ZONE_ID` - Bunny DNS zone ID for subdomain registration (enables subdomain feature when set with `BUNNY_API_KEY`)
 - `BUNNY_DNS_SUBDOMAIN_SUFFIX` - Suffix appended to user-chosen subdomain (e.g. `.tickets`)
 - `NTFY_URL` - Ntfy endpoint URL for error notifications (e.g. `https://ntfy.sh/your-topic`). Sends domain and error code only, no personal or encrypted data.

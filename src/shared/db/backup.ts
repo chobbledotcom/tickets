@@ -204,17 +204,18 @@ export const createBackup = async (): Promise<TableBackup[]> => {
 };
 
 /**
- * Default ceiling on total rows for an *inline* (in-request) pre-migration
- * backup. Above this, dumping every table by keyset page would need more
- * outbound subrequests than a single Bunny edge request's budget allows, so the
- * migration skips the inline backup and the operator takes one out-of-band with
- * `deno task backup`. Overridable via the `BACKUP_MAX_INLINE_ROWS` env var.
+ * Bunny edge requests can issue at most 50 outbound subrequests
+ * (https://docs.bunny.net/scripting/limits). The inline pre-migration backup
+ * spends them on one keyset probe per table plus one page read per
+ * BACKUP_PAGE_SIZE rows, on top of a handful for the freshness check, row
+ * tally, upload and prune. This default caps the *table-export* estimate below
+ * that ceiling with headroom for the rest. Overridable via the
+ * BACKUP_MAX_INLINE_SUBREQUESTS env var.
  */
-const DEFAULT_MAX_INLINE_BACKUP_ROWS = 20_000;
+const DEFAULT_MAX_INLINE_SUBREQUESTS = 40;
 
-/** Total rows across every backed-up table, counted in a single round-trip. */
-export const countBackupRows = async (): Promise<number> => {
-  const tables = await existingSchemaTables();
+/** Sum of rows across the given tables, counted in a single round-trip. */
+const sumRowCounts = async (tables: string[]): Promise<number> => {
   // Lead with a literal 0 so an empty table list still yields valid SQL, and
   // sum per-table COUNT(*) subqueries so the whole tally is one statement.
   const expr = [
@@ -230,13 +231,28 @@ export const countBackupRows = async (): Promise<number> => {
 };
 
 /**
+ * Estimate how many edge subrequests dumping every table would issue: one
+ * keyset probe per table plus one page read per BACKUP_PAGE_SIZE rows. Because
+ * Σ⌊rows_t / page⌋ ≤ ⌊totalRows / page⌋, the row total gives a safe upper bound
+ * without per-table counts — all rows in one table is the worst case, and the
+ * bound is exact there. This is the binding constraint, not raw row count: with
+ * ~31 tables even a 10k-row single table needs ~51 reads.
+ */
+export const estimateInlineBackupSubrequests = async (): Promise<number> => {
+  const tables = await existingSchemaTables();
+  const total = await sumRowCounts(tables);
+  const pageSize = readLimit("BACKUP_PAGE_SIZE", DEFAULT_BACKUP_PAGE_SIZE);
+  return tables.length + Math.floor(total / pageSize);
+};
+
+/**
  * Whether the database is small enough to back up inline within one edge
- * request. Larger databases must be dumped out-of-band (see scripts/backup.ts),
- * where the edge subrequest budget does not apply.
+ * request's subrequest budget. Larger databases must be dumped out-of-band
+ * (see scripts/backup.ts), where the budget does not apply.
  */
 export const canBackupInline = async (): Promise<boolean> =>
-  (await countBackupRows()) <=
-  readLimit("BACKUP_MAX_INLINE_ROWS", DEFAULT_MAX_INLINE_BACKUP_ROWS);
+  (await estimateInlineBackupSubrequests()) <=
+  readLimit("BACKUP_MAX_INLINE_SUBREQUESTS", DEFAULT_MAX_INLINE_SUBREQUESTS);
 
 /** Generate a timestamped backup filename scoped to the current DB */
 export const backupFilename = (timestamp: string): string =>
