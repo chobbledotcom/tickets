@@ -538,11 +538,17 @@ Owner UI — the "no quantity" checkbox (proxy for `quantity == 0`):
 Public-booking constraint:
 
 - **Quantity-0 is admin/importer-only.** The "no quantity" checkbox lives only on
-  admin surfaces; the public booking/checkout path must never create a
-  quantity-0 line. A public submit that somehow carries a 0 quantity for a
-  listing is rejected (or coerced to the real minimum), so a visitor can't book a
-  no-capacity "ghost" line. Keep this guard on the public path, not just in the
-  UI.
+  admin surfaces; the public booking/checkout path must never *persist* a
+  quantity-0 line. **Do not implement this by coercing submitted `0`s to the
+  listing minimum.** The public form deliberately renders `0` as the "not
+  selected" option per listing, and `parseQuantities`
+  (`src/features/public/ticket-form.ts`) already drops entries with
+  `quantity <= 0` — so a `quantity_<id>=0` field means "not in the cart," and
+  coercing it to the minimum would book products the visitor left unselected
+  (especially on multi-listing checkouts). The guard must keep treating public `0`
+  as "not selected" while rejecting any *persisted/selected* zero-quantity line,
+  so a visitor can't end up with a no-capacity "ghost" line. Keep this on the
+  public path, not just in the UI.
 
 This is a small cross-cutting addition (attendee edit form + listing-line save
 path + one CSS mixin) that the importer depends on; build it alongside the
@@ -598,10 +604,16 @@ Must change (exclude / adjust):
     only imports aren't marketed to as live customers.
   Both ensure cancelled/quoted imports are never emailed as if they had a live
   booking.
-- **Logistics / delivery runs** — the logistics flow reads `listing_attendees`
-  (start/end agent + done flags live on the line). **Decision: exclude
-  quantity-0** — a cancelled/quoted line is not a drop-off/collection, so it must
-  not appear in delivery runs.
+- **Logistics / delivery runs** — the logistics flow reads *and writes*
+  `listing_attendees` (start/end agent + done flags live on the line).
+  **Decision: exclude / refuse quantity-0 on both sides.** Reads: a
+  cancelled/quoted line is not a drop-off/collection, so it must not appear in run
+  sheets (`getAgentRunSheet`). Writes: the mark-done action `setLegDone`
+  (`shared/db/logistics.ts`, via `admin/deliveries.ts`) scopes its update by
+  `attendee_id`/`listing_id`/agent with **no quantity predicate**, so a quantity-0
+  line that still has an agent assigned could be marked done by a stale/crafted
+  delivery form. Add the same `quantity > 0` guard to the mark-done action, not
+  just the run-sheet query.
 - **Ticket & check-in token flows** — `getAttendeesByTokens`
   (`attendees/queries.ts`) returns every `listing_attendees` line with no
   quantity filter, feeding the customer ticket page (`/t/:tokens`), the check-in
@@ -636,6 +648,14 @@ Must change (exclude / adjust):
     quantity-0 line with a lower id plus a real line) the income would still land
     on the ghost. Add `AND quantity > 0` to that `MIN(id)` subquery so payment
     always targets the lowest-id **real** line.
+  - **The pay page itself must pick a real line, too.** `/pay/:token`
+    (`features/public/balance.ts`) renders `getAttendeeOrderSummary()`, which
+    selects every `listing_attendees` row ordered by id, and the POST uses
+    `summary.lines[0]?.listingId` as the checkout item. For a mixed attendee whose
+    lower-id line is quantity-0, the page would show the ghost product and tag the
+    checkout/activity to the ghost listing (even though settlement lands income on
+    the real line). Exclude quantity-0 from the order summary and the checkout-line
+    selection so the displayed product and the tagged listing are the real one.
   Rejected alternative: converting a quantity-0 line to a real line on payment
   (changes capacity at pay-time, more complex).
 
@@ -648,6 +668,14 @@ Writer side:
   (real-quantity) imported bookings only** — not cancelled or quote-only rows.
   Do it inside the write transaction (or with the same rollback discipline as the
   rest of the writer) so a failed import doesn't leave dangling visit counts.
+  **Use the source `Date Booked` as the visit timestamp, not import time.**
+  `recordVisit` writes `last_activity = nowMs()`, and
+  `contact_preferences.last_activity` drives the contact-pruning task — so
+  recording years-old imported bookings at today's timestamp would make stale
+  contacts look freshly active and exempt them from pruning. Since `Date Booked`
+  already maps to `attendees.created`, the visit write needs that same timestamp
+  (an import-specific visit helper, since the stock `recordVisit`/
+  `recordOrderVisit` hard-code `nowMs()`).
 
 Intentionally unchanged (call out so nobody "fixes" them):
 
@@ -773,6 +801,18 @@ addition to the free-text-question feature (PR #1335) — the importer depends o
 it. Operators mark genuinely customer-facing columns (the party questions,
 `Surface`, `Age Group`) as normal public questions, and import-only columns as
 staff-only.
+
+**The staff-only filter must apply to *every* public consumer of questions, not
+just the rendered booking form.** In particular, QR direct-checkout gating:
+`listingSupportsDirectCheckout` (`src/shared/qr.ts`) calls `getQuestionsForListing`
+and disables the scan-to-checkout shortcut whenever a listing has *any* assigned
+question. Because import-only questions must be assigned to the booking's listing
+(to render on the admin edit form), a staff-only question would wrongly switch
+affected listings out of QR direct-checkout even though buyers never answer it. So
+the staff-only/public-visible filter has to be threaded through
+`listingSupportsDirectCheckout` (and any other gating that counts assigned
+questions) — staff-only questions must be invisible to the *entire* public path:
+render, validation, **and** QR/checkout gating.
 
 Setup contract (operator's responsibility, mirrors products/statuses):
 
