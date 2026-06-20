@@ -108,3 +108,63 @@ describe("parseQuestionAnswers free-text handling", () => {
     });
   });
 });
+
+describe("parseQuestionAnswers deactivated answers", () => {
+  const withInactive = (id: number): QuestionWithAnswers => ({
+    answers: [
+      { active: true, id: 10, question_id: id, sort_order: 0, text: "Active" },
+      {
+        active: false,
+        id: 11,
+        question_id: id,
+        sort_order: 1,
+        text: "Retired",
+      },
+    ],
+    display_type: "radio",
+    id,
+    text: `Question ${id}`,
+  });
+
+  const allInactive = (id: number): QuestionWithAnswers => ({
+    answers: [
+      {
+        active: false,
+        id: 20,
+        question_id: id,
+        sort_order: 0,
+        text: "Retired",
+      },
+    ],
+    display_type: "radio",
+    id,
+    text: `Question ${id}`,
+  });
+
+  test("rejects a deactivated answer on the public path", () => {
+    const form = new URLSearchParams({ question_1: "11" });
+    const result = parseQuestionAnswers({ optional: false })(form, [
+      withInactive(1),
+    ]);
+    expect(result).toEqual({
+      error: "Invalid answer for: Question 1",
+      ok: false,
+    });
+  });
+
+  test("keeps a deactivated answer the attendee already chose on admin edit", () => {
+    const form = new URLSearchParams({ question_1: "11" });
+    const result = parseQuestionAnswers({ optional: true })(form, [
+      withInactive(1),
+    ]);
+    expect(result).toEqual({ answerIds: [11], ok: true, textAnswers: [] });
+  });
+
+  test("does not require a choice question with no active answers", () => {
+    const form = new URLSearchParams();
+    const result = parseQuestionAnswers({ optional: false })(form, [
+      allInactive(1),
+    ]);
+    expect(result).toEqual({ answerIds: [], ok: true, textAnswers: [] });
+  });
+});

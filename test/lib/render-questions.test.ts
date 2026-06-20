@@ -35,6 +35,21 @@ describe("renderQuestions", () => {
     expect(html).toContain("<fieldset");
   });
 
+  test("omits a choice question whose answers are all deactivated", () => {
+    const questions: QuestionWithAnswers[] = [
+      {
+        answers: [
+          { active: false, id: 10, question_id: 1, sort_order: 0, text: "Red" },
+        ],
+        display_type: "radio" as const,
+        id: 1,
+        text: "Favourite colour?",
+      },
+    ];
+
+    expect(renderQuestions(questions).toString()).toBe("");
+  });
+
   test("omits deactivated answers from the public form", () => {
     const questions: QuestionWithAnswers[] = [
       {

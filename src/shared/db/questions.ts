@@ -429,11 +429,13 @@ export const setListingQuestions = async (
 
 /** Read and validate one question's submitted answer from form data.
  * `"missing"` = no value; `"invalid"` = the value isn't one of the question's
- * options; otherwise the matched answer id. Shared by the public (required)
- * and admin (optional) answer parsers so the lookup/validation lives once. */
+ * options (or, when `activeOnly`, is a deactivated option); otherwise the
+ * matched answer id. Shared by the public (required, active-only) and admin
+ * (optional, allows a pre-selected deactivated answer) parsers. */
 export const readQuestionAnswer = (
   form: URLSearchParams,
   question: QuestionWithAnswers,
+  activeOnly = false,
 ):
   | { status: "missing" }
   | { status: "invalid" }
@@ -441,7 +443,8 @@ export const readQuestionAnswer = (
   const raw = form.get(`question_${question.id}`);
   if (!raw) return { status: "missing" };
   const answerId = Number.parseInt(raw, 10);
-  if (!question.answers.some((a) => a.id === answerId)) {
+  const answer = question.answers.find((a) => a.id === answerId);
+  if (!answer || (activeOnly && !answer.active)) {
     return { status: "invalid" };
   }
   return { answerId, status: "ok" };
@@ -501,12 +504,17 @@ const parseFreeTextAnswer: AnswerParser = (
 };
 
 const parseChoiceAnswer: AnswerParser = (form, question, parsed, optional) => {
-  const answer = readQuestionAnswer(form, question);
+  // Public submissions may only pick an active answer; the admin edit form may
+  // re-save a deactivated answer the attendee had already chosen.
+  const answer = readQuestionAnswer(form, question, !optional);
   if (answer.status === "ok") {
     parsed.answerIds.push(answer.answerId);
     return null;
   }
   if (optional) return null;
+  // A choice question with no active answers has nothing selectable (it is
+  // hidden on the form), so it can't block the booking.
+  if (!question.answers.some((a) => a.active)) return null;
   const lead =
     answer.status === "missing" ? "Please answer" : "Invalid answer for";
   return `${lead}: ${question.text}`;
@@ -899,13 +907,25 @@ export type AttendeeQuestionData = {
 export const loadAttendeeQuestionData = async (
   listingIds: number[],
   attendeeIds: number[],
+  privateKey?: CryptoKey,
 ): Promise<AttendeeQuestionData | undefined> => {
   if (attendeeIds.length === 0 || listingIds.length === 0) return undefined;
-  const [{ questions }, attendeeAnswerMap] = await Promise.all([
+  const [{ questions }, answers] = await Promise.all([
     getQuestionsWithListingIds(listingIds),
-    getAttendeeAnswersBatch(attendeeIds, { texts: false }),
+    privateKey
+      ? getAttendeeAnswersBatch(attendeeIds, { privateKey, texts: true })
+      : getAttendeeAnswersBatch(attendeeIds, { texts: false }),
   ]);
-  return questions.length > 0 ? { attendeeAnswerMap, questions } : undefined;
+  if (questions.length === 0) return undefined;
+  // `texts: false` returns a plain choice-answer Map; `texts: true` returns the
+  // choice map plus decrypted free-text answers for the table cells.
+  return answers instanceof Map
+    ? { attendeeAnswerMap: answers, questions }
+    : {
+        attendeeAnswerMap: answers.answerIds,
+        questions,
+        textAnswerMap: answers.textAnswers,
+      };
 };
 
 /** Get free-text answers for one attendee, decrypted for owner/admin edit. */

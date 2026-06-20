@@ -234,7 +234,7 @@ type PathParams = {
 
 type PaymentPathParams = Pick<
   PathParams,
-  "ctx" | "date" | "dayCount" | "quantities"
+  "ctx" | "date" | "dayCount" | "quantities" | "info"
 > & { intent: CheckoutIntent };
 
 const emptyContact = {
@@ -295,7 +295,7 @@ const handlePaidPath = async (
   request: Request,
   params: PaymentPathParams,
 ): Promise<Response> => {
-  const { ctx, quantities, date, dayCount, intent } = params;
+  const { ctx, quantities, date, dayCount, info, intent } = params;
   const available = await checkAvailability(
     ctx.listings,
     quantities,
@@ -305,6 +305,9 @@ const handlePaidPath = async (
   if (!available) {
     return ticketFormErrorResponse(ctx)(TICKETS_UNAVAILABLE_MESSAGE);
   }
+  // Create the encrypted free-text strings only once availability is confirmed,
+  // so a rejected over-capacity submission never leaves orphaned plaintext rows.
+  intent.listingTextAnswerIds = await computeListingTextAnswerIdMap(ctx, info);
   return handlePaymentFlow(request, intent, ctx);
 };
 
@@ -688,14 +691,11 @@ const processSubmission = async (
   const finalRequiresPayment = paymentsEnabled && finalRequiresPaidFields;
 
   if (finalRequiresPayment) {
-    intent.listingTextAnswerIds = await computeListingTextAnswerIdMap(
-      ctx,
-      info,
-    );
     return handlePaidPath(request, {
       ctx,
       date,
       dayCount,
+      info,
       intent,
       quantities,
     });
