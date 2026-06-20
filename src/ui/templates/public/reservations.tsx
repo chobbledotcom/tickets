@@ -606,6 +606,10 @@ const TicketPageForm = ({
       {addOns && addOns.length > 0 && <AddOnsFieldset addOns={addOns} />}
       {promoCodesEnabled && <PromoCodeField />}
       {terms && <Raw html={renderTermsAndCheckbox(terms)} />}
+      {/* Continue is rendered first so it stays the form's default submit: an
+          implicit submit (Enter in a text field) must complete the booking, not
+          trigger the running total's /calculate action. */}
+      <button type="submit">{t("common.continue")}</button>
       {!actionUrl && (
         <div class="running-total">
           <button
@@ -620,7 +624,6 @@ const TicketPageForm = ({
           <output class="order-summary-output" data-running-total-output />
         </div>
       )}
-      <button type="submit">{t("common.continue")}</button>
     </CsrfForm>
   );
 };
