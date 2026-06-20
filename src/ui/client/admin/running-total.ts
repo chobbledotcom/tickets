@@ -43,7 +43,7 @@ export const initRunningTotal = (): void => {
   // Take over the form submit: render inline instead of opening a new tab.
   button.type = "button";
 
-  let timer = 0;
+  let timer: ReturnType<typeof setTimeout> | undefined;
   let inFlight = false;
   let queued = false;
 
