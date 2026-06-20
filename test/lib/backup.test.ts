@@ -7,6 +7,8 @@ import {
   backupFilename,
   backupPrefix,
   backupTimestamp,
+  canBackupInline,
+  countBackupRows,
   countZipStatements,
   createBackup,
   createBackupZip,
@@ -86,6 +88,48 @@ describeWithEnv("backup", { db: true }, () => {
       await createTestListing({ name: "Null Test" });
       const { sql } = await exportTable("listings");
       expect(sql).toContain("NULL");
+    });
+
+    test("keyset-paginates across multiple pages without losing rows", async () => {
+      await createTestListing({ name: "Page One" });
+      await createTestListing({ name: "Page Two" });
+      await createTestListing({ name: "Page Three" });
+
+      // A page size of 2 forces two reads (2 rows, then 1) so the keyset loop
+      // must continue past the first full page and stop on the short one.
+      const { sql, rowCount } = await exportTable("listings", 2);
+
+      expect(rowCount).toBe(3);
+      // One INSERT statement per page, and the cursor alias never leaks into the
+      // dumped column list.
+      expect(sql.match(/INSERT INTO "listings"/g)).toHaveLength(2);
+      expect(sql).not.toContain("__backup_rowid__");
+    });
+  });
+
+  describe("countBackupRows", () => {
+    test("totals rows across every existing table", async () => {
+      const before = await countBackupRows();
+      await createTestListing({ name: "Counted" });
+      const after = await countBackupRows();
+      expect(after).toBeGreaterThan(before);
+    });
+  });
+
+  describe("canBackupInline", () => {
+    test("is true when the database is within the inline row budget", async () => {
+      expect(await canBackupInline()).toBe(true);
+    });
+
+    test("is false once the row count exceeds BACKUP_MAX_INLINE_ROWS", async () => {
+      // The seeded test database already holds more than one row, so a ceiling
+      // of 1 forces the inline backup to be considered infeasible.
+      const restore = setTestEnv({ BACKUP_MAX_INLINE_ROWS: "1" });
+      try {
+        expect(await canBackupInline()).toBe(false);
+      } finally {
+        restore();
+      }
     });
   });
 

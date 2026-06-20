@@ -14,7 +14,11 @@
 import type { Client } from "@libsql/client";
 import { lazyRef } from "#fp";
 import { ensureDefaultAttendeeStatus } from "#shared/db/attendee-statuses.ts";
-import { createAndUploadBackup, hasRecentBackup } from "#shared/db/backup.ts";
+import {
+  canBackupInline,
+  createAndUploadBackup,
+  hasRecentBackup,
+} from "#shared/db/backup.ts";
 import { getDb } from "#shared/db/client.ts";
 import { getEnv } from "#shared/env.ts";
 import { logDebug } from "#shared/logger.ts";
@@ -448,6 +452,20 @@ const initDbUncached = async (allowMissingSettings: boolean): Promise<void> => {
         logDebug(
           "Migration",
           "Recent backup exists, skipping pre-migration backup",
+        );
+      } else if (!(await canBackupInline())) {
+        // A database too large to dump within one request's edge subrequest
+        // budget must not wedge the migration (and the whole site) behind a
+        // backup that can never complete inline. Continue without it and alert
+        // the operator to take an out-of-band backup via `deno task backup`.
+        logDebug(
+          "Migration",
+          "Database too large for an inline pre-migration backup; " +
+            "continuing without one. Take an out-of-band backup with " +
+            "`deno task backup`.",
+        );
+        void sendNtfyError(
+          `E_BACKUP_TOO_LARGE ${getEnv("DB_URL") ?? "unknown"}`,
         );
       } else {
         logDebug("Migration", "Creating pre-migration backup...");

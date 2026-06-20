@@ -12,7 +12,12 @@
 
 import { unzipSync, zipSync } from "fflate";
 import { chunk, compact } from "#fp";
-import { execute, executeBatch, queryAll } from "#shared/db/client.ts";
+import {
+  execute,
+  executeBatch,
+  queryAll,
+  queryOne,
+} from "#shared/db/client.ts";
 import { invalidateGroupsCache } from "#shared/db/groups.ts";
 import { invalidateListingsCache } from "#shared/db/listings.ts";
 import {
@@ -25,7 +30,7 @@ import {
 } from "#shared/db/migrations.ts";
 import { invalidateUsersCache } from "#shared/db/users.ts";
 import { requireEnv } from "#shared/env.ts";
-import { MAX_BACKUPS } from "#shared/limits.ts";
+import { MAX_BACKUPS, readLimit } from "#shared/limits.ts";
 import { deleteFile, listFiles, uploadRaw } from "#shared/storage.ts";
 
 // ─── Types ──────────────────────────────────────────────────────
@@ -58,6 +63,15 @@ const getExistingTableNames = async (): Promise<Set<string>> => {
     "SELECT name FROM sqlite_master WHERE type = 'table'",
   );
   return new Set(rows.map((row) => row.name));
+};
+
+/**
+ * The schema's tables that currently exist, in SCHEMA (FK-dependency) order.
+ * Skips tables a pending migration has not created yet.
+ */
+const existingSchemaTables = async (): Promise<string[]> => {
+  const existing = await getExistingTableNames();
+  return SCHEMA_TABLE_NAMES.filter((table) => existing.has(table));
 };
 
 /** Escape a SQL string value (single quotes doubled) */
@@ -112,38 +126,66 @@ export const dbName = (): string => {
  *  cutting the number of statements replayed on restore. */
 const ROWS_PER_INSERT = 100;
 
+/**
+ * Rows fetched per keyset page when exporting a table. A whole-table
+ * `SELECT *` makes libsqld (the server behind Bunny's databases) serialize the
+ * entire result into one response, which trips its "Response is too large"
+ * payload cap on big tables. Paging by rowid keeps each read's response
+ * bounded. Overridable per call (tests) and via the `BACKUP_PAGE_SIZE` env var.
+ */
+const DEFAULT_BACKUP_PAGE_SIZE = 500;
+
+/** Result-set key carrying the keyset cursor (rowid); stripped from the dump. */
+const ROWID_ALIAS = "__backup_rowid__";
+
 /** Export a single table as multi-row INSERT statements (deterministic order).
- *  Column names come from the row keys, so no extra schema query is needed. */
+ *  Reads are keyset-paginated by rowid so no single response exceeds libsqld's
+ *  payload cap. Column names come from the row keys (minus the cursor alias),
+ *  so no extra schema query is needed. */
 export const exportTable = async (
   table: string,
+  pageSize: number = readLimit("BACKUP_PAGE_SIZE", DEFAULT_BACKUP_PAGE_SIZE),
 ): Promise<{ sql: string; rowCount: number }> => {
-  const rows = await queryAll<Record<string, unknown>>(
-    `SELECT * FROM ${quoteId(table)} ORDER BY rowid`,
-  );
-  if (rows.length === 0) return { rowCount: 0, sql: "" };
-
-  const cols = Object.keys(rows[0]!);
-  const colList = cols.map(quoteId).join(", ");
+  const quoted = quoteId(table);
+  const statements: string[] = [];
+  let rowCount = 0;
+  let cols: string[] = [];
+  let colList = "";
   const tuple = (row: Record<string, unknown>): string =>
     `(${cols.map((c) => escapeSql(row[c])).join(", ")})`;
-  const sql = chunk(ROWS_PER_INSERT)(rows)
-    .map(
-      (group) =>
-        `INSERT INTO ${quoteId(table)} (${colList}) VALUES ${group
+  // App invariant: every table's rowids are positive autoincrement ids, so a
+  // cursor starting below 1 reads the whole table.
+  let cursor = 0;
+
+  for (;;) {
+    const rows = await queryAll<Record<string, unknown>>(
+      `SELECT rowid AS ${ROWID_ALIAS}, * FROM ${quoted} ` +
+        "WHERE rowid > ? ORDER BY rowid LIMIT ?",
+      [cursor, pageSize],
+    );
+    if (rows.length === 0) break;
+    if (rowCount === 0) {
+      cols = Object.keys(rows[0]!).filter((c) => c !== ROWID_ALIAS);
+      colList = cols.map(quoteId).join(", ");
+    }
+    for (const group of chunk(ROWS_PER_INSERT)(rows)) {
+      statements.push(
+        `INSERT INTO ${quoted} (${colList}) VALUES ${group
           .map(tuple)
           .join(", ")};`,
-    )
-    .join("\n");
-  return { rowCount: rows.length, sql };
+      );
+    }
+    rowCount += rows.length;
+    cursor = Number(rows[rows.length - 1]![ROWID_ALIAS]);
+    if (rows.length < pageSize) break;
+  }
+  return { rowCount, sql: statements.join("\n") };
 };
 
 /** Create a full backup — one TableBackup per table in SCHEMA order.
  *  Skips tables that don't exist yet (e.g. new tables about to be created by a migration). */
 export const createBackup = async (): Promise<TableBackup[]> => {
-  const existingTables = await getExistingTableNames();
-  const tables = SCHEMA_TABLE_NAMES.filter((table) =>
-    existingTables.has(table),
-  );
+  const tables = await existingSchemaTables();
   const backups: TableBackup[] = [];
 
   const concurrency = 4;
@@ -160,6 +202,41 @@ export const createBackup = async (): Promise<TableBackup[]> => {
   }
   return backups;
 };
+
+/**
+ * Default ceiling on total rows for an *inline* (in-request) pre-migration
+ * backup. Above this, dumping every table by keyset page would need more
+ * outbound subrequests than a single Bunny edge request's budget allows, so the
+ * migration skips the inline backup and the operator takes one out-of-band with
+ * `deno task backup`. Overridable via the `BACKUP_MAX_INLINE_ROWS` env var.
+ */
+const DEFAULT_MAX_INLINE_BACKUP_ROWS = 20_000;
+
+/** Total rows across every backed-up table, counted in a single round-trip. */
+export const countBackupRows = async (): Promise<number> => {
+  const tables = await existingSchemaTables();
+  // Lead with a literal 0 so an empty table list still yields valid SQL, and
+  // sum per-table COUNT(*) subqueries so the whole tally is one statement.
+  const expr = [
+    "0",
+    ...tables.map((t) => `(SELECT COUNT(*) FROM ${quoteId(t)})`),
+  ].join(" + ");
+  // A scalar sum over COUNT(*) always returns exactly one row.
+  const row = await queryOne<{ total: number }>(
+    `SELECT (${expr}) AS total`,
+    [],
+  );
+  return Number(row!.total);
+};
+
+/**
+ * Whether the database is small enough to back up inline within one edge
+ * request. Larger databases must be dumped out-of-band (see scripts/backup.ts),
+ * where the edge subrequest budget does not apply.
+ */
+export const canBackupInline = async (): Promise<boolean> =>
+  (await countBackupRows()) <=
+  readLimit("BACKUP_MAX_INLINE_ROWS", DEFAULT_MAX_INLINE_BACKUP_ROWS);
 
 /** Generate a timestamped backup filename scoped to the current DB */
 export const backupFilename = (timestamp: string): string =>

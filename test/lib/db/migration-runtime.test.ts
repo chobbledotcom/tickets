@@ -166,6 +166,51 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
       }
     });
 
+    test("skips the inline backup but still migrates when the DB is too large", async () => {
+      const tmpDir = Deno.makeTempDirSync();
+      const restore = setTestEnv({
+        BACKUP_MAX_INLINE_ROWS: "1",
+        DB_URL: "libsql://abc-tickets-spencer.lite.bunnydb.net",
+        LOCAL_STORAGE_PATH: tmpDir,
+        NTFY_URL: "https://ntfy.sh/test-topic",
+      });
+      const fetchStub = stub(globalThis, "fetch", () =>
+        Promise.resolve(new Response()),
+      );
+      try {
+        await getDb().execute(
+          "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
+        );
+        await markCurrentSchemaMigrationPending();
+        await initDb();
+
+        // The migration ran to completion despite skipping the backup.
+        const result = await getDb().execute(
+          "SELECT value FROM settings WHERE key = 'db_schema_hash'",
+        );
+        expect(result.rows[0]?.value).toBe(SCHEMA_HASH);
+
+        // No backup was written.
+        const files = [...Deno.readDirSync(tmpDir)]
+          .map((e) => e.name)
+          .filter((n) => n.startsWith("backup-"));
+        expect(files.length).toBe(0);
+
+        // The operator was alerted to take an out-of-band backup.
+        const ntfyCall = fetchStub.calls.find(
+          (c) => c.args[0] === "https://ntfy.sh/test-topic",
+        );
+        expect(ntfyCall).toBeDefined();
+        expect((ntfyCall!.args[1] as RequestInit).body).toBe(
+          "E_BACKUP_TOO_LARGE libsql://abc-tickets-spencer.lite.bunnydb.net",
+        );
+      } finally {
+        fetchStub.restore();
+        restore();
+        Deno.removeSync(tmpDir, { recursive: true });
+      }
+    });
+
     test("sends ntfy notification with DB_URL when migration lock is held", async () => {
       const restoreNtfy = setTestEnv({
         DB_URL: "libsql://abc-tickets-spencer.lite.bunnydb.net",
