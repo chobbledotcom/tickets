@@ -87,6 +87,22 @@ export const expectHtmlResponse = async (
   return html;
 };
 
+// A booking's quantity cell only proves the bookings summary is right if it
+// sits in the same table row as its listing link — otherwise swapping two
+// bookings' quantities would still pass. The tempered `(?!</tr>)` keeps the
+// match inside one <tr>.
+export const expectListingRowQuantity = (
+  html: string,
+  listingId: number,
+  quantity: number,
+): void => {
+  expect(html).toMatch(
+    new RegExp(
+      `/admin/listing/${listingId}"(?:(?!</tr>)[\\s\\S])*?<td>${quantity}</td>`,
+    ),
+  );
+};
+
 export const expectRedirect = (
   response: Response,
   ...patterns: (string | RegExp)[]

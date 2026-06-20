@@ -11,7 +11,11 @@ import {
   AttendeeLogSection,
   BookingStatusBadges,
 } from "#templates/admin/attendee-detail.tsx";
-import { setupTestEncryptionKey, testAttendee } from "#test-utils";
+import {
+  expectListingRowQuantity,
+  setupTestEncryptionKey,
+  testAttendee,
+} from "#test-utils";
 
 const booking = (
   overrides: Partial<AttendeeBooking> = {},
@@ -144,7 +148,11 @@ describe("AttendeeBookingsTable", () => {
     expect(html).toContain("Kayak");
     expect(html).toContain('href="/admin/listing/8"');
     expect(html).toContain("Canoe");
-    // The footer totals the quantities (2 + 3); only the total cell holds 5.
+    // Each listing's row shows its own quantity (Kayak→2, Canoe→3), so a
+    // swapped grouping fails here, not just a wrong sum...
+    expectListingRowQuantity(html, 7, 2);
+    expectListingRowQuantity(html, 8, 3);
+    // ...and the footer totals them (2 + 3); only the total cell holds 5.
     expect(html).toContain("Total");
     expect(html).toContain("<td>5</td>");
   });
