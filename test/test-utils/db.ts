@@ -200,14 +200,17 @@ const createDirectAdminSession = async (): Promise<{
     "#shared/db/sessions.ts"
   );
   const { buildSessionCookie } = await import("#shared/cookies.ts");
-  const { getUserByUsername } = await import("#shared/db/users.ts");
+  const { getUserByUsername, verifyUserPassword } = await import(
+    "#shared/db/users.ts"
+  );
   const { nowMs } = await import("#shared/now.ts");
 
   const user = await getUserByUsername(TEST_ADMIN_USERNAME);
   if (!user?.wrapped_data_key) {
     throw new Error("Admin user not found after setup");
   }
-  const kek = await deriveKEKFromPassword(TEST_ADMIN_PASSWORD);
+  const ownerHash = (await verifyUserPassword(user, TEST_ADMIN_PASSWORD))!;
+  const kek = await deriveKEKFromPassword(TEST_ADMIN_PASSWORD, ownerHash);
   const dataKey = await unwrapKey(user.wrapped_data_key, kek);
 
   const token = generateSecureToken();

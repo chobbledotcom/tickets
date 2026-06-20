@@ -290,7 +290,11 @@ export const acceptInvite = async (
     encrypt(""),
     unwrapKeyWithToken(inviteWrappedDataKey, inviteCode),
   ]);
-  const wrappedDataKey = await wrapDataKeyForPassword(dataKey, password);
+  const wrappedDataKey = await wrapDataKeyForPassword(
+    dataKey,
+    password,
+    passwordHash,
+  );
   const result = await execute(
     "UPDATE users SET password_hash = ?, wrapped_data_key = ?, kek_version = 2, invite_wrapped_data_key = NULL, invite_code_hash = ?, invite_expiry = ? WHERE id = ? AND invite_wrapped_data_key IS NOT NULL",
     [encryptedHash, wrappedDataKey, encryptedEmpty, encryptedEmpty, userId],
@@ -308,10 +312,21 @@ export const migrateUserToV2Kek = async (
   userId: number,
   dataKey: CryptoKey,
   password: string,
+  passwordHash: string,
 ): Promise<void> => {
-  const wrappedDataKey = await wrapDataKeyForPassword(dataKey, password);
+  const wrappedDataKey = await wrapDataKeyForPassword(
+    dataKey,
+    password,
+    passwordHash,
+  );
+  // Guard on the row still being v1. A login can reach here off a stale cached
+  // user row whose password was changed in another isolate — that change already
+  // wrote a v2 wrap bound to the *new* password. Overwriting it with a wrap
+  // derived from this (old) password would leave password_hash and
+  // wrapped_data_key bound to different passwords and lock the account out. A
+  // no-op is safe: the login already holds the DATA_KEY for its own session.
   await execute(
-    "UPDATE users SET wrapped_data_key = ?, kek_version = 2 WHERE id = ?",
+    "UPDATE users SET wrapped_data_key = ?, kek_version = 2 WHERE id = ? AND kek_version < 2",
     [wrappedDataKey, userId],
   );
 };

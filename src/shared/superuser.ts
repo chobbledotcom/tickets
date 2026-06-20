@@ -166,6 +166,7 @@ export const createActivatedSuperuser = async (opts: {
   const wrappedDataKey = await wrapDataKeyForPassword(
     opts.dataKey,
     opts.password,
+    passwordHash,
   );
   return createUser(opts.username, passwordHash, wrappedDataKey, "owner");
 };

@@ -818,7 +818,11 @@ const completeSetup = async (
   const { publicKey, privateKey } = await generateKeyPair();
   // Bind the owner's wrapped DATA_KEY to the raw password (v2), so the DATA_KEY
   // — and therefore all attendee PII — can't be unwrapped from a DB dump alone.
-  const wrappedDataKey = await wrapDataKeyForPassword(dataKey, adminPassword);
+  const wrappedDataKey = await wrapDataKeyForPassword(
+    dataKey,
+    adminPassword,
+    hashedPassword,
+  );
   await createUser(username, hashedPassword, wrappedDataKey, "owner");
   const encryptedPrivateKey = await encryptWithKey(privateKey, dataKey);
   await writeRaw(CONFIG_KEYS.WRAPPED_PRIVATE_KEY, encryptedPrivateKey);
@@ -854,7 +858,7 @@ const updateUserPassword = async (
   // from its stored hash), then always re-wrap under the v2 password-bound KEK.
   const oldKek =
     opts.oldKekVersion >= 2
-      ? await deriveKEKFromPassword(opts.oldPassword)
+      ? await deriveKEKFromPassword(opts.oldPassword, opts.oldPasswordHash)
       : await deriveKEK(opts.oldPasswordHash);
   let dk: CryptoKey;
   try {
@@ -864,7 +868,11 @@ const updateUserPassword = async (
   }
   const newHash = await hashPassword(opts.newPassword);
   const encryptedNewHash = await encrypt(newHash);
-  const newWrappedDataKey = await wrapDataKeyForPassword(dk, opts.newPassword);
+  const newWrappedDataKey = await wrapDataKeyForPassword(
+    dk,
+    opts.newPassword,
+    newHash,
+  );
   await execute(
     "UPDATE users SET password_hash = ?, wrapped_data_key = ?, kek_version = 2 WHERE id = ?",
     [encryptedNewHash, newWrappedDataKey, userId],

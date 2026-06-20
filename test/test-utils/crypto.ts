@@ -91,7 +91,9 @@ export const getTestPrivateKey = async (): Promise<CryptoKey> => {
   const { deriveKEKFromPassword, importPrivateKey, unwrapKey } = await import(
     "#shared/crypto/keys.ts"
   );
-  const { getUserByUsername } = await import("#shared/db/users.ts");
+  const { getUserByUsername, verifyUserPassword } = await import(
+    "#shared/db/users.ts"
+  );
   const { settings } = await import("#shared/db/settings.ts");
   const { TEST_ADMIN_USERNAME, TEST_ADMIN_PASSWORD } = await import(
     "#test-utils/internal.ts"
@@ -101,7 +103,8 @@ export const getTestPrivateKey = async (): Promise<CryptoKey> => {
   if (!user?.wrapped_data_key) {
     throw new Error("Test setup failed: no wrapped data key");
   }
-  const kek = await deriveKEKFromPassword(TEST_ADMIN_PASSWORD);
+  const ownerHash = (await verifyUserPassword(user, TEST_ADMIN_PASSWORD))!;
+  const kek = await deriveKEKFromPassword(TEST_ADMIN_PASSWORD, ownerHash);
   const dataKey = await unwrapKey(user.wrapped_data_key, kek);
   const wrappedPrivateKey = settings.wrappedPrivateKey;
   if (!wrappedPrivateKey) {

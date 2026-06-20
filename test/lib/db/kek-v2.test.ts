@@ -25,6 +25,7 @@ import {
   getUserByUsername,
   hashInviteCode,
   invalidateUsersCache,
+  migrateUserToV2Kek,
   pruneExpiredInvites,
   verifyUserPassword,
 } from "#shared/db/users.ts";
@@ -40,13 +41,23 @@ import {
   TEST_ADMIN_USERNAME,
 } from "#test-utils";
 
+/** Unwrap a v2 user's DATA_KEY with the per-user-salted password KEK. The salt
+ * folds in the account's stored hash, so we re-derive it from the password. */
+const unwrapUserKey = async (
+  user: User,
+  password: string,
+): Promise<CryptoKey> => {
+  const hash = (await verifyUserPassword(user, password))!;
+  return unwrapKey(
+    user.wrapped_data_key!,
+    await deriveKEKFromPassword(password, hash),
+  );
+};
+
 /** Unwrap the shared owner DATA_KEY (created at v2 by setup). */
 const ownerDataKey = async (): Promise<CryptoKey> => {
   const owner = (await getUserByUsername(TEST_ADMIN_USERNAME))!;
-  return unwrapKey(
-    owner.wrapped_data_key!,
-    await deriveKEKFromPassword(TEST_ADMIN_PASSWORD),
-  );
+  return unwrapUserKey(owner, TEST_ADMIN_PASSWORD);
 };
 
 /** Seed a legacy (v1) manager that shares the owner DATA_KEY, wrapped with the
@@ -100,10 +111,7 @@ describeWithEnv("KEK v2 (password-bound DATA_KEY)", { db: true }, () => {
       expect(activated.invite_wrapped_data_key).toBeNull();
       expect(activated.kek_version).toBe(2);
 
-      const dataKey = await unwrapKey(
-        activated.wrapped_data_key!,
-        await deriveKEKFromPassword("joinerpass123"),
-      );
+      const dataKey = await unwrapUserKey(activated, "joinerpass123");
       expect(await sharesOwnerDataKey(dataKey)).toBe(true);
     });
 
@@ -268,11 +276,46 @@ describeWithEnv("KEK v2 (password-bound DATA_KEY)", { db: true }, () => {
       const migrated = (await getUserByUsername("v1-login"))!;
       expect(migrated.kek_version).toBe(2);
       expect(migrated.wrapped_data_key).not.toBe(oldWrap);
-      const dataKey = await unwrapKey(
-        migrated.wrapped_data_key!,
-        await deriveKEKFromPassword("v1pass12345"),
-      );
+      const dataKey = await unwrapUserKey(migrated, "v1pass12345");
       expect(await sharesOwnerDataKey(dataKey)).toBe(true);
+    });
+
+    test("migration won't overwrite a wrap a racing password change wrote", async () => {
+      // A stale-cache login can reach the migration after the user's password
+      // was already changed (to v2) in another isolate. The guard must leave the
+      // new-password wrap intact — overwriting it with one derived from the old
+      // password would bind the hash and wrap to different passwords, locking the
+      // account out.
+      const user = await seedV1User("v1-raced", "oldpass12345");
+      const oldHash = (await verifyUserPassword(user, "oldpass12345"))!;
+
+      // The racing password change commits first: row goes to v2, bound to the
+      // new password.
+      await settings.updateUserPassword(user.id, {
+        newPassword: "newpass67890",
+        oldKekVersion: user.kek_version,
+        oldPassword: "oldpass12345",
+        oldPasswordHash: oldHash,
+        oldWrappedDataKey: user.wrapped_data_key!,
+      });
+      const winningWrap = (await getUserByUsername("v1-raced"))!
+        .wrapped_data_key;
+
+      // Now the stale login's opportunistic migration runs with the old creds.
+      await migrateUserToV2Kek(
+        user.id,
+        await ownerDataKey(),
+        "oldpass12345",
+        oldHash,
+      );
+
+      const final = (await getUserByUsername("v1-raced"))!;
+      expect(final.wrapped_data_key).toBe(winningWrap);
+      expect(final.kek_version).toBe(2);
+      // The new password still unwraps the shared DATA_KEY.
+      expect(
+        await sharesOwnerDataKey(await unwrapUserKey(final, "newpass67890")),
+      ).toBe(true);
     });
   });
 
@@ -292,10 +335,7 @@ describeWithEnv("KEK v2 (password-bound DATA_KEY)", { db: true }, () => {
 
       const updated = (await getUserByUsername("v1-pwchange"))!;
       expect(updated.kek_version).toBe(2);
-      const dataKey = await unwrapKey(
-        updated.wrapped_data_key!,
-        await deriveKEKFromPassword("brandnew12345"),
-      );
+      const dataKey = await unwrapUserKey(updated, "brandnew12345");
       expect(await sharesOwnerDataKey(dataKey)).toBe(true);
     });
   });
@@ -313,7 +353,7 @@ describeWithEnv("KEK v2 (password-bound DATA_KEY)", { db: true }, () => {
 
       const dataKey = await unwrapKey(
         owner.wrapped_data_key!,
-        await deriveKEKFromPassword(TEST_ADMIN_PASSWORD),
+        await deriveKEKFromPassword(TEST_ADMIN_PASSWORD, hash),
       );
       expect(dataKey).toBeDefined();
     });

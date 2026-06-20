@@ -144,7 +144,7 @@ const handleAdminLogin = async (
       user.kek_version >= 2
         ? await unwrapKey(
             user.wrapped_data_key,
-            await deriveKEKFromPassword(password),
+            await deriveKEKFromPassword(password, passwordHash),
           )
         : await unwrapKey(user.wrapped_data_key, await deriveKEK(passwordHash));
   } catch {
@@ -155,7 +155,7 @@ const handleAdminLogin = async (
   // Upgrade a legacy wrap to the password-bound scheme now that we hold the raw
   // password — closes the DB-dump-recoverable path for this user going forward.
   if (user.kek_version < 2) {
-    await migrateUserToV2Kek(user.id, dataKey, password);
+    await migrateUserToV2Kek(user.id, dataKey, password, passwordHash);
   }
 
   const adminLevel = await decryptAdminLevel(user);

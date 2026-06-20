@@ -82,9 +82,18 @@ export const deriveKEK = (passwordHash: string): Promise<CryptoKey> =>
  * Password-bound (v2) KEK derived from the raw password. Because the password is
  * never stored, a database dump plus DB_ENCRYPTION_KEY cannot unwrap the
  * DATA_KEY — this is what binds attendee PII at rest to the account password.
+ *
+ * Salted *per user* with the account's stored password hash (which embeds a
+ * random per-user salt) in addition to DB_ENCRYPTION_KEY, so an offline guess
+ * must run PBKDF2 once per account rather than once for everyone — one weak
+ * password can't be used to unwrap every user's DATA_KEY from a dump. The hash
+ * is rewritten together with wrapped_data_key on every password change, so the
+ * two never drift.
  */
-export const deriveKEKFromPassword = (password: string): Promise<CryptoKey> =>
-  deriveKek(password, "kek-v2:");
+export const deriveKEKFromPassword = (
+  password: string,
+  passwordHash: string,
+): Promise<CryptoKey> => deriveKek(password, `kek-v2:${passwordHash}:`);
 
 /**
  * =============================================================================
@@ -158,7 +167,9 @@ export const wrapKey = (
 export const wrapDataKeyForPassword = async (
   dataKey: CryptoKey,
   password: string,
-): Promise<string> => wrapKey(dataKey, await deriveKEKFromPassword(password));
+  passwordHash: string,
+): Promise<string> =>
+  wrapKey(dataKey, await deriveKEKFromPassword(password, passwordHash));
 
 /**
  * Unwrap a symmetric key

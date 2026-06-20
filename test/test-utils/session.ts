@@ -98,15 +98,20 @@ export const createTestManagerSession = async (
   const { getDb } = await import("#shared/db/client.ts");
   const { insert } = await import("#shared/db/client.ts");
   const { createSession } = await import("#shared/db/sessions.ts");
-  const { getUserByUsername, invalidateUsersCache: invalidateUsers } =
-    await import("#shared/db/users.ts");
+  const {
+    getUserByUsername,
+    invalidateUsersCache: invalidateUsers,
+    verifyUserPassword,
+  } = await import("#shared/db/users.ts");
 
-  // The owner is created at the v2 (password-bound) KEK scheme by setup.
+  // The owner is created at the v2 (password-bound) KEK scheme by setup; its KEK
+  // is salted with the owner's stored password hash.
   const user = await getUserByUsername(TEST_ADMIN_USERNAME);
   if (!user?.wrapped_data_key) {
     throw new Error("Admin user has no wrapped data key");
   }
-  const kek = await deriveKEKFromPassword(TEST_ADMIN_PASSWORD);
+  const ownerHash = (await verifyUserPassword(user, TEST_ADMIN_PASSWORD))!;
+  const kek = await deriveKEKFromPassword(TEST_ADMIN_PASSWORD, ownerHash);
   const dataKey = await unwrapKey(user.wrapped_data_key, kek);
 
   const managerIdx = await hmacHash(username);
@@ -170,15 +175,20 @@ export const createTestAgentSession = async (
   } = await import("#shared/crypto/keys.ts");
   const { getDb, insert } = await import("#shared/db/client.ts");
   const { createSession } = await import("#shared/db/sessions.ts");
-  const { getUserByUsername, invalidateUsersCache: invalidateUsers } =
-    await import("#shared/db/users.ts");
+  const {
+    getUserByUsername,
+    invalidateUsersCache: invalidateUsers,
+    verifyUserPassword,
+  } = await import("#shared/db/users.ts");
 
-  // The owner is created at the v2 (password-bound) KEK scheme by setup.
+  // The owner is created at the v2 (password-bound) KEK scheme by setup; its KEK
+  // is salted with the owner's stored password hash.
   const owner = await getUserByUsername(TEST_ADMIN_USERNAME);
   if (!owner?.wrapped_data_key) throw new Error("Admin user not set up");
+  const ownerHash = (await verifyUserPassword(owner, TEST_ADMIN_PASSWORD))!;
   const dataKey = await unwrapKey(
     owner.wrapped_data_key,
-    await deriveKEKFromPassword(TEST_ADMIN_PASSWORD),
+    await deriveKEKFromPassword(TEST_ADMIN_PASSWORD, ownerHash),
   );
 
   // When given a password the agent is wrapped at the legacy v1 scheme with

@@ -145,7 +145,7 @@ describeWithEnv("db > auth", { db: true }, () => {
       );
       expect(newPasswordHash).toBeTruthy();
 
-      const kek = await deriveKEKFromPassword(newPassword);
+      const kek = await deriveKEKFromPassword(newPassword, newPasswordHash!);
       const dataKey = await unwrapKey(updatedUser!.wrapped_data_key!, kek);
 
       const wrappedPrivateKey = settings.wrappedPrivateKey;

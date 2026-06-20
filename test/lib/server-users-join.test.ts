@@ -12,6 +12,7 @@ import {
   mockAdminLoginRequest,
   mockFormRequest,
   mockRequest,
+  requireJoinCsrfToken,
   submitJoinForm,
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
@@ -106,6 +107,50 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       const user = await getUserByUsername("joiner2");
       expect(user!.wrapped_data_key).not.toBeNull();
       expect(user!.kek_version).toBe(2);
+    });
+
+    test("POST /join/:code tells a stale replay the invite is invalid", async () => {
+      // Race/replay: the invite is consumed elsewhere after this request has
+      // already read a (now stale) row that still shows the handoff. The guarded
+      // single-use UPDATE in acceptInvite then changes no row, and the handler
+      // must surface that as an invalid invite — never "password set".
+      const { inviteCode } = await createTestInvite("stale-replay");
+
+      // Warm this isolate's user cache with the handoff-present row and capture a
+      // valid CSRF token from the rendered form.
+      const getResponse = await handleRequest(
+        mockRequest(`/join/${inviteCode}`),
+      );
+      const csrf = requireJoinCsrfToken(await getResponse.text());
+
+      // Simulate another isolate consuming the invite without invalidating our
+      // cache: clear the handoff straight on the row, leaving our view stale.
+      const { executeWithoutCacheInvalidation } = await import(
+        "#shared/db/client.ts"
+      );
+      const consumed = (await getUserByUsername("stale-replay"))!;
+      await executeWithoutCacheInvalidation(
+        "UPDATE users SET invite_wrapped_data_key = NULL WHERE id = ?",
+        [consumed.id],
+      );
+
+      const response = await handleRequest(
+        mockFormRequest(`/join/${inviteCode}`, {
+          csrf_token: csrf,
+          password: "replaypass123",
+          password_confirm: "replaypass123",
+        }),
+      );
+
+      expectRedirectWithFlash(
+        `/join/${inviteCode}`,
+        expect.stringContaining("invalid"),
+        false,
+      )(response);
+      // The replay set no password — the account never bound to it.
+      expect((await getUserByUsername("stale-replay"))!.wrapped_data_key).toBe(
+        null,
+      );
     });
 
     test("POST /join/:code rejects mismatched passwords", async () => {

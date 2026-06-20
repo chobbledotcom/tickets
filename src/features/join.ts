@@ -118,12 +118,19 @@ const setPasswordRoute = (code: string, user: User) =>
       // Self-activates: unwrap the DATA_KEY handoff with this invite code and
       // re-wrap it under the new password's KEK. validateInvite guaranteed the
       // handoff is present.
-      await acceptInvite(
+      const accepted = await acceptInvite(
         user.id,
         user.invite_wrapped_data_key!,
         code,
         values.password,
       );
+      // The accept is a guarded single-use UPDATE. If a concurrent or replayed
+      // submit already consumed this invite, no row changed — don't tell the
+      // user their password was set, because the account is bound to the first
+      // submit's password, not this one.
+      if (!accepted) {
+        return errorRedirect(`/join/${code}`, t("error.invite_invalid"));
+      }
       return redirect("/join/complete", "Password set successfully", true);
     },
   });
