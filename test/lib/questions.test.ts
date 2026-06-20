@@ -32,6 +32,7 @@ import {
   swapQuestionOrder,
   updateAnswerAggregateValues,
 } from "#shared/db/questions.ts";
+import { nowIso } from "#shared/now.ts";
 import { createTestListing, describeWithEnv } from "#test-utils";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 
@@ -845,6 +846,7 @@ describeWithEnv("custom questions", { db: true }, () => {
         id,
       ]);
 
+      const beforeReuse = nowIso();
       const reused = await getOrCreateStringIds(["reuse me"]);
       expect(reused.get("reuse me")).toBe(id);
 
@@ -852,7 +854,11 @@ describeWithEnv("custom questions", { db: true }, () => {
         "SELECT created FROM strings WHERE id = ?",
         [id],
       );
-      expect(rows[0]!.created > "2001-01-01").toBe(true);
+      // The refreshed timestamp must be at least the instant before the reuse,
+      // not merely "after the backdated 2000 value" — this catches a mutant
+      // that writes any stale-but-post-2001 time instead of the current one.
+      const refreshed = Date.parse(rows[0]!.created);
+      expect(refreshed).toBeGreaterThanOrEqual(Date.parse(beforeReuse));
     });
 
     test("saveAttendeeAnswers with empty answerIds clears answers", async () => {
