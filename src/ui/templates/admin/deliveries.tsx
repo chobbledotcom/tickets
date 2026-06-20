@@ -62,6 +62,8 @@ export type DeliveryLegView = {
   kind: "start" | "end";
   /** Name of the logistics agent (van/crew) this leg belongs to. */
   agentName: string;
+  /** Calendar date of this leg (YYYY-MM-DD), matching the run-sheet day. */
+  date: string;
   /** Logistics time label ("" when unset). */
   time: string;
   done: boolean;
@@ -131,6 +133,7 @@ const LegItem = ({
         value={String(booking.listingId)}
       />
       <input name="kind" type="hidden" value={leg.kind} />
+      <input name="date" type="hidden" value={leg.date} />
       <input name="done" type="hidden" value={leg.done ? "0" : "1"} />
       <button type="submit">
         {leg.done ? t("deliveries.mark_not_done") : t("deliveries.mark_done")}
