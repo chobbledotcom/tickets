@@ -232,7 +232,9 @@ Extend listing creation:
   - Pre-fill the listing name.
   - Render the name as readonly.
   - Keep all normal listing fields available, because the importer cannot infer
-    capacity, pricing, daily-vs-standard behavior, images, groups, etc.
+    capacity, pricing, images, groups, etc. The importer **is** daily-only,
+    though, so prompt the operator to create the listing as a **daily** listing
+    (a standard-type listing will be rejected at import — see Product matching).
 - `POST /admin/listing?import_name=...`
   - Treat `import_name` as the source of truth for `name`, not the submitted
     form value.
@@ -343,6 +345,16 @@ Product matching:
   row-level error.
 - Do not add an alias mechanism. If source and local names differ, the operator
   must set up listings with matching names or fix the CSV before importing.
+- **Every matched listing must be `daily`-type.** A product that matches a
+  `standard`-type listing is a **blocking setup error** (listed on the
+  missing-setup page), not an import: the operator must convert that listing to a
+  daily listing (or the product cannot be imported). Verify the type at
+  resolution, before any writes. This gate is what lets the importer treat every
+  imported booking as dated end-to-end — daily listings carry the
+  delivery/collection range on the line's `start_at`/`end_at` (run sheets) and are
+  day-calendar entities — **without** retrofitting line dates onto the
+  standard-listing model (which dates by `listing.date`, not the line). See Dates
+  below.
 
 Because listing names are encrypted at rest, the resolver will probably need to
 load and decrypt existing listing names through an application helper rather
@@ -359,61 +371,56 @@ Suggested field mapping:
 | --- | --- | --- |
 | `Booking ID` | `booking_imports.old_id` | Required, unique per CSV. |
 | created attendee id | `booking_imports.new_id` | Write only after attendee creation succeeds. |
-| `Date Booked` | attendee `created` | Parse the source booking date into `attendees.created` so admin "newest" views and calendar/list/CSV exports (all `ORDER BY a.created DESC`) order imports by when they were originally booked, not import time. Fall back to import time only if `Date Booked` is missing/unparseable. **Also update the dashboard:** `getNewestAttendeesRaw` (`attendees/queries.ts`) currently orders "newest registrations" by `a.id DESC` (assuming id is co-monotonic with `created`, which imports break), so change it to `ORDER BY a.created DESC` and add an index on `created` to keep the scan fast — otherwise imports show as newest there despite old dates. |
+| `Date Booked` | attendee `created` | Parse the source booking date into `attendees.created` so admin "newest" views and calendar/list/CSV exports order imports by when they were originally booked, not import time. Fall back to import time only if `Date Booked` is missing/unparseable. **Two id-ordered surfaces must also change** (they order by `a.id`, and imports get fresh ids despite old `created`): the dashboard `getNewestAttendeesRaw` (`ORDER BY a.id DESC`) and the `/admin/attendees` browser + CSV `getAttendeesPage` (`ORDER BY a.id ASC/DESC`, paginated). Switch both to order by `created` with `id` as a deterministic tiebreaker (`ORDER BY a.created DESC, a.id DESC`; ascending for the `oldest` variant), backed by a composite index on `(created, id)` so the scan and pagination stay cheap. |
 | `Customer Name` | attendee `name` | If blank, decide whether to reject or use `Imported booking {id}`. |
 | `Email` | attendee `email` | Import the raw source value, including invalid or concatenated emails. Add importer-specific support so these rows do not get rejected or split. **Accepted tradeoff:** the edit form renders `email` as `type="email"` and POST runs `validateEmail`, so the first admin re-save of an imported row with an invalid/concatenated email is blocked until the operator fixes or clears it; the importer does not relax the edit path or relocate the raw value (decision: keep raw). |
 | `Mobile`, `Telephone` | attendee `phone` | Prefer mobile; append alternate phone to a free-text answer / notes if both exist. |
 | delivery address fields | attendee `address` | More useful for hire/logistics than contact address. |
 | contact address fields | free-text answer / notes | No second structured address field exists. |
 | `Customer Notes`, `Operator Notes` | free-text answers (preferred) and/or per-contact notes | See [Where Legacy Metadata Goes](#where-legacy-metadata-goes). |
-| `Delivery Date`, `Collection Date` | booking `date`, `durationDays` (line `start_at`/`end_at`) | Stored on **every** imported line (all imports treated as dated — see Dates below), so logistics run sheets can schedule them. |
+| `Delivery Date`, `Collection Date` | booking `date`, `durationDays` (line `start_at`/`end_at`) | Every imported line is on a **daily** listing (gated at resolution — see Dates below), so it is naturally dated; this range drives run sheets and the day-calendar. |
 | `Drop Off`, `Collection` | `listing_attendees.start_time`, `end_time` | Requires importer-specific write/update; current create helper does not accept these. |
 | `Total`, `Received`, `Balance` | price/balance fields | See financial mapping below. |
 | `Status` | attendee `status_id` | Resolve source status by existing attendee status name. See status mapping below. |
 | `Colour Name` | free-text answer / notes | Preserve as legacy metadata; do not use for status resolution. |
 | custom question columns | `attendee_answers` text answers | Match each header to an existing `free_text` question by normalized exact text; store the source value as a string answer. See [Custom Questions](#custom-questions). |
 
-Dates — all imported bookings are dated (daily-style):
+Dates — every imported booking is dated (daily listings only):
 
-- **All imported lines are dated**, regardless of the matched listing's
-  `listing_type`. Store `date` from `Delivery Date` and `durationDays` as the day
-  span through `Collection Date`, and write the resulting `start_at`/`end_at`
-  range on every `listing_attendees` line. (The importer already does direct,
-  importer-specific inserts rather than going through `createAttendeeAtomic`, so
-  it can set these columns on any line.)
-- This keeps delivery/collection dates on the line so logistics run sheets work:
-  `getAgentRunSheet` derives drop-off/collection legs from `DATE(start_at)` /
-  `DATE(end_at, '-1 day')`, so an undated line would never appear on any agent's
-  run sheet. Dating every line lets imported hires be scheduled.
-- Dating a line whose matched listing is `standard` is **capacity-neutral**:
-  standard-listing capacity is total `SUM(quantity)` and date-blind, so the
-  stored range does not change capacity — it only feeds the operational/logistics
-  surfaces. (Replaces the old plan's "undated standard line + warning" rule.)
-- **Edit-path support is required** for dated standard lines to survive. The
-  attendee edit form's `lineDate` (`admin/attendee-form-model.ts`) currently
-  returns `{ date: null }` for every non-daily listing, and
-  `toCreateInput`/`toDesiredLines` feed that into the atomic update — so the first
-  admin save of an imported standard hire would set its `start_at`/`end_at` back
-  to `NULL` and drop it from run sheets. The all-dated rule therefore requires the
-  edit/save path to preserve per-line dates for non-daily listings too (e.g.
-  `lineDate` returning the existing line's stored range for a non-daily listing).
-  Build this alongside the importer; it's the same cross-cutting edit-form surface
-  as the "no quantity" checkbox.
+- **The importer only imports products that match `daily`-type listings** (gated
+  at resolution — see Product matching), so every imported line is inherently
+  dated. Store `date` from `Delivery Date` and `durationDays` as the day span
+  through `Collection Date`; the daily listing's `start_at`/`end_at` then carry the
+  delivery/collection range.
+- This makes the operational surfaces work **out of the box, without touching the
+  standard-listing model**: logistics run sheets read the line's
+  `start_at`/`end_at` (`getAgentRunSheet`), and the day-calendar dates daily
+  listings by the line's `start_at` (`getDailyListingAttendeesByDate`). Both are
+  already correct for daily listings.
+- The daily-only gate is deliberate: standard-type listings date by `listing.date`
+  (the calendar's `buildStandardListingDateMap` and the ICS feed's `DTSTART`),
+  **not** the line, so retrofitting line dates onto them would force new line-date
+  paths through the calendar, the feed, and the edit form. Gating to daily avoids
+  that whole blast radius. (Replaces the earlier "date every line, including
+  standard" approach.)
 - Duration should be at least 1 day. Same-day delivery/collection is 1 day.
 
 Quantity:
 
 - If the same matched listing appears multiple times in one source booking, use
   a single line with `quantity` equal to the count.
-- **Dedupe in the planner — do not lean on the database constraint.** Because
-  every imported line is now dated (see Dates above), repeats of the same matched
-  listing on the same date collide on the unique `(listing_id, attendee_id,
-  start_at)` index — but that index *rejects* a duplicate insert, it does not
-  *merge* it into a quantity. The planner must therefore collapse same-listing,
-  same-date repeats into a single `quantity`-N line itself, so the write neither
-  fails nor inflates the trigger-maintained booking aggregates. (Two lines for
-  the same listing on *different* delivery dates within one booking are distinct,
-  not duplicates.)
+- **One line per `(attendee, listing)` — collapse repeats regardless of date.**
+  The attendee edit form de-dupes lines by `listing_id` (`parseLines` /
+  `buildFormLines` keep one row per listing), and the logistics/check-in/refund
+  helpers update by `(attendee_id, listing_id)` — so the system **cannot represent
+  two lines for the same listing under one attendee**, even on different dates.
+  The planner must therefore collapse all repeats of a matched listing within a
+  booking into a single line: sum the quantities, and if the source rows carry
+  different delivery dates, span the widest range (`min(start)`…`max(end)`) and
+  note the collapse in the import report. (Emitting two dated rows for one listing
+  would also be *rejected* by the unique `(listing_id, attendee_id, start_at)`
+  index and would break the first admin edit/action.) **Dedupe in the planner —
+  do not lean on the database constraint.**
 
 ## Zero-Quantity ("No Quantity") Booking Lines
 
@@ -635,7 +642,13 @@ Intentionally unchanged (call out so nobody "fixes" them):
   ticket page and check-in actions** (`getAttendeesByTokens` → `/t/:tokens`,
   `/checkin/:tokens`, scanner, `updateCheckedIn`) are operational/customer-facing
   and instead **exclude / refuse** quantity-0 lines (see the "Ticket & check-in
-  token flows" entry under Must change).
+  token flows" entry under Must change). One nuance on the roster itself: it keeps
+  the quantity-0 *row* visible, but its inline check-in control must change.
+  `CheckinButton` (`attendee-table.tsx`) renders for every non-refunded row and
+  `handleAttendeeCheckin` (`admin/attendees.ts`) calls `updateCheckedIn` directly
+  — which now refuses quantity-0 — so for a quantity-0 row render the "no
+  quantity" indicator instead of a check-in button (keep the record, drop the
+  action) rather than showing a button that errors.
 
 When implementing, re-run the `listing_attendees` SQL sweep — treat this list as
 the known set, not a guarantee it's exhaustive.
@@ -963,6 +976,15 @@ Implementation notes:
   frees its `old_id` and can be re-imported. (Quantity-0 lines were still chosen
   over a `booking_imports`-aware exclusion in `ORPHAN_IDS` because they also keep
   the products structured and matched while the attendee is live.)
+- **Attendee merge needs the same cleanup.** `applyAttendeeMerge`
+  (`shared/merge/attendee-merge.ts`) removes the source attendee with a raw
+  `DELETE FROM attendees` (not `deleteAttendee`), so it must resolve the source's
+  `booking_imports` row too. Prefer **remapping** it to the surviving target
+  (`UPDATE booking_imports SET new_id = targetId WHERE new_id = sourceId`) so the
+  old booking stays mapped and a re-upload still skips it (idempotent); but if the
+  target is itself an import (already has a mapping) the unique `new_id` index
+  forbids a second row, so delete the source's mapping instead. Cover merge in the
+  import-map cleanup alongside the orphan purge and `deleteAttendee`.
 - The `attendee_answers` XOR/validation triggers will `ABORT` a malformed answer
   row (e.g. both `answer_id` and `string_id` set). The importer only ever writes
   the text-answer shape (`answer_id` NULL, `question_id` + `string_id` set), so a
@@ -990,6 +1012,11 @@ Behavior:
   link to `/admin/questions`, with copy telling the operator to create it as a
   **free-text** question with that exact text (optionally a prefilled
   `?import_text=` link, mirroring the listing flow).
+- Render each product that matched a **`standard`-type listing** as its name plus
+  a link to that listing's edit page, with copy telling the operator the listing
+  must be a **daily** listing to import its bookings (the importer is daily-only —
+  see Product matching). Carry these as a separate repeated query param (e.g.
+  `&standard=Name`) so they render in their own section.
 - Include a link back to the upload page.
 - Text should tell the user to create the missing setup, then upload the CSV
   again.
@@ -1025,14 +1052,16 @@ Add focused tests before broad route tests:
   explicitly assert that no `attendees`, `listing_attendees`, `attendee_answers`,
   newly-created `strings`, audit-trail records, or `booking_imports` rows survive
   a forced late-row failure.
-- Every imported booking (matched to daily- or standard-type listings alike)
-  receives a dated line with `start_at`/`end_at` from `Delivery Date`/`Collection
-  Date`, and an imported hire assigned to a logistics agent appears on that
-  agent's run sheet (`getAgentRunSheet`).
-- A source booking repeating the same matched listing on the same date produces a
-  single quantity-collapsed line, proving the planner dedupes rather than letting
-  the unique `(listing_id, attendee_id, start_at)` index reject the duplicate
-  insert.
+- A product matching a `daily`-type listing imports a dated line
+  (`start_at`/`end_at` from `Delivery Date`/`Collection Date`) that appears on the
+  assigned agent's run sheet (`getAgentRunSheet`); a product matching a
+  `standard`-type listing **blocks** the upload (listed on the missing-setup page
+  as must-be-daily) and writes nothing.
+- A source booking repeating the same matched listing — same date or different
+  dates — produces a single quantity-collapsed line (one row per
+  `(attendee, listing)`, widest date range), proving the planner collapses rather
+  than emitting two rows the edit form / per-`(attendee, listing)` actions can't
+  represent.
 - The raw audit-trail fields are persisted to their durable encrypted
   destination (read back after import), not just shown in the report.
 - Legacy rows can overbook without failing the import.
@@ -1042,10 +1071,11 @@ Add focused tests before broad route tests:
   the row. (Known accepted tradeoff: a later admin edit of such a row is blocked
   by the edit form's `validateEmail` until the operator fixes/clears the email.)
 - `Date Booked` is written to `attendees.created`: an imported booking with an old
-  source date is ordered by that date (not import time) in a `created`-ordered
-  query; a missing/unparseable `Date Booked` falls back to import time. The
-  dashboard `getNewestAttendeesRaw` (now `ORDER BY a.created DESC`) places an
-  imported old booking *below* a newer real registration, not above it by id.
+  source date is ordered by that date (not import time); a missing/unparseable
+  `Date Booked` falls back to import time. Both id-ordered surfaces now order by
+  `created` — the dashboard `getNewestAttendeesRaw` *and* the `/admin/attendees`
+  list/CSV `getAttendeesPage` place an imported old booking *below* a newer real
+  registration, not above it by fresh id.
 
 Free-text question tests (the PR #1335 surface):
 
@@ -1131,14 +1161,23 @@ Semantic-correctness tests (verified against live behaviour):
   quantity of 0 for a listing is rejected (or coerced to a real minimum), so a
   visitor can't create a no-capacity "ghost" booking. Test the public submit
   path rejects/ignores a 0 quantity.
-- **Editing an imported standard hire keeps its dates:** an imported (all-dated)
-  booking on a standard-type listing, after a no-op admin edit/save, still has its
-  `start_at`/`end_at` and still appears on the agent run sheet (proving the
-  `lineDate` edit-path fix preserves non-daily dates).
+- **Imported daily hires land on the right operational dates:** an imported
+  booking on a daily listing appears on the day-calendar
+  (`getDailyListingAttendeesByDate`) and the agent run sheet at its `Delivery
+  Date` (the line's `start_at`), confirming the daily-only gate makes per-booking
+  dates work without new standard-listing line-date paths.
 - **A later-orphaned import frees its `old_id`:** deleting an imported booking's
   last listing, then running the orphan auto-purge, removes the attendee *and* its
   `booking_imports` row, so re-uploading the same CSV re-creates the booking
   rather than skipping it as already-imported.
+- **Merging an imported source keeps the import map consistent:**
+  `applyAttendeeMerge` on an imported source remaps its `booking_imports` row to
+  the surviving target (or deletes it when the target is itself an import), so no
+  row points at the removed source id.
+- **The admin roster won't check in a quantity-0 line:** a cancelled/quoted row
+  stays visible on `/admin/listing/:id` but renders the "no quantity" indicator
+  instead of a check-in button, and `handleAttendeeCheckin`/`updateCheckedIn`
+  refuse it if invoked directly.
 - A non-zero `Balance` on a non-reservation status does not become an actionable
   `remaining_balance` (stored as audit metadata or blocked, per the chosen rule).
 - A row with empty `Equipments` and no `Quoted for Products` fallback is reported
@@ -1168,7 +1207,10 @@ Semantic-correctness tests (verified against live behaviour):
      question to be assigned to the booking (block, don't warn).
    - Apply longest-match-first product resolution bounded to whole tokens, and no
      aliases.
-   - Missing-setup error route (products + statuses + questions).
+   - Gate matched listings to `daily` type: a product matching a `standard`-type
+     listing is a blocking setup error (operator must convert it to daily).
+   - Missing-setup error route (products + statuses + questions + standard
+     listings that must be made daily).
    - Listing-name prefill/lock flow; optional status/question text prefill.
 4. Import planner
    - Build a pure import plan from source rows plus existing
@@ -1228,15 +1270,19 @@ Semantic-correctness tests (verified against live behaviour):
      **and** add `quantity > 0` to `settleAttendeeBalance`'s `MIN(id)` target;
      keep quantity-0 in admin roster/record/group-detail views.
    - Guard the public booking/checkout path against quantity-0 lines (admin-only).
-   - Preserve per-line dates on edit for non-daily listings (`lineDate` in
-     `attendee-form-model.ts`) so the first admin save of an imported (all-dated)
-     standard hire keeps its `start_at`/`end_at` and stays on run sheets.
-   - Change the dashboard's `getNewestAttendeesRaw` from `ORDER BY a.id DESC` to
-     `ORDER BY a.created DESC` (add an index on `created`) so imports ordered by
-     their `Date Booked`-derived `created` don't dominate "newest registrations".
-   - Clean up `booking_imports` in the orphan auto-purge and `deleteAttendee`
-     purge set (delete by `new_id`) so a later-orphaned import frees its `old_id`
-     for re-import.
+   - Re-order the two id-ordered attendee surfaces by `created` (with `id`
+     tiebreaker, composite `(created, id)` index): the dashboard
+     `getNewestAttendeesRaw` and the `/admin/attendees` browser + CSV
+     `getAttendeesPage` — so imports' fresh ids don't make old bookings dominate
+     "newest". (No edit-path date work is needed: the daily-only gate means every
+     imported line is on a daily listing, which the edit form already dates.)
+   - Clean up `booking_imports` on every attendee-removal path: the orphan
+     auto-purge and `deleteAttendee` purge set (delete by `new_id`), and
+     `applyAttendeeMerge` (remap source→target, or delete on unique-`new_id`
+     conflict).
+   - On the admin per-listing roster, hide/disable the inline check-in control for
+     quantity-0 rows (`CheckinButton` / `handleAttendeeCheckin`) while keeping the
+     row visible — `updateCheckedIn` refuses quantity-0.
    - Tests: DB-stored `0` round-trips to a checked box and back; explicit removal
      still deletes; a quantity-0 line is excluded from orphan auto-purge; changing
      a line's quantity to 0 (and back) updates `tickets_count` and
@@ -1245,11 +1291,12 @@ Semantic-correctness tests (verified against live behaviour):
      public path refuses a 0 quantity; quantity-0 lines are absent from the
      calendar, ICS feed, standard-listing calendar/CSV, bulk-email (listing *and*
      `all`), logistics, and ticket/check-in flows, while the group-detail roster
-     still shows them; a quantity-0-only attendee's balance is not publicly
-     payable, and on a mixed attendee settlement lands on the real line; editing
-     an imported standard hire keeps its dates; the dashboard orders imports by
-     `created`; a later-orphaned import's `booking_imports` row is purged so it
-     can be re-imported.
+     still shows them (with no check-in button); a quantity-0-only attendee's
+     balance is not publicly payable, and on a mixed attendee settlement lands on
+     the real line; both the dashboard and the `/admin/attendees` list/CSV order
+     imports by `created` (not fresh id); merging an imported source remaps its
+     `booking_imports` row; a later-orphaned import's `booking_imports` row is
+     purged so it can be re-imported.
 7. Admin upload route
    - Wire upload form, parser, planner, writer, success/error redirects.
    - Add nav entry if desired.
@@ -1344,27 +1391,33 @@ Semantic-correctness tests (verified against live behaviour):
   is enabled — the import report is not a system of record. Only the *choice* of
   destination is deferred to align with the #1332/#1333 notes rework; imports that
   would otherwise drop unmapped audit fields must block, never lose data.
-- Every imported booking is treated as dated (daily-style): the importer stores
-  `Delivery Date`/`Collection Date` as the line's `start_at`/`end_at` on **all**
-  imported lines regardless of the matched listing's `listing_type`, so logistics
-  run sheets (`getAgentRunSheet`) can schedule them. For a matched standard
-  listing this is capacity-neutral (standard capacity is date-blind
-  `SUM(quantity)`). Replaces the old "undated standard line + warning" rule. This
-  also requires the attendee edit/save path (`lineDate` in
-  `attendee-form-model.ts`) to preserve per-line dates for non-daily listings, or
-  the first admin save would null them back out.
+- The importer **only imports products that match `daily`-type listings**; a
+  product matching a `standard`-type listing is a blocking setup error (the
+  operator must convert the listing to daily). This keeps every imported line
+  inherently dated — the daily listing carries the `Delivery`/`Collection` range
+  on `start_at`/`end_at`, so run sheets (`getAgentRunSheet`) and the day-calendar
+  (`getDailyListingAttendeesByDate`) work out of the box. Chosen over dating
+  standard lines, which would force new line-date paths through the calendar, the
+  ICS feed, and the edit form (standard listings date by `listing.date`, not the
+  line).
 - `Date Booked` maps to `attendees.created` so admin "newest" views and
-  calendar/list/CSV exports (all `ORDER BY a.created DESC`) order imports by their
-  original booking date, not import time; fall back to import time only when
-  `Date Booked` is missing/unparseable. The dashboard's `getNewestAttendeesRaw`
-  is changed from `ORDER BY a.id DESC` to `ORDER BY a.created DESC` (with an index
-  on `created`) so imports don't dominate "newest registrations" there.
-- Per-booking line dedup happens in the planner: every imported line is dated, so
-  same-listing/same-date repeats would be *rejected* by the unique `(listing_id,
-  attendee_id, start_at)` index (it rejects, it does not merge) — the planner
-  collapses them into one `quantity`-N line itself.
-- `booking_imports` is cleaned up when an imported attendee is later purged: the
-  orphan auto-purge and the canonical `deleteAttendee` purge set delete the
-  `booking_imports` row by `new_id`, so an import whose last listing is later
-  deleted (orphaning + purging the attendee) frees its `old_id` for re-import
-  rather than being permanently stuck in the map.
+  calendar/list/CSV exports order imports by their original booking date, not
+  import time; fall back to import time only when `Date Booked` is
+  missing/unparseable. The two id-ordered surfaces are switched to order by
+  `created` (with `id` as a deterministic tiebreaker, backed by a composite
+  `(created, id)` index): the dashboard `getNewestAttendeesRaw` and the
+  `/admin/attendees` browser + CSV `getAttendeesPage` — otherwise imports' fresh
+  ids would make them dominate those "newest" views despite old `created`.
+- Per-booking line dedup happens in the planner: there is **one line per
+  `(attendee, listing)`**, collapsing repeats regardless of date (sum quantity,
+  widest date range, report the collapse). The edit form de-dupes by `listing_id`
+  and per-`(attendee, listing)` action helpers can't represent multiple lines per
+  listing, and the unique `(listing_id, attendee_id, start_at)` index would reject
+  duplicate dated rows anyway — so the planner must collapse, not rely on the
+  constraint.
+- `booking_imports` is cleaned up on every path that removes an imported attendee:
+  the orphan auto-purge and the canonical `deleteAttendee` purge set delete the
+  row by `new_id` (so a later-orphaned import frees its `old_id` for re-import),
+  and `applyAttendeeMerge` remaps the source's row to the surviving target (or
+  deletes it if the target is already an import, since `new_id` is unique). Never
+  leave a `booking_imports` row pointing at a removed attendee.
