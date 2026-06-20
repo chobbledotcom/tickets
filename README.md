@@ -245,6 +245,7 @@ deno task lint           # Format + lint with Biome — fixes in place
 deno task typecheck      # Type check
 deno task build:edge     # Build for Bunny Edge
 deno task deploy:edge <script-id> # Build, upload, and publish to Bunny Edge using BUNNY_ACCESS_KEY from .env
+deno task backup         # Dump the database out-of-band (uploads to storage; --out <path> for a local .zip)
 deno task precommit      # All checks (typecheck, lint, cpd, build:edge, test:coverage)
 ```
 
@@ -273,6 +274,16 @@ Optional:
 | `ADMIN_EMAIL_ADDRESS` | Enables a superuser recovery account. The email local-part (before `@`) must be a valid username: 2–32 characters, letters, numbers, hyphens, and underscores only. Email delivery must be configured before the superuser can be enabled. |
 
 **Database maintenance:** pruning of expired sessions, rate-limit rows, payment idempotency records and (optionally) orphaned attendees runs automatically while serving requests, self-gated to roughly once per `PRUNE_INTERVAL_HOURS` (default 24) per table — so a site with regular traffic needs no setup. To guarantee pruning on a quiet site, point a cron at `GET /scheduled` — a dynamic route that prunes on every hit (static asset URLs such as `/favicon.ico` are served before pruning runs, so they won't do). On a builder, `POST /scheduled` additionally pokes the least-recently-pruned built site (a plain request that triggers _its_ prune), so one cron on the master keeps quiet client sites pruned too — run it often enough to cover the fleet within `PRUNE_INTERVAL_HOURS` (e.g. hourly handles ~24 clients at the default).
+
+**Backups:** every table is dumped to a single `.zip`, with table reads keyset-paginated so no single response trips libsqld's "Response is too large" payload cap (the server limit behind Bunny's databases). Backups run **out-of-band**, not inside the migration: a full dump of a ~31-table schema can't fit alongside a migration within one edge request's [50-subrequest budget](https://docs.bunny.net/scripting/limits), so migrations just migrate, and a backup is taken by GitHub Actions (or `deno task backup`) beforehand. To enforce that, **`/admin/update` and the per-site update button refuse to deploy unless a backup of that database was taken in the last hour.**
+
+The deploy workflows all back a site up (via `POST /instance/site-credentials`) before deploying to it:
+
+- **`.github/workflows/backup.yml`** (manual) — backs up the main instance's own database with `DB_URL` / `DB_TOKEN` / `STORAGE_ZONE_NAME` / `STORAGE_ZONE_KEY` repository secrets.
+- **`.github/workflows/deploy-clients.yml`** (manual) — upgrades every built client site. It asks the main instance for the fleet's read-only DB credentials, backs each site up to the builder's storage, then deploys. It needs the `MAIN_INSTANCE` URL secret plus `STORAGE_ZONE_*` and `BUNNY_ACCESS_KEY`; the `MAIN_INSTANCE_KEY` that authorizes the credentials endpoint is **pasted in as a run input each time, never stored** (set the same value as the main instance's `MAIN_INSTANCE_KEY` env). `BUNNY_SCRIPT_DATA` is no longer needed — the script ids come from the endpoint.
+- **`.github/workflows/bunny-deploy.yml`** (staging) and **`.github/workflows/production-deploy.yml`** — same flow narrowed to the single site whose script id matches `BUNNY_STAGING_SCRIPT_ID` / `BUNNY_SCRIPT_ID` (the deploy **fails unless exactly one** fleet site matches), via the shared `backup-site` action. They take `MAIN_INSTANCE_KEY` as a run input but fall back to the stored secret — which the staging push-to-`main` trigger requires, since a push has no inputs. So those secrets (`MAIN_INSTANCE`, `MAIN_INSTANCE_KEY`, `STORAGE_ZONE_*`) must be set for staging auto-deploys to pass. A manual run can untick **Back up the database before deploying** to deploy without a backup (an escape hatch for when the backup itself is broken); the staging push trigger always backs up.
+
+Tune `BACKUP_PAGE_SIZE` (default 500 rows per read) via env if a single page ever approaches the payload cap.
 
 See the [CONFIG_KEYS reference](https://chobbledotcom.github.io/tickets/doc.ts/~/CONFIG_KEYS.html) for all optional variables (email providers, Apple Wallet, image uploads, and more).
 

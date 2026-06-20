@@ -9,6 +9,15 @@ on:
         description: "Override Bunny staging script ID (defaults to BUNNY_STAGING_SCRIPT_ID secret)"
         required: false
         type: string
+      main_instance_key:
+        description: "MAIN_INSTANCE_KEY (optional; falls back to the secret, which the push trigger requires)"
+        required: false
+        type: string
+      run_backup:
+        description: "Back up the database before deploying (uncheck only if the backup is broken)"
+        required: false
+        default: true
+        type: boolean
 
 permissions:
   contents: read
@@ -25,6 +34,21 @@ jobs:
         uses: ./.github/actions/build-bunny-script
         with:
           build_commit: ${{ github.sha }}
+
+      # Back up the staging site's database before deploying (it migrates on its
+      # next request). Pushes to main have no inputs, so the key comes from the
+      # secret then; a manual run may paste it instead. A manual run can also
+      # uncheck run_backup to deploy without a backup (e.g. if backups are
+      # broken); the push trigger always backs up.
+      - name: Back up the staging site
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.run_backup }}
+        uses: ./.github/actions/backup-site
+        with:
+          main_instance: ${{ secrets.MAIN_INSTANCE }}
+          main_instance_key: ${{ inputs.main_instance_key || secrets.MAIN_INSTANCE_KEY }}
+          script_id: ${{ inputs.script_id || secrets.BUNNY_STAGING_SCRIPT_ID }}
+          storage_zone_name: ${{ secrets.STORAGE_ZONE_NAME }}
+          storage_zone_key: ${{ secrets.STORAGE_ZONE_KEY }}
 
       - name: Deploy to staging
         uses: ./.github/actions/deploy-bunny-script

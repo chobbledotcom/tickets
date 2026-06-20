@@ -16,6 +16,7 @@ import {
 import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
 import { FormParams } from "#shared/form-data.ts";
+import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { testListingWithCount } from "#test-utils";
 
 const makeForm = (data: Record<string, string>): FormParams =>
@@ -51,9 +52,11 @@ const parsedBase = (
   address: "",
   dayCount: 1,
   email: "",
+  emailAdminNotes: "",
   lines: [],
   name: "Test",
   phone: "",
+  phoneAdminNotes: "",
   remainingBalance: 0,
   returnUrl: "",
   special_instructions: "",
@@ -69,9 +72,11 @@ describe("parseAttendeeForm", () => {
         address: "1 St",
         day_count: "3",
         email: "a@b.com",
+        email_admin_notes: "Email **note**",
         line_key_5: "5|",
         name: "Jane",
         phone: "555",
+        phone_admin_notes: "Phone **note**",
         qty_5: "2",
         special_instructions: "VIP",
         start_date: "2026-03-02",
@@ -81,6 +86,8 @@ describe("parseAttendeeForm", () => {
     expect(parsed.name).toBe("Jane");
     expect(parsed.email).toBe("a@b.com");
     expect(parsed.address).toBe("1 St");
+    expect(parsed.emailAdminNotes).toBe("Email **note**");
+    expect(parsed.phoneAdminNotes).toBe("Phone **note**");
     expect(parsed.special_instructions).toBe("VIP");
     expect(parsed.startDate).toBe("2026-03-02");
     expect(parsed.dayCount).toBe(3);
@@ -232,6 +239,13 @@ describe("validateParsedForm", () => {
     const result = validateParsedForm(parsedBase({ name: "" }));
     expect(result.valid).toBe(false);
     if (!result.valid) expect(result.attendeeError?.field).toBe("name");
+  });
+
+  test("fails when admin notes exceed the encrypted contact note limit", () => {
+    const result = validateParsedForm(
+      parsedBase({ emailAdminNotes: "x".repeat(MAX_TEXTAREA_LENGTH + 1) }),
+    );
+    expect(result.valid).toBe(false);
   });
 
   test("passes for a booked standard listing with no date", () => {

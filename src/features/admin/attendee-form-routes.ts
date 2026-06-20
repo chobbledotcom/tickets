@@ -62,9 +62,12 @@ import {
   updateAttendeeOrder,
 } from "#shared/db/attendees.ts";
 import {
-  type EmailStats,
-  getEmailStats,
+  type ContactStats,
+  getContactStats,
   hashEmail,
+  hashPhone,
+  recordBookingStats,
+  saveContactAdminNotes,
 } from "#shared/db/contact-preferences.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import {
@@ -163,9 +166,11 @@ const buildCreateForm = (
   address: "",
   dayCount: 1,
   email: "",
+  emailAdminNotes: "",
   lines: buildFormLines(renderListings, new Map(), preselectedQty),
   name: "",
   phone: "",
+  phoneAdminNotes: "",
   remainingBalance: 0,
   returnUrl: "",
   special_instructions: "",
@@ -187,6 +192,7 @@ const buildEditFormFromAttendee = (
       address: attendee.address || "",
       dayCount: shared.dayCount,
       email: attendee.email || "",
+      emailAdminNotes: "",
       lines: buildFormLines(
         renderListings,
         firstExistingByListingId(existing),
@@ -194,6 +200,7 @@ const buildEditFormFromAttendee = (
       ),
       name: attendee.name,
       phone: attendee.phone || "",
+      phoneAdminNotes: "",
       remainingBalance: attendee.remaining_balance,
       returnUrl: "",
       special_instructions: attendee.special_instructions || "",
@@ -217,7 +224,9 @@ const overDurationWarning = (
     return null;
   }
   const max = listing.duration_days;
-  return `${listing.name} is designed for up to ${max} day${max === 1 ? "" : "s"}, but the booking spans ${dayCount}.`;
+  return `${listing.name} is designed for up to ${max} day${
+    max === 1 ? "" : "s"
+  }, but the booking spans ${dayCount}.`;
 };
 
 /** The capacity-check booking shape for a booked line on the shared range
@@ -257,7 +266,9 @@ const overbookedListingIds = async (
 
 /** Overbooking message for a booked line. */
 const overbookMessage = (line: AttendeeFormLine): string =>
-  `${line.listing!.name} is overbooked — there isn't capacity for ${line.quantity} on these dates.`;
+  `${
+    line.listing!.name
+  } is overbooked — there isn't capacity for ${line.quantity} on these dates.`;
 
 /**
  * Over-duration + overbooking warnings for every booked line, keyed by listing
@@ -304,7 +315,7 @@ const buildTemplateData = async (
     returnUrl?: string;
     questions?: QuestionWithAnswers[];
     selectedAnswerIds?: number[];
-    emailStats?: EmailStats | null;
+    contactStats?: ContactStatsByChannel;
   } = {},
 ): Promise<AttendeeFormTemplateData> => {
   const statuses = await getAllAttendeeStatuses();
@@ -328,8 +339,8 @@ const buildTemplateData = async (
     attendee,
     attendeeError: opts.attendeeError ?? null,
     balanceNotice,
+    contactStats: opts.contactStats ?? EMPTY_CONTACT_STATS_BY_CHANNEL,
     dateError: opts.dateError ?? null,
-    emailStats: opts.emailStats ?? null,
     flashError: opts.flashError,
     flashSuccess: opts.flashSuccess,
     // The shared date range only affects daily listings; the form's rendered
@@ -435,9 +446,11 @@ export const handleAttendeeEditGet: TypedRouteHandler<
       attendeeId,
       loaded.existing,
     );
-    const emailStats = await loadEmailStats(session, loaded.attendee);
+    const contactStats = await loadContactStats(session, loaded.attendee);
+    parsed.emailAdminNotes = contactStats.email?.adminNotes ?? "";
+    parsed.phoneAdminNotes = contactStats.phone?.adminNotes ?? "";
     const data = await buildTemplateData("edit", parsed, loaded.attendee, {
-      emailStats,
+      contactStats,
       hasMixedTimings,
       questions,
       returnUrl: getSearchParam(request, "return_url"),
@@ -447,13 +460,66 @@ export const handleAttendeeEditGet: TypedRouteHandler<
   });
 
 /** Read the attendee's bulk-email contact history (null when no email). */
-const loadEmailStats = async (
+const loadContactStats = async (
   session: AuthSession,
   attendee: Attendee,
-): Promise<EmailStats | null> => {
-  if (!attendee.email) return null;
+): Promise<ContactStatsByChannel> => {
   const pk = await requirePrivateKey(session);
-  return getEmailStats(await hashEmail(attendee.email), pk);
+  return {
+    email: attendee.email
+      ? await getContactStats(await hashEmail(attendee.email), pk)
+      : null,
+    phone: attendee.phone
+      ? await getContactStats(await hashPhone(attendee.phone), pk)
+      : null,
+  };
+};
+
+type ContactHashesByChannel = { email: string | null; phone: string | null };
+type ContactStatsByChannel = {
+  email: ContactStats | null;
+  phone: ContactStats | null;
+};
+
+const EMPTY_CONTACT_STATS_BY_CHANNEL: ContactStatsByChannel = {
+  email: null,
+  phone: null,
+};
+
+const contactHashesFor = async (
+  email: string,
+  phone: string,
+): Promise<ContactHashesByChannel> => ({
+  email: email.trim() ? await hashEmail(email) : null,
+  phone: phone.trim() ? await hashPhone(phone) : null,
+});
+
+const compactContactHashes = (hashes: ContactHashesByChannel): string[] =>
+  [hashes.email, hashes.phone].filter((hash): hash is string => Boolean(hash));
+
+const saveContactPreferenceBlob = async (
+  parsed: ParsedAttendeeForm,
+  privateKey: CryptoKey,
+  options: { recordBooking: boolean },
+): Promise<void> => {
+  const hashes = await contactHashesFor(parsed.email, parsed.phone);
+  if (options.recordBooking) {
+    await recordBookingStats(compactContactHashes(hashes), false, privateKey);
+  }
+  if (hashes.email) {
+    await saveContactAdminNotes(
+      hashes.email,
+      parsed.emailAdminNotes,
+      privateKey,
+    );
+  }
+  if (hashes.phone) {
+    await saveContactAdminNotes(
+      hashes.phone,
+      parsed.phoneAdminNotes,
+      privateKey,
+    );
+  }
 };
 
 /** Load an attendee + all its listing_attendees rows for the edit page. */
@@ -578,7 +644,7 @@ const handleSubmitInner = async (
   // re-render the submitted form in place so entered data is never lost.
   const outcome =
     mode === "create"
-      ? await applyCreate(parsed, logisticsPlan)
+      ? await applyCreate(parsed, logisticsPlan, session)
       : await applyEdit(
           attendeeId!,
           parsed,
@@ -586,6 +652,7 @@ const handleSubmitInner = async (
           questions,
           parseQuestionAnswers({ optional: true })(form, questions).answerIds,
           logisticsPlan,
+          session,
         );
   if (outcome.ok) return outcome.response;
   return renderForm(session, {
@@ -639,6 +706,7 @@ const applyLogisticsPlan = (
 const applyCreate = async (
   parsed: ParsedAttendeeForm,
   logisticsPlan: LogisticsPlan,
+  session: AuthSession,
 ): Promise<SaveOutcome> => {
   const input = toCreateInput(parsed);
   if (input.bookings.length === 0) {
@@ -659,6 +727,9 @@ const applyCreate = async (
   >;
   const firstListingId = input.bookings[0]!.listingId;
   const newId = attendees[0]!.id;
+  await saveContactPreferenceBlob(parsed, await requirePrivateKey(session), {
+    recordBooking: true,
+  });
   await applyLogisticsPlan(newId, logisticsPlan);
   await logActivity(
     `Attendee '${parsed.name}' added manually`,
@@ -679,6 +750,7 @@ const applyEdit = async (
   questions: QuestionWithAnswers[],
   answerIds: number[],
   logisticsPlan: LogisticsPlan,
+  session: AuthSession,
 ): Promise<SaveOutcome> => {
   const encryptedPiiBlob = (await encryptPiiBlob(
     buildPiiBlob({
@@ -713,6 +785,10 @@ const applyEdit = async (
     parsed.statusId,
     parsed.remainingBalance,
   );
+
+  await saveContactPreferenceBlob(parsed, await requirePrivateKey(session), {
+    recordBooking: false,
+  });
 
   await applyLogisticsPlan(attendeeId, logisticsPlan);
 
