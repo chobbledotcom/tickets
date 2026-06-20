@@ -7,6 +7,7 @@ import {
   contactHash,
   forgetContact,
   fromContactHashParam,
+  getContactCountFields,
   getContactCounts,
   getContactRecord,
   getUnsubscribedHashSet,
@@ -271,6 +272,28 @@ describeWithEnv("contact-preferences: contact history", { db: true }, () => {
       publicBookingCount: 0,
       visits: 0,
     });
+  });
+
+  test("getContactCountFields reads plaintext counts past a corrupt blob", async () => {
+    const hash = await hashEmail("corrupt@example.com");
+    await execute(
+      "INSERT INTO contact_preferences (contact_hash, visits, public_booking_count, admin_booking_count, stats_blob) VALUES (?, ?, ?, ?, ?)",
+      [hash, 4, 3, 1, "not-valid-ciphertext"],
+    );
+
+    // No private key, no decryption — the corrupt note is irrelevant, so the
+    // editor can still recover the real counts to repair the row.
+    expect(await getContactCountFields(hash)).toEqual({
+      adminBookingCount: 1,
+      publicBookingCount: 3,
+      visits: 4,
+    });
+  });
+
+  test("getContactCountFields defaults to zero for an unknown contact", async () => {
+    expect(
+      await getContactCountFields(await hashEmail("nobody@example.com")),
+    ).toEqual({ adminBookingCount: 0, publicBookingCount: 0, visits: 0 });
   });
 
   test("recordContacts bumps count and stores subject + time", async () => {

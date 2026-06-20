@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { execute } from "#shared/db/client.ts";
 import {
   getContactRecord,
   hashEmail,
@@ -157,6 +158,45 @@ describeWithEnv("server (/admin/history/:hmac)", { db: true }, () => {
       expect(await response.text()).toContain("characters or fewer");
       // The rejected submission wrote nothing.
       expect((await getContactRecord(hash, pk)).publicBookingCount).toBe(0);
+    });
+  });
+
+  describe("corrupt record repair", () => {
+    test("opens the editor and overwrites a row with an unreadable stats blob", async () => {
+      const pk = await getTestPrivateKey();
+      const hash = await hashEmail("repair@example.com");
+      const param = toContactHashParam(hash);
+      // A row whose encrypted note is corrupt, but whose plaintext counts are
+      // intact — the exact state the best-effort SMS path can leave behind.
+      await execute(
+        "INSERT INTO contact_preferences (contact_hash, visits, public_booking_count, admin_booking_count, stats_blob, last_activity) VALUES (?, ?, ?, ?, ?, ?)",
+        [hash, 9, 5, 2, "not-valid-ciphertext", Date.now()],
+      );
+
+      // The editor still renders, pre-filling the surviving counts.
+      const getResponse = await awaitTestRequest(`/admin/history/${param}`, {
+        cookie: await testCookie(),
+      });
+      expect(getResponse.status).toBe(200);
+      expect(await getResponse.text()).toMatch(
+        /name="public_booking_count"[^>]*value="5"/,
+      );
+
+      // Saving overwrites the corrupt blob with a fresh, readable note.
+      const { response } = await adminFormPost(`/admin/history/${param}`, {
+        admin_booking_count: "2",
+        admin_notes: "Repaired",
+        last_subject: "",
+        messages: "0",
+        public_booking_count: "5",
+        visits: "9",
+      });
+      expectRedirect(response, `/admin/history/${param}`);
+
+      const record = await getContactRecord(hash, pk);
+      expect(record.adminNotes).toBe("Repaired");
+      expect(record.publicBookingCount).toBe(5);
+      expect(record.visits).toBe(9);
     });
   });
 });

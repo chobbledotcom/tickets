@@ -222,25 +222,53 @@ const loadStatsBlobs = async (
   return new Map(rows.map((r) => [r.contact_hash, r.stats_blob]));
 };
 
+type CountColumnsRow = {
+  visits: number;
+  public_booking_count: number;
+  admin_booking_count: number;
+};
+
+type ContactCountFields = Pick<
+  ContactRecord,
+  "visits" | "publicBookingCount" | "adminBookingCount"
+>;
+
+/** Map a row's plaintext count columns (or a missing row) to the camelCase
+ * count fields, defaulting to zero. */
+const countFieldsFromRow = (
+  row: CountColumnsRow | null,
+): ContactCountFields => ({
+  adminBookingCount: row?.admin_booking_count ?? 0,
+  publicBookingCount: row?.public_booking_count ?? 0,
+  visits: row?.visits ?? 0,
+});
+
 export const getContactRecord = async (
   hash: string,
   privateKey: CryptoKey,
 ): Promise<ContactRecord> => {
-  const row = await queryOne<{
-    visits: number;
-    public_booking_count: number;
-    admin_booking_count: number;
-    stats_blob: string;
-  }>(
+  const row = await queryOne<CountColumnsRow & { stats_blob: string }>(
     "SELECT visits, public_booking_count, admin_booking_count, stats_blob FROM contact_preferences WHERE contact_hash = ?",
     [hash],
   );
   return {
     ...(await parseStats(row?.stats_blob ?? "", privateKey)),
-    adminBookingCount: row?.admin_booking_count ?? 0,
-    publicBookingCount: row?.public_booking_count ?? 0,
-    visits: row?.visits ?? 0,
+    ...countFieldsFromRow(row),
   };
+};
+
+/** The plaintext count columns for one contact — readable without the private
+ * key and without touching the (possibly corrupt) encrypted stats blob. Lets a
+ * caller recover a record's counts when {@link getContactRecord} cannot decrypt
+ * the note, so a repair never silently zeros real booking history. */
+export const getContactCountFields = async (
+  hash: string,
+): Promise<ContactCountFields> => {
+  const row = await queryOne<CountColumnsRow>(
+    "SELECT visits, public_booking_count, admin_booking_count FROM contact_preferences WHERE contact_hash = ?",
+    [hash],
+  );
+  return countFieldsFromRow(row);
 };
 
 export const getContactCounts = async (

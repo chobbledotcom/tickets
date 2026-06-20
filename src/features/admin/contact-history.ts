@@ -18,14 +18,43 @@ import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
   type ContactRecord,
   fromContactHashParam,
+  getContactCountFields,
   getContactRecord,
   saveContactRecord,
+  toContactHashParam,
 } from "#shared/db/contact-preferences.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import { ErrorCode, logError } from "#shared/logger.ts";
 import { contactHistoryPage } from "#templates/admin/contact-history.tsx";
 
 /* jscpd:ignore-end */
+
+/** Load the record for the editor, tolerating a corrupt stats blob. This editor
+ * is the repair path, so a decryption failure must not lock the operator out:
+ * keep the plaintext counts (read separately) and blank the unreadable note, so
+ * the rendered form lets a save overwrite the bad ciphertext without losing the
+ * real booking history. */
+const loadForRepair = async (
+  hash: string,
+  privateKey: CryptoKey,
+): Promise<ContactRecord> => {
+  try {
+    return await getContactRecord(hash, privateKey);
+  } catch (error) {
+    logError({
+      code: ErrorCode.DECRYPT_FAILED,
+      detail: `contact history editor ${toContactHashParam(hash)}: ${error}`,
+    });
+    return {
+      ...(await getContactCountFields(hash)),
+      adminNotes: "",
+      contactCount: 0,
+      lastContact: "",
+      lastSubject: "",
+    };
+  }
+};
 
 /** Read one editable counter as a non-negative integer (blank/garbage → 0). */
 const nonNegativeInt = (form: FormParams, field: string): number =>
@@ -53,7 +82,7 @@ export const handleContactHistoryGet: TypedRouteHandler<
   "GET /admin/history/:hmac"
 > = (request, { hmac }) =>
   requireSessionOr(request, async (session) => {
-    const record = await getContactRecord(
+    const record = await loadForRepair(
       fromContactHashParam(hmac),
       await requirePrivateKey(session),
     );
@@ -76,7 +105,7 @@ export const handleContactHistoryPost: TypedRouteHandler<
   withAuth(request, AUTH_FORM, async (session, form) => {
     const pk = await requirePrivateKey(session);
     const hash = fromContactHashParam(hmac);
-    const current = await getContactRecord(hash, pk);
+    const current = await loadForRepair(hash, pk);
     const updated = recordFromForm(form, current);
     if (updated.adminNotes.length > MAX_TEXTAREA_LENGTH) {
       return htmlResponse(
