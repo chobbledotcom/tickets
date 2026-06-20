@@ -175,7 +175,7 @@ Deno.test("compact TAP reporter can hide progress for CI output", () => {
   expect(out).toEqual(["ok   passes without progress"]);
 });
 
-Deno.test("compact TAP reporter falls back to done count when estimate is exceeded", () => {
+Deno.test("compact TAP reporter grows the estimated total when it is exceeded", () => {
   const out: string[] = [];
   const reporter = new CompactTapReporter({
     cwd: Deno.cwd(),
@@ -193,7 +193,7 @@ Deno.test("compact TAP reporter falls back to done count when estimate is exceed
   expect(reporter.finish().passed).toBe(2);
   expect(out).toEqual([
     "ok   [########################] 1/1 first",
-    "ok   [   2 done] second",
+    "ok   [########################] 2/2 second",
   ]);
 });
 
