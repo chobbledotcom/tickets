@@ -1,10 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { adminApiRoutes } from "#routes/admin/api.ts";
 import { setTestEnv } from "#test-utils";
 import { loadConfig } from "../../cli/config.ts";
 import { buildCurlArgs, curlFailureMessage, curlJson } from "../../cli/curl.ts";
-import { parseResource, resourcePath } from "../../cli/resources.ts";
+import { parseResource, resourcePath, resources } from "../../cli/resources.ts";
 
 const withTempCwd = async <T>(fn: () => Promise<T>): Promise<T> => {
   const original = Deno.cwd();
@@ -210,9 +211,23 @@ describe("CLI resources", () => {
   });
 
   test("parses known resources and rejects unknown resources", () => {
-    expect(parseResource("attendees")).toBe("attendees");
+    expect(parseResource("holidays")).toBe("holidays");
     expect(() => parseResource("orders")).toThrow(
-      "Unknown resource: orders. Expected listings, attendees, modifiers",
+      "Unknown resource: orders. Expected listings, groups, holidays",
     );
+  });
+
+  test("exposes exactly the resources the admin API serves", () => {
+    // Derive the resource segment from every registered admin API route key
+    // (e.g. "POST /api/admin/groups/:groupId" → "groups"). The CLI's resource
+    // list must match this set exactly, so neither side can silently drift.
+    const served = [
+      ...new Set(
+        Object.keys(adminApiRoutes).map(
+          (route) => route.match(/\/api\/admin\/([a-z]+)/)?.[1] ?? "",
+        ),
+      ),
+    ].sort();
+    expect([...resources].sort()).toEqual(served);
   });
 });

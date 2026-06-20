@@ -36,9 +36,10 @@ describe("db > migrations > schema change guard", () => {
         "2026-06-18_answer_modifiers",
         "2026-06-18_question_assign_all",
         "2026-06-19_answer_aggregates",
+        "2026-06-19_built_sites_last_pruned",
         "2026-06-20_contact_booking_counts",
       ],
-      schemaHash: "16b1ac9",
+      schemaHash: "1dmatee",
     });
   });
 });

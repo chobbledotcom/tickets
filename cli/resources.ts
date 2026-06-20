@@ -1,6 +1,6 @@
-export type ResourceName = "listings" | "attendees" | "modifiers";
+export const resources = ["listings", "groups", "holidays"] as const;
 
-export const resources = ["listings", "attendees", "modifiers"] as const;
+export type ResourceName = (typeof resources)[number];
 
 export const resourcePath = (resource: ResourceName, id?: string): string =>
   id ? `/api/admin/${resource}/${id}` : `/api/admin/${resource}`;
