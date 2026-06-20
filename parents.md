@@ -249,6 +249,10 @@ On the listing edit page (`src/features/admin/listings.ts`, fields in
   checkout gate entirely. If we later allow nesting, add a DFS cycle check at save
   time.
 - Validate that referenced listing ids exist and are not soft-deleted.
+- **Forbid parent relationships on renewal tiers** (`months_per_unit > 0`) in v1 —
+  neither side of an edge should be a renewal tier — because folding a normal child
+  into a renewal order breaks the renewal-qualification rule (see the Renewals
+  entry point). Relax only if renewal-specific gate handling is designed.
 - Respect the existing dropdown of selectable listings (active + maybe hidden);
   decide whether inactive listings can be linked (probably yes, with a warning,
   since they may be activated later).
@@ -390,6 +394,22 @@ The expanded set (parent page listings ∪ selected children) must drive **all**
   `maxPurchasable` even though each per-parent input was individually clamped. The
   **folded** quantity must be re-validated against the child's max-purchasable
   limit (clamp or reject) before building items.
+- **Answer-triggered modifiers** — `prepareOrder` computes
+  `answerModifierQuantities(computeListingAnswerMap(ctx, info), quantities)`
+  (`ticket-submit.ts:633-634`), so a child answer whose `answers.modifier_id`
+  carries a surcharge/discount or stock cap only affects pricing/stock if the
+  folded child is in the **answer map, selected ids, *and* quantity map** before
+  that call. Fold children into all three (not just `quantities`), or a parent+child
+  order records the child's answer while skipping its modifier's surcharge/stock.
+- **Customisable-day children** — the page renders a single `day_count` selector
+  from `sharedDayCounts(ctx.listings)` and submit rejects a selected
+  customisable-days listing that lacks it via `resolveDayCount(selected, form,
+  date)` (`ticket-submit.ts:602`, `ticket-payment.ts:234`). An implicit child kept
+  out of the listing set has no selector; feeding *all* children into
+  `sharedDayCounts` intersects unselected children's day-count options (the same
+  failure mode as dates). So a customisable-days child needs a **child-scoped
+  day-count input** (`child_days_<parentId>_<childId>`), or we **explicitly
+  disallow customisable-days children** in v1. (Open Question 17.)
 
 ### Pricing & payment round-trip
 
@@ -449,14 +469,29 @@ Enumerate each and decide:
   (a) disable the direct-skip for listings that are parents (fall back to the
   normal form so the child can be chosen), or (b) run equivalent gate logic in the
   QR path before building the intent. Recommended: **(a)** — a parent inherently
-  needs a buyer choice, which is exactly what "skip the form" removes.
+  needs a buyer choice, which is exactly what "skip the form" removes. **Also scope
+  the QR price override:** even under option (a) the signed `qr_token` rides along
+  on the parent form, and `applyQrTokenOverride` verifies `ctx.slugs[0]` then
+  applies the signed price to **every** fixed-price row in `ctx.listings`
+  (`ticket-submit.ts:166-176`). Once the fold expands `ctx.listings` with children,
+  a fixed-price child would be charged the **parent's** signed QR value instead of
+  its own `unit_price`. So the override must apply **only to the scanned/original
+  listing**, never to folded children.
 - **Admin manual add / attendee edit** — admins build `AttendeeInput.bookings`
   directly and can `allowOverbook`. Recommendation: the gate is a *buyer* UX
   constraint, so admin manual add should **warn but not block** (operators
   legitimately fix up odd orders). Confirm (Open Question 7).
-- **Renewals** (`/renew/?t=…`, `actionUrl` override in `TicketCtx`) — if a
-  renewable listing is a parent, decide whether renewal re-triggers child
-  selection. Likely out of scope for v1.
+- **Renewals** (`/renew/?t=…`, `actionUrl` override in `TicketCtx`) — **not safe
+  to hand-wave once parent config is exposed.** `/renew/` renders the normal ticket
+  flow with a `siteToken`, but `applyRenewalsForEntries` rejects the renewal unless
+  *every* completed line is a qualifying hidden purchase-only renewal tier. So if a
+  renewal tier is configured as a parent: enforcing the gate by folding in a normal
+  child makes the paid renewal **complete without extending the site deadline**
+  (the child line fails the renewal qualification); skipping the gate **bypasses
+  the requirement**. For v1, **explicitly forbid parent relationships on renewal
+  tiers** (`months_per_unit > 0`) — block it in admin validation — or design
+  renewal-specific gate handling before shipping the admin config. (Open Question
+  18.)
 
 ---
 
@@ -635,3 +670,10 @@ direct-checkout paths** — so the API/QR decisions move **into the enforcement 
 16. **Child-scoped add-ons** — render/parse add-ons conditionally on the selected
     child vs **not support child-scoped add-ons** in v1 (recommended; add-ons stay
     scoped to the page's parent listings)?
+17. **Customisable-days children** — add a child-scoped `day_count` input
+    (`child_days_<parentId>_<childId>`) vs **disallow customisable-days children**
+    in v1 (recommended)?
+18. **Renewal tiers as parents** — **forbid** parent relationships on renewal tiers
+    (`months_per_unit > 0`) in v1 (recommended) vs design renewal-specific gate
+    handling? (A folded normal child breaks `applyRenewalsForEntries`'
+    all-lines-must-be-a-renewal-tier rule.)
