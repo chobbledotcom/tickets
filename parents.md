@@ -142,10 +142,22 @@ listing_parents(
 - No FKs, matching house style (`schema.ts` note on `listing_attendees`).
 - The `parent_id` index is the one the checkout gate hits most (given a listing in
   the cart, find its children).
-- Add the migration as a new entry in the `schema.ts` table map. New databases get
-  it for free; existing databases get it via the additive-migration path the repo
-  already uses for new tables (confirm the exact mechanism when implementing —
-  schema.ts is declarative and a separate runner applies diffs).
+- **A SCHEMA addition alone is not enough for existing databases.** Adding the
+  table to `SCHEMA` (`src/shared/db/migrations/schema.ts`) makes *fresh* databases
+  correct, but the migration runner refuses a SCHEMA-only change: if the live
+  schema differs and no named migration is pending, `restoreStaleSchemaMarkers`
+  throws *"Every SCHEMA change must ship with a new entry in MIGRATIONS."*
+  (`src/shared/db/migrations.ts:309-313`). So the change must ship as **three
+  coordinated edits**, mirroring the most recent migration
+  (`migrations/2026-06-20_user_kek_v2.ts`):
+  1. add the table (and, if adopting config (a), the parent rule columns) to
+     `SCHEMA`;
+  2. add a new dated migration file under `src/shared/db/migrations/` that creates
+     the table + indexes additively, and register it in the `MIGRATIONS` array
+     (`migrations.ts:177`);
+  3. bump `LATEST_UPDATE` (`migrations/schema.ts`) to describe the change.
+  Without step 2, fresh databases work while upgrades fail at boot with stale
+  schema markers.
 
 ### Optional per-edge configuration (defer unless needed)
 
@@ -167,8 +179,17 @@ richer rules as a later iteration. See Open Question 2.
 
 - Extend nothing on `Listing` for the relationship itself (keep the link out of
   the wide row). Instead add a small relationship accessor:
-  - `getChildrenOf(parentId): Promise<ListingWithCount[]>` — active, bookable
-    children of a parent (the hot path).
+  - `getChildrenOf(parentId): Promise<ListingWithCount[]>` — the parent's child
+    *listings*. **Important: this returns the relationship, not an
+    availability-filtered list.** Bookability (sold out / closed / capacity) is
+    *date- and duration-specific* for daily listings and group caps — e.g.
+    `getGroupRemainingByListingId` deliberately skips daily listings when `date`
+    is null (`src/shared/db/attendees/capacity.ts:100-106`). So the lookup must
+    return the edges/listings and let the **render and submit paths evaluate
+    availability against the submitted `date`/`durationDays`**, exactly as the
+    existing booking page does. Do **not** cache a parent-only "bookable children"
+    list, or a parent with a daily child can be allowed/blocked against the wrong
+    date.
   - `getParentsOf(childId): Promise<number[]>` — for the edit page.
   - A batch variant `getChildrenForParents(parentIds[])` for the booking page,
     which may have several parents in the cart at once (avoid N+1).
@@ -186,7 +207,10 @@ richer rules as a later iteration. See Open Question 2.
      children by intersecting cached listings with edge rows.
 - Recommendation: **(1)** a tiny dedicated cache for the edges (just integer id
   arrays), then hydrate to `ListingWithCount` through the existing listings cache.
-  Edges carry no PII, so the cache holds plain integers.
+  Edges carry no PII, so the cache holds plain integers. The cache stores **only
+  the relationship** (parent id → child ids); availability is computed at
+  render/submit against the submitted date, never cached (see the accessor note
+  above).
 
 ### Deletion / integrity
 
@@ -316,9 +340,24 @@ Enumerate each and decide:
   group still needs its gate. Children of a group member may or may not be group
   members themselves — confirm interaction (Open Question 6).
 - **Public/JSON API booking** (`src/features/api`, `src/shared/booking.ts`
-  `processBooking`) — decide whether the API enforces the gate (recommended: yes,
-  reject a parent booking that omits a required child) or treats it as a
-  lower-level primitive. Document the choice.
+  `processBooking`) — decide whether the API enforces the gate. **Caveat:**
+  `processBooking(listing, contact, quantity, date, baseUrl, customUnitPrice?)`
+  (`src/shared/booking.ts:37-43`) accepts exactly **one** listing, and its
+  `CheckoutIntent` carries only that listing. So "reject a parent that omits a
+  child" is not enough on its own — there is currently **no payload shape** for an
+  API client to *supply* the required child. Two real options: (i) extend the API
+  request + `processBooking` contract to carry child selections (so parents are
+  bookable via API), or (ii) explicitly make **parent listings website-only** for
+  the API and return a clear error. Pick one and document it (Open Question 9).
+- **QR direct-checkout link** (`src/features/public/qr-book.ts`) — a signed QR
+  link can **skip the form entirely**: `handleQrBookGet` → `skipToCheckout` →
+  `buildCheckoutIntent` (`qr-book.ts:83-152`) creates a payment session with only
+  the scanned listing in `items`, **without** going through `prepareOrder`. A
+  parent booked this way would **bypass the gate entirely**. Decide explicitly:
+  (a) disable the direct-skip for listings that are parents (fall back to the
+  normal form so the child can be chosen), or (b) run equivalent gate logic in the
+  QR path before building the intent. Recommended: **(a)** — a parent inherently
+  needs a buyer choice, which is exactly what "skip the form" removes.
 - **Admin manual add / attendee edit** — admins build `AttendeeInput.bookings`
   directly and can `allowOverbook`. Recommendation: the gate is a *buyer* UX
   constraint, so admin manual add should **warn but not block** (operators
@@ -331,12 +370,17 @@ Enumerate each and decide:
 
 ## Edge cases
 
-- **Child unbookable** (inactive / closed / sold out / hidden / `purchase_only`
-  mismatch). The gate must only require selection from **currently bookable**
-  children. If a parent's *only* child is sold out, the parent effectively cannot
-  be booked — decide whether to (a) hide/disable the parent, or (b) show it with a
-  "currently unavailable" note. Recommended: treat "no bookable children" the same
-  as "parent sold out" and block, with a clear message. (Open Question 5.)
+- **Child unbookable** (inactive / closed / sold out / `purchase_only` mismatch).
+  The gate must only require selection from **currently bookable** children.
+  **`hidden` is *not* an unbookable condition** — the ticket flow still loads
+  hidden listings by direct slug; only the public index/gallery excludes them. A
+  child intentionally hidden from the index must still be selectable under its
+  parent (this matches the "Hidden children" note below). So do **not** filter on
+  `hidden` here. If a parent's *only* bookable child is sold out, the parent
+  effectively cannot be booked — decide whether to (a) hide/disable the parent, or
+  (b) show it with a "currently unavailable" note. Recommended: treat "no bookable
+  children" the same as "parent sold out" and block, with a clear message. (Open
+  Question 5.)
 - **Quantity coupling.** If the buyer takes 3 of a parent, must they take 3
   children? Options: (i) child quantity independent (default), (ii) total child
   quantity must equal parent quantity, (iii) one child *type* but matching
@@ -345,7 +389,19 @@ Enumerate each and decide:
 - **Shared child across multiple in-cart parents.** If parents P1 and P2 both have
   child C and both are in the cart, does one selection of C satisfy both, or does
   each parent need its own pick? Per-parent namespacing (`child_of_<parentId>`)
-  makes each requirement independent by default. Recommended: **per-parent**.
+  makes each requirement independent by default (recommended). **But the downstream
+  booking shape cannot represent two separate lines for the same listing+date:**
+  `parseQuantities` is keyed by listing id (`ticket-form.ts:187-204`) and
+  `createAttendeeAtomicImpl` rejects a duplicate `(listing_id, date)` booking slot.
+  So when per-parent selection picks the *same* child for P1 and P2, the fold step
+  **must apply an explicit aggregate-or-disallow rule**, decided up front:
+  - **Aggregate (recommended):** sum the child's quantity across the parents that
+    chose it into a single booking line (one C with the combined quantity). The
+    per-parent requirement is still satisfied; only the persisted line is merged.
+  - **Disallow:** reject choosing the same child for more than one parent in one
+    order, with a clear message.
+  Whichever we pick, the gate must enforce it *before* building `ListingBooking[]`,
+  so validation never "passes" only to fail at save with a duplicate-slot error.
   (Open Question 8.)
 - **Child is also a parent (nesting).** Forbidden in v1 (see Admin validation).
   If allowed later, selecting a child that is itself a parent recursively requires
@@ -423,12 +479,20 @@ land independently.
    group page change how children are surfaced?
 7. **Admin manual add / attendee edit** — warn-only (recommended) vs enforce the
    gate?
-8. **Shared child across parents** — per-parent requirement (recommended) vs a
-   single selection satisfying multiple parents?
-9. **API bookings** — enforce the gate (recommended) vs treat API as a low-level
-   primitive that bypasses it?
-10. **Child pricing** — confirm children are charged at their own `unit_price` as
+8. **Shared child across parents** — per-parent requirement (recommended), and if
+   the *same* child is chosen for multiple parents, **aggregate into one line**
+   (recommended) vs **disallow** the duplicate? (Must be settled because the
+   booking shape can't store duplicate `(listing_id, date)` lines.)
+9. **API bookings** — `processBooking` is single-listing today, so enforcing the
+   gate requires either **extending the API/`processBooking` contract to carry
+   child selections** (parents bookable via API) or **making parent listings
+   website-only for the API** with a clear error. Which?
+10. **QR direct-checkout** — for a parent reached via a signed QR link, **disable
+    the form-skip and fall back to the form** (recommended) vs **run the gate in
+    the QR path** before creating the session?
+11. **Child pricing** — confirm children are charged at their own `unit_price` as
     ordinary lines (recommended) and there is no notion of "included/free with
     parent" in v1.
-11. **Public discoverability** — should being a child auto-hide a listing from the
-    public index, or is that left to the existing `hidden` flag?
+12. **Public discoverability** — should being a child auto-hide a listing from the
+    public index, or is that left to the existing `hidden` flag? (Note: `hidden`
+    must *not* make a child unselectable under its parent — see Edge cases.)
