@@ -96,7 +96,7 @@ export const initMarkdownPreview = (): void => {
     }
   };
 
-  for (const textarea of textareas) {
+  for (const textarea of Array.from(textareas)) {
     // Capture the counter before inserting the footer, which would otherwise
     // become the textarea's next sibling.
     const counter = counterAfter(textarea);

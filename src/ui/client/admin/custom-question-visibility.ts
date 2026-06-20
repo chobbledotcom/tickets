@@ -10,9 +10,9 @@ export const initQuestionVisibility = (): void => {
   if (questionFields.length === 0) return;
 
   const updateVisibility = () => {
-    for (const field of questionFields) {
+    for (const field of Array.from(questionFields)) {
       const listingIds = (field.dataset.listingIds ?? "").split(" ");
-      const hasSelected = listingIds.some((id) => {
+      const hasSelected = listingIds.some((id: string) => {
         const qty = document.querySelector<
           HTMLSelectElement | HTMLInputElement
         >(`[name="quantity_${id}"]`);
@@ -22,17 +22,19 @@ export const initQuestionVisibility = (): void => {
       // A select question is a single required control; radios are a required
       // group. Either way, drop `required` while the question is hidden so a
       // collapsed control can't silently block form submission.
-      for (const control of field.querySelectorAll<
-        HTMLInputElement | HTMLSelectElement
-      >('input[type="radio"], select')) {
+      for (const control of Array.from(
+        field.querySelectorAll('input[type="radio"], select'),
+      ) as Array<HTMLInputElement | HTMLSelectElement>) {
         control.required = hasSelected;
       }
     }
   };
   // Listen on any quantity change
-  for (const qty of document.querySelectorAll<
-    HTMLSelectElement | HTMLInputElement
-  >('[name^="quantity_"]')) {
+  for (const qty of Array.from(
+    document.querySelectorAll<HTMLInputElement | HTMLSelectElement>(
+      '[name^="quantity_"]',
+    ),
+  )) {
     qty.addEventListener("change", updateVisibility);
   }
   // Run on load to set initial state

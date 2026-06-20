@@ -33,7 +33,7 @@ export const initManualCheckin = (): void => {
     );
 
   const allOptions = () =>
-    listbox.querySelectorAll<HTMLLIElement>("[role='option']");
+    Array.from(listbox.querySelectorAll<HTMLLIElement>("[role='option']"));
 
   const showList = () => {
     listbox.classList.remove("hidden");
@@ -82,9 +82,10 @@ export const initManualCheckin = (): void => {
     }
   });
 
-  const getVisibleOptions = () => [
-    ...listbox.querySelectorAll<HTMLLIElement>("[role='option']:not(.hidden)"),
-  ];
+  const getVisibleOptions = () =>
+    Array.from(
+      listbox.querySelectorAll<HTMLLIElement>("[role='option']:not(.hidden)"),
+    );
 
   const getActiveOption = () =>
     listbox.querySelector<HTMLLIElement>("[role='option'].combobox-active");

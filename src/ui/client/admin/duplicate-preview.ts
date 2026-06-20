@@ -57,9 +57,9 @@ export const initDuplicatePreview = (): void => {
       .join("");
   };
 
-  for (const input of container.querySelectorAll<HTMLInputElement>(
-    "[data-duplicate-field]",
-  )) {
+  for (const input of Array.from(
+    container.querySelectorAll("[data-duplicate-field]"),
+  ) as HTMLInputElement[]) {
     input.addEventListener("input", renderPreview);
   }
 };

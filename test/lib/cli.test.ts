@@ -2,8 +2,10 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { setTestEnv } from "#test-utils";
+import { buildRequest, main as cliApiMain, parseBody } from "../../cli/api.ts";
 import { loadConfig } from "../../cli/config.ts";
 import { buildCurlArgs, curlFailureMessage, curlJson } from "../../cli/curl.ts";
+import { clearScreen, writeErr } from "../../cli/io.ts";
 import { parseResource, resourcePath } from "../../cli/resources.ts";
 
 const withTempCwd = async <T>(fn: () => Promise<T>): Promise<T> => {
@@ -200,6 +202,77 @@ describe("CLI curl", () => {
 
   test("uses a generic curl failure message when output is empty", () => {
     expect(curlFailureMessage("", "")).toBe("curl request failed");
+  });
+});
+
+describe("CLI API request builder", () => {
+  test("parses optional JSON bodies", () => {
+    expect(parseBody()).toBeUndefined();
+    expect(parseBody('{"name":"Demo"}')).toEqual({ name: "Demo" });
+  });
+
+  test("returns null for unknown commands", () => {
+    expect(buildRequest("publish", "listings")).toBeNull();
+  });
+
+  test("exits with usage when required arguments are missing", async () => {
+    const exit = stub(Deno, "exit", ((code?: number) => {
+      throw new Error(`exit:${code}`);
+    }) as typeof Deno.exit);
+    const err = stub(Deno.stderr, "write", () => Promise.resolve(6));
+    try {
+      await expect(cliApiMain([])).rejects.toThrow("exit:2");
+      expect(new TextDecoder().decode(err.calls[0]!.args[0])).toContain(
+        "Usage: deno task cli:api",
+      );
+    } finally {
+      exit.restore();
+      err.restore();
+    }
+  });
+
+  test("exits with usage when the command is unknown", async () => {
+    const exit = stub(Deno, "exit", ((code?: number) => {
+      throw new Error(`exit:${code}`);
+    }) as typeof Deno.exit);
+    const err = stub(Deno.stderr, "write", () => Promise.resolve(6));
+    try {
+      await expect(cliApiMain(["publish", "listings"])).rejects.toThrow(
+        "exit:2",
+      );
+      expect(new TextDecoder().decode(err.calls[0]!.args[0])).toContain(
+        "Usage: deno task cli:api",
+      );
+    } finally {
+      exit.restore();
+      err.restore();
+    }
+  });
+});
+
+describe("CLI IO", () => {
+  test("writes errors to stderr", async () => {
+    const err = stub(Deno.stderr, "write", () => Promise.resolve(6));
+    try {
+      await writeErr("error\n");
+      expect(err.calls.length).toBe(1);
+      expect(new TextDecoder().decode(err.calls[0]!.args[0])).toBe("error\n");
+    } finally {
+      err.restore();
+    }
+  });
+
+  test("clears the terminal via stdout", async () => {
+    const out = stub(Deno.stdout, "write", () => Promise.resolve(7));
+    try {
+      await clearScreen();
+      expect(out.calls.length).toBe(1);
+      expect(new TextDecoder().decode(out.calls[0]!.args[0])).toBe(
+        "\x1b[2J\x1b[H",
+      );
+    } finally {
+      out.restore();
+    }
   });
 });
 

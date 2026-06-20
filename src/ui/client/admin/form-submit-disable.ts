@@ -5,12 +5,14 @@
  * Uses requestAnimationFrame so the browser sends the form before disabling.
  * Skips the manual check-in form which handles its own submission. */
 export const initFormSubmitDisable = (): void => {
-  for (const form of document.querySelectorAll<HTMLFormElement>(
-    'form[method="POST"]:not([data-manual-checkin])',
+  for (const form of Array.from(
+    document.querySelectorAll<HTMLFormElement>(
+      'form[method="POST"]:not([data-manual-checkin])',
+    ),
   )) {
-    form.addEventListener("submit", (listing) => {
+    form.addEventListener("submit", (event: SubmitEvent) => {
       requestAnimationFrame(() => {
-        if (listing.defaultPrevented) return;
+        if (event.defaultPrevented) return;
         for (let i = 0; i < form.elements.length; i++) {
           (form.elements[i] as HTMLInputElement | HTMLButtonElement).disabled =
             true;
@@ -19,11 +21,13 @@ export const initFormSubmitDisable = (): void => {
     });
   }
 
-  window.addEventListener("pageshow", (e) => {
+  window.addEventListener("pageshow", (e: PageTransitionEvent) => {
     if (!e.persisted) return;
-    for (const el of document.querySelectorAll<
-      HTMLInputElement | HTMLButtonElement
-    >("form[method='POST'] :disabled")) {
+    for (const el of Array.from(
+      document.querySelectorAll<HTMLInputElement | HTMLButtonElement>(
+        "form[method='POST'] :disabled",
+      ),
+    )) {
       el.disabled = false;
     }
   });
