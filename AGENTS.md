@@ -275,6 +275,16 @@ All tests must meet these mandatory criteria:
 - Each test has a single reason to fail
 - If you need "and" in the description, split the test
 
+### 7. Assertion Strength and Mutation Resistance
+
+- Treat 100% coverage as a hygiene floor, not proof that tests would catch meaningful regressions.
+- Prefer assertions that would fail under realistic mutants: wrong arithmetic/operator, skipped validation, inverted permission checks, missing persistence, or omitted escaping.
+- Avoid compound boolean assertions such as `expect(a && b).toBe(true)`; assert the observable contract directly with exact values, object shape, persisted rows, HTTP status/body, or rendered content.
+- Avoid ending a test at `toBeTruthy()` / `toBeDefined()` unless mere existence is the actual user-visible contract. If existence matters, pair it with format, value, range, ordering, persistence, or security invariants.
+- For pure functions, add table-driven or property-style examples that cover families of inputs and state the invariant being protected. Keep any generated cases deterministic.
+- For critical flows, include negative-path, idempotency, concurrency, and metamorphic tests: e.g. payment/webhook replay does not double-credit, capacity cannot go below zero across edits/deletes, role downgrades remove access, and PII/secrets remain encrypted or absent from responses/logs.
+- When generated or bulk-added tests are involved, run `deno task test:quality-audit` and review assertionless, truthiness, presence-only, and compound-boolean findings before trusting the coverage number.
+
 ### Coverage Requirements
 
 100% test coverage is required to merge into main. To find which specific lines are uncovered, run:
