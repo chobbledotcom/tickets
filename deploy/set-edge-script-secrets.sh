@@ -245,9 +245,6 @@ fi
 # Secrets from .env
 set_from_env "NTFY_URL"
 set_from_env "ADMIN_EMAIL_ADDRESS"
-# Shared with built sites so one cron on the master can call each client's
-# /scheduled endpoint with the same bearer key (see HOST_SECRETS in builder.ts).
-set_from_env "SCHEDULED_TASKS_KEY"
 set_from_env "WEBHOOK_URL"
 set_from_env "STORAGE_ZONE_NAME"
 set_from_env "STORAGE_ZONE_KEY"

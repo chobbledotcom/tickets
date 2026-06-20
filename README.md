@@ -265,13 +265,14 @@ Optional:
 | `SUPPORT_FORM_NAG_DAYS` | Optional positive integer (default `7`): how long the Support page shows a "you last submitted this form …" notice after a submission, to discourage duplicates.                                                                            |
 | `BOTPOISON_PUBLIC_KEY`  | Optional [Botpoison](https://botpoison.com) public key. When set with `BOTPOISON_SECRET_KEY`, adds proof-of-work spam protection to the contact form (which otherwise works without it).                                                       |
 | `BOTPOISON_SECRET_KEY`  | Optional Botpoison secret key. Used server-side to verify contact form submissions when Botpoison is enabled.                                                                                                                                |
-| `SCHEDULED_TASKS_KEY`   | Enables the cron endpoint `POST /scheduled` (authed with `Authorization: Bearer <key>`) that runs this site's database pruning; unset means the endpoint 404s. A daily cron is plenty for a standalone site. On a builder, `POST /scheduled?built=true` _also_ forwards a prune to the single least-recently-pruned built site — one client per call — so run the cron often enough to cover the whole fleet within `PRUNE_INTERVAL_HOURS` (e.g. hourly handles up to ~24 clients at the 24-hour default): one master cron then walks every client round-robin (the key is shared with built sites automatically). |
 
 Optional:
 
 | Variable | Description |
 |----------|-------------|
 | `ADMIN_EMAIL_ADDRESS` | Enables a superuser recovery account. The email local-part (before `@`) must be a valid username: 2–32 characters, letters, numbers, hyphens, and underscores only. Email delivery must be configured before the superuser can be enabled. |
+
+**Database maintenance:** pruning of expired sessions, rate-limit rows, payment idempotency records and (optionally) orphaned attendees runs automatically while serving requests, self-gated to roughly once per `PRUNE_INTERVAL_HOURS` (default 24) per table — so a site with regular traffic needs no setup. To guarantee pruning on a quiet site, point a cron at any URL; `GET /scheduled` is a cheap dedicated target. On a builder, `POST /scheduled` additionally pokes the least-recently-pruned built site (a plain request that triggers _its_ prune), so one cron on the master keeps quiet client sites pruned too — run it often enough to cover the fleet within `PRUNE_INTERVAL_HOURS` (e.g. hourly handles ~24 clients at the default).
 
 See the [CONFIG_KEYS reference](https://chobbledotcom.github.io/tickets/doc.ts/~/CONFIG_KEYS.html) for all optional variables (email providers, Apple Wallet, image uploads, and more).
 

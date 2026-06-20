@@ -131,9 +131,9 @@ export const isValidContentType = (request: Request, path: string): boolean => {
   if (request.method !== "POST") {
     return true;
   }
-  // The scheduled-tasks cron trigger carries no body (it's bearer-authed, not
-  // cookie-authed, so there's no CSRF concern), so a bare `curl -X POST` with
-  // no content-type must be accepted.
+  // The scheduled maintenance ping carries no body and uses no cookie/session
+  // auth, so there's nothing to CSRF-protect — accept a bare `curl -X POST`
+  // with no content-type.
   if (path === "/scheduled") {
     return true;
   }

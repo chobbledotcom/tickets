@@ -310,15 +310,15 @@ export const siteBaseUrl = (siteUrl: string): string => {
 };
 
 /**
- * Atomically claim the least-recently-pruned built site and return its id and
- * bunny URL — the scheduler forwards a prune to it. A single UPDATE picks the
- * row via its WHERE subquery and stamps `last_pruned` in the same statement, so
- * two overlapping cron forwards can't both grab the same site: SQLite serialises
+ * Atomically claim the least-recently-poked built site and return its id and
+ * bunny URL — the scheduler pokes it to trigger its prune. A single UPDATE picks
+ * the row via its WHERE subquery and stamps `last_pruned` in the same statement,
+ * so two overlapping cron pokes can't both grab the same site: SQLite serialises
  * the writes and the second claim sees the first's fresh stamp, stepping on to
- * the next site. `last_pruned` empty ('') sorts first, so never-pruned sites go
+ * the next site. `last_pruned` empty ('') sorts first, so never-poked sites go
  * before any dated one and the master walks every site in round-robin order.
- * The stamp lands before the caller forwards the prune, so a slow or failing
- * site doesn't stall the rotation. Returns null when there are no built sites.
+ * The stamp lands before the caller pokes the site, so a slow or failing site
+ * doesn't stall the rotation. Returns null when there are no built sites.
  */
 export const claimNextBuiltSiteForPrune = async (): Promise<{
   id: number;

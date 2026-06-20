@@ -2,9 +2,13 @@
  * Tests for the admin Privacy page (GET render + the orphan-purge and GDPR
  * erasure POST handlers).
  *
- * Pruning no longer runs on web requests (a cron drives it via POST /scheduled),
- * so these forms are the only thing that deletes an orphan here: Save just
- * stores the settings, and only the Purge button deletes.
+ * Note on the background prune: most requests flush the fire-and-forget prune
+ * scheduler before responding, but POST /admin/privacy/orphans deliberately
+ * skips it (see prepareRequestEnvironment) so a request that changes the
+ * retention or switches auto-purge off is never raced by a purge enqueued with
+ * the pre-change settings. These tests rely on that: they leave auto-purge on
+ * (its default) and assert the *handler* — not a background prune — decides an
+ * old orphan's fate.
  */
 
 import { expect } from "@std/expect";
@@ -105,9 +109,10 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
       method: "POST",
     });
 
-    test("saving stores the settings without purging", async () => {
-      // Save only persists settings; with no per-request pruning, the old
-      // orphan stays until an explicit Purge (or the cron endpoint).
+    test("saving with auto-purge switched off does not purge with the old settings", async () => {
+      // Auto-purge is on by default and the orphan prune is due (fresh DB), so
+      // unless this route skips the scheduler, the request that turns auto-purge
+      // off would still reap this old orphan with the previous retention.
       const id = await insertOrphan(oldIso());
 
       const { response } = await adminFormPost("/admin/privacy/orphans", {

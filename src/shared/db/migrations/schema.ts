@@ -627,10 +627,10 @@ export const SCHEMA: [name: string, table: Table][] = [
         ["created", "TEXT NOT NULL"],
         ["renewal_token_index", "TEXT DEFAULT NULL"],
         ["read_only_from", "TEXT NOT NULL DEFAULT ''"],
-        // ISO timestamp of the last time the scheduled-tasks endpoint forwarded
-        // a prune to this site; '' (never) sorts first so the master walks
-        // every site in round-robin order. Operational metadata, not PII, so
-        // it lives outside the encrypted site_data blob.
+        // ISO timestamp of the last time the master poked this site to trigger
+        // its prune; '' (never) sorts first so the master walks every site in
+        // round-robin order. Operational metadata, not PII, so it lives outside
+        // the encrypted site_data blob.
         ["last_pruned", "TEXT NOT NULL DEFAULT ''"],
       ],
       indexes: [
