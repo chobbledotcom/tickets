@@ -469,10 +469,12 @@ Why `quantity = 0` works:
     END` instead of `± 1` (the UPDATE trigger already fires on `quantity`, since
     it's in `LISTING_AGGREGATE_WRITE_COLUMNS`, so toggling "no quantity"
     recomputes correctly);
-  - the reset/recalculation SQL in `listings.ts`
-    (`tickets_count = (SELECT COUNT(*) … WHERE listing_id = ?)` → add
-    `AND quantity > 0`), used by `resetListingAggregateFields` and the
-    current-vs-recalculated drift display;
+  - **two separate queries in `listings.ts`**, each with its own
+    `COUNT(*) AS tickets_count` (→ add `AND quantity > 0` to both): `aggregateResetSql`
+    (used by `resetListingAggregateFields`) **and** `getListingAggregateRecalculation`
+    (the current-vs-recalculated drift display). Missing the recalculation query
+    would make the repair page report quantity-0 lines as drift and push owners to
+    "fix" aggregates back to the wrong value;
   - the full backfill in `schema-sync.ts`
     (`tickets_count = COALESCE((SELECT COUNT(*) … ), 0)` → add `AND quantity > 0`).
   - **the hold-delete restore in `attendees/delete.ts`.** `deleteAttendee(id,
@@ -528,6 +530,13 @@ Owner UI — the "no quantity" checkbox (proxy for `quantity == 0`):
   line with `price_paid > 0`. (Importer-written quantity-0 lines already carry
   `price_paid = 0`; this guard is for an owner toggling the box on an existing
   paid line.)
+- **Marking the *last* real line no-quantity must also resolve `remaining_balance`.**
+  The public pay gate (see Reader/Writer Audit) refuses payment once the attendee
+  has no `quantity > 0` line, but `attendees.remaining_balance` survives on the
+  attendee, so the admin balance page would still show an outstanding amount/link
+  (`remainingBalance > 0`) that can never be paid — a dead balance. So when the
+  save would leave an attendee with zero real lines, either block the action or
+  clear/zero `remaining_balance` (recording the prior value as audit metadata).
 - **Do not auto-delete quantity-0 lines on save.** The save path must
   distinguish a deliberate quantity-0 line (checkbox checked → keep) from a real
   removal (the line's explicit remove control → delete). Any existing logic that
@@ -606,14 +615,18 @@ Must change (exclude / adjust):
   booking.
 - **Logistics / delivery runs** — the logistics flow reads *and writes*
   `listing_attendees` (start/end agent + done flags live on the line).
-  **Decision: exclude / refuse quantity-0 on both sides.** Reads: a
-  cancelled/quoted line is not a drop-off/collection, so it must not appear in run
-  sheets (`getAgentRunSheet`). Writes: the mark-done action `setLegDone`
-  (`shared/db/logistics.ts`, via `admin/deliveries.ts`) scopes its update by
-  `attendee_id`/`listing_id`/agent with **no quantity predicate**, so a quantity-0
-  line that still has an agent assigned could be marked done by a stale/crafted
-  delivery form. Add the same `quantity > 0` guard to the mark-done action, not
-  just the run-sheet query.
+  **Decision: exclude / refuse quantity-0 across reads, completion, and
+  assignment.** Reads: a cancelled/quoted line is not a drop-off/collection, so it
+  must not appear in run sheets (`getAgentRunSheet`). Completion: the mark-done
+  action `setLegDone` (`shared/db/logistics.ts`, via `admin/deliveries.ts`) scopes
+  its update by `attendee_id`/`listing_id`/agent with **no quantity predicate**, so
+  a quantity-0 line with an agent assigned could be marked done by a stale/crafted
+  form — add the `quantity > 0` guard there. Assignment: the attendee edit/save
+  path renders logistics selectors for every `deliveredBookedLines` entry (any
+  `existingBooking`) and `parseLogisticsPlan` persists the agents/times — so a
+  quantity-0 line would keep accepting assignments that then vanish from run sheets
+  (scheduled work silently disappears). Clear/hide the logistics fields for a
+  no-quantity line, don't just guard completion.
 - **Ticket & check-in token flows** — `getAttendeesByTokens`
   (`attendees/queries.ts`) returns every `listing_attendees` line with no
   quantity filter, feeding the customer ticket page (`/t/:tokens`), the check-in
@@ -633,7 +646,19 @@ Must change (exclude / adjust):
   (and for a mixed attendee the pass must target a real line, not a lower-id
   ghost). (`getAttendeesByTokens` has other consumers — webhook/merge/group flows
   — so filter at these ticket/check-in/wallet call sites and in the check-in
-  action, not inside the shared helper.)
+  action, not inside the shared helper.) **Two consequences of filtering rather
+  than changing the shared helper:**
+  - **A token whose filtered entry set is empty must 404, not render an empty
+    surface.** A quantity-0-*only* token still passes `lookupAttendees`, so
+    `handleTicketView` could return a 200 page with no cards and `handleTicketSvg`
+    (`/t/:token/svg`) could emit a QR without resolving entries. Treat an empty
+    filtered set as not-found on both `/t/:tokens` and `/t/:token/svg`.
+  - **Signed attachment downloads need the guard too.** `GET /attachment/:id`
+    verifies the signed attendee/listing pair via `getAttendeeRaw` then calls
+    `incrementAttachmentDownloads` — neither has a quantity predicate, so a
+    customer holding a still-valid attachment URL for a line later marked
+    no-quantity could keep downloading the protected listing attachment. Add
+    `quantity > 0` to the download authorization (and the counter).
 - **Public balance settlement** — `settleAttendeeBalance` (`attendees/balance.ts`)
   folds payment into the `MIN(id)` line's `price_paid` (income is
   `SUM(price_paid)`). A quantity-0-only import with a nonzero `Balance` and an
@@ -647,7 +672,11 @@ Must change (exclude / adjust):
     attendee_id = ?)` with no quantity predicate, so for a *mixed* attendee (a
     quantity-0 line with a lower id plus a real line) the income would still land
     on the ghost. Add `AND quantity > 0` to that `MIN(id)` subquery so payment
-    always targets the lowest-id **real** line.
+    always targets the lowest-id **real** line. The same function then runs a
+    *separate* `SELECT listing_id FROM listing_attendees WHERE attendee_id = ?
+    ORDER BY id LIMIT 1` to pick the listing it logs the payment activity against
+    (and returns) — add `AND quantity > 0` there too, or the activity/returned
+    listing id is still the ghost even though the money landed on the real line.
   - **The pay page itself must pick a real line, too.** `/pay/:token`
     (`features/public/balance.ts`) renders `getAttendeeOrderSummary()`, which
     selects every `listing_attendees` row ordered by id, and the POST uses
@@ -668,14 +697,18 @@ Writer side:
   (real-quantity) imported bookings only** — not cancelled or quote-only rows.
   Do it inside the write transaction (or with the same rollback discipline as the
   rest of the writer) so a failed import doesn't leave dangling visit counts.
-  **Use the source `Date Booked` as the visit timestamp, not import time.**
-  `recordVisit` writes `last_activity = nowMs()`, and
-  `contact_preferences.last_activity` drives the contact-pruning task — so
-  recording years-old imported bookings at today's timestamp would make stale
-  contacts look freshly active and exempt them from pruning. Since `Date Booked`
-  already maps to `attendees.created`, the visit write needs that same timestamp
-  (an import-specific visit helper, since the stock `recordVisit`/
-  `recordOrderVisit` hard-code `nowMs()`).
+  **Use the source `Date Booked` as the visit timestamp, not import time — but
+  never move an existing contact's activity backwards.** `recordVisit` writes
+  `last_activity = nowMs()`, and `contact_preferences.last_activity` drives the
+  contact-pruning task (`pruneContacts` deletes subscribed rows older than the
+  retention cutoff). Stamping years-old imports at *today* would make stale
+  contacts look freshly active; but naively writing the source date would move a
+  *currently-active* contact's `last_activity` backwards and could make it
+  immediately prune-eligible. So the import-specific helper must increment the
+  visit count while setting
+  `last_activity = MAX(existing.last_activity, Date Booked)` (the stock
+  `recordVisit`/`recordOrderVisit` hard-code `nowMs()`, so a dedicated helper is
+  needed).
 
 Intentionally unchanged (call out so nobody "fixes" them):
 
