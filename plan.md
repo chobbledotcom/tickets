@@ -246,9 +246,15 @@ Extend listing creation:
   - The readonly HTML is for the user experience; the server must still enforce
     the locked name.
 
-If the missing-setup URL becomes too long in real uploads, replace the query
-param list with a short-lived server-side error stash later. For the first pass,
-use the query-param shape the workflow calls for.
+**Persist the missing-setup set server-side from the first implementation** — a
+short-lived stash keyed by a token in the redirect URL — rather than packing
+every missing item into repeated query params. The worst case is not "later, in
+real uploads": it is the **first** upload of a wide legacy CSV before any setup
+exists (the sample has 628 columns), which can produce a large missing-question
+list. If that Location header is rejected or truncated by a proxy/browser, the
+operator never reaches the setup page and can't import at all. Query params are
+fine as a fallback for small lists, but don't make reaching the setup page depend
+on URL length.
 
 ## Parsing Plan
 
@@ -595,7 +601,14 @@ Setup contract (operator's responsibility, mirrors products/statuses):
   written, which fits the importer's "all setup must exist first" stance. The
   **staff-only flag** is what makes this assignment safe for internal columns: the
   question must still be assigned (so it renders on the admin edit form and isn't
-  dropped on save), but the flag keeps it off the public booking form.
+  dropped on save), but the flag keeps it off the public booking form. For a
+  cancelled/quoted import whose every matched line is `quantity = 0`, assignment
+  alone still isn't enough unless the no-quantity feature keeps quantity-0 lines
+  in the edit-form question loading — see
+  [`no-quantity-spec.md`](./no-quantity-spec.md) §6c ("edit-form custom-question
+  loading"): the edit form must not filter its questions/answers to
+  `quantity > 0`, or a no-quantity-only attendee's imported answers drop on the
+  first save.
 
 Resolution (pure, before any writes):
 
@@ -878,7 +891,15 @@ Behavior:
 - Render each missing required custom question as its exact required text plus a
   link to `/admin/questions`, with copy telling the operator to create it as a
   **free-text** question with that exact text (optionally a prefilled
-  `?import_text=` link, mirroring the listing flow).
+  `?import_text=` link, mirroring the listing flow). **Carry the required
+  visibility too:** for columns the import config marks as internal (`Colour
+  Name`, invoice numbers, alternate phone, contact-vs-delivery address), the
+  copy/link must say to create the question as **staff-only** (and prefill the
+  staff-only flag if the create form supports it) — otherwise an operator
+  following the link creates an ordinary *public* question and the next booking
+  form starts asking customers for that legacy/PII field. Equivalently, block a
+  public question matching an internal column at resolution. (The import config
+  already knows which columns are internal — see Custom Questions.)
 - Render each product that matched a **`standard`-type listing** as its name plus
   a link to that listing's edit page (`/admin/listing/:id/edit`), with copy
   telling the operator the listing must be a **daily** listing to import its

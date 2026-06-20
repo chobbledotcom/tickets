@@ -94,6 +94,14 @@ literal `0`.
   on a line with `price_paid > 0`. Income is `SUM(price_paid)`, so a paid line
   marked no-quantity would vanish from capacity/`tickets_count` yet keep
   contributing income. (Enforces the §1 invariant.)
+- **Clear `checked_in` when marking no-quantity** (same write). The §6b
+  `updateCheckedIn` guard only refuses *future* check-ins; a line already
+  `checked_in = 1` keeps that flag when flipped to quantity-0, and the roster
+  reads key off it with **no quantity predicate** — `filterAttendees`
+  (`listings.tsx`) and `countCheckedInRows` (`detail-rows.tsx`, "ignoring
+  quantity") — so the ghost stays in the "checked-in" filter and inflates
+  row-level check-in progress. Clear the flag on the write (and in merge, §6b);
+  excluding quantity-0 from those reads is a secondary defence, not a substitute.
 - **Resolve `remaining_balance` when the last real line becomes no-quantity.** The
   public pay gate (§6a) refuses payment once an attendee has no `quantity > 0`
   line, but `attendees.remaining_balance` survives, so the admin balance page would
@@ -271,9 +279,9 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
   quantity-0 line with `price_paid > 0` (violating the §1 invariant) and leave an
   attendee with no real line but a surviving, now-unpayable `remaining_balance`
   (the §4 dead-balance case via merge, not the checkbox). Apply the same rules in
-  the merge writer: force `price_paid = 0` on copied quantity-0 lines, and
-  block/clear `remaining_balance` when the merged result has no `quantity > 0`
-  line.
+  the merge writer: force `price_paid = 0` on copied quantity-0 lines, clear
+  `checked_in` on any line it makes quantity-0, and block/clear
+  `remaining_balance` when the merged result has no `quantity > 0` line.
 
 ### 6c. INTENTIONALLY UNCHANGED (call out so nobody "fixes" them)
 
@@ -293,6 +301,18 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
   no-quantity matches current behaviour; site release belongs to the built-sites
   feature and must cover delete/refund/no-quantity uniformly, not be bolted onto
   the no-quantity save path alone.
+- **Edit-form custom-question loading + answer save** — must **keep** quantity-0
+  lines. `loadQuestionsForExisting` (`attendee-form-routes.ts`) derives its
+  `listingIds` from **all** of the attendee's bookings (`existing.map`, no
+  quantity predicate), and the admin question fields render without
+  `data-listing-ids`, so they are **not** quantity-hidden (the `quantity_<id> > 0`
+  visibility in `custom-question-visibility.ts` is a *public-form* behaviour
+  only). Because the save replaces the attendee's whole answer set from the
+  *rendered* form (`saveAttendeeAnswers`), do **not** add a `quantity > 0` filter
+  to the edit-form question loading or answer save: doing so would stop rendering
+  a no-quantity line's questions and silently drop their answers on the first edit
+  (e.g. a cancelled/quoted import stored entirely as quantity-0). This is the one
+  place the audit's "add `quantity > 0`" reflex is **wrong** — call it out.
 - **Admin per-listing attendee roster / check-in *list*, group-detail roster,
   per-attendee detail, edit/merge views** — these reads **keep** `quantity = 0`
   rows (show the "no quantity" indicator); they're real records (merge as a
@@ -378,6 +398,13 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
 - Logistics: mark-done (`setLegDone`) refuses a quantity-0 line even with an agent
   assigned; the edit/save path doesn't render or persist logistics assignments for
   a no-quantity line.
+- Check-in state: marking a checked-in line no-quantity (via the save **and** via
+  merge) clears `checked_in`, so the row drops out of the "checked-in" filter
+  (`filterAttendees`) and `countCheckedInRows`; `updateCheckedIn` still refuses a
+  fresh check-in of a quantity-0 line.
+- Edit-form answers: a quantity-0-only attendee's custom-question answers still
+  render on the admin edit form and survive a save (no `quantity > 0` filter on
+  the question loading drops them).
 - Balance: a quantity-0-only attendee's balance isn't publicly payable; for a
   mixed attendee the pay-page product/checkout line, the settlement, **and the
   logged-activity listing** all land on the real line; marking the last real line
