@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { adminApiRoutes } from "#routes/admin/api.ts";
 import { setTestEnv } from "#test-utils";
+import { planApiCall } from "../../cli/api-request.ts";
 import { loadConfig } from "../../cli/config.ts";
 import { buildCurlArgs, curlFailureMessage, curlJson } from "../../cli/curl.ts";
 import { clearScreen, writeErr } from "../../cli/io.ts";
@@ -264,5 +265,58 @@ describe("CLI io", () => {
       cap.restore();
     }
     expect(cap.writes).toEqual(["\x1b[2J\x1b[H"]);
+  });
+});
+
+describe("CLI api request", () => {
+  const resource = resources[0]!;
+  const pathFor = (id?: string) => resourcePath(parseResource(resource), id);
+
+  test("plans a list call", () => {
+    expect(planApiCall(["list", resource])).toEqual({
+      request: { path: pathFor() },
+    });
+  });
+
+  test("plans a get call for one id", () => {
+    expect(planApiCall(["get", resource, "5"])).toEqual({
+      request: { path: pathFor("5") },
+    });
+  });
+
+  test("plans a create call, parsing the JSON body", () => {
+    expect(planApiCall(["create", resource, '{"name":"x"}'])).toEqual({
+      request: { body: { name: "x" }, method: "POST", path: pathFor() },
+    });
+  });
+
+  test("plans a create call with no body", () => {
+    expect(planApiCall(["create", resource])).toEqual({
+      request: { body: undefined, method: "POST", path: pathFor() },
+    });
+  });
+
+  test("plans an update call with id and body", () => {
+    expect(planApiCall(["update", resource, "5", '{"name":"y"}'])).toEqual({
+      request: { body: { name: "y" }, method: "PUT", path: pathFor("5") },
+    });
+  });
+
+  test("plans a delete call", () => {
+    expect(planApiCall(["delete", resource, "5"])).toEqual({
+      request: { body: undefined, method: "DELETE", path: pathFor("5") },
+    });
+  });
+
+  test("returns a usage error for an unknown verb", () => {
+    expect(planApiCall(["frobnicate", resource])).toEqual({
+      usageError: expect.stringContaining("Usage:"),
+    });
+  });
+
+  test("returns a usage error when the resource is missing", () => {
+    expect(planApiCall(["list"])).toEqual({
+      usageError: expect.stringContaining("Usage:"),
+    });
   });
 });
