@@ -175,6 +175,11 @@ const loadAdminApiRoutes = once(async () =>
   createRouter((await import("#routes/admin/api.ts")).adminApiRoutes),
 );
 
+/** Lazy-load the scheduled-tasks (cron) endpoint */
+const loadScheduledRoutes = once(async () =>
+  createRouter((await import("#routes/scheduled.ts")).scheduledRoutes),
+);
+
 /** Lazy-load unsubscribe routes */
 const loadUnsubscribeRoutes = once(async () => {
   const { handleUnsubscribeGet, handleUnsubscribePost } = await import(
@@ -402,6 +407,9 @@ const PREFIX_SETTINGS: Record<string, readonly string[]> = {
   payment: [...PAYMENT_SETTINGS, ...EMAIL_SETTINGS],
   "read-only": [],
   renew: BOOKING_FLOW_SETTINGS,
+  // Cron prune trigger: maybeRunPrunes only reads the last_pruned_*/orphan
+  // settings, which are all in INFRA, so infra alone is enough.
+  scheduled: [],
   setup: [],
   // --- Inbound SMS webhook (JSON only) ---
   sms: [
@@ -578,6 +586,7 @@ const prefixHandlers: Record<string, RouterFn> = {
       ? Promise.resolve(htmlResponse(readOnlyPage()))
       : Promise.resolve(null),
   renew: lazyRoute(loadRenewalRoutes),
+  scheduled: lazyRoute(loadScheduledRoutes),
   sms: lazyRoute(loadSmsWebhookRoutes),
   t: lazyRoute(loadTicketViewRoutes),
   ticket: lazyRoute(loadTicketRoutes),
