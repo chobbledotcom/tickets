@@ -295,6 +295,18 @@ Extraction order:
    free-text answers / notes instead.
 4. Dedupe product names within a booking and convert duplicates to quantity
    only when we are confident they are repeated whole products.
+5. A row that resolves to **zero** products (empty `Equipments` and no parseable
+   `Quoted for Products` fallback) cannot become a booking — every source
+   booking is assumed to create at least one `listing_attendees` line. Treat such
+   rows as a defined, **reported non-creatable category**, removed from the
+   candidate set before any writes (like already-imported rows), so the importer
+   never creates an attendee/import-map row with no booking lines and never
+   discovers the problem only mid-transaction. This is distinct from a non-empty
+   `Equipments` whose names don't match locally — that is a *missing product*
+   (fixable by creating listings, → missing-setup page), whereas a productless
+   row is a source-data gap the operator must fix in the CSV. (If preferred,
+   surface it as a hard validation error instead of a skip; the requirement is
+   only that it is caught before writes, not left to fail the transaction.)
 
 Important caveat: the export uses ` / ` as a product separator, but some product
 names appear to contain slashes, for example names like
@@ -385,7 +397,16 @@ system has:
 
 MVP recommendation:
 
-- Store `Balance` as `attendees.remaining_balance` in minor units.
+- Store `Balance` as `attendees.remaining_balance` in minor units **only when
+  the resolved status is a reservation status** (`is_reservation`). The public
+  balance route (`src/features/public/balance.ts`) only lets a customer pay when
+  `status.is_reservation` is set, so a non-zero `remaining_balance` on a
+  non-reservation status is an unpayable, permanently-outstanding balance. For a
+  non-reservation status, store the source balance as **audit metadata only**
+  (not as an actionable `remaining_balance`). Optionally, block a non-zero
+  `Balance` whose resolved status is not `is_reservation` and tell the operator
+  to either mark that status as a reservation status or accept it as audit-only —
+  do not silently create dead balances.
 - Store `0` on every `listing_attendees.price_paid` line. Imported financial
   totals must not affect trigger-maintained listing income.
 - Preserve raw `Total`, `Received`, `Balance`, payment columns, and modifier
@@ -408,8 +429,26 @@ Use the source `Status` column.
 - If any source `Status` value is missing locally, block the whole upload before
   writes, list the missing statuses, and ask the operator to create matching
   statuses before retrying.
-- Import cancelled rows too. A source row with `Status` = `Cancelled` becomes an
-  attendee with the matching local `Cancelled` status.
+- **Reject ambiguous status matches.** `attendee_statuses.name` is encrypted and
+  not unique, and the settings form only requires a non-empty name, so two local
+  statuses can normalize to the same name (e.g. two `Confirmed`s) with different
+  `is_reservation` / `is_paid_default` flags that drive balance-payment
+  behaviour. If a source `Status` matches more than one local status, block the
+  upload as an ambiguous-setup error rather than picking a row — the same rule as
+  free-text questions.
+- Import cancelled rows too, but **do not give them capacity-bearing booking
+  lines.** A source row with `Status` = `Cancelled` becomes an attendee with the
+  matching local `Cancelled` status, but the importer does **not** create
+  `listing_attendees` lines for it, because the listing-aggregate triggers
+  increment `booked_quantity`/`tickets_count` for *every* inserted line
+  regardless of status (capacity in this system is status-blind — there is no
+  capacity-freeing status flag, only `is_reservation`/`is_paid_default`). Giving
+  a cancelled legacy booking real lines would permanently consume availability
+  and make listings look sold out. Instead, record the products the cancelled
+  booking referenced as audit metadata / free-text answers, and note the cancelled
+  row in the import report. (This is a deliberate semantic choice — see Resolved
+  Decisions; the alternative, importing the lines and accepting inflated
+  aggregates, is rejected because it corrupts current availability.)
 - Preserve `Colour Name` as a free-text answer / in the import report, but do not
   use it for status resolution.
 - Do not add status aliases or fuzzy matching. The operator is responsible for
@@ -458,23 +497,39 @@ Resolution (pure, before any writes):
 - Dedupe per booking: at most one text answer per `(attendee, question)` — the
   schema's unique `(attendee_id, question_id)` index enforces this, so the
   planner must not emit two answers for the same question on one booking.
+- **Conflicting duplicate columns are a source-data error, not a silent drop.**
+  The parser deliberately preserves duplicate headers, so two columns (e.g. two
+  `Surface` columns) can map to the same free-text question on one row. If they
+  hold the *same* trimmed value, collapse to one answer. If they hold *different*
+  non-empty values, the schema can only keep one `(attendee, question)` answer —
+  so the planner must flag the row as an ambiguous source-data error rather than
+  arbitrarily keeping one value and dropping the other.
 
 Writing (in the whole-file transaction — see
 [All-Or-Nothing Write Strategy](#all-or-nothing-write-strategy)):
 
-- Collect every distinct trimmed answer text across the whole file and call
-  `getOrCreateStringIds(allTexts)` **once** to get a `text → stringId` map. This
-  dedupes identical answers across bookings into a single encrypted `strings`
-  row (e.g. 200 bookings answering `Grass` to `Surface` share one row), and uses
-  only the owner public key.
+- Collect every distinct trimmed answer text from the **candidate import plan
+  only** — never the whole file. Already-imported and non-creatable rows are
+  removed from the candidate set before writing, so collecting across the whole
+  file would upsert encrypted `strings` for bookings that get no
+  `attendee_answers` rows, leaving them stranded at `used_count = 0` and outside
+  rollback cleanup. Resolve the candidate texts to a `text → stringId` map in one
+  step (see the writer note below for keeping this in-transaction). This still
+  dedupes identical answers across the candidate bookings into a single encrypted
+  `strings` row (e.g. 200 imported bookings answering `Grass` to `Surface` share
+  one row), and uses only the owner public key.
 - Emit `INSERT ... attendee_answers (attendee_id, question_id, string_id)` rows
   into the importer's single batch, using the resolved `stringId` and the
   matched `question_id`. Do **not** call the per-attendee `saveAttendeeAnswers`
   helper in a loop — it issues its own `DELETE`/`executeBatch` per attendee and
   would break whole-file atomicity (it is the answer-equivalent of the existing
-  "don't call `createAttendeeAtomic` per row" rule). `getOrCreateStringIds`
-  followed by direct `attendee_answers` inserts mirrors what `ticket-submit`
-  does on the paid path.
+  "don't call `createAttendeeAtomic` per row" rule). Resolving the string ids and
+  then doing direct `attendee_answers` inserts mirrors what `ticket-submit` does
+  on the paid path — but the string upserts themselves must be unwound on
+  failure (in-transaction upsert, or cleanup of newly-created `used_count = 0`
+  rows), since the stock `getOrCreateStringIds` writes `strings` in its own batch
+  outside the guarded transaction. See the
+  [write-strategy notes](#all-or-nothing-write-strategy).
 - The `string_id` insert trigger maintains `strings.used_count`; the importer
   writes nothing to that column.
 
@@ -553,8 +608,11 @@ Target algorithm:
 3. Reject duplicate `Booking ID` values within the uploaded CSV.
 4. Query `booking_imports` for all source IDs from the file.
 5. Remove already-imported rows from the candidate set.
-6. Resolve products for the remaining rows.
-7. Resolve source `Status` values to existing attendee statuses.
+6. Resolve products for the remaining rows. Remove rows that resolve to **zero**
+   products as a reported non-creatable category (they cannot form a booking
+   line); they are not written and not added to the import map.
+7. Resolve source `Status` values to existing attendee statuses. Reject a source
+   status that matches more than one local status as ambiguous.
 8. Resolve configured text custom-question columns to existing `free_text`
    questions by normalized exact text.
 9. If any products, statuses, or required question mappings are missing,
@@ -563,16 +621,20 @@ Target algorithm:
 10. Validate dates, quantities, money, and required raw fields.
 11. Do not preflight capacity. Legacy imports may overbook.
 12. Encrypt attendee PII blobs for every new candidate.
-13. Resolve free-text answers: collect every distinct trimmed answer text across
-    the whole file (owner-public-key encryption; dedupes across bookings). The
-    `strings` upserts must be unwound on failure — either performed inside the
-    write transaction in step 14, or tracked so newly-created rows can be deleted
-    on rollback (see implementation notes).
+13. Resolve free-text answers: collect every distinct trimmed answer text from
+    the **candidate set only** (not the whole file — already-imported and
+    non-creatable rows are already removed), owner-public-key encryption, dedupes
+    across candidates. Flag conflicting duplicate columns (same question, two
+    different non-empty values) as source-data errors. The `strings` upserts must
+    be unwound on failure — either performed inside the write transaction in step
+    14, or tracked so newly-created rows can be deleted on rollback (see
+    implementation notes).
 14. Run one write transaction for all new candidates:
     - upsert the deduped `strings` rows and resolve their ids (or do this such
       that a rollback removes them);
-    - insert attendee;
-    - insert each `listing_attendees` line;
+    - insert attendee, and resolve its **stable id** via a per-attendee lookup
+      key, not `last_insert_rowid()` (see implementation notes);
+    - insert each `listing_attendees` line (none for cancelled rows);
     - write logistics times if used;
     - insert `attendee_answers(attendee_id, question_id, string_id)` text-answer
       rows using the resolved string ids;
@@ -605,6 +667,16 @@ Implementation notes:
   - on any failure/rollback, explicitly delete the strings it newly created that
     are still at `used_count = 0`.
   Either way, a rolled-back import must leave **zero** new `strings` rows.
+- **Use a stable per-attendee id to wire up child rows — never
+  `last_insert_rowid()` in a multi-row batch.** `last_insert_rowid()` advances
+  after every insert in the batch, so the second attendee's `listing_attendees`,
+  `attendee_answers`, audit, and `booking_imports` rows would attach to the wrong
+  attendee. The existing create path solves this (`src/shared/db/attendees/
+  create.ts`): each attendee gets a generated `ticket_token_index`, and child
+  inserts resolve the parent id with `(SELECT MAX(id) FROM attendees WHERE
+  ticket_token_index = ?)`. The importer must generate a distinct
+  `ticket_token_index` per source booking and key every child insert off it (or
+  use an equivalent `RETURNING` strategy if the helper moves to one).
 - The `attendee_answers` XOR/validation triggers will `ABORT` a malformed answer
   row (e.g. both `answer_id` and `string_id` set). The importer only ever writes
   the text-answer shape (`answer_id` NULL, `question_id` + `string_id` set), so a
@@ -656,8 +728,8 @@ Add focused tests before broad route tests:
     `Rodeo Bull / Bucking Bronco`).
 - Product resolver reports missing names and does not write anything.
 - Status resolver maps source `Status` values to existing attendee statuses,
-  reports missing status names, and does not write anything.
-- Cancelled source rows import with the matching `Cancelled` status.
+  reports missing status names, and does not write anything. (Cancelled-row
+  behaviour is covered in the semantic-correctness tests below.)
 - Missing-setup route renders product links with encoded `import_name` params
   and lists missing statuses and missing free-text questions.
 - New-listing form locks `import_name` and POST enforces it server-side.
@@ -694,14 +766,32 @@ Free-text question tests (the PR #1335 surface):
   is rejected as ambiguous and writes nothing.
 - A matched `free_text` question assigned to none of the booking's listings
   blocks the import (no hidden answer is written).
-- Identical answer text across two bookings is deduped into a single `strings`
-  row (assert one row / shared `string_id`), and the import is written through a
-  single `getOrCreateStringIds` call rather than per-attendee saves.
+- Identical answer text across two candidate bookings is deduped into a single
+  `strings` row (assert one row / shared `string_id`), resolved once rather than
+  via per-attendee saves.
+- Strings are created only for candidate rows: an already-imported (skipped) row
+  whose answer text appears nowhere else creates no `strings` row.
 - At most one text answer per `(attendee, question)`: a booking that would map
-  the same question twice produces exactly one answer row (no unique-index
-  abort).
+  the same question twice with the *same* value produces exactly one answer row;
+  two duplicate columns with *different* values are rejected as a source-data
+  error.
 - Imported answers are written using the owner public key only (no unwrapped
   private key required for the write path).
+
+Semantic-correctness tests (verified against live behaviour):
+
+- A multi-booking import wires each attendee's `listing_attendees` /
+  `attendee_answers` / `booking_imports` rows to the correct attendee (no
+  cross-attachment from `last_insert_rowid()` drift).
+- A source `Status` matching two local statuses is rejected as ambiguous;
+  writes nothing.
+- A cancelled source row imports as an attendee with the `Cancelled` status and
+  **no** `listing_attendees` lines, leaving `booked_quantity`/`tickets_count`
+  unchanged for the referenced listings.
+- A non-zero `Balance` on a non-reservation status does not become an actionable
+  `remaining_balance` (stored as audit metadata or blocked, per the chosen rule).
+- A row with empty `Equipments` and no `Quoted for Products` fallback is reported
+  as non-creatable and creates no attendee/import-map row.
 
 ## Implementation Phases
 
@@ -733,17 +823,26 @@ Free-text question tests (the PR #1335 surface):
    - Build a pure import plan from source rows plus existing
      listings/statuses/questions/imports.
    - No database writes from this layer.
-   - Produce per-attendee text-answer sets (`{ questionId, text }`), deduped per
-     booking.
-   - Report skipped, creatable, missing setup, warnings, and unmapped metadata.
+   - Produce per-attendee text-answer sets (`{ questionId, text }`) from the
+     candidate rows, deduped per booking; flag conflicting duplicate columns.
+   - Classify each source row: creatable, skipped (already imported),
+     non-creatable (zero products), or blocked (missing/ambiguous setup).
+   - Report skipped, creatable, non-creatable, missing setup, warnings, and
+     unmapped metadata.
 5. Transactional writer
-   - Resolve all text answers via a single `getOrCreateStringIds` call.
+   - Resolve candidate text answers to string ids **inside the guarded
+     transaction** (or clean up newly-created `used_count = 0` strings on
+     failure) — not via the stock out-of-transaction `getOrCreateStringIds`.
    - Convert the import plan into attendee / listing_attendee / attendee_answers
-     (text) / import-map writes in one guarded transaction.
-   - Write status ids, free-text answers, logistics times, raw balances, and
-     zero listing income.
-   - Allow overbooked legacy rows.
-   - Prove whole-file rollback (including text answers).
+     (text) / audit / import-map writes in one guarded transaction, wiring child
+     rows to each attendee via its generated `ticket_token_index`, not
+     `last_insert_rowid()`.
+   - Write status ids, free-text answers, logistics times, balances (actionable
+     `remaining_balance` only for reservation statuses), and zero listing income.
+   - Create no `listing_attendees` lines for cancelled rows.
+   - Allow overbooked legacy rows (active bookings only).
+   - Prove whole-file rollback (attendees, lines, text answers, new strings,
+     audit records, import map all gone).
 6. Admin upload route
    - Wire upload form, parser, planner, writer, success/error redirects.
    - Add nav entry if desired.
@@ -754,8 +853,25 @@ Free-text question tests (the PR #1335 surface):
 
 - Source `Status` drives attendee status. `Colour Name` is legacy metadata.
 - Missing source statuses block the upload before writes, like missing products.
-- Cancelled rows import with a matching local `Cancelled` status.
-- Legacy imports may overbook.
+  A source status matching more than one local status (names aren't unique) is an
+  ambiguous-setup error, not a silent pick.
+- Cancelled rows import as an attendee with the matching local `Cancelled`
+  status but get **no** `listing_attendees` lines, because capacity in this
+  system is status-blind (the aggregate triggers count every line) and a
+  cancelled booking must not consume availability. The products they referenced
+  are preserved as audit metadata, not as booking lines. (Alternative rejected:
+  importing the lines and accepting inflated aggregates — it corrupts current
+  availability.)
+- Legacy imports may overbook — for *active* bookings only, not cancelled ones.
+- A non-zero source `Balance` becomes an actionable `remaining_balance` only when
+  the resolved status is a reservation status (`is_reservation`); otherwise it is
+  audit metadata, because the public balance route won't let a customer pay a
+  non-reservation balance.
+- A source row that resolves to zero products is a reported non-creatable row: it
+  is not written and not added to the import map (every booking needs ≥1 line).
+- Two CSV columns mapping to the same free-text question with different non-empty
+  values are an ambiguous source-data error (the schema stores one answer per
+  `(attendee, question)`); identical values collapse to one.
 - Imported financial totals do not affect listing income; line `price_paid` is
   always `0`.
 - Raw emails are imported as source data, including concatenated or invalid
@@ -778,7 +894,11 @@ Free-text question tests (the PR #1335 surface):
   and does not redefine them; `booking_imports` is the only new table.
 - All-or-nothing means all-or-nothing: a rolled-back import leaves **no** new
   rows, including `strings` rows created for text answers. String upserts are
-  unwound on failure rather than left as orphaned encrypted PII.
+  unwound on failure rather than left as orphaned encrypted PII, and text strings
+  are collected from candidate rows only (not skipped/non-creatable rows).
+- Child rows are wired to each attendee via its generated `ticket_token_index`
+  (the pattern in `attendees/create.ts`), never `last_insert_rowid()`, which
+  drifts across a multi-row batch.
 - The raw audit trail must have a durable encrypted destination before the writer
   is enabled — the import report is not a system of record. Only the *choice* of
   destination is deferred to align with the #1332/#1333 notes rework; imports that
