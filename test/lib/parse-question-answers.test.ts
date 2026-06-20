@@ -4,6 +4,7 @@ import {
   parseQuestionAnswers,
   type QuestionWithAnswers,
 } from "#shared/db/questions.ts";
+import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 
 const freeText = (
   id: number,
@@ -49,6 +50,30 @@ describe("parseQuestionAnswers free-text handling", () => {
 
   test("allows a blank optional free-text answer", () => {
     const form = new URLSearchParams();
+
+    const result = parseQuestionAnswers({ optional: true })(form, [
+      freeText(1),
+    ]);
+
+    expect(result).toEqual({ answerIds: [], ok: true, textAnswers: [] });
+  });
+
+  test("rejects an over-length required free-text answer", () => {
+    const form = new URLSearchParams({
+      question_1: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
+    });
+
+    const result = parseQuestionAnswers({ optional: false })(form, [
+      freeText(1, "Notes?"),
+    ]);
+
+    expect(result).toEqual({ error: "Answer is too long: Notes?", ok: false });
+  });
+
+  test("skips an over-length optional free-text answer", () => {
+    const form = new URLSearchParams({
+      question_1: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
+    });
 
     const result = parseQuestionAnswers({ optional: true })(form, [
       freeText(1),

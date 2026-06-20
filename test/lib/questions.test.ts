@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { createAttendeeAtomic } from "#shared/db/attendees.ts";
-import { queryAll } from "#shared/db/client.ts";
+import { execute, queryAll } from "#shared/db/client.ts";
 import {
   answersTable,
   assignNextQuestionSortOrder,
@@ -15,6 +15,7 @@ import {
   getAttendeeTextAnswers,
   getListingQuestionIds,
   getNextAnswerSortOrder,
+  getOrCreateStringIds,
   getQuestionListingIds,
   getQuestionsForListing,
   getQuestionsWithListingIds,
@@ -97,7 +98,9 @@ describeWithEnv("custom questions", { db: true }, () => {
 
       expect(await questionsTable.findById(q.id)).toBeNull();
       expect(await getQuestionsForListing(listing.id)).toEqual([]);
-      const answers = await getAttendeeAnswersBatch([attendee.id]);
+      const answers = await getAttendeeAnswersBatch([attendee.id], {
+        texts: false,
+      });
       expect(answers.get(attendee.id)).toBeUndefined();
     });
   });
@@ -574,7 +577,9 @@ describeWithEnv("custom questions", { db: true }, () => {
 
       await saveAttendeeAnswers(new Map([[attendee.id, [a1.id]]]));
 
-      const batch = await getAttendeeAnswersBatch([attendee.id]);
+      const batch = await getAttendeeAnswersBatch([attendee.id], {
+        texts: false,
+      });
       expect(batch.get(attendee.id)).toEqual([a1.id]);
     });
 
@@ -601,13 +606,15 @@ describeWithEnv("custom questions", { db: true }, () => {
       await saveAttendeeAnswers(new Map([[att1.id, [a1.id]]]));
       await saveAttendeeAnswers(new Map([[att2.id, [a2.id]]]));
 
-      const batch = await getAttendeeAnswersBatch([att1.id, att2.id]);
+      const batch = await getAttendeeAnswersBatch([att1.id, att2.id], {
+        texts: false,
+      });
       expect(batch.get(att1.id)).toEqual([a1.id]);
       expect(batch.get(att2.id)).toEqual([a2.id]);
     });
 
     test("empty batch for no attendees", async () => {
-      const batch = await getAttendeeAnswersBatch([]);
+      const batch = await getAttendeeAnswersBatch([], { texts: false });
       expect(batch.size).toBe(0);
     });
 
@@ -629,7 +636,7 @@ describeWithEnv("custom questions", { db: true }, () => {
       const listing = await createTestListing();
       const att = await createAttendee(listing.id);
       await saveAttendeeAnswers(new Map([[att.id, [999_999]]]));
-      const after = await getAttendeeAnswersBatch([att.id]);
+      const after = await getAttendeeAnswersBatch([att.id], { texts: false });
       expect(after.get(att.id)).toBeUndefined();
     });
 
@@ -653,12 +660,12 @@ describeWithEnv("custom questions", { db: true }, () => {
       const att = await createAttendee(listing.id);
       await saveAttendeeAnswers(new Map([[att.id, [a1.id]]]));
 
-      const before = await getAttendeeAnswersBatch([att.id]);
+      const before = await getAttendeeAnswersBatch([att.id], { texts: false });
       expect(before.get(att.id)).toEqual([a1.id]);
 
       await saveAttendeeAnswers(new Map([[att.id, [a2.id]]]));
 
-      const after = await getAttendeeAnswersBatch([att.id]);
+      const after = await getAttendeeAnswersBatch([att.id], { texts: false });
       expect(after.get(att.id)).toEqual([a2.id]);
     });
 
@@ -793,6 +800,50 @@ describeWithEnv("custom questions", { db: true }, () => {
       expect(afterAllClear).toEqual([]);
     });
 
+    test("skips a text answer whose question was deleted at finalize", async () => {
+      // A free-text question can be deleted between checkout and finalize; the
+      // signed metadata still references it, but inserting would create an
+      // orphan row whose plaintext the admin UI can never surface, so it is
+      // dropped.
+      const listing = await createTestListing();
+      const att = await createAttendee(listing.id);
+      await saveAttendeeAnswers(
+        new Map([
+          [
+            att.id,
+            {
+              answerIds: [],
+              textAnswers: [{ questionId: 999_999, text: "orphan" }],
+            },
+          ],
+        ]),
+      );
+      const texts = await getAttendeeTextAnswers(
+        att.id,
+        await getTestPrivateKey(),
+      );
+      expect(texts.size).toBe(0);
+    });
+
+    test("refreshes created on a reused but still-unattached string", async () => {
+      const ids = await getOrCreateStringIds(["reuse me"]);
+      const id = ids.get("reuse me")!;
+      // Backdate it as if abandoned by an earlier checkout.
+      await execute({
+        args: ["2000-01-01T00:00:00Z", id],
+        sql: "UPDATE strings SET created = ? WHERE id = ?",
+      });
+
+      const reused = await getOrCreateStringIds(["reuse me"]);
+      expect(reused.get("reuse me")).toBe(id);
+
+      const rows = await queryAll<{ created: string }>(
+        "SELECT created FROM strings WHERE id = ?",
+        [id],
+      );
+      expect(rows[0]!.created > "2001-01-01").toBe(true);
+    });
+
     test("saveAttendeeAnswers with empty answerIds clears answers", async () => {
       const q = await questionsTable.insert({
         displayType: "radio",
@@ -810,7 +861,7 @@ describeWithEnv("custom questions", { db: true }, () => {
 
       await saveAttendeeAnswers(new Map([[att.id, []]]));
 
-      const after = await getAttendeeAnswersBatch([att.id]);
+      const after = await getAttendeeAnswersBatch([att.id], { texts: false });
       expect(after.get(att.id)).toBeUndefined();
     });
   });

@@ -880,6 +880,93 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       expect(textAnswers.get(textQuestion.id)).toBe("Coeliac");
     });
 
+    test("adopts a source-only free-text answer in a merge", async () => {
+      // Source-only choice answers are adopted automatically; a source-only
+      // text answer must be too, rather than vanishing when the source is
+      // deleted.
+      const listing = await createTestListing({ maxAttendees: 10 });
+      const listing2 = await createTestListing({
+        maxAttendees: 10,
+        name: "E2",
+      });
+      const textQuestion = await questionsTable.insert({
+        displayType: "free_text",
+        text: "Dietary needs?",
+      });
+
+      const target = await createAttendee(listing.id, "Alice");
+      const source = await createAttendee(listing2.id, "Bob");
+
+      await saveAttendeeAnswers(
+        new Map([
+          [
+            source.id,
+            {
+              answerIds: [],
+              textAnswers: [{ questionId: textQuestion.id, text: "Vegan" }],
+            },
+          ],
+        ]),
+      );
+
+      const targetBookings = await getBookings(target.id);
+      const sourceBookings = await getBookings(source.id);
+      const diff = await buildAttendeeMergeDiff(
+        {
+          sourceBookings,
+          sourceId: source.id,
+          sourcePii: {
+            address: "",
+            email: "bob@test.com",
+            name: "Bob",
+            phone: "",
+            special_instructions: "",
+          },
+          targetBookings,
+          targetId: target.id,
+          targetPii: {
+            address: "",
+            email: "alice@test.com",
+            name: "Alice",
+            phone: "",
+            special_instructions: "",
+          },
+        },
+        [],
+      );
+
+      const result = await applyAttendeeMerge({
+        decision: { answers: {}, bookings: {}, pii: {}, version: diff.version },
+        diff,
+        privateKey: await getTestPrivateKey(),
+        sourceId: source.id,
+        sourcePii: {
+          address: "",
+          email: "bob@test.com",
+          name: "Bob",
+          phone: "",
+          special_instructions: "",
+        },
+        targetId: target.id,
+        targetPii: {
+          address: "",
+          email: "alice@test.com",
+          name: "Alice",
+          payment_id: target.payment_id,
+          phone: "",
+          special_instructions: "",
+          ticket_token: target.ticket_token,
+        },
+      });
+
+      expect(result.success).toBe(true);
+      const textAnswers = await getAttendeeTextAnswers(
+        target.id,
+        await getTestPrivateKey(),
+      );
+      expect(textAnswers.get(textQuestion.id)).toBe("Vegan");
+    });
+
     test("clears answers when decision is clear", async () => {
       const listing = await createTestListing({ maxAttendees: 10 });
       const listing2 = await createTestListing({

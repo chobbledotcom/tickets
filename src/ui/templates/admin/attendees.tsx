@@ -9,6 +9,7 @@ import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import { ConfirmForm, CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
   bookingConflictLabel,
   bookingKey,
@@ -240,6 +241,7 @@ export const EditQuestions = ({
         <label class="custom-question">
           {q.text}
           <input
+            maxlength={MAX_TEXTAREA_LENGTH}
             name={`question_${q.id}`}
             type="text"
             value={selectedTextAnswers.get(q.id) ?? ""}

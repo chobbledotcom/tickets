@@ -27,6 +27,7 @@ import {
 import { columnMapByIds, swapSortOrder } from "#shared/db/query.ts";
 import { settings } from "#shared/db/settings.ts";
 import { col, defineTable } from "#shared/db/table.ts";
+import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { nowIso } from "#shared/now.ts";
 
 // ---------------------------------------------------------------------------
@@ -477,6 +478,13 @@ const parseFreeTextAnswer: AnswerParser = (
   optional,
 ) => {
   const text = (form.get(`question_${question.id}`) ?? "").trim();
+  // Cap free-text length so an unauthenticated booking cannot submit an
+  // arbitrarily large value (expensive to encrypt, large blob to retain). The
+  // public input mirrors this with a maxlength; optional (admin) parsing skips
+  // an over-long value rather than erroring, keeping its always-ok contract.
+  if (text.length > MAX_TEXTAREA_LENGTH) {
+    return optional ? null : `Answer is too long: ${question.text}`;
+  }
   if (text) {
     parsed.textAnswers.push({ questionId: question.id, text });
     return null;
@@ -552,15 +560,25 @@ export const getOrCreateStringIds = async (
     })),
   );
   const created = nowIso();
-  await executeBatch(
-    rows.map((row) => ({
+  const textIndexes = rows.map((r) => r.textIndex);
+  await executeBatch([
+    ...rows.map((row) => ({
       args: [row.textIndex, row.encrypted, created],
       sql: "INSERT OR IGNORE INTO strings (text_index, encrypted_text, created) VALUES (?, ?, ?)",
     })),
-  );
+    // Refresh `created` on any pre-existing but still-unattached (used_count = 0)
+    // row we are about to reference. INSERT OR IGNORE leaves an abandoned older
+    // row's timestamp untouched, so without this the age-based prune could
+    // delete it while this checkout is still at the payment provider — leaving
+    // the signed metadata pointing at a missing string_id.
+    {
+      args: [created, ...textIndexes],
+      sql: `UPDATE strings SET created = ? WHERE used_count = 0 AND text_index IN (${inPlaceholders(textIndexes)})`,
+    },
+  ]);
   const found = await queryAll<{ id: number; text_index: string }>(
-    `SELECT id, text_index FROM strings WHERE text_index IN (${inPlaceholders(rows.map((r) => r.textIndex))})`,
-    rows.map((r) => r.textIndex),
+    `SELECT id, text_index FROM strings WHERE text_index IN (${inPlaceholders(textIndexes)})`,
+    textIndexes,
   );
   const idByIndex = new Map(found.map((row) => [row.text_index, row.id]));
   return new Map(rows.map((row) => [row.text, idByIndex.get(row.textIndex)!]));
@@ -615,6 +633,21 @@ const dedupeTextAnswerIdsByQuestion = (
   textAnswerIds: TextAnswerId[],
 ): TextAnswerId[] => dedupeByQuestion(textAnswerIds);
 
+/** The subset of `questionIds` that still exist — text answers reference a
+ * question directly, so a question deleted between checkout and finalize must
+ * be dropped (mirrors the deleted-answer skip on the choice path) rather than
+ * inserting an orphan row whose plaintext the admin UI can never surface. */
+const existingQuestionIds = async (
+  questionIds: number[],
+): Promise<Set<number>> => {
+  if (questionIds.length === 0) return new Set();
+  const rows = await queryAll<{ id: number }>(
+    `SELECT id FROM questions WHERE id IN (${inPlaceholders(questionIds)})`,
+    questionIds,
+  );
+  return new Set(rows.map((row) => row.id));
+};
+
 export const saveAttendeeAnswers = async (
   answersByAttendee: Map<number, number[] | AttendeeAnswerSet>,
 ): Promise<void> => {
@@ -651,16 +684,25 @@ export const saveAttendeeAnswers = async (
       sql: "DELETE FROM attendee_answers WHERE attendee_id = ?",
     })),
   );
-  const [stringIds, questionIdsByAnswer] = await Promise.all([
-    getOrCreateStringIds(
-      [...normalized.values()].flatMap((set) =>
-        set.textAnswers.map((a) => a.text),
+  const [stringIds, questionIdsByAnswer, liveTextQuestionIds] =
+    await Promise.all([
+      getOrCreateStringIds(
+        [...normalized.values()].flatMap((set) =>
+          set.textAnswers.map((a) => a.text),
+        ),
       ),
-    ),
-    questionIdsByAnswerId([
-      ...new Set([...normalized.values()].flatMap((set) => set.answerIds)),
-    ]),
-  ]);
+      questionIdsByAnswerId([
+        ...new Set([...normalized.values()].flatMap((set) => set.answerIds)),
+      ]),
+      existingQuestionIds([
+        ...new Set(
+          [...normalized.values()].flatMap((set) => [
+            ...set.textAnswerIds.map((answer) => answer.questionId),
+            ...set.textAnswers.map((answer) => answer.questionId),
+          ]),
+        ),
+      ]),
+    ]);
   const statements: { sql: string; args: InValue[] }[] = [];
   for (const [
     attendeeId,
@@ -687,7 +729,7 @@ export const saveAttendeeAnswers = async (
         questionId: answer.questionId,
         stringId: stringIds.get(answer.text)!,
       })),
-    ]);
+    ]).filter((answer) => liveTextQuestionIds.has(answer.questionId));
     if (resolvedTextAnswerIds.length > 0) {
       const placeholders = resolvedTextAnswerIds
         .map(() => "(?, ?, ?)")
@@ -735,18 +777,15 @@ export const groupListingAnswers = (
   return answersByAttendee;
 };
 
-/** Get answers for multiple attendees in a single query */
-export const getAttendeeAnswersBatch = async (
+const choiceAnswerIdsBatch = async (
   attendeeIds: number[],
 ): Promise<Map<number, number[]>> => {
   if (attendeeIds.length === 0) return new Map();
-
   const rows = await queryAll<{ attendee_id: number; answer_id: number }>(
     `SELECT attendee_id, answer_id FROM attendee_answers
      WHERE answer_id IS NOT NULL AND attendee_id IN (${inPlaceholders(attendeeIds)})`,
     attendeeIds,
   );
-
   return reduce(
     (
       acc: Map<number, number[]>,
@@ -761,11 +800,86 @@ export const getAttendeeAnswersBatch = async (
   )(rows);
 };
 
+/** Decrypted free-text answers for several attendees: attendeeId → (questionId
+ * → text). Needs the owner private key, so callers must opt in deliberately. */
+export const getAttendeeTextAnswersBatch = async (
+  attendeeIds: number[],
+  privateKey: CryptoKey,
+): Promise<Map<number, Map<number, string>>> => {
+  if (attendeeIds.length === 0) return new Map();
+  const rows = await queryAll<{
+    attendee_id: number;
+    question_id: number;
+    encrypted_text: string;
+  }>(
+    `SELECT attendee_answer.attendee_id, attendee_answer.question_id,
+            string.encrypted_text
+     FROM attendee_answers AS attendee_answer
+     JOIN strings AS string ON string.id = attendee_answer.string_id
+     WHERE attendee_answer.question_id IS NOT NULL
+       AND attendee_answer.attendee_id IN (${inPlaceholders(attendeeIds)})`,
+    attendeeIds,
+  );
+  const decrypted = await Promise.all(
+    rows.map(async (row) => ({
+      attendeeId: row.attendee_id,
+      questionId: row.question_id,
+      text: await decryptWithOwnerKey(row.encrypted_text, privateKey),
+    })),
+  );
+  const result = new Map<number, Map<number, string>>();
+  for (const { attendeeId, questionId, text } of decrypted) {
+    const inner = result.get(attendeeId) ?? new Map<number, string>();
+    inner.set(questionId, text);
+    result.set(attendeeId, inner);
+  }
+  return result;
+};
+
+/** Choice answer ids plus, when requested, decrypted free-text answers. */
+export type AttendeeAnswersBatch = {
+  answerIds: Map<number, number[]>;
+  textAnswers: Map<number, Map<number, string>>;
+};
+
+/** Whether {@link getAttendeeAnswersBatch} also fetches (and decrypts) the
+ * free-text answer strings. Mandatory — pass `{ texts: false }` for the choice-
+ * only contexts (edit form loads text on its own; the count summary can't show
+ * free text) and `{ texts: true, privateKey }` for the table/CSV that display
+ * each attendee's text. */
+export type BatchTextOption =
+  | { texts: false }
+  | { texts: true; privateKey: CryptoKey };
+
+/** Get answers for multiple attendees in a single query. */
+export function getAttendeeAnswersBatch(
+  attendeeIds: number[],
+  option: { texts: false },
+): Promise<Map<number, number[]>>;
+export function getAttendeeAnswersBatch(
+  attendeeIds: number[],
+  option: { texts: true; privateKey: CryptoKey },
+): Promise<AttendeeAnswersBatch>;
+export async function getAttendeeAnswersBatch(
+  attendeeIds: number[],
+  option: BatchTextOption,
+): Promise<Map<number, number[]> | AttendeeAnswersBatch> {
+  if (!option.texts) return choiceAnswerIdsBatch(attendeeIds);
+  const [answerIds, textAnswers] = await Promise.all([
+    choiceAnswerIdsBatch(attendeeIds),
+    getAttendeeTextAnswersBatch(attendeeIds, option.privateKey),
+  ]);
+  return { answerIds, textAnswers };
+}
+
 /** Questions across a set of listings plus each attendee's selected answers —
  * the shape the attendee table, calendar, groups and edit form all render. */
 export type AttendeeQuestionData = {
   questions: QuestionWithAnswers[];
   attendeeAnswerMap: Map<number, number[]>;
+  /** attendeeId → (questionId → decrypted free-text answer). Present only when
+   * the loader was asked to include text answers; absent/empty otherwise. */
+  textAnswerMap?: Map<number, Map<number, string>>;
 };
 
 /**
@@ -781,7 +895,7 @@ export const loadAttendeeQuestionData = async (
   if (attendeeIds.length === 0 || listingIds.length === 0) return undefined;
   const [{ questions }, attendeeAnswerMap] = await Promise.all([
     getQuestionsWithListingIds(listingIds),
-    getAttendeeAnswersBatch(attendeeIds),
+    getAttendeeAnswersBatch(attendeeIds, { texts: false }),
   ]);
   return questions.length > 0 ? { attendeeAnswerMap, questions } : undefined;
 };
@@ -790,26 +904,10 @@ export const loadAttendeeQuestionData = async (
 export const getAttendeeTextAnswers = async (
   attendeeId: number,
   privateKey: CryptoKey,
-): Promise<Map<number, string>> => {
-  const rows = await queryAll<{ question_id: number; encrypted_text: string }>(
-    `SELECT attendee_answer.question_id, string.encrypted_text
-     FROM attendee_answers AS attendee_answer
-     JOIN strings AS string ON string.id = attendee_answer.string_id
-     WHERE attendee_answer.attendee_id = ?
-       AND attendee_answer.question_id IS NOT NULL`,
-    [attendeeId],
-  );
-  const entries = await Promise.all(
-    rows.map(
-      async (row) =>
-        [
-          row.question_id,
-          await decryptWithOwnerKey(row.encrypted_text, privateKey),
-        ] as const,
-    ),
-  );
-  return new Map(entries);
-};
+): Promise<Map<number, string>> =>
+  (await getAttendeeTextAnswersBatch([attendeeId], privateKey)).get(
+    attendeeId,
+  ) ?? new Map();
 
 /** Get attendee answers mapped by question ID.
  * Returns Map<questionId, { answerId, answerText }> for a single attendee. */

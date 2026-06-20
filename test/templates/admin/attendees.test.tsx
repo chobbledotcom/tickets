@@ -69,7 +69,7 @@ describe("EditQuestions", () => {
       { textAnswers: new Map([[1, "Allergic to nuts"]]) },
     );
 
-    expect(html).toContain('<input name="question_1" type="text"');
+    expect(html).toContain('name="question_1" type="text"');
     expect(html).toContain('value="Allergic to nuts"');
     expect(html).not.toContain('type="radio"');
     expect(html).not.toContain("<select");
@@ -80,6 +80,6 @@ describe("EditQuestions", () => {
       { answers: [], display_type: "free_text", id: 7, text: "Anything else?" },
     ]);
 
-    expect(html).toContain('<input name="question_7" type="text" value=""');
+    expect(html).toContain('name="question_7" type="text" value=""');
   });
 });

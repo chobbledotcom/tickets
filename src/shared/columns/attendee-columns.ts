@@ -106,6 +106,18 @@ const getAnswerDisplay = (
     if (text) answerTexts.push(text);
     if (text && qText) tooltipParts.push(`${qText}: ${text}`);
   }
+  // Free-text answers carry no answer id, so pull them per free_text question
+  // from the decrypted text map (present only when the loader fetched it).
+  const textByQuestion = questionData.textAnswerMap?.get(attendeeId);
+  if (textByQuestion) {
+    for (const q of questionData.questions) {
+      if (q.display_type !== "free_text") continue;
+      const text = textByQuestion.get(q.id);
+      if (!text) continue;
+      answerTexts.push(text);
+      tooltipParts.push(`${q.text}: ${text}`);
+    }
+  }
   return {
     short: answerTexts.join(", "),
     tooltip: tooltipParts.join(", "),

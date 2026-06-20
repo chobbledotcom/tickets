@@ -508,6 +508,20 @@ export const applyAttendeeMerge = async (
     bookingsReplacedTarget,
   } = applyBookingDecisions(targetId, diff, decision);
 
+  // Free-text answers are not part of the merge diff UI. Load both attendees'
+  // text answers BEFORE the batch below deletes the source's rows, then merge
+  // them with the target taking precedence — so a source-only text answer is
+  // adopted (matching how source-only choice answers are) instead of being
+  // dropped, while a target answer is never silently overwritten.
+  const [targetTextAnswers, sourceTextAnswers] = await Promise.all([
+    getAttendeeTextAnswers(targetId, privateKey),
+    getAttendeeTextAnswers(sourceId, privateKey),
+  ]);
+  const mergedTextAnswers = new Map([
+    ...sourceTextAnswers,
+    ...targetTextAnswers,
+  ]);
+
   // --- 4. Execute all DB changes atomically ---
   await executeBatch([
     // Delete target bookings that are being replaced
@@ -531,18 +545,16 @@ export const applyAttendeeMerge = async (
   ]);
 
   // Save merged answers for target. The choice decisions reduce to one answer
-  // per question; the target's free-text answers are not part of the merge UI,
-  // so carry them through verbatim — otherwise saveAttendeeAnswers' replace
-  // (delete-then-insert) would wipe them. Re-supplying the plaintext lets it
-  // re-create the encrypted string the delete drops.
-  const targetTextAnswers = await getAttendeeTextAnswers(targetId, privateKey);
+  // per question; re-supplying the merged free-text plaintext lets
+  // saveAttendeeAnswers' replace (delete-then-insert) re-create the encrypted
+  // strings it drops instead of wiping the answers.
   await saveAttendeeAnswers(
     new Map([
       [
         targetId,
         {
           answerIds: [...finalAnswers.values()],
-          textAnswers: [...targetTextAnswers].map(([questionId, text]) => ({
+          textAnswers: [...mergedTextAnswers].map(([questionId, text]) => ({
             questionId,
             text,
           })),

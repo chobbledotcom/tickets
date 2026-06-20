@@ -164,12 +164,30 @@ export const adminQuestionPage = (
       <Flash error={error} />
 
       <CsrfForm action={`/admin/questions/${question.id}/edit`}>
-        <Raw
-          html={questionTextForm.render({
-            display_type: question.display_type,
-            text: question.text,
-          })}
-        />
+        <Raw html={questionTextForm.field("text").render(question.text)} />
+        {question.display_type === "free_text" ? (
+          // Free-text questions can't become choice questions (it would orphan
+          // any stored text answers), so lock the type rather than offering it.
+          <input name="display_type" type="hidden" value="free_text" />
+        ) : (
+          <label>
+            Display as
+            <select name="display_type">
+              <option
+                selected={question.display_type === "radio"}
+                value="radio"
+              >
+                Radio buttons
+              </option>
+              <option
+                selected={question.display_type === "select"}
+                value="select"
+              >
+                Select box
+              </option>
+            </select>
+          </label>
+        )}
         <SubmitButton icon="save">{t("questions.edit.update")}</SubmitButton>
       </CsrfForm>
 

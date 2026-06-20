@@ -2974,7 +2974,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
         const attendees = await getAttendeesRaw(listing1.id);
         expect(attendees.length).toBe(1);
-        const answerMap = await getAttendeeAnswersBatch([attendees[0]!.id]);
+        const answerMap = await getAttendeeAnswersBatch([attendees[0]!.id], {
+          texts: false,
+        });
         const attendeeAnswers = answerMap.get(attendees[0]!.id) ?? [];
         expect(attendeeAnswers).toEqual([a.id]);
       } finally {
@@ -5714,7 +5716,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         // Answers are stored on the shared attendee ID.
         const attendeeId = att1[0]!.id;
         expect(attendeeId).toBe(att2[0]!.id); // same attendee
-        const batch = await getAttendeeAnswersBatch([attendeeId]);
+        const batch = await getAttendeeAnswersBatch([attendeeId], {
+          texts: false,
+        });
         expect(batch.get(attendeeId)).toEqual([a1.id]);
       } finally {
         mockVerify.restore();
@@ -5911,7 +5915,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         expect(attendees.length).toBe(1);
 
         // Verify custom question answers were saved
-        const batch = await getAttendeeAnswersBatch([attendees[0]!.id]);
+        const batch = await getAttendeeAnswersBatch([attendees[0]!.id], {
+          texts: false,
+        });
         expect(batch.get(attendees[0]!.id)).toEqual([a1.id]);
       } finally {
         mockVerify.restore();

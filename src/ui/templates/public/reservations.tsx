@@ -20,6 +20,7 @@ import {
 } from "#shared/forms.tsx";
 import { getIframeMode } from "#shared/iframe.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import { getImageProxyUrl } from "#shared/storage.ts";
 import {
@@ -212,6 +213,7 @@ export const renderQuestions = (
           <label class="custom-question" data-listing-ids={listingIds}>
             {q.text}
             <input
+              maxlength={MAX_TEXTAREA_LENGTH}
               name={`question_${q.id}`}
               required
               type="text"

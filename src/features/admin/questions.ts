@@ -210,11 +210,18 @@ const handleQuestionEdit = createAuthedFormRoute<
   form: questionTextForm,
   onInvalid: redirectToQuestion,
   onValid: async ({ params, values: { display_type, text } }) => {
-    const updated = await questionsTable.update(params.id, {
-      displayType: requireQuestionDisplayType(display_type),
-      text,
-    });
-    if (!updated) return notFoundResponse();
+    const existing = await getQuestionWithAnswers(params.id);
+    if (!existing) return notFoundResponse();
+    // Converting between free-text and choice types would orphan existing
+    // answers, so it is not allowed: a free-text question stays free-text (the
+    // edit form hides the selector and we ignore any submitted type), and a
+    // choice question may only switch between radio and select.
+    const requested = requireQuestionDisplayType(display_type);
+    const displayType =
+      existing.display_type === "free_text" || requested === "free_text"
+        ? existing.display_type
+        : requested;
+    await questionsTable.update(params.id, { displayType, text });
     await logActivity(`Question '${text}' updated`);
     return redirect(`/admin/questions/${params.id}`, "Question updated", true);
   },

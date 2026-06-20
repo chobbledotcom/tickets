@@ -158,6 +158,24 @@ describe("adminQuestionPage", () => {
     expect(html).toContain("No answers yet");
   });
 
+  test("locks the type on a free-text question's edit form", () => {
+    const html = adminQuestionPage(
+      {
+        answers: [],
+        display_type: "free_text" as const,
+        id: 1,
+        text: "Notes?",
+      },
+      TEST_SESSION,
+    );
+    // No selector — a hidden field keeps it free-text and the choice options
+    // are not offered.
+    expect(html).toContain(
+      '<input name="display_type" type="hidden" value="free_text"',
+    );
+    expect(html).not.toContain("Radio buttons");
+  });
+
   test("renders answers in a table with their selection totals", () => {
     const counts = new Map([
       [10, 5],

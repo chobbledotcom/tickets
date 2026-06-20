@@ -1103,7 +1103,9 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
 
       // Both answers survive — not just the first event's.
       const saved = new Set(
-        (await getAttendeeAnswersBatch([attendeeId])).get(attendeeId) ?? [],
+        (await getAttendeeAnswersBatch([attendeeId], { texts: false })).get(
+          attendeeId,
+        ) ?? [],
       );
       expect(saved.has(aA.id)).toBe(true);
       expect(saved.has(aB.id)).toBe(true);
@@ -1127,7 +1129,9 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       expect(response.status).toBe(302);
 
       const saved = new Set(
-        (await getAttendeeAnswersBatch([attendeeId])).get(attendeeId) ?? [],
+        (await getAttendeeAnswersBatch([attendeeId], { texts: false })).get(
+          attendeeId,
+        ) ?? [],
       );
       // The bogus id is silently dropped (admin answers are optional), never
       // written — so the form can't inject an arbitrary answer row.
@@ -1181,7 +1185,8 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
 
-      const bobAnswers = (await getAttendeeAnswersBatch([bob])).get(bob) ?? [];
+      const bobAnswers =
+        (await getAttendeeAnswersBatch([bob], { texts: false })).get(bob) ?? [];
       expect(bobAnswers).toEqual([a2.id]);
     });
   });

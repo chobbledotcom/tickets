@@ -256,6 +256,36 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       );
     });
 
+    test("keeps a free-text question free-text, ignoring a submitted choice type", async () => {
+      const { questionsTable } = await import("#shared/db/questions.ts");
+      const q = await questionsTable.insert({
+        displayType: "free_text",
+        text: "Notes?",
+      });
+      const { response } = await adminFormPost(
+        `/admin/questions/${q.id}/edit`,
+        { display_type: "radio" as const, text: "Notes updated" },
+      );
+      expectRedirectWithFlash(
+        `/admin/questions/${q.id}`,
+        "Question updated",
+      )(response);
+      const updated = await questionsTable.findById(q.id);
+      expect(updated!.display_type).toBe("free_text");
+      expect(updated!.text).toBe("Notes updated");
+    });
+
+    test("does not let a choice question be converted to free-text", async () => {
+      const id = await createQuestion("Colour?");
+      const { questionsTable } = await import("#shared/db/questions.ts");
+      await adminFormPost(`/admin/questions/${id}/edit`, {
+        display_type: "free_text",
+        text: "Colour?",
+      });
+      const updated = await questionsTable.findById(id);
+      expect(updated!.display_type).toBe("radio");
+    });
+
     test("returns 404 for non-existent question on edit", async () => {
       const { response } = await adminFormPost("/admin/questions/999/edit", {
         display_type: "radio" as const,
