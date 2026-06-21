@@ -14,7 +14,7 @@
 
 import { compact } from "#fp";
 import { executeBatch, queryIdColumn } from "#shared/db/client.ts";
-import { getAllListings } from "#shared/db/listings.ts";
+import { getListingsById } from "#shared/db/listings.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 
 const INSERT_EDGE =
@@ -58,6 +58,6 @@ export const getParentsOf = async (
 ): Promise<ListingWithCount[]> => {
   const ids = await getParentIds(childId);
   if (ids.length === 0) return [];
-  const byId = new Map((await getAllListings()).map((l) => [l.id, l]));
+  const byId = await getListingsById();
   return compact(ids.map((id) => byId.get(id)));
 };

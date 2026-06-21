@@ -174,7 +174,11 @@ export const PUBLIC_API_ENDPOINTS: EndpointDoc[] = [
       quantity: 2,
     }),
     response: json({
-      booking: { ticketToken: "A1B2C3D4E5", ticketUrl: "/t/A1B2C3D4E5" },
+      booking: {
+        amountOwed: 0,
+        ticketToken: "A1B2C3D4E5",
+        ticketUrl: "/t/A1B2C3D4E5",
+      },
     }),
   },
 ];

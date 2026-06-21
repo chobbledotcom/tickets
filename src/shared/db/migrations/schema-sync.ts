@@ -345,16 +345,25 @@ export const applySchemaChanges = async (): Promise<void> => {
 /** Create missing indexes and drop legacy ones */
 export const syncIndexes = async (): Promise<void> => {
   const live = await snapshotLiveSchema();
-  const declared = SCHEMA.flatMap(([name, table]) =>
+  const declared = SCHEMA.flatMap(([tableName, table]) =>
     (table.indexes ?? []).map((idx) => ({
+      columns: idx.columns,
       name: idx.name,
-      sql: createIndexSql(name, idx),
+      sql: createIndexSql(tableName, idx),
+      tableName,
     })),
   );
   const declaredNames = new Set(declared.map((d) => d.name));
 
   const creates = declared
-    .filter((d) => !live.indexes.has(d.name))
+    .filter((d) => {
+      const columns = live.tables.get(d.tableName);
+      return (
+        columns !== undefined &&
+        d.columns.every((column) => columns.has(column)) &&
+        !live.indexes.has(d.name)
+      );
+    })
     .map((d) => writeStatement(d.sql));
 
   // Drop any project-owned (idx_*) index no longer declared in SCHEMA. The

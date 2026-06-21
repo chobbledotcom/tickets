@@ -8,9 +8,9 @@ import {
   awaitTestRequest,
   describeWithEnv,
   expectFlash,
+  expectFlashRedirect,
   expectHtmlResponse,
   expectRedirect,
-  expectRedirectWithFlash,
   FLASH_TEST_ID,
   flashCookieHeader,
   hasCheckedInput,
@@ -127,7 +127,7 @@ describeWithEnv("server (admin site)", { db: true }, () => {
         homepage_text: "",
         website_title: "x".repeat(MAX_WEBSITE_TITLE_LENGTH + 1),
       });
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/site",
         expect.stringContaining(
           `${MAX_WEBSITE_TITLE_LENGTH} characters or fewer`,
@@ -141,7 +141,7 @@ describeWithEnv("server (admin site)", { db: true }, () => {
         homepage_text: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
         website_title: "",
       });
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/site",
         expect.stringContaining(`${MAX_TEXTAREA_LENGTH} characters or fewer`),
         false,
@@ -257,7 +257,7 @@ describeWithEnv("server (admin site)", { db: true }, () => {
       const { response } = await adminFormPost("/admin/site/contact", {
         contact_page_text: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
       });
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/site/contact",
         expect.stringContaining(`${MAX_TEXTAREA_LENGTH} characters or fewer`),
         false,
@@ -365,7 +365,7 @@ describeWithEnv("server (admin site)", { db: true }, () => {
       const { response } = await adminFormPost("/admin/site/order", {
         order_intro_text: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
       });
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/site/order",
         expect.stringContaining(`${MAX_TEXTAREA_LENGTH} characters or fewer`),
         false,

@@ -5,9 +5,9 @@ import {
   adminFormPost,
   awaitTestRequest,
   describeWithEnv,
+  expectFlashRedirect,
   expectHtmlResponse,
   expectRedirect,
-  expectRedirectWithFlash,
   FLASH_TEST_ID,
   flashCookieHeader,
   TEST_ADMIN_USERNAME,
@@ -106,7 +106,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         username: TEST_ADMIN_USERNAME,
       });
 
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/user/new",
         expect.stringContaining("already taken"),
         false,
@@ -119,7 +119,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         username: "newuser",
       });
 
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/user/new",
         expect.stringContaining("Invalid role"),
         false,

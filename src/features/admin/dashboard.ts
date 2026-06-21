@@ -40,6 +40,7 @@ export const loginResponse = async (
 ): Promise<Response> => {
   const flash = applyFlash(request);
   await signCsrfToken();
+  // success (e.g. "Logged out") is rendered by the Layout backstop from context.
   return htmlResponse(adminLoginPage(flash.error), status);
 };
 

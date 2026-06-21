@@ -9,8 +9,8 @@ import {
   createTestManagerSession,
   describeWithEnv,
   expectFlash,
+  expectFlashRedirect,
   expectHtmlResponse,
-  expectRedirectWithFlash,
   expectStatus,
   mockFormRequest,
   testCookie,
@@ -107,7 +107,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       );
       const questions = await getAllQuestionsWithAnswers();
       const found = questions.find((q) => q.text === "Redirect target?")!;
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/questions/${found.id}`,
         "Question created",
       )(response);
@@ -138,7 +138,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         (q) => q.text === "Choose one?",
       );
       expect(question?.display_type).toBe("select");
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/questions/${question!.id}`,
         "Question created",
       )(response);
@@ -215,7 +215,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         display_type: "radio" as const,
         text: "After edit",
       });
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/questions/${id}`,
         "Question updated",
       )(response);
@@ -266,7 +266,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         `/admin/questions/${q.id}/edit`,
         { display_type: "radio" as const, text: "Notes updated" },
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/questions/${q.id}`,
         "Question updated",
       )(response);
@@ -428,7 +428,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         `/admin/questions/${qId}/listings`,
         { listing_ids: String(listing.id) },
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/questions/${qId}`,
         "Listings updated",
       )(response);
@@ -450,7 +450,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         `/admin/questions/${qId}/listings`,
         {},
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/questions/${qId}`,
         "Listings updated",
       )(response);
@@ -537,7 +537,10 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         `/admin/questions/${id}/delete`,
         { confirm_identifier: "Confirm Delete" },
       );
-      expectRedirectWithFlash("/admin/questions", "Question deleted")(response);
+      await expectFlashRedirect(
+        "/admin/questions",
+        "Question deleted",
+      )(response);
 
       // Verify it's gone
       const { questionsTable } = await import("#shared/db/questions.ts");
@@ -577,7 +580,10 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         `/admin/questions/${id}/delete`,
         { confirm_identifier: "case test" },
       );
-      expectRedirectWithFlash("/admin/questions", "Question deleted")(response);
+      await expectFlashRedirect(
+        "/admin/questions",
+        "Question deleted",
+      )(response);
     });
 
     test("rejects deletion when confirm_identifier is missing", async () => {
@@ -669,7 +675,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         `/admin/questions/${qId}/answers/${aId}/delete`,
         { confirm_identifier: "Goodbye Answer" },
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/questions/${qId}`,
         "Answer deleted",
       )(response);
@@ -774,7 +780,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         `/admin/questions/${qId}/answers/${aId}/edit`,
         { modifier_id: "", text: "After" },
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/questions/${qId}`,
         "Answer updated",
       )(response);
@@ -1036,7 +1042,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         `/admin/questions/${qId}/answers/${aId}/recalculate`,
         { recalculate_fields: "times_selected" },
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/questions/${qId}/answers/${aId}/edit`,
         "Selection total recalculated",
       )(response);
@@ -1143,7 +1149,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
           cookie,
         ),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/listing/${listing.id}`,
         "Questions updated",
       )(response);
@@ -1161,7 +1167,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         `/admin/listing/${listing.id}/questions`,
         {},
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/listing/${listing.id}`,
         "Questions updated",
       )(response);
@@ -1304,7 +1310,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         `/admin/questions/${qId}/answers/${aId1}/move-down`,
         {},
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/questions/${qId}`,
         "Answer moved",
       )(response);
@@ -1326,7 +1332,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         `/admin/questions/${qId}/answers/${aId2}/move-up`,
         {},
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/questions/${qId}`,
         "Answer moved",
       )(response);
@@ -1345,7 +1351,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         `/admin/questions/${qId}/answers/${aId1}/move-up`,
         {},
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/questions/${qId}`,
         "Answer moved",
       )(response);
@@ -1358,7 +1364,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         `/admin/questions/${qId}/answers/${aId1}/move-down`,
         {},
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/questions/${qId}`,
         "Answer moved",
       )(response);
@@ -1402,7 +1408,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         `/admin/questions/${firstId}/move-down`,
         {},
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/questions",
         "Question moved",
       )(down.response);

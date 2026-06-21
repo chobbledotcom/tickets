@@ -405,6 +405,11 @@ export const invalidateListingsCache = (): void => {
 export const getAllListings = (): Promise<ListingWithCount[]> =>
   listingsCache.getAll();
 
+/** All listings keyed by id (built from the cached `getAllListings`). */
+export const getListingsById = async (): Promise<
+  Map<number, ListingWithCount>
+> => new Map((await getAllListings()).map((l) => [l.id, l]));
+
 /**
  * Get listing with attendee count (from cache)
  */

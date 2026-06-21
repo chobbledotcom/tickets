@@ -146,6 +146,7 @@ describeWithEnv("email-renderer", { db: true }, () => {
 
   describe("renderTemplate", () => {
     const sampleData: TemplateData = {
+      amount_owed: "0",
       attendee: {
         address: "123 St",
         date: null,
@@ -450,6 +451,48 @@ describeWithEnv("email-renderer", { db: true }, () => {
 
       expect(result.html).toContain("£20");
       expect(result.text).toContain("£20");
+    });
+
+    test("shows the amount owed when a balance is outstanding", async () => {
+      // A provider-less booking: nothing collected, the full value owed.
+      const entries = [
+        makeEntry(
+          { unit_price: 1000 },
+          { price_paid: "0", remaining_balance: 2000 },
+        ),
+      ];
+      const data = buildTemplateData(
+        entries,
+        "GBP",
+        "https://example.com/t/ABC",
+      );
+
+      const confirmation = await renderEmailContent("confirmation", data);
+      const admin = await renderEmailContent("admin", data);
+
+      expect(confirmation.html).toContain("Amount owed");
+      expect(confirmation.html).toContain("£20");
+      expect(confirmation.text).toContain("Amount owed: £20");
+      expect(admin.html).toContain("Amount owed");
+    });
+
+    test("omits the amount owed when the booking is fully paid", async () => {
+      const entries = [
+        makeEntry(
+          { unit_price: 1000 },
+          { price_paid: "1000", remaining_balance: 0 },
+        ),
+      ];
+      const data = buildTemplateData(
+        entries,
+        "GBP",
+        "https://example.com/t/ABC",
+      );
+
+      const result = await renderEmailContent("confirmation", data);
+
+      expect(result.html).not.toContain("Amount owed");
+      expect(result.text).not.toContain("Amount owed");
     });
 
     test("shows date when attendee has date", async () => {

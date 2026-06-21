@@ -29,8 +29,8 @@ import {
   awaitTestRequest,
   createTestManagerSession,
   describeWithEnv,
+  expectFlashRedirect,
   expectHtmlResponse,
-  expectRedirectWithFlash,
   expectStatus,
   testRequiresAuth,
 } from "#test-utils";
@@ -120,7 +120,7 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
         retention: "1825",
       });
 
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/privacy",
         "Saved your orphaned-record settings.",
       )(response);
@@ -148,7 +148,7 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
         retention: "182",
       });
 
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/privacy",
         "Deleted 1 orphaned record.",
       )(response);
@@ -161,7 +161,7 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
         retention: "abc",
       });
 
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/privacy",
         "Please choose how old records must be before they are deleted.",
         false,
@@ -184,7 +184,7 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
         identifier: "erase-me@example.com",
       });
 
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/privacy",
         "Deleted that contact's record.",
       )(response);
@@ -221,7 +221,7 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
         identifier: "   ",
       });
 
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/privacy",
         "Please enter the email address or phone number to delete.",
         false,
@@ -234,7 +234,7 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
         identifier: "123456",
       });
 
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/privacy",
         "Please choose whether you are entering an email or a phone number.",
         false,

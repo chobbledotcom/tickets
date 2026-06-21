@@ -4,7 +4,7 @@ import { settings } from "#shared/db/settings.ts";
 import {
   adminFormPost,
   describeWithEnv,
-  expectRedirectWithFlash,
+  expectFlashRedirect,
 } from "#test-utils";
 
 describeWithEnv("server (admin settings: column order)", { db: true }, () => {
@@ -17,7 +17,7 @@ describeWithEnv("server (admin settings: column order)", { db: true }, () => {
         "/admin/settings/listing-column-order",
         { column_order: "{{name}}, {{status}}" },
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         formUrl,
         "Listing column order updated",
       )(response);
@@ -29,7 +29,7 @@ describeWithEnv("server (admin settings: column order)", { db: true }, () => {
         "/admin/settings/listing-column-order",
         { column_order: "{{invalid}}" },
       );
-      expectRedirectWithFlash(formUrl, undefined, false)(response);
+      await expectFlashRedirect(formUrl, undefined, false)(response);
       const msg = decodeURIComponent(response.headers.get("set-cookie") ?? "");
       expect(msg).toContain("invalid");
       expect(msg).toContain("Available columns");
@@ -41,7 +41,7 @@ describeWithEnv("server (admin settings: column order)", { db: true }, () => {
         "/admin/settings/listing-column-order",
         { column_order: "" },
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         formUrl,
         "Listing column order updated",
       )(response);
@@ -58,7 +58,7 @@ describeWithEnv("server (admin settings: column order)", { db: true }, () => {
         "/admin/settings/attendee-column-order",
         { column_order: "{{name}}, {{qty}}, {{ticket}}" },
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         formUrl,
         "Attendee column order updated",
       )(response);
@@ -72,7 +72,7 @@ describeWithEnv("server (admin settings: column order)", { db: true }, () => {
         "/admin/settings/attendee-column-order",
         { column_order: "{{bogus}}" },
       );
-      expectRedirectWithFlash(formUrl, undefined, false)(response);
+      await expectFlashRedirect(formUrl, undefined, false)(response);
       const msg = decodeURIComponent(response.headers.get("set-cookie") ?? "");
       expect(msg).toContain("bogus");
       expect(msg).toContain("Available columns");
@@ -84,7 +84,7 @@ describeWithEnv("server (admin settings: column order)", { db: true }, () => {
         "/admin/settings/attendee-column-order",
         { column_order: "" },
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         formUrl,
         "Attendee column order updated",
       )(response);

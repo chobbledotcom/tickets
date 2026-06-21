@@ -108,7 +108,6 @@ export const bulkEmailComposePage = (
     <Layout title={copy.heading}>
       <AdminNav active={NAV_ACTIVE} session={session} />
       <SettingsSubNav />
-      <Flash />
 
       <div class="prose">
         <h1>{copy.heading}</h1>
@@ -329,7 +328,6 @@ export const bulkEmailPreviewPage = (
     <Layout title={t("bulk_email.preview_page_title")}>
       <AdminNav active={NAV_ACTIVE} session={session} />
       <SettingsSubNav />
-      <Flash />
 
       <div class="prose">
         <h1>{t("bulk_email.preview_page_title")}</h1>

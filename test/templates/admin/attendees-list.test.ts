@@ -71,13 +71,19 @@ describe("adminAttendeesListPage", () => {
   });
 
   test("lists attendee rows with their listing name", () => {
+    // The dropdown offers "Filter Option"; the row is booked on a different
+    // "Booked Listing". Asserting the latter proves the table cell renders the
+    // row's own listing name rather than merely echoing the filter dropdown.
     const html = adminAttendeesListPage(
       buildProps({
-        rows: [row(1, "Alice", 1, "Gala Night")],
+        listings: [testListingWithCount({ id: 1, name: "Filter Option" })],
+        rows: [row(1, "Alice", 2, "Booked Listing")],
       }),
     );
     expect(html).toContain("Alice");
-    expect(html).toContain("Gala Night");
+    expect(html).toContain("Booked Listing");
+    // The row rendered, so the empty-state message must not appear.
+    expect(html).not.toContain("No attendees yet");
   });
 
   test("shows the empty message when there are no rows", () => {
@@ -178,7 +184,8 @@ describe("adminAttendeesListPage", () => {
     const html = adminAttendeesListPage(buildProps({ hasNext: true, page: 0 }));
     expect(html).toContain('class="pagination"');
     expect(html).toContain("Next");
-    expect(html).toContain('href="/admin/attendees?page=1"');
+    // rel="next" pins the assertion to the Next link itself.
+    expect(html).toContain('href="/admin/attendees?page=1" rel="next"');
     expect(html).not.toContain("Previous");
   });
 
@@ -188,7 +195,9 @@ describe("adminAttendeesListPage", () => {
     );
     expect(html).toContain("Previous");
     // From page 1 back to page 0 with no filter/sort drops the query entirely.
-    expect(html).toContain('href="/admin/attendees"');
+    // rel="prev" pins this to the Previous link — the bare /admin/attendees
+    // path also appears in the nav and the filter form's action.
+    expect(html).toContain('href="/admin/attendees" rel="prev"');
     expect(html).not.toContain("Next");
   });
 
@@ -210,5 +219,93 @@ describe("adminAttendeesListPage", () => {
     expect(html).toContain(
       'href="/admin/attendees?listing=7&amp;sort=oldest&amp;page=1"',
     );
+  });
+
+  test("numbers the current page (1-based) in the pagination", () => {
+    const first = adminAttendeesListPage(
+      buildProps({ hasNext: true, page: 0 }),
+    );
+    expect(first).toContain("<span>Page 1</span>");
+    const third = adminAttendeesListPage(
+      buildProps({ hasNext: true, page: 2 }),
+    );
+    expect(third).toContain("<span>Page 3</span>");
+  });
+
+  // The type-filter bar only renders when the listings span more than one
+  // category, so a single-category default never exercises it.
+  describe("type filter bar (multiple listing categories)", () => {
+    const multiCategory = (
+      overrides: Partial<AttendeesListPageProps> = {},
+    ): AttendeesListPageProps =>
+      buildProps({ categories: ["standard", "daily"], ...overrides });
+
+    test("renders the bar with the active type bold and the rest as links", () => {
+      const html = adminAttendeesListPage(multiCategory({ type: "daily" }));
+      expect(html).toContain('class="table-header-actions"');
+      expect(html).toContain("<strong><u>Daily</u></strong>");
+      expect(html).toContain(">Standard</a>");
+      expect(html).toContain(">All</a>");
+    });
+
+    test("omits the bar entirely when only one category is present", () => {
+      const html = adminAttendeesListPage(
+        buildProps({ categories: ["standard"] }),
+      );
+      expect(html).not.toContain('class="table-header-actions"');
+    });
+
+    test("type links reset the listing and page filters but keep the sort", () => {
+      const html = adminAttendeesListPage(
+        multiCategory({
+          listingId: 7,
+          listings: [testListingWithCount({ id: 7, name: "Festival" })],
+          page: 4,
+          sort: "oldest",
+          type: "all",
+        }),
+      );
+      // Scope assertions to the filter-bar fragment: the pagination links below
+      // legitimately keep the listing/page, which would otherwise mask the reset.
+      const bar =
+        html.match(/<p class="table-header-actions">.*?<\/p>/s)?.[0] ?? "";
+      // The bar is injected via <Raw>, so its ampersands stay unescaped.
+      expect(bar).toContain('href="/admin/attendees?type=daily&sort=oldest"');
+      expect(bar).not.toContain("listing=7"); // specific-listing filter dropped
+      expect(bar).not.toContain("page="); // page reset to the first page
+    });
+  });
+
+  describe("result count", () => {
+    test("reports the filtered result count and the type label", () => {
+      const html = adminAttendeesListPage(
+        buildProps({
+          categories: ["standard", "daily"],
+          count: 3,
+          type: "daily",
+        }),
+      );
+      expect(html).toContain("Showing 3 attendees for");
+      expect(html).toContain("<strong>Daily</strong>");
+    });
+
+    test("pluralises a single filtered result", () => {
+      const html = adminAttendeesListPage(
+        buildProps({
+          categories: ["standard", "daily"],
+          count: 1,
+          type: "daily",
+        }),
+      );
+      expect(html).toContain("Showing 1 attendee for");
+    });
+
+    test("shows no result-count line when no type filter is active", () => {
+      // A non-zero count must still stay hidden while the type filter is "all".
+      const html = adminAttendeesListPage(
+        buildProps({ count: 5, type: "all" }),
+      );
+      expect(html).not.toContain("attendees for");
+    });
   });
 });

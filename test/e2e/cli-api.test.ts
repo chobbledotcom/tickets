@@ -176,6 +176,42 @@ describeWithEnv("CLI API e2e", { db: true }, () => {
       }
     });
 
+    test("prints usage when arguments are missing", async () => {
+      const apiKey = await createTestApiKeyToken();
+      const api = serveTestApi();
+
+      try {
+        const result = await runCliApiExpectingFailure(
+          api.hostname,
+          apiKey,
+          [],
+        );
+
+        expect(result.code).toBe(2);
+        expect(result.stderr).toContain(
+          "Usage: deno task cli:api <list|get|create|update|delete>",
+        );
+      } finally {
+        await api.stop();
+      }
+    });
+
+    test("surfaces API failures from create commands with omitted JSON bodies", async () => {
+      const apiKey = await createTestApiKeyToken();
+      const api = serveTestApi();
+
+      try {
+        const result = await runCliApiExpectingFailure(api.hostname, apiKey, [
+          "create",
+          "listings",
+        ]);
+
+        expect(result.code).toBe(1);
+      } finally {
+        await api.stop();
+      }
+    });
+
     test("surfaces API failures from commands with omitted JSON bodies", async () => {
       const listing = await createTestListing({ name: "CLI Delete Guard" });
       const apiKey = await createTestApiKeyToken();

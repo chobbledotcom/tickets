@@ -264,6 +264,10 @@ const bookingResultToResponse = (
     case "success":
       return apiResponse({
         booking: {
+          // Outstanding balance in minor units; 0 when fully paid, positive when
+          // the booking was taken without collecting payment (no provider), so
+          // the integration knows the amount left to collect from the buyer.
+          amountOwed: result.attendee.remaining_balance,
           ticketToken: result.attendee.ticket_token,
           ticketUrl: `/t/${result.attendee.ticket_token}`,
         },
