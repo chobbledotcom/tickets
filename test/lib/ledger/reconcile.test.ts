@@ -3,7 +3,7 @@ import { describe, it } from "@std/testing/bdd";
 import { account } from "#shared/ledger/account.ts";
 import {
   reconcileExternal,
-  reconcileLegCounts,
+  reconcileLegKinds,
 } from "#shared/ledger/reconcile.ts";
 import { makeTransfer } from "./factory.ts";
 
@@ -36,39 +36,48 @@ describe("reconcileExternal", () => {
   });
 });
 
-describe("reconcileLegCounts", () => {
-  const legs = (eventGroup: string, n: number) =>
-    Array.from({ length: n }, (_, i) =>
-      makeTransfer({ eventGroup, id: i + 1 }),
-    );
+describe("reconcileLegKinds", () => {
+  const legs = (eventGroup: string, kinds: string[]) =>
+    kinds.map((kind, i) => makeTransfer({ eventGroup, id: i + 1, kind }));
 
-  it("returns nothing when every event matches its expected count", () => {
+  it("returns nothing when every event has its expected kinds", () => {
     const expected = new Map([
-      ["evt-a", 3],
-      ["evt-b", 1],
+      ["evt-a", ["sale", "fee", "payment"]],
+      ["evt-b", ["sale"]],
     ]);
-    const ts = [...legs("evt-a", 3), ...legs("evt-b", 1)];
-    expect(reconcileLegCounts(expected)(ts)).toEqual([]);
+    const ts = [
+      ...legs("evt-a", ["payment", "sale", "fee"]),
+      ...legs("evt-b", ["sale"]),
+    ];
+    expect(reconcileLegKinds(expected)(ts)).toEqual([]);
   });
 
-  it("flags an event that is missing a leg", () => {
-    const expected = new Map([["evt-a", 3]]);
-    expect(reconcileLegCounts(expected)(legs("evt-a", 2))).toEqual([
-      { actual: 2, eventGroup: "evt-a", expected: 3 },
+  it("flags a wrong leg mix even when the leg count matches", () => {
+    const expected = new Map([["evt-a", ["sale", "fee", "payment"]]]);
+    const ts = legs("evt-a", ["sale", "sale", "payment"]);
+    expect(reconcileLegKinds(expected)(ts)).toEqual([
+      { eventGroup: "evt-a", missing: ["fee"], unexpected: ["sale"] },
     ]);
   });
 
   it("flags an entirely missing event group", () => {
-    const expected = new Map([["evt-a", 3]]);
-    expect(reconcileLegCounts(expected)([])).toEqual([
-      { actual: 0, eventGroup: "evt-a", expected: 3 },
+    const expected = new Map([["evt-a", ["sale", "payment"]]]);
+    expect(reconcileLegKinds(expected)([])).toEqual([
+      { eventGroup: "evt-a", missing: ["sale", "payment"], unexpected: [] },
     ]);
   });
 
   it("flags an orphan event group absent from the source records", () => {
-    const expected = new Map<string, number>();
-    expect(reconcileLegCounts(expected)(legs("evt-x", 2))).toEqual([
-      { actual: 2, eventGroup: "evt-x", expected: 0 },
+    const expected = new Map<string, string[]>();
+    const ts = legs("evt-x", ["sale", "payment"]);
+    expect(reconcileLegKinds(expected)(ts)).toEqual([
+      { eventGroup: "evt-x", missing: [], unexpected: ["sale", "payment"] },
     ]);
+  });
+
+  it("treats a leg with no kind as an empty-string kind", () => {
+    const expected = new Map([["evt-a", [""]]]);
+    const ts = [makeTransfer({ eventGroup: "evt-a" })];
+    expect(reconcileLegKinds(expected)(ts)).toEqual([]);
   });
 });

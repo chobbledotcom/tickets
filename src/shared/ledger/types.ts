@@ -42,7 +42,12 @@ export type TransferInput = {
   readonly eventGroup: string;
   /** Host-defined category, opaque to the ledger (e.g. "sale", "refund_cash"). */
   readonly kind?: string;
-  /** PII-free reason (host responsibility). */
+  /**
+   * Optional human-readable reason. Kept PII-free by convention (prefer codes
+   * and ids over names); if free text that could contain PII is stored, the host
+   * MUST encrypt it with the owner key before persisting — the ledger treats it
+   * as an opaque string, never parses it, and never logs it.
+   */
   readonly memo?: string;
   /** The transfer this one reverses/corrects (admin void/correction only). */
   readonly reversesId?: number;

@@ -16,14 +16,16 @@ const hasReservedChar = (a: AccountRef): boolean =>
   a.id.includes(ACCOUNT_KEY_SEPARATOR);
 
 /**
- * A canonical ISO-8601 UTC timestamp (e.g. `2026-06-21T14:45:32.798Z`). The
- * trailing `Z` matters: `statementFor` orders by string comparison, which only
- * matches chronological order for zero-padded UTC timestamps.
+ * True only for a canonical ISO-8601 UTC timestamp in the exact form
+ * `YYYY-MM-DDTHH:mm:ss.sssZ`. Round-tripping through `Date` rejects impossible
+ * dates that V8 silently normalises (`2026-02-30`, hour `24`, …) and pins one
+ * fixed-width precision, so the lexicographic comparison used by `statementFor`
+ * and `inPeriod` always matches chronological order.
  */
-const ISO_UTC_TIMESTAMP =
-  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
-const isIsoTimestamp = (s: string): boolean =>
-  ISO_UTC_TIMESTAMP.test(s) && !Number.isNaN(Date.parse(s));
+const isIsoTimestamp = (s: string): boolean => {
+  const date = new Date(s);
+  return !Number.isNaN(date.getTime()) && date.toISOString() === s;
+};
 
 /**
  * Validate a {@link TransferInput}. Returns `ok` with the value, or every reason

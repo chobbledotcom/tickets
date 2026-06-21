@@ -111,6 +111,17 @@ describe("statementFor", () => {
     expect(lines.map((l) => l.transfer.id)).toEqual([1, 9, 5]);
     expect(lines.map((l) => l.running)).toEqual([-10000, -8000, 0]);
   });
+
+  it("continues from an opening balance for a date-ranged slice", () => {
+    const debit = makeTransfer({
+      amount: 2000,
+      destination: revenue,
+      id: 1,
+      source: attendee,
+    });
+    const lines = statementFor(attendee, 8000)([debit]);
+    expect(lines.map((l) => l.running)).toEqual([6000]);
+  });
 });
 
 describe("currency guards", () => {

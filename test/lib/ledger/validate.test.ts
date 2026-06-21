@@ -30,6 +30,16 @@ const cases: [
     { occurredAt: "2026-13-99T00:00:00Z" },
     "invalid_occurred_at",
   ],
+  [
+    "overflow ISO occurred-at (Feb 30 normalises away)",
+    { occurredAt: "2026-02-30T00:00:00.000Z" },
+    "invalid_occurred_at",
+  ],
+  [
+    "non-canonical precision occurred-at (no milliseconds)",
+    { occurredAt: "2026-01-01T00:00:00Z" },
+    "invalid_occurred_at",
+  ],
   ["self transfer", { destination: account("attendee", 1) }, "self_transfer"],
   ["empty source type", { source: { id: "1", type: "" } }, "empty_account"],
   [
