@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it } from "@std/testing/bdd";
-import { parseFlashValue } from "#shared/cookies.ts";
+import { getSessionCookieName, parseFlashValue } from "#shared/cookies.ts";
 
 export const FLASH_TEST_ID = "t001";
 
@@ -170,6 +170,20 @@ const defaultFollowCookie = async (): Promise<string> => {
   return testCookie();
 };
 
+/** The session cookie this response sets or clears (login establishes a new one,
+ *  logout clears it), or null when the redirect leaves the session untouched.
+ *  Lets the follow use the session the action actually establishes — so a
+ *  logout is followed logged-out, matching what the browser would render —
+ *  instead of a stale default owner session. */
+const sessionCookieFromResponse = (response: Response): string | null => {
+  const prefix = `${getSessionCookieName()}=`;
+  const match = response.headers
+    .getSetCookie()
+    .map((c) => c.split(";")[0])
+    .find((c) => c?.startsWith(prefix));
+  return match ?? null;
+};
+
 /**
  * Curried, mandatory-flash redirect assertion — reach for this after almost
  * every admin action that ends in a redirect. Asserts that `response`:
@@ -187,8 +201,10 @@ const defaultFollowCookie = async (): Promise<string> => {
  * success page, API responses, and auth bounces to /admin/login — use
  * `expectRedirect` instead.
  *
- * `cookie` defaults to the owner test session. Pass an explicit cookie for
- * role-scoped destinations whose page differs for that role, or a public one.
+ * The follow uses, in order: an explicit `cookie`; the session the response
+ * itself sets or clears (so a login is followed as the new user and a logout as
+ * logged-out, matching the browser); otherwise the owner test session. So even
+ * an auth-mutating redirect renders the page the real user would land on.
  */
 export const expectFlashRedirect =
   (
@@ -206,11 +222,17 @@ export const expectFlashRedirect =
     const followed = await followRedirectWithFlash(
       response,
       handleRequest,
-      cookie ?? (await defaultFollowCookie()),
+      cookie ??
+        sessionCookieFromResponse(response) ??
+        (await defaultFollowCookie()),
     );
     const html = await followed.text();
     const parsed = parseFlashCookie(response);
-    const actual = (succeeded ? parsed.success : parsed.error) ?? "";
+    const actual = succeeded ? parsed.success : parsed.error;
+    // A verified flash redirect must carry a non-empty message at the asserted
+    // level; without this, renderSuccess("")/renderError("") is "" and
+    // toContain("") would pass vacuously without proving any banner rendered.
+    expect(actual).toBeTruthy();
     expect(html).toContain(
       succeeded ? renderSuccess(actual) : renderError(actual),
     );
