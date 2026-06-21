@@ -117,8 +117,8 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
          VALUES (908, 906, 'Vegetarian', 3, 907)`,
         `INSERT INTO listing_questions (id, listing_id, question_id, sort_order)
          VALUES (909, 902, 906, 4)`,
-        `INSERT INTO attendee_answers (id, attendee_id, answer_id)
-         VALUES (910, 903, 908)`,
+        `INSERT INTO attendee_answers (id, attendee_id, answer_id, question_id)
+         VALUES (910, 903, 908, 906)`,
         `INSERT INTO modifier_listings (modifier_id, listing_id)
          VALUES (907, 902)`,
         `INSERT INTO modifier_groups (modifier_id, group_id)
