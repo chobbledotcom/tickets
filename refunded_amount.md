@@ -87,22 +87,23 @@ Key fact about the value to store: `provider.refundPayment()` returns a
 `PaymentProvider` interface throws it away. So the actual provider-refunded
 amount is *available at Stripe/Square* but *not* at the interface today.
 
-There are **two candidate values** for `refunded_amount`:
+**DECIDED — `refunded_amount` stores the provider's actual refunded amount
+(option B).** (Owner decision, 2026-06-21.) The alternative — recording the
+line's `price_paid` — was rejected because it is only the *ticket* portion and
+diverges from the money actually returned in three real configurations (booking
+fees, balance-paid reservations, multi-line orders; see **§8.5**). Option B is
+the one number correct in all of them: exactly the money the provider returned.
 
-- **(A) the line's `price_paid`** — zero interface churn, but it is only the
-  *ticket* portion and diverges from the money actually returned in three real
-  configurations (booking fees, balance-paid reservations, multi-line orders —
-  see **§8.5**, the accuracy section, which exists because of PR review
-  feedback).
-- **(B) the provider's actual refunded amount** — the true money moved, but it
-  requires widening the provider interface (§10).
+`price_paid` survives only as a **fallback**, used in two narrow places:
 
-Because the divergences in §8.5 are real and not rare, **the recommended source
-of truth is (B), the provider's actual amount, with (A) `price_paid` as the
-fallback** when a provider can't report an amount (SumUp) or for the historical
-backfill. Read §8.5 and §10 before locking this in — it is the single most
-important correctness decision in the feature, and it shifted from the original
-draft after review.
+- **SumUp**, whose API returns no refund amount (boolean only); and
+- the **historical backfill** (§18), where the provider amount is no longer
+  retrievable for already-refunded rows.
+
+The cost of option B is the interface work in **§10** (widen `refundPayment` and
+`isPaymentRefunded`, stop the lower Stripe/Square layers discarding the amount,
+and update every caller). Where the plan below still says "under option B", read
+it as "the chosen path"; "option A / fallback" means the two narrow cases above.
 
 ---
 
@@ -335,13 +336,12 @@ Notes:
   branches trip the duplication check, fold them into one parameterised
   statement builder.
 - The **signature is backward-compatible** (the `amount` param is optional), but
-  whether callers *change* depends on the §2 option:
-  - **Option A (fallback):** callers keep `markRefunded(id, listingId)` and get
-    `refunded_amount = price_paid` for free.
-  - **Option B (provider amount, recommended):** the refund routes
-    (`attendee-refunds.ts` single + bulk, and the refresh path — see §10) **must
-    pass the amount**: `markRefunded(id, listingId, providerAmount)`. Do not
-    assume callers are unchanged under option B (the §20 DoD reflects this).
+  with **option B chosen the refund routes do change** to pass the provider
+  amount: `attendee-refunds.ts` (single + bulk) and the refresh path (§10) call
+  `markRefunded(id, listingId, providerAmount)`. The no-amount form
+  (`refunded_amount = price_paid`) is reserved for the **fallback** cases only —
+  SumUp (no provider amount) and the historical backfill (§18). Do not assume
+  callers are unchanged (the §20 DoD reflects this).
 
 ---
 
@@ -452,27 +452,23 @@ Optional but nice for the multi-line case (where the flattened
    not introduced here — but `refunded_amount` makes the under-report visible in
    money terms.)
 
-**Implications for the design:**
+**Implications for the design (with option B decided):**
 
-- Cases 1 and 2 are why **option B (record the provider's actual amount, §10) is
-  the recommended source of truth.** The provider's refund response is the one
-  number that is correct in all three cases — it is exactly the money returned.
-- Case 3 needs a **write-fan-out** fix independent of which amount we store: when
+- Cases 1 and 2 are **resolved by the chosen option B**: the provider's refund
+  response is exactly the money returned, so fees are included and a deposit-only
+  refund records the deposit (not the inflated `price_paid`). This is why B was
+  chosen over `price_paid`.
+- Case 3 still needs a **write-fan-out**, independent of the amount source: when
   an order-level refund succeeds, mark every line that payment covered, not just
-  the operator's line. **Scoping that fan-out correctly is the open question** —
-  attendee-level `payment_id` is insufficient because a merge can leave one
-  attendee holding lines from several payments (see §10b). It likely needs a new
-  per-line payment/order marker, or the smaller-scope "accept + document"
-  choice. See §10b for the options and recommendation.
-- If we ship option A first anyway (e.g. to avoid provider churn), the plan must
-  **document `refunded_amount` as "ticket revenue refunded, fee-exclusive, and
-  approximate for balance-paid reservations"** in the column comment, the admin
-  UI, and the CSV header — so no one reads it as "total returned to the
-  customer".
-
-**Recommendation:** treat §8.5 as a gating decision. My recommendation is
-option B + the case-3 fan-out; if that is too much scope now, ship option A with
-the explicit "ticket-only / approximate" labelling and a follow-up issue for B.
+  the operator's line. **Scoping that fan-out correctly is the one remaining open
+  sub-decision** — attendee-level `payment_id` is insufficient because a merge
+  can leave one attendee holding lines from several payments (see §10b). It needs
+  either a new per-line payment/order marker or the smaller "accept + document"
+  choice (§10b).
+- The historical **backfill** (§18) still uses the `price_paid` fallback (the
+  provider amount isn't retrievable for old rows), so backfilled rows inherit the
+  fee/reservation inaccuracy. Label those as approximate (§18) — going forward,
+  newly-refunded rows carry the exact provider amount.
 
 ---
 
@@ -499,10 +495,11 @@ return shape would need updating).
 ## 10. Recording the *provider's actual* refunded amount + the multi-line fan-out
 
 This was "optional/deferred" in the first draft; PR review (§8.5) showed
-`price_paid` is wrong in common configurations, so it is now a **tracked
-decision**, not a nice-to-have.
+`price_paid` is wrong in common configurations, and the owner has now **chosen
+option B** — so §10a is **core required work**, not a nice-to-have. §10b (the
+multi-line fan-out scoping) remains the one open sub-decision.
 
-### 10a. Surface the provider amount (option B)
+### 10a. Surface the provider amount (option B — REQUIRED)
 
 Widen the provider interface so the real refunded amount reaches `markRefunded`.
 This is **two layers**, not just the provider wrapper:
@@ -602,10 +599,11 @@ decision (per-line marker vs. accept-and-document) before the fan-out is built.
 The `amount` parameter on `markRefunded` already accommodates a partial value;
 no schema change needed when partial-refund support arrives.
 
-**Recommendation:** do 10a + 10b together with the core feature — they are the
-difference between `refunded_amount` meaning "money returned" vs. "ticket
-revenue on one line". If scope must shrink, ship option A (§2) with the explicit
-"ticket-only/approximate" labelling from §8.5 and open a follow-up for 10a/10b.
+**Plan:** 10a is required (option B chosen) and ships with the core feature —
+it's the difference between `refunded_amount` meaning "money returned" vs. "ticket
+revenue on one line". 10b (the fan-out scoping) is the remaining open
+sub-decision; resolve it (per-line marker vs. accept-and-document) before
+building the fan-out, but 10a does not depend on it.
 
 ---
 
@@ -799,8 +797,8 @@ webhook attendee type + builder + `makeTestAttendee` factory + webhook docs
 | `src/features/admin/attendees-merge.ts` | `loadAttendeeBookings` must SELECT `refunded_amount` (§5c) | ✅ (merge runs regardless) |
 | `src/shared/merge/attendee-merge.ts` | Insert copies `refunded_amount`; add to dedup compare under option B (§14) | ✅ (else merges zero it) |
 | `src/features/admin/attendees-csv.ts` + csv locale | Export column (label "ticket-only/approx" if option A — §8.5) | ⭕ recommended |
-| Provider layer (§10a): `*-provider.ts` + `square.ts` lower layer + `isPaymentRefunded` + all `refundPayment` callers (incl. `webhooks.ts`) | Record provider's **actual** refunded amount | 🔶 recommended for correctness (§8.5) |
-| Refund routes + maybe per-line payment marker (§10b) | Fan out an order-level refund across covered lines — **open design question** | 🔶 decision required (§8.5/§10b) |
+| Provider layer (§10a): `*-provider.ts` + `square.ts` lower layer + Stripe `retrievePaymentIntent` narrowing + `isPaymentRefunded` + all `refundPayment`/`isPaymentRefunded` callers (incl. `webhooks.ts`) | Record provider's **actual** refunded amount (option B) | ✅ (owner-chosen) |
+| Refund routes + maybe per-line payment marker (§10b) | Fan out an order-level refund across covered lines — **open sub-decision** | 🔶 decision required (§10b) |
 | `src/features/admin/attendee-form-model.ts` + `attendee-form.tsx` | Per-line amount in bookings table | ⭕ optional |
 | `src/shared/columns/attendee-columns.ts` | Amount in list status badge | ⭕ optional |
 | `src/shared/webhook.ts` (+docs, factory) (§16) | Webhook payload | ⭕ future |
@@ -839,13 +837,15 @@ explicitly. ⭕ = scope choices.
   (the `paidListing` gate in `pii.ts`).
 - **Balance-paid reservations (§8.5 case 2)**: refunding the stored deposit
   `payment_id` returns only the deposit, but `price_paid` was inflated by
-  `settleAttendeeBalance`. With option A, `refunded_amount` over-reports here;
-  option B (provider amount) records the true deposit refund. Call this out
-  wherever `refunded_amount` is shown if option A ships first.
+  `settleAttendeeBalance`. Option B (chosen) records the provider's true deposit
+  refund, so this is correct going forward; only the historical *backfill* (which
+  must use the `price_paid` fallback) over-states it — hence the "approximate"
+  labelling above.
 - **Free bookings** (`price_paid = 0`): refunding sets `refunded = 1`,
   `refunded_amount = 0` — correct (£0 refunded).
-- **Idempotency**: `= price_paid` (copy, not accumulate) keeps repeated
-  `markRefunded` calls stable. Tested in §15a.
+- **Idempotency**: the write **copies** the recorded amount (the provider amount,
+  or the `price_paid` fallback) rather than accumulating, so repeated
+  `markRefunded` calls are stable. Tested in §15a.
 - **Aggregates untouched**: confirm `listings.income` / capacity are unchanged
   by a refund (they already are; `refunded_amount` writes don't fire the
   aggregate trigger). A regression test asserting `income` is unaffected by a
@@ -871,21 +871,24 @@ explicitly. ⭕ = scope choices.
 - [ ] Migration applies on a populated DB; `verify()` passes; `SCHEMA_HASH`
       bumped; `LATEST_UPDATE` updated; legacy refunded rows backfilled (§18).
 - [ ] `markRefunded` sets `refunded` + `refunded_amount` atomically and
-      idempotently (copy semantics). **Under option B the refund routes pass the
-      provider amount** — callers change, the signature stays compatible (the
-      "unchanged callers" claim only holds for option A; see §6).
+      idempotently (copy semantics). The refund routes pass the **provider
+      amount** (option B); the optional `amount` param keeps the signature
+      compatible, but callers do change (see §6).
 - [ ] `Attendee.refunded_amount` populated through **every** read path (§5a–5e,
       including `attendees-merge.ts` and `atomic-update.ts` loaders); type checks.
 - [ ] Amount shown in the admin payment details panel.
-- [ ] (Recommended) merge loader+insert (§5c/§14) and CSV carry it.
-- [ ] **Amount source decided (§2/§8.5/§10):** option A (`price_paid`, with
-      "ticket-only/approximate" labelling) or option B (provider amount — widen
-      `refundPayment` *and* `isPaymentRefunded`, update Square's `square.ts`
-      lower layer, and all callers incl. `webhooks.ts` to read `.ok`).
+- [ ] Merge loader+insert (§5c/§14) and CSV carry it.
+- [ ] **Amount source = option B (decided):** widen `refundPayment` **and**
+      `isPaymentRefunded` across all 3 providers, stop the lower Stripe
+      (`retrievePaymentIntent` narrowing) and Square (`square.ts`) layers
+      discarding the amount, and update **every** caller — incl. `webhooks.ts`
+      auto-refund (`.ok`) and `tryRefund` (`.refunded`). `price_paid` remains the
+      fallback only for SumUp and the historical backfill.
 - [ ] **Multi-line fan-out decided (§10b):** per-line payment marker vs.
-      accept-and-document. (Open question — don't ship the fan-out without it.)
+      accept-and-document. (The one remaining open question — don't ship the
+      fan-out without it.)
 - [ ] Tests added per §15; `deno task test:coverage` is 100% and deterministic;
       `deno task test:quality-audit` clean for new tests.
 - [ ] `deno task precommit` (typecheck, `lint:ci`, tests, `cpd` at 0%) passes.
-- [ ] PR notes the webhook auto-refund caller (§9, must read `.ok` under option
-      B) and records the §8.5/§10b decisions.
+- [ ] PR notes the webhook auto-refund callers (§9 — `.ok`/`.refunded` under
+      option B) and records the §10b decision.
