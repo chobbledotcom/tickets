@@ -117,13 +117,19 @@ describeWithEnv("db > accounting > store", { db: true }, () => {
       expect((await allTransfers()).length).toBe(0);
     });
 
-    test("rejects a reference that collides with a different event", async () => {
+    test("rejects a colliding reference without committing the event's other legs", async () => {
       await postTransfers([tx({ eventGroup: "evt-a", reference: "shared" })]);
-      // A different event reuses the same reference (a mapper bug): the insert
-      // is skipped by ON CONFLICT, and the post-insert re-verify surfaces it.
+      // evt-b reuses evt-a's reference for one leg and adds a fresh leg. The
+      // collision is caught before inserting, so the fresh leg is never written
+      // (a post-insert check would leave it behind as a partial event).
       const error = await rejection(
         postTransfers([
-          tx({ amount: 9999, eventGroup: "evt-b", reference: "shared" }),
+          tx({ eventGroup: "evt-b", reference: "shared" }),
+          tx({
+            destination: account("fee_income", "booking"),
+            eventGroup: "evt-b",
+            reference: "fresh-leg",
+          }),
         ]),
       );
       expect(error).toBeInstanceOf(LedgerConflictError);

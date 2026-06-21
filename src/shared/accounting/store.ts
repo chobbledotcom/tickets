@@ -21,6 +21,7 @@ import type { InValue, ResultSet } from "@libsql/client";
 import { sumOf } from "#fp";
 import {
   executeBatchWithResults,
+  inPlaceholders,
   insert,
   queryAll,
 } from "#shared/db/client.ts";
@@ -175,8 +176,8 @@ const assertEventMatches = (
  * `eventGroup` and carry a distinct `reference` (a duplicate within the post is
  * rejected — it would silently under-post). If that event is already (even
  * partly) stored, the whole leg set must match or {@link LedgerConflictError} is
- * thrown; otherwise the legs are written in one conflict-tolerant batch and the
- * committed event is re-verified.
+ * thrown; otherwise — if no reference already belongs to a different event — the
+ * legs are written in one conflict-tolerant batch.
  */
 export const postTransfers = async (
   inputs: TransferInput[],
@@ -205,20 +206,21 @@ export const postTransfers = async (
     assertEventMatches(eventGroup, existing, inputs);
     return { inserted: 0, skipped: inputs.length };
   }
+  // This event has no legs yet, so any already-stored reference belongs to a
+  // *different* event. Reject before inserting — checking after the batch would
+  // commit the fresh legs and leave a partial event behind on a collision.
+  const colliding = await transfersByReferences(references);
+  if (colliding.length > 0) {
+    throw new LedgerConflictError(
+      colliding[0]!.reference,
+      "reference already belongs to a different event",
+    );
+  }
   const recordedAt = nowIso();
   const results = await executeBatchWithResults(
     inputs.map((t) => insertStatement(t, recordedAt)),
   );
   const inserted = sumOf((r: ResultSet) => Number(r.rowsAffected))(results);
-  // Re-read and verify the committed event is exactly ours. A skipped insert
-  // (a reference that already existed) becomes a loud conflict when that row
-  // belongs to a *different* event, while a concurrent writer of the *same*
-  // event verifies cleanly and is counted as an idempotent skip.
-  assertEventMatches(
-    eventGroup,
-    await transfersByEventGroup(eventGroup),
-    inputs,
-  );
   return { inserted, skipped: inputs.length - inserted };
 };
 
@@ -232,6 +234,15 @@ const queryTransfers = async (
   );
   return rows.map(rowToTransfer);
 };
+
+/** The stored transfers among the given references (used to detect a reference
+ *  colliding with a different event before a fresh insert). `references` is
+ *  always non-empty here — the caller posts at least one leg. */
+const transfersByReferences = (references: string[]): Promise<Transfer[]> =>
+  queryTransfers(
+    ` WHERE reference IN (${inPlaceholders(references)})`,
+    references,
+  );
 
 /** Every transfer touching `account`, as source or destination. */
 export const transfersByAccount = (acct: AccountRef): Promise<Transfer[]> =>
