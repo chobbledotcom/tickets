@@ -527,6 +527,15 @@ Enumerate each and decide:
 - **Group page** `/group/:slug` — group members render together. A parent inside a
   group still needs its gate. Children of a group member may or may not be group
   members themselves — confirm interaction (Open Question 6).
+- **Order/gallery page** `/order` — `bookingUrlFor` (`order.ts:56-64`) turns the
+  selected gallery items into a `/ticket/<slugs>?q_<id>=1` redirect. If a buyer
+  selects **both a visible parent and one of its visible children** there, it emits
+  exactly the parent+child URL that Open Question 13 recommends forbidding (the
+  booking page would then reject it), and if that rule isn't applied the
+  standalone-child ambiguity returns. So `/order` must align with the OQ13
+  decision: when building the redirect, **drop a child item whose parent is also
+  selected** (or translate it into the parent's `child_*` field) rather than
+  emitting a raw parent+child slug list. Cover this in the gate's tests.
 - **Public/JSON API booking** (`src/features/api`, `src/shared/booking.ts`
   `processBooking`) — decide whether the API enforces the gate. **Caveat:**
   `processBooking(listing, contact, quantity, date, baseUrl, customUnitPrice?)`
