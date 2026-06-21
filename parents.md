@@ -374,13 +374,17 @@ On the listing edit page (`src/features/admin/listings.ts`, fields in
   into "parents" and "children." This sidesteps recursion/cycles in the checkout
   gate entirely (no DFS needed). (Open Question 3.)
 - Validate that referenced listing ids exist and are not soft-deleted.
-- **A dated child needs a date-producing parent.** Since the child inherits the
-  parent's date/duration, a **daily / `customisable_days` child under a *dateless*
-  (standard) parent** has no date or day-count to inherit — the availability filter
-  would have nothing to evaluate and the folded line would book with a null/wrong
-  date. Forbid this edge in admin validation: a dated child may only be attached to
-  a parent that itself produces a compatible date/duration (i.e. a daily parent).
-  (A dateless child under any parent is fine — see the dateless-child date rule.)
+- **A child needing a date/duration needs a parent that produces one — split by
+  what it needs.** Don't blanket-require a *daily* parent for every
+  `customisable_days` child, because a **standard `customisable_days` parent** still
+  renders the shared day-count selector (`sharedDayCounts`/`dayConfig` work off
+  `customisable_days`, regardless of `listing_type`) and can supply an inherited
+  duration while a standard child folds with `date: null`. So split the rule:
+  - a **daily child** (needs a *date*) may only attach to a **daily parent**;
+  - a **`customisable_days` child** (needs a *day-count*) may only attach to a
+    parent that produces a resolved duration (a daily parent, **or** a standard
+    customisable parent);
+  - a plain **standard child** is fine under any parent (folds date-less).
 - **Daily parent/child durations must actually match.** "Both daily" is not
   enough: the ordinary-line booking helper uses a non-customisable daily listing's
   **own `duration_days`** (`ticket-payment.ts:162-166`), so a 3-day fixed parent
@@ -508,12 +512,15 @@ When the booking page renders a listing that has children, render each child as 
   activate child-specific questions and silently skip required child answers and
   answer-triggered modifiers. The child's answer fields use the standard
   `question_<questionId>` name (see no-JS note below for rendering and which answers
-  are read at submit). **A shared child (chosen under two parents) must render its
-  questions only *once*** — rendering the same `question_<id>` control inside both
-  parent blocks would create duplicates that `form.get` collapses to one value
-  (treating the other as missing). Render a single shared child question block (the
-  merged line has one answer set anyway), or namespace + reconcile exactly as the
-  pay-more price is.
+  are read at submit). **Duplicate `question_<id>` controls must be avoided wherever
+  they arise** — not only when the *same* child is chosen under two parents, but
+  also across **sibling child options that share a question** (including
+  `assign_all` questions): rendering each child's questions in its own block would
+  emit the same `question_<id>` twice, and `form.get` reads one value, so a
+  hidden/unselected sibling's blank copy could be parsed instead of the selected
+  child's answer. Render each distinct question **once**, or namespace per
+  child/parent and reconcile to the selected child's answer (the same rule as the
+  pay-more price).
 
 ### Progressive enhancement
 
@@ -692,8 +699,15 @@ The expanded set (parent page listings ∪ selected children) must drive **all**
   page id set). So while child-scoped add-ons are unsupported, admin must **hard
   block** making a listing a child while it has scoped opt-in add-ons (and vice
   versa), not merely warn — a warn-and-save leaves a real broken purchase path where
-  the operator configured an add-on buyers can never select. (Lift the block only
-  once the conditional child add-on render/parse path is implemented.)
+  the operator configured an add-on buyers can never select. **This covers
+  group-scoped add-ons too**, not just listing-scoped: the resolver expands
+  `modifier_groups` through every listing in the group and renders the add-on when
+  those ids intersect the page ids (`modifiers.ts:212-219`,
+  `modifier-resolve.ts:376-387`), so a child that belongs to a group with an opt-in
+  add-on is just as unreachable from the parent page. The block must therefore also
+  fire on **group-membership and modifier-scope changes** that would leave a child
+  carrying a group-scoped opt-in add-on. (Lift the block only once the conditional
+  child add-on render/parse path is implemented.)
 - **Site-assignment validation** — `prepareOrder` calls
   `validateSiteAssignmentConfig(selected)` (`ticket-submit.ts:578`) before
   checkout. A child with `assign_built_site` set (parent without) must be in the
@@ -793,7 +807,13 @@ Enumerate each and decide:
   (inactive/sold-out/closed) must render its card as **sold out** — the card state
   today comes from the parent's *own* capacity (`buildTicketListing`), so the
   child-derived "no bookable child ⇒ sold out" state must feed the parent's public
-  card too, or the index advertises a Book button the gate will reject.
+  card too, or the index advertises a Book button the gate will reject. **This is
+  the *combined* parent+child demand check, not just "is any child available"**: when
+  parent and child share a capped group, booking one parent auto-books one child and
+  consumes **two** group spots, so a parent with one remaining group spot is already
+  sold out for the minimum order even though a child looks individually available.
+  The same combined-demand check used for the date filter must drive card/feed
+  availability.
 - **RSS/ICS feeds** (`src/features/feeds.ts`) — unlike a card there's **no button
   to suppress**: each feed item's `URL`/link points directly at `/ticket/<slug>`
   for every active visible listing. So a visible child would be **syndicated as a
@@ -864,7 +884,13 @@ Enumerate each and decide:
     required inputs. The listing responses must **carry the relationship data**
     (a parent's available children + their constraints) and **suppress the
     standalone-booking affordance for children** (mark them "available with …"),
-    mirroring the public listing-card rule.
+    mirroring the public listing-card rule. **The relationship payload must include
+    *hidden* children**, explicitly bypassing the top-level visibility filter:
+    `GET /api/listings` filters hidden listings out, but hidden children are a
+    supported (and common, auto-selected) booking option, so a parent's child list
+    must surface hidden child records/constraints — otherwise a parent with only
+    hidden children looks bookable in discovery but can't be booked programmatically
+    without out-of-band child ids.
   - **Availability endpoint.** `GET /api/listings/:slug/availability` calls
     `hasAvailableSpots(..., date, listing.duration_days)` for the passed slug
     (`api/index.ts:243-248`), so a **child** slug would report standalone
