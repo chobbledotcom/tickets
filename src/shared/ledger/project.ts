@@ -64,13 +64,22 @@ export const sumOfKind =
     return sumOf((t: Transfer) => (t.kind === kind ? t.amount : 0))(transfers);
   };
 
-/** Transfers whose business time falls in the half-open window [from, to). */
+/**
+ * Transfers whose business time falls in the half-open window [from, to).
+ * Bounds are compared as instants, not strings, so a whole-second bound like
+ * `2026-02-01T00:00:00Z` still includes the canonical `2026-02-01T00:00:00.000Z`
+ * (a lexicographic compare would wrongly exclude it).
+ */
 export const inPeriod =
   (from: string, to: string) =>
-  (transfers: Transfer[]): Transfer[] =>
-    filter((t: Transfer) => t.occurredAt >= from && t.occurredAt < to)(
-      transfers,
-    );
+  (transfers: Transfer[]): Transfer[] => {
+    const fromMs = Date.parse(from);
+    const toMs = Date.parse(to);
+    return filter((t: Transfer) => {
+      const at = Date.parse(t.occurredAt);
+      return at >= fromMs && at < toMs;
+    })(transfers);
+  };
 
 /**
  * One line of an account statement: the transfer, its signed effect on the

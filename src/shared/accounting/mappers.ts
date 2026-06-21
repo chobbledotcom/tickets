@@ -76,15 +76,25 @@ const bookingLegSpecs = (
   facts: BookingFacts,
   attendee: AccountRef,
 ): LegSpec[] => {
-  const sales = facts.lines
-    .filter((line) => line.gross > 0)
-    .map((line) => ({
-      amount: line.gross,
-      destination: revenueAccount(line.listingId),
-      kind: "sale",
-      refParts: ["sale", line.listingId],
-      source: attendee,
-    }));
+  // Aggregate to one sale leg per listing: discount splits produce several
+  // lines for the same listing, which must not share a `["sale", listingId]`
+  // reference (the store would treat the second as a conflicting duplicate).
+  const grossByListing = new Map<number, number>();
+  for (const line of facts.lines) {
+    if (line.gross > 0) {
+      grossByListing.set(
+        line.listingId,
+        (grossByListing.get(line.listingId) ?? 0) + line.gross,
+      );
+    }
+  }
+  const sales: LegSpec[] = [...grossByListing].map(([listingId, gross]) => ({
+    amount: gross,
+    destination: revenueAccount(listingId),
+    kind: "sale",
+    refParts: ["sale", listingId],
+    source: attendee,
+  }));
   const modifiers = facts.modifiers
     .filter((modifier) => modifier.delta !== 0)
     .map((modifier) => modifierLeg(attendee, modifier));

@@ -33,9 +33,18 @@ const rejection = async (promise: Promise<unknown>): Promise<Error> => {
   throw new Error("expected the promise to reject, but it resolved");
 };
 
+const saleAndPayment = (): TransferInput[] => [
+  tx({ reference: "sale-1", source: account("attendee", 1) }),
+  tx({
+    destination: account("attendee", 1),
+    reference: "pay-1",
+    source: account("external", "world"),
+  }),
+];
+
 describeWithEnv("db > accounting > store", { db: true }, () => {
   describe("postTransfers", () => {
-    test("round-trips transfers and feeds the balance projections", async () => {
+    test("round-trips an event and feeds the balance projections", async () => {
       const attendee = account("attendee", 3);
       const revenue = account("revenue", 7);
       const result = await postTransfers([
@@ -47,26 +56,18 @@ describeWithEnv("db > accounting > store", { db: true }, () => {
         }),
       ]);
       expect(result).toEqual({ inserted: 2, skipped: 0 });
-
       expect(balanceOf(attendee)(await transfersByAccount(attendee))).toBe(0);
       expect(balanceOf(revenue)(await transfersByAccount(revenue))).toBe(5000);
     });
 
-    test("is idempotent: replaying matching references writes nothing", async () => {
-      const legs = [
-        tx({ reference: "sale-1" }),
-        tx({
-          destination: account("attendee", 1),
-          reference: "pay-1",
-          source: account("external", "world"),
-        }),
-      ];
+    test("replaying the same event writes nothing", async () => {
+      const legs = saleAndPayment();
       expect(await postTransfers(legs)).toEqual({ inserted: 2, skipped: 0 });
       expect(await postTransfers(legs)).toEqual({ inserted: 0, skipped: 2 });
       expect((await allTransfers()).length).toBe(2);
     });
 
-    test("rejects a reused reference with different financial facts", async () => {
+    test("rejects a replay whose leg changed financial facts", async () => {
       await postTransfers([tx({ amount: 5000, reference: "sale-1" })]);
       const error = await rejection(
         postTransfers([tx({ amount: 9999, reference: "sale-1" })]),
@@ -76,14 +77,30 @@ describeWithEnv("db > accounting > store", { db: true }, () => {
       expect((await allTransfers()).length).toBe(1);
     });
 
-    test("inserts only the new legs on a partial replay", async () => {
-      const a = tx({ reference: "a" });
-      const b = tx({ reference: "b", source: account("attendee", 9) });
-      expect(await postTransfers([a, b])).toEqual({ inserted: 2, skipped: 0 });
+    test("rejects a replay that adds a leg to a posted event", async () => {
+      await postTransfers(saleAndPayment());
+      const error = await rejection(
+        postTransfers([
+          ...saleAndPayment(),
+          tx({
+            destination: account("fee_income", "booking"),
+            reference: "fee-1",
+          }),
+        ]),
+      );
+      expect(error).toBeInstanceOf(LedgerConflictError);
+      expect((await allTransfers()).length).toBe(2);
+    });
 
-      const c = tx({ reference: "c", source: account("attendee", 9) });
-      expect(await postTransfers([a, c])).toEqual({ inserted: 1, skipped: 1 });
-      expect((await allTransfers()).length).toBe(3);
+    test("rejects a replay that drops a leg from a posted event", async () => {
+      await postTransfers(saleAndPayment());
+      const error = await rejection(
+        postTransfers([
+          tx({ reference: "sale-1", source: account("attendee", 1) }),
+        ]),
+      );
+      expect(error).toBeInstanceOf(LedgerConflictError);
+      expect((await allTransfers()).length).toBe(2);
     });
 
     test("rejects an invalid transfer before writing anything", async () => {
@@ -94,33 +111,48 @@ describeWithEnv("db > accounting > store", { db: true }, () => {
       expect((await allTransfers()).length).toBe(0);
     });
 
+    test("rejects legs that span more than one event group", async () => {
+      const error = await rejection(
+        postTransfers([
+          tx({ eventGroup: "evt-a", reference: "a" }),
+          tx({ eventGroup: "evt-b", reference: "b" }),
+        ]),
+      );
+      expect(error.message).toContain("one eventGroup");
+    });
+
     test("treats an empty post as a no-op", async () => {
       expect(await postTransfers([])).toEqual({ inserted: 0, skipped: 0 });
       expect((await allTransfers()).length).toBe(0);
     });
 
-    test("preserves kind, memo, posted_by and reverses_id round-trip", async () => {
-      await postTransfers([tx({ reference: "orig" })]);
-      const stored = await allTransfers();
-      const orig = stored[0]!;
-      expect(orig.kind).toBe("");
-      expect(orig.reversesId).toBeUndefined();
-
-      await postTransfers([
+    test("preserves kind/memo/posted_by/reverses_id and replays them", async () => {
+      const legs = [
+        tx({ eventGroup: "e1", reference: "orig" }),
         tx({
+          destination: account("attendee", 1),
+          eventGroup: "e1",
           kind: "reversal",
           memo: "owner-key-ciphertext",
           postedBy: "user:5",
           reference: "void",
-          reversesId: orig.id,
+          reversesId: 1,
+          source: account("revenue", 1),
         }),
-      ]);
-      const legs = await transfersByEventGroup("evt-1");
-      const voided = legs.find((t) => t.reference === "void")!;
+      ];
+      expect(await postTransfers(legs)).toEqual({ inserted: 2, skipped: 0 });
+      // Replaying exercises the reversesId/kind equality path too.
+      expect(await postTransfers(legs)).toEqual({ inserted: 0, skipped: 2 });
+
+      const stored = await transfersByEventGroup("e1");
+      const voided = stored.find((t) => t.reference === "void")!;
       expect(voided.kind).toBe("reversal");
       expect(voided.memo).toBe("owner-key-ciphertext");
       expect(voided.postedBy).toBe("user:5");
-      expect(voided.reversesId).toBe(orig.id);
+      expect(voided.reversesId).toBe(1);
+      const orig = stored.find((t) => t.reference === "orig")!;
+      expect(orig.reversesId).toBeUndefined();
+      expect(orig.kind).toBe("");
     });
   });
 
@@ -128,12 +160,17 @@ describeWithEnv("db > accounting > store", { db: true }, () => {
     test("transfersByEventGroup returns only that event's legs", async () => {
       await postTransfers([
         tx({ eventGroup: "evt-x", reference: "x-sale" }),
-        tx({ eventGroup: "evt-x", reference: "x-fee" }),
-        tx({ eventGroup: "evt-y", reference: "y-sale" }),
+        tx({
+          destination: account("attendee", 1),
+          eventGroup: "evt-x",
+          reference: "x-pay",
+          source: account("external", "world"),
+        }),
       ]);
+      await postTransfers([tx({ eventGroup: "evt-y", reference: "y-sale" })]);
       const legs = await transfersByEventGroup("evt-x");
       expect(legs.map((t) => t.reference).toSorted()).toEqual([
-        "x-fee",
+        "x-pay",
         "x-sale",
       ]);
     });

@@ -82,6 +82,16 @@ describe("inPeriod", () => {
     )(ts);
     expect(got.map((t) => t.id)).toEqual([2]);
   });
+
+  it("includes a canonical .000Z transfer at a whole-second bound", () => {
+    const ts = [
+      makeTransfer({ id: 1, occurredAt: "2026-02-01T00:00:00.000Z" }),
+    ];
+    // Whole-second bounds (no milliseconds): a lexicographic compare would
+    // exclude the canonical .000Z value; instant comparison includes it.
+    const got = inPeriod("2026-02-01T00:00:00Z", "2026-03-01T00:00:00Z")(ts);
+    expect(got.map((t) => t.id)).toEqual([1]);
+  });
 });
 
 describe("statementFor", () => {

@@ -90,6 +90,22 @@ describeWithEnv("accounting > mappers", { encryptionKey: true }, () => {
       );
     });
 
+    test("aggregates multiple lines for one listing into a single sale leg", async () => {
+      const legs = await mapBooking(
+        facts({
+          amountPaid: 5000,
+          lines: [
+            { gross: 3000, listingId: 1 },
+            { gross: 2000, listingId: 1 }, // discount split — same listing
+          ],
+        }),
+      );
+      const sales = legs.filter((l) => l.kind === "sale");
+      expect(sales.length).toBe(1);
+      expect(sales[0]!.amount).toBe(5000);
+      expect(new Set(legs.map((l) => l.reference)).size).toBe(legs.length);
+    });
+
     test("drops zero-amount legs (a free booking posts nothing)", async () => {
       const legs = await mapBooking(
         facts({
