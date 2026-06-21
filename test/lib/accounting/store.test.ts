@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import {
   allTransfers,
   LedgerConflictError,
@@ -10,7 +10,7 @@ import {
 import { account } from "#shared/ledger/account.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
-import { describeWithEnv } from "#test-utils";
+import { setupTransactionalTestDb } from "#test-utils";
 
 const tx = (overrides: Partial<TransferInput> = {}): TransferInput => ({
   amount: 5000,
@@ -42,7 +42,15 @@ const saleAndPayment = (): TransferInput[] => [
   }),
 ];
 
-describeWithEnv("db > accounting > store", { db: true }, () => {
+describe("db > accounting > store", () => {
+  let cleanup: () => Promise<void>;
+  beforeEach(async () => {
+    cleanup = await setupTransactionalTestDb();
+  });
+  afterEach(async () => {
+    await cleanup();
+  });
+
   describe("postTransfers", () => {
     test("round-trips an event and feeds the balance projections", async () => {
       const attendee = account("attendee", 3);
@@ -152,6 +160,23 @@ describeWithEnv("db > accounting > store", { db: true }, () => {
         ]),
       );
       expect(error.message).toContain("one eventGroup");
+    });
+
+    test("rejects legs that span more than one currency", async () => {
+      // Each leg passes per-leg validation, but a mixed-currency event would
+      // later make every balance projection throw — reject it at the boundary.
+      const error = await rejection(
+        postTransfers([
+          tx({ currency: "GBP", reference: "gbp" }),
+          tx({
+            currency: "USD",
+            destination: account("fee_income", "booking"),
+            reference: "usd",
+          }),
+        ]),
+      );
+      expect(error.message).toContain("one currency");
+      expect((await allTransfers()).length).toBe(0);
     });
 
     test("treats an empty post as a no-op", async () => {

@@ -104,6 +104,34 @@ export const createTestDb = async (triggers = false): Promise<void> => {
   resetTestSession();
 };
 
+/**
+ * Set up a temp-file database for tests that use interactive transactions
+ * (`withTransaction`). A `:memory:` URL gives each connection its own database,
+ * so a transaction opened on a fresh connection would see no schema or data; a
+ * real file is shared across connections. Returns a cleanup function that
+ * detaches the client, closes it, restores the env, and removes the file — call
+ * it from `afterEach`.
+ */
+export const setupTransactionalTestDb = async (): Promise<
+  () => Promise<void>
+> => {
+  setupTestEncryptionKey();
+  const path = await Deno.makeTempFile({ suffix: ".db" });
+  const restoreEnv = setTestEnv({
+    DB_URL: `file:${path}`,
+    DISABLE_AGGREGATE_TRIGGERS_FOR_TEST: "1",
+  });
+  const client = createClient({ url: `file:${path}` });
+  setDb(client);
+  await client.executeMultiple(TEST_SCHEMA_SQL);
+  return async () => {
+    setDb(null);
+    client.close();
+    restoreEnv();
+    await Deno.remove(path);
+  };
+};
+
 export const createTestDbWithSetup = async (
   country = "GB",
   triggers = false,

@@ -5,25 +5,30 @@
  * Reads return `Transfer[]` for the pure projections (`balanceOf`, `statementFor`,
  * …). Writes are **idempotent per business event**: the legs of one event share
  * an `eventGroup`, and {@link postTransfers} posts that whole set once. A replay
- * of an already-posted event must present the *same* leg set — a changed,
- * added, or removed leg throws {@link LedgerConflictError} rather than silently
- * appending to or diverging from a processed charge. Inserts are conflict-
- * tolerant (`ON CONFLICT(reference) DO NOTHING`), so two handlers racing the same
- * event both succeed: references are deterministic, so the loser's rows are
- * identical and its inserts simply no-op.
+ * of an already-posted event must present the *same* leg set — a changed, added,
+ * or removed leg throws {@link LedgerConflictError} rather than silently appending
+ * to or diverging from a processed charge.
+ *
+ * The post runs inside one interactive write transaction. libsql's write lock
+ * serialises concurrent posters of the same event: the first commits its legs;
+ * the second then acquires the lock, reads those committed legs *through its own
+ * transaction*, and takes the idempotent replay-match path (asserting the leg set
+ * matches, inserting nothing). So a race resolves to one post plus one no-op
+ * replay with no partially-written event, and the insert needs no conflict
+ * clause.
  *
  * The clock lives here (`recorded_at`); business time (`occurred_at`) comes from
  * the caller. `memo` is opaque (owner-key ciphertext is non-deterministic, so it
  * is excluded from the replay-equality check).
  */
 
-import type { InValue, ResultSet } from "@libsql/client";
-import { sumOf } from "#fp";
+import type { InValue, Transaction } from "@libsql/client";
 import {
-  executeBatchWithResults,
   inPlaceholders,
   insert,
   queryAll,
+  resultRows,
+  withTransaction,
 } from "#shared/db/client.ts";
 import { account, sameAccount } from "#shared/ledger/account.ts";
 import type {
@@ -92,8 +97,8 @@ const rowToTransfer = (row: TransferRow): Transfer => ({
 const insertStatement = (
   t: TransferInput,
   recordedAt: string,
-): { sql: string; args: InValue[] } => {
-  const { sql, args } = insert("transfers", {
+): { sql: string; args: InValue[] } =>
+  insert("transfers", {
     amount: t.amount,
     currency: t.currency,
     dest_id: t.destination.id,
@@ -109,8 +114,6 @@ const insertStatement = (
     source_id: t.source.id,
     source_type: t.source.type,
   });
-  return { args, sql: `${sql} ON CONFLICT(reference) DO NOTHING` };
-};
 
 /** Money-defining fields only: `memo` (non-deterministic ciphertext) and the
  *  write-time `recorded_at`/`posted_by` metadata are excluded. */
@@ -172,17 +175,13 @@ const assertEventMatches = (
 };
 
 /**
- * Post the legs of one business event, idempotently. Every leg must share one
- * `eventGroup` and carry a distinct `reference` (a duplicate within the post is
- * rejected — it would silently under-post). If that event is already (even
- * partly) stored, the whole leg set must match or {@link LedgerConflictError} is
- * thrown; otherwise — if no reference already belongs to a different event — the
- * legs are written in one conflict-tolerant batch.
+ * Pure pre-flight checks, run before any DB work so a malformed batch never
+ * opens a transaction: every leg is valid on its own, and the batch as a whole
+ * shares one event group and one currency (a mixed-currency event passes
+ * per-leg validation but would later make every balance projection throw) with
+ * no duplicate reference (which would silently under-post).
  */
-export const postTransfers = async (
-  inputs: TransferInput[],
-): Promise<PostResult> => {
-  if (inputs.length === 0) return { inserted: 0, skipped: 0 };
+const assertPostable = (inputs: TransferInput[]): void => {
   for (const input of inputs) {
     const result = validateTransfer(input);
     if (!result.ok) {
@@ -196,57 +195,103 @@ export const postTransfers = async (
       `postTransfers: every leg must share one eventGroup (got ${eventGroups.size})`,
     );
   }
+  const currencies = new Set(inputs.map((t) => t.currency));
+  if (currencies.size > 1) {
+    throw new Error(
+      `postTransfers: every leg must share one currency (got ${[
+        ...currencies,
+      ].join(", ")})`,
+    );
+  }
   const references = inputs.map((t) => t.reference);
   if (new Set(references).size !== references.length) {
     throw new Error("postTransfers: duplicate reference within one event");
   }
-  const eventGroup = inputs[0]!.eventGroup;
-  const existing = await transfersByEventGroup(eventGroup);
-  if (existing.length > 0) {
-    assertEventMatches(eventGroup, existing, inputs);
-    return { inserted: 0, skipped: inputs.length };
-  }
-  // This event has no legs yet, so any already-stored reference belongs to a
-  // *different* event. Reject before inserting — checking after the batch would
-  // commit the fresh legs and leave a partial event behind on a collision.
-  const colliding = await transfersByReferences(references);
-  if (colliding.length > 0) {
-    throw new LedgerConflictError(
-      colliding[0]!.reference,
-      "reference already belongs to a different event",
-    );
-  }
-  const recordedAt = nowIso();
-  const results = await executeBatchWithResults(
-    inputs.map((t) => insertStatement(t, recordedAt)),
-  );
-  const inserted = sumOf((r: ResultSet) => Number(r.rowsAffected))(results);
-  return { inserted, skipped: inputs.length - inserted };
 };
 
-const queryTransfers = async (
+/** A minimal row reader — either the global client or an open transaction. The
+ *  fresh-post path reads through its own transaction so libsql's write lock
+ *  serialises concurrent posters into the idempotent replay path. */
+type RowReader = (sql: string, args: InValue[]) => Promise<TransferRow[]>;
+
+const fromDb: RowReader = (sql, args) => queryAll<TransferRow>(sql, args);
+
+const fromTx =
+  (tx: Transaction): RowReader =>
+  async (sql, args) =>
+    resultRows<TransferRow>(await tx.execute({ args, sql }));
+
+const selectTransfers = async (
+  read: RowReader,
   where: string,
   args: InValue[],
 ): Promise<Transfer[]> => {
-  const rows = await queryAll<TransferRow>(
-    `SELECT ${COLUMNS} FROM transfers${where}`,
-    args,
-  );
+  const rows = await read(`SELECT ${COLUMNS} FROM transfers${where}`, args);
   return rows.map(rowToTransfer);
 };
 
+const selectByEventGroup = (
+  read: RowReader,
+  eventGroup: string,
+): Promise<Transfer[]> =>
+  selectTransfers(read, " WHERE event_group = ?", [eventGroup]);
+
 /** The stored transfers among the given references (used to detect a reference
- *  colliding with a different event before a fresh insert). `references` is
- *  always non-empty here — the caller posts at least one leg. */
-const transfersByReferences = (references: string[]): Promise<Transfer[]> =>
-  queryTransfers(
+ *  colliding with a different event before a fresh insert). */
+const selectByReferences = (
+  read: RowReader,
+  references: string[],
+): Promise<Transfer[]> =>
+  selectTransfers(
+    read,
     ` WHERE reference IN (${inPlaceholders(references)})`,
     references,
   );
 
+/**
+ * Post the legs of one business event, idempotently. Every leg must share one
+ * `eventGroup` and one `currency` and carry a distinct `reference`. Runs in one
+ * interactive write transaction: if the event is already stored, the whole leg
+ * set must match or {@link LedgerConflictError} is thrown (and nothing is
+ * written); otherwise — if no reference already belongs to a different event —
+ * the legs are inserted and committed together.
+ */
+export const postTransfers = async (
+  inputs: TransferInput[],
+): Promise<PostResult> => {
+  if (inputs.length === 0) return { inserted: 0, skipped: 0 };
+  assertPostable(inputs);
+  const eventGroup = inputs[0]!.eventGroup;
+  const references = inputs.map((t) => t.reference);
+  return withTransaction(async (tx) => {
+    const read = fromTx(tx);
+    const existing = await selectByEventGroup(read, eventGroup);
+    if (existing.length > 0) {
+      assertEventMatches(eventGroup, existing, inputs);
+      return { inserted: 0, skipped: inputs.length };
+    }
+    // No legs for this event yet, so any already-stored reference belongs to a
+    // *different* event — reject before inserting (the transaction would roll
+    // back anyway, but this gives the precise conflicting reference).
+    const colliding = await selectByReferences(read, references);
+    if (colliding.length > 0) {
+      throw new LedgerConflictError(
+        colliding[0]!.reference,
+        "reference already belongs to a different event",
+      );
+    }
+    const recordedAt = nowIso();
+    for (const input of inputs) {
+      await tx.execute(insertStatement(input, recordedAt));
+    }
+    return { inserted: inputs.length, skipped: 0 };
+  });
+};
+
 /** Every transfer touching `account`, as source or destination. */
 export const transfersByAccount = (acct: AccountRef): Promise<Transfer[]> =>
-  queryTransfers(
+  selectTransfers(
+    fromDb,
     " WHERE (source_type = ? AND source_id = ?)" +
       " OR (dest_type = ? AND dest_id = ?)",
     [acct.type, acct.id, acct.type, acct.id],
@@ -255,9 +300,9 @@ export const transfersByAccount = (acct: AccountRef): Promise<Transfer[]> =>
 /** Every leg of one business event (booking/refund/…). */
 export const transfersByEventGroup = (
   eventGroup: string,
-): Promise<Transfer[]> =>
-  queryTransfers(" WHERE event_group = ?", [eventGroup]);
+): Promise<Transfer[]> => selectByEventGroup(fromDb, eventGroup);
 
 /** The whole ledger. For tests and small-ledger reports; scoped reads are
  *  preferred on hot paths. */
-export const allTransfers = (): Promise<Transfer[]> => queryTransfers("", []);
+export const allTransfers = (): Promise<Transfer[]> =>
+  selectTransfers(fromDb, "", []);

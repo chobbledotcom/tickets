@@ -530,9 +530,6 @@ describe("code quality", () => {
     const ALLOWED_TEST_HOOKS: string[] = [
       // Database injection for test isolation
       "shared/db/client.ts:setDb",
-      // Interactive-transaction helper for the atomic checkout dual-write
-      // (landing next); currently exercised only by its own test.
-      "shared/db/client.ts:withTransaction",
       // Set encryption key directly to avoid env var races between parallel tests
       "shared/crypto/encryption.ts:setEncryptionKeyForTest",
       // Set fast PBKDF2 directly to avoid env var races between parallel tests
