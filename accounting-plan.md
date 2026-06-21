@@ -482,33 +482,38 @@ Implements `LedgerStore` (narrow selects), plus `transferStatements(drafts)`
 (validate + literal-insert descriptors for the host batch) and a
 **`newAttendeeLegStatements(drafts, ticketTokenIndex)`** that emits the
 **token-resolved** variant for the creation batch (attendee account id = the
-`ticket_token_index` subquery, §4.7) and guards each per-booking leg on its
-`listing_attendees` row existing (§7.1). Admin/backfill use `postTransfers` (own
-batch).
+`ticket_token_index` subquery, §4.7). The order is all-or-nothing (§7.1), so the
+legs need no per-booking guard — a rolled-back order's legs are deleted as a group
+by `eventGroup` (§8.2). Admin/backfill use `postTransfers` (own batch).
 
 ---
 
 ## 7. Mapping every money event to transfers
 
-### 7.1 Paid booking (with fee) — greedy-capacity-safe
+### 7.1 Paid booking (with fee) — all-or-nothing
 
-The creation batch (`create.ts:231-247`) is **greedy**: it inserts the attendee
-unconditionally, runs per-booking capacity-checked inserts that may each affect 0
-rows *without* aborting, and deletes the attendee only if *no* booking fit. So a
-multi-listing cart can partially commit. The ledger must not post legs for
-bookings that didn't happen. Therefore:
+The order is **all-or-nothing**, and already is today: `createAttendeeAtomicImpl`
+greedily commits the bookings that fit, but its wrapper `ensureAllBookings`
+(`create.ts:44-69`) immediately rolls the *whole* order back — `deleteAttendee` +
+reverse the order-activity — and returns `capacity_exceeded` if *any* line didn't
+fit, after which the webhook refunds the full charge. So the committed state is
+always the entire cart or nothing. (A pre-submit capacity check rejects most full
+carts up front; `ensureAllBookings` is the authoritative commit-time guarantee
+against the check-to-commit race.)
 
-- **Per-booking `sale` (and per-booking `fee`) legs are guarded on the booking
-  row existing** — `INSERT … SELECT … WHERE EXISTS (SELECT 1 FROM
-  listing_attendees WHERE attendee_id = <token subquery> AND listing_id = ? AND
-  start_at IS ?)`. A non-fitting booking posts no leg. (This also resolves the
-  attendee id via the same token subquery, §4.7.)
-- **The cash `payment` leg matches what is ultimately kept.** The provider
-  charged the whole cart; the existing `ensureAllBookings` compensation already
-  **refunds the shortfall** for bookings that didn't fit — extended to post the
-  matching `payment` leg (for what fit) and a `refund_cash` leg (for the
-  shortfall). A fully-failed order (attendee deleted) has any stray legs removed
-  by **`event_group` delete** (same as rollback, §8.2).
+That keeps the ledger path simple: post **all** of an order's legs in the create
+batch under one `eventGroup` (each leg resolves the just-inserted attendee id via
+the same `ticket_token_index` subquery the booking inserts use, §4.7); on the
+all-or-nothing rollback, delete that order's transfers **by `eventGroup`**. There
+is no shortfall and no per-line refund to model — the round-2 "shortfall refund /
+per-booking-guarded cash leg" machinery is therefore *dropped*.
+
+One subtlety to get right (§8.2): the rollback calls `deleteAttendee`, but the
+**erasure** path also calls `deleteAttendee` and must *preserve* transfers. So the
+two must be split — `deleteAttendee` never touches transfers; the order-rollback
+site (`ensureAllBookings`) deletes the order's transfers by `eventGroup`
+explicitly. Getting this backwards either strands rolled-back legs or erases a
+real attendee's financial record.
 
 For a clean single £50 ticket + £2 fee (£52 charged):
 
@@ -587,7 +592,7 @@ Always `posted_by = user:<id>` + `memo`.
 
 | Event | Transfer(s) | Replaces |
 | --- | --- | --- |
-| Booking (paid) | guarded per-booking `sale`(+`fee`) + `payment` | `price_paid` + income trigger (adds fee tracking) |
+| Booking (paid) | whole-order `sale`(+`fee`) + `payment`, one `eventGroup` (all-or-nothing) | `price_paid` + income trigger (adds fee tracking) |
 | Deposit / balance | sale/fee legs + (guarded) `world→attendee` | `remaining_balance` + fold |
 | Refund (any amount) | reverse legs + guarded `refund_cash` | `refunded` flag |
 | Discount / surcharge | `modifier→attendee` / `attendee→modifier` | `modifier_usages` money |
@@ -607,22 +612,45 @@ stay in the encrypted `pii_blob` (erased with the attendee). `memo` is PII-free 
 house rule (encrypted by the host if it ever must hold sensitive text). So
 retaining transfers after erasure is privacy-safe.
 
-### 8.2 Two deletion semantics
+### 8.2 Two deletion semantics — split at the call site
 
-1. **Order rollback / partial-fit cleanup** — never-committed or didn't-fit
-   bookings: delete the affected legs **by `event_group`** (the existing
-   compensation/rollback path, which already deletes `modifier_usages` and
-   refunds shortfalls). Per-booking guards (§7.1) mean most non-fitting legs are
-   never written in the first place.
-2. **Erasure of a real attendee** (GDPR): **`deleteAttendee` MUST NOT delete that
-   attendee's transfers.** PII goes; transfers stay, referencing a dangling
-   `attendee:<id>` tombstone rendered as "deleted attendee #<id>". Today's
-   delete-time `listings.income` recompute (`delete.ts:23`) is removed — income is
+Both go through `deleteAttendee` today, so the split is the thing to get right:
+
+1. **Order rollback** (an all-or-nothing cart that didn't fully fit, §7.1): the
+   *rollback site* (`ensureAllBookings`) deletes that order's transfers **by
+   `eventGroup`**, alongside the `deleteAttendee` it already calls. The order never
+   economically happened, so its legs go with it.
+2. **Erasure of a real attendee** (GDPR): **`deleteAttendee` itself MUST NOT touch
+   transfers.** PII goes; transfers stay, referencing a dangling `attendee:<id>`
+   tombstone rendered as "deleted attendee #<id>". Today's delete-time
+   `listings.income` recompute (`delete.ts:23`) is removed — income is
    ledger-derived and the revenue legs deliberately remain.
+
+So `deleteAttendee` is transfer-agnostic (erasure-safe by default), and the
+rollback path does the scoped `eventGroup` cleanup. Mixing these up either strands
+rolled-back legs or erases a real financial record.
 
 ### 8.3 The no-FK convention means no cascade can take the ledger with it.
 
-### 8.4 Outstanding balance is live (existing attendees only); reports aggregate by `revenue:<listing>`/kind/time, unaffected by erasure.
+### 8.4 Attendee merge re-points the receivable account
+
+Merge (`merge/attendee-merge.ts`) re-points a source attendee's `listing_attendees`
+onto the target and then deletes the source attendee. For the ledger, the source's
+receivable account (`attendee:source`) and all its legs must move to
+`attendee:target`, or the merged-in money is orphaned on a deleted account and the
+target's outstanding balance is wrong.
+
+This is the **one sanctioned exception to immutability**: within the merge batch we
+**re-point account ids** — `UPDATE transfers SET source_id = :target WHERE
+source_type='attendee' AND source_id=:source` (and the same for `dest_id`). It's a
+deliberate, audited account-key rewrite (not an amount/edit), confined to merge,
+logged to `activity_log`. After it, `byAccount(attendeeAcct(target))` returns the
+combined history and `−balanceOf(attendee:target)` is the combined outstanding.
+(Alternative considered and rejected: posting `attendee:source → attendee:target`
+balance-moving legs — that moves the *balance* but leaves the *history* split
+across a tombstone, which defeats the per-attendee ledger view on the edit page.)
+
+### 8.5 Outstanding balance is live (existing attendees only); reports aggregate by `revenue:<listing>`/kind/time, unaffected by erasure.
 
 ---
 
@@ -641,17 +669,16 @@ Transfer inserts share the **same batch** as attendee creation **and** the
 currently finalizes *separately* (`processReservedSession` → a standalone
 `finalizeSession` `UPDATE`); only the *balance* path batches it
 (`balanceFinalizeStatement`). So Phase 1 has a **prerequisite refactor**:
-introduce `paidBookingFinalizeStatement` and run creation + finalize + (guarded,
-token-resolved) transfer inserts in one batch. Combined with the per-booking
-guards (§7.1), a crash or a partial-fit cannot leave orphaned legs behind an
-unresolved or half-fulfilled order.
+introduce `paidBookingFinalizeStatement` and run creation + finalize +
+token-resolved transfer inserts in one batch. Because the order is all-or-nothing
+(§7.1), there is no half-fulfilled state: a crash leaves nothing partial, and a
+rolled-back order's legs are deleted by `eventGroup` in `ensureAllBookings` (§8.2).
 
 ### 9.3 Guards
 
-Booking/refund legs dedupe by reference and self-guard (per-booking EXISTS;
-refund over-refund). Balance settlement uses the account-scoped compare-and-post
-(§7.2) and **refunds on guard-reject**. No in-place balance mutation ⇒ no other
-write contention.
+Booking legs dedupe by reference; refund legs self-guard (cumulative over-refund).
+Balance settlement uses the account-scoped compare-and-post (§7.2) and **refunds
+on guard-reject**. No in-place balance mutation ⇒ no other write contention.
 
 ---
 
@@ -687,15 +714,22 @@ A single `renderTransferList(transfers)` (a typed schema → markup function, pe
   and still resolves for a tombstoned/erased attendee.
 - **Account statement** — `statementFor(account)` (sorted, running balance).
 
-### 10.3 Reconciliation & destructive edits
+### 10.3 Reconciliation & editing the record
 
 Reconciliation uses the **non-tautological** checks (§4.9) — `reconcileExternal`
 (PSP vs provider) and `expectLegCounts` (per-event) — **not** `Σ balance == 0`
-alone. A genuine hard edit (e.g. legal scrub of a mis-entered sensitive memo) is
-superuser-gated and re-runs reconciliation; its `activity_log` entry records the
-**actor, transfer id, and redacted field name/hash — never the original memo
-value** (logging the raw value would just re-copy the sensitive text into another
-retained table). Corrections (10.1) are the default.
+alone.
+
+Adjustments default to corrections (10.1). A **destructive edit of an individual
+entry is available** on `/admin/accounting` (which also shows recent transactions
+and stats), but the entry's edit page makes it loud: it warns that *this breaks
+your permanent, otherwise-flawless record, that you should have a very good
+reason, and that you almost certainly want to add an adjustment to the attendee
+ledger instead* — actively steering the operator toward a correction. When an edit
+removes sensitive content (e.g. a mis-entered memo), the `activity_log` entry
+records the **actor, transfer id, and redacted field name/hash — never the
+original value** (logging it raw would just re-copy the sensitive text into
+another retained table). Any edit re-runs reconciliation.
 
 ---
 
@@ -725,10 +759,11 @@ Pure `src/shared/ledger/` + full tests; add `transfers` to `SCHEMA`; build
 
 ### Phase 1 — Prereq refactor, then dual-write + backfill
 - **Prerequisites:** `paidBookingFinalizeStatement` folded into the creation batch
-  (§9.2); per-booking guarded + token-resolved legs (§7.1).
+  (§9.2); token-resolved legs + `eventGroup` rollback cleanup in `ensureAllBookings`
+  (§7.1, §8.2).
 - Dual-write transfers in the booking-creation, balance-settlement (guarded,
-  refund-on-reject), refund (reversal + guarded cash), and modifier batches. Old
-  columns stay source of truth.
+  refund-on-reject), refund (reversal + guarded cash), modifier, and **merge**
+  (re-point account ids, §8.4) paths. Old columns stay source of truth.
 - **Backfill** (best-effort, honest caveats):
   - bookings/deposits → `sale`/`fee` + a `payment` leg from `price_paid` (the
     deposit/balance split and dates are unrecoverable — one payment leg).
@@ -765,15 +800,18 @@ mixed-currency throws; `statementFor` sorted; `sumOfKind("refund_cash")` counts 
 
 **Integration** (`#test-utils` + real DB; `server-balance.test.ts` template):
 no double-credit on replay; **paid-path atomicity** (crash between create &
-finalize ⇒ no orphaned legs); **partial-fit** (a 2-listing cart where 1 fits ⇒
-only the fitting listing's legs exist, attendee retained, shortfall refunded);
-booking fee (`balanceOf(attendee)==0`, fee income == £2); **guarded settlement +
+finalize ⇒ no orphaned legs); **all-or-nothing rollback** (a 2-listing cart where
+one line is full ⇒ the whole order rolls back, *no* transfers remain — deleted by
+`eventGroup` — and the full charge is refunded); booking fee
+(`balanceOf(attendee)==0`, fee income == £2); **guarded settlement +
 refund-on-reject** (two concurrent balance sessions ⇒ credited once, the loser's
 charge refunded); **refund correctness** (full refund of a fee+surcharge order
 zeroes revenue/fee/modifier; repeat partials guarded so cumulative ≤ paid;
 over-refund rejected); reverse-once (double void rejected); comps don't inflate
-cash; **erasure retains transfers** (no PII/provider id; income unchanged);
-backfill parity (income == total cash legs; outstanding == `remaining_balance`).
+cash; **merge re-points** (merging two attendees moves the source's legs to the
+target — combined outstanding correct, source account empty); **erasure retains
+transfers** (no PII/provider id; income unchanged); backfill parity (income ==
+total cash legs; outstanding == `remaining_balance`).
 
 **Determinism:** injected `nowIso`/HMAC; every branch a direct in-process test.
 
@@ -812,15 +850,17 @@ config).
 4. **Single currency, enforced in code** (`assertSingleCurrency`, §4.5).
 5. **Balance settlement keeps a live guard** and **refunds on guard-reject** (§7.2) — never a silent no-op.
 6. **References are opaque HMACs**, never provider ids (§6.2/§8); each event's legs share an `event_group`.
-7. **Paid-path finalize must be batched** with creation + token-resolved, per-booking-guarded ledger inserts — a Phase-1 prerequisite (§9.2), because the paid path finalizes separately and the creation batch is greedy.
+7. **Paid-path finalize must be batched** with creation + token-resolved ledger inserts — a Phase-1 prerequisite (§9.2), because the paid path finalizes separately today.
 8. **Refunds reverse the original legs** + one guarded `refund_cash`; they do **not** use `reverses_id`; reports sum `refund_cash` only.
 9. **Partial refunds are ledger-only for now**; full refunds call the provider. An amount-aware provider API (`refundPayment(ref, amount?)`) is the planned path to provider-side partials — the ledger already supports it.
 10. **At most one *void* per original** (unique `reverses_id`); refunds tracked via `event_group` + over-refund guard.
 11. **Comps/write-offs come from a `writeoff` contra-revenue account**, not external cash, so cash reports stay honest.
 12. **`modifier_usages` stays as a stock ledger** (money stripped).
 13. **`Σ balance == 0` is a sanity check only**; reconcile against provider balances and per-event leg counts (§4.9).
-14. **Corrections-only** adjustments; destructive hard-edit is superuser-gated and **logs redacted**, never the raw sensitive value (§10.3).
+14. **Corrections are the default**; a destructive entry edit *is* available on `/admin/accounting`, but the edit page warns it breaks the permanent record and steers the operator to an attendee-ledger adjustment instead; sensitive-content edits **log redacted**, never the raw value (§10.3).
 15. **One shared ledger renderer** for the historical list, the account statement, **and the edit-attendee page** (§10.2).
+16. **Carts are all-or-nothing** — already true via `ensureAllBookings` (§7.1). Order legs ride the create batch under one `eventGroup` and are deleted as a group on rollback; no shortfall / per-booking machinery.
+17. **Attendee merge re-points the receivable account** — the single sanctioned mutation of account ids, confined to the merge batch and logged (§8.4).
 
 ---
 
@@ -828,7 +868,9 @@ config).
 
 | Risk | Impact | Mitigation |
 | --- | --- | --- |
-| Greedy capacity ⇒ legs for bookings that didn't fit | High | Per-booking EXISTS-guarded legs (§7.1); shortfall handled by existing compensation; `event_group` cleanup; partial-fit test. |
+| Partial-fit order leaves stray legs | High | Order is all-or-nothing (§7.1): whole-order rollback deletes legs by `eventGroup` in `ensureAllBookings` (§8.2); rollback test. |
+| Merge orphans the source attendee's ledger | High | Merge re-points account ids in-batch — the one sanctioned mutation (§8.4); merge test. |
+| `deleteAttendee` used for both rollback and erasure | High | Split: `deleteAttendee` is transfer-agnostic (erasure-safe); rollback site does the scoped `eventGroup` delete (§8.2). |
 | Attendee id unknown at insert ⇒ post-creation writes lose atomicity | High | Token-resolved insert variant in the creation batch (§4.7/§6.3). |
 | Paid-path finalize not batched ⇒ orphaned legs / double attendee | High | `paidBookingFinalizeStatement` prerequisite (§9.2); crash-between test. |
 | Guarded-out balance payment strands a real charge | High | Refund + terminal-failure on guard-reject (§7.2); concurrent-settlement test. |
@@ -859,8 +901,8 @@ conservation check.
 
 **Round 2 (10, all valid — two P1 code-claims verified against `create.ts`):**
 
-- **P1 — greedy capacity** (partial-fit commits): per-booking EXISTS-guarded legs
-  + `event_group` cleanup (§7.1, §8.2).
+- **P1 — greedy capacity** (partial-fit commits): resolved by the order being
+  all-or-nothing — whole-order rollback deletes legs by `eventGroup` (§7.1, §8.2).
 - **P1 — attendee id unknown at insert**: token-resolved insert variant
   (§4.7, §6.3).
 - **P1 — guarded-out balance payment strands a charge**: refund + terminal
@@ -874,6 +916,13 @@ conservation check.
 - **P2 — unsorted statements**: `statementFor` sorts (§4.5).
 - **P2 — hard-edit log leaks memo**: log redacted only (§10.3).
 
+**Round 3 (owner decisions):** carts confirmed **all-or-nothing** (already true via
+`ensureAllBookings`) — simplifies the create path, dropping the per-booking /
+shortfall machinery; **attendee-merge** handling added (re-point account ids — the
+one sanctioned immutability exception, §8.4); destructive entry edits **available**
+with a strong steer-to-adjustment warning (§10.3); **partial refunds ledger-only**
+for now; the **edit-attendee page reuses the shared ledger renderer** (§10.2).
+
 ---
 
 ### One-paragraph summary
@@ -885,12 +934,12 @@ currency-guarded projection, non-tautological reconciliation, sorted statements,
 reversals, and statement-descriptor batching (plain, balance-guarded, and
 refund-guarded), driven by a thin host glue holding the chart of accounts (incl.
 booking-fee income and a write-off account for comps), opaque HMAC references with
-per-event groups, and event mappers that post per-booking-guarded, token-resolved
-legs inside the finalize batch. Income, outstanding, amount-paid, refunds, and
+per-event groups, and event mappers that post whole-order, token-resolved legs
+inside the finalize batch (carts are all-or-nothing). Income, outstanding, amount-paid, refunds, and
 modifier revenue all become `SUM` over the ledger and every redundant money column
 + trigger is deleted; transfers are PII/provider-id-free and survive attendee
 erasure; one shared renderer shows the same ledger on the global list and the
-edit-attendee page; partial refunds are ledger-only until an amount-aware provider
-API lands. The load-bearing prerequisite is batching the paid-booking finalize
-with per-booking-guarded, token-resolved ledger inserts — without it a replay or a
-partial-fit cart corrupts the books.
+edit-attendee page (one shared renderer); attendee merge re-points the receivable
+account; partial refunds are ledger-only until an amount-aware provider API lands.
+The load-bearing prerequisite is batching the paid-booking finalize with
+token-resolved ledger inserts — without it a replay corrupts the books.
