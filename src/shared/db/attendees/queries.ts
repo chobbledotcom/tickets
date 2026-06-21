@@ -8,8 +8,12 @@ import type {
   AttendeeWithBookings,
   ListingAttendeeRow,
 } from "#shared/db/attendee-types.ts";
-import { decryptAttendeeFields } from "#shared/db/attendees/pii.ts";
+import {
+  decryptAttendeeFields,
+  decryptPiiBlob,
+} from "#shared/db/attendees/pii.ts";
 import { inPlaceholders, queryAll, queryOne } from "#shared/db/client.ts";
+import { nameMapByIds } from "#shared/db/query.ts";
 import type { Attendee } from "#shared/types.ts";
 
 /**
@@ -207,6 +211,24 @@ export const getAttendeesByIds = (ids: number[]): Promise<Attendee[]> => {
     ids,
   );
 };
+
+/**
+ * Bounded id → name lookup for the given attendees, decrypting only the name
+ * from each PII blob with the owner private key (no booking join, one row per
+ * attendee). Empty ids ⇒ empty map. Used for link labels in the activity log;
+ * a deleted attendee's id simply has no entry.
+ */
+export const getAttendeeNamesByIds = (
+  ids: number[],
+  privateKey: CryptoKey,
+): Promise<Map<number, string>> =>
+  nameMapByIds(
+    "attendees",
+    "attendee",
+    "pii_blob",
+    ids,
+    async (raw: string) => (await decryptPiiBlob(raw, privateKey, false)).name,
+  );
 
 /**
  * Get an attendee by ID (decrypted)

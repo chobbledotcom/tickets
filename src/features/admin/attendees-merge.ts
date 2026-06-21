@@ -314,6 +314,7 @@ const applyMergeDecisions = async (
   await logActivity(
     buildMergeLogParts(summary, source.name, mergedPiiName).join(". "),
     target.listing_id,
+    attendeeId,
   );
 
   return redirect(
