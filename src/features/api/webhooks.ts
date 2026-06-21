@@ -728,6 +728,36 @@ type CreatedAttendee = Extract<
 
 type CreatedEntry = { attendee: CreatedAttendee; listing: ListingWithCount };
 
+/**
+ * Keep only the text-answer refs that still carry a resolved string id (`s`).
+ *
+ * A ref without one is corrupt metadata: a checkout signed before string-id
+ * resolution was fixed to read its ids back from the primary could drop the `s`
+ * (a replica answered the read before the insert replicated, so the id resolved
+ * to undefined and JSON.stringify omitted the key). The referenced text is not
+ * recoverable from the metadata, so we drop that single answer and surface it
+ * loudly, rather than bind an undefined id — the payment is already captured, so
+ * the booking must still finalize instead of crash-looping the webhook.
+ */
+const textRefsWithStringId = (
+  refs: TextAnswerRef[],
+  listingId: number,
+): TextAnswerRef[] => {
+  const resolved: TextAnswerRef[] = [];
+  for (const ref of refs) {
+    if (Number.isInteger(ref.s)) {
+      resolved.push(ref);
+    } else {
+      logError({
+        code: ErrorCode.DATA_INVALID,
+        detail: `Text answer ref missing string id (question=${ref.q})`,
+        listingId,
+      });
+    }
+  }
+  return resolved;
+};
+
 const saveSessionAnswers = async (
   createdEntries: CreatedEntry[],
   intent: BookingIntent,
@@ -751,13 +781,14 @@ const saveSessionAnswers = async (
   );
   for (const { attendee, listing } of createdEntries) {
     const refs = intent.listingTextAnswerIds?.[String(listing.id)] ?? [];
-    if (refs.length === 0) continue;
+    const resolvedRefs = textRefsWithStringId(refs, listing.id);
+    if (resolvedRefs.length === 0) continue;
     const existing = grouped.get(attendee.id) ?? { answerIds: [] };
     grouped.set(attendee.id, {
       ...existing,
       textAnswerIds: [
         ...(existing.textAnswerIds ?? []),
-        ...refs.map((ref) => ({ questionId: ref.q, stringId: ref.s })),
+        ...resolvedRefs.map((ref) => ({ questionId: ref.q, stringId: ref.s })),
       ],
     });
   }
