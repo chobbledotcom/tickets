@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  edgeIncompatibilityAfterChange,
   getChildIds,
   getChildListingIds,
   getParentIds,
@@ -8,9 +9,22 @@ import {
   setChildIds,
 } from "#shared/db/listing-parents.ts";
 import { deleteListing } from "#shared/db/listings.ts";
+import type { EdgeListing } from "#shared/listing-parents-rules.ts";
 import { createTestListing, describeWithEnv } from "#test-utils";
 
 const ascending = (ids: number[]) => [...ids].sort((a, b) => a - b);
+
+/** A minimal would-be listing row for edge re-validation. */
+const edge = (id: number, over: Partial<EdgeListing> = {}): EdgeListing => ({
+  customisable_days: false,
+  day_prices: {},
+  duration_days: 1,
+  id,
+  listing_type: "standard",
+  months_per_unit: 0,
+  name: "Listing",
+  ...over,
+});
 
 describeWithEnv("db > listing-parents", { db: true }, () => {
   const threeListings = async () => {
@@ -93,6 +107,46 @@ describeWithEnv("db > listing-parents", { db: true }, () => {
 
     test("returns an empty set for an empty input (no query)", async () => {
       expect([...(await getChildListingIds([]))]).toEqual([]);
+    });
+  });
+
+  describe("edgeIncompatibilityAfterChange", () => {
+    test("returns null when the listing has no edges", async () => {
+      const { parent } = await threeListings();
+      expect(await edgeIncompatibilityAfterChange(edge(parent.id))).toBeNull();
+    });
+
+    test("returns null when every touching edge stays compatible", async () => {
+      const { parent, childA } = await threeListings();
+      await setChildIds(parent.id, [childA.id]);
+      expect(await edgeIncompatibilityAfterChange(edge(parent.id))).toBeNull();
+    });
+
+    test("flags a change that breaks the listing as a parent", async () => {
+      const { parent, childA } = await threeListings();
+      await setChildIds(parent.id, [childA.id]);
+      const error = await edgeIncompatibilityAfterChange(
+        edge(parent.id, { months_per_unit: 12 }),
+      );
+      expect(error).not.toBeNull();
+    });
+
+    test("flags a change that breaks the listing as a child", async () => {
+      const { parent, childA } = await threeListings();
+      await setChildIds(parent.id, [childA.id]);
+      const error = await edgeIncompatibilityAfterChange(
+        edge(childA.id, { months_per_unit: 12 }),
+      );
+      expect(error).not.toBeNull();
+    });
+
+    test("ignores edges whose opposite endpoint no longer exists", async () => {
+      const { childA } = await threeListings();
+      const missing = childA.id + 100_000;
+      // An edge pointing at a missing child, and one pointing at a missing parent.
+      await setChildIds(childA.id, [missing]);
+      await setChildIds(missing, [childA.id]);
+      expect(await edgeIncompatibilityAfterChange(edge(childA.id))).toBeNull();
     });
   });
 

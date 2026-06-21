@@ -7,6 +7,7 @@ import { applyFlash, withCsrfForm } from "#routes/csrf.ts";
 import {
   errorRedirect,
   htmlResponse,
+  notFoundResponse,
   redirectResponse,
 } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
@@ -77,6 +78,7 @@ import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 import {
   buildRegistrationItems,
   checkAvailability,
+  containsChildListing,
   createFreeReservation,
   getTicketContext,
   handlePaymentFlow,
@@ -864,6 +866,10 @@ const buildTicketCtx = async ({
  * mode, otherwise submit. */
 export const handleTicket = async (args: BookingRequest): Promise<Response> => {
   const { request, listings, mode } = args;
+  // A booking can never start from a child listing (invariant I3): reject any
+  // child handed to the funnel — directly by slug, via a group/order page, a
+  // renewal, or a QR form fallback — rather than render it as a standalone line.
+  if (await containsChildListing(listings)) return notFoundResponse();
   const ctx = await buildTicketCtx(args);
   const response =
     request.method === "GET"

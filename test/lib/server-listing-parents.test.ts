@@ -1,10 +1,12 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getChildIds } from "#shared/db/listing-parents.ts";
+import { getListingWithCount } from "#shared/db/listings.ts";
 import {
   createTestListing,
   describeWithEnv,
   getTestSession,
+  updateTestListing,
 } from "#test-utils";
 
 /** POST the children sub-form with repeated `child_listing_ids` values
@@ -233,28 +235,94 @@ describeWithEnv(
       expect(await getChildIds(parent.id)).toEqual([]);
     });
 
-    test("accepts a fixed child whose span the customisable parent can offer", async () => {
+    test("accepts a plain standard child under a multi-day daily parent", async () => {
+      // A one-off fee/merch add-on folds date:null and inherits no span, so it
+      // is valid under any parent — including a fixed 3-day daily base.
       const parent = await createTestListing({
-        customisableDays: true,
-        dayPrices: { 1: 100, 2: 200 },
-        durationDays: 2,
-        name: "Flexible base",
+        durationDays: 3,
+        listingType: "daily",
+        name: "3-day base",
       });
-      const child = await createTestListing({ name: "1-day add-on" });
+      const child = await createTestListing({ name: "Booking fee" });
       await postChildren(parent.id, [child.id]);
       expect(await getChildIds(parent.id)).toEqual([child.id]);
     });
 
-    test("rejects a fixed child whose span the customisable parent can't offer", async () => {
+    test("accepts a plain standard child under a parent with no 1-day span", async () => {
       const parent = await createTestListing({
         customisableDays: true,
         dayPrices: { 2: 200, 3: 300 },
         durationDays: 3,
         name: "2-3 day flexible base",
       });
-      const child = await createTestListing({ name: "1-day add-on" });
+      const child = await createTestListing({ name: "Merch add-on" });
+      await postChildren(parent.id, [child.id]);
+      expect(await getChildIds(parent.id)).toEqual([child.id]);
+    });
+
+    test("accepts a daily child whose span a customisable daily parent offers", async () => {
+      const parent = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 100, 2: 200, 3: 300 },
+        durationDays: 3,
+        listingType: "daily",
+        name: "1-3 day base",
+      });
+      const child = await createTestListing({
+        durationDays: 2,
+        listingType: "daily",
+        name: "2-day add-on",
+      });
+      await postChildren(parent.id, [child.id]);
+      expect(await getChildIds(parent.id)).toEqual([child.id]);
+    });
+
+    test("rejects a daily child whose span a customisable daily parent can't offer", async () => {
+      const parent = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 2: 200, 3: 300 },
+        durationDays: 3,
+        listingType: "daily",
+        name: "2-3 day base",
+      });
+      const child = await createTestListing({
+        durationDays: 1,
+        listingType: "daily",
+        name: "1-day add-on",
+      });
       await postChildren(parent.id, [child.id]);
       expect(await getChildIds(parent.id)).toEqual([]);
+    });
+
+    test("blocks a listing edit that would break an existing edge", async () => {
+      const parent = await createTestListing({
+        durationDays: 1,
+        listingType: "daily",
+        name: "Daily base",
+      });
+      const child = await createTestListing({
+        durationDays: 1,
+        listingType: "daily",
+        name: "Daily add-on",
+      });
+      await postChildren(parent.id, [child.id]);
+      // Flipping the daily parent to standard would orphan its daily child.
+      await expect(
+        updateTestListing(parent.id, { listingType: "standard" }),
+      ).rejects.toThrow();
+      const after = await getListingWithCount(parent.id);
+      expect(after?.listing_type).toBe("daily");
+    });
+
+    test("allows a compatible listing edit while edges exist", async () => {
+      const parent = await createTestListing({ name: "Base unit" });
+      const child = await createTestListing({ name: "Add-on" });
+      await postChildren(parent.id, [child.id]);
+      const after = await updateTestListing(parent.id, {
+        name: "Renamed base",
+      });
+      expect(after.name).toBe("Renamed base");
+      expect(await getChildIds(parent.id)).toEqual([child.id]);
     });
 
     test("lets a listing that is itself a child save an empty children set", async () => {

@@ -23,7 +23,11 @@ import {
   qrBookErrorPage,
   type TicketPrefill,
 } from "#templates/public.tsx";
-import { getTicketContext, runCheckoutFlow } from "./ticket-payment.ts";
+import {
+  anyChildListing,
+  getTicketContext,
+  runCheckoutFlow,
+} from "./ticket-payment.ts";
 import { handleTicket } from "./ticket-submit.ts";
 
 const errorResponse = (slug: string, status: number): Response =>
@@ -160,5 +164,8 @@ export const handleQrBookGet = async (
   if (!payload) return errorResponse(slug, 400);
   const listing = await getListingWithCountBySlug(slug);
   if (!listing?.active) return errorResponse(slug, 404);
+  // A booking can never start from a child (invariant I3): a signed QR for a
+  // child would otherwise skip straight to checkout for it alone.
+  if (await anyChildListing([listing.id])) return errorResponse(slug, 404);
   return dispatchVerified(request, slug, token, payload, listing);
 };

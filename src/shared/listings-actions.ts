@@ -6,9 +6,11 @@
  */
 
 import { t } from "#i18n";
+import { isListingParentsEnabled } from "#shared/config.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { groupsTable, validateGroupListingType } from "#shared/db/groups.ts";
+import { edgeIncompatibilityAfterChange } from "#shared/db/listing-parents.ts";
 import {
   computeSlugIndex,
   deleteListing,
@@ -17,6 +19,7 @@ import {
   type ListingInput,
   listingsTable,
 } from "#shared/db/listings.ts";
+import type { EdgeListing } from "#shared/listing-parents-rules.ts";
 import { generateUniqueSlug } from "#shared/slug.ts";
 import { deleteListingStorageFiles } from "#shared/storage.ts";
 import {
@@ -42,11 +45,15 @@ const validateMaxPrice = (input: ListingInput): string | null => {
     : null;
 };
 
-/** Validate selected group existence and listing type compatibility. */
-const validateListingGroup = async (
+/** An async listing check that may depend on the update target's id (undefined
+ * on create), returning a user-facing error or null. */
+type ListingUpdateCheck = (
   input: ListingInput,
   existingId: number | undefined,
-): Promise<string | null> => {
+) => Promise<string | null>;
+
+/** Validate selected group existence and listing type compatibility. */
+const validateListingGroup: ListingUpdateCheck = async (input, existingId) => {
   if (!input.groupId || input.groupId === 0) return null;
 
   const group = await groupsTable.findById(input.groupId);
@@ -90,6 +97,33 @@ const validateRenewalConfig = (input: ListingInput): string | null => {
   return null;
 };
 
+/** Project a (possibly partial) listing form input onto the edge-compatibility
+ * shape for the row it would become, defaulting each optional field as the form
+ * layer does. */
+export const listingInputToEdge = (
+  input: ListingInput,
+  id: number,
+): EdgeListing => ({
+  customisable_days: input.customisableDays ?? false,
+  day_prices: input.dayPrices ?? {},
+  duration_days: normalizeDurationDays(input.durationDays ?? 1),
+  id,
+  listing_type: input.listingType ?? "standard",
+  months_per_unit: input.monthsPerUnit ?? 0,
+  name: input.name,
+});
+
+/**
+ * On an update (and only when the parents feature is enabled), re-validate every
+ * parent/child edge touching this listing against its would-be field values, so
+ * a type/duration/renewal change can't leave a persisted edge the booking gate
+ * can't honour. No-op for creates (no edges yet) and when the flag is off.
+ */
+const validateListingEdges: ListingUpdateCheck = (input, existingId) =>
+  existingId === undefined || !isListingParentsEnabled()
+    ? Promise.resolve(null)
+    : edgeIncompatibilityAfterChange(listingInputToEdge(input, existingId));
+
 /** Validate listing input (slug uniqueness on update, group, max price, listing type) */
 export const validateListingInput = async (
   input: ListingInput,
@@ -107,6 +141,11 @@ export const validateListingInput = async (
   if (customisableError) return customisableError;
   const groupError = await validateListingGroup(input, existingId);
   if (groupError) return groupError;
+  // A type/duration/renewal edit can break an existing parent/child edge the
+  // booking gate then can't date or price — re-check every touching edge against
+  // the would-be fields and block the save (web form and admin JSON API alike).
+  const edgeError = await validateListingEdges(input, existingId);
+  if (edgeError) return edgeError;
 
   return (
     validateSafeServerFetchUrl(

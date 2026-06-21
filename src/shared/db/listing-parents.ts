@@ -19,6 +19,10 @@ import {
   queryIdColumn,
 } from "#shared/db/client.ts";
 import { getListingsById } from "#shared/db/listings.ts";
+import {
+  type EdgeListing,
+  edgeFieldError,
+} from "#shared/listing-parents-rules.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 
 const INSERT_EDGE =
@@ -81,4 +85,36 @@ export const getParentsOf = async (
   if (ids.length === 0) return [];
   const byId = await getListingsById();
   return compact(ids.map((id) => byId.get(id)));
+};
+
+/**
+ * Re-validate every edge touching a listing against its *would-be* field values,
+ * for a listing save (a type / duration / day-price / renewal-tier edit can
+ * break an existing edge the booking gate then can't date or price). `updated`
+ * carries the post-save fields with the listing's own id; the function checks it
+ * as the parent of each of its children and as the child under each of its
+ * parents, hydrating the opposite endpoints from the listings cache. Returns the
+ * first incompatibility's user-facing error, or null when every edge still
+ * holds (including when the listing has no edges).
+ */
+export const edgeIncompatibilityAfterChange = async (
+  updated: EdgeListing,
+): Promise<string | null> => {
+  const [childIds, parentIds] = await Promise.all([
+    getChildIds(updated.id),
+    getParentIds(updated.id),
+  ]);
+  if (childIds.length === 0 && parentIds.length === 0) return null;
+  const byId = await getListingsById();
+  for (const childId of childIds) {
+    const child = byId.get(childId);
+    const error = child && edgeFieldError(updated, child);
+    if (error) return error;
+  }
+  for (const parentId of parentIds) {
+    const parent = byId.get(parentId);
+    const error = parent && edgeFieldError(parent, updated);
+    if (error) return error;
+  }
+  return null;
 };

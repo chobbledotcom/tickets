@@ -8,6 +8,7 @@
 import { filter, pipe } from "#fp";
 import { isRegistrationClosed } from "#routes/format.ts";
 import { parseCustomPrice } from "#routes/public/ticket-form.ts";
+import { anyChildListing } from "#routes/public/ticket-payment.ts";
 import { jsonResponse } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import type { ServerContext } from "#routes/types.ts";
@@ -328,6 +329,15 @@ const resolveBookingDate = async (
 
 /** POST /api/listings/:slug/book — create a booking */
 const handleBook = withActiveListing(async (request, listing, server) => {
+  // A booking can never start from a child (invariant I3): a child is only
+  // bookable through one of its parents, so reject it as a direct API entry.
+  if (await anyChildListing([listing.id])) {
+    return apiResponse(
+      { error: "This listing must be booked through its parent listing." },
+      400,
+    );
+  }
+
   const limited = await checkBookingRateLimit(request, server);
   if (limited) return limited;
 
