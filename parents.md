@@ -349,6 +349,13 @@ On the listing edit page (`src/features/admin/listings.ts`, fields in
   into "parents" and "children." This sidesteps recursion/cycles in the checkout
   gate entirely (no DFS needed). (Open Question 3.)
 - Validate that referenced listing ids exist and are not soft-deleted.
+- **A dated child needs a date-producing parent.** Since the child inherits the
+  parent's date/duration, a **daily / `customisable_days` child under a *dateless*
+  (standard) parent** has no date or day-count to inherit — the availability filter
+  would have nothing to evaluate and the folded line would book with a null/wrong
+  date. Forbid this edge in admin validation: a dated child may only be attached to
+  a parent that itself produces a compatible date/duration (i.e. a daily parent).
+  (A dateless child under any parent is fine — see the dateless-child date rule.)
 - **Forbid parent relationships on renewal tiers** (`months_per_unit > 0`) in v1 —
   neither side of an edge should be a renewal tier — because folding a normal child
   into a renewal order breaks the renewal-qualification rule (see the Renewals
@@ -407,7 +414,11 @@ When the booking page renders a listing that has children, render each child as 
   valid; intersecting every child would hide both.) Offer `parentDates ∩ (union of
   bookable child dates)`, and **disable each per-child option on dates that child
   can't serve**, so whatever date the buyer picks, at least one child is bookable
-  and the chosen child is valid for it.
+  and the chosen child is valid for it. **A standard (dateless) child has no date
+  list of its own** — treat it as available on **every** parent date (subject only
+  to its non-date capacity), so a dateless child contributes "all parent dates" to
+  the union rather than an empty set (otherwise a parent whose only child is
+  dateless would offer no dates at all).
 - **Child questions** must be merged into `questionListingMap` with the **correct
   shape**: it is `Map<questionId, listingId[]>` (`questions.ts:361`), read by
   `prepareOrder` as `ctx.questionListingMap.get(q.id)` — *keyed by question id*, not
@@ -586,11 +597,16 @@ The expanded set (parent page listings ∪ selected children) must drive **all**
   folded child is in the **answer map, selected ids, *and* quantity map** before
   that call. Fold children into all three (not just `quantities`), or a parent+child
   order records the child's answer while skipping its modifier's surcharge/stock.
-- **Customisable-day children** — ✅ resolved by the "inherit duration" decision: a
-  customisable-days child takes the **parent's** `day_count` rather than rendering
-  its own selector (Open Question 17). So at fold time the child's duration is the
-  parent line's duration; it is never fed into `sharedDayCounts`. The child's
-  `day_prices` are still applied to that inherited day-count when pricing the line.
+- **Customisable-day children** — ✅ resolved by the "inherit duration" decision,
+  but **derive the inherited duration from the parent line's *resolved* duration**,
+  not from a submitted `day_count` that may not exist. The parent's duration is
+  `day_count` when the parent is `customisable_days`, but **`duration_days`** when
+  the parent is a *fixed*-duration daily listing (`customisable_days=false`,
+  e.g. `duration_days=3`). The current day-count resolver returns `1` unless a
+  *selected* listing is itself customisable, so a fixed-3-day parent with a
+  customisable child would otherwise price/book the child as 1 day. The child takes
+  the parent's resolved duration and its `day_prices` are validated/priced for
+  **that** value; it is never fed into `sharedDayCounts`.
 
 ### Pricing & payment round-trip
 
@@ -660,25 +676,40 @@ Enumerate each and decide:
   aren't standalone-bookable, the gallery must **not offer children as selectable
   items** at all, so the redirect can only ever contain parents (and ordinary
   listings) — no parent+child slug list arises. Cover in tests.
-- **Public/JSON API booking** (`src/features/api`, `src/shared/booking.ts`
-  `processBooking`) — ✅ parents are API-bookable, so **extend the contract to
-  carry child selections.** Critically, this is **not** just adding child ids:
-  `processBooking(listing, …)` (`booking.ts:37-43`) accepts one listing and
-  computes `needsPayment` from that single route listing, building a one-item
-  checkout/free booking. A free parent with a **paid** child would otherwise be
-  created without charging for the child. So the API path must **switch to the same
-  multi-item pricing + availability flow as the web fold** (parent + folded
-  children) before deciding free-vs-paid and returning. **And the contract needs
-  more than child ids:** the current API carries a single `customPrice` /
-  `customUnitPrice` for the route listing (`api/index.ts:368-392`), so a
-  `can_pay_more` child or a child with required questions has nowhere to put its
-  price/answers. The contract must accept **per-child custom prices and answer
-  payloads**, or the API must reject parents whose children need such input. (Open
-  Question 9.)
+- **Public/JSON API booking** (`POST /api/listings/:slug/book`, `src/features/api`,
+  `src/shared/booking.ts` `processBooking`) — ✅ parents are API-bookable, but the
+  API path must be brought fully in line with the web fold; it is **not** enough to
+  add child ids:
+  - **Reject child slugs as the entry point.** The endpoint starts from whatever
+    active `:slug` is passed, so a **child** slug would create a standalone child
+    booking — violating "no booking from a child". The API must reject a child slug
+    (or require a parent context), mirroring the website rule.
+  - **Multi-item pricing/availability, not single-item.** `processBooking(listing,
+    …)` (`booking.ts:37-43`) computes `needsPayment` from the one route listing and
+    builds a one-item checkout/free booking. A free parent with a **paid** child
+    would be created without charging the child. The API must switch to the **same
+    multi-item pricing + availability flow as the web fold** (parent + folded
+    children) before deciding free-vs-paid.
+  - **Carry the child's inputs.** A single `customPrice`/`customUnitPrice` for the
+    route listing (`api/index.ts:368-392`) can't express a `can_pay_more` child's
+    price or a child's required answers — so the contract needs **per-child custom
+    prices and answer payloads** (or must reject parents whose children need them).
+  - **Day-count.** The API currently **rejects `customisable_days` listings**
+    outright (`api/index.ts:336-338`). For a customisable parent to be bookable
+    (and a customisable child to inherit a duration), the contract needs a
+    **`dayCount`** validated through the same day-count resolver.
+  - **Validate contact fields *after* child expansion.** `tryValidateTicketFields`
+    runs on the route listing today; a child requiring phone/address (or a paid
+    child adding Square's email) must be expanded **before** field validation, else
+    the order reaches creation without required child data.
+  (Open Question 9.)
 - **QR direct-checkout link** (`src/features/public/qr-book.ts`) — ✅ parents are
-  QR-bookable. `handleQrBookGet` → `skipToCheckout` → `buildCheckoutIntent`
-  (`qr-book.ts:83-152`) builds a one-item session **without** `prepareOrder`, so it
-  must become gate-aware. With the single-child auto-select, the common
+  QR-bookable, but **a QR link for a *child* must be rejected/redirected to a
+  parent**: the QR route also starts from a plain listing slug, so a signed
+  `/ticket/<child>/qr-book` would otherwise render/skip checkout for the child alone
+  — breaking no-standalone-child. `handleQrBookGet` → `skipToCheckout` →
+  `buildCheckoutIntent` (`qr-book.ts:83-152`) builds a one-item session **without**
+  `prepareOrder`, so it must become gate-aware. With the single-child auto-select, the common
   one-parent-one-child quick-buy **can still skip to checkout** — *but only when the
   auto-selected child is itself direct-checkout-safe*: no required contact
   fields/questions, not `can_pay_more`, **and not `customisable_days`** (a
