@@ -416,12 +416,16 @@ On the listing edit page (`src/features/admin/listings.ts`, fields in
   with a 1-day fixed child would reserve the child for 1 day, not the inherited 3.
   So for fixed-duration daily edges, require the child's `duration_days` to **equal
   the parent's** (or carry an explicit per-line duration override in the fold).
-  This holds across **all four** daily parent/child duration combinations: a
-  customisable child under a fixed parent must accept the parent's `duration_days`;
-  and the **inverse** — a **fixed-duration child under a customisable parent** —
-  must also be forbidden/overridden, because the buyer's chosen parent `day_count`
-  can differ from the child's own fixed `duration_days`, so the booking helper would
-  reserve the child for the wrong span.
+  This holds across the daily parent/child duration combinations, but the fix is
+  "make the spans agree," not a blanket ban: a customisable child under a fixed
+  parent must accept the parent's `duration_days`; and the **inverse — a
+  fixed-duration child under a customisable parent — is fine *iff* the parent's
+  selectable/priced day-counts can be constrained to the child's fixed
+  `duration_days`** (e.g. a 1–3-day parent with a child fixed at 2 days: filter the
+  shared `day_count` to 2 and both lines reserve the same span, per the child-derived
+  day-count filtering rule). Only **forbid** when the parent's day-count range can't
+  be constrained to the child's fixed duration (no overlap), or carry a per-line
+  duration override.
 - **Re-check edges on *any* listing save, not just when editing the relationship.**
   The compatibility rules above (dated-child-needs-dated-parent, renewal-tier ban)
   can be broken *after the fact* by editing a listing's `listing_type` /
@@ -626,9 +630,13 @@ In `prepareOrder` (`ticket-submit.ts`), after `parseQuantities`:
    child controls (with single-child selectors preselected and pay-more inputs
    pre-filled), so a buyer booking a *different* listing will submit `child_*`
    fields for parents at quantity 0 — these must be dropped, **not** rejected, or an
-   honest order fails. *Do* reject genuinely invalid input on an **in-cart** parent:
-   a selector naming a listing that isn't its child, or a price for a non-pay-more
-   child.
+   honest order fails. **Within an in-cart parent, read only the *selected* child's
+   fields**: the baseline renders a `child_price_<parentId>_<childId>` for every
+   pay-more child option, so ignore the unchosen siblings' price inputs (a blank or
+   out-of-range value on an *unselected* sibling must not fail the booking) and
+   validate only the chosen child's price. *Do* reject genuinely invalid input tied
+   to the **selected** child of an in-cart parent: a selector naming a listing that
+   isn't its child, or a missing/out-of-range price for the selected pay-more child.
 5. **Children are never standalone cart lines** (a booking can't start from a
    child — see Confirmed behaviour). The **enforcement mechanism** is that child
    slugs are **stripped/rejected from any ticket slug list** before building
@@ -993,11 +1001,16 @@ Enumerate each and decide:
   later all-or-nothing save fails/refunds. With the single-child auto-select, the
   common one-parent-one-child quick-buy **can still skip to checkout** — *but only
   when the auto-selected child is itself direct-checkout-safe*: no required contact
-  fields/questions, not `can_pay_more`, **not `customisable_days`** (a
-  customisable child needs its inherited duration encoded into the QR
-  `CheckoutIntent`, otherwise reconstruction defaults it through the single
-  `dayCount` path and prices/books it as one day — or zero if it has no one-day
-  price), **and not introducing a provider-imposed contact requirement** — a *paid*
+  fields/questions, not `can_pay_more`, **and has a resolved inherited duration that
+  the QR intent can carry**. A `customisable_days` child does **not** force a
+  fallback by itself: under a **fixed-duration parent** (standard = 1 day, fixed
+  daily = `duration_days`) the inherited span is known, and the fold already forces
+  `dayCount` into the metadata, so the primary base-unit-plus-customisable-add-on QR
+  case can skip safely. Fall back to the form only when there is **no resolved
+  duration** (a *customisable parent*, since the QR skip has no `day_count` input —
+  see next), a **mixed-duration conflict**, or child inputs the skip can't collect.
+  Likewise fall back **when a paid child introduces a provider-imposed contact
+  requirement** — a *paid*
   child under Square makes `getTicketFields` require email (`fields.ts:1045`) even
   when the parent is free, but the QR skip builds the checkout with blank contact
   fields, so this case must also fall back to the form. **The *parent* being
@@ -1055,13 +1068,14 @@ Enumerate each and decide:
     only the public index/gallery excludes them. A child hidden from the index must
     still be selectable under its parent (matches the "Hidden children" note
     below).
-  - **`purchase_only`** — this is a *pricing* constraint (no free bookings), not a
-    booking-eligibility check; purchase-only listings still render a normal buy
-    button and create normal booking rows. A regular parent must be able to require
-    a valid purchase-only child (merch, an add-on-style ticket). Do **not** filter
-    on a parent/child `purchase_only` mismatch. If some specific combination really
-    is unsupported, define and enforce it explicitly rather than via a blanket
-    filter.
+  - **`purchase_only`** — this is the **"No Check-In"** flag (it changes labels and
+    hides ticket artifacts — `homepage.tsx:28-30`, `tickets.tsx:72-80`), **not** a
+    paid-only / "no free bookings" constraint. The free-vs-paid decision keys off
+    `unit_price` / custom price (`booking.ts:47-49`), so a purchase-only child can be
+    **free**. Do **not** filter children on `purchase_only` (a free No-Check-In
+    add-on is valid), and **don't infer pricing from it** — a child's price comes
+    only from its price fields. If some specific combination really is unsupported,
+    define and enforce it explicitly rather than via a blanket filter.
    If a parent's *only* bookable child is sold out, the parent
   effectively cannot be booked — decide whether to (a) hide/disable the parent, or
   (b) show it with a "currently unavailable" note. Recommended: treat "no bookable
@@ -1177,7 +1191,7 @@ Enumerate each and decide:
 | 2 | DB layer: edge CRUD, `getChildrenOf` / `getParentsOf` / batch loader, dedicated edge cache, `deleteListing` cleanup. Unit-tested. |
 | 3 | Admin edit UI: configure parents (+ reverse view), with self/cycle/nesting validation and diff-save. **Ships behind a flag / hidden until step 4–5 land** (see note). |
 | 4 | Booking-page render: surface children under parents in `TicketCtx` (per-parent child selector + child questions/pay-more price; quantity follows the parent; date/duration inherited — no per-child date controls); no-JS baseline incl. CSS-only reveal. |
-| 5 | Server-side gate in `prepareOrder`: validate (positive child qty; orphan child fields rejected) + expand the listing set and fold children (feeding **every** per-listing path in the fold checklist). Counting in-cart child lines is **conditional on the Open Question 13 decision** — if we forbid parent+child URLs (the recommendation), this step instead **rejects** such URL lines rather than counting them. **Plus the API + QR decisions (close those bypass paths).** Free + paid + webhook + `/calculate` all exercised. |
+| 5 | Server-side gate in `prepareOrder`: validate (child required only for in-cart parents; `child_*` fields for zero-quantity parents are **ignored**, not rejected; invalid input rejected only for in-cart parents) + expand the listing set and fold children (feeding **every** per-listing path in the fold checklist). Counting in-cart child lines is **conditional on the Open Question 13 decision** — if we forbid parent+child URLs (the recommendation), this step instead **rejects** such URL lines rather than counting them. **Plus the API + QR decisions (close those bypass paths).** Free + paid + webhook + `/calculate` all exercised. |
 | 6 | Progressive-enhancement JS: reveal/require child blocks on parent qty > 0; include in live quote. |
 | 7 | Admin-manual-add / attendee-edit behaviour; docs + operator-facing help text. |
 
