@@ -233,9 +233,13 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         ),
       );
       expect(response.status).toBe(302);
+      // Follow as the manager who made the POST, so the render check verifies
+      // the landing page that role actually sees (not the default owner's).
       await expectFlashRedirect(
         `/admin/groups/${group.id}`,
         "Group updated",
+        true,
+        cookie,
       )(response);
     });
 
