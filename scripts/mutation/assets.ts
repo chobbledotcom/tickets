@@ -71,8 +71,22 @@ export const createAssetRebuilder = async (): Promise<AssetRebuilder> => {
     affected: (file) => graph.get(resolve(Deno.cwd(), file)) ?? [],
     rebuild: async (bundles) => {
       for (const bundle of bundles) {
-        const result = await esbuild.build(bundle.options);
-        if (result.errors.length > 0) return false;
+        try {
+          // logLevel "silent": a failed build here is an expected, handled
+          // outcome (a stillborn mutant), so don't spew esbuild errors across
+          // the progress output.
+          const result = await esbuild.build({
+            ...bundle.options,
+            logLevel: "silent",
+          });
+          if (result.errors.length > 0) return false;
+        } catch {
+          // esbuild *rejects* its promise on compile errors rather than
+          // resolving with populated `errors` — e.g. a stillborn mutant that no
+          // longer parses (a `??` swap that now mixes with `||`). A bundle that
+          // can't build means the mutant is detected, so report it killed.
+          return false;
+        }
       }
       return true;
     },
