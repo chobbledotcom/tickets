@@ -256,6 +256,46 @@ const ledgerCurrency = async (read: RowReader): Promise<string | null> => {
   return rows[0]?.currency ?? null;
 };
 
+/** The stored transfer with this id, or null when none exists. */
+const selectById = async (
+  read: RowReader,
+  id: number,
+): Promise<Transfer | null> =>
+  (await selectTransfers(read, " WHERE id = ?", [id]))[0] ?? null;
+
+/**
+ * A leg that links to another via `reversesId` must be that original's exact
+ * inverse — same amount and currency, with source and destination swapped — and
+ * the original must exist. Otherwise the unique `reverses_id` slot is consumed
+ * without the original money actually being voided (wrong amount or direction),
+ * or points at nothing, permanently blocking the later correct reversal.
+ */
+const assertReverses = async (
+  read: RowReader,
+  input: TransferInput,
+): Promise<void> => {
+  const id = input.reversesId;
+  if (id === undefined || id === null) return;
+  const original = await selectById(read, id);
+  if (original === null) {
+    throw new LedgerConflictError(
+      input.reference,
+      `reverses_id ${id} refers to no transfer`,
+    );
+  }
+  const isInverse =
+    input.amount === original.amount &&
+    input.currency === original.currency &&
+    sameAccount(input.source, original.destination) &&
+    sameAccount(input.destination, original.source);
+  if (!isInverse) {
+    throw new LedgerConflictError(
+      input.reference,
+      `reverses_id ${id} is not the exact inverse of the original leg`,
+    );
+  }
+};
+
 /**
  * Post the legs of one business event within an already-open transaction, so the
  * ledger write commits or rolls back atomically with the domain rows it
@@ -302,6 +342,9 @@ export const postTransfersTx = async (
   }
   const recordedAt = nowIso();
   for (const input of inputs) {
+    // Verify the void link against the stored original before inserting, so a
+    // bad reversal never consumes the unique reverses_id slot.
+    await assertReverses(read, input);
     await tx.execute(insertStatement(input, recordedAt));
   }
   return { inserted: inputs.length, skipped: 0 };

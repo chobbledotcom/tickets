@@ -139,6 +139,36 @@ describe("reconcileLegs", () => {
     ]);
   });
 
+  it("flags a leg whose reversal link differs even when all else matches", () => {
+    // A void/correction whose reverses_id is absent or points at the wrong
+    // original must not reconcile clean against the intended void.
+    const voidLeg = makeTransfer({
+      amount: 5000,
+      destination: attendee,
+      eventGroup: "evt-v",
+      id: 9,
+      kind: "payment",
+      reversesId: 2,
+      source: world,
+    });
+    const wrongLink = makeTransfer({
+      amount: 5000,
+      destination: attendee,
+      eventGroup: "evt-v",
+      id: 10,
+      kind: "payment",
+      reversesId: 99,
+      source: world,
+    });
+    expect(reconcileLegs(expectedFor(voidLeg))([wrongLink])).toEqual([
+      {
+        eventGroup: "evt-v",
+        missing: [legFingerprint(voidLeg)],
+        unexpected: [legFingerprint(wrongLink)],
+      },
+    ]);
+  });
+
   it("flags an entirely missing event group", () => {
     expect(reconcileLegs(expectedFor(saleA, payA))([])).toEqual([
       {

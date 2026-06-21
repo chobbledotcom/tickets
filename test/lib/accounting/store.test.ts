@@ -257,6 +257,67 @@ describe("db > accounting > store", () => {
     });
   });
 
+  describe("reversal links", () => {
+    const postSale = (): Promise<unknown> =>
+      postTransfers([
+        tx({
+          destination: account("revenue", 1),
+          eventGroup: "evt-1",
+          reference: "sale",
+          source: account("attendee", 1),
+        }),
+      ]);
+    const storedSaleId = async (): Promise<number> =>
+      (await transfersByEventGroup("evt-1"))[0]!.id;
+    const voidLeg = (overrides: Partial<TransferInput>): TransferInput =>
+      tx({
+        destination: account("attendee", 1),
+        eventGroup: "evt-2",
+        reference: "void",
+        source: account("revenue", 1),
+        ...overrides,
+      });
+
+    test("accepts a leg that is the exact inverse of the original", async () => {
+      await postSale();
+      const result = await postTransfers([
+        voidLeg({ reversesId: await storedSaleId() }),
+      ]);
+      expect(result.inserted).toBe(1);
+    });
+
+    test("rejects a reverses_id that refers to no transfer", async () => {
+      expect(
+        (await rejection(postTransfers([voidLeg({ reversesId: 9999 })])))
+          .message,
+      ).toContain("refers to no transfer");
+    });
+
+    test("rejects a reversal whose amount differs from the original", async () => {
+      await postSale();
+      const error = await rejection(
+        postTransfers([
+          voidLeg({ amount: 4000, reversesId: await storedSaleId() }),
+        ]),
+      );
+      expect(error.message).toContain("not the exact inverse");
+    });
+
+    test("rejects a reversal that does not swap the accounts", async () => {
+      await postSale();
+      const error = await rejection(
+        postTransfers([
+          voidLeg({
+            destination: account("revenue", 1),
+            reversesId: await storedSaleId(),
+            source: account("attendee", 1),
+          }),
+        ]),
+      );
+      expect(error.message).toContain("not the exact inverse");
+    });
+  });
+
   describe("balance queries", () => {
     const world = account("external", "world");
 
