@@ -647,7 +647,7 @@ const normalizeAnswerSet = (
 const questionIdsByAnswerId = (
   answerIds: number[],
 ): Promise<Map<number, number>> =>
-  columnMapByIds("answers", "question_id", answerIds);
+  columnMapByIds("answers", "answer", "question_id", answerIds);
 
 const dedupeByQuestion = <T extends { questionId: number }>(
   answers: T[],

@@ -75,6 +75,7 @@ export {
   ATTENDEES_PAGE_SIZE,
   getAllAttendeePiiBlobs,
   getAttendee,
+  getAttendeeNamesByIds,
   getAttendeePiiBlobsForListings,
   getAttendeeRaw,
   getAttendeesByIds,
