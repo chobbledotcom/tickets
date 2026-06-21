@@ -818,9 +818,16 @@ const handleRoutingError = (
   path: string,
 ): Response => {
   // A database too busy to acquire a write lock after retrying is a transient
-  // load condition, not a bug: show the friendly auto-reloading busy page
-  // without logging it as an unhandled request error or rethrowing in tests.
-  if (error instanceof DatabaseBusyError) return databaseBusyResponse();
+  // load condition, not a bug. Log it under its own code so we can see how
+  // often it happens, then show the friendly auto-reloading busy page (rather
+  // than rethrowing in tests or showing the generic error page).
+  if (error instanceof DatabaseBusyError) {
+    logError({
+      code: ErrorCode.DB_BUSY,
+      detail: formatRequestError(method, path, error),
+    });
+    return databaseBusyResponse();
+  }
   logError({
     code: ErrorCode.CDN_REQUEST,
     detail: formatRequestError(method, path, error),
