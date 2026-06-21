@@ -249,14 +249,23 @@ const selectByReferences = (
     references,
   );
 
+/** The single currency the ledger already holds, or null when it is empty. The
+ *  first post establishes it; later posts must match. */
+const ledgerCurrency = async (read: RowReader): Promise<string | null> => {
+  const rows = await read("SELECT currency FROM transfers LIMIT 1", []);
+  return rows[0]?.currency ?? null;
+};
+
 /**
  * Post the legs of one business event within an already-open transaction, so the
  * ledger write commits or rolls back atomically with the domain rows it
  * accompanies (a booking and its sale/payment legs land together or not at all).
  * Same idempotency and replay-conflict rules as {@link postTransfers}: if the
  * event is already stored, the whole leg set must match or
- * {@link LedgerConflictError} is thrown; otherwise the legs are inserted. An
- * empty post is a no-op.
+ * {@link LedgerConflictError} is thrown; otherwise the legs are inserted. The
+ * batch must also be in the currency the ledger already holds — a site currency
+ * change must not introduce a second currency that breaks every whole-ledger
+ * projection. An empty post is a no-op.
  */
 export const postTransfersTx = async (
   tx: TxScope,
@@ -280,6 +289,15 @@ export const postTransfersTx = async (
     throw new LedgerConflictError(
       colliding[0]!.reference,
       "reference already belongs to a different event",
+    );
+  }
+  // assertPostable enforced one currency within the batch; this enforces it
+  // against the rest of the ledger so the whole history stays single-currency.
+  const established = await ledgerCurrency(read);
+  if (established !== null && established !== inputs[0]!.currency) {
+    throw new LedgerConflictError(
+      inputs[0]!.reference,
+      `currency ${inputs[0]!.currency} differs from ledger currency ${established}`,
     );
   }
   const recordedAt = nowIso();

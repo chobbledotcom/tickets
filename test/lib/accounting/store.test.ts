@@ -181,6 +181,20 @@ describe("db > accounting > store", () => {
       expect((await allTransfers()).length).toBe(0);
     });
 
+    test("rejects a new event in a different currency than the ledger holds", async () => {
+      // The first post establishes GBP; a later USD event (e.g. after a site
+      // currency change) would make whole-ledger projections throw, so reject it.
+      await postTransfers([tx({ currency: "GBP", reference: "gbp-1" })]);
+      const error = await rejection(
+        postTransfers([
+          tx({ currency: "USD", eventGroup: "evt-2", reference: "usd-1" }),
+        ]),
+      );
+      expect(error).toBeInstanceOf(LedgerConflictError);
+      expect(error.message).toContain("currency");
+      expect((await allTransfers()).length).toBe(1);
+    });
+
     test("treats an empty post as a no-op", async () => {
       expect(await postTransfers([])).toEqual({ inserted: 0, skipped: 0 });
       expect((await allTransfers()).length).toBe(0);
