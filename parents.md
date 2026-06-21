@@ -106,6 +106,49 @@ be read in this light (they resolve several of the original open questions):
 
 ---
 
+## Canonical invariants (single source of truth)
+
+The detail/sequence/test sections below elaborate these but **must not restate them
+divergently** — if behaviour changes, change it here and adjust references:
+
+- **I1 — Exactly one child per parent, always required.** Auto-selected when a
+  parent has a single bookable child.
+- **I2 — Child quantity = parent quantity** (derived, not entered).
+- **I3 — A booking can never start from a child.** Children enter an order *only*
+  via a parent's per-parent selector; child slugs in any ticket URL are **rejected**
+  (not silently dropped). No standalone child cart line ever exists.
+- **I4 — Date and duration inherit *separately*:** a **daily** child takes the
+  parent's date; a **standard** child folds `date: null` (cumulative capacity); any
+  **`customisable_days`** child inherits the parent's *resolved duration* for
+  `day_prices`/`dayCount` (even when standard).
+- **I5 — A child is a normal line once selected** — but folding it must feed
+  *every* per-listing path (capacity, contact fields incl. provider-imposed,
+  pay-more price, answers/answer-modifiers, add-ons, site-assignment, quantity caps,
+  thank-you redirect, `hasCustomisable`/`dayCount` serialization). See the fold
+  checklist.
+- **I6 — A parent with no bookable child is sold out** (everywhere: gate, cards,
+  feeds, API availability).
+- **I7 — Availability uses combined parent+child demand** (a shared capped group
+  consumes one spot per side).
+- **I8 — Every booking entry point enforces I1–I7** (web form, multi-slug URL,
+  `/order`, group page, JSON API book/discovery/availability, QR, admin manual
+  add, attendee merge, renewals) and every discovery/share surface suppresses
+  standalone-child links.
+- **I9 — No-JS first:** all child controls render non-`required`; requiredness is
+  enforced server-side for the *selected* child only; unselected/zero-quantity
+  child fields are ignored, not rejected.
+- **I10 — Shared child under two parents books two** (summed quantity, one
+  `(listing_id, date)` line); reconcile only the fields the child carries; reject
+  (don't clamp) over-capacity.
+- **I11 — Admin/merge warn, don't block** on a per-parent "exactly one child"
+  violation; but admin **listing/edge saves hard-block** an incompatible edge
+  (date/duration, renewal tier, unreachable child-scoped add-on).
+- **I12 — Hidden children stay pickable/auto-selectable**; being a child does not
+  auto-hide; renewal/subscription tiers are never parents or children; duplication
+  copies/remaps edges.
+
+---
+
 ## Terminology (pin this down first)
 
 The word "parent" is ambiguous, so fix it once and use it everywhere:
