@@ -300,16 +300,17 @@ richer rules as a later iteration. See Open Question 2.
 
 ### Duplication / integrity
 
-- **Duplicate flows must decide what happens to edges.** `buildDuplicateListingInput`
-  (`src/shared/listings-actions.ts:148`) copies only the listing **row**, and group
-  duplication clones listings from that row input — neither carries
-  `listing_parents` rows. So duplicating a configured parent or child (or a whole
-  group for a new date) would **silently drop the required-child gate** on the copy.
-  Pick one and implement it in the duplicate paths: **copy/remap the edges** onto
-  the new listing ids (the right default for "duplicate this configured listing"),
-  or **intentionally clear them with a UI notice** so the operator knows the copy
-  starts unlinked. Whole-group duplication especially needs the edges **remapped to
-  the cloned ids**, not the originals.
+- **Duplicate flows must carry the edges (resolved: copy/remap).**
+  `buildDuplicateListingInput` (`src/shared/listings-actions.ts:148`) copies only
+  the listing **row**, and group duplication clones listings from that row input —
+  neither carries `listing_parents` rows. So duplicating a configured parent or
+  child (or a whole group for a new date) would **silently drop the required-child
+  gate** on the copy. v1 **requires copy/remap**, not clearing: the duplicate paths
+  must recreate the `listing_parents` edges on the new listing ids. **Whole-group
+  duplication must remap edges to the *cloned* ids** (a child cloned alongside its
+  parent points at the new parent, not the original). Clearing edges is **not** an
+  accepted option, because it produces a bookable copy with no gate — exactly the
+  silent drop this guards against. (Open Question 19.)
 
 ---
 
@@ -435,7 +436,12 @@ When the booking page renders a listing that has children, render each child as 
   activate child-specific questions and silently skip required child answers and
   answer-triggered modifiers. The child's answer fields use the standard
   `question_<questionId>` name (see no-JS note below for rendering and which answers
-  are read at submit).
+  are read at submit). **A shared child (chosen under two parents) must render its
+  questions only *once*** — rendering the same `question_<id>` control inside both
+  parent blocks would create duplicates that `form.get` collapses to one value
+  (treating the other as missing). Render a single shared child question block (the
+  merged line has one answer set anyway), or namespace + reconcile exactly as the
+  pay-more price is.
 
 ### Progressive enhancement
 
@@ -522,9 +528,14 @@ In `prepareOrder` (`ticket-submit.ts`), after `parseQuantities`:
 6. **Shared child across two parents → sum the quantities.** If the same child is
    chosen (or auto-selected) under two in-cart parents, fold it into **one
    `(listing_id, date)` line whose quantity is the sum** (one per parent), since the
-   booking shape can't hold duplicate slots. (If that child is `can_pay_more` and
-   the two parents carry different `child_price_*` values, the prices must
-   reconcile — simplest: require them equal, since they're the same add-on.)
+   booking shape can't hold duplicate slots. Two reconciliations:
+   - **Capacity: reject, don't clamp.** If the summed quantity exceeds the child's
+     available capacity / `max_quantity` (e.g. parents 2 + 2 but the child only has
+     3 left), the cart must be **rejected** — clamping to 3 would reserve 4 parents
+     against only 3 children and break the one-child-per-parent invariant.
+   - **Pay-more price:** if the child is `can_pay_more`, the two parents'
+     `child_price_*` values must be **equal** (same add-on) — reject a mismatch,
+     since the merged line carries one price.
 
 7. **Reject** if the rule isn't satisfied (a required child not chosen for an
    in-cart parent), with a message naming the parent. Use
@@ -570,7 +581,13 @@ The expanded set (parent page listings ∪ selected children) must drive **all**
   children exist (`reservations.tsx:707-710`). A **free parent with a paid child**
   under Square would then render no email input, yet post-fold paid validation
   would require one the buyer never saw. So render-time `anyPaid` must include
-  **possible/selected paid children**, not just the page listings.
+  **possible/selected paid children**, not just the page listings — the email field
+  must be **present in the markup**. But it must follow the same **non-required**
+  rule as other child-conditional fields: feeding *possible* paid children into
+  `getTicketFields(..., true)` would otherwise mark email `required` and block a
+  buyer who picks a *free* child or leaves that parent at quantity 0. So render the
+  provider-imposed paid field **non-required (JS-toggled)** and enforce it
+  **server-side only when the folded order is actually paid**.
 - **Custom (pay-more) price** — ✅ supported (Open Question 15). A `can_pay_more`
   child renders a price input named by **both parent and child**,
   `child_price_<parentId>_<childId>` (a parent can have several pay-more children
@@ -686,11 +703,15 @@ Enumerate each and decide:
   automatically; render the parent's child selector here too.
 - **Group bookings** — because a group form is the same `/ticket/<groupSlug>` flow,
   the gate and child-suppression must be wired into `handleGroupTicketBySlug`'s
-  listing set (it loads all active group listings). Since a **child can't be booked
-  standalone**, a child that's also a group member is **not independently
-  selectable** in the group — it appears only via its parent's selector. The only
-  remaining call is cosmetic (whether to allow listing a child as a group member at
-  all). (Open Question 6.)
+  listing set, which **loads all active group listings**. This is **enforcement, not
+  cosmetic**: a child that is also a group member is in that original listing set, so
+  unless it is **explicitly suppressed** (removed from the independently-selectable
+  set, offered only via its parent's selector) **or the parent/child-in-same-group
+  edge is forbidden**, the group page would render the child as its own quantity
+  line and let it be booked standalone — bypassing the per-parent selector. So apply
+  the same child-suppression here as everywhere else. (Open Question 6 is only the
+  cosmetic *follow-on*: whether to let an operator list a child as a group member at
+  all.)
 - **Order/gallery page** `/order` — `bookingUrlFor` (`order.ts:56-64`) turns the
   gallery selection into a `/ticket/<slugs>?q_<id>=1` redirect. Since children
   aren't standalone-bookable, the gallery must **not offer children as selectable
@@ -722,6 +743,14 @@ Enumerate each and decide:
     runs on the route listing today; a child requiring phone/address (or a paid
     child adding Square's email) must be expanded **before** field validation, else
     the order reaches creation without required child data.
+  - **Discovery responses, not just the booking POST.** `GET /api/listings` and
+    `GET /api/listings/:slug` currently expose listings with no parent/child
+    metadata, so a visible child looks like a normal bookable listing and a client
+    booking a multi-child parent has no way to learn the valid child ids / prices /
+    required inputs. The listing responses must **carry the relationship data**
+    (a parent's available children + their constraints) and **suppress the
+    standalone-booking affordance for children** (mark them "available with …"),
+    mirroring the public listing-card rule.
   (Open Question 9.)
 - **QR direct-checkout link** (`src/features/public/qr-book.ts`) — ✅ parents are
   QR-bookable, but **a QR link for a *child* must be rejected/redirected to a
@@ -922,9 +951,11 @@ direct-checkout paths** — so the API/QR decisions move **into the enforcement 
 5. **No bookable children** — ✅ **RESOLVED:** treat the parent as **sold out** when
    no child is bookable.
 6. **Groups interaction** — ✅ **RESOLVED (by "no booking from a child"):** a child
-   that is also a group member is **not independently selectable** on the group
-   page; it's offered only via its parent. The only residual is cosmetic (whether
-   to allow listing a child as a group member at all).
+   that is also a group member must be **suppressed from the group form's
+   independently-selectable set** (the group page loads all active group listings,
+   so this is enforcement, not cosmetic) and offered only via its parent. The only
+   cosmetic follow-on is whether to let an operator list a child as a group member
+   at all.
 7. **Admin manual add / attendee edit** — ✅ **RESOLVED:** warn but don't block.
 8. **Shared child across parents** — ✅ **RESOLVED:** **allowed** — the same child
    under two in-cart parents books **two** (one per parent), folded into a single
