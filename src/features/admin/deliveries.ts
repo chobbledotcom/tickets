@@ -20,7 +20,7 @@ import { errorRedirect, redirect } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { addDays } from "#shared/dates.ts";
 import { decryptAttendees, getAttendeesByIds } from "#shared/db/attendees.ts";
-import { getAllListings, listingNameMap } from "#shared/db/listings.ts";
+import { getAllListings } from "#shared/db/listings.ts";
 import {
   type AgentRunLeg,
   getAgentRunSheet,
@@ -133,7 +133,7 @@ const loadLegLookups = async (
   return {
     agentNameById: agentNameMap(agents),
     attendeeById,
-    listingNameById: listingNameMap(listings),
+    listingNameById: new Map(listings.map((l) => [l.id, l.name])),
   };
 };
 

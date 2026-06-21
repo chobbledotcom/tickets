@@ -19,11 +19,11 @@ import {
 import {
   decryptAttendees,
   getActiveListingStats,
-  getAttendeesByIds,
+  getAttendeeNamesByIds,
   getNewestAttendeesRaw,
 } from "#shared/db/attendees.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
-import { getAllListings, listingNameMap } from "#shared/db/listings.ts";
+import { getAllListings, getListingNamesByIds } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import {
@@ -137,28 +137,23 @@ const LOG_DISPLAY_LIMIT = 200;
 /**
  * Resolve the attendee and listing display names referenced by a batch of log
  * entries, so the global log can show each entry's attendee/listing as a link.
- * Attendee names are decrypted with the session's private key; listing names
- * come from the (cached) listings. An attendee that has since been deleted has
- * no entry here — its log rows keep the id but render without a link.
+ * Both are bounded id → name lookups over only the ids the entries reference —
+ * attendee names decrypted with the session's private key, listing names from
+ * the listings table — so the page never scans whole tables to label a few
+ * rows. An attendee that has since been deleted simply has no entry here; its
+ * log rows keep the id but render without a link.
  */
 const loadActivityLogRefs = async (
   entries: ActivityLogEntry[],
   privateKey: CryptoKey,
 ): Promise<ActivityLogRefs> => {
-  const attendeeIds = unique(
-    compact(entries.map((entry) => entry.attendee_id)),
-  );
-  const [rawAttendees, listings] = await Promise.all([
-    getAttendeesByIds(attendeeIds),
-    getAllListings(),
+  const attendeeIds = unique(compact(entries.map((e) => e.attendee_id)));
+  const listingIds = unique(compact(entries.map((e) => e.listing_id)));
+  const [attendees, listings] = await Promise.all([
+    getAttendeeNamesByIds(attendeeIds, privateKey),
+    getListingNamesByIds(listingIds),
   ]);
-  // getAttendeesByIds returns one row per booking, so an attendee can repeat —
-  // every copy carries the same decrypted name, so later writes are harmless.
-  const decrypted = await decryptAttendees(rawAttendees, privateKey);
-  return {
-    attendees: new Map(decrypted.map((a) => [a.id, a.name])),
-    listings: listingNameMap(listings),
-  };
+  return { attendees, listings };
 };
 
 /**

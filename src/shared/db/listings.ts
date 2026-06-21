@@ -29,6 +29,7 @@ import {
   idAndEncryptedSlugSchema,
 } from "#shared/db/common-schema.ts";
 import { LISTING_AGGREGATE_WRITE_COLUMNS } from "#shared/db/migrations/schema.ts";
+import { nameMapByIds } from "#shared/db/query.ts";
 import { col } from "#shared/db/table.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
@@ -399,11 +400,13 @@ export const invalidateListingsCache = (): void => {
 export const getAllListings = (): Promise<ListingWithCount[]> =>
   listingsCache.getAll();
 
-/** Index listings by id → name, for label/link lookups across admin views
- * (the run sheet's listing column, the activity log's Listing column, …). */
-export const listingNameMap = (
-  listings: readonly ListingWithCount[],
-): Map<number, string> => new Map(listings.map((l) => [l.id, l.name]));
+/** Bounded id → name lookup for the given listings: selects and decrypts only
+ * their names, rather than loading the whole listings cache like getAllListings.
+ * Empty ids ⇒ empty map (no query). Used for link labels in the activity log. */
+export const getListingNamesByIds = (
+  ids: number[],
+): Promise<Map<number, string>> =>
+  nameMapByIds("listings", "name", ids, (raw: string) => decrypt(raw));
 
 /**
  * Get listing with attendee count (from cache)
