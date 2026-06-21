@@ -58,9 +58,13 @@ const testEnv = (): Record<string, string> => ({
 const runTests = async (
   testFiles: string[],
   timeoutMs: number,
+  abortSignal?: AbortSignal,
 ): Promise<{ durationMs: number; outcome: Outcome }> => {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const onAbort = (): void => controller.abort();
+  if (abortSignal?.aborted) controller.abort();
+  else abortSignal?.addEventListener("abort", onAbort, { once: true });
   const startedAt = performance.now();
   try {
     const { code } = await new Deno.Command(Deno.execPath(), {
@@ -79,6 +83,7 @@ const runTests = async (
     return { durationMs: performance.now() - startedAt, outcome: "timed-out" };
   } finally {
     clearTimeout(timer);
+    abortSignal?.removeEventListener("abort", onAbort);
   }
 };
 
@@ -113,6 +118,7 @@ const evaluateMutant = async (
   testFiles: string[],
   timeoutMs: number,
   assets: MutantAssetHooks | null,
+  abortSignal: AbortSignal,
 ): Promise<Status> => {
   await Deno.writeTextFile(file, applyMutant(original, mutant));
   try {
@@ -120,7 +126,7 @@ const evaluateMutant = async (
     // stale baseline asset (the tests would pass and it would falsely survive).
     // A failed build means the mutation is detected, so count it as killed.
     if (assets && !(await assets.rebuild())) return "killed";
-    const { outcome } = await runTests(testFiles, timeoutMs);
+    const { outcome } = await runTests(testFiles, timeoutMs, abortSignal);
     return toStatus(outcome);
   } finally {
     await Deno.writeTextFile(file, original);
@@ -208,13 +214,21 @@ const mutate = async (options: MutationOptions): Promise<number> => {
       }
     }
   };
+  // On SIGINT/SIGTERM, abort the in-flight test run and let the loop fall
+  // through so every `finally` runs: the source and built assets are restored
+  // here, then the outer withTestHarness stops stripe-mock and removes any
+  // generated assets. Going straight to Deno.exit would skip all of that. A
+  // second signal force-quits in case unwinding ever stalls.
+  const abortController = new AbortController();
+  let aborted = false;
   const onSignal = (): void => {
-    restoreAll();
-    Deno.exit(130);
+    if (aborted) {
+      restoreAll();
+      Deno.exit(130);
+    }
+    aborted = true;
+    abortController.abort();
   };
-  // Trap interrupts AND termination: a CI/wrapper SIGTERM mid-mutant would
-  // otherwise kill us before the finally below runs, leaving the in-place
-  // mutant written over the tracked source file.
   const signals: Deno.Signal[] = ["SIGINT", "SIGTERM"];
   for (const signal of signals) {
     try {
@@ -227,6 +241,7 @@ const mutate = async (options: MutationOptions): Promise<number> => {
 
   try {
     for (const file of sourceFiles) {
+      if (aborted) break;
       const original = await Deno.readTextFile(file);
       originals.set(file, original);
       const affected = rebuilder ? rebuilder.affected(file) : [];
@@ -248,6 +263,7 @@ const mutate = async (options: MutationOptions): Promise<number> => {
         console.log(dim(`  ${rel(file)}: ${mutants.length} mutants`) + note);
       }
       for (const mutant of mutants) {
+        if (aborted) break;
         const status = await evaluateMutant(
           file,
           original,
@@ -255,7 +271,9 @@ const mutate = async (options: MutationOptions): Promise<number> => {
           testFiles,
           perMutantTimeout,
           assets,
+          abortController.signal,
         );
+        if (aborted) break;
         results.push({ file, mutant, status });
         write(statusGlyph(status));
       }
@@ -274,6 +292,10 @@ const mutate = async (options: MutationOptions): Promise<number> => {
   }
   write("\n");
 
+  if (aborted) {
+    console.log(yellow("Interrupted — restored sources and built assets."));
+    return 130;
+  }
   return report(results);
 };
 
