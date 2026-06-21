@@ -40,14 +40,17 @@ type LegFacts = {
   readonly destination: AccountRef;
   readonly amount: number;
   readonly currency: string;
+  readonly occurredAt: string;
 };
 
 /**
  * A stable, comparable fingerprint of one leg: its kind, direction (source →
- * destination accounts), amount, and currency, JSON-encoded so distinct shapes
- * never collide. Built identically from an expected leg and a stored transfer,
- * so the two sides of a reconciliation compare like-for-like — a leg posted to
- * the wrong account or for the wrong amount differs even when its kind matches.
+ * destination accounts), amount, currency, and business time, JSON-encoded so
+ * distinct shapes never collide. Built identically from an expected leg and a
+ * stored transfer, so the two sides of a reconciliation compare like-for-like —
+ * a leg posted to the wrong account, for the wrong amount, or with the wrong
+ * `occurredAt` (which moves it into a different reporting period) differs even
+ * when its kind matches.
  */
 export type LegFingerprint = string;
 
@@ -58,6 +61,7 @@ export const legFingerprint = (leg: LegFacts): LegFingerprint =>
     accountKey(leg.destination),
     leg.amount,
     leg.currency,
+    leg.occurredAt,
   ]);
 
 /** A per-event mismatch between the legs an event should have and those actually

@@ -814,6 +814,24 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
       }
     });
 
+    test("a DatabaseBusyError renders the busy page, not a generic error", async () => {
+      const { getDb: getDbFn, DatabaseBusyError } = await import(
+        "#shared/db/client.ts"
+      );
+      const executeStub = stub(getDbFn(), "execute", () => {
+        throw new DatabaseBusyError();
+      });
+      try {
+        const response = await handleRequest(mockRequest("/ticket/anything"));
+        expect(response.status).toBe(503);
+        const html = await response.text();
+        expect(html).toContain("The database is too busy.");
+        expect(html).toContain('http-equiv="refresh"');
+      } finally {
+        executeStub.restore();
+      }
+    });
+
     test("SessionKeyError clears cookie and redirects to /admin", async () => {
       const { getDb: getDbFn } = await import("#shared/db/client.ts");
       const { settings: s } = await import("#shared/db/settings.ts");

@@ -118,6 +118,27 @@ describe("reconcileLegs", () => {
     ]);
   });
 
+  it("flags a leg with the wrong business time even when all else matches", () => {
+    // A timezone/import bug moving a leg into a different reporting period must
+    // be caught, since period reports key off occurredAt.
+    const wrongTime = makeTransfer({
+      amount: 5000,
+      destination: revenueA,
+      eventGroup: "evt-a",
+      id: 1,
+      kind: "sale",
+      occurredAt: "2026-02-01T00:00:00.000Z",
+      source: attendee,
+    });
+    expect(reconcileLegs(expectedFor(saleA, payA))([wrongTime, payA])).toEqual([
+      {
+        eventGroup: "evt-a",
+        missing: [legFingerprint(saleA)],
+        unexpected: [legFingerprint(wrongTime)],
+      },
+    ]);
+  });
+
   it("flags an entirely missing event group", () => {
     expect(reconcileLegs(expectedFor(saleA, payA))([])).toEqual([
       {

@@ -15,6 +15,7 @@ import {
   isWebhookPath,
 } from "#routes/middleware.ts";
 import {
+  databaseBusyResponse,
   htmlResponse,
   jsonResponse,
   migrationInProgressResponse,
@@ -43,6 +44,7 @@ import {
   clearSessionCookie,
   parseFlashValue,
 } from "#shared/cookies.ts";
+import { DatabaseBusyError } from "#shared/db/client.ts";
 import {
   initDb,
   MigrationInProgressError,
@@ -815,6 +817,10 @@ const handleRoutingError = (
   method: string,
   path: string,
 ): Response => {
+  // A database too busy to acquire a write lock after retrying is a transient
+  // load condition, not a bug: show the friendly auto-reloading busy page
+  // without logging it as an unhandled request error or rethrowing in tests.
+  if (error instanceof DatabaseBusyError) return databaseBusyResponse();
   logError({
     code: ErrorCode.CDN_REQUEST,
     detail: formatRequestError(method, path, error),

@@ -129,8 +129,11 @@ const bookingLegSpecs = (
  * Reject malformed facts loudly rather than silently dropping a leg with the
  * zero-amount filter. Catches an empty event id (which would make every such
  * booking share one event group / references), non-finite amounts (NaN/∞ slip
- * past `> 0`), and negative non-modifier amounts. A modifier `delta` may be
- * negative (a discount) but must still be finite.
+ * past `> 0`), negative non-modifier amounts, and fractional/unsafe minor units
+ * (all money facts are integer pence/cents — a fractional split like `10.5` must
+ * be caught here, since aggregating two of them into `21` would hide the
+ * fractional pennies before `validateTransfer` ever sees them). A modifier
+ * `delta` may be negative (a discount) but must still be a safe integer.
  */
 const assertValidFacts = (facts: BookingFacts): void => {
   const problems: string[] = [];
@@ -138,6 +141,8 @@ const assertValidFacts = (facts: BookingFacts): void => {
   const requireAmount = (label: string, value: number): void => {
     if (!Number.isFinite(value)) problems.push(`non-finite ${label}`);
     else if (value < 0) problems.push(`negative ${label}`);
+    else if (!Number.isSafeInteger(value))
+      problems.push(`non-integer ${label}`);
   };
   for (const line of facts.lines) {
     requireAmount(`listing ${line.listingId} gross`, line.gross);
@@ -145,6 +150,8 @@ const assertValidFacts = (facts: BookingFacts): void => {
   for (const modifier of facts.modifiers) {
     if (!Number.isFinite(modifier.delta)) {
       problems.push(`non-finite modifier ${modifier.modifierId} delta`);
+    } else if (!Number.isSafeInteger(modifier.delta)) {
+      problems.push(`non-integer modifier ${modifier.modifierId} delta`);
     }
   }
   requireAmount("bookingFee", facts.bookingFee);

@@ -140,6 +140,22 @@ describeWithEnv("accounting > mappers", { encryptionKey: true }, () => {
       ).toContain("non-finite listing 1 gross");
     });
 
+    test("rejects a fractional line gross (minor units must be integers)", async () => {
+      expect(
+        await rejectionMessage(
+          mapBooking(facts({ lines: [{ gross: 10.5, listingId: 1 }] })),
+        ),
+      ).toContain("non-integer listing 1 gross");
+    });
+
+    test("rejects a fractional modifier delta", async () => {
+      expect(
+        await rejectionMessage(
+          mapBooking(facts({ modifiers: [{ delta: -2.5, modifierId: 7 }] })),
+        ),
+      ).toContain("non-integer modifier 7 delta");
+    });
+
     test("rejects a non-finite modifier delta", async () => {
       expect(
         await rejectionMessage(
