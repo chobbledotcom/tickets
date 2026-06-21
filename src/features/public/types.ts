@@ -10,6 +10,13 @@ import type {
 import type { ListingWithCount } from "#shared/types.ts";
 import type { BookingPrefill, TicketListing } from "#templates/public.tsx";
 
+/** Parent listing id → its bookable-child candidates, each hydrated to a
+ * {@link TicketListing} so availability (isSoldOut/isClosed/maxPurchasable) is
+ * resolved for the gate/render. Empty when the parents flag is off or the page
+ * has no parents; children are never added to `ctx.listings` (they are not URL
+ * slugs). See parents.md "Public: the booking-page gate". */
+export type ChildrenByParentId = Map<number, TicketListing[]>;
+
 /** Shared rendering context for ticket pages */
 export type TicketCtx = {
   slugs: string[];
@@ -18,6 +25,9 @@ export type TicketCtx = {
   terms: string;
   questions: QuestionWithAnswers[];
   questionListingMap: QuestionListingMap;
+  /** Parent→children relationship for the page's listings (see
+   * {@link ChildrenByParentId}). */
+  childrenByParentId: ChildrenByParentId;
   baseUrl?: string;
   groupName?: string;
   groupDescription?: string;
@@ -45,6 +55,9 @@ export type TicketSharedContext = {
   terms: string;
   questions: QuestionWithAnswers[];
   questionListingMap: QuestionListingMap;
+  /** Parent→children relationship for the page's listings (see
+   * {@link ChildrenByParentId}); empty map when the flag is off or none apply. */
+  childrenByParentId: ChildrenByParentId;
   groupName?: string;
   groupDescription?: string;
   actionUrl?: string;

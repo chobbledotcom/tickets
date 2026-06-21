@@ -3,6 +3,7 @@
  */
 
 import { compact } from "#fp";
+import { t } from "#i18n";
 import {
   checkoutResponse,
   errorRedirect,
@@ -22,7 +23,10 @@ import {
   ensureAllBookings,
 } from "#shared/db/attendees.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
-import { getChildListingIds } from "#shared/db/listing-parents.ts";
+import {
+  getChildListingIds,
+  getChildrenForParents,
+} from "#shared/db/listing-parents.ts";
 import { getListingsBySlugsBatch } from "#shared/db/listings.ts";
 import {
   getOptionalAddOns,
@@ -46,10 +50,15 @@ import {
 } from "#shared/types.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
 import type { TicketListing } from "#templates/public.tsx";
-import { formatAtomicError, listingsWithQuantity } from "./ticket-form.ts";
+import {
+  formatAtomicError,
+  listingsWithQuantity,
+  parseCustomPrice,
+} from "./ticket-form.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 import type {
   AsyncHandler,
+  ChildrenByParentId,
   ListingQty,
   TicketCtx,
   TicketSharedContext,
@@ -268,6 +277,245 @@ export const resolveDayCount = async (
   return { dayCount: raw };
 };
 
+/** The parent's resolved booking duration that its customisable children
+ * inherit (invariant I4): the shared `dayCount` for a customisable parent, the
+ * fixed `duration_days` for a fixed daily parent, 1 for a standard parent. */
+const parentResolvedDuration = (
+  parent: TicketListing["listing"],
+  dayCount: number,
+): number => {
+  if (parent.customisable_days) return dayCount;
+  if (parent.listing_type === "daily") {
+    return normalizeDurationDays(parent.duration_days);
+  }
+  return 1;
+};
+
+/** A child is bookable now if it is not sold out or closed, and — when
+ * customisable — its inherited duration is priced. Date-capacity for a daily
+ * child is enforced later by the folded `checkAvailability` (never clamped). */
+const childIsBookable = (child: TicketListing, duration: number): boolean =>
+  !child.isSoldOut &&
+  !child.isClosed &&
+  (!child.listing.customisable_days ||
+    dayPriceFor(child.listing, duration) !== null);
+
+/** The order's listing set, quantity map, custom-price map and selected ids,
+ * expanded with the chosen children. Shared by the mutable fold accumulator and
+ * the success result so the two never drift apart. */
+type FoldedOrder = {
+  listings: TicketListing[];
+  quantities: Map<number, number>;
+  customPrices: Map<number, number>;
+  selectedListingIds: Set<number>;
+};
+
+/** Mutable accumulator threaded through the per-parent fold: the {@link
+ * FoldedOrder} plus the single customisable duration seen so far (null until a
+ * customisable line appears) used to reject mixed durations. */
+type FoldState = FoldedOrder & {
+  /** The one duration every customisable line must share, or null if none yet. */
+  customisableDuration: number | null;
+};
+
+export type FoldChildrenResult =
+  | (FoldedOrder & {
+      ok: true;
+      hasCustomisable: boolean;
+      /** The single customisable duration every customisable line shares, or
+       * the passed-in dayCount when no line is customisable. Drives the folded
+       * order's `dayCount` so a fixed parent's customisable child is priced for
+       * the inherited duration, not the default one day. */
+      dayCount: number;
+    })
+  | { ok: false; error: string };
+
+/** Resolve the buyer's chosen child for one in-cart parent: the submitted
+ * `child_<parentId>` when it names a current bookable child, the sole bookable
+ * child when none was submitted, or an error (none bookable / not chosen /
+ * not a bookable child). */
+const resolveChosenChild = (
+  parent: TicketListing,
+  bookable: TicketListing[],
+  form: FormParams,
+): TicketListing | { error: string } => {
+  if (bookable.length === 0) {
+    return {
+      error: t("public.ticket.child_sold_out", { name: parent.listing.name }),
+    };
+  }
+  const submitted = parsePositiveInt(
+    form.getString(`child_${parent.listing.id}`),
+  );
+  if (submitted === null) {
+    if (bookable.length === 1) return bookable[0]!;
+    return {
+      error: t("public.ticket.child_required", { name: parent.listing.name }),
+    };
+  }
+  const chosen = bookable.find((c) => c.listing.id === submitted);
+  if (!chosen) {
+    return {
+      error: t("public.ticket.child_required", { name: parent.listing.name }),
+    };
+  }
+  return chosen;
+};
+
+/** Read and validate the chosen child's pay-more price (when `can_pay_more`),
+ * namespaced by parent+child. Returns the price (or undefined when the child is
+ * fixed-price), or an error message. */
+const childCustomPrice = (
+  parentId: number,
+  child: TicketListing,
+  form: FormParams,
+): number | { error: string } | undefined => {
+  if (!child.listing.can_pay_more) return undefined;
+  const result = parseCustomPrice(
+    form,
+    `child_price_${parentId}_${child.listing.id}`,
+    child.listing.unit_price,
+    child.listing.max_price,
+  );
+  if (!result.ok) return { error: `${child.listing.name}: ${result.error}` };
+  return result.price;
+};
+
+/** Record a customisable line's duration into the order's single shared
+ * duration, rejecting a second distinct value (the single CheckoutIntent
+ * dayCount can't represent two — parents.md "Pricing & payment round-trip").
+ * Shared by the page's own customisable lines and folded customisable children.
+ * Returns null on success or the mixed-duration error. */
+const recordDuration = (state: FoldState, duration: number): string | null => {
+  if (
+    state.customisableDuration !== null &&
+    state.customisableDuration !== duration
+  ) {
+    return t("public.ticket.mixed_durations");
+  }
+  state.customisableDuration = duration;
+  return null;
+};
+
+/** Fold one chosen child into the accumulator: sum its quantity across parents,
+ * reconcile the customisable duration and pay-more price, and re-validate the
+ * summed quantity against the child's max-purchasable cap (reject, never clamp).
+ * Returns null on success or an error message. */
+const foldChild = (
+  state: FoldState,
+  child: TicketListing,
+  parentQty: number,
+  duration: number,
+  price: number | undefined,
+): string | null => {
+  const childId = child.listing.id;
+  const summed = (state.quantities.get(childId) ?? 0) + parentQty;
+  if (summed > child.maxPurchasable) {
+    return formatAtomicError("capacity_exceeded", child.listing.name);
+  }
+  if (child.listing.customisable_days) {
+    const durationError = recordDuration(state, duration);
+    if (durationError) return durationError;
+  }
+  if (price !== undefined) {
+    const existing = state.customPrices.get(childId);
+    if (existing !== undefined && existing !== price) {
+      return t("public.ticket.child_price_mismatch", {
+        name: child.listing.name,
+      });
+    }
+    state.customPrices.set(childId, price);
+  }
+  state.quantities.set(childId, summed);
+  state.selectedListingIds.add(childId);
+  if (!state.listings.some((e) => e.listing.id === childId)) {
+    state.listings.push(child);
+  }
+  return null;
+};
+
+/** Resolve, validate and fold one in-cart parent's chosen child into `state`.
+ * Returns null on success or a user-facing error (no bookable child / not
+ * chosen / invalid price / over-capacity / mixed duration). */
+const foldParent = (
+  state: FoldState,
+  parent: TicketListing,
+  parentQty: number,
+  children: TicketListing[],
+  form: FormParams,
+  dayCount: number,
+): string | null => {
+  const duration = parentResolvedDuration(parent.listing, dayCount);
+  const bookable = children.filter((c) => childIsBookable(c, duration));
+  const chosen = resolveChosenChild(parent, bookable, form);
+  if ("error" in chosen) return chosen.error;
+  const price = childCustomPrice(parent.listing.id, chosen, form);
+  if (price && typeof price === "object") return price.error;
+  return foldChild(state, chosen, parentQty, duration, price);
+};
+
+/**
+ * Fold every in-cart parent's selected child into the order (steps 4–5 core,
+ * parents.md "Server-side validation"). A parent is any in-cart listing with a
+ * child edge in `ctx.childrenByParentId`; its children are filtered to the
+ * bookable ones for the resolved date/duration, one is chosen (auto-selected
+ * when single), and folded into the listing set + quantity/custom-price maps +
+ * selected ids — so every downstream per-listing path sees the child as an
+ * ordinary line. A parent with no bookable child is rejected (sold out). Child
+ * fields under a zero-quantity parent are ignored, not read. No-op when the
+ * flag is off / no parents apply.
+ */
+export const foldSelectedChildren = (
+  ctx: TicketCtx,
+  form: FormParams,
+  base: {
+    quantities: Map<number, number>;
+    customPrices: Map<number, number>;
+    date: string | null;
+    dayCount: number;
+    hasCustomisable: boolean;
+  },
+): FoldChildrenResult => {
+  const state: FoldState = {
+    customisableDuration: null,
+    customPrices: new Map(base.customPrices),
+    listings: [...ctx.listings],
+    quantities: new Map(base.quantities),
+    selectedListingIds: new Set(base.quantities.keys()),
+  };
+  // The page's own customisable lines all share the one submitted `day_count`,
+  // so seed the shared duration with it when any such line is in the cart; a
+  // folded customisable child whose inherited duration differs is then rejected.
+  if (base.hasCustomisable) state.customisableDuration = base.dayCount;
+
+  for (const parent of ctx.listings) {
+    const parentQty = base.quantities.get(parent.listing.id) ?? 0;
+    if (parentQty <= 0) continue;
+    const children = ctx.childrenByParentId.get(parent.listing.id);
+    if (!children || children.length === 0) continue;
+    const error = foldParent(
+      state,
+      parent,
+      parentQty,
+      children,
+      form,
+      base.dayCount,
+    );
+    if (error) return { error, ok: false };
+  }
+
+  return {
+    customPrices: state.customPrices,
+    dayCount: state.customisableDuration ?? base.dayCount,
+    hasCustomisable:
+      base.hasCustomisable || state.customisableDuration !== null,
+    listings: state.listings,
+    ok: true,
+    quantities: state.quantities,
+    selectedListingIds: state.selectedListingIds,
+  };
+};
+
 type FreeReservationParams = {
   listings: TicketListing[];
   quantities: Map<number, number>;
@@ -381,6 +629,39 @@ export const computeSharedDates = async (
   return [...dateSets[0]!].filter((d) => dateSets.every((s) => s.has(d)));
 };
 
+/**
+ * The parent→children relationship for the page's listings, each child
+ * hydrated to a {@link TicketListing} so its availability is resolved for the
+ * gate/render. No-op (empty map, no query) when the parents flag is off, so
+ * existing pages are unaffected until the feature ships. Children are loaded by
+ * relationship only — bookability is evaluated at render/submit against the
+ * resolved date (invariant I3).
+ */
+export const loadChildrenByParentId = async (
+  listings: TicketListing[],
+): Promise<ChildrenByParentId> => {
+  if (!isListingParentsEnabled()) return new Map();
+  const childrenByParent = await getChildrenForParents(
+    listings.map((e) => e.listing.id),
+  );
+  const result: ChildrenByParentId = new Map();
+  for (const [parentId, children] of childrenByParent) {
+    result.set(parentId, await buildTicketListingsWithGroupCapacity(children));
+  }
+  return result;
+};
+
+/** Distinct child listing ids across every parent's children. */
+export const childListingIdsOf = (
+  childrenByParentId: ChildrenByParentId,
+): number[] => {
+  const ids = new Set<number>();
+  for (const children of childrenByParentId.values()) {
+    for (const child of children) ids.add(child.listing.id);
+  }
+  return [...ids];
+};
+
 /** Fetch shared context for ticket pages: dates, terms, questions.
  * When a group is provided, its terms override global terms and its name/description are included. */
 export const getTicketContext = async (
@@ -388,11 +669,19 @@ export const getTicketContext = async (
   group?: Group,
 ): Promise<TicketSharedContext> => {
   const listingIds = activeListings.map((e) => e.listing.id);
+  const childrenByParentId = await loadChildrenByParentId(activeListings);
+  // Child questions must be parseable/validatable at submit, so load questions
+  // for the children's listing ids too (keyed by question id, so a child
+  // question activates for its child line in the fold).
+  const questionListingIds = [
+    ...listingIds,
+    ...childListingIdsOf(childrenByParentId),
+  ];
   const [dates, globalTerms, questionsResult, promoCodesEnabled, addOns] =
     await Promise.all([
       computeSharedDates(activeListings),
       Promise.resolve(settings.terms),
-      getQuestionsWithListingIds(listingIds),
+      getQuestionsWithListingIds(questionListingIds),
       hasPromoCodeModifiers(),
       getOptionalAddOns(listingIds),
     ]);
@@ -401,6 +690,7 @@ export const getTicketContext = async (
     : globalTerms;
   return {
     addOns,
+    childrenByParentId,
     dates,
     promoCodesEnabled,
     terms,

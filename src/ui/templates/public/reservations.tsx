@@ -192,6 +192,79 @@ const renderTermsAndCheckbox = (terms: string): string => {
   );
 };
 
+/** Render one question control. `required` is the HTML constraint: page
+ * listings emit required controls; folded child questions render non-required
+ * (the server enforces requiredness only for the selected child — invariant
+ * I9). `listingIds` (when present) lets the visibility script show/hide. */
+const renderQuestion = (
+  q: QuestionWithAnswers,
+  required: boolean,
+  listingIds?: string,
+): JSX.Element => {
+  // Restore the chosen answer when a validation error re-renders the page.
+  const answered = savedFormValue(`question_${q.id}`);
+  // Deactivated answers are never offered on the public booking form.
+  const options = q.answers.filter((a) => a.active);
+  // A select is a single control, so a plain <label> names it like the text
+  // fields do. Radios are a set of controls, so they need a <fieldset> with
+  // a <legend> to label the group. Both carry .custom-question (plus any
+  // data-listing-ids) so the visibility script can show/hide them.
+  if (q.display_type === "free_text") {
+    return (
+      <label class="custom-question" data-listing-ids={listingIds}>
+        {q.text}
+        <input
+          maxlength={MAX_TEXTAREA_LENGTH}
+          name={`question_${q.id}`}
+          required={required}
+          type="text"
+          value={answered}
+        />
+      </label>
+    );
+  }
+  if (q.display_type === "select") {
+    return (
+      <label class="custom-question" data-listing-ids={listingIds}>
+        {q.text}
+        <select name={`question_${q.id}`} required={required}>
+          <option value="">
+            {t("public.ticket.select_answer_placeholder")}
+          </option>
+          {options.map((a) => (
+            <option selected={answered === String(a.id)} value={String(a.id)}>
+              {a.text}
+            </option>
+          ))}
+        </select>
+      </label>
+    );
+  }
+  return (
+    <fieldset class="custom-question" data-listing-ids={listingIds}>
+      <legend>{q.text}</legend>
+      {options.map((a) => (
+        <label>
+          <input
+            checked={answered === String(a.id)}
+            name={`question_${q.id}`}
+            required={required}
+            type="radio"
+            value={String(a.id)}
+          />{" "}
+          {a.text}
+        </label>
+      ))}
+    </fieldset>
+  );
+};
+
+/** A choice question whose answers are all deactivated has nothing selectable,
+ * so drop it rather than render a required control a buyer can't satisfy (the
+ * parser likewise treats it as not applicable). */
+const answerableQuestion = (q: QuestionWithAnswers): boolean =>
+  q.display_type === "free_text" || q.answers.some((a) => a.active);
+
 /** Render custom multiple-choice question fields.
  * When questionListingMap is provided, adds data-listing-ids
  * so JS can show/hide questions based on selected listing quantities. */
@@ -201,75 +274,10 @@ export const renderQuestions = (
 ): JSX.Element => (
   <>
     {questions
-      // A choice question whose answers are all deactivated has nothing
-      // selectable, so drop it rather than render a required control a buyer
-      // can't satisfy (the parser likewise treats it as not applicable).
-      .filter(
-        (q) =>
-          q.display_type === "free_text" || q.answers.some((a) => a.active),
-      )
-      .map((q) => {
-        // Restore the chosen answer when a validation error re-renders the page.
-        const answered = savedFormValue(`question_${q.id}`);
-        const listingIds = questionListingMap?.get(q.id)?.join(" ");
-        // Deactivated answers are never offered on the public booking form.
-        const options = q.answers.filter((a) => a.active);
-        // A select is a single control, so a plain <label> names it like the text
-        // fields do. Radios are a set of controls, so they need a <fieldset> with
-        // a <legend> to label the group. Both carry .custom-question (plus any
-        // data-listing-ids) so the visibility script can show/hide them.
-        if (q.display_type === "free_text") {
-          return (
-            <label class="custom-question" data-listing-ids={listingIds}>
-              {q.text}
-              <input
-                maxlength={MAX_TEXTAREA_LENGTH}
-                name={`question_${q.id}`}
-                required
-                type="text"
-                value={answered}
-              />
-            </label>
-          );
-        }
-        if (q.display_type === "select") {
-          return (
-            <label class="custom-question" data-listing-ids={listingIds}>
-              {q.text}
-              <select name={`question_${q.id}`} required>
-                <option value="">
-                  {t("public.ticket.select_answer_placeholder")}
-                </option>
-                {options.map((a) => (
-                  <option
-                    selected={answered === String(a.id)}
-                    value={String(a.id)}
-                  >
-                    {a.text}
-                  </option>
-                ))}
-              </select>
-            </label>
-          );
-        }
-        return (
-          <fieldset class="custom-question" data-listing-ids={listingIds}>
-            <legend>{q.text}</legend>
-            {options.map((a) => (
-              <label>
-                <input
-                  checked={answered === String(a.id)}
-                  name={`question_${q.id}`}
-                  required
-                  type="radio"
-                  value={String(a.id)}
-                />{" "}
-                {a.text}
-              </label>
-            ))}
-          </fieldset>
-        );
-      })}
+      .filter(answerableQuestion)
+      .map((q) =>
+        renderQuestion(q, true, questionListingMap?.get(q.id)?.join(" ")),
+      )}
   </>
 );
 
@@ -319,6 +327,114 @@ const restoredQuantity = (
   return Math.max(0, Math.min(Number.parseInt(saved, 10) || 0, maxPurchasable));
 };
 
+/**
+ * Per-parent child rendering inputs threaded down to the listing rows: the
+ * page's children grouped by parent, the page questions and their listing map
+ * (to render each child's questions), and a shared set tracking which question
+ * ids have already been emitted so a question shared by sibling children (or
+ * by the parent) renders exactly once (invariant I9). Empty `children` means
+ * the page has no parents and nothing extra renders.
+ */
+export type ChildRenderCtx = {
+  children: Map<number, TicketListing[]>;
+  questions: QuestionWithAnswers[];
+  questionListingMap: QuestionListingMap | undefined;
+  rendered: Set<number>;
+};
+
+/** Whether a child is currently bookable (its quantity controls render
+ * enabled): not sold out and not closed. Unavailable children render disabled. */
+const childBookable = (child: TicketListing): boolean =>
+  !child.isSoldOut && !child.isClosed;
+
+/** The questions assigned to a child listing, in page order, that have not yet
+ * been rendered on the page (deduped across siblings/parent via `rendered`). */
+const childQuestionsToRender = (
+  childId: number,
+  ctx: ChildRenderCtx,
+): QuestionWithAnswers[] =>
+  ctx.questions.filter((q) => {
+    if (ctx.rendered.has(q.id) || !answerableQuestion(q)) return false;
+    const ids = ctx.questionListingMap?.get(q.id);
+    // A question with no listing map applies to every selected listing
+    // (assign_all); otherwise only when this child is among its listings.
+    return !ids || ids.includes(childId);
+  });
+
+/** Render one child <option> as a radio in the per-parent selector, plus — when
+ * it is the (currently) chosen/auto-selected option — its non-required pay-more
+ * price input. A sold-out/closed child renders disabled (invariant I6). */
+const renderChildOption = (
+  parentId: number,
+  child: TicketListing,
+  checked: boolean,
+): string => {
+  const { listing } = child;
+  const bookable = childBookable(child);
+  const saved = savedFormValue(`child_${parentId}`);
+  const isChecked =
+    saved === "" ? checked && bookable : saved === String(listing.id);
+  const priceHtml =
+    listing.can_pay_more && bookable
+      ? renderPayMoreInput(listing, `child_price_${parentId}_${listing.id}`)
+      : "";
+  const label = bookable
+    ? `${escapeHtml(listing.name)} (${formatCurrency(listing.unit_price)})`
+    : escapeHtml(t("public.ticket.child_unavailable", { name: listing.name }));
+  return (
+    `<label class="child-option">` +
+    `<input type="radio" name="child_${parentId}" value="${listing.id}"${
+      isChecked ? " checked" : ""
+    }${bookable ? "" : " disabled"} /> ${label}</label>${priceHtml}`
+  );
+};
+
+/**
+ * Render the per-parent child block: a non-required radio group
+ * `child_<parentId>` over the parent's children (auto-checked when exactly one
+ * is bookable), each bookable pay-more child's price input, and the children's
+ * questions (deduped, non-required). Empty string when the parent has no
+ * children. Requiredness is enforced server-side only for the selected child of
+ * an in-cart parent (invariant I9).
+ */
+const renderChildBlock = (
+  parentId: number,
+  parentName: string,
+  ctx: ChildRenderCtx,
+): string => {
+  const children = ctx.children.get(parentId);
+  if (!children || children.length === 0) return "";
+  const bookable = children.filter(childBookable);
+  const autoChild = bookable.length === 1 ? bookable[0]!.listing.id : null;
+  const options = children
+    .map((child) =>
+      renderChildOption(parentId, child, child.listing.id === autoChild),
+    )
+    .join("");
+  const questionsHtml = children
+    .map((child) => {
+      const toRender = childQuestionsToRender(child.listing.id, ctx);
+      for (const q of toRender) ctx.rendered.add(q.id);
+      return toRender
+        .map((q) =>
+          String(
+            renderQuestion(
+              q,
+              false,
+              ctx.questionListingMap?.get(q.id)?.join(" "),
+            ),
+          ),
+        )
+        .join("");
+    })
+    .join("");
+  return (
+    `<fieldset class="child-selector" data-parent-id="${parentId}">` +
+    `<legend>${escapeHtml(t("public.ticket.choose_option", { name: parentName }))}</legend>` +
+    `${options}${questionsHtml}</fieldset>`
+  );
+};
+
 /** Render quantity selector for an listing row.
  *
  * An optional per-listing `prefill` pre-selects the quantity (clamped to the
@@ -327,6 +443,7 @@ const renderListingRow = (
   info: TicketListing,
   hideQuantity = false,
   prefill?: TicketPrefill,
+  childCtx?: ChildRenderCtx,
 ): string => {
   const { listing, isSoldOut, isClosed, maxPurchasable } = info;
   const fieldName = `quantity_${listing.id}`;
@@ -363,6 +480,9 @@ const renderListingRow = (
   const showPayMore = listing.can_pay_more;
   const priceFieldName = `custom_price_${listing.id}`;
   const prefilledPrice = prefill ? prefill.customPriceMinor : undefined;
+  const childBlock = childCtx
+    ? renderChildBlock(listing.id, listing.name, childCtx)
+    : "";
 
   return `
     <div class="ticket-row">
@@ -374,6 +494,7 @@ const renderListingRow = (
           ? renderPayMoreInput(listing, priceFieldName, prefilledPrice)
           : ""
       }
+      ${childBlock}
     </div>
   `;
 };
@@ -383,6 +504,7 @@ const renderSingleListingControls = (
   info: TicketListing,
   hideQuantity: boolean,
   prefill?: TicketPrefill,
+  childCtx?: ChildRenderCtx,
 ): string => {
   const { listing, maxPurchasable } = info;
   const fieldName = `quantity_${listing.id}`;
@@ -398,11 +520,14 @@ const renderSingleListingControls = (
       )}</select></label>`;
   const showPayMore = listing.can_pay_more;
   const priceFieldName = `custom_price_${listing.id}`;
+  const childBlock = childCtx
+    ? renderChildBlock(listing.id, listing.name, childCtx)
+    : "";
   return `${quantityHtml}${
     showPayMore
       ? renderPayMoreInput(listing, priceFieldName, prefilledPrice)
       : ""
-  }`;
+  }${childBlock}`;
 };
 
 /**
@@ -455,6 +580,9 @@ export type TicketPageOptions = {
   addOns?: AddOnOption[];
   /** Whether to offer a promo-code field. */
   promoCodesEnabled?: boolean;
+  /** Parent listing id → its children (each a TicketListing). Drives the
+   * per-parent child selector rendered under each parent row. */
+  childrenByParentId?: Map<number, TicketListing[]>;
 };
 
 /** Unavailability message shown when all listings are sold out or closed */
@@ -680,6 +808,87 @@ const dayConfig = (
 });
 
 /**
+ * Split the page's questions into the page-level set (rendered required in the
+ * main block) and the per-parent child render context (child-only questions
+ * rendered non-required under their parent). A question shared by a page
+ * listing and a child renders at page level once, so the child ctx's `rendered`
+ * set is pre-seeded with the page question ids. Without parents the page set is
+ * unchanged and there is no child ctx.
+ */
+const splitChildQuestions = (
+  listings: TicketListing[],
+  questions: QuestionWithAnswers[],
+  questionListingMap: QuestionListingMap | undefined,
+  childrenByParentId: Map<number, TicketListing[]> | undefined,
+): { pageQuestions: QuestionWithAnswers[]; childCtx?: ChildRenderCtx } => {
+  if (!childrenByParentId || childrenByParentId.size === 0) {
+    return { pageQuestions: questions };
+  }
+  const pageListingIds = new Set(listings.map((e) => e.listing.id));
+  const isPageQuestion = (q: QuestionWithAnswers): boolean => {
+    const ids = questionListingMap?.get(q.id);
+    return !ids || ids.some((id) => pageListingIds.has(id));
+  };
+  const pageQuestions = questions.filter(isPageQuestion);
+  return {
+    childCtx: {
+      children: childrenByParentId,
+      questionListingMap,
+      questions,
+      rendered: new Set<number>(pageQuestions.map((q) => q.id)),
+    },
+    pageQuestions,
+  };
+};
+
+/** Whether the contact-field set must include a paid order's provider-imposed
+ * fields: any page listing, any possible child, or any add-on is paid. A free
+ * parent with a paid child still needs the email field present (non-required,
+ * enforced server-side when the folded order is actually paid). */
+const pageOrChildPaid = (
+  listings: TicketListing[],
+  childrenByParentId: Map<number, TicketListing[]> | undefined,
+  addOns: AddOnOption[] | undefined,
+): boolean => {
+  const children = childrenByParentId
+    ? [...childrenByParentId.values()].flat()
+    : [];
+  return (
+    listings.some((e) => isPaidListing(e.listing)) ||
+    children.some((e) => isPaidListing(e.listing)) ||
+    (addOns?.some((addOn) => addOn.requiresPayment) ?? false)
+  );
+};
+
+/** Render the per-listing rows (with their child blocks). A single-listing page
+ * shows just the controls (details live in the header); multi-listing pages
+ * show a compact row each. Both honour per-listing quantity pre-fills. */
+const buildListingRows = (
+  listings: TicketListing[],
+  isSingleListing: boolean,
+  hideQuantity: boolean,
+  prefill: BookingPrefill | undefined,
+  childCtx: ChildRenderCtx | undefined,
+): string =>
+  isSingleListing
+    ? renderSingleListingControls(
+        listings[0]!,
+        hideQuantity,
+        prefill?.listings.get(listings[0]!.listing.id),
+        childCtx,
+      )
+    : listings
+        .map((e) =>
+          renderListingRow(
+            e,
+            hideQuantity,
+            prefill?.listings.get(e.listing.id),
+            childCtx,
+          ),
+        )
+        .join("");
+
+/**
  * Ticket page - register for one or more listings
  * Single listings show rich details (image, description, date, location).
  * Multiple listings show a compact row layout with per-listing quantity selectors.
@@ -699,15 +908,16 @@ export const ticketPage = ({
   actionUrl,
   addOns,
   promoCodesEnabled,
+  childrenByParentId,
 }: TicketPageOptions): string => {
   const inIframe = getIframeMode();
   const allUnavailable = listings.every((e) => e.isSoldOut || e.isClosed);
   const allClosed = listings.every((e) => e.isClosed);
   const fieldsSetting = getTicketFieldsSetting(listings);
-  const anyPaid =
-    listings.some((e) => isPaidListing(e.listing)) ||
-    (addOns?.some((addOn) => addOn.requiresPayment) ?? false);
-  const fields: Field[] = getTicketFields(fieldsSetting, anyPaid);
+  const fields: Field[] = getTicketFields(
+    fieldsSetting,
+    pageOrChildPaid(listings, childrenByParentId, addOns),
+  );
   const hasDaily = listings.some((e) => e.listing.listing_type === "daily");
 
   const isSingleListing = listings.length === 1;
@@ -722,24 +932,20 @@ export const ticketPage = ({
     availableListings.length === 1 &&
     availableListings[0]?.maxPurchasable === 1;
 
-  // For single listings, render just the quantity/pay-more controls (listing details are in the header).
-  // Both single- and multi-listing rows honour per-listing quantity pre-fills,
-  // so QR links (single) and the order cart (multi) share the same machinery.
-  const listingRows = isSingleListing
-    ? renderSingleListingControls(
-        listings[0]!,
-        hideQuantity,
-        prefill?.listings.get(listings[0]!.listing.id),
-      )
-    : listings
-        .map((e) =>
-          renderListingRow(
-            e,
-            hideQuantity,
-            prefill?.listings.get(e.listing.id),
-          ),
-        )
-        .join("");
+  const { pageQuestions, childCtx } = splitChildQuestions(
+    listings,
+    questions ?? [],
+    questionListingMap,
+    childrenByParentId,
+  );
+
+  const listingRows = buildListingRows(
+    listings,
+    isSingleListing,
+    hideQuantity,
+    prefill,
+    childCtx,
+  );
 
   // Unified header. When the caller supplies group metadata (groups, renewals),
   // it takes priority over single-listing details — the caller knows best what
@@ -788,7 +994,7 @@ export const ticketPage = ({
           prefill={prefill}
           promoCodesEnabled={promoCodesEnabled}
           questionListingMap={questionListingMap}
-          questions={questions}
+          questions={pageQuestions}
           slugs={slugs}
           terms={terms}
         />

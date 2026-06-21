@@ -4,6 +4,7 @@ import {
   edgeIncompatibilityAfterChange,
   getChildIds,
   getChildListingIds,
+  getChildrenForParents,
   getParentIds,
   getParentsOf,
   setChildIds,
@@ -107,6 +108,42 @@ describeWithEnv("db > listing-parents", { db: true }, () => {
 
     test("returns an empty set for an empty input (no query)", async () => {
       expect([...(await getChildListingIds([]))]).toEqual([]);
+    });
+  });
+
+  describe("getChildrenForParents", () => {
+    test("groups hydrated children by parent, preserving child-id order", async () => {
+      const { parent, childA, childB } = await threeListings();
+      await setChildIds(parent.id, [childB.id, childA.id]);
+      const map = await getChildrenForParents([parent.id]);
+      // Order is by child id ascending (the query's ORDER BY), not insert order.
+      expect(map.get(parent.id)?.map((c) => c.id)).toEqual(
+        ascending([childA.id, childB.id]),
+      );
+    });
+
+    test("loads several parents in one call (no N+1)", async () => {
+      const { parent, childA, childB } = await threeListings();
+      const parent2 = await createTestListing({ name: "Base unit 2" });
+      await setChildIds(parent.id, [childA.id]);
+      await setChildIds(parent2.id, [childB.id]);
+      const map = await getChildrenForParents([parent.id, parent2.id]);
+      expect(map.get(parent.id)?.map((c) => c.id)).toEqual([childA.id]);
+      expect(map.get(parent2.id)?.map((c) => c.id)).toEqual([childB.id]);
+    });
+
+    test("omits parents with no children and returns empty for empty input", async () => {
+      const { parent } = await threeListings();
+      expect((await getChildrenForParents([parent.id])).size).toBe(0);
+      expect((await getChildrenForParents([])).size).toBe(0);
+    });
+
+    test("drops a child edge whose listing no longer exists", async () => {
+      const { parent, childA } = await threeListings();
+      const missingChildId = childA.id + 100_000;
+      await setChildIds(parent.id, [childA.id, missingChildId]);
+      const map = await getChildrenForParents([parent.id]);
+      expect(map.get(parent.id)?.map((c) => c.id)).toEqual([childA.id]);
     });
   });
 

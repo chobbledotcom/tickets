@@ -16,6 +16,7 @@ import { compact } from "#fp";
 import {
   executeBatch,
   inPlaceholders,
+  queryAll,
   queryIdColumn,
 } from "#shared/db/client.ts";
 import { getListingsById } from "#shared/db/listings.ts";
@@ -75,6 +76,35 @@ export const setChildIds = (
       sql: INSERT_EDGE,
     })),
   ]);
+
+/**
+ * The children of each of `parentIds`, hydrated to full rows (relationship
+ * only — never availability-filtered; see invariant I3 and the module note).
+ * One query for all edges (no N+1), then grouped by parent. Each parent's
+ * children preserve child-id order and drop any that no longer exist; only
+ * parents with at least one surviving child appear in the result map.
+ */
+export const getChildrenForParents = async (
+  parentIds: readonly number[],
+): Promise<Map<number, ListingWithCount[]>> => {
+  if (parentIds.length === 0) return new Map();
+  const rows = await queryAll<{ parent: number; child: number }>(
+    `SELECT parent_listing_id AS parent, child_listing_id AS child
+       FROM listing_parents
+      WHERE parent_listing_id IN (${inPlaceholders(parentIds)})
+      ORDER BY parent_listing_id, child_listing_id`,
+    [...parentIds],
+  );
+  if (rows.length === 0) return new Map();
+  const byId = await getListingsById();
+  const result = new Map<number, ListingWithCount[]>();
+  for (const { parent, child } of rows) {
+    const listing = byId.get(child);
+    if (!listing) continue;
+    (result.get(parent) ?? result.set(parent, []).get(parent)!).push(listing);
+  }
+  return result;
+};
 
 /** The listings `childId` is offered under, hydrated to full rows (relationship
  * only; preserves id order and drops any that no longer exist). */

@@ -78,6 +78,7 @@ import {
   buildRegistrationItems,
   checkAvailability,
   createFreeReservation,
+  foldSelectedChildren,
   getTicketContext,
   handlePaymentFlow,
   resolveDayCount,
@@ -350,6 +351,9 @@ const handleFreePath = async (
   params: PathParams & {
     modifierUsages: ModifierApplication[];
     paymentBreakdown?: TicketPaymentBreakdown;
+    /** Pre-fold single-parent thank-you URL, kept across the fold so a parent +
+     * its folded children still redirects to the parent's configured URL. */
+    thankYouUrl?: string | null;
   },
 ): Promise<Response> => {
   const {
@@ -361,6 +365,7 @@ const handleFreePath = async (
     info,
     modifierUsages,
     paymentBreakdown,
+    thankYouUrl,
   } = params;
   const result = await createFreeReservation({
     contact,
@@ -425,10 +430,10 @@ const handleFreePath = async (
     );
   }
 
-  if (ctx.listings.length === 1) {
-    const thankYouUrl = ctx.listings[0]!.listing.thank_you_url;
-    if (thankYouUrl) return redirectResponse(thankYouUrl);
-  }
+  // The caller resolves the redirect from the pre-fold listing set (a single
+  // listing's — or a single parent + its folded children's — thank-you URL), so
+  // folding a child never drops it.
+  if (thankYouUrl) return redirectResponse(thankYouUrl);
   const token = encodeURIComponent(result.token);
   return redirectResponse(`/ticket/reserved?tokens=${token}`);
 };
@@ -568,21 +573,64 @@ const prepareOrder = async (
   const stateError = validateFormState(form, ctx);
   if (stateError) return { error: stateError, ok: false };
 
-  const quantities = parseQuantities(form, ctx.listings);
-  const totalQuantity = sum(Array.from(quantities.values()));
+  const pageQuantities = parseQuantities(form, ctx.listings);
+  const totalQuantity = sum(Array.from(pageQuantities.values()));
   if (totalQuantity === 0) {
     return { error: "Please select at least one ticket", ok: false };
   }
 
-  const selected = listingsWithQuantity(ctx.listings, quantities);
-  const selectedListingIds = new Set(quantities.keys());
+  // Resolve the order's date and day-count *before* folding children, so the
+  // child bookability filter and inherited durations evaluate against the real
+  // values (parents.md "Server-side validation" step 2).
+  let date: string | null = null;
+  if (ctx.dates.length > 0) {
+    date = validateSubmittedDate(form, ctx.dates);
+    if (!date) return { error: "Please select a valid date", ok: false };
+  }
+
+  const pageSelected = listingsWithQuantity(ctx.listings, pageQuantities);
+  const baseHasCustomisable = pageSelected.some(
+    ({ listing }) => listing.customisable_days,
+  );
+  const dayResult = await resolveDayCount(pageSelected, form, date);
+  if ("error" in dayResult) return { error: dayResult.error, ok: false };
+
+  // Parse the page listings' pay-more prices, then apply any signed QR override
+  // — both scoped to page listings only, never folded children (the override
+  // must not reach a child line; parents.md QR entry point).
+  const customPricesResult = parseCustomPrices(form, ctx, pageQuantities);
+  if (typeof customPricesResult === "string") {
+    return { error: customPricesResult, ok: false };
+  }
+  await applyQrTokenOverride(form, ctx, customPricesResult);
+
+  // Fold each in-cart parent's selected child into the order: expand the listing
+  // set + quantity/custom-price maps + selected ids, so every per-listing path
+  // below sees children as ordinary lines (parents.md fold checklist).
+  const fold = foldSelectedChildren(ctx, form, {
+    customPrices: customPricesResult,
+    date,
+    dayCount: dayResult.dayCount,
+    hasCustomisable: baseHasCustomisable,
+    quantities: pageQuantities,
+  });
+  if (!fold.ok) return { error: fold.error, ok: false };
+  const { hasCustomisable, dayCount, quantities } = fold;
+  const selectedListingIds = fold.selectedListingIds;
+  // A folded ctx carrying the expanded listing set drives availability, item
+  // building, contact fields and free-reservation creation downstream; the
+  // questionListingMap already includes child questions (loaded in
+  // getTicketContext).
+  const foldedCtx: TicketCtx = { ...ctx, listings: fold.listings };
+
+  const selected = listingsWithQuantity(foldedCtx.listings, quantities);
   const siteAssignmentCheck = await validateSiteAssignmentConfig(selected);
   if (!siteAssignmentCheck.ok) {
     return { error: siteAssignmentCheck.message, ok: false };
   }
 
-  const activeQuestions = ctx.questions.filter((q) => {
-    const listingIds = ctx.questionListingMap.get(q.id);
+  const activeQuestions = foldedCtx.questions.filter((q) => {
+    const listingIds = foldedCtx.questionListingMap.get(q.id);
     return !listingIds || listingIds.some((eid) => selectedListingIds.has(eid));
   });
   const answersResult = parseQuestionAnswers({ optional: false })(
@@ -591,30 +639,10 @@ const prepareOrder = async (
   );
   if (!answersResult.ok) return { error: answersResult.error, ok: false };
 
-  let date: string | null = null;
-  if (ctx.dates.length > 0) {
-    date = validateSubmittedDate(form, ctx.dates);
-    if (!date) return { error: "Please select a valid date", ok: false };
-  }
-
-  const hasCustomisable = selected.some(
-    ({ listing }) => listing.customisable_days,
-  );
-  const dayResult = await resolveDayCount(selected, form, date);
-  if ("error" in dayResult) return { error: dayResult.error, ok: false };
-  const dayCount = dayResult.dayCount;
-
-  const customPricesResult = parseCustomPrices(form, ctx, quantities);
-  if (typeof customPricesResult === "string") {
-    return { error: customPricesResult, ok: false };
-  }
-
-  await applyQrTokenOverride(form, ctx, customPricesResult);
-
   const items = buildRegistrationItems(
-    ctx.listings,
+    foldedCtx.listings,
     quantities,
-    customPricesResult,
+    fold.customPrices,
     dayCount,
   );
 
@@ -632,14 +660,14 @@ const prepareOrder = async (
   // Resolve the answer-triggered modifier quantities once (scope-aware); these
   // feed both the pricing resolve and the sold-out check further down.
   const answerQuantities = await answerModifierQuantities(
-    computeListingAnswerMap(ctx, info),
+    computeListingAnswerMap(foldedCtx, info),
     quantities,
   );
 
   const pricingParams: SubmissionPricingParams = {
     addOns,
     answerQuantities,
-    ctx,
+    ctx: foldedCtx,
     date,
     dayCount,
     hasCustomisable,
@@ -665,10 +693,18 @@ const processSubmission = async (
   if (!prepared.ok) return errorResponse(prepared.error);
   const { pricingParams, pricedOrder } = prepared;
   const { date, dayCount, hasCustomisable, info, quantities } = pricingParams;
+  // The folded ctx carries the page listings plus the selected children, so it
+  // drives contact-field requirements, availability, and reservation creation.
+  // The original page ctx still determines the thank-you redirect so folding a
+  // child doesn't drop a single parent's configured URL (parents.md fold
+  // checklist, thank-you item).
+  const foldedCtx = pricingParams.ctx;
+  const thankYouUrl =
+    ctx.listings.length === 1 ? ctx.listings[0]!.listing.thank_you_url : null;
 
   const paymentsEnabled = isPaymentsEnabled();
   const requiresPaidFields = pricedOrder.total > 0;
-  const validated = validateTicketFields(form, ctx, requiresPaidFields);
+  const validated = validateTicketFields(form, foldedCtx, requiresPaidFields);
   if (validated instanceof Response) return validated;
   let contact = extractContact(validated);
   let {
@@ -678,7 +714,7 @@ const processSubmission = async (
   } = await priceSubmissionWithContact(contact, pricingParams);
   const paidUpgradeValidation = validatePaymentUpgrade(
     form,
-    ctx,
+    foldedCtx,
     requiresPaidFields,
     finalPricedOrder.total > 0,
   );
@@ -703,7 +739,7 @@ const processSubmission = async (
 
   if (finalRequiresPayment) {
     return handlePaidPath(request, {
-      ctx,
+      ctx: foldedCtx,
       date,
       dayCount,
       info,
@@ -723,7 +759,7 @@ const processSubmission = async (
     : { ...intent, reservationAmount: "0" };
   return handleFreePath({
     contact,
-    ctx,
+    ctx: foldedCtx,
     date,
     dayCount,
     hasCustomisable,
@@ -737,6 +773,7 @@ const processSubmission = async (
     modifierUsages: finalPricedOrder.modifierApplications,
     paymentBreakdown: ticketPaymentBreakdown(breakdownIntent),
     quantities,
+    thankYouUrl,
   });
 };
 
@@ -778,9 +815,11 @@ const renderQuote = async (
   const soldOut = await checkSoldOutTiers(pricingParams, 0);
   if (soldOut) return htmlResponse(orderSummaryMessage(soldOut));
   // Reject a cart that has exhausted capacity (e.g. a dated daily listing whose
-  // capped group is full for the chosen day), as the booking submit would.
+  // capped group is full for the chosen day), as the booking submit would. The
+  // folded ctx (page listings ∪ selected children) drives the check so a quote
+  // reflects the children's capacity too.
   const available = await checkAvailability(
-    ctx.listings,
+    pricingParams.ctx.listings,
     pricingParams.quantities,
     pricingParams.date,
     pricingParams.dayCount,
