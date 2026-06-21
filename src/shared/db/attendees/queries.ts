@@ -218,6 +218,23 @@ export const hasActiveBookingLine = (
   );
 
 /**
+ * True when the attendee has a paid line on the exact listing, judged from the
+ * live DB row — not the edit form's submitted line key, which a stale/missing
+ * key can leave null. Used to refuse marking a paid line no-quantity even when
+ * the form key is stale, so a recorded payment is never silently dropped onto a
+ * fresh quantity-0 row.
+ */
+export const hasPaidLine = (
+  attendeeId: number,
+  listingId: number,
+): Promise<boolean> =>
+  rowExists(
+    `SELECT 1 FROM listing_attendees
+     WHERE attendee_id = ? AND listing_id = ? AND price_paid > 0 LIMIT 1`,
+    [attendeeId, listingId],
+  );
+
+/**
  * Get an attendee by ID without decrypting PII
  * Used for payment callbacks and webhooks where decryption is not needed
  * Returns the attendee with encrypted fields (id, listing_id, quantity are plaintext)

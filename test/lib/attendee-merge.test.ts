@@ -663,8 +663,94 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       const result = validateAttendeeMergeDecision(diff, decision);
       expect(result.valid).toBe(false);
       if (!result.valid) {
-        expect(result.errors[0]).toContain("no-quantity line with a payment");
+        expect(result.errors[0]).toContain("strand a recorded payment");
       }
+    });
+
+    test("rejects replacing an active paid target line with a no-quantity source", () => {
+      // take_source would delete the paid target and insert the quantity-0
+      // source, stranding the target's payment behind a ghost row.
+      const diff: AttendeeMergeDiff = {
+        answerItems: [],
+        bookingItems: [
+          {
+            conflictClass: "conflicting_metadata",
+            listingId: 5,
+            sourceBooking: {
+              attachment_downloads: 0,
+              checked_in: 0,
+              end_at: null,
+              listing_id: 5,
+              price_paid: 0,
+              quantity: 0,
+              refunded: 0,
+              start_at: null,
+            },
+            startAt: null,
+            targetBooking: {
+              attachment_downloads: 0,
+              checked_in: 0,
+              end_at: null,
+              listing_id: 5,
+              price_paid: 1500,
+              quantity: 2,
+              refunded: 0,
+              start_at: null,
+            },
+          },
+        ],
+        piiFields: [],
+        sourceId: 2,
+        targetId: 1,
+        version: "v1",
+      };
+      const decision: AttendeeMergeDecisionInput = {
+        answers: {},
+        bookings: { "5:null": "take_source" },
+        pii: {},
+        version: "v1",
+      };
+      const result = validateAttendeeMergeDecision(diff, decision);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors[0]).toContain("strand a recorded payment");
+      }
+    });
+
+    test("allows moving a no-quantity source line that carries no payment", () => {
+      // A clean quantity-0 sentinel (no payment, no paid target) is moveable.
+      const diff: AttendeeMergeDiff = {
+        answerItems: [],
+        bookingItems: [
+          {
+            conflictClass: "moveable",
+            listingId: 5,
+            sourceBooking: {
+              attachment_downloads: 0,
+              checked_in: 0,
+              end_at: null,
+              listing_id: 5,
+              price_paid: 0,
+              quantity: 0,
+              refunded: 0,
+              start_at: null,
+            },
+            startAt: null,
+            targetBooking: null,
+          },
+        ],
+        piiFields: [],
+        sourceId: 2,
+        targetId: 1,
+        version: "v1",
+      };
+      const decision: AttendeeMergeDecisionInput = {
+        answers: {},
+        bookings: {},
+        pii: {},
+        version: "v1",
+      };
+      expect(validateAttendeeMergeDecision(diff, decision).valid).toBe(true);
     });
 
     test("accepts valid decisions", () => {

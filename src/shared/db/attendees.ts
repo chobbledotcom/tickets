@@ -83,6 +83,7 @@ export {
   getAttendeesRaw,
   getNewestAttendeesRaw,
   hasActiveBookingLine,
+  hasPaidLine,
 } from "#shared/db/attendees/queries.ts";
 export { getActiveListingStats } from "#shared/db/attendees/stats.ts";
 export {

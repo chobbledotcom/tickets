@@ -684,15 +684,9 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         "Sited",
         "sited@example.com",
       );
-      // Make it a built-site listing and assign a site to this booking.
-      const { invalidateListingsCache } = await import(
-        "#shared/db/listings.ts"
-      );
-      await getDb().execute({
-        args: [listing.id],
-        sql: "UPDATE listings SET assign_built_site = 1 WHERE id = ?",
-      });
-      invalidateListingsCache();
+      // Assign a site to this booking. Deliberately leave the listing's
+      // assign_built_site flag OFF: the block keys off the actual assignment row,
+      // not the listing's current flag (which an owner may have turned off).
       await getDb().execute({
         args: [attendee.id, listing.id],
         sql: "INSERT INTO built_sites (site_data, assignable, assigned_attendee_id, assigned_listing_id, created) VALUES ('{}', 0, ?, ?, '2026-01-01T00:00:00Z')",
@@ -708,6 +702,39 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         sql: "SELECT quantity FROM listing_attendees WHERE attendee_id = ? AND listing_id = ?",
       });
       expect(Number(row.rows[0]!.quantity)).toBe(1);
+    });
+
+    test("blocks no-quantity on a paid line even with a stale (missing) line key", async () => {
+      const listing = await createTestListing({ maxAttendees: 50 });
+      const created = await createAttendeeAtomic({
+        bookings: [{ listingId: listing.id, pricePaid: 1500, quantity: 1 }],
+        email: "stale@example.com",
+        name: "Stale",
+        paymentId: "pay_stale",
+      });
+      if (!created.success) throw new Error("setup");
+      const attendeeId = created.attendees[0]!.id;
+      // Submit with an empty line key so the form's existingBooking is null and
+      // the per-line model guard can't fire — the DB-based guard must still block.
+      const form = await buildAttendeeEditForm(attendeeId, {
+        extra: { [`noqty_${listing.id}`]: "1" },
+        lines: [{ eventId: listing.id, key: "", quantity: 1 }],
+        name: "Stale",
+      });
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendeeId}`,
+        form,
+      );
+
+      const html = await expectHtmlResponse(response, 200);
+      expect(html).toContain("Refund this booking's payment");
+      // The paid line is untouched (not dropped/replaced by a ghost).
+      const row = await getDb().execute({
+        args: [attendeeId, listing.id],
+        sql: "SELECT quantity, price_paid FROM listing_attendees WHERE attendee_id = ? AND listing_id = ?",
+      });
+      expect(Number(row.rows[0]!.quantity)).toBe(1);
+      expect(Number(row.rows[0]!.price_paid)).toBe(1500);
     });
   });
 

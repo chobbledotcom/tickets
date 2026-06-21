@@ -60,6 +60,7 @@ import {
   encryptPiiBlob,
   ensureAllBookings,
   getAttendee,
+  hasPaidLine,
   type ListingAttendeeRow,
   loadExistingLines,
   updateAttendeeOrder,
@@ -697,11 +698,40 @@ const NO_LINES_ERROR = "Book at least one listing before saving";
 const BUILT_SITE_NO_QTY_ERROR =
   "Unassign the built site from this booking before marking it no quantity.";
 
+/** Shown when a no-quantity tick targets a line that still has a recorded payment. */
+const PAID_NO_QTY_ERROR =
+  "Refund this booking's payment before marking it no quantity.";
+
+/**
+ * Forbid marking a paid line no-quantity, judged from the live DB row rather than
+ * the form's submitted line key. A stale/missing key leaves the form's
+ * existingBooking null (so the per-line model guard can't fire), which would let
+ * the atomic edit drop the paid row and insert a fresh quantity-0 row — silently
+ * losing the recorded income/payment. Returns true when any no-quantity line's
+ * actual (attendee, listing) row still carries a payment.
+ */
+const hasBlockedPaidNoQuantity = async (
+  attendeeId: number,
+  lines: AttendeeFormLine[],
+): Promise<boolean> => {
+  for (const line of lines) {
+    if (
+      isNoQuantityLine(line) &&
+      (await hasPaidLine(attendeeId, line.listingId))
+    ) {
+      return true;
+    }
+  }
+  return false;
+};
+
 /**
  * Forbid marking a built-site line no-quantity while its site is still assigned:
  * the assignment + the live public /renew/ path would otherwise survive behind a
- * hidden line (no release path exists on this save). Returns true when any
- * no-quantity line still holds an assigned built site for this attendee.
+ * hidden line (no release path exists on this save). Keyed off the actual
+ * built_sites assignment row — NOT the listing's current `assign_built_site`
+ * flag (which an owner may have turned off after a site was assigned) and NOT
+ * the form's existingBooking (which a stale line key can leave null).
  */
 const hasBlockedBuiltSiteNoQuantity = async (
   attendeeId: number,
@@ -710,8 +740,6 @@ const hasBlockedBuiltSiteNoQuantity = async (
   for (const line of lines) {
     if (
       isNoQuantityLine(line) &&
-      line.existingBooking &&
-      line.listing?.assign_built_site &&
       (await hasAssignedBuiltSite(attendeeId, line.listingId))
     ) {
       return true;
@@ -812,6 +840,11 @@ const applyEdit = async (
   // Block marking an assigned built-site line no-quantity (no release path here).
   if (await hasBlockedBuiltSiteNoQuantity(attendeeId, parsed.lines)) {
     return { flashError: BUILT_SITE_NO_QTY_ERROR, ok: false };
+  }
+  // Block marking a paid line no-quantity, even when a stale form key hid the
+  // existing booking from the per-line model guard.
+  if (await hasBlockedPaidNoQuantity(attendeeId, parsed.lines)) {
+    return { flashError: PAID_NO_QTY_ERROR, ok: false };
   }
 
   const encryptedPiiBlob = (await encryptPiiBlob(

@@ -302,21 +302,7 @@ export const validateAttendeeMergeDecision = (
     }
   }
 
-  // Refuse to copy a source no-quantity line that still carries a payment: a
-  // quantity-0 line must have price_paid = 0 (§1 invariant). Silently keeping
-  // the charge would drop listing income and strand it behind the (now
-  // quantity-0) refund guards — refund/retarget it before merging.
-  for (const item of diff.bookingItems) {
-    if (
-      copiesSourceBooking(item, decision) &&
-      item.sourceBooking.quantity === 0 &&
-      item.sourceBooking.price_paid > 0
-    ) {
-      errors.push(
-        `Booking for Listing #${item.listingId} is a no-quantity line with a payment — refund or retarget it before merging.`,
-      );
-    }
-  }
+  errors.push(...strandedPaymentErrors(diff, decision));
 
   return errors.length > 0 ? { errors, valid: false } : { valid: true };
 };
@@ -330,6 +316,38 @@ const copiesSourceBooking = (
 ): boolean =>
   item.conflictClass === "moveable" ||
   decision.bookings[itemBookingKey(item)] === "take_source";
+
+/** True when a copied booking would end up as a quantity-0 line that strands a
+ * recorded payment — either a SOURCE ghost still carrying a payment, or a
+ * `take_source` that replaces a paid TARGET line with the ghost (the latter
+ * deletes the paid target and inserts the quantity-0 source, leaving the
+ * target's payment behind a row the refund/payment flows ignore). */
+const strandsPayment = (
+  item: AttendeeMergeDiffBookingItem,
+  decision: AttendeeMergeDecisionInput,
+): boolean => {
+  if (!copiesSourceBooking(item, decision)) return false;
+  if (item.sourceBooking.quantity !== 0) return false;
+  const target = item.targetBooking;
+  return (
+    item.sourceBooking.price_paid > 0 ||
+    (target !== null && target.price_paid > 0)
+  );
+};
+
+/** Errors for any merge item that would strand a payment behind a quantity-0
+ * line (§1 invariant: a quantity-0 line must have price_paid = 0). Refund or
+ * retarget the charge first. */
+const strandedPaymentErrors = (
+  diff: AttendeeMergeDiff,
+  decision: AttendeeMergeDecisionInput,
+): string[] =>
+  diff.bookingItems
+    .filter((item) => strandsPayment(item, decision))
+    .map(
+      (item) =>
+        `Listing #${item.listingId}: a no-quantity line would strand a recorded payment — refund or retarget it before merging.`,
+    );
 
 // ---------------------------------------------------------------------------
 // applyAttendeeMerge
