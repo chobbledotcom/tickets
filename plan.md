@@ -602,9 +602,12 @@ Dates — every imported booking is dated (daily listings only):
 
 Quantity:
 
-- If the same matched listing appears multiple times in one source booking **on
-  the same date range**, use a single line with `quantity` equal to the count
-  (different ranges are rejected — see next).
+- If the same **active** (confirmed `Equipments`, non-cancelled) listing appears
+  multiple times in one source booking **on the same date range**, use a single
+  line with `quantity` equal to the count (different ranges are rejected — see
+  next). **Cancelled or quoted ghost lines stay `quantity = 0` regardless of repeat
+  count** — a quoted `Product (x2)` or a cancelled duplicate must not become a
+  capacity-consuming booking.
 - **One line per `(attendee, listing)` — sum only *identical* ranges; reject the
   rest.** The attendee edit form de-dupes lines by `listing_id` (`parseLines` /
   `buildFormLines` keep one row per listing) and the logistics/check-in/refund
@@ -936,11 +939,13 @@ Target algorithm — a **pure preflight** that accumulates the full report, then
 
 1. Parse the CSV into indexed rows (engine + the schema's parser config).
 2. Validate required columns and row shape per the schema; record any problems.
-3. Record duplicate `Booking ID` values within the file as source-data errors.
-4. Load context once, read-only: existing `booking_imports`, listings, statuses,
+3. Load context once, read-only: existing `booking_imports`, listings, statuses,
    and free-text questions.
-5. Classify against the import map (scoped to the active schema): **skip** rows
+4. Classify against the import map (scoped to the active schema): **skip** rows
    whose `(schema, old_id)` is already mapped.
+5. Among the **remaining** (unskipped) candidates, record duplicate `old_id`s as
+   source-data errors — *after* the skip, so a re-upload whose duplicates are all
+   already-imported skips them harmlessly instead of blocking the new rows.
 6. Resolve products for the remaining rows. A row that resolves to **zero**
    products is **non-creatable** (no line could be written) — recorded and dropped
    from the candidate set. Unmatched names, `standard`-type matches, and names
@@ -982,10 +987,22 @@ bookings imports the rest and reports the skip.
       that a rollback removes them);
     - insert attendee, and resolve its **stable id** via a per-attendee lookup
       key, not `last_insert_rowid()` (see implementation notes);
+    - **fire no registration side-effects.** A bulk import of historical bookings
+      must not call `logAndNotifyRegistration` (or its parts): no customer
+      registration emails, no registration webhooks, and no built-site
+      assignment/renewal — `logAndNotifyRegistration` (`shared/webhook.ts`) queues
+      all three (`sendRegistrationEmails`, `sendRegistrationWebhooks`,
+      `assignAndNotifyBuiltSites`) via `addPendingWork`. The importer writes rows
+      directly and stays silent; contacting customers or mutating
+      built-site/renewal state for old or quantity-0 rows would be wrong;
     - insert each `listing_attendees` line — `quantity = 0` for cancelled rows
       and for interested-in/quoted products, a real quantity otherwise (every
       candidate writes at least one line, so no attendee is an orphan);
-    - write logistics times if used;
+    - write logistics times if used — **only on real (`quantity > 0`) lines**;
+      cancelled/quoted ghost lines get no `start_time`/`end_time` (the no-quantity
+      spec clears logistics on quantity-0 lines, so a stale time would resurface on
+      a later reactivation/agent assignment). Keep ghost-row source times in audit
+      metadata only;
     - insert `attendee_answers(attendee_id, question_id, string_id)` text-answer
       rows using the resolved string ids;
     - persist the raw audit-trail fields to their durable encrypted destination;
@@ -1243,8 +1260,10 @@ Free-text question tests (the PR #1335 surface):
   `attendee_answers` text row (`answer_id` NULL, `question_id` + `string_id`
   set), and `getAttendeeTextAnswers(attendeeId, privateKey)` reads back the exact
   source text.
-- A non-empty configured column with **no** matching free-text question blocks
-  the import before writes and is listed on the missing-setup page.
+- A non-empty **required-question** column with **no** matching free-text question
+  blocks the import before writes and is listed on the error report; a non-empty
+  **audit-only** column with no question does **not** block — its value goes to the
+  encrypted audit trail.
 - Radio/select questions are **not** treated as import targets even if their text
   matches a CSV header.
 - A CSV header matching two `free_text` questions with the same normalized text
@@ -1495,6 +1514,10 @@ from [`no-quantity-spec.md`](./no-quantity-spec.md) exist.
   `last_activity = nowMs()`); increment `visits` with the source `Date Booked` and
   `last_activity = MAX(existing.last_activity, source)` so old imports don't look
   freshly active to pruning (see the writer step).
+- The importer fires **no registration side-effects**: it never calls
+  `logAndNotifyRegistration`, so a bulk historical upload sends no customer
+  emails, no registration webhooks, and triggers no built-site
+  assignment/renewal. It writes rows directly and stays silent.
 - A row with **no** products at all (no `Equipments` and no parseable quoted
   block) is a reported non-creatable row: not written, not added to the import
   map. Every booking needs ≥1 line, even if quantity-0.
