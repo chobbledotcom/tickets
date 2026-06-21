@@ -290,7 +290,11 @@ richer rules as a later iteration. See Open Question 2.
 
 - Add to `deleteListing`'s batch (`listings.ts:344-357`):
   `DELETE FROM listing_parents WHERE listing_id = ? OR parent_id = ?` — a deleted
-  listing must vanish from **both** sides of every edge.
+  listing must vanish from **both** sides of every edge. **Also invalidate the
+  relationship (edge) cache** in this path: the cache stores `parentId → childIds[]`,
+  so deleting the rows without clearing it would leave a stale edge that still
+  renders/enforces the old child gate until the isolate restarts. (Mirror how the
+  listings cache is invalidated on write.)
 - Deactivating (`active = 0`) or hiding a listing does **not** delete edges; the
   gate must filter unbookable children at runtime (see Edge cases).
 
@@ -396,10 +400,14 @@ When the booking page renders a listing that has children, render each child as 
   `computeSharedDates`, which intersects only the listings it's passed
   (`ticket-payment.ts:345-359`); if we leave children out, a daily parent could
   offer a date on which its (only) child is unavailable, then fail at submit —
-  contradicting "no bookable child ⇒ sold out". So a parent's offered dates must be
-  **intersected with its required child's availability** (or invalid dates
-  disabled), so every offered date is one where the parent *and* a child are
-  bookable.
+  contradicting "no bookable child ⇒ sold out". So a parent's offered dates must
+  account for child availability — but **with multiple children on different
+  calendars, use the *union* of the children's bookable dates, not the
+  intersection.** (If Child A is bookable Monday and Child B Tuesday, both days are
+  valid; intersecting every child would hide both.) Offer `parentDates ∩ (union of
+  bookable child dates)`, and **disable each per-child option on dates that child
+  can't serve**, so whatever date the buyer picks, at least one child is bookable
+  and the chosen child is valid for it.
 - **Child questions** must be merged into `questionListingMap` with the **correct
   shape**: it is `Map<questionId, listingId[]>` (`questions.ts:361`), read by
   `prepareOrder` as `ctx.questionListingMap.get(q.id)` — *keyed by question id*, not
@@ -471,10 +479,15 @@ In `prepareOrder` (`ticket-submit.ts`), after `parseQuantities`:
    parent"; auto-filled server-side when there's a single bookable child). The
    chosen child's **quantity is derived from the parent's quantity** (not
    submitted), and its **date/duration is inherited from the parent**. A
-   `can_pay_more` child also carries `child_price_<parentId>_<childId>`. Reject a
-   selector naming a listing that isn't a child of that parent, a price for a
-   non-pay-more child, or any `child_*` field whose parent is not in the cart
-   (`quantity_<parentId>` is 0).
+   `can_pay_more` child also carries `child_price_<parentId>_<childId>`. **Only read
+   `child_*` fields for parents that are actually in the cart** (`quantity_<parentId>
+   > 0`); **silently ignore** the rest. The no-JS baseline renders every parent's
+   child controls (with single-child selectors preselected and pay-more inputs
+   pre-filled), so a buyer booking a *different* listing will submit `child_*`
+   fields for parents at quantity 0 — these must be dropped, **not** rejected, or an
+   honest order fails. *Do* reject genuinely invalid input on an **in-cart** parent:
+   a selector naming a listing that isn't its child, or a price for a non-pay-more
+   child.
 5. **Children are never standalone cart lines** (a booking can't start from a
    child — see Confirmed behaviour), so there is no "in-cart child line" to count
    and no parent+child-URL case to disambiguate. The gate's *only* input is the
@@ -525,6 +538,14 @@ The expanded set (parent page listings ∪ selected children) must drive **all**
   unselected children's fields required. So `fields` needs the **same
   selected-child / no-JS rule as questions**: render all children's contact fields
   in the baseline, but only require/validate the chosen child's.
+- **Paid-ness of the field set must include paid children.** Even a child with
+  *empty* `fields` changes the field set: `getTicketFields(fieldsSetting, isPaid)`
+  adds Square's required email when `isPaid` (`fields.ts:1045-1053`), and the
+  renderer computes `anyPaid` from the page listings/add-ons **before** folded
+  children exist (`reservations.tsx:707-710`). A **free parent with a paid child**
+  under Square would then render no email input, yet post-fold paid validation
+  would require one the buyer never saw. So render-time `anyPaid` must include
+  **possible/selected paid children**, not just the page listings.
 - **Custom (pay-more) price** — ✅ supported (Open Question 15). A `can_pay_more`
   child renders a price input named by **both parent and child**,
   `child_price_<parentId>_<childId>` (a parent can have several pay-more children
@@ -612,6 +633,15 @@ Enumerate each and decide:
   `/ticket/<childSlug>` must **not** offer a buy button for the child alone — show
   an "available with …" note instead. Children only ever enter an order through a
   parent's selector, so the gate has a single, well-defined input everywhere.
+- **Public listing cards `/listings` (and the gallery/feeds).** A *visible*
+  (non-hidden) child is still rendered as a card: `isPublicListing` filters only
+  `active && !hidden` (`pages.ts:37`) and the card links a Book/Buy button straight
+  to `/ticket/<slug>` (`homepage.tsx:24-31`). That would advertise a child as
+  standalone-bookable and send buyers to the dead-end child page. So the
+  no-standalone-child rule must extend to the listing index/gallery/feeds: for a
+  child row, **suppress the buy link** (show "available with …" / link to a parent)
+  rather than a direct booking CTA. (A common pattern will be to simply mark the
+  child `hidden`, but visible children must be handled too.)
 - **Single-listing / group booking page** `/ticket/<slug>` — one route serves both:
   `slugHandler` tries listings by slug and, for a single slug that isn't a listing,
   **falls back to `handleGroupTicketBySlug`** (`ticket-routes.ts:46-52`). There is
