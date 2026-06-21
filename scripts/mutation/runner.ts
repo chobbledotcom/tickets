@@ -172,11 +172,37 @@ const report = (results: MutantResult[]): number => {
   return 1;
 };
 
-const mutate = async (options: MutationOptions): Promise<number> => {
-  const { exhaustive, sourceFiles, testFiles, timeout } = options;
+interface RunMutantsOptions {
+  abortSignal: AbortSignal;
+  exhaustive: boolean;
+  isAborted: () => boolean;
+  originals: Map<string, string>;
+  restoreAll: () => void;
+  results: MutantResult[];
+  sourceFiles: string[];
+  testFiles: string[];
+  timeout: number;
+  useHarness: boolean;
+}
+
+/** Baseline check, then the per-file/per-mutant loop, then the report. */
+const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
+  const {
+    abortSignal,
+    exhaustive,
+    isAborted,
+    originals,
+    restoreAll,
+    results,
+    sourceFiles,
+    testFiles,
+    timeout,
+    useHarness,
+  } = opts;
 
   console.log(dim("Running baseline (unmutated) tests…"));
-  const baseline = await runTests(testFiles, BASELINE_TIMEOUT);
+  const baseline = await runTests(testFiles, BASELINE_TIMEOUT, abortSignal);
+  if (isAborted()) return 130;
   if (baseline.outcome !== "passed") {
     console.error(red(`\nBaseline tests did not pass (${baseline.outcome}).`));
     console.error(
@@ -199,49 +225,13 @@ const mutate = async (options: MutationOptions): Promise<number> => {
 
   // Under --harness the client bundles are built once; a mutant on a bundled
   // source must rebuild the affected bundle(s) or it would falsely survive.
-  const rebuilder: AssetRebuilder | null = options.useHarness
+  const rebuilder: AssetRebuilder | null = useHarness
     ? await createAssetRebuilder()
     : null;
 
-  const results: MutantResult[] = [];
-  const originals = new Map<string, string>();
-  const restoreAll = (): void => {
-    for (const [file, content] of originals) {
-      try {
-        Deno.writeTextFileSync(file, content);
-      } catch {
-        // best effort; the file is git-tracked and recoverable
-      }
-    }
-  };
-  // On SIGINT/SIGTERM, abort the in-flight test run and let the loop fall
-  // through so every `finally` runs: the source and built assets are restored
-  // here, then the outer withTestHarness stops stripe-mock and removes any
-  // generated assets. Going straight to Deno.exit would skip all of that. A
-  // second signal force-quits in case unwinding ever stalls.
-  const abortController = new AbortController();
-  let aborted = false;
-  const onSignal = (): void => {
-    if (aborted) {
-      restoreAll();
-      Deno.exit(130);
-    }
-    aborted = true;
-    abortController.abort();
-  };
-  const signals: Deno.Signal[] = ["SIGINT", "SIGTERM"];
-  for (const signal of signals) {
-    try {
-      Deno.addSignalListener(signal, onSignal);
-    } catch {
-      // signal handling may be unavailable (e.g. SIGTERM on Windows);
-      // the finally below still restores.
-    }
-  }
-
   try {
     for (const file of sourceFiles) {
-      if (aborted) break;
+      if (isAborted()) break;
       const original = await Deno.readTextFile(file);
       originals.set(file, original);
       const affected = rebuilder ? rebuilder.affected(file) : [];
@@ -263,7 +253,7 @@ const mutate = async (options: MutationOptions): Promise<number> => {
         console.log(dim(`  ${rel(file)}: ${mutants.length} mutants`) + note);
       }
       for (const mutant of mutants) {
-        if (aborted) break;
+        if (isAborted()) break;
         const status = await evaluateMutant(
           file,
           original,
@@ -271,14 +261,82 @@ const mutate = async (options: MutationOptions): Promise<number> => {
           testFiles,
           perMutantTimeout,
           assets,
-          abortController.signal,
+          abortSignal,
         );
-        if (aborted) break;
+        if (isAborted()) break;
         results.push({ file, mutant, status });
         write(statusGlyph(status));
       }
       originals.delete(file);
     }
+  } finally {
+    restoreAll();
+    rebuilder?.stop();
+  }
+  write("\n");
+
+  if (isAborted()) {
+    console.log(yellow("Interrupted — restored sources and built assets."));
+    return 130;
+  }
+  return report(results);
+};
+
+const mutate = async (options: MutationOptions): Promise<number> => {
+  const { exhaustive, sourceFiles, testFiles, timeout } = options;
+
+  const results: MutantResult[] = [];
+  const originals = new Map<string, string>();
+  const restoreAll = (): void => {
+    for (const [file, content] of originals) {
+      try {
+        Deno.writeTextFileSync(file, content);
+      } catch {
+        // best effort; the file is git-tracked and recoverable
+      }
+    }
+  };
+  // On SIGINT/SIGTERM, abort the in-flight test run and let the loop fall
+  // through so every `finally` runs: the source and built assets are restored
+  // here, then the outer withTestHarness stops stripe-mock and removes any
+  // generated assets. Going straight to Deno.exit would skip all of that. A
+  // second signal force-quits in case unwinding ever stalls. Listeners are
+  // installed before the baseline so an interrupt there also unwinds cleanly;
+  // a signal during the earlier withTestHarness *setup* still takes Deno's
+  // default exit (see runMutationTesting).
+  const abortController = new AbortController();
+  let aborted = false;
+  const onSignal = (): void => {
+    if (aborted) {
+      restoreAll();
+      Deno.exit(130);
+    }
+    aborted = true;
+    abortController.abort();
+  };
+  const signals: Deno.Signal[] = ["SIGINT", "SIGTERM"];
+  for (const signal of signals) {
+    try {
+      Deno.addSignalListener(signal, onSignal);
+    } catch {
+      // signal handling may be unavailable (e.g. SIGTERM on Windows);
+      // the finally below still restores.
+    }
+  }
+
+  try {
+    return await runMutants({
+      abortSignal: abortController.signal,
+      exhaustive,
+      isAborted: () => aborted,
+      originals,
+      restoreAll,
+      results,
+      sourceFiles,
+      testFiles,
+      timeout,
+      useHarness: options.useHarness,
+    });
   } finally {
     for (const signal of signals) {
       try {
@@ -287,19 +345,21 @@ const mutate = async (options: MutationOptions): Promise<number> => {
         // matches the add above
       }
     }
-    restoreAll();
-    rebuilder?.stop();
   }
-  write("\n");
-
-  if (aborted) {
-    console.log(yellow("Interrupted — restored sources and built assets."));
-    return 130;
-  }
-  return report(results);
 };
 
-/** Entry point: run mutation testing, returning a process exit code. */
+/**
+ * Entry point: run mutation testing, returning a process exit code.
+ *
+ * Known limitation: under --harness, a SIGINT/SIGTERM that lands during
+ * withTestHarness's *setup* (building static assets, starting stripe-mock) —
+ * before mutate() installs its handlers — takes Deno's default exit, so a
+ * freshly started stripe-mock and generated `src/ui/static/*.js` can be left
+ * behind. Both self-heal on the next run (the harness reuses an existing mock
+ * and rebuilds/cleans generated assets), and this brief window is shared by the
+ * regular test runners. Signals during the baseline and mutation phases are
+ * handled gracefully by mutate().
+ */
 export const runMutationTesting = (
   options: MutationOptions,
 ): Promise<number> =>
