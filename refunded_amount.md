@@ -68,18 +68,25 @@ The flattened `Attendee` type (a join of one `attendees` row + one
 Replaces today's "are you sure?" confirm page (`adminRefundAttendeePage` in
 `src/ui/templates/admin/attendees.tsx`). It shows:
 
-- A **"Refund the whole order"** checkbox, **checked by default**. Checked = today's
-  behaviour (refund everything still owed across the order).
+- A **"Refund all ticket lines"** checkbox, **checked by default**. Checked =
+  refund each ticket line to its `price_paid` (everything still owed on the
+  ticket lines). **Note (review):** call it "all ticket lines", not "the whole
+  order" — booking fees are not refundable through this form (§16), so on a
+  fee-bearing order this does *not* return 100% of what the customer paid. The
+  copy must not promise a full-order refund.
 - When **unchecked** (pure-CSS reveal, like the existing `show_all` pattern in the
   attendee form), a row per booking line in the order:
-  - listing name (label),
+  - listing name **and the booking date/range** for daily/customisable bookings
+    (review): the same listing can appear on several `start_at` dates with the
+    same name and price, so the date is what makes the rows distinguishable. The
+    row submits the booking's **row key (`start_at`)** so the write hits the
+    right line (§5).
   - "Paid: £X.XX" (the line's `price_paid`),
-  - an amount input in **major currency units** (£/$, like every other admin money
-    field — see `parseMoneyMinor` in `attendee-form-model.ts`), `min=0`,
-    `max=` the line's **remaining refundable** shown in major units
-    (`(price_paid − refunded_amount) / 100`), prefilled with that max. The server
-    converts back to minor units on submit and re-clamps (never trust the
-    client). **Do not** render the raw minor-unit integer (review).
+  - an amount input in **major currency units**, `min=0`, `max=` the line's
+    **remaining refundable** — both produced with `toMajorUnits` and parsed back
+    with `toMinorUnits`/`parseMoneyMinor` (`src/shared/currency.ts`), **never a
+    hard-coded `/100`** (review: JPY and 3-decimal currencies would be wrong).
+    Server converts and re-clamps on submit (never trust the client).
 - Confirm field (the existing name/identifier confirmation) + submit.
 
 Optionally, a status selector defaulting to a "Refunded" order status when one
@@ -116,9 +123,16 @@ refund = the operator's per-line numbers.
 
 ### 2c. Bulk — `POST /admin/listing/:id/refund-all`
 
-Keep it; it refunds every **not-fully-refunded** line of every order on the
-listing to its `price_paid` (full refund per attendee), batched as today
-(`REFUND_BATCH_LIMIT`). "Refundable" is redefined in §6.
+Keep it; it refunds every **not-fully-refunded** line to its `price_paid`,
+batched as today (`REFUND_BATCH_LIMIT`). "Refundable" is redefined in §6.
+
+**Group by order before calling the provider (review).** The bulk loader returns
+one row per `listing_attendees` line, so an attendee booked on two dates for the
+listing appears twice with the **same `payment_id`**. A line-oriented loop would
+call the provider twice for one payment (duplicate/again-failing refund) while
+recording only some lines. Group the lines by attendee/`payment_id`, refund each
+payment **once** with the summed remaining amount, then write all that order's
+lines atomically (§2b step 4).
 
 ---
 
@@ -138,19 +152,31 @@ return-shape churn, no reading amounts back, no caller sweep. Two additions:
   the caller's `idempotencyKey` **instead of the fresh `crypto.randomUUID()` it
   generates per call** (`square.ts:624`) so retries dedupe.
 - **SumUp**: confirm partial-refund support. If it is full-only, the per-item UI
-  must be hidden **and the POST handler must reject any non-full SumUp refund**
-  server-side (review) — a stale/crafted POST otherwise refunds the whole
-  transaction (`sumup.ts` refunds in full) while storing only a partial
-  `refunded_amount`. Don't rely on hiding controls alone.
+  must be hidden **and the POST handler must reject any refund whose total is less
+  than the provider transaction total** server-side (review) — a stale/crafted
+  POST otherwise refunds the whole transaction (`sumup.ts` refunds in full) while
+  storing only a partial `refunded_amount`. Note this is stricter than "reject
+  non-full ticket refund": because the form caps at `price_paid` and excludes
+  booking fees (§16), even the **default "all ticket lines"** total is *less than*
+  the provider transaction whenever a fee was charged — so for SumUp, fee-bearing
+  orders can't be fully refunded through this form at all and must be refused (or
+  refunded out-of-band). Don't rely on hiding controls alone.
 
 **Idempotency / double-submit (review).** Partial amounts make a duplicate
 submission materially worse than today's full-refund retry: two concurrent £5
 POSTs could both succeed before either records `refunded_amount`, turning a £5
-refund into £10. Mitigate with a **stable per-refund idempotency key** (so the
-provider dedupes) plus a **local guard** — either a single-use form token, or
-reserve the `refunded_amount` rows (conditional UPDATE on the expected current
-value) *before* calling the provider so a racing second POST sees no remaining
-refundable. This must land **with** partial amounts, not after.
+refund into £10. A **single-use form token is not sufficient** — two tabs/two
+admins render *different* tokens for the same remaining balance, get *different*
+provider idempotency keys, and both succeed. The guard must be tied to the
+**current refunded amounts**, not the form: derive the provider idempotency key
+deterministically from `(payment_id, per-line target amounts)` so identical
+requests dedupe at the provider, **and** gate locally on the live remaining
+refundable. Do **not** "reserve" by writing the *final* `refunded_amount` before
+the provider call (review) — a provider failure would then leave the line
+recorded as refunded with no money moved, contradicting "provider failure records
+nothing". Use a **separate pending-refund reservation** (or an amount-conditional
+write applied only *after* provider success) so failure leaves no trace. This
+must land **with** partial amounts, not after.
 
 `isPaymentRefunded` is unchanged (still boolean) — see the refresh path (§8).
 
@@ -170,28 +196,34 @@ No trigger change: the `LISTING_AGGREGATE_TRIGGERS` UPDATE trigger fires
 `listings.income`/capacity (income keeps counting refunded rows, exactly as
 today).
 
-### 4b. Migration — recreate the table
+### 4b. Migration — add the column first, *then* recreate the table
 
-Removing a column needs a table rebuild, not `ADD COLUMN`. Model it on
-`2026-06-18_answer_modifiers.ts` / `2026-06-20_free_text_questions.ts`:
+Removing a column needs a table rebuild, not `ADD COLUMN`. **Order matters
+(review, P1):** `recreateTable` rebuilds from the *current* SCHEMA and copies via
+`INSERT INTO …_new (…, refunded_amount, …) SELECT …, refunded_amount, … FROM
+listing_attendees` — so `refunded_amount` must already exist on the old table
+before the recreate, or the copy SELECT fails. The fix is to use the
+`schemaMigration` wrapper, which runs `applySchemaChanges()` (the ADD COLUMN)
+**before** the `after` hook — exactly how `2026-06-18_answer_modifiers.ts` adds
+columns via `recreateTable`:
 
 ```ts
 // src/shared/db/migrations/2026-06-21_attendee_refunded_amount.ts
-export default (context) =>
-  context.additive({
-    id: "2026-06-21_attendee_refunded_amount",
-    description:
-      "Add per-line refunded_amount to listing_attendees and drop the refunded boolean (refund state moves to order statuses)",
-    requires: { columns: { listing_attendees: ["refunded_amount"] } },
-    up: async () => {
-      // recreateTable rebuilds listing_attendees from the *current* SCHEMA:
-      // it copies surviving columns (so `refunded` is dropped, its data
-      // discarded — there are no refunds), adds refunded_amount (DEFAULT 0),
-      // and re-creates the table's indexes + aggregate triggers.
-      await context.recreateTable("listing_attendees");
-      await context.syncTriggers();
-    },
-  });
+import { schemaMigration } from "./define.ts";
+
+export default schemaMigration(
+  "2026-06-21_attendee_refunded_amount",
+  "Add per-line refunded_amount to listing_attendees and drop the refunded boolean (refund state moves to order statuses)",
+  // applySchemaChanges runs first: ADD COLUMN refunded_amount onto the old table.
+  { columns: { listing_attendees: ["refunded_amount"] } },
+  // after(): now the column exists, recreateTable rebuilds from SCHEMA —
+  // copying surviving columns (so `refunded` is dropped, data discarded — there
+  // are no refunds) and re-creating indexes + aggregate triggers.
+  async ({ recreateTable, syncTriggers }) => {
+    await recreateTable("listing_attendees");
+    await syncTriggers();
+  },
+);
 ```
 
 Register it in `src/shared/db/migrations.ts` (import + append to `MIGRATIONS`).
@@ -248,7 +280,9 @@ check. Concretely:
 - **Selects** — every per-line column list adds `refunded_amount` and drops
   `refunded`:
   - `src/shared/db/attendees/queries.ts` — `EA_COLS`, `ATTENDEE_LEFT_JOIN_SELECT`
-    (`COALESCE(ea.refunded_amount,0)`), `getAttendeesByTokens`.
+    (must be `COALESCE(ea.refunded_amount, 0) AS refunded_amount` — keep the
+    `AS <field>` alias, or libsql exposes the column under the expression text and
+    `decryptAttendeeFields` silently reads `0`), `getAttendeesByTokens`.
   - `src/features/admin/attendees-edit.ts` — `loadRefreshContext`.
   - `src/features/admin/attendees-merge.ts` — `loadAttendeeBookings`.
   - `src/shared/db/attendees/atomic-update.ts` — `loadExistingLines`.
@@ -294,6 +328,13 @@ check. Concretely:
   a boolean — **unchanged** (no row exists to record against). `webhook-types.ts`
   /`webhook.ts` outbound payload: drop `refunded` if present; optionally add
   `refunded_amount` (§14).
+- **Operator guide (review).** The admin refunds guide
+  (`src/locales/en/guide.json` ~`:147-152`, `:276-277`, rendered by the refunds
+  guide section under `src/ui/templates/admin/guide/`) currently states that
+  individual refunds are always full, partial refunds are unsupported, and booking
+  fees are refunded. All three are now false — update the guide copy (and any
+  per-locale copies) so the documentation matches the new partial-refund form and
+  the fee exclusion. This is required work, not optional.
 
 ---
 
@@ -427,7 +468,7 @@ Out of scope unless wanted.
 | File | Change | Req? |
 | --- | --- | --- |
 | `migrations/schema.ts` | drop `refunded`, add `refunded_amount` on `listing_attendees`; bump `LATEST_UPDATE` | ✅ |
-| `migrations/2026-06-21_attendee_refunded_amount.ts` | new migration: `recreateTable` + `syncTriggers` | ✅ |
+| `migrations/2026-06-21_attendee_refunded_amount.ts` | new migration: **`schemaMigration(…, after)`** — ADD COLUMN then `recreateTable` + `syncTriggers` (order matters, §4b) | ✅ |
 | `migrations.ts` | import + append to `MIGRATIONS` | ✅ |
 | `migrations/schema-sync.ts` | legacy `backfillListingAttendees`: stop writing `refunded`/`refunded_v2`, map to `refunded_amount` | ✅ |
 | `types.ts`, `attendee-types.ts` | `Attendee`/`ListingAttendeeRow`: −`refunded`, +`refunded_amount` | ✅ |
@@ -435,7 +476,8 @@ Out of scope unless wanted.
 | `attendees/update.ts` | `markRefunded`→`recordLineRefund` (single-row, capped); `updateCheckedIn` gains `start_at` row identity | ✅ |
 | `attendees/pii.ts` | map `refunded_amount`; drop `refunded` | ✅ |
 | `attendees-edit.ts`, `attendees-merge.ts`, `atomic-update.ts` | loaders select `refunded_amount` | ✅ |
-| `attendee-refunds.ts` | per-item form handler; all-order loader; major→minor conversion; idempotency guard; atomic batch writes; redefine `getRefundable` | ✅ |
+| `attendee-refunds.ts` | per-item form handler; all-order loader; major→minor conversion; idempotency guard; atomic batch writes; **bulk: group by order/payment, one provider call each**; redefine `getRefundable` | ✅ |
+| `src/locales/en/guide.json` + refunds guide template | rewrite refunds guide: partial refunds supported, fees not refundable (§6) | ✅ |
 | `payments.ts` + `stripe.ts`/`square.ts`/`sumup-provider.ts` (+providers) | `refundPayment(ref, amount?, idempotencyKey?)`; SumUp reject partial server-side | ✅ |
 | `attendees.tsx` (refund form, major-unit inputs + `PaymentDetails` sum) | UI | ✅ |
 | `checkin.ts` (+ scanner, token path) | move off boolean (§12); carry `start_at` to pin check-in writes | ✅ |
@@ -499,18 +541,29 @@ Out of scope unless wanted.
 
 ## 18. Definition of done
 
-- [ ] Migration recreates `listing_attendees` (no `refunded`, has
-      `refunded_amount`); `verify()` passes; `SCHEMA_HASH`/`LATEST_UPDATE` updated.
+- [ ] Migration **adds `refunded_amount` (ADD COLUMN) before** `recreateTable`
+      (via the `schemaMigration(…, after)` wrapper, §4b); ends with no `refunded`,
+      has `refunded_amount`; `verify()` passes; `SCHEMA_HASH`/`LATEST_UPDATE`
+      updated. Legacy `schema-sync.ts` backfill no longer writes `refunded`.
 - [ ] `recordLineRefund` writes one row (by `start_at`), caps at `price_paid`,
       accumulates on repeat — tested incl. the two-dates identity case.
-- [ ] `refundPayment(ref, amount?)` issues partial refunds on Stripe/Square;
-      omitted `amount` = full; SumUp partial verified or per-item disabled for it.
-- [ ] Refund form loads the **whole order** (all lines); "whole order" (default)
-      and per-item (0…remaining, **major-unit** inputs) both work; total refunded
-      at the provider matches; provider failure records nothing; per-line writes
-      are **atomic** (one batch after provider success).
-- [ ] **Idempotency:** a double-submit / concurrent partial refund cannot stack
-      (stable provider idempotency key + local reservation/single-use token).
+- [ ] `refundPayment(ref, amount?, idempotencyKey?)` issues partial refunds on
+      Stripe/Square; omitted `amount` = full; SumUp rejects any refund below the
+      provider transaction total (incl. fee-bearing "all ticket lines").
+- [ ] Refund form loads **all order lines**; default "all ticket lines" and
+      per-item (0…remaining) both work, inputs in **major units via
+      `toMajorUnits`/`toMinorUnits`** (not `/100`); each row shows its booking
+      **date** and submits its `start_at` row key; total refunded at the provider
+      matches; provider failure records nothing; per-line writes **atomic** (one
+      batch after provider success).
+- [ ] **Idempotency:** a double-submit / concurrent partial refund (incl. two
+      tabs/admins) cannot stack — provider key derived from `(payment_id, target
+      amounts)` + a local guard on **live remaining refundable** (not a form
+      token, and not by pre-writing the final `refunded_amount`).
+- [ ] **Bulk refund** groups lines by order/`payment_id` and calls the provider
+      **once per payment** with the summed amount.
+- [ ] Operator **refunds guide** (`guide.json` + template) rewritten: partial
+      refunds supported, booking fees not refundable.
 - [ ] **Per-line payment scoping decided** (§16): balance-paid reservations and
       merged multi-payment attendees either refund the correct payment(s) or are
       blocked — never silently mis-record. SumUp non-full refunds rejected
