@@ -5,8 +5,8 @@ import {
   getLocale,
   getRegisteredLocales,
   parseAcceptLanguage,
+  resetI18nForTest,
   runWithLocale,
-  setI18nReplacerForTest,
   t,
 } from "#i18n";
 import { setTestEnv } from "#test-utils";
@@ -99,19 +99,9 @@ describe("i18n", () => {
       expect(replace("abc")).toBe("abc");
     });
 
-    test("leaves a term untouched when it follows a slash (path segment)", () => {
-      expect(buildReplacer("attendees|guests")("/admin/attendees")).toBe(
-        "/admin/attendees",
-      );
-    });
-
-    test("leaves a term untouched when it precedes a slash (path segment)", () => {
-      expect(buildReplacer("foo|bar")("foo/baz")).toBe("foo/baz");
-    });
-
-    test("rebrands a link's label but not its href path", () => {
-      // The visible "Attendees" is rewritten; the /admin/attendees route in the
-      // href is a path segment and must survive so the link keeps working.
+    test("rebrands a link's label but not its href or tag markup", () => {
+      // The visible "Attendees" is rewritten; the <a> tag and its
+      // /admin/attendees href are protected so the link keeps working.
       expect(
         buildReplacer("attendee|guest")(
           '<a href="/admin/attendees">Attendees</a>',
@@ -119,10 +109,22 @@ describe("i18n", () => {
       ).toBe('<a href="/admin/attendees">Guests</a>');
     });
 
-    test("leaves route examples shown in body text intact", () => {
+    test("leaves route examples inside <code> intact while rebranding prose", () => {
+      // The plus-separated slugs in the code example must survive verbatim even
+      // though "listing" is not slash-adjacent; surrounding prose still changes.
       expect(
-        buildReplacer("listing|event")("See /api/admin/listings/:id"),
-      ).toBe("See /api/admin/listings/:id");
+        buildReplacer("listing|event")(
+          "A listing at <code>/ticket/listing-one+listing-two</code>",
+        ),
+      ).toBe("A event at <code>/ticket/listing-one+listing-two</code>");
+    });
+
+    test("rebrands copy inside ICU plural sub-messages", () => {
+      expect(
+        buildReplacer("ticket|booking")(
+          "{count, plural, one {# ticket} other {# tickets}}",
+        ),
+      ).toBe("{count, plural, one {# booking} other {# bookings}}");
     });
   });
 
@@ -132,31 +134,36 @@ describe("i18n", () => {
       fn: () => void,
     ): void => {
       const restore = setTestEnv({ I18N_REPLACEMENTS: spec });
-      setI18nReplacerForTest(null); // force a rebuild from the new env
+      resetI18nForTest(); // force a rebuild + recompile from the new env
       try {
         fn();
       } finally {
         restore();
-        setI18nReplacerForTest(null); // reset cache for the next test/file
+        resetI18nForTest(); // reset caches for the next test/file
       }
     };
 
-    test("rewrites rendered values, copying the source's case", () => {
+    test("rewrites the static copy of a message, copying the source's case", () => {
       // common.yes is "Yes"; "yes|aye" rewrites it in title case.
       withReplacements("yes|aye", () => {
         expect(t("common.yes")).toBe("Aye");
       });
     });
 
-    test("rewrites interpolated ICU values too", () => {
-      withReplacements("gala|fete", () => {
-        expect(
-          t("admin.attendees.refund_all_confirm", { name: "Gala" }),
-        ).toContain('"Fete"');
+    test("rewrites copy but never the interpolated data values", () => {
+      // The "attendees" in the template copy becomes "guests", but the listing
+      // name supplied at render time is data and must survive verbatim — the
+      // POST handler verifies the typed name against the stored original.
+      withReplacements("attendee|guest", () => {
+        const out = t("admin.attendees.refund_all_confirm", {
+          name: "Attendee Gala",
+        });
+        expect(out).toContain('"Attendee Gala"'); // data untouched
+        expect(out).toContain("all guests"); // copy rebranded
       });
     });
 
-    test("never rewrites the fallback key path of a missing translation", () => {
+    test("never rewrites the fallback key of a missing translation", () => {
       // A missing key is returned verbatim; "key" must not become "code"
       // even though the substring matches.
       withReplacements("key|code", () => {

@@ -23,32 +23,13 @@ const formatCache: Record<string, IntlMessageFormat | null | undefined> = {};
 /** Get the list of registered locale codes */
 export const getRegisteredLocales = (): string[] => Object.keys(locales);
 
-const getFormat = (locale: string, key: string): IntlMessageFormat | null => {
-  const cacheKey = `${locale}\0${key}`;
-  if (cacheKey in formatCache) return formatCache[cacheKey]!;
+// --- Operator-configurable copy replacements (I18N_REPLACEMENTS) ---
 
-  const msg = locales[locale]?.[key] ?? locales.en?.[key];
-  if (msg === undefined) {
-    formatCache[cacheKey] = null;
-    return null;
-  }
+/** Rewrites the translatable copy of a message template. */
+type Replacer = (template: string) => string;
 
-  // ignoreTag: treat <tags> in messages as literal text (locale values may
-  // contain HTML rendered via <Raw>), not ICU rich-text tag syntax.
-  const fmt = new IntlMessageFormat(msg, locale, undefined, {
-    ignoreTag: true,
-  });
-  formatCache[cacheKey] = fmt;
-  return fmt;
-};
-
-// --- Operator-configurable text replacements (I18N_REPLACEMENTS) ---
-
-/** Applies the configured substring replacements to a rendered value. */
-type Replacer = (value: string) => string;
-
-/** No replacements configured: hand the value straight back, zero overhead. */
-const identity: Replacer = (value) => value;
+/** No replacements configured: hand the template straight back, zero overhead. */
+const identity: Replacer = (template) => template;
 
 /** Escape a literal for safe interpolation into a RegExp source. */
 const escapeRegExp = (s: string): string =>
@@ -58,20 +39,33 @@ const escapeRegExp = (s: string): string =>
 const titleCase = (s: string): string => s[0]!.toUpperCase() + s.slice(1);
 
 /**
+ * Spans that must never be rewritten, captured whole so the rebrander only ever
+ * sees the prose between them:
+ *   - a complete `<code>…</code>` block (literal route/CLI examples), and
+ *   - any single HTML tag `<…>` (keeping tag names and attributes such as
+ *     link `href`s intact).
+ * The capturing group makes `String.split` keep these spans, at odd indices.
+ */
+const PROTECTED_SPAN = /(<code\b[^>]*>[\s\S]*?<\/code>|<[^>]+>)/gi;
+
+/**
  * Build a replacer from an `I18N_REPLACEMENTS` spec like `"foo|bar,baz|bee"`.
  *
- * Matching is case-insensitive and by substring — `"foo|bar"` turns `"foobar"`
- * into `"barbar"` — and the output copies the source's capitalisation. Real
- * copy is only ever all-lowercase (`"foo"` → `"bar"`) or title-case (`"Foo"` →
- * `"Bar"`), so the first character is enough to tell the two apart.
+ * It rewrites the *translatable copy* of a message: matching is case-insensitive
+ * and by substring (`"foo|bar"` turns `"foobar"` into `"barbar"`), and the
+ * output copies the source's capitalisation — only all-lowercase (`"foo"` →
+ * `"bar"`) or title-case (`"Foo"` → `"Bar"`) occur in real copy, so the first
+ * character decides which.
  *
- * URL/route paths are left untouched: a term sitting against a `"/"` is treated
- * as a path segment, so `attendee|guest` rewrites a link's label but not its
- * `href="/admin/attendees"` target.
+ * It deliberately leaves three things alone: HTML tags/attributes (so link
+ * hrefs survive), `<code>` examples (literal route/CLI text), and — because it
+ * runs on the message template before ICU formatting (see `getFormat`) —
+ * interpolated values such as a stored listing name. Avoid terms that collide
+ * with ICU keywords/placeholder names (`name`, `count`, `plural`, …).
  *
- * All parsing and regex compilation happens once, here, so each render is a
- * single regex pass — this code runs on a cold-booting edge runtime where
- * per-render work matters.
+ * Parsing and regex compilation happen once here, and `getFormat` compiles and
+ * caches the rebranded template, so rendering stays a plain ICU format with no
+ * extra per-call work — important on a cold-booting edge runtime.
  */
 export const buildReplacer = (raw: string | undefined): Replacer => {
   if (!raw) return identity;
@@ -95,35 +89,65 @@ export const buildReplacer = (raw: string | undefined): Replacer => {
     .join("|");
   const regex = new RegExp(pattern, "gi");
 
-  return (value) =>
-    value.replace(regex, (match, offset: number, full: string) => {
-      // Leave URL/route paths alone: a term touching a "/" is a path segment
-      // (e.g. "/admin/attendees"), not visible copy to rebrand. This keeps
-      // hrefs and route examples intact while still rewriting link labels.
-      if (full[offset - 1] === "/" || full[offset + match.length] === "/") {
-        return match;
-      }
+  const rebrandProse = (prose: string): string =>
+    prose.replace(regex, (match) => {
       const entry = map.get(match.toLowerCase())!;
       const first = match[0]!;
       return first === first.toLowerCase() ? entry.lower : entry.title;
     });
+
+  // Rewrite only the prose between protected spans, leaving tags/code verbatim.
+  return (template) =>
+    template
+      .split(PROTECTED_SPAN)
+      .map((segment, i) => (i % 2 === 0 ? rebrandProse(segment) : segment))
+      .join("");
 };
 
 /** Compiled replacer, built once from the env on first use (resettable in tests). */
-const [getReplacer, setI18nReplacerForTest] = lazyRef<Replacer>(() =>
+const [getReplacer, setReplacer] = lazyRef<Replacer>(() =>
   buildReplacer(getEnv("I18N_REPLACEMENTS")),
 );
 
-export { setI18nReplacerForTest };
+/**
+ * Test hook: drop the cached replacer and every compiled format so the next
+ * render re-reads `I18N_REPLACEMENTS` from the environment.
+ */
+export const resetI18nForTest = (): void => {
+  setReplacer(null);
+  for (const key of Object.keys(formatCache)) delete formatCache[key];
+};
+
+const getFormat = (locale: string, key: string): IntlMessageFormat | null => {
+  const cacheKey = `${locale}\0${key}`;
+  if (cacheKey in formatCache) return formatCache[cacheKey]!;
+
+  const raw = locales[locale]?.[key] ?? locales.en?.[key];
+  if (raw === undefined) {
+    formatCache[cacheKey] = null;
+    return null;
+  }
+
+  // Rebrand the copy once, here, so interpolated values stay untouched and the
+  // compiled (and cached) format does no extra per-render work.
+  const msg = getReplacer()(raw);
+
+  // ignoreTag: treat <tags> in messages as literal text (locale values may
+  // contain HTML rendered via <Raw>), not ICU rich-text tag syntax.
+  const fmt = new IntlMessageFormat(msg, locale, undefined, {
+    ignoreTag: true,
+  });
+  formatCache[cacheKey] = fmt;
+  return fmt;
+};
 
 /** Translate a key with optional ICU MessageFormat parameters */
 export const t = (key: string, values?: Record<string, unknown>): string => {
   const locale = getLocale();
   const fmt = getFormat(locale, key);
-  // Missing translation falls back to the key itself — never run replacements
-  // over that, only over genuinely rendered values.
+  // Missing translation falls back to the key itself.
   if (!fmt) return key;
-  return getReplacer()(String(fmt.format(values)));
+  return String(fmt.format(values));
 };
 
 // --- Request-scoped locale via AsyncLocalStorage ---
