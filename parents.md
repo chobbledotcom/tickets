@@ -101,9 +101,12 @@ We mirror this exactly.
   `questions`, `questionListingMap`, `addOns`, etc.
 - Form fields per listing: `quantity_<listingId>`, optional
   `custom_price_<listingId>`, plus shared `date` / `day_count`, contact fields,
-  `answer_<questionId>` / `text_<questionId>`, `addon_<modifierId>`, `promo_code`.
-  Parsing: `parseQuantities` → `Map<listingId, qty>`, `listingsWithQuantity`,
-  `parseAddOnSelections` (`src/features/public/ticket-form.ts:186-235`).
+  `question_<questionId>` (the **same** field name for radio, select, *and*
+  free-text answers — there is no separate `answer_`/`text_` field;
+  `renderQuestions`/`readQuestionAnswer`/`parseFreeTextAnswer` all use
+  `question_<id>`), `addon_<modifierId>`, `promo_code`. Parsing: `parseQuantities`
+  → `Map<listingId, qty>`, `listingsWithQuantity`, `parseAddOnSelections`
+  (`src/features/public/ticket-form.ts:186-235`).
 - Submission: `ticket-submit.ts` `processSubmission` → `prepareOrder` (parse +
   validate, no writes) → `handlePaidPath` / `handleFreePath`.
   `ticket-payment.ts`: `checkAvailability`, `buildRegistrationItems`,
@@ -290,9 +293,15 @@ When the booking page renders a listing that has children, render each child as 
   bookable on its own day. So daily children need their **own** per-child date
   control (`child_date_<parentId>_<childId>`) evaluated independently — do not feed
   unselected children into `computeSharedDates`.
-- **Child questions** are merged into `questionListingMap` keyed by the child's
-  listing id (children are real listings). See the no-JS note below for how they're
-  rendered and which answers are read at submit.
+- **Child questions** must be merged into `questionListingMap` with the **correct
+  shape**: it is `Map<questionId, listingId[]>` (`questions.ts:361`), read by
+  `prepareOrder` as `ctx.questionListingMap.get(q.id)` — *keyed by question id*, not
+  by listing id. So a child question's entry is `questionId → [...existing,
+  childListingId]`. Keying by the child's listing id (the inverse) would fail to
+  activate child-specific questions and silently skip required child answers and
+  answer-triggered modifiers. The child's answer fields use the standard
+  `question_<questionId>` name (see no-JS note below for rendering and which answers
+  are read at submit).
 
 ### Progressive enhancement
 
@@ -318,11 +327,21 @@ client scripts). The child selector should:
   **non-required in markup** and enforce requiredness **server-side, only for the
   chosen child**. (JS enhancement may re-add `required` to the selected child's
   questions for inline feedback.)
+- **The same no-`required` rule applies to *all* child controls, not just
+  questions.** The existing renderers emit HTML `required`: `renderDateSelector`
+  produces a required `<select name="date">`, and `renderPayMoreInput` adds
+  `required` whenever the minimum price is above zero
+  (`reservations.tsx:71,150`). If every possible child's date / pay-more-price
+  controls are rendered in the no-JS baseline, an *unselected* child's
+  hidden-but-required input blocks the browser from submitting. So
+  `child_date_<parentId>_<childId>` and the child pay-more price input must also be
+  **non-required in markup**, with requiredness enforced **server-side for the
+  selected child only**.
 - Be **enhanced with JS** to (a) reveal each parent's child block (selector + its
-  date/questions) only when the parent quantity > 0, (b) mark the required child
-  fields required, and (c) include selected children in the live `/calculate`
-  quote. Add this to the client booking enhancement script (new or existing
-  `src/ui/client/*`).
+  date/questions/price) only when the parent quantity > 0, (b) re-add `required` to
+  the selected child's fields, and (c) include selected children in the live
+  `/calculate` quote. Add this to the client booking enhancement script (new or
+  existing `src/ui/client/*`).
 
 ### Server-side validation (authoritative)
 
@@ -450,6 +469,15 @@ The expanded set (parent page listings ∪ selected children) must drive **all**
   - **Add per-line date/duration** to `BookingItem`, the metadata packing, and
     webhook reconstruction (larger change; needed only if independent child dates
     are a real requirement).
+  - **The "restrict to shared date" option has a sharp corner: a *standard*
+    (non-daily) parent produces no shared date at all** — the page's date list is
+    computed from the parent listings, so an undated parent leaves
+    `CheckoutIntent.date` null while the webhook applies that single (null) date to
+    every item. A daily child under such a parent then has nowhere to carry its
+    date. So v1 must **also forbid daily children under parents that don't already
+    produce a shared date** (i.e. only allow a daily child when the parent is itself
+    daily / contributes to the shared date), unless we take the per-line-date route.
+    (Open Question 14.)
 - The `/calculate` quote must include selected children; it shares the
   `prepareOrder` path, so the fold + listing-set expansion there covers it.
 - The **webhook** reconstructs the booking from `CheckoutIntent` metadata. Since
@@ -566,9 +594,15 @@ Enumerate each and decide:
   *its* children — the gate must loop until fixpoint, and cycle detection becomes
   load-bearing.
 - **Hidden children.** A child may be marked `hidden` (excluded from the public
-  index) yet still reachable/required via its parent. Confirm `hidden` does not
-  suppress it on the parent's booking page (it shouldn't — `hidden` governs the
-  index, not direct/linked access).
+  index) yet still reachable/required via its parent. `hidden` does not suppress it
+  on the parent's booking page (`hidden` governs the index, not direct/linked
+  access). **But the noindex guard must be extended:** `handleTicket` currently
+  applies `applyHiddenNoindex` based only on the route's *original*
+  `listings.some((e) => e.listing.hidden)`, so a hidden child rendered on a
+  *visible* parent page would not flip the page to noindex — exposing the hidden
+  child's details to crawlers. The noindex decision must include **rendered hidden
+  children**, not just the original page listings (or otherwise keep hidden
+  children's details out of crawlable markup).
 - **Capacity & groups.** Child capacity is its own `max_attendees`; selecting it
   consumes capacity normally. If parent and child share a group capacity pool,
   the existing group-remaining capping applies to both lines.
@@ -696,7 +730,9 @@ direct-checkout paths** — so the API/QR decisions move **into the enforcement 
     the webhook applies it per item, so independent child dates don't survive a
     paid order. Resolve by either **restricting a child's date to the order/shared
     date** (recommended for v1) or **adding per-line date/duration** to
-    `BookingItem` + metadata + webhook reconstruction.
+    `BookingItem` + metadata + webhook reconstruction. If we restrict, we must
+    **also forbid daily children under parents that produce no shared date** (e.g. a
+    standard, undated parent) — there'd be nowhere to carry the child's date.
 15. **Pay-more children** — include a `custom_price_<childId>` input in the child
     controls so `can_pay_more` children work (recommended) vs **disallow pay-more
     children** in v1?
