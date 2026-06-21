@@ -8,6 +8,7 @@ import {
   assertAdminHtml,
   createTestManagerSession,
   describeWithEnv,
+  expectFlashRedirect,
   expectHtmlResponse,
   expectRedirectWithFlash,
   JPEG_HEADER,
@@ -129,7 +130,7 @@ describeWithEnv("server (header image settings)", { db: true }, () => {
           data: PDF_BYTES,
           name: "doc.pdf",
         });
-        expectRedirectWithFlash(
+        await expectFlashRedirect(
           HEADER_IMAGE_FORM_REDIRECT,
           expect.stringContaining("JPEG, PNG, GIF, or WebP"),
           false,
@@ -147,7 +148,7 @@ describeWithEnv("server (header image settings)", { db: true }, () => {
           data: oversized,
           name: "big.jpg",
         });
-        expectRedirectWithFlash(
+        await expectFlashRedirect(
           HEADER_IMAGE_FORM_REDIRECT,
           expect.stringContaining("256KB"),
           false,
@@ -180,7 +181,7 @@ describeWithEnv("server (header image settings)", { db: true }, () => {
           await testCookie(),
         );
         const response = await handleRequest(request);
-        expectRedirectWithFlash(
+        await expectFlashRedirect(
           HEADER_IMAGE_FORM_REDIRECT,
           expect.stringContaining("No image file provided"),
           false,
@@ -191,6 +192,8 @@ describeWithEnv("server (header image settings)", { db: true }, () => {
     test("reports error when storage is not configured", async () => {
       await withStorageDisabled(async () => {
         const response = await submitHeaderJpeg("logo.jpg");
+        // Cookie-only: with storage disabled the upload form is hidden, so the
+        // settings page the error redirects to has no field to render it under.
         expectRedirectWithFlash(
           HEADER_IMAGE_FORM_REDIRECT,
           expect.stringContaining("Image storage is not configured"),
@@ -217,7 +220,7 @@ describeWithEnv("server (header image settings)", { db: true }, () => {
     test("reports error when CDN upload fails", async () => {
       await withCdnRejecting(new Error("CDN unreachable"), async () => {
         const response = await submitHeaderJpeg("logo.jpg");
-        expectRedirectWithFlash(
+        await expectFlashRedirect(
           HEADER_IMAGE_FORM_REDIRECT,
           "Header image upload failed",
           false,
@@ -232,7 +235,7 @@ describeWithEnv("server (header image settings)", { db: true }, () => {
           data: new Uint8Array([0x00, 0x00, 0x00, 0x00]),
           name: "fake.jpg",
         });
-        expectRedirectWithFlash(
+        await expectFlashRedirect(
           HEADER_IMAGE_FORM_REDIRECT,
           expect.stringContaining("valid image"),
           false,
@@ -255,7 +258,7 @@ describeWithEnv("server (header image settings)", { db: true }, () => {
     test("reports error when there is no header image to remove", async () => {
       await withStorageEnabled(async () => {
         const response = await submitHeaderImageDelete();
-        expectRedirectWithFlash(
+        await expectFlashRedirect(
           HEADER_IMAGE_FORM_REDIRECT,
           expect.stringContaining("No header image to remove"),
           false,
@@ -268,7 +271,7 @@ describeWithEnv("server (header image settings)", { db: true }, () => {
 
       await withCdnRejecting(new Error("CDN unreachable"), async () => {
         const response = await submitHeaderImageDelete();
-        expectRedirectWithFlash(
+        await expectFlashRedirect(
           HEADER_IMAGE_DELETE_FORM_REDIRECT,
           "Header image removal failed",
           false,

@@ -87,6 +87,7 @@ export const adminQuestionsPage = (
   error?: string,
   listingNames: Map<number, string[]> = new Map(),
   totalListings = 0,
+  success?: string,
 ): string =>
   String(
     <Layout title={t("questions.title")}>
@@ -96,7 +97,7 @@ export const adminQuestionsPage = (
       <p class="actions">
         <GuideLink href="/admin/guide#questions">Questions guide</GuideLink>
       </p>
-      <Flash error={error} />
+      <Flash error={error} success={success} />
 
       <CsrfForm action="/admin/questions" id="new-question">
         <Raw html={questionTextForm.render()} />
@@ -154,6 +155,7 @@ export const adminQuestionPage = (
   answerCounts?: Map<number, number>,
   allListings: ListingWithCount[] = [],
   assignedListingIds: Set<number> = new Set(),
+  success?: string,
 ): string =>
   String(
     <Layout title={`Question: ${question.text}`}>
@@ -161,7 +163,7 @@ export const adminQuestionPage = (
       <SettingsSubNav />
 
       <h1>{question.text}</h1>
-      <Flash error={error} />
+      <Flash error={error} success={success} />
 
       <CsrfForm action={`/admin/questions/${question.id}/edit`}>
         <Raw html={questionTextForm.field("text").render(question.text)} />
@@ -371,6 +373,7 @@ export const adminAnswerEditPage = (
   aggregateRecalculation: AnswerAggregateRecalculation,
   modifiers: AnswerModifierOption[],
   modifierId: number | null,
+  success?: string,
 ): string =>
   String(
     <Layout title={t("questions.edit_answer.title")}>
@@ -389,7 +392,7 @@ export const adminAnswerEditPage = (
           {t("questions.edit_answer.question_context", { text: question.text })}
         </small>
       </p>
-      <Flash error={error} />
+      <Flash error={error} success={success} />
 
       <CsrfForm
         action={`/admin/questions/${question.id}/answers/${answer.id}/edit`}

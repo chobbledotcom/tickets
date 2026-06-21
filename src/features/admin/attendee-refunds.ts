@@ -49,7 +49,7 @@ const refundError = (
 /** Handle GET /admin/listing/:listingId/attendee/:attendeeId/refund */
 const handleAdminAttendeeRefundGet = attendeeGetRoute(
   (data, session, request) => {
-    applyFlash(request);
+    const flash = applyFlash(request);
     const returnUrl = getReturnUrl(request);
     if (!data.attendee.payment_id) {
       return htmlResponse(
@@ -74,7 +74,7 @@ const handleAdminAttendeeRefundGet = attendeeGetRoute(
       );
     }
     return htmlResponse(
-      adminRefundAttendeePage(data, session, undefined, returnUrl),
+      adminRefundAttendeePage(data, session, flash.error, returnUrl),
     );
   },
 );
@@ -128,7 +128,7 @@ const handleAdminRefundAllGet = (
   { id }: ListingRouteParams,
 ): Promise<Response> =>
   withListingAttendeesAuth(request, id, (listing, attendees, session) => {
-    applyFlash(request);
+    const flash = applyFlash(request);
     const count = getRefundable(attendees).length;
     return count === 0
       ? htmlResponse(
@@ -136,11 +136,19 @@ const handleAdminRefundAllGet = (
             listing,
             0,
             session,
-            t("error.no_attendees_to_refund"),
+            flash.error ?? t("error.no_attendees_to_refund"),
           ),
           400,
         )
-      : htmlResponse(adminRefundAllAttendeesPage(listing, count, session));
+      : htmlResponse(
+          adminRefundAllAttendeesPage(
+            listing,
+            count,
+            session,
+            flash.error,
+            flash.success,
+          ),
+        );
   });
 
 type RefundResult = "ok" | "failed" | "errored";

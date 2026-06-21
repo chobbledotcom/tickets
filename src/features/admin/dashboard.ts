@@ -40,7 +40,7 @@ export const loginResponse = async (
 ): Promise<Response> => {
   const flash = applyFlash(request);
   await signCsrfToken();
-  return htmlResponse(adminLoginPage(flash.error), status);
+  return htmlResponse(adminLoginPage(flash.error, flash.success), status);
 };
 
 /** Maximum number of newest attendees to show on dashboard */

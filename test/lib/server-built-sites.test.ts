@@ -8,8 +8,8 @@ import {
   deleteTestBuiltSite,
   describeWithEnv,
   expectFlash,
+  expectFlashRedirect,
   expectHtmlResponse,
-  expectRedirectWithFlash,
   expectStatus,
   FLASH_TEST_ID,
   flashCookieHeader,
@@ -184,7 +184,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
         bunny_url: "https://nodb.b-cdn.net",
         name: "No DB Site",
       });
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/built-sites",
         expect.stringContaining("created"),
       )(response);
@@ -433,7 +433,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
           confirm_identifier: "case test",
         },
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/built-sites",
         "Built site deleted",
       )(response);

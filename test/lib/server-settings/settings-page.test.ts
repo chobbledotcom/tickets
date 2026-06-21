@@ -28,7 +28,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       await expectHtmlResponse(response, 200, "Settings", "Change Password");
     });
 
-    test("does not display success when form param is missing", async () => {
+    test("shows a flash with no form target as a page-level banner", async () => {
       const response = await awaitTestRequest(
         `/admin/settings?flash=${FLASH_TEST_ID}`,
         {
@@ -38,7 +38,11 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         },
       );
       const html = await response.text();
-      expect(html).not.toContain('class="success"');
+      // With no ?form= target, no CsrfForm claims the flash, so the Layout
+      // backstop renders it — surfacing it rather than the old behavior of
+      // silently swallowing an unattributed flash.
+      expect(html).toContain('class="success"');
+      expect(html).toContain("Test success message");
     });
 
     test("displays success message on the matching form when form param is provided", async () => {

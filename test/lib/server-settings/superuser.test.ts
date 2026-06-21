@@ -21,7 +21,7 @@ import {
   createTestManagerSession,
   describeWithEnv,
   expectFlash,
-  expectRedirectWithFlash,
+  expectFlashRedirect,
   mockFormRequest,
   setTestEnv,
   testCookie,
@@ -102,7 +102,7 @@ describeWithEnv("server (admin settings superuser)", { db: true }, () => {
       const { response } = await adminFormPost(SUPERUSER_ROUTE, {
         superuser_choice: "self-managed",
       });
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/settings?form=settings-superuser#settings-superuser",
         "Superuser recovery declined",
       )(response);
@@ -288,7 +288,7 @@ describeWithEnv("server (admin settings superuser)", { db: true }, () => {
           const { response } = await adminFormPost(SUPERUSER_ROUTE, {
             superuser_choice: "enable-superuser",
           });
-          expectRedirectWithFlash(
+          await expectFlashRedirect(
             "/admin/settings?form=settings-superuser#settings-superuser",
             "Superuser enabled and credentials sent",
           )(response);

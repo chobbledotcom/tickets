@@ -5,6 +5,12 @@
 import { joinStrings, map, pipe } from "#fp";
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { getCurrentCsrfToken } from "#shared/csrf.ts";
+import {
+  consumeFlash,
+  flashConsumed,
+  getFlash,
+  getFlashFormId,
+} from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { appendIframeParam } from "#shared/iframe.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
@@ -485,6 +491,11 @@ export const defineForm = <
 /**
  * Flash message component for error/success notifications.
  * Renders divs with role="alert" so screen readers announce them.
+ *
+ * Rendering any banner marks the request's flash as consumed, so the Layout
+ * backstop (which renders the context flash on every page) won't render it a
+ * second time. This is what lets a page render its flash inline — or not at all
+ * — without ever double-rendering or dropping it.
  */
 export const Flash = ({
   error,
@@ -494,25 +505,28 @@ export const Flash = ({
   error?: string;
   success?: string;
   info?: string;
-}): JSX.Element => (
-  <>
-    {success ? (
-      <div class="success" role="alert">
-        {success}
-      </div>
-    ) : null}
-    {info ? (
-      <div class="info" role="alert">
-        {info}
-      </div>
-    ) : null}
-    {error ? (
-      <div class="error" role="alert">
-        {error}
-      </div>
-    ) : null}
-  </>
-);
+}): JSX.Element => {
+  if (error || success || info) consumeFlash();
+  return (
+    <>
+      {success ? (
+        <div class="success" role="alert">
+          {success}
+        </div>
+      ) : null}
+      {info ? (
+        <div class="info" role="alert">
+          {info}
+        </div>
+      ) : null}
+      {error ? (
+        <div class="error" role="alert">
+          {error}
+        </div>
+      ) : null}
+    </>
+  );
+};
 
 /**
  * Render error message if present
@@ -586,24 +600,6 @@ const getSavedValue = (field: Field): string => {
   return _savedFormData.form.getString(field.name);
 };
 
-/** Per-request success state, readable synchronously by CsrfForm */
-const _successStore = { formId: "", message: "" };
-
-/** Set the success state for the current request (call before rendering) */
-export const setFormSuccess = (formId: string, message = ""): void => {
-  _successStore.formId = formId;
-  _successStore.message = message;
-};
-
-/** Per-request error state, readable synchronously by CsrfForm */
-const _errorStore = { formId: "", message: "" };
-
-/** Set the error state for the current request (call before rendering) */
-export const setFormError = (formId: string, message: string): void => {
-  _errorStore.formId = formId;
-  _errorStore.message = message;
-};
-
 /**
  * Form component that always includes CSRF token.
  * Renders a POST form with a hidden csrf_token input.
@@ -611,7 +607,11 @@ export const setFormError = (formId: string, message: string): void => {
  * which is always called before rendering begins.
  * Supports extra attributes like class and enctype for multipart forms.
  * When `id` is provided, the form gets an id attribute (also usable as an anchor).
- * Shows a success or error message when the form's id matches the current state.
+ *
+ * When a redirect targeted this form (its `id` matches the flash's `?form=`),
+ * the form renders the flash inline — keeping the message next to the form that
+ * was submitted on multi-form pages — and marks it consumed so the Layout
+ * backstop doesn't also render it at the top.
  */
 export const CsrfForm = ({
   action,
@@ -634,11 +634,8 @@ export const CsrfForm = ({
     {...rest}
   >
     <input name="csrf_token" type="hidden" value={getCurrentCsrfToken()} />
-    {rest.id && rest.id === _successStore.formId && (
-      <Flash success={_successStore.message} />
-    )}
-    {rest.id && rest.id === _errorStore.formId && (
-      <Flash error={_errorStore.message} />
+    {rest.id && rest.id === getFlashFormId() && !flashConsumed() && (
+      <Flash error={getFlash().error} success={getFlash().success} />
     )}
     {children}
   </form>

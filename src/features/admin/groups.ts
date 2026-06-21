@@ -189,7 +189,7 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/groups/:id"> = (
         phonePrefix = prefix;
       }
       const allowedDomain = getEffectiveDomain();
-      const successMessage = getFlash().success;
+      const flash = getFlash();
       const questionData = await loadAttendeeQuestionData(
         listingIds,
         attendees.map((a) => a.id),
@@ -205,8 +205,9 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/groups/:id"> = (
           session,
           allowedDomain,
           phonePrefix,
-          successMessage,
+          flash.success,
           questionData,
+          flash.error,
         ),
       );
     }),

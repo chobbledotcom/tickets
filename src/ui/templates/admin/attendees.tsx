@@ -138,11 +138,12 @@ export const adminRefundAllAttendeesPage = (
   refundableCount: number,
   session: AdminSession,
   error?: string,
+  success?: string,
 ): string =>
   String(
     <Layout title={`Refund All: ${listing.name}`}>
       <AdminNav active="/admin/" session={session} />
-      <Flash error={error} />
+      <Flash error={error} success={success} />
 
       <ConfirmForm
         action={`/admin/listing/${listing.id}/refund-all`}

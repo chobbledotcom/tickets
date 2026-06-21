@@ -24,8 +24,8 @@ import {
   createTestListing,
   createTestManagerSession,
   describeWithEnv,
+  expectFlashRedirect,
   expectHtmlResponse,
-  expectRedirectWithFlash,
   expectStatus,
   followRedirectWithFlash,
   testRequiresAuth,
@@ -98,7 +98,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         "/admin/modifiers",
         createData(),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/modifiers",
         "Modifier created",
         true,
@@ -157,7 +157,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         "/admin/modifiers",
         createData({ min_subtotal: "-5" }),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/modifiers/new",
         "Minimum order must be a positive number",
         false,
@@ -179,7 +179,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         "/admin/modifiers",
         createData({ calc_value: "abc" }),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/modifiers/new",
         "Enter a valid number",
         false,
@@ -191,7 +191,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         "/admin/modifiers",
         createData({ calc_value: "150" }),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/modifiers/new",
         "Percentage must be greater than 0 and at most 100",
         false,
@@ -203,7 +203,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         "/admin/modifiers",
         createData({ calc_value: "0" }),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/modifiers/new",
         "Percentage must be greater than 0 and at most 100",
         false,
@@ -232,7 +232,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         "/admin/modifiers",
         createData({ calc_kind: "multiply", calc_value: "0" }),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/modifiers/new",
         "Multiplier must be greater than 0",
         false,
@@ -244,7 +244,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         "/admin/modifiers",
         createData({ calc_kind: "fixed", calc_value: "0" }),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/modifiers/new",
         "Amount must be greater than 0",
         false,
@@ -256,7 +256,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         "/admin/modifiers",
         createData({ calc_kind: "bogus" }),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/modifiers/new",
         "Invalid modifier type",
         false,
@@ -268,7 +268,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         "/admin/modifiers",
         createData({ direction: "sideways" }),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/modifiers/new",
         "Invalid direction",
         false,
@@ -315,7 +315,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         `/admin/modifiers/${id}/edit`,
         createData({ calc_value: "20", name: "After" }),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/modifiers",
         "Modifier updated",
         true,
@@ -334,7 +334,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         total_uses: "12",
         usage_count: "4",
       });
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/modifiers",
         "Modifier updated",
         true,
@@ -354,7 +354,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         total_uses: "-1",
         usage_count: "4",
       });
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/modifiers/${id}/edit`,
         "Total Uses must be 0 or greater",
         false,
@@ -378,7 +378,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         `/admin/modifiers/${id}/edit`,
         createData({ calc_value: "150" }),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/modifiers/${id}/edit`,
         "Percentage must be greater than 0 and at most 100",
         false,
@@ -456,7 +456,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         `/admin/modifiers/recalculate/${id}`,
         { recalculate_fields: "total_uses" },
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/modifiers/${id}/edit`,
         "Modifier totals recalculated",
         true,
@@ -476,7 +476,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         `/admin/modifiers/recalculate/${id}`,
         { recalculate_fields: "total_uses" },
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/modifiers/${id}/edit`,
         "Modifier totals recalculated",
         true,
@@ -527,7 +527,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
           confirm_identifier: "Doomed",
         },
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/modifiers",
         "Modifier deleted",
         true,
@@ -550,7 +550,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         "/admin/modifiers",
         createData({ scope: "bogus" }),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/modifiers/new",
         "Invalid scope",
         false,
@@ -629,7 +629,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         `/admin/modifiers/${id}/links`,
         {},
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/modifiers/${id}/edit`,
         "Scope updated",
         true,
@@ -690,7 +690,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         `/admin/modifiers/${id}/answers`,
         { answer_ids: String(answerId) },
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/modifiers/${id}/edit`,
         "Answers updated",
         true,
@@ -737,7 +737,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         "/admin/modifiers",
         createData({ trigger: "magic" }),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/modifiers/new",
         "Invalid trigger",
         false,
@@ -749,7 +749,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         "/admin/modifiers",
         createData({ code: "", trigger: "code" }),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/modifiers/new",
         "A promo-code modifier needs a code",
         false,
@@ -790,7 +790,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         "/admin/modifiers",
         createData({ min_visits: "1", trigger: "optional" }),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/modifiers/new",
         "Optional add-ons cannot require previous bookings",
         false,
@@ -802,7 +802,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         "/admin/modifiers",
         createData({ min_visits: "-1" }),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/modifiers/new",
         "Minimum previous bookings must be a whole number of 0 or more",
         false,
@@ -814,7 +814,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         "/admin/modifiers",
         createData({ min_visits: "1.5" }),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/modifiers/new",
         "Minimum previous bookings must be a whole number of 0 or more",
         false,
