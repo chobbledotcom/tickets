@@ -8,6 +8,7 @@ import {
   adminGet,
   createTestListing,
   describeWithEnv,
+  setupStripe,
   testRequiresAuth,
 } from "#test-utils";
 
@@ -37,6 +38,8 @@ describeWithEnv("server (admin attendee balance)", { db: true }, () => {
   testRequiresAuth("/admin/attendees/1/balance");
 
   test("shows the deposit breakdown, payment link and history", async () => {
+    // A provider must be configured for the customer pay link to function.
+    await setupStripe();
     const attendeeId = await reservedAttendee();
     await logActivity("Deposit received", null, attendeeId);
 
@@ -52,6 +55,19 @@ describeWithEnv("server (admin attendee balance)", { db: true }, () => {
     expect(html).toContain("/pay/bal1.");
     // The attendee's history is listed.
     expect(html).toContain("Deposit received");
+  });
+
+  test("withholds the payment link for a reservation when no provider is configured", async () => {
+    // A reservation status, but no payment provider — the /pay POST would
+    // dead-end, so the customer link must not be offered.
+    const attendeeId = await reservedAttendee();
+    const { response } = await adminGet(
+      `/admin/attendees/${attendeeId}/balance`,
+    );
+    const html = await response.text();
+    expect(html).toContain("Balance outstanding");
+    expect(html).not.toContain("/pay/");
+    expect(html).toContain("collect the balance directly from the customer");
   });
 
   test("returns 404 for a missing attendee", async () => {
@@ -95,7 +111,7 @@ describeWithEnv("server (admin attendee balance)", { db: true }, () => {
     // The online /pay link only serves reservations, so it is withheld here;
     // the balance is collected offline instead.
     expect(html).not.toContain("/pay/");
-    expect(html).toContain("Collect this balance directly");
+    expect(html).toContain("collect the balance directly from the customer");
   });
 
   test("withholds the payment link for a non-reservation status with a balance", async () => {
@@ -124,7 +140,7 @@ describeWithEnv("server (admin attendee balance)", { db: true }, () => {
     const html = await response.text();
     expect(html).toContain("Balance outstanding");
     expect(html).not.toContain("/pay/");
-    expect(html).toContain("Collect this balance directly");
+    expect(html).toContain("collect the balance directly from the customer");
   });
 
   test("the attendee page links to the balance panel when a balance is due", async () => {
