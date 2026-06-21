@@ -176,8 +176,21 @@ export default schemaMigration(
   {
     columns: { listing_attendees: ["refunded_amount"] },
   },
+  // 4th arg: after() — runs post-ADD COLUMN. Backfill legacy refunded rows so
+  // they don't report 0 (see §18; they cannot self-heal via the refresh path).
+  async ({ getDb }) => {
+    await getDb().execute(
+      "UPDATE listing_attendees SET refunded_amount = price_paid WHERE refunded = 1 AND refunded_amount = 0",
+    );
+  },
 );
 ```
+
+> The `after` callback is **part of the required migration** (§18), not optional
+> — without it every historical `refunded = 1` row reports `refunded_amount = 0`.
+> `schemaMigration`'s 4th argument receives the `MigrationContext` (so `getDb`
+> is available). Confirm `after` runs *after* `applySchemaChanges` (it does — see
+> `define.ts`'s `up`).
 
 `schemaMigration` runs `applySchemaChanges()` (ADD COLUMN for any missing
 schema column) and the generated `verify()` asserts the live table has
@@ -381,9 +394,12 @@ show the refunded amount next to the existing refund-status badge:
 
 ### 8b. Refund confirmation page — same file
 
-`adminRefundAttendeePage` warns "This will issue a full refund". Optionally
-show the exact amount that will be refunded (`attendee.price_paid`) so the
-operator sees it before confirming. Pure copy/markup change.
+`adminRefundAttendeePage` warns "This will issue a full refund". Optionally show
+the amount before confirming — but **do not present `attendee.price_paid` as "the
+exact amount"**: per §8.5 it excludes booking fees and over-states balance-paid
+reservations, so the operator would see the wrong figure. Either show the
+provider/order total when available, or label it explicitly as a *ticket-only
+estimate* (e.g. "≈ £10.00 ticket value; final refund set by the provider").
 
 ### 8c. Attendee table status column — `src/shared/columns/attendee-columns.ts`
 
@@ -496,29 +512,43 @@ This is **two layers**, not just the provider wrapper:
    `number | null`). Update `stripe-provider.ts`, `square-provider.ts`,
    `sumup-provider.ts`.
 2. **Lower API layers** (the easy-to-miss part):
-   - **Stripe** — `src/shared/stripe.ts:322` already returns `Stripe.Refund`
-     (carrying `.amount`), so only the provider wrapper needs to stop discarding
-     it. ✅ no lower-layer change.
+   - **Stripe — `refundPayment` only:** `src/shared/stripe.ts:322` already
+     returns `Stripe.Refund` (carrying `.amount`), so for the *refund* path only
+     the provider wrapper needs to stop discarding it. **But the refresh path is
+     different** (review #1): it reads `retrievePaymentIntent`, whose narrowing
+     `StripePaymentIntentFields` reduces `latest_charge` to `{ refunded }`
+     (`stripe.ts:72-87`), throwing away `amount_refunded`. To surface the
+     provider amount on refresh, that narrowing (and its tests) must add the
+     refunded amount too. So "no lower-layer change" holds for `refundPayment`,
+     **not** for the refresh path.
    - **Square** — `src/shared/square.ts:608` *computes* the refund amount
      (`payment.amountMoney.amount`) but its `withClient` callback returns only
      `true`, and the REST adapter (`refunds.refundPayment`, ~`:343`) returns
      `{}`. **`square.ts` (and its tests) must be changed to return the amount**;
      changing `square-provider.ts` alone leaves Square falling back to
-     `price_paid`.
+     `price_paid`. (For the refresh path, Square reads refund state via its own
+     retrieve path — check it surfaces the amount too.)
    - **SumUp** — returns boolean only → `amount` undefined → fall back to
      `price_paid` (acceptable; documented).
-3. **All callers must read the new shape** (see also §9):
+3. **All `refundPayment` callers must read the new shape** (see also §9):
    - `attendee-refunds.ts` single (`:101-112`) + bulk (`:160-163`) — branch on
      `.ok`, pass `.amount` into `markRefunded(id, listingId, amount)`.
    - `webhooks.ts:239` auto-refund — branch on `.ok` (no amount stored).
-4. **Refresh path needs the amount too (review #3).** `handleRefreshPayment`
-   does **not** call `refundPayment`; it calls `isPaymentRefunded(ref)` →
-   boolean, then `markRefunded`. For refunds made directly in Stripe/Square and
-   then refreshed in-app, widening only `refundPayment` still leaves this path on
-   the `price_paid` fallback. To record the provider's actual amount here,
-   `isPaymentRefunded` must also return the refunded amount (e.g.
-   `Promise<{ refunded: boolean; amount?: number }>` or a companion
-   `getRefundedAmount(ref)`), and `handleRefreshPayment` must pass it through.
+4. **Refresh path needs the amount too (review #3) — and `isPaymentRefunded` has
+   more than one caller (review #4).** `handleRefreshPayment` does **not** call
+   `refundPayment`; it calls `isPaymentRefunded(ref)` → boolean, then
+   `markRefunded`. To record the provider's actual amount here, `isPaymentRefunded`
+   must also return the amount (e.g. `Promise<{ refunded: boolean; amount?:
+   number }>` or a companion `getRefundedAmount(ref)`), the Stripe/Square lower
+   retrieve layers must stop discarding it (Stripe: the `latest_charge` narrowing
+   above), and **every** `isPaymentRefunded` caller must read `.refunded` rather
+   than truthiness:
+   - `attendees-edit.ts:86` `handleRefreshPayment` — pass the amount into
+     `markRefunded`.
+   - `webhooks.ts:251` `tryRefund` fallback — `if (await
+     provider.isPaymentRefunded(ref))` after a failed refund; an object
+     `{ refunded: false }` is truthy, so a failed defensive refund would be
+     mis-classified as already-refunded unless this reads `.refunded`.
    This widens a second interface method across all three providers.
 
 Cost: touches all three providers + two lower API layers + every
@@ -640,25 +670,32 @@ attendee-specific column block instead of `standardAttendeeColumns`.
 
 ---
 
-## 14. Merge — `src/shared/merge/attendee-merge.ts`
+## 14. Merge — `src/shared/merge/attendee-merge.ts` (REQUIRED, not optional)
 
-`bookingInsertStatement` copies a source booking line to the target; add
-`refunded_amount: booking.refunded_amount` to the `insert("listing_attendees",
-{...})` payload so a moved/replaced line keeps its refunded amount.
+The merge runs against live data regardless of whether we "opt in" to merge
+support, so once the column exists these two changes are **required** to avoid
+silent data loss (review #6) — not the "recommended" niceties the first draft
+called them:
 
-> **Pairs with §5c.** This insert reads `booking.refunded_amount`, which is only
-> populated if `loadAttendeeBookings` in `attendees-merge.ts` selects the
-> column. Without that SELECT, `booking.refunded_amount` is `undefined` and the
-> insert violates the `NOT NULL` constraint (or silently drops the amount). Land
-> the loader change (§5c) and this insert change together, and cover it with a
-> merge test (§15g) that moves a refunded line and asserts the amount survives.
+1. **Insert** — `bookingInsertStatement` copies a source booking line to the
+   target; add `refunded_amount: booking.refunded_amount` to the
+   `insert("listing_attendees", {...})` payload. Without it, every moved/replaced
+   refunded line is re-inserted at the column **default 0**, silently zeroing the
+   recorded refund on each merge.
+2. **Loader (§5c)** — the insert reads `booking.refunded_amount`, which is only
+   populated if `loadAttendeeBookings` selects the column. Land the loader and
+   insert together; cover with a merge test (§15g) that moves a refunded line and
+   asserts the amount survives.
 
-Optionally include `refunded_amount` in the duplicate-detection comparison in
-`buildBookingDiffItems` (currently compares `quantity`, `price_paid`,
-`checked_in`, `refunded`). Since `refunded_amount` is derived from
-`price_paid`+`refunded`, two lines equal on those three will almost always be
-equal on `refunded_amount` too — adding it is harmless and precise but not
-strictly required. Include for completeness.
+**Duplicate detection (review #2) — required under option B.**
+`buildBookingDiffItems` classifies a source booking as a `duplicate` (and skips
+it) when it matches the target on `quantity`, `price_paid`, `checked_in`,
+`refunded`. Under **option A** `refunded_amount` is derived from
+`price_paid`+`refunded`, so adding it changes nothing. Under **option B** it is
+*not* derived (fees, balance refunds, and the backfill make it diverge), so two
+lines equal on the four fields can differ on `refunded_amount` — and skipping the
+source would silently drop that amount. Therefore: add `refunded_amount` to the
+comparison whenever option B is in play (harmless under A, so just include it).
 
 ---
 
@@ -753,13 +790,14 @@ webhook attendee type + builder + `makeTestAttendee` factory + webhook docs
 | `src/shared/db/attendees/queries.ts` | `EA_COLS`, `ATTENDEE_LEFT_JOIN_SELECT`, `getAttendeesByTokens` | ✅ |
 | `src/shared/db/attendees/update.ts` | `markRefunded` sets `refunded_amount = price_paid` | ✅ |
 | `src/shared/db/attendees/pii.ts` | Map `refunded_amount` in `decryptAttendeeFields` | ✅ |
+| `src/shared/db/attendees/atomic-update.ts` | `loadExistingLines` SELECT must add `refunded_amount` (§5d) | ✅ |
 | `src/features/admin/attendees-edit.ts` | Add column to refresh-context select | ✅ |
 | `src/ui/templates/admin/attendees.tsx` | Show amount in `PaymentDetails` (+ refund confirm) | ✅ |
 | `src/locales/en/admin.json` | `admin.attendees.amount_refunded` | ✅ |
 | `test/test-utils/factories.ts` | `refunded_amount: 0` in `testAttendee` | ✅ |
 | Tests (§15) | New/extended coverage | ✅ |
-| `src/features/admin/attendees-merge.ts` | **`loadAttendeeBookings` must SELECT `refunded_amount`** (§5c) | ✅ if merge carries it |
-| `src/shared/merge/attendee-merge.ts` | Carry `refunded_amount` on moved lines (insert) | ⭕ recommended (pairs with row above) |
+| `src/features/admin/attendees-merge.ts` | `loadAttendeeBookings` must SELECT `refunded_amount` (§5c) | ✅ (merge runs regardless) |
+| `src/shared/merge/attendee-merge.ts` | Insert copies `refunded_amount`; add to dedup compare under option B (§14) | ✅ (else merges zero it) |
 | `src/features/admin/attendees-csv.ts` + csv locale | Export column (label "ticket-only/approx" if option A — §8.5) | ⭕ recommended |
 | Provider layer (§10a): `*-provider.ts` + `square.ts` lower layer + `isPaymentRefunded` + all `refundPayment` callers (incl. `webhooks.ts`) | Record provider's **actual** refunded amount | 🔶 recommended for correctness (§8.5) |
 | Refund routes + maybe per-line payment marker (§10b) | Fan out an order-level refund across covered lines — **open design question** | 🔶 decision required (§8.5/§10b) |
