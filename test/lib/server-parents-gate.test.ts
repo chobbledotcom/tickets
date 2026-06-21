@@ -10,6 +10,8 @@ import {
 } from "#shared/db/questions.ts";
 import {
   createDailyTestListing,
+  createTestAttendee,
+  createTestGroup,
   createTestListing,
   deactivateTestListing,
   describeWithEnv,
@@ -1140,6 +1142,80 @@ describeWithEnv(
           `name="child_price_${parent.id}_${childB.id}"[^>]*\\srequired`,
         ),
       );
+    });
+
+    test("only the active child option is selectable and auto-checked", async () => {
+      // The render must mirror the server's active check: an inactive child is
+      // rendered disabled and never auto-selected, leaving the lone active child
+      // as the auto-checked option (Fix 3).
+      const parent = await createTestListing({ name: "Base unit" });
+      const liveChild = await createTestListing({ name: "Live add-on" });
+      const deadChild = await createTestListing({ name: "Dead add-on" });
+      await setChildIds(parent.id, [liveChild.id, deadChild.id]);
+      await deactivateTestListing(deadChild.id);
+
+      const html = await ticketPageHtml(parent.slug);
+      // The active child is the sole bookable option, so it auto-checks.
+      expect(html).toMatch(
+        new RegExp(
+          `<input type="radio" name="child_${parent.id}" value="${liveChild.id}"[^>]*\\schecked`,
+        ),
+      );
+      // The inactive child renders disabled and is not checked.
+      expect(html).toMatch(
+        new RegExp(
+          `<input type="radio" name="child_${parent.id}" value="${deadChild.id}"[^>]*\\sdisabled`,
+        ),
+      );
+      expect(html).not.toMatch(
+        new RegExp(
+          `<input type="radio" name="child_${parent.id}" value="${deadChild.id}"[^>]*\\schecked`,
+        ),
+      );
+    });
+
+    test("a parent + child in a 1-spot capped group renders sold out", async () => {
+      // Parent and child share a capped group, so the minimum order consumes two
+      // group spots. With one spot left, the booking page projects the parent to
+      // sold out — matching the card and the submit-time rejection (Fix 4).
+      const group = await createTestGroup({ maxAttendees: 2, name: "Pool" });
+      const parent = await createTestListing({
+        groupId: group.id,
+        name: "Base unit",
+      });
+      const child = await createTestListing({
+        groupId: group.id,
+        name: "Add-on",
+      });
+      const filler = await createTestListing({
+        groupId: group.id,
+        name: "Filler",
+      });
+      await setChildIds(parent.id, [child.id]);
+      await createTestAttendee(filler.id, filler.slug, "Buyer", "b@x.com");
+
+      const html = await ticketPageHtml(parent.slug);
+      expect(html).toContain("Sorry, this listing is full.");
+      expect(html).not.toContain(`name="quantity_${parent.id}"`);
+    });
+
+    test("a parent + child in a 2-spot capped group renders a bookable form", async () => {
+      // With two spots free the combined demand fits, so the parent renders a
+      // normal quantity selector and child block (Fix 4).
+      const group = await createTestGroup({ maxAttendees: 2, name: "Pool" });
+      const parent = await createTestListing({
+        groupId: group.id,
+        name: "Base unit",
+      });
+      const child = await createTestListing({
+        groupId: group.id,
+        name: "Add-on",
+      });
+      await setChildIds(parent.id, [child.id]);
+
+      const html = await ticketPageHtml(parent.slug);
+      expect(html).toContain(`name="quantity_${parent.id}"`);
+      expect(html).toContain(`name="child_${parent.id}"`);
     });
 
     test("a parent whose only child is sold out renders sold out on its own page", async () => {

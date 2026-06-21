@@ -29,22 +29,51 @@ import type { ListingWithCount } from "#shared/types.ts";
 const INSERT_EDGE =
   "INSERT INTO listing_parents (parent_listing_id, child_listing_id) VALUES (?, ?)";
 
+/** Run a child-id-selecting query (whose SQL embeds an `IN (…)` placeholder list
+ * over `ids`) and return its results as a set. Short-circuits to an empty set —
+ * and no query — for an empty input, the shared shape of the child-id lookups
+ * below. */
+const childIdSet = async (
+  sql: string,
+  ids: readonly number[],
+): Promise<Set<number>> => {
+  if (ids.length === 0) return new Set();
+  return new Set(await queryIdColumn(sql, [...ids]));
+};
+
 /** Of the given listing ids, the set that are a child of some parent (i.e. have
  * a `listing_parents` edge naming them as `child_listing_id`). Used to reject
  * child slugs at the booking entry point — a booking can never start from a
  * child (invariant I3). Returns an empty set for an empty input (no query). */
-export const getChildListingIds = async (
+export const getChildListingIds = (
   ids: readonly number[],
-): Promise<Set<number>> => {
-  if (ids.length === 0) return new Set();
-  const rows = await queryIdColumn(
+): Promise<Set<number>> =>
+  childIdSet(
     `SELECT DISTINCT child_listing_id AS id FROM listing_parents WHERE child_listing_id IN (${inPlaceholders(
       ids,
     )})`,
-    [...ids],
+    ids,
   );
-  return new Set(rows);
-};
+
+/**
+ * Of the given listing ids, the subset that are a child of at least one **active**
+ * parent. A child whose only parent is deactivated (`active = 0`) has no active
+ * parent page that can offer or fold it, so the "available as an add-on" CTA
+ * suppression would be a dead end (parents.md, "Public listing cards"): such a
+ * child must fall back to its own normal availability, so it is excluded here.
+ * Returns an empty set for an empty input (no query).
+ */
+export const getChildIdsWithActiveParent = (
+  ids: readonly number[],
+): Promise<Set<number>> =>
+  childIdSet(
+    `SELECT DISTINCT edge.child_listing_id AS id
+       FROM listing_parents AS edge
+       JOIN listings AS parent ON parent.id = edge.parent_listing_id
+      WHERE edge.child_listing_id IN (${inPlaceholders(ids)})
+        AND parent.active = 1`,
+    ids,
+  );
 
 /** Child listing ids that must be chosen under `parentId` (relationship only). */
 export const getChildIds = (parentId: number): Promise<number[]> =>

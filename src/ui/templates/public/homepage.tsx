@@ -16,18 +16,20 @@ import {
 /** Booking CTA / status line for a public listing card. A child listing
  * (`isChild`) is never standalone-bookable (invariant I3), so its Book/Buy
  * button is replaced with an "available as an add-on" note rather than a link to
- * the dead-end child page. */
+ * the dead-end child page — but only when the child is otherwise bookable: an
+ * unavailable child (sold out / closed / read-only site) must still read as
+ * such, so those checks run first (parents.md, "Public listing cards"). */
 const renderListingCardCta = (
   info: TicketListing,
   isChild: boolean,
 ): string => {
   const { listing, isSoldOut, isClosed } = info;
-  if (isChild) {
-    return `<p><em>${t("public.available_with_other")}</em></p>`;
-  }
   if (isSoldOut) return `<p><strong>${t("public.sold_out")}</strong></p>`;
   if (isClosed || isReadOnly()) {
     return `<p><strong>${t("public.registration_closed")}</strong></p>`;
+  }
+  if (isChild) {
+    return `<p><em>${t("public.available_with_other")}</em></p>`;
   }
   const bookLabel = listing.purchase_only
     ? t("public.buy_now")

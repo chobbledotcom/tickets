@@ -18,6 +18,7 @@ import { settings } from "#shared/db/settings.ts";
 import {
   adminGet,
   createTestAttendee,
+  createTestGroup,
   createTestListing,
   deactivateTestListing,
   describeWithEnv,
@@ -98,6 +99,118 @@ describeWithEnv(
       test("a parent with one bookable child keeps its Book link", async () => {
         const parent = await createTestListing({ name: "Base unit" });
         const child = await createTestListing({ name: "Add-on" });
+        await setChildIds(parent.id, [child.id]);
+        const body = await publicBody("/listings");
+        expect(body).toContain(`href="/ticket/${parent.slug}"`);
+      });
+
+      test("a child whose only parent is deactivated is not labeled add-on", async () => {
+        // The only parent page that could offer this child is deactivated, so
+        // the "available as an add-on" CTA would be a dead end — the child falls
+        // back to its own standalone booking CTA instead (Fix 1).
+        const parent = await createTestListing({ name: "Base unit" });
+        const child = await createTestListing({ name: "Add-on" });
+        await setChildIds(parent.id, [child.id]);
+        await deactivateTestListing(parent.id);
+        const body = await publicBody("/listings");
+        expect(body).toContain("Add-on");
+        expect(body).not.toContain("Available as an add-on to another booking");
+        expect(body).toContain(`href="/ticket/${child.slug}"`);
+      });
+
+      test("a child with one active and one inactive parent stays labeled add-on", async () => {
+        // At least one active parent can still offer the child, so the standalone
+        // CTA must stay suppressed (Fix 1).
+        const activeParent = await createTestListing({ name: "Active base" });
+        const deadParent = await createTestListing({ name: "Dead base" });
+        const child = await createTestListing({ name: "Add-on" });
+        await setChildIds(activeParent.id, [child.id]);
+        await setChildIds(deadParent.id, [child.id]);
+        await deactivateTestListing(deadParent.id);
+        const body = await publicBody("/listings");
+        expect(body).toContain("Available as an add-on to another booking");
+        expect(body).not.toContain(`href="/ticket/${child.slug}"`);
+      });
+
+      test("a sold-out visible child shows sold out, not the add-on note", async () => {
+        // The unavailable state must take precedence over the add-on note so the
+        // card does not advertise an add-on the gate would reject (Fix 2).
+        const parent = await createTestListing({ name: "Base unit" });
+        const child = await createTestListing({
+          maxAttendees: 1,
+          name: "Add-on",
+        });
+        await createTestAttendee(child.id, child.slug, "Buyer", "b@x.com");
+        await setChildIds(parent.id, [child.id]);
+        const body = await publicBody("/listings");
+        expect(body).toContain("Add-on");
+        expect(body).toContain("Sold Out");
+        expect(body).not.toContain("Available as an add-on to another booking");
+      });
+
+      test("a parent + child sharing a capped group with 1 spot is sold out", async () => {
+        // Parent and its only child share a capped group, so the minimum order
+        // (one parent + one auto-selected child) consumes TWO group spots. With
+        // one spot left, the parent reads sold out even though the child looks
+        // individually bookable (Fix 4, combined demand).
+        const group = await createTestGroup({ maxAttendees: 2, name: "Pool" });
+        const parent = await createTestListing({
+          groupId: group.id,
+          name: "Base unit",
+        });
+        const child = await createTestListing({
+          groupId: group.id,
+          name: "Add-on",
+        });
+        const filler = await createTestListing({
+          groupId: group.id,
+          name: "Filler",
+        });
+        await setChildIds(parent.id, [child.id]);
+        // Consume one of the two group spots via an unrelated group member.
+        await createTestAttendee(filler.id, filler.slug, "Buyer", "b@x.com");
+        const body = await publicBody("/listings");
+        expect(body).not.toContain(`href="/ticket/${parent.slug}"`);
+        expect(body).toContain("Sold Out");
+      });
+
+      test("a parent + child sharing a capped group with 2 spots is bookable", async () => {
+        // With two spots free, the combined parent+child demand fits, so the
+        // parent keeps its Book link (Fix 4).
+        const group = await createTestGroup({ maxAttendees: 2, name: "Pool" });
+        const parent = await createTestListing({
+          groupId: group.id,
+          name: "Base unit",
+        });
+        const child = await createTestListing({
+          groupId: group.id,
+          name: "Add-on",
+        });
+        await setChildIds(parent.id, [child.id]);
+        const body = await publicBody("/listings");
+        expect(body).toContain(`href="/ticket/${parent.slug}"`);
+      });
+
+      test("a parent + child in different capped groups stays bookable", async () => {
+        // When parent and child sit in different capped groups they do not share
+        // a pool, so the combined-demand check does not apply and the per-row
+        // check stands — the parent keeps its Book link (Fix 4, non-shared case).
+        const groupA = await createTestGroup({
+          maxAttendees: 5,
+          name: "PoolA",
+        });
+        const groupB = await createTestGroup({
+          maxAttendees: 5,
+          name: "PoolB",
+        });
+        const parent = await createTestListing({
+          groupId: groupA.id,
+          name: "Base unit",
+        });
+        const child = await createTestListing({
+          groupId: groupB.id,
+          name: "Add-on",
+        });
         await setChildIds(parent.id, [child.id]);
         const body = await publicBody("/listings");
         expect(body).toContain(`href="/ticket/${parent.slug}"`);

@@ -22,7 +22,10 @@ import { hmacHash } from "#shared/crypto/hashing.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { getPublicDefaultStatus } from "#shared/db/attendee-statuses.ts";
-import { reverseOrderActivity } from "#shared/db/attendees.ts";
+import {
+  getGroupRemainingByListingId,
+  reverseOrderActivity,
+} from "#shared/db/attendees.ts";
 import {
   answerModifierQuantities,
   buyerVisits,
@@ -913,12 +916,25 @@ const buildTicketCtx = async ({
 /** The render-only view of the context: a parent whose children are all
  * unavailable is projected to sold-out so the GET page shows it sold out (no
  * Book control) instead of a normal form that would only fail at submit (Codex
- * 914). The submit/quote paths keep the un-projected `ctx` so the fold's
- * authoritative, date-specific child rejection still runs with its clear error. */
-const renderCtx = (ctx: TicketCtx): TicketCtx => ({
-  ...ctx,
-  listings: applyBookingPageParentSoldOut(ctx.listings, ctx.childrenByParentId),
-});
+ * 914). Bookability uses the combined parent+child group demand (invariant I7),
+ * so the children's group-remaining is fetched (date-less, like discovery — the
+ * authoritative date-specific check is the fold at submit). The submit/quote
+ * paths keep the un-projected `ctx` so the fold's authoritative child rejection
+ * still runs with its clear error. */
+const renderCtx = async (ctx: TicketCtx): Promise<TicketCtx> => {
+  const children = [...ctx.childrenByParentId.values()]
+    .flat()
+    .map((child) => child.listing);
+  const groupRemaining = await getGroupRemainingByListingId(children);
+  return {
+    ...ctx,
+    listings: applyBookingPageParentSoldOut(
+      ctx.listings,
+      ctx.childrenByParentId,
+      groupRemaining,
+    ),
+  };
+};
 
 /** Handle ticket GET/POST orchestrator: render on GET, quote when in calculate
  * mode, otherwise submit. */
@@ -927,7 +943,7 @@ export const handleTicket = async (args: BookingRequest): Promise<Response> => {
   const ctx = await buildTicketCtx(args);
   const response =
     request.method === "GET"
-      ? ticketResponse(renderCtx(ctx))(applyFlash(request).error)
+      ? ticketResponse(await renderCtx(ctx))(applyFlash(request).error)
       : mode === "calculate"
         ? await calculateTicket(request, ctx)
         : await submitTicket(request, ctx);

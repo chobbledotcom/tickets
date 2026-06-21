@@ -350,9 +350,12 @@ export type ChildRenderCtx = {
 };
 
 /** Whether a child is currently bookable (its quantity controls render
- * enabled): not sold out and not closed. Unavailable children render disabled. */
+ * enabled): active, not sold out and not closed. The server fold rejects an
+ * inactive child (`child.listing.active`), so an inactive child option must
+ * never render enabled or auto-checked — it would be a control that always fails
+ * at submit. Unavailable children render disabled (parents.md, invariant I6). */
 const childBookable = (child: TicketListing): boolean =>
-  !child.isSoldOut && !child.isClosed;
+  child.listing.active && !child.isSoldOut && !child.isClosed;
 
 /** The questions assigned to a child listing, in page order, that have not yet
  * been rendered on the page (deduped across siblings/parent via `rendered`). */

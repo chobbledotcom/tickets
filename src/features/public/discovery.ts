@@ -29,7 +29,7 @@ import { isRegistrationClosed } from "#routes/format.ts";
 import { isListingParentsEnabled } from "#shared/config.ts";
 import { getGroupRemainingByListingId } from "#shared/db/attendees.ts";
 import {
-  getChildListingIds,
+  getChildIdsWithActiveParent,
   getChildrenForParents,
 } from "#shared/db/listing-parents.ts";
 import type { ListingWithCount } from "#shared/types.ts";
@@ -37,11 +37,14 @@ import { buildTicketListing, type TicketListing } from "#templates/public.tsx";
 
 /**
  * How a discovery surface should treat each listing:
- * - `childIds` — listings that are a child of some parent; their standalone
- *   Book/Buy CTA (and feed/gallery/builder/share affordance) must be suppressed.
- * - `soldOutParentIds` — parents with no individually-bookable child; their card
- *   must render as sold out (and they must be omitted from feeds/gallery), since
- *   the booking gate would reject the order as sold out.
+ * - `childIds` — listings that are a child of at least one **active** parent;
+ *   their standalone Book/Buy CTA (and feed/gallery/builder/share affordance)
+ *   must be suppressed. A child whose only parent is deactivated has no active
+ *   parent page that can offer it, so the "available as an add-on" note would be
+ *   a dead end — it is left out and falls back to its own normal availability.
+ * - `soldOutParentIds` — parents with no bookable child (combined parent+child
+ *   demand, invariant I7); their card must render as sold out (and they must be
+ *   omitted from feeds/gallery), since the booking gate would reject the order.
  */
 export type DiscoveryClassification = {
   childIds: ReadonlySet<number>;
@@ -62,15 +65,38 @@ const EMPTY_CLASSIFICATION: DiscoveryClassification = {
 const childBookable = (child: TicketListing): boolean =>
   child.listing.active && !child.isSoldOut && !child.isClosed;
 
-/** A child is individually bookable on a discovery surface when it is active and
- * neither sold out nor registration-closed at the minimum (single-day) order. */
-const childAvailableForDiscovery = (
+/**
+ * Whether the *combined* minimum order — one parent plus one of this child —
+ * fits the capacity they share (invariant I7, parents.md "combined parent+child
+ * demand"). When the parent and child sit in the **same capped group** they
+ * consume **two** group spots per order, so a single remaining spot is not
+ * enough even though each row looks individually bookable; that needs ≥2
+ * remaining. `childGroupRemaining` is the child's group-remaining entry (only
+ * present for a capped group), which equals the shared group's remaining when
+ * parent and child are co-grouped. When they are in different/uncapped groups
+ * the per-row check already stands, so the combined demand always fits. */
+const combinedDemandFits = (
+  parent: ListingWithCount,
+  child: ListingWithCount,
+  childGroupRemaining: number | undefined,
+): boolean => {
+  const sharedCappedGroup =
+    parent.group_id === child.group_id && childGroupRemaining !== undefined;
+  return !sharedCappedGroup || childGroupRemaining >= 2;
+};
+
+/** Whether a child counts as bookable *for a given parent* on a discovery
+ * surface: it must be individually bookable (active, not sold out/closed at the
+ * minimum single-day order) AND the combined parent+child demand must fit the
+ * shared group capacity (invariant I7). */
+const childBookableForParent = (
+  parent: ListingWithCount,
   child: ListingWithCount,
   groupRemaining: number | undefined,
 ): boolean =>
   childBookable(
     buildTicketListing(child, isRegistrationClosed(child), groupRemaining),
-  );
+  ) && combinedDemandFits(parent, child, groupRemaining);
 
 /**
  * Classify the given listings for a discovery surface (see
@@ -79,8 +105,9 @@ const childAvailableForDiscovery = (
  * unchanged until the feature ships.
  *
  * `soldOutParentIds` contains a parent only when it has at least one child edge
- * and *none* of its children are individually bookable — a parent with no edges
- * at all is an ordinary listing and is never forced sold out here.
+ * and *none* of its children are bookable for the combined parent+child demand
+ * (invariant I7) — a parent with no edges at all is an ordinary listing and is
+ * never forced sold out here.
  */
 export const classifyForDiscovery = async (
   listings: readonly ListingWithCount[],
@@ -90,16 +117,20 @@ export const classifyForDiscovery = async (
   if (!isListingParentsEnabled()) return EMPTY_CLASSIFICATION;
   const ids = listings.map((l) => l.id);
   const [childIds, childrenByParent] = await Promise.all([
-    getChildListingIds(ids),
+    getChildIdsWithActiveParent(ids),
     getChildrenForParents(ids),
   ]);
+  const byId = new Map(listings.map((l) => [l.id, l]));
   const everyChild = [...childrenByParent.values()].flat();
   const groupRemaining = await getGroupRemainingByListingId(everyChild);
   const soldOutParentIds = new Set<number>();
   for (const [parentId, children] of childrenByParent) {
-    const anyBookable = children.some((child) =>
-      childAvailableForDiscovery(child, groupRemaining.get(child.id)),
-    );
+    const parent = byId.get(parentId);
+    const anyBookable =
+      parent !== undefined &&
+      children.some((child) =>
+        childBookableForParent(parent, child, groupRemaining.get(child.id)),
+      );
     if (!anyBookable) soldOutParentIds.add(parentId);
   }
   return { childIds, soldOutParentIds };
@@ -135,14 +166,28 @@ export const applyParentSoldOut = (
  * normal form that could only fail with the child-sold-out error at submit
  * (Codex 914). A listing with no child edge is left untouched; the authoritative
  * date-specific rejection still happens in the fold at submit.
+ *
+ * `groupRemainingByListingId` carries each child's shared group-remaining entry
+ * so the bookability test uses the *combined* parent+child demand (invariant
+ * I7): a parent and its child in the same capped group consume two group spots,
+ * so a parent with a single remaining group spot reads sold out here too —
+ * matching what the submit-time `checkBatchAvailability` would reject.
  */
 export const applyBookingPageParentSoldOut = (
   listings: readonly TicketListing[],
   childrenByParentId: ReadonlyMap<number, TicketListing[]>,
+  groupRemainingByListingId: ReadonlyMap<number, number>,
 ): TicketListing[] =>
   listings.map((info) => {
     const children = childrenByParentId.get(info.listing.id);
-    if (children && children.length > 0 && !children.some(childBookable)) {
+    const anyBookable = children?.some((child) =>
+      childBookableForParent(
+        info.listing,
+        child.listing,
+        groupRemainingByListingId.get(child.listing.id),
+      ),
+    );
+    if (children && children.length > 0 && !anyBookable) {
       return asSoldOut(info);
     }
     return info;
