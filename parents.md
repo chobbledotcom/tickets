@@ -415,9 +415,15 @@ The expanded set (parent page listings ∪ selected children) must drive **all**
   in the baseline, but only require/validate the chosen child's.
 - **Custom (pay-more) price** — for a `can_pay_more` child the submit path expects
   `custom_price_<childId>` (`ticket-submit.ts:145`). The child controls must
-  include the custom-price input (namespaced/handled like the parent's), or we
-  **explicitly disallow pay-more children** in v1. Otherwise a pay-more child fails
-  with a missing price (or is silently charged its base price). (Open Question 15.)
+  include the custom-price input, or we **explicitly disallow pay-more children**
+  in v1. Otherwise a pay-more child fails with a missing price (or is silently
+  charged its base price). **If the same pay-more child is selectable under two
+  parents**, the shared `custom_price_<childId>` name would render *twice* (one
+  duplicate input per parent) for a single folded line, and the parser's
+  `form.get(...)` keeps only one value — so either render a **single shared price
+  input per folded child**, or **namespace the price per parent**
+  (`custom_price_<parentId>_<childId>`) and define how the two prices merge before
+  aggregation (e.g. take the max, or reject a mismatch). (Open Question 15.)
 - **Optional add-ons** — `getOptionalAddOns(listingIds)` (`ticket-payment.ts:375`)
   is scoped to the listing ids. Add-ons scoped *only* to a child won't load if we
   pass just the parent page ids; loading add-ons for *every* possible child lets a
@@ -429,6 +435,14 @@ The expanded set (parent page listings ∪ selected children) must drive **all**
   checkout. A child with `assign_built_site` set (parent without) must be in the
   **expanded** set passed to this check, or a misconfigured builder order can
   complete and then silently skip assignment post-booking.
+- **Thank-you redirect** — `handleFreePath` only honors a listing's
+  `thank_you_url` when `ctx.listings.length === 1` (`ticket-submit.ts:427-429`).
+  Folding a child turns a single-parent booking into a **multi-listing** order, so
+  the length check fails and an operator's custom parent thank-you URL is silently
+  lost the moment a required child is selected. Define an explicit precedence:
+  recommended is to **keep using the original (pre-fold) parent page's redirect**
+  when the page started as a single parent — base the redirect decision on the
+  original page listings, not the post-fold set.
 - **Quantity caps after aggregation** — when the same child is summed across
   multiple parents, the aggregate line can exceed the child's `max_quantity` /
   `maxPurchasable` even though each per-parent input was individually clamped. The
@@ -666,7 +680,7 @@ Enumerate each and decide:
 | 2 | DB layer: edge CRUD, `getChildrenOf` / `getParentsOf` / batch loader, dedicated edge cache, `deleteListing` cleanup. Unit-tested. |
 | 3 | Admin edit UI: configure parents (+ reverse view), with self/cycle/nesting validation and diff-save. **Ships behind a flag / hidden until step 4–5 land** (see note). |
 | 4 | Booking-page render: surface children under parents in `TicketCtx` (per-parent quantity fields, per-child dates, child questions); no-JS baseline incl. CSS-only reveal. |
-| 5 | Server-side gate in `prepareOrder`: validate (positive child qty; in-cart child lines count) + expand the listing set and fold children (feeding **every** per-listing path in the fold checklist). **Plus the API + QR decisions (close those bypass paths).** Free + paid + webhook + `/calculate` all exercised. |
+| 5 | Server-side gate in `prepareOrder`: validate (positive child qty; orphan child fields rejected) + expand the listing set and fold children (feeding **every** per-listing path in the fold checklist). Counting in-cart child lines is **conditional on the Open Question 13 decision** — if we forbid parent+child URLs (the recommendation), this step instead **rejects** such URL lines rather than counting them. **Plus the API + QR decisions (close those bypass paths).** Free + paid + webhook + `/calculate` all exercised. |
 | 6 | Progressive-enhancement JS: reveal/require child blocks on parent qty > 0; include in live quote. |
 | 7 | Admin-manual-add / attendee-edit behaviour; docs + operator-facing help text. |
 
@@ -733,9 +747,11 @@ direct-checkout paths** — so the API/QR decisions move **into the enforcement 
     `BookingItem` + metadata + webhook reconstruction. If we restrict, we must
     **also forbid daily children under parents that produce no shared date** (e.g. a
     standard, undated parent) — there'd be nowhere to carry the child's date.
-15. **Pay-more children** — include a `custom_price_<childId>` input in the child
-    controls so `can_pay_more` children work (recommended) vs **disallow pay-more
-    children** in v1?
+15. **Pay-more children** — include a `custom_price_<childId>` input so
+    `can_pay_more` children work (recommended) vs **disallow pay-more children** in
+    v1? If included, also decide the **shared-child price**: one shared input per
+    folded child, or per-parent `custom_price_<parentId>_<childId>` with a defined
+    merge rule.
 16. **Child-scoped add-ons** — render/parse add-ons conditionally on the selected
     child vs **not support child-scoped add-ons** in v1 (recommended; add-ons stay
     scoped to the page's parent listings)?
