@@ -27,8 +27,9 @@ decisions simplified it a lot — see "What changed & why it's simpler" at the e
    `amount`; we pass the operator's total in. It keeps returning a boolean
    (success/failure) — we are *commanding* the refund, not reading it back.
 
-One thing still needs a yes/no from you — **check-in behaviour** (§12). Everything
-else is specified.
+Check-in behaviour is also decided (§12): a ticket is blocked from check-in once
+it is **fully** refunded (`refunded_amount >= price_paid`). The plan is now fully
+specified.
 
 ---
 
@@ -227,7 +228,10 @@ check. Concretely:
 - **Check-in** — `src/features/checkin.ts:101` filters `!attendee.refunded`, and
   the scanner (`src/features/admin/scanner.ts`, `scanner.tsx`, client
   `scanner.js`, `manual-checkin.ts`) shows a refunded badge / blocks refunded
-  tickets. These must move off the boolean — **see §12 for the behaviour decision.**
+  tickets. Move these to the **fully-refunded** test (decided, §12): a line is
+  blocked when `refunded_amount >= price_paid` (and `price_paid > 0`). A helper
+  like `isFullyRefunded(line)` keeps the rule in one place; partial refunds do
+  **not** block.
 - **Merge** — `src/shared/merge/attendee-merge.ts`: `bookingInsertStatement` copies
   `refunded_amount` (and no longer `refunded`); the duplicate-detection compare in
   `buildBookingDiffItems` swaps `refunded` for `refunded_amount`.
@@ -311,24 +315,22 @@ place of `refunded`.
 
 ---
 
-## 12. OPEN QUESTION — check-in behaviour
+## 12. Check-in behaviour (decided: block when fully refunded)
 
-Removing the boolean removes today's automatic "Cannot check in refunded tickets"
-guard (`checkin.ts:101`). Pick one:
+Removing the boolean removed today's automatic "Cannot check in refunded tickets"
+guard (`checkin.ts:101`). **Decision (owner, 2026-06-21): block when fully
+refunded.** A line counts as refunded for check-in when `refunded_amount >=
+price_paid` (and `price_paid > 0`); partial refunds do not block (the holder
+still paid part of it).
 
-- **(A — recommended) Block on fully-refunded lines via the amount.** A line is
-  "refunded" for check-in when `refunded_amount >= price_paid` (and `price_paid >
-  0`). Preserves today's safety with no new schema; partial refunds don't block
-  (the holder still paid part of it).
-- **(B) Block on an order status.** Add an `is_refunded`/`blocks_checkin` flag to
-  `attendee_statuses` and gate check-in on the attendee's status. Matches "use
-  order statuses" most literally, but adds a status-schema change and an operator
-  step (they must set the status for check-in to block).
-- **(C) Don't auto-block.** Check-in never blocks on refunds; operators rely on
-  the status/amount being visible. Simplest, least safe.
-
-My recommendation is **A** (keeps the existing protection, no extra moving parts).
-Tell me A/B/C and I'll lock it into §6.
+- Replace the `!attendee.refunded` filter in `checkin.ts` with
+  `!isFullyRefunded(line)`, and update the scanner badge/guards
+  (`scanner.ts`, `scanner.tsx`, `scanner.js`, `manual-checkin.ts`) to the same
+  rule. Keep `isFullyRefunded` in one shared place so check-in, the scanner, and
+  the badge agree.
+- This preserves today's protection with no new schema and no extra operator
+  step. (Rejected alternatives: a `blocks_checkin` flag on `attendee_statuses` —
+  more schema + an operator action; or no auto-block at all — least safe.)
 
 ---
 
@@ -344,8 +346,9 @@ Tell me A/B/C and I'll lock it into §6.
   `stripePaymentProvider.refundPayment` — assert the `amount` arg now.)
 - **Provider:** Stripe/Square `refundPayment(ref, amount)` issues a partial refund
   with the right amount; omitted `amount` = full (existing tests).
-- **Removal regression:** check-in (per §12 choice), merge (moved line keeps
-  amount), scanner badge, CSV column, payment panel sum.
+- **Removal regression:** check-in blocks a **fully**-refunded line but allows a
+  **partially**-refunded one (§12); merge (moved line keeps amount); scanner
+  badge; CSV column; payment panel sum.
 - **`refund-all`:** every not-fully-refunded line goes to `price_paid`.
 - Run `deno task test:quality-audit` for the new tests.
 
@@ -433,7 +436,8 @@ Out of scope unless wanted.
 - [ ] Tests added (§13); `deno task test:coverage` 100% & deterministic;
       `test:quality-audit` clean.
 - [ ] `deno task precommit` (typecheck, `lint:ci`, tests, `cpd` 0%) passes.
-- [ ] §12 (check-in) answered and implemented.
+- [ ] Check-in blocks fully-refunded lines (`refunded_amount >= price_paid > 0`)
+      and allows partially-refunded ones (§12), via a shared `isFullyRefunded`.
 
 ---
 
@@ -452,5 +456,5 @@ Your decisions removed three whole problem areas the earlier draft wrestled with
 
 What it *added*: removing the `refunded` boolean (a broad but mechanical refactor)
 and partial refunds at the provider (a small, additive change). Net: a clearer
-model — **state = order status, money = `refunded_amount` per item** — and one
-open question (check-in, §12).
+model — **state = order status, money = `refunded_amount` per item**, check-in
+blocks only fully-refunded lines — and no open questions remaining.
