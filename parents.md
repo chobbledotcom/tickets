@@ -427,7 +427,16 @@ When the booking page renders a listing that has children, render each child as 
   list of its own** — treat it as available on **every** parent date (subject only
   to its non-date capacity), so a dateless child contributes "all parent dates" to
   the union rather than an empty set (otherwise a parent whose only child is
-  dateless would offer no dates at all).
+  dateless would offer no dates at all). **Apply this per *selected* parent, not
+  globally at render.** On a multi-listing/group page, several parents (and plain
+  listings) share one date selector, and `computeSharedDates` intersects whatever it
+  is given — so folding an **unselected** parent's child calendar into the shared
+  set would wrongly remove dates for a *different* listing the buyer is actually
+  booking (e.g. an unselected parent whose only child is Monday-only could strip
+  Tuesday). So a parent's child-derived date constraint must apply **only when that
+  parent's quantity is positive** (JS-toggled as the buyer selects it; validated
+  server-side against the selected parents), never as a global render-time
+  intersection.
 - **Child questions** must be merged into `questionListingMap` with the **correct
   shape**: it is `Map<questionId, listingId[]>` (`questions.ts:361`), read by
   `prepareOrder` as `ctx.questionListingMap.get(q.id)` — *keyed by question id*, not
@@ -614,14 +623,17 @@ The expanded set (parent page listings ∪ selected children) must drive **all**
   checkout. A child with `assign_built_site` set (parent without) must be in the
   **expanded** set passed to this check, or a misconfigured builder order can
   complete and then silently skip assignment post-booking.
-- **Thank-you redirect** — `handleFreePath` only honors a listing's
-  `thank_you_url` when `ctx.listings.length === 1` (`ticket-submit.ts:427-429`).
-  Folding a child turns a single-parent booking into a **multi-listing** order, so
-  the length check fails and an operator's custom parent thank-you URL is silently
-  lost the moment a required child is selected. Define an explicit precedence:
-  recommended is to **keep using the original (pre-fold) parent page's redirect**
-  when the page started as a single parent — base the redirect decision on the
-  original page listings, not the post-fold set.
+- **Thank-you redirect (free *and* paid).** `handleFreePath` only honors a
+  listing's `thank_you_url` when `ctx.listings.length === 1`
+  (`ticket-submit.ts:427-429`), and the **paid** path has the same single-listing
+  assumption: the webhook derives `thank_you_url` only when the completed booking
+  has **one unique listing id** (`webhooks.ts:1193-1199`). Folding a child turns a
+  single-parent booking into a **multi-listing** order, so both paths drop the
+  operator's custom parent thank-you URL the moment a required child is selected.
+  Define an explicit precedence — **keep the original (pre-fold) parent page's
+  redirect** when the page started as a single parent — and carry it through **both**
+  the free path *and* the payment callback/metadata so the paid path resolves it
+  too, not just the free one.
 - **Quantity caps after aggregation** — when the same child is summed across
   multiple parents, the aggregate line can exceed the child's `max_quantity` /
   `maxPurchasable` even though each per-parent input was individually clamped. The
@@ -686,15 +698,25 @@ Enumerate each and decide:
   `/ticket/<childSlug>` must **not** offer a buy button for the child alone — show
   an "available with …" note instead. Children only ever enter an order through a
   parent's selector, so the gate has a single, well-defined input everywhere.
-- **Public listing cards `/listings` (and the gallery/feeds).** A *visible*
-  (non-hidden) child is still rendered as a card: `isPublicListing` filters only
-  `active && !hidden` (`pages.ts:37`) and the card links a Book/Buy button straight
-  to `/ticket/<slug>` (`homepage.tsx:24-31`). That would advertise a child as
-  standalone-bookable and send buyers to the dead-end child page. So the
-  no-standalone-child rule must extend to the listing index/gallery/feeds: for a
-  child row, **suppress the buy link** (show "available with …" / link to a parent)
+- **Public listing cards `/listings` (and the gallery).** A *visible* (non-hidden)
+  child is still rendered as a card: `isPublicListing` filters only `active &&
+  !hidden` (`pages.ts:37`) and the card links a Book/Buy button straight to
+  `/ticket/<slug>` (`homepage.tsx:24-31`). That would advertise a child as
+  standalone-bookable and send buyers to the dead-end child page. So for a child
+  row, **suppress the buy link** (show "available with …" / link to a parent)
   rather than a direct booking CTA. (A common pattern will be to simply mark the
-  child `hidden`, but visible children must be handled too.)
+  child `hidden`, but visible children must be handled too.) **And the reverse for
+  parents:** a parent whose required children are *all* unavailable
+  (inactive/sold-out/closed) must render its card as **sold out** — the card state
+  today comes from the parent's *own* capacity (`buildTicketListing`), so the
+  child-derived "no bookable child ⇒ sold out" state must feed the parent's public
+  card too, or the index advertises a Book button the gate will reject.
+- **RSS/ICS feeds** (`src/features/feeds.ts`) — unlike a card there's **no button
+  to suppress**: each feed item's `URL`/link points directly at `/ticket/<slug>`
+  for every active visible listing. So a visible child would be **syndicated as a
+  standalone ticket URL**. The plan must **omit child items from the feeds** (or
+  point their link at the parent), the feed-level equivalent of suppressing the
+  child CTA.
 - **Single-listing / group booking page** `/ticket/<slug>` — one route serves both:
   `slugHandler` tries listings by slug and, for a single slug that isn't a listing,
   **falls back to `handleGroupTicketBySlug`** (`ticket-routes.ts:46-52`). There is
@@ -751,6 +773,13 @@ Enumerate each and decide:
     (a parent's available children + their constraints) and **suppress the
     standalone-booking affordance for children** (mark them "available with …"),
     mirroring the public listing-card rule.
+  - **Availability endpoint.** `GET /api/listings/:slug/availability` calls
+    `hasAvailableSpots` for the passed slug, so a **child** slug would report
+    standalone availability and a **parent** whose children are all unavailable
+    would report *available* (its own capacity ignores children). It must apply the
+    same rules: reject/!available for a child slug, and report a parent as
+    unavailable when it has **no bookable child** (per "no bookable child ⇒ sold
+    out").
   (Open Question 9.)
 - **QR direct-checkout link** (`src/features/public/qr-book.ts`) — ✅ parents are
   QR-bookable, but **a QR link for a *child* must be rejected/redirected to a
