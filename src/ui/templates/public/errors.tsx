@@ -85,6 +85,24 @@ export const temporaryErrorPage = (): string =>
   );
 
 /**
+ * Shown when a write could not acquire a database lock after retrying — the
+ * database is momentarily too busy. Auto-refreshes like the temporary error page
+ * so the request retries itself.
+ */
+export const databaseBusyPage = (): string =>
+  String(
+    <Layout
+      headExtra={TEMPORARY_ERROR_HEAD}
+      title={t("public.database_busy.title")}
+    >
+      <div class="prose">
+        <h1>{t("public.database_busy.heading")}</h1>
+        <p>{t("public.database_busy.message")}</p>
+      </div>
+    </Layout>,
+  );
+
+/**
  * Shown while another isolate is running a database migration (including its
  * pre-migration backup). Auto-refreshes like the temporary error page, but
  * with a reassuring message so the user knows work is happening rather than

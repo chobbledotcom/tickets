@@ -1,7 +1,12 @@
-import { createClient } from "@libsql/client";
+import { type Client, createClient, type Transaction } from "@libsql/client";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { queryOne, setDb, withTransaction } from "#shared/db/client.ts";
+import {
+  DatabaseBusyError,
+  queryOne,
+  setDb,
+  withTransaction,
+} from "#shared/db/client.ts";
 
 /**
  * withTransaction needs an interactive transaction that shares state with the
@@ -53,5 +58,75 @@ describe("withTransaction", () => {
       expect(message).toBe("boom");
       expect(await count()).toBe(0);
     });
+  });
+});
+
+/**
+ * The write lock is acquired with a bounded retry so concurrent writers
+ * serialize rather than failing the loser; a database that stays locked surfaces
+ * as DatabaseBusyError. These cases drive the contention paths with a stub client
+ * (no real lock needed) so they're deterministic.
+ */
+describe("withTransaction lock contention", () => {
+  const busy = (): Error => new Error("SQLITE_BUSY: database is locked");
+  const fakeTx = (): Transaction =>
+    ({
+      commit: () => Promise.resolve(),
+      rollback: () => Promise.resolve(),
+    }) as unknown as Transaction;
+  const clientWith = (transaction: () => Promise<Transaction>): Client =>
+    ({ transaction }) as unknown as Client;
+
+  test("retries a briefly-locked write lock, then succeeds", async () => {
+    let calls = 0;
+    setDb(
+      clientWith(() => {
+        calls++;
+        return calls === 1 ? Promise.reject(busy()) : Promise.resolve(fakeTx());
+      }),
+    );
+    try {
+      expect(await withTransaction(async () => "ok")).toBe("ok");
+      expect(calls).toBe(2);
+    } finally {
+      setDb(null);
+    }
+  });
+
+  test("rethrows a non-lock error without retrying", async () => {
+    let calls = 0;
+    setDb(
+      clientWith(() => {
+        calls++;
+        return Promise.reject(new Error("boom"));
+      }),
+    );
+    try {
+      let message = "";
+      try {
+        await withTransaction(async () => "x");
+      } catch (error) {
+        message = (error as Error).message;
+      }
+      expect(message).toBe("boom");
+      expect(calls).toBe(1);
+    } finally {
+      setDb(null);
+    }
+  });
+
+  test("gives up as DatabaseBusyError when the lock never frees", async () => {
+    setDb(clientWith(() => Promise.reject(busy())));
+    try {
+      let error: unknown;
+      try {
+        await withTransaction(async () => "x");
+      } catch (caught) {
+        error = caught;
+      }
+      expect(error).toBeInstanceOf(DatabaseBusyError);
+    } finally {
+      setDb(null);
+    }
   });
 });

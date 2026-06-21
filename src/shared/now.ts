@@ -14,3 +14,7 @@ export const nowIso = (): string => new Date().toISOString();
 
 /** Epoch milliseconds for numeric comparisons */
 export const nowMs = (): number => Date.now();
+
+/** Resolve after `ms` milliseconds — for retry backoff and similar waits. */
+export const delay = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));

@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { getCleanUrl, handleRequest, isValidContentType } from "#routes";
 import {
+  databaseBusyResponse,
   migrationInProgressResponse,
   redirect,
   redirectResponse,
@@ -699,6 +700,20 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
         503,
         "Temporary Error",
         "Retrying automatically",
+        'http-equiv="refresh"',
+      );
+      expect(response.headers.get("content-type")).toBe(
+        "text/html; charset=utf-8",
+      );
+    });
+
+    test("databaseBusyResponse returns 503 styled HTML with auto-refresh", async () => {
+      const response = databaseBusyResponse();
+      await expectHtmlResponse(
+        response,
+        503,
+        "The database is too busy.",
+        "Reloading so you can try again.",
         'http-equiv="refresh"',
       );
       expect(response.headers.get("content-type")).toBe(
