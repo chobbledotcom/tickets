@@ -19,8 +19,17 @@ import { hmacHash } from "#shared/crypto/hashing.ts";
 /** A component of a reference tuple. Numbers are JSON-encoded as-is. */
 export type RefPart = string | number;
 
-const digest = (domain: string, parts: RefPart[]): Promise<string> =>
-  hmacHash(`${domain}:${JSON.stringify(parts)}`);
+const digest = (domain: string, parts: RefPart[]): Promise<string> => {
+  // JSON.stringify serialises NaN/Infinity as `null`, so distinct non-finite
+  // ids would collide on one key — reject them rather than hash an ambiguous
+  // input.
+  for (const part of parts) {
+    if (typeof part === "number" && !Number.isFinite(part)) {
+      throw new Error(`reference part is not a finite number: ${part}`);
+    }
+  }
+  return hmacHash(`${domain}:${JSON.stringify(parts)}`);
+};
 
 /** The shared id for every leg of one business event (booking/refund/…). */
 export const eventGroup = (parts: RefPart[]): Promise<string> =>

@@ -15,6 +15,14 @@ const hasReservedChar = (a: AccountRef): boolean =>
   a.type.includes(ACCOUNT_KEY_SEPARATOR) ||
   a.id.includes(ACCOUNT_KEY_SEPARATOR);
 
+/** A reversal link, when present, must be a real transfer row id — a positive
+ *  safe integer. A fractional or unsafe value would occupy a different slot in
+ *  the unique `reverses_id` index than the original id, defeating the
+ *  one-void-per-original guard. */
+const hasInvalidReversesId = (t: TransferInput): boolean =>
+  t.reversesId !== undefined &&
+  (!Number.isSafeInteger(t.reversesId) || t.reversesId <= 0);
+
 /**
  * True only for a canonical ISO-8601 UTC timestamp in the exact form
  * `YYYY-MM-DDTHH:mm:ss.sssZ`. Round-tripping through `Date` rejects impossible
@@ -34,8 +42,8 @@ const isIsoTimestamp = (s: string): boolean => {
  * Enforced invariants: amount is a positive, safe integer (so summing balances
  * as JS numbers can't lose pennies); source and destination differ; account
  * parts are non-empty and free of the reserved key separator; occurredAt is a
- * valid ISO-8601 UTC timestamp; currency, reference, and eventGroup are
- * non-empty.
+ * valid ISO-8601 UTC timestamp; a reversesId, if present, is a positive safe
+ * integer; currency, reference, and eventGroup are non-empty.
  */
 export const validateTransfer = (t: TransferInput): Result<TransferInput> => {
   const errors: LedgerError[] = compact([
@@ -49,6 +57,7 @@ export const validateTransfer = (t: TransferInput): Result<TransferInput> => {
     isIsoTimestamp(t.occurredAt)
       ? null
       : ({ code: "invalid_occurred_at" } as const),
+    hasInvalidReversesId(t) ? ({ code: "invalid_reverses_id" } as const) : null,
     sameAccount(t.source, t.destination)
       ? ({ code: "self_transfer" } as const)
       : null,

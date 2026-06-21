@@ -71,6 +71,7 @@ export type LedgerError =
   | { readonly code: "non_integer_amount" }
   | { readonly code: "unsafe_amount" }
   | { readonly code: "invalid_occurred_at" }
+  | { readonly code: "invalid_reverses_id" }
   | { readonly code: "self_transfer" }
   | { readonly code: "empty_account" }
   | { readonly code: "reserved_char_in_account" }

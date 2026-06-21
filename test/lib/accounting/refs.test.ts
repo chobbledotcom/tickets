@@ -27,6 +27,18 @@ describeWithEnv("accounting > refs", { encryptionKey: true }, () => {
     });
   });
 
+  describe("non-finite parts", () => {
+    test("are rejected rather than hashed as ambiguous null", async () => {
+      let message = "";
+      try {
+        await eventGroup(["booking", Number.NaN]);
+      } catch (error) {
+        message = (error as Error).message;
+      }
+      expect(message).toContain("finite");
+    });
+  });
+
   describe("legReference", () => {
     test("is distinct from an event group built from the same parts", async () => {
       expect(await legReference(["booking", "abc"])).not.toBe(

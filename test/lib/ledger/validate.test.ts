@@ -40,6 +40,8 @@ const cases: [
     { occurredAt: "2026-01-01T00:00:00Z" },
     "invalid_occurred_at",
   ],
+  ["fractional reverses id", { reversesId: 1.5 }, "invalid_reverses_id"],
+  ["non-positive reverses id", { reversesId: 0 }, "invalid_reverses_id"],
   ["self transfer", { destination: account("attendee", 1) }, "self_transfer"],
   ["empty source type", { source: { id: "1", type: "" } }, "empty_account"],
   [
@@ -60,6 +62,10 @@ const cases: [
 describe("validateTransfer", () => {
   it("accepts a well-formed transfer and returns the value", () => {
     expect(validateTransfer(base)).toEqual({ ok: true, value: base });
+  });
+
+  it("accepts a valid positive-integer reverses id", () => {
+    expect(validateTransfer({ ...base, reversesId: 5 }).ok).toBe(true);
   });
 
   for (const [name, patch, code] of cases) {
