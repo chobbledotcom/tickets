@@ -22,12 +22,13 @@
  * is excluded from the replay-equality check).
  */
 
-import type { InValue, Transaction } from "@libsql/client";
+import type { InValue } from "@libsql/client";
 import {
   inPlaceholders,
   insert,
   queryAll,
   resultRows,
+  type TxScope,
   withTransaction,
 } from "#shared/db/client.ts";
 import { account, sameAccount } from "#shared/ledger/account.ts";
@@ -217,7 +218,7 @@ type RowReader = (sql: string, args: InValue[]) => Promise<TransferRow[]>;
 const fromDb: RowReader = (sql, args) => queryAll<TransferRow>(sql, args);
 
 const fromTx =
-  (tx: Transaction): RowReader =>
+  (tx: TxScope): RowReader =>
   async (sql, args) =>
     resultRows<TransferRow>(await tx.execute({ args, sql }));
 
@@ -249,44 +250,53 @@ const selectByReferences = (
   );
 
 /**
- * Post the legs of one business event, idempotently. Every leg must share one
- * `eventGroup` and one `currency` and carry a distinct `reference`. Runs in one
- * interactive write transaction: if the event is already stored, the whole leg
- * set must match or {@link LedgerConflictError} is thrown (and nothing is
- * written); otherwise — if no reference already belongs to a different event —
- * the legs are inserted and committed together.
+ * Post the legs of one business event within an already-open transaction, so the
+ * ledger write commits or rolls back atomically with the domain rows it
+ * accompanies (a booking and its sale/payment legs land together or not at all).
+ * Same idempotency and replay-conflict rules as {@link postTransfers}: if the
+ * event is already stored, the whole leg set must match or
+ * {@link LedgerConflictError} is thrown; otherwise the legs are inserted. An
+ * empty post is a no-op.
  */
-export const postTransfers = async (
+export const postTransfersTx = async (
+  tx: TxScope,
   inputs: TransferInput[],
 ): Promise<PostResult> => {
   if (inputs.length === 0) return { inserted: 0, skipped: 0 };
   assertPostable(inputs);
   const eventGroup = inputs[0]!.eventGroup;
   const references = inputs.map((t) => t.reference);
-  return withTransaction(async (tx) => {
-    const read = fromTx(tx);
-    const existing = await selectByEventGroup(read, eventGroup);
-    if (existing.length > 0) {
-      assertEventMatches(eventGroup, existing, inputs);
-      return { inserted: 0, skipped: inputs.length };
-    }
-    // No legs for this event yet, so any already-stored reference belongs to a
-    // *different* event — reject before inserting (the transaction would roll
-    // back anyway, but this gives the precise conflicting reference).
-    const colliding = await selectByReferences(read, references);
-    if (colliding.length > 0) {
-      throw new LedgerConflictError(
-        colliding[0]!.reference,
-        "reference already belongs to a different event",
-      );
-    }
-    const recordedAt = nowIso();
-    for (const input of inputs) {
-      await tx.execute(insertStatement(input, recordedAt));
-    }
-    return { inserted: inputs.length, skipped: 0 };
-  });
+  const read = fromTx(tx);
+  const existing = await selectByEventGroup(read, eventGroup);
+  if (existing.length > 0) {
+    assertEventMatches(eventGroup, existing, inputs);
+    return { inserted: 0, skipped: inputs.length };
+  }
+  // No legs for this event yet, so any already-stored reference belongs to a
+  // *different* event — reject before inserting (the transaction would roll back
+  // anyway, but this names the precise conflicting reference).
+  const colliding = await selectByReferences(read, references);
+  if (colliding.length > 0) {
+    throw new LedgerConflictError(
+      colliding[0]!.reference,
+      "reference already belongs to a different event",
+    );
+  }
+  const recordedAt = nowIso();
+  for (const input of inputs) {
+    await tx.execute(insertStatement(input, recordedAt));
+  }
+  return { inserted: inputs.length, skipped: 0 };
 };
+
+/**
+ * Post the legs of one business event in its own interactive write transaction,
+ * idempotently. Every leg must share one `eventGroup` and one `currency` and
+ * carry a distinct `reference`. Use {@link postTransfersTx} to post within a
+ * wider transaction (e.g. atomically with a booking).
+ */
+export const postTransfers = (inputs: TransferInput[]): Promise<PostResult> =>
+  withTransaction((tx) => postTransfersTx(tx, inputs));
 
 /** Every transfer touching `account`, as source or destination. */
 export const transfersByAccount = (acct: AccountRef): Promise<Transfer[]> =>

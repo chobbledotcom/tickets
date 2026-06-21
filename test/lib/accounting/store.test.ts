@@ -4,9 +4,11 @@ import {
   allTransfers,
   LedgerConflictError,
   postTransfers,
+  postTransfersTx,
   transfersByAccount,
   transfersByEventGroup,
 } from "#shared/accounting/store.ts";
+import { withTransaction } from "#shared/db/client.ts";
 import { account } from "#shared/ledger/account.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
@@ -211,6 +213,30 @@ describe("db > accounting > store", () => {
       const orig = stored.find((t) => t.reference === "orig")!;
       expect(orig.reversesId).toBeUndefined();
       expect(orig.kind).toBe("");
+    });
+  });
+
+  describe("postTransfersTx (composed in a wider transaction)", () => {
+    test("commits the legs with the surrounding transaction", async () => {
+      const result = await withTransaction((tx) =>
+        postTransfersTx(tx, saleAndPayment()),
+      );
+      expect(result).toEqual({ inserted: 2, skipped: 0 });
+      expect((await allTransfers()).length).toBe(2);
+    });
+
+    test("rolls the legs back when the surrounding transaction fails", async () => {
+      // The whole point of the tx-scoped variant: a later failure in the same
+      // transaction undoes the ledger legs, so a booking and its legs are
+      // all-or-nothing.
+      const error = await rejection(
+        withTransaction(async (tx) => {
+          await postTransfersTx(tx, saleAndPayment());
+          throw new Error("surrounding work failed");
+        }),
+      );
+      expect(error.message).toContain("surrounding work failed");
+      expect((await allTransfers()).length).toBe(0);
     });
   });
 

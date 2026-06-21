@@ -9,9 +9,9 @@
 import {
   type Client,
   createClient,
+  type InStatement,
   type InValue,
   type ResultSet,
-  type Transaction,
   type TransactionMode,
 } from "@libsql/client";
 import { lazyRef } from "#fp";
@@ -288,22 +288,40 @@ export const executeBatch = async (
   await executeBatchWithResults(statements);
 };
 
+/** The slice of an open write transaction handed to a {@link withTransaction}
+ *  callback: run statements with `execute`; commit/rollback are managed for you. */
+export type TxScope = {
+  execute: (stmt: InStatement) => Promise<ResultSet>;
+};
+
 /**
  * Run `work` inside one interactive write transaction, committing on success and
  * rolling back (then rethrowing) on any error. Use this — rather than a plain
  * batch — when a multi-step write needs conditional logic between steps, e.g.
  * create → check capacity → finalize, where a zero-row guard must abort and undo
- * everything. Unlike `execute`/`executeBatch`, statements run via the returned
- * transaction do not auto-invalidate caches, so the caller invalidates affected
- * tables after the returned promise resolves.
+ * everything.
+ *
+ * Statements run through the provided `execute` are tracked, and their
+ * table-scoped cache invalidations fire once after the commit succeeds (a
+ * rollback fires none) — so callers get the same automatic invalidation as the
+ * single-statement `execute`, driven by the writes themselves rather than by
+ * each call site remembering to invalidate.
  */
 export const withTransaction = async <T>(
-  work: (tx: Transaction) => Promise<T>,
+  work: (tx: TxScope) => Promise<T>,
 ): Promise<T> => {
   const tx = await getDb().transaction("write");
+  const writtenSql: string[] = [];
+  const scope: TxScope = {
+    execute: (stmt) => {
+      writtenSql.push(typeof stmt === "string" ? stmt : stmt.sql);
+      return tx.execute(stmt);
+    },
+  };
   try {
-    const result = await work(tx);
+    const result = await work(scope);
     await tx.commit();
+    for (const sql of writtenSql) invalidateForSql(sql);
     return result;
   } catch (error) {
     await tx.rollback();
