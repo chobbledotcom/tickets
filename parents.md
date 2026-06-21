@@ -358,6 +358,13 @@ On the listing edit page (`src/features/admin/listings.ts`, fields in
   and the main site, but it will still be shown during booking when a buyer must
   choose between it and another child." This makes the "hidden but still bookable
   via a parent" behaviour explicit to the operator.
+- **Suppress/rewrite the per-listing share generators for a child.** A child's
+  listing detail page still exposes its **public URL, embed snippet, and QR
+  generator** (which signs `/ticket/<child>/qr-book`). Left as-is, an operator can
+  copy/publish a standalone child entry point that the runtime rules then reject as
+  a dead end. For a child, these generators must be **suppressed or rewritten to the
+  parent** (with an "available with …" note), consistent with the no-standalone
+  rule applied to public cards/feeds.
 
 ### Admin validation
 
@@ -482,6 +489,15 @@ When the booking page renders a listing that has children, render each child as 
   failing late at submit. So the day-count selector needs the **same child-derived
   filtering/toggling as dates**: only offer day-counts the selected child also
   supports.
+- **The parent's quantity cap must fold in the child's remaining capacity.** Since
+  child quantity follows the parent (and the single child auto-selects), a parent
+  whose `maxPurchasable` is 10 but whose required child has only 1 spot (or
+  `max_quantity = 1`) would otherwise let the buyer pick a parent quantity that can
+  never satisfy the child, failing late. The parent quantity control (which drives
+  `parseQuantities` off `TicketListing.maxPurchasable`) must be **capped by the
+  selected/auto-selected child's remaining/max quantity** (or invalid quantities
+  disabled per child), with the submit-time re-validation kept as the race-safety
+  net.
 - **Child questions** must be merged into `questionListingMap` with the **correct
   shape**: it is `Map<questionId, listingId[]>` (`questions.ts:361`), read by
   `prepareOrder` as `ctx.questionListingMap.get(q.id)` — *keyed by question id*, not
@@ -892,6 +908,12 @@ Enumerate each and decide:
   `AttendeeInput.bookings` directly (and can `allowOverbook`); the gate is a buyer
   UX constraint, so manual add shows a warning when a parent lacks its child but
   lets the operator proceed. (Open Question 7.)
+- **Attendee merge** also mutates booking lines directly: `bookingInsertStatement`
+  (`src/shared/merge/attendee-merge.ts`) copies `listing_attendees` rows onto the
+  target and deletes the source. Merging a parent booking without its child, or
+  merging a lone child row, recreates exactly the invalid states the manual paths
+  warn about — so apply the same relationship check/warning in the merge
+  diff/confirmation flow.
 - **Renewals** (`/renew/?t=…`, `actionUrl` override in `TicketCtx`) — **not safe
   to hand-wave once parent config is exposed.** `/renew/` renders the normal ticket
   flow with a `siteToken`, but `applyRenewalsForEntries` rejects the renewal unless
