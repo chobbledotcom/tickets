@@ -22,6 +22,14 @@ const cases: [
   ["zero amount", { amount: 0 }, "non_positive_amount"],
   ["negative amount", { amount: -1 }, "non_positive_amount"],
   ["fractional amount", { amount: 10.5 }, "non_integer_amount"],
+  ["unsafe (too large) amount", { amount: 2 ** 53 }, "unsafe_amount"],
+  ["empty occurred-at", { occurredAt: "" }, "invalid_occurred_at"],
+  ["non-ISO occurred-at", { occurredAt: "21/06/2026" }, "invalid_occurred_at"],
+  [
+    "impossible ISO occurred-at",
+    { occurredAt: "2026-13-99T00:00:00Z" },
+    "invalid_occurred_at",
+  ],
   ["self transfer", { destination: account("attendee", 1) }, "self_transfer"],
   ["empty source type", { source: { id: "1", type: "" } }, "empty_account"],
   [

@@ -64,6 +64,8 @@ export type Transfer = TransferInput & {
 export type LedgerError =
   | { readonly code: "non_positive_amount" }
   | { readonly code: "non_integer_amount" }
+  | { readonly code: "unsafe_amount" }
+  | { readonly code: "invalid_occurred_at" }
   | { readonly code: "self_transfer" }
   | { readonly code: "empty_account" }
   | { readonly code: "reserved_char_in_account" }
