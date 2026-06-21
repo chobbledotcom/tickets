@@ -405,7 +405,7 @@ export const BACKFILL_LISTING_AGGREGATES_SQL = `UPDATE listings SET
          (SELECT SUM(price_paid) FROM listing_attendees WHERE listing_id = listings.id), 0)`;
 
 export const backfillListingAggregates = async (): Promise<void> => {
-  await getDb().execute(BACKFILL_LISTING_AGGREGATES_SQL);
+  await getDb().execute({ args: [], sql: BACKFILL_LISTING_AGGREGATES_SQL });
 };
 
 /**

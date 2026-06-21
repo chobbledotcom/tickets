@@ -130,7 +130,7 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     expect(state?.remainingBalance).toBe(0);
   });
 
-  test("settles an attendee that has no booking lines", async () => {
+  test("refuses to settle an attendee with no real booking line", async () => {
     await getDb().execute(
       "INSERT INTO attendees (created, pii_blob, remaining_balance) VALUES ('2024-01-01T00:00:00Z', '', 900)",
     );
@@ -138,9 +138,10 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
       "SELECT id FROM attendees ORDER BY id DESC LIMIT 1",
     );
     const attendeeId = Number(rows[0]!.id);
+    // No quantity > 0 line means the price_paid fold would land on no row, so the
+    // settle must abort rather than clear the balance with no income recorded.
     const result = await settleAttendeeBalance(attendeeId, 900);
-    // No bookings → the log entry has no listing attributed.
-    expect(result).toEqual({ amount: 900, listingId: null, settled: true });
+    expect(result).toEqual({ reason: "amount_mismatch", settled: false });
   });
 
   test("order summary is empty for an attendee with no bookings", async () => {

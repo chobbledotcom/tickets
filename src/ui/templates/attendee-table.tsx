@@ -223,7 +223,11 @@ const createStatusRenderer =
     // A no-quantity sentinel row stays visible but isn't checkable — show the
     // indicator instead of a check-in button (updateCheckedIn refuses it).
     if (row.attendee.quantity === 0) {
-      return String(<span class="muted small">No quantity</span>);
+      return String(
+        <span class="muted small">
+          {t("admin.attendee_table.no_quantity")}
+        </span>,
+      );
     }
     if (row.attendee.refunded) {
       return String(

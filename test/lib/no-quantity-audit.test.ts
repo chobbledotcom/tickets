@@ -6,15 +6,14 @@
  */
 
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
-import { handleRequest } from "#routes";
-import { createAttendeeAtomic } from "#shared/db/attendees.ts";
+import { it as test } from "@std/testing/bdd";
 import {
   getAllAttendeePiiBlobs,
   getAttendeePiiBlobForToken,
   getAttendeePiiBlobsForListings,
   hasActiveBookingLine,
 } from "#shared/db/attendees/queries.ts";
+import { createAttendeeAtomic } from "#shared/db/attendees.ts";
 import { getDb } from "#shared/db/client.ts";
 import { getAgentRunSheet, setLegDone } from "#shared/db/logistics.ts";
 import {
@@ -22,7 +21,6 @@ import {
   createTestAttendeeWithToken,
   createTestListing,
   describeWithEnv,
-  mockRequest,
 } from "#test-utils";
 
 /** Make the attendee's single line a quantity-0 sentinel (price 0, invariant). */
@@ -45,7 +43,10 @@ describeWithEnv("no-quantity audit > token flows", { db: true }, () => {
   });
 
   test("a mixed attendee's ticket shows only the real listing", async () => {
-    const real = await createTestListing({ maxAttendees: 50, name: "RealShow" });
+    const real = await createTestListing({
+      maxAttendees: 50,
+      name: "RealShow",
+    });
     const ghost = await createTestListing({
       maxAttendees: 50,
       name: "GhostShow",
@@ -127,29 +128,35 @@ describeWithEnv("no-quantity audit > attachment auth", { db: true }, () => {
   });
 });
 
-describeWithEnv("no-quantity audit > bulk email recipients", { db: true }, () => {
-  test("excludes a quantity-0-only attendee from the listing and all audiences", async () => {
-    const listing = await createTestListing({ maxAttendees: 50 });
-    const real = await createAttendeeAtomic({
-      bookings: [{ listingId: listing.id, quantity: 1 }],
-      email: "real@test.com",
-      name: "Real",
-    });
-    const ghost = await createTestAttendeeWithToken(
-      "Ghost",
-      "ghost@test.com",
-      {},
-    );
-    await ghostLine(ghost.attendee.id);
-    if (!real.success) throw new Error("setup");
+describeWithEnv(
+  "no-quantity audit > bulk email recipients",
+  { db: true },
+  () => {
+    test("excludes a quantity-0-only attendee from the listing and all audiences", async () => {
+      const listing = await createTestListing({ maxAttendees: 50 });
+      const real = await createAttendeeAtomic({
+        bookings: [{ listingId: listing.id, quantity: 1 }],
+        email: "real@test.com",
+        name: "Real",
+      });
+      const ghost = await createTestAttendeeWithToken(
+        "Ghost",
+        "ghost@test.com",
+        {},
+      );
+      await ghostLine(ghost.attendee.id);
+      if (!real.success) throw new Error("setup");
 
-    // Only the real attendee's blob appears in the listing audience and "all".
-    expect((await getAttendeePiiBlobsForListings([listing.id])).length).toBe(1);
-    expect((await getAllAttendeePiiBlobs()).length).toBe(1);
-    // The ghost-only attendee's single-attendee target resolves to no recipient.
-    expect(await getAttendeePiiBlobForToken(ghost.token)).toBeNull();
-  });
-});
+      // Only the real attendee's blob appears in the listing audience and "all".
+      expect((await getAttendeePiiBlobsForListings([listing.id])).length).toBe(
+        1,
+      );
+      expect((await getAllAttendeePiiBlobs()).length).toBe(1);
+      // The ghost-only attendee's single-attendee target resolves to no recipient.
+      expect(await getAttendeePiiBlobForToken(ghost.token)).toBeNull();
+    });
+  },
+);
 
 describeWithEnv("no-quantity audit > logistics", { db: true }, () => {
   const AGENT = 7;
@@ -175,9 +182,9 @@ describeWithEnv("no-quantity audit > logistics", { db: true }, () => {
 
     const legs = await getAgentRunSheet([AGENT], ["2026-07-01"]);
     // Only the real line's drop-off leg appears (the ghost is excluded).
-    expect(legs.filter((l) => l.kind === "start").map((l) => l.attendeeId)).toEqual(
-      [1],
-    );
+    expect(
+      legs.filter((l) => l.kind === "start").map((l) => l.attendeeId),
+    ).toEqual([1]);
 
     // setLegDone refuses the ghost line even with the right agent.
     expect(await setLegDone(2, listing.id, "start", true, [AGENT])).toBe(false);

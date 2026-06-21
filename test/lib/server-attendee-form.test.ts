@@ -489,13 +489,13 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
   });
 
   describe("no-quantity checkbox round-trip", () => {
-    const readLine = (attendeeId: number, listingId: number) =>
-      getDb()
-        .execute({
-          args: [attendeeId, listingId],
-          sql: "SELECT quantity, checked_in, price_paid FROM listing_attendees WHERE attendee_id = ? AND listing_id = ?",
-        })
-        .then((r) => r.rows[0] ?? null);
+    const readLine = async (attendeeId: number, listingId: number) => {
+      const r = await getDb().execute({
+        args: [attendeeId, listingId],
+        sql: "SELECT quantity, checked_in, price_paid FROM listing_attendees WHERE attendee_id = ? AND listing_id = ?",
+      });
+      return r.rows[0] ?? null;
+    };
 
     const markNoQuantity = async (
       attendeeId: number,
