@@ -398,11 +398,17 @@ On the listing edit page (`src/features/admin/listings.ts`, fields in
   - a **`customisable_days` child** (needs a *day-count*) inherits the parent's
     **resolved duration**, which *every* parent has — `day_count` for a customisable
     parent, `duration_days` for a daily parent, and **1 for a plain standard
-    parent**. So don't restrict by parent kind; instead require the **child's
-    `day_prices` to have a price for the parent's resolved duration** (a standard
-    customisable child under a standard parent is valid, folding `date: null` and
-    pricing from `day_prices[1]`). Reject only when the child has no price for that
-    duration.
+    parent**. Validate by the **child's `day_prices`**, not the parent kind, but
+    **split static vs runtime**:
+    - **Fixed-duration parent** (standard = 1 day, or fixed daily =
+      `duration_days`): the duration is known at save time, so statically require the
+      child to have a `day_prices` entry for it (a standard customisable child under
+      a standard parent priced for 1 day is valid).
+    - **Customisable parent**: there is **no single duration at save time** (the
+      buyer picks `day_count`), so only require the parent's and child's day ranges
+      to **overlap** at save; enforce the chosen duration **at booking** via the
+      day-count filter (which drops day-count options the selected child can't
+      serve). Don't reject a valid 1–3 parent / 1–2 child edge statically.
   - a plain **standard child** is fine under any parent (folds date-less).
 - **Daily parent/child durations must actually match.** "Both daily" is not
   enough: the ordinary-line booking helper uses a non-customisable daily listing's
@@ -720,17 +726,16 @@ The expanded set (parent page listings ∪ selected children) must drive **all**
   opt-in add-ons to a listing that *later* becomes a child, after which the parent
   flow silently won't load them (they're scoped to a listing that's never in the
   page id set). So while child-scoped add-ons are unsupported, admin must **hard
-  block** making a listing a child while it has scoped opt-in add-ons (and vice
-  versa), not merely warn — a warn-and-save leaves a real broken purchase path where
-  the operator configured an add-on buyers can never select. **This covers
-  group-scoped add-ons too**, not just listing-scoped: the resolver expands
-  `modifier_groups` through every listing in the group and renders the add-on when
-  those ids intersect the page ids (`modifiers.ts:212-219`,
-  `modifier-resolve.ts:376-387`), so a child that belongs to a group with an opt-in
-  add-on is just as unreachable from the parent page. The block must therefore also
-  fire on **group-membership and modifier-scope changes** that would leave a child
-  carrying a group-scoped opt-in add-on. (Lift the block only once the conditional
-  child add-on render/parse path is implemented.)
+  block** the config — not merely warn — but **only when the add-on would be
+  reachable *solely* through the suppressed child**. The test is reachability, not
+  "the child appears anywhere in the scope": an add-on scoped to **both** the parent
+  and the child, or to a **group that contains the rendered parent**, still loads via
+  the parent's page ids (`getOptionalAddOns(pageListingIds)` intersects the expanded
+  scope — `modifiers.ts:212-219`, `modifier-resolve.ts:376-387`) and must **not** be
+  blocked. Block (and re-check on group-membership / modifier-scope changes) only the
+  case where the add-on's entire reachable scope is child listings that the parent
+  page suppresses. (Lift the block once the conditional child add-on render/parse
+  path is implemented.)
 - **Site-assignment validation** — `prepareOrder` calls
   `validateSiteAssignmentConfig(selected)` (`ticket-submit.ts:578`) before
   checkout. A child with `assign_built_site` set (parent without) must be in the
@@ -804,16 +809,19 @@ The expanded set (parent page listings ∪ selected children) must drive **all**
   shared selector:** fixed-duration daily listings don't use that selector, so two
   fixed-duration parents with **different** `duration_days` can already coexist in
   one cart, each folding a customisable child that would need a different inherited
-  span. v1 must therefore **explicitly reject a cart/group whose folded items
-  require more than one distinct duration** for customisable items. **This check
-  belongs in the shared prepare/fold step so it covers *all* paths — free submit,
-  `/calculate`, API, and QR — not just paid checkout**: the free reservation path
-  also builds every customisable folded child from the single shared `dayCount`, so
-  a *free* cart with one child inheriting 1 day and another 3 would be
-  booked/priced at the wrong span just as a paid one would. Reject any distinct
-  inherited durations among customisable folded items; only add **per-line
-  duration** to `BookingItem` + metadata + webhook reconstruction if mixed
-  durations in one order ever become a real requirement.
+  span. v1 must therefore **explicitly reject a cart/group that requires more than
+  one distinct duration across *all* customisable order lines — original page
+  listings *and* folded children**, not just folded-child-vs-folded-child. A buyer
+  can select a 3-day customisable *page* listing alongside a fixed 1-day parent
+  whose folded customisable child must inherit 1 day; the single
+  `CheckoutIntent.dayCount` (applied to every customisable item by
+  `bookingDateFields`/metadata) can't represent both, so the child would be
+  priced/booked for 3 days. **This check belongs in the shared prepare/fold step so
+  it covers *all* paths — free submit, `/calculate`, API, and QR — not just paid
+  checkout**: the free reservation path also builds every customisable item from the
+  single shared `dayCount`. Reject any distinct required durations among customisable
+  lines; only add **per-line duration** to `BookingItem` + metadata + webhook
+  reconstruction if mixed durations in one order ever become a real requirement.
   *(Historical note: an earlier draft proposed per-child date controls, creating an
   intersection + round-trip problem; the inherit decision removed the date half,
   leaving only this duration caveat.)*
