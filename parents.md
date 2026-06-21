@@ -223,6 +223,19 @@ richer rules as a later iteration. See Open Question 2.
 - Deactivating (`active = 0`) or hiding a listing does **not** delete edges; the
   gate must filter unbookable children at runtime (see Edge cases).
 
+### Duplication / integrity
+
+- **Duplicate flows must decide what happens to edges.** `buildDuplicateListingInput`
+  (`src/shared/listings-actions.ts:148`) copies only the listing **row**, and group
+  duplication clones listings from that row input — neither carries
+  `listing_parents` rows. So duplicating a configured parent or child (or a whole
+  group for a new date) would **silently drop the required-child gate** on the copy.
+  Pick one and implement it in the duplicate paths: **copy/remap the edges** onto
+  the new listing ids (the right default for "duplicate this configured listing"),
+  or **intentionally clear them with a UI notice** so the operator knows the copy
+  starts unlinked. Whole-group duplication especially needs the edges **remapped to
+  the cloned ids**, not the originals.
+
 ---
 
 ## Admin: configuring parents
@@ -603,6 +616,23 @@ Enumerate each and decide:
   Whichever we pick, the gate must enforce it *before* building `ListingBooking[]`,
   so validation never "passes" only to fail at save with a duplicate-slot error.
   (Open Question 8.)
+  - **Aggregation collapses *all* of the child's per-instance inputs, not just
+    quantity.** A shared child rendered under two parents repeats every one of its
+    listing-id-keyed fields — `custom_price_<childId>`, `question_<childId/id>`,
+    `child_date_*`, `child_days_*`. But the form reader takes only the **first**
+    value (`FormParams.getString` → `URLSearchParams.get`, `form-data.ts:14`) and
+    the answer maps are keyed by listing id, while the folded line has a single
+    quantity, **one** unit price, **one** date, **one** day-count, and **one**
+    answer set. So two parents submitting *different* prices / answers / durations
+    for the same child would silently collapse (or mis-price) before required-answer
+    handling and answer-triggered modifiers run. Therefore, if we aggregate, we must
+    **either** render a **single shared child block** per folded child (one price /
+    date / day-count / question set shared across the parents that chose it),
+    **or** namespace each per parent and define an explicit **merge/reject rule**
+    per field (e.g. reject mismatched durations/answers, take max price). The
+    simplest v1 is to **disallow aggregating a shared child that carries any
+    per-instance input beyond quantity** (pay-more, customisable-days, or its own
+    questions) — fall back to the "disallow" branch for those. (Open Question 8.)
 - **Child is also a parent (nesting).** Forbidden in v1 (see Admin validation).
   If allowed later, selecting a child that is itself a parent recursively requires
   *its* children — the gate must loop until fixpoint, and cycle detection becomes
@@ -620,6 +650,15 @@ Enumerate each and decide:
 - **Capacity & groups.** Child capacity is its own `max_attendees`; selecting it
   consumes capacity normally. If parent and child share a group capacity pool,
   the existing group-remaining capping applies to both lines.
+- **Parent + child in the same group.** The `/group/:slug` page passes **all**
+  active group listings as original page listings (`groups.ts:27-42`), so the
+  recommended "forbid `/ticket/P+C` URLs" rule does **not** remove the standalone
+  child row here — a group containing both a parent and its child reintroduces the
+  shared-standalone ambiguity (the child row can satisfy the gate or be aggregated
+  outside the per-parent selector). Resolve by **forbidding parent/child edges
+  *within the same group* in admin validation** (recommended, simplest) or defining
+  group-specific assignment, before the group path enforces the gate. (Open Question
+  6.)
 - **Deleting/deactivating a parent or child mid-session.** The buyer's submitted
   selection is re-validated server-side at submit, so a stale page that lost a
   child fails cleanly rather than booking a dead listing.
@@ -710,14 +749,18 @@ direct-checkout paths** — so the API/QR decisions move **into the enforcement 
    (recommended) vs must-match?
 5. **No bookable children** — block the parent (recommended) vs show parent with
    an unavailable note?
-6. **Groups interaction** — can a parent/child also be group members, and does the
-   group page change how children are surfaced?
+6. **Groups interaction** — can a parent/child also be group members? The group
+   page renders all group listings together, reintroducing the standalone-child
+   ambiguity. *Recommended: forbid parent/child edges within the same group in
+   admin validation.*
 7. **Admin manual add / attendee edit** — warn-only (recommended) vs enforce the
    gate?
 8. **Shared child across parents** — per-parent requirement (recommended), and if
    the *same* child is chosen for multiple parents, **aggregate into one line**
    (recommended) vs **disallow** the duplicate? (Must be settled because the
-   booking shape can't store duplicate `(listing_id, date)` lines.)
+   booking shape can't store duplicate `(listing_id, date)` lines.) If aggregating,
+   also decide how the child's **per-instance inputs** (price, date, day-count,
+   answers) merge — or disallow aggregating a child that carries any.
 9. **API bookings** — `processBooking` is single-listing today, so enforcing the
    gate requires either **extending the API/`processBooking` contract to carry
    child selections** (parents bookable via API) or **making parent listings
@@ -762,3 +805,6 @@ direct-checkout paths** — so the API/QR decisions move **into the enforcement 
     (`months_per_unit > 0`) in v1 (recommended) vs design renewal-specific gate
     handling? (A folded normal child breaks `applyRenewalsForEntries`'
     all-lines-must-be-a-renewal-tier rule.)
+19. **Duplication** — when duplicating a listing or a group, **copy/remap
+    `listing_parents` edges** to the new ids (recommended) vs **clear them with a
+    UI notice**? (`buildDuplicateListingInput` copies only the listing row today.)
