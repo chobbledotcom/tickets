@@ -511,6 +511,7 @@ describe("code quality", () => {
       "shared/ledger/project.ts",
       "shared/ledger/reverse.ts",
       "shared/ledger/reconcile.ts",
+      "shared/checkout-ledger.ts",
       "shared/accounting/store.ts",
       "shared/accounting/queries.ts",
       "shared/accounting/mappers.ts",

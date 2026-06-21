@@ -72,16 +72,28 @@ const extraCharge = (extra: ExtraLine): number => extra.amount * extra.quantity;
 export const ticketLineTotal = (order: Pick<PricedOrder, "lines">): number =>
   sumOf(lineCharge)(order.lines);
 
-export const ticketLineTotalsByListingId = (
-  order: Pick<PricedOrder, "lines">,
+/** Sum a per-line value, grouped by listing id. Pass {@link lineCharge} for the
+ *  amount charged now, or {@link lineListPrice} for the gross list price. */
+export const lineTotalsByListingId = (
+  lines: PricedLine[],
+  valueOf: (line: PricedLine) => number,
 ): Map<number, number> => {
   const totals = new Map<number, number>();
-  for (const line of order.lines) {
-    const listingId = line.item.listingId;
-    totals.set(listingId, (totals.get(listingId) ?? 0) + lineCharge(line));
+  for (const line of lines) {
+    const id = line.item.listingId;
+    totals.set(id, (totals.get(id) ?? 0) + valueOf(line));
   }
   return totals;
 };
+
+/** A line's full list price (`unitPrice × quantity`) — gross before modifiers
+ *  and before any deposit reduction, for ledger revenue recognition. */
+export const lineListPrice = (line: PricedLine): number =>
+  line.item.unitPrice * line.quantity;
+
+export const ticketLineTotalsByListingId = (
+  order: Pick<PricedOrder, "lines">,
+): Map<number, number> => lineTotalsByListingId(order.lines, lineCharge);
 
 /** The booking-fee extra line for a subtotal, or [] when the fee is zero. */
 const feeExtras = (fullSubtotal: number): ExtraLine[] => {
