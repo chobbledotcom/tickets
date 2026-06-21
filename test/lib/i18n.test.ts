@@ -98,6 +98,32 @@ describe("i18n", () => {
       expect(replace("a.c")).toBe("x");
       expect(replace("abc")).toBe("abc");
     });
+
+    test("leaves a term untouched when it follows a slash (path segment)", () => {
+      expect(buildReplacer("attendees|guests")("/admin/attendees")).toBe(
+        "/admin/attendees",
+      );
+    });
+
+    test("leaves a term untouched when it precedes a slash (path segment)", () => {
+      expect(buildReplacer("foo|bar")("foo/baz")).toBe("foo/baz");
+    });
+
+    test("rebrands a link's label but not its href path", () => {
+      // The visible "Attendees" is rewritten; the /admin/attendees route in the
+      // href is a path segment and must survive so the link keeps working.
+      expect(
+        buildReplacer("attendee|guest")(
+          '<a href="/admin/attendees">Attendees</a>',
+        ),
+      ).toBe('<a href="/admin/attendees">Guests</a>');
+    });
+
+    test("leaves route examples shown in body text intact", () => {
+      expect(
+        buildReplacer("listing|event")("See /api/admin/listings/:id"),
+      ).toBe("See /api/admin/listings/:id");
+    });
   });
 
   describe("t with I18N_REPLACEMENTS", () => {

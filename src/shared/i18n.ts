@@ -65,6 +65,10 @@ const titleCase = (s: string): string => s[0]!.toUpperCase() + s.slice(1);
  * copy is only ever all-lowercase (`"foo"` → `"bar"`) or title-case (`"Foo"` →
  * `"Bar"`), so the first character is enough to tell the two apart.
  *
+ * URL/route paths are left untouched: a term sitting against a `"/"` is treated
+ * as a path segment, so `attendee|guest` rewrites a link's label but not its
+ * `href="/admin/attendees"` target.
+ *
  * All parsing and regex compilation happens once, here, so each render is a
  * single regex pass — this code runs on a cold-booting edge runtime where
  * per-render work matters.
@@ -92,7 +96,13 @@ export const buildReplacer = (raw: string | undefined): Replacer => {
   const regex = new RegExp(pattern, "gi");
 
   return (value) =>
-    value.replace(regex, (match) => {
+    value.replace(regex, (match, offset: number, full: string) => {
+      // Leave URL/route paths alone: a term touching a "/" is a path segment
+      // (e.g. "/admin/attendees"), not visible copy to rebrand. This keeps
+      // hrefs and route examples intact while still rewriting link labels.
+      if (full[offset - 1] === "/" || full[offset + match.length] === "/") {
+        return match;
+      }
       const entry = map.get(match.toLowerCase())!;
       const first = match[0]!;
       return first === first.toLowerCase() ? entry.lower : entry.title;
@@ -110,8 +120,8 @@ export { setI18nReplacerForTest };
 export const t = (key: string, values?: Record<string, unknown>): string => {
   const locale = getLocale();
   const fmt = getFormat(locale, key);
-  // Missing translation falls back to the key path itself — never run
-  // replacements over that, only over genuinely rendered values.
+  // Missing translation falls back to the key itself — never run replacements
+  // over that, only over genuinely rendered values.
   if (!fmt) return key;
   return getReplacer()(String(fmt.format(values)));
 };
