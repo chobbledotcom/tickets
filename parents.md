@@ -317,11 +317,15 @@ richer rules as a later iteration. See Open Question 2.
   neither carries `listing_parents` rows. So duplicating a configured parent or
   child (or a whole group for a new date) would **silently drop the required-child
   gate** on the copy. v1 **requires copy/remap**, not clearing: the duplicate paths
-  must recreate the `listing_parents` edges on the new listing ids. **Whole-group
-  duplication must remap edges to the *cloned* ids** (a child cloned alongside its
-  parent points at the new parent, not the original). Clearing edges is **not** an
-  accepted option, because it produces a bookable copy with no gate — exactly the
-  silent drop this guards against. (Open Question 19.)
+  must recreate the `listing_parents` edges on the new listing ids, **per endpoint**:
+  - an edge with **both** endpoints cloned together (e.g. a child cloned alongside
+    its parent in a whole-group duplicate) → **remap both** ids to the clones;
+  - an edge with **one** endpoint cloned and the other outside the cloned set (e.g.
+    duplicating a group whose parent's required child lives outside the group, or a
+    cloned child whose parent is external) → keep the **original** opposite endpoint
+    so the clone still has its gate / is still reachable.
+  Clearing edges is **not** an accepted option, because it produces a bookable copy
+  with no gate — exactly the silent drop this guards against. (Open Question 19.)
 
 ---
 
@@ -572,8 +576,10 @@ In `prepareOrder` (`ticket-submit.ts`), after `parseQuantities`:
    defer the filter until those values exist).
 3. **Identify parents from the relationship edges, not from "has bookable
    children".** A listing is a parent if it has *any* child edge. *Then* filter that
-   parent's children to the bookable ones (active, not sold out, bookable on the
-   resolved **parent date/duration**). If the bookable set is **empty**, the parent
+   parent's children to the bookable ones (active, **not registration-closed**
+   (`isRegistrationClosed`, since a child past its own `closes_at` may still have
+   capacity but must not be selectable), not sold out, bookable on the resolved
+   **parent date/duration**). If the bookable set is **empty**, the parent
    is **sold out** — reject the whole order (don't let it through just because no
    child is available). Otherwise apply the rule: **exactly one child selected,
    always required**. **Auto-select only covers the *no-choice* case:** when the
@@ -720,10 +726,14 @@ The expanded set (parent page listings ∪ selected children) must drive **all**
   has **one unique listing id** (`webhooks.ts:1193-1199`). Folding a child turns a
   single-parent booking into a **multi-listing** order, so both paths drop the
   operator's custom parent thank-you URL the moment a required child is selected.
-  Define an explicit precedence — **keep the original (pre-fold) parent page's
-  redirect** when the page started as a single parent — and carry it through **both**
-  the free path *and* the payment callback/metadata so the paid path resolves it
-  too, not just the free one.
+  Define an explicit precedence — **keep the original (pre-fold) parent's
+  redirect** when the order is a single parent + its folded children — and carry it
+  through **every** entry point that folds children into a paid order: the web free
+  path, the web payment callback/metadata, **and the QR single-child auto-checkout
+  and API parent bookings** (both also fold children into `CheckoutIntent.items` and
+  hit the same webhook success path that drops `thank_you_url` once there is >1
+  unique listing id). Otherwise a parent booked via QR/API silently loses its
+  configured thank-you URL.
 - **Quantity caps after aggregation** — when the same child is summed across
   multiple parents, the aggregate line can exceed the child's `max_quantity` /
   `maxPurchasable` even though each per-parent input was individually clamped. The
@@ -768,11 +778,16 @@ The expanded set (parent page listings ∪ selected children) must drive **all**
   shared selector:** fixed-duration daily listings don't use that selector, so two
   fixed-duration parents with **different** `duration_days` can already coexist in
   one cart, each folding a customisable child that would need a different inherited
-  span. v1 must therefore **explicitly reject a cart/group whose folded items would
-  require more than one distinct multi-day duration** (validate before paid
-  checkout), since `CheckoutIntent.dayCount` holds one value; only add **per-line
+  span. v1 must therefore **explicitly reject a cart/group whose folded items
+  require more than one distinct duration** for customisable items. **This check
+  belongs in the shared prepare/fold step so it covers *all* paths — free submit,
+  `/calculate`, API, and QR — not just paid checkout**: the free reservation path
+  also builds every customisable folded child from the single shared `dayCount`, so
+  a *free* cart with one child inheriting 1 day and another 3 would be
+  booked/priced at the wrong span just as a paid one would. Reject any distinct
+  inherited durations among customisable folded items; only add **per-line
   duration** to `BookingItem` + metadata + webhook reconstruction if mixed
-  durations in one order become a real requirement.
+  durations in one order ever become a real requirement.
   *(Historical note: an earlier draft proposed per-child date controls, creating an
   intersection + round-trip problem; the inherit decision removed the date half,
   leaving only this duration caveat.)*
@@ -882,10 +897,16 @@ Enumerate each and decide:
     metadata, so a visible child looks like a normal bookable listing and a client
     booking a multi-child parent has no way to learn the valid child ids / prices /
     required inputs. The listing responses must **carry the relationship data**
-    (a parent's available children + their constraints) and **suppress the
+    (a parent's **configured** children + their constraints) and **suppress the
     standalone-booking affordance for children** (mark them "available with …"),
-    mirroring the public listing-card rule. **The relationship payload must include
-    *hidden* children**, explicitly bypassing the top-level visibility filter:
+    mirroring the public listing-card rule. **Discovery lists the *configured*
+    children, not an availability-pre-filtered set** — it has no requested
+    date/dayCount, so filtering daily/customisable children here would test against
+    a null/wrong context (the same trap the relationship-accessor section warns
+    about). Expose the child records + constraints in discovery and let the
+    availability endpoint say which are bookable for a specific date/dayCount. **The
+    relationship payload must include *hidden* children**, explicitly bypassing the
+    top-level visibility filter:
     `GET /api/listings` filters hidden listings out, but hidden children are a
     supported (and common, auto-selected) booking option, so a parent's child list
     must surface hidden child records/constraints — otherwise a parent with only
@@ -904,7 +925,11 @@ Enumerate each and decide:
     is".** For a parent with several children on different calendars/capacities, a
     single parent-level "available" still lets a client pick a child the booking
     POST then rejects; the endpoint should accept the intended child selection (or
-    return per-child availability for the date/dayCount).
+    return per-child availability for the date/dayCount). And each per-child answer
+    must use the **combined folded demand** (requested parent quantity + that
+    child's quantity in one capacity check), not the child alone — a parent+child
+    sharing a capped group with one spot left looks individually available but
+    consumes two and must report unavailable.
   - **Free bookings must be all-or-nothing.** The web free path calls
     `ensureAllBookings` right after the greedy `createAttendeeAtomic`
     (`ticket-payment.ts:299-307`) so a capacity race can't leave some lines saved.
@@ -950,16 +975,16 @@ Enumerate each and decide:
 - **Admin manual add / attendee edit** — ✅ **warn but don't block.** Admins build
   `AttendeeInput.bookings` directly (and can `allowOverbook`); the gate is a buyer
   UX constraint, so manual add shows a warning when a booking is inconsistent but
-  lets the operator proceed. Warn on **both** directions: a **parent without its
-  required child**, *and* a **child line with none of its parents** in the same
-  booking (a lone child violates the same no-standalone-child invariant — and the
-  merge flow below already flags it). (Open Question 7.)
+  lets the operator proceed. The check is **count matching child lines per parent
+  and warn when it isn't exactly one** — which covers all three violations: a
+  **parent with no child**, a **parent with *two or more* of its children** (the
+  invariant is exactly one per parent), and a **child line with none of its
+  parents** in the same booking. (Open Question 7.)
 - **Attendee merge** also mutates booking lines directly: `bookingInsertStatement`
   (`src/shared/merge/attendee-merge.ts`) copies `listing_attendees` rows onto the
-  target and deletes the source. Merging a parent booking without its child, or
-  merging a lone child row, recreates exactly the invalid states the manual paths
-  warn about — so apply the same relationship check/warning in the merge
-  diff/confirmation flow.
+  target and deletes the source. A merge can produce any of those same states
+  (parent with no/extra children, or a lone child), so apply the identical
+  per-parent "exactly one child" check/warning in the merge diff/confirmation flow.
 - **Renewals** (`/renew/?t=…`, `actionUrl` override in `TicketCtx`) — **not safe
   to hand-wave once parent config is exposed.** `/renew/` renders the normal ticket
   flow with a `siteToken`, but `applyRenewalsForEntries` rejects the renewal unless
