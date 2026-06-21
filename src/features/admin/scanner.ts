@@ -44,7 +44,10 @@ const handleScannerGet: IdRouteHandler = (request, { id }) =>
       const rawAttendees = await getAttendeesRaw(listing.id);
       const attendees = await decryptAttendees(rawAttendees, privateKey);
       const uncheckedIn = pipe(
-        filter((a: Attendee) => !a.checked_in && !a.refunded),
+        // quantity > 0: a no-quantity sentinel line isn't a real ticket, so it
+        // must not appear as a manual check-in candidate (updateCheckedIn would
+        // refuse it anyway).
+        filter((a: Attendee) => !a.checked_in && !a.refunded && a.quantity > 0),
         map((a: Attendee) => ({
           name: a.name,
           quantity: a.quantity,

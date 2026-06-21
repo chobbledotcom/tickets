@@ -75,6 +75,9 @@ type OrderRow = {
 
 const getAttendeeOrderRows = (attendeeId: number): Promise<OrderRow[]> =>
   queryAll<OrderRow>(
+    // quantity > 0: a no-quantity sentinel line is not an order line — exclude it
+    // so the pay page shows (and checks out against) a real product, never a
+    // lower-id ghost.
     `SELECT listingAttendee.listing_id,
             listingAttendee.quantity,
             listingAttendee.price_paid,
@@ -82,7 +85,7 @@ const getAttendeeOrderRows = (attendeeId: number): Promise<OrderRow[]> =>
             listing.unit_price AS listing_unit_price
        FROM listing_attendees AS listingAttendee
        LEFT JOIN listings AS listing ON listing.id = listingAttendee.listing_id
-      WHERE listingAttendee.attendee_id = ?
+      WHERE listingAttendee.attendee_id = ? AND listingAttendee.quantity > 0
       ORDER BY listingAttendee.id`,
     [attendeeId],
   );
@@ -170,6 +173,8 @@ export const settleAttendeeBalance = async (
       // Fold the paid amount into the earliest booking line so the recorded
       // amount-paid reconciles to the full order price. Guarded on the live
       // balance so it can't apply if a concurrent settlement got there first.
+      // Fold onto the lowest-id REAL line (quantity > 0), never a lower-id ghost,
+      // so even a mixed attendee records income on a payable line.
       args: [
         expectedAmount,
         attendeeId,
@@ -180,14 +185,20 @@ export const settleAttendeeBalance = async (
       sql: `UPDATE listing_attendees SET price_paid = price_paid + ?
             WHERE attendee_id = ?
               AND (SELECT remaining_balance FROM attendees WHERE id = ?) = ?
-              AND id = (SELECT MIN(id) FROM listing_attendees WHERE attendee_id = ?)`,
+              AND id = (SELECT MIN(id) FROM listing_attendees WHERE attendee_id = ? AND quantity > 0)`,
     },
     {
       // Atomic clear: only the callback whose expectedAmount still matches the
       // live balance settles it; a second concurrent callback affects 0 rows.
       // Always the LAST statement, so its rowsAffected is the settle verdict.
-      args: [paid?.id ?? null, attendeeId, expectedAmount],
-      sql: "UPDATE attendees SET remaining_balance = 0, status_id = COALESCE(?, status_id) WHERE id = ? AND remaining_balance = ?",
+      // The EXISTS real-line guard makes the clear conditional on the fold above
+      // having a line to land on: if the last real line was marked no-quantity
+      // after checkout, the fold hits 0 rows and this clear must NOT finalize the
+      // balance with no income recorded — so it too affects 0 rows (mismatch).
+      args: [paid?.id ?? null, attendeeId, expectedAmount, attendeeId],
+      sql: `UPDATE attendees SET remaining_balance = 0, status_id = COALESCE(?, status_id)
+            WHERE id = ? AND remaining_balance = ?
+              AND EXISTS (SELECT 1 FROM listing_attendees WHERE attendee_id = ? AND quantity > 0)`,
     },
   ]);
 
@@ -197,7 +208,9 @@ export const settleAttendeeBalance = async (
     return { reason: "amount_mismatch", settled: false };
 
   const firstListing = await queryOne<{ listing_id: number }>(
-    "SELECT listing_id FROM listing_attendees WHERE attendee_id = ? ORDER BY id LIMIT 1",
+    // The logged-activity / returned listing must be the real line the fold
+    // landed on, never a lower-id ghost.
+    "SELECT listing_id FROM listing_attendees WHERE attendee_id = ? AND quantity > 0 ORDER BY id LIMIT 1",
     [attendeeId],
   );
   const listingId = firstListing ? firstListing.listing_id : null;

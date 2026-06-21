@@ -426,6 +426,21 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
       expect(response.status).toBe(404);
     });
 
+    test("rejects an explicit quantity of 0 instead of booking one ticket", async () => {
+      const listing = await createTestListing({ maxAttendees: 10 });
+      const { response, body } = await bookListing(listing.slug, {
+        email: "zero@test.com",
+        name: "Zero",
+        quantity: 0,
+      });
+      // A quantity-0 line is admin-only — the public API must never coerce 0 to a
+      // one-ticket booking.
+      expect(response.status).toBe(400);
+      expect(body.error).toMatch(/quantity/i);
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      expect((await getAttendeesRaw(listing.id)).length).toBe(0);
+    });
+
     test("rejects customisable-days listings (must book via the website)", async () => {
       const listing = await createTestListing({
         customisableDays: true,

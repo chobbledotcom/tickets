@@ -212,6 +212,11 @@ const groupAggregateMismatchItems = (
   listings: ListingWithCount[],
   attendees: Attendee[],
 ): ExpectedActualItem[] => {
+  // tickets_count counts only real (quantity > 0) lines, so the expected side
+  // must too — otherwise a group holding any no-quantity sentinel row would
+  // report a bogus tickets_count drift. (booked_quantity/income sum quantity/
+  // price_paid, to which a ghost contributes 0, so those sides stay unfiltered.)
+  const realTicketCount = attendees.filter((a) => a.quantity > 0).length;
   const checks: Array<ExpectedActualItem & { matches: boolean }> = [
     {
       actual: String(totalAttendeeCount(listings)),
@@ -221,9 +226,9 @@ const groupAggregateMismatchItems = (
     },
     {
       actual: String(totalTicketCount(listings)),
-      expected: String(attendees.length),
+      expected: String(realTicketCount),
       label: t("fields.listing.tickets_count"),
-      matches: totalTicketCount(listings) === attendees.length,
+      matches: totalTicketCount(listings) === realTicketCount,
     },
     {
       actual: formatCurrency(totalIncome(listings)),

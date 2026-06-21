@@ -356,7 +356,13 @@ const handleBook = withActiveListing(async (request, listing, server) => {
   if (valResult instanceof Response) return valResult;
   const values = valResult;
 
-  // Parse quantity
+  // Parse quantity. A submitted quantity of exactly 0 must NOT become a
+  // one-ticket booking — a quantity-0 line is the admin-only no-quantity sentinel
+  // and is never created through the public API. Malformed/absent values keep the
+  // lenient default of 1 (existing behaviour).
+  if (parseNonNegativeInt(String(body.quantity ?? "1")) === 0) {
+    return apiResponse({ error: "Quantity must be at least 1" }, 400);
+  }
   const rawQuantity = parsePositiveInt(String(body.quantity ?? "1"));
   const quantity = Math.min(rawQuantity ?? 1, listing.max_quantity);
 

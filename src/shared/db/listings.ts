@@ -544,10 +544,13 @@ export const getDailyListingAttendeeDates = async (): Promise<string[]> => {
   // start_at and end_at are always written together (see dateToStartEnd), so
   // filtering on both being non-null lets the row type stay honestly non-null.
   const rows = await queryAll<{ start_at: string; end_at: string }>(
+    // quantity > 0: a no-quantity sentinel line is not an operational booking, so
+    // it must not mark a calendar date as occupied.
     `SELECT DISTINCT ea.start_at, ea.end_at FROM listing_attendees ea
      INNER JOIN listings AS listing ON ea.listing_id = listing.id
      WHERE listing.listing_type = 'daily'
-       AND ea.start_at IS NOT NULL AND ea.end_at IS NOT NULL`,
+       AND ea.start_at IS NOT NULL AND ea.end_at IS NOT NULL
+       AND ea.quantity > 0`,
   );
   // Expand each booking's [start_at, end_at) span into every calendar date it
   // covers, so multi-day bookings mark every day they occupy as selectable.
@@ -575,11 +578,13 @@ export const getDailyListingAttendeesByDate = (
 ): Promise<Attendee[]> => {
   const { startAt, endAt } = dateToRange(date);
   return queryAll<Attendee>(
+    // quantity > 0: exclude no-quantity sentinel lines from the daily calendar.
     `SELECT ${ATTENDEE_JOIN_SELECT}
      FROM attendees a
      JOIN listing_attendees ea ON ea.attendee_id = a.id
      JOIN listings AS listing ON ea.listing_id = listing.id
      WHERE listing.listing_type = 'daily' AND ea.start_at < ? AND ea.end_at > ?
+       AND ea.quantity > 0
      ORDER BY a.created DESC`,
     [endAt, startAt],
   );
@@ -589,15 +594,24 @@ export const getDailyListingAttendeesByDate = (
  * Get raw attendees for a set of listing IDs.
  * Used by the calendar to load attendees for standard listings whose
  * decrypted date matches the selected calendar date.
+ *
+ * `activeOnly` is an opt-in `quantity > 0` filter: the operational callers (the
+ * ICS feed and the admin calendar's standard-listing rows + CSV) pass `true` to
+ * drop no-quantity sentinel lines, while the admin group-detail roster passes
+ * `false` (the default) so it keeps showing ghost rows. The filter is opt-in —
+ * never applied unconditionally to this shared helper — so a record/detail
+ * caller can't accidentally lose its ghost rows.
  */
 export const getAttendeesByListingIds = (
   listingIds: number[],
+  activeOnly = false,
 ): Promise<Attendee[]> =>
   queryAll<Attendee>(
     `SELECT ${ATTENDEE_JOIN_SELECT}
      FROM attendees a
      JOIN listing_attendees ea ON ea.attendee_id = a.id
      WHERE ea.listing_id IN (${inPlaceholders(listingIds)})
+       ${activeOnly ? "AND ea.quantity > 0" : ""}
      ORDER BY a.created DESC`,
     listingIds,
   );

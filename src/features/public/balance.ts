@@ -54,11 +54,13 @@ const withOutstanding = async (
   if (!status?.is_reservation || state.remainingBalance <= 0) {
     return htmlResponse(balanceSettledPage());
   }
-  return fn({
-    amount: state.remainingBalance,
-    attendeeId: payload.a,
-    summary: await getAttendeeOrderSummary(payload.a),
-  });
+  const summary = await getAttendeeOrderSummary(payload.a);
+  // Publicly payable only when the attendee has ≥1 real (quantity > 0) line to
+  // pay into — a no-quantity-only attendee can't be paid into a ghost. (The
+  // checkbox save / merge writer already clear such a balance; this guards stale
+  // links and is why the order summary excludes quantity-0 lines.)
+  if (summary.lines.length === 0) return htmlResponse(balanceInvalidPage());
+  return fn({ amount: state.remainingBalance, attendeeId: payload.a, summary });
 };
 
 /** GET /pay/:token — render the recap + pay button. */

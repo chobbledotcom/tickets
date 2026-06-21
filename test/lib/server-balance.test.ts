@@ -110,18 +110,20 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
     expect(await response.text()).toContain("Nothing to pay");
   });
 
-  test("POST handles a reservation with no booking lines", async () => {
+  test("POST refuses a reservation with no real booking line", async () => {
     await setupStripe();
     const reservation = await attendeeStatusesTable.insert({
       isReservation: true,
       name: "Reserved",
       reservationAmount: "10%",
     });
+    // No quantity > 0 line means nothing real to pay into, so the balance is not
+    // publicly payable — checkout must not start against a phantom listing.
     const attendeeId = await insertBareAttendee(reservation.id, 1500);
     const token = await signBalanceToken(attendeeId);
     const response = await postPay(token);
-    // Checkout still starts (the line falls back to listing id 0).
-    expect([302, 303]).toContain(response.status);
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain("not valid");
   });
 
   test("POST rejects an invalid csrf token", async () => {
