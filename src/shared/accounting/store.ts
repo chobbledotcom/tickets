@@ -334,3 +334,70 @@ export const transfersByEventGroup = (
  *  preferred on hot paths. */
 export const allTransfers = (): Promise<Transfer[]> =>
   selectTransfers(fromDb, "", []);
+
+/* ── Balance queries ─────────────────────────────────────────────────────────
+ * The figures once denormalised onto domain rows (attendee balances, listing
+ * income, modifier revenue) are derived from the ledger here. These sum signed
+ * amounts in SQL rather than loading every transfer into memory: each transfer
+ * credits its destination (+amount) and debits its source (-amount), so an
+ * account's net balance is the sum of those signed rows. The ledger is
+ * single-currency (postTransfers enforces it), so SUM(amount) never mixes units.
+ */
+
+type BalanceRow = { id: string; balance: number | bigint };
+
+/** Net balances grouped by account id over the signed-amount union, scoped by
+ *  `whereDest`/`whereSource`. The one query that backs every balance read. */
+const groupedBalances = (
+  whereDest: string,
+  whereSource: string,
+  args: InValue[],
+): Promise<BalanceRow[]> =>
+  queryAll<BalanceRow>(
+    `SELECT id, COALESCE(SUM(delta), 0) AS balance FROM (
+       SELECT dest_id AS id, amount AS delta FROM transfers WHERE ${whereDest}
+       UNION ALL
+       SELECT source_id AS id, -amount AS delta FROM transfers WHERE ${whereSource}
+     ) GROUP BY id`,
+    args,
+  );
+
+const toBalanceMap = (rows: BalanceRow[]): Map<string, number> =>
+  new Map(rows.map((row) => [row.id, Number(row.balance)]));
+
+/**
+ * Net balance of every account of one type (e.g. all `attendee` balances, or all
+ * `revenue` listing incomes), keyed by account id, in a single query. Accounts
+ * with no transfers are simply absent (balance 0).
+ */
+export const accountBalancesOfType = async (
+  type: string,
+): Promise<Map<string, number>> =>
+  toBalanceMap(
+    await groupedBalances("dest_type = ?", "source_type = ?", [type, type]),
+  );
+
+/**
+ * Net balance of each given account id of one type, in a single query — for a
+ * page of attendees/listings rather than the whole type. An empty id list is a
+ * no-op (no query); ids absent from the result have balance 0.
+ */
+export const accountBalancesForIds = async (
+  type: string,
+  ids: readonly string[],
+): Promise<Map<string, number>> => {
+  if (ids.length === 0) return new Map();
+  const placeholders = inPlaceholders(ids);
+  return toBalanceMap(
+    await groupedBalances(
+      `dest_type = ? AND dest_id IN (${placeholders})`,
+      `source_type = ? AND source_id IN (${placeholders})`,
+      [type, ...ids, type, ...ids],
+    ),
+  );
+};
+
+/** Net balance of one account: money in (as destination) minus money out (as
+ *  source). Zero when the account has no transfers. */
+export const accountBalance = async (acct: AccountRef): Promise<number> =>
+  (await accountBalancesForIds(acct.type, [acct.id])).get(acct.id) ?? 0;
