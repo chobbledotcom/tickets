@@ -1,31 +1,98 @@
-# Booking CSV Importer Plan
+# CSV Importer Plan
 
 ## Goal
 
-Build an admin-only importer that accepts `bookings.csv`-style exports and
-creates bookings in this system.
+Build an admin-only CSV importer: a **generic, schema-driven engine** that turns
+third-party CSV exports into bookings in this system. The first (and, for now,
+only) schema is **`event_bookings`** — the `bookings.csv`-style export this plan
+describes in detail. The operator picks a schema from a list when uploading, and
+**more schemas will be added later**, so the engine stays generic and every
+`event_bookings` specific lives in a schema definition, not in the engine.
 
-The importer must be idempotent and all-or-nothing:
+The importer is idempotent and all-or-nothing:
 
 - A CSV upload either creates every unimported booking it can create, or creates
   none of them.
 - Source bookings already recorded in the import map are skipped.
 - The importer never creates products/listings, attendee statuses, or custom
-  questions. It only matches imported product names to existing listings, source
-  status names to existing attendee statuses, and custom-question columns to
-  existing free-text questions.
-- If any unimported row mentions a product, status, or required question that
-  does not exist locally, no booking is created. The user is sent to an error
-  page listing the missing setup.
-- Each missing-product link goes to the existing new-listing form with the
-  product name pre-filled and not editable. The user can create every required
-  listing, upload the CSV again, and continue.
-- Missing statuses and missing free-text questions are handled the same way
-  conceptually: the operator must create statuses whose names match the source
-  `Status` values, and free-text questions whose text matches the CSV column
-  headers, then upload the CSV again.
+  questions — it only **matches** imported names to existing records, and sends
+  the operator to fix any setup that's missing.
+- **Everything checkable is checked before any write, and every problem is
+  reported at once.** A clean preflight is the precondition for the write; the
+  operator fixes setup/data in one pass and re-uploads rather than hitting errors
+  one at a time. See
+  [Architecture & Core Principles](#architecture--core-principles) and
+  [Preflight & Error Reporting](#preflight--error-reporting).
 - Legacy imports may overbook. Capacity warnings can be reported, but capacity
   does not block the import.
+
+## Architecture & Core Principles
+
+The importer is a **generic engine** parameterised by a **schema definition**,
+around four rules that the rest of this plan must satisfy:
+
+1. **Schema-driven and generic.** The engine knows nothing about any particular
+   CSV. A `SchemaDefinition` (e.g. `event_bookings`) supplies the column mapping,
+   required columns, product/status/question resolution config, and per-field
+   parsers/validators. Adding a future format means adding a schema, not editing
+   the engine. The operator selects the schema on upload — see [Schemas](#schemas).
+
+2. **Pure, functional core; thin effectful shell.** The pipeline is
+   `parse → load context → resolve + validate (preflight) → plan → write`. Every
+   stage except the first (file read) and last (the write transaction) is a **pure
+   function** of its inputs: parsing, resolution, validation, and planning take the
+   parsed rows plus a snapshot of existing DB context (listings, statuses,
+   questions, prior imports) and **return data — no DB writes, no hidden I/O**.
+   That is what makes the importer testable and the schema config swappable. Only
+   the final writer touches the database, in one guarded transaction.
+
+3. **Exhaustive preflight.** Do everything possible so the write transaction
+   cannot fail on anything we could have detected first: resolve all names,
+   validate every field, check idempotency, classify every row, and confirm
+   representability before any write. "Validate at write time and let the
+   transaction abort" is a last resort for genuinely unexpected/infrastructural
+   failure, not the design — and even then the whole file rolls back.
+
+4. **Report every problem at once.** Preflight does **not** fail fast. It
+   accumulates *all* problems across the whole file — missing setup, ambiguous
+   matches, source-data errors, non-creatable rows, unrepresentable bookings,
+   invalid fields — and returns them together, grouped by kind, each with the
+   exact fix and a link where one exists. The operator fixes everything in one
+   pass and re-uploads. A single comprehensive error report, never a
+   stop-at-first-error trickle. See
+   [Preflight & Error Reporting](#preflight--error-reporting).
+
+## Schemas
+
+A **schema** describes one CSV format. The operator chooses one when uploading;
+the engine runs the same pipeline for all of them.
+
+- **Registry.** A small registry maps a schema id (e.g. `"event_bookings"`) to its
+  `SchemaDefinition` and a human label. `GET /admin/imports` lists the registered
+  schemas; the operator picks one and uploads against it. New formats register a
+  new definition — no engine changes.
+- **What a `SchemaDefinition` provides** (all pure data/config the generic engine
+  consumes):
+  - `id` and `label`.
+  - Required core columns and how to detect/validate them.
+  - The field mapping (source columns → attendee/booking fields), with per-field
+    parsers (dates, money, phone, email) and validators.
+  - Product extraction + resolution config (how to read product names from a row,
+    the separators, daily-only gating).
+  - Status, free-text-question, and audit-column config (required vs
+    optional/audit-only; which columns are internal/staff-only).
+  - The idempotency key (which column is the stable source id).
+- **`event_bookings` is the first schema.** Everything below from
+  [Current CSV Shape](#current-csv-shape) onward — the column shape, product
+  extraction, booking/field mapping, financial and status mapping, custom
+  questions, legacy-metadata routing — **is the `event_bookings` definition**, not
+  engine behaviour. Read "the importer does X" as "the engine, configured by
+  `event_bookings`, does X"; another schema could configure it differently.
+- **Genericity guardrail.** No `event_bookings` column name, separator, or quirk
+  may be hard-coded in the engine, parser, planner, or writer — they read it from
+  the active `SchemaDefinition`. Add a test that the engine carries no schema
+  literals (or that a trivial second schema runs end-to-end), so the second real
+  format doesn't require an engine rewrite.
 
 ## In-Progress PR Context (read first)
 
@@ -211,39 +278,38 @@ Attendee notes / legacy metadata storage:
 
 ## Proposed Routes And UI
 
-Add admin routes:
+Add admin routes (**schema-scoped**, so future formats reuse them unchanged):
 
-- `GET /admin/imports/bookings`
-  - Upload form for the CSV.
-  - Optional short instructions and a link to existing listings/questions.
-- `POST /admin/imports/bookings`
-  - Authenticated multipart upload.
-  - Parses, validates, resolves products/statuses/questions, and runs the import
-    transaction.
-  - Redirects to success with created/skipped counts.
-- `GET /admin/imports/bookings/missing`
-  - Error page populated from a **short-lived, durable stash**, addressed by a
-    single token in the URL (`?stash=<token>`) — **not** repeated `product` /
-    `status` / `question` params, which the first upload of a wide CSV can push
-    past Location/header limits and strand the operator before setup. The POST
-    writes the missing set to the stash and redirects with the token; this GET
-    reads it back. **Store the stash in libsql with a TTL** (a small table +
-    cleanup pass), **not process-local memory:** production runs on Bunny Edge
-    Scripting, where the POST and the redirected GET can hit different isolates,
-    so an in-memory stash would often read back empty (the codebase already
-    handles cross-isolate staleness elsewhere). A signed/encrypted self-contained
-    token is a fallback only for *small* sets — a large missing list would re-hit
-    the URL limit.
-  - Renders one link per missing product:
-    `/admin/listing/new?import_name=Foo`
-  - Renders missing statuses with the exact source name and a link to
-    `/admin/settings/statuses/new`.
-  - Renders missing questions with the exact required header text and a link to
-    `/admin/questions`, telling the operator to create a **free-text** question
-    with that exact text. If adding a name/text prefill is cheap, mirror the
-    listing `import_name` flow for statuses and questions too (e.g.
-    `/admin/questions?import_text=Surface` pre-filling the question text and
-    defaulting `display_type` to `free_text`).
+- `GET /admin/imports`
+  - Lists the registered schemas (see [Schemas](#schemas)); the operator picks one
+    to upload against.
+- `GET /admin/imports/:schema` (e.g. `/admin/imports/event_bookings`)
+  - Upload form for the chosen schema, with short instructions and links to
+    existing listings/questions.
+- `POST /admin/imports/:schema`
+  - Authenticated multipart upload. Parses, runs the **pure preflight** (resolve +
+    validate + plan, no writes), and runs the write transaction **only if preflight
+    is clean**. Redirects to success with created/skipped counts, or to the
+    preflight error report below.
+- `GET /admin/imports/:schema/errors?stash=<token>` — the **preflight error
+  report**: the single "here's everything to fix" page. Missing setup is one
+  section of it; see [Preflight & Error Reporting](#preflight--error-reporting).
+  - Populated from a **short-lived, durable stash**, addressed by `?stash=<token>`
+    — **not** repeated `product` / `status` / `question` params, which the first
+    upload of a wide CSV can push past Location/header limits and strand the
+    operator. The POST writes the report to the stash and redirects with the token;
+    this GET reads it back. **Store the stash in libsql with a TTL** (a small table
+    + cleanup pass), **not process-local memory:** production runs on Bunny Edge
+    Scripting, where the POST and the redirected GET can hit different isolates, so
+    an in-memory stash would often read back empty (the codebase already handles
+    cross-isolate staleness elsewhere). A signed/encrypted self-contained token is
+    a fallback only for *small* reports — a large one would re-hit the URL limit.
+  - Renders one link per missing product (`/admin/listing/new?import_name=Foo`),
+    each missing status (link to `/admin/settings/statuses/new`), and each missing
+    free-text question (link to `/admin/questions`, told to create a **free-text**
+    question with the exact text; prefill via `?import_text=Surface` if cheap). It
+    also renders the non-setup problems — ambiguous matches, source-data errors,
+    non-creatable and unrepresentable rows — see the report section.
 
 Extend listing creation:
 
@@ -269,6 +335,39 @@ list. If that Location header is rejected or truncated by a proxy/browser, the
 operator never reaches the setup page and can't import at all. Query params are
 fine as a fallback for small lists, but don't make reaching the setup page depend
 on URL length.
+
+## Preflight & Error Reporting
+
+Preflight is the pure core (principles 2–4): given the parsed rows and a snapshot
+of existing context, it resolves everything, validates everything, classifies
+every row, and returns either a clean import plan **or** a complete problem report
+— without touching the database.
+
+**Accumulate, never fail fast.** Every check appends to the report and keeps
+going, so one upload surfaces *all* problems at once. The report groups them by
+kind, and the write runs only when the report is empty:
+
+- **Missing setup** — products/statuses/required questions with no local match,
+  plus products matching a `standard`-type listing that must be made daily. Each
+  with a fix link (see [Missing Setup](#missing-setup-error-page)).
+- **Ambiguous setup** — a name matching more than one local listing / status /
+  free-text question (names aren't unique and are encrypted). Operator
+  disambiguates; the engine never guesses.
+- **Source-data errors** — duplicate `Booking ID`s within the file, conflicting
+  duplicate columns mapping to one question with different values, invalid or
+  unparseable required fields (dates, money) — each keyed to the offending row.
+- **Non-creatable rows** — rows with zero products (no line could be written);
+  reported, not written.
+- **Unrepresentable bookings** — e.g. the same listing on non-contiguous dates the
+  data model can't hold (see [Quantity](#booking-mapping)).
+
+Every entry names the offending row(s)/column(s) and the exact fix. Row-level
+errors **do not abort the run** — they're collected with everything else. The
+operator fixes the whole report and re-uploads; idempotency means the
+already-creatable rows aren't duplicated. Only genuinely
+unexpected/infrastructural failure is left to the write transaction, which still
+rolls the whole file back. (The same report object is what the POST stashes and
+the `…/errors` page renders.)
 
 ## Parsing Plan
 
@@ -793,38 +892,48 @@ Do not call `createAttendeeAtomic` once per CSV row and consider the whole file
 atomic. That helper is atomic per attendee/order, not across an entire upload.
 The same warning applies to `saveAttendeeAnswers` — do not call it per attendee.
 
-Target algorithm:
+Target algorithm — a **pure preflight** that accumulates the full report, then
+**one decision**, then (only if the report is clean) the write:
 
-1. Parse CSV into indexed rows.
-2. Validate required columns and row shape.
-3. Reject duplicate `Booking ID` values within the uploaded CSV.
-4. Query `booking_imports` for all source IDs from the file.
-5. Remove already-imported rows from the candidate set.
-6. Resolve products for the remaining rows. Remove rows that resolve to **zero**
-   products as a reported non-creatable category (they cannot form a booking
-   line); they are not written and not added to the import map.
-7. Resolve source `Status` values to existing attendee statuses. Reject a source
-   status that matches more than one local status as ambiguous.
-8. Resolve configured text custom-question columns to existing `free_text`
-   questions by normalized exact text.
-9. If any products, statuses, or required question mappings are missing, stash
-   the missing set server-side (short-lived) and redirect to the missing-setup
-   page with **only a stash token** — not repeated query params, which a wide
-   first import can push past proxy/browser URL limits (see Proposed Routes And
-   UI). No writes have happened. Tests assert the redirect carries a token, not a
-   param list.
-10. Validate dates, quantities, money, and required raw fields.
-11. Do not preflight capacity. Legacy imports may overbook.
-12. Encrypt attendee PII blobs for every new candidate.
-13. Resolve free-text answers: collect every distinct trimmed answer text from
-    the **candidate set only** (not the whole file — already-imported and
-    non-creatable rows are already removed), owner-public-key encryption, dedupes
-    across candidates. Flag conflicting duplicate columns (same question, two
-    different non-empty values) as source-data errors. The `strings` upserts must
-    be unwound on failure — either performed inside the write transaction in step
-    14, or tracked so newly-created rows can be deleted on rollback (see
-    implementation notes).
-14. Run one write transaction for all new candidates:
+**Preflight (pure; appends to one report, never fail-fast — principles 2–4):**
+
+1. Parse the CSV into indexed rows (engine + the schema's parser config).
+2. Validate required columns and row shape per the schema; record any problems.
+3. Record duplicate `Booking ID` values within the file as source-data errors.
+4. Load context once, read-only: existing `booking_imports`, listings, statuses,
+   and free-text questions.
+5. Classify against the import map: **skip** already-imported `old_id`s.
+6. Resolve products for the remaining rows. A row that resolves to **zero**
+   products is **non-creatable** (no line could be written) — recorded and dropped
+   from the candidate set. Unmatched names, `standard`-type matches, and names
+   matching **>1** listing are recorded as missing / ambiguous setup.
+7. Resolve source `Status` values to existing statuses; record missing and
+   ambiguous (>1 match) statuses.
+8. Resolve the schema's question columns to existing `free_text` questions by
+   normalized exact text; record missing required questions and ambiguous matches.
+9. Validate dates, quantities, money, and required raw fields with the schema's
+   per-field validators; record failures keyed to the offending row. Do **not**
+   preflight capacity — legacy imports may overbook.
+10. Resolve free-text answers from the **candidate set only** (not the whole file
+    — already-imported and non-creatable rows are excluded, so collecting across
+    the file would strand encrypted `strings`); dedupe identical answers across
+    candidates. Record conflicting duplicate columns (same question, two different
+    non-empty values) as source-data errors.
+11. Check representability: a same-listing repeat across **non-contiguous** dates
+    the data model can't hold is recorded as unrepresentable (see Quantity).
+12. **Build the import plan** for every still-creatable candidate — encrypted PII
+    blobs, lines (real / quantity-0), text-answer sets, balances, dates/times,
+    audit fields, idempotency rows. Pure data, no writes.
+
+**Decision.** If the report has any entry, stash it server-side and redirect to
+the error report with only a `?stash=` token (see Proposed Routes And UI) — **no
+writes have happened**, and the page lists *every* problem at once. Tests assert
+the redirect carries a token (not a param list) and that a file with several
+distinct problems surfaces them all, not just the first. Otherwise, proceed.
+
+**Write (one guarded transaction, only when the report is clean):**
+
+13. Run one write transaction for all candidates in the plan:
     - upsert the deduped `strings` rows and resolve their ids (or do this such
       that a rollback removes them);
     - insert attendee, and resolve its **stable id** via a per-attendee lookup
@@ -847,9 +956,10 @@ Target algorithm:
       never moves a recently-active contact backwards into prune range nor
       refreshes a stale one;
     - insert `booking_imports(old_id, new_id)`.
-15. If any insert fails, the transaction rolls back and no attendees, listing
+14. If any insert fails, the transaction rolls back and no attendees, listing
     lines, text answers, new `strings` rows, audit-trail records, visit counts, or
-    import-map rows survive.
+    import-map rows survive. Preflight should have made this reachable only by
+    genuinely unexpected/infrastructural failure.
 
 Implementation notes:
 
@@ -955,12 +1065,17 @@ Implementation notes:
 
 ## Missing Setup Error Page
 
+This is the **missing-setup section of the preflight error report** (see
+[Preflight & Error Reporting](#preflight--error-reporting)); the same report/page
+also carries the ambiguous-setup, source-data, non-creatable, and unrepresentable
+problems. The setup section is the part with create/fix links.
+
 Input:
 
-- `GET /admin/imports/bookings/missing?stash=<token>` — the token addresses the
+- `GET /admin/imports/:schema/errors?stash=<token>` — the token addresses the
   durable server-side stash written by the upload POST (see Proposed Routes And
-  UI); the page reads the missing product/status/question set from the stash, not
-  from repeated query params.
+  UI); the page reads the report (the missing product/status/question set plus the
+  other problem groups) from the stash, not from repeated query params.
 
 Behavior:
 
@@ -1012,6 +1127,14 @@ retried after products/statuses/questions exist.
 
 Add focused tests before broad route tests:
 
+- **Engine is schema-generic:** the engine/parser/planner/writer carry no
+  `event_bookings` literals (a guard test), and a trivial second schema runs the
+  whole pipeline end-to-end.
+- **Preflight is pure:** preflight performs no writes and returns a report/plan;
+  the database is untouched until the write stage.
+- **Every problem at once:** a file with missing setup *and* a duplicate
+  `Booking ID` *and* an ambiguous status returns all three groups in one report
+  (not just the first) and writes nothing.
 - CSV parser handles BOM, quotes, commas, duplicate headers, repeated `Date`
   columns, and empty cells.
 - Product extractor handles:
@@ -1149,10 +1272,15 @@ Semantic-correctness tests (verified against live behaviour):
 ## Implementation Phases
 
 These group the work by stream; the numbering is **not** a strict execution
-order. One hard cross-dependency to call out: the **no-quantity feature (item 6)
-is a prerequisite for the transactional writer (item 5)** — the writer emits
-`quantity = 0` lines and must not land until the no-quantity guards from
-[`no-quantity-spec.md`](./no-quantity-spec.md) exist.
+order. The **engine/schema split** (see
+[Architecture](#architecture--core-principles), [Schemas](#schemas)) cuts across
+them: phases 2–5 and 7 are the generic engine, while the `event_bookings`
+`SchemaDefinition` + the schema registry are built alongside phase 3 (they supply
+the column mappings, parsers, and resolver config the engine consumes — no schema
+literals in the engine). One hard cross-dependency to call out: the **no-quantity
+feature (item 6) is a prerequisite for the transactional writer (item 5)** — the
+writer emits `quantity = 0` lines and must not land until the no-quantity guards
+from [`no-quantity-spec.md`](./no-quantity-spec.md) exist.
 
 1. Schema and import-map helper
    - Add `booking_imports` (migration sequenced after
@@ -1262,6 +1390,17 @@ is a prerequisite for the transactional writer (item 5)** — the writer emits
 
 ## Resolved Decisions
 
+- The importer is a **generic, schema-driven engine**; `event_bookings` is the
+  first schema and the operator picks it from a list on upload. Engine code
+  carries no schema literals — future formats add a `SchemaDefinition`, not engine
+  changes.
+- The core pipeline (parse → resolve → validate → plan) is **pure/functional** —
+  no DB writes outside the final guarded transaction — so it is testable and the
+  schema config is swappable.
+- **Exhaustive preflight, one report:** everything checkable is verified before any
+  write, and every problem (missing setup, ambiguity, source-data, non-creatable,
+  unrepresentable, invalid fields) is accumulated and shown at once — never
+  stop-at-first-error. The write runs only when the report is empty.
 - Source `Status` drives attendee status. `Colour Name` is legacy metadata.
 - Missing source statuses block the upload before writes, like missing products.
   A source status matching more than one local status (names aren't unique) is an
