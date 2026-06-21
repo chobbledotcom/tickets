@@ -126,19 +126,31 @@ const bookingLegSpecs = (
 };
 
 /**
- * Reject negative inputs loudly rather than silently dropping them with the
- * zero-amount legs. A discount `delta` is legitimately negative, so it is the
- * only signed field.
+ * Reject malformed facts loudly rather than silently dropping a leg with the
+ * zero-amount filter. Catches an empty event id (which would make every such
+ * booking share one event group / references), non-finite amounts (NaN/∞ slip
+ * past `> 0`), and negative non-modifier amounts. A modifier `delta` may be
+ * negative (a discount) but must still be finite.
  */
-const assertNonNegativeFacts = (facts: BookingFacts): void => {
-  const negatives: string[] = [];
+const assertValidFacts = (facts: BookingFacts): void => {
+  const problems: string[] = [];
+  if (!facts.eventId) problems.push("empty eventId");
+  const requireAmount = (label: string, value: number): void => {
+    if (!Number.isFinite(value)) problems.push(`non-finite ${label}`);
+    else if (value < 0) problems.push(`negative ${label}`);
+  };
   for (const line of facts.lines) {
-    if (line.gross < 0) negatives.push(`listing ${line.listingId} gross`);
+    requireAmount(`listing ${line.listingId} gross`, line.gross);
   }
-  if (facts.bookingFee < 0) negatives.push("bookingFee");
-  if (facts.amountPaid < 0) negatives.push("amountPaid");
-  if (negatives.length > 0) {
-    throw new Error(`mapBooking: negative amount in ${negatives.join(", ")}`);
+  for (const modifier of facts.modifiers) {
+    if (!Number.isFinite(modifier.delta)) {
+      problems.push(`non-finite modifier ${modifier.modifierId} delta`);
+    }
+  }
+  requireAmount("bookingFee", facts.bookingFee);
+  requireAmount("amountPaid", facts.amountPaid);
+  if (problems.length > 0) {
+    throw new Error(`mapBooking: invalid facts (${problems.join(", ")})`);
   }
 };
 
@@ -152,7 +164,7 @@ const assertNonNegativeFacts = (facts: BookingFacts): void => {
 export const mapBooking = async (
   facts: BookingFacts,
 ): Promise<TransferInput[]> => {
-  assertNonNegativeFacts(facts);
+  assertValidFacts(facts);
   const group = await eventGroup([BOOKING, facts.eventId]);
   const attendee = attendeeAccount(facts.attendeeId);
   return Promise.all(

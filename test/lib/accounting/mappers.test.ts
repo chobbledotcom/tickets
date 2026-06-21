@@ -121,7 +121,7 @@ describeWithEnv("accounting > mappers", { encryptionKey: true }, () => {
         await rejectionMessage(
           mapBooking(facts({ lines: [{ gross: -100, listingId: 1 }] })),
         ),
-      ).toContain("negative amount");
+      ).toContain("negative listing 1 gross");
     });
 
     test("rejects a negative fee or payment", async () => {
@@ -129,7 +129,31 @@ describeWithEnv("accounting > mappers", { encryptionKey: true }, () => {
         await rejectionMessage(
           mapBooking(facts({ amountPaid: -50, bookingFee: -10 })),
         ),
-      ).toContain("negative amount");
+      ).toContain("negative");
+    });
+
+    test("rejects a non-finite (NaN) gross", async () => {
+      expect(
+        await rejectionMessage(
+          mapBooking(facts({ lines: [{ gross: Number.NaN, listingId: 1 }] })),
+        ),
+      ).toContain("non-finite listing 1 gross");
+    });
+
+    test("rejects a non-finite modifier delta", async () => {
+      expect(
+        await rejectionMessage(
+          mapBooking(
+            facts({ modifiers: [{ delta: Number.NaN, modifierId: 7 }] }),
+          ),
+        ),
+      ).toContain("non-finite modifier 7 delta");
+    });
+
+    test("rejects an empty event id", async () => {
+      expect(
+        await rejectionMessage(mapBooking(facts({ eventId: "" }))),
+      ).toContain("empty eventId");
     });
 
     test("drops zero-amount legs (a free booking posts nothing)", async () => {

@@ -92,6 +92,24 @@ describe("inPeriod", () => {
     const got = inPeriod("2026-02-01T00:00:00Z", "2026-03-01T00:00:00Z")(ts);
     expect(got.map((t) => t.id)).toEqual([1]);
   });
+
+  it("throws on a non-ISO period bound", () => {
+    expect(() => inPeriod("nonsense", "2026-03-01T00:00:00.000Z")([])).toThrow(
+      "invalid bound",
+    );
+  });
+
+  it("throws on an unparseable (month 13) bound", () => {
+    expect(() =>
+      inPeriod("2026-01-01T00:00:00.000Z", "2026-13-01T00:00:00Z")([]),
+    ).toThrow("invalid bound");
+  });
+
+  it("throws on an overflow date bound (Feb 30 normalises away)", () => {
+    expect(() =>
+      inPeriod("2026-02-30T00:00:00Z", "2026-03-01T00:00:00.000Z")([]),
+    ).toThrow("invalid bound");
+  });
 });
 
 describe("statementFor", () => {

@@ -64,15 +64,34 @@ export const sumOfKind =
     return sumOf((t: Transfer) => (t.kind === kind ? t.amount : 0))(transfers);
   };
 
+const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
+
+/**
+ * True for a real ISO-8601 UTC instant at any sub-second precision. Rejects
+ * overflow inputs that `Date.parse` silently normalises (e.g. `2026-02-30`,
+ * hour `24`) by checking the parsed instant re-serialises to the same date/time.
+ */
+const isValidInstant = (s: string): boolean => {
+  if (!INSTANT.test(s)) return false;
+  const ms = Date.parse(s);
+  if (Number.isNaN(ms)) return false;
+  return new Date(ms).toISOString().slice(0, 19) === s.slice(0, 19);
+};
+
 /**
  * Transfers whose business time falls in the half-open window [from, to).
  * Bounds are compared as instants, not strings, so a whole-second bound like
  * `2026-02-01T00:00:00Z` still includes the canonical `2026-02-01T00:00:00.000Z`
- * (a lexicographic compare would wrongly exclude it).
+ * (a lexicographic compare would wrongly exclude it). Invalid bounds are
+ * rejected up front, so a normalised date (e.g. `2026-02-30`) can't silently
+ * shift the window.
  */
 export const inPeriod =
   (from: string, to: string) =>
   (transfers: Transfer[]): Transfer[] => {
+    if (!isValidInstant(from) || !isValidInstant(to)) {
+      throw new Error(`inPeriod: invalid bound (from=${from}, to=${to})`);
+    }
     const fromMs = Date.parse(from);
     const toMs = Date.parse(to);
     return filter((t: Transfer) => {
