@@ -49,10 +49,16 @@ be read in this light (they resolve several of the original open questions):
 - **Child quantity follows the parent.** If the buyer hires **2 of the base unit**,
   they get **2 of the add-on** — the child line's quantity is **slaved to the
   parent's quantity**, not chosen independently. (Resolves Open Question 4.)
-- **Child always inherits the parent's date and duration.** The add-on never has
-  its own date or day-count; it uses the **base unit's** date/duration. This means
-  no per-child date controls and no separate child date in the payment round-trip —
-  the child simply rides the order's date. (Resolves Open Questions 14 and 17.)
+- **Child inherits the parent's date/duration — but only a *daily* child carries a
+  date.** The add-on has no date/day-count controls of its own; it takes the base
+  unit's. **Crucially, a *standard* (dateless) child must fold with `date: null`,
+  not the parent's date.** Capacity for a dated row uses date-overlap counting,
+  while a dateless row uses cumulative counting (`buildCapacityCondition`), so
+  writing the parent's date onto a standard child would flip it to per-date capacity
+  and let the same add-on be oversold across different parent dates. So: a **daily**
+  child inherits the parent's date *and* duration; a **standard** child stays
+  date-less (valid on every parent date, cumulative capacity). A daily child may
+  only sit under a daily parent (admin rule). (Resolves Open Questions 14 and 17.)
 - **Add-ons can be "pay what you want".** A child may be `can_pay_more`, so the
   booking page must render the child's **custom-price input** and the gate must
   collect it. (Resolves Open Question 15.)
@@ -285,6 +291,11 @@ richer rules as a later iteration. See Open Question 2.
   the relationship** (parent id → child ids); availability is computed at
   render/submit against the submitted date, never cached (see the accessor note
   above).
+- **Invalidate the edge cache on whole-database replacement too**, not just on
+  `listing_parents` writes: `restoreFromSql` clears the init/listings/groups/users
+  caches after replaying backup SQL (`backup.ts:411-419`); the new edge cache must
+  be added to that list, or a restore that changes parent links leaves the isolate
+  enforcing the pre-restore graph until TTL/restart.
 
 ### Deletion / integrity
 
@@ -330,6 +341,12 @@ On the listing edit page (`src/features/admin/listings.ts`, fields in
   the "malleable software / expose the structure" preference in AGENTS.md.
 - Persist edges by diffing submitted vs existing (insert new, delete removed) in
   one batch, mirroring how group/question assignments are saved.
+- **Expose the edges on the admin JSON API too**, not just the edit page. The owner
+  admin API (`/api/admin/listings` create/update, `src/features/admin/api.ts`) is a
+  separate path used for scripted changes and bulk imports; if it can't set the
+  parent/child fields (with the **same diff + validation** as the form), API-created
+  or duplicated listings can't preserve their required-child gates and API updates
+  bypass the relationship validation.
 - **"Hidden" badge in the listings collection table.** On `/admin/listings`, show
   a small **"hidden" badge next to the public URL** for every listing with
   `hidden = 1` (this is general — it applies to all hidden listings, not only
@@ -357,6 +374,14 @@ On the listing edit page (`src/features/admin/listings.ts`, fields in
   date. Forbid this edge in admin validation: a dated child may only be attached to
   a parent that itself produces a compatible date/duration (i.e. a daily parent).
   (A dateless child under any parent is fine — see the dateless-child date rule.)
+- **Daily parent/child durations must actually match.** "Both daily" is not
+  enough: the ordinary-line booking helper uses a non-customisable daily listing's
+  **own `duration_days`** (`ticket-payment.ts:162-166`), so a 3-day fixed parent
+  with a 1-day fixed child would reserve the child for 1 day, not the inherited 3.
+  So for fixed-duration daily edges, require the child's `duration_days` to **equal
+  the parent's** (or carry an explicit per-line duration override in the fold).
+  Likewise a customisable child under a fixed-duration parent must accept the
+  parent's `duration_days` as its day-count.
 - **Re-check edges on *any* listing save, not just when editing the relationship.**
   The compatibility rules above (dated-child-needs-dated-parent, renewal-tier ban)
   can be broken *after the fact* by editing a listing's `listing_type` /
@@ -437,6 +462,14 @@ When the booking page renders a listing that has children, render each child as 
   parent's quantity is positive** (JS-toggled as the buyer selects it; validated
   server-side against the selected parents), never as a global render-time
   intersection.
+- **A candidate date must clear the parent+child *combined* demand, not each
+  listing's standalone calendar.** Capacity aggregates demand by group before
+  checking caps (`capacity.ts:393-397`), so a parent and its auto-selected child in
+  the **same capped group** consume **two** group spots per order. A date where the
+  parent and child each have one spot left looks individually bookable but can't
+  actually be booked. So the date filter (and the final submit check) must evaluate
+  the folded parent **and** selected-child quantities together per candidate date,
+  not just each child's own availability.
 - **Child questions** must be merged into `questionListingMap` with the **correct
   shape**: it is `Map<questionId, listingId[]>` (`questions.ts:361`), read by
   `prepareOrder` as `ctx.questionListingMap.get(q.id)` — *keyed by question id*, not
@@ -672,10 +705,15 @@ The expanded set (parent page listings ∪ selected children) must drive **all**
   **one shared day-count**. It breaks only in a multi-parent order where two parents
   have **different** durations and a customisable child must inherit each — the
   single `CheckoutIntent.dayCount` can't represent both, and the child would be
-  priced/booked at the wrong duration. v1 sidesteps this by requiring that **all
-  multi-day listings in one order share a day-count** (already effectively true via
-  the single shared selector); if we ever need mixed durations in one order, add
-  **per-line duration** to `BookingItem` + metadata + webhook reconstruction.
+  priced/booked at the wrong duration. **Note this is *not* fully prevented by the
+  shared selector:** fixed-duration daily listings don't use that selector, so two
+  fixed-duration parents with **different** `duration_days` can already coexist in
+  one cart, each folding a customisable child that would need a different inherited
+  span. v1 must therefore **explicitly reject a cart/group whose folded items would
+  require more than one distinct multi-day duration** (validate before paid
+  checkout), since `CheckoutIntent.dayCount` holds one value; only add **per-line
+  duration** to `BookingItem` + metadata + webhook reconstruction if mixed
+  durations in one order become a real requirement.
   *(Historical note: an earlier draft proposed per-child date controls, creating an
   intersection + round-trip problem; the inherit decision removed the date half,
   leaving only this duration caveat.)*
@@ -714,9 +752,11 @@ Enumerate each and decide:
 - **RSS/ICS feeds** (`src/features/feeds.ts`) — unlike a card there's **no button
   to suppress**: each feed item's `URL`/link points directly at `/ticket/<slug>`
   for every active visible listing. So a visible child would be **syndicated as a
-  standalone ticket URL**. The plan must **omit child items from the feeds** (or
-  point their link at the parent), the feed-level equivalent of suppressing the
-  child CTA.
+  standalone ticket URL** — **omit child items from the feeds** (or point their link
+  at the parent). And the same parent rule applies: `loadFeedData` syndicates active
+  visible open listings without considering child availability, so a **parent whose
+  required children are all unavailable must be omitted** too (it would otherwise
+  publish a link to a booking the gate rejects as sold out).
 - **Single-listing / group booking page** `/ticket/<slug>` — one route serves both:
   `slugHandler` tries listings by slug and, for a single slug that isn't a listing,
   **falls back to `handleGroupTicketBySlug`** (`ticket-routes.ts:46-52`). There is
@@ -739,6 +779,13 @@ Enumerate each and decide:
   aren't standalone-bookable, the gallery must **not offer children as selectable
   items** at all, so the redirect can only ever contain parents (and ordinary
   listings) — no parent+child slug list arises. Cover in tests.
+- **Admin multi-booking link builder.** The admin dashboard's `multiBookingSection`
+  renders checkboxes for **all** `activeListings` and the client joins their slugs
+  into `/ticket/<slug+...>`. If children stay selectable there, an operator can
+  generate/share a child-containing URL — which the server slug-strip must then
+  reject. Exclude children from this builder (or mark them "available with …"), the
+  same suppression as the public gallery, so the link can't be built in the first
+  place.
 - **Public/JSON API booking** (`POST /api/listings/:slug/book`, `src/features/api`,
   `src/shared/booking.ts` `processBooking`) — ✅ parents are API-bookable, but the
   API path must be brought fully in line with the web fold; it is **not** enough to
@@ -774,12 +821,20 @@ Enumerate each and decide:
     standalone-booking affordance for children** (mark them "available with …"),
     mirroring the public listing-card rule.
   - **Availability endpoint.** `GET /api/listings/:slug/availability` calls
-    `hasAvailableSpots` for the passed slug, so a **child** slug would report
-    standalone availability and a **parent** whose children are all unavailable
-    would report *available* (its own capacity ignores children). It must apply the
-    same rules: reject/!available for a child slug, and report a parent as
-    unavailable when it has **no bookable child** (per "no bookable child ⇒ sold
-    out").
+    `hasAvailableSpots(..., date, listing.duration_days)` for the passed slug
+    (`api/index.ts:243-248`), so a **child** slug would report standalone
+    availability and a **parent** whose children are all unavailable would report
+    *available* (its own capacity ignores children). It must apply the same rules:
+    reject/!available for a child slug, and report a parent as unavailable when it
+    has **no bookable child**. It also needs a **`dayCount`** input (same resolver
+    as booking) — otherwise a customisable parent/child range is checked at the
+    default/max span and can report the wrong answer for a valid shorter span.
+  - **Free bookings must be all-or-nothing.** The web free path calls
+    `ensureAllBookings` right after the greedy `createAttendeeAtomic`
+    (`ticket-payment.ts:299-307`) so a capacity race can't leave some lines saved.
+    The API free path must do the same for parent+child, or a race on the child can
+    persist the parent row while the required child is rolled back — violating
+    one-child-per-parent.
   (Open Question 9.)
 - **QR direct-checkout link** (`src/features/public/qr-book.ts`) — ✅ parents are
   QR-bookable, but **a QR link for a *child* must be rejected/redirected to a
