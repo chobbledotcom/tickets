@@ -83,7 +83,7 @@ const deleteAttendeeAndRedirect = async (
   releaseBookings = true,
 ): Promise<Response> => {
   await deleteAttendee(attendeeId, { releaseBookings });
-  await logActivity(activityMessage, listingId);
+  await logActivity(activityMessage, listingId, attendeeId);
   return redirect(`/admin/listing/${listingId}`, flashMessage, true, opts);
 };
 
@@ -144,6 +144,7 @@ const handleAttendeeCheckin = attendeeFormAction(
     await logActivity(
       `Attendee checked ${status} for '${data.listing.name}'`,
       listingId,
+      attendeeId,
     );
 
     const returnUrl = form.getString("return_url");
@@ -254,6 +255,7 @@ const handleAddAttendee: TypedRouteHandler<"POST /admin/listing/:listingId/atten
       await logActivity(
         `Attendee '${values.name}' added manually`,
         params.listingId,
+        createResult.attendees[0]!.id,
       );
       return redirect(
         `/admin/listing/${params.listingId}`,
@@ -281,6 +283,7 @@ const handleResendNotification = verifiedAttendeeForm(
       logActivity(
         `Notification re-sent for attendee '${data.attendee.name}'`,
         listingId,
+        data.attendee.id,
       ),
     ]);
     return redirect(

@@ -68,13 +68,16 @@ export const mapByIds = async <Row>(
 
 /**
  * Map each row's `id` to a decrypted display name (`id → name`) for the rows of
- * `table` whose id is in `ids`. `nameColumn` is the (encrypted) column to read;
- * `decryptName` turns its raw stored value into the plaintext name — so this
- * stays decryption-agnostic. `table`/`nameColumn` are internal constants, never
- * user input. Empty `ids` ⇒ empty map and no query.
+ * `table` whose id is in `ids`. `alias` is the table's singular-word alias and
+ * qualifies the selected columns (per the repo's SQL convention); `nameColumn`
+ * is the (encrypted) column to read; `decryptName` turns its raw stored value
+ * into the plaintext name — so this stays decryption-agnostic. `table`/`alias`/
+ * `nameColumn` are internal constants, never user input. Empty `ids` ⇒ empty
+ * map and no query.
  */
 export const nameMapByIds = async <Raw>(
   table: string,
+  alias: string,
   nameColumn: string,
   ids: number[],
   decryptName: (raw: Raw) => Promise<string>,
@@ -82,7 +85,7 @@ export const nameMapByIds = async <Raw>(
   const rows = await rowsByIds<{ id: number; name: Raw }>(
     ids,
     (placeholders) =>
-      `SELECT id, ${nameColumn} AS name FROM ${table} WHERE id IN (${placeholders})`,
+      `SELECT ${alias}.id, ${alias}.${nameColumn} AS name FROM ${table} AS ${alias} WHERE ${alias}.id IN (${placeholders})`,
   );
   const entries = await Promise.all(
     rows.map(async (row) => [row.id, await decryptName(row.name)] as const),
@@ -93,11 +96,13 @@ export const nameMapByIds = async <Raw>(
 /**
  * Map each row's `id` to one of its integer columns (`id → column`) for the
  * rows of `table` whose id is in `ids`, optionally narrowed by an extra `where`
- * fragment appended verbatim (e.g. ` AND modifier_id IS NOT NULL`). `table`,
- * `column` and `where` are always internal constants, never user input.
+ * fragment appended verbatim (e.g. ` AND modifier_id IS NOT NULL`). `alias` is
+ * the table's singular-word alias and qualifies the selected columns. `table`,
+ * `alias`, `column` and `where` are always internal constants, never user input.
  */
 export const columnMapByIds = (
   table: string,
+  alias: string,
   column: string,
   ids: number[],
   where = "",
@@ -105,6 +110,6 @@ export const columnMapByIds = (
   mapByIds<{ id: number; value: number }>(
     ids,
     (placeholders) =>
-      `SELECT id, ${column} AS value FROM ${table} WHERE id IN (${placeholders})${where}`,
+      `SELECT ${alias}.id, ${alias}.${column} AS value FROM ${table} AS ${alias} WHERE ${alias}.id IN (${placeholders})${where}`,
     (row) => [row.id, row.value],
   );

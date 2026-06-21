@@ -224,6 +224,7 @@ export const getAttendeeNamesByIds = (
 ): Promise<Map<number, string>> =>
   nameMapByIds(
     "attendees",
+    "attendee",
     "pii_blob",
     ids,
     async (raw: string) => (await decryptPiiBlob(raw, privateKey, false)).name,

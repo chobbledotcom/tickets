@@ -406,7 +406,9 @@ export const getAllListings = (): Promise<ListingWithCount[]> =>
 export const getListingNamesByIds = (
   ids: number[],
 ): Promise<Map<number, string>> =>
-  nameMapByIds("listings", "name", ids, (raw: string) => decrypt(raw));
+  nameMapByIds("listings", "listing", "name", ids, (raw: string) =>
+    decrypt(raw),
+  );
 
 /**
  * Get listing with attendee count (from cache)
