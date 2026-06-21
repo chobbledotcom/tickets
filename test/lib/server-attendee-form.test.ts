@@ -313,6 +313,39 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       expect(attendees[0]!.quantity).toBe(2);
     });
 
+    test("a no-quantity-only create persists the line and clears any balance", async () => {
+      const { listing: event } = await setupListingAndLogin({
+        maxAttendees: 100,
+      });
+      const { cookie, csrfToken } = await (
+        await import("#test-utils")
+      ).getTestSession();
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/attendees/new",
+          {
+            csrf_token: csrfToken,
+            name: "Ghost Only",
+            [`noqty_${event.id}`]: "1",
+            [`qty_${event.id}`]: "1",
+            remaining_balance: "20",
+          },
+          cookie,
+        ),
+      );
+      expectRedirect(response, "/admin/attendees/");
+      const attendees = await getAttendeesRaw(event.id);
+      expect(attendees.length).toBe(1);
+      expect(attendees[0]!.quantity).toBe(0);
+      // No real line ⇒ the unpayable balance is not stored.
+      const { getAttendeeBalanceState } = await import(
+        "#shared/db/attendees/balance.ts"
+      );
+      expect(
+        (await getAttendeeBalanceState(attendees[0]!.id))!.remainingBalance,
+      ).toBe(0);
+    });
+
     test("creates an attendee with multiple listing lines in one submission", async () => {
       const event1 = await createTestListing({
         maxAttendees: 100,
@@ -641,6 +674,40 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       expect(
         (await getAttendeeBalanceState(attendeeId))!.remainingBalance,
       ).toBe(0);
+    });
+
+    test("blocks marking an assigned built-site line no-quantity", async () => {
+      const listing = await createTestListing({ maxAttendees: 50 });
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Sited",
+        "sited@example.com",
+      );
+      // Make it a built-site listing and assign a site to this booking.
+      const { invalidateListingsCache } = await import(
+        "#shared/db/listings.ts"
+      );
+      await getDb().execute({
+        args: [listing.id],
+        sql: "UPDATE listings SET assign_built_site = 1 WHERE id = ?",
+      });
+      invalidateListingsCache();
+      await getDb().execute({
+        args: [attendee.id, listing.id],
+        sql: "INSERT INTO built_sites (site_data, assignable, assigned_attendee_id, assigned_listing_id, created) VALUES ('{}', 0, ?, ?, '2026-01-01T00:00:00Z')",
+      });
+
+      const response = await markNoQuantity(attendee.id, listing.id, "Sited");
+
+      // Re-renders in place with the block message; the line stays a real booking.
+      const html = await expectHtmlResponse(response, 200);
+      expect(html).toContain("Unassign the built site");
+      const row = await getDb().execute({
+        args: [attendee.id, listing.id],
+        sql: "SELECT quantity FROM listing_attendees WHERE attendee_id = ? AND listing_id = ?",
+      });
+      expect(Number(row.rows[0]!.quantity)).toBe(1);
     });
   });
 

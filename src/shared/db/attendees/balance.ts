@@ -207,13 +207,14 @@ export const settleAttendeeBalance = async (
   if (results[results.length - 1]!.rowsAffected === 0)
     return { reason: "amount_mismatch", settled: false };
 
-  const firstListing = await queryOne<{ listing_id: number }>(
-    // The logged-activity / returned listing must be the real line the fold
-    // landed on, never a lower-id ghost.
+  // The logged-activity / returned listing must be the real line the fold landed
+  // on, never a lower-id ghost. A successful settle guaranteed a quantity > 0
+  // line exists (the clear's EXISTS guard), so this lookup always finds one.
+  const firstListing = (await queryOne<{ listing_id: number }>(
     "SELECT listing_id FROM listing_attendees WHERE attendee_id = ? AND quantity > 0 ORDER BY id LIMIT 1",
     [attendeeId],
-  );
-  const listingId = firstListing ? firstListing.listing_id : null;
+  ))!;
+  const listingId = firstListing.listing_id;
 
   await logActivity(
     `Reservation balance paid: ${formatCurrency(expectedAmount)}`,

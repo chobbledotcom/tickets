@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { createAttendeeAtomic } from "#shared/db/attendees.ts";
-import { queryAll } from "#shared/db/client.ts";
+import { getDb, queryAll } from "#shared/db/client.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import {
   answersTable,
@@ -626,6 +626,47 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       }
     });
 
+    test("rejects copying a no-quantity source line that still carries a payment", () => {
+      // A quantity-0 line must have price_paid = 0; merging one that doesn't
+      // would strand the charge behind the quantity-0 refund guards.
+      const diff: AttendeeMergeDiff = {
+        answerItems: [],
+        bookingItems: [
+          {
+            conflictClass: "moveable",
+            listingId: 5,
+            sourceBooking: {
+              attachment_downloads: 0,
+              checked_in: 0,
+              end_at: null,
+              listing_id: 5,
+              price_paid: 1500,
+              quantity: 0,
+              refunded: 0,
+              start_at: null,
+            },
+            startAt: null,
+            targetBooking: null,
+          },
+        ],
+        piiFields: [],
+        sourceId: 2,
+        targetId: 1,
+        version: "v1",
+      };
+      const decision: AttendeeMergeDecisionInput = {
+        answers: {},
+        bookings: {},
+        pii: {},
+        version: "v1",
+      };
+      const result = validateAttendeeMergeDecision(diff, decision);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors[0]).toContain("no-quantity line with a payment");
+      }
+    });
+
     test("accepts valid decisions", () => {
       const diff: AttendeeMergeDiff = {
         answerItems: [
@@ -683,6 +724,79 @@ describeWithEnv("attendee merge service", { db: true }, () => {
   });
 
   describe("applyAttendeeMerge", () => {
+    test("clears check-in when copying a no-quantity source line", async () => {
+      const listing1 = await createTestListing({
+        maxAttendees: 10,
+        name: "M1",
+      });
+      const listing2 = await createTestListing({
+        maxAttendees: 10,
+        name: "M2",
+      });
+      const target = await createAttendee(listing1.id, "Alice", "a@test.com");
+      const source = await createAttendee(listing2.id, "Bob", "b@test.com");
+      // Make source's line a checked-in quantity-0 sentinel (price 0).
+      await getDb().execute({
+        args: [source.id],
+        sql: "UPDATE listing_attendees SET quantity = 0, price_paid = 0, checked_in = 1 WHERE attendee_id = ?",
+      });
+
+      const diff = await buildAttendeeMergeDiff(
+        {
+          sourceBookings: await getBookings(source.id),
+          sourceId: source.id,
+          sourcePii: {
+            address: "",
+            email: "b@test.com",
+            name: "Bob",
+            phone: "",
+            special_instructions: "",
+          },
+          targetBookings: await getBookings(target.id),
+          targetId: target.id,
+          targetPii: {
+            address: "",
+            email: "a@test.com",
+            name: "Alice",
+            phone: "",
+            special_instructions: "",
+          },
+        },
+        [],
+      );
+      const result = await applyAttendeeMerge({
+        decision: { answers: {}, bookings: {}, pii: {}, version: diff.version },
+        diff,
+        privateKey: await getTestPrivateKey(),
+        sourceId: source.id,
+        sourcePii: {
+          address: "",
+          email: "b@test.com",
+          name: "Bob",
+          phone: "",
+          special_instructions: "",
+        },
+        targetId: target.id,
+        targetPii: {
+          address: "",
+          email: "a@test.com",
+          name: "Alice",
+          payment_id: target.payment_id,
+          phone: "",
+          special_instructions: "",
+          ticket_token: target.ticket_token,
+        },
+      });
+      expect(result.success).toBe(true);
+
+      const moved = (await getBookings(target.id)).find(
+        (b) => b.listing_id === listing2.id,
+      )!;
+      expect(moved.quantity).toBe(0);
+      // The ghost line arrives with its check-in cleared.
+      expect(moved.checked_in).toBe(0);
+    });
+
     test("applies PII and answer decisions correctly", async () => {
       const listing1 = await createTestListing({
         maxAttendees: 10,

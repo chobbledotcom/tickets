@@ -9,7 +9,12 @@ import type {
   ListingAttendeeRow,
 } from "#shared/db/attendee-types.ts";
 import { decryptAttendeeFields } from "#shared/db/attendees/pii.ts";
-import { inPlaceholders, queryAll, queryOne } from "#shared/db/client.ts";
+import {
+  inPlaceholders,
+  queryAll,
+  queryOne,
+  rowExists,
+} from "#shared/db/client.ts";
 import type { Attendee } from "#shared/types.ts";
 
 /**
@@ -202,17 +207,15 @@ export const getAttendeePiiBlobForToken = async (
  * row, or wrongly reject a valid real-line download). A no-quantity sentinel
  * line is excluded, so a line later marked no-quantity stops authorizing.
  */
-export const hasActiveBookingLine = async (
+export const hasActiveBookingLine = (
   attendeeId: number,
   listingId: number,
-): Promise<boolean> => {
-  const row = await queryOne<{ present: number }>(
-    `SELECT 1 AS present FROM listing_attendees
+): Promise<boolean> =>
+  rowExists(
+    `SELECT 1 FROM listing_attendees
      WHERE attendee_id = ? AND listing_id = ? AND quantity > 0 LIMIT 1`,
     [attendeeId, listingId],
   );
-  return row !== null;
-};
 
 /**
  * Get an attendee by ID without decrypting PII

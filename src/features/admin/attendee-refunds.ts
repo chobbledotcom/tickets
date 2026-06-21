@@ -25,6 +25,7 @@ import {
   adminRefundAttendeePage,
 } from "#templates/admin/attendees.tsx";
 import {
+  type AttendeeWithListing,
   attendeeGetRoute,
   getReturnUrl,
   type ListingRouteParams,
@@ -46,51 +47,48 @@ const refundError = (
     msg,
   );
 
+/** Render the single-attendee refund page: a 400 when an error message is given
+ * (no payment, already refunded, or a no-quantity ghost line), else a 200. */
+const refundPageResponse = (
+  data: AttendeeWithListing,
+  session: AuthSession,
+  returnUrl: string,
+  message?: string,
+): Response =>
+  htmlResponse(
+    adminRefundAttendeePage(data, session, message, returnUrl),
+    message === undefined ? 200 : 400,
+  );
+
 /** Handle GET /admin/listing/:listingId/attendee/:attendeeId/refund */
 const handleAdminAttendeeRefundGet = attendeeGetRoute(
   async (data, session, request) => {
     applyFlash(request);
     const returnUrl = getReturnUrl(request);
-    // Guard against the EXACT (attendee, listing) row, not the loaded attendee's
-    // arbitrary left-joined sibling row: hide the refund on a no-quantity ghost
-    // row (a listing-scoped refund must not retarget a charge to another
-    // listing). data.listing is the invoking listing.
-    if (!(await hasActiveBookingLine(data.attendee.id, data.listing.id))) {
-      return htmlResponse(
-        adminRefundAttendeePage(
-          data,
-          session,
-          t("error.no_payment_to_refund"),
-          returnUrl,
-        ),
-        400,
-      );
-    }
-    if (!data.attendee.payment_id) {
-      return htmlResponse(
-        adminRefundAttendeePage(
-          data,
-          session,
-          t("error.no_payment_to_refund"),
-          returnUrl,
-        ),
-        400,
+    // The no-payment branch also covers a no-quantity ghost row: it's guarded
+    // against the EXACT (attendee, listing) row (not the loaded attendee's
+    // arbitrary left-joined sibling), so a listing-scoped refund can't retarget
+    // a charge to another listing. data.listing is the invoking listing.
+    if (
+      !data.attendee.payment_id ||
+      !(await hasActiveBookingLine(data.attendee.id, data.listing.id))
+    ) {
+      return refundPageResponse(
+        data,
+        session,
+        returnUrl,
+        t("error.no_payment_to_refund"),
       );
     }
     if (data.attendee.refunded) {
-      return htmlResponse(
-        adminRefundAttendeePage(
-          data,
-          session,
-          t("error.already_refunded"),
-          returnUrl,
-        ),
-        400,
+      return refundPageResponse(
+        data,
+        session,
+        returnUrl,
+        t("error.already_refunded"),
       );
     }
-    return htmlResponse(
-      adminRefundAttendeePage(data, session, undefined, returnUrl),
-    );
+    return refundPageResponse(data, session, returnUrl);
   },
 );
 

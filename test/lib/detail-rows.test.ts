@@ -253,6 +253,25 @@ describe("detail-rows", () => {
       expect(checkedIn!.value).toContain("1 remain");
     });
 
+    test("excludes no-quantity rows from the check-in stats", () => {
+      // One real (checked-in) line + one no-quantity sentinel. The ghost must
+      // not inflate the row total or force a spurious multi-quantity split.
+      const attendees = [
+        testAttendee({ checked_in: true, id: 1, quantity: 1 }),
+        testAttendee({ checked_in: false, id: 2, quantity: 0 }),
+      ];
+      const rows = buildSharedDetailRows({
+        attendeeCount: 1,
+        attendees,
+        hasPaidListing: false,
+        maxCapacity: 0,
+      });
+      // Single "Checked In" row (no split), counting only the real line.
+      const checkedIn = rows.find((r) => r.key === "Checked In");
+      expect(checkedIn!.value).toContain("1 / 1");
+      expect(rows.find((r) => r.key === "Tickets Checked In")).toBeUndefined();
+    });
+
     test("shows split checked-in rows for multi-quantity", () => {
       const attendees = [
         testAttendee({ checked_in: true, id: 1, quantity: 3 }),

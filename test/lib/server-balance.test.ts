@@ -110,6 +110,18 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
     expect(await response.text()).toContain("Nothing to pay");
   });
 
+  test("GET refuses a reserved balance whose only line is no-quantity", async () => {
+    const attendeeId = await createReserved(1500);
+    // Turn the only line into a no-quantity sentinel: nothing real to pay into.
+    await getDb().execute({
+      args: [attendeeId],
+      sql: "UPDATE listing_attendees SET quantity = 0, price_paid = 0 WHERE attendee_id = ?",
+    });
+    const token = await signBalanceToken(attendeeId);
+    const response = await handleRequest(mockRequest(`/pay/${token}`));
+    expect(await response.text()).toContain("not valid");
+  });
+
   test("POST refuses a reservation with no real booking line", async () => {
     await setupStripe();
     const reservation = await attendeeStatusesTable.insert({

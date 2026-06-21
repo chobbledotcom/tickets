@@ -764,7 +764,7 @@ const applyCreate = async (
   }
   // A no-quantity-only attendee has no real line to pay into, so never give it an
   // unpayable balance (the public pay gate refuses such attendees).
-  const hasRealLine = input.bookings.some((b) => (b.quantity ?? 0) > 0);
+  const hasRealLine = parsed.lines.some(isBookedLine);
   // Admin manual add may deliberately overbook (a warning is shown, not blocked)
   // and is tagged as an "admin" booking so it counts separately from online
   // checkouts in the contact's booking history.

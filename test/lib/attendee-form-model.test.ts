@@ -602,6 +602,17 @@ describe("no-quantity persistence + paid-line guard", () => {
     );
     expect(result.valid).toBe(true);
   });
+
+  test("validateParsedForm allows a brand-new no-quantity line (no existing booking)", () => {
+    // A never-booked line ticked no-quantity has no existingBooking, so the
+    // paid-line guard reads price_paid as 0 and the line validates.
+    const result = validateParsedForm(
+      parsedBase({
+        lines: [line({ existingBooking: null, noQuantity: true, quantity: 0 })],
+      }),
+    );
+    expect(result.valid).toBe(true);
+  });
 });
 
 describe("resolveSharedDates", () => {

@@ -424,6 +424,26 @@ describe("AttendeeTable", () => {
       const html = AttendeeTable(makeOpts({ rows: [], showCheckin: false }));
       expect(html).toContain('colspan="4"');
     });
+
+    test("a no-quantity row shows the indicator instead of a check-in button or ticket link", () => {
+      const html = AttendeeTable(
+        makeOpts({
+          rows: [
+            makeRow({
+              attendee: testAttendee({
+                quantity: 0,
+                ticket_token: "ghost-token",
+              }),
+            }),
+          ],
+        }),
+      );
+      // The status column shows the "No quantity" indicator, not a check-in form.
+      expect(html).toContain("No quantity");
+      expect(html).not.toContain("/attendee/1/checkin");
+      // The ticket column shows the indicator, not a live /t link.
+      expect(html).not.toContain("/t/ghost-token");
+    });
   });
 
   describe("presorted option", () => {

@@ -5,7 +5,7 @@
 
 import type { InValue } from "@libsql/client";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import { queryAll, queryOne } from "#shared/db/client.ts";
+import { queryAll, queryOne, rowExists } from "#shared/db/client.ts";
 import type { ColumnDef, Table } from "#shared/db/table.ts";
 import { cachedTable, col, defineTable } from "#shared/db/table.ts";
 import { nowIso } from "#shared/now.ts";
@@ -368,17 +368,15 @@ export const getAssignableBuiltSites = async (): Promise<BuiltSite[]> => {
  * assignment (and the live public /renew/ path that resolves the site token with
  * no listing_attendees check) would otherwise survive behind a hidden line.
  */
-export const hasAssignedBuiltSite = async (
+export const hasAssignedBuiltSite = (
   attendeeId: number,
   listingId: number,
-): Promise<boolean> => {
-  const row = await queryOne<{ present: number }>(
-    `SELECT 1 AS present FROM built_sites
+): Promise<boolean> =>
+  rowExists(
+    `SELECT 1 FROM built_sites
      WHERE assigned_attendee_id = ? AND assigned_listing_id = ? LIMIT 1`,
     [attendeeId, listingId],
   );
-  return row !== null;
-};
 
 const withBuiltSiteForUpdate = async <T>(
   siteId: number,

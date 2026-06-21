@@ -447,7 +447,9 @@ export const toCreateInput = (
       date,
       durationDays: date ? durationDays : undefined,
       listingId: line.listingId,
-      quantity: line.quantity ?? 0,
+      // A retained line always has a non-null quantity: isBookedLine guarantees
+      // ≥ 1, and a no-quantity line is parsed/built with quantity 0.
+      quantity: line.quantity!,
     };
   }),
   email: parsed.email,
@@ -477,7 +479,9 @@ export const toDesiredLines = (
       exists: Boolean(line.existingBooking),
       key: line.key,
       listingId: line.listingId,
-      quantity: line.quantity ?? 0,
+      // A retained line always has a non-null quantity: isBookedLine guarantees
+      // ≥ 1, and a no-quantity line is parsed/built with quantity 0.
+      quantity: line.quantity!,
     };
   });
 
