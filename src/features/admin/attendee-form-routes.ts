@@ -703,45 +703,20 @@ const PAID_NO_QTY_ERROR =
   "Refund this booking's payment before marking it no quantity.";
 
 /**
- * Forbid marking a paid line no-quantity, judged from the live DB row rather than
- * the form's submitted line key. A stale/missing key leaves the form's
- * existingBooking null (so the per-line model guard can't fire), which would let
- * the atomic edit drop the paid row and insert a fresh quantity-0 row — silently
- * losing the recorded income/payment. Returns true when any no-quantity line's
- * actual (attendee, listing) row still carries a payment.
+ * True when any no-quantity line satisfies a per-(attendee, listing) check,
+ * judged from the live DB (not the form's submitted key). Used by applyEdit to
+ * block marking a line no-quantity while it still holds an assigned built site
+ * (the assignment + public /renew/ path would survive behind a hidden line) or a
+ * recorded payment (a stale form key would otherwise hide the booking from the
+ * per-line model guard and let the atomic edit drop the paid row).
  */
-const hasBlockedPaidNoQuantity = async (
+const anyNoQuantityLineMatches = async (
   attendeeId: number,
   lines: AttendeeFormLine[],
+  check: (attendeeId: number, listingId: number) => Promise<boolean>,
 ): Promise<boolean> => {
   for (const line of lines) {
-    if (
-      isNoQuantityLine(line) &&
-      (await hasPaidLine(attendeeId, line.listingId))
-    ) {
-      return true;
-    }
-  }
-  return false;
-};
-
-/**
- * Forbid marking a built-site line no-quantity while its site is still assigned:
- * the assignment + the live public /renew/ path would otherwise survive behind a
- * hidden line (no release path exists on this save). Keyed off the actual
- * built_sites assignment row — NOT the listing's current `assign_built_site`
- * flag (which an owner may have turned off after a site was assigned) and NOT
- * the form's existingBooking (which a stale line key can leave null).
- */
-const hasBlockedBuiltSiteNoQuantity = async (
-  attendeeId: number,
-  lines: AttendeeFormLine[],
-): Promise<boolean> => {
-  for (const line of lines) {
-    if (
-      isNoQuantityLine(line) &&
-      (await hasAssignedBuiltSite(attendeeId, line.listingId))
-    ) {
+    if (isNoQuantityLine(line) && (await check(attendeeId, line.listingId))) {
       return true;
     }
   }
@@ -838,12 +813,18 @@ const applyEdit = async (
   logisticsPlan: LogisticsPlan,
 ): Promise<SaveOutcome> => {
   // Block marking an assigned built-site line no-quantity (no release path here).
-  if (await hasBlockedBuiltSiteNoQuantity(attendeeId, parsed.lines)) {
+  if (
+    await anyNoQuantityLineMatches(
+      attendeeId,
+      parsed.lines,
+      hasAssignedBuiltSite,
+    )
+  ) {
     return { flashError: BUILT_SITE_NO_QTY_ERROR, ok: false };
   }
   // Block marking a paid line no-quantity, even when a stale form key hid the
   // existing booking from the per-line model guard.
-  if (await hasBlockedPaidNoQuantity(attendeeId, parsed.lines)) {
+  if (await anyNoQuantityLineMatches(attendeeId, parsed.lines, hasPaidLine)) {
     return { flashError: PAID_NO_QTY_ERROR, ok: false };
   }
 
