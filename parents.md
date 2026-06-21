@@ -42,10 +42,13 @@ be read in this light (they resolve several of the original open questions):
   Open Question 12.) Two new UI requirements come with this:
   1. **"Hidden" badge in the admin listings table**, shown next to the public URL
      for **every** hidden listing (not just children).
-  2. **Info message at the top of the product/edit page** for **hidden *and*
-     child** listings, explaining that although the listing is hidden from search
-     engines and the main site, **it will still be shown during booking** when the
-     buyer has to choose between it and another child.
+  2. **Info message at the top of the product/edit page — separate copy per case**
+     (a child is not necessarily hidden): a **hidden** listing gets "hidden from
+     search engines and the main site"; a **child** listing (regardless of `hidden`)
+     gets "offered as a choice under another listing; shown during booking." Never
+     tell the operator a *visible* child is undiscoverable — it still appears on
+     public cards (only its standalone booking CTA is suppressed). See Admin section
+     for the exact split.
 - **Child quantity follows the parent.** If the buyer hires **2 of the base unit**,
   they get **2 of the add-on** — the child line's quantity is **slaved to the
   parent's quantity**, not chosen independently. (Resolves Open Question 4.)
@@ -245,21 +248,16 @@ listing_parents(
   Without step 2, fresh databases work while upgrades fail at boot with stale
   schema markers.
 
-### Optional per-edge configuration (defer unless needed)
+### Per-edge configuration — not needed for v1
 
-The minimal table above encodes only "C is a child of P." If we want
-per-parent rules (how many children must be picked, min/max), the natural home is
-extra columns on the **parent side**. Two options:
-
-- **(a) Columns on `listings`** for the parent's own rule, e.g.
-  `child_selection_min INTEGER NOT NULL DEFAULT 1`,
-  `child_selection_max INTEGER NOT NULL DEFAULT 1` (0 = unlimited). Simple, one
-  rule per parent regardless of which children. **Recommended default.**
-- **(b) Columns on `listing_parents`** if the rule should vary per edge. More
-  flexible, more UI. Defer.
-
-Recommendation: ship with **(a)** defaulting to "exactly one child" and treat
-richer rules as a later iteration. See Open Question 2.
+The minimal table above encodes only "C is a child of P," which is **all v1 needs**:
+the rule is fixed at **exactly one child per parent** (Open Question 2, resolved),
+so there are **no per-parent min/max columns** — adding `child_selection_min/max`
+would let the schema/admin API express `min=0` (skip) or `max>1` (multi-select)
+states the gate, UI, and tests are deliberately **not** built to honour. If a future
+version ever needs variable cardinality, the natural home is columns on the parent
+(`listings`) for a uniform rule, or on `listing_parents` for a per-edge rule — but
+that is explicitly out of scope now.
 
 ### Types
 
@@ -516,23 +514,22 @@ When the booking page renders a listing that has children, render each child as 
   actually be booked. So the date filter (and the final submit check) must evaluate
   the folded parent **and** selected-child quantities together per candidate date,
   not just each child's own availability.
-- **Day-count choices must be filtered by the selected child too.** For a
-  customisable-days parent, the child inherits the parent's `day_count` — but a
-  customisable child may have a narrower `day_prices` range than the parent (e.g. a
-  3-day parent option whose child is only priced for 1–2 days). Leaving children out
-  of `sharedDayCounts` would offer a duration the chosen child can't be priced for,
-  failing late at submit. So the day-count selector needs the **same child-derived
-  filtering/toggling as dates**: only offer day-counts the selected child also
-  supports.
-- **The parent's quantity cap must fold in the child's remaining capacity.** Since
-  child quantity follows the parent (and the single child auto-selects), a parent
-  whose `maxPurchasable` is 10 but whose required child has only 1 spot (or
-  `max_quantity = 1`) would otherwise let the buyer pick a parent quantity that can
-  never satisfy the child, failing late. The parent quantity control (which drives
-  `parseQuantities` off `TicketListing.maxPurchasable`) must be **capped by the
-  selected/auto-selected child's remaining/max quantity** (or invalid quantities
-  disabled per child), with the submit-time re-validation kept as the race-safety
-  net.
+- **Day-count choices: union before selection, per-child at/after selection** —
+  mirror the date rule exactly. At no-JS render of a customisable parent with
+  multiple children there is **no selected child yet**, so the shared selector must
+  offer `parentDayCounts ∩ (union of child-supported day counts)` — **not** an
+  intersection of all children or a filter against one current child (which would
+  drop, say, day 1 supported only by child A and day 2 only by child B). Then
+  **disable/reject each child for submitted spans it doesn't support**, and validate
+  the selected child's span at submit.
+- **Quantity cap: union/max before selection, selected child at/after.** Since child
+  quantity follows the parent (and a single child auto-selects), the parent quantity
+  control (driving `parseQuantities` off `TicketListing.maxPurchasable`) must reflect
+  child capacity — but with **multiple** children and no selection yet, cap by the
+  **max** remaining across currently-selectable children, **not** the lowest (don't
+  block a valid high-capacity sibling: child A 1 spot, child B 10 → offer up to 10).
+  Then **re-cap/validate against the *selected* child** (JS-toggle as it's chosen;
+  enforce at submit). For a single auto-selected child, cap directly by that child.
 - **Child questions** must be merged into `questionListingMap` with the **correct
   shape**: it is `Map<questionId, listingId[]>` (`questions.ts:361`), read by
   `prepareOrder` as `ctx.questionListingMap.get(q.id)` — *keyed by question id*, not
@@ -771,13 +768,16 @@ The expanded set (parent page listings ∪ selected children) must drive **all**
   limit and the cart **rejected** if it exceeds it — **never clamped**, since
   clamping would keep all parent rows while silently dropping required child rows
   (2 + 2 parents with only 3 child spots).
-- **Answer-triggered modifiers** — `prepareOrder` computes
-  `answerModifierQuantities(computeListingAnswerMap(ctx, info), quantities)`
-  (`ticket-submit.ts:633-634`), so a child answer whose `answers.modifier_id`
-  carries a surcharge/discount or stock cap only affects pricing/stock if the
-  folded child is in the **answer map, selected ids, *and* quantity map** before
-  that call. Fold children into all three (not just `quantities`), or a parent+child
-  order records the child's answer while skipping its modifier's surcharge/stock.
+- **Questions & answer-triggered modifiers — child selection must move ahead of the
+  question parse.** `prepareOrder` computes `activeQuestions` and calls
+  `parseQuestionAnswers` using the **pre-fold** `selectedListingIds`, *then* prices
+  answer modifiers via `answerModifierQuantities(computeListingAnswerMap(ctx, info),
+  quantities)` (`ticket-submit.ts:633-634`). So expanding the selected ids with the
+  chosen children must happen **before the question-parse block**, not just before
+  modifier pricing — otherwise a selected child's required questions are excluded
+  from parsing/validation entirely. The folded child must be in the **answer map,
+  selected ids, *and* quantity map** before those calls, or a parent+child order
+  records no child answer and skips its modifier's surcharge/stock.
 - **Customisable-day children** — ✅ resolved by the "inherit duration" decision,
   but **derive the inherited duration from the parent line's *resolved* duration**,
   not from a submitted `day_count` that may not exist. The parent's duration is
@@ -1162,9 +1162,14 @@ Enumerate each and decide:
   children contribute to **none** of these (their fields/questions aren't
   required). Add a regression test per item — each is a distinct way the fold can
   silently drop a child.
-- **Round-trip dates**: per the v1 decision, either a child date that differs from
-  the order date is rejected (restricted model) or survives reconstruction
-  (per-line model) — test whichever we ship.
+- **Fold serialization (date/duration)**: there are **no per-child date controls**
+  in v1 — a daily child folds with the parent's date, a standard child folds
+  `date: null`, and any customisable child inherits the parent's duration. Test the
+  invariant that the fold serializes **only the fields the child carries** (daily →
+  date; customisable → `dayCount`, with `hasCustomisable` forced from folded
+  children; standard → neither), and that an order requiring two distinct
+  customisable durations is rejected. (Do **not** test the abandoned per-child-date
+  / per-line-date model.)
 - **Negative paths**: parent without child rejected with the right message and
   form re-fill; capacity exceeded on child; child sold out blocks parent.
 - **API / admin add**: enforce-or-skip behaviour matches the decisions taken.
@@ -1189,9 +1194,9 @@ Enumerate each and decide:
 | --- | --- |
 | 1 | Migration: `listing_parents` table + indexes; (if adopting config (a)) the two parent rule columns on `listings`. No behaviour yet. |
 | 2 | DB layer: edge CRUD, `getChildrenOf` / `getParentsOf` / batch loader, dedicated edge cache, `deleteListing` cleanup. Unit-tested. |
-| 3 | Admin edit UI: configure parents (+ reverse view), with self/cycle/nesting validation and diff-save. **Ships behind a flag / hidden until step 4–5 land** (see note). |
+| 3 | Admin edit UI + API: configure parents (+ reverse view) and diff-save, with **all** the admin-validation hard blocks — self/cycle/nesting **and** date/duration compatibility, renewal-tier ban, and unsupported child-scoped add-ons (not just self/cycle/nesting). **Ships behind a flag (UI *and* admin-API writes) until step 4–5 land** (see note). |
 | 4 | Booking-page render: surface children under parents in `TicketCtx` (per-parent child selector + child questions/pay-more price; quantity follows the parent; date/duration inherited — no per-child date controls); no-JS baseline incl. CSS-only reveal. |
-| 5 | Server-side gate in `prepareOrder`: validate (child required only for in-cart parents; `child_*` fields for zero-quantity parents are **ignored**, not rejected; invalid input rejected only for in-cart parents) + expand the listing set and fold children (feeding **every** per-listing path in the fold checklist). Counting in-cart child lines is **conditional on the Open Question 13 decision** — if we forbid parent+child URLs (the recommendation), this step instead **rejects** such URL lines rather than counting them. **Plus the API + QR decisions (close those bypass paths).** Free + paid + webhook + `/calculate` all exercised. |
+| 5 | Server-side gate in `prepareOrder`: validate (child required only for in-cart parents; `child_*` fields for zero-quantity parents are **ignored**, not rejected; invalid input rejected only for in-cart parents) + expand the listing set and fold children (feeding **every** per-listing path in the fold checklist). **Child slugs in any ticket URL are rejected** (a booking can't start from a child — Open Question 13 is resolved, so this is unconditional, not a count-the-in-cart-line option). **Plus the API + QR decisions (close those bypass paths).** Free + paid + webhook + `/calculate` all exercised. |
 | 6 | Progressive-enhancement JS: reveal/require child blocks on parent qty > 0; include in live quote. |
 | 7 | Admin-manual-add / attendee-edit behaviour; docs + operator-facing help text. |
 
@@ -1237,9 +1242,13 @@ create required-child edges through the API while checkout still ignores them.
 9. **API bookings** — ✅ **RESOLVED:** parents are bookable via the API, so the
    API/`processBooking` contract is **extended to carry child selections** (not
    website-only). See Confirmed behaviour.
-10. **QR direct-checkout** — ✅ **RESOLVED:** parents are bookable via QR. With a
-    single child the auto-select lets skip-to-checkout proceed; with multiple
-    children the QR path **falls back to the form** so the child can be chosen.
+10. **QR direct-checkout** — ✅ **RESOLVED:** parents are bookable via QR.
+    Skip-to-checkout is allowed only for a single auto-selected child that is
+    **direct-checkout-safe** (no required questions, not `can_pay_more`, no
+    provider-imposed contact field, and a resolved inherited duration the intent can
+    carry); otherwise — multiple children, or any of those conditions — the QR path
+    **falls back to the form**. (See the QR entry-point bullet for the full
+    conditions.)
 11. **Child pricing** — ✅ **RESOLVED:** children are charged at their own
     `unit_price` (the add-on's price); no "included/free with parent" notion in v1.
 12. **Public discoverability** — ✅ **RESOLVED:** being a child does **not**
