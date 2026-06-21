@@ -5,6 +5,7 @@ import { getMimeType } from "#routes/attachments.ts";
 import { signAttachmentUrl } from "#shared/attachment-url.ts";
 import { encryptBytes } from "#shared/crypto/encryption.ts";
 import { getAttendeeRaw } from "#shared/db/attendees.ts";
+import { getDb } from "#shared/db/client.ts";
 import { listingsTable } from "#shared/db/listings.ts";
 import { runWithStorageConfig } from "#shared/storage.ts";
 import {
@@ -174,6 +175,21 @@ describeWithEnv(
         );
         // Sign with the first listing but the other attendee
         const path = await signUrl(listingId, otherAttendee.id);
+        const response = await handleRequest(mockRequest(path));
+        expect(response.status).toBe(403);
+      });
+    });
+
+    test("returns 403 when the booking line is marked no-quantity", async () => {
+      await withStorage(async () => {
+        const { listingId, attendeeId } = await setupAttachment();
+        // A still-valid signed URL must stop working once the line is a
+        // quantity-0 sentinel — the protected attachment is no longer theirs.
+        await getDb().execute({
+          args: [attendeeId, listingId],
+          sql: "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ? AND listing_id = ?",
+        });
+        const path = await signUrl(listingId, attendeeId);
         const response = await handleRequest(mockRequest(path));
         expect(response.status).toBe(403);
       });
