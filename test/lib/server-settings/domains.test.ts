@@ -9,6 +9,7 @@ import {
   awaitTestRequest,
   describeWithEnv,
   expectFlash,
+  expectFlashRedirect,
   expectRedirectWithFlash,
   followRedirectWithFlash,
   mockFormRequest,
@@ -395,7 +396,7 @@ describeWithEnv("server (admin settings: domains)", { db: true }, () => {
               "/admin/settings/custom-domain",
               { custom_domain: "tickets.example.com" },
             );
-            expectRedirectWithFlash(
+            await expectFlashRedirect(
               "/admin/settings-advanced?form=settings-custom-domain#settings-custom-domain",
               expect.stringContaining("Another task is already in progress"),
               false,
@@ -413,7 +414,7 @@ describeWithEnv("server (admin settings: domains)", { db: true }, () => {
             const { response } = await adminFormPost(
               "/admin/settings/custom-domain/validate",
             );
-            expectRedirectWithFlash(
+            await expectFlashRedirect(
               "/admin/settings-advanced?form=settings-custom-domain-validate#settings-custom-domain-validate",
               expect.stringContaining("Another task is already in progress"),
               false,
@@ -773,6 +774,8 @@ describeWithEnv("server (admin settings: domains)", { db: true }, () => {
                   await testCookie(),
                 ),
               );
+              // Cookie-only: following re-renders settings-advanced, which
+              // re-issues the Bunny CDN calls only mocked for this POST.
               expectRedirectWithFlash(
                 "/admin/settings-advanced?form=settings-host-subdomain#settings-host-subdomain",
                 "Subdomain registered: mylisting.tickets.example.com",
@@ -836,7 +839,7 @@ describeWithEnv("server (admin settings: domains)", { db: true }, () => {
                 await testCookie(),
               ),
             );
-            expectRedirectWithFlash(
+            await expectFlashRedirect(
               "/admin/settings-advanced?form=settings-host-subdomain#settings-host-subdomain",
               expect.stringContaining("Another task is already in progress"),
               false,

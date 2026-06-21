@@ -12,8 +12,8 @@ import {
   createTestListing,
   createTestManagerSession,
   describeWithEnv,
+  expectFlashRedirect,
   expectHtmlResponse,
-  expectRedirectWithFlash,
   getTestSession,
   testRequiresAuth,
   withLocalStorageEnabled,
@@ -78,7 +78,10 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
       await withLocalStorageEnabled(async () => {
         await createTestListing({ name: "Backup Test" });
         const { response } = await adminFormPost("/admin/backup/create");
-        expectRedirectWithFlash("/admin/backup")(response);
+        await expectFlashRedirect(
+          "/admin/backup",
+          "Database backup created",
+        )(response);
       });
     });
 
@@ -263,7 +266,11 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
           confirm_identifier: RESTORE_CONFIRM_PHRASE,
         },
       );
-      expectRedirectWithFlash("/admin/backup")(response);
+      await expectFlashRedirect(
+        "/admin/backup",
+        "Invalid backup reference",
+        false,
+      )(response);
     });
 
     test("rejects wrong confirmation phrase", async () => {
@@ -274,7 +281,11 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
           confirm_identifier: "WRONG",
         },
       );
-      expectRedirectWithFlash("/admin/backup")(response);
+      await expectFlashRedirect(
+        "/admin/backup",
+        "Confirmation phrase does not match",
+        false,
+      )(response);
     });
 
     test("rejects missing backup file", async () => {
@@ -286,7 +297,11 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
             confirm_identifier: RESTORE_CONFIRM_PHRASE,
           },
         );
-        expectRedirectWithFlash("/admin/backup")(response);
+        await expectFlashRedirect(
+          "/admin/backup",
+          "Backup file expired or not found. Please upload again.",
+          false,
+        )(response);
       });
     });
 
@@ -312,7 +327,10 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
             confirm_identifier: RESTORE_CONFIRM_PHRASE,
           },
         );
-        expectRedirectWithFlash("/admin/backup")(response);
+        await expectFlashRedirect(
+          "/admin/backup",
+          "Database restored from backup",
+        )(response);
 
         const restored = (await getAllListings()).find(
           (e) => e.id === listing.id,
@@ -335,7 +353,7 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
             confirm_identifier: RESTORE_CONFIRM_PHRASE,
           },
         );
-        expectRedirectWithFlash(
+        await expectFlashRedirect(
           "/admin/backup",
           "Invalid backup reference",
           false,

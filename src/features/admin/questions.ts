@@ -148,6 +148,7 @@ const handleQuestionsGet = ownerPage(async (session) => {
     flash.error,
     listingNames,
     allListings.length,
+    flash.success,
   );
 });
 
@@ -189,6 +190,7 @@ const handleQuestionGet = ownerGetById(
         answerCounts,
         allListings,
         new Set(assignedListingIds),
+        flash.success,
       ),
     );
   },
@@ -388,6 +390,7 @@ const handleEditAnswerGet = answerRoute(async (question, answer, session) => {
       aggregateRecalculation,
       modifiers,
       modifierId,
+      flash.success,
     ),
   );
 });

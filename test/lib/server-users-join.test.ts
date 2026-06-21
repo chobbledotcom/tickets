@@ -7,6 +7,7 @@ import {
   assertPublicHtml,
   createTestInvite,
   describeWithEnv,
+  expectFlashRedirect,
   expectHtmlResponse,
   expectRedirectWithFlash,
   mockAdminLoginRequest,
@@ -27,7 +28,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
           username: TEST_ADMIN_USERNAME,
         }),
       );
-      expectRedirectWithFlash("/admin", "Logged in")(response);
+      await expectFlashRedirect("/admin", "Logged in")(response);
       const sessionCookie = response.headers
         .getSetCookie()
         .find((c) => c.startsWith(`${getSessionCookieName()}=`));
@@ -41,7 +42,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
           username: "nonexistent",
         }),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin",
         expect.stringContaining("Username or password was wrong"),
         false,
@@ -55,7 +56,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
           username: TEST_ADMIN_USERNAME,
         }),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin",
         expect.stringContaining("Username or password was wrong"),
         false,
@@ -97,6 +98,8 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         password_confirm: "newpassword123",
       });
 
+      // Cookie-only: /join/complete is a public confirmation page (shown to the
+      // freshly-activated user, not the admin session) and states its own result.
       expectRedirectWithFlash(
         "/join/complete",
         "Password set successfully",
@@ -142,7 +145,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         }),
       );
 
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/join/${inviteCode}`,
         expect.stringContaining("invalid"),
         false,
@@ -161,7 +164,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         password_confirm: "differentpassword",
       });
 
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/join/${inviteCode}`,
         expect.stringContaining("do not match"),
         false,
@@ -176,7 +179,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         password_confirm: "short",
       });
 
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/join/${inviteCode}`,
         expect.stringContaining("8 characters"),
         false,
@@ -225,7 +228,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
           password_confirm: "newpassword123",
         }),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/join/${inviteCode}`,
         expect.stringContaining("try again"),
         false,
