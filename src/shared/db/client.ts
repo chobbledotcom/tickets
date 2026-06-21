@@ -11,6 +11,7 @@ import {
   createClient,
   type InValue,
   type ResultSet,
+  type Transaction,
   type TransactionMode,
 } from "@libsql/client";
 import { lazyRef } from "#fp";
@@ -285,6 +286,29 @@ export const executeBatch = async (
   statements: Array<{ sql: string; args: InValue[] }>,
 ): Promise<void> => {
   await executeBatchWithResults(statements);
+};
+
+/**
+ * Run `work` inside one interactive write transaction, committing on success and
+ * rolling back (then rethrowing) on any error. Use this — rather than a plain
+ * batch — when a multi-step write needs conditional logic between steps, e.g.
+ * create → check capacity → finalize, where a zero-row guard must abort and undo
+ * everything. Unlike `execute`/`executeBatch`, statements run via the returned
+ * transaction do not auto-invalidate caches, so the caller invalidates affected
+ * tables after the returned promise resolves.
+ */
+export const withTransaction = async <T>(
+  work: (tx: Transaction) => Promise<T>,
+): Promise<T> => {
+  const tx = await getDb().transaction("write");
+  try {
+    const result = await work(tx);
+    await tx.commit();
+    return result;
+  } catch (error) {
+    await tx.rollback();
+    throw error;
+  }
 };
 
 /** Build SQL placeholders for an IN clause, e.g. "?, ?, ?" */
