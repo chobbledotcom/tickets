@@ -503,6 +503,14 @@ describe("code quality", () => {
       "shared/jsx/jsx-runtime.ts", // JSX compiler runtime
       "shared/jsx/jsx-dev-runtime.ts", // JSX dev runtime
       "shared/asset-paths.ts", // Build-time config consumed by .tsx templates
+      // The transfer-ledger (accounting-plan.md Phase 0) is a reusable,
+      // context-free library; like fp.ts, not every export is consumed yet —
+      // the host glue wires it into production in a later phase.
+      "shared/ledger/account.ts",
+      "shared/ledger/validate.ts",
+      "shared/ledger/project.ts",
+      "shared/ledger/reverse.ts",
+      "shared/ledger/reconcile.ts",
     ];
 
     /** Index modules that only re-export from sub-modules */
