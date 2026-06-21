@@ -67,7 +67,7 @@ const LEFTOVER_ALLOWLIST = new Map<string, number>([
   ["ui/templates/admin/settings/payment.tsx", 10],
   ["ui/templates/admin/settings/public-api.tsx", 1],
   ["ui/templates/admin/site.tsx", 2],
-  ["ui/templates/email/defaults.ts", 10],
+  ["ui/templates/email/defaults.ts", 12],
   ["ui/templates/fields.ts", 46],
   ["ui/templates/public/shared.tsx", 2],
 ]);

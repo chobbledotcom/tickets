@@ -139,9 +139,10 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     expect(html).toContain(formatCurrency(2000));
   });
 
-  test("shows no amount owed when payments are disabled", async () => {
-    // No payment provider configured: the submit path completes the booking for
-    // free, so the quote must not imply an amount is due.
+  test("shows the full value as owed when payments are disabled", async () => {
+    // No payment provider configured: the submit path still completes the
+    // booking but records the full value as the amount owed (like a zero-deposit
+    // reservation), so the quote must surface that figure.
     const listing = await createTestListing({
       maxQuantity: 5,
       name: "Paid Seat",
@@ -150,11 +151,29 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
 
     const html = await (
       await calculate(listing.slug, listing.slug, {
+        [`quantity_${listing.id}`]: "2",
+      })
+    ).text();
+    // Two seats at £25.00 = £50.00 owed, taken with no online payment.
+    expect(html).toContain("you'll owe");
+    expect(html).toContain(formatCurrency(5000));
+  });
+
+  test("shows no amount owed for a free booking when payments are disabled", async () => {
+    // A genuinely free order owes nothing, so the quote keeps the free wording.
+    const listing = await createTestListing({
+      maxQuantity: 5,
+      name: "Free Seat",
+      unitPrice: 0,
+    });
+
+    const html = await (
+      await calculate(listing.slug, listing.slug, {
         [`quantity_${listing.id}`]: "1",
       })
     ).text();
     expect(html).toContain("No payment required");
-    expect(html).not.toContain(formatCurrency(2500));
+    expect(html).not.toContain("you'll owe");
   });
 
   test("rejects a sold-out answer tier in the quote", async () => {
