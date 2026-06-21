@@ -113,6 +113,51 @@ export const sharedDayCounts = (listings: TicketListing[]): number[] => {
     .sort((a, b) => a - b);
 };
 
+/** The day-count spans a required child supports, or null when it imposes no
+ * span constraint (Codex 1030). A CUSTOMISABLE child supports its
+ * {@link availableDayCounts}; a FIXED DAILY child supports only its own
+ * `duration_days`; a STANDARD non-daily child folds duration-1 and is priced by
+ * the parent's resolved span, so it constrains nothing ("any"). */
+const childSupportedSpans = (child: TicketListing): number[] | null => {
+  if (child.listing.customisable_days) return availableDayCounts(child.listing);
+  if (child.listing.listing_type === "daily") {
+    return [normalizeDurationDays(child.listing.duration_days)];
+  }
+  return null;
+};
+
+/**
+ * Constrain a customisable parent's day-count options to the spans at least one
+ * of its required children can serve (Codex 1030): `parentDayCounts ∩ (UNION of
+ * the children's supported spans)`. Without this, a customisable parent offering
+ * {1,2} days whose only child prices only 2 days still shows the 1-day option,
+ * which the submit-side fold then rejects.
+ *
+ * Scope mirrors the date rule (see `constrainDatesByChildUnion` in
+ * ticket-payment.ts): only a SINGLE-listing page that is itself a parent is
+ * constrained, since on a multi-listing / group page one selector is shared and
+ * an unselected parent's child spans must not remove a span a different page
+ * listing needs — the spec defers that to the per-selected-parent JS constraint
+ * plus the authoritative submit fold.
+ */
+const constrainDayCountsByChildUnion = (
+  listings: TicketListing[],
+  parentDayCounts: number[],
+  childrenByParentId: Map<number, TicketListing[]> | undefined,
+): number[] => {
+  if (!childrenByParentId || listings.length !== 1) return parentDayCounts;
+  const children = childrenByParentId.get(listings[0]!.listing.id);
+  if (!children || children.length === 0) return parentDayCounts;
+  const union = new Set<number>();
+  for (const child of children) {
+    const spans = childSupportedSpans(child);
+    // A child that imposes no span constraint ("any") keeps every parent span.
+    if (spans === null) return parentDayCounts;
+    for (const n of spans) union.add(n);
+  }
+  return parentDayCounts.filter((n) => union.has(n));
+};
+
 /** Render the "number of days" selector for customisable-days listings. When a
  * single listing drives the page, each option shows its price for that span.
  * The submitted day count is restored when a validation error re-renders. */
@@ -905,6 +950,7 @@ const TicketPageForm = ({
 const dayConfig = (
   listings: TicketListing[],
   singleListing: ListingWithCount | null,
+  childrenByParentId: Map<number, TicketListing[]> | undefined,
 ): {
   hasCustomisable: boolean;
   dayCounts: number[];
@@ -918,7 +964,11 @@ const dayConfig = (
   dayCountPriceFor: singleListing?.customisable_days
     ? (days: number) => dayPriceFor(singleListing, days)
     : undefined,
-  dayCounts: sharedDayCounts(listings),
+  dayCounts: constrainDayCountsByChildUnion(
+    listings,
+    sharedDayCounts(listings),
+    childrenByParentId,
+  ),
   hasCustomisable: listings.some((e) => e.listing.customisable_days),
 });
 
@@ -1048,7 +1098,7 @@ export const ticketPage = ({
   const pastDays = singleListing?.date ? daysAgo(singleListing.date) : null;
 
   const { hasCustomisable, dayCounts, dayCountPriceFor, dateDurationDays } =
-    dayConfig(listings, singleListing);
+    dayConfig(listings, singleListing, childrenByParentId);
 
   const availableListings = listings.filter((e) => !e.isSoldOut && !e.isClosed);
   const hideQuantity =

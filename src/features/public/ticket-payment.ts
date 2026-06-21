@@ -715,6 +715,64 @@ export const computeSharedDates = async (
   return [...dateSets[0]!].filter((d) => dateSets.every((s) => s.has(d)));
 };
 
+/** A required child's contribution to its parent's bookable-date union (Codex
+ * 758). A STANDARD (dateless) child imposes no date constraint — it is bookable
+ * on EVERY parent date (subject only to its non-date capacity), so it
+ * contributes all of `parentDates`. A DAILY child contributes its own bookable
+ * start dates, computed with the SAME {@link getBookableStartDates} the page's
+ * date selector uses. */
+const childDateContribution = (
+  child: TicketListing,
+  parentDates: string[],
+  holidays: Holiday[],
+): string[] =>
+  child.listing.listing_type === "daily"
+    ? getBookableStartDates(child.listing, holidays)
+    : parentDates;
+
+/**
+ * Constrain a daily parent's offered dates to those on which at least one of its
+ * required children is bookable (Codex 758): `parentDates ∩ (UNION of the
+ * `children`'s bookable start dates)`. Without this, a daily parent available
+ * Mon+Tue whose only child is bookable Mon still offers Tue, and the submit-side
+ * fold then finds no bookable child for Tue and rejects — the no-JS selector
+ * would have offered an impossible date. The caller scopes WHEN this applies
+ * (see {@link singleDailyParentChildren}); here we just fold the union.
+ */
+const constrainDatesByChildUnion = (
+  parentDates: string[],
+  children: TicketListing[],
+  holidays: Holiday[],
+): string[] => {
+  const union = new Set<string>();
+  for (const child of children) {
+    for (const d of childDateContribution(child, parentDates, holidays)) {
+      union.add(d);
+    }
+  }
+  return parentDates.filter((d) => union.has(d));
+};
+
+/**
+ * The children of the page's sole listing when it is a daily parent, else null
+ * (no date constraint applies). Scopes the child-date-union rule (Codex 758) to
+ * a SINGLE-listing page that is itself a daily parent — the overwhelmingly
+ * common base-unit-plus-add-on case. On a multi-listing / group page several
+ * listings share one date selector, and folding one parent's child calendar into
+ * the shared set could wrongly remove a date a *different* page listing needs —
+ * the spec defers that to the per-selected-parent JS constraint plus the
+ * authoritative submit fold, so a multi-listing page's dates are left untouched.
+ */
+const singleDailyParentChildren = (
+  listings: TicketListing[],
+  childrenByParentId: ChildrenByParentId,
+): TicketListing[] | null => {
+  if (listings.length !== 1) return null;
+  const parent = listings[0]!;
+  if (parent.listing.listing_type !== "daily") return null;
+  return childrenByParentId.get(parent.listing.id) ?? null;
+};
+
 /**
  * The parent→children relationship for the page's listings, each child
  * hydrated to a {@link TicketListing} so its availability is resolved for the
@@ -763,7 +821,7 @@ export const getTicketContext = async (
     ...listingIds,
     ...childListingIdsOf(childrenByParentId),
   ];
-  const [dates, globalTerms, questionsResult, promoCodesEnabled, addOns] =
+  const [sharedDates, globalTerms, questionsResult, promoCodesEnabled, addOns] =
     await Promise.all([
       computeSharedDates(activeListings),
       Promise.resolve(settings.terms),
@@ -771,6 +829,20 @@ export const getTicketContext = async (
       hasPromoCodeModifiers(),
       getOptionalAddOns(listingIds),
     ]);
+  // A daily parent's offered dates must intersect the union of its children's
+  // bookable dates (Codex 758). Only the single-daily-parent page is constrained
+  // (see singleDailyParentChildren); other pages skip the holiday fetch.
+  const dailyParentChildren = singleDailyParentChildren(
+    activeListings,
+    childrenByParentId,
+  );
+  const dates = dailyParentChildren
+    ? constrainDatesByChildUnion(
+        sharedDates,
+        dailyParentChildren,
+        await getActiveHolidays(),
+      )
+    : sharedDates;
   const terms = group
     ? group.terms_and_conditions || globalTerms || ""
     : globalTerms;

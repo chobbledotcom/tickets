@@ -777,6 +777,45 @@ describeWithEnv(
         [`quantity_${parent.id}`]: "1",
       });
       expect(res.status).toBe(302);
+      // The date the only child can't serve is no longer offered by the parent's
+      // selector (Codex 758, constrainDatesByChildUnion), so it fails the
+      // date-validation gate before the fold — still a rejection, no parent row.
+      expectFlash(res, "Please select a valid date", false);
+      expect((await getAttendeesRaw(parent.id)).length).toBe(0);
+    });
+
+    test("the fold rejects a daily child's excluded date on a multi-listing page", async () => {
+      // On a multi-listing page the per-parent date-union constraint is NOT
+      // applied (it would wrongly strip dates a sibling page listing needs), so
+      // the child-excluded date IS offered and reaches the submit fold, which
+      // rejects it because the parent then has no bookable child for that date.
+      const { DAY_NAMES, getBookableStartDates } = await import(
+        "#shared/dates.ts"
+      );
+      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
+      const { getListingWithCount } = await import("#shared/db/listings.ts");
+
+      const parent = await createDailyTestListing({ name: "Daily base" });
+      const plain = await createDailyTestListing({ name: "Daily plain" });
+      const parentRow = (await getListingWithCount(parent.id))!;
+      const holidays = await getActiveHolidays();
+      const parentDate = getBookableStartDates(parentRow, holidays)[0]!;
+      const parentDay =
+        DAY_NAMES[new Date(`${parentDate}T00:00:00Z`).getUTCDay()]!;
+      const child = await createDailyTestListing({
+        bookableDays: DAY_NAMES.filter((d) => d !== parentDay),
+        name: "Daily add-on",
+      });
+      await setChildIds(parent.id, [child.id]);
+
+      const res = await postBooking(`${parent.slug}+${plain.slug}`, {
+        date: parentDate,
+        email: "a@b.com",
+        name: "Ada",
+        [`quantity_${parent.id}`]: "1",
+        [`quantity_${plain.id}`]: "0",
+      });
+      expect(res.status).toBe(302);
       expectFlash(res, "Daily base has no available options right now.", false);
       expect((await getAttendeesRaw(parent.id)).length).toBe(0);
     });
@@ -1172,6 +1211,167 @@ describeWithEnv(
           `<input type="radio" name="child_${parent.id}" value="${deadChild.id}"[^>]*\\schecked`,
         ),
       );
+    });
+
+    test("a daily parent offers only dates its only child can serve", async () => {
+      // The daily parent is bookable every day, but its only (daily) child is
+      // bookable on a single weekday. The rendered date selector must offer only
+      // the child's dates (parentDates ∩ child union), never a parent-only date
+      // the submit fold would reject (Codex 758).
+      const { DAY_NAMES, getBookableStartDates } = await import(
+        "#shared/dates.ts"
+      );
+      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
+      const { getListingWithCount } = await import("#shared/db/listings.ts");
+
+      const parent = await createDailyTestListing({ name: "Daily base" });
+      const parentRow = (await getListingWithCount(parent.id))!;
+      const holidays = await getActiveHolidays();
+      const parentDates = getBookableStartDates(parentRow, holidays);
+      const childDate = parentDates[0]!;
+      const childDay =
+        DAY_NAMES[new Date(`${childDate}T00:00:00Z`).getUTCDay()]!;
+      // A daily child bookable only on the first parent date's weekday.
+      const child = await createDailyTestListing({
+        bookableDays: [childDay],
+        name: "Daily add-on",
+      });
+      await setChildIds(parent.id, [child.id]);
+
+      const childRow = (await getListingWithCount(child.id))!;
+      const childDates = getBookableStartDates(childRow, holidays);
+      const otherDate = parentDates.find((d) => !childDates.includes(d))!;
+
+      const html = await ticketPageHtml(parent.slug);
+      // Every child date is offered; a parent-only date is not.
+      for (const d of childDates) {
+        expect(html).toContain(`<option value="${d}"`);
+      }
+      expect(html).not.toContain(`<option value="${otherDate}"`);
+    });
+
+    test("a daily parent with a dateless child keeps all its dates", async () => {
+      // A STANDARD (dateless) child imposes no date constraint, so the parent
+      // keeps every one of its own bookable dates (Codex 758).
+      const { getBookableStartDates } = await import("#shared/dates.ts");
+      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
+      const { getListingWithCount } = await import("#shared/db/listings.ts");
+
+      const parent = await createDailyTestListing({ name: "Daily base" });
+      const child = await createTestListing({ name: "Standard add-on" });
+      await setChildIds(parent.id, [child.id]);
+
+      const parentRow = (await getListingWithCount(parent.id))!;
+      const parentDates = getBookableStartDates(
+        parentRow,
+        await getActiveHolidays(),
+      );
+
+      const html = await ticketPageHtml(parent.slug);
+      for (const d of parentDates) {
+        expect(html).toContain(`<option value="${d}"`);
+      }
+    });
+
+    test("a customisable parent offers only day counts its child can serve", async () => {
+      // The parent prices {1,2} days; its only child prices only 2 days. The
+      // rendered day-count selector must offer only the 2-day option — the
+      // 1-day option the submit fold would reject is gone (Codex 1030).
+      const parent = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 1000, 2: 1800 },
+        durationDays: 2,
+        name: "Customisable base",
+      });
+      const child = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 2: 2500 },
+        durationDays: 2,
+        maxPrice: 0,
+        name: "Two-day add-on",
+        unitPrice: 0,
+      });
+      await setChildIds(parent.id, [child.id]);
+
+      const html = await ticketPageHtml(parent.slug);
+      // The day-count options carry a "<n> day(s)" label; only the 2-day option
+      // survives (the bare `<option value="1">` of the quantity selector is not a
+      // day-count option, so assert on the labelled day option).
+      expect(html).toContain(">2 days");
+      expect(html).not.toContain(">1 day");
+    });
+
+    test("a customisable parent keeps day counts a child supports both of", async () => {
+      // The child prices both 1 and 2 days, so the parent keeps both options
+      // (the union covers every parent span) — Codex 1030.
+      const parent = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 1000, 2: 1800 },
+        durationDays: 2,
+        name: "Customisable base",
+      });
+      const child = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 1500, 2: 2500 },
+        durationDays: 2,
+        maxPrice: 0,
+        name: "Flexible add-on",
+        unitPrice: 0,
+      });
+      await setChildIds(parent.id, [child.id]);
+
+      const html = await ticketPageHtml(parent.slug);
+      expect(html).toContain(">1 day");
+      expect(html).toContain(">2 days");
+    });
+
+    test("a daily child full on one date does not make its parent render sold out", async () => {
+      // A 1-capacity daily child fully booked on one date reads date-less
+      // isSoldOut=true, but the parent page must still render a bookable form —
+      // the daily child is potentially bookable on the dates it still has room
+      // for (Codex 63). The submit fold rejects only a genuinely full date.
+      const { bookAttendee } = await import("#test-utils");
+      const { getBookableStartDates } = await import("#shared/dates.ts");
+      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
+      const { getListingWithCount } = await import("#shared/db/listings.ts");
+
+      const parent = await createDailyTestListing({ name: "Daily base" });
+      const child = await createDailyTestListing({
+        maxAttendees: 1,
+        name: "Daily add-on",
+      });
+      await setChildIds(parent.id, [child.id]);
+
+      const childRow = (await getListingWithCount(child.id))!;
+      const dayA = getBookableStartDates(
+        childRow,
+        await getActiveHolidays(),
+      )[0]!;
+      const booked = await bookAttendee(child, { date: dayA });
+      expect(booked.success).toBe(true);
+
+      const html = await ticketPageHtml(parent.slug);
+      // The parent renders a normal bookable form, not the sold-out message.
+      expect(html).toContain(`name="quantity_${parent.id}"`);
+      expect(html).toContain(`name="child_${parent.id}"`);
+      expect(html).not.toContain("Sorry, this listing is full.");
+    });
+
+    test("a standard child sold out cumulatively still makes its parent render sold out", async () => {
+      // A STANDARD child uses the date-less cumulative sold-out, which is correct
+      // — a cumulatively full standard child leaves the parent with no bookable
+      // child, so its page renders sold out (Codex 63, standard branch).
+      const parent = await createTestListing({ name: "Base unit" });
+      const child = await createTestListing({
+        maxAttendees: 1,
+        name: "Standard add-on",
+      });
+      await createTestAttendee(child.id, child.slug, "Buyer", "b@x.com");
+      await setChildIds(parent.id, [child.id]);
+
+      const html = await ticketPageHtml(parent.slug);
+      expect(html).toContain("Sorry, this listing is full.");
+      expect(html).not.toContain(`name="quantity_${parent.id}"`);
     });
 
     test("a parent + child in a 1-spot capped group renders sold out", async () => {

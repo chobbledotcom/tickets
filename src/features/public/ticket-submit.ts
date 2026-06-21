@@ -26,6 +26,7 @@ import {
   getGroupRemainingByListingId,
   reverseOrderActivity,
 } from "#shared/db/attendees.ts";
+import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {
   answerModifierQuantities,
   buyerVisits,
@@ -925,13 +926,17 @@ const renderCtx = async (ctx: TicketCtx): Promise<TicketCtx> => {
   const children = [...ctx.childrenByParentId.values()]
     .flat()
     .map((child) => child.listing);
-  const groupRemaining = await getGroupRemainingByListingId(children);
+  const [groupRemaining, holidays] = await Promise.all([
+    getGroupRemainingByListingId(children),
+    getActiveHolidays(),
+  ]);
   return {
     ...ctx,
     listings: applyBookingPageParentSoldOut(
       ctx.listings,
       ctx.childrenByParentId,
       groupRemaining,
+      holidays,
     ),
   };
 };

@@ -27,12 +27,14 @@
 
 import { isRegistrationClosed } from "#routes/format.ts";
 import { isListingParentsEnabled } from "#shared/config.ts";
+import { getBookableStartDates } from "#shared/dates.ts";
 import { getGroupRemainingByListingId } from "#shared/db/attendees.ts";
+import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {
   getChildIdsWithActiveParent,
   getChildrenForParents,
 } from "#shared/db/listing-parents.ts";
-import type { ListingWithCount } from "#shared/types.ts";
+import type { Holiday, ListingWithCount } from "#shared/types.ts";
 import { buildTicketListing, type TicketListing } from "#templates/public.tsx";
 
 /**
@@ -56,14 +58,27 @@ const EMPTY_CLASSIFICATION: DiscoveryClassification = {
   soldOutParentIds: new Set(),
 };
 
-/** Whether a built child is individually bookable: active and neither sold out
- * nor closed. The single source of truth shared by discovery surfaces (which
- * build the {@link TicketListing} for a minimum single-day order) and the
- * booking page (which already has each child built for the resolved date). Hidden
- * children stay bookable — `hidden` governs the index, not eligibility
- * (parents.md, Edge cases); only `active` / sold-out / closed disqualify. */
-const childBookable = (child: TicketListing): boolean =>
-  child.listing.active && !child.isSoldOut && !child.isClosed;
+/** Whether a built child is individually bookable at render (no submitted date):
+ * active, not closed, and — for its capacity component — *potentially* bookable.
+ *
+ * The sold-out component splits by listing kind (Codex 63). `buildTicketListing`
+ * computes `isSoldOut` from the date-LESS cumulative aggregate, which is only
+ * meaningful for a STANDARD child (cumulative, date-independent capacity). For a
+ * DAILY child it is wrong: a 1-capacity daily child booked on one date reads
+ * `isSoldOut=true` and would globalise that one full date into "sold out for
+ * EVERY date", forcing its parent's card/page sold out on dates the child still
+ * has room for. So a daily child is "potentially bookable" at render whenever it
+ * is active, not closed, and has at least one bookable start date on its own
+ * calendar; its true per-date capacity is the authoritative submit-side fold's
+ * job (it rejects — never clamps — a genuinely full date). Hidden children stay
+ * bookable — `hidden` governs the index, not eligibility (parents.md, Edge
+ * cases). */
+const childBookable = (child: TicketListing, holidays: Holiday[]): boolean => {
+  if (!child.listing.active || child.isClosed) return false;
+  return child.listing.listing_type === "daily"
+    ? getBookableStartDates(child.listing, holidays).length > 0
+    : !child.isSoldOut;
+};
 
 /**
  * Whether the *combined* minimum order — one parent plus one of this child —
@@ -93,9 +108,11 @@ const childBookableForParent = (
   parent: ListingWithCount,
   child: ListingWithCount,
   groupRemaining: number | undefined,
+  holidays: Holiday[],
 ): boolean =>
   childBookable(
     buildTicketListing(child, isRegistrationClosed(child), groupRemaining),
+    holidays,
   ) && combinedDemandFits(parent, child, groupRemaining);
 
 /**
@@ -122,14 +139,22 @@ export const classifyForDiscovery = async (
   ]);
   const byId = new Map(listings.map((l) => [l.id, l]));
   const everyChild = [...childrenByParent.values()].flat();
-  const groupRemaining = await getGroupRemainingByListingId(everyChild);
+  const [groupRemaining, holidays] = await Promise.all([
+    getGroupRemainingByListingId(everyChild),
+    getActiveHolidays(),
+  ]);
   const soldOutParentIds = new Set<number>();
   for (const [parentId, children] of childrenByParent) {
     const parent = byId.get(parentId);
     const anyBookable =
       parent !== undefined &&
       children.some((child) =>
-        childBookableForParent(parent, child, groupRemaining.get(child.id)),
+        childBookableForParent(
+          parent,
+          child,
+          groupRemaining.get(child.id),
+          holidays,
+        ),
       );
     if (!anyBookable) soldOutParentIds.add(parentId);
   }
@@ -172,11 +197,17 @@ export const applyParentSoldOut = (
  * I7): a parent and its child in the same capped group consume two group spots,
  * so a parent with a single remaining group spot reads sold out here too —
  * matching what the submit-time `checkBatchAvailability` would reject.
+ *
+ * `holidays` lets a daily child's render-time bookability be judged by its own
+ * calendar rather than the date-less `isSoldOut` aggregate (Codex 63 — see
+ * {@link childBookable}), so a daily child full on one date doesn't force its
+ * parent's page sold out for every date.
  */
 export const applyBookingPageParentSoldOut = (
   listings: readonly TicketListing[],
   childrenByParentId: ReadonlyMap<number, TicketListing[]>,
   groupRemainingByListingId: ReadonlyMap<number, number>,
+  holidays: Holiday[],
 ): TicketListing[] =>
   listings.map((info) => {
     const children = childrenByParentId.get(info.listing.id);
@@ -185,6 +216,7 @@ export const applyBookingPageParentSoldOut = (
         info.listing,
         child.listing,
         groupRemainingByListingId.get(child.listing.id),
+        holidays,
       ),
     );
     if (children && children.length > 0 && !anyBookable) {
