@@ -32,7 +32,7 @@ export type Trigger = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add contact_preferences table for marketing opt-outs, contact history, and visit counts; add customisable_days and day_prices columns to listings for visitor-chosen multi-day bookings with per-day-count pricing; add attendee_statuses table with status_id and remaining_balance on attendees, plus attendee_id on activity_log, for the reservation and balance-payment flow; add idx_activity_log_listing_id so per-listing activity log reads are index scans instead of full-table scans; add a logistics_agents table plus a uses_logistics flag on listings, a split_logistics_agents flag on attendees, and start_agent_id/end_agent_id/start_time/end_time on listing_attendees for the logistics flow; add email_templates table for owner-keypair-encrypted reusable email subjects and bodies; add a user_logistics_agents table linking agent users to the logistics agents they drive, plus start_done/end_done flags on listing_attendees so delivery agents can mark drop-offs and collections complete; add failure_data to processed_payments so handled payment failures are recorded as a terminal outcome for idempotent redirect/webhook replay; add booked_quantity, tickets_count and income aggregate columns to listings, maintained by triggers on listing_attendees so listing reads and active-listing stats avoid scanning the attendee rows; add modifiers table for owner-defined price modifiers (surcharges, discounts, add-ons), with active/trigger/code_index/scope/stock/max_per_order/min_subtotal/min_visits columns plus modifier_listings, modifier_groups and modifier_usages tables for scoping and stock; add an encrypted code column to modifiers for promo-code modifiers; add sms_messages table mapping gateway message ids to attendees for SMS status webhooks (content lives in the encrypted activity log); add processed_sms_inbound table for inbound SMS webhook replay protection; add phone_index to attendees so inbound SMS replies can be matched to an attendee; add a modifier_id column to answers linking an answer to the price modifier it triggers (with an 'answer' modifier trigger) so an answer applies a modifier through the shared engine, replacing the per-answer pricing columns; add display_type to questions so booking questions can render as radio buttons or a select box; add assign_all to questions so booking questions can apply to every listing; add a times_selected aggregate column to answers, maintained by triggers on attendee_answers, so the question and answer admin pages report selection counts without scanning attendee_answers; add a last_pruned column to built_sites so the scheduled-tasks endpoint can forward a prune to the least-recently-pruned built site and walk every site at a steady pace; add free-text custom questions backed by an owner-key encrypted strings repository with usage counts and creation timestamps; add an active flag to answers so a choice can be deactivated (hidden on the public booking form, still shown for attendees who already selected it) rather than deleted; add public_booking_count and admin_booking_count plaintext columns to contact_preferences so booking history is split by source (online checkout vs admin manual add) and the keyless public booking paths can increment their count without the owner private key; add kek_version and invite_wrapped_data_key to users so wrapped_data_key is bound to a password-derived KEK (and invited users self-activate at /join), making attendee PII undecryptable from a database dump plus DB_ENCRYPTION_KEY alone";
+  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add contact_preferences table for marketing opt-outs, contact history, and visit counts; add customisable_days and day_prices columns to listings for visitor-chosen multi-day bookings with per-day-count pricing; add attendee_statuses table with status_id and remaining_balance on attendees, plus attendee_id on activity_log, for the reservation and balance-payment flow; add idx_activity_log_listing_id so per-listing activity log reads are index scans instead of full-table scans; add a logistics_agents table plus a uses_logistics flag on listings, a split_logistics_agents flag on attendees, and start_agent_id/end_agent_id/start_time/end_time on listing_attendees for the logistics flow; add email_templates table for owner-keypair-encrypted reusable email subjects and bodies; add a user_logistics_agents table linking agent users to the logistics agents they drive, plus start_done/end_done flags on listing_attendees so delivery agents can mark drop-offs and collections complete; add failure_data to processed_payments so handled payment failures are recorded as a terminal outcome for idempotent redirect/webhook replay; add booked_quantity, tickets_count and income aggregate columns to listings, maintained by triggers on listing_attendees so listing reads and active-listing stats avoid scanning the attendee rows; add modifiers table for owner-defined price modifiers (surcharges, discounts, add-ons), with active/trigger/code_index/scope/stock/max_per_order/min_subtotal/min_visits columns plus modifier_listings, modifier_groups and modifier_usages tables for scoping and stock; add an encrypted code column to modifiers for promo-code modifiers; add sms_messages table mapping gateway message ids to attendees for SMS status webhooks (content lives in the encrypted activity log); add processed_sms_inbound table for inbound SMS webhook replay protection; add phone_index to attendees so inbound SMS replies can be matched to an attendee; add a modifier_id column to answers linking an answer to the price modifier it triggers (with an 'answer' modifier trigger) so an answer applies a modifier through the shared engine, replacing the per-answer pricing columns; add display_type to questions so booking questions can render as radio buttons or a select box; add assign_all to questions so booking questions can apply to every listing; add a times_selected aggregate column to answers, maintained by triggers on attendee_answers, so the question and answer admin pages report selection counts without scanning attendee_answers; add a last_pruned column to built_sites so the scheduled-tasks endpoint can forward a prune to the least-recently-pruned built site and walk every site at a steady pace; add free-text custom questions backed by an owner-key encrypted strings repository with usage counts and creation timestamps; add an active flag to answers so a choice can be deactivated (hidden on the public booking form, still shown for attendees who already selected it) rather than deleted; add public_booking_count and admin_booking_count plaintext columns to contact_preferences so booking history is split by source (online checkout vs admin manual add) and the keyless public booking paths can increment their count without the owner private key; add kek_version and invite_wrapped_data_key to users so wrapped_data_key is bound to a password-derived KEK (and invited users self-activate at /join), making attendee PII undecryptable from a database dump plus DB_ENCRYPTION_KEY alone; exclude no-quantity (quantity = 0) booking lines from listings.tickets_count by rebuilding the listing-aggregate triggers to count only quantity > 0 rows";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -106,8 +106,10 @@ export const SCHEMA: [name: string, table: Table][] = [
         // Precomputed aggregates over listing_attendees, maintained by the
         // LISTING_AGGREGATE_TRIGGERS so listing reads and the active-listing
         // stats never SUM/COUNT the listing_attendees table. booked_quantity
-        // is SUM(quantity), tickets_count is COUNT(*), income is
-        // SUM(price_paid) — all scoped to this listing.
+        // is SUM(quantity), income is SUM(price_paid), and tickets_count counts
+        // only real-ticket rows (quantity > 0 — the no-quantity sentinel,
+        // quantity = 0, keeps its link but is not a ticket) — see
+        // TICKET_COUNTS_PREDICATE. All scoped to this listing.
         ["booked_quantity", "INTEGER NOT NULL DEFAULT 0"],
         ["tickets_count", "INTEGER NOT NULL DEFAULT 0"],
         ["income", "INTEGER NOT NULL DEFAULT 0"],
@@ -805,6 +807,39 @@ export const LISTING_AGGREGATE_WRITE_COLUMNS = [
 ] as const;
 
 /**
+ * The predicate deciding whether a listing_attendees row counts toward
+ * listings.tickets_count. A quantity = 0 line is the "no quantity" sentinel — it
+ * keeps the attendee↔listing link but is not a ticket — so tickets_count counts
+ * only rows where quantity > 0. booked_quantity (SUM(quantity)) and income
+ * (SUM(price_paid)) already treat 0 correctly and must NOT use this predicate.
+ *
+ * Every site that computes tickets_count references this one constant so the
+ * rule cannot silently diverge (mirrors LISTING_AGGREGATE_WRITE_COLUMNS): the
+ * three triggers below, the two queries in listings.ts (reset + recalculation),
+ * the schema-sync backfill, and the hold-delete restore in attendees/delete.ts.
+ * A guard test asserts the predicate appears at every one of those sites.
+ */
+export const TICKET_COUNTS_PREDICATE = "quantity > 0";
+
+/**
+ * tickets_count as a COALESCE(SUM(CASE …)) over {@link TICKET_COUNTS_PREDICATE},
+ * for the recalculation/restore SELECTs that compute it in one pass alongside
+ * SUM(quantity)/SUM(price_paid). COALESCE because SUM over zero rows is NULL
+ * (unlike COUNT(*)'s 0), so an empty listing would otherwise report bogus drift
+ * against a stored 0.
+ */
+export const ticketCountSumExpr = (): string =>
+  `COALESCE(SUM(CASE WHEN ${TICKET_COUNTS_PREDICATE} THEN 1 ELSE 0 END), 0)`;
+
+/**
+ * The per-row delta a listing-aggregate trigger adds to / subtracts from
+ * tickets_count for a NEW/OLD row: +1 only when that row is a real ticket, so
+ * toggling a line 0↔n nets out correctly via the OLD/NEW deltas.
+ */
+const ticketCountTriggerDelta = (row: "NEW" | "OLD"): string =>
+  `CASE WHEN ${row}.${TICKET_COUNTS_PREDICATE} THEN 1 ELSE 0 END`;
+
+/**
  * Triggers that keep the listings aggregate columns (booked_quantity,
  * tickets_count, income) in lockstep with listing_attendees, so the hot
  * listing reads and the active-listing stats cost one row read instead of
@@ -829,7 +864,7 @@ FOR EACH ROW
 BEGIN
   UPDATE listings SET
     booked_quantity = booked_quantity + NEW.quantity,
-    tickets_count = tickets_count + 1,
+    tickets_count = tickets_count + ${ticketCountTriggerDelta("NEW")},
     income = income + NEW.price_paid
   WHERE id = NEW.listing_id;
 END`,
@@ -843,7 +878,7 @@ FOR EACH ROW
 BEGIN
   UPDATE listings SET
     booked_quantity = booked_quantity - OLD.quantity,
-    tickets_count = tickets_count - 1,
+    tickets_count = tickets_count - ${ticketCountTriggerDelta("OLD")},
     income = income - OLD.price_paid
   WHERE id = OLD.listing_id;
 END`,
@@ -857,12 +892,12 @@ FOR EACH ROW
 BEGIN
   UPDATE listings SET
     booked_quantity = booked_quantity - OLD.quantity,
-    tickets_count = tickets_count - 1,
+    tickets_count = tickets_count - ${ticketCountTriggerDelta("OLD")},
     income = income - OLD.price_paid
   WHERE id = OLD.listing_id;
   UPDATE listings SET
     booked_quantity = booked_quantity + NEW.quantity,
-    tickets_count = tickets_count + 1,
+    tickets_count = tickets_count + ${ticketCountTriggerDelta("NEW")},
     income = income + NEW.price_paid
   WHERE id = NEW.listing_id;
 END`,

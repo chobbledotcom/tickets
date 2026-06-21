@@ -28,7 +28,11 @@ import {
   encryptedNameSchema,
   idAndEncryptedSlugSchema,
 } from "#shared/db/common-schema.ts";
-import { LISTING_AGGREGATE_WRITE_COLUMNS } from "#shared/db/migrations/schema.ts";
+import {
+  LISTING_AGGREGATE_WRITE_COLUMNS,
+  TICKET_COUNTS_PREDICATE,
+  ticketCountSumExpr,
+} from "#shared/db/migrations/schema.ts";
 import { col } from "#shared/db/table.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
@@ -429,17 +433,27 @@ export type ListingAggregateRecalculation = Record<
   { current: number; recalculated: number }
 >;
 
+/**
+ * Recalculate every listing aggregate in one pass. tickets_count counts only
+ * quantity > 0 rows (see {@link TICKET_COUNTS_PREDICATE}), while booked_quantity
+ * and income sum over ALL rows — the shared WHERE must stay unfiltered so a
+ * quantity-0 row's price_paid still counts toward the recalculated income
+ * (surfacing any §1 invariant violation as drift instead of silently dropping
+ * it). Exported for the shared-predicate guard test.
+ */
+export const LISTING_AGGREGATE_RECALC_SQL = `SELECT
+       COALESCE(SUM(quantity), 0) AS booked_quantity,
+       ${ticketCountSumExpr()} AS tickets_count,
+       COALESCE(SUM(price_paid), 0) AS income
+     FROM listing_attendees
+     WHERE listing_id = ?`;
+
 /** The listing aggregate columns as they would be if rebuilt from attendee rows. */
 export const getListingAggregateRecalculation = async (
   listing: ListingWithCount,
 ): Promise<ListingAggregateRecalculation> => {
   const row = (await queryOne<ListingAggregateValues>(
-    `SELECT
-       COALESCE(SUM(quantity), 0) AS booked_quantity,
-       COUNT(*) AS tickets_count,
-       COALESCE(SUM(price_paid), 0) AS income
-     FROM listing_attendees
-     WHERE listing_id = ?`,
+    LISTING_AGGREGATE_RECALC_SQL,
     [listing.id],
   ))!;
   return {
@@ -466,13 +480,18 @@ export const updateListingAggregateValues = async (
   );
 };
 
-const aggregateResetSql: Record<ListingAggregateField, string> = {
+/**
+ * Per-field "rebuild this aggregate from attendee rows" fragments. Each is an
+ * independent subquery, so tickets_count adds the {@link TICKET_COUNTS_PREDICATE}
+ * to ITS OWN WHERE (excluding quantity-0 lines) without touching the
+ * booked_quantity/income sums. Exported for the shared-predicate guard test.
+ */
+export const aggregateResetSql: Record<ListingAggregateField, string> = {
   booked_quantity:
     "booked_quantity = COALESCE((SELECT SUM(quantity) FROM listing_attendees WHERE listing_id = ?), 0)",
   income:
     "income = COALESCE((SELECT SUM(price_paid) FROM listing_attendees WHERE listing_id = ?), 0)",
-  tickets_count:
-    "tickets_count = (SELECT COUNT(*) FROM listing_attendees WHERE listing_id = ?)",
+  tickets_count: `tickets_count = (SELECT COUNT(*) FROM listing_attendees WHERE listing_id = ? AND ${TICKET_COUNTS_PREDICATE})`,
 };
 
 /** Reset selected listing aggregate columns from actual attendee rows. */

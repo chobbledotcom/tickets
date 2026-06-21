@@ -42,8 +42,9 @@ describe("db > migrations > schema change guard", () => {
         "2026-06-20_answer_active",
         "2026-06-20_contact_booking_counts",
         "2026-06-20_user_kek_v2",
+        "2026-06-21_ticket_count_no_quantity",
       ],
-      schemaHash: "hxvtfp",
+      schemaHash: "15sxdiv",
     });
   });
 });

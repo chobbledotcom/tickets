@@ -7,6 +7,7 @@ import {
   type Index,
   SCHEMA,
   type Table,
+  TICKET_COUNTS_PREDICATE,
   TRIGGERS,
 } from "./schema.ts";
 import {
@@ -389,19 +390,22 @@ export const syncTriggers = async (): Promise<void> => {
 
 /**
  * Recompute the listings aggregate columns from listing_attendees in a single
- * statement. One-time on migration; afterwards the triggers keep them current.
- * Idempotent (absolute recompute, not a delta), so it's safe to re-run.
+ * statement. tickets_count counts only quantity > 0 rows (the no-quantity
+ * sentinel is not a ticket — see {@link TICKET_COUNTS_PREDICATE}); the
+ * booked_quantity/income sums stay over all rows. Exported for the
+ * shared-predicate guard test. One-time on migration; afterwards the triggers
+ * keep them current. Idempotent (absolute recompute, not a delta), so re-runs.
  */
-export const backfillListingAggregates = async (): Promise<void> => {
-  await getDb().execute(
-    `UPDATE listings SET
+export const BACKFILL_LISTING_AGGREGATES_SQL = `UPDATE listings SET
        booked_quantity = COALESCE(
          (SELECT SUM(quantity) FROM listing_attendees WHERE listing_id = listings.id), 0),
        tickets_count = COALESCE(
-         (SELECT COUNT(*) FROM listing_attendees WHERE listing_id = listings.id), 0),
+         (SELECT COUNT(*) FROM listing_attendees WHERE listing_id = listings.id AND ${TICKET_COUNTS_PREDICATE}), 0),
        income = COALESCE(
-         (SELECT SUM(price_paid) FROM listing_attendees WHERE listing_id = listings.id), 0)`,
-  );
+         (SELECT SUM(price_paid) FROM listing_attendees WHERE listing_id = listings.id), 0)`;
+
+export const backfillListingAggregates = async (): Promise<void> => {
+  await getDb().execute(BACKFILL_LISTING_AGGREGATES_SQL);
 };
 
 /**
