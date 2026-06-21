@@ -373,7 +373,17 @@ payment/refund fields are suppressed, so `refunded_amount` reads 0 there too.
 ### 8a. Payment details panel (primary surface) — `src/ui/templates/admin/attendees.tsx`
 
 In `PaymentDetails` (the read-only payment block on the attendee edit page),
-show the refunded amount next to the existing refund-status badge:
+show the refunded amount next to the existing refund-status badge.
+
+> **Multi-line caveat (review):** `attendee.refunded_amount` on this flattened
+> `Attendee` is **one booking line's** value — `getAttendeeRaw` is a `queryOne`
+> over a single `listing_attendees` row, not the order total. For an attendee
+> with several booking lines (and especially after the §10b fan-out), this panel
+> would **under-report** the total refund. Fix one of two ways: (a) sum
+> `refunded_amount` across the attendee's loaded booking rows for the headline
+> figure, or (b) move the amount into the per-line bookings table (§8d) so each
+> line shows its own. The headline "Amount Refunded" must be the **sum**, not a
+> single line.
 
 ```tsx
 <p>
@@ -572,12 +582,15 @@ There is currently **no per-line payment reference** (the `payment_id` lives
 attendee-level in the encrypted pii_blob), so the data needed to scope the
 fan-out correctly does not exist yet. Options, in rough order of correctness:
 
-- **(Best) Add a per-line payment/order marker.** Store the
-  payment reference (or an order/checkout id) on `listing_attendees` at creation,
-  so a refund can mark exactly the lines that share the refunded reference. This
-  is a second schema change — arguably the *right* foundation for refunds, but
-  larger scope; call it out as its own decision.
-- **Restrict refunds to order-level for un-merged attendees, and block/he-flag
+- **(Best) Add a per-line order marker — but NOT the raw payment reference
+  (review #3).** `listing_attendees` is a plaintext table that backups dump,
+  whereas the provider `payment_id` is deliberately kept in the *encrypted* PII
+  blob. Putting the raw reference here would leak it. Store a **non-sensitive
+  internal order/checkout id** (or an encrypted value with a blind index)
+  instead, captured at creation, so a refund can mark exactly the lines sharing
+  that order. This is a second schema change — arguably the *right* foundation
+  for refunds, but larger scope; call it out as its own decision.
+- **Restrict refunds to order-level for un-merged attendees, and block/flag
   refunds on merged attendees** until a per-line marker exists.
 - **Narrow predicate without new columns:** only fan out across lines that were
   not brought in by a merge — but there's no reliable flag for that today, so
@@ -586,10 +599,16 @@ fan-out correctly does not exist yet. Options, in rough order of correctness:
   the under-report, documented per §8.5 — the smallest scope, and honest if
   paired with the "approximate" labelling.
 
-Allocation (when a marker exists and option B is used): split the provider's
-returned total across the covered lines by `price_paid` weight using
-`allocateByLargestRemainder` (`checkout-pricing.ts`); under option A each covered
-line records its own `price_paid`.
+Allocation (when a marker exists): split the provider's returned total across the
+covered lines with `allocateByLargestRemainder` (`checkout-pricing.ts`) — **but
+not weighted by the current `price_paid` (review #2)**. For balance-paid
+reservations, `settleAttendeeBalance` folds the later balance payment into the
+earliest line's `price_paid`, so weighting by today's `price_paid` would shovel
+too much of the refund onto that line. The weight must be the **per-line amount
+that the refunded payment actually charged**, captured at checkout (the same
+per-line snapshot the order marker would carry) — not the mutated `price_paid`.
+This is another reason the per-line marker should record the charged amount, not
+just an id.
 
 **This is the one genuinely open design question in the feature** — it needs a
 decision (per-line marker vs. accept-and-document) before the fan-out is built.
@@ -827,20 +846,39 @@ explicitly. ⭕ = scope choices.
   Caveat: the backfill inherits the §8.5 inaccuracies (it uses `price_paid`, so
   fees are excluded and balance-paid reservations are over-stated) — but for
   *historical* rows the provider amount is not retrievable cheaply, so
-  `price_paid` is the best available estimate. The alternative is an explicit
-  "unknown" sentinel (e.g. leave a separate `refunded_amount_known` flag / use
-  `NULL`), but that complicates the `NOT NULL` column and every reader; the
-  pragmatic choice is the `price_paid` backfill **plus** the "approximate"
-  labelling from §8.5. Either way, **do not silently leave legacy rows at 0** —
-  that is the one option review explicitly flagged as wrong.
+  `price_paid` is the best available estimate. Either way, **do not silently
+  leave legacy rows at 0** — that is the one option review explicitly flagged as
+  wrong.
+- **Provenance — we can't tell exact from approximate rows (review).** Once the
+  column is just a number, three kinds of value are indistinguishable: provider-
+  exact (Stripe/Square new refunds), SumUp fallback (`price_paid`), and the
+  historical backfill (`price_paid`). If the UI/CSV shows a plain "Amount
+  Refunded", a fee/reservation backfill row looks as authoritative as an exact
+  one. Two ways to resolve, **decide explicitly**:
+  - **(a) Store provenance** — a small `refunded_amount_source` marker (e.g.
+    `'provider' | 'estimate'`) set when the row is written, so the UI can label
+    estimates and exact values differently. Cleanest; one extra small column.
+  - **(b) Label everything as approximate** — simplest, but loses the accuracy
+    win of option B for the rows that *are* exact.
+  Recommendation: (a) — it's cheap and preserves option B's value. (Note this is
+  a *different* flag from the abandoned `NOT NULL`/`NULL` "unknown" idea: the
+  amount stays a non-null integer; the marker only records how it was derived.)
 - **Unpaid listings**: `refunded_amount` suppressed to 0 alongside `refunded`
   (the `paidListing` gate in `pii.ts`).
-- **Balance-paid reservations (§8.5 case 2)**: refunding the stored deposit
-  `payment_id` returns only the deposit, but `price_paid` was inflated by
-  `settleAttendeeBalance`. Option B (chosen) records the provider's true deposit
-  refund, so this is correct going forward; only the historical *backfill* (which
-  must use the `price_paid` fallback) over-states it — hence the "approximate"
-  labelling above.
+- **Balance-paid reservations — the `refunded` *flag* is the real problem
+  (review).** Option B records the right *amount* (the provider's true deposit
+  refund), but `markRefunded` still sets `refunded = 1` on the line — and the
+  rest of the app reads that boolean as **fully refunded**: `checkin.ts:101`
+  filters out `!attendee.refunded` and shows "Cannot check in refunded tickets".
+  So refunding only the original deposit of a reservation whose balance was later
+  paid would record the correct (partial) amount **but wrongly mark the booking
+  fully refunded**, blocking check-in for someone who still paid most of the
+  order. Recording the amount accurately is *not* enough here. This path must
+  either be **excluded** (don't allow a deposit-only refund to flip `refunded`)
+  or modeled as a **partial refund** (a `refunded` state that means "partially
+  refunded, still valid" — i.e. the boolean is insufficient and may need to
+  become a status). **This is a real gap to resolve**, related to but separate
+  from the §10b fan-out; flag it as a decision, don't call it "correct".
 - **Free bookings** (`price_paid = 0`): refunding sets `refunded = 1`,
   `refunded_amount = 0` — correct (£0 refunded).
 - **Idempotency**: the write **copies** the recorded amount (the provider amount,
@@ -876,8 +914,16 @@ explicitly. ⭕ = scope choices.
       compatible, but callers do change (see §6).
 - [ ] `Attendee.refunded_amount` populated through **every** read path (§5a–5e,
       including `attendees-merge.ts` and `atomic-update.ts` loaders); type checks.
-- [ ] Amount shown in the admin payment details panel.
+- [ ] Amount shown in the admin payment details panel — as the **sum** across
+      the attendee's booking lines, not a single flattened row (§8a).
 - [ ] Merge loader+insert (§5c/§14) and CSV carry it.
+- [ ] **Provenance decided (§18):** add a `refunded_amount_source`
+      (provider/estimate) marker, or label all amounts approximate — so exact and
+      fallback rows aren't shown identically.
+- [ ] **Deposit-only / partial refunds decided (§18):** a deposit-only refund of
+      a balance-paid reservation must NOT flip the `refunded` boolean to "fully
+      refunded" (it blocks check-in — `checkin.ts:101`). Either exclude that path
+      or model partial refunds (the boolean may need to become a status).
 - [ ] **Amount source = option B (decided):** widen `refundPayment` **and**
       `isPaymentRefunded` across all 3 providers, stop the lower Stripe
       (`retrievePaymentIntent` narrowing) and Square (`square.ts`) layers
