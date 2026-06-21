@@ -75,12 +75,17 @@ const MultiBookingCheckbox = ({ e }: { e: ListingWithCount }): string =>
     </li>,
   );
 
-/** Multi-booking link builder section (only rendered when 2+ active listings) */
-const multiBookingSection = (activeListings: ListingWithCount[]): string => {
+/** Multi-booking link builder section (only rendered when 2+ selectable
+ * listings). The caller has already excluded children: a booking can't start
+ * from a child (invariant I3), so an operator must not be able to build a
+ * `/ticket/<…+child+…>` URL the server then rejects. */
+const multiBookingSection = (
+  selectableListings: ListingWithCount[],
+): string => {
   const checkboxes = pipe(
     map((e: ListingWithCount) => MultiBookingCheckbox({ e })),
     joinStrings,
-  )(activeListings);
+  )(selectableListings);
 
   return String(
     <details>
@@ -268,6 +273,7 @@ export const adminDashboardPage = (
   listingColumnTemplate?: string,
   activeType: ListingFilter = "all",
   upcomingHolidays: Holiday[] = [],
+  childIds: ReadonlySet<number> = new Set(),
 ): string => {
   const { columnKeys, filters } = resolveColumnLayout(
     listingColumnTemplate ?? "",
@@ -280,6 +286,12 @@ export const adminDashboardPage = (
   // (same control as the public/attendee filters) only when more than one
   // listing type is present.
   const activeListings = filter((e: ListingWithCount) => e.active)(listings);
+  // The multi-booking builder offers only standalone-bookable listings; a child
+  // is never an entry point (I3), so it is excluded from both the selectable set
+  // and the "2+ listings" gate that decides whether to show the builder at all.
+  const multiBookingListings = activeListings.filter(
+    (e) => !childIds.has(e.id),
+  );
   const categories = unique(listings.map(listingCategory));
   const shownListings = filterListingsByType(activeType)(activeListings);
   const typeFilterHtml =
@@ -316,8 +328,8 @@ export const adminDashboardPage = (
         <Raw html={upcomingHolidaysSection(upcomingHolidays)} />
       )}
 
-      {activeListings.length >= 2 && (
-        <Raw html={multiBookingSection(activeListings)} />
+      {multiBookingListings.length >= 2 && (
+        <Raw html={multiBookingSection(multiBookingListings)} />
       )}
 
       {newestAttendees.length > 0 && (

@@ -338,6 +338,11 @@ export type AdminListingPageOptions = {
   /** Whether any of the listing's attendees (across all dates) have an email
    * address — gates the owner-only "Email" action. */
   hasEmailableAttendees?: boolean;
+  /** Whether this listing is a child of another listing. A child has no
+   * standalone booking entry point (invariant I3), so the per-listing share
+   * generators (public URL / embed snippets / QR) are suppressed and the booking
+   * QR menu action is hidden — they would only publish a dead-end link. */
+  isChild?: boolean;
 };
 
 /** Top action nav for the listing detail page */
@@ -346,11 +351,13 @@ const ListingActionNav = ({
   hasPaidListing,
   isOwner,
   hasEmailableAttendees,
+  isChild,
 }: {
   listing: ListingWithCount;
   hasPaidListing: boolean;
   isOwner: boolean;
   hasEmailableAttendees: boolean;
+  isChild: boolean;
 }): JSX.Element => {
   const readOnly = isReadOnly();
   return (
@@ -385,7 +392,7 @@ const ListingActionNav = ({
             {t("terms.questions")}
           </a>
         </li>
-        {!readOnly && (
+        {!readOnly && !isChild && (
           <li>
             <a href={`/admin/listing/${listing.id}/qr`}>
               {t("listings_table.booking_qr")}
@@ -668,6 +675,7 @@ const ListingDetailsTable = ({
   completeQuantitySum,
   groupContext,
   sharedRowsHtml,
+  isChild,
 }: {
   listing: ListingWithCount;
   aggregateRecalculation?: ListingAggregateRecalculation;
@@ -682,6 +690,7 @@ const ListingDetailsTable = ({
   completeQuantitySum: number;
   groupContext: GroupContext | undefined;
   sharedRowsHtml: string;
+  isChild: boolean;
 }): JSX.Element => (
   <article>
     <div class="table-scroll">
@@ -762,30 +771,41 @@ const ListingDetailsTable = ({
               )}
             </td>
           </tr>
-          <tr>
-            <th>
-              <label for={`embed-toggle-${listing.id}`}>
-                {t("common.public_url")}
-                <span class="embed-toggle-badge">embed</span>
-              </label>
-            </th>
-            <td>
-              <input
-                class="visually-hidden listing-embed-toggle"
-                id={`embed-toggle-${listing.id}`}
-                type="checkbox"
-              />
-              <a href={ticketUrl}>
-                {`${allowedDomain}/ticket/${listing.slug}`}
-              </a>
-              <small>
-                {" "}
-                (
-                <a href={`/ticket/${listing.slug}/qr`}>{t("common.qr_code")}</a>
-                )
-              </small>
-            </td>
-          </tr>
+          {isChild ? (
+            <tr>
+              <th>{t("common.public_url")}</th>
+              <td>
+                <em>{t("listings_table.child_share_suppressed")}</em>
+              </td>
+            </tr>
+          ) : (
+            <tr>
+              <th>
+                <label for={`embed-toggle-${listing.id}`}>
+                  {t("common.public_url")}
+                  <span class="embed-toggle-badge">embed</span>
+                </label>
+              </th>
+              <td>
+                <input
+                  class="visually-hidden listing-embed-toggle"
+                  id={`embed-toggle-${listing.id}`}
+                  type="checkbox"
+                />
+                <a href={ticketUrl}>
+                  {`${allowedDomain}/ticket/${listing.slug}`}
+                </a>
+                <small>
+                  {" "}
+                  (
+                  <a href={`/ticket/${listing.slug}/qr`}>
+                    {t("common.qr_code")}
+                  </a>
+                  )
+                </small>
+              </td>
+            </tr>
+          )}
           {listing.thank_you_url && (
             <tr>
               <th>
@@ -822,38 +842,42 @@ const ListingDetailsTable = ({
               </td>
             </tr>
           )}
-          <tr class="listing-embed-row">
-            <th>
-              <label for={`embed-script-${listing.id}`}>
-                {t("common.embed_script")}
-              </label>
-            </th>
-            <td>
-              <input
-                data-select-on-click
-                id={`embed-script-${listing.id}`}
-                readonly
-                type="text"
-                value={embedScriptCode}
-              />
-            </td>
-          </tr>
-          <tr class="listing-embed-row">
-            <th>
-              <label for={`embed-iframe-${listing.id}`}>
-                {t("common.embed_iframe")}
-              </label>
-            </th>
-            <td>
-              <input
-                data-select-on-click
-                id={`embed-iframe-${listing.id}`}
-                readonly
-                type="text"
-                value={embedIframeCode}
-              />
-            </td>
-          </tr>
+          {!isChild && (
+            <tr class="listing-embed-row">
+              <th>
+                <label for={`embed-script-${listing.id}`}>
+                  {t("common.embed_script")}
+                </label>
+              </th>
+              <td>
+                <input
+                  data-select-on-click
+                  id={`embed-script-${listing.id}`}
+                  readonly
+                  type="text"
+                  value={embedScriptCode}
+                />
+              </td>
+            </tr>
+          )}
+          {!isChild && (
+            <tr class="listing-embed-row">
+              <th>
+                <label for={`embed-iframe-${listing.id}`}>
+                  {t("common.embed_iframe")}
+                </label>
+              </th>
+              <td>
+                <input
+                  data-select-on-click
+                  id={`embed-iframe-${listing.id}`}
+                  readonly
+                  type="text"
+                  value={embedIframeCode}
+                />
+              </td>
+            </tr>
+          )}
           <AttendeesSummaryRow
             adjustedCount={adjustedCount}
             completeQuantitySum={completeQuantitySum}
@@ -1117,6 +1141,7 @@ export const adminListingPage = ({
   questionData,
   groupContext,
   hasEmailableAttendees = false,
+  isChild = false,
 }: AdminListingPageOptions): string => {
   const ticketUrl = `https://${allowedDomain}/ticket/${listing.slug}`;
   const { script: embedScriptCode, iframe: embedIframeCode } =
@@ -1166,6 +1191,7 @@ export const adminListingPage = ({
       <ListingActionNav
         hasEmailableAttendees={hasEmailableAttendees}
         hasPaidListing={hasPaidListing}
+        isChild={isChild}
         isOwner={session.adminLevel === "owner"}
         listing={listing}
       />
@@ -1186,6 +1212,7 @@ export const adminListingPage = ({
         embedIframeCode={embedIframeCode}
         embedScriptCode={embedScriptCode}
         groupContext={groupContext}
+        isChild={isChild}
         isDaily={isDaily}
         listing={listing}
         sharedRowsHtml={renderDetailRows(sharedRows)}

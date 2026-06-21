@@ -15,6 +15,7 @@ import { generateQrSvg } from "#shared/qr.ts";
 import { successPage } from "#templates/payment.tsx";
 import { handleGroupTicketBySlug } from "./groups.ts";
 import { handleQrBookGet } from "./qr-book.ts";
+import { anyChildListing } from "./ticket-payment.ts";
 import { handleBySlugs } from "./ticket-submit.ts";
 import { parseSlugs } from "./types.ts";
 
@@ -76,6 +77,12 @@ export const handleTicketQrGet = async (
   { slug }: { slug: string },
 ): Promise<Response> => {
   const listing = await getListingWithCountBySlug(slug);
+  // A child has no standalone booking page (invariant I3), so its QR — which
+  // encodes `/ticket/<child>` — would be a dead end. Suppress it like the rest
+  // of the child's share affordances.
+  if (listing && (await anyChildListing([listing.id]))) {
+    return notFoundResponse();
+  }
   if (listing) return qrResponse(slug);
 
   const slugIndex = await computeGroupSlugIndex(slug);

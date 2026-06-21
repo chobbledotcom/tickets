@@ -10,7 +10,12 @@
 
 import { withEntityLoader } from "#routes/admin/entity-handlers.ts";
 import { requireSessionOr } from "#routes/auth.ts";
-import { htmlResponse, jsonResponse } from "#routes/response.ts";
+import { anyChildListing } from "#routes/public/ticket-payment.ts";
+import {
+  htmlResponse,
+  jsonResponse,
+  notFoundResponse,
+} from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
   createAuthedFormRoute,
@@ -52,6 +57,17 @@ const loadBookableDates = async (
 
 const withListing = withEntityLoader(getListingWithCount);
 
+/** Run `fn` only when `listing` is not a child of another listing; otherwise
+ * 404. A child has no standalone booking entry point (invariant I3), so its QR
+ * generator (which signs `/ticket/<child>/qr-book`) must not be reachable — the
+ * link would be a dead end. No query (never a child) when the parents feature is
+ * off, so existing behaviour is unchanged. */
+const unlessChild = async (
+  listing: ListingWithCount,
+  fn: () => Promise<Response>,
+): Promise<Response> =>
+  (await anyChildListing([listing.id])) ? notFoundResponse() : fn();
+
 /** Render the QR admin page; 404 when the listing is missing */
 const renderPage = (
   listingId: number,
@@ -59,22 +75,24 @@ const renderPage = (
   values: AdminListingQrValues,
   extras: { error?: string; result?: AdminListingQrResult } = {},
 ): Promise<Response> =>
-  withListing(listingId)(async (listing) => {
-    const [bookableDates, canDirectCheckout] = await Promise.all([
-      loadBookableDates(listing),
-      listingSupportsDirectCheckout(listing),
-    ]);
-    return htmlResponse(
-      adminListingQrPage({
-        bookableDates,
-        canDirectCheckout,
-        listing,
-        session,
-        values,
-        ...extras,
-      }),
-    );
-  });
+  withListing(listingId)((listing) =>
+    unlessChild(listing, async () => {
+      const [bookableDates, canDirectCheckout] = await Promise.all([
+        loadBookableDates(listing),
+        listingSupportsDirectCheckout(listing),
+      ]);
+      return htmlResponse(
+        adminListingQrPage({
+          bookableDates,
+          canDirectCheckout,
+          listing,
+          session,
+          values,
+          ...extras,
+        }),
+      );
+    }),
+  );
 
 /** GET /admin/listing/:id/qr */
 const handleGet: TypedRouteHandler<"GET /admin/listing/:id/qr"> = (
@@ -186,13 +204,14 @@ const generateAndRender = async (
   session: AdminSession,
   listing: ListingWithCount,
   values: AdminListingQrValues,
-): Promise<Response> => {
-  const result = await signAndRenderQr(
-    listing,
-    parsedFromValues(values, listing),
-  );
-  return renderPage(id, session, values, { result });
-};
+): Promise<Response> =>
+  unlessChild(listing, async () => {
+    const result = await signAndRenderQr(
+      listing,
+      parsedFromValues(values, listing),
+    );
+    return renderPage(id, session, values, { result });
+  });
 
 /** POST /admin/listing/:id/qr */
 const handlePost = createAuthedFormRoute<
@@ -220,18 +239,20 @@ const handleJsonGet: TypedRouteHandler<"GET /admin/listing/:id/qr.json"> = (
   { id },
 ) =>
   requireSessionOr(request, () =>
-    withListing(id)(async (listing) => {
-      const form = new FormParams(new URL(request.url).searchParams);
-      const result = createQrFormValidator(listing).validate(form);
-      if (!result.valid) {
-        return jsonResponse({ error: result.error, ok: false }, 400);
-      }
-      const qrResult = await signAndRenderQr(
-        listing,
-        parsedFromValues(result.values, listing),
-      );
-      return jsonResponse({ ok: true, ...qrResult });
-    }),
+    withListing(id)((listing) =>
+      unlessChild(listing, async () => {
+        const form = new FormParams(new URL(request.url).searchParams);
+        const result = createQrFormValidator(listing).validate(form);
+        if (!result.valid) {
+          return jsonResponse({ error: result.error, ok: false }, 400);
+        }
+        const qrResult = await signAndRenderQr(
+          listing,
+          parsedFromValues(result.values, listing),
+        );
+        return jsonResponse({ ok: true, ...qrResult });
+      }),
+    ),
   );
 
 /** Exported admin routes for the QR generator */

@@ -31,6 +31,7 @@ import {
   type PublicPageType,
   publicSitePage,
 } from "#templates/public.tsx";
+import { applyParentSoldOut, classifyForDiscovery } from "./discovery.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 
 /** Active+visible filter for public listing listings */
@@ -71,9 +72,20 @@ export const handlePublicListings = (): Response | Promise<Response> =>
       loadPublicGroups(),
       loadSortedListings(isPublicListing),
     ]);
-    const ticketListings = await buildTicketListingsWithGroupCapacity(listings);
+    // Parents with no bookable child read as sold out; a (visible) child keeps
+    // its card but loses its standalone Book CTA (invariants I3/I6).
+    const classification = await classifyForDiscovery(listings);
+    const ticketListings = applyParentSoldOut(
+      await buildTicketListingsWithGroupCapacity(listings),
+      classification,
+    );
     return htmlResponse(
-      homepagePage(ticketListings, settings.websiteTitle, groups),
+      homepagePage(
+        ticketListings,
+        settings.websiteTitle,
+        groups,
+        classification.childIds,
+      ),
     );
   });
 

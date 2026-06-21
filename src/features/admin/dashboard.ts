@@ -9,6 +9,7 @@ import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, redirectResponse } from "#routes/response.ts";
 /* jscpd:ignore-start */
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import { isListingParentsEnabled } from "#shared/config.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { getAllActivityLog, logActivity } from "#shared/db/activityLog.ts";
 import {
@@ -17,6 +18,7 @@ import {
   getNewestAttendeesRaw,
 } from "#shared/db/attendees.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
+import { getChildListingIds } from "#shared/db/listing-parents.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getFlash } from "#shared/flash-context.ts";
@@ -79,6 +81,11 @@ const handleAdminGet = (request: Request): Promise<Response> =>
       const sortedListings = sortListings(listings, holidays);
       const stats = await getActiveListingStats(sortedListings);
       const activeType = listingTypeFromRequest(request);
+      // Children are excluded from the multi-booking link builder (no booking
+      // can start from a child); no query when the feature is off.
+      const childIds = isListingParentsEnabled()
+        ? await getChildListingIds(sortedListings.map((l) => l.id))
+        : new Set<number>();
       return htmlResponse(
         adminDashboardPage(
           sortedListings,
@@ -90,6 +97,7 @@ const handleAdminGet = (request: Request): Promise<Response> =>
           settings.listingColumnOrder,
           activeType,
           holidays,
+          childIds,
         ),
       );
     },

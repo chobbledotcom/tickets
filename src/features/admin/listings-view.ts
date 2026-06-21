@@ -14,6 +14,7 @@ import {
   requirePrivateKey,
 } from "#routes/admin/actions.ts";
 import type { AuthSession } from "#routes/auth.ts";
+import { anyChildListing } from "#routes/public/ticket-payment.ts";
 import { htmlResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
@@ -186,14 +187,23 @@ const renderListingPage = async (
           filteredByDate,
         }) => {
           const attendeeIds = filteredByDate.map((a) => a.id);
-          const [flash, phonePrefix, questionData, groupContext, recalc] =
-            await Promise.all([
-              Promise.resolve(getFlash()),
-              Promise.resolve(settings.phonePrefix),
-              loadListingQuestionData(listing.id, attendeeIds, session),
-              loadGroupContext(listing, dateFilter),
-              getListingAggregateRecalculation(listing),
-            ]);
+          const [
+            flash,
+            phonePrefix,
+            questionData,
+            groupContext,
+            recalc,
+            isChild,
+          ] = await Promise.all([
+            Promise.resolve(getFlash()),
+            Promise.resolve(settings.phonePrefix),
+            loadListingQuestionData(listing.id, attendeeIds, session),
+            loadGroupContext(listing, dateFilter),
+            getListingAggregateRecalculation(listing),
+            // A child has no standalone share/QR affordance (invariant I3);
+            // `anyChildListing` no-ops (no query) when the feature is off.
+            anyChildListing([listing.id]),
+          ]);
           return htmlResponse(
             adminListingPage({
               activeFilter,
@@ -208,6 +218,7 @@ const renderListingPage = async (
               // Emailing a listing targets every attendee across all dates, so
               // gate the action on the full set, not the date-filtered view.
               hasEmailableAttendees: attendees.some((a) => a.email !== ""),
+              isChild,
               listing,
               phonePrefix,
               questionData,

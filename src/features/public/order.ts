@@ -25,7 +25,8 @@ import { settings } from "#shared/db/settings.ts";
 import { SELECT_PREFIX } from "#shared/order-select.ts";
 import { loadSortedListings } from "#shared/sort-listings.ts";
 import type { ListingWithCount } from "#shared/types.ts";
-import { orderGalleryPage } from "#templates/public.tsx";
+import { orderGalleryPage, type TicketListing } from "#templates/public.tsx";
+import { applyParentSoldOut, classifyForDiscovery } from "./discovery.ts";
 import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 
 /** Active, visible listings are the items offered on the order page. */
@@ -48,15 +49,16 @@ const orderUnavailable = (): Response | null => {
 };
 
 /**
- * Build the booking-page URL for the selected items: every chosen item becomes
- * a slug (so sold-out picks still show on the booking page), and each item that
- * is actually available is pre-filled to quantity 1 via `?q_<id>=1` — this is
- * the "verify availability" step.
+ * Build the booking-page URL for the already-classified gallery cards: every
+ * chosen item becomes a slug (so sold-out picks still show on the booking page),
+ * and each item that is actually available is pre-filled to quantity 1 via
+ * `?q_<id>=1` — this is the "verify availability" step. A parent projected to
+ * sold-out (no bookable child) is therefore listed as a slug but never
+ * pre-filled, so the redirect can't start a booking the gate rejects.
  */
-const bookingUrlFor = async (selected: ListingWithCount[]): Promise<string> => {
-  const ticketListings = await buildTicketListingsWithGroupCapacity(selected);
-  const slugs = ticketListings.map((t) => t.listing.slug);
-  const quantities = ticketListings
+const bookingUrlFor = (selected: TicketListing[]): string => {
+  const slugs = selected.map((t) => t.listing.slug);
+  const quantities = selected
     .filter((t) => !t.isSoldOut && !t.isClosed && t.maxPurchasable >= 1)
     .map((t) => `q_${t.listing.id}=1`);
   const query = quantities.length > 0 ? `?${quantities.join("&")}` : "";
@@ -66,21 +68,33 @@ const bookingUrlFor = async (selected: ListingWithCount[]): Promise<string> => {
 /**
  * GET /order — render the gallery, or (when the cart carried a selection)
  * redirect into the pre-filled multi-listing booking page.
+ *
+ * Children are never offered as selectable gallery items (a booking can't start
+ * from a child — invariant I3), so the redirect can only ever contain parents
+ * and ordinary listings; a parent with no bookable child is projected to
+ * sold-out (I6) so it renders dimmed and is never pre-filled with a quantity.
  */
 const handleOrder = async (request: Request): Promise<Response> => {
   const blocked = orderUnavailable();
   if (blocked) return blocked;
 
   const listings = await loadOrderListings();
+  const classification = await classifyForDiscovery(listings);
+  // Drop children entirely (not selectable), then build cards and project
+  // child-derived sold-out onto the surviving parents.
+  const offered = listings.filter((e) => !classification.childIds.has(e.id));
+  const ticketListings = applyParentSoldOut(
+    await buildTicketListingsWithGroupCapacity(offered),
+    classification,
+  );
   const params = new URL(request.url).searchParams;
-  const selected = listings.filter(
-    (e) => params.get(`${SELECT_PREFIX}${e.id}`) === "1",
+  const selected = ticketListings.filter(
+    (t) => params.get(`${SELECT_PREFIX}${t.listing.id}`) === "1",
   );
   if (selected.length > 0) {
-    return redirectResponse(await bookingUrlFor(selected));
+    return redirectResponse(bookingUrlFor(selected));
   }
 
-  const ticketListings = await buildTicketListingsWithGroupCapacity(listings);
   return htmlResponse(
     orderGalleryPage(
       ticketListings,

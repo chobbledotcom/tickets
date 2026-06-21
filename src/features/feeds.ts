@@ -6,6 +6,7 @@
 import { map, pipe } from "#fp";
 import { getPrivateKey, withAuth } from "#routes/auth.ts";
 import { isRegistrationClosed } from "#routes/format.ts";
+import { classifyForDiscovery } from "#routes/public/discovery.ts";
 import {
   icsResponse,
   redirectResponse,
@@ -57,15 +58,21 @@ const formatRfc822 = (dateStr: string): string =>
 /** Feed context: listings, domain, and title loaded in parallel */
 type FeedData = { listings: ListingWithCount[]; domain: string; title: string };
 
-/** Load feed data: active open listings with domain and title */
+/** Load feed data: active open listings with domain and title. Children are
+ * never syndicated (a feed item is a standalone `/ticket/<slug>` link, which a
+ * booking can't start from — invariant I3), and a parent with no bookable child
+ * is omitted (it would publish a link the gate rejects as sold out — I6). */
 const loadFeedData = async (): Promise<FeedData> => {
   const { listings } = await loadSortedListings(
     (e) =>
       e.active && !e.hidden && !e.purchase_only && !isRegistrationClosed(e),
   );
+  const { childIds, soldOutParentIds } = await classifyForDiscovery(listings);
   return {
     domain: getEffectiveDomain(),
-    listings,
+    listings: listings.filter(
+      (e) => !childIds.has(e.id) && !soldOutParentIds.has(e.id),
+    ),
     title: settings.websiteTitle || "Listings",
   };
 };

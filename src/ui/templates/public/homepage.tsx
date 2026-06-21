@@ -13,33 +13,50 @@ import {
   type TicketListing,
 } from "./shared.tsx";
 
-/** Render a single listing listing for the listings page */
-const renderListingListing = (info: TicketListing): string => {
+/** Booking CTA / status line for a public listing card. A child listing
+ * (`isChild`) is never standalone-bookable (invariant I3), so its Book/Buy
+ * button is replaced with an "available as an add-on" note rather than a link to
+ * the dead-end child page. */
+const renderListingCardCta = (
+  info: TicketListing,
+  isChild: boolean,
+): string => {
   const { listing, isSoldOut, isClosed } = info;
-  const dateHtml = listing.date
-    ? `<p><em>${escapeHtml(formatDatetimeLabel(listing.date))}</em></p>`
-    : "";
-  const locationHtml = listing.location
-    ? `<p><strong>${escapeHtml(listing.location)}</strong></p>`
-    : "";
-  const descriptionHtml = listing.description
-    ? renderMarkdown(listing.description)
-    : "";
+  if (isChild) {
+    return `<p><em>${t("public.available_with_other")}</em></p>`;
+  }
+  if (isSoldOut) return `<p><strong>${t("public.sold_out")}</strong></p>`;
+  if (isClosed || isReadOnly()) {
+    return `<p><strong>${t("public.registration_closed")}</strong></p>`;
+  }
   const bookLabel = listing.purchase_only
     ? t("public.buy_now")
     : t("public.book_now");
-  const linkHtml = isSoldOut
-    ? `<p><strong>${t("public.sold_out")}</strong></p>`
-    : isClosed || isReadOnly()
-      ? `<p><strong>${t("public.registration_closed")}</strong></p>`
-      : `<p><a class="btn" href="/ticket/${escapeHtml(
-          listing.slug,
-        )}">${bookLabel}</a></p>`;
-
-  return `<div class="prose"><h2>${escapeHtml(
-    listing.name,
-  )}</h2>${dateHtml}${locationHtml}${descriptionHtml}</div>${linkHtml}`;
+  return `<p><a class="btn" href="/ticket/${escapeHtml(
+    listing.slug,
+  )}">${bookLabel}</a></p>`;
 };
+
+/** Render a single listing listing for the listings page */
+const renderListingListing =
+  (childIds: ReadonlySet<number>) =>
+  (info: TicketListing): string => {
+    const { listing } = info;
+    const dateHtml = listing.date
+      ? `<p><em>${escapeHtml(formatDatetimeLabel(listing.date))}</em></p>`
+      : "";
+    const locationHtml = listing.location
+      ? `<p><strong>${escapeHtml(listing.location)}</strong></p>`
+      : "";
+    const descriptionHtml = listing.description
+      ? renderMarkdown(listing.description)
+      : "";
+    const linkHtml = renderListingCardCta(info, childIds.has(listing.id));
+
+    return `<div class="prose"><h2>${escapeHtml(
+      listing.name,
+    )}</h2>${dateHtml}${locationHtml}${descriptionHtml}</div>${linkHtml}`;
+  };
 
 /** Render a single group listing for the listings page (same style as listings) */
 const renderGroupListing = (group: Group): string => {
@@ -64,6 +81,7 @@ export const homepagePage = (
   listings: TicketListing[],
   websiteTitle: string | null | undefined,
   groups: Group[],
+  childIds: ReadonlySet<number> = new Set(),
 ): string => {
   const listingsTitle = t("terms.listings");
   const title = websiteTitle
@@ -91,8 +109,9 @@ export const homepagePage = (
     rows.join(""),
   )(groups);
 
-  const listingListings = pipe(map(renderListingListing), (rows: string[]) =>
-    rows.join(""),
+  const listingListings = pipe(
+    map(renderListingListing(childIds)),
+    (rows: string[]) => rows.join(""),
   )(listings);
 
   return String(
