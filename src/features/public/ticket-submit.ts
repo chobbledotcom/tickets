@@ -607,7 +607,7 @@ const prepareOrder = async (
   // Fold each in-cart parent's selected child into the order: expand the listing
   // set + quantity/custom-price maps + selected ids, so every per-listing path
   // below sees children as ordinary lines (parents.md fold checklist).
-  const fold = foldSelectedChildren(ctx, form, {
+  const fold = await foldSelectedChildren(ctx, form, {
     customPrices: customPricesResult,
     date,
     dayCount: dayResult.dayCount,

@@ -534,3 +534,61 @@ describeWithEnv("qr-book scan handler", { db: true }, () => {
     });
   });
 });
+
+describeWithEnv(
+  "qr-book scan handler > parent gate (flag on)",
+  { db: true, env: { LISTING_PARENTS_ENABLED: "true" } },
+  () => {
+    test("a parent with required children renders the form (never skips to checkout)", async () => {
+      const { setChildIds } = await import("#shared/db/listing-parents.ts");
+      const parent = await createTestListing({
+        fields: "",
+        maxAttendees: 10,
+        unitPrice: 500,
+      });
+      const child = await createTestListing({
+        maxAttendees: 10,
+        name: "Add-on",
+        unitPrice: 0,
+      });
+      await setChildIds(parent.id, [child.id]);
+
+      const token = await signQrBookToken(
+        parent.slug,
+        buildQrBookPayload({ name: "Ada", value: 1000 }),
+      );
+      const stripe = stubStripe();
+      try {
+        const response = await awaitTestRequest(qrBookPath(parent.slug, token));
+        // The child gate forces the form path so prepareOrder can fold the child.
+        expect(response.status).toBe(200);
+        expect(stripe.checkoutStub.calls.length).toBe(0);
+      } finally {
+        stripe.restore();
+      }
+    });
+
+    test("a childless listing's QR still skips straight to checkout", async () => {
+      const listing = await createTestListing({
+        fields: "",
+        maxAttendees: 10,
+        unitPrice: 500,
+      });
+      const token = await signQrBookToken(
+        listing.slug,
+        buildQrBookPayload({ name: "Ada", value: 1000 }),
+      );
+      const stripe = stubStripe();
+      try {
+        const response = await awaitTestRequest(
+          qrBookPath(listing.slug, token),
+        );
+        expect(response.status).toBe(302);
+        expect(response.headers.get("location")).toContain("stripe.example");
+        expect(stripe.checkoutStub.calls.length).toBe(1);
+      } finally {
+        stripe.restore();
+      }
+    });
+  },
+);

@@ -29,6 +29,7 @@ import {
   isPaidListing,
   type ListingFields,
   type ListingWithCount,
+  normalizeDurationDays,
 } from "#shared/types.ts";
 import { getTicketFields, mergeListingFields } from "#templates/fields.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
@@ -361,14 +362,55 @@ const childQuestionsToRender = (
     return !ids || ids.includes(childId);
   });
 
+/** The duration a customisable child inherits at no-JS render, or null when the
+ * parent is itself customisable (the buyer hasn't yet chosen a day count, so
+ * there is no single render-time duration). Mirrors `parentResolvedDuration`:
+ * a fixed daily parent supplies its `duration_days`, a standard parent 1. */
+const parentRenderDuration = (parent: ListingWithCount): number | null => {
+  if (parent.customisable_days) return null;
+  return parent.listing_type === "daily"
+    ? normalizeDurationDays(parent.duration_days)
+    : 1;
+};
+
+/** The price shown in a child option's label. A customisable child is priced by
+ * the inherited duration (NOT its `unit_price`, which is 0 for a free-input
+ * customisable listing and would advertise "free" while checkout charges the day
+ * price): the fixed inherited day price under a fixed-duration parent, or "from
+ * <min day price>" under a customisable parent (no single duration yet). A
+ * fixed-price child shows its `unit_price` unchanged. The price is omitted when
+ * the child has no price for the inherited/min span (defensive — admin blocks
+ * such edges). */
+const childPriceLabel = (
+  child: ListingWithCount,
+  parent: ListingWithCount,
+): string => {
+  if (!child.customisable_days) {
+    return `(${formatCurrency(child.unit_price)})`;
+  }
+  const duration = parentRenderDuration(parent);
+  // A fixed-duration parent prices the child at the inherited duration; a
+  // customisable parent has no single duration, so use the child's lowest span.
+  // A valid customisable child always offers at least one count, so the lowest
+  // span exists; `dayPriceFor` returns null for any out-of-range span, which we
+  // render as no price (defensive — admin blocks an unpriced inherited span).
+  const span = duration ?? availableDayCounts(child)[0]!;
+  const price = dayPriceFor(child, span);
+  if (price === null) return "";
+  return duration === null
+    ? t("public.ticket.child_from_price", { price: formatCurrency(price) })
+    : `(${formatCurrency(price)})`;
+};
+
 /** Render one child <option> as a radio in the per-parent selector, plus — when
  * it is the (currently) chosen/auto-selected option — its non-required pay-more
  * price input. A sold-out/closed child renders disabled (invariant I6). */
 const renderChildOption = (
-  parentId: number,
+  parent: ListingWithCount,
   child: TicketListing,
   checked: boolean,
 ): string => {
+  const parentId = parent.id;
   const { listing } = child;
   const bookable = childBookable(child);
   const saved = savedFormValue(`child_${parentId}`);
@@ -379,7 +421,7 @@ const renderChildOption = (
       ? renderPayMoreInput(listing, `child_price_${parentId}_${listing.id}`)
       : "";
   const label = bookable
-    ? `${escapeHtml(listing.name)} (${formatCurrency(listing.unit_price)})`
+    ? `${escapeHtml(listing.name)} ${childPriceLabel(listing, parent)}`.trim()
     : escapeHtml(t("public.ticket.child_unavailable", { name: listing.name }));
   return (
     `<label class="child-option">` +
@@ -398,17 +440,17 @@ const renderChildOption = (
  * an in-cart parent (invariant I9).
  */
 const renderChildBlock = (
-  parentId: number,
-  parentName: string,
+  parent: ListingWithCount,
   ctx: ChildRenderCtx,
 ): string => {
+  const parentId = parent.id;
   const children = ctx.children.get(parentId);
   if (!children || children.length === 0) return "";
   const bookable = children.filter(childBookable);
   const autoChild = bookable.length === 1 ? bookable[0]!.listing.id : null;
   const options = children
     .map((child) =>
-      renderChildOption(parentId, child, child.listing.id === autoChild),
+      renderChildOption(parent, child, child.listing.id === autoChild),
     )
     .join("");
   const questionsHtml = children
@@ -430,7 +472,7 @@ const renderChildBlock = (
     .join("");
   return (
     `<fieldset class="child-selector" data-parent-id="${parentId}">` +
-    `<legend>${escapeHtml(t("public.ticket.choose_option", { name: parentName }))}</legend>` +
+    `<legend>${escapeHtml(t("public.ticket.choose_option", { name: parent.name }))}</legend>` +
     `${options}${questionsHtml}</fieldset>`
   );
 };
@@ -480,9 +522,7 @@ const renderListingRow = (
   const showPayMore = listing.can_pay_more;
   const priceFieldName = `custom_price_${listing.id}`;
   const prefilledPrice = prefill ? prefill.customPriceMinor : undefined;
-  const childBlock = childCtx
-    ? renderChildBlock(listing.id, listing.name, childCtx)
-    : "";
+  const childBlock = childCtx ? renderChildBlock(listing, childCtx) : "";
 
   return `
     <div class="ticket-row">
@@ -520,9 +560,7 @@ const renderSingleListingControls = (
       )}</select></label>`;
   const showPayMore = listing.can_pay_more;
   const priceFieldName = `custom_price_${listing.id}`;
-  const childBlock = childCtx
-    ? renderChildBlock(listing.id, listing.name, childCtx)
-    : "";
+  const childBlock = childCtx ? renderChildBlock(listing, childCtx) : "";
   return `${quantityHtml}${
     showPayMore
       ? renderPayMoreInput(listing, priceFieldName, prefilledPrice)
@@ -535,6 +573,43 @@ const renderSingleListingControls = (
  */
 const getTicketFieldsSetting = (listings: TicketListing[]): ListingFields =>
   mergeListingFields(listings.map((e) => e.listing.fields));
+
+/**
+ * The contact fields rendered on the booking form: every page listing's fields
+ * (required, as today) PLUS any extra field a possible child requires. A child
+ * with stricter `fields` than its parent (e.g. parent collects email, child also
+ * wants phone/address) is validated server-side for the *selected* child via the
+ * folded ctx, but the buyer must SEE that field to fill it — so it is rendered
+ * here, NON-required (mirroring the provider-email/`anyPaid` handling), since an
+ * unselected child or a zero-quantity parent must not block submission. The
+ * always-present name field and the page fields keep their `required` flag.
+ */
+const buildContactFields = (
+  listings: TicketListing[],
+  childrenByParentId: Map<number, TicketListing[]> | undefined,
+  pagePaid: boolean,
+  anyPaid: boolean,
+): Field[] => {
+  const pageSetting = getTicketFieldsSetting(listings);
+  const children = childrenByParentId
+    ? [...childrenByParentId.values()].flat()
+    : [];
+  const childSetting = mergeListingFields(
+    children.map((e) => e.listing.fields),
+  );
+  const mergedSetting = mergeListingFields([pageSetting, childSetting]);
+  // The provider-imposed paid email (added by getTicketFields when paid) is a
+  // required page field only when the PAGE itself is paid; a free page with a
+  // paid child renders email non-required (enforced server-side once the folded
+  // order is actually paid). So `pageNames` uses `pagePaid`, the rendered set
+  // uses `anyPaid` (so the email is present at all).
+  const pageNames = new Set<string>(
+    getTicketFields(pageSetting, pagePaid).map((f) => f.name),
+  );
+  return getTicketFields(mergedSetting, anyPaid).map((f) =>
+    pageNames.has(f.name) ? f : { ...f, required: false },
+  );
+};
 
 /**
  * Context-neutral pre-fill for the booking page: per-listing quantities (and
@@ -841,6 +916,15 @@ const splitChildQuestions = (
   };
 };
 
+/** Whether the page itself (its listings or add-ons, NOT possible children) is
+ * paid — so its provider-imposed email renders required. */
+const pagePaid = (
+  listings: TicketListing[],
+  addOns: AddOnOption[] | undefined,
+): boolean =>
+  listings.some((e) => isPaidListing(e.listing)) ||
+  (addOns?.some((addOn) => addOn.requiresPayment) ?? false);
+
 /** Whether the contact-field set must include a paid order's provider-imposed
  * fields: any page listing, any possible child, or any add-on is paid. A free
  * parent with a paid child still needs the email field present (non-required,
@@ -854,9 +938,7 @@ const pageOrChildPaid = (
     ? [...childrenByParentId.values()].flat()
     : [];
   return (
-    listings.some((e) => isPaidListing(e.listing)) ||
-    children.some((e) => isPaidListing(e.listing)) ||
-    (addOns?.some((addOn) => addOn.requiresPayment) ?? false)
+    pagePaid(listings, addOns) || children.some((e) => isPaidListing(e.listing))
   );
 };
 
@@ -913,9 +995,10 @@ export const ticketPage = ({
   const inIframe = getIframeMode();
   const allUnavailable = listings.every((e) => e.isSoldOut || e.isClosed);
   const allClosed = listings.every((e) => e.isClosed);
-  const fieldsSetting = getTicketFieldsSetting(listings);
-  const fields: Field[] = getTicketFields(
-    fieldsSetting,
+  const fields: Field[] = buildContactFields(
+    listings,
+    childrenByParentId,
+    pagePaid(listings, addOns),
     pageOrChildPaid(listings, childrenByParentId, addOns),
   );
   const hasDaily = listings.some((e) => e.listing.listing_type === "daily");

@@ -46,6 +46,7 @@ import {
   type ContactInfo,
   dayPriceFor,
   type Group,
+  type Holiday,
   normalizeDurationDays,
 } from "#shared/types.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
@@ -291,14 +292,52 @@ const parentResolvedDuration = (
   return 1;
 };
 
-/** A child is bookable now if it is not sold out or closed, and — when
- * customisable — its inherited duration is priced. Date-capacity for a daily
- * child is enforced later by the folded `checkAvailability` (never clamped). */
-const childIsBookable = (child: TicketListing, duration: number): boolean =>
+/** Whether the order's resolved `date` is a valid start for a daily child's own
+ * calendar at the inherited `duration` — a daily child can have different
+ * bookable weekdays / windows / holidays than its parent, and `checkAvailability`
+ * only checks capacity, never the child's own bookable dates (parents.md fold
+ * checklist "Validate the child's own bookable DATE"). A standard (dateless)
+ * child has no date constraint of its own. Uses the SAME validity the booking
+ * page uses: a customisable child validates the full span with
+ * {@link isBookingRangeValid}; a fixed daily child validates the start against
+ * {@link getBookableStartDates}. */
+const childDateIsBookable = (
+  child: TicketListing,
+  duration: number,
+  date: string | null,
+  holidays: Holiday[],
+): boolean => {
+  if (child.listing.listing_type !== "daily") return true;
+  if (!date) return false;
+  return child.listing.customisable_days
+    ? isBookingRangeValid(child.listing, date, duration, holidays)
+    : getBookableStartDates(child.listing, holidays).includes(date);
+};
+
+/** Parameters for the child-bookability test: the candidate child plus the order
+ * context it must be bookable against (inherited duration, resolved date, active
+ * holidays). */
+type ChildBookableCtx = {
+  duration: number;
+  date: string | null;
+  holidays: Holiday[];
+};
+
+/** A child is bookable now if it is active, not sold out or closed, — when
+ * customisable — its inherited duration is priced, and — when daily — the
+ * resolved order date is within its own bookable start dates for the inherited
+ * duration. Date-capacity for a daily child is enforced later by the folded
+ * `checkAvailability` (never clamped). */
+const childIsBookable = (
+  child: TicketListing,
+  { duration, date, holidays }: ChildBookableCtx,
+): boolean =>
+  child.listing.active &&
   !child.isSoldOut &&
   !child.isClosed &&
   (!child.listing.customisable_days ||
-    dayPriceFor(child.listing, duration) !== null);
+    dayPriceFor(child.listing, duration) !== null) &&
+  childDateIsBookable(child, duration, date, holidays);
 
 /** The order's listing set, quantity map, custom-price map and selected ids,
  * expanded with the chosen children. Shared by the mutable fold accumulator and
@@ -444,9 +483,13 @@ const foldParent = (
   children: TicketListing[],
   form: FormParams,
   dayCount: number,
+  date: string | null,
+  holidays: Holiday[],
 ): string | null => {
   const duration = parentResolvedDuration(parent.listing, dayCount);
-  const bookable = children.filter((c) => childIsBookable(c, duration));
+  const bookable = children.filter((c) =>
+    childIsBookable(c, { date, duration, holidays }),
+  );
   const chosen = resolveChosenChild(parent, bookable, form);
   if ("error" in chosen) return chosen.error;
   const price = childCustomPrice(parent.listing.id, chosen, form);
@@ -465,7 +508,7 @@ const foldParent = (
  * fields under a zero-quantity parent are ignored, not read. No-op when the
  * flag is off / no parents apply.
  */
-export const foldSelectedChildren = (
+export const foldSelectedChildren = async (
   ctx: TicketCtx,
   form: FormParams,
   base: {
@@ -475,7 +518,7 @@ export const foldSelectedChildren = (
     dayCount: number;
     hasCustomisable: boolean;
   },
-): FoldChildrenResult => {
+): Promise<FoldChildrenResult> => {
   const state: FoldState = {
     customisableDuration: null,
     customPrices: new Map(base.customPrices),
@@ -488,11 +531,15 @@ export const foldSelectedChildren = (
   // folded customisable child whose inherited duration differs is then rejected.
   if (base.hasCustomisable) state.customisableDuration = base.dayCount;
 
+  // Daily children validate the resolved order date against their own calendar,
+  // so fetch the active holidays once and share them across every parent fold.
+  let holidays: Holiday[] | null = null;
   for (const parent of ctx.listings) {
     const parentQty = base.quantities.get(parent.listing.id) ?? 0;
     if (parentQty <= 0) continue;
     const children = ctx.childrenByParentId.get(parent.listing.id);
     if (!children || children.length === 0) continue;
+    holidays ??= await getActiveHolidays();
     const error = foldParent(
       state,
       parent,
@@ -500,6 +547,8 @@ export const foldSelectedChildren = (
       children,
       form,
       base.dayCount,
+      base.date,
+      holidays,
     );
     if (error) return { error, ok: false };
   }

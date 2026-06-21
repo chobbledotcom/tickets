@@ -31,6 +31,7 @@
   "public.ticket.no_dates_available": "No dates are currently available for booking.",
   "public.ticket.number_of_tickets": "Number of Tickets",
   "public.ticket.choose_option": "Choose an option for {name}",
+  "public.ticket.child_from_price": "(from {price})",
   "public.ticket.child_required": "Please choose an option for {name}.",
   "public.ticket.child_sold_out": "{name} has no available options right now.",
   "public.ticket.child_unavailable": "{name} (unavailable)",

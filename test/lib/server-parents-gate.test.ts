@@ -11,6 +11,7 @@ import {
 import {
   createDailyTestListing,
   createTestListing,
+  deactivateTestListing,
   describeWithEnv,
   expectFlash,
   getTicketCsrfToken,
@@ -639,6 +640,263 @@ describeWithEnv(
       expect(res.headers.get("location")).toBe(
         "https://example.com/thanks-parent",
       );
+    });
+
+    test("an inactive child makes its parent sold out (rejected)", async () => {
+      const parent = await createTestListing({ name: "Base unit" });
+      const child = await createTestListing({ name: "Add-on" });
+      await setChildIds(parent.id, [child.id]);
+      // Deactivating the only child leaves the parent with no bookable child.
+      await deactivateTestListing(child.id);
+
+      const res = await postBooking(parent.slug, {
+        email: "a@b.com",
+        name: "Ada",
+        [`quantity_${parent.id}`]: "1",
+      });
+      expect(res.status).toBe(302);
+      expectFlash(res, "Base unit has no available options right now.", false);
+      expect((await getAttendeesRaw(parent.id)).length).toBe(0);
+    });
+
+    test("an inactive child is skipped, leaving an active sibling to fold", async () => {
+      const parent = await createTestListing({
+        name: "Base unit",
+        thankYouUrl: "",
+      });
+      const dead = await createTestListing({ name: "Dead add-on" });
+      const live = await createTestListing({
+        name: "Live add-on",
+        thankYouUrl: "",
+      });
+      await setChildIds(parent.id, [dead.id, live.id]);
+      await deactivateTestListing(dead.id);
+
+      // With the inactive child skipped, the live sibling is the sole bookable
+      // child and auto-selects.
+      const res = await postBooking(parent.slug, {
+        email: "a@b.com",
+        name: "Ada",
+        [`quantity_${parent.id}`]: "1",
+      });
+      expectReserved(res);
+      expect((await getAttendeesRaw(live.id)).length).toBe(1);
+      expect((await getAttendeesRaw(dead.id)).length).toBe(0);
+    });
+
+    test("a daily child whose calendar excludes the submitted date is rejected", async () => {
+      const { DAY_NAMES, getBookableStartDates } = await import(
+        "#shared/dates.ts"
+      );
+      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
+      const { getListingWithCount } = await import("#shared/db/listings.ts");
+
+      const parent = await createDailyTestListing({ name: "Daily base" });
+      const parentRow = (await getListingWithCount(parent.id))!;
+      const holidays = await getActiveHolidays();
+      const parentDate = getBookableStartDates(parentRow, holidays)[0]!;
+      const parentDay =
+        DAY_NAMES[new Date(`${parentDate}T00:00:00Z`).getUTCDay()]!;
+      // A daily child bookable on every weekday EXCEPT the parent's date day, so
+      // the parent's date is not in the child's own calendar.
+      const child = await createDailyTestListing({
+        bookableDays: DAY_NAMES.filter((d) => d !== parentDay),
+        name: "Daily add-on",
+      });
+      await setChildIds(parent.id, [child.id]);
+
+      const res = await postBooking(parent.slug, {
+        date: parentDate,
+        email: "a@b.com",
+        name: "Ada",
+        [`quantity_${parent.id}`]: "1",
+      });
+      expect(res.status).toBe(302);
+      expectFlash(res, "Daily base has no available options right now.", false);
+      expect((await getAttendeesRaw(parent.id)).length).toBe(0);
+    });
+
+    test("a daily child that allows the submitted date folds fine", async () => {
+      const { getBookableStartDates } = await import("#shared/dates.ts");
+      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
+      const { getListingWithCount } = await import("#shared/db/listings.ts");
+
+      const parent = await createDailyTestListing({
+        name: "Daily base",
+        thankYouUrl: "",
+      });
+      // The child shares the parent's full (every-day) calendar.
+      const child = await createDailyTestListing({
+        name: "Daily add-on",
+        thankYouUrl: "",
+      });
+      await setChildIds(parent.id, [child.id]);
+
+      const parentRow = (await getListingWithCount(parent.id))!;
+      const date = getBookableStartDates(
+        parentRow,
+        await getActiveHolidays(),
+      )[0]!;
+
+      const res = await postBooking(parent.slug, {
+        date,
+        email: "a@b.com",
+        name: "Ada",
+        [`quantity_${parent.id}`]: "1",
+      });
+      expectReserved(res);
+      expect((await getAttendeesRaw(child.id)).length).toBe(1);
+    });
+
+    test("a customisable child's option label shows the inherited day price, not its unit_price", async () => {
+      // A fixed-duration (standard) parent inherits duration 1; the customisable
+      // child's label must show its 1-day price (10.00), never its unit_price
+      // (0, which would advertise "free" while checkout charges the day price).
+      const parent = await createTestListing({ name: "Base unit" });
+      const child = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 1000 },
+        durationDays: 1,
+        maxPrice: 0,
+        name: "Customisable add-on",
+        unitPrice: 0,
+      });
+      await setChildIds(parent.id, [child.id]);
+
+      const html = await ticketPageHtml(parent.slug);
+      // The option label carries the day price, not "£0".
+      expect(html).toContain("Customisable add-on (£10");
+      expect(html).not.toContain("Customisable add-on (£0");
+    });
+
+    test("a customisable child under a customisable parent shows a 'from' price", async () => {
+      // A customisable parent has no single render-time duration, so its
+      // customisable child's label shows "from <min day price>" (15.00).
+      const parent = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 1000, 2: 1800 },
+        durationDays: 2,
+        name: "Customisable base",
+      });
+      const child = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 1500, 2: 2500 },
+        durationDays: 2,
+        maxPrice: 0,
+        name: "Customisable add-on",
+        unitPrice: 0,
+      });
+      await setChildIds(parent.id, [child.id]);
+
+      const html = await ticketPageHtml(parent.slug);
+      expect(html).toContain("Customisable add-on (from £15");
+    });
+
+    test("a customisable child unpriced for a fixed parent's duration shows no price", async () => {
+      // The fixed daily parent inherits duration 3, but the child has no 3-day
+      // price — the label omits the price rather than advertising a wrong one.
+      const parent = await createDailyTestListing({
+        durationDays: 3,
+        name: "3-day base",
+      });
+      const child = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 2: 2000 },
+        durationDays: 2,
+        maxPrice: 0,
+        name: "Two-day add-on",
+        unitPrice: 0,
+      });
+      await setChildIds(parent.id, [child.id]);
+
+      const html = await ticketPageHtml(parent.slug);
+      // The option appears with no price suffix (no "(£" after the name).
+      expect(html).toContain("Two-day add-on");
+      expect(html).not.toContain("Two-day add-on (£");
+      expect(html).not.toContain("Two-day add-on (from");
+    });
+
+    test("a daily child under a dateless (standard) parent is rejected", async () => {
+      // The standard parent produces no date, so a daily child can never be
+      // dated — the parent is treated as sold out (defensive: admin blocks this
+      // edge, but the gate must not fold a child onto a null date).
+      const parent = await createTestListing({ name: "Standard base" });
+      const child = await createDailyTestListing({ name: "Daily add-on" });
+      await setChildIds(parent.id, [child.id]);
+
+      const res = await postBooking(parent.slug, {
+        email: "a@b.com",
+        name: "Ada",
+        [`quantity_${parent.id}`]: "1",
+      });
+      expect(res.status).toBe(302);
+      expectFlash(
+        res,
+        "Standard base has no available options right now.",
+        false,
+      );
+      expect((await getAttendeesRaw(parent.id)).length).toBe(0);
+    });
+
+    test("a customisable daily child validates its inherited span against its calendar", async () => {
+      // A daily parent with a customisable daily child: the child folds only when
+      // its inherited multi-day span is bookable on its own calendar.
+      const parent = await createDailyTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 1000, 2: 1800 },
+        durationDays: 2,
+        name: "Daily base",
+        thankYouUrl: "",
+      });
+      const child = await createDailyTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 1500, 2: 2500 },
+        durationDays: 2,
+        maxPrice: 0,
+        name: "Daily add-on",
+        thankYouUrl: "",
+        unitPrice: 0,
+      });
+      await setChildIds(parent.id, [child.id]);
+
+      const { getBookableStartDates } = await import("#shared/dates.ts");
+      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
+      const { getListingWithCount } = await import("#shared/db/listings.ts");
+      const parentRow = (await getListingWithCount(parent.id))!;
+      const date = getBookableStartDates(
+        parentRow,
+        await getActiveHolidays(),
+      )[0]!;
+
+      const res = await postBooking(parent.slug, {
+        date,
+        day_count: "2",
+        email: "a@b.com",
+        name: "Ada",
+        [`quantity_${parent.id}`]: "1",
+      });
+      expectReserved(res);
+      expect((await getAttendeesRaw(child.id)).length).toBe(1);
+    });
+
+    test("a child's stricter contact field is rendered (non-required) on the parent page", async () => {
+      // Parent collects only email; the child also requires phone. The buyer must
+      // SEE the phone field to fill it, but it renders non-required (server-side
+      // validation is authoritative for the selected child).
+      const parent = await createTestListing({
+        fields: "email",
+        name: "Base unit",
+      });
+      const child = await createTestListing({
+        fields: "email,phone",
+        name: "Add-on",
+      });
+      await setChildIds(parent.id, [child.id]);
+
+      const html = await ticketPageHtml(parent.slug);
+      expect(html).toContain('name="phone"');
+      // The child-only field is present but not HTML-required.
+      expect(html).not.toMatch(/name="phone"[^>]*\srequired/);
     });
   },
 );

@@ -9,9 +9,11 @@
 
 import { isRegistrationClosed } from "#routes/format.ts";
 import { htmlResponse } from "#routes/response.ts";
+import { isListingParentsEnabled } from "#shared/config.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
 import { getGroupRemainingForListing } from "#shared/db/attendees/capacity.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
+import { getChildIds } from "#shared/db/listing-parents.ts";
 import { getListingWithCountBySlug } from "#shared/db/listings.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { listingSupportsDirectCheckout } from "#shared/qr.ts";
@@ -120,6 +122,13 @@ const skipToCheckout = (
   );
 };
 
+/** Whether the scanned parent has any required child, so its QR must NOT skip
+ * straight to checkout (which would build parent-only metadata that omits the
+ * required child). Falling back to the form runs `prepareOrder`, which folds the
+ * child in (parents.md QR entry-point). No-op (no query) unless the flag is on. */
+const parentHasChildren = async (listing: ListingWithCount): Promise<boolean> =>
+  isListingParentsEnabled() && (await getChildIds(listing.id)).length > 0;
+
 /** Once the token is verified and the listing loaded, render or redirect */
 const dispatchVerified = async (
   request: Request,
@@ -134,7 +143,10 @@ const dispatchVerified = async (
   ) {
     return errorResponse(slug, 400);
   }
-  if (await canSkipToCheckout(listing, payload)) {
+  if (
+    !(await parentHasChildren(listing)) &&
+    (await canSkipToCheckout(listing, payload))
+  ) {
     return skipToCheckout(request, listing, payload);
   }
   const ticketListing = buildTicketListing(
