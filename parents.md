@@ -310,7 +310,14 @@ client scripts). The child selector should:
   child question. Resolve it by **rendering every child's questions in the no-JS
   baseline** (always in the DOM, optionally hidden via a **CSS-only reveal** tied
   to the per-parent child selector), and at submit **reading answers only for the
-  child that was actually chosen**. No JS and no extra round-trip required.
+  child that was actually chosen**. **Crucially, child questions must not carry the
+  HTML `required` attribute.** The existing question renderer emits `required`
+  controls for every question, and a **CSS-only reveal does not disable HTML
+  constraint validation** — so a hidden-but-`required` question for an *unselected*
+  child would block a no-JS buyer from submitting at all. Render child questions
+  **non-required in markup** and enforce requiredness **server-side, only for the
+  chosen child**. (JS enhancement may re-add `required` to the selected child's
+  questions for inline feedback.)
 - Be **enhanced with JS** to (a) reveal each parent's child block (selector + its
   date/questions) only when the parent quantity > 0, (b) mark the required child
   fields required, and (c) include selected children in the live `/calculate`
@@ -328,14 +335,28 @@ In `prepareOrder` (`ticket-submit.ts`), after `parseQuantities`:
    (and `child_date_<parentId>_<childId>` for daily children). **Only a positive
    quantity counts as a selection** — a child named with a blank/zero quantity is
    *not* selected, so it can never satisfy the rule while contributing no line.
+   **Ignore (or reject with a clear error) any `child_<parentId>_*` field whose
+   parent is not itself in the cart** (`quantity_<parentId>` is 0). A stale or
+   hand-crafted submit can post a child quantity under a zero-quantity parent;
+   without this guard the fold would either silently drop it or, worse, book a
+   child with no parent. Child subfields are only meaningful for parents already in
+   the cart from step 1.
 4. **Also count any child the buyer already has as a normal in-cart line.** The
    booking page accepts multi-listing URLs (`/ticket/<parent>+<child>`) and
    order-prefill quantities, so a buyer can arrive with a parent *and* one of its
    children already selected as ordinary rows. A standalone in-cart line for an
-   eligible child **satisfies** that parent's requirement — do not reject it or
-   force a second parent-scoped pick. (Alternative, if we'd rather keep the model
-   simple: explicitly forbid parent+child in the same URL. Decide — Open Question
-   13.)
+   eligible child **satisfies** that parent's requirement. **But a single standalone
+   child line cannot satisfy *two* parents.** A `quantity_<childId>` row has no
+   parent-scoped assignment, so on `/ticket/P1+P2+C` (where C is a child of both)
+   counting it for both P1 and P2 lets one line satisfy two independent
+   requirements, while folding it into both aggregates would double-charge. So we
+   need an explicit rule, decided up front: either (i) a standalone child line
+   satisfies **at most one** parent (assign it deterministically, e.g. first parent
+   by id, and require a per-parent `child_*` selection for the rest), or (ii)
+   **forbid a standalone child row when more than one in-cart parent claims it**
+   (force the per-parent selectors instead). The simplest overall is (iii)
+   **explicitly forbid parent+child in the same URL**, which removes the standalone
+   case entirely. Decide — Open Question 13.
 5. **Reject** if the rule isn't satisfied (none selected / too few / too many),
    with a message naming the parent. Use `REGISTRATION_CLOSED_SUBMIT_MESSAGE`'s
    sibling pattern for messaging.
@@ -589,6 +610,15 @@ Enumerate each and decide:
 - **Negative paths**: parent without child rejected with the right message and
   form re-fill; capacity exceeded on child; child sold out blocks parent.
 - **API / admin add**: enforce-or-skip behaviour matches the decisions taken.
+- **QR direct-checkout**: a parent reached via `handleQrBookGet` → `skipToCheckout`
+  exercises the chosen decision — either it falls back to the form (no
+  single-item parent checkout is created) or the in-QR gate rejects a parent
+  without a child. Add the test matching whichever decision ships, plus a test that
+  the QR price override is **not** applied to folded children.
+- **No-JS / hostile input**: a hidden unselected child's question does not block
+  submit (no `required` in markup); a `child_<parentId>_*` field under a
+  zero-quantity parent is ignored/rejected; a shared standalone child line cannot
+  satisfy two parents or double-charge.
 - Give every branch a direct in-process unit test (not just incidental e2e
   coverage), per the AGENTS.md note on deterministic coverage.
 
@@ -654,9 +684,12 @@ direct-checkout paths** — so the API/QR decisions move **into the enforcement 
     public index, or is that left to the existing `hidden` flag? (Note: `hidden`
     must *not* make a child unselectable under its parent — see Edge cases.)
 13. **Parent + child in the same URL/cart** — let an existing in-cart child line
-    (e.g. `/ticket/<parent>+<child>`) satisfy the parent's requirement
-    (recommended) vs explicitly forbid parent+child URLs to keep the gate's input
-    single-sourced?
+    satisfy the parent's requirement, vs forbid parent+child URLs (recommended,
+    keeps the gate's input single-sourced)? If we allow it, we must also resolve
+    the **shared standalone child** case: on `/ticket/P1+P2+C` a single `C` line
+    has no parent assignment, so define whether it satisfies at most one parent
+    (deterministic assignment) or is forbidden when multiple in-cart parents claim
+    it — otherwise one line can satisfy two requirements or be double-charged.
 14. **Child dates & the paid round-trip** — daily children need per-child date
     controls (not the shared `computeSharedDates` selector, which intersects all
     children's ranges). But `CheckoutIntent` carries a single order-level date and
