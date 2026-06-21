@@ -91,7 +91,9 @@ const handleBalancePost = (
           feeSubtotal: 0,
           items: [
             {
-              listingId: summary.lines[0]?.listingId ?? 0,
+              // withOutstanding refuses an attendee with no real line, so the
+              // order summary always has at least one (real) line here.
+              listingId: summary.lines[0]!.listingId,
               name: "Remaining balance",
               quantity: 1,
               slug: "balance",
