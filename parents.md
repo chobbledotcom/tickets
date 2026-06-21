@@ -46,6 +46,25 @@ be read in this light (they resolve several of the original open questions):
      child** listings, explaining that although the listing is hidden from search
      engines and the main site, **it will still be shown during booking** when the
      buyer has to choose between it and another child.
+- **Child quantity follows the parent.** If the buyer hires **2 of the base unit**,
+  they get **2 of the add-on** — the child line's quantity is **slaved to the
+  parent's quantity**, not chosen independently. (Resolves Open Question 4.)
+- **Child always inherits the parent's date and duration.** The add-on never has
+  its own date or day-count; it uses the **base unit's** date/duration. This means
+  no per-child date controls and no separate child date in the payment round-trip —
+  the child simply rides the order's date. (Resolves Open Questions 14 and 17.)
+- **Add-ons can be "pay what you want".** A child may be `can_pay_more`, so the
+  booking page must render the child's **custom-price input** and the gate must
+  collect it. (Resolves Open Question 15.)
+- **Parents are bookable through every channel a normal listing is** — website
+  form, multi-item URL, gallery/order page, **JSON API**, and **QR quick-buy**. So
+  no channel may simply "block" a parent: each must **enforce the gate *and* let
+  the buyer supply the child**. In practice the single-child auto-select makes the
+  common base-unit-plus-one-add-on case work everywhere with no extra interaction;
+  channels that can't show a chooser (QR skip-to-checkout) must **fall back to the
+  form when the parent has more than one child**, and the **API contract gains
+  child selections** so a parent can be booked programmatically. (Resolves Open
+  Questions 9 and 10.)
 
 ---
 
@@ -330,22 +349,22 @@ When the booking page renders a listing that has children, render each child as 
 - Extend `TicketCtx` (`types.ts:13-35`) with the parent→children mapping for the
   listings on the page, and load children in the context provider alongside
   questions/add-ons.
-- **Field shape — one field carries both choice and quantity, namespaced per
-  parent.** Use `child_<parentId>_<childId>` whose *value is the quantity* (blank
-  or `0` = not chosen). Do **not** use a separate `child_of_<parentId>` selector
-  plus a shared `quantity_<childId>`: that split is ambiguous when two parents pick
-  the same child (you can't tell whether `quantity_C=1` means one total or one per
-  parent) and lets a buyer "select" a child while leaving its quantity zero. With
-  one per-parent quantity field, the per-parent requirement and the fold are both
-  computed from the same numbers.
-- **Child dates must be per-child, not the shared selector.** The page's shared
-  date control feeds `computeSharedDates`, which **intersects** the bookable dates
-  of *every* daily listing it receives. If we drop all of a parent's daily
-  children into that set, their date ranges intersect *before* the buyer picks one,
-  so a parent can look like it has no available dates even though each child is
-  bookable on its own day. So daily children need their **own** per-child date
-  control (`child_date_<parentId>_<childId>`) evaluated independently — do not feed
-  unselected children into `computeSharedDates`.
+- **Field shape — a per-parent child *selector*, namespaced per parent.** Because
+  the rule is "exactly one child per parent" and the child quantity is **derived
+  from the parent** (not chosen), the control is a simple per-parent radio
+  `child_<parentId>` whose value is the chosen **child id** (server-side
+  auto-filled when the parent has a single child). It is namespaced per parent so
+  two in-cart parents never share a field. A `can_pay_more` child adds
+  `child_price_<parentId>` for its pay-what-you-want amount. (No per-child quantity
+  field — it's `quantity_<parentId>`; no per-child date field — it's inherited.)
+- **Child dates: inherited from the parent (resolved).** The add-on always uses the
+  **base unit's** date and duration, so there are **no per-child date controls** at
+  all — the child is not fed into `computeSharedDates`, and at fold time it takes
+  the parent line's `date`/`durationDays`. This sidesteps the date-intersection and
+  paid-round-trip problems entirely (a daily child simply rides the order's date).
+  The only constraint: the child must actually be **bookable on the parent's
+  chosen date** (capacity/closed checks still run for that date) — if it isn't,
+  treat it like an unavailable child (block, per the "no bookable children" rule).
 - **Child questions** must be merged into `questionListingMap` with the **correct
   shape**: it is `Map<questionId, listingId[]>` (`questions.ts:361`), read by
   `prepareOrder` as `ctx.questionListingMap.get(q.id)` — *keyed by question id*, not
@@ -380,16 +399,13 @@ client scripts). The child selector should:
   **non-required in markup** and enforce requiredness **server-side, only for the
   chosen child**. (JS enhancement may re-add `required` to the selected child's
   questions for inline feedback.)
-- **The same no-`required` rule applies to *all* child controls, not just
-  questions.** The existing renderers emit HTML `required`: `renderDateSelector`
-  produces a required `<select name="date">`, and `renderPayMoreInput` adds
-  `required` whenever the minimum price is above zero
-  (`reservations.tsx:71,150`). If every possible child's date / pay-more-price
-  controls are rendered in the no-JS baseline, an *unselected* child's
-  hidden-but-required input blocks the browser from submitting. So
-  `child_date_<parentId>_<childId>` and the child pay-more price input must also be
-  **non-required in markup**, with requiredness enforced **server-side for the
-  selected child only**.
+- **The same no-`required` rule applies to the child pay-more price input.**
+  `renderPayMoreInput` adds `required` whenever the minimum price is above zero
+  (`reservations.tsx:150`). A `can_pay_more` child's price input rendered for an
+  *unselected* child would block a no-JS submit, so it must be **non-required in
+  markup**, with the price required **server-side only when that child is the
+  chosen one**. (There is no child *date* control to worry about — children inherit
+  the parent's date.)
 - Be **enhanced with JS** to (a) reveal each parent's child block (selector + its
   date/questions/price) only when the parent quantity > 0, (b) re-add `required` to
   the selected child's fields, and (c) include selected children in the live
@@ -406,10 +422,13 @@ In `prepareOrder` (`ticket-submit.ts`), after `parseQuantities`:
    the parent has **only one** bookable child, the server treats it as
    **auto-selected** (the buyer need not have ticked anything) — so a single-child
    parent never blocks checkout, but the child is still folded in as a line.
-3. Read the buyer's per-parent child quantities from `child_<parentId>_<childId>`
-   (and `child_date_<parentId>_<childId>` for daily children). **Only a positive
-   quantity counts as a selection** — a child named with a blank/zero quantity is
-   *not* selected, so it can never satisfy the rule while contributing no line.
+3. Read each parent's **child selection** from a per-parent selector
+   `child_<parentId>` (a radio — exactly one child id, since the rule is "one per
+   parent"; auto-filled server-side when there's a single child). The chosen
+   child's **quantity is derived from the parent's quantity** (not submitted), and
+   its **date/duration is inherited from the parent**. A `can_pay_more` child also
+   carries `child_price_<parentId>`. A selector naming a child that isn't actually a
+   child of that parent, or a price for a non-pay-more child, is rejected.
    **Ignore (or reject with a clear error) any `child_<parentId>_*` field whose
    parent is not itself in the cart** (`quantity_<parentId>` is 0). A stale or
    hand-crafted submit can post a child quantity under a zero-quantity parent;
@@ -469,17 +488,13 @@ The expanded set (parent page listings ∪ selected children) must drive **all**
   unselected children's fields required. So `fields` needs the **same
   selected-child / no-JS rule as questions**: render all children's contact fields
   in the baseline, but only require/validate the chosen child's.
-- **Custom (pay-more) price** — for a `can_pay_more` child the submit path expects
-  `custom_price_<childId>` (`ticket-submit.ts:145`). The child controls must
-  include the custom-price input, or we **explicitly disallow pay-more children**
-  in v1. Otherwise a pay-more child fails with a missing price (or is silently
-  charged its base price). **If the same pay-more child is selectable under two
-  parents**, the shared `custom_price_<childId>` name would render *twice* (one
-  duplicate input per parent) for a single folded line, and the parser's
-  `form.get(...)` keeps only one value — so either render a **single shared price
-  input per folded child**, or **namespace the price per parent**
-  (`custom_price_<parentId>_<childId>`) and define how the two prices merge before
-  aggregation (e.g. take the max, or reject a mismatch). (Open Question 15.)
+- **Custom (pay-more) price** — ✅ supported (Open Question 15). A `can_pay_more`
+  child renders a per-parent price input `child_price_<parentId>`, and the fold
+  feeds that amount into the child line where the submit path would otherwise read
+  `custom_price_<childId>` (`ticket-submit.ts:145`). Because shared children are
+  disallowed (Q8 default), there is no two-parents-one-child price-merge problem:
+  each chosen child belongs to exactly one parent, so its price comes from that
+  parent's `child_price_<parentId>`.
 - **Optional add-ons** — `getOptionalAddOns(listingIds)` (`ticket-payment.ts:375`)
   is scoped to the listing ids. Add-ons scoped *only* to a child won't load if we
   pass just the parent page ids; loading add-ons for *every* possible child lets a
@@ -511,43 +526,26 @@ The expanded set (parent page listings ∪ selected children) must drive **all**
   folded child is in the **answer map, selected ids, *and* quantity map** before
   that call. Fold children into all three (not just `quantities`), or a parent+child
   order records the child's answer while skipping its modifier's surcharge/stock.
-- **Customisable-day children** — the page renders a single `day_count` selector
-  from `sharedDayCounts(ctx.listings)` and submit rejects a selected
-  customisable-days listing that lacks it via `resolveDayCount(selected, form,
-  date)` (`ticket-submit.ts:602`, `ticket-payment.ts:234`). An implicit child kept
-  out of the listing set has no selector; feeding *all* children into
-  `sharedDayCounts` intersects unselected children's day-count options (the same
-  failure mode as dates). So a customisable-days child needs a **child-scoped
-  day-count input** (`child_days_<parentId>_<childId>`), or we **explicitly
-  disallow customisable-days children** in v1. (Open Question 17.)
+- **Customisable-day children** — ✅ resolved by the "inherit duration" decision: a
+  customisable-days child takes the **parent's** `day_count` rather than rendering
+  its own selector (Open Question 17). So at fold time the child's duration is the
+  parent line's duration; it is never fed into `sharedDayCounts`. The child's
+  `day_prices` are still applied to that inherited day-count when pricing the line.
 
 ### Pricing & payment round-trip
 
 - Because children become ordinary `items[]`, `priceCheckout`
   (`checkout-pricing.ts`) and the provider metadata packing handle the extra lines
   without structural change — they already price arbitrary multi-line orders.
-- **Per-child dates do not survive the paid round-trip as-is.** This is the one
-  place the "child is just a normal line" framing breaks: `CheckoutIntent` carries
-  a **single order-level `date`/`dayCount`**, the compact `BookingItem`s store only
-  listing id / quantity / price, and the webhook calls
-  `bookingDateFields(listing, intent.date, intent.dayCount)` **per item**
-  (`src/features/api/webhooks.ts:783`). So a paid parent order whose child sits on
-  a *different* day than the order-level date would book the child on the wrong
-  day. Two resolutions (Open Question 14):
-  - **Restrict child dates to the order/shared date** in v1 (simplest — a daily
-    child must be booked on the same date as the rest of the order), or
-  - **Add per-line date/duration** to `BookingItem`, the metadata packing, and
-    webhook reconstruction (larger change; needed only if independent child dates
-    are a real requirement).
-  - **The "restrict to shared date" option has a sharp corner: a *standard*
-    (non-daily) parent produces no shared date at all** — the page's date list is
-    computed from the parent listings, so an undated parent leaves
-    `CheckoutIntent.date` null while the webhook applies that single (null) date to
-    every item. A daily child under such a parent then has nowhere to carry its
-    date. So v1 must **also forbid daily children under parents that don't already
-    produce a shared date** (i.e. only allow a daily child when the parent is itself
-    daily / contributes to the shared date), unless we take the per-line-date route.
-    (Open Question 14.)
+- **Child dates ride the order date (resolved — no round-trip problem).** Because
+  the child **inherits the parent's date/duration** (Open Question 14, resolved),
+  it uses the same order-level `CheckoutIntent.date`/`dayCount` the webhook already
+  applies per item (`bookingDateFields`, `webhooks.ts:783`). There is no per-child
+  date to lose, so the "child is just a normal line" framing holds for dates. The
+  only requirement is that the chosen child is bookable on the parent's date
+  (checked at submit). *(Historical note: an earlier draft proposed per-child date
+  controls, which created an intersection + round-trip problem; the inherit-date
+  decision removed it.)*
 - The `/calculate` quote must include selected children; it shares the
   `prepareOrder` path, so the fold + listing-set expansion there covers it.
 - The **webhook** reconstructs the booking from `CheckoutIntent` metadata. Since
@@ -644,11 +642,11 @@ Enumerate each and decide:
   (b) show it with a "currently unavailable" note. Recommended: treat "no bookable
   children" the same as "parent sold out" and block, with a clear message. (Open
   Question 5.)
-- **Quantity coupling.** If the buyer takes 3 of a parent, must they take 3
-  children? Options: (i) child quantity independent (default), (ii) total child
-  quantity must equal parent quantity, (iii) one child *type* but matching
-  quantity. Recommended default: **independent** (simplest, and a "pick one of"
-  rule reads as a type choice, not a quantity match). (Open Question 4.)
+- **Quantity coupling.** ✅ Resolved: the child quantity **follows the parent** —
+  the buyer picks the child *type*, and its quantity is set to the parent's
+  quantity (3 base units ⇒ 3 add-ons). The child quantity is therefore **derived,
+  not an independent input**; the gate computes it from the parent line. (Open
+  Question 4.)
 - **Shared child across multiple in-cart parents.** If parents P1 and P2 both have
   child C and both are in the cart, the per-parent field shape
   (`child_<parentId>_<childId>`) keeps each requirement independent by default
@@ -797,8 +795,8 @@ direct-checkout paths** — so the API/QR decisions move **into the enforcement 
 3. **Nesting / cycles** — single-level bipartite only (recommended, no recursion)
    or allow children that are themselves parents (needs cycle detection + fixpoint
    gate)?
-4. **Quantity coupling** — child quantity independent of parent quantity
-   (recommended) vs must-match?
+4. **Quantity coupling** — ✅ **RESOLVED:** child quantity **follows the parent**
+   (2 base units ⇒ 2 add-ons). See Confirmed behaviour.
 5. **No bookable children** — block the parent (recommended) vs show parent with
    an unavailable note?
 6. **Groups interaction** — can a parent/child also be group members? The group
@@ -813,13 +811,12 @@ direct-checkout paths** — so the API/QR decisions move **into the enforcement 
    booking shape can't store duplicate `(listing_id, date)` lines.) If aggregating,
    also decide how the child's **per-instance inputs** (price, date, day-count,
    answers) merge — or disallow aggregating a child that carries any.
-9. **API bookings** — `processBooking` is single-listing today, so enforcing the
-   gate requires either **extending the API/`processBooking` contract to carry
-   child selections** (parents bookable via API) or **making parent listings
-   website-only for the API** with a clear error. Which?
-10. **QR direct-checkout** — for a parent reached via a signed QR link, **disable
-    the form-skip and fall back to the form** (recommended) vs **run the gate in
-    the QR path** before creating the session?
+9. **API bookings** — ✅ **RESOLVED:** parents are bookable via the API, so the
+   API/`processBooking` contract is **extended to carry child selections** (not
+   website-only). See Confirmed behaviour.
+10. **QR direct-checkout** — ✅ **RESOLVED:** parents are bookable via QR. With a
+    single child the auto-select lets skip-to-checkout proceed; with multiple
+    children the QR path **falls back to the form** so the child can be chosen.
 11. **Child pricing** — ✅ **RESOLVED:** children are charged at their own
     `unit_price` (the add-on's price); no "included/free with parent" notion in v1.
 12. **Public discoverability** — ✅ **RESOLVED:** being a child does **not**
@@ -834,26 +831,18 @@ direct-checkout paths** — so the API/QR decisions move **into the enforcement 
     has no parent assignment, so define whether it satisfies at most one parent
     (deterministic assignment) or is forbidden when multiple in-cart parents claim
     it — otherwise one line can satisfy two requirements or be double-charged.
-14. **Child dates & the paid round-trip** — daily children need per-child date
-    controls (not the shared `computeSharedDates` selector, which intersects all
-    children's ranges). But `CheckoutIntent` carries a single order-level date and
-    the webhook applies it per item, so independent child dates don't survive a
-    paid order. Resolve by either **restricting a child's date to the order/shared
-    date** (recommended for v1) or **adding per-line date/duration** to
-    `BookingItem` + metadata + webhook reconstruction. If we restrict, we must
-    **also forbid daily children under parents that produce no shared date** (e.g. a
-    standard, undated parent) — there'd be nowhere to carry the child's date.
-15. **Pay-more children** — include a `custom_price_<childId>` input so
-    `can_pay_more` children work (recommended) vs **disallow pay-more children** in
-    v1? If included, also decide the **shared-child price**: one shared input per
-    folded child, or per-parent `custom_price_<parentId>_<childId>` with a defined
-    merge rule.
+14. **Child dates & the paid round-trip** — ✅ **RESOLVED:** the child **inherits
+    the parent's date and duration**, so there are no per-child date controls and
+    nothing extra to carry through the payment round-trip. See Confirmed behaviour.
+15. **Pay-more children** — ✅ **RESOLVED:** add-ons **can** be `can_pay_more`, so
+    the child's custom-price input is rendered and collected. (The shared-child
+    price-merge corner is moot because shared children are disallowed — Q8 default.)
 16. **Child-scoped add-ons** — render/parse add-ons conditionally on the selected
     child vs **not support child-scoped add-ons** in v1 (recommended; add-ons stay
     scoped to the page's parent listings)?
-17. **Customisable-days children** — add a child-scoped `day_count` input
-    (`child_days_<parentId>_<childId>`) vs **disallow customisable-days children**
-    in v1 (recommended)?
+17. **Customisable-days children** — ✅ **RESOLVED:** a customisable-days child
+    **inherits the parent's day-count** (it doesn't get its own selector), per the
+    "inherit date and duration" decision.
 18. **Renewal tiers as parents** — **forbid** parent relationships on renewal tiers
     (`months_per_unit > 0`) in v1 (recommended) vs design renewal-specific gate
     handling? (A folded normal child breaks `applyRenewalsForEntries`'
@@ -872,21 +861,18 @@ most of those collapse to strong defaults. Below is the short list that actually
 needs your steer. **Leave a comment on any line.** Silence on Part B = we ship the
 default.
 
-### Part A — need your call (these shape the build)
+### Part A — ✅ answered (now folded into Confirmed behaviour)
 
-1. **Quantity coupling.** If a buyer hires **2 of the base unit**, should they get
-   **2 of the add-on** (child quantity follows the parent's), or do they choose the
-   add-on **once** regardless of how many base units? *(Was Q4.)*
-2. **Add-on dates / duration.** Does the add-on ever have its **own hire date or
-   number of days** separate from the base unit, or does it **always inherit the
-   base unit's dates**? "Always inherits" lets us keep v1 simple (no per-child date
-   plumbing). *(Was Q14 + Q17.)*
-3. **Add-on pricing flexibility.** Can an add-on ever be **"pay what you want"**
-   (variable price), or are add-ons always fixed-price? Fixed-price lets us drop a
-   chunk of edge handling. *(Was Q15.)*
-4. **Booking channels.** Will a base-unit (parent) listing ever be booked via the
-   **JSON API** or a **QR quick-buy link**, or are parents **website-only**? If
-   website-only, we simply block those two channels for parents. *(Was Q9 + Q10.)*
+1. **Quantity coupling.** ✅ Child quantity **follows the parent** — 2 base units ⇒
+   2 add-ons. *(Q4.)*
+2. **Add-on dates / duration.** ✅ The add-on **always inherits the base unit's**
+   date and duration — no per-child date plumbing. *(Q14 + Q17.)*
+3. **Add-on pricing flexibility.** ✅ Add-ons **can be "pay what you want"** — the
+   child custom-price input is supported. *(Q15.)*
+4. **Booking channels.** ✅ Parents are bookable **every way** a normal listing is
+   (form, URL, gallery, API, QR) — each channel enforces the gate and lets the
+   buyer supply the child (API contract extended; QR auto-selects a single child or
+   falls back to the form). *(Q9 + Q10.)*
 
 ### Part B — will default unless you object
 
