@@ -1,8 +1,8 @@
 /**
  * Mutation generation.
  *
- * Parses a source file with oxc-parser and walks the AST for binary and
- * assignment expressions, emitting one mutant per (operator → replacement)
+ * Parses a source file with oxc-parser and walks the AST for binary, logical,
+ * and assignment expressions, emitting one mutant per (operator → replacement)
  * pair from the tables in `operators.ts`. The walk strategy — locate the span
  * between `left.end` and `right.start` and swap the operator that lives there —
  * is derived from Mutasaurus (MIT); see LICENSE.mutasaurus.md.
@@ -17,6 +17,8 @@ import {
   assignmentOperatorsExhaustive,
   binaryOperators,
   binaryOperatorsExhaustive,
+  logicalOperators,
+  logicalOperatorsExhaustive,
   type OperatorTable,
 } from "./operators.ts";
 
@@ -50,6 +52,9 @@ const tableFor = (type: string, exhaustive: boolean): OperatorTable => {
   if (type === "BinaryExpression") {
     return exhaustive ? binaryOperatorsExhaustive : binaryOperators;
   }
+  if (type === "LogicalExpression") {
+    return exhaustive ? logicalOperatorsExhaustive : logicalOperators;
+  }
   return exhaustive ? assignmentOperatorsExhaustive : assignmentOperators;
 };
 
@@ -78,15 +83,20 @@ export const generateMutants = (
   const mutants: Mutant[] = [];
 
   walk(program, (node) => {
-    const isBinary = node.type === "BinaryExpression";
-    if (!isBinary && node.type !== "AssignmentExpression") return;
+    const type = node.type;
+    if (
+      type !== "BinaryExpression" &&
+      type !== "LogicalExpression" &&
+      type !== "AssignmentExpression"
+    ) {
+      return;
+    }
     if (!node.left || !node.right || !node.operator) return;
 
     const start = node.left.end;
     const end = node.right.start;
     const { column, line } = lineColumnAt(content, start);
-    for (const newOperator of tableFor(node.type!, exhaustive)[node.operator] ??
-      []) {
+    for (const newOperator of tableFor(type, exhaustive)[node.operator] ?? []) {
       mutants.push({
         column,
         end,

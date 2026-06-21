@@ -190,10 +190,17 @@ const mutate = async (options: MutationOptions): Promise<number> => {
     restoreAll();
     Deno.exit(130);
   };
-  try {
-    Deno.addSignalListener("SIGINT", onSignal);
-  } catch {
-    // signal handling may be unavailable; the finally below still restores
+  // Trap interrupts AND termination: a CI/wrapper SIGTERM mid-mutant would
+  // otherwise kill us before the finally below runs, leaving the in-place
+  // mutant written over the tracked source file.
+  const signals: Deno.Signal[] = ["SIGINT", "SIGTERM"];
+  for (const signal of signals) {
+    try {
+      Deno.addSignalListener(signal, onSignal);
+    } catch {
+      // signal handling may be unavailable (e.g. SIGTERM on Windows);
+      // the finally below still restores.
+    }
   }
 
   try {
@@ -220,10 +227,12 @@ const mutate = async (options: MutationOptions): Promise<number> => {
       originals.delete(file);
     }
   } finally {
-    try {
-      Deno.removeSignalListener("SIGINT", onSignal);
-    } catch {
-      // matches the add above
+    for (const signal of signals) {
+      try {
+        Deno.removeSignalListener(signal, onSignal);
+      } catch {
+        // matches the add above
+      }
     }
     restoreAll();
   }

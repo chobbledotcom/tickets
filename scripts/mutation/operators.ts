@@ -64,6 +64,29 @@ export const binaryOperatorsExhaustive: OperatorTable = {
   instanceof: [],
 };
 
+/**
+ * Logical operator → replacement (one distant mutation each).
+ *
+ * `&&`/`||`/`??` are `LogicalExpression` nodes (not `BinaryExpression`), so the
+ * walk in `generate.ts` routes them here. `&&`↔`||` is always syntactically
+ * valid; `??` cannot be mixed with `&&`/`||` without parentheses, so a `??`
+ * mutation on a *chained* `a ?? b ?? c` produces a stillborn mutant that simply
+ * fails to compile and is counted as killed — conservative (never a false
+ * survivor), and standalone `a ?? b` (the common case) mutates cleanly.
+ */
+export const logicalOperators: OperatorTable = {
+  "??": ["||"],
+  "&&": ["||"],
+  "||": ["&&"],
+};
+
+/** Logical operator → every sensible replacement. */
+export const logicalOperatorsExhaustive: OperatorTable = {
+  "??": ["&&", "||"],
+  "&&": ["||", "??"],
+  "||": ["&&", "??"],
+};
+
 /** Assignment operator → replacement (one distant mutation each). */
 export const assignmentOperators: OperatorTable = {
   "-=": ["*="],

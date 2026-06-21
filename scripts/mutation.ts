@@ -2,7 +2,7 @@
 /**
  * In-house mutation tester — "tests for your tests".
  *
- * Mutates binary/assignment operators in the given source file(s), runs the
+ * Mutates binary/logical/assignment operators in the given source file(s), runs the
  * mapped test file(s), and reports which mutants SURVIVED (were not caught by
  * any assertion). It is the real version of the heuristic in
  * `test-quality-audit.ts`: instead of guessing which assertions look weak, it
@@ -38,6 +38,7 @@ Examples:
   deno task mutation 'src/lib/forms/*.ts' 'test/lib/forms/*.test.ts' --exhaustive`;
 
 interface ParsedArgs {
+  error: string | null;
   exhaustive: boolean;
   help: boolean;
   sources: string[];
@@ -48,6 +49,7 @@ interface ParsedArgs {
 
 const parseArgs = (args: string[]): ParsedArgs => {
   const parsed: ParsedArgs = {
+    error: null,
     exhaustive: false,
     help: false,
     sources: [],
@@ -81,6 +83,16 @@ const parseArgs = (args: string[]): ParsedArgs => {
   if (positional[1] !== undefined && parsed.tests.length === 0) {
     parsed.tests.push(positional[1]);
   }
+  if (positional.length > 2) {
+    parsed.error =
+      `Too many positional arguments (${positional.length}). Quote your globs ` +
+      `so the shell can't expand them — e.g. 'src/lib/forms/*.ts' ` +
+      `'test/lib/forms/*.test.ts' — or pass repeated --source/--test flags.`;
+  }
+  if (!Number.isFinite(parsed.timeout) || parsed.timeout < 0) {
+    parsed.error ??=
+      "Invalid --timeout: expected a non-negative number of milliseconds.";
+  }
   return parsed;
 };
 
@@ -96,6 +108,10 @@ const expand = async (globs: string[]): Promise<string[]> => {
 
 const main = async (): Promise<void> => {
   const args = parseArgs(Deno.args);
+  if (args.error !== null) {
+    console.error(args.error);
+    Deno.exit(1);
+  }
   if (args.help || args.sources.length === 0 || args.tests.length === 0) {
     console.log(USAGE);
     Deno.exit(args.help ? 0 : 1);
