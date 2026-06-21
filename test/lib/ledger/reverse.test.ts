@@ -1,0 +1,55 @@
+import { expect } from "@std/expect";
+import { describe, it } from "@std/testing/bdd";
+import { account } from "#shared/ledger/account.ts";
+import { balanceOf } from "#shared/ledger/project.ts";
+import { reverseOf } from "#shared/ledger/reverse.ts";
+import { makeTransfer } from "./factory.ts";
+
+const meta = {
+  eventGroup: "void-1",
+  occurredAt: "2026-04-01T00:00:00.000Z",
+  postedBy: "user:3",
+  reference: "void-ref",
+};
+
+describe("reverseOf", () => {
+  it("swaps the ends, keeps amount/currency, and links via reversesId", () => {
+    const original = makeTransfer({
+      amount: 5000,
+      destination: account("revenue", 45),
+      id: 7,
+      source: account("attendee", 88),
+    });
+    const rev = reverseOf(original, meta);
+    expect(rev.source).toEqual(original.destination);
+    expect(rev.destination).toEqual(original.source);
+    expect(rev.amount).toBe(5000);
+    expect(rev.currency).toBe(original.currency);
+    expect(rev.reversesId).toBe(7);
+    expect(rev.kind).toBe("reversal");
+    expect(rev.memo).toBe("");
+  });
+
+  it("honours an explicit kind and memo", () => {
+    const rev = reverseOf(makeTransfer({}), {
+      ...meta,
+      kind: "correction",
+      memo: "fat-finger",
+    });
+    expect(rev.kind).toBe("correction");
+    expect(rev.memo).toBe("fat-finger");
+  });
+
+  it("nets the affected account back to zero once both are posted", () => {
+    const revenue = account("revenue", 45);
+    const original = makeTransfer({
+      amount: 5000,
+      destination: revenue,
+      id: 7,
+      source: account("attendee", 88),
+    });
+    const reversal = makeTransfer({ ...reverseOf(original, meta), id: 8 });
+    expect(balanceOf(revenue)([original])).toBe(5000);
+    expect(balanceOf(revenue)([original, reversal])).toBe(0);
+  });
+});

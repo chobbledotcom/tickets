@@ -1,0 +1,108 @@
+/**
+ * Pure projections over a slice of transfers — the unit-testable heart of the
+ * ledger. Every balance projection refuses to sum across currencies, so the
+ * single-currency rule is enforced in code, not just by convention.
+ */
+
+import { filter, sumOf, unique } from "#fp";
+import { accountKey, sameAccount } from "./account.ts";
+import type { AccountRef, Transfer } from "./types.ts";
+
+/** Distinct currencies present in a slice, in first-seen order. */
+export const currenciesIn = (transfers: Transfer[]): string[] =>
+  unique(transfers.map((t) => t.currency));
+
+/**
+ * Throw if a slice mixes currencies. Every balance projection calls this, so a
+ * backfill, a currency change, or a mis-entered manual transfer fails loudly
+ * instead of silently adding pence to cents.
+ */
+export const assertSingleCurrency = (transfers: Transfer[]): void => {
+  const currencies = currenciesIn(transfers);
+  if (currencies.length > 1) {
+    throw new Error(`mixed-currency ledger slice: ${currencies.join(", ")}`);
+  }
+};
+
+/**
+ * Net balance of one account: money in (as destination) minus money out (as
+ * source). Positive ⇒ the account holds value; negative ⇒ it owes.
+ */
+export const balanceOf =
+  (acct: AccountRef) =>
+  (transfers: Transfer[]): number => {
+    assertSingleCurrency(transfers);
+    const into = sumOf((t: Transfer) =>
+      sameAccount(t.destination, acct) ? t.amount : 0,
+    )(transfers);
+    const outOf = sumOf((t: Transfer) =>
+      sameAccount(t.source, acct) ? t.amount : 0,
+    )(transfers);
+    return into - outOf;
+  };
+
+/** Every account's balance, keyed by {@link accountKey}. */
+export const allBalances = (transfers: Transfer[]): Map<string, number> => {
+  assertSingleCurrency(transfers);
+  const balances = new Map<string, number>();
+  const add = (acct: AccountRef, delta: number): void => {
+    const key = accountKey(acct);
+    balances.set(key, (balances.get(key) ?? 0) + delta);
+  };
+  for (const t of transfers) {
+    add(t.destination, t.amount);
+    add(t.source, -t.amount);
+  }
+  return balances;
+};
+
+/** Total amount across transfers of one kind (e.g. cash refunded). */
+export const sumOfKind =
+  (kind: string) =>
+  (transfers: Transfer[]): number => {
+    assertSingleCurrency(transfers);
+    return sumOf((t: Transfer) => (t.kind === kind ? t.amount : 0))(transfers);
+  };
+
+/** Transfers whose business time falls in the half-open window [from, to). */
+export const inPeriod =
+  (from: string, to: string) =>
+  (transfers: Transfer[]): Transfer[] =>
+    filter((t: Transfer) => t.occurredAt >= from && t.occurredAt < to)(
+      transfers,
+    );
+
+/**
+ * One line of an account statement: the transfer, its signed effect on the
+ * account, and the running balance after it.
+ */
+export type StatementLine = {
+  readonly transfer: Transfer;
+  readonly signed: number;
+  readonly running: number;
+};
+
+const byOccurredThenId = (a: Transfer, b: Transfer): number =>
+  a.occurredAt.localeCompare(b.occurredAt) || a.id - b.id;
+
+/**
+ * A running-balance statement for one account, ordered by business time then id
+ * so the running total is meaningful regardless of the order rows arrive in.
+ */
+export const statementFor =
+  (acct: AccountRef) =>
+  (transfers: Transfer[]): StatementLine[] => {
+    assertSingleCurrency(transfers);
+    const ordered = filter(
+      (t: Transfer) =>
+        sameAccount(t.source, acct) || sameAccount(t.destination, acct),
+    )(transfers).toSorted(byOccurredThenId);
+    let running = 0;
+    return ordered.map((transfer) => {
+      const signed = sameAccount(transfer.destination, acct)
+        ? transfer.amount
+        : -transfer.amount;
+      running += signed;
+      return { running, signed, transfer };
+    });
+  };
