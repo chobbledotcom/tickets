@@ -49,6 +49,7 @@ import {
 import { getAllGroups, groupsTable } from "#shared/db/groups.ts";
 import {
   getChildIds,
+  getParentIds,
   getParentsOf,
   setChildIds,
 } from "#shared/db/listing-parents.ts";
@@ -643,6 +644,54 @@ const loadListingParentsSection = async (
   };
 };
 
+type EdgeListing = Pick<
+  ListingWithCount,
+  "id" | "name" | "listing_type" | "months_per_unit"
+>;
+
+/**
+ * Reject a parent→children edge set that the inherited-date booking model can't
+ * honour, returning a user-facing error (or null when every edge is allowed).
+ * Enforces the statically-clear admin hard blocks: no renewal tiers on either
+ * side, single-level only (no nesting), and a daily child needs a daily parent.
+ * (The finer customisable-days duration-overlap check lands with the booking
+ * gate that introduces the per-span pricing logic.)
+ */
+const childEdgeError = (
+  parent: EdgeListing,
+  parentIsChild: boolean,
+  children: { listing: EdgeListing; isParent: boolean }[],
+): string | null => {
+  if (parent.months_per_unit > 0) {
+    return t("listings_table.children_err_parent_renewal", {
+      name: parent.name,
+    });
+  }
+  if (parentIsChild) {
+    return t("listings_table.children_err_parent_is_child", {
+      name: parent.name,
+    });
+  }
+  for (const { listing, isParent } of children) {
+    if (listing.months_per_unit > 0) {
+      return t("listings_table.children_err_child_renewal", {
+        name: listing.name,
+      });
+    }
+    if (isParent) {
+      return t("listings_table.children_err_child_is_parent", {
+        name: listing.name,
+      });
+    }
+    if (listing.listing_type === "daily" && parent.listing_type !== "daily") {
+      return t("listings_table.children_err_child_daily", {
+        name: listing.name,
+      });
+    }
+  }
+  return null;
+};
+
 /** Handle POST /admin/listing/:id/children (set the required child listings). */
 const handleAdminListingChildren: TypedRouteHandler<
   "POST /admin/listing/:id/children"
@@ -650,12 +699,23 @@ const handleAdminListingChildren: TypedRouteHandler<
   withAuth(request, AUTH_FORM, (_session, form) =>
     withEntityFromParam(id, getListingWithCount, async (listing) => {
       if (!isListingParentsEnabled()) return notFoundResponse();
-      const validIds = new Set((await getAllListings()).map((l) => l.id));
-      // Drop self-edges and unknown ids here; the richer date/duration and
-      // nesting compatibility rules are enforced when the booking gate ships.
+      const byId = new Map((await getAllListings()).map((l) => [l.id, l]));
+      // Drop self-edges and unknown ids.
       const childIds = form
         .getNumberArray("child_listing_ids")
-        .filter((childId) => childId !== id && validIds.has(childId));
+        .filter((childId) => childId !== id && byId.has(childId));
+      // Load nesting state: whether this listing is already a child, and which
+      // chosen children are themselves parents.
+      const [parentIds, ...childChildIds] = await Promise.all([
+        getParentIds(id),
+        ...childIds.map((childId) => getChildIds(childId)),
+      ]);
+      const children = childIds.map((childId, index) => ({
+        isParent: childChildIds[index]!.length > 0,
+        listing: byId.get(childId)!,
+      }));
+      const error = childEdgeError(listing, parentIds.length > 0, children);
+      if (error) return redirect(`/admin/listing/${id}/edit`, error, false);
       await setChildIds(id, childIds);
       await logActivity(
         `Listing '${listing.name}' required children set to ${childIds.length} listing${childIds.length === 1 ? "" : "s"}`,

@@ -37,6 +37,15 @@ const editPageHtml = async (listingId: number): Promise<string> => {
   return response.text();
 };
 
+/** Turn a listing into a renewal tier (months_per_unit > 0). `execute`
+ * invalidates the listings cache, so subsequent reads see the change. */
+const makeRenewalTier = async (listingId: number): Promise<void> => {
+  const { execute } = await import("#shared/db/client.ts");
+  await execute("UPDATE listings SET months_per_unit = 12 WHERE id = ?", [
+    listingId,
+  ]);
+};
+
 describeWithEnv(
   "server > listing parents (flag on)",
   { db: true, env: { LISTING_PARENTS_ENABLED: "true" } },
@@ -105,6 +114,50 @@ describeWithEnv(
       const only = await createTestListing({ name: "Solo" });
       const html = await editPageHtml(only.id);
       expect(html).toContain("No other listings to choose from yet.");
+    });
+
+    test("rejects a daily child under a non-daily parent", async () => {
+      const parent = await createTestListing({ name: "Base unit" });
+      const child = await createTestListing({
+        listingType: "daily",
+        name: "Daily add-on",
+      });
+      await postChildren(parent.id, [child.id]);
+      expect(await getChildIds(parent.id)).toEqual([]);
+    });
+
+    test("rejects giving children to a listing that is itself a child", async () => {
+      const grandparent = await createTestListing({ name: "Grandparent" });
+      const parent = await createTestListing({ name: "Parent" });
+      const child = await createTestListing({ name: "Child" });
+      await postChildren(grandparent.id, [parent.id]); // parent becomes a child
+      await postChildren(parent.id, [child.id]); // blocked: parent is a child
+      expect(await getChildIds(parent.id)).toEqual([]);
+    });
+
+    test("rejects choosing a child that is itself a parent", async () => {
+      const parent = await createTestListing({ name: "Parent" });
+      const child = await createTestListing({ name: "Child" });
+      const grandchild = await createTestListing({ name: "Grandchild" });
+      await postChildren(child.id, [grandchild.id]); // child becomes a parent
+      await postChildren(parent.id, [child.id]); // blocked: child is a parent
+      expect(await getChildIds(parent.id)).toEqual([]);
+    });
+
+    test("rejects a renewal-tier parent", async () => {
+      const parent = await createTestListing({ name: "Renewal" });
+      await makeRenewalTier(parent.id);
+      const child = await createTestListing({ name: "Add-on" });
+      await postChildren(parent.id, [child.id]);
+      expect(await getChildIds(parent.id)).toEqual([]);
+    });
+
+    test("rejects a renewal-tier child", async () => {
+      const parent = await createTestListing({ name: "Base unit" });
+      const child = await createTestListing({ name: "Renewal add-on" });
+      await makeRenewalTier(child.id);
+      await postChildren(parent.id, [child.id]);
+      expect(await getChildIds(parent.id)).toEqual([]);
     });
   },
 );
