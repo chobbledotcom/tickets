@@ -231,11 +231,12 @@ export const expectFlashRedirect =
     const actual = succeeded ? parsed.success : parsed.error;
     // A verified flash redirect must carry a non-empty message at the asserted
     // level; without this, renderSuccess("")/renderError("") is "" and
-    // toContain("") would pass vacuously without proving any banner rendered.
+    // counting "" occurrences would pass vacuously without proving any banner.
     expect(actual).toBeTruthy();
-    expect(html).toContain(
-      succeeded ? renderSuccess(actual) : renderError(actual),
-    );
+    // Exactly once: catches both the dropped-flash bug (zero) and double-render
+    // (two), e.g. a page banner plus a structural Layout/CsrfForm one.
+    const banner = succeeded ? renderSuccess(actual) : renderError(actual);
+    expect(html.split(banner).length - 1).toBe(1);
     return response;
   };
 
