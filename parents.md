@@ -356,6 +356,14 @@ On the listing edit page (`src/features/admin/listings.ts`, fields in
   date. Forbid this edge in admin validation: a dated child may only be attached to
   a parent that itself produces a compatible date/duration (i.e. a daily parent).
   (A dateless child under any parent is fine — see the dateless-child date rule.)
+- **Re-check edges on *any* listing save, not just when editing the relationship.**
+  The compatibility rules above (dated-child-needs-dated-parent, renewal-tier ban)
+  can be broken *after the fact* by editing a listing's `listing_type` /
+  `customisable_days` / `months_per_unit` — e.g. flipping a parent from daily to
+  standard while it still has a daily child. So a normal listing save must
+  re-validate every parent/child edge touching that listing and block (or warn
+  loudly about) a save that would leave an incompatible edge, otherwise the booking
+  flow inherits a config it can't price or date.
 - **Forbid parent relationships on renewal tiers** (`months_per_unit > 0`) in v1 —
   neither side of an edge should be a renewal tier — because folding a normal child
   into a renewal order breaks the renewal-qualification rule (see the Renewals
@@ -500,11 +508,17 @@ In `prepareOrder` (`ticket-submit.ts`), after `parseQuantities`:
    a selector naming a listing that isn't its child, or a price for a non-pay-more
    child.
 5. **Children are never standalone cart lines** (a booking can't start from a
-   child — see Confirmed behaviour), so there is no "in-cart child line" to count
-   and no parent+child-URL case to disambiguate. The gate's *only* input is the
-   per-parent selector. *(Historical note: earlier drafts had to reconcile a
-   standalone `quantity_<childId>` line shared across parents; the "no booking from
-   a child" rule removed that entirely.)*
+   child — see Confirmed behaviour). The **enforcement mechanism** is that child
+   slugs are **stripped/rejected from any ticket slug list** before building
+   `ctx.listings`: `handleBySlugs` passes every active slug through
+   `withActiveListings` into `ctx.listings` (`ticket-submit.ts:892-905`,
+   `ticket-payment.ts:336-341`), so a URL like `/ticket/parent+child` or
+   `/ticket/child+other` would otherwise render the child as an ordinary quantity
+   line and let it be booked independently. So the slug→listings step must drop (or
+   404) any slug that is a child, for **single and multi-slug** URLs alike. After
+   that, the gate's *only* child input is the per-parent selector. *(Historical
+   note: earlier drafts tried to reconcile a standalone `quantity_<childId>` line
+   shared across parents; stripping child slugs removes the case entirely.)*
 6. **Shared child across two parents → sum the quantities.** If the same child is
    chosen (or auto-selected) under two in-cart parents, fold it into **one
    `(listing_id, date)` line whose quantity is the sum** (one per parent), since the
@@ -570,8 +584,14 @@ The expanded set (parent page listings ∪ selected children) must drive **all**
   is scoped to the listing ids. Add-ons scoped *only* to a child won't load if we
   pass just the parent page ids; loading add-ons for *every* possible child lets a
   no-JS user opt into an add-on for an unchosen child that pricing then drops.
-  Either render/parse child-scoped add-ons **conditionally on the selected child**,
-  or **explicitly not support child-scoped add-ons** in v1. (Open Question 16.)
+  v1 chooses **not to support child-scoped add-ons** (Open Question 16). **But that
+  default needs a guard:** the existing modifier-scoping UI/DB can already attach
+  opt-in add-ons to a listing that *later* becomes a child, after which the parent
+  flow silently won't load them (they're scoped to a listing that's never in the
+  page id set). So admin must **prevent or warn** when a listing that has scoped
+  opt-in add-ons is made a child (or vice versa) — otherwise the operator's
+  configured add-on disappears with no signal. (Alternatively, implement the
+  conditional render/parse path.)
 - **Site-assignment validation** — `prepareOrder` calls
   `validateSiteAssignmentConfig(selected)` (`ticket-submit.ts:578`) before
   checkout. A child with `assign_built_site` set (parent without) must be in the
@@ -712,13 +732,17 @@ Enumerate each and decide:
   `prepareOrder`, so it must become gate-aware. With the single-child auto-select, the common
   one-parent-one-child quick-buy **can still skip to checkout** — *but only when the
   auto-selected child is itself direct-checkout-safe*: no required contact
-  fields/questions, not `can_pay_more`, **and not `customisable_days`** (a
+  fields/questions, not `can_pay_more`, **not `customisable_days`** (a
   customisable child needs its inherited duration encoded into the QR
   `CheckoutIntent`, otherwise reconstruction defaults it through the single
   `dayCount` path and prices/books it as one day — or zero if it has no one-day
-  price). Otherwise, and whenever the parent has **more than one** child, **fall
-  back to the form** so the buyer's child gets the right inputs/duration. **Also
-  scope the QR price override:** `applyQrTokenOverride`
+  price), **and not introducing a provider-imposed contact requirement** — a *paid*
+  child under Square makes `getTicketFields` require email (`fields.ts:1045`) even
+  when the parent is free, but the QR skip builds the checkout with blank contact
+  fields, so this case must also fall back to the form. Otherwise, and whenever the
+  parent has **more than one** child, **fall back to the form** so the buyer's child
+  gets the right inputs/duration. **Also scope the QR price override:**
+  `applyQrTokenOverride`
   verifies `ctx.slugs[0]` then applies the signed price to **every** fixed-price
   row in `ctx.listings` (`ticket-submit.ts:166-176`); once the fold adds children,
   the override must apply **only to the scanned parent**, never to folded children
