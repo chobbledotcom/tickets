@@ -512,6 +512,7 @@ describe("code quality", () => {
       "shared/ledger/reverse.ts",
       "shared/ledger/reconcile.ts",
       "shared/accounting/store.ts",
+      "shared/accounting/mappers.ts",
     ];
 
     /** Index modules that only re-export from sub-modules */
