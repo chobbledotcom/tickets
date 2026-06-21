@@ -581,6 +581,12 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
       // Nothing collected up front, full £10.00 booking value owed.
       expect(attendee?.remaining_balance).toBe(1000);
       expect(attendee?.bookings[0]?.price_paid).toBe(0);
+      // The booking carries the public-default status, matching the web free
+      // path so a balance-carrying attendee is never left status-less.
+      const { getPublicStatusId } = await import(
+        "#shared/db/attendee-statuses.ts"
+      );
+      expect(attendee?.status_id).toBe(await getPublicStatusId());
     });
 
     test("books a free listing without an owed balance when a provider is configured", async () => {

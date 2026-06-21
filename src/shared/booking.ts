@@ -7,6 +7,7 @@
  */
 
 import { isPaymentsEnabled } from "#shared/config.ts";
+import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
 import {
   createAttendeeAtomic,
   hasAvailableSpots,
@@ -90,6 +91,8 @@ export const processBooking = async (
   // provider is configured. In the latter case we still accept the booking and
   // record the full value as the amount owed — exactly like a zero-deposit
   // reservation — so nothing is collected up front but the balance is tracked.
+  // The attendee starts in the public-default status, matching the web free
+  // path so a balance-carrying booking is never left status-less.
   const unitPrice = customUnitPrice ?? listing.unit_price;
   const remainingBalance = paymentsEnabled
     ? 0
@@ -105,6 +108,7 @@ export const processBooking = async (
       },
     ],
     remainingBalance,
+    statusId: await getPublicStatusId(),
   });
 
   if (!result.success) {

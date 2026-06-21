@@ -92,6 +92,39 @@ describeWithEnv("server (admin attendee balance)", { db: true }, () => {
     expect(html).toContain("Balance outstanding");
     // No reservation status, so no deposit line is shown.
     expect(html).not.toContain("Reservation deposit");
+    // The online /pay link only serves reservations, so it is withheld here;
+    // the balance is collected offline instead.
+    expect(html).not.toContain("/pay/");
+    expect(html).toContain("Collect this balance directly");
+  });
+
+  test("withholds the payment link for a non-reservation status with a balance", async () => {
+    const listing = await createTestListing({
+      maxAttendees: 10,
+      thankYouUrl: "https://example.com",
+    });
+    // A named, non-reservation status (mirrors a provider-less booking sitting
+    // in the seeded public/paid default) still carries an outstanding balance.
+    const confirmed = await attendeeStatusesTable.insert({
+      isReservation: false,
+      name: "Confirmed",
+      reservationAmount: "0",
+    });
+    const result = await createAttendeeAtomic({
+      bookings: [{ listingId: listing.id, pricePaid: 0, quantity: 1 }],
+      email: "guest@example.com",
+      name: "Guest",
+      remainingBalance: 1500,
+      statusId: confirmed.id,
+    });
+    if (!result.success) throw new Error("setup failed");
+    const { response } = await adminGet(
+      `/admin/attendees/${result.attendees[0]!.id}/balance`,
+    );
+    const html = await response.text();
+    expect(html).toContain("Balance outstanding");
+    expect(html).not.toContain("/pay/");
+    expect(html).toContain("Collect this balance directly");
   });
 
   test("the attendee page links to the balance panel when a balance is due", async () => {

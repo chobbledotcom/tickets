@@ -66,7 +66,13 @@ export const attendeeBalancePage = (view: AttendeeBalanceView): string => {
         </p>
       </div>
 
-      {outstanding ? (
+      {!outstanding ? (
+        <p>{t("attendee_balance.fully_paid_message")}</p>
+      ) : status?.is_reservation ? (
+        // The online payment link only works for reservation statuses — the
+        // public /pay page treats every other status as already settled — so we
+        // only surface it here for reservations. Non-reservation balances (e.g.
+        // a booking taken with no payment provider) are collected offline.
         <article>
           <div class="prose">
             <h2>{t("attendee_balance.payment_link_heading")}</h2>
@@ -77,7 +83,7 @@ export const attendeeBalancePage = (view: AttendeeBalanceView): string => {
           </div>
         </article>
       ) : (
-        <p>{t("attendee_balance.fully_paid_message")}</p>
+        <p>{t("attendee_balance.offline_balance_message")}</p>
       )}
 
       <h2>{t("attendee_balance.history_heading")}</h2>
