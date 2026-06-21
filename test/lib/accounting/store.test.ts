@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { LedgerConflictError } from "#shared/accounting/conflicts.ts";
 import {
   accountBalance,
   accountBalancesForIds,
@@ -8,11 +9,7 @@ import {
   transfersByAccount,
   transfersByEventGroup,
 } from "#shared/accounting/queries.ts";
-import {
-  LedgerConflictError,
-  postTransfers,
-  postTransfersTx,
-} from "#shared/accounting/store.ts";
+import { postTransfers, postTransfersTx } from "#shared/accounting/store.ts";
 import { withTransaction } from "#shared/db/client.ts";
 import { account } from "#shared/ledger/account.ts";
 import { balanceOf } from "#shared/ledger/project.ts";

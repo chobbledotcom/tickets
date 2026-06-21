@@ -3,9 +3,9 @@
  *
  * Posting is idempotent per business event: the legs of one event share an
  * `eventGroup`, and {@link postTransfers} writes that whole set once. If the same
- * event is posted again it must present the exact same legs — a changed, added,
- * or missing leg throws {@link LedgerConflictError} rather than quietly appending
- * to a charge that was already handled.
+ * event is posted again it must present the exact same legs (checked in
+ * {@link file://./conflicts.ts}) rather than quietly appending to a charge that
+ * was already handled.
  *
  * The post runs in one write transaction and reads the already-stored legs
  * through that same transaction. So if two requests post the same event at once,
@@ -14,99 +14,30 @@
  * behind, so the insert needs no conflict clause.
  *
  * The clock lives here (`recorded_at`); the business time (`occurred_at`) comes
- * from the caller. `memo` is opaque (owner-key ciphertext is non-deterministic,
- * so it is left out of the replay-equality check).
+ * from the caller.
  */
 
+import {
+  assertEventMatches,
+  assertReverses,
+  LedgerConflictError,
+} from "#shared/accounting/conflicts.ts";
 import {
   fromTx,
   insertStatement,
   ledgerCurrency,
-  type RowReader,
   selectByEventGroup,
-  selectById,
   selectByReferences,
 } from "#shared/accounting/rows.ts";
 import { type TxScope, withTransaction } from "#shared/db/client.ts";
-import { sameAccount } from "#shared/ledger/account.ts";
-import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
+import type { TransferInput } from "#shared/ledger/types.ts";
 import { validateTransfer } from "#shared/ledger/validate.ts";
 import { nowIso } from "#shared/now.ts";
-
-/** Raised when a replayed event differs from what is already stored — a leg
- *  with different money facts, an extra leg, or a missing leg. Surfaced loudly
- *  so a mapper or pricing change can't quietly rewrite a charge already made. */
-export class LedgerConflictError extends Error {
-  constructor(reference: string, detail: string) {
-    super(`ledger conflict on reference "${reference}": ${detail}`);
-    this.name = "LedgerConflictError";
-  }
-}
 
 /** Outcome of {@link postTransfers}: rows newly written vs idempotent replays. */
 export type PostResult = {
   readonly inserted: number;
   readonly skipped: number;
-};
-
-// Money-defining fields only: `memo` (non-deterministic ciphertext) and the
-// write-time `recorded_at`/`posted_by` metadata are not compared on replay.
-const kindOf = (t: { kind?: string }): string => t.kind ?? "";
-const reversesIdOf = (t: { reversesId?: number }): number | null =>
-  t.reversesId ?? null;
-
-const financialMismatches = (
-  prior: Transfer,
-  input: TransferInput,
-): string[] => {
-  const checks: [field: string, matches: boolean][] = [
-    ["amount", prior.amount === input.amount],
-    ["currency", prior.currency === input.currency],
-    ["source", sameAccount(prior.source, input.source)],
-    ["destination", sameAccount(prior.destination, input.destination)],
-    ["occurredAt", prior.occurredAt === input.occurredAt],
-    ["kind", kindOf(prior) === kindOf(input)],
-    ["reversesId", reversesIdOf(prior) === reversesIdOf(input)],
-  ];
-  return checks.filter(([, matches]) => !matches).map(([field]) => field);
-};
-
-/**
- * Check that a replayed event presents exactly the stored leg set. Throws if the
- * replay omits a stored leg, adds a leg that was never stored, or changes a
- * leg's money facts.
- */
-const assertEventMatches = (
-  eventGroup: string,
-  stored: Transfer[],
-  inputs: TransferInput[],
-): void => {
-  const storedByRef = new Map(stored.map((t) => [t.reference, t]));
-  const inputRefs = new Set(inputs.map((t) => t.reference));
-  for (const leg of stored) {
-    if (!inputRefs.has(leg.reference)) {
-      throw new LedgerConflictError(
-        leg.reference,
-        `event "${eventGroup}" is already posted with a leg this replay omits`,
-      );
-    }
-  }
-  for (const input of inputs) {
-    const prior = storedByRef.get(input.reference);
-    if (!prior) {
-      throw new LedgerConflictError(
-        input.reference,
-        `event "${eventGroup}" is already posted without this leg`,
-      );
-    }
-    const mismatches = financialMismatches(prior, input);
-    if (mismatches.length > 0) {
-      throw new LedgerConflictError(
-        input.reference,
-        `stored leg differs in ${mismatches.join(", ")}`,
-      );
-    }
-  }
 };
 
 /**
@@ -141,39 +72,6 @@ const assertPostable = (inputs: TransferInput[]): void => {
   const references = inputs.map((t) => t.reference);
   if (new Set(references).size !== references.length) {
     throw new Error("postTransfers: duplicate reference within one event");
-  }
-};
-
-/**
- * A leg that links to another via `reversesId` must be that original's exact
- * inverse — same amount and currency, with source and destination swapped — and
- * the original must exist. Otherwise the unique `reverses_id` slot is used up
- * without the original money actually being voided (wrong amount or direction),
- * or it points at nothing, which would permanently block the correct reversal.
- */
-const assertReverses = async (
-  read: RowReader,
-  input: TransferInput,
-): Promise<void> => {
-  const id = input.reversesId;
-  if (id === undefined || id === null) return;
-  const original = await selectById(read, id);
-  if (original === null) {
-    throw new LedgerConflictError(
-      input.reference,
-      `reverses_id ${id} refers to no transfer`,
-    );
-  }
-  const isInverse =
-    input.amount === original.amount &&
-    input.currency === original.currency &&
-    sameAccount(input.source, original.destination) &&
-    sameAccount(input.destination, original.source);
-  if (!isInverse) {
-    throw new LedgerConflictError(
-      input.reference,
-      `reverses_id ${id} is not the exact inverse of the original leg`,
-    );
   }
 };
 
