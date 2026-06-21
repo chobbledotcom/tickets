@@ -975,16 +975,22 @@ Enumerate each and decide:
 - **Admin manual add / attendee edit** — ✅ **warn but don't block.** Admins build
   `AttendeeInput.bookings` directly (and can `allowOverbook`); the gate is a buyer
   UX constraint, so manual add shows a warning when a booking is inconsistent but
-  lets the operator proceed. The check is **count matching child lines per parent
-  and warn when it isn't exactly one** — which covers all three violations: a
-  **parent with no child**, a **parent with *two or more* of its children** (the
-  invariant is exactly one per parent), and a **child line with none of its
-  parents** in the same booking. (Open Question 7.)
+  lets the operator proceed. The check counts, **per parent line**, the matching
+  child lines and warns unless they satisfy the invariant — covering: a **parent
+  with no child**, a **parent with two or more of its children**, a **child line
+  with none of its parents**, and a **quantity mismatch** (the folded child quantity
+  must equal the **sum of the matching parent quantities** — e.g. parent qty 2 with
+  child qty 1 is wrong even though one child line exists). For **daily** edges the
+  match must also align on the **booking slot** (`start_at`/`end_at`), not just
+  listing id — a parent booked Monday with its child on Tuesday is *not* a valid
+  match, since the child must inherit the parent's date/duration. (Open Question 7.)
 - **Attendee merge** also mutates booking lines directly: `bookingInsertStatement`
   (`src/shared/merge/attendee-merge.ts`) copies `listing_attendees` rows onto the
-  target and deletes the source. A merge can produce any of those same states
-  (parent with no/extra children, or a lone child), so apply the identical
-  per-parent "exactly one child" check/warning in the merge diff/confirmation flow.
+  target and deletes the source. A merge can produce any of those same states, so
+  apply the identical per-parent check/warning in the merge diff/confirmation flow —
+  and since the merge diff already keys bookings by `listingId:startAt`, match the
+  parent and child on **`start_at`/`end_at` as well as listing id** (a child on a
+  different slot than its parent is not a satisfying match).
 - **Renewals** (`/renew/?t=…`, `actionUrl` override in `TicketCtx`) — **not safe
   to hand-wave once parent config is exposed.** `/renew/` renders the normal ticket
   flow with a `siteToken`, but `applyRenewalsForEntries` rejects the renewal unless
@@ -1140,8 +1146,11 @@ required-child relationships while *any* checkout path ignores them lets an
 operator configure a requirement that buyers silently bypass. That includes not
 just the website form (steps 4–5) but the **single-listing API and the signed-QR
 direct-checkout paths** — so the API/QR decisions move **into the enforcement step
-(5)**, not a later step. Gate the admin UI behind a feature flag until 4–5
-(website + API + QR) are all in, or merge 3–5 into a single shippable unit.
+(5)**, not a later step. Gate the relationship config behind a feature flag until
+4–5 (website + API + QR) are all in, or merge 3–5 into a single shippable unit.
+**The flag must cover the admin *API* relationship writes too** (`/api/admin/listings`
+create/update), not only the admin UI — otherwise a scripted/bulk-import caller can
+create required-child edges through the API while checkout still ignores them.
 
 ---
 
