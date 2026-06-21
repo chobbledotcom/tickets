@@ -7,6 +7,11 @@ import {
   setDb,
   withTransaction,
 } from "#shared/db/client.ts";
+import {
+  enableQueryLog,
+  getQueryLog,
+  runWithQueryLogContext,
+} from "#shared/db/query-log.ts";
 
 /**
  * withTransaction needs an interactive transaction that shares state with the
@@ -41,6 +46,22 @@ describe("withTransaction", () => {
         await tx.execute("INSERT INTO t VALUES (2)");
       });
       expect(await count()).toBe(2);
+    });
+  });
+
+  test("tracks transactional statements for the query log / N+1 guard", async () => {
+    await withFileDb(async () => {
+      const log = await runWithQueryLogContext(async () => {
+        enableQueryLog();
+        await withTransaction(async (tx) => {
+          await tx.execute("INSERT INTO t VALUES (1)");
+          await tx.execute({ args: [], sql: "SELECT COUNT(*) AS n FROM t" });
+        });
+        return getQueryLog();
+      });
+      const sqls = log.map((entry) => entry.sql);
+      expect(sqls).toContain("INSERT INTO t VALUES (1)");
+      expect(sqls).toContain("SELECT COUNT(*) AS n FROM t");
     });
   });
 

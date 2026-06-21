@@ -357,8 +357,11 @@ export const withTransaction = async <T>(
   const writtenSql: string[] = [];
   const scope: TxScope = {
     execute: (stmt) => {
-      writtenSql.push(typeof stmt === "string" ? stmt : stmt.sql);
-      return tx.execute(stmt);
+      const sql = typeof stmt === "string" ? stmt : stmt.sql;
+      writtenSql.push(sql);
+      // Track transactional statements too, so reads inside the callback still
+      // show in the debug footer and count toward the N+1 guard.
+      return trackQuery(sql, () => tx.execute(stmt));
     },
   };
   try {
