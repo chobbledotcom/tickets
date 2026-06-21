@@ -82,13 +82,15 @@ const createCrudHandlersWithAuth = <Row, Input>(
   const authHtml = authPage(auth.requireSession);
 
   const authRowHtml =
-    (render: (row: Row, session: AdminSession) => string): IdRouteHandler =>
+    (
+      render: (row: Row, session: AdminSession, error?: string) => string,
+    ): IdRouteHandler =>
     (request, { id }) =>
       auth.requireSession(request, (session) => {
-        applyFlash(request);
-        return withEntity<Row>((row) => htmlResponse(render(row, session)))(
-          () => cfg.resource.table.findById(id),
-        );
+        const flash = applyFlash(request);
+        return withEntity<Row>((row) =>
+          htmlResponse(render(row, session, flash.error)),
+        )(() => cfg.resource.table.findById(id));
       });
 
   const logAndRedirect = async (

@@ -13,8 +13,8 @@ import {
   cdnOkResponse,
   createTestListing,
   describeWithEnv,
+  expectFlashRedirect,
   expectHtmlResponse,
-  expectRedirectWithFlash,
   FLASH_TEST_ID,
   flashCookieHeader,
   installUrlHandler,
@@ -329,7 +329,7 @@ describeWithEnv(
             csrfToken,
             "photo.jpg",
           );
-          expectRedirectWithFlash(
+          await expectFlashRedirect(
             `/admin/listing/${listing.id}`,
             "Listing updated",
           )(response);
@@ -491,12 +491,11 @@ describeWithEnv(
       const expectImageDeleteRedirect = (
         response: Response,
         listingId: number,
-      ) => {
-        expectRedirectWithFlash(
+      ): Promise<Response> =>
+        expectFlashRedirect(
           `/admin/listing/${listingId}`,
           "Image removed",
         )(response);
-      };
 
       test("removes image from listing and storage", async () => {
         const { listing, cookie, csrfToken } = await setupListingAndLogin();
@@ -508,7 +507,7 @@ describeWithEnv(
             cookie,
             csrfToken,
           );
-          expectImageDeleteRedirect(response, listing.id);
+          await expectImageDeleteRedirect(response, listing.id);
 
           const updated = await getListingWithCount(listing.id);
           expect(updated?.image_url).toBe("");
@@ -519,7 +518,7 @@ describeWithEnv(
         const { listing, cookie, csrfToken } = await setupListingAndLogin();
 
         const response = await submitImageDelete(listing.id, cookie, csrfToken);
-        expectImageDeleteRedirect(response, listing.id);
+        await expectImageDeleteRedirect(response, listing.id);
       });
 
       test("returns 404 for non-existent listing", async () => {
@@ -649,7 +648,7 @@ describeWithEnv(
               cookie,
             ),
           );
-          expectRedirectWithFlash(
+          await expectFlashRedirect(
             `/admin/listing/${listing.id}`,
             "Listing updated",
           )(response);
@@ -700,7 +699,7 @@ describeWithEnv(
               name: "guide.pdf",
             },
           );
-          expectRedirectWithFlash(
+          await expectFlashRedirect(
             `/admin/listing/${listing.id}`,
             "Listing updated",
           )(response);
@@ -805,7 +804,7 @@ describeWithEnv(
               },
             ),
           );
-          expectRedirectWithFlash("/admin", "Listing created")(response);
+          await expectFlashRedirect("/admin", "Listing created")(response);
 
           const m = await import("#shared/db/listings.ts");
           const listings = await m.getAllListings();
@@ -830,7 +829,7 @@ describeWithEnv(
             cookie,
             csrfToken,
           );
-          expectRedirectWithFlash(
+          await expectFlashRedirect(
             `/admin/listing/${listing.id}`,
             "Attachment removed",
           )(response);
@@ -849,7 +848,7 @@ describeWithEnv(
           cookie,
           csrfToken,
         );
-        expectRedirectWithFlash(
+        await expectFlashRedirect(
           `/admin/listing/${listing.id}`,
           "Attachment removed",
         )(response);

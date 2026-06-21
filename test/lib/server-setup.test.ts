@@ -11,9 +11,9 @@ import {
   awaitTestRequest,
   createTestDb,
   describeWithEnv,
+  expectFlashRedirect,
   expectHtmlResponse,
   expectRedirect,
-  expectRedirectWithFlash,
   getSetupCsrfToken,
   invalidateTestDbCache,
   mockFormRequest,
@@ -268,7 +268,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
             country: "US",
           }),
         );
-        expectRedirectWithFlash(
+        await expectFlashRedirect(
           "/setup/",
           expect.stringContaining("Invalid or expired form"),
           false,
@@ -286,7 +286,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
             csrf_token: "wrong-token-in-form",
           }),
         );
-        expectRedirectWithFlash(
+        await expectFlashRedirect(
           "/setup/",
           expect.stringContaining("Invalid or expired form"),
           false,
@@ -298,7 +298,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
           admin_password: "",
           admin_password_confirm: "",
         });
-        expectRedirectWithFlash(
+        await expectFlashRedirect(
           "/setup/",
           expect.stringContaining("Admin Password"),
           false,
@@ -309,7 +309,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
         const response = await submitSetupFormWithDefaults({
           admin_password_confirm: "different",
         });
-        expectRedirectWithFlash(
+        await expectFlashRedirect(
           "/setup/",
           expect.stringContaining("Passwords do not match"),
           false,
@@ -321,7 +321,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
           admin_password: "short",
           admin_password_confirm: "short",
         });
-        expectRedirectWithFlash(
+        await expectFlashRedirect(
           "/setup/",
           expect.stringContaining("at least 8 characters"),
           false,
@@ -332,7 +332,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
         const response = await submitSetupFormWithDefaults({
           country: "XX",
         });
-        expectRedirectWithFlash(
+        await expectFlashRedirect(
           "/setup/",
           expect.stringContaining("valid country"),
           false,
@@ -343,7 +343,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
         const response = await submitSetupFormWithDefaults({
           accept_agreement: "", // Explicitly not accepting
         });
-        expectRedirectWithFlash(
+        await expectFlashRedirect(
           "/setup/",
           expect.stringContaining("must accept the Data Controller Agreement"),
           false,

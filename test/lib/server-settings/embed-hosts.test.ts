@@ -8,8 +8,8 @@ import {
   awaitTestRequest,
   describeWithEnv,
   expectFlash,
+  expectFlashRedirect,
   expectHtmlResponse,
-  expectRedirectWithFlash,
   getEmbeddableTicketResponse,
   getHeader,
   mockFormRequest,
@@ -25,7 +25,7 @@ async function postInvalidEmbedHosts(
   const { response } = await adminFormPost("/admin/settings/embed-hosts", {
     embed_hosts: hosts,
   });
-  expectRedirectWithFlash(
+  await expectFlashRedirect(
     "/admin/settings?form=settings-embed-hosts#settings-embed-hosts",
     expect.stringContaining(expectedError),
     false,
@@ -41,7 +41,7 @@ async function postEmbedHostsExpectRedirect(
     "/admin/settings/embed-hosts",
     fields,
   );
-  expectRedirectWithFlash(
+  await expectFlashRedirect(
     "/admin/settings?form=settings-embed-hosts#settings-embed-hosts",
     expectedMessage,
   )(response);
@@ -134,7 +134,7 @@ describeWithEnv("server (embed hosts)", { db: true }, () => {
         ),
       );
 
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/settings?form=settings-embed-hosts#settings-embed-hosts",
         "Embed host restrictions removed",
       )(response);

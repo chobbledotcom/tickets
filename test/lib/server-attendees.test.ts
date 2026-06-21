@@ -25,9 +25,9 @@ import {
   createTestListing,
   describeWithEnv,
   expectFlash,
+  expectFlashRedirect,
   expectHtmlResponse,
   expectRedirect,
-  expectRedirectWithFlash,
   extractInputValue,
   FLASH_TEST_ID,
   flashCookieHeader,
@@ -214,7 +214,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         confirm_identifier: "john doe",
         release_bookings: "1",
       })();
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/listing/${listing.id}`,
         "Attendee deleted",
       )(response);
@@ -232,7 +232,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { response } = await deleteAction({
         confirm_identifier: "  John Doe  ",
       })();
-      expectRedirectWithFlash("/admin/listing/1", "Attendee deleted")(response);
+      await expectFlashRedirect(
+        "/admin/listing/1",
+        "Attendee deleted",
+      )(response);
     });
 
     test("can delete attendee without releasing bookings", async () => {
@@ -251,7 +254,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         { confirm_identifier: "Keep Pool" },
       );
 
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/listing/${listing.id}`,
         "Attendee deleted",
       )(response);
@@ -296,7 +299,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           },
         ),
       );
-      expectRedirectWithFlash("/admin/listing/1", "Attendee deleted")(response);
+      await expectFlashRedirect(
+        "/admin/listing/1",
+        "Attendee deleted",
+      )(response);
 
       // Verify attendee was deleted
       const { getAttendeeRaw } = await import("#shared/db/attendees.ts");
@@ -403,7 +409,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           cookie,
         ),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/listing/${listing.id}`,
         "Incomplete registration removed",
       )(response);
@@ -434,7 +440,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           cookie,
         ),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/listing/${listing.id}`,
         undefined,
         false,
@@ -465,7 +471,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           cookie,
         ),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/listing/${listing.id}`,
         undefined,
         false,
@@ -497,7 +503,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           cookie,
         ),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/listing/${listing.id}`,
         "Incomplete registration removed",
       )(response);
@@ -1352,7 +1358,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         form,
       );
       expect(response.status).toBe(302);
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/attendees/${attendee.id}#attendee-form`,
         "Updated Jane Doe",
       )(response);
@@ -1421,7 +1427,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         form,
       );
       expect(response.status).toBe(302);
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/attendees/${attendee.id}#attendee-form`,
         "Updated Jane Smith",
       )(response);
@@ -1609,7 +1615,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         form,
       );
       expect(response.status).toBe(302);
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/attendees/${attendee.id}#attendee-form`,
         "Updated Jane Smith",
       )(response);
@@ -1811,7 +1817,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
           webhookUrl: "https://example.com/webhook",
         });
         expect(response.status).toBe(302);
-        expectRedirectWithFlash(
+        await expectFlashRedirect(
           `/admin/listing/${listing.id}`,
           "Notification re-sent",
         )(response);
@@ -2029,7 +2035,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         `/admin/attendees/${attendee.id}/refresh-payment`,
       );
       expect(response.status).toBe(302);
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/attendees/${attendee.id}`,
         "No payment to refresh",
         false,
@@ -2563,7 +2569,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         { merge_version: mergeVersion, source_token: sourceToken },
       );
 
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/attendees/${target.id}`,
         expect.stringContaining("Merged"),
       )(response);

@@ -18,8 +18,8 @@ import {
   createTestListing,
   describeWithEnv,
   expectFlash,
+  expectFlashRedirect,
   expectHtmlResponse,
-  expectRedirectWithFlash,
   expectStatus,
   testRequiresAuth,
 } from "#test-utils";
@@ -68,7 +68,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
           has_logistics: "true",
         },
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/logistics",
         "Logistics enabled",
       )(response);
@@ -83,7 +83,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
           has_logistics: "false",
         },
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/logistics",
         "Logistics disabled",
       )(response);
@@ -96,7 +96,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       const { response } = await adminFormPost("/admin/logistics", {
         name: "Van 1",
       });
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/logistics",
         "Logistics agent created",
       )(response);
@@ -136,7 +136,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       const { response } = await adminFormPost(`/admin/logistics/${id}/edit`, {
         name: "Van B",
       });
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/logistics",
         "Logistics agent updated",
       )(response);
@@ -153,7 +153,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
         name: "Crewed Van",
         user_ids: String(userId),
       });
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/logistics",
         "Logistics agent updated",
       )(assigned.response);
@@ -186,7 +186,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
           confirm_identifier: "Doomed Van",
         },
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/logistics",
         "Logistics agent deleted",
       )(response);

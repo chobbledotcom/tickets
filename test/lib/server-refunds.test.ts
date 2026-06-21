@@ -13,8 +13,8 @@ import {
   createTestListing,
   describeWithEnv,
   expectFlash,
+  expectFlashRedirect,
   expectHtmlResponse,
-  expectRedirectWithFlash,
   mockFormRequest,
   mockProviderType,
   setupListingAndLogin,
@@ -248,7 +248,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       const response = await submitRefund(ctx, {
         confirm_identifier: "Wrong Name",
       });
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/listing/${ctx.listing.id}/attendee/${ctx.attendee.id}/refund`,
         expect.stringContaining("does not match"),
         false,
@@ -270,7 +270,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
           await testCookie(),
         ),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/listing/${listing.id}/attendee/${attendee.id}/refund`,
         expect.stringContaining("no payment to refund"),
         false,
@@ -280,7 +280,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
     test("returns error when no payment provider configured", async () => {
       const ctx = await setupRefundTest("pi_test_noprov");
       const response = await submitRefund(ctx);
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/listing/${ctx.listing.id}/attendee/${ctx.attendee.id}/refund`,
         expect.stringContaining("No payment provider configured"),
         false,
@@ -292,7 +292,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
 
       await withRefundMock(true, async (mockRefund) => {
         const response = await submitRefund(ctx);
-        expectRedirectWithFlash(
+        await expectFlashRedirect(
           `/admin/listing/${ctx.listing.id}`,
           "Refund issued",
         )(response);
@@ -305,7 +305,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
 
       await withRefundMock(false, async () => {
         const response = await submitRefund(ctx);
-        expectRedirectWithFlash(
+        await expectFlashRedirect(
           `/admin/listing/${ctx.listing.id}/attendee/${ctx.attendee.id}/refund`,
           expect.stringContaining("Refund failed"),
           false,
@@ -322,7 +322,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
           ctx.cookie,
         ),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/listing/${ctx.listing.id}/attendee/${ctx.attendee.id}/refund`,
         expect.stringContaining("does not match"),
         false,
@@ -418,7 +418,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       const response = await submitRefundAll(ctx, {
         confirm_identifier: "Wrong Listing Name",
       });
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/listing/${ctx.listing.id}/refund-all`,
         expect.stringContaining("does not match"),
         false,
@@ -434,7 +434,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
           ctx.cookie,
         ),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/listing/${ctx.listing.id}/refund-all`,
         expect.stringContaining("does not match"),
         false,
@@ -459,7 +459,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
           await testCookie(),
         ),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/listing/${listing.id}/refund-all`,
         expect.stringContaining("No attendees have payments to refund"),
         false,
@@ -469,7 +469,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
     test("returns error when no payment provider configured", async () => {
       const ctx = await setupRefundTest("pi_noprov_all");
       const response = await submitRefundAll(ctx);
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/listing/${ctx.listing.id}/refund-all`,
         expect.stringContaining("No payment provider configured"),
         false,
@@ -501,7 +501,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
             await testCookie(),
           ),
         );
-        expectRedirectWithFlash(
+        await expectFlashRedirect(
           `/admin/listing/${listing.id}`,
           "All attendees refunded",
         )(response);
@@ -531,7 +531,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
           ),
         );
         expect(mockRefund.calls.length).toBe(30);
-        expectRedirectWithFlash(
+        await expectFlashRedirect(
           `/admin/listing/${listing.id}/refund-all`,
           expect.stringContaining("30 attendee(s) refunded"),
         )(response);
@@ -560,7 +560,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
             await testCookie(),
           ),
         );
-        expectRedirectWithFlash(
+        await expectFlashRedirect(
           `/admin/listing/${listing.id}/refund-all`,
           expect.stringContaining("30 failed"),
           false,
@@ -597,7 +597,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
               await testCookie(),
             ),
           );
-          expectRedirectWithFlash(
+          await expectFlashRedirect(
             `/admin/listing/${listing.id}/refund-all`,
             expect.stringContaining("1 refund(s) succeeded"),
             false,
@@ -639,7 +639,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
               await testCookie(),
             ),
           );
-          expectRedirectWithFlash(
+          await expectFlashRedirect(
             `/admin/listing/${listing.id}/refund-all`,
             expect.stringContaining("1 refund(s) succeeded"),
             false,
@@ -668,7 +668,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       await markAsRefunded(ctx.attendee.id, ctx.listing.id);
 
       const response = await submitRefund(ctx);
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/listing/${ctx.listing.id}/attendee/${ctx.attendee.id}/refund`,
         expect.stringContaining("already been refunded"),
         false,
@@ -706,7 +706,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
 
         // Verify attendee is marked as refunded by trying to refund again
         const retryResponse = await submitRefund(ctx);
-        expectRedirectWithFlash(
+        await expectFlashRedirect(
           `/admin/listing/${ctx.listing.id}/attendee/${ctx.attendee.id}/refund`,
           expect.stringContaining("already been refunded"),
           false,

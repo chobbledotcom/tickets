@@ -309,6 +309,7 @@ export const adminGroupDetailPage = (
   phonePrefix?: string,
   successMessage?: string,
   questionData?: TableQuestionData,
+  error?: string,
 ): string => {
   const { columnKeys, filters } = resolveColumnLayout(
     settings.listingColumnOrder,
@@ -343,7 +344,7 @@ export const adminGroupDetailPage = (
   return String(
     <Layout title={group.name}>
       <AdminNav active="/admin/groups" session={session} />
-      <Flash success={successMessage} />
+      <Flash error={error} success={successMessage} />
       <nav>
         <ul>
           {!isReadOnly() && (

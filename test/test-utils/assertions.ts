@@ -39,6 +39,8 @@ export const assertFormRedirect = async (
 ): Promise<Response> => {
   const { adminFormPost } = await import("#test-utils/session.ts");
   const { response } = await adminFormPost(path, data);
+  // Cookie-only: callers include the database-reset flow, whose redirect target
+  // can't be followed (the reset wipes the DB and the admin session).
   expectRedirectWithFlash(redirectTo, flashMessage)(response);
   return response;
 };
@@ -122,17 +124,24 @@ export const expectRedirect = (
 export const expectAdminRedirect = (response: Response): string =>
   expectRedirect(response, "/admin");
 
+/** Parse the `flash_*` cookie off a redirect response into its message fields. */
+const parseFlashCookie = (
+  response: Response,
+): ReturnType<typeof parseFlashValue> => {
+  const cookies = response.headers.getSetCookie();
+  const flash = cookies.find((c) => c.startsWith("flash_"))!;
+  const cookiePart = flash.split(";")[0]!;
+  const value = cookiePart.split("=").slice(1).join("=");
+  return parseFlashValue(value);
+};
+
 export const expectFlash = (
   response: Response,
   // deno-lint-ignore no-explicit-any
   message: string | any,
   succeeded = true,
 ): Response => {
-  const cookies = response.headers.getSetCookie();
-  const flash = cookies.find((c) => c.startsWith("flash_"))!;
-  const cookiePart = flash.split(";")[0]!;
-  const value = cookiePart.split("=").slice(1).join("=");
-  const parsed = parseFlashValue(value);
+  const parsed = parseFlashCookie(response);
   const actual = succeeded ? parsed.success : parsed.error;
   if (message !== undefined) expect(actual).toEqual(message);
   return response;
@@ -152,6 +161,61 @@ export const expectRedirectWithFlash =
       expectFlash(response, message, succeeded);
       return response;
     };
+
+/** Lazy default follow cookie: the owner test session, which can GET any admin
+ *  page, so the destination renders for the common admin case without the
+ *  caller threading a cookie through. */
+const defaultFollowCookie = async (): Promise<string> => {
+  const { testCookie } = await import("#test-utils/session.ts");
+  return testCookie();
+};
+
+/**
+ * Curried, mandatory-flash redirect assertion — reach for this after almost
+ * every admin action that ends in a redirect. Asserts that `response`:
+ *   1. is a 302 to `location` (the `?flash=<id>` tracking param is ignored),
+ *   2. carries a flash cookie whose message satisfies `message` (a string or an
+ *      asymmetric matcher such as `expect.stringContaining(...)`), and
+ *   3. RENDERS that flash where the operator lands: it follows the redirect,
+ *      carrying the flash cookie + a session cookie, and asserts the rendered
+ *      banner (built from the real cookie message) is in the returned HTML.
+ *
+ * Step 3 is the whole point — a handler can set a perfect flash cookie that the
+ * destination page silently drops, which a cookie-only assertion never catches.
+ * The message is mandatory: "we were just redirected" verifies almost nothing.
+ * For the genuinely flash-less redirects — payment/checkout hops, the public
+ * success page, API responses, and auth bounces to /admin/login — use
+ * `expectRedirect` instead.
+ *
+ * `cookie` defaults to the owner test session. Pass an explicit cookie for
+ * role-scoped destinations whose page differs for that role, or a public one.
+ */
+export const expectFlashRedirect =
+  (
+    location: string,
+    // deno-lint-ignore no-explicit-any
+    message: string | any,
+    succeeded = true,
+    cookie?: string,
+  ) =>
+  async (response: Response): Promise<Response> => {
+    expectRedirectWithFlash(location, message, succeeded)(response);
+
+    const [{ handleRequest }, { renderError, renderSuccess }] =
+      await Promise.all([import("#routes"), import("#shared/forms.tsx")]);
+    const followed = await followRedirectWithFlash(
+      response,
+      handleRequest,
+      cookie ?? (await defaultFollowCookie()),
+    );
+    const html = await followed.text();
+    const parsed = parseFlashCookie(response);
+    const actual = (succeeded ? parsed.success : parsed.error) ?? "";
+    expect(html).toContain(
+      succeeded ? renderSuccess(actual) : renderError(actual),
+    );
+    return response;
+  };
 
 export const flashCookieHeader = (
   message: string,
