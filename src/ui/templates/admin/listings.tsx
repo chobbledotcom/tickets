@@ -1682,6 +1682,57 @@ export const adminDuplicateListingPage = (
 /**
  * Admin listing edit page
  */
+/** The "required children" editor shown on a listing's edit page when the
+ * parent/child feature is enabled. Editing on the parent: tick the listings a
+ * buyer must choose one of when booking this one. */
+const ListingChildrenSection = ({
+  listingId,
+  allListings,
+  childIds,
+  offeredUnder,
+}: {
+  listingId: number;
+  allListings: ListingWithCount[];
+  childIds: ReadonlySet<number>;
+  offeredUnder: ListingWithCount[];
+}) => (
+  <section class="listing-children">
+    <h2>{t("listings_table.children_legend")}</h2>
+    <p>{t("listings_table.children_help")}</p>
+    {offeredUnder.length > 0 && (
+      <p>
+        {t("listings_table.children_offered_under", {
+          names: offeredUnder.map((p) => p.name).join(", "),
+        })}
+      </p>
+    )}
+    {allListings.length === 0 ? (
+      <p>
+        <em>{t("listings_table.children_none")}</em>
+      </p>
+    ) : (
+      <CsrfForm action={`/admin/listing/${listingId}/children`}>
+        <fieldset class="checkboxes">
+          {map((e: ListingWithCount) => (
+            <label>
+              <input
+                checked={childIds.has(e.id) || undefined}
+                name="child_listing_ids"
+                type="checkbox"
+                value={String(e.id)}
+              />
+              {` ${e.name}`}
+            </label>
+          ))(allListings)}
+        </fieldset>
+        <SubmitButton icon="save">
+          {t("listings_table.children_save")}
+        </SubmitButton>
+      </CsrfForm>
+    )}
+  </section>
+);
+
 export const adminListingEditPage = (
   listing: ListingWithCount,
   groups: Group[],
@@ -1689,6 +1740,11 @@ export const adminListingEditPage = (
   error?: string,
   aggregateRecalculation?: ListingAggregateRecalculation,
   success?: string,
+  parents?: {
+    allListings: ListingWithCount[];
+    childIds: ReadonlySet<number>;
+    offeredUnder: ListingWithCount[];
+  },
 ): string => {
   const storageEnabled = isStorageEnabled();
   const builderEnabled = isBuilderEnabled();
@@ -1763,6 +1819,14 @@ export const adminListingEditPage = (
             </SubmitButton>
           </CsrfForm>
         </div>
+      )}
+      {parents && (
+        <ListingChildrenSection
+          allListings={parents.allListings}
+          childIds={parents.childIds}
+          listingId={listing.id}
+          offeredUnder={parents.offeredUnder}
+        />
       )}
     </Layout>,
   );

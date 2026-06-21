@@ -48,7 +48,13 @@ import {
 } from "#shared/db/attendees.ts";
 import { getAllGroups, groupsTable } from "#shared/db/groups.ts";
 import {
+  getChildIds,
+  getParentsOf,
+  setChildIds,
+} from "#shared/db/listing-parents.ts";
+import {
   computeSlugIndex,
+  getAllListings,
   getListingAggregateRecalculation,
   getListingWithCount,
   LISTING_AGGREGATE_FIELDS,
@@ -70,6 +76,7 @@ import {
   isDemoMode,
   LISTING_DEMO_FIELDS,
 } from "#shared/demo.ts";
+import { getEnv } from "#shared/env.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { Field } from "#shared/forms.tsx";
@@ -602,6 +609,66 @@ const getListingAndGroups = async (
     : null;
 };
 
+/**
+ * Whether the listing parent/child relationship editor is exposed to operators.
+ * Off until the booking gate that enforces it ships (see parents.md release
+ * gate); gated by an env flag, mirroring the builder feature.
+ */
+export const isListingParentsEnabled = (): boolean =>
+  getEnv("LISTING_PARENTS_ENABLED") === "true";
+
+/** The data the edit page's "required children" section renders, or undefined
+ * when the feature is disabled. `allListings` excludes the listing itself
+ * (no self-edges); `childIds` are its currently-required children; `offeredUnder`
+ * are the listings it is itself a child of. */
+type ListingParentsSection = {
+  allListings: ListingWithCount[];
+  childIds: ReadonlySet<number>;
+  offeredUnder: ListingWithCount[];
+};
+
+const loadListingParentsSection = async (
+  listingId: number,
+): Promise<ListingParentsSection | undefined> => {
+  if (!isListingParentsEnabled()) return undefined;
+  const [allListings, childIds, offeredUnder] = await Promise.all([
+    getAllListings(),
+    getChildIds(listingId),
+    getParentsOf(listingId),
+  ]);
+  return {
+    allListings: allListings.filter((l) => l.id !== listingId),
+    childIds: new Set(childIds),
+    offeredUnder,
+  };
+};
+
+/** Handle POST /admin/listing/:id/children (set the required child listings). */
+const handleAdminListingChildren: TypedRouteHandler<
+  "POST /admin/listing/:id/children"
+> = (request, { id }) =>
+  withAuth(request, AUTH_FORM, (_session, form) =>
+    withEntityFromParam(id, getListingWithCount, async (listing) => {
+      if (!isListingParentsEnabled()) return notFoundResponse();
+      const validIds = new Set((await getAllListings()).map((l) => l.id));
+      // Drop self-edges and unknown ids here; the richer date/duration and
+      // nesting compatibility rules are enforced when the booking gate ships.
+      const childIds = form
+        .getNumberArray("child_listing_ids")
+        .filter((childId) => childId !== id && validIds.has(childId));
+      await setChildIds(id, childIds);
+      await logActivity(
+        `Listing '${listing.name}' required children set to ${childIds.length} listing${childIds.length === 1 ? "" : "s"}`,
+        listing,
+      );
+      return redirect(
+        `/admin/listing/${id}/edit`,
+        "Required children updated",
+        true,
+      );
+    }),
+  );
+
 const withListingAndGroupsPage =
   (
     renderPage: (
@@ -625,7 +692,7 @@ const handleAdminListingEditGet: TypedRouteHandler<
   "GET /admin/listing/:id/edit"
 > = (request, params) =>
   requireSessionOr(request, (session) =>
-    withEntityFromParam(params.id, getListingAndGroups, (ctx) => {
+    withEntityFromParam(params.id, getListingAndGroups, async (ctx) => {
       const flash = applyFlash(request);
       return htmlResponse(
         adminListingEditPage(
@@ -635,6 +702,7 @@ const handleAdminListingEditGet: TypedRouteHandler<
           flash.error,
           ctx.aggregateRecalculation,
           flash.success,
+          await loadListingParentsSection(ctx.listing.id),
         ),
       );
     }),
@@ -691,6 +759,8 @@ const renderListingEditError = async (
           session,
           error,
           ctx.aggregateRecalculation,
+          undefined,
+          await loadListingParentsSection(id),
         ),
         400,
       )
@@ -1045,6 +1115,7 @@ export const listingsRoutes = {
     "GET /admin/listings/recalculate/:listingId": handleListingRecalculateGet,
     "POST /admin/listing": handleCreateListing,
     "POST /admin/listing/:id/attachment/delete": handleAttachmentDelete,
+    "POST /admin/listing/:id/children": handleAdminListingChildren,
     "POST /admin/listing/:id/delete": handleAdminListingDelete,
     "POST /admin/listing/:id/edit": handleAdminListingEditPost,
     "POST /admin/listing/:id/image/delete": handleImageDelete,

@@ -110,5 +110,10 @@
   "listings_table.recalculate_success": "Listing totals recalculated",
   "listings_table.duration_warning_message": "Changing booking duration will update existing bookings for this listing.",
   "listings_table.i_understand": "I understand",
-  "listings_table.recalculate_description": "Compare the stored listing totals with totals counted from attendee records. Select only the stored values you want to replace."
+  "listings_table.recalculate_description": "Compare the stored listing totals with totals counted from attendee records. Select only the stored values you want to replace.",
+  "listings_table.children_legend": "Required child listings",
+  "listings_table.children_help": "When this listing is booked, the buyer must choose one of the ticked listings below.",
+  "listings_table.children_offered_under": "This listing is itself offered under: {names}.",
+  "listings_table.children_none": "No other listings to choose from yet.",
+  "listings_table.children_save": "Save required children"
 }

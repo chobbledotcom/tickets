@@ -13,6 +13,7 @@ import {
   executeBatch,
   inPlaceholders,
   queryAll,
+  queryIdColumn,
   queryOne,
   resetAggregates,
 } from "#shared/db/client.ts";
@@ -157,20 +158,11 @@ export const resetModifierAggregateFields = async (
   await resetAggregates("modifiers", modifierId, fields, aggregateResetSql);
 };
 
-/** Run a single-column `id` query for a modifier and return the ids. */
-const modifierIdColumn = async (
-  sql: string,
-  modifierId: number,
-): Promise<number[]> => {
-  const rows = await queryAll<{ id: number }>(sql, [modifierId]);
-  return rows.map((r) => r.id);
-};
-
 /** Listing ids a modifier is directly linked to (scope = "listings"). */
 export const getModifierListingIds = (modifierId: number): Promise<number[]> =>
-  modifierIdColumn(
+  queryIdColumn(
     "SELECT listing_id AS id FROM modifier_listings WHERE modifier_id = ?",
-    modifierId,
+    [modifierId],
   );
 
 type ModifierListingLinkRow = { listing_id: number; modifier_id: number };
@@ -221,15 +213,15 @@ export const getModifierGroupListingIdsByModifierId =
 
 /** Group ids a modifier is linked to (for the admin scope editor). */
 export const getModifierGroupIds = (modifierId: number): Promise<number[]> =>
-  modifierIdColumn(
+  queryIdColumn(
     "SELECT group_id AS id FROM modifier_groups WHERE modifier_id = ?",
-    modifierId,
+    [modifierId],
   );
 
 /** Answer ids an "answer"-triggered modifier is linked to (for the admin
  * editor) — i.e. the answers whose modifier_id points at this modifier. */
 export const getModifierAnswerIds = (modifierId: number): Promise<number[]> =>
-  modifierIdColumn("SELECT id FROM answers WHERE modifier_id = ?", modifierId);
+  queryIdColumn("SELECT id FROM answers WHERE modifier_id = ?", [modifierId]);
 
 /** Run a "clear, then re-add" batch idempotently: one reset statement (bound to
  * `[modifierId]`), then one write per id (bound to `[modifierId, id]`). Shared
