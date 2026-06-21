@@ -1,3 +1,5 @@
+import { join } from "node:path";
+
 export type CliConfig = Readonly<{ apiHostname: string; apiKey: string }>;
 
 const ENV_HOST = "API_HOSTNAME";
@@ -17,9 +19,9 @@ const parseDotEnv = (text: string): Record<string, string> => {
   return values;
 };
 
-const readDotEnv = async (): Promise<Record<string, string>> => {
+const readDotEnv = async (envDir: string): Promise<Record<string, string>> => {
   try {
-    return parseDotEnv(await Deno.readTextFile(".env"));
+    return parseDotEnv(await Deno.readTextFile(join(envDir, ".env")));
   } catch (error) {
     if (error instanceof Deno.errors.NotFound) return {};
     throw error;
@@ -38,8 +40,8 @@ const requiredPrompt = (label: string): string => {
   return value;
 };
 
-export const loadConfig = async (): Promise<CliConfig> => {
-  const envFile = await readDotEnv();
+export const loadConfig = async (envDir: string): Promise<CliConfig> => {
+  const envFile = await readDotEnv(envDir);
   const apiHostname = cleanHost(
     Deno.env.get(ENV_HOST) ?? envFile[ENV_HOST] ?? requiredPrompt("API host"),
   );

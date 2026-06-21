@@ -11,7 +11,7 @@ import {
 
 type State = { resource: ResourceName; last: unknown };
 
-const config = await loadConfig();
+const config = await loadConfig(Deno.cwd());
 const state: State = { last: null, resource: "listings" };
 
 const helpText = `\nTickets CLI (Rezi-style Deno TUI, curl-backed)\nCommands:\n  resource <${resources.join("|")}>\n  list\n  get <id>\n  create <json>\n  update <id> <json>\n  delete <id> <json-confirmation>\n  help\n  quit\n`;
