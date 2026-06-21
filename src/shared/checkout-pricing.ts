@@ -76,12 +76,12 @@ export const ticketLineTotal = (order: Pick<PricedOrder, "lines">): number =>
  *  amount charged now, or {@link lineListPrice} for the gross list price. */
 export const lineTotalsByListingId = (
   lines: PricedLine[],
-  valueOf: (line: PricedLine) => number,
+  amountOf: (line: PricedLine) => number,
 ): Map<number, number> => {
   const totals = new Map<number, number>();
   for (const line of lines) {
     const id = line.item.listingId;
-    totals.set(id, (totals.get(id) ?? 0) + valueOf(line));
+    totals.set(id, (totals.get(id) ?? 0) + amountOf(line));
   }
   return totals;
 };
