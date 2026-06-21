@@ -151,15 +151,8 @@ describe("reconcileLegs", () => {
       reversesId: 2,
       source: world,
     });
-    const wrongLink = makeTransfer({
-      amount: 5000,
-      destination: attendee,
-      eventGroup: "evt-v",
-      id: 10,
-      kind: "payment",
-      reversesId: 99,
-      source: world,
-    });
+    // Same leg in every fingerprinted field except the reversal link.
+    const wrongLink = makeTransfer({ ...voidLeg, id: 10, reversesId: 99 });
     expect(reconcileLegs(expectedFor(voidLeg))([wrongLink])).toEqual([
       {
         eventGroup: "evt-v",
