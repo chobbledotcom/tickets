@@ -374,8 +374,9 @@ tiers**, and the write decision keys off the first:
 - **Source-data errors** — duplicate `Booking ID`s within the file, conflicting
   duplicate columns mapping to one question with different values, invalid or
   unparseable **required-value** fields — each keyed to the offending row.
-- **Unrepresentable bookings** — e.g. the same listing on non-contiguous dates the
-  data model can't hold (see [Quantity](#booking-mapping)).
+- **Unrepresentable bookings** — e.g. the same listing on two **non-identical**
+  date ranges, which one `(attendee, listing)` line can't hold (see
+  [Quantity](#booking-mapping)).
 
 **Skips & warnings — reported, but the valid rows still import:**
 
@@ -472,9 +473,11 @@ Extraction order:
    unmatched product *names* in `Equipments` or the quoted block — those are
    *missing products* fixable via the missing-setup page; and (b) a quote row
    *with* a parseable `Quoted for Products` block — that is creatable, as
-   quantity-0 interested lines. (If preferred, surface a no-products row as a hard
-   validation error instead of a skip; the requirement is only that it is caught
-   before writes, not left to fail the transaction.)
+   quantity-0 interested lines. (A no-products row is a **non-blocking skip** —
+   reported, not written, and it must **not** block the otherwise-valid bookings;
+   the earlier "hard validation error" option is dropped, since it would redirect a
+   whole upload over one blank row. The requirement is only that it's caught before
+   writes, not left to fail the transaction.)
 
 Important caveat: the export uses ` / ` as a product separator, but some product
 names appear to contain slashes, for example names like
@@ -590,32 +593,37 @@ Dates — every imported booking is dated (daily listings only):
   paths through the calendar, the feed, and the edit form. Gating to daily avoids
   that whole blast radius. (Replaces the earlier "date every line, including
   standard" approach.)
-- Duration should be at least 1 day. Same-day delivery/collection is 1 day.
+- Duration should be at least 1 day; same-day delivery/collection is 1 day. **A
+  reversed range — `Collection Date` before `Delivery Date` — is a blocking
+  source-data error, not a clamp.** Don't coerce a negative span to `1` (as
+  `normalizeDurationDays` would): that silently imports the booking on the wrong
+  dates, so the daily calendar/capacity and collection logistics no longer match
+  the source. Report it for the operator to fix.
 
 Quantity:
 
-- If the same matched listing appears multiple times in one source booking, use
-  a single line with `quantity` equal to the count.
-- **One line per `(attendee, listing)` — collapse repeats regardless of date.**
-  The attendee edit form de-dupes lines by `listing_id` (`parseLines` /
-  `buildFormLines` keep one row per listing), and the logistics/check-in/refund
-  helpers update by `(attendee_id, listing_id)` — so the system **cannot represent
-  two lines for the same listing under one attendee**, even on different dates.
-  The planner must therefore collapse repeats of a matched listing within a
-  booking into a single line. **This is only safe when the repeats share or
-  overlap into one contiguous range:** the daily calendar/capacity treat
-  `start_at`/`end_at` as an *occupied interval* — `getDailyListingAttendeeDates`
-  expands every covered day and `getDailyListingAttendeesByDate` selects by
-  overlap — so widening across **non-contiguous** dates (e.g. Jan 1 and Jan 10)
-  would falsely occupy every day in between and consume capacity Jan 1–10. For
-  contiguous/overlapping repeats, sum quantities and span `min(start)`…`max(end)`;
-  for **separate, non-adjacent** ranges of the same listing the data model can't
-  hold two rows (helpers update by `(attendee_id, listing_id)`), so **reject the
-  booking as unrepresentable** (report it) rather than silently widening. Note the
-  collapse/rejection in the import report. (Emitting two dated rows for one listing
-  would also be *rejected* by the unique `(listing_id, attendee_id, start_at)`
-  index and would break the first admin edit/action.) **Dedupe in the planner —
-  do not lean on the database constraint.**
+- If the same matched listing appears multiple times in one source booking **on
+  the same date range**, use a single line with `quantity` equal to the count
+  (different ranges are rejected — see next).
+- **One line per `(attendee, listing)` — sum only *identical* ranges; reject the
+  rest.** The attendee edit form de-dupes lines by `listing_id` (`parseLines` /
+  `buildFormLines` keep one row per listing) and the logistics/check-in/refund
+  helpers update by `(attendee_id, listing_id)`, so the system **cannot represent
+  two lines for the same listing under one attendee**. A single line also applies
+  one `quantity` to **every** day in its `start_at`…`end_at` interval — the daily
+  calendar/capacity treat it as an occupied interval
+  (`getDailyListingAttendeeDates` expands every covered day;
+  `getDailyListingAttendeesByDate` selects by overlap). So the planner may **sum
+  quantities only when the repeats have the *identical* date range** (e.g. two of
+  the same listing on the same dates → `quantity = 2`). **Any differing range —
+  adjacent (Jan 1 + Jan 2), overlapping, or non-contiguous (Jan 1 + Jan 10) — is
+  unrepresentable and must be rejected** (reported), never widened: widening
+  applies the summed quantity to every day in the span, overstating capacity on
+  each day (and the edge days for overlaps). Note the collapse/rejection in the
+  import report. (Emitting two dated rows for one listing would also be *rejected*
+  by the unique `(listing_id, attendee_id, start_at)` index and would break the
+  first admin edit/action.) **Dedupe in the planner — do not lean on the database
+  constraint.**
 
 ## Zero-Quantity ("No Quantity") Booking Lines
 
@@ -950,8 +958,9 @@ Target algorithm — a **pure preflight** that accumulates the full report, then
     the file would strand encrypted `strings`); dedupe identical answers across
     candidates. Record conflicting duplicate columns (same question, two different
     non-empty values) as source-data errors.
-11. Check representability: a same-listing repeat across **non-contiguous** dates
-    the data model can't hold is recorded as unrepresentable (see Quantity).
+11. Check representability: a same-listing repeat across **non-identical** date
+    ranges (anything but the exact same range) can't fit one `(attendee, listing)`
+    line and is recorded as unrepresentable (see Quantity).
 12. **Build the import plan** for every still-creatable candidate — encrypted PII
     blobs, lines (real / quantity-0), text-answer sets, balances, dates/times,
     audit fields, idempotency rows. Pure data, no writes.
@@ -1205,13 +1214,14 @@ Add focused tests before broad route tests:
   (`getAgentRunSheet`) only **after** an agent is assigned, since the importer
   doesn't assign one; a product matching a `standard`-type listing **blocks** the
   upload (listed on the missing-setup page as must-be-daily) and writes nothing.
-- A source booking repeating the same matched listing on the **same or
-  contiguous/overlapping** dates produces a single quantity-collapsed line (one row
-  per `(attendee, listing)`, widest date range), proving the planner collapses
-  rather than emitting two rows the edit form / per-`(attendee, listing)` actions
-  can't represent. **Non-adjacent** ranges of the same listing (e.g. Jan 1 and
-  Jan 10) are **rejected as unrepresentable** (reported, not widened — widening
-  would occupy every intervening day on the daily calendar/capacity).
+- A source booking repeating the same matched listing on the **identical** date
+  range produces a single quantity-summed line (one row per `(attendee, listing)`),
+  proving the planner collapses rather than emitting two rows the edit form /
+  per-`(attendee, listing)` actions can't represent. **Any non-identical** range
+  for the same listing — adjacent (Jan 1 + Jan 2), overlapping, or non-contiguous
+  (Jan 1 + Jan 10) — is **rejected as unrepresentable** (reported, not widened —
+  one line's quantity would otherwise apply to every day in the widened span,
+  overstating capacity).
 - The raw audit-trail fields are persisted to their durable encrypted
   destination (read back after import), not just shown in the report.
 - Legacy rows can overbook without failing the import.
@@ -1562,10 +1572,11 @@ from [`no-quantity-spec.md`](./no-quantity-spec.md) exist.
   `/admin/attendees` browser + CSV `getAttendeesPage` — otherwise imports' fresh
   ids would make them dominate those "newest" views despite old `created`.
 - Per-booking line dedup happens in the planner: there is **one line per
-  `(attendee, listing)`**. Same/contiguous/overlapping repeats collapse (sum
-  quantity, widest date range, report the collapse); **non-adjacent** ranges of the
-  same listing are **rejected as unrepresentable** (widening would occupy every
-  intervening day on the daily calendar/capacity). The edit form de-dupes by `listing_id`
+  `(attendee, listing)`**. Only **identical** date ranges may be summed (a single
+  line applies one quantity across its whole interval); **any** differing range —
+  adjacent, overlapping, or non-contiguous — is **rejected as unrepresentable**,
+  never widened (widening overstates capacity on every covered day). The edit form
+  de-dupes by `listing_id`
   and per-`(attendee, listing)` action helpers can't represent multiple lines per
   listing, and the unique `(listing_id, attendee_id, start_at)` index would reject
   duplicate dated rows anyway — so the planner must collapse, not rely on the

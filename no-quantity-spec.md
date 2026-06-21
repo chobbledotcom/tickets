@@ -567,6 +567,12 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
   bookings — not only all-ghost records); the
   refresh-payment route refunds the real line, never a ghost-first row; the
   scanner manual list omits quantity-0 candidates.
+- Built-site guard: marking an assigned `assign_built_site` line no-quantity is
+  **refused** (the `built_sites` assignment and `/renew/?t=…` token stay live, so
+  the line must be released/unassigned first, not hidden).
+- Scanner force fallback: a `force=true` scan whose only match for the scanned
+  listing is a quantity-0 row is **refused**, not force-checked-in to the
+  attendee's other real listing.
 - Public API `POST /api/listings/:slug/book` rejects/ignores `quantity: 0` (no
   one-ticket booking created).
 - Capacity unaffected (`SUM(quantity)`); orphan purge keeps a quantity-0 attendee.
