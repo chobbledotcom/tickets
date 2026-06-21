@@ -5,8 +5,8 @@
 Add an optional **parent/child relationship between listings**. Any listing may
 declare one or more **parents**, where a parent is just another listing. The
 relationship is read in reverse at the till: when a listing that is *a parent of
-something* is added to an order, the buyer **must also pick at least one of that
-parent's children** before they can check out.
+something* is added to an order, the buyer **must also pick exactly one of that
+parent's children** (per parent) before they can check out.
 
 Nothing here invents a new kind of entity. A "child" is an ordinary listing with
 its own price, capacity, dates, questions and booking row; the parent system is
@@ -49,16 +49,22 @@ be read in this light (they resolve several of the original open questions):
 - **Child quantity follows the parent.** If the buyer hires **2 of the base unit**,
   they get **2 of the add-on** — the child line's quantity is **slaved to the
   parent's quantity**, not chosen independently. (Resolves Open Question 4.)
-- **Child inherits the parent's date/duration — but only a *daily* child carries a
-  date.** The add-on has no date/day-count controls of its own; it takes the base
-  unit's. **Crucially, a *standard* (dateless) child must fold with `date: null`,
-  not the parent's date.** Capacity for a dated row uses date-overlap counting,
-  while a dateless row uses cumulative counting (`buildCapacityCondition`), so
-  writing the parent's date onto a standard child would flip it to per-date capacity
-  and let the same add-on be oversold across different parent dates. So: a **daily**
-  child inherits the parent's date *and* duration; a **standard** child stays
-  date-less (valid on every parent date, cumulative capacity). A daily child may
-  only sit under a daily parent (admin rule). (Resolves Open Questions 14 and 17.)
+- **Child inherits the parent's date/duration — but *date* and *duration* inherit
+  separately.** The add-on has no date/day-count controls of its own; it takes the
+  base unit's. Two independent dimensions:
+  - **Date** — only a **daily** child carries one (it inherits the parent's date). A
+    **standard** (non-daily) child must fold with `date: null`, never the parent's
+    date: a dated row uses date-overlap capacity while a dateless row uses cumulative
+    counting (`buildCapacityCondition`), so writing the parent's date onto a standard
+    child would flip it to per-date capacity and oversell across parent dates.
+  - **Duration** — any **`customisable_days`** child inherits the parent's resolved
+    day-count so its `day_prices` and the checkout `dayCount` use the chosen span —
+    **including a *standard* customisable child** (which still folds `date: null`).
+    A non-customisable child is duration 1 (or its own fixed `duration_days` for a
+    daily child, which must match the parent — admin rule).
+  A daily child may only sit under a daily parent; a customisable child needs a
+  duration-producing parent (see admin validation). (Resolves Open Questions 14 and
+  17.)
 - **Add-ons can be "pay what you want".** A child may be `can_pay_more`, so the
   booking page must render the child's **custom-price input** and the gate must
   collect it. (Resolves Open Question 15.)
@@ -593,10 +599,12 @@ In `prepareOrder` (`ticket-submit.ts`), after `parseQuantities`:
    `child_<parentId>` (a radio — exactly one child id, since the rule is "one per
    parent"; auto-filled server-side when there's a single bookable child). The
    chosen child's **quantity is derived from the parent's quantity** (not
-   submitted). Its **date/duration is inherited only when the child is daily**: a
-   daily child takes the parent's date and duration; a **standard (dateless) child
-   folds with `date: null`** (cumulative capacity — never write the parent's date
-   onto it, or it flips to per-date capacity and oversells across parent dates). A
+   submitted). **Date and duration inherit separately** (see Confirmed behaviour): a
+   **daily** child takes the parent's date; a **standard** child folds with
+   `date: null` (cumulative capacity — never write the parent's date onto it); and a
+   **`customisable_days`** child inherits the parent's resolved day-count for its
+   `day_prices`/`dayCount` **even when it is standard/dateless** (don't leave a
+   dateless duration add-on at the default one-day span). A
    `can_pay_more` child also carries `child_price_<parentId>_<childId>`. **Only read
    `child_*` fields for parents that are actually in the cart** (`quantity_<parentId>
    > 0`); **silently ignore** the rest. The no-JS baseline renders every parent's
@@ -912,6 +920,14 @@ Enumerate each and decide:
     must surface hidden child records/constraints — otherwise a parent with only
     hidden children looks bookable in discovery but can't be booked programmatically
     without out-of-band child ids.
+  - **The existing `availableDates` field must not stay child-blind.**
+    `GET /api/listings/:slug` already returns an `availableDates` array for daily
+    listings; for a daily *parent* this currently lists the parent's own dates, so a
+    client could offer a date on which the required child is unavailable (the booking
+    POST then rejects it). Either compute `availableDates` for a parent from the same
+    **parent ∩ child-union** availability the web form uses, or mark it explicitly
+    parent-only and direct clients to the availability endpoint for the real
+    bookable dates.
   - **Availability endpoint.** `GET /api/listings/:slug/availability` calls
     `hasAvailableSpots(..., date, listing.duration_days)` for the passed slug
     (`api/index.ts:243-248`), so a **child** slug would report standalone
@@ -1037,14 +1053,15 @@ Enumerate each and decide:
   `parseQuantities` is listing-id-keyed), so the fold **merges them into one line
   with the summed quantity** (P1 + P2 ⇒ qty 2). The gate computes this *before*
   building `ListingBooking[]`, so it never "passes" then fails at save.
-  - **Per-instance inputs across the two parents must reconcile, since the merged
-    line carries one of each.** Date and duration are inherited from each parent, so
-    if the two parents differ in date/duration the merged line is contradictory —
-    in practice both Cs share the same booking only when their parents share the
-    order's date/duration (the common single-day case), so a mismatch should be
-    rejected. For a `can_pay_more` C, the two parents' `child_price_*` values must
-    be **equal** (it's the same add-on) — reject a mismatch. Questions on a shared C
-    likewise resolve to a single answer set for the merged line.
+  - **Reconcile only the fields the child actually carries** (the merged line holds
+    one of each). Do **not** reject merely because the two parents have different
+    date contexts: a **standard/dateless** shared C folds `date: null` regardless, so
+    a daily parent and a standard parent both selecting the same standard C is fine.
+    Reconcile only what C stores: for a **daily** C the two parents' dates must
+    match (it carries one date); for a **`customisable_days`** C the two inherited
+    durations must match (one `dayCount`); for a `can_pay_more` C the two
+    `child_price_*` values must be **equal**; and questions resolve to one answer
+    set. Reject only a genuine mismatch on a field C carries.
 - **Child is also a parent (nesting).** Forbidden in v1 (see Admin validation).
   If allowed later, selecting a child that is itself a parent recursively requires
   *its* children — the gate must loop until fixpoint, and cycle detection becomes
