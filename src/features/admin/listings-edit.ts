@@ -1,0 +1,266 @@
+/**
+ * Listing create / duplicate / edit routes.
+ *
+ * The create and update flows share the form-extraction resources
+ * (`listings-form.ts`) and the file-upload handling (`listings-uploads.ts`);
+ * this module wires them to the new/edit/duplicate pages.
+ */
+
+/* jscpd:ignore-start */
+import { t } from "#i18n";
+import { parseEditableAggregateForm } from "#routes/admin/aggregate-recalculation.ts";
+import { AUTH_MULTIPART, requireSessionOr, withAuth } from "#routes/auth.ts";
+import { applyFlash, formDataToParams } from "#routes/csrf.ts";
+import { htmlResponse, notFoundResponse } from "#routes/response.ts";
+import type { TypedRouteHandler } from "#routes/router.ts";
+import { logActivity } from "#shared/db/activityLog.ts";
+import {
+  checkGroupCapAfterDurationChange,
+  recomputeListingBookingRanges,
+} from "#shared/db/attendees.ts";
+import { getAllGroups } from "#shared/db/groups.ts";
+import {
+  getListingAggregateRecalculation,
+  getListingWithCount,
+  type ListingAggregateRecalculation,
+  type ListingAggregateValues,
+  updateListingAggregateValues,
+} from "#shared/db/listings.ts";
+import { applyDemoOverrides, LISTING_DEMO_FIELDS } from "#shared/demo.ts";
+import type {
+  AdminSession,
+  Group,
+  Listing,
+  ListingWithCount,
+} from "#shared/types.ts";
+import {
+  adminDuplicateListingPage,
+  adminListingEditPage,
+  adminListingNewPage,
+} from "#templates/admin/listings.tsx";
+import type { ListingAggregateFormValues } from "#templates/fields.ts";
+import { listingAggregateFields } from "#templates/fields.ts";
+import { withEntityFromParam } from "./entity-handlers.ts";
+import {
+  buildCreateListingResource,
+  buildUpdateListingResource,
+  extractListingAggregateValues,
+} from "./listings-form.ts";
+import { processUploadsAndRedirect } from "./listings-uploads.ts";
+/* jscpd:ignore-end */
+
+/**
+ * Handle GET /admin/listing/new (show create listing form)
+ */
+export const handleNewListingGet: TypedRouteHandler<
+  "GET /admin/listing/new"
+> = (request) =>
+  requireSessionOr(request, async (session) => {
+    const groups = await getAllGroups();
+    return htmlResponse(adminListingNewPage(groups, session));
+  });
+
+/**
+ * Handle POST /admin/listing (create listing)
+ */
+export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> = (
+  request,
+) =>
+  withAuth(request, AUTH_MULTIPART, async (session, formData) => {
+    const form = formDataToParams(formData);
+    applyDemoOverrides(form, LISTING_DEMO_FIELDS);
+    const result = await buildCreateListingResource(form).create(form);
+    if (!result.ok) {
+      const groups = await getAllGroups();
+      return htmlResponse(
+        adminListingNewPage(groups, session, result.error),
+        400,
+      );
+    }
+    await logActivity(`Listing '${result.row.name}' created`, result.row);
+    return processUploadsAndRedirect(
+      formData,
+      result.row.id,
+      "/admin",
+      t("success.listing_created"),
+    );
+  });
+
+/** Listing + its groups + aggregate recalculation, loaded for the edit pages. */
+const getListingAndGroups = async (
+  listingId: number,
+): Promise<{
+  aggregateRecalculation: ListingAggregateRecalculation;
+  groups: Group[];
+  listing: ListingWithCount;
+} | null> => {
+  const [listing, groups] = await Promise.all([
+    getListingWithCount(listingId),
+    getAllGroups(),
+  ]);
+  return listing
+    ? {
+        aggregateRecalculation: await getListingAggregateRecalculation(listing),
+        groups,
+        listing,
+      }
+    : null;
+};
+
+type ListingAndGroups = NonNullable<
+  Awaited<ReturnType<typeof getListingAndGroups>>
+>;
+
+/**
+ * Session-guarded GET handler that loads the listing + groups context and
+ * renders a page from it. Shared by the duplicate and edit forms.
+ */
+const listingAndGroupsPage =
+  (
+    renderPage: (
+      ctx: ListingAndGroups,
+      session: AdminSession,
+      request: Request,
+    ) => string,
+  ): TypedRouteHandler<"GET /admin/listing/:id"> =>
+  (request, params) =>
+    requireSessionOr(request, (session) =>
+      withEntityFromParam(params.id, getListingAndGroups, (ctx) =>
+        htmlResponse(renderPage(ctx, session, request)),
+      ),
+    );
+
+/** Handle GET /admin/listing/:id/duplicate */
+export const handleAdminListingDuplicateGet: TypedRouteHandler<"GET /admin/listing/:id/duplicate"> =
+  listingAndGroupsPage((ctx, session) =>
+    adminDuplicateListingPage(ctx.listing, ctx.groups, session),
+  );
+
+/** Handle GET /admin/listing/:id/edit */
+export const handleAdminListingEditGet: TypedRouteHandler<"GET /admin/listing/:id/edit"> =
+  listingAndGroupsPage((ctx, session, request) => {
+    const flash = applyFlash(request);
+    return adminListingEditPage(
+      ctx.listing,
+      ctx.groups,
+      session,
+      flash.error,
+      ctx.aggregateRecalculation,
+      flash.success,
+    );
+  });
+
+/**
+ * If a daily listing's duration changed on edit, recompute booking ranges and
+ * detect group-capacity overflow. Returns a string to append to the flash
+ * message ("" when no reconciliation was needed or no overflow occurred).
+ */
+const reconcileDurationChange = async (
+  row: {
+    id: number;
+    name: string;
+    listing_type: string;
+    customisable_days: boolean;
+    duration_days: number;
+    group_id: number;
+  },
+  previousDurationDays: number,
+): Promise<string> => {
+  if (row.listing_type !== "daily") return "";
+  // For customisable-days listings each booking has its own visitor-chosen
+  // span, so `duration_days` is only the maximum offered to new bookings —
+  // never rewrite existing bookings' stored ranges from it.
+  if (row.customisable_days) return "";
+  if (row.duration_days === previousDurationDays) return "";
+
+  await recomputeListingBookingRanges(row.id, row.duration_days);
+  await logActivity(
+    `Listing '${row.name}' duration changed to ${row.duration_days} day(s)`,
+    row,
+  );
+  const overDay = await checkGroupCapAfterDurationChange(row.id, row.group_id);
+  if (!overDay) return "";
+  await logActivity(
+    `Duration change caused group capacity overflow on ${overDay}`,
+    row,
+  );
+  return ` Warning: group capacity exceeded on ${overDay}`;
+};
+
+const renderListingEditError = async (
+  id: number,
+  session: AdminSession,
+  error: string,
+): Promise<Response> => {
+  const ctx = await getListingAndGroups(id);
+  return ctx
+    ? htmlResponse(
+        adminListingEditPage(
+          ctx.listing,
+          ctx.groups,
+          session,
+          error,
+          ctx.aggregateRecalculation,
+        ),
+        400,
+      )
+    : notFoundResponse();
+};
+
+const handleListingEditSuccess = async (
+  row: Listing,
+  existing: ListingWithCount,
+  aggregateValues: ListingAggregateValues | null,
+  formData: FormData,
+  id: number,
+): Promise<Response> => {
+  if (aggregateValues) {
+    await updateListingAggregateValues(id, aggregateValues);
+  }
+  const durationWarning = await reconcileDurationChange(
+    row,
+    existing.duration_days,
+  );
+  await logActivity(`Listing '${row.name}' updated`, row);
+  return processUploadsAndRedirect(
+    formData,
+    id,
+    `/admin/listing/${row.id}`,
+    `Listing updated${durationWarning}`,
+    existing.image_url,
+    existing.attachment_url,
+  );
+};
+
+/** Handle POST /admin/listing/:id/edit */
+export const handleAdminListingEditPost: TypedRouteHandler<
+  "POST /admin/listing/:id/edit"
+> = (request, { id }) =>
+  withAuth(request, AUTH_MULTIPART, (session, formData) =>
+    withEntityFromParam(id, getListingWithCount, async (existing) => {
+      const form = formDataToParams(formData);
+      applyDemoOverrides(form, LISTING_DEMO_FIELDS);
+      const aggregates = parseEditableAggregateForm<
+        ListingAggregateFormValues,
+        ListingAggregateValues
+      >(form, listingAggregateFields, extractListingAggregateValues);
+      if (!aggregates.ok) {
+        return renderListingEditError(id, session, aggregates.error);
+      }
+
+      // Build a resource that includes the slug field; uniqueness is enforced
+      // by validateListingInput when existingId is set.
+      const result = await buildUpdateListingResource(form).update(id, form);
+      if (result.ok) {
+        return handleListingEditSuccess(
+          result.row,
+          existing,
+          aggregates.input,
+          formData,
+          id,
+        );
+      }
+      if ("notFound" in result) return notFoundResponse();
+      return renderListingEditError(id, session, result.error);
+    }),
+  );
