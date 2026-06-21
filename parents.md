@@ -689,10 +689,11 @@ The expanded set (parent page listings ∪ selected children) must drive **all**
   default needs a guard:** the existing modifier-scoping UI/DB can already attach
   opt-in add-ons to a listing that *later* becomes a child, after which the parent
   flow silently won't load them (they're scoped to a listing that's never in the
-  page id set). So admin must **prevent or warn** when a listing that has scoped
-  opt-in add-ons is made a child (or vice versa) — otherwise the operator's
-  configured add-on disappears with no signal. (Alternatively, implement the
-  conditional render/parse path.)
+  page id set). So while child-scoped add-ons are unsupported, admin must **hard
+  block** making a listing a child while it has scoped opt-in add-ons (and vice
+  versa), not merely warn — a warn-and-save leaves a real broken purchase path where
+  the operator configured an add-on buyers can never select. (Lift the block only
+  once the conditional child add-on render/parse path is implemented.)
 - **Site-assignment validation** — `prepareOrder` calls
   `validateSiteAssignmentConfig(selected)` (`ticket-submit.ts:578`) before
   checkout. A child with `assign_built_site` set (parent without) must be in the
@@ -922,8 +923,11 @@ Enumerate each and decide:
   10.)
 - **Admin manual add / attendee edit** — ✅ **warn but don't block.** Admins build
   `AttendeeInput.bookings` directly (and can `allowOverbook`); the gate is a buyer
-  UX constraint, so manual add shows a warning when a parent lacks its child but
-  lets the operator proceed. (Open Question 7.)
+  UX constraint, so manual add shows a warning when a booking is inconsistent but
+  lets the operator proceed. Warn on **both** directions: a **parent without its
+  required child**, *and* a **child line with none of its parents** in the same
+  booking (a lone child violates the same no-standalone-child invariant — and the
+  merge flow below already flags it). (Open Question 7.)
 - **Attendee merge** also mutates booking lines directly: `bookingInsertStatement`
   (`src/shared/merge/attendee-merge.ts`) copies `listing_attendees` rows onto the
   target and deletes the source. Merging a parent booking without its child, or
@@ -1008,8 +1012,12 @@ Enumerate each and decide:
   shared-standalone ambiguity (the child row can satisfy the gate or be aggregated
   outside the per-parent selector). Resolve by **forbidding parent/child edges
   *within the same group* in admin validation** (recommended, simplest) or defining
-  group-specific assignment, before the group path enforces the gate. (Open Question
-  6.)
+  group-specific assignment, before the group path enforces the gate. **This check
+  must run on *group-membership* writes too**, not only on edge-save: an operator
+  can create a valid edge while the two listings are in different groups, then use
+  the group add-listings/update path to move the child into the parent's group —
+  bypassing edge-save validation and reintroducing the standalone child on the
+  group form. (Open Question 6.)
 - **Deleting/deactivating a parent or child mid-session.** The buyer's submitted
   selection is re-validated server-side at submit, so a stale page that lost a
   child fails cleanly rather than booking a dead listing.
