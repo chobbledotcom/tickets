@@ -103,6 +103,33 @@ describeWithEnv("db > accounting > store", { db: true }, () => {
       expect((await allTransfers()).length).toBe(2);
     });
 
+    test("rejects duplicate references within one post", async () => {
+      const error = await rejection(
+        postTransfers([
+          tx({ reference: "dup" }),
+          tx({
+            destination: account("fee_income", "booking"),
+            reference: "dup",
+          }),
+        ]),
+      );
+      expect(error.message).toContain("duplicate reference");
+      expect((await allTransfers()).length).toBe(0);
+    });
+
+    test("rejects a reference that collides with a different event", async () => {
+      await postTransfers([tx({ eventGroup: "evt-a", reference: "shared" })]);
+      // A different event reuses the same reference (a mapper bug): the insert
+      // is skipped by ON CONFLICT, and the post-insert re-verify surfaces it.
+      const error = await rejection(
+        postTransfers([
+          tx({ amount: 9999, eventGroup: "evt-b", reference: "shared" }),
+        ]),
+      );
+      expect(error).toBeInstanceOf(LedgerConflictError);
+      expect((await allTransfers()).length).toBe(1);
+    });
+
     test("rejects an invalid transfer before writing anything", async () => {
       const error = await rejection(
         postTransfers([tx({ amount: 0, reference: "bad" })]),

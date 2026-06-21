@@ -126,6 +126,23 @@ const bookingLegSpecs = (
 };
 
 /**
+ * Reject negative inputs loudly rather than silently dropping them with the
+ * zero-amount legs. A discount `delta` is legitimately negative, so it is the
+ * only signed field.
+ */
+const assertNonNegativeFacts = (facts: BookingFacts): void => {
+  const negatives: string[] = [];
+  for (const line of facts.lines) {
+    if (line.gross < 0) negatives.push(`listing ${line.listingId} gross`);
+  }
+  if (facts.bookingFee < 0) negatives.push("bookingFee");
+  if (facts.amountPaid < 0) negatives.push("amountPaid");
+  if (negatives.length > 0) {
+    throw new Error(`mapBooking: negative amount in ${negatives.join(", ")}`);
+  }
+};
+
+/**
  * Map a booking's money facts to the ledger legs to post: a `sale` per listing
  * (gross), a signed `modifier` per applied modifier, a `fee` for the booking
  * fee, and a `payment` for the cash received — all sharing one event group.
@@ -135,6 +152,7 @@ const bookingLegSpecs = (
 export const mapBooking = async (
   facts: BookingFacts,
 ): Promise<TransferInput[]> => {
+  assertNonNegativeFacts(facts);
   const group = await eventGroup([BOOKING, facts.eventId]);
   const attendee = attendeeAccount(facts.attendeeId);
   return Promise.all(

@@ -172,9 +172,11 @@ const assertEventMatches = (
 
 /**
  * Post the legs of one business event, idempotently. Every leg must share one
- * `eventGroup`. If that event is already (even partly) stored, the whole leg set
- * must match or {@link LedgerConflictError} is thrown; otherwise the legs are
- * written in one conflict-tolerant batch.
+ * `eventGroup` and carry a distinct `reference` (a duplicate within the post is
+ * rejected — it would silently under-post). If that event is already (even
+ * partly) stored, the whole leg set must match or {@link LedgerConflictError} is
+ * thrown; otherwise the legs are written in one conflict-tolerant batch and the
+ * committed event is re-verified.
  */
 export const postTransfers = async (
   inputs: TransferInput[],
@@ -193,6 +195,10 @@ export const postTransfers = async (
       `postTransfers: every leg must share one eventGroup (got ${eventGroups.size})`,
     );
   }
+  const references = inputs.map((t) => t.reference);
+  if (new Set(references).size !== references.length) {
+    throw new Error("postTransfers: duplicate reference within one event");
+  }
   const eventGroup = inputs[0]!.eventGroup;
   const existing = await transfersByEventGroup(eventGroup);
   if (existing.length > 0) {
@@ -203,9 +209,16 @@ export const postTransfers = async (
   const results = await executeBatchWithResults(
     inputs.map((t) => insertStatement(t, recordedAt)),
   );
-  // A concurrent writer of the same event makes some inserts no-op (identical
-  // rows, by deterministic reference); those count as skipped, not failures.
   const inserted = sumOf((r: ResultSet) => Number(r.rowsAffected))(results);
+  // Re-read and verify the committed event is exactly ours. A skipped insert
+  // (a reference that already existed) becomes a loud conflict when that row
+  // belongs to a *different* event, while a concurrent writer of the *same*
+  // event verifies cleanly and is counted as an idempotent skip.
+  assertEventMatches(
+    eventGroup,
+    await transfersByEventGroup(eventGroup),
+    inputs,
+  );
   return { inserted, skipped: inputs.length - inserted };
 };
 

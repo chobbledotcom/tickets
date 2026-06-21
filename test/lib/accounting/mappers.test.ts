@@ -31,6 +31,16 @@ const facts = (overrides: Partial<BookingFacts> = {}): BookingFacts => ({
   ...overrides,
 });
 
+/** Run a promise expected to reject and return the thrown message. */
+const rejectionMessage = async (promise: Promise<unknown>): Promise<string> => {
+  try {
+    await promise;
+  } catch (error) {
+    return (error as Error).message;
+  }
+  return "";
+};
+
 describeWithEnv("accounting > mappers", { encryptionKey: true }, () => {
   describe("mapBooking", () => {
     test("books gross, modifiers, fee and payment; a paid booking nets to zero", async () => {
@@ -104,6 +114,22 @@ describeWithEnv("accounting > mappers", { encryptionKey: true }, () => {
       expect(sales.length).toBe(1);
       expect(sales[0]!.amount).toBe(5000);
       expect(new Set(legs.map((l) => l.reference)).size).toBe(legs.length);
+    });
+
+    test("rejects a negative line gross", async () => {
+      expect(
+        await rejectionMessage(
+          mapBooking(facts({ lines: [{ gross: -100, listingId: 1 }] })),
+        ),
+      ).toContain("negative amount");
+    });
+
+    test("rejects a negative fee or payment", async () => {
+      expect(
+        await rejectionMessage(
+          mapBooking(facts({ amountPaid: -50, bookingFee: -10 })),
+        ),
+      ).toContain("negative amount");
     });
 
     test("drops zero-amount legs (a free booking posts nothing)", async () => {
