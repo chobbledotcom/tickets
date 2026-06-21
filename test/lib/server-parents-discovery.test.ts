@@ -104,10 +104,12 @@ describeWithEnv(
         expect(body).toContain(`href="/ticket/${parent.slug}"`);
       });
 
-      test("a child whose only parent is deactivated is not labeled add-on", async () => {
+      test("a child whose only parent is deactivated renders unavailable", async () => {
         // The only parent page that could offer this child is deactivated, so
-        // the "available as an add-on" CTA would be a dead end — the child falls
-        // back to its own standalone booking CTA instead (Fix 1).
+        // the "available as an add-on" CTA would point at nothing. A child is
+        // never standalone-bookable (the slug guard rejects all children), so
+        // the card renders as currently unavailable rather than a dead-end Book
+        // link or a dead-end add-on note (Fix 1).
         const parent = await createTestListing({ name: "Base unit" });
         const child = await createTestListing({ name: "Add-on" });
         await setChildIds(parent.id, [child.id]);
@@ -115,7 +117,23 @@ describeWithEnv(
         const body = await publicBody("/listings");
         expect(body).toContain("Add-on");
         expect(body).not.toContain("Available as an add-on to another booking");
-        expect(body).toContain(`href="/ticket/${child.slug}"`);
+        expect(body).not.toContain(`href="/ticket/${child.slug}"`);
+        expect(body).toContain("Currently Unavailable");
+      });
+
+      test("a child whose only parent is deactivated still 404s its ticket page", async () => {
+        // The slug guard rejects every child regardless of parent.active, so the
+        // advertised-as-unavailable child must not be standalone-bookable (Fix 1).
+        const parent = await createTestListing({ name: "Base unit" });
+        const child = await createTestListing({ name: "Add-on" });
+        await setChildIds(parent.id, [child.id]);
+        await deactivateTestListing(parent.id);
+        await settings.update.showPublicSite(true);
+        const response = await handleRequest(
+          mockRequest(`/ticket/${child.slug}`),
+        );
+        response.body?.cancel();
+        expect(response.status).toBe(404);
       });
 
       test("a child with one active and one inactive parent stays labeled add-on", async () => {

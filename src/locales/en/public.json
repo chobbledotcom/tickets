@@ -11,6 +11,7 @@
   "public.book_now": "Book now",
   "public.buy_now": "Buy now",
   "public.unavailable": "Unavailable",
+  "public.currently_unavailable": "Currently Unavailable",
   "public.contact_email_label": "Your email address",
   "public.ticket.date_duration_hint": "each booking reserves {durationDays, plural, one {# day} other {# days}}",
   "public.ticket.no_booking_lengths": "No booking lengths are currently available.",

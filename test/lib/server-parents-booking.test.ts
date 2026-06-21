@@ -53,6 +53,52 @@ describeWithEnv(
       expect(res.status).toBe(200);
     });
 
+    test("a parent's quantity is clamped to a single child's capacity", async () => {
+      // The parent offers up to 5, but its single auto-selected child is capped
+      // at 1, so child quantity (slaved to the parent) can only be 1 — the page
+      // must offer only quantity 0–1, not 2–5 the submit fold would reject
+      // (Codex 565).
+      const parent = await createTestListing({
+        maxAttendees: 50,
+        maxQuantity: 5,
+        name: "Base unit",
+      });
+      const child = await createTestListing({
+        maxAttendees: 50,
+        maxQuantity: 1,
+        name: "Add-on",
+      });
+      await setChildIds(parent.id, [child.id]);
+      const body = await (await ticketGet(parent.slug)).text();
+      const select = body.slice(body.indexOf(`name="quantity_${parent.id}"`));
+      const options = select.slice(0, select.indexOf("</select>"));
+      expect(options).toContain('value="1"');
+      expect(options).not.toContain('value="2"');
+      expect(options).not.toContain('value="5"');
+    });
+
+    test("a parent's quantity is clamped to a child capped at three", async () => {
+      // With the child capped at 3, the parent offering 5 must offer up to 3 and
+      // no higher (Codex 565).
+      const parent = await createTestListing({
+        maxAttendees: 50,
+        maxQuantity: 5,
+        name: "Base unit",
+      });
+      const child = await createTestListing({
+        maxAttendees: 50,
+        maxQuantity: 3,
+        name: "Add-on",
+      });
+      await setChildIds(parent.id, [child.id]);
+      const body = await (await ticketGet(parent.slug)).text();
+      const select = body.slice(body.indexOf(`name="quantity_${parent.id}"`));
+      const options = select.slice(0, select.indexOf("</select>"));
+      expect(options).toContain('value="3"');
+      expect(options).not.toContain('value="4"');
+      expect(options).not.toContain('value="5"');
+    });
+
     test("a group containing a child member still renders (not 404)", async () => {
       // The group page loads members indirectly, so a child member is suppressed
       // /folded — not a reason to 404 the whole group (the buyer isn't starting

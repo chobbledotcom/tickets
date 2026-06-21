@@ -1215,6 +1215,84 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
       );
     });
 
+    test("a parent's direct-render booking keeps its ticket URL on reload", async () => {
+      // The explicit-thank-you (parent) booking renders the success page directly
+      // from session_id (no token in the URL). Re-hitting the same provider
+      // callback lands on the already-processed branch; the ticket token must be
+      // persisted so that reload still renders a non-null ticket URL (and the
+      // parent's thank-you URL), instead of losing the buyer's ticket link.
+      const { stub } = await import("@std/testing/mock");
+      const { stripeApi } = await import("#shared/stripe.ts");
+
+      await setupStripe();
+
+      const parent = await createTestListing({
+        maxAttendees: 50,
+        name: "Base unit",
+        thankYouUrl: "https://example.com/thanks-parent",
+        unitPrice: 1000,
+      });
+      const child = await createTestListing({
+        maxAttendees: 50,
+        name: "Add-on",
+        unitPrice: 1000,
+      });
+
+      const items = JSON.stringify([
+        { e: parent.id, p: 1000, q: 1 },
+        { e: child.id, p: 1000, q: 1 },
+      ]);
+
+      await withMocks(
+        () =>
+          stub(stripeApi, "retrieveCheckoutSession", () =>
+            Promise.resolve({
+              amount_total: 2000,
+              id: "cs_parent_reload",
+              metadata: signMeta(
+                {
+                  email: "john@example.com",
+                  items,
+                  name: "John",
+                  thank_you_url: "https://example.com/thanks-parent",
+                },
+                2000,
+              ),
+              payment_intent: "pi_parent_reload",
+              payment_status: "paid",
+            } as unknown as Awaited<
+              ReturnType<typeof stripeApi.retrieveCheckoutSession>
+            >),
+          ),
+        async () => {
+          // First hit finalizes and renders directly with the ticket URL.
+          const first = await handleRequest(
+            mockRequest("/payment/success?session_id=cs_parent_reload"),
+          );
+          const firstHtml = await expectHtmlResponse(
+            first,
+            200,
+            "Thank you for your order",
+            "https://example.com/thanks-parent",
+          );
+          expect(firstHtml).toContain("/t/");
+
+          // Reload hits the already-processed branch; the persisted token still
+          // yields a non-null ticket URL and the parent's thank-you URL.
+          const reload = await handleRequest(
+            mockRequest("/payment/success?session_id=cs_parent_reload"),
+          );
+          const reloadHtml = await expectHtmlResponse(
+            reload,
+            200,
+            "Thank you for your order",
+            "https://example.com/thanks-parent",
+          );
+          expect(reloadHtml).toContain("/t/");
+        },
+      );
+    });
+
     test("handles replay of same session (idempotent)", async () => {
       const { stub } = await import("@std/testing/mock");
       const { stripeApi } = await import("#shared/stripe.ts");

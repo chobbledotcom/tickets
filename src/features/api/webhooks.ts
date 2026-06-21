@@ -1117,10 +1117,22 @@ const processSessionAndRedirect = async (
   const validation = await validatePaidSession(sessionId);
   if (!validation.ok) return validation.response;
 
-  // Skip persisting tokens — the redirect has them in memory and will put them in the URL.
-  // This avoids tokens sitting in the DB forever when the redirect wins the race.
+  // A parent booking carries an explicit thank-you URL through its signed
+  // metadata so folding a child (which makes the order multi-listing) doesn't
+  // drop the parent's configured redirect. The token-derive render keys off the
+  // booked listing ids, so it can't recover that URL once >1 listing is booked
+  // — that path renders the success page directly here (below), where the
+  // verified intent still holds it, rather than redirecting to the token path.
+  const explicitThankYou = validation.data.intent.thankYouUrl ?? "";
+
+  // Token persistence diverges by render path. The redirect path skips persisting
+  // (the tokens go in the URL, so storing them would leave them in the DB forever
+  // when the redirect wins the race). The direct-render path (explicit thank-you
+  // URL) does NOT put the tokens in a URL, so it MUST persist them — otherwise a
+  // reload hits the already-processed branch with no stored token and the buyer
+  // loses the ticket link.
   const result = await processPaymentSession(sessionId, validation.data, {
-    storeTokens: false,
+    storeTokens: explicitThankYou !== "",
   });
 
   if (!result.success) {
@@ -1134,18 +1146,9 @@ const processSessionAndRedirect = async (
     return paymentErrorResponse(formatPaymentError(result), result.status);
   }
 
-  // Clear any tokens stored by a webhook that won the race (consumed now via redirect URL)
-  if (result.ticketTokens.length > 0) {
-    await clearSessionTokens(sessionId);
-  }
-
-  // A parent booking carries an explicit thank-you URL through its signed
-  // metadata so folding a child (which makes the order multi-listing) doesn't
-  // drop the parent's configured redirect. The token-derive render keys off the
-  // booked listing ids, so it can't recover that URL once >1 listing is booked
-  // — render the success page directly here, where the verified intent still
-  // holds it, rather than redirecting to the token path that would lose it.
-  const explicitThankYou = validation.data.intent.thankYouUrl ?? "";
+  // Direct-render path: render the success page here (with the ticket URL drawn
+  // from the persisted/just-created tokens) so the parent's thank-you URL is
+  // honoured and a reload still finds the token in the DB.
   if (explicitThankYou && result.ticketTokens.length > 0) {
     const fromEmail = await getFromEmailIfConfigured();
     return htmlResponse(
@@ -1158,9 +1161,11 @@ const processSessionAndRedirect = async (
     );
   }
 
-  // Redirect to success page with verified tokens in URL
+  // Redirect path: the tokens go in the URL, so clear any a racing webhook stored
+  // (they are consumed now via the redirect URL), then redirect.
   // encodeURIComponent preserves + as %2B so URLSearchParams.get() decodes it back correctly
   if (result.ticketTokens.length > 0) {
+    await clearSessionTokens(sessionId);
     return redirectResponse(
       `/payment/success?tokens=${encodeURIComponent(
         result.ticketTokens.join("+"),

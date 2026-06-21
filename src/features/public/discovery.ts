@@ -32,6 +32,7 @@ import { getGroupRemainingByListingId } from "#shared/db/attendees.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {
   getChildIdsWithActiveParent,
+  getChildListingIds,
   getChildrenForParents,
 } from "#shared/db/listing-parents.ts";
 import type { Holiday, ListingWithCount } from "#shared/types.ts";
@@ -39,21 +40,29 @@ import { buildTicketListing, type TicketListing } from "#templates/public.tsx";
 
 /**
  * How a discovery surface should treat each listing:
- * - `childIds` — listings that are a child of at least one **active** parent;
- *   their standalone Book/Buy CTA (and feed/gallery/builder/share affordance)
- *   must be suppressed. A child whose only parent is deactivated has no active
- *   parent page that can offer it, so the "available as an add-on" note would be
- *   a dead end — it is left out and falls back to its own normal availability.
+ * - `childIds` — **every** listing that is a child of some parent. A booking can
+ *   never start from a child (invariant I3) — the slug guard rejects *all* child
+ *   slugs regardless of parent.active — so a child's standalone Book/Buy CTA
+ *   (and feed/gallery/builder/share affordance) must be suppressed in every
+ *   case, matching what `getChildListingIds` rejects at the booking entry point.
+ * - `addOnChildIds` — the subset of `childIds` that have at least one **active**
+ *   parent. Such a child has a live parent page that can offer/fold it, so its
+ *   card shows the "available as an add-on" note. A child in `childIds` but not
+ *   here has *no* active parent page to be offered under, so the add-on note
+ *   would point at nothing: it renders **unavailable** instead (parents.md,
+ *   "Public listing cards").
  * - `soldOutParentIds` — parents with no bookable child (combined parent+child
  *   demand, invariant I7); their card must render as sold out (and they must be
  *   omitted from feeds/gallery), since the booking gate would reject the order.
  */
 export type DiscoveryClassification = {
   childIds: ReadonlySet<number>;
+  addOnChildIds: ReadonlySet<number>;
   soldOutParentIds: ReadonlySet<number>;
 };
 
 const EMPTY_CLASSIFICATION: DiscoveryClassification = {
+  addOnChildIds: new Set(),
   childIds: new Set(),
   soldOutParentIds: new Set(),
 };
@@ -133,7 +142,8 @@ export const classifyForDiscovery = async (
   // list, so the only short-circuit needed is the feature flag.
   if (!isListingParentsEnabled()) return EMPTY_CLASSIFICATION;
   const ids = listings.map((l) => l.id);
-  const [childIds, childrenByParent] = await Promise.all([
+  const [childIds, addOnChildIds, childrenByParent] = await Promise.all([
+    getChildListingIds(ids),
     getChildIdsWithActiveParent(ids),
     getChildrenForParents(ids),
   ]);
@@ -158,7 +168,7 @@ export const classifyForDiscovery = async (
       );
     if (!anyBookable) soldOutParentIds.add(parentId);
   }
-  return { childIds, soldOutParentIds };
+  return { addOnChildIds, childIds, soldOutParentIds };
 };
 
 /** Force a {@link TicketListing} into the sold-out state (no Book CTA, no

@@ -26,6 +26,7 @@ import { loadSortedListings } from "#shared/sort-listings.ts";
 import type { Group, ListingWithCount } from "#shared/types.ts";
 import { parseEmail } from "#shared/validation/email.ts";
 import {
+  childCardState,
   contactPage,
   homepagePage,
   type PublicPageType,
@@ -84,7 +85,7 @@ export const handlePublicListings = (): Response | Promise<Response> =>
         ticketListings,
         settings.websiteTitle,
         groups,
-        classification.childIds,
+        childCardState(classification.childIds, classification.addOnChildIds),
       ),
     );
   });

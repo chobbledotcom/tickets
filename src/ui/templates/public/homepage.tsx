@@ -13,23 +13,43 @@ import {
   type TicketListing,
 } from "./shared.tsx";
 
-/** Booking CTA / status line for a public listing card. A child listing
- * (`isChild`) is never standalone-bookable (invariant I3), so its Book/Buy
- * button is replaced with an "available as an add-on" note rather than a link to
- * the dead-end child page — but only when the child is otherwise bookable: an
- * unavailable child (sold out / closed / read-only site) must still read as
- * such, so those checks run first (parents.md, "Public listing cards"). */
+/** How a public listing card should treat a child listing. A booking can never
+ * start from a child (invariant I3), so a child never gets a standalone Book/Buy
+ * CTA: `"addon"` (the child has a live parent page) shows the "available as an
+ * add-on" note, while `"unavailable"` (no active parent page can offer it) reads
+ * as currently unavailable rather than pointing at a dead end. `"none"` is an
+ * ordinary, non-child listing. */
+export type ChildCardState = "none" | "addon" | "unavailable";
+
+/** Map a listing id to its {@link ChildCardState} from the discovery child
+ * classification: a child with an active parent → add-on; any other child →
+ * unavailable; a non-child → none. */
+export const childCardState =
+  (childIds: ReadonlySet<number>, addOnChildIds: ReadonlySet<number>) =>
+  (id: number): ChildCardState =>
+    addOnChildIds.has(id) ? "addon" : childIds.has(id) ? "unavailable" : "none";
+
+/** Booking CTA / status line for a public listing card. A child listing is
+ * never standalone-bookable (invariant I3), so its Book/Buy button is replaced
+ * with the "available as an add-on" note (a child with a live parent) or the
+ * "currently unavailable" note (a child with no active parent page to offer it)
+ * — but only when the child is otherwise bookable: an unavailable child (sold
+ * out / closed / read-only site) must still read as such, so those checks run
+ * first (parents.md, "Public listing cards"). */
 const renderListingCardCta = (
   info: TicketListing,
-  isChild: boolean,
+  childState: ChildCardState,
 ): string => {
   const { listing, isSoldOut, isClosed } = info;
   if (isSoldOut) return `<p><strong>${t("public.sold_out")}</strong></p>`;
   if (isClosed || isReadOnly()) {
     return `<p><strong>${t("public.registration_closed")}</strong></p>`;
   }
-  if (isChild) {
+  if (childState === "addon") {
     return `<p><em>${t("public.available_with_other")}</em></p>`;
+  }
+  if (childState === "unavailable") {
+    return `<p><strong>${t("public.currently_unavailable")}</strong></p>`;
   }
   const bookLabel = listing.purchase_only
     ? t("public.buy_now")
@@ -41,7 +61,7 @@ const renderListingCardCta = (
 
 /** Render a single listing listing for the listings page */
 const renderListingListing =
-  (childIds: ReadonlySet<number>) =>
+  (childStateOf: (id: number) => ChildCardState) =>
   (info: TicketListing): string => {
     const { listing } = info;
     const dateHtml = listing.date
@@ -53,7 +73,7 @@ const renderListingListing =
     const descriptionHtml = listing.description
       ? renderMarkdown(listing.description)
       : "";
-    const linkHtml = renderListingCardCta(info, childIds.has(listing.id));
+    const linkHtml = renderListingCardCta(info, childStateOf(listing.id));
 
     return `<div class="prose"><h2>${escapeHtml(
       listing.name,
@@ -83,7 +103,7 @@ export const homepagePage = (
   listings: TicketListing[],
   websiteTitle: string | null | undefined,
   groups: Group[],
-  childIds: ReadonlySet<number> = new Set(),
+  childStateOf: (id: number) => ChildCardState,
 ): string => {
   const listingsTitle = t("terms.listings");
   const title = websiteTitle
@@ -112,7 +132,7 @@ export const homepagePage = (
   )(groups);
 
   const listingListings = pipe(
-    map(renderListingListing(childIds)),
+    map(renderListingListing(childStateOf)),
     (rows: string[]) => rows.join(""),
   )(listings);
 

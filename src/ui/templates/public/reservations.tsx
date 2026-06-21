@@ -402,6 +402,31 @@ export type ChildRenderCtx = {
 const childBookable = (child: TicketListing): boolean =>
   child.listing.active && !child.isSoldOut && !child.isClosed;
 
+/**
+ * The quantity cap to offer for a parent's own selector, clamped to its required
+ * children's capacity (Codex 565). Child quantity is slaved to the parent's
+ * (invariant I2), so a parent offering 5 with a single auto-selected child capped
+ * at 1 must offer only 1 — the submit-side fold rejects (never clamps) a higher
+ * quantity. The child cap is the MAX `maxPurchasable` across the bookable
+ * children (a single auto-selected child contributes its own cap; with several,
+ * don't block a high-capacity sibling — the per-child cap is enforced at submit),
+ * and the effective max is `min(parentMax, childCap)`. A parent with no bookable
+ * child is handled upstream (sold out, invariant I6); here that yields a 0 cap.
+ */
+const childCappedMax = (
+  info: TicketListing,
+  childCtx: ChildRenderCtx | undefined,
+): number => {
+  const children = childCtx?.children.get(info.listing.id);
+  if (!children || children.length === 0) return info.maxPurchasable;
+  const bookable = children.filter(childBookable);
+  const childCap = bookable.reduce(
+    (max, child) => Math.max(max, child.maxPurchasable),
+    0,
+  );
+  return Math.min(info.maxPurchasable, childCap);
+};
+
 /** The questions assigned to a child listing, in page order, that have not yet
  * been rendered on the page (deduped across siblings/parent via `rendered`). */
 const childQuestionsToRender = (
@@ -572,7 +597,8 @@ const renderListingRow = (
   prefill?: TicketPrefill,
   childCtx?: ChildRenderCtx,
 ): string => {
-  const { listing, isSoldOut, isClosed, maxPurchasable } = info;
+  const { listing, isSoldOut, isClosed } = info;
+  const maxPurchasable = childCappedMax(info, childCtx);
   const fieldName = `quantity_${listing.id}`;
   const imageHtml = renderListingImage(listing);
 
@@ -631,7 +657,8 @@ const renderSingleListingControls = (
   prefill?: TicketPrefill,
   childCtx?: ChildRenderCtx,
 ): string => {
-  const { listing, maxPurchasable } = info;
+  const { listing } = info;
+  const maxPurchasable = childCappedMax(info, childCtx);
   const fieldName = `quantity_${listing.id}`;
   const prefilledQty = restoredQuantity(listing.id, prefill, maxPurchasable);
   const prefilledPrice = prefill ? prefill.customPriceMinor : undefined;
