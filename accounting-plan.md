@@ -101,7 +101,7 @@ inputs. 100% covered.
 | `validate.ts` | Positive safe-integer amount, canonical ISO-UTC `occurredAt`, distinct non-empty accounts, non-empty currency/reference/eventGroup. Reports every problem at once. |
 | `project.ts` | `balanceOf`, `allBalances`, `sumOfKind`, `inPeriod`, `statementFor` (time-then-id ordered, opening-balance aware) — all **currency-guarded** (mixed-currency slices throw). |
 | `reverse.ts` | `reverseOf` — the exact inverse for admin void/correction (not refunds). |
-| `reconcile.ts` | Non-tautological checks: `reconcileExternal` (vs a provider-reported balance) and `reconcileLegKinds` (observed leg *kinds* per event vs source-record expectations). |
+| `reconcile.ts` | Non-tautological checks: `reconcileExternal` (vs a provider-reported balance) and `reconcileLegs` (observed leg *fingerprints* — kind, accounts, amount, currency — per event vs source-record expectations). |
 
 **Not yet built — lands in Phase 1 (persistence boundary, integration-tested):**
 the SQL statement descriptors (`statements.ts`: idempotent insert + the

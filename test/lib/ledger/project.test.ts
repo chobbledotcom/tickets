@@ -110,6 +110,20 @@ describe("inPeriod", () => {
       inPeriod("2026-02-30T00:00:00Z", "2026-03-01T00:00:00.000Z")([]),
     ).toThrow("invalid bound");
   });
+
+  it("throws on an inverted window (from after to)", () => {
+    // A swapped range would otherwise silently match nothing, reading as zero
+    // revenue/refunds instead of a bad request.
+    expect(() =>
+      inPeriod("2026-03-01T00:00:00.000Z", "2026-02-01T00:00:00.000Z")([]),
+    ).toThrow("inverted window");
+  });
+
+  it("allows an empty window where from equals to", () => {
+    const bound = "2026-02-01T00:00:00.000Z";
+    const ts = [makeTransfer({ occurredAt: bound })];
+    expect(inPeriod(bound, bound)(ts)).toEqual([]);
+  });
 });
 
 describe("statementFor", () => {

@@ -1,6 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { eventGroup, legReference } from "#shared/accounting/refs.ts";
+import {
+  eventGroup,
+  legReference,
+  type RefPart,
+} from "#shared/accounting/refs.ts";
 import { describeWithEnv } from "#test-utils";
 
 describeWithEnv("accounting > refs", { encryptionKey: true }, () => {
@@ -27,15 +31,28 @@ describeWithEnv("accounting > refs", { encryptionKey: true }, () => {
     });
   });
 
-  describe("non-finite parts", () => {
-    test("are rejected rather than hashed as ambiguous null", async () => {
-      let message = "";
+  describe("unsafe numeric parts", () => {
+    const rejectionMessage = async (parts: RefPart[]): Promise<string> => {
       try {
-        await eventGroup(["booking", Number.NaN]);
+        await eventGroup(parts);
       } catch (error) {
-        message = (error as Error).message;
+        return (error as Error).message;
       }
-      expect(message).toContain("finite");
+      return "";
+    };
+
+    test("rejects a non-finite part rather than hashing an ambiguous null", async () => {
+      expect(await rejectionMessage(["booking", Number.NaN])).toContain(
+        "safe integer",
+      );
+    });
+
+    test("rejects an integer past MAX_SAFE_INTEGER that would round and collide", async () => {
+      // 2 ** 53 and 2 ** 53 + 1 round to the same float, so hashing them raw
+      // would alias two distinct ids onto one reference.
+      expect(await rejectionMessage(["booking", 2 ** 53])).toContain(
+        "safe integer",
+      );
     });
   });
 

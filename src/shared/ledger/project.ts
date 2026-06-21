@@ -84,7 +84,9 @@ const isValidInstant = (s: string): boolean => {
  * `2026-02-01T00:00:00Z` still includes the canonical `2026-02-01T00:00:00.000Z`
  * (a lexicographic compare would wrongly exclude it). Invalid bounds are
  * rejected up front, so a normalised date (e.g. `2026-02-30`) can't silently
- * shift the window.
+ * shift the window. An inverted window (`from` after `to`) throws rather than
+ * silently returning an empty slice, which would read as zero revenue/refunds
+ * for what is really a swapped-argument bug.
  */
 export const inPeriod =
   (from: string, to: string) =>
@@ -94,6 +96,9 @@ export const inPeriod =
     }
     const fromMs = Date.parse(from);
     const toMs = Date.parse(to);
+    if (fromMs > toMs) {
+      throw new Error(`inPeriod: inverted window (from=${from}, to=${to})`);
+    }
     return filter((t: Transfer) => {
       const at = Date.parse(t.occurredAt);
       return at >= fromMs && at < toMs;

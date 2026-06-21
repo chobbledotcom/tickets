@@ -20,12 +20,15 @@ import { hmacHash } from "#shared/crypto/hashing.ts";
 export type RefPart = string | number;
 
 const digest = (domain: string, parts: RefPart[]): Promise<string> => {
-  // JSON.stringify serialises NaN/Infinity as `null`, so distinct non-finite
-  // ids would collide on one key — reject them rather than hash an ambiguous
-  // input.
+  // A numeric part must be a safe integer. JSON.stringify serialises NaN/Infinity
+  // as `null` (distinct non-finite ids would collide on one key) and silently
+  // rounds integers past Number.MAX_SAFE_INTEGER (9007199254740993 → ...992, so
+  // two distinct ids would hash alike). Either way unrelated transfers would
+  // share a reference and be wrongly deduped or flagged as conflicts, so reject
+  // rather than hash an ambiguous input — row ids are always safe integers.
   for (const part of parts) {
-    if (typeof part === "number" && !Number.isFinite(part)) {
-      throw new Error(`reference part is not a finite number: ${part}`);
+    if (typeof part === "number" && !Number.isSafeInteger(part)) {
+      throw new Error(`reference part is not a safe integer: ${part}`);
     }
   }
   return hmacHash(`${domain}:${JSON.stringify(parts)}`);

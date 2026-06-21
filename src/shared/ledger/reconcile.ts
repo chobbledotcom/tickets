@@ -3,10 +3,11 @@
  *
  * `Σ balance == 0` is structurally always true for a one-row-balanced ledger, so
  * it proves nothing. Real integrity comes from comparing the ledger to things
- * outside it: a provider's reported balance, and the leg counts the source
+ * outside it: a provider's reported balance, and the full set of legs the source
  * records say each event should have.
  */
 
+import { accountKey } from "./account.ts";
 import { balanceOf } from "./project.ts";
 import type { AccountRef, Transfer } from "./types.ts";
 
@@ -31,21 +32,52 @@ export const reconcileExternal =
     return { actual, diff, expected: reported, ok: diff === 0 };
   };
 
-/** A per-event mismatch between the leg kinds an event should have and those
- *  actually present in the ledger. */
-export type LegKindDiscrepancy = {
+/** The minimal leg shape a fingerprint reads — shared by an expected
+ *  `TransferInput` and an observed {@link Transfer}. */
+type LegFacts = {
+  readonly kind?: string;
+  readonly source: AccountRef;
+  readonly destination: AccountRef;
+  readonly amount: number;
+  readonly currency: string;
+};
+
+/**
+ * A stable, comparable fingerprint of one leg: its kind, direction (source →
+ * destination accounts), amount, and currency, JSON-encoded so distinct shapes
+ * never collide. Built identically from an expected leg and a stored transfer,
+ * so the two sides of a reconciliation compare like-for-like — a leg posted to
+ * the wrong account or for the wrong amount differs even when its kind matches.
+ */
+export type LegFingerprint = string;
+
+export const legFingerprint = (leg: LegFacts): LegFingerprint =>
+  JSON.stringify([
+    leg.kind ?? "",
+    accountKey(leg.source),
+    accountKey(leg.destination),
+    leg.amount,
+    leg.currency,
+  ]);
+
+/** A per-event mismatch between the legs an event should have and those actually
+ *  present in the ledger, compared as {@link LegFingerprint}s. */
+export type LegDiscrepancy = {
   readonly eventGroup: string;
-  /** Expected kinds (with multiplicity) absent from the ledger. */
-  readonly missing: string[];
-  /** Observed kinds (with multiplicity) the source records did not expect. */
-  readonly unexpected: string[];
+  /** Expected legs (with multiplicity) absent from the ledger. */
+  readonly missing: LegFingerprint[];
+  /** Observed legs (with multiplicity) the source records did not expect. */
+  readonly unexpected: LegFingerprint[];
 };
 
 /** Elements of `a` not covered by `b`, respecting multiplicity. */
-const multisetDiff = (a: string[], b: string[]): string[] => {
+const multisetDiff = (
+  a: LegFingerprint[],
+  b: LegFingerprint[],
+): LegFingerprint[] => {
   const remaining = new Map<string, number>();
   for (const x of b) remaining.set(x, (remaining.get(x) ?? 0) + 1);
-  const extra: string[] = [];
+  const extra: LegFingerprint[] = [];
   for (const x of a) {
     const count = remaining.get(x) ?? 0;
     if (count > 0) remaining.set(x, count - 1);
@@ -55,25 +87,25 @@ const multisetDiff = (a: string[], b: string[]): string[] => {
 };
 
 /**
- * Compare the leg *kinds* present per event against what the SOURCE records say
- * each event should have. Driven by `expected` (built from bookings/refunds),
- * comparing kinds rather than a bare count — so a booking that lost its `fee`
- * leg, or one that recorded a second `sale` instead of a `payment`, is caught
- * even though the leg count is unchanged. An event group with no legs reports
- * everything `missing`; one absent from `expected` reports everything
- * `unexpected` (an orphan event).
+ * Compare the legs present per event against what the SOURCE records say each
+ * event should have. Driven by `expected` — fingerprints built from
+ * bookings/refunds via {@link legFingerprint} — comparing full leg fingerprints
+ * rather than bare kinds or a count, so a booking that lost its `fee` leg, paid
+ * the wrong account, or recorded the wrong amount is caught even when the leg
+ * count is unchanged. An event group with no legs reports everything `missing`;
+ * one absent from `expected` reports everything `unexpected` (an orphan event).
  */
-export const reconcileLegKinds =
-  (expected: Map<string, string[]>) =>
-  (transfers: Transfer[]): LegKindDiscrepancy[] => {
-    const observed = new Map<string, string[]>();
+export const reconcileLegs =
+  (expected: Map<string, LegFingerprint[]>) =>
+  (transfers: Transfer[]): LegDiscrepancy[] => {
+    const observed = new Map<string, LegFingerprint[]>();
     for (const t of transfers) {
-      const kinds = observed.get(t.eventGroup) ?? [];
-      kinds.push(t.kind ?? "");
-      observed.set(t.eventGroup, kinds);
+      const legs = observed.get(t.eventGroup) ?? [];
+      legs.push(legFingerprint(t));
+      observed.set(t.eventGroup, legs);
     }
     const groups = new Set([...expected.keys(), ...observed.keys()]);
-    const discrepancies: LegKindDiscrepancy[] = [];
+    const discrepancies: LegDiscrepancy[] = [];
     for (const eventGroup of groups) {
       const want = expected.get(eventGroup) ?? [];
       const got = observed.get(eventGroup) ?? [];
