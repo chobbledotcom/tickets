@@ -322,6 +322,17 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
   list filtering only `!checked_in && !refunded` — so a quantity-0 row appears as
   a manual candidate and then errors/behaves oddly once the `updateCheckedIn`
   guard rejects it. Exclude `quantity = 0` from this manual list too.
+- **Scanner force fallback — refuse, don't retarget.** `handleScanPost`
+  (`scanner.ts`) finds the entry for the scanned listing
+  (`matchingEntry = allEntries.find((e) => e.listing.id === id)`); with
+  `force=true` and no match it falls back to `const entry = matchingEntry ??
+  allEntries[0]` and checks that in (cross-listing check-in). If quantity-0
+  entries are merely filtered from eligibility, a mixed attendee whose row for the
+  *scanned* listing is a ghost would have its real other-listing line
+  force-checked-in instead. So the fallback must skip quantity-0 entries, and a
+  scan whose only match for the scanned listing is a quantity-0 row must be
+  **refused** (wrong-listing / no-op), never force-retargeted to a different real
+  listing.
 - **Public balance / pay flow** (`src/features/public/balance.ts` +
   `src/shared/db/attendees/balance.ts`) — three parts:
   - A `Balance` is publicly payable only when the attendee has ≥1 `quantity > 0`
@@ -381,7 +392,13 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
   — and `buyerVisits` feeds `min_visits` modifier gating, so a ghost-only contact
   could qualify as "returning". Gate the visit on the attendee having ≥1
   `quantity > 0` line, mirroring the importer writer's rule (plan step 14) — on
-  every no-quantity-capable create path, not just the importer.
+  every no-quantity-capable create path, not just the importer. **And the inverse
+  on edit/merge:** when a save or merge transitions an attendee from *zero* real
+  lines to ≥1 (un-checking the box on a quoted/cancelled placeholder, or a merge
+  that adds a real line), record the visit then — current edit/merge paths don't
+  call `recordOrderVisit`, so a ghost-only attendee later reactivated would
+  otherwise stay at zero `contact_preferences.visits` and `min_visits` modifiers
+  would keep treating that customer as never having booked.
 
 ### 6c. INTENTIONALLY UNCHANGED (call out so nobody "fixes" them)
 

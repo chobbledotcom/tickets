@@ -252,7 +252,7 @@ Add one table for import idempotency:
   deleting a mapping, which would let a re-upload recreate a duplicate booking.
   Uniqueness lives on `(schema, old_id)`, which is all idempotency needs.
 - No separate import-run table for the first pass. The user asked for only old
-  id and new id, and idempotency does not require run metadata.
+  id and new id (plus the `schema` namespace), and idempotency does not require run metadata.
 - Add the table to the declarative schema and a migration. Keep the schema
   update narrow and follow the existing migration pattern.
 
@@ -301,9 +301,12 @@ Add admin routes (**schema-scoped**, so future formats reuse them unchanged):
     existing listings/questions.
 - `POST /admin/imports/:schema`
   - Authenticated multipart upload. Parses, runs the **pure preflight** (resolve +
-    validate + plan, no writes), and runs the write transaction **only if preflight
-    is clean**. Redirects to success with created/skipped counts, or to the
-    preflight error report below.
+    validate + plan, no writes), and runs the write transaction **only if there
+    are no blocking errors**. Redirects to the preflight error report on blocking
+    errors; otherwise to success — stashing a **success report** (created count
+    *plus the skipped/non-creatable rows with their row details*, not just counts)
+    so the redirect shows the operator exactly what was skipped, nothing silently
+    dropped.
 - `GET /admin/imports/:schema/errors?stash=<token>` — the **preflight error
   report**: the single "here's everything to fix" page. Missing setup is one
   section of it; see [Preflight & Error Reporting](#preflight--error-reporting).
@@ -987,7 +990,9 @@ bookings imports the rest and reports the skip.
       timestamp — `last_activity = MAX(existing.last_activity, source)` — so import
       never moves a recently-active contact backwards into prune range nor
       refreshes a stale one;
-    - insert `booking_imports(old_id, new_id)`.
+    - insert `booking_imports(schema, old_id, new_id)` — always write the active
+      schema (the `schema` key column is `NOT NULL` and `(schema, old_id)` is the
+      idempotency key).
 14. If any insert fails, the transaction rolls back and no attendees, listing
     lines, text answers, new `strings` rows, audit-trail records, visit counts, or
     import-map rows survive. Preflight should have made this reachable only by
@@ -1152,8 +1157,11 @@ Behavior:
 - Text should tell the user to create the missing setup, then upload the CSV
   again.
 
-No source booking details need to be stored for this page. The CSV upload is
-retried after products/statuses/questions exist.
+The stash holds the **report**, not the source CSV: the missing-setup sets *plus*,
+for each non-setup problem (source-data, non-creatable, unrepresentable), the
+offending row identifier(s), column name(s), and the minimal offending value
+needed to tell the operator what to fix — never the whole file. The CSV is
+re-uploaded after the operator fixes everything.
 
 ## Tests
 
@@ -1432,7 +1440,9 @@ from [`no-quantity-spec.md`](./no-quantity-spec.md) exist.
 - **Exhaustive preflight, one report:** everything checkable is verified before any
   write, and every problem (missing setup, ambiguity, source-data, non-creatable,
   unrepresentable, invalid fields) is accumulated and shown at once — never
-  stop-at-first-error. The write runs only when the report is empty.
+  stop-at-first-error. The write runs only when there are **no blocking errors** —
+  reported skips/warnings (already-imported, non-creatable) don't block the valid
+  rows.
 - Source `Status` drives attendee status. `Colour Name` is legacy metadata.
 - Missing source statuses block the upload before writes, like missing products.
   A source status matching more than one local status (names aren't unique) is an
@@ -1552,8 +1562,10 @@ from [`no-quantity-spec.md`](./no-quantity-spec.md) exist.
   `/admin/attendees` browser + CSV `getAttendeesPage` — otherwise imports' fresh
   ids would make them dominate those "newest" views despite old `created`.
 - Per-booking line dedup happens in the planner: there is **one line per
-  `(attendee, listing)`**, collapsing repeats regardless of date (sum quantity,
-  widest date range, report the collapse). The edit form de-dupes by `listing_id`
+  `(attendee, listing)`**. Same/contiguous/overlapping repeats collapse (sum
+  quantity, widest date range, report the collapse); **non-adjacent** ranges of the
+  same listing are **rejected as unrepresentable** (widening would occupy every
+  intervening day on the daily calendar/capacity). The edit form de-dupes by `listing_id`
   and per-`(attendee, listing)` action helpers can't represent multiple lines per
   listing, and the unique `(listing_id, attendee_id, start_at)` index would reject
   duplicate dated rows anyway — so the planner must collapse, not rely on the
