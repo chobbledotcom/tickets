@@ -10,6 +10,7 @@ import { t } from "#i18n";
 import { AUTH_FORM, withAuth } from "#routes/auth.ts";
 import { notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
+import { isListingParentsEnabled } from "#shared/config.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
   getChildIds,
@@ -22,16 +23,13 @@ import {
   getListingsById,
   getListingWithCount,
 } from "#shared/db/listings.ts";
-import { getEnv } from "#shared/env.ts";
-import type { ListingWithCount } from "#shared/types.ts";
+import {
+  availableDayCounts,
+  dayPriceFor,
+  type ListingWithCount,
+  normalizeDurationDays,
+} from "#shared/types.ts";
 import { withEntityFromParam } from "./entity-handlers.ts";
-
-/**
- * Whether the listing parent/child editor is exposed to operators. Off until the
- * booking gate that enforces it ships; gated by an env flag like the builder.
- */
-export const isListingParentsEnabled = (): boolean =>
-  getEnv("LISTING_PARENTS_ENABLED") === "true";
 
 /** The data the edit page's "required children" section renders, or undefined
  * when the feature is disabled. `allListings` excludes the listing itself (no
@@ -61,22 +59,69 @@ export const loadListingParentsSection = async (
 
 type EdgeListing = Pick<
   ListingWithCount,
-  "id" | "name" | "listing_type" | "months_per_unit"
+  | "id"
+  | "name"
+  | "listing_type"
+  | "months_per_unit"
+  | "customisable_days"
+  | "duration_days"
+  | "day_prices"
 >;
+
+/** A fixed-duration parent's single resolved booking span (days): its own
+ * `duration_days` for a daily listing, otherwise 1. Only meaningful for a
+ * non-`customisable_days` parent (a customisable parent has a *range*, queried
+ * via {@link availableDayCounts}). */
+const parentFixedDuration = (parent: EdgeListing): number =>
+  parent.listing_type === "daily"
+    ? normalizeDurationDays(parent.duration_days)
+    : 1;
+
+/**
+ * Whether `child`'s booking span can match the duration it inherits from
+ * `parent` (a child has no day controls of its own — it takes the base unit's).
+ * A non-customisable child has a single fixed span (its `duration_days` for a
+ * daily child, else 1); a customisable child must price the inherited span. The
+ * parent supplies either a fixed span or — when customisable — a range of
+ * selectable spans, and the edge is honourable iff the spans can agree.
+ */
+const durationsCompatible = (
+  parent: EdgeListing,
+  child: EdgeListing,
+): boolean => {
+  if (child.customisable_days) {
+    if (parent.customisable_days) {
+      const childCounts = new Set(availableDayCounts(child));
+      return availableDayCounts(parent).some((days) => childCounts.has(days));
+    }
+    return dayPriceFor(child, parentFixedDuration(parent)) !== null;
+  }
+  const childDuration =
+    child.listing_type === "daily"
+      ? normalizeDurationDays(child.duration_days)
+      : 1;
+  return parent.customisable_days
+    ? availableDayCounts(parent).includes(childDuration)
+    : childDuration === parentFixedDuration(parent);
+};
 
 /**
  * Reject a parent→children edge set that the inherited-date booking model can't
  * honour, returning a user-facing error (or null when every edge is allowed).
  * Enforces the statically-clear admin hard blocks: no renewal tiers on either
- * side, single-level only (no nesting), and a daily child needs a daily parent.
- * (The finer customisable-days duration-overlap check lands with the booking
- * gate that introduces the per-span pricing logic.)
+ * side, single-level only (no nesting), a daily child needs a daily parent, and
+ * the child's booking span must match the duration it inherits from the parent.
+ *
+ * An **empty** child set is always allowed: it clears (or no-ops) the listing's
+ * edges, so a listing that is itself a child can still save its blank children
+ * form, and a stuck nested state can be cleared.
  */
 const childEdgeError = (
   parent: EdgeListing,
   parentIsChild: boolean,
   children: { listing: EdgeListing; isParent: boolean }[],
 ): string | null => {
+  if (children.length === 0) return null;
   if (parent.months_per_unit > 0) {
     return t("listings_table.children_err_parent_renewal", {
       name: parent.name,
@@ -100,6 +145,11 @@ const childEdgeError = (
     }
     if (listing.listing_type === "daily" && parent.listing_type !== "daily") {
       return t("listings_table.children_err_child_daily", {
+        name: listing.name,
+      });
+    }
+    if (!durationsCompatible(parent, listing)) {
+      return t("listings_table.children_err_child_duration", {
         name: listing.name,
       });
     }
@@ -133,7 +183,9 @@ export const handleAdminListingChildren: TypedRouteHandler<
       if (error) return redirect(`/admin/listing/${id}/edit`, error, false);
       await setChildIds(id, childIds);
       await logActivity(
-        `Listing '${listing.name}' required children set to ${childIds.length} listing${childIds.length === 1 ? "" : "s"}`,
+        `Listing '${listing.name}' required children set to ${childIds.length} listing${
+          childIds.length === 1 ? "" : "s"
+        }`,
         listing,
       );
       return redirect(

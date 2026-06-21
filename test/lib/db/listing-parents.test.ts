@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   getChildIds,
+  getChildListingIds,
   getParentIds,
   getParentsOf,
   setChildIds,
@@ -75,6 +76,23 @@ describeWithEnv("db > listing-parents", { db: true }, () => {
       // The edge row exists but no parent listing does, so hydration drops it.
       expect(await getParentIds(childA.id)).toEqual([missingParentId]);
       expect(await getParentsOf(childA.id)).toEqual([]);
+    });
+  });
+
+  describe("getChildListingIds", () => {
+    test("returns the subset of ids that are children of some parent", async () => {
+      const { parent, childA, childB } = await threeListings();
+      await setChildIds(parent.id, [childA.id]);
+      const result = await getChildListingIds([
+        parent.id,
+        childA.id,
+        childB.id,
+      ]);
+      expect([...result]).toEqual([childA.id]);
+    });
+
+    test("returns an empty set for an empty input (no query)", async () => {
+      expect([...(await getChildListingIds([]))]).toEqual([]);
     });
   });
 

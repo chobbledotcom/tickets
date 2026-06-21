@@ -139,6 +139,15 @@ export const isBotpoisonEnabled = (): boolean =>
   !!getBotpoisonPublicKey() && !!getBotpoisonSecretKey();
 
 /**
+ * Whether the listing parent/child relationship feature is enabled. Off until
+ * every booking path enforces the required-child gate; gated by an env flag like
+ * the builder. Shared by the admin editor and the public booking flow so both
+ * read one source of truth.
+ */
+export const isListingParentsEnabled = (): boolean =>
+  getEnv("LISTING_PARENTS_ENABLED") === "true";
+
+/**
  * Whether the inter-instance site-credentials endpoint is enabled. Off unless
  * MAIN_INSTANCE_KEY is set, so a non-builder instance never exposes it. The key
  * is a high-entropy shared secret the operator passes to the upgrade workflow at

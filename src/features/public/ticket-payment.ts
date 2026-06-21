@@ -9,6 +9,7 @@ import {
   notFoundResponse,
 } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
+import { isListingParentsEnabled } from "#shared/config.ts";
 import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
 import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
 import type {
@@ -21,6 +22,7 @@ import {
   ensureAllBookings,
 } from "#shared/db/attendees.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
+import { getChildListingIds } from "#shared/db/listing-parents.ts";
 import { getListingsBySlugsBatch } from "#shared/db/listings.ts";
 import {
   getOptionalAddOns,
@@ -328,6 +330,22 @@ export const createFreeReservation = async ({
   };
 };
 
+/**
+ * A booking can never start from a child listing (invariant I3): a child is only
+ * bookable through one of its parents' per-parent selectors, never as a direct
+ * `/ticket/<childSlug>` entry point. Returns true when any of the listings is a
+ * child, so the entry point must reject the whole request rather than render the
+ * child as an ordinary standalone line. No-op (no query) unless the feature flag
+ * is on, so existing behaviour is unchanged until parents ship.
+ */
+const containsChildListing = async (
+  listings: TicketListing[],
+): Promise<boolean> => {
+  if (!isListingParentsEnabled() || listings.length === 0) return false;
+  const childIds = await getChildListingIds(listings.map((e) => e.listing.id));
+  return listings.some((e) => childIds.has(e.listing.id));
+};
+
 /** Load and validate active listings, return 404 if none */
 export const withActiveListings = async (
   slugs: string[],
@@ -336,9 +354,12 @@ export const withActiveListings = async (
   const listings = await getListingsBySlugsBatch(slugs);
   const active = compact(listings).filter((e) => e.active);
   const activeListings = await buildTicketListingsWithGroupCapacity(active);
-  return activeListings.length === 0
-    ? notFoundResponse()
-    : handler(activeListings);
+  if (activeListings.length === 0) return notFoundResponse();
+  // Reject (don't silently drop) any child slug in the URL: a child has no
+  // standalone booking page, so a `/ticket/<child>` or `/ticket/child+other`
+  // URL is a dead end the buyer must not be able to start from.
+  if (await containsChildListing(activeListings)) return notFoundResponse();
+  return handler(activeListings);
 };
 
 /** Compute shared available dates across all daily listings (intersection) */

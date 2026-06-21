@@ -120,5 +120,6 @@
   "listings_table.children_err_parent_is_child": "'{name}' is itself offered as a child of another listing, so it can't also be a parent.",
   "listings_table.children_err_child_renewal": "'{name}' is a renewal tier, so it can't be a child listing.",
   "listings_table.children_err_child_is_parent": "'{name}' already has its own child listings, so it can't also be a child.",
-  "listings_table.children_err_child_daily": "'{name}' is a daily listing, so it can only be a child of another daily listing."
+  "listings_table.children_err_child_daily": "'{name}' is a daily listing, so it can only be a child of another daily listing.",
+  "listings_table.children_err_child_duration": "'{name}' can't be booked for the same length as its parent — adjust its duration or day prices to match."
 }

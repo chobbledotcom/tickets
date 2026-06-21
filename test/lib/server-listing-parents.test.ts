@@ -159,6 +159,114 @@ describeWithEnv(
       await postChildren(parent.id, [child.id]);
       expect(await getChildIds(parent.id)).toEqual([]);
     });
+
+    test("rejects a daily child whose fixed duration differs from the parent", async () => {
+      const parent = await createTestListing({
+        durationDays: 3,
+        listingType: "daily",
+        name: "3-day base",
+      });
+      const child = await createTestListing({
+        durationDays: 1,
+        listingType: "daily",
+        name: "1-day add-on",
+      });
+      await postChildren(parent.id, [child.id]);
+      expect(await getChildIds(parent.id)).toEqual([]);
+    });
+
+    test("rejects a customisable child that can't price the parent's fixed span", async () => {
+      const parent = await createTestListing({ name: "1-day base" });
+      const child = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 2: 200, 3: 300 },
+        durationDays: 3,
+        name: "Add-on (no 1-day price)",
+      });
+      await postChildren(parent.id, [child.id]);
+      expect(await getChildIds(parent.id)).toEqual([]);
+    });
+
+    test("accepts a customisable child that prices the parent's fixed span", async () => {
+      const parent = await createTestListing({ name: "1-day base" });
+      const child = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 100, 2: 200 },
+        durationDays: 2,
+        name: "Add-on (prices 1 day)",
+      });
+      await postChildren(parent.id, [child.id]);
+      expect(await getChildIds(parent.id)).toEqual([child.id]);
+    });
+
+    test("accepts overlapping customisable parent and child day ranges", async () => {
+      const parent = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 100, 2: 200, 3: 300 },
+        durationDays: 3,
+        name: "Flexible base",
+      });
+      const child = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 2: 20, 3: 30 },
+        durationDays: 3,
+        name: "Flexible add-on",
+      });
+      await postChildren(parent.id, [child.id]);
+      expect(await getChildIds(parent.id)).toEqual([child.id]);
+    });
+
+    test("rejects non-overlapping customisable parent and child day ranges", async () => {
+      const parent = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 100 },
+        durationDays: 1,
+        name: "1-day flexible base",
+      });
+      const child = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 2: 20, 3: 30 },
+        durationDays: 3,
+        name: "2-3 day add-on",
+      });
+      await postChildren(parent.id, [child.id]);
+      expect(await getChildIds(parent.id)).toEqual([]);
+    });
+
+    test("accepts a fixed child whose span the customisable parent can offer", async () => {
+      const parent = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 100, 2: 200 },
+        durationDays: 2,
+        name: "Flexible base",
+      });
+      const child = await createTestListing({ name: "1-day add-on" });
+      await postChildren(parent.id, [child.id]);
+      expect(await getChildIds(parent.id)).toEqual([child.id]);
+    });
+
+    test("rejects a fixed child whose span the customisable parent can't offer", async () => {
+      const parent = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 2: 200, 3: 300 },
+        durationDays: 3,
+        name: "2-3 day flexible base",
+      });
+      const child = await createTestListing({ name: "1-day add-on" });
+      await postChildren(parent.id, [child.id]);
+      expect(await getChildIds(parent.id)).toEqual([]);
+    });
+
+    test("lets a listing that is itself a child save an empty children set", async () => {
+      const grandparent = await createTestListing({ name: "Grandparent" });
+      const parent = await createTestListing({ name: "Parent" });
+      await postChildren(grandparent.id, [parent.id]); // parent becomes a child
+      const res = await postChildren(parent.id, []); // empty no-op save
+      expect(res.headers.get("set-cookie")).toContain(
+        "Required%20children%20updated",
+      );
+      expect(await getChildIds(parent.id)).toEqual([]);
+    });
   },
 );
 
