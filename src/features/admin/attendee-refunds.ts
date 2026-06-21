@@ -141,13 +141,7 @@ const handleAdminRefundAllGet = (
           400,
         )
       : htmlResponse(
-          adminRefundAllAttendeesPage(
-            listing,
-            count,
-            session,
-            flash.error,
-            flash.success,
-          ),
+          adminRefundAllAttendeesPage(listing, count, session, flash.error),
         );
   });
 

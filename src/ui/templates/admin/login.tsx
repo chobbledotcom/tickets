@@ -13,10 +13,10 @@ import { Layout } from "#templates/layout.tsx";
 /**
  * Admin login page
  */
-export const adminLoginPage = (error?: string, success?: string): string =>
+export const adminLoginPage = (error?: string): string =>
   String(
     <Layout title={t("login.title")}>
-      <Flash error={error} success={success} />
+      <Flash error={error} />
       <CsrfForm action="/admin/login">
         <Raw html={renderFields(getLoginFields())} />
         <SubmitButton icon="log-in">{t("login.submit")}</SubmitButton>

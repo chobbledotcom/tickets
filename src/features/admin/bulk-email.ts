@@ -75,7 +75,6 @@ import {
   getEmailConfig,
   sendBulkEmails,
 } from "#shared/email.ts";
-import type { Flash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { MAX_EMAIL_TEMPLATES } from "#shared/limits.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
@@ -148,20 +147,16 @@ const saveDraft = async (
   await settings.update.bulkEmailDraft(encrypted);
 };
 
-/** Wrap an owner-only page builder: gate on owner, apply flash, then build.
- * The flash is handed to the builder so the page can render it as a banner. */
+/** Wrap an owner-only page builder: gate on owner, record the flash's target
+ * form (so a matching CsrfForm renders it inline), then build. The flash itself
+ * is rendered by the targeted form or the Layout backstop — not threaded here. */
 const ownerEmailPage =
-  (
-    build: (
-      request: Request,
-      session: AuthSession,
-      flash: Flash,
-    ) => Promise<Response>,
-  ) =>
+  (build: (request: Request, session: AuthSession) => Promise<Response>) =>
   (request: Request): Promise<Response> =>
-    requireOwnerOr(request, (session) =>
-      build(request, session, applyFlash(request)),
-    );
+    requireOwnerOr(request, (session) => {
+      applyFlash(request);
+      return build(request, session);
+    });
 
 /** Split recipients into those who'll be sent to and a skipped (unsubscribed) count. */
 const partitionRecipients = async (
@@ -193,7 +188,7 @@ const decryptTemplateSubjects = async (
 };
 
 /** GET /admin/emails — compose form. */
-const handleComposeGet = ownerEmailPage(async (request, session, flash) => {
+const handleComposeGet = ownerEmailPage(async (request, session) => {
   const params = new URL(request.url).searchParams;
   const target = await targetFromQuery(params);
   if (!target) return notFoundResponse();
@@ -234,11 +229,9 @@ const handleComposeGet = ownerEmailPage(async (request, session, flash) => {
       copy: targetComposeCopy(target),
       disabledReason,
       draft,
-      error: flash.error,
       recipientCount: recipients.length,
       selectedTemplateId,
       single: targetIsSingleRecipient(target),
-      success: flash.success,
       targetLabel,
       templateLinkBase: `${COMPOSE_PATH}${targetQuery(target)}`,
       templates,
@@ -295,7 +288,7 @@ const handlePreviewPost = (request: Request): Promise<Response> =>
 /* jscpd:ignore-end */
 
 /** GET /admin/emails/preview — render the saved draft for confirmation. */
-const handlePreviewGet = ownerEmailPage(async (_request, session, flash) => {
+const handlePreviewGet = ownerEmailPage(async (_request, session) => {
   const privateKey = await requirePrivateKey(session);
   const draft = await parseSavedDraft(privateKey);
   if (!draft) return redirectResponse(COMPOSE_PATH);
@@ -317,7 +310,6 @@ const handlePreviewGet = ownerEmailPage(async (_request, session, flash) => {
       contactSummary: contactFrequencySummary(counts),
       disabledReason,
       draft,
-      error: flash.error,
       mailtoLink: buildMailtoLink(
         sendable,
         draft.subject,
@@ -330,7 +322,6 @@ const handlePreviewGet = ownerEmailPage(async (_request, session, flash) => {
       sendableCount: sendable.length,
       sendableEmails: sendable,
       skippedCount: skipped,
-      success: flash.success,
       targetLabel,
     }),
   );

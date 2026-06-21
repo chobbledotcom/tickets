@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { renderSuccess } from "#shared/forms.tsx";
 import {
   adminListingPage,
   buildAnswerSummaryRows,
@@ -113,18 +112,6 @@ describe("adminQuestionsPage", () => {
     const html = adminQuestionsPage([], TEST_SESSION, "Something went wrong");
     expect(html).toContain("Something went wrong");
   });
-
-  test("renders success flash when provided", () => {
-    const html = adminQuestionsPage(
-      [],
-      TEST_SESSION,
-      undefined,
-      undefined,
-      undefined,
-      "Question deleted",
-    );
-    expect(html).toContain(renderSuccess("Question deleted"));
-  });
 });
 
 describe("adminQuestionPage", () => {
@@ -165,19 +152,6 @@ describe("adminQuestionPage", () => {
   test("renders error message when provided", () => {
     const html = adminQuestionPage(question, TEST_SESSION, "Error!");
     expect(html).toContain("Error!");
-  });
-
-  test("renders success flash when provided", () => {
-    const html = adminQuestionPage(
-      question,
-      TEST_SESSION,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      "Question updated",
-    );
-    expect(html).toContain(renderSuccess("Question updated"));
   });
 
   test("renders empty answers state", () => {
@@ -511,20 +485,6 @@ describe("adminAnswerEditPage", () => {
       null,
     );
     expect(html).toContain("Invalid modifier");
-  });
-
-  test("renders success flash when provided", () => {
-    const html = adminAnswerEditPage(
-      question,
-      answer,
-      TEST_SESSION,
-      undefined,
-      aligned,
-      modifiers,
-      null,
-      "Selection total recalculated",
-    );
-    expect(html).toContain(renderSuccess("Selection total recalculated"));
   });
 });
 
