@@ -204,6 +204,10 @@ const computeListingTextAnswerIdMap = async (
       ),
     ).map(([listingId, answers]) => [
       listingId,
+      // These answers are a subset of the texts handed to getOrCreateStringIds,
+      // which returns an id for every input text or throws — so `s` is always a
+      // real id here, never the undefined that JSON.stringify would silently
+      // drop from the signed metadata.
       answers.map((answer) => ({
         q: answer.questionId,
         s: stringIds.get(answer.text)!,
