@@ -1,4 +1,5 @@
 /// <reference lib="dom" />
+/// <reference lib="dom.iterable" />
 /** Manual check-in: custom combobox + fetch-based form submission.
  * Posts to the scan JSON API without a page reload so the camera keeps running. */
 export const initManualCheckin = (): void => {
@@ -33,7 +34,7 @@ export const initManualCheckin = (): void => {
     );
 
   const allOptions = () =>
-    Array.from(listbox.querySelectorAll<HTMLLIElement>("[role='option']"));
+    listbox.querySelectorAll<HTMLLIElement>("[role='option']");
 
   const showList = () => {
     listbox.classList.remove("hidden");
@@ -82,10 +83,9 @@ export const initManualCheckin = (): void => {
     }
   });
 
-  const getVisibleOptions = () =>
-    Array.from(
-      listbox.querySelectorAll<HTMLLIElement>("[role='option']:not(.hidden)"),
-    );
+  const getVisibleOptions = () => [
+    ...listbox.querySelectorAll<HTMLLIElement>("[role='option']:not(.hidden)"),
+  ];
 
   const getActiveOption = () =>
     listbox.querySelector<HTMLLIElement>("[role='option'].combobox-active");

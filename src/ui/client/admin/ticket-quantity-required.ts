@@ -1,4 +1,5 @@
 /// <reference lib="dom" />
+/// <reference lib="dom.iterable" />
 /** Block submission of the public ticket form when no tickets are selected.
  *
  * Mirrors the server-side check in processSubmission so users get immediate
@@ -8,15 +9,15 @@
  * the server-side validation handles it. */
 export const initTicketQuantityRequired = (): void => {
   const forms = document.querySelectorAll<HTMLFormElement>("form");
-  for (const form of Array.from(forms)) {
-    const qtyInputs = Array.from(
-      form.querySelectorAll('[name^="quantity_"]'),
-    ) as Array<HTMLSelectElement | HTMLInputElement>;
+  for (const form of forms) {
+    const qtyInputs = form.querySelectorAll<
+      HTMLSelectElement | HTMLInputElement
+    >('[name^="quantity_"]');
     if (qtyInputs.length === 0) continue;
 
     let errorEl: HTMLDivElement | null = null;
 
-    form.addEventListener("submit", (event: SubmitEvent) => {
+    form.addEventListener("submit", (listing) => {
       let total = 0;
       for (const input of qtyInputs) {
         const value = Number.parseInt(input.value, 10);
@@ -24,7 +25,7 @@ export const initTicketQuantityRequired = (): void => {
       }
       if (total > 0) return;
 
-      event.preventDefault();
+      listing.preventDefault();
       if (!errorEl) {
         errorEl = document.createElement("div");
         errorEl.className = "error";

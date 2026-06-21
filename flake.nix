@@ -1,8 +1,15 @@
 {
-  inputs.nixpkgs.url = "nixpkgs";
+  inputs = {
+    nixpkgs.url = "nixpkgs";
+    # Pinned solely to provide Deno 2.5.6 — the lowest Bunny Edge Scripting
+    # runtime this project supports and the version the suite is verified
+    # against. Everything else in the dev shell comes from `nixpkgs`, so only
+    # Deno is held back; bump this rev when the supported floor moves.
+    nixpkgs-deno.url = "github:NixOS/nixpkgs/ee09932cedcef15aaf476f9343d1dea2cb77e261";
+  };
 
   outputs =
-    { nixpkgs, ... }:
+    { nixpkgs, nixpkgs-deno, ... }:
     let
       denoVersion = "2.5.6";
       systems = [
@@ -14,64 +21,71 @@
       eachSystem = f: nixpkgs.lib.genAttrs systems (s: f nixpkgs.legacyPackages.${s});
     in
     {
-      devShells = eachSystem (pkgs: {
-        default = pkgs.mkShell {
-          packages = [
-            pkgs.deno
-            (pkgs.writeShellScriptBin "pc" ''
-              exec ${pkgs.deno}/bin/deno task precommit "$@"
-            '')
-            pkgs.typescript-go
-            pkgs.biome
-            pkgs.openssl
-            pkgs.buildah
-          ];
-          shellHook = ''
-            deno_version="$(${pkgs.deno}/bin/deno --version | sed -n 's/^deno \([^ ]*\).*/\1/p')"
-            if [ "$deno_version" != "${denoVersion}" ]; then
-              echo "tickets requires Deno ${denoVersion}, but nixpkgs provides $deno_version" >&2
-              return 1
-            fi
-
-            echo "tickets dev shell"
-            echo "  deno task start      - run server"
-            echo "  deno task test       - run tests"
-            echo "  deno task build:edge - build for edge"
-            echo "  deno task precommit  - typecheck + lint + cpd + build + test"
-            echo "  pc                   - run precommit"
-            echo "  nix run .#docker     - build container image"
-            echo "  nix run .#docker-start - build and run container"
-            export DB_ENCRYPTION_KEY="$(openssl rand -base64 32)"
-            export DB_URL=":memory:"
-            export PORT=8080
-
-            install_precommit_hook() {
-              if ! ${pkgs.git}/bin/git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-                return
+      devShells = eachSystem (
+        pkgs:
+        let
+          # Take Deno from the pinned nixpkgs so the shell uses exactly
+          # ${denoVersion} regardless of what the main nixpkgs currently ships.
+          deno = nixpkgs-deno.legacyPackages.${pkgs.stdenv.hostPlatform.system}.deno;
+        in
+        {
+          default = pkgs.mkShell {
+            packages = [
+              deno
+              (pkgs.writeShellScriptBin "pc" ''
+                exec ${deno}/bin/deno task precommit "$@"
+              '')
+              pkgs.biome
+              pkgs.openssl
+              pkgs.buildah
+            ];
+            shellHook = ''
+              deno_version="$(${deno}/bin/deno --version | sed -n 's/^deno \([^ ]*\).*/\1/p')"
+              if [ "$deno_version" != "${denoVersion}" ]; then
+                echo "tickets requires Deno ${denoVersion}, but the pinned nixpkgs provides $deno_version" >&2
+                return 1
               fi
 
-              hook_path="$(${pkgs.git}/bin/git rev-parse --git-path hooks/pre-commit)"
-              hook_marker="# Installed by tickets flake.nix"
+              echo "tickets dev shell"
+              echo "  deno task start      - run server"
+              echo "  deno task test       - run tests"
+              echo "  deno task build:edge - build for edge"
+              echo "  deno task precommit  - typecheck + lint + cpd + build + test"
+              echo "  pc                   - run precommit"
+              echo "  nix run .#docker     - build container image"
+              echo "  nix run .#docker-start - build and run container"
+              export DB_ENCRYPTION_KEY="$(openssl rand -base64 32)"
+              export DB_URL=":memory:"
+              export PORT=8080
 
-              if [ -e "$hook_path" ] && ! grep -Fqx "$hook_marker" "$hook_path"; then
-                echo "  pre-commit hook already exists; leaving it unchanged"
-                return
-              fi
+              install_precommit_hook() {
+                if ! ${pkgs.git}/bin/git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+                  return
+                fi
 
-              mkdir -p "$(dirname "$hook_path")"
-              cat > "$hook_path" <<'HOOK'
+                hook_path="$(${pkgs.git}/bin/git rev-parse --git-path hooks/pre-commit)"
+                hook_marker="# Installed by tickets flake.nix"
+
+                if [ -e "$hook_path" ] && ! grep -Fqx "$hook_marker" "$hook_path"; then
+                  echo "  pre-commit hook already exists; leaving it unchanged"
+                  return
+                fi
+
+                mkdir -p "$(dirname "$hook_path")"
+                cat > "$hook_path" <<'HOOK'
 #!/usr/bin/env sh
 # Installed by tickets flake.nix
 exec deno task precommit
 HOOK
-              chmod +x "$hook_path"
-              echo "  installed pre-commit hook - deno task precommit"
-            }
+                chmod +x "$hook_path"
+                echo "  installed pre-commit hook - deno task precommit"
+              }
 
-            install_precommit_hook
-          '';
-        };
-      });
+              install_precommit_hook
+            '';
+          };
+        }
+      );
 
       apps = eachSystem (pkgs: {
         docker = {

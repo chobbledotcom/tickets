@@ -57,6 +57,7 @@ import {
   deleteAttendee,
   ensureAllBookings,
   getAttendeesByTokens,
+  reverseOrderActivity,
 } from "#shared/db/attendees.ts";
 import { getListing, getListingWithCount } from "#shared/db/listings.ts";
 import { buyerVisits, specsFromRefs } from "#shared/db/modifier-resolve.ts";
@@ -76,7 +77,7 @@ import {
   groupListingAnswers,
   saveAttendeeAnswers,
 } from "#shared/db/questions.ts";
-import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
+import { bestEffort, ErrorCode, logDebug, logError } from "#shared/logger.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import { verifyPrice } from "#shared/payment-signature.ts";
 import {
@@ -85,6 +86,7 @@ import {
   getActivePaymentProvider,
   type ModifierRef,
   type ModifierSpec,
+  type TextAnswerRef,
   type ValidatedPaymentSession,
   type WebhookEvent,
 } from "#shared/payments.ts";
@@ -108,6 +110,11 @@ const parseListingAnswerIds = (
   json: string,
 ): Record<string, number[]> | undefined =>
   json ? (JSON.parse(json) as Record<string, number[]>) : undefined;
+
+const parseListingTextAnswerIds = (
+  json: string,
+): Record<string, TextAnswerRef[]> | undefined =>
+  json ? (JSON.parse(json) as Record<string, TextAnswerRef[]>) : undefined;
 
 /** Wrap handler with session ID extraction */
 const withSessionId =
@@ -475,6 +482,7 @@ const extractIntent = (
     email: metadata.email,
     items,
     listingAnswerIds: parseListingAnswerIds(metadata.answer_ids),
+    listingTextAnswerIds: parseListingTextAnswerIds(metadata.text_answer_ids),
     modifiers: parseModifierRefs(metadata.modifiers),
     name: metadata.name,
     phone: metadata.phone,
@@ -720,6 +728,42 @@ type CreatedAttendee = Extract<
 
 type CreatedEntry = { attendee: CreatedAttendee; listing: ListingWithCount };
 
+const saveSessionAnswers = async (
+  createdEntries: CreatedEntry[],
+  intent: BookingIntent,
+): Promise<void> => {
+  if (!intent.listingAnswerIds && !intent.listingTextAnswerIds) return;
+  const choiceAnswers = groupListingAnswers(
+    createdEntries,
+    intent.listingAnswerIds ?? {},
+  );
+  const grouped: Map<
+    number,
+    {
+      answerIds: number[];
+      textAnswerIds?: { questionId: number; stringId: number }[];
+    }
+  > = new Map(
+    [...choiceAnswers].map(([attendeeId, answerIds]) => [
+      attendeeId,
+      { answerIds },
+    ]),
+  );
+  for (const { attendee, listing } of createdEntries) {
+    const refs = intent.listingTextAnswerIds?.[String(listing.id)] ?? [];
+    if (refs.length === 0) continue;
+    const existing = grouped.get(attendee.id) ?? { answerIds: [] };
+    grouped.set(attendee.id, {
+      ...existing,
+      textAnswerIds: [
+        ...(existing.textAnswerIds ?? []),
+        ...refs.map((ref) => ({ questionId: ref.q, stringId: ref.s })),
+      ],
+    });
+  }
+  await saveAttendeeAnswers(grouped);
+};
+
 /**
  * Create the attendee plus per-listing bookings atomically.
  * durationDays is listing-scoped and re-read here at finalize time so the
@@ -756,7 +800,11 @@ const createAttendeeForSession = async (
   });
 
   // For paid bookings, require all-or-nothing: partial success = rollback + refund
-  const bookingCheck = await ensureAllBookings(result, bookings.length);
+  const bookingCheck = await ensureAllBookings(
+    result,
+    bookings.length,
+    "public",
+  );
   if (!bookingCheck.ok) {
     const error = formatPostPaymentError(
       bookingCheck.reason,
@@ -788,6 +836,13 @@ const createAttendeeForSession = async (
     );
     if (!consumed) {
       await deleteAttendee(attendeeId);
+      // Undo the visit + booking the greedy create recorded for this contact,
+      // since the paid order is being rolled back and refunded. Best-effort:
+      // the buyer has already been charged, so a contact-stats write failure
+      // must never block the refund below.
+      await bestEffort("reverseOrderActivity on rollback", () =>
+        reverseOrderActivity(intent.email, intent.phone, "public"),
+      );
       return refundAndFail(
         session,
         MODIFIER_SOLD_OUT_MESSAGE,
@@ -962,11 +1017,7 @@ const processReservedSession = async (
   if ("success" in created) return created;
   const createdEntries = created.entries;
 
-  if (intent.listingAnswerIds) {
-    await saveAttendeeAnswers(
-      groupListingAnswers(createdEntries, intent.listingAnswerIds),
-    );
-  }
+  await saveSessionAnswers(createdEntries, intent);
 
   const firstAttendee = createdEntries[0]!;
   const ticketToken = firstAttendee.attendee.ticket_token;

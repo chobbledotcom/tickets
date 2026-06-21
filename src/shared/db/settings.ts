@@ -24,10 +24,11 @@ import { decrypt, encrypt, encryptWithKey } from "#shared/crypto/encryption.ts";
 import { hashPassword } from "#shared/crypto/hashing.ts";
 import {
   deriveKEK,
+  deriveKEKFromPassword,
   generateDataKey,
   generateKeyPair,
   unwrapKey,
-  wrapKey,
+  wrapDataKeyForPassword,
 } from "#shared/crypto/keys.ts";
 import {
   execute,
@@ -109,10 +110,12 @@ export const CONFIG_KEYS = {
   HEADER_IMAGE_URL: "header_image_url",
   HOMEPAGE_TEXT: "homepage_text",
   LAST_PRUNED_CONTACTS: "last_pruned_contacts",
+  LAST_PRUNED_INVITES: "last_pruned_invites",
   LAST_PRUNED_LOGINS: "last_pruned_logins",
   LAST_PRUNED_ORPHANS: "last_pruned_orphans",
   LAST_PRUNED_PAYMENTS: "last_pruned_payments",
   LAST_PRUNED_SESSIONS: "last_pruned_sessions",
+  LAST_PRUNED_STRINGS: "last_pruned_strings",
   LAST_PRUNED_SUMUP: "last_pruned_sumup",
   LAST_PRUNED_TOKENS: "last_pruned_tokens",
   LATEST_SCRIPT_VERSION: "latest_script_version",
@@ -249,10 +252,12 @@ const PLAINTEXT_KEYS = [
   CONFIG_KEYS.ATTENDEE_COLUMN_ORDER,
   CONFIG_KEYS.LAST_PRUNED_PAYMENTS,
   CONFIG_KEYS.LAST_PRUNED_SESSIONS,
+  CONFIG_KEYS.LAST_PRUNED_STRINGS,
   CONFIG_KEYS.LAST_PRUNED_SUMUP,
   CONFIG_KEYS.LAST_PRUNED_LOGINS,
   CONFIG_KEYS.LAST_PRUNED_TOKENS,
   CONFIG_KEYS.LAST_PRUNED_CONTACTS,
+  CONFIG_KEYS.LAST_PRUNED_INVITES,
   CONFIG_KEYS.LAST_PRUNED_ORPHANS,
   CONFIG_KEYS.SMS_GATEWAY_BASE_URL,
 ] as const;
@@ -500,10 +505,12 @@ const STRING_ACCESSORS = {
   headerImageUrl: { key: CONFIG_KEYS.HEADER_IMAGE_URL },
   homepageText: { key: CONFIG_KEYS.HOMEPAGE_TEXT },
   lastPrunedContacts: { key: CONFIG_KEYS.LAST_PRUNED_CONTACTS },
+  lastPrunedInvites: { key: CONFIG_KEYS.LAST_PRUNED_INVITES },
   lastPrunedLogins: { key: CONFIG_KEYS.LAST_PRUNED_LOGINS },
   lastPrunedOrphans: { key: CONFIG_KEYS.LAST_PRUNED_ORPHANS },
   lastPrunedPayments: { key: CONFIG_KEYS.LAST_PRUNED_PAYMENTS },
   lastPrunedSessions: { key: CONFIG_KEYS.LAST_PRUNED_SESSIONS },
+  lastPrunedStrings: { key: CONFIG_KEYS.LAST_PRUNED_STRINGS },
   lastPrunedSumup: { key: CONFIG_KEYS.LAST_PRUNED_SUMUP },
   lastPrunedTokens: { key: CONFIG_KEYS.LAST_PRUNED_TOKENS },
   latestScriptVersion: { key: CONFIG_KEYS.LATEST_SCRIPT_VERSION },
@@ -812,8 +819,13 @@ const completeSetup = async (
   const hashedPassword = await hashPassword(adminPassword);
   const dataKey = await generateDataKey();
   const { publicKey, privateKey } = await generateKeyPair();
-  const kek = await deriveKEK(hashedPassword);
-  const wrappedDataKey = await wrapKey(dataKey, kek);
+  // Bind the owner's wrapped DATA_KEY to the raw password (v2), so the DATA_KEY
+  // — and therefore all attendee PII — can't be unwrapped from a DB dump alone.
+  const wrappedDataKey = await wrapDataKeyForPassword(
+    dataKey,
+    adminPassword,
+    hashedPassword,
+  );
   await createUser(username, hashedPassword, wrappedDataKey, "owner");
   const encryptedPrivateKey = await encryptWithKey(privateKey, dataKey);
   await writeRaw(CONFIG_KEYS.WRAPPED_PRIVATE_KEY, encryptedPrivateKey);
@@ -837,23 +849,35 @@ const completeSetup = async (
 
 const updateUserPassword = async (
   userId: number,
-  oldPasswordHash: string,
-  oldWrappedDataKey: string,
-  newPassword: string,
+  opts: {
+    oldPassword: string;
+    oldPasswordHash: string;
+    oldWrappedDataKey: string;
+    oldKekVersion: number;
+    newPassword: string;
+  },
 ): Promise<boolean> => {
-  const oldKek = await deriveKEK(oldPasswordHash);
+  // Unwrap with the account's current scheme (v2 from the raw old password, v1
+  // from its stored hash), then always re-wrap under the v2 password-bound KEK.
+  const oldKek =
+    opts.oldKekVersion >= 2
+      ? await deriveKEKFromPassword(opts.oldPassword, opts.oldPasswordHash)
+      : await deriveKEK(opts.oldPasswordHash);
   let dk: CryptoKey;
   try {
-    dk = await unwrapKey(oldWrappedDataKey, oldKek);
+    dk = await unwrapKey(opts.oldWrappedDataKey, oldKek);
   } catch {
     return false;
   }
-  const newHash = await hashPassword(newPassword);
+  const newHash = await hashPassword(opts.newPassword);
   const encryptedNewHash = await encrypt(newHash);
-  const newKek = await deriveKEK(newHash);
-  const newWrappedDataKey = await wrapKey(dk, newKek);
+  const newWrappedDataKey = await wrapDataKeyForPassword(
+    dk,
+    opts.newPassword,
+    newHash,
+  );
   await execute(
-    "UPDATE users SET password_hash = ?, wrapped_data_key = ? WHERE id = ?",
+    "UPDATE users SET password_hash = ?, wrapped_data_key = ?, kek_version = 2 WHERE id = ?",
     [encryptedNewHash, newWrappedDataKey, userId],
   );
   invalidateUsersCache();

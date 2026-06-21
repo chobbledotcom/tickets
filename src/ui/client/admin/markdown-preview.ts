@@ -1,4 +1,5 @@
 /// <reference lib="dom" />
+/// <reference lib="dom.iterable" />
 /**
  * Markdown preview: adds a "Preview" link under each markdown editor (opposite
  * the character counter) that renders the current content via the admin-only
@@ -96,7 +97,7 @@ export const initMarkdownPreview = (): void => {
     }
   };
 
-  for (const textarea of Array.from(textareas)) {
+  for (const textarea of textareas) {
     // Capture the counter before inserting the footer, which would otherwise
     // become the textarea's next sibling.
     const counter = counterAfter(textarea);

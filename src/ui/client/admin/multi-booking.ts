@@ -1,4 +1,5 @@
 /// <reference lib="dom" />
+/// <reference lib="dom.iterable" />
 import { buildEmbedSnippets } from "#shared/embed.ts";
 
 /** Multi-booking link builder: track checkbox selection order and
@@ -21,8 +22,8 @@ export const initMultiBookingBuilder = (): void => {
   const embedScriptPlaceholder = multiEmbedScript.placeholder;
   const embedIframePlaceholder = multiEmbedIframe.placeholder;
 
-  for (const cb of Array.from(
-    document.querySelectorAll<HTMLInputElement>("[data-multi-booking-slug]"),
+  for (const cb of document.querySelectorAll<HTMLInputElement>(
+    "[data-multi-booking-slug]",
   )) {
     cb.addEventListener("change", () => {
       const slug = cb.dataset.multiBookingSlug!;

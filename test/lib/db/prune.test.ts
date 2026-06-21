@@ -20,6 +20,7 @@ import {
   pruneSessions,
   pruneSumupCheckouts,
   pruneTokenAttempts,
+  pruneUnusedStrings,
 } from "#shared/db/prune.ts";
 import { createSession, getAllSessions } from "#shared/db/sessions.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -31,6 +32,7 @@ import {
   PRUNE_SESSIONS_RETENTION_MS,
   PRUNE_SUMUP_RETENTION_MS,
   PRUNE_TOKENS_RETENTION_MS,
+  PRUNE_UNUSED_STRINGS_RETENTION_MS,
 } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils";
@@ -106,6 +108,31 @@ const sumupCheckoutExists = async (
   const { rows } = await getDb().execute({
     args: [referenceIndex],
     sql: "SELECT 1 FROM sumup_checkouts WHERE reference_index = ?",
+  });
+  return rows.length > 0;
+};
+
+/** Insert an encrypted string row with the given timestamp and usage count. */
+const insertString = async (
+  textIndex: string,
+  created: string,
+  usedCount: number,
+): Promise<void> => {
+  await getDb().execute(
+    insert("strings", {
+      created,
+      encrypted_text: "ciphertext",
+      text_index: textIndex,
+      used_count: usedCount,
+    }),
+  );
+};
+
+/** Is a string row with this text index still in the DB? */
+const stringExists = async (textIndex: string): Promise<boolean> => {
+  const { rows } = await getDb().execute({
+    args: [textIndex],
+    sql: "SELECT 1 FROM strings WHERE text_index = ?",
   });
   return rows.length > 0;
 };
@@ -219,7 +246,9 @@ const clearAllLastPruned = async (): Promise<void> => {
   await settings.update.lastPrunedLogins("");
   await settings.update.lastPrunedTokens("");
   await settings.update.lastPrunedSumup("");
+  await settings.update.lastPrunedStrings("");
   await settings.update.lastPrunedContacts("");
+  await settings.update.lastPrunedInvites("");
   await settings.update.lastPrunedOrphans("");
 };
 
@@ -230,7 +259,9 @@ const setAllLastPruned = async (value: string): Promise<void> => {
   await settings.update.lastPrunedLogins(value);
   await settings.update.lastPrunedTokens(value);
   await settings.update.lastPrunedSumup(value);
+  await settings.update.lastPrunedStrings(value);
   await settings.update.lastPrunedContacts(value);
+  await settings.update.lastPrunedInvites(value);
   await settings.update.lastPrunedOrphans(value);
 };
 
@@ -311,6 +342,39 @@ describeWithEnv("db > prune", { db: true }, () => {
       await pruneSumupCheckouts();
 
       expect(await sumupCheckoutExists("idx_recent")).toBe(true);
+    });
+  });
+
+  describe("pruneUnusedStrings", () => {
+    test("deletes unused strings older than retention window", async () => {
+      const old = new Date(
+        nowMs() - PRUNE_UNUSED_STRINGS_RETENTION_MS - 60_000,
+      ).toISOString();
+      await insertString("string_old_unused", old, 0);
+
+      await pruneUnusedStrings();
+
+      expect(await stringExists("string_old_unused")).toBe(false);
+    });
+
+    test("keeps unused strings within retention window", async () => {
+      const recent = new Date(nowMs() - 1000).toISOString();
+      await insertString("string_recent_unused", recent, 0);
+
+      await pruneUnusedStrings();
+
+      expect(await stringExists("string_recent_unused")).toBe(true);
+    });
+
+    test("keeps referenced strings even when older than retention window", async () => {
+      const old = new Date(
+        nowMs() - PRUNE_UNUSED_STRINGS_RETENTION_MS - 60_000,
+      ).toISOString();
+      await insertString("string_old_used", old, 1);
+
+      await pruneUnusedStrings();
+
+      expect(await stringExists("string_old_used")).toBe(true);
     });
   });
 
@@ -531,6 +595,17 @@ describeWithEnv("db > prune", { db: true }, () => {
       expect(ts).toBeLessThanOrEqual(nowMs());
     });
 
+    test("records fresh strings timestamp after running", async () => {
+      await clearAllLastPruned();
+      const before = nowMs();
+
+      await maybeRunPrunes();
+
+      const ts = Number.parseInt(settings.lastPrunedStrings, 10);
+      expect(ts).toBeGreaterThanOrEqual(before);
+      expect(ts).toBeLessThanOrEqual(nowMs());
+    });
+
     test("records fresh logins timestamp after running", async () => {
       await clearAllLastPruned();
       const before = nowMs();
@@ -560,6 +635,17 @@ describeWithEnv("db > prune", { db: true }, () => {
       await maybeRunPrunes();
 
       const ts = Number.parseInt(settings.lastPrunedContacts, 10);
+      expect(ts).toBeGreaterThanOrEqual(before);
+      expect(ts).toBeLessThanOrEqual(nowMs());
+    });
+
+    test("records fresh invites timestamp after running", async () => {
+      await clearAllLastPruned();
+      const before = nowMs();
+
+      await maybeRunPrunes();
+
+      const ts = Number.parseInt(settings.lastPrunedInvites, 10);
       expect(ts).toBeGreaterThanOrEqual(before);
       expect(ts).toBeLessThanOrEqual(nowMs());
     });

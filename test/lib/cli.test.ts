@@ -1,12 +1,13 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { adminApiRoutes } from "#routes/admin/api.ts";
 import { setTestEnv } from "#test-utils";
-import { buildRequest, main as cliApiMain, parseBody } from "../../cli/api.ts";
+import { buildRequest, parseBody } from "../../cli/api-request.ts";
 import { loadConfig } from "../../cli/config.ts";
 import { buildCurlArgs, curlFailureMessage, curlJson } from "../../cli/curl.ts";
-import { clearScreen, writeErr } from "../../cli/io.ts";
-import { parseResource, resourcePath } from "../../cli/resources.ts";
+import { clearScreen, writeErr, writeOut } from "../../cli/io.ts";
+import { parseResource, resourcePath, resources } from "../../cli/resources.ts";
 
 const withTempCwd = async <T>(fn: () => Promise<T>): Promise<T> => {
   const original = Deno.cwd();
@@ -205,77 +206,6 @@ describe("CLI curl", () => {
   });
 });
 
-describe("CLI API request builder", () => {
-  test("parses optional JSON bodies", () => {
-    expect(parseBody()).toBeUndefined();
-    expect(parseBody('{"name":"Demo"}')).toEqual({ name: "Demo" });
-  });
-
-  test("returns null for unknown commands", () => {
-    expect(buildRequest("publish", "listings")).toBeNull();
-  });
-
-  test("exits with usage when required arguments are missing", async () => {
-    const exit = stub(Deno, "exit", ((code?: number) => {
-      throw new Error(`exit:${code}`);
-    }) as typeof Deno.exit);
-    const err = stub(Deno.stderr, "write", () => Promise.resolve(6));
-    try {
-      await expect(cliApiMain([])).rejects.toThrow("exit:2");
-      expect(new TextDecoder().decode(err.calls[0]!.args[0])).toContain(
-        "Usage: deno task cli:api",
-      );
-    } finally {
-      exit.restore();
-      err.restore();
-    }
-  });
-
-  test("exits with usage when the command is unknown", async () => {
-    const exit = stub(Deno, "exit", ((code?: number) => {
-      throw new Error(`exit:${code}`);
-    }) as typeof Deno.exit);
-    const err = stub(Deno.stderr, "write", () => Promise.resolve(6));
-    try {
-      await expect(cliApiMain(["publish", "listings"])).rejects.toThrow(
-        "exit:2",
-      );
-      expect(new TextDecoder().decode(err.calls[0]!.args[0])).toContain(
-        "Usage: deno task cli:api",
-      );
-    } finally {
-      exit.restore();
-      err.restore();
-    }
-  });
-});
-
-describe("CLI IO", () => {
-  test("writes errors to stderr", async () => {
-    const err = stub(Deno.stderr, "write", () => Promise.resolve(6));
-    try {
-      await writeErr("error\n");
-      expect(err.calls.length).toBe(1);
-      expect(new TextDecoder().decode(err.calls[0]!.args[0])).toBe("error\n");
-    } finally {
-      err.restore();
-    }
-  });
-
-  test("clears the terminal via stdout", async () => {
-    const out = stub(Deno.stdout, "write", () => Promise.resolve(7));
-    try {
-      await clearScreen();
-      expect(out.calls.length).toBe(1);
-      expect(new TextDecoder().decode(out.calls[0]!.args[0])).toBe(
-        "\x1b[2J\x1b[H",
-      );
-    } finally {
-      out.restore();
-    }
-  });
-});
-
 describe("CLI resources", () => {
   test("builds collection and entity paths", () => {
     expect(resourcePath("listings")).toBe("/api/admin/listings");
@@ -283,9 +213,117 @@ describe("CLI resources", () => {
   });
 
   test("parses known resources and rejects unknown resources", () => {
-    expect(parseResource("attendees")).toBe("attendees");
+    expect(parseResource("holidays")).toBe("holidays");
     expect(() => parseResource("orders")).toThrow(
-      "Unknown resource: orders. Expected listings, attendees, modifiers",
+      "Unknown resource: orders. Expected listings, groups, holidays",
     );
+  });
+
+  test("exposes exactly the resources the admin API serves", () => {
+    // Derive the resource segment from every registered admin API route key
+    // (e.g. "POST /api/admin/groups/:groupId" → "groups"). The CLI's resource
+    // list must match this set exactly, so neither side can silently drift.
+    const served = [
+      ...new Set(
+        Object.keys(adminApiRoutes).map(
+          (route) => route.match(/\/api\/admin\/([a-z]+)/)?.[1] ?? "",
+        ),
+      ),
+    ].sort();
+    expect([...resources].sort()).toEqual(served);
+  });
+});
+
+describe("CLI api-request", () => {
+  test("parseBody returns undefined when no JSON argument is given", () => {
+    expect(parseBody(undefined)).toBeUndefined();
+    expect(parseBody("")).toBeUndefined();
+  });
+
+  test("parseBody parses a JSON string into a value", () => {
+    expect(parseBody('{"name":"Demo"}')).toEqual({ name: "Demo" });
+  });
+
+  test("builds a bodyless list request", () => {
+    expect(buildRequest("list", "listings")).toEqual({
+      path: "/api/admin/listings",
+    });
+  });
+
+  test("builds a get request addressing a single entity", () => {
+    expect(buildRequest("get", "listings", "5")).toEqual({
+      path: "/api/admin/listings/5",
+    });
+  });
+
+  test("builds a create request with a parsed JSON body", () => {
+    expect(buildRequest("create", "listings", '{"name":"Demo"}')).toEqual({
+      body: { name: "Demo" },
+      method: "POST",
+      path: "/api/admin/listings",
+    });
+  });
+
+  test("builds an update request from an id and JSON body", () => {
+    expect(buildRequest("update", "groups", "7", '{"name":"G"}')).toEqual({
+      body: { name: "G" },
+      method: "PUT",
+      path: "/api/admin/groups/7",
+    });
+  });
+
+  test("builds a delete request that defaults to no body", () => {
+    expect(buildRequest("delete", "holidays", "9")).toEqual({
+      body: undefined,
+      method: "DELETE",
+      path: "/api/admin/holidays/9",
+    });
+  });
+
+  test("returns null for an unrecognised command", () => {
+    expect(buildRequest("publish", "listings")).toBeNull();
+  });
+});
+
+describe("CLI io", () => {
+  const decode = (bytes: Uint8Array): string => new TextDecoder().decode(bytes);
+
+  // Stub both std streams while running `act`, returning whatever each received.
+  // A single curried recorder keeps the two stubs identical without repetition.
+  const captureStdio = async (
+    act: () => Promise<void>,
+  ): Promise<{ out: string[]; err: string[] }> => {
+    const out: string[] = [];
+    const err: string[] = [];
+    const recorder = (sink: string[]) => (bytes: Uint8Array) => {
+      sink.push(decode(bytes));
+      return Promise.resolve(bytes.length);
+    };
+    const outStub = stub(Deno.stdout, "write", recorder(out));
+    const errStub = stub(Deno.stderr, "write", recorder(err));
+    try {
+      await act();
+    } finally {
+      outStub.restore();
+      errStub.restore();
+    }
+    return { err, out };
+  };
+
+  test("writeOut writes encoded text to stdout", async () => {
+    const { out, err } = await captureStdio(() => writeOut("hello"));
+    expect(out).toEqual(["hello"]);
+    expect(err).toEqual([]);
+  });
+
+  test("writeErr writes encoded text to stderr", async () => {
+    const { out, err } = await captureStdio(() => writeErr("nope\n"));
+    expect(err).toEqual(["nope\n"]);
+    expect(out).toEqual([]);
+  });
+
+  test("clearScreen writes the ANSI clear-and-home sequence to stdout", async () => {
+    const { out } = await captureStdio(() => clearScreen());
+    expect(out).toEqual(["\x1b[2J\x1b[H"]);
   });
 });

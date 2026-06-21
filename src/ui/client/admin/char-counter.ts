@@ -1,8 +1,9 @@
 /// <reference lib="dom" />
+/// <reference lib="dom.iterable" />
 /** Remaining chars counter for textareas with maxlength. */
 export const initCharCounters = (): void => {
-  for (const ta of Array.from(
-    document.querySelectorAll<HTMLTextAreaElement>("textarea[maxlength]"),
+  for (const ta of document.querySelectorAll<HTMLTextAreaElement>(
+    "textarea[maxlength]",
   )) {
     const max = Number(ta.getAttribute("maxlength"));
     if (!max) continue;

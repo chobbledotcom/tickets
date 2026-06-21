@@ -9,12 +9,13 @@
  * details/summary disclosure.
  */
 
-import { compact, mapNotNullish } from "#fp";
+import { compact, mapNotNullish, sumOf } from "#fp";
 import { t } from "#i18n";
-import { formatDatetimeShort } from "#shared/dates.ts";
+import type { AttendeeBooking } from "#routes/admin/attendee-form-model.ts";
+import { formatDateRangeLabel, formatDatetimeShort } from "#shared/dates.ts";
 import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
-import type { Child } from "#shared/jsx/jsx-runtime.ts";
+import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { Attendee } from "#shared/types.ts";
 import { ActivityLogTable } from "#templates/admin/activityLog.tsx";
 import { MapsLinks } from "#templates/components/maps-links.tsx";
@@ -90,6 +91,99 @@ export const AttendeeDetail = ({
         <tbody>{rows}</tbody>
       </table>
     </div>
+  );
+};
+
+/**
+ * "Checked in" / "Refunded" status badges for a booking, or null when neither
+ * applies. Shared by the read-only bookings summary and the listing-editor rows.
+ */
+export const BookingStatusBadges = ({
+  checkedIn,
+  refunded,
+}: {
+  checkedIn: boolean;
+  refunded: boolean;
+}): JSX.Element | null => {
+  const badges = compact([
+    checkedIn ? (
+      <span class="badge">{t("attendee_form.checked_in")}</span>
+    ) : null,
+    refunded ? (
+      <span class="badge danger">{t("attendee_form.refunded")}</span>
+    ) : null,
+  ]);
+  return badges.length > 0 ? (
+    <div class="muted small">
+      <Raw html={badges.join(" ")} />
+    </div>
+  ) : null;
+};
+
+/**
+ * Read-only summary of the listings an attendee currently books, shown as a
+ * table near the top of the edit page: one row per booking with its quantity,
+ * dates (for daily listings), and check-in / refund status, plus a total ticket
+ * count. Returns null when nothing is booked so the caller can drop the section.
+ */
+export const AttendeeBookingsTable = ({
+  bookings,
+}: {
+  bookings: AttendeeBooking[];
+}): JSX.Element | null => {
+  if (bookings.length === 0) return null;
+  const totalQuantity = sumOf((b: AttendeeBooking) => b.quantity)(bookings);
+  return (
+    <>
+      <h3>{t("terms.bookings")}</h3>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>{t("terms.listing")}</th>
+              <th>{t("common.date")}</th>
+              <th>{t("common.quantity")}</th>
+              <th>{t("common.status")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {bookings.map((booking) => (
+              <tr>
+                <td>
+                  <a href={`/admin/listing/${booking.listingId}`}>
+                    {booking.listingName}
+                  </a>
+                  {booking.listingActive ? null : (
+                    <span class="muted small"> ({t("common.inactive")})</span>
+                  )}
+                </td>
+                <td>
+                  {booking.startAt
+                    ? formatDateRangeLabel(booking.startAt, booking.endAt)
+                    : "—"}
+                </td>
+                <td>{booking.quantity}</td>
+                <td>
+                  {BookingStatusBadges({
+                    checkedIn: booking.checkedIn,
+                    refunded: booking.refunded,
+                  }) ?? "—"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr>
+              <th colspan="2" scope="row">
+                {t("attendee_detail.total")}
+              </th>
+              <td>{totalQuantity}</td>
+              <td />
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </>
   );
 };
 

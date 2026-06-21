@@ -44,7 +44,7 @@ type CompactTapReporterOptions = {
 
 const PROGRESS_WIDTH = 24;
 const TEST_RESULT_RE = /^\s*(not\s+)?ok\s+\d+(?:\s+-\s+(.*))?$/;
-const PLAN_RE = /^\s*\d+\.\.\d+(?:\s+#.*)?$/;
+const PLAN_RE = /^\s*(\d+)\.\.(\d+)(?:\s+#.*)?$/;
 const STEP_FAILURE_RE = /^\d+\s+test\s+steps?\s+failed\.$/;
 const REPORTER_FLAGS = new Set(["--reporter"]);
 const FILE_ARG_VALUE_FLAGS = new Set([
@@ -343,8 +343,15 @@ export class CompactTapReporter {
 
     if (!trimmed) return;
 
-    if (trimmed === "TAP version 14" || PLAN_RE.test(trimmed)) {
+    if (trimmed === "TAP version 14") {
       this.#sawTap = true;
+      return;
+    }
+
+    const plan = trimmed.match(PLAN_RE);
+    if (plan) {
+      this.#sawTap = true;
+      this.#growEstimatedTotal(Number(plan[2]));
       return;
     }
 
@@ -430,12 +437,18 @@ export class CompactTapReporter {
     return progress ? `${prefix} ${progress} ${name}` : `${prefix} ${name}`;
   }
 
+  #growEstimatedTotal(total: number): void {
+    if (!Number.isFinite(total) || total <= 0) return;
+    this.#estimatedTotal = Math.max(this.#estimatedTotal ?? 0, total);
+  }
+
   #progress(): string {
     if (this.#hideProgress) return "";
 
     const done = this.#passed + this.#failed;
+    this.#growEstimatedTotal(done);
     const total = this.#estimatedTotal;
-    if (!total || done > total) {
+    if (!total) {
       return `[${String(done).padStart(4, " ")} done]`;
     }
 

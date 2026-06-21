@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   type AttendeeFormLine,
   attendeeBalanceNotice,
+  attendeeBookingsFromLines,
   bookingDurationDays,
   isBookedLine,
   type ParsedAttendeeForm,
@@ -60,6 +61,63 @@ const parsedBase = (
   startDate: "",
   statusId: null,
   ...overrides,
+});
+
+describe("attendeeBookingsFromLines", () => {
+  test("projects a booked line's stored booking onto a summary row", () => {
+    const bookings = attendeeBookingsFromLines([
+      line({
+        existingBooking: bookingRow({
+          checked_in: 1,
+          end_at: "2026-06-03T00:00:00Z",
+          listing_id: 7,
+          quantity: 3,
+          refunded: 1,
+          start_at: "2026-06-01T00:00:00Z",
+        }),
+        listing: testListingWithCount({ active: false, id: 7, name: "Kayak" }),
+        listingId: 7,
+      }),
+    ]);
+    // Every stored field is carried through, with the 0/1 flags coerced to bools.
+    expect(bookings).toEqual([
+      {
+        checkedIn: true,
+        endAt: "2026-06-03T00:00:00Z",
+        listingActive: false,
+        listingId: 7,
+        listingName: "Kayak",
+        quantity: 3,
+        refunded: true,
+        startAt: "2026-06-01T00:00:00Z",
+      },
+    ]);
+  });
+
+  test("keeps only the lines that carry a saved booking", () => {
+    const bookings = attendeeBookingsFromLines([
+      line({
+        existingBooking: bookingRow({ listing_id: 1, quantity: 2 }),
+        listing: testListingWithCount({ id: 1, name: "Booked" }),
+      }),
+      // A not-yet-booked row (the quantity box left at 0) has no stored booking.
+      line({ existingBooking: null, listingId: 2 }),
+    ]);
+    expect(bookings.map((b) => b.listingName)).toEqual(["Booked"]);
+  });
+
+  test("drops a booking whose listing no longer resolves", () => {
+    // A hand-crafted POST can pair a real booking key with an unknown listing
+    // id; that bogus line is dropped rather than rendered with a null listing.
+    const bookings = attendeeBookingsFromLines([
+      line({
+        existingBooking: bookingRow({ listing_id: 99, quantity: 1 }),
+        listing: null,
+        listingId: 99,
+      }),
+    ]);
+    expect(bookings).toEqual([]);
+  });
 });
 
 describe("parseAttendeeForm", () => {

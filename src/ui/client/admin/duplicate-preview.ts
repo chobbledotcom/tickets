@@ -1,4 +1,5 @@
 /// <reference lib="dom" />
+/// <reference lib="dom.iterable" />
 /**
  * Duplicate-group preview: re-renders the preview table live as the admin
  * types into the form. Uses the same buildDuplicatePreview helper that the
@@ -57,9 +58,9 @@ export const initDuplicatePreview = (): void => {
       .join("");
   };
 
-  for (const input of Array.from(
-    container.querySelectorAll("[data-duplicate-field]"),
-  ) as HTMLInputElement[]) {
+  for (const input of container.querySelectorAll<HTMLInputElement>(
+    "[data-duplicate-field]",
+  )) {
     input.addEventListener("input", renderPreview);
   }
 };

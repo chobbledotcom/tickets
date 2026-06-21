@@ -8,8 +8,12 @@ import {
 } from "#shared/db/activityLog.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
-  getEmailStats,
+  getContactRecord,
   hashEmail,
+  hashPhone,
+  recordBooking,
+  saveContactRecord,
+  toContactHashParam,
   unsubscribeHash,
 } from "#shared/db/contact-preferences.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -696,6 +700,8 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
         listing.id,
         "Alice",
         "alice@example.com",
+        1,
+        "07700 900333",
       );
       const cookie = await createTestManagerSession();
       const html = await (
@@ -1025,7 +1031,7 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
       await adminFormPost("/admin/emails/send", {});
 
       // Each recipient now has one contact.
-      const stats = await getEmailStats(
+      const stats = await getContactRecord(
         await hashEmail("alice@example.com"),
         await getTestPrivateKey(),
       );
@@ -1038,7 +1044,7 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
       );
     });
 
-    test("the attendee page shows email history", async () => {
+    test("the attendee page shows per-channel stats, counts and markdown notes", async () => {
       useResend();
       const listing = await createTestListing({
         maxAttendees: 5,
@@ -1048,16 +1054,34 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
         listing.id,
         "Alice",
         "alice@example.com",
+        1,
+        "07700 900333",
+      );
+      const pk = await getTestPrivateKey();
+      const emailHash = await hashEmail("alice@example.com");
+      const phoneHash = await hashPhone("07700 900333");
+
+      const attendeePage = async (): Promise<string> =>
+        (
+          await awaitTestRequest(`/admin/attendees/${attendee.id}`, {
+            cookie: await testCookie(),
+          })
+        ).text();
+
+      // Before any activity: the panel shows a labelled section per channel,
+      // each linking to its own /admin/history editor.
+      const before = await attendeePage();
+      expect(before).toContain("Contact History");
+      expect(before).toContain("Stats / notes for alice@example.com");
+      expect(before).toContain("Stats / notes for 07700 900333");
+      expect(before).toContain(
+        `/admin/history/${toContactHashParam(emailHash)}`,
+      );
+      expect(before).toContain(
+        `/admin/history/${toContactHashParam(phoneHash)}`,
       );
 
-      const before = await (
-        await awaitTestRequest(`/admin/attendees/${attendee.id}`, {
-          cookie: await testCookie(),
-        })
-      ).text();
-      expect(before).toContain("Email History");
-      expect(before).toContain("Never contacted by bulk email.");
-
+      // A bulk-email send gives the email contact outreach history...
       await adminFormPost("/admin/emails/preview", {
         body: "Hello",
         listing_id: String(listing.id),
@@ -1065,13 +1089,29 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
       });
       await adminFormPost("/admin/emails/send", {});
 
-      const after = await (
-        await awaitTestRequest(`/admin/attendees/${attendee.id}`, {
-          cookie: await testCookie(),
-        })
-      ).text();
+      // ...and we seed split booking counts plus a private markdown note on each
+      // contact record (preserving the counts already recorded for the email).
+      await recordBooking(emailHash, "public");
+      await recordBooking(emailHash, "admin");
+      await saveContactRecord(emailHash, {
+        ...(await getContactRecord(emailHash, pk)),
+        adminNotes: "**Email VIP** customer",
+      });
+      await saveContactRecord(phoneHash, {
+        ...(await getContactRecord(phoneHash, pk)),
+        adminNotes: "**Phone VIP** customer",
+      });
+
+      const after = await attendeePage();
+      // Outreach + per-source booking counts surface for the email contact.
       expect(after).toContain("Total messages:");
       expect(after).toContain("Newsletter");
+      expect(after).toContain("Online bookings:");
+      expect(after).toContain("Admin bookings:");
+      // The private notes render as MARKDOWN (bold), never raw asterisks.
+      expect(after).toContain("<strong>Email VIP</strong> customer");
+      expect(after).toContain("<strong>Phone VIP</strong> customer");
+      expect(after).not.toContain("**Email VIP** customer");
     });
   });
 });

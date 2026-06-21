@@ -13,6 +13,11 @@ import {
 } from "#shared/db/attendees/balance.ts";
 import { createAttendeeAtomic } from "#shared/db/attendees.ts";
 import { getDb } from "#shared/db/client.ts";
+import {
+  enableQueryLog,
+  getQueryLog,
+  runWithQueryLogContext,
+} from "#shared/db/query-log.ts";
 import { createTestListing, describeWithEnv } from "#test-utils";
 
 /** Create a reserved attendee with an outstanding balance. */
@@ -180,5 +185,41 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     const summary = await getAttendeeOrderSummary(attendeeId);
     // Only the real listing is included; the dangling row is dropped.
     expect(summary.lines).toHaveLength(1);
+  });
+
+  test("order summary loads booking listings with one joined read", async () => {
+    const { attendeeId, listingId } = await createReservedAttendee(1500);
+    const otherListing = await createTestListing({
+      maxAttendees: 10,
+      thankYouUrl: "https://example.com/other",
+      unitPrice: 1200,
+    });
+    await getDb().execute({
+      args: [otherListing.id, attendeeId],
+      sql: "INSERT INTO listing_attendees (listing_id, attendee_id, quantity, price_paid) VALUES (?, ?, 2, 240)",
+    });
+
+    const { entries, summary } = await runWithQueryLogContext(async () => {
+      enableQueryLog();
+      const summary = await getAttendeeOrderSummary(attendeeId);
+      return { entries: getQueryLog(), summary };
+    });
+
+    expect(summary.lines.map((line) => line.listingId)).toEqual([
+      listingId,
+      otherListing.id,
+    ]);
+    expect(
+      entries.filter((entry) =>
+        entry.sql.includes("FROM listing_attendees AS listingAttendee"),
+      ),
+    ).toHaveLength(1);
+    expect(
+      entries.filter(
+        (entry) =>
+          entry.sql.includes("FROM listings AS listing") &&
+          !entry.sql.includes("JOIN listings"),
+      ),
+    ).toHaveLength(0);
   });
 });

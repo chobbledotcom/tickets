@@ -4551,7 +4551,9 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
       // Verify answers were saved
       const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       const attendees = await getAttendeesRaw(listing.id);
-      const batch = await getAttendeeAnswersBatch([attendees[0]!.id]);
+      const batch = await getAttendeeAnswersBatch([attendees[0]!.id], {
+        texts: false,
+      });
       expect(batch.get(attendees[0]!.id)).toEqual([answer1.id]);
     });
 
@@ -4744,7 +4746,9 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
       const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       const att1 = await getAttendeesRaw(listing1.id);
       const attendeeId = att1[0]!.id;
-      const batch = await getAttendeeAnswersBatch([attendeeId]);
+      const batch = await getAttendeeAnswersBatch([attendeeId], {
+        texts: false,
+      });
       expect(batch.get(attendeeId)).toEqual([answer1.id]);
     });
 
@@ -4799,7 +4803,9 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
       const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       const att1 = await getAttendeesRaw(listing1.id);
       const attendeeId = att1[0]!.id;
-      const batch = await getAttendeeAnswersBatch([attendeeId]);
+      const batch = await getAttendeeAnswersBatch([attendeeId], {
+        texts: false,
+      });
       const answers = batch.get(attendeeId) ?? [];
       expect(answers).toContain(a1.id);
       expect(answers).toContain(a2.id);
@@ -4844,7 +4850,9 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
       const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       const att1 = await getAttendeesRaw(listing1.id);
       expect(att1.length).toBe(1);
-      const batch = await getAttendeeAnswersBatch([att1[0]!.id]);
+      const batch = await getAttendeeAnswersBatch([att1[0]!.id], {
+        texts: false,
+      });
       expect(batch.get(att1[0]!.id)).toEqual([a1.id]);
       const att2 = await getAttendeesRaw(listing2.id);
       expect(att2.length).toBe(0);

@@ -153,7 +153,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       expectFlash(
         response,
         expect.stringContaining(
-          "Display as must be radio buttons or a select box",
+          "Display as must be radio buttons, a select box, or free text",
         ),
         false,
       );
@@ -250,10 +250,40 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       expectFlash(
         response,
         expect.stringContaining(
-          "Display as must be radio buttons or a select box",
+          "Display as must be radio buttons, a select box, or free text",
         ),
         false,
       );
+    });
+
+    test("keeps a free-text question free-text, ignoring a submitted choice type", async () => {
+      const { questionsTable } = await import("#shared/db/questions.ts");
+      const q = await questionsTable.insert({
+        displayType: "free_text",
+        text: "Notes?",
+      });
+      const { response } = await adminFormPost(
+        `/admin/questions/${q.id}/edit`,
+        { display_type: "radio" as const, text: "Notes updated" },
+      );
+      expectRedirectWithFlash(
+        `/admin/questions/${q.id}`,
+        "Question updated",
+      )(response);
+      const updated = await questionsTable.findById(q.id);
+      expect(updated!.display_type).toBe("free_text");
+      expect(updated!.text).toBe("Notes updated");
+    });
+
+    test("does not let a choice question be converted to free-text", async () => {
+      const id = await createQuestion("Colour?");
+      const { questionsTable } = await import("#shared/db/questions.ts");
+      await adminFormPost(`/admin/questions/${id}/edit`, {
+        display_type: "free_text",
+        text: "Colour?",
+      });
+      const updated = await questionsTable.findById(id);
+      expect(updated!.display_type).toBe("radio");
     });
 
     test("returns 404 for non-existent question on edit", async () => {
@@ -318,6 +348,37 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         expect.stringContaining("Answer text is required"),
         false,
       );
+    });
+
+    test("returns 404 when adding an answer to a non-existent question", async () => {
+      const { response } = await adminFormPost("/admin/questions/999/answers", {
+        text: "Orphan option",
+      });
+      expectStatus(404)(response);
+    });
+
+    test("rejects adding an answer to a free-text question", async () => {
+      const { questionsTable, getQuestionWithAnswers } = await import(
+        "#shared/db/questions.ts"
+      );
+      const q = await questionsTable.insert({
+        displayType: "free_text",
+        text: "Notes?",
+      });
+      const { response } = await adminFormPost(
+        `/admin/questions/${q.id}/answers`,
+        { text: "Ignored option" },
+      );
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining(
+          "Free-text questions don't have answer options",
+        ),
+        false,
+      );
+      const question = await getQuestionWithAnswers(q.id);
+      expect(question!.answers).toEqual([]);
     });
 
     test("assigns correct sort order to answers", async () => {
@@ -723,6 +784,34 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       );
       const question = await getQuestionWithAnswers(qId);
       expect(question!.answers.find((a) => a.id === aId)!.text).toBe("After");
+    });
+
+    test("deactivates an answer when the active box is unchecked", async () => {
+      const qId = await createQuestion("Deactivate question");
+      const aId = await addAnswer(qId, "Retired option");
+      const { getQuestionWithAnswers } = await import(
+        "#shared/db/questions.ts"
+      );
+      // New answers start active.
+      const before = await getQuestionWithAnswers(qId);
+      expect(before!.answers.find((a) => a.id === aId)!.active).toBe(true);
+
+      // An unchecked checkbox is simply absent from the POST body.
+      await adminFormPost(`/admin/questions/${qId}/answers/${aId}/edit`, {
+        modifier_id: "",
+        text: "Retired option",
+      });
+      const after = await getQuestionWithAnswers(qId);
+      expect(after!.answers.find((a) => a.id === aId)!.active).toBe(false);
+
+      // Re-checking it reactivates the answer.
+      await adminFormPost(`/admin/questions/${qId}/answers/${aId}/edit`, {
+        active: "on",
+        modifier_id: "",
+        text: "Retired option",
+      });
+      const reactivated = await getQuestionWithAnswers(qId);
+      expect(reactivated!.answers.find((a) => a.id === aId)!.active).toBe(true);
     });
 
     test("links the chosen modifier to the answer", async () => {

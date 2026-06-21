@@ -50,6 +50,7 @@ describe("ticketPage (single listing)", () => {
         id: number;
         text: string;
         answers: {
+          active: boolean;
           id: number;
           question_id: number;
           text: string;
@@ -236,8 +237,20 @@ describe("ticketPage (single listing)", () => {
     const questions = [
       {
         answers: [
-          { id: 10, question_id: 1, sort_order: 0, text: "Small" },
-          { id: 11, question_id: 1, sort_order: 1, text: "Large" },
+          {
+            active: true,
+            id: 10,
+            question_id: 1,
+            sort_order: 0,
+            text: "Small",
+          },
+          {
+            active: true,
+            id: 11,
+            question_id: 1,
+            sort_order: 1,
+            text: "Large",
+          },
         ],
         display_type: "radio" as const,
         id: 1,
@@ -486,7 +499,15 @@ describe("ticketPage", () => {
     ];
     const questions = [
       {
-        answers: [{ id: 10, question_id: 5, sort_order: 0, text: "Small" }],
+        answers: [
+          {
+            active: true,
+            id: 10,
+            question_id: 5,
+            sort_order: 0,
+            text: "Small",
+          },
+        ],
         display_type: "radio" as const,
         id: 5,
         text: "Size?",

@@ -16,9 +16,17 @@
  *   `last_activity` is bumped on booking and outreach; pruning subscribed rows
  *   bounds table growth and makes returning-customer recognition
  *   recency-bounded. Unsubscribed rows are suppression records and are kept.
+ * - strings: owner-key-encrypted free-text answer values. The attendee_answers
+ *   triggers maintain each row's reference count but never delete (a pending
+ *   paid checkout can hold a `string_id` in its metadata before finalizing), so
+ *   this age-based prune is the sole cleanup for unused rows.
  * - attendees (orphaned only): rows with no surviving listing booking, older
  *   than the age chosen on the Privacy page. Opt-in — only scheduled while
  *   `auto_purge_orphans` is on (see PRUNE_TASKS).
+ * - users (expired invites only): un-activated invited users whose invite has
+ *   expired. Removing the row drops its invite_wrapped_data_key handoff — a
+ *   DATA_KEY wrapped under the emailed invite code — so an intercepted but
+ *   expired invite link can no longer unwrap it from a database dump.
  *
  * The scheduler is fire-and-forget via `addPendingWork` from the request
  * handler. Each table has its own `last_pruned_*` timestamp; a table is
@@ -29,6 +37,7 @@ import { execute } from "#shared/db/client.ts";
 import { purgeOrphanedAttendees } from "#shared/db/orphan-attendees.ts";
 import { RESOLVED_OUTCOME } from "#shared/db/processed-payments.ts";
 import { settings } from "#shared/db/settings.ts";
+import { pruneExpiredInvites } from "#shared/db/users.ts";
 import {
   PRUNE_CONTACTS_RETENTION_MS,
   PRUNE_INTERVAL_MS,
@@ -37,6 +46,7 @@ import {
   PRUNE_SESSIONS_RETENTION_MS,
   PRUNE_SUMUP_RETENTION_MS,
   PRUNE_TOKENS_RETENTION_MS,
+  PRUNE_UNUSED_STRINGS_RETENTION_MS,
   parsePositiveInt,
 } from "#shared/limits.ts";
 import { logDebug } from "#shared/logger.ts";
@@ -76,6 +86,12 @@ export const prunePayments = isoAgePruner(
 export const pruneSumupCheckouts = isoAgePruner(
   "DELETE FROM sumup_checkouts WHERE created_at < ?",
   PRUNE_SUMUP_RETENTION_MS,
+);
+
+/** Delete unreferenced encrypted free-text strings older than retention. */
+export const pruneUnusedStrings = isoAgePruner(
+  "DELETE FROM strings WHERE used_count = 0 AND created < ?",
+  PRUNE_UNUSED_STRINGS_RETENTION_MS,
 );
 
 /**
@@ -170,6 +186,12 @@ const PRUNE_TASKS = (): PruneTask[] => [
     writeLast: settings.update.lastPrunedSumup,
   },
   {
+    lastRaw: settings.lastPrunedStrings,
+    name: "strings",
+    run: pruneUnusedStrings,
+    writeLast: settings.update.lastPrunedStrings,
+  },
+  {
     lastRaw: settings.lastPrunedSessions,
     name: "sessions",
     run: pruneSessions,
@@ -192,6 +214,12 @@ const PRUNE_TASKS = (): PruneTask[] => [
     name: "contact_preferences",
     run: pruneContacts,
     writeLast: settings.update.lastPrunedContacts,
+  },
+  {
+    lastRaw: settings.lastPrunedInvites,
+    name: "expired_invites",
+    run: pruneExpiredInvites,
+    writeLast: settings.update.lastPrunedInvites,
   },
   // Opt-in: scheduled only while the owner leaves automatic orphan purging on.
   ...(settings.autoPurgeOrphans

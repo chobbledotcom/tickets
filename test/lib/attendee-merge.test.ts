@@ -6,6 +6,7 @@ import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import {
   answersTable,
   getAttendeeAnswersByQuestion,
+  getAttendeeTextAnswers,
   questionsTable,
   saveAttendeeAnswers,
   setListingQuestions,
@@ -24,6 +25,7 @@ import type {
   AttendeeMergeDiff,
 } from "#shared/merge/attendee-merge-types.ts";
 import { bookAttendee, createTestListing, describeWithEnv } from "#test-utils";
+import { getTestPrivateKey } from "#test-utils/crypto.ts";
 
 /** Create a test attendee directly via the DB */
 const createAttendee = async (
@@ -744,6 +746,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       const result = await applyAttendeeMerge({
         decision,
         diff,
+        privateKey: await getTestPrivateKey(),
         sourceId: source.id,
         sourcePii: {
           address: "",
@@ -788,6 +791,180 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       expect(listingLinks.map((r) => r.listing_id).sort()).toEqual(
         [listing1.id, listing2.id].sort(),
       );
+    });
+
+    test("preserves the target's free-text answers through a merge", async () => {
+      // Regression: the merge re-saves only the target's choice answers, which
+      // deletes every attendee_answers row for the target. Without carrying the
+      // free-text answers through, those text rows were silently wiped.
+      const listing = await createTestListing({ maxAttendees: 10 });
+      const listing2 = await createTestListing({
+        maxAttendees: 10,
+        name: "E2",
+      });
+      const textQuestion = await questionsTable.insert({
+        displayType: "free_text",
+        text: "Dietary needs?",
+      });
+
+      const target = await createAttendee(listing.id, "Alice");
+      const source = await createAttendee(listing2.id, "Bob");
+
+      await saveAttendeeAnswers(
+        new Map([
+          [
+            target.id,
+            {
+              answerIds: [],
+              textAnswers: [{ questionId: textQuestion.id, text: "Coeliac" }],
+            },
+          ],
+        ]),
+      );
+
+      const targetBookings = await getBookings(target.id);
+      const sourceBookings = await getBookings(source.id);
+      const diff = await buildAttendeeMergeDiff(
+        {
+          sourceBookings,
+          sourceId: source.id,
+          sourcePii: {
+            address: "",
+            email: "bob@test.com",
+            name: "Bob",
+            phone: "",
+            special_instructions: "",
+          },
+          targetBookings,
+          targetId: target.id,
+          targetPii: {
+            address: "",
+            email: "alice@test.com",
+            name: "Alice",
+            phone: "",
+            special_instructions: "",
+          },
+        },
+        [],
+      );
+
+      const result = await applyAttendeeMerge({
+        decision: { answers: {}, bookings: {}, pii: {}, version: diff.version },
+        diff,
+        privateKey: await getTestPrivateKey(),
+        sourceId: source.id,
+        sourcePii: {
+          address: "",
+          email: "bob@test.com",
+          name: "Bob",
+          phone: "",
+          special_instructions: "",
+        },
+        targetId: target.id,
+        targetPii: {
+          address: "",
+          email: "alice@test.com",
+          name: "Alice",
+          payment_id: target.payment_id,
+          phone: "",
+          special_instructions: "",
+          ticket_token: target.ticket_token,
+        },
+      });
+
+      expect(result.success).toBe(true);
+      const textAnswers = await getAttendeeTextAnswers(
+        target.id,
+        await getTestPrivateKey(),
+      );
+      expect(textAnswers.get(textQuestion.id)).toBe("Coeliac");
+    });
+
+    test("adopts a source-only free-text answer in a merge", async () => {
+      // Source-only choice answers are adopted automatically; a source-only
+      // text answer must be too, rather than vanishing when the source is
+      // deleted.
+      const listing = await createTestListing({ maxAttendees: 10 });
+      const listing2 = await createTestListing({
+        maxAttendees: 10,
+        name: "E2",
+      });
+      const textQuestion = await questionsTable.insert({
+        displayType: "free_text",
+        text: "Dietary needs?",
+      });
+
+      const target = await createAttendee(listing.id, "Alice");
+      const source = await createAttendee(listing2.id, "Bob");
+
+      await saveAttendeeAnswers(
+        new Map([
+          [
+            source.id,
+            {
+              answerIds: [],
+              textAnswers: [{ questionId: textQuestion.id, text: "Vegan" }],
+            },
+          ],
+        ]),
+      );
+
+      const targetBookings = await getBookings(target.id);
+      const sourceBookings = await getBookings(source.id);
+      const diff = await buildAttendeeMergeDiff(
+        {
+          sourceBookings,
+          sourceId: source.id,
+          sourcePii: {
+            address: "",
+            email: "bob@test.com",
+            name: "Bob",
+            phone: "",
+            special_instructions: "",
+          },
+          targetBookings,
+          targetId: target.id,
+          targetPii: {
+            address: "",
+            email: "alice@test.com",
+            name: "Alice",
+            phone: "",
+            special_instructions: "",
+          },
+        },
+        [],
+      );
+
+      const result = await applyAttendeeMerge({
+        decision: { answers: {}, bookings: {}, pii: {}, version: diff.version },
+        diff,
+        privateKey: await getTestPrivateKey(),
+        sourceId: source.id,
+        sourcePii: {
+          address: "",
+          email: "bob@test.com",
+          name: "Bob",
+          phone: "",
+          special_instructions: "",
+        },
+        targetId: target.id,
+        targetPii: {
+          address: "",
+          email: "alice@test.com",
+          name: "Alice",
+          payment_id: target.payment_id,
+          phone: "",
+          special_instructions: "",
+          ticket_token: target.ticket_token,
+        },
+      });
+
+      expect(result.success).toBe(true);
+      const textAnswers = await getAttendeeTextAnswers(
+        target.id,
+        await getTestPrivateKey(),
+      );
+      expect(textAnswers.get(textQuestion.id)).toBe("Vegan");
     });
 
     test("clears answers when decision is clear", async () => {
@@ -843,6 +1020,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
           version: diff.version,
         },
         diff,
+        privateKey: await getTestPrivateKey(),
         sourceId: source.id,
         sourcePii: {
           address: "",
@@ -921,6 +1099,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
           version: diff.version,
         },
         diff,
+        privateKey: await getTestPrivateKey(),
         sourceId: source.id,
         sourcePii: {
           address: "",
@@ -990,6 +1169,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
           version: diff.version,
         },
         diff,
+        privateKey: await getTestPrivateKey(),
         sourceId: source.id,
         sourcePii: {
           address: "",
@@ -1071,6 +1251,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
           version: diff.version,
         },
         diff,
+        privateKey: await getTestPrivateKey(),
         sourceId: source.id,
         sourcePii: {
           address: "",
@@ -1154,6 +1335,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
           version: diff.version,
         },
         diff,
+        privateKey: await getTestPrivateKey(),
         sourceId: source.id,
         sourcePii: {
           address: "",

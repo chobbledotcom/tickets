@@ -246,12 +246,13 @@ describeWithEnv("db > settings", { db: true }, () => {
       expect(passwordHash).toBeTruthy();
 
       const { settings: s } = await import("#shared/db/settings.ts");
-      const result = await s.updateUserPassword(
-        user!.id,
-        passwordHash!,
-        "corrupted_wrapped_data_key",
-        "newpassword",
-      );
+      const result = await s.updateUserPassword(user!.id, {
+        newPassword: "newpassword",
+        oldKekVersion: user!.kek_version,
+        oldPassword: TEST_ADMIN_PASSWORD,
+        oldPasswordHash: passwordHash!,
+        oldWrappedDataKey: "corrupted_wrapped_data_key",
+      });
       expect(result).toBe(false);
     });
   });

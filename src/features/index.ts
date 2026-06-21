@@ -175,6 +175,16 @@ const loadAdminApiRoutes = once(async () =>
   createRouter((await import("#routes/admin/api.ts")).adminApiRoutes),
 );
 
+/** Lazy-load the scheduled-tasks (cron) endpoint */
+const loadScheduledRoutes = once(async () =>
+  createRouter((await import("#routes/scheduled.ts")).scheduledRoutes),
+);
+
+/** Lazy-load the inter-instance machine endpoint (builder only) */
+const loadInstanceRoutes = once(async () =>
+  createRouter((await import("#routes/instance.ts")).instanceRoutes),
+);
+
 /** Lazy-load unsubscribe routes */
 const loadUnsubscribeRoutes = once(async () => {
   const { handleUnsubscribeGet, handleUnsubscribePost } = await import(
@@ -255,9 +265,11 @@ const INFRA_SETTINGS: readonly string[] = [
   CONFIG_KEYS.LAST_PRUNED_PAYMENTS,
   CONFIG_KEYS.LAST_PRUNED_SESSIONS,
   CONFIG_KEYS.LAST_PRUNED_SUMUP,
+  CONFIG_KEYS.LAST_PRUNED_STRINGS,
   CONFIG_KEYS.LAST_PRUNED_LOGINS,
   CONFIG_KEYS.LAST_PRUNED_TOKENS,
   CONFIG_KEYS.LAST_PRUNED_CONTACTS,
+  CONFIG_KEYS.LAST_PRUNED_INVITES,
   // The orphaned-attendee auto-purge runs from the same fire-and-forget
   // scheduler, so its enable flag, retention age, and last-run stamp must be
   // readable on every request.
@@ -374,6 +386,9 @@ const PREFIX_SETTINGS: Record<string, readonly string[]> = {
   admin: ADMIN_SETTINGS,
   api: ALL_SNAPSHOT_SETTINGS,
   attachment: [],
+  // Booking running total: reprices the cart with the same code path as
+  // /ticket, so it needs the same booking-flow settings (not the full snapshot).
+  calculate: [...BOOKING_FLOW_SETTINGS, CONFIG_KEYS.EMBED_HOSTS],
   caldav: ALL_SNAPSHOT_SETTINGS,
   // --- Check-in (owner-authenticated admin view) ---
   checkin: [
@@ -390,6 +405,8 @@ const PREFIX_SETTINGS: Record<string, readonly string[]> = {
   gwallet: [...GOOGLE_WALLET_SETTINGS, CONFIG_KEYS.COUNTRY],
   // --- Infra-only routes (binary/JSON responses or pure redirects) ---
   image: [],
+  // Inter-instance machine endpoint: reads built_sites + an env key only.
+  instance: [],
   join: [],
   listings: [...PUBLIC_NAV_SETTINGS, CONFIG_KEYS.COUNTRY],
   order: [
@@ -402,6 +419,9 @@ const PREFIX_SETTINGS: Record<string, readonly string[]> = {
   payment: [...PAYMENT_SETTINGS, ...EMAIL_SETTINGS],
   "read-only": [],
   renew: BOOKING_FLOW_SETTINGS,
+  // Cron prune trigger: maybeRunPrunes only reads the last_pruned_*/orphan
+  // settings, which are all in INFRA, so infra alone is enough.
+  scheduled: [],
   setup: [],
   // --- Inbound SMS webhook (JSON only) ---
   sms: [
@@ -561,6 +581,7 @@ const prefixHandlers: Record<string, RouterFn> = {
       : null;
   },
   attachment: lazyRoute(loadAttachmentRoutes),
+  calculate: lazyRoute(loadTicketRoutes),
   caldav: lazyRoute(loadFeedRoutes),
   checkin: lazyRoute(loadCheckinRoutes),
   contact: contactPrefixHandler,
@@ -569,6 +590,7 @@ const prefixHandlers: Record<string, RouterFn> = {
   feeds: lazyRoute(loadFeedRoutes),
   gwallet: lazyRoute(loadGoogleWalletRoutes),
   image: lazyRoute(loadImageRoutes),
+  instance: lazyRoute(loadInstanceRoutes),
   join: lazyRoute(loadJoinRoutes),
   order: lazyRoute(loadOrderRoutes),
   pay: lazyRoute(loadBalanceRoutes),
@@ -578,6 +600,7 @@ const prefixHandlers: Record<string, RouterFn> = {
       ? Promise.resolve(htmlResponse(readOnlyPage()))
       : Promise.resolve(null),
   renew: lazyRoute(loadRenewalRoutes),
+  scheduled: lazyRoute(loadScheduledRoutes),
   sms: lazyRoute(loadSmsWebhookRoutes),
   t: lazyRoute(loadTicketViewRoutes),
   ticket: lazyRoute(loadTicketRoutes),

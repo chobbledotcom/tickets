@@ -41,7 +41,6 @@ describe("adminUserAgentsPage", () => {
   const agentUser: DisplayUser = {
     adminLevel: "agent",
     hasDataKey: true,
-    hasPassword: true,
     id: 7,
     inviteExpired: false,
     username: "driver",
@@ -74,7 +73,6 @@ describe("adminUsersPage agent rows", () => {
         adminLevel: "agent",
         agentNames: ["Van 1", "Van 2"],
         hasDataKey: true,
-        hasPassword: true,
         id: 4,
         inviteExpired: false,
         username: "driver",
@@ -96,7 +94,6 @@ describe("adminUsersPage agent rows", () => {
         adminLevel: "agent",
         agentNames: [],
         hasDataKey: true,
-        hasPassword: true,
         id: 4,
         inviteExpired: false,
         username: "driver",

@@ -13,6 +13,7 @@
  * gateway ids to attendees for status webhooks.
  */
 
+import { requirePrivateKey } from "#routes/admin/actions.ts";
 import {
   AUTH_FORM,
   type AuthSession,
@@ -24,9 +25,11 @@ import { defineRoutes } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { getAttendeeActivityLog, logActivity } from "#shared/db/activityLog.ts";
 import { setAttendeePhoneIndexIfEmpty } from "#shared/db/attendee-phone-index.ts";
+import { hashPhone, recordContacts } from "#shared/db/contact-preferences.ts";
 import { countSmsMessages, recordSmsMessage } from "#shared/db/sms-messages.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { bestEffort } from "#shared/logger.ts";
 import {
   buildMessagePayload,
   getSmsGatewayConfig,
@@ -126,6 +129,18 @@ const sendSms = (session: AuthSession, form: FormParams): Promise<Response> => {
     try {
       const { providerId } = await sendEncryptedMessage(config, payload);
       await recordSmsMessage({ attendeeId, listingId, providerId });
+      // Count the text against this phone contact so the per-phone history
+      // panel's "Total messages" reflects SMS, not just bulk email. Best-effort:
+      // the message is already sent, so a contact-history write failure (e.g. an
+      // undecryptable stats_blob) must not report the send as failed and prompt
+      // the operator to retry — that would deliver a duplicate text.
+      await bestEffort("SMS contact-history update", async () =>
+        recordContacts(
+          [await hashPhone(phone)],
+          message,
+          await requirePrivateKey(session),
+        ),
+      );
       await logActivity(
         `${SMS_LOG_PREFIX} queued for ${data.attendee.name}: ${message}`,
         listingId,

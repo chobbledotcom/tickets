@@ -9,6 +9,7 @@ import { defineRoutes } from "#routes/router.ts";
 import { BUILD_COMMIT, BUILD_TIMESTAMP } from "#shared/build-info.ts";
 import { isBunnyCdnEnabled } from "#shared/config.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
+import { hasRecentBackup } from "#shared/db/backup.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import {
@@ -75,6 +76,14 @@ const deployUpdate = async (): Promise<Response> => {
   const latestVersion = settings.latestScriptVersion;
   if (!latestVersion || !isNewerVersion(latestVersion)) {
     return errorRedirect(UPDATE_PATH, "No update available to install");
+  }
+  // Migrations no longer back up inline, so refuse to deploy a new version
+  // (which migrates on first request) unless a fresh backup already exists.
+  if (!(await hasRecentBackup())) {
+    return errorRedirect(
+      UPDATE_PATH,
+      "No database backup in the last hour — run a backup before updating.",
+    );
   }
 
   try {
