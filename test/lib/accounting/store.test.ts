@@ -5,11 +5,13 @@ import {
   accountBalancesForIds,
   accountBalancesOfType,
   allTransfers,
+  transfersByAccount,
+  transfersByEventGroup,
+} from "#shared/accounting/queries.ts";
+import {
   LedgerConflictError,
   postTransfers,
   postTransfersTx,
-  transfersByAccount,
-  transfersByEventGroup,
 } from "#shared/accounting/store.ts";
 import { withTransaction } from "#shared/db/client.ts";
 import { account } from "#shared/ledger/account.ts";
