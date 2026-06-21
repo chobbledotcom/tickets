@@ -398,9 +398,11 @@ On the listing edit page (`src/features/admin/listings.ts`, fields in
   can be broken *after the fact* by editing a listing's `listing_type` /
   `customisable_days` / `months_per_unit` — e.g. flipping a parent from daily to
   standard while it still has a daily child. So a normal listing save must
-  re-validate every parent/child edge touching that listing and block (or warn
-  loudly about) a save that would leave an incompatible edge, otherwise the booking
-  flow inherits a config it can't price or date.
+  re-validate every parent/child edge touching that listing and **block** a save
+  that would leave an incompatible edge (force the operator to repair or remove the
+  edge first) — not merely warn. Persisting an impossible edge would let
+  public/API/QR paths hit a config that can't be dated or priced. (Warn-only is
+  right for *manual attendee bookings*, but a listing **save** must hard-fail.)
 - **Forbid parent relationships on renewal tiers** (`months_per_unit > 0`) in v1 —
   neither side of an edge should be a renewal tier — because folding a normal child
   into a renewal order breaks the renewal-qualification rule (see the Renewals
@@ -567,8 +569,13 @@ In `prepareOrder` (`ticket-submit.ts`), after `parseQuantities`:
    resolved **parent date/duration**). If the bookable set is **empty**, the parent
    is **sold out** — reject the whole order (don't let it through just because no
    child is available). Otherwise apply the rule: **exactly one child selected,
-   always required**; when there is exactly one bookable child, the server
-   **auto-selects** it (the buyer need not tick anything).
+   always required**. **Auto-select only covers the *no-choice* case:** when the
+   buyer submitted no `child_<parentId>` value *and* there is exactly one bookable
+   child, the server picks it. If the buyer **did** submit a child that is no longer
+   bookable (it sold out/closed between render and submit), **reject with the normal
+   sold-out/invalid-selection error** — do **not** silently swap in a different
+   still-bookable sibling (that would change the price/questions/fulfilment from
+   what the buyer chose).
 4. Read each parent's **child selection** from a per-parent selector
    `child_<parentId>` (a radio — exactly one child id, since the rule is "one per
    parent"; auto-filled server-side when there's a single bookable child). The
@@ -593,11 +600,15 @@ In `prepareOrder` (`ticket-submit.ts`), after `parseQuantities`:
    `withActiveListings` into `ctx.listings` (`ticket-submit.ts:892-905`,
    `ticket-payment.ts:336-341`), so a URL like `/ticket/parent+child` or
    `/ticket/child+other` would otherwise render the child as an ordinary quantity
-   line and let it be booked independently. So the slug→listings step must drop (or
-   404) any slug that is a child, for **single and multi-slug** URLs alike. After
-   that, the gate's *only* child input is the per-parent selector. *(Historical
-   note: earlier drafts tried to reconcile a standalone `quantity_<childId>` line
-   shared across parents; stripping child slugs removes the case entirely.)*
+   line and let it be booked independently. A child slug in the URL must produce a
+   **clear rejection / redirect to an available parent**, for **single and
+   multi-slug** URLs alike — **not a silent drop**: silently removing the child from
+   a mixed list (`/ticket/child+other` → a form for `other`, or `/ticket/parent+child`
+   losing the explicit child context) changes what the buyer is booking with no
+   signal. After that, the gate's *only* child input is the per-parent selector.
+   *(Historical note: earlier drafts tried to reconcile a standalone
+   `quantity_<childId>` line shared across parents; rejecting child slugs removes
+   the case entirely.)*
 6. **Shared child across two parents → sum the quantities.** If the same child is
    chosen (or auto-selected) under two in-cart parents, fold it into **one
    `(listing_id, date)` line whose quantity is the sum** (one per parent), since the
@@ -880,9 +891,14 @@ Enumerate each and decide:
   `/ticket/<child>/qr-book` would otherwise render/skip checkout for the child alone
   — breaking no-standalone-child. `handleQrBookGet` → `skipToCheckout` →
   `buildCheckoutIntent` (`qr-book.ts:83-152`) builds a one-item session **without**
-  `prepareOrder`, so it must become gate-aware. With the single-child auto-select, the common
-  one-parent-one-child quick-buy **can still skip to checkout** — *but only when the
-  auto-selected child is itself direct-checkout-safe*: no required contact
+  `prepareOrder`, so it must become gate-aware. **Because it skips `prepareOrder`,
+  the skip path must itself verify the auto-selected child is bookable for the QR
+  payload's date and quantity — including the folded parent+child combined
+  capacity — before building the session**, or a parent QR code whose only child is
+  sold out/closed would still create a checkout and **charge the buyer** before the
+  later all-or-nothing save fails/refunds. With the single-child auto-select, the
+  common one-parent-one-child quick-buy **can still skip to checkout** — *but only
+  when the auto-selected child is itself direct-checkout-safe*: no required contact
   fields/questions, not `can_pay_more`, **not `customisable_days`** (a
   customisable child needs its inherited duration encoded into the QR
   `CheckoutIntent`, otherwise reconstruction defaults it through the single
@@ -1039,8 +1055,9 @@ Enumerate each and decide:
   the QR price override is **not** applied to folded children.
 - **No-JS / hostile input**: a hidden unselected child's question does not block
   submit (no `required` in markup); a `child_<parentId>_*` field under a
-  zero-quantity parent is ignored/rejected; a shared standalone child line cannot
-  satisfy two parents or double-charge.
+  zero-quantity parent is **ignored** (not rejected — the no-JS baseline pre-fills
+  those controls, so an honest buyer booking a different listing must not fail); a
+  child slug in the URL is rejected/redirected (not silently dropped).
 - Give every branch a direct in-process unit test (not just incidental e2e
   coverage), per the AGENTS.md note on deterministic coverage.
 
