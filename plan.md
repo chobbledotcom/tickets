@@ -221,23 +221,36 @@ Add one table for import idempotency:
   "booking_imports",
   {
     columns: [
-      ["old_id", "TEXT PRIMARY KEY"],
+      ["schema", "TEXT NOT NULL"],
+      ["old_id", "TEXT NOT NULL"],
       ["new_id", "INTEGER NOT NULL"],
     ],
     indexes: [
+      {
+        name: "idx_booking_imports_schema_old",
+        columns: ["schema", "old_id"],
+        unique: true,
+      },
       { name: "idx_booking_imports_new_id", columns: ["new_id"], unique: false },
     ],
   },
 ]
 ```
 
-- `old_id` is the source `Booking ID` from the CSV and the **idempotency key** (a
-  re-upload skips any `old_id` already in the map).
+- **`schema`** namespaces the source id (e.g. `"event_bookings"`). The importer is
+  schema-driven and future formats will reuse ordinary source ids, so a bare
+  `old_id` would collide across schemas (`event_bookings` booking `42` vs another
+  schema's order `42`) and wrongly skip the second as already-imported. The
+  **idempotency key is the composite `(schema, old_id)`** (the unique index), and
+  every idempotency lookup/skip is scoped by the active schema.
+- `old_id` is the stable source id *within a schema* (for `event_bookings`, the
+  `Booking ID`). A re-upload of the same schema skips any `(schema, old_id)`
+  already in the map.
 - `new_id` is the created `attendees.id`. The index on it is **not unique**:
-  after an attendee merge, several source `old_id`s can legitimately point at one
+  after an attendee merge, several source ids can legitimately point at one
   surviving attendee, so a unique `new_id` would wrongly forbid that — and force
   deleting a mapping, which would let a re-upload recreate a duplicate booking.
-  Uniqueness lives on `old_id` (the PK), which is all idempotency needs.
+  Uniqueness lives on `(schema, old_id)`, which is all idempotency needs.
 - No separate import-run table for the first pass. The user asked for only old
   id and new id, and idempotency does not require run metadata.
 - Add the table to the declarative schema and a migration. Keep the schema
@@ -344,8 +357,10 @@ every row, and returns either a clean import plan **or** a complete problem repo
 — without touching the database.
 
 **Accumulate, never fail fast.** Every check appends to the report and keeps
-going, so one upload surfaces *all* problems at once. The report groups them by
-kind, and the write runs only when the report is empty:
+going, so one upload surfaces *all* problems at once. The report has **two
+tiers**, and the write decision keys off the first:
+
+**Blocking errors — no write happens until every one is fixed:**
 
 - **Missing setup** — products/statuses/required questions with no local match,
   plus products matching a `standard`-type listing that must be made daily. Each
@@ -355,16 +370,24 @@ kind, and the write runs only when the report is empty:
   disambiguates; the engine never guesses.
 - **Source-data errors** — duplicate `Booking ID`s within the file, conflicting
   duplicate columns mapping to one question with different values, invalid or
-  unparseable required fields (dates, money) — each keyed to the offending row.
-- **Non-creatable rows** — rows with zero products (no line could be written);
-  reported, not written.
+  unparseable **required-value** fields — each keyed to the offending row.
 - **Unrepresentable bookings** — e.g. the same listing on non-contiguous dates the
   data model can't hold (see [Quantity](#booking-mapping)).
 
+**Skips & warnings — reported, but the valid rows still import:**
+
+- **Already-imported** rows (their `(schema, old_id)` is in the map) — skipped.
+- **Non-creatable** rows — zero products, so no line could be written — skipped.
+- Informational warnings (e.g. a non-reservation `Balance` kept as audit-only).
+
+These are **not** things to fix; blocking the whole upload over one blank or
+already-imported row would be wrong. They're listed (on the success page and in
+the report) so nothing is silently dropped.
+
 Every entry names the offending row(s)/column(s) and the exact fix. Row-level
-errors **do not abort the run** — they're collected with everything else. The
-operator fixes the whole report and re-uploads; idempotency means the
-already-creatable rows aren't duplicated. Only genuinely
+**errors** don't abort the run — they're collected with the rest — but they do
+gate the write. The operator fixes the whole report and re-uploads; idempotency
+means the already-creatable rows aren't duplicated. Only genuinely
 unexpected/infrastructural failure is left to the write transaction, which still
 rolls the whole file back. (The same report object is what the POST stashes and
 the `…/errors` page renders.)
@@ -383,7 +406,10 @@ Parser requirements:
   header.
 - Validate that required core columns are present at the expected names.
 
-Required columns for MVP:
+Required columns for MVP (these are required *headers* — the column must be
+present at the expected name; per-**value** requirements are separate, and some
+values are optional, e.g. `Date Booked` falls back to import time — see Booking
+Mapping):
 
 - `Booking ID`
 - `Status`
@@ -523,7 +549,7 @@ Suggested field mapping:
 | --- | --- | --- |
 | `Booking ID` | `booking_imports.old_id` | Required, unique per CSV. |
 | created attendee id | `booking_imports.new_id` | Write only after attendee creation succeeds. |
-| `Date Booked` | attendee `created` | Parse the source booking date into `attendees.created` so admin "newest" views and calendar/list/CSV exports order imports by when they were originally booked, not import time. Fall back to import time only if `Date Booked` is missing/unparseable. **Two id-ordered surfaces must also change** (they order by `a.id`, and imports get fresh ids despite old `created`): the dashboard `getNewestAttendeesRaw` (`ORDER BY a.id DESC`) and the `/admin/attendees` browser + CSV `getAttendeesPage` (`ORDER BY a.id ASC/DESC`, paginated). Switch both to order by `created` with `id` as the next key (`ORDER BY a.created DESC, a.id DESC`; ascending for the `oldest` variant), backed by a composite index on `(created, id)`. **`getAttendeesPage` JOINs `listing_attendees` and returns one row per booking line**, so a multi-listing import has several rows sharing `created`+`id`; add a stable booking-line tiebreaker (`ea.listing_id`, `ea.start_at`) after `a.id` for that query so OFFSET pagination and CSV export are deterministic (apply the same key to `getNewestAttendeesRaw` if it also joins per line). |
+| `Date Booked` | attendee `created` | Parse the source booking date into `attendees.created` so admin "newest" views and calendar/list/CSV exports order imports by when they were originally booked, not import time. A missing or unparseable `Date Booked` is **non-fatal** — fall back to import time, **not** a blocking source-data error (`Date Booked` is a required *column*, but its *value* is optional). **Two id-ordered surfaces must also change** (they order by `a.id`, and imports get fresh ids despite old `created`): the dashboard `getNewestAttendeesRaw` (`ORDER BY a.id DESC`) and the `/admin/attendees` browser + CSV `getAttendeesPage` (`ORDER BY a.id ASC/DESC`, paginated). Switch both to order by `created` with `id` as the next key (`ORDER BY a.created DESC, a.id DESC`; ascending for the `oldest` variant), backed by a composite index on `(created, id)`. **`getAttendeesPage` JOINs `listing_attendees` and returns one row per booking line**, so a multi-listing import has several rows sharing `created`+`id`; add a stable booking-line tiebreaker (`ea.listing_id`, `ea.start_at`) after `a.id` for that query so OFFSET pagination and CSV export are deterministic (apply the same key to `getNewestAttendeesRaw` if it also joins per line). |
 | `Customer Name` | attendee `name` | If blank, decide whether to reject or use `Imported booking {id}`. |
 | `Email` | attendee `email` | Import the raw source value, including invalid or concatenated emails. Add importer-specific support so these rows do not get rejected or split. **Accepted tradeoff:** the edit form renders `email` as `type="email"` and POST runs `validateEmail`, so the first admin re-save of an imported row with an invalid/concatenated email is blocked until the operator fixes or clears it; the importer does not relax the edit path or relocate the raw value (decision: keep raw). |
 | `Mobile`, `Telephone` | attendee `phone` | Prefer mobile; append alternate phone to a free-text answer / notes if both exist. |
@@ -902,7 +928,8 @@ Target algorithm — a **pure preflight** that accumulates the full report, then
 3. Record duplicate `Booking ID` values within the file as source-data errors.
 4. Load context once, read-only: existing `booking_imports`, listings, statuses,
    and free-text questions.
-5. Classify against the import map: **skip** already-imported `old_id`s.
+5. Classify against the import map (scoped to the active schema): **skip** rows
+   whose `(schema, old_id)` is already mapped.
 6. Resolve products for the remaining rows. A row that resolves to **zero**
    products is **non-creatable** (no line could be written) — recorded and dropped
    from the candidate set. Unmatched names, `standard`-type matches, and names
@@ -911,9 +938,10 @@ Target algorithm — a **pure preflight** that accumulates the full report, then
    ambiguous (>1 match) statuses.
 8. Resolve the schema's question columns to existing `free_text` questions by
    normalized exact text; record missing required questions and ambiguous matches.
-9. Validate dates, quantities, money, and required raw fields with the schema's
-   per-field validators; record failures keyed to the offending row. Do **not**
-   preflight capacity — legacy imports may overbook.
+9. Validate dates, quantities, money, and **required-value** fields with the
+   schema's per-field validators; record failures keyed to the offending row.
+   Optional-value fields fall back instead of failing (e.g. `Date Booked` → import
+   time). Do **not** preflight capacity — legacy imports may overbook.
 10. Resolve free-text answers from the **candidate set only** (not the whole file
     — already-imported and non-creatable rows are excluded, so collecting across
     the file would strand encrypted `strings`); dedupe identical answers across
@@ -925,11 +953,15 @@ Target algorithm — a **pure preflight** that accumulates the full report, then
     blobs, lines (real / quantity-0), text-answer sets, balances, dates/times,
     audit fields, idempotency rows. Pure data, no writes.
 
-**Decision.** If the report has any entry, stash it server-side and redirect to
-the error report with only a `?stash=` token (see Proposed Routes And UI) — **no
-writes have happened**, and the page lists *every* problem at once. Tests assert
-the redirect carries a token (not a param list) and that a file with several
-distinct problems surfaces them all, not just the first. Otherwise, proceed.
+**Decision.** If the report has any **blocking error**, stash the whole report
+server-side and redirect to the error report with only a `?stash=` token (see
+Proposed Routes And UI) — **no writes have happened**, and the page lists *every*
+blocking problem at once. Skips/warnings alone do **not** block: with only
+already-imported and non-creatable rows, the valid candidates still import and the
+skips are reported on the success page. Tests assert the redirect carries a token
+(not a param list), that a file with several distinct blocking problems surfaces
+them all (not just the first), and that one blank/non-creatable row among valid
+bookings imports the rest and reports the skip.
 
 **Write (one guarded transaction, only when the report is clean):**
 
@@ -1526,8 +1558,10 @@ from [`no-quantity-spec.md`](./no-quantity-spec.md) exist.
   listing, and the unique `(listing_id, attendee_id, start_at)` index would reject
   duplicate dated rows anyway — so the planner must collapse, not rely on the
   constraint.
-- `booking_imports.new_id` is **not unique** — after a merge, several `old_id`s
-  can map to one surviving attendee. Idempotency keys on `old_id` (the PK).
+- `booking_imports.new_id` is **not unique** — after a merge, several source ids
+  can map to one surviving attendee. Idempotency keys on the composite
+  `(schema, old_id)` (a unique index), which also namespaces source ids across
+  schemas so a future format's reused id can't collide.
 - `booking_imports` cleanup is conditional on capacity actually being released:
   the orphan auto-purge and `deleteAttendee` with `releaseBookings: true` delete
   the mapping (free the `old_id`); a **held** delete (`releaseBookings: false`)
