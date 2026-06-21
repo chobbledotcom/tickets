@@ -112,9 +112,10 @@ it as "the chosen path"; "option A / fallback" means the two narrow cases above.
 1. **Column**: `refunded_amount INTEGER NOT NULL DEFAULT 0` on
    `listing_attendees`. Minor units, never null, defaults to 0 (so existing
    rows and non-refunded rows read as 0 — "nothing refunded").
-2. **Value written**: `markRefunded(attendeeId, listingId, amount?)` sets
-   `refunded = 1` and `refunded_amount = amount`, in a single atomic UPDATE so
-   the flag and amount can never drift. The `amount` is:
+2. **Value written**: `markRefunded(attendeeId, listingId, startAt, amount?)`
+   sets `refunded = 1` and `refunded_amount = amount` on the **one** line
+   identified by (listing_id, attendee_id, start_at — §6), in a single atomic
+   UPDATE so the flag and amount can never drift. The `amount` is:
    - the **provider's actual refunded amount** (option B) where available — the
      refund routes already hold the provider result and can pass it in; or
    - the line's **`price_paid`** as the fallback (`amount` omitted → the SQL
@@ -308,37 +309,53 @@ column, so `markRefunded` needs its own statement (the helper stays for
 const setCheckedIn = updateListingAttendeeField("checked_in");
 
 /**
- * Mark a booking line refunded and record the refunded amount. The amount
- * defaults to what was paid for the line (the only case we support today —
- * full refunds via provider.refundPayment); a caller may pass a smaller
- * amount once partial refunds are supported.
+ * Mark ONE booking line refunded and record the refunded amount.
+ *
+ * The row identity is (listing_id, attendee_id, start_at) — the table's unique
+ * index. Filtering by (attendee_id, listing_id) alone is NOT enough: an attendee
+ * can book the same listing on several dates, so that predicate matches multiple
+ * rows. With a single provider amount that would stamp the full amount onto every
+ * dated row and double-count the SUM (review). Pass start_at (or the row id) to
+ * target exactly one line.
  */
 export const markRefunded = async (
   attendeeId: number,
   listingId: number,
+  startAt: string | null,
   amount?: number,
 ): Promise<void> => {
+  // `start_at IS ?` handles the NULL (standard-listing) case as well as a date.
   await execute(
     amount === undefined
-      ? "UPDATE listing_attendees SET refunded = 1, refunded_amount = price_paid WHERE attendee_id = ? AND listing_id = ?"
-      : "UPDATE listing_attendees SET refunded = 1, refunded_amount = ? WHERE attendee_id = ? AND listing_id = ?",
+      ? "UPDATE listing_attendees SET refunded = 1, refunded_amount = price_paid WHERE attendee_id = ? AND listing_id = ? AND start_at IS ?"
+      : "UPDATE listing_attendees SET refunded = 1, refunded_amount = ? WHERE attendee_id = ? AND listing_id = ? AND start_at IS ?",
     amount === undefined
-      ? [attendeeId, listingId]
-      : [amount, attendeeId, listingId],
+      ? [attendeeId, listingId, startAt]
+      : [amount, attendeeId, listingId, startAt],
   );
 };
 ```
 
 Notes:
+- **Row identity (review):** the added `start_at` filter is required so the write
+  hits exactly one line. The existing boolean `markRefunded` already over-matches
+  here (it marks every same-listing row), which is a latent bug today; option B's
+  per-line amount makes it actively wrong (double-counted totals), so the
+  signature gains `startAt`. **All callers change** to pass it —
+  `attendee-refunds.ts` and `attendees-edit.ts` already hold the booking's
+  `start_at` (the flattened `Attendee` carries the date), and the bulk path
+  iterates rows it can key. (If a stable `listing_attendees.id` is threaded
+  through instead, key on that — even simpler.)
 - `refunded_amount = price_paid` copies the column in-SQL, so it always equals
   exactly what was paid for that line — no read-then-write race.
 - No JSCPD concern: this is one helper, not duplicated logic. If the two
   branches trip the duplication check, fold them into one parameterised
   statement builder.
-- The **signature is backward-compatible** (the `amount` param is optional), but
-  with **option B chosen the refund routes do change** to pass the provider
-  amount: `attendee-refunds.ts` (single + bulk) and the refresh path (§10) call
-  `markRefunded(id, listingId, providerAmount)`. The no-amount form
+- The signature gains a **required `startAt`** (row identity, above) and an
+  optional `amount`, so **all callers change** regardless of option. With
+  **option B** the refund routes also pass the provider amount:
+  `attendee-refunds.ts` (single + bulk) and the refresh path (§10) call
+  `markRefunded(id, listingId, startAt, providerAmount)`. The no-amount form
   (`refunded_amount = price_paid`) is reserved for the **fallback** cases only —
   SumUp (no provider amount) and the historical backfill (§18). Do not assume
   callers are unchanged (the §20 DoD reflects this).
@@ -539,7 +556,7 @@ This is **two layers**, not just the provider wrapper:
      `price_paid` (acceptable; documented).
 3. **All `refundPayment` callers must read the new shape** (see also §9):
    - `attendee-refunds.ts` single (`:101-112`) + bulk (`:160-163`) — branch on
-     `.ok`, pass `.amount` into `markRefunded(id, listingId, amount)`.
+     `.ok`, pass `.amount` into `markRefunded(id, listingId, startAt, amount)`.
    - `webhooks.ts:239` auto-refund — branch on `.ok` (no amount stored).
 4. **Refresh path needs the amount too (review #3) — and `isPaymentRefunded` has
    more than one caller (review #4).** `handleRefreshPayment` does **not** call
@@ -589,7 +606,11 @@ fan-out correctly does not exist yet. Options, in rough order of correctness:
   internal order/checkout id** (or an encrypted value with a blind index)
   instead, captured at creation, so a refund can mark exactly the lines sharing
   that order. This is a second schema change — arguably the *right* foundation
-  for refunds, but larger scope; call it out as its own decision.
+  for refunds, but larger scope; call it out as its own decision. **If chosen,
+  the marker is subject to the same read/write sweep as `refunded_amount`
+  (review):** every per-line SELECT (§5) and the merge loader+insert (§5c/§14)
+  must carry it, or a merged booking loses its order key and falls back to the
+  exact attendee-level ambiguity this option fixes.
 - **Restrict refunds to order-level for un-merged attendees, and block/flag
   refunds on merged attendees** until a per-line marker exists.
 - **Narrow predicate without new columns:** only fan out across lines that were
@@ -728,14 +749,18 @@ In a DB-backed test (see `test/lib/db/auto-cache-invalidation.test.ts` which
 already calls `markRefunded`):
 
 - Create a paid attendee/line with a known `price_paid` (e.g. 500).
-- Call `markRefunded(id, listingId)`.
+- Call `markRefunded(id, listingId, startAt)` (fallback form).
 - Assert the `listing_attendees` row has `refunded = 1` **and**
   `refunded_amount = 500` (read it back via a query).
 - Idempotency: call `markRefunded` again, assert `refunded_amount` is still 500
   (not doubled) — this is the mutation-resistant assertion that proves
   `= price_paid` (copy) vs `+= price_paid` (accumulate).
-- With the optional `amount` arg: `markRefunded(id, listingId, 200)` sets
+- With the `amount` arg: `markRefunded(id, listingId, startAt, 200)` sets
   `refunded_amount = 200`.
+- **Row identity:** create the *same* attendee on the *same* listing for **two
+  different dates**, call `markRefunded` for one date, and assert only that row
+  is refunded (the other stays `refunded = 0, refunded_amount = 0`). This is the
+  mutation-resistant test for the `start_at` filter (§6).
 
 ### 15b. Route integration — extend `test/lib/server-refunds.test.ts`
 
@@ -805,7 +830,7 @@ webhook attendee type + builder + `makeTestAttendee` factory + webhook docs
 | `src/shared/db/attendee-types.ts` | `ListingAttendeeRow.refunded_amount` | ✅ |
 | `src/shared/types.ts` | `Attendee.refunded_amount` | ✅ |
 | `src/shared/db/attendees/queries.ts` | `EA_COLS`, `ATTENDEE_LEFT_JOIN_SELECT`, `getAttendeesByTokens` | ✅ |
-| `src/shared/db/attendees/update.ts` | `markRefunded` sets `refunded_amount = price_paid` | ✅ |
+| `src/shared/db/attendees/update.ts` | `markRefunded` gains `startAt` (single-row target, §6) + `amount`; stores the **provider amount** (option B), `price_paid` only for SumUp/backfill | ✅ |
 | `src/shared/db/attendees/pii.ts` | Map `refunded_amount` in `decryptAttendeeFields` | ✅ |
 | `src/shared/db/attendees/atomic-update.ts` | `loadExistingLines` SELECT must add `refunded_amount` (§5d) | ✅ |
 | `src/features/admin/attendees-edit.ts` | Add column to refresh-context select | ✅ |
@@ -815,7 +840,7 @@ webhook attendee type + builder + `makeTestAttendee` factory + webhook docs
 | Tests (§15) | New/extended coverage | ✅ |
 | `src/features/admin/attendees-merge.ts` | `loadAttendeeBookings` must SELECT `refunded_amount` (§5c) | ✅ (merge runs regardless) |
 | `src/shared/merge/attendee-merge.ts` | Insert copies `refunded_amount`; add to dedup compare under option B (§14) | ✅ (else merges zero it) |
-| `src/features/admin/attendees-csv.ts` + csv locale | Export column (label "ticket-only/approx" if option A — §8.5) | ⭕ recommended |
+| `src/features/admin/attendees-csv.ts` + csv locale | Export column (§13; label per provenance, §18) | ✅ (DoD requires it) |
 | Provider layer (§10a): `*-provider.ts` + `square.ts` lower layer + Stripe `retrievePaymentIntent` narrowing + `isPaymentRefunded` + all `refundPayment`/`isPaymentRefunded` callers (incl. `webhooks.ts`) | Record provider's **actual** refunded amount (option B) | ✅ (owner-chosen) |
 | Refund routes + maybe per-line payment marker (§10b) | Fan out an order-level refund across covered lines — **open sub-decision** | 🔶 decision required (§10b) |
 | `src/features/admin/attendee-form-model.ts` + `attendee-form.tsx` | Per-line amount in bookings table | ⭕ optional |
