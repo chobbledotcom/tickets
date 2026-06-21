@@ -1,0 +1,105 @@
+/**
+ * Mutation operator tables.
+ *
+ * Vendored from Mutasaurus (MIT, Christos Hrousis) — see LICENSE.mutasaurus.md
+ * in this directory. These map each binary/assignment operator found in the
+ * source to the operator(s) it should be mutated into.
+ *
+ * Non-exhaustive mode picks a single, deliberately "distant" replacement per
+ * operator (fast, still catches most weak assertions). Exhaustive mode tries
+ * every sensible replacement (slower, more thorough).
+ */
+
+export type OperatorTable = Record<string, string[]>;
+
+/** Binary operator → replacement (one distant mutation each). */
+export const binaryOperators: OperatorTable = {
+  "-": ["/"],
+  "!=": ["==="],
+  "!==": ["=="],
+  "*": ["-"],
+  "**": ["+"],
+  "/": ["+"],
+  "&": [],
+  "%": ["+"],
+  "^": [],
+  "+": ["*"],
+  "<": [">="],
+  "<<": [],
+  "<=": [">"],
+  "==": ["!=="],
+  "===": ["!="],
+  ">": ["<="],
+  ">=": ["<"],
+  ">>": [],
+  ">>>": [],
+  "|": [],
+  in: [],
+  instanceof: [],
+};
+
+/** Binary operator → every sensible replacement. */
+export const binaryOperatorsExhaustive: OperatorTable = {
+  "-": ["+", "*", "/"],
+  "!=": ["==", "===", "!=="],
+  "!==": ["==", "!=", "==="],
+  "*": ["+", "-", "/"],
+  "**": ["+", "-", "*"],
+  "/": ["+", "-", "*"],
+  "&": [],
+  "%": ["+", "-", "*"],
+  "^": [],
+  "+": ["-", "*", "/"],
+  "<": ["<=", ">", ">="],
+  "<<": [],
+  "<=": ["<", ">", ">="],
+  "==": ["===", "!=", "!=="],
+  "===": ["==", "!=", "!=="],
+  ">": ["<", "<=", ">="],
+  ">=": ["<", "<=", ">"],
+  ">>": [],
+  ">>>": [],
+  "|": [],
+  in: ["+"],
+  instanceof: [],
+};
+
+/** Assignment operator → replacement (one distant mutation each). */
+export const assignmentOperators: OperatorTable = {
+  "-=": ["*="],
+  "??=": ["="],
+  "**=": ["-="],
+  "*=": ["-="],
+  "/=": ["+="],
+  "&&=": ["="],
+  "&=": ["="],
+  "%=": ["="],
+  "^=": ["="],
+  "+=": ["/="],
+  "<<=": ["="],
+  "=": ["+="],
+  ">>=": ["="],
+  ">>>=": ["="],
+  "|=": ["="],
+  "||=": ["="],
+};
+
+/** Assignment operator → every sensible replacement. */
+export const assignmentOperatorsExhaustive: OperatorTable = {
+  "-=": ["=", "+=", "*=", "/="],
+  "??=": ["=", "-=", "*=", "/="],
+  "**=": ["=", "-=", "*=", "/="],
+  "*=": ["=", "-=", "+=", "/="],
+  "/=": ["=", "-=", "*=", "+="],
+  "&&=": ["=", "-=", "*=", "/="],
+  "&=": ["=", "-=", "*=", "/="],
+  "%=": ["=", "-=", "*=", "/="],
+  "^=": ["=", "-=", "*=", "/="],
+  "+=": ["=", "-=", "*=", "/="],
+  "<<=": ["=", "-=", "*=", "/="],
+  "=": ["+="],
+  ">>=": ["=", "-=", "*=", "/="],
+  ">>>=": ["=", "-=", "*=", "/="],
+  "|=": ["=", "-=", "*=", "/="],
+  "||=": ["=", "-=", "*=", "/="],
+};
