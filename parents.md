@@ -380,8 +380,12 @@ On the listing edit page (`src/features/admin/listings.ts`, fields in
   with a 1-day fixed child would reserve the child for 1 day, not the inherited 3.
   So for fixed-duration daily edges, require the child's `duration_days` to **equal
   the parent's** (or carry an explicit per-line duration override in the fold).
-  Likewise a customisable child under a fixed-duration parent must accept the
-  parent's `duration_days` as its day-count.
+  This holds across **all four** daily parent/child duration combinations: a
+  customisable child under a fixed parent must accept the parent's `duration_days`;
+  and the **inverse** — a **fixed-duration child under a customisable parent** —
+  must also be forbidden/overridden, because the buyer's chosen parent `day_count`
+  can differ from the child's own fixed `duration_days`, so the booking helper would
+  reserve the child for the wrong span.
 - **Re-check edges on *any* listing save, not just when editing the relationship.**
   The compatibility rules above (dated-child-needs-dated-parent, renewal-tier ban)
   can be broken *after the fact* by editing a listing's `listing_type` /
@@ -470,6 +474,14 @@ When the booking page renders a listing that has children, render each child as 
   actually be booked. So the date filter (and the final submit check) must evaluate
   the folded parent **and** selected-child quantities together per candidate date,
   not just each child's own availability.
+- **Day-count choices must be filtered by the selected child too.** For a
+  customisable-days parent, the child inherits the parent's `day_count` — but a
+  customisable child may have a narrower `day_prices` range than the parent (e.g. a
+  3-day parent option whose child is only priced for 1–2 days). Leaving children out
+  of `sharedDayCounts` would offer a duration the chosen child can't be priced for,
+  failing late at submit. So the day-count selector needs the **same child-derived
+  filtering/toggling as dates**: only offer day-counts the selected child also
+  supports.
 - **Child questions** must be merged into `questionListingMap` with the **correct
   shape**: it is `Map<questionId, listingId[]>` (`questions.ts:361`), read by
   `prepareOrder` as `ctx.questionListingMap.get(q.id)` — *keyed by question id*, not
@@ -545,7 +557,10 @@ In `prepareOrder` (`ticket-submit.ts`), after `parseQuantities`:
    `child_<parentId>` (a radio — exactly one child id, since the rule is "one per
    parent"; auto-filled server-side when there's a single bookable child). The
    chosen child's **quantity is derived from the parent's quantity** (not
-   submitted), and its **date/duration is inherited from the parent**. A
+   submitted). Its **date/duration is inherited only when the child is daily**: a
+   daily child takes the parent's date and duration; a **standard (dateless) child
+   folds with `date: null`** (cumulative capacity — never write the parent's date
+   onto it, or it flips to per-date capacity and oversells across parent dates). A
    `can_pay_more` child also carries `child_price_<parentId>_<childId>`. **Only read
    `child_*` fields for parents that are actually in the cart** (`quantity_<parentId>
    > 0`); **silently ignore** the rest. The no-JS baseline renders every parent's
@@ -671,7 +686,9 @@ The expanded set (parent page listings ∪ selected children) must drive **all**
   multiple parents, the aggregate line can exceed the child's `max_quantity` /
   `maxPurchasable` even though each per-parent input was individually clamped. The
   **folded** quantity must be re-validated against the child's max-purchasable
-  limit (clamp or reject) before building items.
+  limit and the cart **rejected** if it exceeds it — **never clamped**, since
+  clamping would keep all parent rows while silently dropping required child rows
+  (2 + 2 parents with only 3 child spots).
 - **Answer-triggered modifiers** — `prepareOrder` computes
   `answerModifierQuantities(computeListingAnswerMap(ctx, info), quantities)`
   (`ticket-submit.ts:633-634`), so a child answer whose `answers.modifier_id`
@@ -829,6 +846,11 @@ Enumerate each and decide:
     has **no bookable child**. It also needs a **`dayCount`** input (same resolver
     as booking) — otherwise a customisable parent/child range is checked at the
     default/max span and can report the wrong answer for a valid shorter span.
+    **Report availability *per child*, not just "parent is bookable if any child
+    is".** For a parent with several children on different calendars/capacities, a
+    single parent-level "available" still lets a client pick a child the booking
+    POST then rejects; the endpoint should accept the intended child selection (or
+    return per-child availability for the date/dayCount).
   - **Free bookings must be all-or-nothing.** The web free path calls
     `ensureAllBookings` right after the greedy `createAttendeeAtomic`
     (`ticket-payment.ts:299-307`) so a capacity race can't leave some lines saved.
@@ -852,9 +874,14 @@ Enumerate each and decide:
   price), **and not introducing a provider-imposed contact requirement** — a *paid*
   child under Square makes `getTicketFields` require email (`fields.ts:1045`) even
   when the parent is free, but the QR skip builds the checkout with blank contact
-  fields, so this case must also fall back to the form. Otherwise, and whenever the
-  parent has **more than one** child, **fall back to the form** so the buyer's child
-  gets the right inputs/duration. **Also scope the QR price override:**
+  fields, so this case must also fall back to the form. **The *parent* being
+  `customisable_days` also forces a form fallback**: the QR skip path has no form
+  `day_count` (and the route rejects customisable route listings today), so a
+  customisable parent — even with a single fixed child — would build a
+  `CheckoutIntent` with no chosen duration and reconstruct at a default/one-day
+  span. Otherwise, and whenever the parent has **more than one** child, **fall back
+  to the form** so the buyer's child gets the right inputs/duration. **Also scope
+  the QR price override:**
   `applyQrTokenOverride`
   verifies `ctx.slugs[0]` then applies the signed price to **every** fixed-price
   row in `ctx.listings` (`ticket-submit.ts:166-176`); once the fold adds children,
