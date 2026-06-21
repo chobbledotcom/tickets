@@ -302,8 +302,34 @@ export const validateAttendeeMergeDecision = (
     }
   }
 
+  // Refuse to copy a source no-quantity line that still carries a payment: a
+  // quantity-0 line must have price_paid = 0 (§1 invariant). Silently keeping
+  // the charge would drop listing income and strand it behind the (now
+  // quantity-0) refund guards — refund/retarget it before merging.
+  for (const item of diff.bookingItems) {
+    if (
+      copiesSourceBooking(item, decision) &&
+      item.sourceBooking.quantity === 0 &&
+      item.sourceBooking.price_paid > 0
+    ) {
+      errors.push(
+        `Booking for Listing #${item.listingId} is a no-quantity line with a payment — refund or retarget it before merging.`,
+      );
+    }
+  }
+
   return errors.length > 0 ? { errors, valid: false } : { valid: true };
 };
+
+/** Whether a merge decision results in the source booking being copied to the
+ * target — every moveable line, plus a conflicting line the admin chose to
+ * take from source. */
+const copiesSourceBooking = (
+  item: AttendeeMergeDiffBookingItem,
+  decision: AttendeeMergeDecisionInput,
+): boolean =>
+  item.conflictClass === "moveable" ||
+  decision.bookings[itemBookingKey(item)] === "take_source";
 
 // ---------------------------------------------------------------------------
 // applyAttendeeMerge
@@ -410,7 +436,10 @@ const bookingInsertStatement = (
   insert("listing_attendees", {
     attachment_downloads: booking.attachment_downloads,
     attendee_id: targetId,
-    checked_in: booking.checked_in,
+    // A no-quantity sentinel line (quantity 0) carries no check-in: clear it on
+    // copy so a ghost can't arrive checked-in (the roster/stats read check-in
+    // off this flag with no quantity predicate). Real lines keep their flag.
+    checked_in: booking.quantity > 0 ? booking.checked_in : 0,
     end_at: booking.end_at,
     listing_id: booking.listing_id,
     price_paid: booking.price_paid,
@@ -542,6 +571,18 @@ export const applyAttendeeMerge = async (
       sql: "DELETE FROM listing_attendees WHERE attendee_id = ?",
     },
     { args: [sourceId], sql: "DELETE FROM attendees WHERE id = ?" },
+    // If the merged target ends up with no real (quantity > 0) line, its
+    // remaining_balance is now unpayable (the public pay gate refuses such
+    // attendees) — clear it rather than strand a dead balance. Runs after the
+    // booking inserts/deletes above, so it sees the target's final line set.
+    {
+      args: [targetId, targetId],
+      sql: `UPDATE attendees SET remaining_balance = 0
+            WHERE id = ? AND NOT EXISTS (
+              SELECT 1 FROM listing_attendees
+              WHERE attendee_id = ? AND quantity > 0
+            )`,
+    },
   ]);
 
   // Save merged answers for target. The choice decisions reduce to one answer
