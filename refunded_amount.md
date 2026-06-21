@@ -52,7 +52,7 @@ This plan is written for the **recommended (listing_attendees) approach**.
 
 | Concept | Where it lives | Type | Notes |
 | --- | --- | --- | --- |
-| Amount paid for a booking line | `listing_attendees.price_paid` | `INTEGER` minor units | Trigger-summed into `listings.income`. |
+| Amount paid for a booking line | `listing_attendees.price_paid` | `INTEGER` minor units | **Ticket revenue only** — excludes the booking fee (a separate `extras` line at checkout, not folded into any line's `price_paid`; see §8.5). Reservation balance payments *are* folded in by `settleAttendeeBalance`. Trigger-summed into `listings.income`. |
 | Refunded? (per line) | `listing_attendees.refunded` | `INTEGER` 0/1 | Set by `markRefunded`. |
 | Payment reference | encrypted `attendees.pii_blob` (`pi`) | string | Surfaced as `attendee.payment_id` after decryption. |
 | Outstanding balance (order-level) | `attendees.remaining_balance` | `INTEGER` minor units | Reservations/part-payments. |
@@ -85,9 +85,24 @@ Key fact about the value to store: `provider.refundPayment()` returns a
 (`src/shared/stripe.ts:322`, `s.refunds.create(...)`) actually returns a
 `Stripe.Refund` carrying the real refunded `amount`, but the
 `PaymentProvider` interface throws it away. So the actual provider-refunded
-amount is *available at Stripe/Square* but *not* at the interface today (see
-the optional enhancement in §10). For v1 we record the line's `price_paid` as
-the refunded amount, which is correct for the full refunds we support.
+amount is *available at Stripe/Square* but *not* at the interface today.
+
+There are **two candidate values** for `refunded_amount`:
+
+- **(A) the line's `price_paid`** — zero interface churn, but it is only the
+  *ticket* portion and diverges from the money actually returned in three real
+  configurations (booking fees, balance-paid reservations, multi-line orders —
+  see **§8.5**, the accuracy section, which exists because of PR review
+  feedback).
+- **(B) the provider's actual refunded amount** — the true money moved, but it
+  requires widening the provider interface (§10).
+
+Because the divergences in §8.5 are real and not rare, **the recommended source
+of truth is (B), the provider's actual amount, with (A) `price_paid` as the
+fallback** when a provider can't report an amount (SumUp) or for the historical
+backfill. Read §8.5 and §10 before locking this in — it is the single most
+important correctness decision in the feature, and it shifted from the original
+draft after review.
 
 ---
 
@@ -96,13 +111,20 @@ the refunded amount, which is correct for the full refunds we support.
 1. **Column**: `refunded_amount INTEGER NOT NULL DEFAULT 0` on
    `listing_attendees`. Minor units, never null, defaults to 0 (so existing
    rows and non-refunded rows read as 0 — "nothing refunded").
-2. **Value written**: when a line is marked refunded, set
-   `refunded_amount = price_paid` (what was paid for that line). Implemented as
-   a single atomic UPDATE inside `markRefunded` so it can never drift from the
-   `refunded` flag.
+2. **Value written**: `markRefunded(attendeeId, listingId, amount?)` sets
+   `refunded = 1` and `refunded_amount = amount`, in a single atomic UPDATE so
+   the flag and amount can never drift. The `amount` is:
+   - the **provider's actual refunded amount** (option B) where available — the
+     refund routes already hold the provider result and can pass it in; or
+   - the line's **`price_paid`** as the fallback (`amount` omitted → the SQL
+     copies `price_paid`), used for SumUp and the historical backfill.
+
+   See §8.5 for why `price_paid` alone is not a reliable amount, and §10 for the
+   small interface change that surfaces the provider amount.
 3. **Idempotency**: re-running `markRefunded` is harmless — it re-sets
-   `refunded = 1, refunded_amount = price_paid`. (The routes already guard
-   against double-refunding at the provider via the `refunded` check.)
+   `refunded = 1, refunded_amount = <amount>` (a copy, never an accumulate), so
+   a repeat call lands the same value. (The routes also guard against
+   double-refunding at the provider via the `refunded` check.)
 4. **No trigger changes**. The `listings` aggregate triggers
    (`LISTING_AGGREGATE_TRIGGERS`) are scoped to `OF quantity, price_paid,
    listing_id`; writing `refunded_amount` won't fire them. This deliberately
@@ -231,11 +253,21 @@ flattened `Attendee`/`ListingAttendeeRow` carry it.
 `loadRefreshContext` selects an explicit `listing_attendees` column list — add
 `refunded_amount` there too (keeps the `ListingAttendeeRow` shape complete).
 
-### 5c. Anywhere else selecting `listing_attendees` per-line columns
+### 5c. `src/features/admin/attendees-merge.ts` — `loadAttendeeBookings`
+
+**Required, and easy to miss.** `loadAttendeeBookings` (the merge route's
+loader) selects `listing_id, start_at, end_at, quantity, checked_in, refunded,
+price_paid, attachment_downloads` into `ListingAttendeeRow[]`. It must also
+select `refunded_amount`. This pairs with §14: the merge *insert* copies
+`refunded_amount`, so if the loader doesn't select it the moved booking passes
+`undefined` into the `NOT NULL` column. Read site (5c) and write site (§14) go
+together — do not land one without the other.
+
+### 5d. Anywhere else selecting `listing_attendees` per-line columns
 
 Grep check: `rg "checked_in, refunded, price_paid"` and
 `rg "ea\\.refunded"` — update every explicit column list that already pulls
-`refunded`/`price_paid` to also pull `refunded_amount`. Known sites are 5a/5b;
+`refunded`/`price_paid` to also pull `refunded_amount`. Known sites are 5a–5c;
 confirm none were missed.
 
 ---
@@ -359,6 +391,59 @@ Optional but nice for the multi-line case (where the flattened
 
 ---
 
+## 8.5 Accuracy of the recorded amount — when `price_paid` ≠ money refunded
+
+> Added in response to PR review. `refunded_amount = price_paid` is correct for
+> a full refund of a single-line, fee-free, non-reservation booking — but **not**
+> in the three configurations below. Each is verified against current code.
+
+1. **Booking fees are excluded from `price_paid`.** At checkout the booking fee
+   is a separate `extras` line (`feeExtras`, `src/shared/checkout-pricing.ts:86-92`),
+   and `paidByListing` (`src/features/api/webhooks.ts:587-597`) sums only the
+   ticket lines into each line's `price_paid`. So a £10 ticket + £1 fee stores
+   `price_paid = 1000`, but a full provider refund returns **1100**. Recording
+   `price_paid` under-reports by the fee.
+2. **Balance-paid reservations fold extra money into `price_paid`.**
+   `settleAttendeeBalance` (`src/shared/db/attendees/balance.ts`) does
+   `UPDATE listing_attendees SET price_paid = price_paid + <balance>` on the
+   first line, while the attendee's stored `payment_id` stays the **original
+   deposit** reference. Refunding that stored payment returns only the deposit,
+   but `price_paid` now holds deposit + balance — so `price_paid`
+   **over-reports** the actual refund. (And the balance was a *second* payment
+   the stored `payment_id` can't even refund.)
+3. **Multi-line orders share one payment.** `provider.refundPayment(payment_id)`
+   refunds the *entire* order, but the single-refund and refresh paths call
+   `markRefunded(attendee.id, listingId)` for **one** line only
+   (`attendee-refunds.ts:101-111`, `attendees-edit.ts:86-88`). The other lines
+   keep `refunded = false`, `refunded_amount = 0` even though their money was
+   returned. (This is a **pre-existing** quirk of the boolean `refunded` flag,
+   not introduced here — but `refunded_amount` makes the under-report visible in
+   money terms.)
+
+**Implications for the design:**
+
+- Cases 1 and 2 are why **option B (record the provider's actual amount, §10) is
+  the recommended source of truth.** The provider's refund response is the one
+  number that is correct in all three cases — it is exactly the money returned.
+- Case 3 needs a **write-fan-out** fix independent of which amount we store: when
+  an order-level refund succeeds, mark **every** `listing_attendees` line that
+  shares that `payment_id`, not just the operator's line. See §10 (promoted from
+  "future" to a tracked decision). If option B is used, allocate the provider's
+  total across those lines (e.g. by `price_paid` weight, largest-remainder — the
+  codebase already has `allocateByLargestRemainder` in `checkout-pricing.ts`);
+  if option A, each line records its own `price_paid`.
+- If we ship option A first anyway (e.g. to avoid provider churn), the plan must
+  **document `refunded_amount` as "ticket revenue refunded, fee-exclusive, and
+  approximate for balance-paid reservations"** in the column comment, the admin
+  UI, and the CSV header — so no one reads it as "total returned to the
+  customer".
+
+**Recommendation:** treat §8.5 as a gating decision. My recommendation is
+option B + the case-3 fan-out; if that is too much scope now, ship option A with
+the explicit "ticket-only / approximate" labelling and a follow-up issue for B.
+
+---
+
 ## 9. Webhook auto-refund path (explicitly out of scope)
 
 `src/features/api/webhooks.ts:239` refunds *untrusted/invalid* checkout
@@ -371,36 +456,56 @@ PR description so it isn't mistaken for a gap.
 
 ---
 
-## 10. Optional enhancement: record the *provider's actual* refunded amount
+## 10. Recording the *provider's actual* refunded amount + the multi-line fan-out
 
-Today the recorded amount = the line's `price_paid`. That is exactly right for
-full refunds of single-line orders. Two cases where it can diverge from the
-true money moved:
+This was "optional/deferred" in the first draft; PR review (§8.5) showed
+`price_paid` is wrong in common configurations, so it is now a **tracked
+decision**, not a nice-to-have.
 
-1. **Multi-line orders on one payment.** `provider.refundPayment(payment_id)`
-   refunds the *entire* Stripe/Square payment (all lines), but the single-refund
-   route marks only the one line the operator was on. So `refunded_amount` for
-   that line under-reports the actual refund. (This is a pre-existing modelling
-   quirk of `refunded` too, not introduced here.)
-2. **Partial refunds**, if ever supported.
+### 10a. Surface the provider amount (option B)
 
-To record the real number we'd widen the provider interface:
+Widen the provider interface so the real refunded amount reaches `markRefunded`:
 
 - `PaymentProvider.refundPayment(ref): Promise<boolean>` →
   `Promise<{ ok: boolean; amount?: number }>` (or `number | null`).
 - Stripe already has it: `s.refunds.create(...)` returns `Stripe.Refund.amount`
   (`src/shared/stripe.ts`). Square's refund response carries `amount_money`.
-  SumUp returns boolean only — fall back to `price_paid`.
-- Pass the returned amount into `markRefunded(id, listingId, amount)`.
+  SumUp returns boolean only → `amount` undefined → fall back to `price_paid`.
+- Refund routes pass the returned amount into
+  `markRefunded(id, listingId, amount)` (the optional param added in §6).
 
-**Recommendation: defer.** It touches all three providers
-(`stripe-provider.ts`, `square-provider.ts`, `sumup-provider.ts`) and a large
-number of provider tests/stubs (see the ~100 `refundPayment` stub call sites in
-`test/`). v1 = `price_paid`, which is correct for the full-refund flows we
-actually ship. Add a TODO referencing this section. For the multi-line
-single-refund quirk, a cheaper interim fix is to mark **all** of the payment's
-lines refunded (loop the attendee's `listing_attendees` rows sharing that
-payment) — note as a follow-up, don't bundle it here.
+Cost: touches all three providers (`stripe-provider.ts`, `square-provider.ts`,
+`sumup-provider.ts`) and many provider tests/stubs (~100 `refundPayment` stub
+sites in `test/`). The mechanical fix is to update each stub's return shape;
+budget for it.
+
+### 10b. Mark every line covered by the payment (case 3 from §8.5)
+
+`provider.refundPayment(payment_id)` refunds the **whole order**, so on success
+the routes must mark **all** of the attendee's `listing_attendees` lines that
+belong to that payment — not just the operator's line. Today there is no
+per-line payment reference (the `payment_id` is attendee-level in the pii_blob),
+so "lines covered by that payment" = all of that attendee's lines created by the
+original checkout. Concretely:
+
+- Single refund (`attendee-refunds.ts`) and refresh (`attendees-edit.ts`):
+  after a successful provider refund, mark every line for the attendee.
+- With option B, allocate the provider's returned total across those lines
+  (by `price_paid` weight, largest-remainder — reuse
+  `allocateByLargestRemainder`, `checkout-pricing.ts`); with option A, set each
+  line's `refunded_amount = price_paid`.
+- Alternatively (smaller, but a UX change) **disallow per-line refunds for
+  multi-line orders** and only offer an order-level "refund this order" action.
+
+### 10c. Partial refunds (future)
+
+The `amount` parameter on `markRefunded` already accommodates a partial value;
+no schema change needed when partial-refund support arrives.
+
+**Recommendation:** do 10a + 10b together with the core feature — they are the
+difference between `refunded_amount` meaning "money returned" vs. "ticket
+revenue on one line". If scope must shrink, ship option A (§2) with the explicit
+"ticket-only/approximate" labelling from §8.5 and open a follow-up for 10a/10b.
 
 ---
 
@@ -471,6 +576,13 @@ attendee-specific column block instead of `standardAttendeeColumns`.
 `refunded_amount: booking.refunded_amount` to the `insert("listing_attendees",
 {...})` payload so a moved/replaced line keeps its refunded amount.
 
+> **Pairs with §5c.** This insert reads `booking.refunded_amount`, which is only
+> populated if `loadAttendeeBookings` in `attendees-merge.ts` selects the
+> column. Without that SELECT, `booking.refunded_amount` is `undefined` and the
+> insert violates the `NOT NULL` constraint (or silently drops the amount). Land
+> the loader change (§5c) and this insert change together, and cover it with a
+> merge test (§15g) that moves a refunded line and asserts the amount survives.
+
 Optionally include `refunded_amount` in the duplicate-detection comparison in
 `buildBookingDiffItems` (currently compares `quantity`, `price_paid`,
 `checked_in`, `refunded`). Since `refunded_amount` is derived from
@@ -504,11 +616,14 @@ already calls `markRefunded`):
 ### 15b. Route integration — extend `test/lib/server-refunds.test.ts`
 
 After a successful single refund (and after `refund-all`), assert the
-attendee's persisted `refunded_amount` equals the line's `price_paid`. The file
-already has `createPaidTestAttendee`, `submitRefund`, `submitRefundAll`, and a
-`stripePaymentProvider.refundPayment` stub — extend the success assertions to
-read the row back (or re-fetch via `getAttendeeRaw`/`getAttendeesByTokens`) and
-check `refunded_amount`.
+attendee's persisted `refunded_amount` equals the recorded amount — the line's
+`price_paid` under option A, or the stubbed provider amount under option B (§10a).
+The file already has `createPaidTestAttendee`, `submitRefund`, `submitRefundAll`,
+and a `stripePaymentProvider.refundPayment` stub — extend the success assertions
+to read the row back (or re-fetch via `getAttendeeRaw`/`getAttendeesByTokens`)
+and check `refunded_amount`. If §10b ships, add a **multi-line** case: an
+attendee with two listings on one payment, refund once, assert **both** lines
+end up `refunded` with the amount allocated across them.
 
 ### 15c. Refresh-payment path — `test/lib/server-attendees.test.ts`
 
@@ -561,7 +676,7 @@ webhook attendee type + builder + `makeTestAttendee` factory + webhook docs
 | File | Change | Required? |
 | --- | --- | --- |
 | `src/shared/db/migrations/schema.ts` | Add column to `listing_attendees`; update `LATEST_UPDATE` | ✅ |
-| `src/shared/db/migrations/2026-06-21_attendee_refunded_amount.ts` | New migration | ✅ |
+| `src/shared/db/migrations/2026-06-21_attendee_refunded_amount.ts` | New migration **+ `after()` backfill** of legacy refunded rows (§18) | ✅ |
 | `src/shared/db/migrations.ts` | Import + append to `MIGRATIONS` | ✅ |
 | `src/shared/db/attendee-types.ts` | `ListingAttendeeRow.refunded_amount` | ✅ |
 | `src/shared/types.ts` | `Attendee.refunded_amount` | ✅ |
@@ -573,28 +688,52 @@ webhook attendee type + builder + `makeTestAttendee` factory + webhook docs
 | `src/locales/en/admin.json` | `admin.attendees.amount_refunded` | ✅ |
 | `test/test-utils/factories.ts` | `refunded_amount: 0` in `testAttendee` | ✅ |
 | Tests (§15) | New/extended coverage | ✅ |
-| `src/shared/merge/attendee-merge.ts` | Carry `refunded_amount` on moved lines | ⭕ recommended |
-| `src/features/admin/attendees-csv.ts` + csv locale | Export column | ⭕ recommended |
+| `src/features/admin/attendees-merge.ts` | **`loadAttendeeBookings` must SELECT `refunded_amount`** (§5c) | ✅ if merge carries it |
+| `src/shared/merge/attendee-merge.ts` | Carry `refunded_amount` on moved lines (insert) | ⭕ recommended (pairs with row above) |
+| `src/features/admin/attendees-csv.ts` + csv locale | Export column (label "ticket-only/approx" if option A — §8.5) | ⭕ recommended |
+| Provider interface (§10a) | Record provider's **actual** refunded amount | 🔶 recommended for correctness (§8.5) |
+| Refund routes (§10b) | Mark **all** lines of an order-level refund (multi-line fix) | 🔶 recommended for correctness (§8.5) |
 | `src/features/admin/attendee-form-model.ts` + `attendee-form.tsx` | Per-line amount in bookings table | ⭕ optional |
 | `src/shared/columns/attendee-columns.ts` | Amount in list status badge | ⭕ optional |
-| Provider interface (§10) | Real provider refund amount | ⭕ future |
 | `src/shared/webhook.ts` (+docs, factory) (§16) | Webhook payload | ⭕ future |
 
-✅ = required for a correct, tested feature. ⭕ = scope choices.
+✅ = required for a correct, tested feature. 🔶 = recommended for *accuracy* —
+without these, `refunded_amount` is ticket-only/approximate (see §8.5); decide
+explicitly. ⭕ = scope choices.
 
 ---
 
 ## 18. Edge cases & invariants
 
-- **Non-refunded / legacy rows** read `refunded_amount = 0` (DEFAULT + COALESCE
-  on left joins). No backfill needed — historically refunded rows simply show 0
-  until re-refreshed, which is acceptable (we never recorded the amount before).
-  If a backfill is wanted, a one-off `UPDATE listing_attendees SET
-  refunded_amount = price_paid WHERE refunded = 1 AND refunded_amount = 0`
-  could run in the migration's `after()` hook — **decide explicitly**; default
-  is no backfill.
+- **Legacy already-refunded rows — backfill is recommended (PR review).** New
+  rows default to `refunded_amount = 0`, so every historically refunded line
+  (`refunded = 1`) would report **0** in the admin UI and CSV — under-reporting
+  past refunds. Crucially this **cannot self-heal**: `handleRefreshPayment` only
+  calls `markRefunded` when `!attendee.refunded`
+  (`attendees-edit.ts:87`), so an already-refunded row is never revisited.
+  Therefore the migration should backfill in its `after()` hook:
+
+  ```sql
+  UPDATE listing_attendees SET refunded_amount = price_paid
+  WHERE refunded = 1 AND refunded_amount = 0
+  ```
+
+  Caveat: the backfill inherits the §8.5 inaccuracies (it uses `price_paid`, so
+  fees are excluded and balance-paid reservations are over-stated) — but for
+  *historical* rows the provider amount is not retrievable cheaply, so
+  `price_paid` is the best available estimate. The alternative is an explicit
+  "unknown" sentinel (e.g. leave a separate `refunded_amount_known` flag / use
+  `NULL`), but that complicates the `NOT NULL` column and every reader; the
+  pragmatic choice is the `price_paid` backfill **plus** the "approximate"
+  labelling from §8.5. Either way, **do not silently leave legacy rows at 0** —
+  that is the one option review explicitly flagged as wrong.
 - **Unpaid listings**: `refunded_amount` suppressed to 0 alongside `refunded`
   (the `paidListing` gate in `pii.ts`).
+- **Balance-paid reservations (§8.5 case 2)**: refunding the stored deposit
+  `payment_id` returns only the deposit, but `price_paid` was inflated by
+  `settleAttendeeBalance`. With option A, `refunded_amount` over-reports here;
+  option B (provider amount) records the true deposit refund. Call this out
+  wherever `refunded_amount` is shown if option A ships first.
 - **Free bookings** (`price_paid = 0`): refunding sets `refunded = 1`,
   `refunded_amount = 0` — correct (£0 refunded).
 - **Idempotency**: `= price_paid` (copy, not accumulate) keeps repeated
