@@ -488,6 +488,162 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     });
   });
 
+  describe("no-quantity checkbox round-trip", () => {
+    const readLine = (attendeeId: number, listingId: number) =>
+      getDb()
+        .execute({
+          args: [attendeeId, listingId],
+          sql: "SELECT quantity, checked_in, price_paid FROM listing_attendees WHERE attendee_id = ? AND listing_id = ?",
+        })
+        .then((r) => r.rows[0] ?? null);
+
+    const markNoQuantity = async (
+      attendeeId: number,
+      listingId: number,
+      name: string,
+    ): Promise<Response> => {
+      const { loadExistingLines } = await import("#shared/db/attendees.ts");
+      const key = (await loadExistingLines(attendeeId)).find(
+        (e) => e.booking.listing_id === listingId,
+      )!.key;
+      const form = await buildAttendeeEditForm(attendeeId, {
+        extra: { [`noqty_${listingId}`]: "1" },
+        lines: [{ eventId: listingId, key, quantity: 1 }],
+        name,
+      });
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendeeId}`,
+        form,
+      );
+      return response;
+    };
+
+    test("marking a line no-quantity keeps it as a quantity-0 row, not deleted", async () => {
+      const listing = await createTestListing({ maxAttendees: 50 });
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Ghost",
+        "ghost@example.com",
+      );
+
+      const response = await markNoQuantity(attendee.id, listing.id, "Ghost");
+
+      expect(response.status).toBe(302);
+      // The line survives (not removed) as a quantity-0, price_paid-0 sentinel.
+      expect(await readLine(attendee.id, listing.id)).toMatchObject({
+        price_paid: 0,
+        quantity: 0,
+      });
+    });
+
+    test("a stored quantity-0 line renders with the no-quantity box ticked", async () => {
+      const listing = await createTestListing({ maxAttendees: 50 });
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Ghost",
+        "ghost@example.com",
+      );
+      await markNoQuantity(attendee.id, listing.id, "Ghost");
+
+      const html = await (
+        await awaitTestRequest(`/admin/attendees/${attendee.id}`, {
+          cookie: await testCookie(),
+        })
+      ).text();
+      // Alphabetical attribute order puts `checked` first when ticked.
+      expect(html).toContain(
+        `checked class="no-quantity-toggle" name="noqty_${listing.id}"`,
+      );
+    });
+
+    test("marking a checked-in line no-quantity clears its check-in", async () => {
+      const listing = await createTestListing({ maxAttendees: 50 });
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "WasIn",
+        "wasin@example.com",
+      );
+      await getDb().execute({
+        args: [attendee.id, listing.id],
+        sql: "UPDATE listing_attendees SET checked_in = 1 WHERE attendee_id = ? AND listing_id = ?",
+      });
+
+      await markNoQuantity(attendee.id, listing.id, "WasIn");
+
+      expect(await readLine(attendee.id, listing.id)).toMatchObject({
+        checked_in: 0,
+        quantity: 0,
+      });
+    });
+
+    test("blocks marking a paid line no-quantity (line unchanged)", async () => {
+      const listing = await createTestListing({ maxAttendees: 50 });
+      const created = await createAttendeeAtomic({
+        bookings: [{ listingId: listing.id, pricePaid: 1500, quantity: 2 }],
+        email: "paid@example.com",
+        name: "Paid",
+        paymentId: "pay_block",
+      });
+      if (!created.success) throw new Error("setup");
+      const attendeeId = created.attendees[0]!.id;
+
+      const response = await markNoQuantity(attendeeId, listing.id, "Paid");
+
+      // Re-renders the form in place (200) with the line untouched.
+      const html = await expectHtmlResponse(response, 200);
+      expect(html).toContain("Refund this line's payment");
+      expect(await readLine(attendeeId, listing.id)).toMatchObject({
+        price_paid: 1500,
+        quantity: 2,
+      });
+    });
+
+    test("a no-quantity-only attendee saves instead of being rejected as no lines", async () => {
+      const listing = await createTestListing({ maxAttendees: 50 });
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "OnlyGhost",
+        "onlyghost@example.com",
+      );
+
+      const response = await markNoQuantity(
+        attendee.id,
+        listing.id,
+        "OnlyGhost",
+      );
+
+      expect(response.status).toBe(302);
+      expect(await readLine(attendee.id, listing.id)).toMatchObject({
+        quantity: 0,
+      });
+    });
+
+    test("marking the last real line no-quantity clears an unpayable balance", async () => {
+      const listing = await createTestListing({ maxAttendees: 50 });
+      const created = await createAttendeeAtomic({
+        bookings: [{ listingId: listing.id, quantity: 1 }],
+        email: "owes@example.com",
+        name: "Owes",
+        remainingBalance: 2000,
+      });
+      if (!created.success) throw new Error("setup");
+      const attendeeId = created.attendees[0]!.id;
+      expect(
+        (await getAttendeeBalanceState(attendeeId))!.remainingBalance,
+      ).toBe(2000);
+
+      await markNoQuantity(attendeeId, listing.id, "Owes");
+
+      expect(
+        (await getAttendeeBalanceState(attendeeId))!.remainingBalance,
+      ).toBe(0);
+    });
+  });
+
   describe("bookings summary on the edit page", () => {
     test("lists each booked listing with its quantity and a total", async () => {
       const kayak = await createTestListing({

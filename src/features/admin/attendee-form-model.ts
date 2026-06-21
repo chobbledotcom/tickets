@@ -43,6 +43,11 @@ import {
 export const DAY_COUNT_FIELD = "day_count";
 /** Per-listing quantity field: `qty_<listingId>`. */
 export const QTY_PREFIX = "qty_";
+/** Per-listing "no quantity" checkbox: `noqty_<listingId>`. When ticked the line
+ * is kept as a quantity-0 sentinel (counts toward no capacity/tickets/income and
+ * is hidden from operational/public surfaces) instead of being booked or removed.
+ * Owners never see a literal 0 — the checkbox is the proxy for `quantity == 0`. */
+export const NO_QUANTITY_PREFIX = "noqty_";
 /** Per-listing hidden field carrying the existing booking's line key, so an
  * edit can move/keep the right `listing_attendees` row: `line_key_<listingId>`. */
 export const LINE_KEY_PREFIX = "line_key_";
@@ -66,6 +71,10 @@ export type AttendeeFormLine = {
   listingId: number;
   /** Booked quantity; null/0 means the listing is not booked. */
   quantity: number | null;
+  /** True when the "no quantity" box is ticked: keep this line as a quantity-0
+   * sentinel rather than booking (quantity ≥ 1) or removing it (quantity 0,
+   * box unticked). */
+  noQuantity: boolean;
   /** Resolved listing reference (null when the id is unknown). */
   listing: ListingWithCount | null;
   /** Existing booking row, when the attendee already books this listing. */
@@ -144,9 +153,23 @@ type SharedDates = {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** True when the line should become a booking. */
+/** True when the line should become a booking (quantity ≥ 1). Governs capacity,
+ * validation, warnings, and logistics — everything the quantity-0 sentinel is
+ * deliberately absent from. */
 export const isBookedLine = (line: AttendeeFormLine): boolean =>
   line.quantity !== null && line.quantity >= 1 && line.listing !== null;
+
+/** True when the "no quantity" box is ticked for a resolvable listing: a
+ * deliberate quantity-0 sentinel line to keep, not a real booking. */
+export const isNoQuantityLine = (line: AttendeeFormLine): boolean =>
+  line.noQuantity && line.listing !== null;
+
+/** True when the line should be persisted at all: a real booking OR a deliberate
+ * no-quantity line. The persistence + no-lines paths use THIS (so a checked
+ * quantity-0 line is kept and a no-quantity-only save isn't rejected as "book at
+ * least one listing"), while capacity/validation keep {@link isBookedLine}. */
+export const isRetainedLine = (line: AttendeeFormLine): boolean =>
+  isBookedLine(line) || isNoQuantityLine(line);
 
 /** Whole-day span of a stored booking row, or null when it has no range. */
 export const bookingDurationDays = (
@@ -251,7 +274,9 @@ const parseQuantity = (raw: string): number | null => {
 };
 
 /** One editor line per `qty_<id>` field in the form, in document order and
- * de-duplicated, with the listing + existing booking resolved. */
+ * de-duplicated, with the listing + existing booking resolved. A ticked
+ * `noqty_<id>` box forces quantity to 0 and marks the line no-quantity (its
+ * quantity input is CSS-hidden, so its submitted value is ignored). */
 const parseLines = (
   form: FormParams,
   resolve: (
@@ -267,11 +292,13 @@ const parseLines = (
     if (id === null || seen.has(id)) continue;
     seen.add(id);
     const key = form.getString(`${LINE_KEY_PREFIX}${id}`);
+    const noQuantity = form.getString(`${NO_QUANTITY_PREFIX}${id}`) !== "";
     lines.push({
       error: null,
       key,
       listingId: id,
-      quantity: parseQuantity(raw),
+      noQuantity,
+      quantity: noQuantity ? 0 : parseQuantity(raw),
       ...resolve(id, key),
     });
   }
@@ -335,9 +362,16 @@ const validateAttendeeBlock = (
 const isBookedDaily = (line: AttendeeFormLine): boolean =>
   isBookedLine(line) && line.listing!.listing_type === "daily";
 
-/** Validate one booked line's quantity. Date/duration/overbooking concerns are
- * surfaced as non-blocking warnings elsewhere, not as errors. */
+/** Validate one line. Date/duration/overbooking concerns are surfaced as
+ * non-blocking warnings elsewhere, not as errors. */
 const validateLine = (line: AttendeeFormLine): string | null => {
+  // Forbid marking a PAID line no-quantity: the charge must be refunded or
+  // retargeted to a real line first. Silently clearing price_paid would drop
+  // listing income and strand the charge behind the (now quantity-0) refund
+  // guards, so reject rather than normalise (enforces the §1 invariant).
+  if (isNoQuantityLine(line) && (line.existingBooking?.price_paid ?? 0) > 0) {
+    return "Refund this line's payment before marking it no quantity.";
+  }
   // isBookedLine already guarantees an integer quantity ≥ 1; the only quantity
   // error left is exceeding the listing's per-booking maximum.
   if (!isBookedLine(line)) return null;
@@ -405,13 +439,15 @@ export const toCreateInput = (
   statusId: number | null;
 } => ({
   address: parsed.address,
-  bookings: parsed.lines.filter(isBookedLine).map((line): ListingBooking => {
+  // Retained lines, not just booked lines: a no-quantity line is persisted as a
+  // quantity-0 sentinel (price_paid defaults to 0, satisfying the §1 invariant).
+  bookings: parsed.lines.filter(isRetainedLine).map((line): ListingBooking => {
     const { date, durationDays } = lineDate(line, parsed);
     return {
       date,
       durationDays: date ? durationDays : undefined,
       listingId: line.listingId,
-      quantity: line.quantity!,
+      quantity: line.quantity ?? 0,
     };
   }),
   email: parsed.email,
@@ -431,7 +467,9 @@ export const toCreateInput = (
 export const toDesiredLines = (
   parsed: ParsedAttendeeForm,
 ): DesiredListingLine[] =>
-  parsed.lines.filter(isBookedLine).map((line): DesiredListingLine => {
+  // Retained lines, not just booked lines: a checked quantity-0 line must
+  // persist (become/stay a quantity-0 row) rather than fall out and be deleted.
+  parsed.lines.filter(isRetainedLine).map((line): DesiredListingLine => {
     const { date, durationDays } = lineDate(line, parsed);
     return {
       date,
@@ -439,7 +477,7 @@ export const toDesiredLines = (
       exists: Boolean(line.existingBooking),
       key: line.key,
       listingId: line.listingId,
-      quantity: line.quantity!,
+      quantity: line.quantity ?? 0,
     };
   });
 

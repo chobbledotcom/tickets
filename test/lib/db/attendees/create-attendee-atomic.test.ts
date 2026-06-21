@@ -48,6 +48,39 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
     }
   });
 
+  test("records a contact visit for a real booking", async () => {
+    const { getVisits, hashEmail } = await import(
+      "#shared/db/contact-preferences.ts"
+    );
+    const listing = await createTestListing({ maxAttendees: 5 });
+    const result = await createAttendeeAtomic({
+      bookings: [{ listingId: listing.id, quantity: 1 }],
+      email: "visitor@example.com",
+      name: "Visitor",
+    });
+    expect(result.success).toBe(true);
+    expect(await getVisits(await hashEmail("visitor@example.com"))).toBe(1);
+  });
+
+  test("records NO visit for a no-quantity-only attendee", async () => {
+    // A placeholder/cancelled (quantity-0-only) order is not a real visit —
+    // counting it would let a ghost-only contact qualify as returning via the
+    // min_visits modifier gating.
+    const { getVisits, hashEmail } = await import(
+      "#shared/db/contact-preferences.ts"
+    );
+    const listing = await createTestListing({ maxAttendees: 5 });
+    const result = await createAttendeeAtomic({
+      allowOverbook: true,
+      bookings: [{ listingId: listing.id, quantity: 0 }],
+      email: "ghostonly@example.com",
+      name: "Ghost Only",
+      source: "admin",
+    });
+    expect(result.success).toBe(true);
+    expect(await getVisits(await hashEmail("ghostonly@example.com"))).toBe(0);
+  });
+
   test("links single attendee record to multiple listings for group purchase", async () => {
     const listing1 = await createTestListing({ maxAttendees: 10 });
     const listing2 = await createTestListing({ maxAttendees: 10 });

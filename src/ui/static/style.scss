@@ -1512,6 +1512,14 @@ label.terms-agree {
 // associated for screen readers.
 @include reveal-when-selected("trigger", "code", 'label:has([name="code"])');
 
+// In the attendee listing editor, ticking a row's "No quantity" box hides that
+// row's quantity input (the line is kept as a quantity-0 sentinel — owners never
+// edit a literal 0). Row-scoped via :has() so it only affects the ticked row;
+// pure CSS, no JavaScript.
+.attendee-line-qty:has(.no-quantity-toggle:checked) .line-qty {
+  display: none;
+}
+
 /* Utility classes for strict CSP (no inline styles) */
 .hidden {
   display: none;

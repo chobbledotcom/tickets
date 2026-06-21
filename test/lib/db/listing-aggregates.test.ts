@@ -11,12 +11,12 @@ import {
   resetListingAggregateFields,
   updateListingAggregateValues,
 } from "#shared/db/listings.ts";
-import { BACKFILL_LISTING_AGGREGATES_SQL } from "#shared/db/migrations/schema-sync.ts";
 import {
   LISTING_AGGREGATE_WRITE_COLUMNS,
   TICKET_COUNTS_PREDICATE,
   TRIGGERS,
 } from "#shared/db/migrations/schema.ts";
+import { BACKFILL_LISTING_AGGREGATES_SQL } from "#shared/db/migrations/schema-sync.ts";
 import { MIGRATIONS } from "#shared/db/migrations.ts";
 import { createTestListing, describeWithEnv } from "#test-utils";
 

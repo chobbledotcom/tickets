@@ -24,18 +24,28 @@ const updateListingAttendeeField =
   };
 
 const setRefunded = updateListingAttendeeField("refunded");
-const setCheckedIn = updateListingAttendeeField("checked_in");
 
 export const markRefunded = (
   attendeeId: number,
   listingId: number,
 ): Promise<void> => setRefunded(attendeeId, listingId, 1);
 
-export const updateCheckedIn = (
+/**
+ * Set a line's check-in flag, refusing a no-quantity (quantity 0) line — it
+ * isn't a real ticket, mirroring the refunded-ticket guard in checkin.ts. The
+ * `quantity > 0` predicate scopes the write so a ghost row is a no-op (it can
+ * never have been checked in, so scoping the check-OUT case too is harmless).
+ */
+export const updateCheckedIn = async (
   attendeeId: number,
   listingId: number,
   checkedIn: boolean,
-): Promise<void> => setCheckedIn(attendeeId, listingId, checkedIn ? 1 : 0);
+): Promise<void> => {
+  await execute(
+    "UPDATE listing_attendees SET checked_in = ? WHERE attendee_id = ? AND listing_id = ? AND quantity > 0",
+    [checkedIn ? 1 : 0, attendeeId, listingId],
+  );
+};
 
 /**
  * Set an attendee's plaintext order fields (status + outstanding balance).

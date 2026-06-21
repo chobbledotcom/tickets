@@ -61,6 +61,22 @@ const CAPACITY_GUARD = {
  * the shared types module so callers can keep importing it from here. */
 export type AtomicDesiredLine = DesiredListingLine;
 
+/**
+ * Extra SET columns when a line is saved as the no-quantity sentinel (quantity
+ * 0): clear any check-in state and the logistics assignment — agents, times, and
+ * the start_done/end_done completion flags — in the same write. A quantity-0
+ * line is hidden from the roster's check-in reads and from run sheets, so a
+ * lingering checked_in or a completed leg would otherwise haunt those surfaces;
+ * resetting the done flags too stops a completed leg reappearing as done if the
+ * line is later re-activated. Real lines (quantity ≥ 1) keep their state. The
+ * fragment carries no bind args, so it slots into both update branches.
+ */
+const noQuantityResetColumns = (quantity: number): string =>
+  quantity === 0
+    ? ", checked_in = 0, start_agent_id = NULL, end_agent_id = NULL," +
+      " start_time = '', end_time = '', start_done = 0, end_done = 0"
+    : "";
+
 /** Build the self-excluding capacity condition for one desired line. */
 const lineCapacityCondition = (line: AtomicDesiredLine, attendeeId: number) =>
   buildCapacityCondition(
@@ -201,7 +217,7 @@ export const applyAttendeeAtomicEdit = async (
     const oldStartAt = existingByKey.get(line.key)?.start_at ?? null;
     const { startAt, endAt } = dateToStartEnd(line.date, line.durationDays);
     const pin = [attendeeId, line.listingId, oldStartAt];
-    const setClause = `UPDATE listing_attendees SET quantity = ?, start_at = ?, end_at = ?
+    const setClause = `UPDATE listing_attendees SET quantity = ?, start_at = ?, end_at = ?${noQuantityResetColumns(line.quantity)}
             WHERE attendee_id = ? AND listing_id = ? AND start_at IS ?`;
     if (allowOverbook) {
       statements.push({

@@ -45,6 +45,7 @@ import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
+import { formatCurrency } from "#shared/currency.ts";
 import { getAttendeeActivityLog, logActivity } from "#shared/db/activityLog.ts";
 import { getAllAttendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import { getAttendeeOrderSummary } from "#shared/db/attendees/balance.ts";
@@ -148,15 +149,18 @@ const buildFormLines = (
 ): AttendeeFormLine[] =>
   renderListings.map((listing) => {
     const existing = existingByListingId.get(listing.id);
+    const quantity = existing
+      ? existing.booking.quantity
+      : (preselectedQty.get(listing.id) ?? 0);
     return {
       error: null,
       existingBooking: existing?.booking ?? null,
       key: existing?.key ?? "",
       listing,
       listingId: listing.id,
-      quantity: existing
-        ? existing.booking.quantity
-        : (preselectedQty.get(listing.id) ?? 0),
+      // A stored quantity-0 line renders with the "no quantity" box ticked.
+      noQuantity: Boolean(existing) && quantity === 0,
+      quantity,
     };
   });
 
@@ -729,12 +733,16 @@ const applyCreate = async (
   if (input.bookings.length === 0) {
     return { flashError: NO_LINES_ERROR, ok: false };
   }
+  // A no-quantity-only attendee has no real line to pay into, so never give it an
+  // unpayable balance (the public pay gate refuses such attendees).
+  const hasRealLine = input.bookings.some((b) => (b.quantity ?? 0) > 0);
   // Admin manual add may deliberately overbook (a warning is shown, not blocked)
   // and is tagged as an "admin" booking so it counts separately from online
   // checkouts in the contact's booking history.
   const createResult = await createAttendeeAtomic({
     ...input,
     allowOverbook: true,
+    remainingBalance: hasRealLine ? input.remainingBalance : 0,
     source: "admin",
   });
   const check = await ensureAllBookings(
@@ -800,10 +808,23 @@ const applyEdit = async (
     return { flashError: CAPACITY_SAVE_ERROR, ok: false };
   }
 
+  // Resolve a now-unpayable balance: when the save leaves no real (quantity > 0)
+  // line, the public pay gate refuses payment, so clear the balance rather than
+  // strand it on a ghost. Record the prior value as audit metadata.
+  const hasRealLine = desired.some((l) => l.quantity > 0);
+  if (!hasRealLine && attendee.remaining_balance > 0) {
+    await logActivity(
+      `Outstanding balance of ${formatCurrency(
+        attendee.remaining_balance,
+      )} cleared — attendee has no booked listing`,
+      desired[0]?.listingId,
+      attendeeId,
+    );
+  }
   await updateAttendeeOrder(
     attendeeId,
     parsed.statusId,
-    parsed.remainingBalance,
+    hasRealLine ? parsed.remainingBalance : 0,
   );
 
   await applyLogisticsPlan(attendeeId, logisticsPlan);

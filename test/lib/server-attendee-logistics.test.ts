@@ -38,6 +38,7 @@ const bookedLine = (
   key: "",
   listing: testListingWithCount({ id, uses_logistics: delivered }),
   listingId: id,
+  noQuantity: false,
   quantity,
 });
 
