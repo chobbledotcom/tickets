@@ -263,12 +263,23 @@ select `refunded_amount`. This pairs with §14: the merge *insert* copies
 `undefined` into the `NOT NULL` column. Read site (5c) and write site (§14) go
 together — do not land one without the other.
 
-### 5d. Anywhere else selecting `listing_attendees` per-line columns
+### 5d. `src/shared/db/attendees/atomic-update.ts` — `loadExistingLines`
+
+**Required.** `loadExistingLines` (used by the atomic add/edit attendee path)
+selects `listing_id, start_at, end_at, quantity, checked_in, refunded,
+price_paid, attachment_downloads` into `ListingAttendeeRow[]`. Once §4 adds
+`refunded_amount` to `ListingAttendeeRow`, this SELECT must include it too —
+otherwise the completed rows carry `refunded_amount === undefined`, breaking any
+edit-form summary/copy/compare logic that reads the full row shape.
+
+### 5e. Anywhere else selecting `listing_attendees` per-line columns
 
 Grep check: `rg "checked_in, refunded, price_paid"` and
 `rg "ea\\.refunded"` — update every explicit column list that already pulls
-`refunded`/`price_paid` to also pull `refunded_amount`. Known sites are 5a–5c;
-confirm none were missed.
+`refunded`/`price_paid` to also pull `refunded_amount`. Known sites are 5a–5d
+(`queries.ts` ×2, `attendees-edit.ts`, `attendees-merge.ts`,
+`atomic-update.ts`); re-run the grep at implementation time to confirm none
+were added since.
 
 ---
 
@@ -310,9 +321,14 @@ Notes:
 - No JSCPD concern: this is one helper, not duplicated logic. If the two
   branches trip the duplication check, fold them into one parameterised
   statement builder.
-- All existing callers (`attendee-refunds.ts` single + bulk,
-  `attendees-edit.ts` refresh) keep calling `markRefunded(id, listingId)`
-  unchanged and get `refunded_amount = price_paid` for free.
+- The **signature is backward-compatible** (the `amount` param is optional), but
+  whether callers *change* depends on the §2 option:
+  - **Option A (fallback):** callers keep `markRefunded(id, listingId)` and get
+    `refunded_amount = price_paid` for free.
+  - **Option B (provider amount, recommended):** the refund routes
+    (`attendee-refunds.ts` single + bulk, and the refresh path — see §10) **must
+    pass the amount**: `markRefunded(id, listingId, providerAmount)`. Do not
+    assume callers are unchanged under option B (the §20 DoD reflects this).
 
 ---
 
@@ -426,12 +442,12 @@ Optional but nice for the multi-line case (where the flattened
   the recommended source of truth.** The provider's refund response is the one
   number that is correct in all three cases — it is exactly the money returned.
 - Case 3 needs a **write-fan-out** fix independent of which amount we store: when
-  an order-level refund succeeds, mark **every** `listing_attendees` line that
-  shares that `payment_id`, not just the operator's line. See §10 (promoted from
-  "future" to a tracked decision). If option B is used, allocate the provider's
-  total across those lines (e.g. by `price_paid` weight, largest-remainder — the
-  codebase already has `allocateByLargestRemainder` in `checkout-pricing.ts`);
-  if option A, each line records its own `price_paid`.
+  an order-level refund succeeds, mark every line that payment covered, not just
+  the operator's line. **Scoping that fan-out correctly is the open question** —
+  attendee-level `payment_id` is insufficient because a merge can leave one
+  attendee holding lines from several payments (see §10b). It likely needs a new
+  per-line payment/order marker, or the smaller-scope "accept + document"
+  choice. See §10b for the options and recommendation.
 - If we ship option A first anyway (e.g. to avoid provider churn), the plan must
   **document `refunded_amount` as "ticket revenue refunded, fee-exclusive, and
   approximate for balance-paid reservations"** in the column comment, the admin
@@ -444,12 +460,20 @@ the explicit "ticket-only / approximate" labelling and a follow-up issue for B.
 
 ---
 
-## 9. Webhook auto-refund path (explicitly out of scope)
+## 9. Webhook auto-refund path
 
 `src/features/api/webhooks.ts:239` refunds *untrusted/invalid* checkout
 sessions that never become an attendee. There is no `listing_attendees` row, so
-there is nothing to set `refunded_amount` on. No change. Call this out in the
-PR description so it isn't mistaken for a gap.
+there is nothing to set `refunded_amount` on — **no amount-storage change here.**
+
+**But it is not fully out of scope under option B.** This caller uses the result
+as a boolean: `if (await provider.refundPayment(paymentReference)) { … }`. If
+§10a changes `refundPayment` to return an object, `{ ok: false }` is **truthy**,
+so a *failed* defensive refund would be logged/treated as a success. Therefore
+§10a must update **every** `refundPayment` caller — including this one — to
+inspect `.ok`. Listed here so it isn't missed; covered by the existing webhook
+refund tests (`server-webhooks.test.ts` has many `refundPayment` stubs whose
+return shape would need updating).
 
 (If we ever want to ledger those defensive refunds, that's a separate
 "refunds log" table, not this column.)
@@ -464,38 +488,84 @@ decision**, not a nice-to-have.
 
 ### 10a. Surface the provider amount (option B)
 
-Widen the provider interface so the real refunded amount reaches `markRefunded`:
+Widen the provider interface so the real refunded amount reaches `markRefunded`.
+This is **two layers**, not just the provider wrapper:
 
-- `PaymentProvider.refundPayment(ref): Promise<boolean>` →
-  `Promise<{ ok: boolean; amount?: number }>` (or `number | null`).
-- Stripe already has it: `s.refunds.create(...)` returns `Stripe.Refund.amount`
-  (`src/shared/stripe.ts`). Square's refund response carries `amount_money`.
-  SumUp returns boolean only → `amount` undefined → fall back to `price_paid`.
-- Refund routes pass the returned amount into
-  `markRefunded(id, listingId, amount)` (the optional param added in §6).
+1. **Interface + wrappers** — `PaymentProvider.refundPayment(ref):
+   Promise<boolean>` → `Promise<{ ok: boolean; amount?: number }>` (or
+   `number | null`). Update `stripe-provider.ts`, `square-provider.ts`,
+   `sumup-provider.ts`.
+2. **Lower API layers** (the easy-to-miss part):
+   - **Stripe** — `src/shared/stripe.ts:322` already returns `Stripe.Refund`
+     (carrying `.amount`), so only the provider wrapper needs to stop discarding
+     it. ✅ no lower-layer change.
+   - **Square** — `src/shared/square.ts:608` *computes* the refund amount
+     (`payment.amountMoney.amount`) but its `withClient` callback returns only
+     `true`, and the REST adapter (`refunds.refundPayment`, ~`:343`) returns
+     `{}`. **`square.ts` (and its tests) must be changed to return the amount**;
+     changing `square-provider.ts` alone leaves Square falling back to
+     `price_paid`.
+   - **SumUp** — returns boolean only → `amount` undefined → fall back to
+     `price_paid` (acceptable; documented).
+3. **All callers must read the new shape** (see also §9):
+   - `attendee-refunds.ts` single (`:101-112`) + bulk (`:160-163`) — branch on
+     `.ok`, pass `.amount` into `markRefunded(id, listingId, amount)`.
+   - `webhooks.ts:239` auto-refund — branch on `.ok` (no amount stored).
+4. **Refresh path needs the amount too (review #3).** `handleRefreshPayment`
+   does **not** call `refundPayment`; it calls `isPaymentRefunded(ref)` →
+   boolean, then `markRefunded`. For refunds made directly in Stripe/Square and
+   then refreshed in-app, widening only `refundPayment` still leaves this path on
+   the `price_paid` fallback. To record the provider's actual amount here,
+   `isPaymentRefunded` must also return the refunded amount (e.g.
+   `Promise<{ refunded: boolean; amount?: number }>` or a companion
+   `getRefundedAmount(ref)`), and `handleRefreshPayment` must pass it through.
+   This widens a second interface method across all three providers.
 
-Cost: touches all three providers (`stripe-provider.ts`, `square-provider.ts`,
-`sumup-provider.ts`) and many provider tests/stubs (~100 `refundPayment` stub
-sites in `test/`). The mechanical fix is to update each stub's return shape;
-budget for it.
+Cost: touches all three providers + two lower API layers + every
+`refundPayment`/`isPaymentRefunded` caller, and many provider tests/stubs (~100
+`refundPayment` stub sites in `test/`, plus `isPaymentRefunded` stubs). The
+mechanical fix is to update each stub's return shape; budget for it.
 
 ### 10b. Mark every line covered by the payment (case 3 from §8.5)
 
 `provider.refundPayment(payment_id)` refunds the **whole order**, so on success
-the routes must mark **all** of the attendee's `listing_attendees` lines that
-belong to that payment — not just the operator's line. Today there is no
-per-line payment reference (the `payment_id` is attendee-level in the pii_blob),
-so "lines covered by that payment" = all of that attendee's lines created by the
-original checkout. Concretely:
+the routes must mark all the lines that payment covered — not just the operator's
+line.
 
-- Single refund (`attendee-refunds.ts`) and refresh (`attendees-edit.ts`):
-  after a successful provider refund, mark every line for the attendee.
-- With option B, allocate the provider's returned total across those lines
-  (by `price_paid` weight, largest-remainder — reuse
-  `allocateByLargestRemainder`, `checkout-pricing.ts`); with option A, set each
-  line's `refunded_amount = price_paid`.
-- Alternatively (smaller, but a UX change) **disallow per-line refunds for
-  multi-line orders** and only offer an order-level "refund this order" action.
+**The naive predicate "mark all of the attendee's lines" is wrong (review #1).**
+The attendee↔payment relationship is not 1:1 after a merge: `applyAttendeeMerge`
+copies a *source* attendee's booking lines onto the *target* while keeping only
+the target's `payment_id` (`attendees-merge.ts:190-194`,
+`merge/attendee-merge.ts:405-420`). So a single attendee can hold lines paid by
+**different** (now-discarded) payments. Fanning out to "all attendee lines" would
+mark — and, under option B, allocate refund money to — lines whose payment was
+never refunded.
+
+There is currently **no per-line payment reference** (the `payment_id` lives
+attendee-level in the encrypted pii_blob), so the data needed to scope the
+fan-out correctly does not exist yet. Options, in rough order of correctness:
+
+- **(Best) Add a per-line payment/order marker.** Store the
+  payment reference (or an order/checkout id) on `listing_attendees` at creation,
+  so a refund can mark exactly the lines that share the refunded reference. This
+  is a second schema change — arguably the *right* foundation for refunds, but
+  larger scope; call it out as its own decision.
+- **Restrict refunds to order-level for un-merged attendees, and block/he-flag
+  refunds on merged attendees** until a per-line marker exists.
+- **Narrow predicate without new columns:** only fan out across lines that were
+  not brought in by a merge — but there's no reliable flag for that today, so
+  this is fragile and not recommended.
+- **Keep single-line marking** (status quo of the boolean `refunded`) and accept
+  the under-report, documented per §8.5 — the smallest scope, and honest if
+  paired with the "approximate" labelling.
+
+Allocation (when a marker exists and option B is used): split the provider's
+returned total across the covered lines by `price_paid` weight using
+`allocateByLargestRemainder` (`checkout-pricing.ts`); under option A each covered
+line records its own `price_paid`.
+
+**This is the one genuinely open design question in the feature** — it needs a
+decision (per-line marker vs. accept-and-document) before the fan-out is built.
 
 ### 10c. Partial refunds (future)
 
@@ -691,8 +761,8 @@ webhook attendee type + builder + `makeTestAttendee` factory + webhook docs
 | `src/features/admin/attendees-merge.ts` | **`loadAttendeeBookings` must SELECT `refunded_amount`** (§5c) | ✅ if merge carries it |
 | `src/shared/merge/attendee-merge.ts` | Carry `refunded_amount` on moved lines (insert) | ⭕ recommended (pairs with row above) |
 | `src/features/admin/attendees-csv.ts` + csv locale | Export column (label "ticket-only/approx" if option A — §8.5) | ⭕ recommended |
-| Provider interface (§10a) | Record provider's **actual** refunded amount | 🔶 recommended for correctness (§8.5) |
-| Refund routes (§10b) | Mark **all** lines of an order-level refund (multi-line fix) | 🔶 recommended for correctness (§8.5) |
+| Provider layer (§10a): `*-provider.ts` + `square.ts` lower layer + `isPaymentRefunded` + all `refundPayment` callers (incl. `webhooks.ts`) | Record provider's **actual** refunded amount | 🔶 recommended for correctness (§8.5) |
+| Refund routes + maybe per-line payment marker (§10b) | Fan out an order-level refund across covered lines — **open design question** | 🔶 decision required (§8.5/§10b) |
 | `src/features/admin/attendee-form-model.ts` + `attendee-form.tsx` | Per-line amount in bookings table | ⭕ optional |
 | `src/shared/columns/attendee-columns.ts` | Amount in list status badge | ⭕ optional |
 | `src/shared/webhook.ts` (+docs, factory) (§16) | Webhook payload | ⭕ future |
@@ -761,14 +831,23 @@ explicitly. ⭕ = scope choices.
 ## 20. Definition of done
 
 - [ ] Migration applies on a populated DB; `verify()` passes; `SCHEMA_HASH`
-      bumped; `LATEST_UPDATE` updated.
-- [ ] `markRefunded` sets `refunded_amount = price_paid` atomically and
-      idempotently; all existing callers unchanged.
-- [ ] `Attendee.refunded_amount` populated through every read path; type checks.
+      bumped; `LATEST_UPDATE` updated; legacy refunded rows backfilled (§18).
+- [ ] `markRefunded` sets `refunded` + `refunded_amount` atomically and
+      idempotently (copy semantics). **Under option B the refund routes pass the
+      provider amount** — callers change, the signature stays compatible (the
+      "unchanged callers" claim only holds for option A; see §6).
+- [ ] `Attendee.refunded_amount` populated through **every** read path (§5a–5e,
+      including `attendees-merge.ts` and `atomic-update.ts` loaders); type checks.
 - [ ] Amount shown in the admin payment details panel.
-- [ ] (Recommended) merge + CSV carry it.
+- [ ] (Recommended) merge loader+insert (§5c/§14) and CSV carry it.
+- [ ] **Amount source decided (§2/§8.5/§10):** option A (`price_paid`, with
+      "ticket-only/approximate" labelling) or option B (provider amount — widen
+      `refundPayment` *and* `isPaymentRefunded`, update Square's `square.ts`
+      lower layer, and all callers incl. `webhooks.ts` to read `.ok`).
+- [ ] **Multi-line fan-out decided (§10b):** per-line payment marker vs.
+      accept-and-document. (Open question — don't ship the fan-out without it.)
 - [ ] Tests added per §15; `deno task test:coverage` is 100% and deterministic;
       `deno task test:quality-audit` clean for new tests.
 - [ ] `deno task precommit` (typecheck, `lint:ci`, tests, `cpd` at 0%) passes.
-- [ ] PR notes the out-of-scope webhook auto-refund path (§9) and the deferred
-      provider-amount enhancement (§10).
+- [ ] PR notes the webhook auto-refund caller (§9, must read `.ok` under option
+      B) and records the §8.5/§10b decisions.
