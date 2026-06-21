@@ -644,6 +644,67 @@ describeWithEnv(
       );
     });
 
+    test("a paid parent's thank-you URL is carried into the checkout intent", async () => {
+      // The paid path folds a required paid child, making the order
+      // multi-listing; the webhook's single-listing thank-you derivation would
+      // drop the parent's URL, so it must be set explicitly on the intent
+      // (Codex 742). Capture the intent handed to the provider and assert it.
+      const { setupStripe } = await import("#test-utils");
+      const { stub } = await import("@std/testing/mock");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
+      await setupStripe();
+
+      const parent = await createTestListing({
+        maxAttendees: 50,
+        name: "Base unit",
+        thankYouUrl: "https://example.com/thanks-parent",
+        unitPrice: 1000,
+      });
+      const child = await createTestListing({
+        maxAttendees: 50,
+        name: "Add-on",
+        unitPrice: 1000,
+      });
+      await setChildIds(parent.id, [child.id]);
+
+      let capturedIntent:
+        | import("#shared/payments.ts").CheckoutIntent
+        | undefined;
+      const mockCreate = stub(
+        stripePaymentProvider,
+        "createCheckoutSession",
+        (intent: import("#shared/payments.ts").CheckoutIntent) => {
+          capturedIntent = intent;
+          return Promise.resolve({
+            checkoutUrl: "https://stripe.test/checkout",
+            sessionId: "cs_parent_paid",
+          });
+        },
+      );
+
+      try {
+        const res = await postBooking(parent.slug, {
+          email: "a@b.com",
+          name: "Ada",
+          [`quantity_${parent.id}`]: "1",
+        });
+        expect(res.status).toBe(302);
+        // The order folded the child (two distinct listings) yet still carries
+        // the parent's configured thank-you URL.
+        const listingIds = new Set(
+          capturedIntent?.items.map((i) => i.listingId),
+        );
+        expect(listingIds.size).toBe(2);
+        expect(capturedIntent?.thankYouUrl).toBe(
+          "https://example.com/thanks-parent",
+        );
+      } finally {
+        mockCreate.restore();
+      }
+    });
+
     test("an inactive child makes its parent sold out (rejected)", async () => {
       const parent = await createTestListing({ name: "Base unit" });
       const child = await createTestListing({ name: "Add-on" });
@@ -750,6 +811,65 @@ describeWithEnv(
       expect((await getAttendeesRaw(child.id)).length).toBe(1);
     });
 
+    test("a daily child full on one date still folds for a parent booking on another", async () => {
+      // A 1-capacity daily child is fully booked on day A. Its date-less
+      // `isSoldOut` aggregate reads true, but a parent booking on day B (where
+      // the child still has capacity) must fold the child fine — the date-less
+      // flag must not block a daily child (Codex 336). A booking on day A is
+      // still rejected, by the folded per-date availability check.
+      const { bookAttendee } = await import("#test-utils");
+      const { getBookableStartDates } = await import("#shared/dates.ts");
+      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
+      const { getListingWithCount } = await import("#shared/db/listings.ts");
+
+      const parent = await createDailyTestListing({
+        name: "Daily base",
+        thankYouUrl: "",
+      });
+      const child = await createDailyTestListing({
+        maxAttendees: 1,
+        name: "Daily add-on",
+        thankYouUrl: "",
+      });
+      await setChildIds(parent.id, [child.id]);
+
+      const childRow = (await getListingWithCount(child.id))!;
+      const dates = getBookableStartDates(childRow, await getActiveHolidays());
+      const [dayA, dayB] = [dates[0]!, dates[1]!];
+
+      // Fill the child's single spot on day A.
+      const booked = await bookAttendee(child, { date: dayA });
+      expect(booked.success).toBe(true);
+
+      // A parent booking on day B folds the child fine (it has day-B capacity).
+      const okRes = await postBooking(parent.slug, {
+        date: dayB,
+        email: "a@b.com",
+        name: "Ada",
+        [`quantity_${parent.id}`]: "1",
+      });
+      expectReserved(okRes);
+      const childOnB = (await getAttendeesRaw(child.id)).filter(
+        (r) => r.date === dayB,
+      );
+      expect(childOnB.length).toBe(1);
+
+      // A parent booking on day A is rejected — the child is genuinely full there.
+      const fullRes = await postBooking(parent.slug, {
+        date: dayA,
+        email: "b@c.com",
+        name: "Bea",
+        [`quantity_${parent.id}`]: "1",
+      });
+      expect(fullRes.status).toBe(302);
+      expectFlash(fullRes, undefined, false);
+      // The rejected day-A attempt added no parent row; only the day-B booking
+      // created one (its date confirms day A was never reserved for the parent).
+      const parentRows = await getAttendeesRaw(parent.id);
+      expect(parentRows.length).toBe(1);
+      expect(parentRows[0]?.date).toBe(dayB);
+    });
+
     test("a customisable child's option label shows the inherited day price, not its unit_price", async () => {
       // A fixed-duration (standard) parent inherits duration 1; the customisable
       // child's label must show its 1-day price (10.00), never its unit_price
@@ -792,6 +912,58 @@ describeWithEnv(
 
       const html = await ticketPageHtml(parent.slug);
       expect(html).toContain("Customisable add-on (from £15");
+    });
+
+    test("a 'from' price uses the parent∩child spans, not the child's lowest", async () => {
+      // The parent can only offer a 3-day span; the child is priced 1 day £10,
+      // 3 days £25. The label must show the price for a span the parent can
+      // actually book (£25), not the child's own cheapest span (£10) the parent
+      // can never select (Codex 398).
+      const parent = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 3: 5000 },
+        durationDays: 3,
+        name: "Three-day base",
+      });
+      const child = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 1000, 3: 2500 },
+        durationDays: 3,
+        maxPrice: 0,
+        name: "Customisable add-on",
+        unitPrice: 0,
+      });
+      await setChildIds(parent.id, [child.id]);
+
+      const html = await ticketPageHtml(parent.slug);
+      expect(html).toContain("Customisable add-on (from £25");
+      expect(html).not.toContain("Customisable add-on (from £10");
+    });
+
+    test("a 'from' price is omitted when parent and child spans don't overlap", async () => {
+      // The parent offers only a 3-day span; the child is priced only for 1 day.
+      // With no overlapping span the label omits the price entirely (the edge
+      // isn't bookable anyway).
+      const parent = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 3: 5000 },
+        durationDays: 3,
+        name: "Three-day base",
+      });
+      const child = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 1000 },
+        durationDays: 1,
+        maxPrice: 0,
+        name: "One-day add-on",
+        unitPrice: 0,
+      });
+      await setChildIds(parent.id, [child.id]);
+
+      const html = await ticketPageHtml(parent.slug);
+      expect(html).toContain("One-day add-on");
+      expect(html).not.toContain("One-day add-on (from");
+      expect(html).not.toContain("One-day add-on (£");
     });
 
     test("a customisable child unpriced for a fixed parent's duration shows no price", async () => {

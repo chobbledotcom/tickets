@@ -1151,6 +1151,70 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
       );
     });
 
+    test("a parent's thank-you URL survives a folded paid child (multi-listing)", async () => {
+      // A single parent with a configured thank_you_url folds a required paid
+      // child, so the completed booking has TWO unique listing ids. The default
+      // success rule drops thank_you_url for multi-listing orders; the explicit
+      // intent value (carried in the signed metadata) must still win (Codex 742).
+      const { stub } = await import("@std/testing/mock");
+      const { stripeApi } = await import("#shared/stripe.ts");
+
+      await setupStripe();
+
+      const parent = await createTestListing({
+        maxAttendees: 50,
+        name: "Base unit",
+        thankYouUrl: "https://example.com/thanks-parent",
+        unitPrice: 1000,
+      });
+      const child = await createTestListing({
+        maxAttendees: 50,
+        name: "Add-on",
+        unitPrice: 1000,
+      });
+
+      const items = JSON.stringify([
+        { e: parent.id, p: 1000, q: 1 },
+        { e: child.id, p: 1000, q: 1 },
+      ]);
+
+      await withMocks(
+        () =>
+          stub(stripeApi, "retrieveCheckoutSession", () =>
+            Promise.resolve({
+              amount_total: 2000,
+              id: "cs_parent_thanks",
+              metadata: signMeta(
+                {
+                  email: "john@example.com",
+                  items,
+                  name: "John",
+                  thank_you_url: "https://example.com/thanks-parent",
+                },
+                2000,
+              ),
+              payment_intent: "pi_parent_thanks",
+              payment_status: "paid",
+            } as unknown as Awaited<
+              ReturnType<typeof stripeApi.retrieveCheckoutSession>
+            >),
+          ),
+        async () => {
+          const response = await handleRequest(
+            mockRequest("/payment/success?session_id=cs_parent_thanks"),
+          );
+          // The explicit URL renders the success page directly with the parent's
+          // thank-you URL, even though two listings were booked.
+          await expectHtmlResponse(
+            response,
+            200,
+            "Thank you for your order",
+            "https://example.com/thanks-parent",
+          );
+        },
+      );
+    });
+
     test("handles replay of same session (idempotent)", async () => {
       const { stub } = await import("@std/testing/mock");
       const { stripeApi } = await import("#shared/stripe.ts");

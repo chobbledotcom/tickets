@@ -489,6 +489,7 @@ const extractIntent = (
     reservationAmount: metadata.reservation_amount || undefined,
     siteTokenIndex: metadata.site_token_index || undefined,
     special_instructions: metadata.special_instructions,
+    thankYouUrl: metadata.thank_you_url || undefined,
   };
 };
 
@@ -1138,6 +1139,25 @@ const processSessionAndRedirect = async (
     await clearSessionTokens(sessionId);
   }
 
+  // A parent booking carries an explicit thank-you URL through its signed
+  // metadata so folding a child (which makes the order multi-listing) doesn't
+  // drop the parent's configured redirect. The token-derive render keys off the
+  // booked listing ids, so it can't recover that URL once >1 listing is booked
+  // — render the success page directly here, where the verified intent still
+  // holds it, rather than redirecting to the token path that would lose it.
+  const explicitThankYou = validation.data.intent.thankYouUrl ?? "";
+  if (explicitThankYou && result.ticketTokens.length > 0) {
+    const fromEmail = await getFromEmailIfConfigured();
+    return htmlResponse(
+      successPage({
+        fromEmail,
+        paid: true,
+        thankYouUrl: explicitThankYou,
+        ticketUrl: `/t/${result.ticketTokens.join("+")}`,
+      }),
+    );
+  }
+
   // Redirect to success page with verified tokens in URL
   // encodeURIComponent preserves + as %2B so URLSearchParams.get() decodes it back correctly
   if (result.ticketTokens.length > 0) {
@@ -1148,11 +1168,12 @@ const processSessionAndRedirect = async (
     );
   }
 
-  // Already-processed session (no tokens available) - render directly. Resolve
-  // the listing lazily here (the only place a thank-you URL is needed) so the
-  // webhook path never loads it; a since-deleted listing simply yields no URL.
-  let thankYouUrl = "";
-  if (validation.data.intent.items.length === 1) {
+  // Already-processed session (no tokens available) - render directly. An
+  // explicit (parent) thank-you URL from the intent wins; otherwise resolve the
+  // listing lazily (the only place a thank-you URL is needed) so the webhook
+  // path never loads it; a since-deleted listing simply yields no URL.
+  let thankYouUrl = explicitThankYou;
+  if (!thankYouUrl && validation.data.intent.items.length === 1) {
     const listing = await getListing(result.listingId);
     thankYouUrl = listing?.thank_you_url ?? "";
   }

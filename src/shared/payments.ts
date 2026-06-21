@@ -88,6 +88,11 @@ export type BookingIntent = ContactInfo &
     /** Reservation amount snapshot — present when the items are deposit-priced,
      * so the webhook can re-derive the deposit and the remaining balance. */
     reservationAmount?: string;
+    /** Explicit thank-you redirect to prefer over the derive-from-single-listing
+     * rule. Set when a single parent (whose page had one listing) with a
+     * configured `thank_you_url` folds a child: the booking then has >1 unique
+     * listing id, so the success page would otherwise drop the parent's URL. */
+    thankYouUrl?: string;
   };
 
 /** Registration intent for checkout (one or more listings) */
@@ -114,6 +119,11 @@ export type CheckoutIntent = ContactInfo &
      * is charged the per-unit deposit instead of its full price, while metadata
      * still records the full price so the webhook can compute the balance owed. */
     reservationAmount?: string;
+    /** Explicit thank-you redirect carried through the paid round-trip, so a
+     * single parent's configured `thank_you_url` survives folding a child (which
+     * makes the booking multi-listing and would otherwise drop it). The success
+     * page prefers this over the single-unique-listing-id derivation. */
+    thankYouUrl?: string;
   };
 
 /** Result of creating a checkout session.
@@ -165,6 +175,9 @@ export type SessionMetadata = {
   reservation_amount: string;
   /** JSON array of applied modifier references ("" when none applied). */
   modifiers: string;
+  /** Explicit thank-you redirect a parent booking carries so a folded child
+   * doesn't drop it ("" when the default single-listing derivation applies). */
+  thank_you_url: string;
   /** The agreed order total (minor units) the buyer was charged, packed with a
    * server HMAC over the price/booking fields as `total.sig` in a single key —
    * one entry rather than two, to stay within providers' metadata-entry caps

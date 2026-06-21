@@ -379,14 +379,35 @@ const parentRenderDuration = (parent: ListingWithCount): number | null => {
     : 1;
 };
 
+/** The "from" price for a customisable child under a customisable parent: the
+ * minimum child day price over the spans the parent can ACTUALLY offer — the
+ * intersection of the parent's selectable day counts and the child's priced
+ * counts. Using the child's own lowest span ignores the parent's range, so a
+ * parent offering only {3} days with a child priced {1:£10, 3:£25} would
+ * advertise "from £10" while checkout (inheriting the 3-day span) charges £25
+ * (Codex 398). Returns null when the spans don't intersect (such an edge isn't
+ * bookable anyway), so the label is omitted. */
+const childFromPrice = (
+  child: ListingWithCount,
+  parent: ListingWithCount,
+): number | null => {
+  const childSpans = new Set(availableDayCounts(child));
+  const prices = availableDayCounts(parent)
+    .filter((n) => childSpans.has(n))
+    .map((n) => dayPriceFor(child, n))
+    .filter((p): p is number => p !== null);
+  return prices.length === 0 ? null : Math.min(...prices);
+};
+
 /** The price shown in a child option's label. A customisable child is priced by
  * the inherited duration (NOT its `unit_price`, which is 0 for a free-input
  * customisable listing and would advertise "free" while checkout charges the day
  * price): the fixed inherited day price under a fixed-duration parent, or "from
- * <min day price>" under a customisable parent (no single duration yet). A
- * fixed-price child shows its `unit_price` unchanged. The price is omitted when
- * the child has no price for the inherited/min span (defensive — admin blocks
- * such edges). */
+ * <min day price>" under a customisable parent (no single duration yet, so the
+ * minimum over the parent∩child spans). A fixed-price child shows its
+ * `unit_price` unchanged. The price is omitted when the child has no price for
+ * the inherited span / no overlapping span (defensive — admin blocks such
+ * edges). */
 const childPriceLabel = (
   child: ListingWithCount,
   parent: ListingWithCount,
@@ -395,17 +416,22 @@ const childPriceLabel = (
     return `(${formatCurrency(child.unit_price)})`;
   }
   const duration = parentRenderDuration(parent);
-  // A fixed-duration parent prices the child at the inherited duration; a
-  // customisable parent has no single duration, so use the child's lowest span.
-  // A valid customisable child always offers at least one count, so the lowest
-  // span exists; `dayPriceFor` returns null for any out-of-range span, which we
-  // render as no price (defensive — admin blocks an unpriced inherited span).
-  const span = duration ?? availableDayCounts(child)[0]!;
-  const price = dayPriceFor(child, span);
+  if (duration === null) {
+    // A customisable parent has no single duration yet, so price by the cheapest
+    // span the parent can actually offer (parent∩child counts), not the child's
+    // own lowest span which the parent may be unable to select.
+    const price = childFromPrice(child, parent);
+    if (price === null) return "";
+    return t("public.ticket.child_from_price", {
+      price: formatCurrency(price),
+    });
+  }
+  // A fixed-duration parent prices the child at the inherited duration.
+  // `dayPriceFor` returns null for any out-of-range span, rendered as no price
+  // (defensive — admin blocks an unpriced inherited span).
+  const price = dayPriceFor(child, duration);
   if (price === null) return "";
-  return duration === null
-    ? t("public.ticket.child_from_price", { price: formatCurrency(price) })
-    : `(${formatCurrency(price)})`;
+  return `(${formatCurrency(price)})`;
 };
 
 /** Render one child <option> as a radio in the per-parent selector, plus — when

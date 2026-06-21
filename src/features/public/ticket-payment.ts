@@ -341,6 +341,17 @@ const childDurationMatches = (
   return true;
 };
 
+/** The date-less `isSoldOut` aggregate ({@link buildTicketListing} computes it
+ * with NO submitted date) is only meaningful for a STANDARD child, whose
+ * capacity is cumulative and date-independent. For a DAILY child it is wrong:
+ * a 1-capacity daily child already booked on Monday reads `isSoldOut=true` and
+ * would be filtered out for a Tuesday parent booking it still has room for
+ * (Codex 336). A daily child's per-date capacity is instead enforced by its own
+ * calendar ({@link childDateIsBookable}) plus the folded `checkAvailability`
+ * (which rejects — never clamps — a truly full date). */
+const childNotSoldOut = (child: TicketListing): boolean =>
+  child.listing.listing_type === "daily" ? true : !child.isSoldOut;
+
 /** A child is bookable now if it is active, not sold out or closed, — when
  * customisable — its inherited duration is priced, — when a fixed daily child —
  * its own `duration_days` equals the inherited duration, and — when daily — the
@@ -352,7 +363,7 @@ const childIsBookable = (
   { duration, date, holidays }: ChildBookableCtx,
 ): boolean =>
   child.listing.active &&
-  !child.isSoldOut &&
+  childNotSoldOut(child) &&
   !child.isClosed &&
   (!child.listing.customisable_days ||
     dayPriceFor(child.listing, duration) !== null) &&
@@ -469,7 +480,13 @@ const foldChild = (
 ): string | null => {
   const childId = child.listing.id;
   const summed = (state.quantities.get(childId) ?? 0) + parentQty;
-  if (summed > child.maxPurchasable) {
+  // A DAILY child's `maxPurchasable` is the date-less aggregate cap, which reads
+  // 0 once the child is full on ANY single date — so it must NOT gate a booking
+  // on a different date with capacity (same date-less-aggregate trap as
+  // `isSoldOut`, Codex 336). Its per-date cap is enforced by the folded
+  // `checkAvailability` (rejected, never clamped). A STANDARD child's cap is
+  // cumulative and date-independent, so it stays authoritative here.
+  if (child.listing.listing_type !== "daily" && summed > child.maxPurchasable) {
     return formatAtomicError("capacity_exceeded", child.listing.name);
   }
   if (child.listing.customisable_days) {

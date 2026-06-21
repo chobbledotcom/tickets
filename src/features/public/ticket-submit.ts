@@ -739,6 +739,16 @@ const processSubmission = async (
   const finalRequiresPayment = paymentsEnabled && finalRequiresPaidFields;
 
   if (finalRequiresPayment) {
+    // Carry a single parent's configured thank-you URL through the paid round-trip.
+    // Folding a required child makes the booking multi-listing, so the webhook's
+    // single-unique-listing-id derivation would otherwise drop the parent's URL
+    // (parents.md fold checklist, thank-you item). Setting it explicitly on the
+    // intent lets the success page prefer it over that derivation. Only needed
+    // once a child was actually folded (the order gained a listing); a genuine
+    // single-listing order still resolves the same URL by the default rule.
+    if (thankYouUrl && foldedCtx.listings.length > ctx.listings.length) {
+      intent.thankYouUrl = thankYouUrl;
+    }
     return handlePaidPath(request, {
       ctx: foldedCtx,
       date,

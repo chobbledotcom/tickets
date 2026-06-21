@@ -250,6 +250,7 @@ type MetadataInput = Pick<BookingIntent, "name" | "email" | "items" | "date"> &
       | "balanceAttendeeId"
       | "reservationAmount"
       | "modifiers"
+      | "thankYouUrl"
     >
   >;
 
@@ -276,6 +277,7 @@ export const buildMetadata = (
   ...(intent.modifiers?.length
     ? { modifiers: JSON.stringify(intent.modifiers) }
     : {}),
+  ...(intent.thankYouUrl ? { thank_you_url: intent.thankYouUrl } : {}),
 });
 
 /**
@@ -491,5 +493,6 @@ export const extractSessionMetadata = (
     site_token_index: get("site_token_index"),
     special_instructions: get("special_instructions"),
     text_answer_ids: get("text_answer_ids"),
+    thank_you_url: get("thank_you_url"),
   };
 };

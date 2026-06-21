@@ -63,6 +63,21 @@ describe("payment-helpers", () => {
       expect(JSON.parse(extracted.modifiers)).toEqual([{ i: 7, q: 2 }]);
     });
 
+    test("buildMetadata carries an explicit thank-you URL and round-trips it", () => {
+      const metadata = buildMetadata({
+        date: null,
+        email: "a@example.com",
+        items: [{ e: 1, p: 1000, q: 1 }],
+        name: "Alice",
+        thankYouUrl: "https://example.com/thanks-parent",
+      });
+      expect(metadata.thank_you_url).toBe("https://example.com/thanks-parent");
+      expect(
+        extractSessionMetadata(metadata as unknown as SessionMetadata)
+          .thank_you_url,
+      ).toBe("https://example.com/thanks-parent");
+    });
+
     test("buildMetadata omits modifiers when none apply", () => {
       const metadata = buildMetadata({
         date: null,

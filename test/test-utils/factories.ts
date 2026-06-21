@@ -171,6 +171,7 @@ export const webhookMeta = (
   site_token_index: "",
   special_instructions: "",
   text_answer_ids: "",
+  thank_you_url: "",
   ...metadata,
 });
 
