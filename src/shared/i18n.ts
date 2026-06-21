@@ -7,7 +7,9 @@
 
 import { AsyncLocalStorage } from "node:async_hooks";
 import { IntlMessageFormat } from "intl-messageformat";
+import { lazyRef } from "#fp";
 import en from "#locales/en/index.ts";
+import { getEnv } from "#shared/env.ts";
 
 /** Message map: flat dot-namespaced keys → ICU message strings */
 type Messages = Record<string, string>;
@@ -40,12 +42,78 @@ const getFormat = (locale: string, key: string): IntlMessageFormat | null => {
   return fmt;
 };
 
+// --- Operator-configurable text replacements (I18N_REPLACEMENTS) ---
+
+/** Applies the configured substring replacements to a rendered value. */
+type Replacer = (value: string) => string;
+
+/** No replacements configured: hand the value straight back, zero overhead. */
+const identity: Replacer = (value) => value;
+
+/** Escape a literal for safe interpolation into a RegExp source. */
+const escapeRegExp = (s: string): string =>
+  s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** Capitalise the first character; the caller guarantees `s` is non-empty. */
+const titleCase = (s: string): string => s[0]!.toUpperCase() + s.slice(1);
+
+/**
+ * Build a replacer from an `I18N_REPLACEMENTS` spec like `"foo|bar,baz|bee"`.
+ *
+ * Matching is case-insensitive and by substring — `"foo|bar"` turns `"foobar"`
+ * into `"barbar"` — and the output copies the source's capitalisation. Real
+ * copy is only ever all-lowercase (`"foo"` → `"bar"`) or title-case (`"Foo"` →
+ * `"Bar"`), so the first character is enough to tell the two apart.
+ *
+ * All parsing and regex compilation happens once, here, so each render is a
+ * single regex pass — this code runs on a cold-booting edge runtime where
+ * per-render work matters.
+ */
+export const buildReplacer = (raw: string | undefined): Replacer => {
+  if (!raw) return identity;
+
+  const map = new Map<string, { lower: string; title: string }>();
+  for (const pair of raw.split(",")) {
+    const [from = "", to = ""] = pair.split("|");
+    const search = from.trim().toLowerCase();
+    const replace = to.trim().toLowerCase();
+    // Skip blanks/malformed pairs; first definition of a term wins.
+    if (!search || !replace || map.has(search)) continue;
+    map.set(search, { lower: replace, title: titleCase(replace) });
+  }
+  if (map.size === 0) return identity;
+
+  // Longest terms first so overlapping prefixes match maximally (e.g. a
+  // configured "foobar" wins over "foo" on the input "foobar").
+  const pattern = [...map.keys()]
+    .sort((a, b) => b.length - a.length)
+    .map(escapeRegExp)
+    .join("|");
+  const regex = new RegExp(pattern, "gi");
+
+  return (value) =>
+    value.replace(regex, (match) => {
+      const entry = map.get(match.toLowerCase())!;
+      const first = match[0]!;
+      return first === first.toLowerCase() ? entry.lower : entry.title;
+    });
+};
+
+/** Compiled replacer, built once from the env on first use (resettable in tests). */
+const [getReplacer, setI18nReplacerForTest] = lazyRef<Replacer>(() =>
+  buildReplacer(getEnv("I18N_REPLACEMENTS")),
+);
+
+export { setI18nReplacerForTest };
+
 /** Translate a key with optional ICU MessageFormat parameters */
 export const t = (key: string, values?: Record<string, unknown>): string => {
   const locale = getLocale();
   const fmt = getFormat(locale, key);
+  // Missing translation falls back to the key path itself — never run
+  // replacements over that, only over genuinely rendered values.
   if (!fmt) return key;
-  return String(fmt.format(values));
+  return getReplacer()(String(fmt.format(values)));
 };
 
 // --- Request-scoped locale via AsyncLocalStorage ---
