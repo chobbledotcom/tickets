@@ -258,8 +258,14 @@ export const balanceFinalizeStatement = (
   attendeeId: number,
   expectedAmount: number,
 ): { sql: string; args: InValue[] } => ({
-  args: [attendeeId, sessionId, attendeeId, expectedAmount],
-  sql: "UPDATE processed_payments SET attendee_id = ?, ticket_tokens = '' WHERE payment_session_id = ? AND (SELECT remaining_balance FROM attendees WHERE id = ?) = ?",
+  // Conditional on a real (quantity > 0) line as well as the balance: if the
+  // last real line is marked no-quantity in the race window before the balance
+  // is cleared, the settle's fold/clear affect 0 rows (amount_mismatch). Without
+  // this EXISTS the finalize would still run — marking the session resolved with
+  // no income recorded, so the failure couldn't be logged and replays would look
+  // like a successful balance payment. Atomic with the settle (same batch).
+  args: [attendeeId, sessionId, attendeeId, expectedAmount, attendeeId],
+  sql: "UPDATE processed_payments SET attendee_id = ?, ticket_tokens = '' WHERE payment_session_id = ? AND (SELECT remaining_balance FROM attendees WHERE id = ?) = ? AND EXISTS (SELECT 1 FROM listing_attendees WHERE attendee_id = ? AND quantity > 0)",
 });
 
 /**

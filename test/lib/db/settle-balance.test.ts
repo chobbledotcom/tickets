@@ -14,6 +14,11 @@ import {
 import { createAttendeeAtomic } from "#shared/db/attendees.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
+  balanceFinalizeStatement,
+  isSessionProcessed,
+  reserveSession,
+} from "#shared/db/processed-payments.ts";
+import {
   enableQueryLog,
   getQueryLog,
   runWithQueryLogContext,
@@ -142,6 +147,27 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     // settle must abort rather than clear the balance with no income recorded.
     const result = await settleAttendeeBalance(attendeeId, 900);
     expect(result).toEqual({ reason: "amount_mismatch", settled: false });
+  });
+
+  test("does not finalize the session when no real line exists", async () => {
+    await getDb().execute(
+      "INSERT INTO attendees (created, pii_blob, remaining_balance) VALUES ('2024-01-01T00:00:00Z', '', 900)",
+    );
+    const { rows } = await getDb().execute(
+      "SELECT id FROM attendees ORDER BY id DESC LIMIT 1",
+    );
+    const attendeeId = Number(rows[0]!.id);
+    await reserveSession("sess_no_real_line");
+
+    // The finalize statement runs in the settle batch, but is now conditional on
+    // a real line — so a no-real-line attendee's session must stay unresolved,
+    // letting the caller record the failure instead of looking settled.
+    const result = await settleAttendeeBalance(attendeeId, 900, [
+      balanceFinalizeStatement("sess_no_real_line", attendeeId, 900),
+    ]);
+    expect(result.settled).toBe(false);
+    const session = await isSessionProcessed("sess_no_real_line");
+    expect(session?.attendee_id ?? null).toBeNull();
   });
 
   test("order summary is empty for an attendee with no bookings", async () => {
