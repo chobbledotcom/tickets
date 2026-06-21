@@ -40,7 +40,8 @@ export const loginResponse = async (
 ): Promise<Response> => {
   const flash = applyFlash(request);
   await signCsrfToken();
-  return htmlResponse(adminLoginPage(flash.error, flash.success), status);
+  // success (e.g. "Logged out") is rendered by the Layout backstop from context.
+  return htmlResponse(adminLoginPage(flash.error), status);
 };
 
 /** Maximum number of newest attendees to show on dashboard */
