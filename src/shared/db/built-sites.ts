@@ -362,6 +362,24 @@ export const getAssignableBuiltSites = async (): Promise<BuiltSite[]> => {
   return all.filter((s) => s.assignable);
 };
 
+/**
+ * True when a built site is currently assigned to this exact (attendee, listing)
+ * booking. Used to forbid marking an assigned built-site line no-quantity: the
+ * assignment (and the live public /renew/ path that resolves the site token with
+ * no listing_attendees check) would otherwise survive behind a hidden line.
+ */
+export const hasAssignedBuiltSite = async (
+  attendeeId: number,
+  listingId: number,
+): Promise<boolean> => {
+  const row = await queryOne<{ present: number }>(
+    `SELECT 1 AS present FROM built_sites
+     WHERE assigned_attendee_id = ? AND assigned_listing_id = ? LIMIT 1`,
+    [attendeeId, listingId],
+  );
+  return row !== null;
+};
+
 const withBuiltSiteForUpdate = async <T>(
   siteId: number,
   update: (existing: BuiltSite) => Promise<T>,

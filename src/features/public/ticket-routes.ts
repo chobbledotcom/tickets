@@ -4,13 +4,13 @@
 
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
+import { verifyTokensWithRealLine } from "#routes/tickets/token-utils.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import {
   computeGroupSlugIndex,
   getGroupBySlugIndex,
 } from "#shared/db/groups.ts";
 import { getListingWithCountBySlug } from "#shared/db/listings.ts";
-import { verifyTokensWithRealLine } from "#routes/tickets/token-utils.ts";
 import { getEmailConfig, getHostEmailConfig } from "#shared/email.ts";
 import { generateQrSvg } from "#shared/qr.ts";
 import { successPage } from "#templates/payment.tsx";

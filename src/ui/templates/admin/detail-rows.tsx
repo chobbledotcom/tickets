@@ -54,8 +54,13 @@ type CheckedInStats = {
   hasMultiQuantity: boolean;
 };
 
-/** Compute checked-in stats from an attendee list */
-const getCheckedInStats = (attendees: Attendee[]): CheckedInStats => {
+/** Compute checked-in stats from an attendee list. Only real (quantity > 0)
+ * lines count: a no-quantity sentinel row isn't a ticket, so it must not inflate
+ * rowsTotal/remaining or force a spurious multi-quantity split (one real + one
+ * ghost would otherwise read as 1 ticket across 2 rows). The ghost still shows
+ * in the unfiltered admin roster. */
+const getCheckedInStats = (allAttendees: Attendee[]): CheckedInStats => {
+  const attendees = allAttendees.filter((a) => a.quantity > 0);
   const ticketsTotal = sumQuantity(attendees);
   return {
     hasMultiQuantity: ticketsTotal !== attendees.length,

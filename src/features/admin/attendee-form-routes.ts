@@ -22,6 +22,7 @@ import {
   attendeeBalanceNotice,
   attendeeBookingsFromLines,
   isBookedLine,
+  isNoQuantityLine,
   type ParsedAttendeeForm,
   parseAttendeeForm,
   resolveSharedDates,
@@ -63,6 +64,7 @@ import {
   loadExistingLines,
   updateAttendeeOrder,
 } from "#shared/db/attendees.ts";
+import { hasAssignedBuiltSite } from "#shared/db/built-sites.ts";
 import {
   getContactRecord,
   getRepairFallbackRecord,
@@ -691,6 +693,33 @@ type SaveOutcome =
 /** Shown when a submission has no booked listing. */
 const NO_LINES_ERROR = "Book at least one listing before saving";
 
+/** Shown when a no-quantity tick targets a line that still holds a built site. */
+const BUILT_SITE_NO_QTY_ERROR =
+  "Unassign the built site from this booking before marking it no quantity.";
+
+/**
+ * Forbid marking a built-site line no-quantity while its site is still assigned:
+ * the assignment + the live public /renew/ path would otherwise survive behind a
+ * hidden line (no release path exists on this save). Returns true when any
+ * no-quantity line still holds an assigned built site for this attendee.
+ */
+const hasBlockedBuiltSiteNoQuantity = async (
+  attendeeId: number,
+  lines: AttendeeFormLine[],
+): Promise<boolean> => {
+  for (const line of lines) {
+    if (
+      isNoQuantityLine(line) &&
+      line.existingBooking &&
+      line.listing?.assign_built_site &&
+      (await hasAssignedBuiltSite(attendeeId, line.listingId))
+    ) {
+      return true;
+    }
+  }
+  return false;
+};
+
 /** Shown when capacity can't fit the submitted lines. */
 const CAPACITY_SAVE_ERROR =
   "Not enough spots available for one or more selected listings — nothing was saved. Please review the quantities and try again.";
@@ -780,6 +809,11 @@ const applyEdit = async (
   answers: import("#shared/db/questions.ts").AttendeeAnswerSet,
   logisticsPlan: LogisticsPlan,
 ): Promise<SaveOutcome> => {
+  // Block marking an assigned built-site line no-quantity (no release path here).
+  if (await hasBlockedBuiltSiteNoQuantity(attendeeId, parsed.lines)) {
+    return { flashError: BUILT_SITE_NO_QTY_ERROR, ok: false };
+  }
+
   const encryptedPiiBlob = (await encryptPiiBlob(
     buildPiiBlob({
       address: parsed.address,

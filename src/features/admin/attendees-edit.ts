@@ -49,7 +49,9 @@ const loadRefreshContext = async (
   if (!attendeeRaw) return null;
   const attendee = (await decryptAttendeeOrNull(attendeeRaw, pk))!;
   const bookings = await queryAll<ListingAttendeeRow>(
-    "SELECT listing_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads FROM listing_attendees WHERE attendee_id = ? ORDER BY start_at, listing_id LIMIT 1",
+    // quantity > 0: refresh-payment refunds the picked row's (attendee, listing)
+    // pair, so it must target a real line — never a lower-id no-quantity ghost.
+    "SELECT listing_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads FROM listing_attendees WHERE attendee_id = ? AND quantity > 0 ORDER BY start_at, listing_id LIMIT 1",
     [attendeeId],
   );
   const firstListingId = bookings[0]?.listing_id ?? attendee.listing_id;

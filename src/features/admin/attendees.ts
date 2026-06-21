@@ -12,6 +12,7 @@ import { logActivity } from "#shared/db/activityLog.ts";
 import {
   createAttendeeAtomic,
   deleteAttendee,
+  hasActiveBookingLine,
   updateCheckedIn,
 } from "#shared/db/attendees.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
@@ -135,6 +136,16 @@ const handleDeleteIncomplete = attendeeFormAction(
 /** Handle POST /admin/listing/:listingId/attendee/:attendeeId/checkin */
 const handleAttendeeCheckin = attendeeFormAction(
   async (data, _session, form, listingId, attendeeId) => {
+    // Refuse on a no-quantity ghost row (checked against the exact (attendee,
+    // listing) pair, since data.attendee is an arbitrary left-joined sibling) —
+    // updateCheckedIn would no-op anyway, but this keeps the message honest.
+    if (!(await hasActiveBookingLine(attendeeId, listingId))) {
+      return redirect(
+        form.getString("return_url") || `/admin/listing/${listingId}`,
+        "Cannot check in a no-quantity line",
+        false,
+      );
+    }
     const wasCheckedIn = data.attendee.checked_in;
     const nowCheckedIn = !wasCheckedIn;
 
@@ -273,7 +284,18 @@ const handleAdminResendNotificationGet = attendeePageRoute(
 const handleResendNotification = verifiedAttendeeForm(
   "resend-notification",
   undefined,
-  async (data, form, listingId, _attendeeId) => {
+  async (data, form, listingId, attendeeId) => {
+    // Refuse on a no-quantity ghost row: this listing-scoped route builds the
+    // customer email/webhook from the supplied listing, so it must not fire for
+    // a non-booking (nor retarget to a real line on another listing).
+    if (!(await hasActiveBookingLine(attendeeId, listingId))) {
+      return redirect(
+        `/admin/listing/${listingId}`,
+        "Cannot re-send a notification for a no-quantity line",
+        false,
+        { form },
+      );
+    }
     await Promise.all([
       logAndNotifyRegistration([
         { attendee: data.attendee, listing: data.listing },

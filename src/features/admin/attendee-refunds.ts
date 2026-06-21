@@ -14,7 +14,7 @@ import { applyFlash } from "#routes/csrf.ts";
 import { errorRedirect, htmlResponse } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { markRefunded } from "#shared/db/attendees.ts";
+import { hasActiveBookingLine, markRefunded } from "#shared/db/attendees.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { getActivePaymentProvider } from "#shared/payments.ts";
@@ -48,9 +48,24 @@ const refundError = (
 
 /** Handle GET /admin/listing/:listingId/attendee/:attendeeId/refund */
 const handleAdminAttendeeRefundGet = attendeeGetRoute(
-  (data, session, request) => {
+  async (data, session, request) => {
     applyFlash(request);
     const returnUrl = getReturnUrl(request);
+    // Guard against the EXACT (attendee, listing) row, not the loaded attendee's
+    // arbitrary left-joined sibling row: hide the refund on a no-quantity ghost
+    // row (a listing-scoped refund must not retarget a charge to another
+    // listing). data.listing is the invoking listing.
+    if (!(await hasActiveBookingLine(data.attendee.id, data.listing.id))) {
+      return htmlResponse(
+        adminRefundAttendeePage(
+          data,
+          session,
+          t("error.no_payment_to_refund"),
+          returnUrl,
+        ),
+        400,
+      );
+    }
     if (!data.attendee.payment_id) {
       return htmlResponse(
         adminRefundAttendeePage(
@@ -84,6 +99,16 @@ const handleAttendeeRefund = verifiedAttendeeForm(
   "refund",
   "refund",
   async (data, _form, listingId, attendeeId) => {
+    // Refuse a refund on a no-quantity ghost row (checked against the exact
+    // (attendee, listing) pair) rather than refunding the shared payment from a
+    // listing the charge doesn't belong to.
+    if (!(await hasActiveBookingLine(attendeeId, listingId))) {
+      return refundError(
+        listingId,
+        attendeeId,
+        t("error.no_payment_to_refund"),
+      );
+    }
     if (!data.attendee.payment_id) {
       return refundError(
         listingId,
@@ -117,9 +142,11 @@ const handleAttendeeRefund = verifiedAttendeeForm(
   },
 );
 
-/** Filter attendees that have a payment_id and are not yet refunded */
+/** Filter attendees refundable on this listing: a payment, not yet refunded,
+ * and a real (quantity > 0) line — a no-quantity ghost row on this listing isn't
+ * refundable (its roster row carries this listing's quantity). */
 const getRefundable = filter(
-  (a: Attendee) => a.payment_id !== "" && !a.refunded,
+  (a: Attendee) => a.payment_id !== "" && !a.refunded && a.quantity > 0,
 );
 
 /** Handle GET /admin/listing/:id/refund-all */

@@ -220,6 +220,11 @@ const CheckinButton = ({
 const createStatusRenderer =
   (opts: AttendeeTableOptions) =>
   (row: AttendeeTableRow): string => {
+    // A no-quantity sentinel row stays visible but isn't checkable — show the
+    // indicator instead of a check-in button (updateCheckedIn refuses it).
+    if (row.attendee.quantity === 0) {
+      return String(<span class="muted small">No quantity</span>);
+    }
     if (row.attendee.refunded) {
       return String(
         <span class="badge-alert">

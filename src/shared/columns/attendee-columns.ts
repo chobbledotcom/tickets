@@ -156,8 +156,14 @@ const qty: AttendeeCol = {
 };
 
 const ticket: AttendeeCol = {
+  // A no-quantity sentinel row has no live customer ticket: /t renders the
+  // attendee's OTHER real bookings (or 404s for an all-ghost attendee), so a
+  // link here would let staff copy a customer-facing URL that doesn't match this
+  // row's cancelled/interested listing. Show the indicator instead.
   cell: (row, opts) =>
-    `<a href="https://${opts.allowedDomain}/t/${row.attendee.ticket_token}">${row.attendee.ticket_token}</a>`,
+    row.attendee.quantity === 0
+      ? `<span class="muted small">No quantity</span>`
+      : `<a href="https://${opts.allowedDomain}/t/${row.attendee.ticket_token}">${row.attendee.ticket_token}</a>`,
   description: "Clickable ticket token link",
   isHtml: true,
   label: "Ticket",
