@@ -522,14 +522,19 @@ When the booking page renders a listing that has children, render each child as 
   drop, say, day 1 supported only by child A and day 2 only by child B). Then
   **disable/reject each child for submitted spans it doesn't support**, and validate
   the selected child's span at submit.
-- **Quantity cap: union/max before selection, selected child at/after.** Since child
-  quantity follows the parent (and a single child auto-selects), the parent quantity
-  control (driving `parseQuantities` off `TicketListing.maxPurchasable`) must reflect
-  child capacity — but with **multiple** children and no selection yet, cap by the
-  **max** remaining across currently-selectable children, **not** the lowest (don't
-  block a valid high-capacity sibling: child A 1 spot, child B 10 → offer up to 10).
-  Then **re-cap/validate against the *selected* child** (JS-toggle as it's chosen;
-  enforce at submit). For a single auto-selected child, cap directly by that child.
+- **Quantity cap: union/max before selection, selected child at/after — using
+  *combined* demand.** Since child quantity follows the parent (and a single child
+  auto-selects), the parent quantity control (driving `parseQuantities` off
+  `TicketListing.maxPurchasable`) must reflect child capacity. Each candidate child's
+  contribution to the cap must be computed from the **combined parent+child folded
+  demand**, not the child's remaining spots in isolation: if parent and child share a
+  **capped group** with one spot left, the child shows one remaining but the folded
+  booking consumes **two** group spots, so that candidate's cap is 0. With
+  **multiple** children and no selection yet, cap by the **max** of those
+  combined-demand caps across currently-selectable children (don't block a valid
+  high-capacity sibling). Then **re-cap/validate against the *selected* child** (JS
+  toggle as it's chosen; enforce at submit). For a single auto-selected child, cap
+  directly by its combined-demand availability.
 - **Child questions** must be merged into `questionListingMap` with the **correct
   shape**: it is `Map<questionId, listingId[]>` (`questions.ts:361`), read by
   `prepareOrder` as `ctx.questionListingMap.get(q.id)` — *keyed by question id*, not
@@ -1000,7 +1005,12 @@ Enumerate each and decide:
   sold out/closed would still create a checkout and **charge the buyer** before the
   later all-or-nothing save fails/refunds. With the single-child auto-select, the
   common one-parent-one-child quick-buy **can still skip to checkout** — *but only
-  when the auto-selected child is itself direct-checkout-safe*: no required contact
+  when **both** the parent **and** the auto-selected child are
+  direct-checkout-safe*. The parent must still satisfy the **existing**
+  direct-checkout preconditions (no required questions/contact fields of its own —
+  `skipToCheckout` bypasses `prepareOrder` and builds blank contact/answer metadata,
+  so a parent with required inputs must use the form regardless of the child), and
+  the child must add no new requirement: no required contact
   fields/questions, not `can_pay_more`, **and has a resolved inherited duration that
   the QR intent can carry**. A `customisable_days` child does **not** force a
   fallback by itself: under a **fixed-duration parent** (standard = 1 day, fixed
