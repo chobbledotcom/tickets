@@ -471,6 +471,7 @@ const READ_ONLY_POST_PATTERNS = [
   /^\/ticket\//,
   /^\/admin\/listing$/,
   /^\/admin\/listing\/\d+\/edit$/,
+  /^\/admin\/listing\/\d+\/children$/,
   /^\/admin\/groups$/,
   /^\/admin\/groups\/\d+\/edit$/,
   /^\/admin\/groups\/\d+\/add-listings$/,

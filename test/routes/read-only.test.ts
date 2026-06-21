@@ -148,6 +148,18 @@ describeWithEnv(
       expect(res.headers.get("location")).toBe("/read-only");
     });
 
+    test("POST /admin/listing/42/children redirects to /read-only", async () => {
+      const res = await handleRequest(
+        mockRequest("/admin/listing/42/children", {
+          body: "child_listing_ids=1",
+          headers: { "content-type": "application/x-www-form-urlencoded" },
+          method: "POST",
+        }),
+      );
+      expect(res.status).toBe(302);
+      expect(res.headers.get("location")).toBe("/read-only");
+    });
+
     test("POST /admin/groups redirects to /read-only", async () => {
       const res = await handleRequest(
         mockRequest("/admin/groups", {

@@ -263,17 +263,24 @@ Stores the directed edge **child → parent** (the child names its parents):
 
 ```
 listing_parents(
-  listing_id  INTEGER NOT NULL,   -- the CHILD
-  parent_id   INTEGER NOT NULL,   -- the PARENT (another listing)
+  parent_listing_id  INTEGER NOT NULL,   -- the PARENT (another listing)
+  child_listing_id   INTEGER NOT NULL,   -- the CHILD
 )
-  UNIQUE INDEX idx_listing_parents_pair   (listing_id, parent_id)
-  INDEX        idx_listing_parents_parent (parent_id)   -- parent → children (hot path)
-  INDEX        idx_listing_parents_child  (listing_id)  -- child  → parents  (edit page)
+  UNIQUE INDEX idx_listing_parents_pair  (parent_listing_id, child_listing_id)
+  INDEX        idx_listing_parents_child (child_listing_id)  -- child → parents
 ```
 
+> **Shipped schema (commit `67ad15e`).** Columns are `parent_listing_id` /
+> `child_listing_id`. There is no separate parent-side index: the unique pair
+> index `(parent_listing_id, child_listing_id)` already serves the hot
+> parent→children lookup via its leading column, so only the reverse
+> child→parents index is added (mirroring `modifier_listings`). Booking-gate SQL
+> must use these exact names and rely on the pair index for parent→children.
+
 - No FKs, matching house style (`schema.ts` note on `listing_attendees`).
-- The `parent_id` index is the one the checkout gate hits most (given a listing in
-  the cart, find its children).
+- The unique pair index's leading `parent_listing_id` serves the checkout gate's
+  hot path (given a listing in the cart, find its children); the child index
+  serves the reverse lookup (edit page / "offered under").
 - **A SCHEMA addition alone is not enough for existing databases.** Adding the
   table to `SCHEMA` (`src/shared/db/migrations/schema.ts`) makes *fresh* databases
   correct, but the migration runner refuses a SCHEMA-only change: if the live
@@ -1263,6 +1270,7 @@ Enumerate each and decide:
 | 4 | Booking-page render: surface children under parents in `TicketCtx` (per-parent child selector + child questions/pay-more price; quantity follows the parent; date/duration inherited — no per-child date controls); no-JS baseline incl. CSS-only reveal. |
 | 5 | Server-side gate in `prepareOrder`: validate (child required only for in-cart parents; `child_*` fields for zero-quantity parents are **ignored**, not rejected; invalid input rejected only for in-cart parents) + expand the listing set and fold children (feeding **every** per-listing path in the fold checklist). **Child slugs in any ticket URL are rejected** (a booking can't start from a child — Open Question 13 is resolved, so this is unconditional, not a count-the-in-cart-line option). **Plus the API + QR decisions (close those bypass paths).** Free + paid + webhook + `/calculate` all exercised. |
 | 6 | Progressive-enhancement JS: reveal/require child blocks on parent qty > 0; include in live quote. |
+| 6b | **Duplicate flows copy/remap edges** (`buildDuplicateListingInput` + group duplication clone only the listing row today, so a duplicated parent/child silently loses its gate). Must land **before the flag is lifted** — it's part of the gated set, not deferred. |
 | 7 | Admin-manual-add / attendee-edit behaviour; docs + operator-facing help text. |
 
 Steps 1–2 are behaviour-preserving. **Parent configuration must not be exposed to
@@ -1283,7 +1291,10 @@ gallery, admin multi-booking link builder, and per-listing share/QR generators a
 currently publish `/ticket/<child>` URLs that the new child-slug rejection turns
 into dead ends. Their child suppression/rewrite (and the parent child-derived
 sold-out state) must therefore be **inside the release gate** too, landing before
-the flag is lifted — not deferred past it.
+the flag is lifted — not deferred past it. **Duplicate flows (step 6b) are part of
+this gated set as well:** duplicating a configured parent/child must copy/remap the
+`listing_parents` edges before the flag is lifted, or a duplicated parent ships
+without its required-child gate.
 
 ---
 
