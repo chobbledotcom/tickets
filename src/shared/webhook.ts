@@ -41,6 +41,10 @@ export type WebhookTicket = {
 export type WebhookPayload = ContactInfo & {
   notification_type: "registration.completed";
   price_paid: number | null;
+  /** Outstanding order balance still owed, in minor units. 0 when fully paid;
+   * positive when a booking was taken without collecting payment (e.g. no
+   * payment provider is configured), so integrations see the amount to collect. */
+  amount_owed: number;
   currency: string;
   payment_id: string | null;
   ticket_url: string;
@@ -70,6 +74,9 @@ export type WebhookAttendee = ContactInfo & {
   quantity: number;
   payment_id: string;
   price_paid: string;
+  /** Order-level outstanding balance in minor units; 0 when fully paid. Shared
+   * across every booking on the order (it is an attendee-level figure). */
+  remaining_balance: number;
   ticket_token: string;
   date: string | null;
   /** Exclusive end of the booked range (YYYY-MM-DD), or null for date-less
@@ -98,6 +105,9 @@ export const buildWebhookPayload = (
   const hasPaidListing = entries.some(({ listing }) => isPaidListing(listing));
   return {
     address: first.attendee.address,
+    // Order-level balance — the same on every entry, so read it from the first
+    // rather than summing (summing would multiply it per booking line).
+    amount_owed: first.attendee.remaining_balance,
     business_email: settings.businessEmail,
     currency,
     email: first.attendee.email,

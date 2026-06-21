@@ -77,6 +77,10 @@ export type TemplateData = {
   attendee: TemplateEntry["attendee"];
   ticket_url: string;
   currency: string;
+  /** Order-level outstanding balance in minor units (as a string, for the
+   * `currency` filter); "0" when nothing is owed. Positive when a booking was
+   * taken without collecting payment (e.g. no payment provider configured). */
+  amount_owed: string;
 };
 
 /** Build the data object exposed to Liquid templates */
@@ -118,6 +122,9 @@ export const buildTemplateData = (
   )(entries);
 
   return {
+    // remaining_balance is order-level (identical on every entry), so read it
+    // from the first booking rather than summing across listings.
+    amount_owed: String(entries[0]!.attendee.remaining_balance),
     attendee: templateEntries[0]!.attendee,
     currency,
     entries: templateEntries,

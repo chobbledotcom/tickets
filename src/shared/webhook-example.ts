@@ -27,6 +27,7 @@ export const EXAMPLE_ATTENDEE = {
   phone: "+44 7700 900000",
   price_paid: "3000",
   quantity: 2,
+  remaining_balance: 0,
   special_instructions: "Wheelchair access needed",
   ticket_token: "A1B2C3D4E5",
 } as const;
@@ -38,6 +39,7 @@ export const EXAMPLE_BUSINESS_EMAIL = "hello@example.com";
 /** The example payload, matching what buildWebhookPayload would produce */
 export const WEBHOOK_EXAMPLE_PAYLOAD: WebhookPayload = {
   address: EXAMPLE_ATTENDEE.address,
+  amount_owed: EXAMPLE_ATTENDEE.remaining_balance,
   business_email: EXAMPLE_BUSINESS_EMAIL,
   currency: EXAMPLE_CURRENCY,
   email: EXAMPLE_ATTENDEE.email,

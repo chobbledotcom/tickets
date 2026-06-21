@@ -48,6 +48,7 @@ type BookResponseBody = {
     ticketToken?: string;
     ticketUrl?: string;
     checkoutUrl?: string;
+    amountOwed?: number;
   };
 };
 
@@ -575,6 +576,8 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
       expect(response.status).toBe(200);
       const token = body.booking?.ticketToken;
       expect(token).toBeDefined();
+      // The response surfaces the owed amount so integrations can collect it.
+      expect(body.booking?.amountOwed).toBe(1000);
 
       const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
       const [attendee] = await getAttendeesByTokens([token!]);

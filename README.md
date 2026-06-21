@@ -135,6 +135,7 @@ For image uploads, also add `STORAGE_ZONE_NAME` and `STORAGE_ZONE_KEY` as Bunny 
 ```json
 {
   "address": "42 Oak Lane, Bristol, BS1 1AA",
+  "amount_owed": 0,
   "business_email": "hello@example.com",
   "currency": "GBP",
   "email": "alice@example.com",
