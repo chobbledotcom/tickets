@@ -521,7 +521,10 @@ When the booking page renders a listing that has children, render each child as 
   intersection of all children or a filter against one current child (which would
   drop, say, day 1 supported only by child A and day 2 only by child B). Then
   **disable/reject each child for submitted spans it doesn't support**, and validate
-  the selected child's span at submit.
+  the selected child's span at submit. **As with the date rule, only constrain the
+  shared selector by a parent's child-union when that parent has positive
+  quantity** — on a group/multi-listing page an *unselected* parent must not remove
+  valid spans for the listing the buyer is actually booking.
 - **Quantity cap: union/max before selection, selected child at/after — using
   *combined* demand.** Since child quantity follows the parent (and a single child
   auto-selects), the parent quantity control (driving `parseQuantities` off
@@ -966,7 +969,13 @@ Enumerate each and decide:
     POST then rejects it). Either compute `availableDates` for a parent from the same
     **parent ∩ child-union** availability the web form uses, or mark it explicitly
     parent-only and direct clients to the availability endpoint for the real
-    bookable dates.
+    bookable dates. **The other availability-shaped fields need the same treatment**:
+    `toPublicListing` derives `isSoldOut`, `maxPurchasable`, and customisable
+    `dayPrices` from the **route listing alone**, so a customisable parent can
+    advertise a day count no child supports, and a parent whose only child has no
+    folded capacity can still look purchasable. Compute these with the same
+    child-union / combined-demand rules as the web card, or mark them parent-only and
+    defer to the availability endpoint.
   - **Availability endpoint.** `GET /api/listings/:slug/availability` calls
     `hasAvailableSpots(..., date, listing.duration_days)` for the passed slug
     (`api/index.ts:243-248`), so a **child** slug would report standalone
@@ -1007,10 +1016,13 @@ Enumerate each and decide:
   common one-parent-one-child quick-buy **can still skip to checkout** — *but only
   when **both** the parent **and** the auto-selected child are
   direct-checkout-safe*. The parent must still satisfy the **existing**
-  direct-checkout preconditions (no required questions/contact fields of its own —
-  `skipToCheckout` bypasses `prepareOrder` and builds blank contact/answer metadata,
-  so a parent with required inputs must use the form regardless of the child), and
-  the child must add no new requirement: no required contact
+  direct-checkout preconditions — including **provider-imposed** fields, not just its
+  own configured ones: `getTicketFields(..., true)` adds a required email for Square
+  when the order is **paid**, so a paid parent with empty `fields` (even with a free,
+  safe child) still needs the form. (`skipToCheckout` bypasses `prepareOrder` and
+  builds blank contact/answer metadata, so a parent with *any* required input —
+  configured or provider-imposed — must use the form regardless of the child.) The
+  child likewise must add no new requirement: no required contact
   fields/questions, not `can_pay_more`, **and has a resolved inherited duration that
   the QR intent can carry**. A `customisable_days` child does **not** force a
   fallback by itself: under a **fixed-duration parent** (standard = 1 day, fixed
@@ -1202,7 +1214,7 @@ Enumerate each and decide:
 
 | Step | Scope |
 | --- | --- |
-| 1 | Migration: `listing_parents` table + indexes; (if adopting config (a)) the two parent rule columns on `listings`. No behaviour yet. |
+| 1 | Migration: `listing_parents` table + indexes (no per-parent rule columns — the rule is fixed at exactly one child). No behaviour yet. |
 | 2 | DB layer: edge CRUD, `getChildrenOf` / `getParentsOf` / batch loader, dedicated edge cache, `deleteListing` cleanup. Unit-tested. |
 | 3 | Admin edit UI + API: configure parents (+ reverse view) and diff-save, with **all** the admin-validation hard blocks — self/cycle/nesting **and** date/duration compatibility, renewal-tier ban, and unsupported child-scoped add-ons (not just self/cycle/nesting). **Ships behind a flag (UI *and* admin-API writes) until step 4–5 land** (see note). |
 | 4 | Booking-page render: surface children under parents in `TicketCtx` (per-parent child selector + child questions/pay-more price; quantity follows the parent; date/duration inherited — no per-child date controls); no-JS baseline incl. CSS-only reveal. |
@@ -1221,6 +1233,14 @@ direct-checkout paths** — so the API/QR decisions move **into the enforcement 
 **The flag must cover the admin *API* relationship writes too** (`/api/admin/listings`
 create/update), not only the admin UI — otherwise a scripted/bulk-import caller can
 create required-child edges through the API while checkout still ignores them.
+**And "every path" includes the discovery/share surfaces, not just the booking
+gate:** because a *visible* child is supported, the moment relationship config is
+exposed an operator can create one, and the public cards, RSS/ICS feeds, `/order`
+gallery, admin multi-booking link builder, and per-listing share/QR generators all
+currently publish `/ticket/<child>` URLs that the new child-slug rejection turns
+into dead ends. Their child suppression/rewrite (and the parent child-derived
+sold-out state) must therefore be **inside the release gate** too, landing before
+the flag is lifted — not deferred past it.
 
 ---
 
