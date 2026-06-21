@@ -25,9 +25,6 @@ const NAV_ACTIVE = "/admin/settings";
 const EMAIL_SETTINGS_LINK = "/admin/settings-advanced#settings-email";
 
 export type BulkEmailComposeState = {
-  /** Flash messages surfaced after a redirect back to the compose form. */
-  error?: string;
-  success?: string;
   /** How to render the recipient control (spec-driven: selector or fixed). */
   control: ComposeControl;
   /** Heading + intro for this kind of target (spec-driven). */
@@ -111,7 +108,6 @@ export const bulkEmailComposePage = (
     <Layout title={copy.heading}>
       <AdminNav active={NAV_ACTIVE} session={session} />
       <SettingsSubNav />
-      <Flash error={state.error} success={state.success} />
 
       <div class="prose">
         <h1>{copy.heading}</h1>
@@ -285,9 +281,6 @@ export const bulkEmailTemplateDeletePage = (
   );
 
 export type BulkEmailPreviewState = {
-  /** Flash messages surfaced after a redirect to the preview page. */
-  error?: string;
-  success?: string;
   draft: BulkEmailDraft;
   /** Human label for the target: audience label or listing name. */
   targetLabel: string;
@@ -335,7 +328,6 @@ export const bulkEmailPreviewPage = (
     <Layout title={t("bulk_email.preview_page_title")}>
       <AdminNav active={NAV_ACTIVE} session={session} />
       <SettingsSubNav />
-      <Flash error={state.error} success={state.success} />
 
       <div class="prose">
         <h1>{t("bulk_email.preview_page_title")}</h1>

@@ -27,6 +27,7 @@ import {
   createTestListing,
   describeWithEnv,
   expectFlash,
+  expectFlashRedirect,
   expectRedirect,
   extractCsrfToken,
   FLASH_TEST_ID,
@@ -432,8 +433,13 @@ describeWithEnv("API Keys", { db: true }, () => {
         }),
       );
 
-      expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("does not match"), false);
+      // The delete-confirmation page has no error slot of its own; the Layout
+      // backstop renders the mismatch error, so the operator actually sees it.
+      await expectFlashRedirect(
+        `/admin/api-keys/${id}/delete`,
+        expect.stringContaining("does not match"),
+        false,
+      )(response);
       expect(await countApiKeysForUser(1)).toBe(1);
     });
 
