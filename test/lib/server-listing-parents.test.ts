@@ -6,12 +6,46 @@ import {
 } from "#shared/db/listing-parents.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import {
+  apiRequest,
+  assertJson,
+  createTestGroup,
   createTestListing,
   deactivateTestListing,
   describeWithEnv,
   getTestSession,
+  insertModifier,
+  linkModifierGroup,
+  linkModifierListing,
+  patchModifier,
   updateTestListing,
 } from "#test-utils";
+
+/** Create a listing through the admin JSON API, returning the created id. */
+const apiCreateListing = async (
+  body: Record<string, unknown>,
+): Promise<number> => {
+  let id = 0;
+  await assertJson(
+    apiRequest("/api/admin/listings", { body, method: "POST" }),
+    201,
+    (json) => {
+      id = json.listing.id as number;
+    },
+  );
+  return id;
+};
+
+/** Insert an active opt-in add-on scoped to the given listing ids. */
+const optInAddOnForListings = async (
+  name: string,
+  listingIds: number[],
+): Promise<void> => {
+  const modifier = await insertModifier({ name });
+  await patchModifier(modifier.id, { scope: "listings", trigger: "optional" });
+  for (const listingId of listingIds) {
+    await linkModifierListing(modifier.id, listingId);
+  }
+};
 
 /** POST the children sub-form with repeated `child_listing_ids` values
  * (mockFormRequest only supports single values per key). */
@@ -373,6 +407,130 @@ describeWithEnv(
       );
       expect(await getChildIds(parent.id)).toEqual([]);
     });
+
+    test("admin API create writes child edges", async () => {
+      const child = await createTestListing({ name: "Add-on" });
+      const parentId = await apiCreateListing({
+        child_listing_ids: [child.id],
+        max_attendees: 10,
+        name: "Base unit",
+      });
+      expect(await getChildIds(parentId)).toEqual([child.id]);
+    });
+
+    test("admin API update changes child edges", async () => {
+      const parent = await createTestListing({ name: "Base unit" });
+      const first = await createTestListing({ name: "Add-on A" });
+      const second = await createTestListing({ name: "Add-on B" });
+      await postChildren(parent.id, [first.id]);
+      await assertJson(
+        apiRequest(`/api/admin/listings/${parent.id}`, {
+          body: { child_listing_ids: [second.id] },
+          method: "PUT",
+        }),
+        200,
+      );
+      expect(await getChildIds(parent.id)).toEqual([second.id]);
+    });
+
+    test("admin API drops non-numeric and unknown child ids", async () => {
+      const parent = await createTestListing({ name: "Base unit" });
+      const child = await createTestListing({ name: "Add-on" });
+      await assertJson(
+        apiRequest(`/api/admin/listings/${parent.id}`, {
+          body: { child_listing_ids: [child.id, "oops", parent.id + 9999] },
+          method: "PUT",
+        }),
+        200,
+      );
+      expect(await getChildIds(parent.id)).toEqual([child.id]);
+    });
+
+    test("admin API treats a non-array child_listing_ids as empty", async () => {
+      const parent = await createTestListing({ name: "Base unit" });
+      const child = await createTestListing({ name: "Add-on" });
+      await postChildren(parent.id, [child.id]);
+      await assertJson(
+        apiRequest(`/api/admin/listings/${parent.id}`, {
+          body: { child_listing_ids: "not-an-array" },
+          method: "PUT",
+        }),
+        200,
+      );
+      expect(await getChildIds(parent.id)).toEqual([]);
+    });
+
+    test("admin API rejects an invalid edge with no write", async () => {
+      const parent = await createTestListing({ name: "Base unit" });
+      const child = await createTestListing({
+        listingType: "daily",
+        name: "Daily add-on",
+      });
+      await assertJson(
+        apiRequest(`/api/admin/listings/${parent.id}`, {
+          body: { child_listing_ids: [child.id] },
+          method: "PUT",
+        }),
+        400,
+        (json) => {
+          expect(typeof json.error).toBe("string");
+        },
+      );
+      expect(await getChildIds(parent.id)).toEqual([]);
+    });
+
+    test("admin API blocks a child whose add-on only it can reach", async () => {
+      const parent = await createTestListing({ name: "Base unit" });
+      const child = await createTestListing({ name: "Add-on" });
+      await optInAddOnForListings("Child-only extra", [child.id]);
+      await assertJson(
+        apiRequest(`/api/admin/listings/${parent.id}`, {
+          body: { child_listing_ids: [child.id] },
+          method: "PUT",
+        }),
+        400,
+      );
+      expect(await getChildIds(parent.id)).toEqual([]);
+    });
+
+    test("blocks a child whose opt-in add-on only it can reach", async () => {
+      const parent = await createTestListing({ name: "Base unit" });
+      const child = await createTestListing({ name: "Add-on" });
+      await optInAddOnForListings("Child-only extra", [child.id]);
+      await postChildren(parent.id, [child.id]);
+      expect(await getChildIds(parent.id)).toEqual([]);
+    });
+
+    test("allows a child whose add-on is also scoped to the parent", async () => {
+      const parent = await createTestListing({ name: "Base unit" });
+      const child = await createTestListing({ name: "Add-on" });
+      await optInAddOnForListings("Shared extra", [parent.id, child.id]);
+      await postChildren(parent.id, [child.id]);
+      expect(await getChildIds(parent.id)).toEqual([child.id]);
+    });
+
+    test("allows a child whose add-on is scoped to a group containing the parent", async () => {
+      // The add-on is groups-scoped to a group holding both the parent and the
+      // child, so it resolves to listing ids including the parent — still
+      // reachable via the parent's page ids, so the edge is allowed.
+      const group = await createTestGroup({ name: "Bundle" });
+      const parent = await createTestListing({
+        groupId: group.id,
+        name: "Base unit",
+      });
+      const child = await createTestListing({
+        groupId: group.id,
+        name: "Add-on",
+      });
+      const modifier = await insertModifier({ name: "Group extra" });
+      await patchModifier(modifier.id, {
+        scope: "groups",
+        trigger: "optional",
+      });
+      await linkModifierGroup(modifier.id, group.id);
+      await postChildren(parent.id, [child.id]);
+      expect(await getChildIds(parent.id)).toEqual([child.id]);
+    });
   },
 );
 
@@ -389,5 +547,18 @@ describeWithEnv("server > listing parents (flag off)", { db: true }, () => {
     const parent = await createTestListing({ name: "Base unit" });
     const html = await editPageHtml(parent.id);
     expect(html).not.toContain("Required child listings");
+  });
+
+  test("the admin API ignores child_listing_ids", async () => {
+    const parent = await createTestListing({ name: "Base unit" });
+    const child = await createTestListing({ name: "Add-on" });
+    await assertJson(
+      apiRequest(`/api/admin/listings/${parent.id}`, {
+        body: { child_listing_ids: [child.id] },
+        method: "PUT",
+      }),
+      200,
+    );
+    expect(await getChildIds(parent.id)).toEqual([]);
   });
 });

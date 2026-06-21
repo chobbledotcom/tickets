@@ -12,6 +12,8 @@ import { holidayApiRoutes } from "#routes/admin/api-holidays.ts";
 import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
+import { isListingParentsEnabled } from "#shared/config.ts";
+import { setChildIds } from "#shared/db/listing-parents.ts";
 import {
   computeSlugIndex,
   getAllListings,
@@ -41,6 +43,7 @@ import type {
   ListingType,
   ListingWithCount,
 } from "#shared/types.ts";
+import { validateChildEdges } from "./listings-parents.ts";
 
 // =============================================================================
 // Published API types — the contract for callers
@@ -73,6 +76,11 @@ export type CreateListingBody = {
   /** Day count → price (minor units), e.g. { "1": 1000, "2": 1800 }. */
   day_prices?: Record<number, number>;
   hidden?: boolean;
+  /** Listing ids the buyer must choose one of when this listing is booked (the
+   * required-child gate). Only honoured when the parents feature is enabled;
+   * self-edges and unknown ids are dropped, and the same nesting/field/add-on
+   * validation as the edit form runs before the edges are written. */
+  child_listing_ids?: number[];
 };
 
 /** JSON body accepted by PUT /api/admin/listings/:listingId (all fields optional) */
@@ -321,8 +329,45 @@ export const toAdminListing = ({
   ...rest
 }: ListingWithCount): AdminListing => rest;
 
+/** The submitted `child_listing_ids` as a numeric array (non-numbers dropped),
+ * or null when the parents feature is off or the body omits the field — in
+ * which case the API leaves a listing's existing edges untouched. */
+const submittedChildIds = (body: Record<string, unknown>): number[] | null => {
+  if (!isListingParentsEnabled() || body.child_listing_ids === undefined) {
+    return null;
+  }
+  const raw = body.child_listing_ids;
+  return Array.isArray(raw)
+    ? raw.filter((id): id is number => typeof id === "number")
+    : [];
+};
+
+/**
+ * Apply the parsed `child_listing_ids` to a freshly written listing, using the
+ * SAME diff + validation as the edit form ({@link validateChildEdges}) so the
+ * API can recreate (or update) the required-child gate. Returns an error message
+ * (reported as a 400, edges unwritten) on a validation failure.
+ */
+const writeChildEdges = async (
+  parent: ListingWithCount,
+  submitted: number[],
+): Promise<string | null> => {
+  const result = await validateChildEdges(parent, submitted);
+  if (!result.ok) return result.error;
+  await setChildIds(parent.id, result.childIds);
+  return null;
+};
+
 const listingApiRoutes = defineCrudApi<Listing, ListingInput, ListingWithCount>(
   {
+    // No-op — the field is ignored — when the parents feature is off or the body
+    // omits it; otherwise validate + persist the required-child gate.
+    afterWrite: (listing, body) => {
+      const submitted = submittedChildIds(body);
+      return submitted === null
+        ? Promise.resolve(null)
+        : writeChildEdges(listing, submitted);
+    },
     extraRoutes: {
       "DELETE /api/admin/listings/:listingId": handleDeleteListing,
       "POST /api/admin/listings/:listingId/deactivate": (

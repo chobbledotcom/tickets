@@ -106,6 +106,14 @@ export const parseUpdateName = (
 
 /** Configuration for defineCrudApi */
 export interface CrudApiConfig<Row, Input, FullRow extends Row = Row> {
+  /** Validate + persist body-only side effects (e.g. relationship edges) after
+   * the row is written on create/update, given the written full row (the parent
+   * in its final state) and the raw body. Returns an error message — reported as
+   * a 400 with the edges left unwritten — or null on success. */
+  afterWrite?: (
+    row: FullRow,
+    body: Record<string, unknown>,
+  ) => Promise<string | null>;
   /** Extra route entries to merge in (can also override generated routes) */
   extraRoutes?: Record<string, RouteHandlerFn>;
   /** Fetch all rows (from cache) — may return a richer row type than the table (e.g. joined counts) */
@@ -227,6 +235,22 @@ export const defineCrudApi = <
       return jsonResponse({ [listKey]: rows.map(toResponse), ...extras });
     });
 
+  /** Finish a create/update: hydrate the full row, run the body-only side
+   * effects (rejecting with a 400 — edges unwritten — on their error), log, and
+   * return the row JSON. Shared so create and update apply afterWrite once. */
+  const persistAndRespond = async (
+    row: Row,
+    body: Record<string, unknown>,
+    action: string,
+    status: number,
+  ): Promise<Response> => {
+    const fullRow = await toFullRow(row);
+    const writeError = await config.afterWrite?.(fullRow, body);
+    if (writeError) return apiErrorResponse(writeError);
+    await logAction(action, row);
+    return jsonResponse({ [responseKey]: toResponse(fullRow) }, status);
+  };
+
   /** Create */
   const handleCreate: RouteHandlerFn = (request) =>
     withAuth(request, policy, async (_session, body) => {
@@ -237,11 +261,7 @@ export const defineCrudApi = <
       if (!result.ok) return result.response;
 
       const row = await table.insert(result.input);
-      await logAction("created", row);
-      return jsonResponse(
-        { [responseKey]: toResponse(await toFullRow(row)) },
-        201,
-      );
+      return persistAndRespond(row, body, "created", 201);
     });
 
   // Build the route param name from the singular (e.g. "Holiday" → "holidayId")
@@ -285,10 +305,7 @@ export const defineCrudApi = <
     if (!result.ok) return result.response;
 
     const row = (await table.update(existing.id, result.input))!;
-    await logAction("updated", row);
-    return jsonResponse({
-      [responseKey]: toResponse(await toFullRow(row)),
-    });
+    return persistAndRespond(row, body, "updated", 200);
   });
 
   /** Delete */

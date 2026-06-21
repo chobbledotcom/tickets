@@ -163,6 +163,14 @@ const scopeCoversListing = (
 ): boolean =>
   scope === null || (Array.isArray(scope) && scope.includes(listingId));
 
+/** Whether a resolved listing scope is reachable from a page's listing ids:
+ * a whole-order scope (null) always is; a listing set must share an id. Shared
+ * by the add-on listing and the child-reachability hard block. */
+const scopeReachesPage = (
+  scope: number[] | null,
+  pageIds: Set<number>,
+): boolean => scope === null || scope.some((id) => pageIds.has(id));
+
 /**
  * Total quantity each "answer"-triggered modifier is requested for, respecting
  * the modifier's own scope. A linked answer counts only when it was selected on
@@ -368,6 +376,19 @@ const addOnPriceLabel = (modifier: Modifier): string => {
 const addOnCanRequirePayment = (modifier: Modifier): boolean =>
   modifier.calc_kind === "fixed" && signedValue(modifier) > 0;
 
+/** Active opt-in ("optional") add-on modifiers paired with their resolved
+ * listing scopes (null = whole order), the shared starting point for the add-on
+ * listing and the child-reachability hard block. */
+const optionalAddOnsWithScopes = async (): Promise<{
+  optional: Modifier[];
+  scopes: Map<number, number[] | null>;
+}> => {
+  const optional = (await getActiveModifiers()).filter(
+    (m) => m.trigger === "optional",
+  );
+  return { optional, scopes: await listingIdsByModifierId(optional) };
+};
+
 /**
  * The opt-in add-ons offered for a page's listings: active "optional"
  * modifiers whose scope covers the whole order or overlaps the page, with
@@ -376,15 +397,11 @@ const addOnCanRequirePayment = (modifier: Modifier): boolean =>
 export const getOptionalAddOns = async (
   pageListingIds: number[],
 ): Promise<AddOnOption[]> => {
-  const optional = (await getActiveModifiers()).filter(
-    (m) => m.trigger === "optional",
-  );
+  const { optional, scopes } = await optionalAddOnsWithScopes();
   const pageIds = new Set(pageListingIds);
-  const scopes = await listingIdsByModifierId(optional);
-  const scoped = optional.filter((modifier) => {
-    const listingIds = scopes.get(modifier.id)!;
-    return listingIds === null || listingIds.some((id) => pageIds.has(id));
-  });
+  const scoped = optional.filter((modifier) =>
+    scopeReachesPage(scopes.get(modifier.id)!, pageIds),
+  );
   const used = await modifierUsedQuantities(
     scoped.filter((m) => m.stock !== null).map((m) => m.id),
   );
@@ -401,6 +418,41 @@ export const getOptionalAddOns = async (
       priceLabel: addOnPriceLabel(modifier),
       requiresPayment: addOnCanRequirePayment(modifier),
     }));
+};
+
+/**
+ * The name of an active opt-in add-on that would become **unreachable** if
+ * `childId` were made a child of a parent rendered with `parentPageListingIds`
+ * (the parent itself plus, on a group page, its group siblings), or null when
+ * none would.
+ *
+ * v1 doesn't support child-scoped add-ons: a child is never one of a parent
+ * page's listing ids, so the booking page's `getOptionalAddOns(pageListingIds)`
+ * never loads an add-on whose entire reachable scope is suppressed children.
+ * The test is **reachability**, not "the child appears in the scope": an add-on
+ * scoped to the child *and also* to the parent (or to a group containing the
+ * parent) still loads via the parent's page ids and must NOT block the edge.
+ *
+ * So an add-on blocks only when its resolved scope (a) is a listing set (a
+ * whole-order add-on is reachable everywhere) that (b) includes `childId` yet
+ * (c) shares nothing with the parent's page ids. (See parents.md, the
+ * "Optional add-ons" fold-checklist bullet.)
+ */
+export const childOnlyAddOnName = async (
+  childId: number,
+  parentPageListingIds: readonly number[],
+): Promise<string | null> => {
+  const { optional, scopes } = await optionalAddOnsWithScopes();
+  const pageIds = new Set(parentPageListingIds);
+  const blocking = optional.find((modifier) => {
+    const listingIds = scopes.get(modifier.id)!;
+    // Reachable only through the child: child in scope, but the parent's page
+    // ids (which the booking page would actually load add-ons for) are not.
+    return (
+      listingIds?.includes(childId) && !scopeReachesPage(listingIds, pageIds)
+    );
+  });
+  return blocking?.name ?? null;
 };
 
 /**
