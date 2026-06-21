@@ -54,6 +54,7 @@
   "public.database_busy.title": "Database Busy",
   "public.database_busy.heading": "The database is too busy.",
   "public.database_busy.message": "Reloading so you can try again.",
+  "public.database_busy.message_manual": "Please go back and try again — your submission was not saved.",
   "public.qr_book_error.title": "QR code expired",
   "public.qr_book_error.heading": "QR code expired or invalid",
   "public.qr_book_error.message": "This QR code has expired or the link has been tampered with. Ask the organiser to generate a new one, or use the normal booking page below.",

@@ -826,7 +826,9 @@ const handleRoutingError = (
       code: ErrorCode.DB_BUSY,
       detail: formatRequestError(method, path, error),
     });
-    return databaseBusyResponse();
+    // Only auto-refresh idempotent requests: reloading a POST would drop the
+    // submitted form body without replaying the write.
+    return databaseBusyResponse(["GET", "HEAD"].includes(method));
   }
   logError({
     code: ErrorCode.CDN_REQUEST,

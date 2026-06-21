@@ -707,8 +707,8 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
       );
     });
 
-    test("databaseBusyResponse returns 503 styled HTML with auto-refresh", async () => {
-      const response = databaseBusyResponse();
+    test("databaseBusyResponse(true) returns 503 styled HTML with auto-refresh", async () => {
+      const response = databaseBusyResponse(true);
       await expectHtmlResponse(
         response,
         503,
@@ -719,6 +719,17 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
       expect(response.headers.get("content-type")).toBe(
         "text/html; charset=utf-8",
       );
+    });
+
+    test("databaseBusyResponse(false) omits auto-refresh for non-idempotent writes", async () => {
+      const response = databaseBusyResponse(false);
+      const html = await expectHtmlResponse(
+        response,
+        503,
+        "The database is too busy.",
+        "Please go back and try again",
+      );
+      expect(html).not.toContain('http-equiv="refresh"');
     });
 
     test("siteNotActivatedResponse returns 503 styled HTML without auto-refresh", async () => {

@@ -86,18 +86,26 @@ export const temporaryErrorPage = (): string =>
 
 /**
  * Shown when a write could not acquire a database lock after retrying — the
- * database is momentarily too busy. Auto-refreshes like the temporary error page
- * so the request retries itself.
+ * database is momentarily too busy.
+ *
+ * `autoRefresh` is only safe for idempotent requests (GET/HEAD): the meta
+ * refresh reloads the URL as a GET, which for a POST would drop the submitted
+ * form body without replaying the write. So for non-idempotent methods we skip
+ * the refresh and ask the user to go back and resubmit instead.
  */
-export const databaseBusyPage = (): string =>
+export const databaseBusyPage = (autoRefresh: boolean): string =>
   String(
     <Layout
-      headExtra={TEMPORARY_ERROR_HEAD}
+      headExtra={autoRefresh ? TEMPORARY_ERROR_HEAD : ERROR_DIALOG_STYLE}
       title={t("public.database_busy.title")}
     >
       <div class="prose">
         <h1>{t("public.database_busy.heading")}</h1>
-        <p>{t("public.database_busy.message")}</p>
+        <p>
+          {autoRefresh
+            ? t("public.database_busy.message")
+            : t("public.database_busy.message_manual")}
+        </p>
       </div>
     </Layout>,
   );

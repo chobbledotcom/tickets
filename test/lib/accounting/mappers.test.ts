@@ -172,6 +172,12 @@ describeWithEnv("accounting > mappers", { encryptionKey: true }, () => {
       ).toContain("empty eventId");
     });
 
+    test("rejects a whitespace-only event id", async () => {
+      expect(
+        await rejectionMessage(mapBooking(facts({ eventId: "   " }))),
+      ).toContain("empty eventId");
+    });
+
     test("drops zero-amount legs (a free booking posts nothing)", async () => {
       const legs = await mapBooking(
         facts({

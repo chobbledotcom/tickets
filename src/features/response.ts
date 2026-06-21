@@ -65,11 +65,12 @@ export const temporaryErrorResponse = (): Response =>
 
 /**
  * Create "database too busy" response: a write couldn't acquire the lock after
- * retrying. 503 with an auto-refresh page so the request retries itself, like
- * temporaryErrorResponse but with a message naming the cause.
+ * retrying. 503. `autoRefresh` (idempotent GET/HEAD only) reloads the page to
+ * retry itself; non-idempotent methods get a "go back and resubmit" message
+ * instead, since a reload would drop the submitted form body.
  */
-export const databaseBusyResponse = (): Response =>
-  htmlResponse(databaseBusyPage(), 503);
+export const databaseBusyResponse = (autoRefresh: boolean): Response =>
+  htmlResponse(databaseBusyPage(autoRefresh), 503);
 
 /**
  * Create "site not activated" response for sites whose database has not

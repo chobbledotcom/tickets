@@ -127,8 +127,9 @@ const bookingLegSpecs = (
 
 /**
  * Reject malformed facts loudly rather than silently dropping a leg with the
- * zero-amount filter. Catches an empty event id (which would make every such
- * booking share one event group / references), non-finite amounts (NaN/∞ slip
+ * zero-amount filter. Catches a blank event id — empty or whitespace-only —
+ * (which would make every such booking share one event group / references),
+ * non-finite amounts (NaN/∞ slip
  * past `> 0`), negative non-modifier amounts, and fractional/unsafe minor units
  * (all money facts are integer pence/cents — a fractional split like `10.5` must
  * be caught here, since aggregating two of them into `21` would hide the
@@ -137,7 +138,10 @@ const bookingLegSpecs = (
  */
 const assertValidFacts = (facts: BookingFacts): void => {
   const problems: string[] = [];
-  if (!facts.eventId) problems.push("empty eventId");
+  // Reject a blank id, including whitespace-only: a missing source id normalised
+  // to spaces would still hash to a non-empty event group, so two such bookings
+  // would collide onto one event and the second would be skipped as a replay.
+  if (!facts.eventId?.trim()) problems.push("empty eventId");
   const requireAmount = (label: string, value: number): void => {
     if (!Number.isFinite(value)) problems.push(`non-finite ${label}`);
     else if (value < 0) problems.push(`negative ${label}`);
