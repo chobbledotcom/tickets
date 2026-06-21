@@ -362,12 +362,16 @@ On the listing edit page (`src/features/admin/listings.ts`, fields in
   `hidden = 1` (this is general — it applies to all hidden listings, not only
   children), so the operator can see at a glance which listings are kept out of the
   index.
-- **Visibility info message on the product/edit page.** When a listing is `hidden`
-  **and/or** is a child (named as a parent's child), show an **info message at the
-  top of its edit page** explaining: "This listing is hidden from search engines
-  and the main site, but it will still be shown during booking when a buyer must
-  choose between it and another child." This makes the "hidden but still bookable
-  via a parent" behaviour explicit to the operator.
+- **Visibility info message(s) on the product/edit page — separate copy for the
+  two cases**, because a child is *not* necessarily hidden:
+  - **Hidden listing** (`hidden = 1`): "Hidden from search engines and the main
+    site." (Plus, if it's also a child, the child note below.)
+  - **Child listing** (regardless of `hidden`): "This listing is offered as a choice
+    under another listing; it's shown during booking when a buyer must choose between
+    it and another child." For a **visible** child, do **not** claim it's
+    undiscoverable — it still appears on public cards (only its standalone booking
+    CTA is suppressed).
+  Show whichever apply; never tell the operator a visible child is hidden.
 - **Suppress/rewrite the per-listing share generators for a child.** A child's
   listing detail page still exposes its **public URL, embed snippet, and QR
   generator** (which signs `/ticket/<child>/qr-book`). Left as-is, an operator can
@@ -391,9 +395,14 @@ On the listing edit page (`src/features/admin/listings.ts`, fields in
   `customisable_days`, regardless of `listing_type`) and can supply an inherited
   duration while a standard child folds with `date: null`. So split the rule:
   - a **daily child** (needs a *date*) may only attach to a **daily parent**;
-  - a **`customisable_days` child** (needs a *day-count*) may only attach to a
-    parent that produces a resolved duration (a daily parent, **or** a standard
-    customisable parent);
+  - a **`customisable_days` child** (needs a *day-count*) inherits the parent's
+    **resolved duration**, which *every* parent has — `day_count` for a customisable
+    parent, `duration_days` for a daily parent, and **1 for a plain standard
+    parent**. So don't restrict by parent kind; instead require the **child's
+    `day_prices` to have a price for the parent's resolved duration** (a standard
+    customisable child under a standard parent is valid, folding `date: null` and
+    pricing from `day_prices[1]`). Reject only when the child has no price for that
+    duration.
   - a plain **standard child** is fine under any parent (folds date-less).
 - **Daily parent/child durations must actually match.** "Both daily" is not
   enough: the ordinary-line booking helper uses a non-customisable daily listing's
@@ -766,6 +775,15 @@ The expanded set (parent page listings ∪ selected children) must drive **all**
   customisable child would otherwise price/book the child as 1 day. The child takes
   the parent's resolved duration and its `day_prices` are validated/priced for
   **that** value; it is never fed into `sharedDayCounts`.
+- **Force `dayCount` into the serialized intent when a folded child is
+  customisable.** `checkoutIntentForSubmission` only writes `dayCount` into the
+  provider metadata when `hasCustomisable` is true, and that flag is computed from
+  the **pre-fold** selected listings. So a fixed-duration parent whose *only*
+  customisable item is a folded child would set the child's inherited span locally
+  but **omit `dayCount` from the metadata**, and the webhook would reconstruct the
+  child at the default 1 day. The fold must **recompute/force `hasCustomisable`
+  (and the serialized `dayCount`) from the folded children**, not just the page
+  listings.
 
 ### Pricing & payment round-trip
 
@@ -1079,19 +1097,17 @@ Enumerate each and decide:
 - **Capacity & groups.** Child capacity is its own `max_attendees`; selecting it
   consumes capacity normally. If parent and child share a group capacity pool,
   the existing group-remaining capping applies to both lines.
-- **Parent + child in the same group.** The `/group/:slug` page passes **all**
-  active group listings as original page listings (`groups.ts:27-42`), so the
-  recommended "forbid `/ticket/P+C` URLs" rule does **not** remove the standalone
-  child row here — a group containing both a parent and its child reintroduces the
-  shared-standalone ambiguity (the child row can satisfy the gate or be aggregated
-  outside the per-parent selector). Resolve by **forbidding parent/child edges
-  *within the same group* in admin validation** (recommended, simplest) or defining
-  group-specific assignment, before the group path enforces the gate. **This check
-  must run on *group-membership* writes too**, not only on edge-save: an operator
-  can create a valid edge while the two listings are in different groups, then use
-  the group add-listings/update path to move the child into the parent's group —
-  bypassing edge-save validation and reintroducing the standalone child on the
-  group form. (Open Question 6.)
+- **Parent + child in the same group.** The group form (`/ticket/<groupSlug>` →
+  `handleGroupTicketBySlug`) loads **all** active group listings (`groups.ts:27-42`),
+  so a child that is also a group member would otherwise appear as its own selectable
+  row. **Resolved behaviour: suppress the child from the group's
+  independently-selectable set** (it's offered only via its parent's selector) —
+  the *same* child-suppression applied everywhere else — rather than hard-blocking
+  the edge. So a same-group parent/child config is **allowed and handled at render**,
+  not rejected at save. (Open Question 6 is now only the cosmetic choice of whether
+  to let an operator add a child to a group at all; if we ever chose to forbid the
+  edge instead, that check would also have to run on group-membership writes, not
+  just edge-save — but suppression avoids needing it.)
 - **Deleting/deactivating a parent or child mid-session.** The buyer's submitted
   selection is re-validated server-side at submit, so a stale page that lost a
   child fails cleanly rather than booking a dead listing.
