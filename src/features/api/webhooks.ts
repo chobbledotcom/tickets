@@ -39,7 +39,10 @@ import {
   redirectResponse,
 } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
-import { parseTokens } from "#routes/tickets/token-utils.ts";
+import {
+  parseTokens,
+  verifyTokensWithRealLine,
+} from "#routes/tickets/token-utils.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { calculateBookingFee } from "#shared/booking-fee.ts";
 import {
@@ -56,7 +59,6 @@ import {
   createAttendeeAtomic,
   deleteAttendee,
   ensureAllBookings,
-  getAttendeesByTokens,
   reverseOrderActivity,
 } from "#shared/db/attendees.ts";
 import { getListing, getListingWithCount } from "#shared/db/listings.ts";
@@ -1168,21 +1170,10 @@ const renderSuccessFromTokens = async (
   tokensParam: string,
 ): Promise<Response> => {
   const tokens = parseTokens(tokensParam);
-  const attendeeResults =
-    tokens.length > 0 ? await getAttendeesByTokens(tokens) : [];
-  const verifiedTokens: string[] = [];
-  const listingIds: number[] = [];
-
-  for (let i = 0; i < tokens.length; i++) {
-    const awb = attendeeResults[i];
-    if (awb) {
-      verifiedTokens.push(tokens[i]!);
-      // Collect all listing IDs from all bookings
-      for (const booking of awb.bookings) {
-        listingIds.push(booking.listing_id);
-      }
-    }
-  }
+  // Only tokens with a real (quantity > 0) line are valid: an all-ghost token's
+  // /t link would 404, and a ghost line must not inflate the single-listing
+  // thank-you check.
+  const { verifiedTokens, listingIds } = await verifyTokensWithRealLine(tokens);
 
   if (verifiedTokens.length === 0) {
     return paymentErrorResponse("Invalid payment callback");

@@ -10,6 +10,7 @@ import {
   getGroupBySlugIndex,
 } from "#shared/db/groups.ts";
 import { getListingWithCountBySlug } from "#shared/db/listings.ts";
+import { verifyTokensWithRealLine } from "#routes/tickets/token-utils.ts";
 import { getEmailConfig, getHostEmailConfig } from "#shared/email.ts";
 import { generateQrSvg } from "#shared/qr.ts";
 import { successPage } from "#templates/payment.tsx";
@@ -30,8 +31,13 @@ const handleReservedGet = async (request: Request): Promise<Response> => {
   const tokensParam = url.searchParams.get("tokens");
   const normalizedTokens = tokensParam?.replaceAll(" ", "+") ?? "";
   const tokens = normalizedTokens.split("+").filter((t) => t.length > 0);
-  const ticketUrl = tokens.length > 0 ? `/t/${tokens.join("+")}` : null;
-  const fromEmail = tokens.length > 0 ? await getFromEmailIfConfigured() : "";
+  // Resolve and filter the tokens (like /payment/success): only show the
+  // "booking confirmed" CTA when a real (quantity > 0) line exists, so a
+  // stale/crafted no-quantity-only token doesn't link to a /t URL that 404s.
+  const { verifiedTokens } = await verifyTokensWithRealLine(tokens);
+  const ticketUrl =
+    verifiedTokens.length > 0 ? `/t/${verifiedTokens.join("+")}` : null;
+  const fromEmail = ticketUrl ? await getFromEmailIfConfigured() : "";
 
   return htmlResponse(successPage({ fromEmail, ticketUrl }));
 };

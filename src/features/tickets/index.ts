@@ -4,7 +4,7 @@
  * The SVG endpoint serves individual QR codes for CDN caching.
  */
 
-import { htmlResponse } from "#routes/response.ts";
+import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import {
   createTokenRoute,
   lookupAttendees,
@@ -43,6 +43,9 @@ const handleTicketView = async (
   if (!result.ok) return result.response;
 
   const entries = await resolveEntries(result.attendees);
+  // A quantity-0-only token passes lookupAttendees but resolves to no real
+  // entries — treat that as not-found rather than rendering an empty page.
+  if (entries.length === 0) return notFoundResponse();
   // With multi-listing, one token maps to multiple entries.
   // Use the first URL token for all cards (it's the same attendee).
   const token = tokens[0]!;
@@ -65,6 +68,11 @@ const ONE_YEAR = 365 * 24 * 60 * 60;
 const handleTicketSvg = async (token: string): Promise<Response> => {
   const result = await lookupAttendees([token]);
   if (!result.ok) return result.response;
+
+  // An all-ghost (no-quantity-only) token resolves to no real entries — don't
+  // emit a QR for a ticket that /t and /checkin now treat as not-found.
+  const entries = await resolveEntries(result.attendees);
+  if (entries.length === 0) return notFoundResponse();
 
   const svg = await generateQrSvg(buildCheckinUrl(token));
   return new Response(svg, {

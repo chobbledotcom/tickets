@@ -195,6 +195,26 @@ export const getAttendeePiiBlobForToken = async (
 };
 
 /**
+ * True when the attendee has a real (quantity > 0) booking on the exact listing.
+ * Authorizes per-(attendee, listing) actions — e.g. the signed attachment
+ * download — against the EXACT row, not getAttendeeRaw's arbitrary left-joined
+ * sibling row (which for a mixed attendee could pass on a ghost/other-listing
+ * row, or wrongly reject a valid real-line download). A no-quantity sentinel
+ * line is excluded, so a line later marked no-quantity stops authorizing.
+ */
+export const hasActiveBookingLine = async (
+  attendeeId: number,
+  listingId: number,
+): Promise<boolean> => {
+  const row = await queryOne<{ present: number }>(
+    `SELECT 1 AS present FROM listing_attendees
+     WHERE attendee_id = ? AND listing_id = ? AND quantity > 0 LIMIT 1`,
+    [attendeeId, listingId],
+  );
+  return row !== null;
+};
+
+/**
  * Get an attendee by ID without decrypting PII
  * Used for payment callbacks and webhooks where decryption is not needed
  * Returns the attendee with encrypted fields (id, listing_id, quantity are plaintext)

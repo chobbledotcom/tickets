@@ -167,12 +167,17 @@ export const resolveEntries = async (
     }),
   );
 
-  // Expand each attendee × booking into a TokenEntry
+  // Expand each attendee × booking into a TokenEntry, dropping no-quantity
+  // sentinel lines (quantity 0): they must not render as a ticket, produce a
+  // wallet pass, or be checkable. Filtering here (the shared expansion for the
+  // ticket / check-in / scanner / wallet flows) — rather than in the raw
+  // getAttendeesByTokens helper, which the webhook/merge flows also use — means
+  // any "primary line" (entries[0]) is a real line, never a lower-id ghost.
   const entries: TokenEntry[] = [];
   for (const awb of attendeesWithBookings) {
     for (const booking of awb.bookings) {
       const listing = listings.get(booking.listing_id);
-      if (listing) {
+      if (listing && booking.quantity > 0) {
         entries.push({
           attendee: buildAttendeeView(awb, booking),
           listing,
@@ -199,6 +204,31 @@ export const decryptTokenEntries = async (
 export type TokenLookupResult =
   | { ok: true; attendees: AttendeeWithBookings[] }
   | { ok: false; response: Response };
+
+/**
+ * Resolve plaintext tokens and keep only those whose attendee has ≥1 real
+ * (quantity > 0) line, alongside those real lines' listing IDs (in input order).
+ * A token resolving solely to no-quantity sentinel lines is dropped, so
+ * payment-/reservation-success pages never build a `/t` CTA (which would 404) or
+ * a thank-you redirect from a ghost-only — or stale/crafted — token, and a
+ * ghost line never inflates the single-listing thank-you check.
+ */
+export const verifyTokensWithRealLine = async (
+  tokens: string[],
+): Promise<{ verifiedTokens: string[]; listingIds: number[] }> => {
+  const results = tokens.length > 0 ? await getAttendeesByTokens(tokens) : [];
+  const verifiedTokens: string[] = [];
+  const listingIds: number[] = [];
+  for (let i = 0; i < tokens.length; i++) {
+    const awb = results[i];
+    if (!awb) continue;
+    const realBookings = awb.bookings.filter((b) => b.quantity > 0);
+    if (realBookings.length === 0) continue;
+    verifiedTokens.push(tokens[i]!);
+    for (const booking of realBookings) listingIds.push(booking.listing_id);
+  }
+  return { listingIds, verifiedTokens };
+};
 
 /** Look up attendees by tokens, returning 404 if none found */
 export const lookupAttendees = async (
