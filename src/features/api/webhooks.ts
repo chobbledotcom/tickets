@@ -742,16 +742,21 @@ type CreatedEntry = { attendee: CreatedAttendee; listing: ListingWithCount };
 const textRefsWithStringId = (
   refs: TextAnswerRef[],
   listingId: number,
-): TextAnswerRef[] =>
-  refs.filter((ref) => {
-    if (Number.isInteger(ref.s)) return true;
-    logError({
-      code: ErrorCode.DATA_INVALID,
-      detail: `Text answer ref missing string id (question=${ref.q})`,
-      listingId,
-    });
-    return false;
-  });
+): TextAnswerRef[] => {
+  const resolved: TextAnswerRef[] = [];
+  for (const ref of refs) {
+    if (Number.isInteger(ref.s)) {
+      resolved.push(ref);
+    } else {
+      logError({
+        code: ErrorCode.DATA_INVALID,
+        detail: `Text answer ref missing string id (question=${ref.q})`,
+        listingId,
+      });
+    }
+  }
+  return resolved;
+};
 
 const saveSessionAnswers = async (
   createdEntries: CreatedEntry[],
