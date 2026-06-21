@@ -20,6 +20,35 @@ agreed.
 
 ---
 
+## Confirmed behaviour (operator guidance, 2026-06-21)
+
+These decisions are now settled by the operator and the rest of the plan should
+be read in this light (they resolve several of the original open questions):
+
+- **Primary use case:** hiring a **base unit** (the parent) that requires a
+  **customisable add-on** (the child). Almost always **one parent → one child**;
+  multi-parent / shared-child cases are rare corners, not the main path.
+- **Cardinality:** the buyer must choose **exactly one child per parent in the
+  cart** (one-per-parent), and **child selection is always required** — there is
+  no "skip". (Resolves Open Question 2.)
+- **Single child ⇒ auto-select.** When a parent has only one (bookable) child,
+  the system **pre-selects it** rather than forcing a pointless choice. The buyer
+  can still see it; they just don't have to pick.
+- **Child is a normal paid listing** charged at its **own price** (the add-on's
+  price). (Resolves Open Question 11.)
+- **Hidden children are fully supported.** A `hidden` listing is **still pickable
+  and auto-selectable** as a child. Being a child does **not** auto-hide a listing
+  — the operator controls visibility with the existing `hidden` flag. (Resolves
+  Open Question 12.) Two new UI requirements come with this:
+  1. **"Hidden" badge in the admin listings table**, shown next to the public URL
+     for **every** hidden listing (not just children).
+  2. **Info message at the top of the product/edit page** for **hidden *and*
+     child** listings, explaining that although the listing is hidden from search
+     engines and the main site, **it will still be shown during booking** when the
+     buyer has to choose between it and another child.
+
+---
+
 ## Terminology (pin this down first)
 
 The word "parent" is ambiguous, so fix it once and use it everywhere:
@@ -254,6 +283,17 @@ On the listing edit page (`src/features/admin/listings.ts`, fields in
   the "malleable software / expose the structure" preference in AGENTS.md.
 - Persist edges by diffing submitted vs existing (insert new, delete removed) in
   one batch, mirroring how group/question assignments are saved.
+- **"Hidden" badge in the listings collection table.** On `/admin/listings`, show
+  a small **"hidden" badge next to the public URL** for every listing with
+  `hidden = 1` (this is general — it applies to all hidden listings, not only
+  children), so the operator can see at a glance which listings are kept out of the
+  index.
+- **Visibility info message on the product/edit page.** When a listing is `hidden`
+  **and/or** is a child (named as a parent's child), show an **info message at the
+  top of its edit page** explaining: "This listing is hidden from search engines
+  and the main site, but it will still be shown during booking when a buyer must
+  choose between it and another child." This makes the "hidden but still bookable
+  via a parent" behaviour explicit to the operator.
 
 ### Admin validation
 
@@ -361,8 +401,11 @@ client scripts). The child selector should:
 In `prepareOrder` (`ticket-submit.ts`), after `parseQuantities`:
 
 1. Determine the set of in-cart listings with `qty > 0`.
-2. For each such listing that is a **parent** (has children), read its required
-   child rule (default: exactly one child selected).
+2. For each such listing that is a **parent** (has bookable children), apply the
+   confirmed rule: **exactly one child must be selected, always required**. When
+   the parent has **only one** bookable child, the server treats it as
+   **auto-selected** (the buyer need not have ticked anything) — so a single-child
+   parent never blocks checkout, but the child is still folded in as a line.
 3. Read the buyer's per-parent child quantities from `child_<parentId>_<childId>`
    (and `child_date_<parentId>_<childId>` for daily children). **Only a positive
    quantity counts as a selection** — a child named with a blank/zero quantity is
@@ -748,9 +791,9 @@ direct-checkout paths** — so the API/QR decisions move **into the enforcement 
 1. **Edit direction & wording** — configure edges on the *parent* ("require a
    choice from these") or the *child* ("offered under these")? (Store identically;
    choose the UI.) *Recommended: edit on the parent.*
-2. **Selection cardinality & config location** — exactly one child? at least one?
-   min/max? Per-parent columns on `listings` (recommended) vs per-edge columns on
-   `listing_parents`? *Recommended: per-parent, default exactly one.*
+2. **Selection cardinality** — ✅ **RESOLVED:** exactly one child per parent,
+   always required, auto-select when a parent has a single child (see Confirmed
+   behaviour). No per-parent min/max config needed for v1.
 3. **Nesting / cycles** — single-level bipartite only (recommended, no recursion)
    or allow children that are themselves parents (needs cycle detection + fixpoint
    gate)?
@@ -777,12 +820,13 @@ direct-checkout paths** — so the API/QR decisions move **into the enforcement 
 10. **QR direct-checkout** — for a parent reached via a signed QR link, **disable
     the form-skip and fall back to the form** (recommended) vs **run the gate in
     the QR path** before creating the session?
-11. **Child pricing** — confirm children are charged at their own `unit_price` as
-    ordinary lines (recommended) and there is no notion of "included/free with
-    parent" in v1.
-12. **Public discoverability** — should being a child auto-hide a listing from the
-    public index, or is that left to the existing `hidden` flag? (Note: `hidden`
-    must *not* make a child unselectable under its parent — see Edge cases.)
+11. **Child pricing** — ✅ **RESOLVED:** children are charged at their own
+    `unit_price` (the add-on's price); no "included/free with parent" notion in v1.
+12. **Public discoverability** — ✅ **RESOLVED:** being a child does **not**
+    auto-hide a listing; the operator uses the existing `hidden` flag. Hidden
+    children stay pickable/auto-selectable, with a "hidden" badge in the admin
+    table and a visibility info message on the product page (see Confirmed
+    behaviour).
 13. **Parent + child in the same URL/cart** — let an existing in-cart child line
     satisfy the parent's requirement, vs forbid parent+child URLs (recommended,
     keeps the gate's input single-sourced)? If we allow it, we must also resolve
@@ -817,3 +861,46 @@ direct-checkout paths** — so the API/QR decisions move **into the enforcement 
 19. **Duplication** — when duplicating a listing or a group, **copy/remap
     `listing_parents` edges** to the new ids (recommended) vs **clear them with a
     UI notice**? (`buildDuplicateListingInput` copies only the listing row today.)
+
+---
+
+## Distilled decisions — please comment
+
+The long list above is the full reference. Given the confirmed use case (an
+equipment **base unit** + a **customisable add-on**, almost always one-to-one),
+most of those collapse to strong defaults. Below is the short list that actually
+needs your steer. **Leave a comment on any line.** Silence on Part B = we ship the
+default.
+
+### Part A — need your call (these shape the build)
+
+1. **Quantity coupling.** If a buyer hires **2 of the base unit**, should they get
+   **2 of the add-on** (child quantity follows the parent's), or do they choose the
+   add-on **once** regardless of how many base units? *(Was Q4.)*
+2. **Add-on dates / duration.** Does the add-on ever have its **own hire date or
+   number of days** separate from the base unit, or does it **always inherit the
+   base unit's dates**? "Always inherits" lets us keep v1 simple (no per-child date
+   plumbing). *(Was Q14 + Q17.)*
+3. **Add-on pricing flexibility.** Can an add-on ever be **"pay what you want"**
+   (variable price), or are add-ons always fixed-price? Fixed-price lets us drop a
+   chunk of edge handling. *(Was Q15.)*
+4. **Booking channels.** Will a base-unit (parent) listing ever be booked via the
+   **JSON API** or a **QR quick-buy link**, or are parents **website-only**? If
+   website-only, we simply block those two channels for parents. *(Was Q9 + Q10.)*
+
+### Part B — will default unless you object
+
+5. **Edit on the parent** ("require a choice from these listings"), not the child.
+   *(Q1.)*
+6. **No nesting:** a child can't itself be a parent (keeps it one level). *(Q3.)*
+7. **If a parent has no bookable child, block it** (treat like sold out). *(Q5.)*
+8. **Forbid a parent and its child being in the same group.** *(Q6.)*
+9. **Admin manual add/edit: warn but don't block** (operators can fix odd orders).
+   *(Q7.)*
+10. **Disallow the same child under two parents in one order** (rare; avoids the
+    shared-child merge tangle). *(Q8.)*
+11. **Forbid a parent and its child in the same `/ticket/...` URL / gallery
+    selection** (the gate's input stays single-sourced). *(Q13.)*
+12. **No child-scoped add-ons in v1.** *(Q16.)*
+13. **Renewal/subscription tiers can't be parents or children.** *(Q18.)*
+14. **Duplicating a listing/group copies its parent–child links.** *(Q19.)*
