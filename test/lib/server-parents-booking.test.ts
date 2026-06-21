@@ -2,7 +2,11 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { setChildIds } from "#shared/db/listing-parents.ts";
 import { buildQrBookPayload, signQrBookToken } from "#shared/qr-token.ts";
-import { createTestListing, describeWithEnv } from "#test-utils";
+import {
+  createTestGroup,
+  createTestListing,
+  describeWithEnv,
+} from "#test-utils";
 
 /** GET a `/ticket/<slugs>` booking page. */
 const ticketGet = async (slugs: string): Promise<Response> => {
@@ -46,6 +50,24 @@ describeWithEnv(
     test("an ordinary (non-child) listing is unaffected", async () => {
       const listing = await createTestListing({ name: "Plain" });
       const res = await ticketGet(listing.slug);
+      expect(res.status).toBe(200);
+    });
+
+    test("a group containing a child member still renders (not 404)", async () => {
+      // The group page loads members indirectly, so a child member is suppressed
+      // /folded — not a reason to 404 the whole group (the buyer isn't starting
+      // from the child directly).
+      const group = await createTestGroup({ name: "Combo" });
+      const parent = await createTestListing({
+        groupId: group.id,
+        name: "Base unit",
+      });
+      const child = await createTestListing({
+        groupId: group.id,
+        name: "Add-on",
+      });
+      await setChildIds(parent.id, [child.id]);
+      const res = await ticketGet(group.slug);
       expect(res.status).toBe(200);
     });
 

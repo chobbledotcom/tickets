@@ -333,9 +333,12 @@ export const createFreeReservation = async ({
 /**
  * Whether any of `ids` is a child listing (invariant I3): a booking can never
  * start from a child — it is only bookable through one of its parents' per-parent
- * selectors. Every booking/checkout entry point uses this to reject (not silently
- * drop) a child it was handed directly. No-op (no query) unless the feature flag
- * is on, so existing behaviour is unchanged until parents ship.
+ * selectors. The explicit-slug entry points (multi-slug `/ticket/<slugs>`, the
+ * signed QR, the JSON API) use this to reject (not silently drop) a child they
+ * were handed directly. Group/order pages, which load their listings indirectly,
+ * instead suppress child rows (folded under their parents) — so the rejection is
+ * deliberately *not* applied in the shared render funnel. No-op (no query) unless
+ * the feature flag is on, so existing behaviour is unchanged until parents ship.
  */
 export const anyChildListing = async (
   ids: readonly number[],
@@ -344,13 +347,8 @@ export const anyChildListing = async (
   return (await getChildListingIds(ids)).size > 0;
 };
 
-/** {@link anyChildListing} for a set of rendered ticket listings — used by the
- * booking funnel to reject a child handed to it as a standalone line. */
-export const containsChildListing = (
-  listings: TicketListing[],
-): Promise<boolean> => anyChildListing(listings.map((e) => e.listing.id));
-
-/** Load and validate active listings, return 404 if none */
+/** Load and validate active listings, return 404 if none — or if any resolved
+ * slug is a child (a booking can't start from a child; see {@link anyChildListing}). */
 export const withActiveListings = async (
   slugs: string[],
   handler: AsyncHandler<[TicketListing[]]>,
@@ -358,9 +356,11 @@ export const withActiveListings = async (
   const listings = await getListingsBySlugsBatch(slugs);
   const active = compact(listings).filter((e) => e.active);
   const activeListings = await buildTicketListingsWithGroupCapacity(active);
-  return activeListings.length === 0
-    ? notFoundResponse()
-    : handler(activeListings);
+  if (activeListings.length === 0) return notFoundResponse();
+  if (await anyChildListing(activeListings.map((e) => e.listing.id))) {
+    return notFoundResponse();
+  }
+  return handler(activeListings);
 };
 
 /** Compute shared available dates across all daily listings (intersection) */
