@@ -307,7 +307,10 @@ It reports a mutation score and lists each survivor as
 `file:line:col  old → new`. Exit code is non-zero if any mutant survived, so it
 can gate CI on a chosen module. By default it runs the test files directly
 (fast, for pure-unit modules); pass `--harness` for tests that import the app /
-Stripe and need built static assets + stripe-mock.
+Stripe and need built static assets + stripe-mock. Under `--harness`, mutating a
+client-bundle source (anything bundled into `src/ui/static/*.js` — e.g.
+`src/ui/client/admin.ts` or a module it imports) rebuilds just the affected
+bundle for each mutant, so the mutation reaches the built asset the tests load.
 
 How it works (and why it is bespoke): it mutates the source file **in place**,
 runs the mapped tests in a fresh `deno test` subprocess, then restores the

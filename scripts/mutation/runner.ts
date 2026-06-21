@@ -18,6 +18,7 @@ import {
   STRIPE_MOCK_PORT,
   withTestHarness,
 } from "../test-harness.ts";
+import { type AssetRebuilder, createAssetRebuilder } from "./assets.ts";
 import { applyMutant, generateMutants, type Mutant } from "./generate.ts";
 
 export interface MutationOptions {
@@ -95,6 +96,15 @@ const statusGlyph = (status: Status): string =>
       ? yellow("T")
       : red("S");
 
+/**
+ * Hooks for keeping a mutated source's built client bundle(s) in sync, used
+ * only under `--harness` when the source feeds `src/ui/static/*.js`.
+ */
+interface MutantAssetHooks {
+  rebuild: () => Promise<boolean>;
+  restore: () => Promise<void>;
+}
+
 /** Mutate the file, run the tests, and always restore the original. */
 const evaluateMutant = async (
   file: string,
@@ -102,13 +112,19 @@ const evaluateMutant = async (
   mutant: Mutant,
   testFiles: string[],
   timeoutMs: number,
+  assets: MutantAssetHooks | null,
 ): Promise<Status> => {
   await Deno.writeTextFile(file, applyMutant(original, mutant));
   try {
+    // A mutant that breaks the client-bundle build must not be tested against a
+    // stale baseline asset (the tests would pass and it would falsely survive).
+    // A failed build means the mutation is detected, so count it as killed.
+    if (assets && !(await assets.rebuild())) return "killed";
     const { outcome } = await runTests(testFiles, timeoutMs);
     return toStatus(outcome);
   } finally {
     await Deno.writeTextFile(file, original);
+    if (assets) await assets.restore();
   }
 };
 
@@ -175,6 +191,12 @@ const mutate = async (options: MutationOptions): Promise<number> => {
     ),
   );
 
+  // Under --harness the client bundles are built once; a mutant on a bundled
+  // source must rebuild the affected bundle(s) or it would falsely survive.
+  const rebuilder: AssetRebuilder | null = options.useHarness
+    ? await createAssetRebuilder()
+    : null;
+
   const results: MutantResult[] = [];
   const originals = new Map<string, string>();
   const restoreAll = (): void => {
@@ -207,11 +229,23 @@ const mutate = async (options: MutationOptions): Promise<number> => {
     for (const file of sourceFiles) {
       const original = await Deno.readTextFile(file);
       originals.set(file, original);
+      const affected = rebuilder ? rebuilder.affected(file) : [];
+      const assets: MutantAssetHooks | null =
+        rebuilder && affected.length > 0
+          ? {
+              rebuild: () => rebuilder.rebuild(affected),
+              restore: () => rebuilder.restore(affected),
+            }
+          : null;
       const mutants = generateMutants(original, file, exhaustive);
       if (mutants.length === 0) {
         console.log(yellow(`  no mutable operators in ${rel(file)}`));
       } else {
-        console.log(dim(`  ${rel(file)}: ${mutants.length} mutants`));
+        const note =
+          affected.length > 0
+            ? dim(` (rebuilding ${affected.length} bundle(s) per mutant)`)
+            : "";
+        console.log(dim(`  ${rel(file)}: ${mutants.length} mutants`) + note);
       }
       for (const mutant of mutants) {
         const status = await evaluateMutant(
@@ -220,6 +254,7 @@ const mutate = async (options: MutationOptions): Promise<number> => {
           mutant,
           testFiles,
           perMutantTimeout,
+          assets,
         );
         results.push({ file, mutant, status });
         write(statusGlyph(status));
@@ -235,6 +270,7 @@ const mutate = async (options: MutationOptions): Promise<number> => {
       }
     }
     restoreAll();
+    rebuilder?.stop();
   }
   write("\n");
 
