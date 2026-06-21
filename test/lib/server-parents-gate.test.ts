@@ -25,14 +25,16 @@ const ticketPageHtml = async (slugs: string): Promise<string> => {
   return res.text();
 };
 
-/** GET a `/ticket/<slugs>` page, returning the page HTML and its CSRF token. */
+/** A CSRF token for posting to `/ticket/<slugs>`. Prefer the token embedded in
+ * the rendered form; when the page renders no form (e.g. a parent projected to
+ * sold-out because it has no bookable child — Codex 914), fall back to a
+ * freshly-minted token so the submit-side gate can still be exercised. */
 const ticketPageToken = async (slugs: string): Promise<string> => {
   const { handleRequest } = await import("#routes");
   const { mockRequest } = await import("#test-utils/mocks.ts");
+  const { signCsrfToken } = await import("#shared/csrf.ts");
   const res = await handleRequest(mockRequest(`/ticket/${slugs}`));
-  const token = getTicketCsrfToken(await res.text());
-  if (!token) throw new Error(`no CSRF token for /ticket/${slugs}`);
-  return token;
+  return getTicketCsrfToken(await res.text()) ?? (await signCsrfToken());
 };
 
 /** POST a booking to `/ticket/<slugs>` with the given fields (CSRF auto-added). */
@@ -877,6 +879,145 @@ describeWithEnv(
       });
       expectReserved(res);
       expect((await getAttendeesRaw(child.id)).length).toBe(1);
+    });
+
+    test("a fixed daily child whose duration differs from the chosen span is rejected; the matching span folds", async () => {
+      // A customisable daily parent offering 1 or 3 days, with a fixed 3-day
+      // daily child. A 1-day booking can't fold the 3-day child (its span would
+      // not match the parent's), so the parent is sold out; a 3-day booking
+      // folds the child fine (Codex 449).
+      const parent = await createDailyTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 1000, 3: 3000 },
+        durationDays: 3,
+        name: "Daily base",
+        thankYouUrl: "",
+      });
+      const child = await createDailyTestListing({
+        durationDays: 3,
+        name: "Three-day add-on",
+        thankYouUrl: "",
+      });
+      await setChildIds(parent.id, [child.id]);
+
+      const { getBookableStartDates } = await import("#shared/dates.ts");
+      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
+      const { getListingWithCount } = await import("#shared/db/listings.ts");
+      const parentRow = (await getListingWithCount(parent.id))!;
+      const date = getBookableStartDates(
+        parentRow,
+        await getActiveHolidays(),
+      )[0]!;
+
+      const rejected = await postBooking(parent.slug, {
+        date,
+        day_count: "1",
+        email: "a@b.com",
+        name: "Ada",
+        [`quantity_${parent.id}`]: "1",
+      });
+      expect(rejected.status).toBe(302);
+      expectFlash(
+        rejected,
+        "Daily base has no available options right now.",
+        false,
+      );
+      expect((await getAttendeesRaw(parent.id)).length).toBe(0);
+
+      const ok = await postBooking(parent.slug, {
+        date,
+        day_count: "3",
+        email: "a@b.com",
+        name: "Ada",
+        [`quantity_${parent.id}`]: "1",
+      });
+      expectReserved(ok);
+      expect((await getAttendeesRaw(child.id)).length).toBe(1);
+    });
+
+    test("a parent's pay-more children render non-required price inputs", async () => {
+      // The no-JS baseline emits a price input for EVERY pay-more child of a
+      // parent; none may be HTML-required or the browser blocks submit demanding
+      // a price for an unselected child (Codex 379).
+      const parent = await createTestListing({ name: "Base unit" });
+      const childA = await createTestListing({
+        canPayMore: true,
+        maxPrice: 5000,
+        name: "Donation A",
+        unitPrice: 1000,
+      });
+      const childB = await createTestListing({
+        canPayMore: true,
+        maxPrice: 5000,
+        name: "Donation B",
+        unitPrice: 1000,
+      });
+      await setChildIds(parent.id, [childA.id, childB.id]);
+
+      const html = await ticketPageHtml(parent.slug);
+      // Both child price inputs are present but neither is HTML-required.
+      expect(html).toContain(`name="child_price_${parent.id}_${childA.id}"`);
+      expect(html).toContain(`name="child_price_${parent.id}_${childB.id}"`);
+      expect(html).not.toMatch(
+        new RegExp(
+          `name="child_price_${parent.id}_${childA.id}"[^>]*\\srequired`,
+        ),
+      );
+      expect(html).not.toMatch(
+        new RegExp(
+          `name="child_price_${parent.id}_${childB.id}"[^>]*\\srequired`,
+        ),
+      );
+    });
+
+    test("a parent whose only child is sold out renders sold out on its own page", async () => {
+      // On /ticket/<parent> the page must project a no-bookable-child parent to
+      // sold out (no quantity selector / Book control), mirroring discovery,
+      // instead of a normal form that could only fail at submit (Codex 914).
+      const parent = await createTestListing({ name: "Base unit" });
+      const child = await createTestListing({
+        maxAttendees: 0,
+        name: "Add-on",
+      });
+      await setChildIds(parent.id, [child.id]);
+
+      const html = await ticketPageHtml(parent.slug);
+      // The single-listing page renders its unavailable message, not a form.
+      expect(html).toContain("Sorry, this listing is full.");
+      // No quantity selector / child selector is rendered for the parent.
+      expect(html).not.toContain(`name="quantity_${parent.id}"`);
+      expect(html).not.toContain(`name="child_${parent.id}"`);
+    });
+
+    test("a Square free parent with a paid child renders a present-but-non-required email", async () => {
+      // Square requires an email for paid orders, but the page itself is free
+      // (only a POSSIBLE child is paid); the email field must be present so a
+      // buyer who picks the paid child can fill it, yet non-required so picking
+      // the free child / leaving the parent at zero doesn't block submit (Codex
+      // 920). Server-side validation enforces it when the folded order is paid.
+      const { settings } = await import("#shared/db/settings.ts");
+      await settings.update.paymentProvider("square");
+      try {
+        const parent = await createTestListing({
+          fields: "",
+          name: "Free base",
+        });
+        const freeChild = await createTestListing({
+          name: "Free add-on",
+          unitPrice: 0,
+        });
+        const paidChild = await createTestListing({
+          name: "Paid add-on",
+          unitPrice: 1500,
+        });
+        await setChildIds(parent.id, [freeChild.id, paidChild.id]);
+
+        const html = await ticketPageHtml(parent.slug);
+        expect(html).toContain('name="email"');
+        expect(html).not.toMatch(/name="email"[^>]*\srequired/);
+      } finally {
+        await settings.update.setPaymentProviderNone();
+      }
     });
 
     test("a child's stricter contact field is rendered (non-required) on the parent page", async () => {

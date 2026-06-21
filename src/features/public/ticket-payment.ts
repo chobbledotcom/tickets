@@ -323,8 +323,27 @@ type ChildBookableCtx = {
   holidays: Holiday[];
 };
 
+/** Whether a child's booked span matches the parent's inherited `duration`. A
+ * customisable child inherits the duration directly (priced span is checked
+ * separately); a non-customisable DAILY child is booked for its own fixed
+ * `duration_days` (via {@link bookingDateFields}), so it can only fold when that
+ * equals the inherited duration — otherwise a {1,3}-day customisable parent
+ * booked at 1 day would still reserve a fixed 3-day child for 3 days (Codex
+ * 449). A standard (dateless) child is duration 1 and unaffected. */
+const childDurationMatches = (
+  child: TicketListing,
+  duration: number,
+): boolean => {
+  if (child.listing.customisable_days) return true;
+  if (child.listing.listing_type === "daily") {
+    return normalizeDurationDays(child.listing.duration_days) === duration;
+  }
+  return true;
+};
+
 /** A child is bookable now if it is active, not sold out or closed, — when
- * customisable — its inherited duration is priced, and — when daily — the
+ * customisable — its inherited duration is priced, — when a fixed daily child —
+ * its own `duration_days` equals the inherited duration, and — when daily — the
  * resolved order date is within its own bookable start dates for the inherited
  * duration. Date-capacity for a daily child is enforced later by the folded
  * `checkAvailability` (never clamped). */
@@ -337,6 +356,7 @@ const childIsBookable = (
   !child.isClosed &&
   (!child.listing.customisable_days ||
     dayPriceFor(child.listing, duration) !== null) &&
+  childDurationMatches(child, duration) &&
   childDateIsBookable(child, duration, date, holidays);
 
 /** The order's listing set, quantity map, custom-price map and selected ids,

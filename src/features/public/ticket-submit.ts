@@ -59,6 +59,7 @@ import {
   type TicketListing,
   type TicketPrefill,
 } from "#templates/public.tsx";
+import { applyBookingPageParentSoldOut } from "./discovery.ts";
 import {
   buildListingAnswerMap,
   buildListingTextAnswerMap,
@@ -899,6 +900,16 @@ const buildTicketCtx = async ({
   };
 };
 
+/** The render-only view of the context: a parent whose children are all
+ * unavailable is projected to sold-out so the GET page shows it sold out (no
+ * Book control) instead of a normal form that would only fail at submit (Codex
+ * 914). The submit/quote paths keep the un-projected `ctx` so the fold's
+ * authoritative, date-specific child rejection still runs with its clear error. */
+const renderCtx = (ctx: TicketCtx): TicketCtx => ({
+  ...ctx,
+  listings: applyBookingPageParentSoldOut(ctx.listings, ctx.childrenByParentId),
+});
+
 /** Handle ticket GET/POST orchestrator: render on GET, quote when in calculate
  * mode, otherwise submit. */
 export const handleTicket = async (args: BookingRequest): Promise<Response> => {
@@ -906,7 +917,7 @@ export const handleTicket = async (args: BookingRequest): Promise<Response> => {
   const ctx = await buildTicketCtx(args);
   const response =
     request.method === "GET"
-      ? ticketResponse(ctx)(applyFlash(request).error)
+      ? ticketResponse(renderCtx(ctx))(applyFlash(request).error)
       : mode === "calculate"
         ? await calculateTicket(request, ctx)
         : await submitTicket(request, ctx);

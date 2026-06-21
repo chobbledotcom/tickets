@@ -53,18 +53,24 @@ const EMPTY_CLASSIFICATION: DiscoveryClassification = {
   soldOutParentIds: new Set(),
 };
 
-/** A child is individually bookable on a discovery surface when it is active and
- * neither sold out nor registration-closed at the minimum (single-day) order.
- * Hidden children stay bookable — `hidden` governs the index, not eligibility
+/** Whether a built child is individually bookable: active and neither sold out
+ * nor closed. The single source of truth shared by discovery surfaces (which
+ * build the {@link TicketListing} for a minimum single-day order) and the
+ * booking page (which already has each child built for the resolved date). Hidden
+ * children stay bookable — `hidden` governs the index, not eligibility
  * (parents.md, Edge cases); only `active` / sold-out / closed disqualify. */
+const childBookable = (child: TicketListing): boolean =>
+  child.listing.active && !child.isSoldOut && !child.isClosed;
+
+/** A child is individually bookable on a discovery surface when it is active and
+ * neither sold out nor registration-closed at the minimum (single-day) order. */
 const childAvailableForDiscovery = (
   child: ListingWithCount,
   groupRemaining: number | undefined,
 ): boolean =>
-  child.active &&
-  !isRegistrationClosed(child) &&
-  !buildTicketListing(child, isRegistrationClosed(child), groupRemaining)
-    .isSoldOut;
+  childBookable(
+    buildTicketListing(child, isRegistrationClosed(child), groupRemaining),
+  );
 
 /**
  * Classify the given listings for a discovery surface (see
@@ -119,3 +125,25 @@ export const applyParentSoldOut = (
   listings.map((info) =>
     soldOutParentIds.has(info.listing.id) ? asSoldOut(info) : info,
   );
+
+/**
+ * Project the booking page's own listings to sold-out for any parent whose
+ * children are ALL unavailable (invariant I6), reusing the children the page
+ * already built (`childrenByParentId`) rather than re-querying. Mirrors the
+ * discovery/feed behaviour on `/ticket/<parent>` so a parent with no bookable
+ * child renders sold out (no quantity selector / Book control) instead of a
+ * normal form that could only fail with the child-sold-out error at submit
+ * (Codex 914). A listing with no child edge is left untouched; the authoritative
+ * date-specific rejection still happens in the fold at submit.
+ */
+export const applyBookingPageParentSoldOut = (
+  listings: readonly TicketListing[],
+  childrenByParentId: ReadonlyMap<number, TicketListing[]>,
+): TicketListing[] =>
+  listings.map((info) => {
+    const children = childrenByParentId.get(info.listing.id);
+    if (children && children.length > 0 && !children.some(childBookable)) {
+      return asSoldOut(info);
+    }
+    return info;
+  });

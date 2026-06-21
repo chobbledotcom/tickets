@@ -147,11 +147,17 @@ const renderDayCountSelector = (
 /** Quantity values parsed from ticket form */
 export type TicketQuantities = Map<number, number>;
 
-/** Render a price input for pay-more listings */
+/** Render a price input for pay-more listings. `required` is the HTML
+ * constraint: page listings emit a required input when the minimum price is
+ * above zero, but a child's pay-more input renders non-required (`required =
+ * false`) — the no-JS baseline emits one for every pay-more child of a parent,
+ * so a `required` input would block submit demanding a price for an UNSELECTED
+ * child; the server validates only the chosen child's price (invariant I9). */
 const renderPayMoreInput = (
   listing: Pick<ListingWithCount, "unit_price" | "max_price">,
   fieldName = "custom_price",
   prefillMinor?: number,
+  required = true,
 ): string => {
   const minPrice = listing.unit_price;
   const maxPrice = listing.max_price;
@@ -177,7 +183,7 @@ const renderPayMoreInput = (
       toMajorUnits(maxPrice),
     )}" pattern="\\d+(\\.\\d{1,2})?" title="${escapeHtml(
       t("public.ticket.price_input_title"),
-    )}"${minPrice > 0 ? " required" : ""} /></label>`
+    )}"${required && minPrice > 0 ? " required" : ""} /></label>`
   );
 };
 
@@ -418,7 +424,12 @@ const renderChildOption = (
     saved === "" ? checked && bookable : saved === String(listing.id);
   const priceHtml =
     listing.can_pay_more && bookable
-      ? renderPayMoreInput(listing, `child_price_${parentId}_${listing.id}`)
+      ? renderPayMoreInput(
+          listing,
+          `child_price_${parentId}_${listing.id}`,
+          undefined,
+          false,
+        )
       : "";
   const label = bookable
     ? `${escapeHtml(listing.name)} ${childPriceLabel(listing, parent)}`.trim()
