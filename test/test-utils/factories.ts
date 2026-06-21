@@ -251,6 +251,7 @@ export const makeTestAttendee = (
   phone: "555-1234",
   price_paid: "0",
   quantity: 1,
+  remaining_balance: 0,
   special_instructions: "",
   ticket_token: "AABB001122",
   ...overrides,

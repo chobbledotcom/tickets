@@ -4584,15 +4584,15 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
       );
     });
 
-    test("a free booking consumes answer-tier stock, blocking the next over it", async () => {
+    test("a provider-less booking consumes answer-tier stock, blocking the next over it", async () => {
       const listing = await createTestListing({
         maxAttendees: 50,
         thankYouUrl: "",
       });
       const { question, answer1 } = await setupQuestionForListing(listing.id);
-      // Payments are disabled here, so bookings complete for free — but a
-      // stock-limited answer tier must still be consumed so it can't be
-      // over-sold across free bookings.
+      // Payments are disabled here, so bookings are taken without charging — but
+      // a stock-limited answer tier must still be consumed so it can't be
+      // over-sold across bookings.
       const tier = await modifiersTable.insert({
         calcKind: "fixed",
         calcValue: 5,
@@ -4610,13 +4610,14 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
       });
       expectReservedRedirectWithTokens(first);
 
-      // The unit was consumed, but with payments off nothing was collected: the
-      // usage is recorded without inflating the tier's reported revenue.
+      // The unit was consumed. With no payment provider nothing is collected up
+      // front, but the booking owes the tier's £5.00, so its impact is recorded
+      // exactly as a zero-deposit reservation's would be.
       const afterFirst = (await getAllModifiers()).find(
         (m) => m.id === tier.id,
       );
       expect(afterFirst?.total_uses).toBe(1);
-      expect(afterFirst?.total_revenue).toBe(0);
+      expect(afterFirst?.total_revenue).toBe(500);
 
       // The single unit is now spent, so the next booking of the tier is blocked.
       const second = await submitTicketForm(listing.slug, {

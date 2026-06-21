@@ -22,12 +22,20 @@ export type AttendeeBalanceView = {
   remainingBalance: number;
   deposit: number;
   link: string;
+  /** Whether a payment provider is configured — the customer pay link only
+   * functions when one is, so the template hides it otherwise. */
+  paymentsEnabled: boolean;
   history: ActivityLogEntry[];
 };
 
 export const attendeeBalancePage = (view: AttendeeBalanceView): string => {
   const { status, summary, remainingBalance, deposit, link, history } = view;
   const outstanding = remainingBalance > 0;
+  // The online /pay link only works for a reservation status with a provider
+  // that can take the payment; otherwise it dead-ends, so we show offline
+  // collection guidance instead.
+  const showPayLink =
+    outstanding && !!status?.is_reservation && view.paymentsEnabled;
   return String(
     <Layout title={t("attendee_balance.page_title")}>
       <AdminNav active="/admin/attendees" session={view.session} />
@@ -66,7 +74,9 @@ export const attendeeBalancePage = (view: AttendeeBalanceView): string => {
         </p>
       </div>
 
-      {outstanding ? (
+      {!outstanding ? (
+        <p>{t("attendee_balance.fully_paid_message")}</p>
+      ) : showPayLink ? (
         <article>
           <div class="prose">
             <h2>{t("attendee_balance.payment_link_heading")}</h2>
@@ -77,7 +87,7 @@ export const attendeeBalancePage = (view: AttendeeBalanceView): string => {
           </div>
         </article>
       ) : (
-        <p>{t("attendee_balance.fully_paid_message")}</p>
+        <p>{t("attendee_balance.offline_balance_message")}</p>
       )}
 
       <h2>{t("attendee_balance.history_heading")}</h2>
