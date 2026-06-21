@@ -2,6 +2,7 @@
  * Admin dashboard route
  */
 
+import { compact, unique } from "#fp";
 import { csvResponse, requirePrivateKey } from "#routes/admin/actions.ts";
 import { generateListingsCsv } from "#routes/admin/listings-csv.ts";
 import { requireSessionOr, sessionPage, withSession } from "#routes/auth.ts";
@@ -10,14 +11,19 @@ import { htmlResponse, redirectResponse } from "#routes/response.ts";
 /* jscpd:ignore-start */
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { getAllActivityLog, logActivity } from "#shared/db/activityLog.ts";
+import {
+  type ActivityLogEntry,
+  getAllActivityLog,
+  logActivity,
+} from "#shared/db/activityLog.ts";
 import {
   decryptAttendees,
   getActiveListingStats,
+  getAttendeesByIds,
   getNewestAttendeesRaw,
 } from "#shared/db/attendees.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
-import { getAllListings } from "#shared/db/listings.ts";
+import { getAllListings, listingNameMap } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import {
@@ -26,7 +32,10 @@ import {
 } from "#shared/listing-filter.ts";
 import { sortListings } from "#shared/sort-listings.ts";
 /* jscpd:ignore-end */
-import { adminGlobalActivityLogPage } from "#templates/admin/activityLog.tsx";
+import {
+  type ActivityLogRefs,
+  adminGlobalActivityLogPage,
+} from "#templates/admin/activityLog.tsx";
 import {
   adminDashboardPage,
   adminListingsPage,
@@ -126,6 +135,33 @@ const handleListingsCsvExport: TypedRouteHandler<"GET /admin/listings/csv"> = (
 const LOG_DISPLAY_LIMIT = 200;
 
 /**
+ * Resolve the attendee and listing display names referenced by a batch of log
+ * entries, so the global log can show each entry's attendee/listing as a link.
+ * Attendee names are decrypted with the session's private key; listing names
+ * come from the (cached) listings. An attendee that has since been deleted has
+ * no entry here — its log rows keep the id but render without a link.
+ */
+const loadActivityLogRefs = async (
+  entries: ActivityLogEntry[],
+  privateKey: CryptoKey,
+): Promise<ActivityLogRefs> => {
+  const attendeeIds = unique(
+    compact(entries.map((entry) => entry.attendee_id)),
+  );
+  const [rawAttendees, listings] = await Promise.all([
+    getAttendeesByIds(attendeeIds),
+    getAllListings(),
+  ]);
+  // getAttendeesByIds returns one row per booking, so an attendee can repeat —
+  // every copy carries the same decrypted name, so later writes are harmless.
+  const decrypted = await decryptAttendees(rawAttendees, privateKey);
+  return {
+    attendees: new Map(decrypted.map((a) => [a.id, a.name])),
+    listings: listingNameMap(listings),
+  };
+};
+
+/**
  * Handle GET /admin/log
  */
 const handleAdminLog: TypedRouteHandler<"GET /admin/log"> = sessionPage(
@@ -135,7 +171,9 @@ const handleAdminLog: TypedRouteHandler<"GET /admin/log"> = sessionPage(
     const displayEntries = truncated
       ? entries.slice(0, LOG_DISPLAY_LIMIT)
       : entries;
-    return adminGlobalActivityLogPage(displayEntries, truncated, session);
+    const privateKey = await requirePrivateKey(session);
+    const refs = await loadActivityLogRefs(displayEntries, privateKey);
+    return adminGlobalActivityLogPage(displayEntries, truncated, session, refs);
   },
 );
 

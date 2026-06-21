@@ -399,6 +399,12 @@ export const invalidateListingsCache = (): void => {
 export const getAllListings = (): Promise<ListingWithCount[]> =>
   listingsCache.getAll();
 
+/** Index listings by id → name, for label/link lookups across admin views
+ * (the run sheet's listing column, the activity log's Listing column, …). */
+export const listingNameMap = (
+  listings: readonly ListingWithCount[],
+): Map<number, string> => new Map(listings.map((l) => [l.id, l.name]));
+
 /**
  * Get listing with attendee count (from cache)
  */
