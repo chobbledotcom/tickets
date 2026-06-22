@@ -7,6 +7,7 @@
  * records say each event should have.
  */
 
+import { instantToEpochMs } from "#shared/validation/timestamp.ts";
 import { accountKey } from "./account.ts";
 import { balanceOf } from "./project.ts";
 import type { AccountRef, Transfer } from "./types.ts";
@@ -72,7 +73,11 @@ const IDENTITY_FIELDS: ReadonlyArray<
   ["destination", (leg) => accountKey(leg.destination)],
   ["amount", (leg) => leg.amount],
   ["currency", (leg) => leg.currency],
-  ["occurredAt", (leg) => leg.occurredAt],
+  // Compare the instant, not its string form: the store persists time as
+  // epoch-millis and reads it back canonical, so a replay carrying the same
+  // moment in a different ISO form (no milliseconds, or an offset) must match
+  // the stored leg rather than read as an occurredAt conflict.
+  ["occurredAt", (leg) => instantToEpochMs(leg.occurredAt)],
   ["reversesId", (leg) => leg.reversesId ?? null],
 ];
 
