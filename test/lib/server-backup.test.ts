@@ -341,11 +341,13 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
       });
     });
 
-    test("surfaces the recorded commit so the operator can redeploy the code", async () => {
+    test("surfaces the full recorded commit so the operator can redeploy the code", async () => {
       await withLocalStorageEnabled(async () => {
         // The running build records its commit into settings; the dump carries
-        // it, so the restore can tell the operator which commit to redeploy.
-        setBuildCommitForTest("abc123def4567890");
+        // it, so the restore tells the operator which commit to redeploy. The
+        // FULL SHA is shown because the restore-deploy workflow requires one.
+        const fullSha = "0123456789abcdef0123456789abcdef01234567";
+        setBuildCommitForTest(fullSha);
         try {
           await recordScriptVersion();
           const zipData = await createBackupZip();
@@ -360,7 +362,35 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
           );
           await expectFlashRedirect(
             "/admin/backup",
-            "Database restored from backup. It was running commit abc123def456 — redeploy that commit to restore the code to this point in time.",
+            `Database restored from backup. It was running commit ${fullSha} — run the restore-deploy workflow with that commit to restore the code to this point in time.`,
+          )(response);
+        } finally {
+          setBuildCommitForTest(null);
+        }
+      });
+    });
+
+    test("omits the redeploy hint when the restored commit is not a full SHA", async () => {
+      await withLocalStorageEnabled(async () => {
+        // An uploaded/old backup may hold a non-SHA commit value; it must not be
+        // echoed into the flash (it's unusable by restore-deploy and could be
+        // oversized), so the message falls back to the plain confirmation.
+        setBuildCommitForTest("not-a-real-sha");
+        try {
+          await recordScriptVersion();
+          const zipData = await createBackupZip();
+          await uploadRaw(zipData, "restore-pending-badsha.zip");
+
+          const { response } = await adminFormPost(
+            "/admin/backup/restore/confirm",
+            {
+              backup_filename: "restore-pending-badsha.zip",
+              confirm_identifier: RESTORE_CONFIRM_PHRASE,
+            },
+          );
+          await expectFlashRedirect(
+            "/admin/backup",
+            "Database restored from backup",
           )(response);
         } finally {
           setBuildCommitForTest(null);
