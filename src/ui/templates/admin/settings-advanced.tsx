@@ -5,7 +5,7 @@
 import { t } from "#i18n";
 import type { AdminSession, Theme } from "#shared/types.ts";
 import { ResetDatabaseForm } from "#templates/admin/database-reset.tsx";
-import { AdminNav, SettingsSubNav } from "#templates/admin/nav.tsx";
+import { AdminNav } from "#templates/admin/nav.tsx";
 import { AppleWalletForm } from "#templates/admin/settings/apple-wallet.tsx";
 import {
   AttendeeColumnOrderForm,
@@ -73,8 +73,6 @@ export const adminAdvancedSettingsPage = (
   String(
     <Layout theme={s.theme} title={t("settings.advanced.title")}>
       <AdminNav active="/admin/settings" session={session} />
-      <SettingsSubNav />
-
       <article>
         <aside>
           <p>{t("settings.advanced.warning")}</p>

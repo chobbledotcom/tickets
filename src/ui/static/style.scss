@@ -38,6 +38,8 @@
   --space-m: 1rem;
   --space-lg: 2rem;
   --space-xl: 4rem;
+  /* Width of the pinned admin sidebar nav (desktop only) */
+  --admin-nav-width: 8rem;
   /* Breakpoint: desktop ≥ 769px, mobile ≤ 768px (use in @media rules) */
 }
 
@@ -182,6 +184,14 @@ main {
   padding-inline: clamp(var(--space-m), 4.5vw, var(--space-xl));
 }
 
+/* Admin pages span the full viewport width (the left sidebar already gives the
+   content its own column) and cap their horizontal padding a step lower. */
+body:has(#main-nav) main,
+.admin-footer {
+  max-width: none;
+  padding-inline: clamp(var(--space-m), 4.5vw, var(--space-lg));
+}
+
 main {
   display: flex;
   flex-direction: column;
@@ -321,44 +331,7 @@ nav ul {
 }
 
 nav ul li {
-  position: relative;
   text-align: left;
-}
-
-/* Nav Dropdown */
-nav ul li:hover ul {
-  display: block;
-}
-
-nav ul li ul {
-  background: var(--color-bg);
-  border: 1px solid var(--color-bg-secondary);
-  border-radius: var(--border-radius);
-  box-shadow: var(--box-shadow) var(--color-shadow);
-  display: none;
-  height: auto;
-  left: -2px;
-  padding: 0.5rem 1rem;
-  position: absolute;
-  top: 1.7rem;
-  white-space: nowrap;
-  width: auto;
-  z-index: 1;
-}
-
-nav ul li ul::before {
-  /* fill gap above to make mousing over them easier */
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: -0.5rem;
-  height: 0.5rem;
-}
-
-nav ul li ul li,
-nav ul li ul li a {
-  display: block;
 }
 
 /* Nav for Mobile */
@@ -367,36 +340,106 @@ nav ul li ul li a {
     flex-wrap: wrap;
     justify-content: flex-start;
   }
-
-  nav ul li ul {
-    border: none;
-    box-shadow: none;
-    display: block;
-    position: static;
-  }
 }
 
-/* Nav for Desktop */
-@media (min-width: 769px) {
-  nav#main-nav {
-    margin: 0 auto;
-    position: sticky;
-    top: 1rem;
-    background: var(--color-bg);
-    width: fit-content;
-    padding: 0 2rem;
-    border-radius: var(--border-radius);
-    z-index: 10;
-    transition: transform 0.25s ease, opacity 0.25s ease;
-  }
-  nav#main-nav.nav-hidden {
-    transform: translateY(-150%);
-    opacity: 0;
-  }
+/* The admin nav wraps a desktop sidebar nav and the mobile bars; CSS shows
+   whichever suits the viewport. On mobile/tablet the wrapper is transparent
+   (display: contents), so the mobile bars lay out as the plain stacked bars
+   admin has always shown; on desktop it becomes a sticky left column. */
+.admin-nav-group {
+  display: contents;
+}
+
+/* The desktop sidebar nav is hidden until the desktop breakpoint (below); the
+   mobile bars use the default nav styling above. */
+.admin-nav--desktop {
+  display: none;
 }
 
 nav a.active {
   color: var(--color-text);
+}
+
+/* Nav for Desktop: pin the admin menu to the left as a sticky sidebar, with the
+   page content flowing to its right. The sidebar is a plain vertical list of
+   links — no boxes or borders — with each section's sub-nav nested and indented
+   beneath its parent link. */
+@media (min-width: 769px) {
+  body:has(#main-nav) main {
+    display: grid;
+    grid-template-columns: var(--admin-nav-width) minmax(0, 1fr);
+    gap: 0 var(--space-xl);
+    align-items: start;
+  }
+
+  .admin-nav-group {
+    display: block;
+    grid-column: 1;
+    /* Span every content row (9999 stands in for "all rows" — `-1` can't target
+       the implicit grid) so the sidebar's height never stretches a content row
+       and column 2 keeps flowing from the very top. */
+    grid-row: 1 / span 9999;
+    align-self: start;
+    position: sticky;
+    top: var(--space-m);
+    /* If the menu is taller than a short viewport, let it scroll on its own so
+       the lower links stay reachable while the sidebar is stuck. */
+    max-height: calc(100dvh - 2 * var(--space-m));
+    overflow-y: auto;
+  }
+
+  /* Everything that isn't the sidebar flows down column 2... */
+  body:has(#main-nav) main > :not(.admin-nav-group) {
+    grid-column: 2;
+    min-width: 0;
+  }
+
+  /* ...with margins re-creating the inter-block gap, since a real row-gap would
+     be multiplied across the 9999 spanned (empty) rows. */
+  body:has(#main-nav) main > :not(.admin-nav-group) ~ :not(.admin-nav-group) {
+    margin-top: var(--space-xl);
+  }
+
+  /* Swap which nav shows: the desktop sidebar replaces the mobile bars. */
+  .admin-nav--mobile {
+    display: none;
+  }
+
+  .admin-nav--desktop {
+    display: block;
+  }
+
+  /* Plain stacked links. Every list — the top level and each nested sub-nav —
+     is a simple column; nesting a sub-nav indents it one step, so the site
+     editor's third level indents twice, all without boxes or borders. */
+  .admin-nav--desktop ul {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-s);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .admin-nav--desktop li {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-s);
+    padding: 0;
+    text-align: left;
+  }
+
+  .admin-nav--desktop .admin-subnav {
+    padding-left: var(--space-m);
+  }
+
+  .admin-nav--desktop a {
+    text-decoration: none;
+  }
+
+  .admin-nav--desktop a:hover {
+    text-decoration: underline;
+  }
 }
 
 /* Typography */
@@ -2009,6 +2052,15 @@ button.secondary:hover,
     display: none;
   }
 
+  /* Drop the two-column admin layout for print: no sidebar, full-width content */
+  body:has(#main-nav) main {
+    display: block;
+  }
+
+  .admin-nav-group {
+    display: none;
+  }
+
   .table-scroll {
     overflow: visible;
     max-width: 100%;
@@ -2048,11 +2100,6 @@ button.secondary:hover,
 #bulk-email:not(:has(input[name="update_existing"]:checked))
   .template-update-fields {
   display: none;
-}
-
-/* No-transition helper (used by admin nav scroll-hide) */
-.nav-no-transition {
-  transition: none !important;
 }
 
 /* Answers cell in attendee table */
