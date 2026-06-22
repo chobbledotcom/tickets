@@ -1,5 +1,10 @@
 import type { InValue } from "@libsql/client";
-import { executeBatch, getDb, queryBatchPrimary } from "#shared/db/client.ts";
+import {
+  executeBatch,
+  getDb,
+  queryBatchPrimary,
+  withTransaction,
+} from "#shared/db/client.ts";
 import { logDebug } from "#shared/logger.ts";
 import {
   APP_SCHEMA,
@@ -112,28 +117,6 @@ const createIndexSql = (tableName: string, idx: Index): string => {
   )})`;
 };
 
-/** Create indexes for a named table from SCHEMA */
-const createIndexesForTable = async (
-  tableName: string,
-  indexes: Index[],
-): Promise<void> => {
-  for (const idx of indexes) {
-    await runMigration(createIndexSql(tableName, idx));
-  }
-};
-
-/**
- * (Re)create every declared trigger that fires on a named table. Called after
- * {@link recreateTable} rebuilds a table, since dropping the old table also
- * drops its triggers. Statements are `CREATE TRIGGER IF NOT EXISTS`, so this is
- * idempotent.
- */
-const createTriggersForTable = async (tableName: string): Promise<void> => {
-  for (const trg of TRIGGERS) {
-    if (trg.table === tableName) await runMigration(trg.sql);
-  }
-};
-
 const currentSchemaTable = (tableName: string): Table => {
   const table = SCHEMA.find(([name]) => name === tableName)?.[1];
   if (!table) throw new Error(`Unknown schema table ${tableName}`);
@@ -153,38 +136,62 @@ const copyExpressionFor = ([column, type]: Column): string => {
   return defaultMatch ? `COALESCE(${column}, '${defaultMatch[1]}')` : column;
 };
 
-export const rebuildTableWithColumns = async ({
-  columns,
-  tableName,
-  tmpName = `${tableName}_new`,
-}: {
+type RebuildParams = {
   columns: readonly Column[];
   tableName: string;
   tmpName?: string;
-}): Promise<void> => {
-  const colNames = columns.map(([col]) => col).join(", ");
-  const colDefs = columns.map(([col, type]) => `${col} ${type}`).join(", ");
-  const selectExprs = columns.map(copyExpressionFor).join(", ");
-
-  await executeBatch([
-    { args: [], sql: `DROP TABLE IF EXISTS ${tmpName}` },
-    { args: [], sql: `CREATE TABLE ${tmpName} (${colDefs})` },
-    {
-      args: [],
-      sql:
-        `INSERT INTO ${tmpName} (${colNames}) ` +
-        `SELECT ${selectExprs} FROM ${tableName}`,
-    },
-    { args: [], sql: `DROP TABLE ${tableName}` },
-    { args: [], sql: `ALTER TABLE ${tmpName} RENAME TO ${tableName}` },
-  ]);
 };
 
 /**
- * Recreate a table from its SCHEMA definition, preserving data for matching columns.
+ * The ordered statements that rebuild a table from a column list, preserving
+ * data for the listed columns: stage a fresh table, copy the rows across, drop
+ * the original, then rename the staged table into its place. Shared by the
+ * batch rebuild ({@link rebuildTableWithColumns}) and the atomic
+ * {@link recreateTable}.
+ */
+const rebuildStatements = ({
+  columns,
+  tableName,
+  tmpName = `${tableName}_new`,
+}: RebuildParams): string[] => {
+  const colNames = columns.map(([col]) => col).join(", ");
+  const colDefs = columns.map(([col, type]) => `${col} ${type}`).join(", ");
+  const selectExprs = columns.map(copyExpressionFor).join(", ");
+  return [
+    `DROP TABLE IF EXISTS ${tmpName}`,
+    `CREATE TABLE ${tmpName} (${colDefs})`,
+    `INSERT INTO ${tmpName} (${colNames}) SELECT ${selectExprs} FROM ${tableName}`,
+    `DROP TABLE ${tableName}`,
+    `ALTER TABLE ${tmpName} RENAME TO ${tableName}`,
+  ];
+};
+
+export const rebuildTableWithColumns = async (
+  params: RebuildParams,
+): Promise<void> => {
+  await executeBatch(
+    rebuildStatements(params).map((sql) => ({ args: [], sql })),
+  );
+};
+
+/**
+ * Recreate a table from its SCHEMA definition, preserving data for matching
+ * columns.
  *
- * The new table is created WITHOUT foreign keys (only column definitions).
- * This means any FKs the original table had are removed after recreation.
+ * The rebuild (copy into a fresh table), its indexes, and its triggers all run
+ * inside ONE interactive transaction, so the table is never committed without
+ * the indexes and triggers that enforce its invariants. Any failure rolls the
+ * whole rebuild back and leaves the original table untouched, instead of
+ * leaving a live table missing (say) a UNIQUE index until the migration is
+ * retried — a window in which duplicate rows could land and then permanently
+ * break the index re-creation. An interactive transaction (rather than a batch)
+ * is what makes this possible: a compound `CREATE TRIGGER … BEGIN … END`
+ * carries internal semicolons that some batch transports mis-split, so triggers
+ * cannot ride in a batch — but each is sent through its own `tx.execute()` here
+ * and still commits atomically with the rebuild.
+ *
+ * The new table is created WITHOUT foreign keys (only column definitions), so
+ * any FKs the original table had are removed after recreation.
  *
  * IMPORTANT: If other tables have FKs referencing this table and contain data,
  * those tables must be recreated FIRST (to remove their FK constraints).
@@ -194,14 +201,16 @@ export const rebuildTableWithColumns = async ({
  */
 export const recreateTable = async (tableName: string): Promise<void> => {
   const tableSchema = currentSchemaTable(tableName);
-  await rebuildTableWithColumns({
-    columns: tableSchema.columns,
-    tableName,
+  const statements = [
+    ...rebuildStatements({ columns: tableSchema.columns, tableName }),
+    ...(tableSchema.indexes ?? []).map((idx) => createIndexSql(tableName, idx)),
+    // Triggers on this table were dropped with the old table — re-create them
+    // in the same transaction so the rebuilt table is never live without them.
+    ...TRIGGERS.filter((trg) => trg.table === tableName).map((trg) => trg.sql),
+  ];
+  await withTransaction(async (tx) => {
+    for (const sql of statements) await tx.execute(sql);
   });
-
-  await createIndexesForTable(tableName, tableSchema.indexes ?? []);
-  // Triggers on this table were dropped with the old table — re-create them.
-  await createTriggersForTable(tableName);
 };
 
 export const getAppSchemaColumns = (tableName: string): Set<string> =>

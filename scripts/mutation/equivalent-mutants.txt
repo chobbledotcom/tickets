@@ -1,0 +1,31 @@
+# Known-equivalent mutants — suppressed from the survivor count.
+#
+# A mutant is "equivalent" when NO possible input distinguishes it from the
+# original, so no test could ever kill it. Recording it here lets the mutation
+# tester gate CI on genuinely NEW survivors instead of re-reporting these.
+#
+# Equivalent means unkillable by *any* test — not merely unkilled by the ones
+# that exist today. A survivor a stronger assertion could catch is a test gap,
+# not an equivalent: fix the test instead of listing it here. Prefer entries
+# whose equivalence is provable from types (e.g. `?? → ||` where the operand is
+# never falsy-but-non-null) over ones that lean on a domain invariant.
+#
+# Format — copy a survivor line from the report and add a reason:
+#   <path>:<line>:<col>  <from> → <to>   # why it is equivalent
+
+# `x ?? F` vs `x || F` differ only when x is falsy-but-not-null; these are all
+# cases where x can't be such a value, or F equals the only one it can be.
+src/shared/checkout-pricing.ts:84:35  ?? → ||    # Map<number,number> sum: 0 ?? 0 === 0 || 0
+src/shared/checkout-pricing.ts:332:41  ?? → ||   # intent.modifiers: an array is always truthy
+src/shared/logistics-filter.ts:22:35  ?? → ||    # raw: string|null, only falsy string "" === fallback ""
+src/shared/site-assignment.ts:192:57  ?? → ||    # parseReadOnlyFromMs(): number|null, 0 ?? 0 === 0 || 0
+src/shared/site-assignment.ts:370:34  ?? → ||    # available[idx]: object|undefined, never falsy non-null
+src/shared/site-assignment.ts:392:34  ?? → ||    # getEmailConfig(): EmailConfig|null
+src/shared/site-assignment.ts:416:53  ?? → ||    # parseEmail(): ValidEmail|null, always truthy or null
+
+# Invariant-based, confirmed by reading toUnits: `lineIdxs` comes from toUnits,
+# which assigns lineIdx as the flatMap array index, so the sort's input is
+# always already ascending — and `sort((a,b) => a/b)` is identity on an
+# already-ascending array, so swapping the comparator changes nothing.
+src/shared/checkout-pricing.ts:176:16  - → /     # toUnits gives ascending lineIdx; a/b is identity on sorted input
+

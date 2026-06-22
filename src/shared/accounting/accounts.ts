@@ -20,29 +20,29 @@ export const WORLD: AccountRef = account(EXTERNAL, "world");
 export const BOOKING_FEE_INCOME: AccountRef = account(FEE_INCOME, "booking");
 
 /**
- * Row-backed accounts key off a real table id. A zero, negative, fractional, or
- * unsafe-integer id would mint a phantom account (e.g. `attendee:1.5`) that the
- * ledger accepts — its account ids are only checked for non-emptiness — silently
- * diverting money from the real row's balance, statements, and refunds. Reject
- * such ids at construction.
+ * Build the account constructor for one type of row-backed account. The row id
+ * must be a positive safe integer: a zero, negative, fractional, or unsafe id
+ * would mint a phantom account (e.g. `attendee:1.5`) that the ledger accepts —
+ * its account ids are only checked for non-emptiness — silently diverting money
+ * from the real row's balance, statements, and refunds. Reject such ids at
+ * construction, so every row-backed type validates identically.
  */
-const rowId = (kind: string, id: number): number => {
-  if (!Number.isSafeInteger(id) || id <= 0) {
-    throw new Error(
-      `${kind} account id must be a positive safe integer: ${id}`,
-    );
-  }
-  return id;
-};
+const rowAccount =
+  (kind: string) =>
+  (id: number): AccountRef => {
+    if (!Number.isSafeInteger(id) || id <= 0) {
+      throw new Error(
+        `${kind} account id must be a positive safe integer: ${id}`,
+      );
+    }
+    return account(kind, id);
+  };
 
 /** One attendee's receivable/clearing account; its balance is what they owe. */
-export const attendeeAccount = (id: number): AccountRef =>
-  account(ATTENDEE, rowId(ATTENDEE, id));
+export const attendeeAccount = rowAccount(ATTENDEE);
 
 /** Gross ticket revenue for one listing. */
-export const revenueAccount = (listingId: number): AccountRef =>
-  account(REVENUE, rowId(REVENUE, listingId));
+export const revenueAccount = rowAccount(REVENUE);
 
 /** One discount/surcharge modifier's net effect. */
-export const modifierAccount = (modifierId: number): AccountRef =>
-  account(MODIFIER, rowId(MODIFIER, modifierId));
+export const modifierAccount = rowAccount(MODIFIER);

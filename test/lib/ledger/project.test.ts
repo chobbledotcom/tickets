@@ -35,6 +35,11 @@ describe("balanceOf", () => {
     ];
     expect(balanceOf(attendee)(ts)).toBe(-8000);
   });
+
+  it("is zero for an account with no transfers in the slice", () => {
+    const ts = [makeTransfer({ destination: revenue, source: attendee })];
+    expect(balanceOf(account("modifier", 99))(ts)).toBe(0);
+  });
 });
 
 describe("allBalances", () => {

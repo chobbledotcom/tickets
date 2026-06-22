@@ -13,11 +13,13 @@ import {
   resetHostEmailConfig,
   setHostEmailConfigForTest,
 } from "#shared/email.ts";
+import { ErrorCode } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
 import {
   assignAndNotifyBuiltSites,
   parseReadOnlyFromMs,
   pickTierListing,
+  syncReadOnlyFrom,
   validateSiteAssignmentConfig,
 } from "#shared/site-assignment.ts";
 import {
@@ -379,14 +381,36 @@ describeWithEnv(
 
       test("skips assignment and logs DATA_INVALID when initial_site_months is 0", async () => {
         await insertBuiltSite("Site A", "a.test.net", "", "", true);
+        const restoreEnv = setTestEnv({ NTFY_URL: "https://ntfy.test/topic" });
+        const errorSpy = stub(console, "error", () => {});
 
-        await assignAndNotifyBuiltSites([siteEntry({ initialSiteMonths: 0 })]);
+        try {
+          await assignAndNotifyBuiltSites([
+            siteEntry({ initialSiteMonths: 0 }),
+          ]);
+        } finally {
+          errorSpy.restore();
+          restoreEnv();
+        }
 
         const sites = await getAllBuiltSites();
         const site = sites.find((s) => s.name === "Site A")!;
         expect(site.assignedAttendeeId).toBeNull();
         expect(site.renewalTokenIndex).toBeNull();
         expect(secretStub.calls.length).toBe(0);
+        // The blocked reason "initial_months" maps to DATA_INVALID, not the
+        // CONFIG_MISSING fallback — assert both the logged code and the ntfy ping.
+        expect(
+          errorSpy.calls.some((c) =>
+            String(c.args[0]).includes(ErrorCode.DATA_INVALID),
+          ),
+        ).toBe(true);
+        expect(
+          fetchStub.calls.some(
+            (c: { args: [string, RequestInit] }) =>
+              c.args[1]?.body === "DATA_INVALID",
+          ),
+        ).toBe(true);
       });
 
       test("skips assignment and logs CONFIG_MISSING when no qualifying tier listings exist", async () => {
@@ -405,6 +429,8 @@ describeWithEnv(
         }
 
         const buildStub = stubBuildSiteSuccess();
+        const restoreEnv = setTestEnv({ NTFY_URL: "https://ntfy.test/topic" });
+        const errorSpy = stub(console, "error", () => {});
         try {
           await assignAndNotifyBuiltSites([siteEntry()]);
 
@@ -412,7 +438,21 @@ describeWithEnv(
           const assigned = sites.filter((s) => s.assignedAttendeeId !== null);
           expect(assigned).toHaveLength(0);
           expect(secretStub.calls.length).toBe(0);
+          // A missing renewal tier maps to CONFIG_MISSING (the fallback branch).
+          expect(
+            errorSpy.calls.some((c) =>
+              String(c.args[0]).includes(ErrorCode.CONFIG_MISSING),
+            ),
+          ).toBe(true);
+          expect(
+            fetchStub.calls.some(
+              (c: { args: [string, RequestInit] }) =>
+                c.args[1]?.body === "CONFIG_MISSING",
+            ),
+          ).toBe(true);
         } finally {
+          errorSpy.restore();
+          restoreEnv();
           buildStub.restore();
         }
       });
@@ -560,6 +600,52 @@ describeWithEnv(
         } finally {
           failStub.restore();
         }
+      });
+    });
+
+    describe("syncReadOnlyFrom", () => {
+      test("pushes RENEWAL_URL alongside READ_ONLY_FROM when given a renewalUrl", async () => {
+        await insertBuiltSite(
+          "Sync A",
+          "sync-a.test.net",
+          "",
+          "",
+          false,
+          "5001",
+        );
+        const site = (await getAllBuiltSites()).find(
+          (s) => s.name === "Sync A",
+        )!;
+
+        await syncReadOnlyFrom(
+          site,
+          addMonthsIso(nowIso(), 3),
+          "https://example.test/renew/?t=abc",
+        );
+
+        const keys = secretStub.calls.map((c) => c.args[1]);
+        expect(keys).toContain("RENEWAL_URL");
+        expect(keys).toContain("READ_ONLY_FROM");
+      });
+
+      test("pushes only READ_ONLY_FROM when no renewalUrl is given", async () => {
+        await insertBuiltSite(
+          "Sync B",
+          "sync-b.test.net",
+          "",
+          "",
+          false,
+          "5002",
+        );
+        const site = (await getAllBuiltSites()).find(
+          (s) => s.name === "Sync B",
+        )!;
+
+        await syncReadOnlyFrom(site, addMonthsIso(nowIso(), 3));
+
+        const keys = secretStub.calls.map((c) => c.args[1]);
+        expect(keys).not.toContain("RENEWAL_URL");
+        expect(keys).toContain("READ_ONLY_FROM");
       });
     });
 

@@ -13,7 +13,7 @@ import { bold, dim, green, red, yellow } from "../precommit/colors.ts";
 import { projectRoot } from "../test-harness.ts";
 import type { Mutant } from "./generate.ts";
 
-export type Status = "killed" | "survived" | "timed-out";
+export type Status = "killed" | "survived" | "timed-out" | "ignored";
 
 export interface MutantResult {
   file: string;
@@ -23,6 +23,10 @@ export interface MutantResult {
 
 export interface Summary {
   detected: number;
+  /** Mutants that count toward the score (total minus suppressed-equivalent). */
+  effective: number;
+  /** Known-equivalent survivors suppressed via the ignore-list. */
+  ignored: number;
   killed: number;
   score: number;
   survived: number;
@@ -42,11 +46,17 @@ export const summarize = (results: MutantResult[]): Summary => {
   const byStatus = Object.groupBy(results, (result) => result.status);
   const count = (status: Status): number => byStatus[status]?.length ?? 0;
   const total = results.length;
+  const ignored = count("ignored");
+  const effective = total - ignored;
   const detected = count("killed") + count("timed-out");
   return {
     detected,
+    effective,
+    ignored,
     killed: count("killed"),
-    score: total === 0 ? 100 : (detected / total) * 100,
+    // Suppressed-equivalent mutants are excluded from the denominator — they
+    // can never be killed, so counting them would understate the real score.
+    score: effective === 0 ? 100 : (detected / effective) * 100,
     survived: count("survived"),
     survivors: byStatus.survived ?? [],
     timedOut: count("timed-out"),
@@ -70,10 +80,15 @@ const countRows = (
   { color: green, label: "killed:", value: String(s.killed) },
   { color: yellow, label: "timed out:", value: String(s.timedOut) },
   { color: red, label: "survived:", value: String(s.survived) },
+  ...(s.ignored > 0
+    ? [{ color: dim, label: "ignored:", value: String(s.ignored) }]
+    : []),
   {
     color: bold,
     label: "score:",
-    value: `${s.score.toFixed(1)}%  (detected ${s.detected}/${s.total})`,
+    value: `${s.score.toFixed(1)}%  (detected ${s.detected}/${s.effective}${
+      s.ignored > 0 ? `, ${s.ignored} suppressed` : ""
+    })`,
   },
 ];
 
@@ -98,11 +113,26 @@ export const formatSummaryLines = (s: Summary): string[] => {
       yellow("  Result is INCONCLUSIVE (a mutation score needs ≥1 mutant)."),
     ];
   }
+  if (s.effective === 0) {
+    // Every mutant is a recorded known-equivalent — exactly what the ignore
+    // list is for. There is nothing killable, but nothing unexpected: a pass.
+    return [
+      bold("\nMutation testing summary"),
+      green(
+        `  All ${s.total} mutant(s) suppressed as known-equivalent — nothing killable.`,
+      ),
+    ];
+  }
+  const allDetected = green(
+    `\nAll mutants were detected.${
+      s.ignored > 0 ? ` (${s.ignored} suppressed as known-equivalent)` : ""
+    }`,
+  );
   return [
     bold("\nMutation testing summary"),
     ...countRows(s).map(renderRow),
     ...(s.survivors.length === 0
-      ? [green("\nAll mutants were detected.")]
+      ? [allDetected]
       : [
           red("\nSurvivors — these mutations did not fail any test:"),
           ...s.survivors.map(survivorLine),
@@ -127,11 +157,20 @@ const markdownSummary = (s: Summary): string => {
       "",
     ].join("\n");
   }
+  if (s.effective === 0) {
+    return [
+      "## 🧬 Mutation testing",
+      "",
+      `✅ All ${s.total} mutant(s) suppressed as known-equivalent — nothing killable.`,
+      "",
+    ].join("\n");
+  }
+  const suffix = s.ignored > 0 ? `, ${s.ignored} suppressed` : "";
   const headline =
     s.survived === 0
-      ? `✅ **All ${s.total} mutants detected** — score ${s.score.toFixed(1)}%`
+      ? `✅ **All ${s.effective} mutants detected** — score ${s.score.toFixed(1)}%${suffix}`
       : `❌ **${s.survived} mutant(s) survived** — score ${s.score.toFixed(1)}%` +
-        ` (detected ${s.detected}/${s.total})`;
+        ` (detected ${s.detected}/${s.effective}${suffix})`;
   const survivorTable =
     s.survived === 0
       ? []
@@ -156,6 +195,7 @@ const markdownSummary = (s: Summary): string => {
     `| killed | ${s.killed} |`,
     `| timed out | ${s.timedOut} |`,
     `| survived | ${s.survived} |`,
+    ...(s.ignored > 0 ? [`| ignored (suppressed) | ${s.ignored} |`] : []),
     ...survivorTable,
     "",
   ].join("\n");
