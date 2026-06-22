@@ -18,6 +18,7 @@ import { markRefunded } from "#shared/db/attendees.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { getActivePaymentProvider } from "#shared/payments.ts";
+import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
 import { fail, ok } from "#shared/response.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
 import {
@@ -109,6 +110,7 @@ const handleAttendeeRefund = verifiedAttendeeForm(
     }
 
     await markRefunded(data.attendee.id, listingId);
+    await recordAttendeeRefund(data.attendee.id);
     await logActivity(
       `Refund issued for attendee '${data.attendee.name}'`,
       listingId,
@@ -163,6 +165,7 @@ const refundOneAttendee = async (
     const refunded = await provider.refundPayment(attendee.payment_id);
     if (refunded) {
       await markRefunded(attendee.id, listingId);
+      await recordAttendeeRefund(attendee.id);
       return "ok";
     }
     logError({

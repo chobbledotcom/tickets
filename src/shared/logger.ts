@@ -123,6 +123,8 @@ const ERROR_DEFS = {
   ],
   ENCRYPT_FAILED: ["E_ENCRYPT_FAILED", "Encryption failed"],
   KEY_DERIVATION: ["E_KEY_DERIVATION", "Key derivation failed"],
+  // Ledger errors
+  LEDGER_POST: ["E_LEDGER_POST", "Ledger post failed"],
   NOT_FOUND_ATTENDEE: ["E_NOT_FOUND_ATTENDEE", "Attendee not found"],
 
   // Not found
