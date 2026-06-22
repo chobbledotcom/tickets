@@ -707,12 +707,15 @@ const processSubmission = async (
     dayCount,
     hasCustomisable,
     info,
-    // Dual-write the ledger only when a payment provider is configured: an
-    // enabled but zero-total checkout — fully discounted, or a zero-deposit
-    // reservation — records the same sale/owed legs a paid booking would. With no
-    // provider the owed value lives in remaining_balance and is reconstructed by
-    // the backfill, like every other pre-ledger order, so it posts no legs here.
-    ledgerOrder: paymentsEnabled ? finalPricedOrder : null,
+    // Always dual-write the ledger — outstanding balance is projected from it,
+    // so an owed booking must record its legs at creation. A paid or enabled
+    // zero-total checkout (fully discounted, zero-deposit reservation) posts
+    // `finalPricedOrder`; a provider-less booking posts the breakdown order,
+    // whose forced `reservationAmount: "0"` charges every line zero (no payment
+    // leg) while the gross sale legs leave the full value owed on the attendee.
+    ledgerOrder: paymentsEnabled
+      ? finalPricedOrder
+      : priceCheckout(breakdownIntent),
     // Record modifier usage (and consume stock) on every completion, including
     // bookings taken with no payment provider, so a stock-limited answer tier is
     // capped across all bookings — not just the paid ones the webhook would have

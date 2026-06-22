@@ -1103,8 +1103,10 @@ describeWithEnv(
       expect(response.headers.get("location")).toBe("https://example.com");
       const attendee = await latestAttendee();
       // Nothing collected up front; the full £20.00 (2 × £10.00) is owed, with
-      // no booking fee added (no payment was processed).
-      expect(attendee.pricePaid).toBe(0);
+      // no booking fee added (no payment was processed). price_paid projects the
+      // gross sale leg (£20 billed), not cash collected — the accepted gross-sale
+      // divergence; the £20 owed is exact (no payment leg offsets the sale).
+      expect(attendee.pricePaid).toBe(2000);
       expect(attendee.remainingBalance).toBe(2000);
       expect(attendee.statusId).toBe(status!.id);
     });
@@ -1155,7 +1157,10 @@ describeWithEnv(
       expect(response.status).toBe(302);
       const attendee = await latestAttendee();
       // £10.00 ticket + £5.00 add-on = £15.00 owed, nothing collected up front.
-      expect(attendee.pricePaid).toBe(0);
+      // price_paid projects the gross sale leg (£10 ticket list); the add-on is a
+      // separate modifier leg, so it doesn't add to the sale. The £15 owed (ticket
+      // + add-on) is exact.
+      expect(attendee.pricePaid).toBe(1000);
       expect(attendee.remainingBalance).toBe(1500);
       // The add-on impact and stock are recorded just as a zero-deposit
       // reservation's would be, even though no money changed hands.

@@ -22,13 +22,6 @@ import { nameMapByIds } from "#shared/db/query.ts";
 import type { Attendee } from "#shared/types.ts";
 
 /**
- * Attendee columns for JOIN queries — only the columns actually used at runtime.
- * All PII is read from the encrypted pii_blob; per-listing status lives on listing_attendees.
- */
-const ATTENDEE_COLS =
-  "a.id, a.created, a.ticket_token_index, a.pii_blob, a.status_id, a.remaining_balance, a.split_logistics_agents";
-
-/**
  * Order-level refund status, projected from the transfers ledger rather than a
  * stored column: an attendee is refunded iff a `refund_cash` leg sourced from
  * their account exists (a refund reverses the booking's payment leg into a
@@ -76,6 +69,15 @@ export const pricePaidFromLedger = (
  */
 export const remainingBalanceFromLedger = (attendeeIdExpr: string): string =>
   `-${accountBalanceSubquery("attendee", attendeeIdExpr)} AS remaining_balance`;
+
+/**
+ * Attendee columns for JOIN queries — only the columns actually used at runtime.
+ * All PII is read from the encrypted pii_blob; per-listing status lives on
+ * listing_attendees. `remaining_balance` projects from the ledger like the others.
+ */
+const ATTENDEE_COLS = `a.id, a.created, a.ticket_token_index, a.pii_blob, a.status_id, ${remainingBalanceFromLedger(
+  "a.id",
+)}, a.split_logistics_agents`;
 
 /** The two ledger-projected money columns (refunded flag + per-row amount paid)
  *  for a listing_attendees row reached through the `ea` alias. Shared by the
@@ -343,7 +345,9 @@ export const getAttendeesByTokens = async (
     remaining_balance: number;
   };
   const attendeeRows = await queryAll<AttendeeBase>(
-    `SELECT id, created, ticket_token_index, pii_blob, status_id, remaining_balance
+    `SELECT id, created, ticket_token_index, pii_blob, status_id, ${remainingBalanceFromLedger(
+      "attendees.id",
+    )}
      FROM attendees WHERE ticket_token_index IN (${inPlaceholders(
        tokenIndexes,
      )})`,
