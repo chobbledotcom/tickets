@@ -1,6 +1,7 @@
 /** Pure validation of a transfer before it is posted. */
 
 import { compact } from "#fp";
+import { isInstant } from "#shared/validation/timestamp.ts";
 import { ACCOUNT_KEY_SEPARATOR, sameAccount } from "./account.ts";
 import type {
   AccountRef,
@@ -24,26 +25,16 @@ const hasInvalidReversesId = (t: TransferInput): boolean =>
   (!Number.isSafeInteger(t.reversesId) || t.reversesId <= 0);
 
 /**
- * True only for a canonical ISO-8601 UTC timestamp in the exact form
- * `YYYY-MM-DDTHH:mm:ss.sssZ`. Round-tripping through `Date` rejects impossible
- * dates that V8 silently normalises (`2026-02-30`, hour `24`, …) and pins one
- * fixed-width precision, so the lexicographic comparison used by `statementFor`
- * and `inPeriod` always matches chronological order.
- */
-const isIsoTimestamp = (s: string): boolean => {
-  const date = new Date(s);
-  return !Number.isNaN(date.getTime()) && date.toISOString() === s;
-};
-
-/**
  * Validate a {@link TransferInput}. Returns `ok` with the value, or every reason
  * it was rejected (so the caller sees all problems at once, not just the first).
  *
  * Enforced invariants: amount is a positive, safe integer (so summing balances
  * as JS numbers can't lose pennies); source and destination differ; account
  * parts are non-empty and free of the reserved key separator; occurredAt is a
- * valid ISO-8601 UTC timestamp; a reversesId, if present, is a positive safe
- * integer; currency, reference, and eventGroup are non-empty.
+ * real ISO-8601 instant ({@link isInstant} — any offset/precision, but not an
+ * impossible date like Feb 30, normalised to canonical epoch-millis on write);
+ * a reversesId, if present, is a positive safe integer; currency, reference, and
+ * eventGroup are non-empty.
  */
 export const validateTransfer = (t: TransferInput): Result<TransferInput> => {
   const errors: LedgerError[] = compact([
@@ -54,9 +45,7 @@ export const validateTransfer = (t: TransferInput): Result<TransferInput> => {
     Number.isInteger(t.amount) && !Number.isSafeInteger(t.amount)
       ? ({ code: "unsafe_amount" } as const)
       : null,
-    isIsoTimestamp(t.occurredAt)
-      ? null
-      : ({ code: "invalid_occurred_at" } as const),
+    isInstant(t.occurredAt) ? null : ({ code: "invalid_occurred_at" } as const),
     hasInvalidReversesId(t) ? ({ code: "invalid_reverses_id" } as const) : null,
     sameAccount(t.source, t.destination)
       ? ({ code: "self_transfer" } as const)

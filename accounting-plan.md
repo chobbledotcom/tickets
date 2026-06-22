@@ -91,14 +91,17 @@ stringified row id.
 
 ## 4. The library — `src/shared/ledger/` (built)
 
-Pure, context-free, no I/O, no clock, no crypto. Time, ids, and references are
-inputs. 100% covered.
+Context-free, no I/O, no clock, no crypto. Time, ids, and references are inputs.
+100% covered. It may lean on trusted, side-effect-free libraries for primitives
+that are a poor fit for hand-rolling — instant validation is delegated to
+`Temporal` (`shared/validation/timestamp.ts`), which rejects impossible dates
+(Feb 30) that a regex or `Date.parse` would accept.
 
 | Module | Responsibility |
 | --- | --- |
-| `types.ts` | `AccountRef`, `TransferInput`, `Transfer`, `Result`, `LedgerError`. |
+| `types.ts` | `AccountRef`, `TransferInput`, `Transfer`, `Result`, `LedgerError`. `occurredAt`/`recordedAt` are ISO strings in memory; the store persists them as INTEGER epoch-millis (§6). |
 | `account.ts` | Identity + a NUL-separated, collision-free `accountKey`. |
-| `validate.ts` | Positive safe-integer amount, canonical ISO-UTC `occurredAt`, distinct non-empty accounts, non-empty currency/reference/eventGroup. Reports every problem at once. |
+| `validate.ts` | Positive safe-integer amount, a real ISO-8601 `occurredAt` instant (any offset/precision, but not an impossible date — `Temporal`-backed), distinct non-empty accounts, non-empty currency/reference/eventGroup. Reports every problem at once. |
 | `project.ts` | `balanceOf`, `allBalances`, `sumOfKind`, `inPeriod`, `statementFor` (time-then-id ordered, opening-balance aware) — all **currency-guarded** (mixed-currency slices throw). |
 | `reverse.ts` | `reverseOf` — the exact inverse for admin void/correction (not refunds). |
 | `reconcile.ts` | Non-tautological checks: `reconcileExternal` (vs a provider-reported balance) and `reconcileLegs` (observed leg *fingerprints* — kind, accounts, amount, currency — per event vs source-record expectations). |
@@ -160,7 +163,10 @@ tests) before the corresponding path goes live.
 
 - [ ] `transfers` table: `NOT NULL` columns, `CHECK (amount > 0)`, **unique
   `reference`**, indexes on `(source_type, source_id)`, `(dest_type, dest_id)`,
-  `(occurred_at)`, and a **unique partial index on `reverses_id`**.
+  `(occurred_at)`, and a **unique partial index on `reverses_id`**. `occurred_at`
+  and `recorded_at` are **INTEGER epoch-millis** so the time index sorts and
+  ranges chronologically with integer comparisons at high row counts; the host
+  normalises any ISO instant to epoch-millis on write and reads it back canonical.
 - [ ] Idempotent insert (`ON CONFLICT(reference) DO NOTHING`) **must verify the
   existing row's immutable columns match the retry** (amount, accounts, kind,
   currency); on mismatch **fail loudly** — never silently keep a different row.

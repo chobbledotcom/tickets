@@ -93,6 +93,20 @@ describe("inPeriod", () => {
     expect(got.map((t) => t.id)).toEqual([1]);
   });
 
+  it("accepts a Temporal-only bound form without silently emptying the window", () => {
+    // A bracketed IANA annotation parses under Temporal but is NaN to Date.parse;
+    // a Date.parse-based window would skip the inverted-bound check and return
+    // nothing for what is a valid range.
+    const ts = [
+      makeTransfer({ id: 1, occurredAt: "2026-02-15T00:00:00.000Z" }),
+    ];
+    const got = inPeriod(
+      "2026-02-01T00:00:00+00:00[UTC]",
+      "2026-03-01T00:00:00+00:00[UTC]",
+    )(ts);
+    expect(got.map((t) => t.id)).toEqual([1]);
+  });
+
   it("throws on a non-ISO period bound", () => {
     expect(() => inPeriod("nonsense", "2026-03-01T00:00:00.000Z")([])).toThrow(
       "invalid bound",
