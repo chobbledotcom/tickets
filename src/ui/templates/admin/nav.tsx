@@ -1,7 +1,20 @@
 /**
- * Shared admin navigation component
+ * Shared admin navigation.
+ *
+ * AdminNav builds the whole menu for the current page from one schema: the
+ * top-level links, plus — for the section the page belongs to — that section's
+ * sub-nav. It emits two structures and lets CSS show whichever fits:
+ *
+ *  - a desktop sidebar, where the sub-nav is nested inside its parent <li> (and
+ *    the site editor's third level nested again), and
+ *  - mobile bars, where the sub-nav follows the top-level row as its own bar.
+ *
+ * Each layout keeps its own correctly-ordered DOM, so tab/reading order always
+ * matches what's shown — no CSS `order` reshuffling, and the two can diverge
+ * freely in future.
  */
 
+import { compact } from "#fp";
 import { t } from "#i18n";
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -16,6 +29,24 @@ import { isSupportEnabled } from "#shared/support.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { markAdminFooter } from "#templates/admin/footer.tsx";
 import { SettingsNagBanner } from "#templates/admin/settings-nag-banner.tsx";
+
+/** One navigation link. */
+interface NavItem {
+  href: string;
+  label: string;
+}
+
+/** The resolved menu for the active section: which top-level link to
+ * highlight, its sub-nav items, and an optional third level nested under one of
+ * them (the site editor's pages). */
+interface Section {
+  /** Top-level link highlighted for this section (the page may live deeper). */
+  topHref: string;
+  items: NavItem[];
+  /** href of the sub-item the `nested` items hang beneath (e.g. /admin/site). */
+  nestedUnder?: string;
+  nested?: NavItem[];
+}
 
 /** Render read-only or warning banner with optional renewal URL */
 const renderReadOnlyBanner = (
@@ -47,27 +78,187 @@ const renderReadOnlyBanner = (
   return null;
 };
 
+/** Top-level admin links, in order. Users and Settings are owner-only. */
+const topLevelItems = (session: AdminSession): NavItem[] =>
+  compact([
+    { href: "/admin/", label: t("nav.public.home") },
+    { href: "/admin/listings", label: t("terms.listings") },
+    { href: "/admin/calendar", label: t("nav.calendar") },
+    { href: "/admin/attendees", label: t("terms.attendees") },
+    session.adminLevel === "owner"
+      ? { href: "/admin/users", label: t("terms.users") }
+      : null,
+    { href: "/admin/groups", label: t("terms.groups") },
+    { href: "/admin/modifiers", label: t("terms.modifiers") },
+    session.adminLevel === "owner"
+      ? { href: "/admin/settings", label: t("nav.settings") }
+      : null,
+  ]);
+
+/** Calendar sub-nav: shown only when logistics adds the deliveries run sheet to
+ * branch to — otherwise the section is just the calendar, with no sub-nav. */
+const calendarSub = (): NavItem[] | null =>
+  settings.hasLogistics
+    ? [
+        { href: "/admin/calendar", label: t("nav.calendar") },
+        { href: "/admin/deliveries", label: t("nav.deliveries") },
+      ]
+    : null;
+
+/** Users sub-nav. */
+const usersSub = (): NavItem[] => [
+  { href: "/admin/users", label: t("terms.users") },
+  { href: "/admin/sessions", label: t("nav.sub.sessions") },
+  { href: "/admin/api-keys", label: t("nav.sub.api_keys") },
+];
+
+/** Settings sub-nav. Built sites and Support appear only when enabled. Site
+ * appears when the public site is enabled, or always when `includeSite` is set
+ * (the site editor section, which nests its own pages beneath that link). */
+const settingsSub = (includeSite = false): NavItem[] =>
+  compact([
+    { href: "/admin/settings", label: t("nav.sub.settings") },
+    { href: "/admin/settings/statuses", label: t("nav.sub.statuses") },
+    { href: "/admin/privacy", label: t("nav.sub.privacy") },
+    { href: "/admin/questions", label: t("terms.questions") },
+    { href: "/admin/logistics", label: t("nav.logistics") },
+    { href: "/admin/emails", label: t("nav.emails") },
+    includeSite || settings.showPublicSite
+      ? { href: "/admin/site", label: t("nav.site") }
+      : null,
+    { href: "/admin/holidays", label: t("terms.holidays") },
+    isBuilderEnabled()
+      ? { href: "/admin/built-sites", label: t("nav.built_sites") }
+      : null,
+    { href: "/admin/settings-advanced", label: t("nav.sub.advanced") },
+    { href: "/admin/backup", label: t("nav.sub.backups") },
+    { href: "/admin/update", label: t("nav.sub.updates") },
+    { href: "/admin/debug", label: t("nav.sub.debug") },
+    isSupportEnabled()
+      ? { href: "/admin/support", label: t("nav.support") }
+      : null,
+  ]);
+
+/** Site editor sub-nav (third level, beneath Settings → Site). */
+const siteSub = (): NavItem[] => [
+  { href: "/admin/site", label: t("site.sub_nav.homepage") },
+  { href: "/admin/site/contact", label: t("site.sub_nav.contact") },
+  { href: "/admin/site/order", label: t("site.sub_nav.order") },
+];
+
+/** Resolve which section (and sub-nav) the active route belongs to. Pages pass
+ * their section's route as `active`; site pages pass /admin/site so the Site
+ * third level can be added beneath the highlighted Settings link. */
+const resolveSection = (active: string): Section | null => {
+  if (active === "/admin/calendar") {
+    const items = calendarSub();
+    return items ? { items, topHref: "/admin/calendar" } : null;
+  }
+  if (active === "/admin/users") {
+    return { items: usersSub(), topHref: "/admin/users" };
+  }
+  if (active === "/admin/settings") {
+    return { items: settingsSub(), topHref: "/admin/settings" };
+  }
+  if (active === "/admin/site") {
+    return {
+      items: settingsSub(true),
+      nested: siteSub(),
+      nestedUnder: "/admin/site",
+      topHref: "/admin/settings",
+    };
+  }
+  return null;
+};
+
+/** A single link, highlighted when its href is the active top-level link. */
+const navAnchor = (item: NavItem, highlight: string): JSX.Element => (
+  <a class={item.href === highlight ? "active" : undefined} href={item.href}>
+    {item.label}
+  </a>
+);
+
+/** Flat <li> list of links. Sub-navs pass an empty `highlight` since the
+ * section route alone can't tell which sub-page is open. */
+const navItems = (items: NavItem[], highlight: string): JSX.Element[] =>
+  items.map((item) => <li>{navAnchor(item, highlight)}</li>);
+
+/** Desktop sidebar: one nav with the sub-nav nested inside its parent <li>, and
+ * the site third level nested again — DOM order matches the stacked visual. */
+const DesktopNav = ({
+  items,
+  highlight,
+  section,
+}: {
+  items: NavItem[];
+  highlight: string;
+  section: Section | null;
+}): JSX.Element => (
+  <nav class="admin-nav admin-nav--desktop" id="main-nav">
+    <ul>
+      {items.map((item) => (
+        <li>
+          {navAnchor(item, highlight)}
+          {section && item.href === highlight && (
+            <ul class="admin-subnav">
+              {section.items.map((sub) => (
+                <li>
+                  {navAnchor(sub, "")}
+                  {section.nested && sub.href === section.nestedUnder && (
+                    <ul class="admin-subnav">{navItems(section.nested, "")}</ul>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </li>
+      ))}
+    </ul>
+  </nav>
+);
+
+/** One mobile nav bar (the top-level row, or a sub-nav row beneath it). */
+const mobileBar = (lis: JSX.Element[]): JSX.Element => (
+  <nav class="admin-nav admin-nav--mobile">
+    <ul>{lis}</ul>
+  </nav>
+);
+
+/** Mobile: the top-level bar, then each sub-nav level as its own bar below —
+ * the separate stacked bars admin has always shown on small screens. */
+const MobileNav = ({
+  items,
+  highlight,
+  section,
+}: {
+  items: NavItem[];
+  highlight: string;
+  section: Section | null;
+}): JSX.Element => (
+  <>
+    {mobileBar(navItems(items, highlight))}
+    {section && mobileBar(navItems(section.items, ""))}
+    {section?.nested && mobileBar(navItems(section.nested, ""))}
+  </>
+);
+
 interface AdminNavProps {
   active: string;
   session: AdminSession;
 }
 
-const navLink = (href: string, label: string, active: string): JSX.Element => (
-  <li>
-    <a class={href === active ? "active" : undefined} href={href}>
-      {label}
-    </a>
-  </li>
-);
-
 /**
- * Universal admin navigation - shown at top of all admin pages
- * Users, Settings, and Sessions links only shown to owners
+ * Universal admin navigation - shown at the top of every admin page. It owns
+ * the section sub-nav itself, derived from `active`, so pages only say which
+ * route they are on. Users and Settings links are owner-only.
  */
 export const AdminNav = ({ session, active }: AdminNavProps): JSX.Element => {
   // Flag this render as an admin page so the Layout emits the admin footer
   // (Chobble link, optional debug menu, and the logout button).
   markAdminFooter();
+  const items = topLevelItems(session);
+  const section = resolveSection(active);
+  const highlight = section?.topHref ?? active;
   return (
     <>
       {renderReadOnlyBanner(
@@ -79,110 +270,12 @@ export const AdminNav = ({ session, active }: AdminNavProps): JSX.Element => {
       {session.adminLevel === "owner" && (
         <SettingsNagBanner items={session.settingsNagItems} />
       )}
-      <nav id="main-nav">
-        <ul>
-          {navLink("/admin/", t("nav.public.home"), active)}
-          {navLink("/admin/listings", t("terms.listings"), active)}
-          {navLink("/admin/calendar", t("nav.calendar"), active)}
-          {navLink("/admin/attendees", t("terms.attendees"), active)}
-          {session.adminLevel === "owner" &&
-            navLink("/admin/users", t("terms.users"), active)}
-          {navLink("/admin/groups", t("terms.groups"), active)}
-          {navLink("/admin/modifiers", t("terms.modifiers"), active)}
-          {session.adminLevel === "owner" &&
-            navLink("/admin/settings", t("nav.settings"), active)}
-        </ul>
-      </nav>
+      {/* The desktop sidebar nav and the mobile bars share one wrapper so the
+          desktop grid can pin it as a single sticky left-hand column. */}
+      <div class="admin-nav-group">
+        <DesktopNav highlight={highlight} items={items} section={section} />
+        <MobileNav highlight={highlight} items={items} section={section} />
+      </div>
     </>
   );
 };
-
-/** Sub-navigation under Calendar: the calendar itself plus, when logistics is
- * enabled, the deliveries run sheet — so staff can reach it from the menu.
- * Returns null when logistics is off (nothing to branch to). */
-export const CalendarSubNav = (): JSX.Element | null =>
-  settings.hasLogistics ? (
-    <nav>
-      <ul>
-        <li>
-          <a href="/admin/calendar">{t("nav.calendar")}</a>
-        </li>
-        <li>
-          <a href="/admin/deliveries">{t("nav.deliveries")}</a>
-        </li>
-      </ul>
-    </nav>
-  ) : null;
-
-/** Sub-navigation for user-related pages */
-export const UsersSubNav = (): JSX.Element => (
-  <nav>
-    <ul>
-      <li>
-        <a href="/admin/users">{t("terms.users")}</a>
-      </li>
-      <li>
-        <a href="/admin/sessions">{t("nav.sub.sessions")}</a>
-      </li>
-      <li>
-        <a href="/admin/api-keys">{t("nav.sub.api_keys")}</a>
-      </li>
-    </ul>
-  </nav>
-);
-
-/** Sub-navigation for settings-related pages */
-export const SettingsSubNav = (): JSX.Element => (
-  <nav>
-    <ul>
-      <li>
-        <a href="/admin/settings">{t("nav.sub.settings")}</a>
-      </li>
-      <li>
-        <a href="/admin/settings/statuses">{t("nav.sub.statuses")}</a>
-      </li>
-      <li>
-        <a href="/admin/privacy">{t("nav.sub.privacy")}</a>
-      </li>
-      <li>
-        <a href="/admin/questions">{t("terms.questions")}</a>
-      </li>
-      <li>
-        <a href="/admin/logistics">{t("nav.logistics")}</a>
-      </li>
-      <li>
-        <a href="/admin/emails">{t("nav.emails")}</a>
-      </li>
-      {settings.showPublicSite && (
-        <li>
-          <a href="/admin/site">{t("nav.site")}</a>
-        </li>
-      )}
-      <li>
-        <a href="/admin/holidays">{t("terms.holidays")}</a>
-      </li>
-      {isBuilderEnabled() && (
-        <li>
-          <a href="/admin/built-sites">{t("nav.built_sites")}</a>
-        </li>
-      )}
-      <li>
-        <a href="/admin/settings-advanced">{t("nav.sub.advanced")}</a>
-      </li>
-      <li>
-        <a href="/admin/backup">{t("nav.sub.backups")}</a>
-      </li>
-      <li>
-        <a href="/admin/update">{t("nav.sub.updates")}</a>
-      </li>
-      <li>
-        <a href="/admin/debug">{t("nav.sub.debug")}</a>
-      </li>
-      {isSupportEnabled() && (
-        <li>
-          <a href="/admin/support">{t("nav.support")}</a>
-        </li>
-      )}
-    </ul>
-  </nav>
-);

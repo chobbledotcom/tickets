@@ -22,7 +22,7 @@ import type {
   AdminSession,
   LogisticsAgent,
 } from "#shared/types.ts";
-import { AdminNav, SettingsSubNav } from "#templates/admin/nav.tsx";
+import { AdminNav } from "#templates/admin/nav.tsx";
 import {
   DeleteSection,
   GuideLink,
@@ -106,8 +106,7 @@ export const adminLogisticsPage = (
 ): string =>
   String(
     <Layout title={t("logistics.title")}>
-      <AdminNav active="/admin/logistics" session={session} />
-      <SettingsSubNav />
+      <AdminNav active="/admin/settings" session={session} />
       <Flash success={successMessage} />
       <p class="actions">
         <GuideLink href="/admin/guide#logistics">
@@ -132,7 +131,7 @@ export const adminLogisticsAgentNewPage = (
 ): string =>
   String(
     <Layout title={t("logistics.add_logistics_agent")}>
-      <AdminNav active="/admin/logistics" session={session} />
+      <AdminNav active="/admin/settings" session={session} />
       <CsrfForm action="/admin/logistics">
         <h1>{t("logistics.add_logistics_agent")}</h1>
         <Flash error={error} />
@@ -195,7 +194,7 @@ export const adminLogisticsAgentEditPage = (
 ): string =>
   String(
     <Layout title={t("logistics.edit_agent")}>
-      <AdminNav active="/admin/logistics" session={session} />
+      <AdminNav active="/admin/settings" session={session} />
       <CsrfForm action={`/admin/logistics/${agent.id}/edit`}>
         <h1>{t("logistics.edit_agent")}</h1>
         <Flash error={error} />
@@ -228,7 +227,7 @@ export const adminLogisticsAgentDeletePage = (
 ): string =>
   String(
     <Layout title={t("logistics.delete_logistics_agent")}>
-      <AdminNav active="/admin/logistics" session={session} />
+      <AdminNav active="/admin/settings" session={session} />
       <ConfirmForm
         action={`/admin/logistics/${agent.id}/delete`}
         buttonText={t("logistics.delete_agent")}
