@@ -3,10 +3,15 @@
  */
 
 import { filter, map, pipe, reduce, sumOf, unique } from "#fp";
+import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
+import { accountBalance } from "#shared/accounting/queries.ts";
+import { eventGroup, legReference } from "#shared/accounting/refs.ts";
+import { postTransfers } from "#shared/accounting/store.ts";
 import type { UpdateAttendeePIIInput } from "#shared/db/attendee-types.ts";
 import { buildPiiBlob, encryptPiiBlob } from "#shared/db/attendees/pii.ts";
 import { execute, queryAll } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
+import { nowIso } from "#shared/now.ts";
 import { normalizeDurationDays } from "#shared/types.ts";
 
 /** Update a per-listing status field on listing_attendees */
@@ -32,19 +37,64 @@ export const updateCheckedIn = (
 ): Promise<void> => setCheckedIn(attendeeId, listingId, checkedIn ? 1 : 0);
 
 /**
- * Set an attendee's plaintext order fields (status + outstanding balance).
- * Used by the admin edit form, where both are operator-editable. These columns
- * live outside the encrypted pii_blob, so this is a plain column write.
+ * Reconcile an attendee's ledger-projected outstanding balance to `target` by
+ * posting a single adjustment leg for the difference, so the operator-set figure
+ * survives now that the balance projects from the ledger (−balanceOf(attendee))
+ * rather than a stored column. An increase bills the attendee (`attendee→world`),
+ * a decrease credits them (`world→attendee`); a no-op (target already owed) posts
+ * nothing. The legs touch only the attendee and external accounts — never a
+ * listing's revenue account — so a manual correction never moves listing income
+ * or a booking row's projected amount paid, only what is owed.
+ *
+ * Each save is its own business event (a fresh `nowIso()` group), so editing the
+ * balance up, down, then back up again posts three distinct adjustments rather
+ * than colliding with an earlier event's references.
+ */
+const reconcileLedgerBalance = async (
+  attendeeId: number,
+  target: number,
+): Promise<void> => {
+  const owed = -(await accountBalance(attendeeAccount(attendeeId)));
+  const delta = target - owed;
+  if (delta === 0) return;
+  const attendee = attendeeAccount(attendeeId);
+  const occurredAt = nowIso();
+  const group = await eventGroup(["balance-adjust", attendeeId, occurredAt]);
+  await postTransfers([
+    {
+      amount: Math.abs(delta),
+      // Owing more bills the attendee (out to the world); owing less credits
+      // them back from the world — either way no revenue account is touched.
+      destination: delta > 0 ? WORLD : attendee,
+      eventGroup: group,
+      kind: "adjustment",
+      occurredAt,
+      reference: await legReference([
+        "balance-adjust",
+        attendeeId,
+        occurredAt,
+      ]),
+      source: delta > 0 ? attendee : WORLD,
+    },
+  ]);
+};
+
+/**
+ * Set an attendee's order fields from the admin edit form: the status (a plain
+ * column write) and the outstanding balance (reconciled in the transfers ledger,
+ * which now holds the balance — see {@link reconcileLedgerBalance}). Both are
+ * operator-editable; the status lives outside the encrypted pii_blob.
  */
 export const updateAttendeeOrder = async (
   attendeeId: number,
   statusId: number | null,
   remainingBalance: number,
 ): Promise<void> => {
-  await execute(
-    "UPDATE attendees SET status_id = ?, remaining_balance = ? WHERE id = ?",
-    [statusId, remainingBalance, attendeeId],
-  );
+  await execute("UPDATE attendees SET status_id = ? WHERE id = ?", [
+    statusId,
+    attendeeId,
+  ]);
+  await reconcileLedgerBalance(attendeeId, remainingBalance);
 };
 
 export const incrementAttachmentDownloads = async (
