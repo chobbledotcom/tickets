@@ -50,8 +50,9 @@ describe("db > migrations > schema change guard", () => {
         "2026-06-22_drop_listing_income",
         "2026-06-22_drop_listing_attendee_refunded",
         "2026-06-22_drop_listing_attendee_price_paid",
+        "2026-06-22_drop_attendees_price_paid",
       ],
-      schemaHash: "1odwbn4",
+      schemaHash: "pefg1v",
     });
   });
 });

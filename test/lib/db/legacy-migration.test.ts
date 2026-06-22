@@ -336,6 +336,9 @@ describe("db > listing_attendees migration from legacy schema", () => {
     expect(colNames).not.toContain("phone");
     expect(colNames).not.toContain("address");
     expect(colNames).not.toContain("payment_id");
+    // price_paid is dropped — amount paid is a per-row listing_attendees figure
+    // (ledger-projected), never an attendees column.
+    expect(colNames).not.toContain("price_paid");
     expect(colNames).toContain("id");
     expect(colNames).toContain("pii_blob");
 
