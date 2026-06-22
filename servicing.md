@@ -22,7 +22,8 @@ already computed by summing `listing_attendees.quantity` per day (see
 `src/shared/db/migrations/schema.ts:878+`), a servicing booking **automatically
 makes that quantity unavailable** for its date range with no new capacity code.
 The booking rows do all the work; the discriminator only changes how the row is
-*presented and handled* (no token, no contact, its own pages).
+*presented and handled* (kept token but hidden from the public site, no contact,
+no ticket/QR UI, its own pages).
 
 This reuse is the whole point: we get per-day capacity, multi-day ranges, group
 caps, the overlap index, and atomic create/edit for free.
@@ -35,20 +36,21 @@ The attendee record already supports a "name only, nothing else" shape:
   email, phone, address, special_instructions, payment_id, ticket_token) —
   `src/shared/db/attendees/pii.ts`. A servicing event sets only `n` (name) and
   leaves the rest empty.
-- `ticket_token_index` is nullable. SQLite/libsql treats `NULL` as distinct in
-  a UNIQUE index, so **many** servicing rows can each have a `NULL`
-  `ticket_token_index`. A row with no token is automatically invisible to every
-  token-based path (`/ticket/:token`, wallet passes, token bulk-email lookup) —
-  see `getAttendeesByTokens` / `getAttendeePiiBlobForToken` in
-  `src/shared/db/attendees/queries.ts`, which match on `ticket_token_index IN
-  (...)` and never match `NULL`.
+- Servicing events **keep** a real ticket token (kept for possible future use),
+  so the token-based paths (`/ticket/:token`, wallet passes, token bulk-email
+  lookup via `getAttendeesByTokens` / `getAttendeePiiBlobForToken` in
+  `src/shared/db/attendees/queries.ts`) would resolve them unless explicitly
+  filtered. They are made "hidden from the public site" by a `kind='attendee'`
+  filter on those paths, and the token UI is simply not rendered (see "Hidden
+  from public site").
 - Custom questions attach to *listings* and answers to *attendees*
   (`attendee_answers`), so a servicing event can answer custom questions with no
   schema change — `src/shared/db/questions.ts`.
 
-So most of the "no token / no contact" behaviour falls out for free; the work is
-adding the discriminator, giving servicing its own create/edit/list pages, and
-filtering servicing rows out of the customer-facing attendee surfaces.
+So the "no contact" behaviour falls out for free (empty contact fields); the
+work is adding the discriminator, suppressing the public/ticket surfaces by kind,
+giving servicing its own create/edit/list pages, and filtering servicing rows out
+of the customer-facing attendee surfaces.
 
 ---
 
@@ -166,25 +168,13 @@ additions:
 
 - Thread a `kind` through `AttendeeInput` (`attendee-types.ts:70`) defaulting to
   `'attendee'`, and include it in `buildAttendeeInsert` (`create.ts:83`).
-- For servicing: pass `name` only, empty contact fields, and **do not generate a
-  ticket token** — set `ticket_token_index` to `NULL` and the blob's `t` to
-  empty. `encryptAttendeeFields` currently always mints a token; add a path (or
-  flag) that skips token generation for non-customer kinds.
-- **The atomic write must stop relying on `ticket_token_index` to identify the
-  just-inserted attendee before tokens become optional.** `createAttendeeAtomic`
-  currently locates the new attendee for each booking insert via
-  `(SELECT MAX(id) FROM attendees WHERE ticket_token_index = ?)`
-  (`create.ts:289-304`), and the all-failed cleanup DELETE uses the same subquery
-  (`create.ts:177-186`). With a `NULL` `ticket_token_index`,
-  `WHERE ticket_token_index = ?` never matches, so booking inserts would get a
-  null attendee id and the cleanup could not remove an unbooked servicing row.
-  **Fix before going tokenless:** drive both the booking inserts and the cleanup
-  off the inserted row id instead — i.e. always use the interactive-transaction
-  path (`writeWithLedger`, `create.ts:213`, which already threads `insertId`
-  through) rather than the batch path, or otherwise resolve the attendee by its
-  rowid. The batch path's `last_insert_rowid()` caveat (`create.ts:286`) is
-  exactly why it used the token-index subquery, so this is a real structural
-  change, not a one-line tweak.
+- For servicing: pass `name` only, empty contact fields. **Keep minting a ticket
+  token** exactly as today — tokens may be useful later, and keeping them means
+  the existing atomic write is untouched: the
+  `(SELECT MAX(id) FROM attendees WHERE ticket_token_index = ?)` lookup
+  (`create.ts:289-304`) and the all-failed cleanup DELETE (`create.ts:177-186`)
+  both still resolve. No change to the create/cleanup mechanics is needed. The
+  token simply never surfaces in any UI (see "Hidden from public site" below).
 - **Skip `recordOrderActivity`** (`create.ts:349`) for servicing — there is no
   contact identity, no visit, no booking count. Guard it on `kind === 'attendee'`
   (servicing has no email/phone anyway, so `orderContactHashes` already returns
@@ -192,12 +182,42 @@ additions:
 - Keep `allowOverbook` available — an operator may want to hold capacity beyond
   the normal cap (e.g. close a day entirely).
 
+### Hidden from public site (forced on, not editable)
+
+Servicing events are created **hidden from the public site** and that state is
+**not editable** — it is intrinsic to `kind='servicing'`, not a toggle the
+operator can flip (mirrors how the listing/group `hidden` checkbox reads, but
+here it is locked on). Because we keep a real ticket token, the record would
+otherwise resolve on its public surfaces, so the kind must actively suppress
+them:
+
+- **Public ticket page / wallet passes** — `getAttendeesByTokens`
+  (`queries.ts:251`, the first query at `:269-275`) and
+  `getAttendeePiiBlobForToken` (`queries.ts:172`) must filter to
+  `kind='attendee'`, so `/ticket/:token`, Apple/Google Wallet, and token
+  bulk-email lookups return 404 / no match for a servicing token. This is the
+  concrete enforcement of "hidden from public site"; it is **not** free anymore
+  (the row has a valid token index), so the filter is required.
+- **Admin UI** — show the locked state for transparency (a checked, disabled
+  "Hidden from public site" indicator on the servicing form, per the malleable
+  software preference), but enforce it server-side by kind; the servicing
+  routes never accept a value that would unhide it.
+
+### No ticket / QR interface
+
+Do **not** render any ticket/QR/wallet UI for servicing events — not the public
+ticket page (404 per above) and not the admin attendee detail's ticket/QR/wallet
+panels. The servicing edit page omits these sections entirely (it is a distinct,
+trimmed template — see Admin UI). The token still exists in the row; it just has
+no rendered interface.
+
 ### Editing
 
 Reuse `applyAttendeeAtomicEdit` / `loadExistingLines` / `getAttendee`. The edit
 path already rebuilds the pii_blob from `name + (empty) contact + token`
-(`attendee-form-routes.ts:775`); for servicing the token stays empty and contact
-fields stay blank.
+(`attendee-form-routes.ts:775`); for servicing the contact fields stay blank and
+the existing token is preserved (read from the loaded row and re-encrypted into
+the blob, exactly as the attendee edit path already does).
 
 ### Queries — exclude servicing from customer surfaces
 
@@ -213,8 +233,11 @@ customer-facing lists:
 | `getAllAttendeePiiBlobs` | queries.ts:138 | filter to `kind='attendee'` (bulk email) — servicing has empty email so it's already dropped after decrypt, but filter explicitly |
 | `getAttendeePiiBlobsForListings` | queries.ts:150 | same |
 
-Token paths (`getAttendeesByTokens`, `getAttendeePiiBlobForToken`) need no change
-— servicing rows have `NULL` token index and never match.
+Token paths (`getAttendeesByTokens`, `getAttendeePiiBlobForToken`) **do** need a
+`kind='attendee'` filter now that servicing events keep a real ticket token —
+this is what makes them "hidden from the public site" (public ticket page /
+wallet 404). See the "Hidden from public site" section above; do not skip this,
+because the token index is populated and would otherwise resolve.
 
 **The broad readers in `queries.ts` are not the only attendee loaders.** The
 per-listing detail, CSV export, refund-all, and calendar flows load attendees
@@ -351,8 +374,10 @@ A servicing row must never be treated as a customer. Checklist (search anchor:
 - [ ] Dashboard "newest attendees" (`features/admin/dashboard.ts`).
 - [ ] Bulk email targets (`src/shared/bulk-email-targets.ts`,
       `getAllAttendeePiiBlobs`).
-- [ ] Wallet passes / SVG ticket / `/ticket/:token` — covered for free by the
-      `NULL` token, but confirm no path assumes a token exists.
+- [ ] Wallet passes / SVG ticket / `/ticket/:token` — **must** 404 for servicing
+      via the `kind='attendee'` filter on the token paths (the token index is
+      populated, so this is not free). This is the "hidden from public site"
+      enforcement.
 - [ ] Attendee merge (`attendees-merge.ts`).
 - [ ] SMS / phone-index (`attendee-phone-index.ts`, webhooks).
 - [ ] Contact preferences / history (`contact-preferences.ts`) — not written for
@@ -381,15 +406,18 @@ Per AGENTS.md (100% coverage, mutation-resistant, behaviour-focused):
   `max_attendees`; capacity is restored when the servicing event is deleted).
   This is the headline behaviour — test it directly against
   `checkListingAvailability` / the atomic insert.
-- **No token**: created servicing rows have `NULL` `ticket_token_index`; multiple
-  servicing rows coexist (UNIQUE-NULL); `/ticket/:token` and token bulk-email
-  resolve to nothing.
+- **Hidden from public site**: a created servicing event has a real ticket token,
+  but `/ticket/:token`, wallet-pass lookup, and token bulk-email **404 / resolve
+  to nothing** because the token paths filter `kind='attendee'`. The "hidden"
+  state is not editable — a servicing edit submission can never unhide it.
+- **No ticket/QR UI**: the servicing edit page renders no ticket/QR/wallet panel;
+  the public ticket page is unreachable (covered above).
 - **Exclusion**: servicing rows do not appear in attendees browser, dashboard
   recents, bulk-email targets, merge candidates.
 - **Aggregates**: `booked_quantity` includes servicing qty; `income` unaffected;
   `tickets_count` excludes servicing (per decision).
 - **Form**: create/edit persists name + bookings + question answers; no contact
-  fields are stored; editing preserves the empty token.
+  fields are stored; editing preserves the existing token.
 - **Negative paths**: empty name rejected; at least one booked listing required
   (reuse `NO_LINES_ERROR`); negative quantity rejected.
 
@@ -402,20 +430,20 @@ consider `deno task mutation` on the capacity predicate and the kind filter.
 
 1. Migration (with `indexes` + **`MIGRATIONS` registration**) + `schema.ts`
    column/index + sync assertions.
-2. Rework the atomic write to identify the new attendee by rowid (drop the
-   `ticket_token_index` subquery) **before** making tokens optional — this is a
-   prerequisite for tokenless creates, not a later step.
-3. Thread `kind` through types + `createAttendeeAtomic` (token-skip + activity
-   skip) with unit tests.
-4. Query-layer `kind` filters + kind-guarded single read + new servicing readers
-   (including the `listings.ts` loaders).
-5. Aggregates decision + implementation (triggers **and** recompute paths;
+2. Thread `kind` through types + `createAttendeeAtomic` (keep token; skip
+   contact activity) with unit tests. The atomic write is unchanged because the
+   token (and its index) is still minted.
+3. Query-layer `kind` filters (including the token paths, for "hidden from public
+   site") + kind-guarded single read + new servicing readers (including the
+   `listings.ts` loaders).
+4. Aggregates decision + implementation (triggers **and** recompute paths;
    recommended `is_hold` mirror column).
-6. Extract the shared create/edit core from the attendee form routes; build the
-   servicing routes (with kind-guarded edit) + name-only field schema.
-7. Nav entry + calendar deep-link.
-8. Audit and exclude across all customer surfaces (checklist above).
-9. Full test pass + precommit.
+5. Extract the shared create/edit core from the attendee form routes; build the
+   servicing routes (kind-guarded edit, no ticket/QR UI, locked "hidden") +
+   name-only field schema.
+6. Nav entry + calendar deep-link.
+7. Audit and exclude across all customer surfaces (checklist above).
+8. Full test pass + precommit.
 
 ---
 
