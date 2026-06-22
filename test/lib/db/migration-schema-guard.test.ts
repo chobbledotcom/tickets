@@ -49,7 +49,7 @@ describe("db > migrations > schema change guard", () => {
         "2026-06-22_drop_listing_income",
         "2026-06-22_drop_listing_attendee_refunded",
       ],
-      schemaHash: "cqs74r",
+      schemaHash: "8x6klj",
     });
   });
 });

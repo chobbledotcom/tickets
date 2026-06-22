@@ -100,37 +100,6 @@ describe("db > accounting > store", () => {
       expect(error.message).toContain("one eventGroup");
     });
 
-    test("rejects legs that span more than one currency", async () => {
-      // Each leg passes per-leg validation, but a mixed-currency event would
-      // later make every balance projection throw — reject it at the boundary.
-      const error = await rejection(
-        postTransfers([
-          tx({ currency: "GBP", reference: "gbp" }),
-          tx({
-            currency: "USD",
-            destination: account("fee_income", "booking"),
-            reference: "usd",
-          }),
-        ]),
-      );
-      expect(error.message).toContain("one currency");
-      expect((await allTransfers()).length).toBe(0);
-    });
-
-    test("rejects a new event in a different currency than the ledger holds", async () => {
-      // The first post establishes GBP; a later USD event (e.g. after a site
-      // currency change) would make whole-ledger projections throw, so reject it.
-      await postTransfers([tx({ currency: "GBP", reference: "gbp-1" })]);
-      const error = await rejection(
-        postTransfers([
-          tx({ currency: "USD", eventGroup: "evt-2", reference: "usd-1" }),
-        ]),
-      );
-      expect(error).toBeInstanceOf(LedgerConflictError);
-      expect(error.message).toContain("currency");
-      expect((await allTransfers()).length).toBe(1);
-    });
-
     test("treats an empty post as a no-op", async () => {
       expect(await postTransfers([])).toEqual({ inserted: 0, skipped: 0 });
       expect((await allTransfers()).length).toBe(0);
@@ -246,31 +215,6 @@ describe("db > accounting > store", () => {
       );
       expect(error.message).toContain("duplicate reference across the batch");
       expect((await allTransfers()).length).toBe(0);
-    });
-
-    test("rejects a batch whose groups disagree on currency", async () => {
-      const error = await rejection(
-        postTransferGroups([
-          [tx({ currency: "GBP", eventGroup: "evt-a", reference: "gbp" })],
-          [tx({ currency: "USD", eventGroup: "evt-b", reference: "usd" })],
-        ]),
-      );
-      expect(error.message).toContain("one currency");
-      expect((await allTransfers()).length).toBe(0);
-    });
-
-    test("rejects a batch in a different currency than the ledger holds", async () => {
-      await postTransferGroups([
-        [tx({ currency: "GBP", eventGroup: "evt-a", reference: "gbp" })],
-      ]);
-      const error = await rejection(
-        postTransferGroups([
-          [tx({ currency: "USD", eventGroup: "evt-b", reference: "usd" })],
-        ]),
-      );
-      expect(error).toBeInstanceOf(LedgerConflictError);
-      expect(error.message).toContain("currency");
-      expect((await allTransfers()).length).toBe(1);
     });
 
     test("validates every group up front, rejecting the whole batch before any write", async () => {

@@ -34,7 +34,6 @@ describe("accounting > repoint > repointAttendeeStatements", () => {
 const booking = (attendeeId: number): TransferInput[] => [
   {
     amount: 5000,
-    currency: "GBP",
     destination: revenueAccount(1),
     eventGroup: "evt",
     kind: "sale",
@@ -44,7 +43,6 @@ const booking = (attendeeId: number): TransferInput[] => [
   },
   {
     amount: 5000,
-    currency: "GBP",
     destination: attendeeAccount(attendeeId),
     eventGroup: "evt",
     kind: "payment",

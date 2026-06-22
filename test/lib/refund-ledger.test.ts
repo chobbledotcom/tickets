@@ -29,7 +29,6 @@ const facts = (overrides: Partial<BookingFacts> = {}): BookingFacts => ({
   amountPaid: 5000,
   attendeeId: ATTENDEE,
   bookingFee: 0,
-  currency: "GBP",
   eventId: "sess-1",
   lines: [{ gross: 5000, listingId: 1 }],
   modifiers: [],
@@ -50,7 +49,6 @@ const refundLegsOf = (legs: Transfer[]): Transfer[] =>
 
 const leg = (overrides: Partial<Transfer>): Transfer => ({
   amount: 5000,
-  currency: "GBP",
   destination: revenueAccount(1),
   eventGroup: "g1",
   id: 1,
@@ -156,7 +154,6 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
     await postTransfers([
       {
         amount: 8000,
-        currency: "GBP",
         destination: attendeeAccount(ATTENDEE),
         eventGroup: "balance-grp",
         kind: "payment",
@@ -225,7 +222,6 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
     await postTransfers([
       {
         amount: 100,
-        currency: "GBP",
         destination: revenueAccount(99),
         eventGroup: "blocker",
         kind: "sale",
@@ -318,7 +314,6 @@ describeWithEnv(
       await postTransfers([
         {
           amount: 100,
-          currency: "GBP",
           destination: revenueAccount(98),
           eventGroup: "blocker-16",
           kind: "sale",
@@ -361,7 +356,6 @@ describeWithEnv(
       await postTransfers([
         {
           amount: 100,
-          currency: "GBP",
           destination: revenueAccount(97),
           eventGroup: "blocker-18",
           kind: "sale",

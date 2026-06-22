@@ -51,7 +51,6 @@ const postLiveBooking = async (
       amountPaid: 5000,
       attendeeId: 1,
       bookingFee: 0,
-      currency: "GBP",
       eventId: "live-session",
       lines: [{ gross: 5000, listingId: 1 }],
       modifiers: [],
@@ -76,7 +75,7 @@ describeWithEnv("accounting > backfill", { db: true }, () => {
     ]);
     expect((await allTransfers()).length).toBe(0); // no legs yet
 
-    await backfillTransfers("GBP");
+    await backfillTransfers();
 
     expect(await accountBalance(revenueAccount(listing.id))).toBe(5000);
     expect(await accountBalance(attendeeAccount(attendee.id))).toBe(0); // paid full
@@ -90,7 +89,7 @@ describeWithEnv("accounting > backfill", { db: true }, () => {
     const attendee = await historicalBooking([
       { listingId: listing.id, pricePaid: 5000 },
     ]);
-    await backfillTransfers("GBP");
+    await backfillTransfers();
 
     const sale = (await transfersByAccount(attendeeAccount(attendee.id))).find(
       (leg) => leg.kind === "sale",
@@ -113,7 +112,7 @@ describeWithEnv("accounting > backfill", { db: true }, () => {
       { listingId: second.id, pricePaid: 2000 },
     ]);
 
-    await backfillTransfers("GBP");
+    await backfillTransfers();
 
     expect(await accountBalance(revenueAccount(first.id))).toBe(3000);
     expect(await accountBalance(revenueAccount(second.id))).toBe(2000);
@@ -128,9 +127,9 @@ describeWithEnv("accounting > backfill", { db: true }, () => {
   test("is idempotent — a second run writes nothing", async () => {
     const listing = await createTestListing({ maxAttendees: 5 });
     await historicalBooking([{ listingId: listing.id, pricePaid: 5000 }]);
-    await backfillTransfers("GBP");
+    await backfillTransfers();
     const after = (await allTransfers()).length;
-    await backfillTransfers("GBP");
+    await backfillTransfers();
     expect((await allTransfers()).length).toBe(after);
   });
 
@@ -141,7 +140,7 @@ describeWithEnv("accounting > backfill", { db: true }, () => {
     ]);
     await flagRefunded(attendee.id, listing.id);
 
-    await backfillTransfers("GBP");
+    await backfillTransfers();
 
     expect(await accountBalance(revenueAccount(listing.id))).toBe(0); // reversed
     expect(await accountBalance(attendeeAccount(attendee.id))).toBe(0);
@@ -165,7 +164,7 @@ describeWithEnv("accounting > backfill", { db: true }, () => {
     ]);
     await flagRefunded(attendee.id, first.id); // one line flagged → whole order
 
-    await backfillTransfers("GBP");
+    await backfillTransfers();
 
     expect(await accountBalance(revenueAccount(first.id))).toBe(0); // reversed
     expect(await accountBalance(revenueAccount(second.id))).toBe(0); // reversed
@@ -189,7 +188,7 @@ describeWithEnv("accounting > backfill", { db: true }, () => {
     });
     const before = (await allTransfers()).length;
 
-    await backfillTransfers("GBP");
+    await backfillTransfers();
 
     expect((await allTransfers()).length).toBe(before); // nothing re-posted
     const groups = new Set(
@@ -200,36 +199,10 @@ describeWithEnv("accounting > backfill", { db: true }, () => {
     expect(groups.size).toBe(1); // only the live booking group, no backfill group
   });
 
-  test("posts in the currency the ledger already holds, not the requested one", async () => {
-    // An existing USD leg fixes the ledger currency for an unrelated attendee.
-    const occupied = await createTestListing({ maxAttendees: 5 });
-    const ledgered = await historicalBooking([
-      { listingId: occupied.id, pricePaid: 1000 },
-    ]);
-    await postLiveBooking({
-      amountPaid: 1000,
-      attendeeId: ledgered.id,
-      currency: "USD",
-      eventId: "live-usd",
-      lines: [{ gross: 1000, listingId: occupied.id }],
-    });
-    // A fresh attendee (no legs) is backfilled despite the requested GBP.
-    const listing = await createTestListing({ maxAttendees: 5 });
-    const fresh = await historicalBooking([
-      { listingId: listing.id, pricePaid: 2000 },
-    ]);
-
-    await backfillTransfers("GBP");
-
-    const legs = await transfersByAccount(attendeeAccount(fresh.id));
-    expect(legs.length).toBeGreaterThan(0);
-    expect(legs.every((leg) => leg.currency === "USD")).toBe(true);
-  });
-
   test("skips rows with no payment", async () => {
     const listing = await createTestListing({ maxAttendees: 5 });
     await historicalBooking([{ listingId: listing.id, pricePaid: 0 }]);
-    await backfillTransfers("GBP");
+    await backfillTransfers();
     expect((await allTransfers()).length).toBe(0);
   });
 
@@ -243,7 +216,7 @@ describeWithEnv("accounting > backfill", { db: true }, () => {
       sql: "UPDATE attendees SET created = 'not a date' WHERE id = ?",
     });
 
-    await expect(backfillTransfers("GBP")).rejects.toThrow(
+    await expect(backfillTransfers()).rejects.toThrow(
       "unparseable created time",
     );
   });

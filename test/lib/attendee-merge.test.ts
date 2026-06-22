@@ -110,7 +110,6 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     await postTransfers([
       {
         amount: 5000,
-        currency: "GBP",
         destination: revenueAccount(listing2.id),
         eventGroup: "evt",
         kind: "sale",
@@ -120,7 +119,6 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       },
       {
         amount: 5000,
-        currency: "GBP",
         destination: attendeeAccount(source.id),
         eventGroup: "evt",
         kind: "payment",

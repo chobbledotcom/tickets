@@ -3,9 +3,7 @@ import { describe, it } from "@std/testing/bdd";
 import { account, accountKey } from "#shared/ledger/account.ts";
 import {
   allBalances,
-  assertSingleCurrency,
   balanceOf,
-  currenciesIn,
   inPeriod,
   statementFor,
   sumOfKind,
@@ -182,29 +180,5 @@ describe("statementFor", () => {
     });
     const lines = statementFor(attendee, 8000)([debit]);
     expect(lines.map((l) => l.running)).toEqual([6000]);
-  });
-});
-
-describe("currency guards", () => {
-  it("lists distinct currencies in first-seen order", () => {
-    const ts = [
-      makeTransfer({ currency: "GBP" }),
-      makeTransfer({ currency: "USD" }),
-      makeTransfer({ currency: "GBP" }),
-    ];
-    expect(currenciesIn(ts)).toEqual(["GBP", "USD"]);
-  });
-
-  it("tolerates a single currency or an empty slice", () => {
-    expect(() => assertSingleCurrency([])).not.toThrow();
-    expect(() => assertSingleCurrency([makeTransfer({})])).not.toThrow();
-  });
-
-  it("throws when a projection is asked to sum across currencies", () => {
-    const ts = [
-      makeTransfer({ currency: "GBP" }),
-      makeTransfer({ currency: "USD" }),
-    ];
-    expect(() => balanceOf(attendee)(ts)).toThrow("mixed-currency");
   });
 });

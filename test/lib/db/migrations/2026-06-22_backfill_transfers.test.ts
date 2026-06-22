@@ -74,8 +74,6 @@ describeWithEnv(
 
       expect(await accountBalance(revenueAccount(listing.id))).toBe(4200);
       expect(await accountBalance(attendeeAccount(attendee.id))).toBe(0);
-      // Site currency defaults to GBP when COUNTRY is unset.
-      expect((await allTransfers())[0]!.currency).toBe("GBP");
     });
 
     test("is a no-op on a database with no paid bookings", async () => {

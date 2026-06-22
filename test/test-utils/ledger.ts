@@ -8,7 +8,6 @@ import { setupTransactionalTestDb } from "#test-utils";
 /** A {@link TransferInput} with sensible defaults; override any field. */
 export const tx = (overrides: Partial<TransferInput> = {}): TransferInput => ({
   amount: 5000,
-  currency: "GBP",
   destination: account("revenue", 1),
   eventGroup: "evt-1",
   occurredAt: "2026-06-21T00:00:00.000Z",
@@ -50,7 +49,6 @@ const oneListingBookingLegs = ({
     amountPaid,
     attendeeId,
     bookingFee: 0,
-    currency: "GBP",
     eventId,
     lines: [{ gross, listingId }],
     modifiers: [],

@@ -289,7 +289,6 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
     await postTransfers([
       {
         amount: 5000,
-        currency: "GBP",
         destination: revenueAccount(1),
         eventGroup: "evt-book",
         kind: "sale",
@@ -299,7 +298,6 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
       },
       {
         amount: 3500,
-        currency: "GBP",
         destination: attendeeAccount(attendeeId),
         eventGroup: "evt-book",
         kind: "payment",

@@ -27,7 +27,6 @@ const facts = (overrides: Partial<BookingFacts> = {}): BookingFacts => ({
   amountPaid: 0,
   attendeeId: 3,
   bookingFee: 0,
-  currency: "GBP",
   eventId: "evt",
   lines: [],
   modifiers: [],
@@ -292,7 +291,6 @@ describeWithEnv("accounting > mappers", { encryptionKey: true }, () => {
     test("prefixes an unrecognised kind and tolerates a missing one", async () => {
       const base = {
         amount: 100,
-        currency: "GBP",
         destination: revenueAccount(1),
         eventGroup: "g",
         id: 1,

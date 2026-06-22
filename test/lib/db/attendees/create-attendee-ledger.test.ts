@@ -22,7 +22,6 @@ const saleAndPayment = (
 ): TransferInput[] => [
   {
     amount: 5000,
-    currency: "GBP",
     destination: revenueAccount(listingId),
     eventGroup: "evt-1",
     occurredAt: "2026-06-21T00:00:00.000Z",
@@ -31,7 +30,6 @@ const saleAndPayment = (
   },
   {
     amount: 5000,
-    currency: "GBP",
     destination: attendeeAccount(attendeeId),
     eventGroup: "evt-1",
     occurredAt: "2026-06-21T00:00:00.000Z",
