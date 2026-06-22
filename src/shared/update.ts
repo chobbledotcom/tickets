@@ -104,11 +104,6 @@ export const isNewerVersion = (
   return releaseDate.getTime() > new Date(buildTimestamp).getTime();
 };
 
-/**
- * Upsert a plaintext settings marker, writing only when the stored value
- * differs (so the unchanged path costs one indexed read and no write). A blank
- * value is a no-op, matching development/test builds where build info is empty.
- */
 /** Read a plaintext settings marker's value, or "" when the row is absent. */
 const readSettingMarker = async (key: string): Promise<string> => {
   const row = await queryOne<{ value: string }>(
@@ -118,6 +113,11 @@ const readSettingMarker = async (key: string): Promise<string> => {
   return row?.value ?? "";
 };
 
+/**
+ * Upsert a plaintext settings marker, writing only when the stored value
+ * differs (so the unchanged path costs one indexed read and no write). A blank
+ * value is a no-op, matching development/test builds where build info is empty.
+ */
 const recordSettingMarker = async (
   key: string,
   value: string,
@@ -132,14 +132,19 @@ const recordSettingMarker = async (
 
 /**
  * Sync the commit marker to the running build: upsert when the build embeds a
- * commit, but *clear* a previously-recorded one when it doesn't. Without the
- * clear, a local build path that ships without a commit (e.g.
- * `deno task deploy:edge`, which doesn't set BUILD_COMMIT) would leave a stale
- * commit from an earlier CI deploy behind — so a later backup/restore would name
- * the wrong commit for the data it captured. An honest "unknown" beats a lie.
+ * commit, but *clear* a previously-recorded one when a real built bundle ships
+ * without one (e.g. `deno task deploy:edge`, which doesn't set BUILD_COMMIT) —
+ * otherwise a stale commit from an earlier CI deploy would linger and a later
+ * backup/restore would name the wrong commit. "Real built bundle" is gated on a
+ * non-empty `version` (build timestamp): a dev/source boot has neither value,
+ * so it stays a pure no-op and never wipes a remote DB's commit.
  */
-const syncCommitMarker = async (commit: string): Promise<void> => {
+const syncCommitMarker = async (
+  version: string,
+  commit: string,
+): Promise<void> => {
   if (commit) return recordSettingMarker(CURRENT_SCRIPT_COMMIT_KEY, commit);
+  if (!version) return;
   await execute("DELETE FROM settings WHERE key = ?", [
     CURRENT_SCRIPT_COMMIT_KEY,
   ]);
@@ -155,11 +160,9 @@ const syncCommitMarker = async (commit: string): Promise<void> => {
  */
 export const recordScriptVersion = async (): Promise<void> => {
   try {
-    await recordSettingMarker(
-      CURRENT_SCRIPT_VERSION_KEY,
-      getEffectiveBuildTimestamp(),
-    );
-    await syncCommitMarker(getEffectiveBuildCommit());
+    const version = getEffectiveBuildTimestamp();
+    await recordSettingMarker(CURRENT_SCRIPT_VERSION_KEY, version);
+    await syncCommitMarker(version, getEffectiveBuildCommit());
   } catch (e) {
     logDebug(
       "Migration",
