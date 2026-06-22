@@ -40,6 +40,18 @@ export type PostResult = {
   readonly skipped: number;
 };
 
+/** Every leg of one event must agree on `label`; name the offending values if not. */
+const assertShared = (label: string, values: string[]): void => {
+  const distinct = new Set(values);
+  if (distinct.size > 1) {
+    throw new Error(
+      `postTransfers: every leg must share one ${label} (got ${[
+        ...distinct,
+      ].join(", ")})`,
+    );
+  }
+};
+
 /**
  * Checks that need no database, run before any DB work so a malformed batch never
  * opens a transaction: every leg is valid on its own, the batch shares one event
@@ -55,20 +67,14 @@ const assertPostable = (inputs: TransferInput[]): void => {
       throw new Error(`invalid transfer (${input.reference}): ${codes}`);
     }
   }
-  const eventGroups = new Set(inputs.map((t) => t.eventGroup));
-  if (eventGroups.size > 1) {
-    throw new Error(
-      `postTransfers: every leg must share one eventGroup (got ${eventGroups.size})`,
-    );
-  }
-  const currencies = new Set(inputs.map((t) => t.currency));
-  if (currencies.size > 1) {
-    throw new Error(
-      `postTransfers: every leg must share one currency (got ${[
-        ...currencies,
-      ].join(", ")})`,
-    );
-  }
+  assertShared(
+    "eventGroup",
+    inputs.map((t) => t.eventGroup),
+  );
+  assertShared(
+    "currency",
+    inputs.map((t) => t.currency),
+  );
   const references = inputs.map((t) => t.reference);
   if (new Set(references).size !== references.length) {
     throw new Error("postTransfers: duplicate reference within one event");
