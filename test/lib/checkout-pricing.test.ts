@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   allocateDiscount,
   applyModifiers,
+  lineListPrice,
   type PricedLine,
   priceCheckout,
   ticketPaymentBreakdown,
@@ -232,6 +233,27 @@ describe("priceCheckout", () => {
       expect(order.extras[0]!.amount).toBe(100);
       // Deposit (2 × £1) + fee (£1) = £3.
       expect(order.total).toBe(300);
+    },
+  );
+
+  testWithSetting(
+    "takes the percentage deposit from the feeSubtotal override, not the items",
+    { booking_fee: "5" },
+    () => {
+      // feeSubtotal override (£50) differs from the item subtotal (2 × £10 =
+      // £20), so a 10% deposit is 10% of £50 = £5 (£2.50/unit), not 10% of £20.
+      // The ?:-branch must keep the override path; collapsing it to the
+      // "unmodified" path would deposit 10% of the items instead.
+      const order = priceCheckout(
+        intentWith([item({ quantity: 2 })], {
+          feeSubtotal: 5000,
+          reservationAmount: "10%",
+        }),
+      );
+      expect(order.lines[0]!.chargedUnitAmount).toBe(250);
+      expect(order.fullSubtotal).toBe(5000);
+      // Deposit (2 × £2.50 = £5) + fee (5% of £50 = £2.50) = £7.50.
+      expect(order.total).toBe(750);
     },
   );
 
@@ -599,5 +621,13 @@ describe("allocateDiscount", () => {
 
   test("clamps a discount larger than the total to zero", () => {
     expect(allocateDiscount([100, 100], 500)).toEqual([0, 0]);
+  });
+});
+
+describe("lineListPrice", () => {
+  test("is unit price multiplied by quantity (gross list price)", () => {
+    expect(
+      lineListPrice(line({ item: item({ unitPrice: 500 }), quantity: 4 })),
+    ).toBe(2000);
   });
 });
