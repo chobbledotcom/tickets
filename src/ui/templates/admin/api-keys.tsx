@@ -53,9 +53,9 @@ export const adminApiKeysPage = (
 
   return String(
     <Layout title={t("api_keys.title")}>
-      <AdminNav active="/admin/users" session={adminSession} />
-      <UsersSubNav />
-
+      <AdminNav active="/admin/users" session={adminSession}>
+        <UsersSubNav />
+      </AdminNav>
       <Flash error={opts.error} success={opts.success} />
 
       {opts.newKey && (
@@ -114,8 +114,9 @@ export const adminApiKeyManagePage = (
 ): string =>
   String(
     <Layout title={`${t("api_keys.title")}: ${apiKey.name}`}>
-      <AdminNav active="/admin/users" session={session} />
-      <UsersSubNav />
+      <AdminNav active="/admin/users" session={session}>
+        <UsersSubNav />
+      </AdminNav>
       <h1>{apiKey.name}</h1>
       <Flash error={opts.error} success={opts.success} />
       <div class="table-scroll">
@@ -212,9 +213,9 @@ export const adminApiDocsPage = (
 ): string =>
   String(
     <Layout title={t("api_keys.docs_title")}>
-      <AdminNav active="/admin/users" session={session} />
-      <UsersSubNav />
-
+      <AdminNav active="/admin/users" session={session}>
+        <UsersSubNav />
+      </AdminNav>
       <div class="stack-md column">
         <div class="prose">
           <h3>{t("api_keys.authentication")}</h3>

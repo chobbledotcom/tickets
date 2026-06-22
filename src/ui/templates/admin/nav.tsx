@@ -11,7 +11,7 @@ import {
   isReadOnly,
   isReadOnlyWarning,
 } from "#shared/env.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
 import { isSupportEnabled } from "#shared/support.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { markAdminFooter } from "#templates/admin/footer.tsx";
@@ -50,6 +50,11 @@ const renderReadOnlyBanner = (
 interface AdminNavProps {
   active: string;
   session: AdminSession;
+  /** Optional sub-navigation for the current section. Rendered inside the same
+   * `.admin-nav-group` wrapper as the main nav so that, on desktop, the two
+   * read as one merged sidebar menu (the sub-nav indented). On mobile/tablet
+   * the wrapper is `display: contents`, so the navs lay out unchanged. */
+  children?: Child;
 }
 
 const navLink = (href: string, label: string, active: string): JSX.Element => (
@@ -64,7 +69,11 @@ const navLink = (href: string, label: string, active: string): JSX.Element => (
  * Universal admin navigation - shown at top of all admin pages
  * Users, Settings, and Sessions links only shown to owners
  */
-export const AdminNav = ({ session, active }: AdminNavProps): JSX.Element => {
+export const AdminNav = ({
+  session,
+  active,
+  children,
+}: AdminNavProps): JSX.Element => {
   // Flag this render as an admin page so the Layout emits the admin footer
   // (Chobble link, optional debug menu, and the logout button).
   markAdminFooter();
@@ -79,20 +88,25 @@ export const AdminNav = ({ session, active }: AdminNavProps): JSX.Element => {
       {session.adminLevel === "owner" && (
         <SettingsNagBanner items={session.settingsNagItems} />
       )}
-      <nav id="main-nav">
-        <ul>
-          {navLink("/admin/", t("nav.public.home"), active)}
-          {navLink("/admin/listings", t("terms.listings"), active)}
-          {navLink("/admin/calendar", t("nav.calendar"), active)}
-          {navLink("/admin/attendees", t("terms.attendees"), active)}
-          {session.adminLevel === "owner" &&
-            navLink("/admin/users", t("terms.users"), active)}
-          {navLink("/admin/groups", t("terms.groups"), active)}
-          {navLink("/admin/modifiers", t("terms.modifiers"), active)}
-          {session.adminLevel === "owner" &&
-            navLink("/admin/settings", t("nav.settings"), active)}
-        </ul>
-      </nav>
+      {/* Main nav + the current section's sub-nav share one wrapper so desktop
+          CSS can pin them together as a single sticky left-hand menu. */}
+      <div class="admin-nav-group">
+        <nav id="main-nav">
+          <ul>
+            {navLink("/admin/", t("nav.public.home"), active)}
+            {navLink("/admin/listings", t("terms.listings"), active)}
+            {navLink("/admin/calendar", t("nav.calendar"), active)}
+            {navLink("/admin/attendees", t("terms.attendees"), active)}
+            {session.adminLevel === "owner" &&
+              navLink("/admin/users", t("terms.users"), active)}
+            {navLink("/admin/groups", t("terms.groups"), active)}
+            {navLink("/admin/modifiers", t("terms.modifiers"), active)}
+            {session.adminLevel === "owner" &&
+              navLink("/admin/settings", t("nav.settings"), active)}
+          </ul>
+        </nav>
+        {children}
+      </div>
     </>
   );
 };

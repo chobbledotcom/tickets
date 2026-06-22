@@ -90,9 +90,9 @@ export const adminQuestionsPage = (
 ): string =>
   String(
     <Layout title={t("questions.title")}>
-      <AdminNav active="/admin/settings" session={session} />
-      <SettingsSubNav />
-
+      <AdminNav active="/admin/settings" session={session}>
+        <SettingsSubNav />
+      </AdminNav>
       <p class="actions">
         <GuideLink href="/admin/guide#questions">Questions guide</GuideLink>
       </p>
@@ -157,9 +157,9 @@ export const adminQuestionPage = (
 ): string =>
   String(
     <Layout title={`Question: ${question.text}`}>
-      <AdminNav active="/admin/settings" session={session} />
-      <SettingsSubNav />
-
+      <AdminNav active="/admin/settings" session={session}>
+        <SettingsSubNav />
+      </AdminNav>
       <h1>{question.text}</h1>
       <Flash error={error} />
 
@@ -374,9 +374,9 @@ export const adminAnswerEditPage = (
 ): string =>
   String(
     <Layout title={t("questions.edit_answer.title")}>
-      <AdminNav active="/admin/settings" session={session} />
-      <SettingsSubNav />
-
+      <AdminNav active="/admin/settings" session={session}>
+        <SettingsSubNav />
+      </AdminNav>
       <p>
         <BackButton href={`/admin/questions/${question.id}`}>
           {t("questions.edit_answer.back_to_question")}
@@ -490,9 +490,9 @@ export const adminQuestionDeletePage = (
 ): string =>
   String(
     <Layout title={t("questions.delete.heading")}>
-      <AdminNav active="/admin/settings" session={session} />
-      <SettingsSubNav />
-
+      <AdminNav active="/admin/settings" session={session}>
+        <SettingsSubNav />
+      </AdminNav>
       <ConfirmForm
         action={`/admin/questions/${question.id}/delete`}
         buttonText={t("questions.delete.submit")}
@@ -516,9 +516,9 @@ export const adminAnswerDeletePage = (
 ): string =>
   String(
     <Layout title={t("questions.delete_answer.title")}>
-      <AdminNav active="/admin/settings" session={session} />
-      <SettingsSubNav />
-
+      <AdminNav active="/admin/settings" session={session}>
+        <SettingsSubNav />
+      </AdminNav>
       <ConfirmForm
         action={`/admin/questions/${question.id}/answers/${answer.id}/delete`}
         buttonText={t("questions.delete_answer.submit")}

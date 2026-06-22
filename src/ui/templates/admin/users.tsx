@@ -85,8 +85,9 @@ export const adminUsersPage = (
 ): string =>
   String(
     <Layout title={t("terms.users")}>
-      <AdminNav active="/admin/users" session={session} />
-      <UsersSubNav />
+      <AdminNav active="/admin/users" session={session}>
+        <UsersSubNav />
+      </AdminNav>
       <p class="actions">
         <GuideLink href="/admin/guide#user-classes">
           {t("users.roles_link")}
@@ -159,8 +160,9 @@ export const adminUserManagePage = (
 ): string =>
   String(
     <Layout title={`${t("terms.users")}: ${user.username}`}>
-      <AdminNav active="/admin/users" session={session} />
-      <UsersSubNav />
+      <AdminNav active="/admin/users" session={session}>
+        <UsersSubNav />
+      </AdminNav>
       <h1>{user.username}</h1>
       <Flash error={opts.error} success={opts.success} />
 

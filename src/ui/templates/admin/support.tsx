@@ -56,8 +56,9 @@ export const adminSupportPage = (opts: {
 }): string =>
   String(
     <Layout title={t("support.page_title")}>
-      <AdminNav active="/admin/settings" session={opts.session} />
-      <SettingsSubNav />
+      <AdminNav active="/admin/settings" session={opts.session}>
+        <SettingsSubNav />
+      </AdminNav>
       <Flash error={opts.error} success={opts.success} />
       <div class="prose">
         {opts.supportText ? (

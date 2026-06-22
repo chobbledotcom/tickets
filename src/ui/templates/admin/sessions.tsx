@@ -52,9 +52,9 @@ export const adminSessionsPage = (
 
   return String(
     <Layout title={t("sessions.title")}>
-      <AdminNav active="/admin/users" session={adminSession} />
-      <UsersSubNav />
-
+      <AdminNav active="/admin/users" session={adminSession}>
+        <UsersSubNav />
+      </AdminNav>
       <Flash success={success} />
 
       <p class="actions">

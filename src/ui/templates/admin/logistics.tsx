@@ -106,8 +106,9 @@ export const adminLogisticsPage = (
 ): string =>
   String(
     <Layout title={t("logistics.title")}>
-      <AdminNav active="/admin/logistics" session={session} />
-      <SettingsSubNav />
+      <AdminNav active="/admin/logistics" session={session}>
+        <SettingsSubNav />
+      </AdminNav>
       <Flash success={successMessage} />
       <p class="actions">
         <GuideLink href="/admin/guide#logistics">

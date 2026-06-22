@@ -667,9 +667,9 @@ export const adminDebugPage = (
 ): string =>
   String(
     <Layout theme={s.theme} title={t("debug.title")}>
-      <AdminNav active="/admin/settings" session={session} />
-      <SettingsSubNav />
-
+      <AdminNav active="/admin/settings" session={session}>
+        <SettingsSubNav />
+      </AdminNav>
       <div class="prose">
         <h1>{t("debug.heading")}</h1>
         <p>{t("debug.description")}</p>

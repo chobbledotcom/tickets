@@ -44,10 +44,10 @@ export const adminSiteHomePage = (
 ): string =>
   String(
     <Layout title={t("site.home_title")}>
-      <AdminNav active="/admin/settings" session={session} />
-      <SettingsSubNav />
-      <SiteSubNav />
-
+      <AdminNav active="/admin/settings" session={session}>
+        <SettingsSubNav />
+        <SiteSubNav />
+      </AdminNav>
       <Flash error={error} success={success} />
 
       <h2>{t("site.home.heading")}</h2>
@@ -140,10 +140,10 @@ export const adminSiteContactPage = (
 ): string =>
   String(
     <Layout title={t("site.contact_title")}>
-      <AdminNav active="/admin/settings" session={session} />
-      <SettingsSubNav />
-      <SiteSubNav />
-
+      <AdminNav active="/admin/settings" session={session}>
+        <SettingsSubNav />
+        <SiteSubNav />
+      </AdminNav>
       <Flash error={error} success={success} />
 
       <h2>{t("site.contact.heading")}</h2>
@@ -207,10 +207,10 @@ export const adminSiteOrderPage = (
 ): string =>
   String(
     <Layout title={t("site.order_title")}>
-      <AdminNav active="/admin/settings" session={session} />
-      <SettingsSubNav />
-      <SiteSubNav />
-
+      <AdminNav active="/admin/settings" session={session}>
+        <SettingsSubNav />
+        <SiteSubNav />
+      </AdminNav>
       <Flash error={error} success={success} />
 
       <div class="prose">

@@ -102,9 +102,9 @@ export const adminCalendarPage = (
 
   return String(
     <Layout title={t("admin.calendar.title")}>
-      <AdminNav active="/admin/calendar" session={session} />
-      <CalendarSubNav />
-
+      <AdminNav active="/admin/calendar" session={session}>
+        <CalendarSubNav />
+      </AdminNav>
       <p class="actions">
         <GuideLink href="/admin/guide#calendar">Calendar guide</GuideLink>
       </p>

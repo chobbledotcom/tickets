@@ -72,9 +72,9 @@ export const adminAdvancedSettingsPage = (
 ): string =>
   String(
     <Layout theme={s.theme} title={t("settings.advanced.title")}>
-      <AdminNav active="/admin/settings" session={session} />
-      <SettingsSubNav />
-
+      <AdminNav active="/admin/settings" session={session}>
+        <SettingsSubNav />
+      </AdminNav>
       <article>
         <aside>
           <p>{t("settings.advanced.warning")}</p>

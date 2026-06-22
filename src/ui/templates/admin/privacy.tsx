@@ -112,9 +112,9 @@ export const adminPrivacyPage = (
 ): string =>
   String(
     <Layout title={t("privacy.title")}>
-      <AdminNav active="/admin/settings" session={session} />
-      <SettingsSubNav />
-
+      <AdminNav active="/admin/settings" session={session}>
+        <SettingsSubNav />
+      </AdminNav>
       <div class="prose">
         <h1>{t("privacy.title")}</h1>
         <h2>{t("privacy.not_a_crm_heading")}</h2>

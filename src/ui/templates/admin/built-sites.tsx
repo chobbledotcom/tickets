@@ -93,8 +93,9 @@ export const adminBuiltSitesPage = (
 
   return String(
     <Layout title={t("built_sites.list_title")}>
-      <AdminNav active="/admin/settings" session={session} />
-      <SettingsSubNav />
+      <AdminNav active="/admin/settings" session={session}>
+        <SettingsSubNav />
+      </AdminNav>
       <Flash success={successMessage} />
       <p class="actions">
         <ActionButton href="/admin/built-sites/new" icon="plus">
@@ -177,8 +178,9 @@ export const adminBuiltSiteNewPage = (
 ): string =>
   String(
     <Layout title={t("built_sites.add_site_title")}>
-      <AdminNav active="/admin/settings" session={session} />
-      <SettingsSubNav />
+      <AdminNav active="/admin/settings" session={session}>
+        <SettingsSubNav />
+      </AdminNav>
       <CsrfForm action="/admin/built-sites">
         <h1>{t("built_sites.add_site_title")}</h1>
         <Flash error={error} />
@@ -480,8 +482,9 @@ export const adminBuiltSiteEditPage = (
 
   return String(
     <Layout title={t("built_sites.edit_site_title")}>
-      <AdminNav active="/admin/settings" session={session} />
-      <SettingsSubNav />
+      <AdminNav active="/admin/settings" session={session}>
+        <SettingsSubNav />
+      </AdminNav>
       <CsrfForm action={`/admin/built-sites/${site.id}/edit`}>
         <h1>{t("built_sites.edit_site_title")}</h1>
         <Flash error={error} success={success} />
@@ -535,8 +538,9 @@ export const adminBuiltSiteDeletePage = (
 ): string =>
   String(
     <Layout title={t("built_sites.delete_page_title")}>
-      <AdminNav active="/admin/settings" session={session} />
-      <SettingsSubNav />
+      <AdminNav active="/admin/settings" session={session}>
+        <SettingsSubNav />
+      </AdminNav>
       <ConfirmForm
         action={`/admin/built-sites/${site.id}/delete`}
         buttonText={t("built_sites.delete_built_site_button")}

@@ -59,8 +59,9 @@ export const adminBackupPage = (
 ): string =>
   String(
     <Layout title={t("backup.page_title")}>
-      <AdminNav active="/admin/settings" session={session} />
-      <SettingsSubNav />
+      <AdminNav active="/admin/settings" session={session}>
+        <SettingsSubNav />
+      </AdminNav>
       <div class="prose">
         <h1>{t("backup.heading")}</h1>
         <p class="actions">
@@ -187,9 +188,9 @@ export const adminRestoreConfirmPage = (
 ): string =>
   String(
     <Layout title={t("backup.confirm_restore_title")}>
-      <AdminNav active="/admin/settings" session={session} />
-      <SettingsSubNav />
-
+      <AdminNav active="/admin/settings" session={session}>
+        <SettingsSubNav />
+      </AdminNav>
       <ConfirmForm
         action="/admin/backup/restore/confirm"
         buttonText={t("backup.restore_button")}
