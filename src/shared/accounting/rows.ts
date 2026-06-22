@@ -87,6 +87,10 @@ export const insertStatement = (
  * Used to post a balance-payment leg atomically inside the settle batch (which
  * stays a batch, not an interactive transaction, for its concurrency guard).
  * Reuses {@link insertStatement} so the column list is never duplicated.
+ *
+ * The placeholder list captured from `VALUES (…)` is carried straight into the
+ * `SELECT …` via the replacer function (not a `$1` string token), so every
+ * column keeps its own placeholder and a stray `$` in `guardSql` is harmless.
  */
 export const guardedInsertStatement = (
   t: TransferInput,
@@ -97,7 +101,10 @@ export const guardedInsertStatement = (
   const base = insertStatement(t, recordedAt);
   return {
     args: [...base.args, ...guardArgs],
-    sql: base.sql.replace(/VALUES \(([^)]*)\)/, `SELECT $1 WHERE ${guardSql}`),
+    sql: base.sql.replace(
+      /VALUES \(([^)]*)\)/,
+      (_, placeholders: string) => `SELECT ${placeholders} WHERE ${guardSql}`,
+    ),
   };
 };
 
