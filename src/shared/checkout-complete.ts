@@ -61,17 +61,25 @@ export const bookingLedgerPoster =
       throw new ModifierSoldOutError();
     }
     if (ledger) {
-      await postTransfersTx(
-        tx,
-        await mapBooking(
-          bookingFactsFromOrder(ledger.pricedOrder, {
-            attendeeId,
-            currency: ledger.currency,
-            eventId: ledger.eventId(attendeeId),
-            occurredAt: ledger.occurredAt,
-          }),
-        ),
+      const legs = await mapBooking(
+        bookingFactsFromOrder(ledger.pricedOrder, {
+          attendeeId,
+          currency: ledger.currency,
+          eventId: ledger.eventId(attendeeId),
+          occurredAt: ledger.occurredAt,
+        }),
       );
+      await postTransfersTx(tx, legs);
+      // Stamp this order's rows with their booking event group so the per-row
+      // amount-paid projection resolves exactly this booking's sale leg. A
+      // fully-free order posts no legs and leaves ledger_event_group '' (its
+      // amount-paid projects to 0, matching its zero price_paid).
+      if (legs.length > 0) {
+        await tx.execute({
+          args: [legs[0]!.eventGroup, attendeeId],
+          sql: "UPDATE listing_attendees SET ledger_event_group = ? WHERE attendee_id = ?",
+        });
+      }
     }
   };
 

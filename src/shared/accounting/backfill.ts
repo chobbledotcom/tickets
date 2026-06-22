@@ -157,9 +157,17 @@ export const backfillTransfers = async (
       if (ledgered.has(String(attendeeId))) continue;
       const recordedAt = nowIso();
       const legs = await attendeeLegs(attendeeId, rows, currency);
-      await executeBatch(
-        legs.map((leg) => orIgnore(insertStatement(leg, recordedAt))),
-      );
+      // Stamp the order's rows with their booking event group (the first leg's,
+      // since booking legs precede any refund legs) so the per-row amount-paid
+      // projection resolves exactly this booking's sale leg. Folded into the same
+      // batch as the inserts so the rows and their legs land together.
+      await executeBatch([
+        ...legs.map((leg) => orIgnore(insertStatement(leg, recordedAt))),
+        {
+          args: [legs[0]!.eventGroup, attendeeId],
+          sql: "UPDATE listing_attendees SET ledger_event_group = ? WHERE attendee_id = ?",
+        },
+      ]);
     }
     afterId = attendeeIds[attendeeIds.length - 1]!;
   }
