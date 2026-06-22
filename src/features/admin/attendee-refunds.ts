@@ -108,12 +108,18 @@ const handleAttendeeRefund = verifiedAttendeeForm(
       return refundError(listingId, attendeeId, t("error.refund_failed"));
     }
 
-    await recordAttendeeRefund(data.attendee.id);
+    const { posted } = await recordAttendeeRefund(data.attendee.id);
     await logActivity(
       `Refund issued for attendee '${data.attendee.name}'`,
       listingId,
       data.attendee.id,
     );
+    // The provider refund succeeded; if the ledger post missed (refund status is
+    // now ledger-only), surface it so the admin makes a manual adjustment rather
+    // than re-refunding an already-refunded payment.
+    if (!posted) {
+      return refundError(listingId, attendeeId, t("error.refund_not_recorded"));
+    }
     return ok(`/admin/listing/${listingId}`, t("success.refund_issued"));
   },
 );
@@ -214,8 +220,13 @@ const processRefundBatch = async (
       } else if (outcome === "failed") {
         counts.failedCount++;
       } else {
-        await recordAttendeeRefund(attendee.id);
-        counts.refundedCount++;
+        // Provider refund succeeded; a missed ledger post (refund status is now
+        // ledger-only) is tallied as errored, not refunded — so it surfaces and
+        // isn't silently left re-refundable. Never a 500: recordAttendeeRefund
+        // returns { posted } rather than throwing.
+        const { posted } = await recordAttendeeRefund(attendee.id);
+        if (posted) counts.refundedCount++;
+        else counts.errorCount++;
       }
     }
   }

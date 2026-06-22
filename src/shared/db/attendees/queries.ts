@@ -37,10 +37,9 @@ const refundedFromLedger = (attendeeIdExpr: string): string =>
   ` AND source_type = 'attendee' AND source_id = CAST(${attendeeIdExpr} AS TEXT))) AS refunded`;
 
 /** Columns sourced from listing_attendees (per-listing data) */
-const EA_COLS =
-  `ea.listing_id, SUBSTR(ea.start_at, 1, 10) as date, SUBSTR(ea.end_at, 1, 10) as end_date, ea.quantity, ea.checked_in, ${refundedFromLedger(
-    "ea.attendee_id",
-  )}, ea.price_paid, ea.attachment_downloads`;
+const EA_COLS = `ea.listing_id, SUBSTR(ea.start_at, 1, 10) as date, SUBSTR(ea.end_at, 1, 10) as end_date, ea.quantity, ea.checked_in, ${refundedFromLedger(
+  "ea.attendee_id",
+)}, ea.price_paid, ea.attachment_downloads`;
 
 /** SELECT clause for attendee + listing_attendees JOINs (INNER JOIN context).
  * Derives `date` from start_at for the Attendee type shape. */

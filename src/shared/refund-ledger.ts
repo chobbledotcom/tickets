@@ -9,10 +9,13 @@
  * merged, or still-owing accounts are left for a manual adjustment rather than
  * half- or over-reversed.
  *
- * Posting never throws: the provider refund and the `refunded` flag have already
- * committed by the time we get here, so a ledger write must not turn a completed
- * refund into a 500. A failure is logged loudly (nothing reads the ledger yet,
- * and reconciliation surfaces a missing leg) instead.
+ * Posting never throws: the provider refund has already committed by the time we
+ * get here, so a ledger write must not turn a completed refund into a 500. But
+ * with the `refunded` column gone, the `refund_cash` leg is the *only* record of
+ * the refund, so a missed post can't be swallowed silently or the payment would
+ * read as un-refunded and stay re-refundable. Instead it returns `{ posted }`:
+ * `false` means the ledger does not reflect the refund (a guard-skip to manual
+ * adjustment, or a logged write failure), which the caller surfaces.
  */
 
 import { attendeeAccount } from "#shared/accounting/accounts.ts";
@@ -61,34 +64,39 @@ export const soleBookingOrder = (legs: Transfer[]): Transfer[] | null => {
 };
 
 /**
- * Post the ledger legs reversing one attendee's booking. A no-op when the
- * booking isn't a single ledgered order (see {@link soleBookingOrder}); a
- * re-submit replays the same refund event group as a no-op. Never throws.
+ * Post the ledger legs reversing one attendee's booking and report whether the
+ * ledger records the refund. `{ posted: true }` when it posts the reversal — or
+ * when the attendee is already refunded, so an idempotent re-submit is a no-op
+ * success. `{ posted: false }` when the booking isn't a single fully-paid
+ * ledgered order (→ manual adjustment) or the write fails. Never throws.
  */
 export const recordAttendeeRefund = async (
   attendeeId: number,
-): Promise<void> => {
+): Promise<{ posted: boolean }> => {
+  const account = attendeeAccount(attendeeId);
   try {
-    const account = attendeeAccount(attendeeId);
     const legs = await transfersByAccount(account);
+    // Already refunded (e.g. an idempotent re-submit): the `refund_cash` leg is
+    // the durable refund record, so report success without re-posting — and
+    // without rebuilding legs under a fresh `nowIso()`.
+    if (legs.some((leg) => leg.kind === "refund_cash")) return { posted: true };
     const order = soleBookingOrder(legs);
-    if (order === null) return;
+    if (order === null) return { posted: false };
     // Only auto-reverse a fully-paid booking. If the attendee still owes (an
     // unpaid reservation) or holds credit, this single full provider refund
     // can't map cleanly onto the ledger: reversing the sale while the balance
     // stays payable would let a later balance payment post against it. Such
     // cases go to a manual adjustment instead.
-    if (balanceOf(account)(legs) !== 0) return;
-    // Idempotent without a pre-check: once the refund is posted the account has
-    // two event groups (booking + refund), so a re-submit fails the single-group
-    // test above and skips rather than rebuilding legs with a fresh `nowIso()`.
+    if (balanceOf(account)(legs) !== 0) return { posted: false };
     await postTransfers(
       await mapRefund({ occurredAt: nowIso(), orderLegs: order }),
     );
+    return { posted: true };
   } catch (error) {
     logError({
       code: ErrorCode.LEDGER_POST,
       detail: `refund ledger post failed for attendee ${attendeeId}: ${error}`,
     });
+    return { posted: false };
   }
 };

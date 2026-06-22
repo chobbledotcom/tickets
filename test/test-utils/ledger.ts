@@ -126,7 +126,9 @@ export const postAttendeeRefund = async ({
     id: 0,
     recordedAt: BOOKING_OCCURRED_AT,
   }));
-  await postTransfers(await mapRefund({ occurredAt: BOOKING_OCCURRED_AT, orderLegs }));
+  await postTransfers(
+    await mapRefund({ occurredAt: BOOKING_OCCURRED_AT, orderLegs }),
+  );
 };
 
 /** Run a promise expected to reject and return the thrown error. */

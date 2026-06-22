@@ -87,12 +87,20 @@ export const handleRefreshPayment: TypedRouteHandler<
 
     const isRefunded = await provider.isPaymentRefunded(attendee.payment_id);
     if (isRefunded && !attendee.refunded) {
-      await recordAttendeeRefund(attendeeId);
+      const { posted } = await recordAttendeeRefund(attendeeId);
       await logActivity(
         `Payment marked as refunded for attendee '${attendee.name}'`,
         listing.id,
         attendeeId,
       );
+      // Refund status is ledger-only now; if the post missed, surface it for a
+      // manual adjustment instead of leaving the payment looking un-refunded.
+      if (!posted) {
+        return errorRedirect(
+          `/admin/attendees/${attendeeId}`,
+          t("error.refund_not_recorded"),
+        );
+      }
       return redirect(
         `/admin/attendees/${attendeeId}`,
         t("success.payment_status_refunded"),

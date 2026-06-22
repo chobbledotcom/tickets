@@ -17,8 +17,8 @@ import {
   decryptAttendeeOrNull,
   decryptAttendees,
   getAttendeesByTokens,
-  type ListingAttendeeRow,
   LISTING_ATTENDEE_ROW_COLS,
+  type ListingAttendeeRow,
   updateAttendeePII,
 } from "#shared/db/attendees.ts";
 import { queryAll, queryOne } from "#shared/db/client.ts";

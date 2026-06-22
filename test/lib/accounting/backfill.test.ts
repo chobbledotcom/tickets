@@ -27,14 +27,18 @@ import { createTestListing, describeWithEnv } from "#test-utils";
  * SCHEMA, so restore the column to reproduce the schema the backfill really runs
  * against, just as the income-drop migration's own test restores `listings.income`.
  */
-const seedPreDropRefundedColumn = (): Promise<unknown> =>
-  getDb().execute(
+const seedPreDropRefundedColumn = async (): Promise<void> => {
+  await getDb().execute(
     "ALTER TABLE listing_attendees ADD COLUMN refunded INTEGER NOT NULL DEFAULT 0",
   );
+};
 
 /** Flag a historical booking line refunded, the way a pre-ledger DB recorded a
  *  provider refund before the column was projected from the ledger. */
-const flagRefunded = (attendeeId: number, listingId: number): Promise<unknown> =>
+const flagRefunded = (
+  attendeeId: number,
+  listingId: number,
+): Promise<unknown> =>
   getDb().execute({
     args: [attendeeId, listingId],
     sql: "UPDATE listing_attendees SET refunded = 1 WHERE attendee_id = ? AND listing_id = ?",
