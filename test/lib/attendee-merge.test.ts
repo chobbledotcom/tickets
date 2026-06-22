@@ -7,7 +7,10 @@ import {
 } from "#shared/accounting/accounts.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
-import { createAttendeeAtomic } from "#shared/db/attendees.ts";
+import {
+  createAttendeeAtomic,
+  LISTING_ATTENDEE_ROW_COLS,
+} from "#shared/db/attendees.ts";
 import { queryAll } from "#shared/db/client.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import {
@@ -52,7 +55,8 @@ const createAttendee = async (
   return result.attendees[0]!;
 };
 
-/** Get bookings for an attendee */
+/** Get bookings for an attendee — `refunded` is projected from the ledger, the
+ *  same shape production's merge loader returns. */
 const getBookings = (attendeeId: number) =>
   queryAll<{
     listing_id: number;
@@ -64,9 +68,7 @@ const getBookings = (attendeeId: number) =>
     price_paid: number;
     attachment_downloads: number;
   }>(
-    `SELECT listing_id, start_at, end_at, quantity,
-            checked_in, refunded, price_paid,
-            attachment_downloads
+    `SELECT ${LISTING_ATTENDEE_ROW_COLS}
      FROM listing_attendees
      WHERE attendee_id = ?
      ORDER BY start_at, listing_id`,

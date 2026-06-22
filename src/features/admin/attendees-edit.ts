@@ -3,8 +3,9 @@
  *
  * The unified add/edit attendee page lives in `attendee-form-routes.ts`.
  * This module keeps the smaller refresh-payment handler that polls the
- * payment provider for an updated refund status and flips the booking's
- * `refunded` flag when the provider says it has been refunded.
+ * payment provider for an updated refund status and posts the refund to the
+ * transfers ledger when the provider says it has been refunded — the ledger's
+ * `refund_cash` leg is what the per-row `refunded` projection now reads.
  */
 
 import { t } from "#i18n";
@@ -17,7 +18,7 @@ import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
 import {
   ATTENDEE_LEFT_JOIN_SELECT,
   decryptAttendeeOrNull,
-  markRefunded,
+  LISTING_ATTENDEE_ROW_COLS,
 } from "#shared/db/attendees.ts";
 import { queryAll, queryOne } from "#shared/db/client.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
@@ -50,7 +51,7 @@ const loadRefreshContext = async (
   if (!attendeeRaw) return null;
   const attendee = (await decryptAttendeeOrNull(attendeeRaw, pk))!;
   const bookings = await queryAll<ListingAttendeeRow>(
-    "SELECT listing_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads FROM listing_attendees WHERE attendee_id = ? ORDER BY start_at, listing_id LIMIT 1",
+    `SELECT ${LISTING_ATTENDEE_ROW_COLS} FROM listing_attendees WHERE attendee_id = ? ORDER BY start_at, listing_id LIMIT 1`,
     [attendeeId],
   );
   const firstListingId = bookings[0]?.listing_id ?? attendee.listing_id;
@@ -86,7 +87,6 @@ export const handleRefreshPayment: TypedRouteHandler<
 
     const isRefunded = await provider.isPaymentRefunded(attendee.payment_id);
     if (isRefunded && !attendee.refunded) {
-      await markRefunded(attendeeId, listing.id);
       await recordAttendeeRefund(attendeeId);
       await logActivity(
         `Payment marked as refunded for attendee '${attendee.name}'`,

@@ -23,13 +23,7 @@ const updateListingAttendeeField =
     );
   };
 
-const setRefunded = updateListingAttendeeField("refunded");
 const setCheckedIn = updateListingAttendeeField("checked_in");
-
-export const markRefunded = (
-  attendeeId: number,
-  listingId: number,
-): Promise<void> => setRefunded(attendeeId, listingId, 1);
 
 export const updateCheckedIn = (
   attendeeId: number,

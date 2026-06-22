@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { it as test } from "@std/testing/bdd";
+import { beforeEach, it as test } from "@std/testing/bdd";
 import {
   attendeeAccount,
   revenueAccount,
@@ -14,10 +14,31 @@ import {
 } from "#shared/accounting/queries.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
 import type { ListingBooking } from "#shared/db/attendee-types.ts";
-import { createAttendeeAtomic, markRefunded } from "#shared/db/attendees.ts";
+import { createAttendeeAtomic } from "#shared/db/attendees.ts";
 import { getDb } from "#shared/db/client.ts";
 import type { Transfer } from "#shared/ledger/types.ts";
 import { createTestListing, describeWithEnv } from "#test-utils";
+
+/**
+ * Recreate the legacy `listing_attendees.refunded` column. The backfill runs as
+ * the `2026-06-22_backfill_transfers` migration — BEFORE
+ * `2026-06-22_drop_listing_attendee_refunded` — so in production it reads the
+ * column while it still exists. The test DB is built from the current (post-drop)
+ * SCHEMA, so restore the column to reproduce the schema the backfill really runs
+ * against, just as the income-drop migration's own test restores `listings.income`.
+ */
+const seedPreDropRefundedColumn = (): Promise<unknown> =>
+  getDb().execute(
+    "ALTER TABLE listing_attendees ADD COLUMN refunded INTEGER NOT NULL DEFAULT 0",
+  );
+
+/** Flag a historical booking line refunded, the way a pre-ledger DB recorded a
+ *  provider refund before the column was projected from the ledger. */
+const flagRefunded = (attendeeId: number, listingId: number): Promise<unknown> =>
+  getDb().execute({
+    args: [attendeeId, listingId],
+    sql: "UPDATE listing_attendees SET refunded = 1 WHERE attendee_id = ? AND listing_id = ?",
+  });
 
 /** Create a historical paid booking with NO ledger legs (pre-dual-write). */
 const historicalBooking = async (bookings: ListingBooking[]) => {
@@ -53,6 +74,10 @@ const refundCashOf = (legs: Transfer[]): Transfer[] =>
   legs.filter((leg) => leg.kind === "refund_cash");
 
 describeWithEnv("accounting > backfill", { db: true }, () => {
+  // The backfill reads listing_attendees.refunded, which a later migration drops;
+  // restore it so each test exercises the schema the migration runs against.
+  beforeEach(seedPreDropRefundedColumn);
+
   test("reconstructs sale + payment for a paid booking", async () => {
     const listing = await createTestListing({ maxAttendees: 5 });
     const attendee = await historicalBooking([
@@ -101,7 +126,7 @@ describeWithEnv("accounting > backfill", { db: true }, () => {
     const attendee = await historicalBooking([
       { listingId: listing.id, pricePaid: 5000 },
     ]);
-    await markRefunded(attendee.id, listing.id);
+    await flagRefunded(attendee.id, listing.id);
 
     await backfillTransfers("GBP");
 
@@ -117,15 +142,15 @@ describeWithEnv("accounting > backfill", { db: true }, () => {
 
   test("reverses the whole order when any line is flagged refunded", async () => {
     // A multi-listing order is one provider payment; refunding it returns the
-    // whole payment, but markRefunded flags only the listing the admin acted on.
-    // Any flagged line therefore means the whole order was refunded.
+    // whole payment, but a historical refund flagged only the listing the admin
+    // acted on. Any flagged line therefore means the whole order was refunded.
     const first = await createTestListing({ maxAttendees: 5 });
     const second = await createTestListing({ maxAttendees: 5 });
     const attendee = await historicalBooking([
       { listingId: first.id, pricePaid: 3000 },
       { listingId: second.id, pricePaid: 2000 },
     ]);
-    await markRefunded(attendee.id, first.id); // one line flagged → whole order
+    await flagRefunded(attendee.id, first.id); // one line flagged → whole order
 
     await backfillTransfers("GBP");
 

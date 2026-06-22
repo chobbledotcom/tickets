@@ -310,7 +310,6 @@ export const SCHEMA: [name: string, table: Table][] = [
         ["end_at", "TEXT DEFAULT NULL"],
         ["quantity", "INTEGER NOT NULL DEFAULT 1"],
         ["checked_in", "INTEGER NOT NULL DEFAULT 0"],
-        ["refunded", "INTEGER NOT NULL DEFAULT 0"],
         ["price_paid", "INTEGER NOT NULL DEFAULT 0"],
         ["attachment_downloads", "INTEGER NOT NULL DEFAULT 0"],
         ["start_agent_id", "INTEGER DEFAULT NULL"],

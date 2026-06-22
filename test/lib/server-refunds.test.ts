@@ -88,9 +88,15 @@ const submitRefundAll = (
     ),
   );
 
-const markAsRefunded = async (attendeeId: number, listingId: number) => {
-  const { markRefunded } = await import("#shared/db/attendees.ts");
-  await markRefunded(attendeeId, listingId);
+/**
+ * Make a `createPaidTestAttendee` "refunded" the production way: reverse their
+ * sole paid booking order in the ledger, which posts the `refund_cash` leg the
+ * refunded-status projection reads. `listingId` is unused now that status comes
+ * from the ledger, but kept so call sites read as a per-listing refund.
+ */
+const markAsRefunded = async (attendeeId: number, _listingId: number) => {
+  const { recordAttendeeRefund } = await import("#shared/refund-ledger.ts");
+  await recordAttendeeRefund(attendeeId);
 };
 
 // -- Mock provider helper ------------------------------------------------- //

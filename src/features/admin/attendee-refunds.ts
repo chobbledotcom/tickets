@@ -14,7 +14,6 @@ import { applyFlash } from "#routes/csrf.ts";
 import { errorRedirect, htmlResponse } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { markRefunded } from "#shared/db/attendees.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { getActivePaymentProvider } from "#shared/payments.ts";
@@ -109,7 +108,6 @@ const handleAttendeeRefund = verifiedAttendeeForm(
       return refundError(listingId, attendeeId, t("error.refund_failed"));
     }
 
-    await markRefunded(data.attendee.id, listingId);
     await recordAttendeeRefund(data.attendee.id);
     await logActivity(
       `Refund issued for attendee '${data.attendee.name}'`,
@@ -156,13 +154,13 @@ type RefundCounts = {
 };
 
 /**
- * Refund one attendee at the provider and mark the status column — the parts
- * safe to run in parallel (network I/O plus a single-row UPDATE). Provider and
- * status-write errors are caught per attendee, so one failure never aborts the
- * batch. The ledger post is NOT done here; it is serialised by
- * {@link processRefundBatch} to avoid concurrent write-transaction contention.
+ * Refund one attendee at the provider — the network I/O safe to run in parallel.
+ * Provider errors are caught per attendee, so one failure never aborts the
+ * batch. No DB write happens here: refund status is now projected from the
+ * `refund_cash` ledger leg, which {@link processRefundBatch} posts serially via
+ * {@link recordAttendeeRefund} to avoid concurrent write-transaction contention.
  */
-const refundAndMark = async (
+const refundAtProvider = async (
   provider: NonNullable<Awaited<ReturnType<typeof getActivePaymentProvider>>>,
   attendee: Attendee,
   listingId: number,
@@ -177,7 +175,6 @@ const refundAndMark = async (
       });
       return { attendee, outcome: "failed" };
     }
-    await markRefunded(attendee.id, listingId);
     return { attendee, outcome: "refunded" };
   } catch (err) {
     logError({
@@ -191,9 +188,9 @@ const refundAndMark = async (
 
 /**
  * Process a batch of refundable attendees and tally results. The provider refund
- * and status mark in each chunk run in parallel; the ledger post that follows a
- * success runs one at a time — its interactive write transaction would otherwise
- * contend on the single SQLite writer, and a busy-timeout loss is only logged.
+ * in each chunk runs in parallel; the ledger post that follows a success runs
+ * one at a time — its interactive write transaction would otherwise contend on
+ * the single SQLite writer, and a busy-timeout loss is only logged.
  * `recordAttendeeRefund` never throws, so the serial pass needs no guard.
  */
 const processRefundBatch = async (
@@ -209,7 +206,7 @@ const processRefundBatch = async (
   };
   for (const group of chunk(REFUND_CHUNK_SIZE)(batch)) {
     const results = await Promise.all(
-      group.map((attendee) => refundAndMark(provider, attendee, listingId)),
+      group.map((attendee) => refundAtProvider(provider, attendee, listingId)),
     );
     for (const { attendee, outcome } of results) {
       if (outcome === "errored") {

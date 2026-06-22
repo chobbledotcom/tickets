@@ -241,6 +241,11 @@ const buildBookingDiffItems = (
       tb.quantity === sb.quantity &&
       tb.price_paid === sb.price_paid &&
       tb.checked_in === sb.checked_in &&
+      // `refunded` is now ledger-fed (order-level: every booking of an attendee
+      // shares it), so this compares the target attendee's refund status against
+      // the source's. Kept in the duplicate test so a row that differs only in
+      // refund status is still surfaced as conflicting metadata, not a silent
+      // duplicate.
       tb.refunded === sb.refunded
     ) {
       conflictClass = "duplicate";
@@ -403,7 +408,10 @@ const applyAnswerDecisions = async (
   return { answersCleared, answersKept, answersTakenFromSource, finalAnswers };
 };
 
-/** Build an INSERT statement to copy a source booking to the target */
+/** Build an INSERT statement to copy a source booking to the target.
+ *  `refunded` is not written — the column is gone; refund status follows the
+ *  attendee through the merge's ledger repoint (the source's `refund_cash` legs
+ *  are re-sourced onto the target), so the projection still reports it. */
 const bookingInsertStatement = (
   targetId: number,
   booking: ListingAttendeeRow,
@@ -416,7 +424,6 @@ const bookingInsertStatement = (
     listing_id: booking.listing_id,
     price_paid: booking.price_paid,
     quantity: booking.quantity,
-    refunded: booking.refunded,
     start_at: booking.start_at,
   }) as BatchStatement;
 

@@ -1924,7 +1924,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         maxAttendees: 100,
         unitPrice: 1000,
       });
-      const { markRefunded } = await import("#shared/db/attendees.ts");
+      const { postAttendeeRefund } = await import("#test-utils/ledger.ts");
       const result = await bookAttendee(listing, {
         email: "refunded@example.com",
         name: "Refunded User",
@@ -1933,7 +1933,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         quantity: 1,
       });
       if (!result.success) throw new Error("Failed to create attendee");
-      await markRefunded(result.attendees[0]!.id, listing.id);
+      await postAttendeeRefund({
+        attendeeId: result.attendees[0]!.id,
+        listingId: listing.id,
+      });
       const response = await awaitTestRequest(
         `/admin/attendees/${result.attendees[0]!.id}`,
         { cookie: await testCookie() },
@@ -1946,9 +1949,8 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         maxAttendees: 100,
         unitPrice: 1000,
       });
-      const { markRefunded, updateCheckedIn } = await import(
-        "#shared/db/attendees.ts"
-      );
+      const { updateCheckedIn } = await import("#shared/db/attendees.ts");
+      const { postAttendeeRefund } = await import("#test-utils/ledger.ts");
       const result = await bookAttendee(listing, {
         email: "both@example.com",
         name: "Both Badges",
@@ -1958,7 +1960,10 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       });
       if (!result.success) throw new Error("Failed to create attendee");
       await updateCheckedIn(result.attendees[0]!.id, listing.id, true);
-      await markRefunded(result.attendees[0]!.id, listing.id);
+      await postAttendeeRefund({
+        attendeeId: result.attendees[0]!.id,
+        listingId: listing.id,
+      });
       const response = await awaitTestRequest(
         `/admin/attendees/${result.attendees[0]!.id}`,
         { cookie: await testCookie() },

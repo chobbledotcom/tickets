@@ -18,6 +18,7 @@ import {
   decryptAttendees,
   getAttendeesByTokens,
   type ListingAttendeeRow,
+  LISTING_ATTENDEE_ROW_COLS,
   updateAttendeePII,
 } from "#shared/db/attendees.ts";
 import { queryAll, queryOne } from "#shared/db/client.ts";
@@ -107,7 +108,7 @@ const loadAttendeeBookings = (
   attendeeId: number,
 ): Promise<ListingAttendeeRow[]> =>
   queryAll<ListingAttendeeRow>(
-    `SELECT listing_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads
+    `SELECT ${LISTING_ATTENDEE_ROW_COLS}
      FROM listing_attendees WHERE attendee_id = ? ORDER BY start_at, listing_id`,
     [attendeeId],
   );

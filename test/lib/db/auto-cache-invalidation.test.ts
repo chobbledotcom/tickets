@@ -3,7 +3,6 @@ import { it as test } from "@std/testing/bdd";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
 import {
   incrementAttachmentDownloads,
-  markRefunded,
   updateCheckedIn,
 } from "#shared/db/attendees/update.ts";
 import { execute } from "#shared/db/client.ts";
@@ -59,30 +58,6 @@ describeWithEnv(
       )!;
       expect(afterSecond.tickets_count).toBe(2);
       expect(afterSecond.income).toBe(3000);
-    });
-
-    test("markRefunded does not invalidate the listings cache", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 10,
-        unitPrice: 0,
-      });
-      const attendee = await createPaidTestAttendee(
-        listing.id,
-        "Dave",
-        "dave@example.com",
-        "",
-        0,
-      );
-      // Warm the cache.
-      const before = (await getAllListings()).find((e) => e.id === listing.id)!;
-      expect(before.tickets_count).toBe(1);
-
-      await markRefunded(attendee.id, listing.id);
-
-      // Cache must not be cleared: same tickets_count, no re-fetch.
-      const after = (await getAllListings()).find((e) => e.id === listing.id)!;
-      expect(after.tickets_count).toBe(1);
-      expect(after).toBe(before); // same cached reference
     });
 
     test("updateCheckedIn does not invalidate the listings cache", async () => {
