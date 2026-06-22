@@ -66,6 +66,24 @@ const assertShared = (label: string, values: string[]): void => {
 };
 
 /**
+ * The single-currency guard shared by the single and batch write paths: a new
+ * event must be in the currency the ledger already holds, so whole-ledger balance
+ * projections never mix currencies. `established` is the ledger's currency (null
+ * when empty, which any currency satisfies). Throws naming both currencies.
+ */
+const assertLedgerCurrency = (
+  established: string | null,
+  inputs: TransferInput[],
+): void => {
+  if (established !== null && established !== inputs[0]!.currency) {
+    throw new LedgerConflictError(
+      inputs[0]!.reference,
+      `currency ${inputs[0]!.currency} differs from ledger currency ${established}`,
+    );
+  }
+};
+
+/**
  * Checks that need no database, run before any DB work so a malformed batch never
  * opens a transaction: every leg is valid on its own, the batch shares one event
  * group and one currency (a mixed-currency event passes per-leg validation but
@@ -128,13 +146,7 @@ export const postTransfersTx = async (
   }
   // assertPostable checked one currency within the batch; this checks it against
   // the rest of the ledger so the whole history stays single-currency.
-  const established = await ledgerCurrency(read);
-  if (established !== null && established !== inputs[0]!.currency) {
-    throw new LedgerConflictError(
-      inputs[0]!.reference,
-      `currency ${inputs[0]!.currency} differs from ledger currency ${established}`,
-    );
-  }
+  assertLedgerCurrency(await ledgerCurrency(read), inputs);
   const recordedAt = nowIso();
   for (const input of inputs) {
     // Check the void link against the stored original before inserting, so a bad
@@ -254,12 +266,7 @@ const planGroup = (
     assertEventMatches(eventGroup, existing, inputs);
     return { inserts: [], result: { inserted: 0, skipped: inputs.length } };
   }
-  if (snapshot.currency !== null && snapshot.currency !== inputs[0]!.currency) {
-    throw new LedgerConflictError(
-      inputs[0]!.reference,
-      `currency ${inputs[0]!.currency} differs from ledger currency ${snapshot.currency}`,
-    );
-  }
+  assertLedgerCurrency(snapshot.currency, inputs);
   const inserts: Statement[] = [];
   for (const input of inputs) {
     // A stored leg holding our reference but belonging to a different event owns

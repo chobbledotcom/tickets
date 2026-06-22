@@ -19,6 +19,7 @@ import {
   awaitTestRequest,
   bookAttendee,
   buildAttendeeEditForm,
+  createPaidAttendeeWithoutLedger,
   createPaidTestAttendee,
   createTestAttendee,
   createTestAttendeeDirect,
@@ -2136,6 +2137,52 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
             );
             expectFlash(response, expect.stringContaining("refunded"));
             expect(mockRefunded.calls[0]!.args).toEqual(["pi_refresh_refund"]);
+          } finally {
+            mockRefunded.restore();
+          }
+        },
+      );
+    });
+
+    test("surfaces a Stripe refund the ledger could not record", async () => {
+      // Stripe reports the payment refunded, but the booking predates the ledger
+      // so the reversal finds no clean order to post. Refund status is ledger-only
+      // now, so this must surface for a manual adjustment rather than silently
+      // succeed and leave the payment looking un-refunded.
+      const listing = await createTestListing({
+        maxAttendees: 100,
+        unitPrice: 500,
+      });
+      const attendee = await createPaidAttendeeWithoutLedger(
+        listing.id,
+        "John Doe",
+        "john@example.com",
+        "pi_refresh_unrecorded",
+      );
+      await withMocks(
+        () =>
+          stub(paymentsApi, "getConfiguredProvider", () =>
+            mockProviderType("stripe"),
+          ),
+        async () => {
+          const { stripePaymentProvider } = await import(
+            "#shared/stripe-provider.ts"
+          );
+          const mockRefunded = stub(
+            stripePaymentProvider,
+            "isPaymentRefunded",
+            () => Promise.resolve(true),
+          );
+          try {
+            const { response } = await adminFormPost(
+              `/admin/attendees/${attendee.id}/refresh-payment`,
+            );
+            expect(response.status).toBe(302);
+            expectFlash(
+              response,
+              expect.stringContaining("could not be recorded"),
+              false,
+            );
           } finally {
             mockRefunded.restore();
           }

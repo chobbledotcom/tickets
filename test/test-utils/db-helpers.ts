@@ -482,7 +482,13 @@ export const createDailyTestListing = (
     ...overrides,
   });
 
-export const createPaidTestAttendee = async (
+/**
+ * Create a paid attendee (a payment_id + booking) WITHOUT posting any ledger
+ * sale — a booking that predates the transfers ledger. A refund of it finds no
+ * clean order to reverse, so `recordAttendeeRefund` reports `posted:false`; use
+ * this to drive the "provider refunded but the ledger couldn't record it" paths.
+ */
+export const createPaidAttendeeWithoutLedger = async (
   listingId: number,
   name: string,
   email: string,
@@ -497,8 +503,25 @@ export const createPaidTestAttendee = async (
     name,
     paymentId,
   });
-  const attendee = (result as { success: true; attendees: Attendee[] })
-    .attendees[0]!;
+  return (result as { success: true; attendees: Attendee[] }).attendees[0]!;
+};
+
+export const createPaidTestAttendee = async (
+  listingId: number,
+  name: string,
+  email: string,
+  paymentId: string,
+  pricePaid = 500,
+  quantity = 1,
+): Promise<Attendee> => {
+  const attendee = await createPaidAttendeeWithoutLedger(
+    listingId,
+    name,
+    email,
+    paymentId,
+    pricePaid,
+    quantity,
+  );
   // A paid attendee recognises gross revenue: post the sale leg so the
   // ledger-projected listing income reflects it (the price_paid column alone no
   // longer feeds income). A free (pricePaid 0) attendee posts nothing.

@@ -304,9 +304,7 @@ describe("db > accounting > store", () => {
     });
 
     test("posts a valid reversal, checking it against the pre-loaded original", async () => {
-      await postTransfers([
-        tx({ eventGroup: "evt-1", reference: "sale" }),
-      ]);
+      await postTransfers([tx({ eventGroup: "evt-1", reference: "sale" })]);
       const originalId = (await transfersByEventGroup("evt-1"))[0]!.id;
       const result = await postTransferGroups([
         [
