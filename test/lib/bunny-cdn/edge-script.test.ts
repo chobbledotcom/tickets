@@ -84,6 +84,82 @@ describeWithEnv(
 );
 
 describeWithEnv(
+  "getActiveScriptRelease",
+  { env: { BUNNY_API_KEY: "test-bunny-key", BUNNY_SCRIPT_ID: "99" } },
+  () => {
+    const release = {
+      Code: "export default { fetch() {} }",
+      ScriptId: 99,
+      Uuid: "ab12cd34",
+    };
+
+    test("returns the active release on success", async () => {
+      await withMocks(
+        () => stubFetchJson(release),
+        async () => {
+          const result = await bunnyCdnApi.getActiveScriptRelease();
+          expect(result).toEqual({ data: release, ok: true });
+        },
+      );
+    });
+
+    test("GETs the host's own script active-release endpoint by default", async () => {
+      const calls: { url: string; init?: RequestInit }[] = [];
+      await withMocks(
+        () =>
+          stub(
+            globalThis,
+            "fetch",
+            (input: string | URL | Request, init?: RequestInit) => {
+              calls.push({ init, url: String(input) });
+              return Promise.resolve(new Response(JSON.stringify(release)));
+            },
+          ),
+        async () => {
+          await bunnyCdnApi.getActiveScriptRelease();
+          expect(calls[0]!.url).toContain("/compute/script/99/releases/active");
+          // GET is the default — no explicit method on the request init.
+          expect(calls[0]!.init?.method).toBeUndefined();
+        },
+      );
+    });
+
+    test("targets an explicit script id when given one", async () => {
+      const calls: { url: string }[] = [];
+      await withMocks(
+        () =>
+          stub(globalThis, "fetch", (input: string | URL | Request) => {
+            calls.push({ url: String(input) });
+            return Promise.resolve(new Response(JSON.stringify(release)));
+          }),
+        async () => {
+          await bunnyCdnApi.getActiveScriptRelease(12345);
+          expect(calls[0]!.url).toContain(
+            "/compute/script/12345/releases/active",
+          );
+        },
+      );
+    });
+
+    test("returns an error when the API request fails", async () => {
+      await withMocks(
+        () =>
+          stub(globalThis, "fetch", () =>
+            Promise.resolve(new Response("Not found", { status: 404 })),
+          ),
+        async () => {
+          const result = await bunnyCdnApi.getActiveScriptRelease();
+          expect(result).toEqual({
+            error: "Get active script release failed (404): Not found",
+            ok: false,
+          });
+        },
+      );
+    });
+  },
+);
+
+describeWithEnv(
   "findPullZoneId",
   { env: { BUNNY_API_KEY: "test-bunny-key", BUNNY_SCRIPT_ID: "99" } },
   () => {

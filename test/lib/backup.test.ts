@@ -1,9 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { unzipSync, zipSync } from "fflate";
 import {
   BACKUP_REQUIRED_WITHIN_MS,
   type BackupManifest,
+  BUNNY_RELEASE_FILE,
   backupDir,
   backupKey,
   backupLeaf,
@@ -19,6 +21,7 @@ import {
   isRemoteDatabase,
   parseBackupTime,
   pruneOldBackups,
+  readBunnyRelease,
   readManifest,
   restoreFromSql,
   restoreFromZip,
@@ -33,7 +36,13 @@ import {
 } from "#shared/db/migrations.ts";
 import { listFiles, uploadRaw } from "#shared/storage.ts";
 import { setDeleteOverride } from "#shared/test-overrides.ts";
-import { createTestListing, describeWithEnv, setTestEnv } from "#test-utils";
+import {
+  createTestListing,
+  describeWithEnv,
+  setTestEnv,
+  stubFetchJson,
+  withMocks,
+} from "#test-utils";
 
 describeWithEnv("backup", { db: true }, () => {
   describe("splitStatements", () => {
@@ -146,6 +155,105 @@ describeWithEnv("backup", { db: true }, () => {
       expect(manifest.latestUpdate).toBeTruthy();
       expect(manifest.timestamp).toBeTruthy();
       expect(manifest.tables.listings).toBe(1);
+    });
+  });
+
+  describe("createBackupZip — Bunny active release", () => {
+    // A multi-line Code field proves the snapshot round-trips losslessly.
+    const activeRelease = {
+      Code: "export default {\n  fetch() {}\n};\n",
+      Note: "deploy 2026-06-22",
+      ScriptId: 99,
+      Uuid: "ab12cd34",
+    };
+    const withBunny = (vars: Record<string, string> = {}) =>
+      setTestEnv({ BUNNY_API_KEY: "test-key", BUNNY_SCRIPT_ID: "99", ...vars });
+
+    test("stores the active release alongside the data dump when configured", async () => {
+      const restore = withBunny();
+      try {
+        await createTestListing({ name: "Release Zip" });
+        await withMocks(
+          () => stubFetchJson(activeRelease),
+          async () => {
+            const files = unzipSync(await createBackupZip());
+            expect(Object.keys(files)).toContain(BUNNY_RELEASE_FILE);
+            const stored = JSON.parse(
+              new TextDecoder().decode(files[BUNNY_RELEASE_FILE]!),
+            );
+            expect(stored).toEqual(activeRelease);
+          },
+        );
+      } finally {
+        restore();
+      }
+    });
+
+    test("readBunnyRelease recovers the stored release, Code intact", async () => {
+      const restore = withBunny();
+      try {
+        await withMocks(
+          () => stubFetchJson(activeRelease),
+          async () => {
+            const release = readBunnyRelease(await createBackupZip());
+            expect(release).toEqual(activeRelease);
+            // The deployed code survives the JSON round-trip byte-for-byte.
+            expect((release as { Code: string }).Code).toBe(activeRelease.Code);
+          },
+        );
+      } finally {
+        restore();
+      }
+    });
+
+    test("omits the release file when Bunny is not configured", async () => {
+      // No BUNNY_* env in this describe — createBackupZip must not call the API.
+      await withMocks(
+        () =>
+          stub(globalThis, "fetch", () => {
+            throw new Error("fetch must not be called when Bunny is disabled");
+          }),
+        async () => {
+          const zip = await createBackupZip();
+          expect(Object.keys(unzipSync(zip))).not.toContain(BUNNY_RELEASE_FILE);
+          expect(readBunnyRelease(zip)).toBeNull();
+        },
+      );
+    });
+
+    test("still produces a valid data backup when the release fetch fails", async () => {
+      const restore = withBunny();
+      try {
+        await createTestListing({ name: "Resilient" });
+        await withMocks(
+          () => ({
+            err: stub(console, "error", () => {}),
+            fetch: stub(globalThis, "fetch", () =>
+              Promise.resolve(new Response("boom", { status: 500 })),
+            ),
+          }),
+          async ({ err }) => {
+            const files = unzipSync(await createBackupZip());
+            // The database dump is intact and the manifest is present…
+            expect(Object.keys(files)).toContain("listings.sql");
+            expect(Object.keys(files)).toContain("manifest.json");
+            // …but a CDN hiccup leaves out the release rather than blocking it.
+            expect(Object.keys(files)).not.toContain(BUNNY_RELEASE_FILE);
+            // The failure is logged, not silently swallowed.
+            const logged = err.calls.map((c) => c.args.join(" ")).join("\n");
+            expect(logged).toContain("Backup active script release");
+          },
+        );
+      } finally {
+        restore();
+      }
+    });
+  });
+
+  describe("readBunnyRelease", () => {
+    test("returns null for a zip without a release file", () => {
+      const zip = zipSync({ "manifest.json": new Uint8Array(0) });
+      expect(readBunnyRelease(zip)).toBeNull();
     });
   });
 

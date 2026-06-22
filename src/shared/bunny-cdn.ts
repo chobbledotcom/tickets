@@ -538,6 +538,31 @@ const publishEdgeScriptImpl = (scriptId: number): Promise<BunnyApiResult> =>
   publishScript(scriptId, "Publish edge script");
 
 /**
+ * A compute-script release as returned by Bunny (the active/published one
+ * carries the deployed `Code` plus an 8-char `Uuid` and metadata). Kept as an
+ * open record so the whole object round-trips into a backup untouched, even as
+ * Bunny adds fields — we never need to enumerate them to store the snapshot.
+ */
+export type EdgeScriptRelease = Record<string, unknown>;
+
+type ActiveReleaseResult =
+  | { ok: true; data: EdgeScriptRelease }
+  | { ok: false; error: string; errorKey?: string };
+
+/**
+ * Fetch the currently-active (published) release of a compute script — defaults
+ * to this host's own script. The backup captures this so a restore can redeploy
+ * the exact code that was live alongside the data snapshot.
+ */
+const getActiveScriptReleaseImpl = (
+  scriptId: number | string = getBunnyScriptId(),
+): Promise<ActiveReleaseResult> =>
+  bunnyGetJson<EdgeScriptRelease>(
+    `/compute/script/${encodeURIComponent(scriptId)}/releases/active`,
+    "Get active script release",
+  );
+
+/**
  * Update pull zone settings by ID.
  * Uses POST to /pullzone/{id} with a partial settings payload.
  */
@@ -581,6 +606,7 @@ export const bunnyCdnApi = {
   deleteDnsRecord: deleteDnsRecordImpl,
   deployScriptCode: deployScriptCodeImpl,
   findPullZoneId: findPullZoneIdImpl,
+  getActiveScriptRelease: getActiveScriptReleaseImpl,
   getCdnHostname: getCdnHostnameImpl,
   getDnsZone: getDnsZoneImpl,
   getEdgeScript: getEdgeScriptImpl,
