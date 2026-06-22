@@ -35,7 +35,6 @@ const getSettingsPageState = async () => {
     businessEmail: settings.businessEmail,
     calendarFeedsEnabled: settings.calendarFeedsEnabled,
     calendarFeedsGroupBy: settings.calendarFeedsGroupBy,
-    country: settings.country,
     embedHosts: settings.embedHosts,
     headerImageUrl: settings.headerImageUrl,
     paymentProvider: settings.paymentProvider ?? "",

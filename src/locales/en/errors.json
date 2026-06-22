@@ -71,7 +71,6 @@
   "error.square_token_required": "Square Access Token is required",
   "error.square_webhook_key_required": "Webhook Signature Key is required",
   "error.booking_fee_range": "Booking fee must be a number between 0 and 10",
-  "error.country_required": "Country is required",
   "error.email_format": "Invalid email format. Please use format: name@domain.com",
   "error.invalid_theme": "Invalid theme selection",
   "error.terms_length": "Terms must be {max} characters or fewer (currently {current})",

@@ -25,7 +25,6 @@ const defaultState = (): SettingsPageState => ({
   businessEmail: "",
   calendarFeedsEnabled: false,
   calendarFeedsGroupBy: "attendees",
-  country: "GB",
   embedHosts: "",
   headerImageUrl: "",
   paymentProvider: "",
