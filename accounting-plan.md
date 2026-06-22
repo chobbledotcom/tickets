@@ -400,8 +400,32 @@ tests:
    the "override aggregate values" form for now (the counts —
    `booked_quantity`, `tickets_count` — stay column overrides); restoring it as a
    warned `writeoff` ledger edit is decision 14's deferred work.
-4. **Amount paid** — `listing_attendees.price_paid` → the attendee's payment legs
-   (the largest read surface: templates, tickets/wallets, webhooks, CSV, email).
+4. **Amount paid** — `listing_attendees.price_paid` → a **per-row ledger
+   projection** (the largest read surface: templates, tickets/wallets, webhooks,
+   CSV, email). **Design (decided):** `price_paid` is per booking row, but ledger
+   legs are per (attendee, listing, order), and a row carries no link to its
+   order — so a naive per-(attendee,listing) `SUM` would double-count an attendee
+   booked onto one listing across several orders (merges, re-bookings). Fix: store
+   the order's **`event_group` on each `listing_attendees` row**
+   (`ledger_event_group`), and project
+   `price_paid = SUM(amount) of the row's `sale` leg` —
+   `WHERE kind='sale' AND source=attendee:A AND dest=revenue:L AND event_group =
+   row.ledger_event_group`. This is **exact** for every realistic path: a checkout
+   carries **one date for the whole order** (`CheckoutItem` has no date; the date
+   is on the intent), so there is one row per listing per order and one `sale` leg
+   per row; a merge moves each row with its original `event_group`, and the
+   re-point makes that order's sale leg source the target attendee, so the row
+   still finds its leg. It needs **no mapper change** (sales stay aggregated per
+   listing per order). The projected amount is the **gross sale** for the row,
+   which equals cash for a paid-in-full booking (every production booking) and
+   stays put after a refund (matching the column, which a refund didn't reduce);
+   a free or provider-less-owed row has no `sale` leg → `0`, matching its `0`
+   `price_paid`. The lone residual edge — an admin/API order with the *same* daily
+   listing on two dates (one `event_group`, two rows) — is not reachable from the
+   public checkout and would over-count; out of scope for now (decision 14's
+   manual edits cover deliberate corrections). Existing rows get
+   `ledger_event_group` set by the backfill (the event it posts each attendee's
+   sale under), so this concern depends on the backfill writing it.
 5. **Outstanding balance** — `attendees.remaining_balance` → `−balanceOf(attendee)`
    (uniformly zero in production — no reservations).
 6. **Modifier revenue** — `modifiers.total_revenue` (+ trigger) →
@@ -414,6 +438,18 @@ the two listing+attendees batch loaders, caught by Codex and now regression-test
 So each swap must route **every** read site through the projection, ideally via one
 shared SQL fragment (e.g. `listingIncomeSubquery`) so the source lives in one place.
 Concern 4 (`price_paid`) has by far the most read sites, so inventory them first.
+
+**Sequencing / backfill coupling.** A read-swap's projection is only correct for
+*historical* rows once the one-shot backfill has posted their legs — so each
+remaining concern depends on the backfill. Concerns 5–6 are effectively unblocked:
+production has no reservations or modifiers, so `−balanceOf(attendee)` and
+`balanceOf(modifier:M)` are **zero** for all historical rows regardless of backfill
+detail (matching the columns they replace). Concern 4 is **not** unblocked: a paid
+history row has a non-zero `price_paid`, and the projection only finds its `sale`
+leg via `ledger_event_group`, which the backfill must stamp on each existing row.
+So concern 4's read-swap + column drop is **gated on the backfill rework** writing
+`ledger_event_group`; its forward instrumentation (new bookings storing their
+order's `event_group`) is independent and can land first.
 
 A single shared ledger renderer (§5.15) follows once the per-account reads are in
 place. `booked_quantity` / `tickets_count` are counts, not money, so they stay.
