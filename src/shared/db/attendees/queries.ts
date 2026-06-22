@@ -3,6 +3,10 @@
  */
 
 import { map, unique } from "#fp";
+import {
+  accountPredicate,
+  sumAmountFromTransfers,
+} from "#shared/accounting/projection-sql.ts";
 import { computeTicketTokenIndex } from "#shared/crypto/hashing.ts";
 import type {
   AttendeeWithBookings,
@@ -34,7 +38,7 @@ const ATTENDEE_COLS =
  */
 const refundedFromLedger = (attendeeIdExpr: string): string =>
   `(SELECT EXISTS(SELECT 1 FROM transfers WHERE kind = 'refund_cash'` +
-  ` AND source_type = 'attendee' AND source_id = CAST(${attendeeIdExpr} AS TEXT))) AS refunded`;
+  ` AND ${accountPredicate("source", "attendee", attendeeIdExpr)})) AS refunded`;
 
 /**
  * Per-row amount paid, projected from the ledger instead of a stored column: the
@@ -53,11 +57,13 @@ export const pricePaidFromLedger = (
   listingIdExpr: string,
   eventGroupExpr: string,
 ): string =>
-  `(SELECT COALESCE(SUM(amount), 0) FROM transfers
-     WHERE kind = 'sale'
-       AND source_type = 'attendee' AND source_id = CAST(${attendeeIdExpr} AS TEXT)
-       AND dest_type = 'revenue' AND dest_id = CAST(${listingIdExpr} AS TEXT)
-       AND event_group = ${eventGroupExpr}) AS price_paid`;
+  sumAmountFromTransfers(
+    `kind = 'sale'` +
+      ` AND ${accountPredicate("source", "attendee", attendeeIdExpr)}` +
+      ` AND ${accountPredicate("dest", "revenue", listingIdExpr)}` +
+      ` AND event_group = ${eventGroupExpr}`,
+    "price_paid",
+  );
 
 /** The two ledger-projected money columns (refunded flag + per-row amount paid)
  *  for a listing_attendees row reached through the `ea` alias. Shared by the

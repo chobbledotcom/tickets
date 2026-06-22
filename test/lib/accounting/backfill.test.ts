@@ -18,7 +18,10 @@ import { createAttendeeAtomic } from "#shared/db/attendees.ts";
 import { getDb } from "#shared/db/client.ts";
 import type { Transfer } from "#shared/ledger/types.ts";
 import { createTestListing, describeWithEnv } from "#test-utils";
-import { seedPreDropLedgerColumns } from "../db/migration-test-helpers.ts";
+import {
+  seedPreDropLedgerColumns,
+  stampHistoricalPricePaid,
+} from "../db/migration-test-helpers.ts";
 
 /** Flag a historical booking line refunded, the way a pre-ledger DB recorded a
  *  provider refund before the column was projected from the ledger. */
@@ -44,10 +47,11 @@ const historicalBooking = async (bookings: ListingBooking[]) => {
   // only source. createAttendeeAtomic no longer writes it (amounts live in the
   // ledger now), so stamp the restored column directly to reproduce that history.
   for (const booking of bookings) {
-    await getDb().execute({
-      args: [booking.pricePaid ?? 0, attendee.id, booking.listingId],
-      sql: "UPDATE listing_attendees SET price_paid = ? WHERE attendee_id = ? AND listing_id = ?",
-    });
+    await stampHistoricalPricePaid(
+      attendee.id,
+      booking.listingId,
+      booking.pricePaid ?? 0,
+    );
   }
   return attendee;
 };

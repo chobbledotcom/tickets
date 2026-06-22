@@ -19,7 +19,10 @@ import type {
   SchemaRequirement,
 } from "#shared/db/migrations/types.ts";
 import { createTestListing, describeWithEnv } from "#test-utils";
-import { seedPreDropLedgerColumns } from "../migration-test-helpers.ts";
+import {
+  seedPreDropLedgerColumns,
+  stampHistoricalPricePaid,
+} from "../migration-test-helpers.ts";
 
 // Promise<never> so one stub satisfies both the void- and boolean-returning
 // context members; the backfill up() touches none of them.
@@ -70,10 +73,7 @@ describeWithEnv(
       const attendee = result.attendees[0]!;
       // A pre-ledger row carried its amount in price_paid (the backfill's source);
       // createAttendeeAtomic no longer writes it, so stamp the restored column.
-      await getDb().execute({
-        args: [attendee.id, listing.id],
-        sql: "UPDATE listing_attendees SET price_paid = 4200 WHERE attendee_id = ? AND listing_id = ?",
-      });
+      await stampHistoricalPricePaid(attendee.id, listing.id, 4200);
       expect((await allTransfers()).length).toBe(0); // pre-dual-write booking
 
       await runMigration();

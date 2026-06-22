@@ -103,6 +103,22 @@ export const seedPreDropLedgerColumns = async (): Promise<void> => {
   );
 };
 
+/**
+ * Stamp a pre-ledger booking row's `price_paid` — the column the backfill reads
+ * to reconstruct a historical `sale` leg. Production's booking insert no longer
+ * writes it, so a backfill test that wants the migration to see a paid booking
+ * sets it directly (on the column restored by {@link seedPreDropLedgerColumns}).
+ */
+export const stampHistoricalPricePaid = (
+  attendeeId: number,
+  listingId: number,
+  amount: number,
+): Promise<unknown> =>
+  getDb().execute({
+    args: [amount, attendeeId, listingId],
+    sql: "UPDATE listing_attendees SET price_paid = ? WHERE attendee_id = ? AND listing_id = ?",
+  });
+
 export const columnNames = async (table: string): Promise<string[]> => {
   const result = await getDb().execute(
     `SELECT name FROM pragma_table_info('${table}')`,

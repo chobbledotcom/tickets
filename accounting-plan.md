@@ -35,8 +35,8 @@ ever**:
 
 - **written a `transfers` row** — the ledger is empty in production (Phase 0), so
   the backfill runs against an empty ledger and is the sole writer of history. The
-  backfill's skip-already-ledgered and adopt-existing-currency guards (§6) are
-  belt-and-suspenders against deploy re-ordering, not load-bearing.
+  backfill's skip-already-ledgered guard (§6) is belt-and-suspenders against
+  deploy re-ordering, not load-bearing.
 - **used a modifier** — no historical surcharge/discount legs to reconstruct; the
   backfill posts `modifiers: []`.
 - **done a partial refund** — every refund returned the whole payment, so a single
@@ -77,8 +77,9 @@ code still guards against them.
 
 - A user-editable chart of accounts (it's a small set of code constants).
 - Tax computation (tax, if ever needed, is just another account).
-- Multi-currency *operation* — single currency per site, **enforced** by the
-  library refusing to sum across currencies.
+- Multi-currency *operation* — a site has a single currency, fixed at setup and
+  never changed, so the ledger neither stores nor compares a per-transfer
+  currency (amounts are bare minor units).
 - **Amount-aware provider refunds.** Partial refunds are **ledger-only** for now;
   an amount-aware provider API is planned and the model is shaped for it.
 - Automated provider-fee/payout import (the model supports it; wiring is later).
@@ -157,10 +158,16 @@ that are a poor fit for hand-rolling — instant validation is delegated to
 | --- | --- |
 | `types.ts` | `AccountRef`, `TransferInput`, `Transfer`, `Result`, `LedgerError`. `occurredAt`/`recordedAt` are ISO strings in memory; the store persists them as INTEGER epoch-millis (§6). |
 | `account.ts` | Identity + a NUL-separated, collision-free `accountKey`. |
-| `validate.ts` | Positive safe-integer amount, a real ISO-8601 `occurredAt` instant (any offset/precision, but not an impossible date — `Temporal`-backed), distinct non-empty accounts, non-empty currency/reference/eventGroup. Reports every problem at once. |
-| `project.ts` | `balanceOf`, `allBalances`, `sumOfKind`, `inPeriod`, `statementFor` (time-then-id ordered, opening-balance aware) — all **currency-guarded** (mixed-currency slices throw). |
+| `validate.ts` | Positive safe-integer amount, a real ISO-8601 `occurredAt` instant (any offset/precision, but not an impossible date — `Temporal`-backed), distinct non-empty accounts, non-empty reference/eventGroup. Reports every problem at once. |
+| `project.ts` | `balanceOf`, `allBalances`, `sumOfKind`, `inPeriod`, `statementFor` (time-then-id ordered, opening-balance aware). |
 | `reverse.ts` | `reverseOf` — the exact inverse for admin void/correction (not refunds). |
-| `reconcile.ts` | Non-tautological checks: `reconcileExternal` (vs a provider-reported balance) and `reconcileLegs` (observed leg *fingerprints* — kind, accounts, amount, currency — per event vs source-record expectations). |
+| `reconcile.ts` | Non-tautological checks: `reconcileExternal` (vs a provider-reported balance) and `reconcileLegs` (observed leg *fingerprints* — kind, accounts, amount — per event vs source-record expectations). |
+
+> Currency was removed from the ledger (a site has one currency, fixed at setup
+> and never changed): no `currency` field on transfers, no per-transfer storage,
+> and no mixed-currency/single-currency guards anywhere — `assertSingleCurrency`,
+> `assertLedgerCurrency` and the currency-scoped reconcile/backfill checks are all
+> gone.
 
 **Built — the host glue in `src/shared/accounting/` (persistence + mapping,
 integration-tested):** the chart of accounts (`accounts.ts`), opaque HMAC
@@ -174,7 +181,7 @@ way to post **many independent events at once** — a bulk refund, an import, a
 multi-order adjustment. It is split so it scales: a read-only **prepare** loads one
 `BatchSnapshot` in a fixed handful of bulk queries (never one-per-group) and
 validates every group against it (idempotent replay, changed-leg conflict, cross-
-event *and* cross-batch reference collisions, single-currency, reversal links),
+event *and* cross-batch reference collisions, reversal links),
 then a write-only **apply** runs one atomic `batch` of just the resulting
 `INSERT OR IGNORE`s. This is the deliberate alternative to a long *interactive*
 transaction: reads interleaved with writes inside one interactive write tx leave
@@ -185,6 +192,33 @@ references make `INSERT OR IGNORE` absorb a concurrent race (the backfill's
 approach). The single-event path (`postTransfersTx`) stays interactive so it can
 ride a booking's own transaction.
 
+**Shared read-projection & migration helpers (reuse — don't reinvent).** A
+duplication sweep after concerns 1–4 pulled the recurring shapes into one place
+each, so the next concerns (balance, modifier revenue) point at them rather than
+hand-rolling another copy:
+
+- **`accountPredicate(role, type, idExpr)`** and **`sumAmountFromTransfers(where,
+  alias)`** in [`src/shared/accounting/projection-sql.ts`] — every read-time
+  projection off `transfers` (income, amount paid, refund status) builds its
+  WHERE with `accountPredicate` so the `source_type`/`dest_id` column names and
+  the integer-id → `CAST(… AS TEXT)` live in exactly one place; a typo can't skew
+  a single read. `sumAmountFromTransfers` wraps the `(SELECT COALESCE(SUM(amount),
+  0) FROM transfers WHERE …) AS alias` shape. Used by `pricePaidFromLedger`,
+  `refundedFromLedger` (`db/attendees/queries.ts`) and `listingIncomeSubquery`
+  (`db/listings.ts`); `balanceOf`/`remaining_balance` should build on them too.
+- **`columnDropMigration(id, table, description)`** in `migrations/define.ts` —
+  the five "the column is gone from SCHEMA, drop it from the live table"
+  migrations were identical `recreateTable(table)` bodies; four now call this
+  factory. Reach for raw `schemaMigration` only when the drop also rewrites
+  trigger bodies (`drop_listing_income` does, so it stays bespoke).
+- **Test fixtures:** `seedPreDropLedgerColumns` + `stampHistoricalPricePaid`
+  (`test/lib/db/migration-test-helpers.ts`) restore and seed the pre-drop
+  `refunded`/`price_paid` columns the backfill reads; `postListingSale` /
+  `postAttendeeRefund` (`test/test-utils/ledger.ts`) post a canonical booking /
+  refund and stamp `ledger_event_group`. Per-suite leg fixtures that need their
+  own `reference`/`kind`/parameterisation stay local on purpose (the shapes are
+  `TransferInput`-typed, so drift is compile-checked).
+
 ---
 
 ## 5. Resolved decisions
@@ -194,7 +228,9 @@ ride a booking's own transaction.
    accrual later (`deposits` reserved).
 3. **Booking fee is income** (`fee_income:booking`); the cash leg equals the
    amount actually charged.
-4. **Single currency, enforced in code** (`assertSingleCurrency`).
+4. **Single currency, not modelled at all.** A site's currency is fixed at setup
+   and never changes, so transfers carry no `currency` and the ledger never
+   compares one (the earlier `assertSingleCurrency` guard was removed).
 5. **Balance settlement keeps a live atomic guard** and **refunds on
    guard-reject** — never a silent no-op.
 6. **References are opaque HMACs**, never provider ids; each event's legs share an
@@ -258,7 +294,7 @@ tests) before the corresponding path goes live.
   ranges chronologically with integer comparisons at high row counts; the host
   normalises any ISO instant to epoch-millis on write and reads it back canonical.
 - [x] Idempotent insert **verifies the existing event's immutable columns match the
-  retry** (amount, accounts, kind, currency) and **fails loudly** on mismatch
+  retry** (amount, accounts, kind) and **fails loudly** on mismatch
   (`assertEventMatches`); the single path reads through its own write tx, the batch
   path validates against the pre-loaded snapshot then writes `INSERT OR IGNORE`.
 - [x] HMAC `event_group`/`reference` inputs are **JSON-encoded** before hashing —
@@ -282,7 +318,7 @@ tests) before the corresponding path goes live.
 - [ ] Keep an **atomic ledger-side compare-and-post** guard (don't replace the
   existing `remaining_balance = expected` guard with a plain append).
 - [ ] The guard subquery is **account-scoped** (uses the source/dest indexes, not
-  an O(ledger) currency scan) **and currency-scoped** (`currency = ?`).
+  an O(ledger) full scan).
 - [ ] Compare against the **signed** expected balance: outstanding =
   −balanceOf(attendee), so the guard compares to `−expectedAmount`, not the
   positive checkout amount.

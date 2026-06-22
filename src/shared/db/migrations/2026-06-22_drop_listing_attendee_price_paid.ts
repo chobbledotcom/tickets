@@ -1,7 +1,8 @@
-import { schemaMigration } from "./define.ts";
+import { columnDropMigration } from "./define.ts";
 
-export default schemaMigration(
+export default columnDropMigration(
   "2026-06-22_drop_listing_attendee_price_paid",
+  "listing_attendees",
   "Drop listing_attendees.price_paid: a booking row's amount paid is now " +
     "projected from the transfers ledger at read time — the gross sale leg " +
     "billed from the attendee to the listing's revenue account within the " +
@@ -13,8 +14,4 @@ export default schemaMigration(
     "triggers, which never referenced price_paid. No `requires`: a bare column " +
     "drop isn't an additive object, so the restore test has nothing to rebuild; " +
     "the schema-hash guard covers the change.",
-  {},
-  async ({ recreateTable }) => {
-    await recreateTable("listing_attendees"); // rebuild from SCHEMA, dropping price_paid
-  },
 );

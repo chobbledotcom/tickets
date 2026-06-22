@@ -4,6 +4,10 @@
 
 import type { InValue, ResultSet } from "@libsql/client";
 import { mapParallel, reduce, sort, unique } from "#fp";
+import {
+  accountPredicate,
+  sumAmountFromTransfers,
+} from "#shared/accounting/projection-sql.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { addDays } from "#shared/dates.ts";
@@ -206,8 +210,7 @@ const rawListingsTable = defineIdTable<Listing, ListingInput>("listings", {
  * trailing `AS income` names the projected column.
  */
 export const listingIncomeSubquery = (idExpr: string): string =>
-  `(SELECT COALESCE(SUM(amount), 0) FROM transfers
-     WHERE dest_type = 'revenue' AND dest_id = CAST(${idExpr} AS TEXT)) AS income`;
+  sumAmountFromTransfers(accountPredicate("dest", "revenue", idExpr), "income");
 
 /** SELECT projecting each listing plus its booked-quantity count. Callers
  * append their own WHERE and {@link LISTING_COUNT_GROUP_BY}. Shared by the
