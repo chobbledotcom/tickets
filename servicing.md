@@ -260,6 +260,22 @@ pages must load *only* `kind='servicing'` rows. Cheapest implementation: have
 `getAttendeeRaw`/`getAttendee` accept an expected kind (default `'attendee'`) and
 return null on mismatch, so both page families share one guarded read.
 
+**`getAttendee` is not the only direct single-record loader — guard the
+listing-scoped and balance loaders too.** Several customer-only actions never go
+through `getAttendee`:
+
+- `loadAttendeeForListing` (`attendees-route-helpers.ts:34`) →
+  `getListingWithAttendeeRaw` (`listings.ts:608`) backs the listing-scoped
+  `/admin/listing/:listingId/attendee/:attendeeId/{delete,resend-notification,checkin}`
+  actions.
+- `getAttendeeBalanceState` (`balance.ts:28`) backs the admin balance page
+  (`features/admin/attendee-balance.ts`).
+
+A servicing id reached via an activity-log link or a copied listing-scoped URL
+could otherwise be deleted / checked-in / resend-notified / balance-edited. Apply
+the same kind predicate/guard to these direct loaders (return null/404 for
+`kind='servicing'`), not just to `getAttendee`.
+
 Add a dedicated servicing reader, e.g. `getServicingEventsPage` / per-listing
 `getServicingForListing`, sharing the same SELECT via the existing
 `ATTENDEE_JOIN_SELECT` constant and a `kind` predicate (curry the predicate to
@@ -327,7 +343,18 @@ Include:
   `attendee-form.tsx` / `attendee-dates.ts`). This is how the operator picks
   *which listings* and *how much* to hold and *for which dates*.
 - **Custom questions** for the booked listings (reuse `loadAttendeeQuestionData`
-  / `parseQuestionAnswers` / `saveAttendeeAnswers`).
+  / `parseQuestionAnswers` / `saveAttendeeAnswers`). **Note the create-mode gap:**
+  the existing admin `applyCreate` (`attendee-form-routes.ts:724`) never saves
+  question answers — only `applyEdit` calls `saveAttendeeAnswers` — and
+  `loadAttendeeQuestionData` returns `undefined` for an empty `attendeeIds` (there
+  is no attendee id until after the insert). So if the servicing **create** form
+  is to collect answers, the plan must add: (a) a create-mode question *loader*
+  keyed by the selected listing ids alone (no attendee id) to render the
+  questions, and (b) a `saveAttendeeAnswers` call against the new id *after* the
+  atomic create returns it. Otherwise answers entered at creation are silently
+  dropped until the operator re-opens the row in edit mode. (If we decide
+  servicing events don't need questions at creation, state that explicitly and
+  collect them on edit only.)
 - Optionally **time-of-day** if logistics-style timing is wanted (the
   `listing_attendees.start_time/end_time` fields already exist) — see open
   questions.
@@ -386,9 +413,14 @@ A servicing row must never be treated as a customer. Checklist (search anchor:
       (`getListingAggregateRecalculation`, `resetListingAggregateFields`,
       schema-sync backfill) must share the kind predicate; `booked_quantity`
       keeps counting servicing. See the aggregates decision above.
-- [ ] Activity log labels (`getAttendeeNamesByIds`) — fine to keep; a servicing
-      edit can still log. Confirm the link target is the servicing edit page, not
-      the attendee one.
+- [ ] Activity log links must be kind-aware. `refLink` in
+      `activityLog.tsx:80` hard-codes `/admin/attendees` for `entry.attendee_id`,
+      and `refs.attendees` is a `Map<number,string>` of labels with no kind. Once
+      the attendee pages are kind-guarded, a logged servicing id would point at
+      the customer edit page (or 404). Load the kind alongside the ref (extend the
+      ref map to carry kind, or look it up) and link servicing rows to
+      `/admin/servicing/:id`. (`getAttendeeNamesByIds` itself can stay; it's the
+      link routing that must change.)
 - [ ] Backup/restore (`backup.ts`) round-trips the new column automatically (it
       dumps every column) — no change, but verify.
 
@@ -434,14 +466,19 @@ consider `deno task mutation` on the capacity predicate and the kind filter.
    contact activity) with unit tests. The atomic write is unchanged because the
    token (and its index) is still minted.
 3. Query-layer `kind` filters (including the token paths, for "hidden from public
-   site") + kind-guarded single read + new servicing readers (including the
+   site") + kind-guarded single reads — `getAttendee`/`getAttendeeRaw` **and** the
+   direct loaders `getListingWithAttendeeRaw` (via `loadAttendeeForListing`) and
+   `getAttendeeBalanceState` — + new servicing readers (including the
    `listings.ts` loaders).
 4. Aggregates decision + implementation (triggers **and** recompute paths;
    recommended `is_hold` mirror column).
 5. Extract the shared create/edit core from the attendee form routes; build the
    servicing routes (kind-guarded edit, no ticket/QR UI, locked "hidden") +
-   name-only field schema.
-6. Nav entry + calendar deep-link.
+   name-only field schema. If questions are collected at creation, add the
+   create-mode question loader + post-insert `saveAttendeeAnswers` (the existing
+   `applyCreate` does not save answers).
+6. Nav entry + calendar deep-link + kind-aware activity-log links
+   (`/admin/servicing/:id` for servicing rows).
 7. Audit and exclude across all customer surfaces (checklist above).
 8. Full test pass + precommit.
 
