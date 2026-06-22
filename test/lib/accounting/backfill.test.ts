@@ -83,6 +83,28 @@ describeWithEnv("accounting > backfill", { db: true }, () => {
     expect(await accountBalance(WORLD)).toBe(-5000); // cash in
   });
 
+  test("stamps each row's ledger_event_group with its booking event group", async () => {
+    // The per-row amount-paid projection keys on ledger_event_group, so the
+    // backfill must stamp it with the order's booking event group (the sale leg's).
+    const listing = await createTestListing({ maxAttendees: 5 });
+    const attendee = await historicalBooking([
+      { listingId: listing.id, pricePaid: 5000 },
+    ]);
+    await backfillTransfers("GBP");
+
+    const sale = (await transfersByAccount(attendeeAccount(attendee.id))).find(
+      (leg) => leg.kind === "sale",
+    )!;
+    expect(sale.eventGroup).not.toBe("");
+    const row = (
+      await getDb().execute({
+        args: [attendee.id],
+        sql: "SELECT ledger_event_group FROM listing_attendees WHERE attendee_id = ?",
+      })
+    ).rows[0]!;
+    expect(String(row.ledger_event_group)).toBe(sale.eventGroup);
+  });
+
   test("groups a multi-listing booking into one order (sales + one payment)", async () => {
     const first = await createTestListing({ maxAttendees: 5 });
     const second = await createTestListing({ maxAttendees: 5 });
