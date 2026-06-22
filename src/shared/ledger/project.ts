@@ -5,6 +5,7 @@
  */
 
 import { filter, sumOf, unique } from "#fp";
+import { instantToEpochMs, isInstant } from "#shared/validation/timestamp.ts";
 import { accountKey, sameAccount } from "./account.ts";
 import type { AccountRef, Transfer } from "./types.ts";
 
@@ -64,43 +65,29 @@ export const sumOfKind =
     return sumOf((t: Transfer) => (t.kind === kind ? t.amount : 0))(transfers);
   };
 
-const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
-
-/**
- * True for a real ISO-8601 UTC instant at any sub-second precision. Rejects
- * overflow inputs that `Date.parse` silently normalises (e.g. `2026-02-30`,
- * hour `24`) by checking the parsed instant re-serialises to the same date/time.
- */
-const isValidInstant = (s: string): boolean => {
-  if (!INSTANT.test(s)) return false;
-  const ms = Date.parse(s);
-  if (Number.isNaN(ms)) return false;
-  return new Date(ms).toISOString().slice(0, 19) === s.slice(0, 19);
-};
-
 /**
  * Transfers whose business time falls in the half-open window [from, to).
  * Bounds are compared as instants, not strings, so a whole-second bound like
- * `2026-02-01T00:00:00Z` still includes the canonical `2026-02-01T00:00:00.000Z`
- * (a lexicographic compare would wrongly exclude it). Invalid bounds are
- * rejected up front, so a normalised date (e.g. `2026-02-30`) can't silently
- * shift the window. An inverted window (`from` after `to`) throws rather than
- * silently returning an empty slice, which would read as zero revenue/refunds
- * for what is really a swapped-argument bug.
+ * `2026-02-01T00:00:00Z` still includes the canonical `2026-02-01T00:00:00.000Z`.
+ * Invalid bounds are rejected up front via {@link isInstant}, so an impossible
+ * date (e.g. `2026-02-30`) can't silently shift the window. An inverted window
+ * (`from` after `to`) throws rather than silently returning an empty slice,
+ * which would read as zero revenue/refunds for what is really a swapped-argument
+ * bug.
  */
 export const inPeriod =
   (from: string, to: string) =>
   (transfers: Transfer[]): Transfer[] => {
-    if (!isValidInstant(from) || !isValidInstant(to)) {
+    if (!isInstant(from) || !isInstant(to)) {
       throw new Error(`inPeriod: invalid bound (from=${from}, to=${to})`);
     }
-    const fromMs = Date.parse(from);
-    const toMs = Date.parse(to);
+    const fromMs = instantToEpochMs(from);
+    const toMs = instantToEpochMs(to);
     if (fromMs > toMs) {
       throw new Error(`inPeriod: inverted window (from=${from}, to=${to})`);
     }
     return filter((t: Transfer) => {
-      const at = Date.parse(t.occurredAt);
+      const at = instantToEpochMs(t.occurredAt);
       return at >= fromMs && at < toMs;
     })(transfers);
   };
@@ -116,11 +103,13 @@ export type StatementLine = {
 };
 
 const byOccurredThenId = (a: Transfer, b: Transfer): number =>
-  a.occurredAt.localeCompare(b.occurredAt) || a.id - b.id;
+  instantToEpochMs(a.occurredAt) - instantToEpochMs(b.occurredAt) ||
+  a.id - b.id;
 
 /**
- * A running-balance statement for one account, ordered by business time then id
- * so the running total is meaningful regardless of the order rows arrive in.
+ * A running-balance statement for one account, ordered by business time (as a
+ * parsed instant, not a string compare, so any precision sorts correctly) then
+ * id, so the running total is meaningful regardless of the order rows arrive in.
  *
  * Pass `openingBalance` when `transfers` is a date-ranged slice rather than the
  * account's full history, so the running total continues from the balance before
