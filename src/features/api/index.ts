@@ -7,8 +7,12 @@
 
 import { filter, pipe } from "#fp";
 import { isRegistrationClosed } from "#routes/format.ts";
+import { classifyForDiscovery } from "#routes/public/discovery.ts";
 import { parseCustomPrice } from "#routes/public/ticket-form.ts";
-import { anyChildListing } from "#routes/public/ticket-payment.ts";
+import {
+  anyChildListing,
+  parentRequiresChild,
+} from "#routes/public/ticket-payment.ts";
 import { jsonResponse } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import type { ServerContext } from "#routes/types.ts";
@@ -194,6 +198,30 @@ const withActiveListing =
   };
 
 // =============================================================================
+// Parent/child discovery guard (Fix 2)
+// =============================================================================
+
+/** How a single listing should read on the detail/availability surfaces under
+ * the parent/child feature: a child is not standalone-bookable (404, matching
+ * how the web booking page rejects a child slug), and a parent with no bookable
+ * child reads sold out / unavailable (invariant I6). */
+type ListingDiscoveryState = { isChild: boolean; isSoldOutParent: boolean };
+
+/** Classify one listing for the detail/availability endpoints, reusing the same
+ * discovery classification the web surfaces use (child suppression + parent
+ * sold-out). Flag-off (or a plain listing) yields the neutral state, so existing
+ * endpoints are unchanged until parents ship. */
+const listingDiscoveryState = async (
+  listing: ListingWithCount,
+): Promise<ListingDiscoveryState> => {
+  const { childIds, soldOutParentIds } = await classifyForDiscovery([listing]);
+  return {
+    isChild: childIds.has(listing.id),
+    isSoldOutParent: soldOutParentIds.has(listing.id),
+  };
+};
+
+// =============================================================================
 // Handlers
 // =============================================================================
 
@@ -205,8 +233,16 @@ const handleListListings = async (): Promise<Response> => {
     filter((e: ListingWithCount) => e.active && !e.hidden),
     (active: ListingWithCount[]) => sortListings(active, holidays),
   )(allListings);
-  const groupRemaining = await getGroupRemainingByListingId(visibleListings);
-  const listings = visibleListings.map((e) =>
+  // A child is never standalone-bookable (invariant I3), so omit children from
+  // the discovery list — a client must not find one here and then hit the
+  // booking 400 (Fix 2, parents.md "Discovery responses"). A parent with no
+  // bookable child reads sold out via `toPublicListing`'s combined state, but
+  // the list surface only needs to drop children; the detail/availability
+  // endpoints carry the parent-sold-out outcome.
+  const { childIds } = await classifyForDiscovery(visibleListings);
+  const bookableListings = visibleListings.filter((e) => !childIds.has(e.id));
+  const groupRemaining = await getGroupRemainingByListingId(bookableListings);
+  const listings = bookableListings.map((e) =>
     toPublicListing(
       e,
       isRegistrationClosed(e),
@@ -219,23 +255,42 @@ const handleListListings = async (): Promise<Response> => {
 
 /** GET /api/listings/:slug — single listing detail */
 const handleGetListing = withActiveListing(async (_request, listing) => {
+  const { isChild, isSoldOutParent } = await listingDiscoveryState(listing);
+  // A child is not standalone-bookable (invariant I3), so its detail endpoint is
+  // a 404 — the same not-bookable outcome the web booking page gives a child
+  // slug (Fix 2).
+  if (isChild) return apiResponse(LISTING_NOT_FOUND, 404);
   const closed = isRegistrationClosed(listing);
   let availableDates: string[] | undefined;
   if (listing.listing_type === "daily") {
     availableDates = getAvailableDates(listing, await getActiveHolidays());
   }
+  const publicListing = toPublicListing(
+    listing,
+    closed,
+    availableDates,
+    await getGroupRemainingForListing(listing),
+  );
+  // A parent with no bookable child is sold out (invariant I6); the route
+  // listing's own capacity ignores its children, so project the discovery
+  // sold-out outcome onto the response rather than advertising it as bookable.
   return apiResponse({
-    listing: toPublicListing(
-      listing,
-      closed,
-      availableDates,
-      await getGroupRemainingForListing(listing),
-    ),
+    listing: isSoldOutParent
+      ? { ...publicListing, isSoldOut: true, maxPurchasable: 0 }
+      : publicListing,
   });
 });
 
 /** GET /api/listings/:slug/availability — check if spots are available */
 const handleCheckAvailability = withActiveListing(async (request, listing) => {
+  const { isChild, isSoldOutParent } = await listingDiscoveryState(listing);
+  // A child is not standalone-bookable (invariant I3) — 404, consistent with the
+  // detail endpoint and the web booking page (Fix 2).
+  if (isChild) return apiResponse(LISTING_NOT_FOUND, 404);
+  // A parent with no bookable child is sold out (invariant I6): its own capacity
+  // ignores its children, so report it unavailable rather than letting the
+  // route listing's standalone spots advertise it as bookable.
+  if (isSoldOutParent) return apiResponse({ available: false });
   const url = new URL(request.url);
   const quantity =
     parseNonNegativeInt(url.searchParams.get("quantity") ?? "1") ?? 1;
@@ -334,6 +389,21 @@ const handleBook = withActiveListing(async (request, listing, server) => {
   if (await anyChildListing([listing.id])) {
     return apiResponse(
       { error: "This listing must be booked through its parent listing." },
+      400,
+    );
+  }
+  // A parent requires the buyer to choose one of its children (invariant I1).
+  // The web booking page enforces that with a per-parent selector, but this
+  // endpoint has no child-selection input, so booking the parent here would
+  // create it without its required child — bypassing the gate. Reject and direct
+  // the caller to the web booking page (Fix 1, parents.md "Public/JSON API
+  // booking").
+  if (await parentRequiresChild(listing.id)) {
+    return apiResponse(
+      {
+        error:
+          "This listing must be booked through the website, which requires choosing a child option.",
+      },
       400,
     );
   }

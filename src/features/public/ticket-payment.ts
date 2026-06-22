@@ -28,6 +28,7 @@ import {
 } from "#shared/db/attendees.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {
+  getChildIds,
   getChildListingIds,
   getChildrenForParents,
 } from "#shared/db/listing-parents.ts";
@@ -53,6 +54,7 @@ import {
   dayPriceFor,
   type Group,
   type Holiday,
+  type ListingWithCount,
   normalizeDurationDays,
 } from "#shared/types.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
@@ -694,6 +696,42 @@ export const anyChildListing = async (
 ): Promise<boolean> => {
   if (!isListingParentsEnabled()) return false;
   return (await getChildListingIds(ids)).size > 0;
+};
+
+/**
+ * Drop child listings from an indirectly-loaded listing set (group/order pages),
+ * so a child never renders as a standalone, selectable quantity row (invariant
+ * I3). Unlike the explicit-slug entry points — which *reject* a child slug they
+ * were handed directly (`withActiveListings`) — an indirect page loads its
+ * listings from group membership / a saved cart, where a child member is
+ * expected: it is folded under its parent's selector, not booked alone. The
+ * parents stay in the set and re-load their children via the relationship
+ * accessor (`childrenByParentId`), so this only removes the children's own
+ * standalone rows (Fix 3, parents.md "strip child rows from indirect pages").
+ * No-op (no query) unless the feature flag is on.
+ */
+export const dropChildListings = async (
+  listings: readonly ListingWithCount[],
+): Promise<ListingWithCount[]> => {
+  if (!isListingParentsEnabled()) return [...listings];
+  const childIds = await getChildListingIds(listings.map((e) => e.id));
+  return listings.filter((e) => !childIds.has(e.id));
+};
+
+/**
+ * Whether `listingId` is a parent — i.e. it has at least one child edge, so a
+ * booking of it requires the buyer to choose one of its children (invariant I1).
+ * The web booking page enforces that choice with a per-parent selector, but the
+ * JSON API has no child-selection input, so it uses this to reject a parent
+ * booking and direct the caller to the web booking page (Fix 1, parents.md
+ * "Public/JSON API booking"). No-op (no query) unless the feature flag is on, so
+ * existing behaviour is unchanged until parents ship.
+ */
+export const parentRequiresChild = async (
+  listingId: number,
+): Promise<boolean> => {
+  if (!isListingParentsEnabled()) return false;
+  return (await getChildIds(listingId)).length > 0;
 };
 
 /** Load and validate active listings, return 404 if none — or if any resolved

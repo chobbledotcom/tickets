@@ -78,6 +78,7 @@ import {
   buildRegistrationItems,
   checkAvailability,
   createFreeReservation,
+  dropChildListings,
   foldSelectedChildren,
   getTicketContext,
   handlePaymentFlow,
@@ -1014,7 +1015,16 @@ export const renderTicketFlow =
     } = {},
   ) =>
   async (listings: ListingWithCount[]): Promise<Response> => {
-    const activeListings = await buildTicketListingsWithGroupCapacity(listings);
+    // Indirect entry points (group/order pages, renewals) load their listings
+    // from membership / a saved cart rather than explicit URL slugs, so a child
+    // member would otherwise render as a standalone, selectable quantity row a
+    // buyer could book alone — bypassing the slug guard, which only rejects
+    // DIRECT child slugs. Drop children here so they never appear as standalone
+    // rows; their parents stay and re-fold them via `childrenByParentId`
+    // (Fix 3, parents.md "strip child rows from indirect pages").
+    const activeListings = await buildTicketListingsWithGroupCapacity(
+      await dropChildListings(listings),
+    );
     return handleTicket({
       getContext: async (e) => ({
         ...(await getTicketContext(e, options.group)),
