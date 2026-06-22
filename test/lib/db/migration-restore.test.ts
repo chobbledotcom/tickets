@@ -283,9 +283,10 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
   test("every additive migration is covered by a restore case", () => {
     // Guards against a future migration slipping through with no restore test.
     // The non-additive migrations excluded here are: the baseline reconcile, the
-    // events→listings rename, the transfers backfill (data-only), and the two
-    // column-drop migrations (drop_listing_income and drop_listing_attendee_refunded).
-    expect(additiveMigrations.length).toBe(MIGRATIONS.length - 6);
+    // events→listings rename, the transfers backfill (data-only), and the three
+    // column-drop migrations (drop_listing_income, drop_listing_attendee_refunded
+    // and drop_transfers_currency).
+    expect(additiveMigrations.length).toBe(MIGRATIONS.length - 7);
   });
 
   for (const migration of additiveMigrations) {
