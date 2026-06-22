@@ -456,6 +456,11 @@ tests:
      never hits a missing column. The drop migration
      (`2026-06-22_drop_listing_attendee_price_paid`, after the backfill) removes it
      again. The test helper `seedPreDropLedgerColumns` mirrors this for fixtures.
+   - **A second, vestigial `price_paid` is gone too.** `attendees.price_paid`
+     (TEXT) was never written by the booking insert and never read — amount paid
+     has always been a per-row `listing_attendees` figure — so it was dropped in
+     the same pass (`2026-06-22_drop_attendees_price_paid`, `recreateTable`; no
+     FKs or triggers reference `attendees`).
 5. **Outstanding balance** — `attendees.remaining_balance` → `−balanceOf(attendee)`
    (uniformly zero in production — no reservations).
 6. **Modifier revenue** — `modifiers.total_revenue` (+ trigger) →
