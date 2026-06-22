@@ -133,6 +133,35 @@ export const childCalendarOrInStock =
       ? getBookableStartDates(child.listing, holidays).length > 0
       : !child.isSoldOut;
 
+/** Whether a DAILY child has at least one bookable start that COVERS `span` on
+ * its own calendar (the single source of truth for "a valid start for the span
+ * exists", shared by discovery's sold-out projection and the fold's date union):
+ * each candidate start is validated with {@link isBookingRangeValid} over `span`,
+ * the same rule the date union uses, so a child that can never fit the parent's
+ * inherited fixed multi-day span counts as unbookable. */
+const childHasStartForSpan = (
+  child: TicketListing,
+  span: number,
+  holidays: Holiday[],
+): boolean =>
+  getBookableStartDates(child.listing, holidays).some((date) =>
+    isBookingRangeValid(child.listing, date, span, holidays),
+  );
+
+/** Span-AWARE variant of {@link childCalendarOrInStock} for a parent whose
+ * inherited span is FIXED at discovery (a fixed daily parent): a daily child
+ * counts only when a valid start covering `span` exists ({@link
+ * childHasStartForSpan}) — not merely any one-day start — so a parent whose only
+ * child can never fit its fixed multi-day window reads sold out (parents.md Fix
+ * 1). A `null` span (a customisable parent, whose span the buyer picks later)
+ * keeps the span-agnostic {@link childCalendarOrInStock} behaviour. */
+export const childCalendarOrInStockForSpan =
+  (holidays: Holiday[], span: number | null) =>
+  (child: TicketListing): boolean =>
+    child.listing.listing_type === "daily" && span !== null
+      ? childHasStartForSpan(child, span, holidays)
+      : childCalendarOrInStock(holidays)(child);
+
 /** The child can be PRICED for the inherited span: a customisable child must
  * have a day price for `duration`; any other child prices independently of it. */
 export const childPricedForSpan =
@@ -228,6 +257,24 @@ export const resolveInheritedDuration = <T extends number | null>(
   }
   return standardValue;
 };
+
+/** A parent's FIXED inherited span when there is a single span without a chosen
+ * day-count — its `duration_days` for a fixed daily parent, 1 for a standard
+ * parent, and `null` for a customisable parent (the buyer picks the span). The
+ * single source of truth shared by the booking-page date union (ticket-payment.ts)
+ * and discovery's span-aware sold-out projection (discovery.ts, Fix 1).
+ * Specialises {@link resolveInheritedDuration} with `(null, duration_days)`. */
+export const fixedParentSpan = (
+  parent: Pick<
+    ListingWithCount,
+    "customisable_days" | "duration_days" | "listing_type"
+  >,
+): number | null =>
+  resolveInheritedDuration<number | null>(
+    parent,
+    null,
+    normalizeDurationDays(parent.duration_days),
+  );
 
 /**
  * One "union over selectable children" combinator (parents.md "union before

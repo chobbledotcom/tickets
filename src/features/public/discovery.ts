@@ -39,9 +39,10 @@ import type { Holiday, ListingWithCount } from "#shared/types.ts";
 import {
   buildTicketListing,
   childActive,
-  childCalendarOrInStock,
+  childCalendarOrInStockForSpan,
   childOpen,
   combinedGroupDemandFits,
+  fixedParentSpan,
   selectableChild,
   type TicketListing,
 } from "#templates/public.tsx";
@@ -93,10 +94,16 @@ const EMPTY_CLASSIFICATION: DiscoveryClassification = {
  * job (it rejects — never clamps — a genuinely full date). Hidden children stay
  * bookable — `hidden` governs the index, not eligibility (parents.md, Edge
  * cases). */
-const childBookable = (child: TicketListing, holidays: Holiday[]): boolean =>
-  selectableChild([childActive, childOpen, childCalendarOrInStock(holidays)])(
-    child,
-  );
+const childBookable = (
+  child: TicketListing,
+  holidays: Holiday[],
+  parentFixedSpan: number | null,
+): boolean =>
+  selectableChild([
+    childActive,
+    childOpen,
+    childCalendarOrInStockForSpan(holidays, parentFixedSpan),
+  ])(child);
 
 /** Whether a *parent* can currently offer its children as add-ons (Fix 1): its
  * own row must be active AND not sold out AND not registration-closed. A parent
@@ -131,6 +138,7 @@ const childBookableForParent = (
   childBookable(
     buildTicketListing(child, isRegistrationClosed(child), groupRemaining),
     holidays,
+    fixedParentSpan(parent),
   ) && combinedGroupDemandFits(parent.group_id, child.group_id, groupRemaining);
 
 /**

@@ -27,7 +27,10 @@ import { logActivity } from "#shared/db/activityLog.ts";
 import { getAllGroups } from "#shared/db/groups.ts";
 import { getChildListingIds } from "#shared/db/listing-parents.ts";
 import { getAllListings } from "#shared/db/listings.ts";
-import { childUnreachableAddOnError } from "#shared/db/modifier-resolve.ts";
+import {
+  childUnreachableAddOnError,
+  listingIdsInGroups,
+} from "#shared/db/modifier-resolve.ts";
 import {
   getAllModifiers,
   getModifierAggregateRecalculation,
@@ -122,12 +125,7 @@ const resolveAddOnScope = (
   allListings: ListingWithCount[],
 ): number[] | null => {
   if (scope === "listings") return listingIds;
-  if (scope === "groups") {
-    const groups = new Set(groupIds);
-    return allListings
-      .filter((listing) => groups.has(listing.group_id))
-      .map((listing) => listing.id);
-  }
+  if (scope === "groups") return listingIdsInGroups(groupIds, allListings);
   return null;
 };
 

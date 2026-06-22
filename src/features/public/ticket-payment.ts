@@ -62,6 +62,7 @@ import {
   childPricedForSpan,
   childSelectableIgnoringSpan,
   constrainOptionsByChildUnion,
+  fixedParentSpan,
   resolveInheritedDuration,
   selectableChild,
   type TicketListing,
@@ -781,18 +782,6 @@ const constrainDatesByChildUnion = (
     (c) => childDateContribution(c, parentDates, fixedSpan, holidays),
   );
 
-/** The parent's render-time FIXED inherited span, or null when there is no single
- * span at render (a customisable parent — the buyer picks the day-count). A fixed
- * daily parent's span is its `duration_days`; a daily parent is otherwise fixed at
- * the single day a non-customisable daily start covers. Specialises the shared
- * {@link resolveInheritedDuration} with `(null, duration_days)`. */
-const fixedParentSpan = (parent: TicketListing["listing"]): number | null =>
-  resolveInheritedDuration<number | null>(
-    parent,
-    null,
-    normalizeDurationDays(parent.duration_days),
-  );
-
 /**
  * The page's sole listing + its children when it is a daily parent, else null
  * (no date constraint applies). Scopes the child-date-union rule (Codex 758) to
@@ -822,6 +811,23 @@ const singleDailyParent = (
  * existing pages are unaffected until the feature ships. Children are loaded by
  * relationship only — bookability is evaluated at render/submit against the
  * resolved date (invariant I3).
+ *
+ * Fix 2 (don't apply the date-less GROUP cap to a daily parent's children) needs
+ * no code here: the date-less group aggregate that {@link
+ * buildTicketListingsWithGroupCapacity} applies via {@link
+ * getGroupRemainingByListingId} **already excludes every daily listing** (its cap
+ * is per-date, so a cumulative count is meaningless — see its doc and `capacity.ts`).
+ * A daily parent's group is type-homogeneous (group members must share
+ * `listing_type` — `validateGroupListingType`), so any child co-grouped with a
+ * daily parent is itself daily and is therefore *never* given a date-less group
+ * clamp: it carries no group-remaining entry, and the fold skips a daily child's
+ * date-less `maxPurchasable` outright ({@link foldChild}), deferring its per-date
+ * group capacity to the date-aware {@link checkAvailability} (which rejects, never
+ * clamps). A *standard* child can never share a daily parent's group (the
+ * homogeneity rule blocks it at save), so the "standard child of a daily parent
+ * pre-marked sold out by the date-less group aggregate" state parents.md Fix 2
+ * describes is unreachable — there is no clamp to suppress. The locking tests
+ * exercise the daily-parent/daily-child date-A/date-B case end-to-end.
  */
 export const loadChildrenByParentId = async (
   listings: TicketListing[],

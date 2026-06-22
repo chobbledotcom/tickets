@@ -163,7 +163,7 @@ const buildUpdateStringFields = (
   webhook_url: formatOptional(updates.webhookUrl, existing.webhook_url),
 });
 
-const buildUpdateListingForm = (
+export const buildUpdateListingForm = (
   updates: Partial<ListingInput>,
   existing: ListingWithCount,
 ): Record<string, string> => {

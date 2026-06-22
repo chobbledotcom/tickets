@@ -17,6 +17,7 @@ import { setChildIds } from "#shared/db/listing-parents.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   adminGet,
+  createDailyTestListing,
   createTestAttendee,
   createTestGroup,
   createTestListing,
@@ -255,6 +256,51 @@ describeWithEnv(
         const child = await createTestListing({
           groupId: group.id,
           name: "Add-on",
+        });
+        await setChildIds(parent.id, [child.id]);
+        const body = await publicBody("/listings");
+        expect(body).toContain(`href="/ticket/${parent.slug}"`);
+      });
+
+      test("a fixed multi-day daily parent whose only child can't fit the span is sold out", async () => {
+        // The parent is a FIXED 3-day daily listing, so its children inherit a
+        // 3-day span at the till. Its only child is a customisable daily add-on
+        // that can be booked single days but never a 3-consecutive-day run (only
+        // Mondays are bookable, so Mon–Wed always hits an unbookable Tue/Wed). A
+        // span-blind discovery check (any one-day start exists) would advertise
+        // the parent, but the gate's date union span-constrains it to empty and
+        // the submit rejects — so it must read sold out (Fix 1).
+        const parent = await createDailyTestListing({
+          customisableDays: false,
+          durationDays: 3,
+          name: "3-day base",
+        });
+        const child = await createDailyTestListing({
+          bookableDays: ["Monday"],
+          customisableDays: true,
+          dayPrices: { 1: 1000, 3: 3000 },
+          durationDays: 3,
+          name: "Span add-on",
+        });
+        await setChildIds(parent.id, [child.id]);
+        const body = await publicBody("/listings");
+        expect(body).not.toContain(`href="/ticket/${parent.slug}"`);
+        expect(body).toContain("Sold Out");
+      });
+
+      test("a fixed multi-day daily parent whose child can fit the span is advertised", async () => {
+        // Same fixed 3-day parent, but the child can be booked any weekday, so a
+        // Mon–Wed 3-day run is valid — the parent keeps its Book link (Fix 1).
+        const parent = await createDailyTestListing({
+          customisableDays: false,
+          durationDays: 3,
+          name: "3-day base",
+        });
+        const child = await createDailyTestListing({
+          customisableDays: true,
+          dayPrices: { 1: 1000, 3: 3000 },
+          durationDays: 3,
+          name: "Span add-on",
         });
         await setChildIds(parent.id, [child.id]);
         const body = await publicBody("/listings");

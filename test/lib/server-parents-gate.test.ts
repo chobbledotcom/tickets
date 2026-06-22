@@ -911,6 +911,111 @@ describeWithEnv(
       expect(parentRows[0]?.date).toBe(dayB);
     });
 
+    // Fix 2: don't apply the date-less GROUP cap to a daily parent's children. A
+    // daily parent's group is type-homogeneous (group members share listing_type),
+    // so any co-grouped child is itself daily — and a daily listing is excluded
+    // from the date-less group aggregate (its cap is per-date), so it is never
+    // pre-marked sold out by another date's bookings. Its per-date group capacity
+    // is the date-aware checkBatchAvailability's job at submit. (A *standard*
+    // child can't share a daily parent's group at all — the homogeneity rule
+    // blocks it — so the date-less-clamp state parents.md Fix 2 describes is
+    // unreachable; these tests lock in the correct date-A/date-B behavior.)
+    test("a daily parent + daily child in a group full on one date still book on a free date", async () => {
+      const { bookAttendee } = await import("#test-utils");
+      const { getBookableStartDates } = await import("#shared/dates.ts");
+      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
+      const { getListingWithCount } = await import("#shared/db/listings.ts");
+
+      const group = await createTestGroup({ maxAttendees: 2, name: "Pool" });
+      const parent = await createDailyTestListing({
+        groupId: group.id,
+        name: "Daily base",
+        thankYouUrl: "",
+      });
+      const filler = await createDailyTestListing({
+        groupId: group.id,
+        name: "Daily filler",
+        thankYouUrl: "",
+      });
+      const child = await createDailyTestListing({
+        groupId: group.id,
+        name: "Daily add-on",
+        thankYouUrl: "",
+      });
+      await setChildIds(parent.id, [child.id]);
+
+      const parentRow = (await getListingWithCount(parent.id))!;
+      const dates = getBookableStartDates(parentRow, await getActiveHolidays());
+      const [dayA, dayB] = [dates[0]!, dates[1]!];
+
+      // Fill the group's two spots on date A via the daily filler.
+      const booked = await bookAttendee(filler, { date: dayA, quantity: 2 });
+      expect(booked.success).toBe(true);
+
+      // A parent booking on date B folds the daily child and reserves — date A's
+      // cumulative bookings do not clamp the child date-lessly (Fix 2).
+      const okRes = await postBooking(parent.slug, {
+        date: dayB,
+        email: "a@b.com",
+        name: "Ada",
+        [`quantity_${parent.id}`]: "1",
+      });
+      expectReserved(okRes);
+      expect(
+        (await getAttendeesRaw(child.id)).filter((r) => r.date === dayB).length,
+      ).toBe(1);
+      expect(
+        (await getAttendeesRaw(parent.id)).filter((r) => r.date === dayB)
+          .length,
+      ).toBe(1);
+    });
+
+    test("a daily parent + daily child are still rejected on a genuinely full date", async () => {
+      // The date-aware checkBatchAvailability must still reject the parent+child
+      // on a date whose shared group is full, so deferring does not oversell.
+      const { bookAttendee } = await import("#test-utils");
+      const { getBookableStartDates } = await import("#shared/dates.ts");
+      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
+      const { getListingWithCount } = await import("#shared/db/listings.ts");
+
+      const group = await createTestGroup({ maxAttendees: 2, name: "Pool" });
+      const parent = await createDailyTestListing({
+        groupId: group.id,
+        name: "Daily base",
+        thankYouUrl: "",
+      });
+      const filler = await createDailyTestListing({
+        groupId: group.id,
+        name: "Daily filler",
+        thankYouUrl: "",
+      });
+      const child = await createDailyTestListing({
+        groupId: group.id,
+        name: "Daily add-on",
+        thankYouUrl: "",
+      });
+      await setChildIds(parent.id, [child.id]);
+
+      const parentRow = (await getListingWithCount(parent.id))!;
+      const dates = getBookableStartDates(parentRow, await getActiveHolidays());
+      const dayA = dates[0]!;
+
+      // Fill date A's two group spots with the daily filler.
+      const booked = await bookAttendee(filler, { date: dayA, quantity: 2 });
+      expect(booked.success).toBe(true);
+
+      const fullRes = await postBooking(parent.slug, {
+        date: dayA,
+        email: "b@c.com",
+        name: "Bea",
+        [`quantity_${parent.id}`]: "1",
+      });
+      expect(fullRes.status).toBe(302);
+      expectFlash(fullRes, undefined, false);
+      expect((await getAttendeesRaw(parent.id)).length).toBe(0);
+      expect((await getAttendeesRaw(child.id)).length).toBe(0);
+    });
+
     test("a customisable child's option label shows the inherited day price, not its unit_price", async () => {
       // A fixed-duration (standard) parent inherits duration 1; the customisable
       // child's label must show its 1-day price (10.00), never its unit_price

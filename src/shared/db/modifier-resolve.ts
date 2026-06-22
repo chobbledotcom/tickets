@@ -21,6 +21,7 @@ import {
 import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
 import {
   getActiveModifiers,
+  getModifierGroupIdsByModifierId,
   getModifierGroupListingIdsByModifierId,
   getModifierListingIdsByModifierId,
   modifierIdsByAnswerId,
@@ -31,7 +32,7 @@ import type {
   ModifierSpec,
 } from "#shared/payments.ts";
 import { type ModifierTrigger, normalizeCode } from "#shared/price-modifier.ts";
-import type { Modifier } from "#shared/types.ts";
+import type { ListingWithCount, Modifier } from "#shared/types.ts";
 
 /** The signed pricing value the engine applies, from a modifier's stored
  * magnitude + direction. Multipliers ignore direction (the factor encodes it);
@@ -45,9 +46,22 @@ const signedValue = (modifier: Modifier): number => {
   return modifier.direction === "discount" ? -magnitude : magnitude;
 };
 
-/** Batched listing scopes for modifiers: null = whole order, array = scoped. */
+/** Resolve the listing ids each "groups"-scoped modifier covers. The default
+ * resolves the group→listing membership live (the DB join); the would-be variant
+ * (parents.md Fix 4) passes a resolver that expands against in-memory listings. */
+type GroupScopeResolver = (
+  groupScopedIds: number[],
+) => Promise<Map<number, number[]>>;
+
+const liveGroupScopeResolver: GroupScopeResolver =
+  getModifierGroupListingIdsByModifierId;
+
+/** Batched listing scopes for modifiers: null = whole order, array = scoped.
+ * `resolveGroupScopes` chooses how a "groups"-scoped modifier's member listing
+ * ids are resolved (live join by default; in-memory for the would-be check). */
 const listingIdsByModifierId = async (
   modifiers: Modifier[],
+  resolveGroupScopes: GroupScopeResolver = liveGroupScopeResolver,
 ): Promise<Map<number, number[] | null>> => {
   const scopes = new Map<number, number[] | null>();
   const listingScoped = modifiers.filter((m) => m.scope === "listings");
@@ -57,7 +71,7 @@ const listingIdsByModifierId = async (
   }
   const [listingLinks, groupLinks] = await Promise.all([
     getModifierListingIdsByModifierId(listingScoped.map((m) => m.id)),
-    getModifierGroupListingIdsByModifierId(groupScoped.map((m) => m.id)),
+    resolveGroupScopes(groupScoped.map((m) => m.id)),
   ]);
   // Each lookup seeds an entry for every id it was given, so these maps cover
   // exactly the scoped modifiers — copy their links straight in.
@@ -407,15 +421,22 @@ const addOnCanRequirePayment = (modifier: Modifier): boolean =>
 
 /** Active opt-in ("optional") add-on modifiers paired with their resolved
  * listing scopes (null = whole order), the shared starting point for the add-on
- * listing and the child-reachability hard block. */
-const optionalAddOnsWithScopes = async (): Promise<{
+ * listing and the child-reachability hard block. `resolveGroupScopes` chooses how
+ * group scopes resolve (live join by default; in-memory for the would-be Fix 4
+ * check). */
+const optionalAddOnsWithScopes = async (
+  resolveGroupScopes?: GroupScopeResolver,
+): Promise<{
   optional: Modifier[];
   scopes: Map<number, number[] | null>;
 }> => {
   const optional = (await getActiveModifiers()).filter(
     (m) => m.trigger === "optional",
   );
-  return { optional, scopes: await listingIdsByModifierId(optional) };
+  return {
+    optional,
+    scopes: await listingIdsByModifierId(optional, resolveGroupScopes),
+  };
 };
 
 /**
@@ -473,8 +494,26 @@ export const getOptionalAddOns = async (
 export const childOnlyAddOnName = async (
   childId: number,
   parentPageListingIds: readonly number[],
-): Promise<string | null> => {
-  const { optional, scopes } = await optionalAddOnsWithScopes();
+): Promise<string | null> =>
+  childOnlyAddOnNameWithScopes(
+    await optionalAddOnsWithScopes(),
+    childId,
+    parentPageListingIds,
+  );
+
+/** The reachability loop shared by the live-scope {@link childOnlyAddOnName} and
+ * the would-be-scope {@link childOnlyAddOnNameForListings} (a listing save that
+ * changes `group_id`): the name of the first active opt-in add-on whose resolved
+ * scope dead-ends through `childId` for a parent page of `parentPageListingIds`,
+ * or null. */
+const childOnlyAddOnNameWithScopes = (
+  {
+    optional,
+    scopes,
+  }: { optional: Modifier[]; scopes: Map<number, number[] | null> },
+  childId: number,
+  parentPageListingIds: readonly number[],
+): string | null => {
   const suppressed = new Set([childId]);
   const reachable = new Set(parentPageListingIds);
   const blocking = optional.find((modifier) =>
@@ -482,6 +521,59 @@ export const childOnlyAddOnName = async (
   );
   return blocking?.name ?? null;
 };
+
+/** The ids of the supplied listings whose `group_id` is in `groupIds` — the
+ * in-memory expansion of a "groups"-scoped modifier (or any group → its member
+ * listings resolution). Shared so the live and would-be scope resolutions agree. */
+export const listingIdsInGroups = (
+  groupIds: number[],
+  allListings: Pick<ListingWithCount, "id" | "group_id">[],
+): number[] => {
+  const groups = new Set(groupIds);
+  return allListings
+    .filter((listing) => groups.has(listing.group_id))
+    .map((listing) => listing.id);
+};
+
+/**
+ * A {@link GroupScopeResolver} that expands each group-scoped modifier against
+ * an **in-memory** listing set, so a caller can test reachability under a
+ * listing's *would-be* `group_id` (which the live `modifier_groups`→`listings`
+ * join wouldn't yet reflect — parents.md Fix 4). Fetches each modifier's linked
+ * group ids, then maps them to the supplied listings' ids via
+ * {@link listingIdsInGroups}.
+ */
+const inMemoryGroupScopeResolver =
+  (
+    allListings: Pick<ListingWithCount, "id" | "group_id">[],
+  ): GroupScopeResolver =>
+  async (groupScopedIds) => {
+    const groupLinks = await getModifierGroupIdsByModifierId(groupScopedIds);
+    return new Map(
+      [...groupLinks].map(([id, groupIds]) => [
+        id,
+        listingIdsInGroups(groupIds, allListings),
+      ]),
+    );
+  };
+
+/**
+ * Like {@link childOnlyAddOnName}, but resolving add-on scopes against the
+ * supplied **in-memory** listings (with the saved listing's would-be `group_id`
+ * already applied), so a listing save that moves a parent out of the group a
+ * child-only add-on is scoped to is caught before it orphans the add-on
+ * (parents.md Fix 4).
+ */
+export const childOnlyAddOnNameForListings = async (
+  childId: number,
+  parentPageListingIds: readonly number[],
+  allListings: Pick<ListingWithCount, "id" | "group_id">[],
+): Promise<string | null> =>
+  childOnlyAddOnNameWithScopes(
+    await optionalAddOnsWithScopes(inMemoryGroupScopeResolver(allListings)),
+    childId,
+    parentPageListingIds,
+  );
 
 /** The post-save shape of an opt-in add-on whose child-reachability must hold:
  * its trigger/active state and its **already-resolved** listing scope (null =

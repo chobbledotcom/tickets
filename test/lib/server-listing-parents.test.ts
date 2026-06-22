@@ -73,6 +73,30 @@ const editPageHtml = async (listingId: number): Promise<string> => {
   return response.text();
 };
 
+/** POST a listing edit (building the full update form from the existing row with
+ * overrides), returning the raw response so a *rejected* save (status 400) can be
+ * asserted rather than throwing as `updateTestListing` does. */
+const postListingEdit = async (
+  listingId: number,
+  updates: Record<string, unknown>,
+): Promise<Response> => {
+  const { getListingWithCount } = await import("#shared/db/listings.ts");
+  const { buildUpdateListingForm } = await import("#test-utils/db-helpers.ts");
+  const { getTestSession } = await import("#test-utils/session.ts");
+  const { handleRequest } = await import("#routes");
+  const { mockMultipartRequest } = await import("#test-utils/mocks.ts");
+  const existing = (await getListingWithCount(listingId))!;
+  const form = buildUpdateListingForm(updates, existing);
+  const session = await getTestSession();
+  return handleRequest(
+    mockMultipartRequest(
+      `/admin/listing/${listingId}/edit`,
+      { ...form, csrf_token: session.csrfToken },
+      session.cookie,
+    ),
+  );
+};
+
 /** Turn a listing into a renewal tier (months_per_unit > 0). `execute`
  * invalidates the listings cache, so subsequent reads see the change. */
 const makeRenewalTier = async (listingId: number): Promise<void> => {
@@ -511,6 +535,134 @@ describeWithEnv(
       await optInAddOnForListings("Sibling-only extra", [sibling.id, child.id]);
       await postChildren(parent.id, [child.id]);
       expect(await getChildIds(parent.id)).toEqual([]);
+    });
+
+    test("a listing save moving a parent out of a group orphans a group-scoped add-on (rejected)", async () => {
+      // An opt-in add-on is GROUP-scoped to a group holding both the parent and
+      // its child, so it resolves to {parent, child} and loads on the parent's
+      // page — the edge is valid. Moving the PARENT out of the group makes the
+      // add-on resolve to {child} only: it would then be reachable solely through
+      // the suppressed child, which can't offer it. The listing save must be
+      // rejected against the would-be group_id (Fix 4), leaving the parent in its
+      // group.
+      const group = await createTestGroup({ name: "Bundle" });
+      const parent = await createTestListing({
+        groupId: group.id,
+        name: "Base unit",
+      });
+      const child = await createTestListing({
+        groupId: group.id,
+        name: "Add-on",
+      });
+      const modifier = await insertModifier({ name: "Group extra" });
+      await patchModifier(modifier.id, {
+        scope: "groups",
+        trigger: "optional",
+      });
+      await linkModifierGroup(modifier.id, group.id);
+      // The edge is valid while the parent is in the group.
+      await postChildren(parent.id, [child.id]);
+      expect(await getChildIds(parent.id)).toEqual([child.id]);
+
+      // Moving the parent out of the group orphans the add-on, so the save is
+      // blocked (400 with the child-add-on error) and the parent stays in its
+      // group.
+      const res = await postListingEdit(parent.id, { groupId: 0 });
+      expect(res.status).toBe(400);
+      expect(await res.text()).toContain("Group extra");
+      expect((await getListingWithCount(parent.id))?.group_id).toBe(group.id);
+    });
+
+    test("a listing save that keeps a group-scoped add-on reachable is allowed", async () => {
+      // Moving the parent to ANOTHER group the add-on is also scoped to keeps the
+      // add-on reachable from the parent's page, so the save is allowed (Fix 4 is
+      // a reachability test, not a blanket group-change block).
+      const fromGroup = await createTestGroup({ name: "From" });
+      const toGroup = await createTestGroup({ name: "To" });
+      const parent = await createTestListing({
+        groupId: fromGroup.id,
+        name: "Base unit",
+      });
+      const child = await createTestListing({
+        groupId: fromGroup.id,
+        name: "Add-on",
+      });
+      const modifier = await insertModifier({ name: "Group extra" });
+      await patchModifier(modifier.id, {
+        scope: "groups",
+        trigger: "optional",
+      });
+      // The add-on covers both groups, so it reaches the parent in either one.
+      await linkModifierGroup(modifier.id, fromGroup.id);
+      await linkModifierGroup(modifier.id, toGroup.id);
+      await postChildren(parent.id, [child.id]);
+
+      await updateTestListing(parent.id, { groupId: toGroup.id });
+      expect((await getListingWithCount(parent.id))?.group_id).toBe(toGroup.id);
+    });
+
+    test("saving a CHILD into a group that orphans its add-on is rejected", async () => {
+      // The edge is checked from the child's side too: a child C under parent P
+      // (P is the page). An add-on is group-scoped to group G, and P is NOT in G.
+      // While C is ungrouped the add-on doesn't reach C, so the edge is valid.
+      // Moving C INTO G makes the add-on resolve to {C, ...}: reachable only via
+      // the suppressed child C, never via P's page — the save must be rejected
+      // (Fix 4, the child-role branch of the edge check).
+      const group = await createTestGroup({ name: "Bundle" });
+      const parent = await createTestListing({ name: "Base unit" });
+      const child = await createTestListing({ name: "Add-on" });
+      const modifier = await insertModifier({ name: "Group extra" });
+      await patchModifier(modifier.id, {
+        scope: "groups",
+        trigger: "optional",
+      });
+      await linkModifierGroup(modifier.id, group.id);
+      // Edge is valid while the child is ungrouped (add-on doesn't reach it).
+      await postChildren(parent.id, [child.id]);
+      expect(await getChildIds(parent.id)).toEqual([child.id]);
+
+      const res = await postListingEdit(child.id, { groupId: group.id });
+      expect(res.status).toBe(400);
+      expect(await res.text()).toContain("Group extra");
+      expect((await getListingWithCount(child.id))?.group_id).toBe(0);
+    });
+
+    test("validateListingInput rejects an orphaning group change with an omitted groupId", async () => {
+      // The admin JSON API may omit group_id; validateListingInput then sees
+      // groupId undefined and defaults the would-be group to 0 (no group). A
+      // parent whose group-scoped add-on only resolves to it via its group is
+      // orphaned by dropping to no group, so the (defaulted) check still blocks.
+      const { validateListingInput } = await import(
+        "#shared/listings-actions.ts"
+      );
+      const { listingsTable } = await import("#shared/db/listings.ts");
+      const group = await createTestGroup({ name: "Bundle" });
+      const parent = await createTestListing({
+        groupId: group.id,
+        name: "Base unit",
+      });
+      const child = await createTestListing({
+        groupId: group.id,
+        name: "Add-on",
+      });
+      const modifier = await insertModifier({ name: "Group extra" });
+      await patchModifier(modifier.id, {
+        scope: "groups",
+        trigger: "optional",
+      });
+      await linkModifierGroup(modifier.id, group.id);
+      await postChildren(parent.id, [child.id]);
+
+      const row = (await getListingWithCount(parent.id))!;
+      const input = {
+        ...(listingsTable.rowToInput(row, ["created"]) as Record<
+          string,
+          unknown
+        >),
+        groupId: undefined,
+      } as import("#shared/db/listings.ts").ListingInput;
+      const error = await validateListingInput(input, parent.id);
+      expect(error).toContain("Group extra");
     });
   },
 );

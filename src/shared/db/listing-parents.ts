@@ -155,6 +155,20 @@ export const getParentsOf = async (
   return compact(ids.map((id) => byId.get(id)));
 };
 
+/** Both sides of every edge a listing participates in: its children and the
+ * parents it is offered under. The shared first step of every "re-validate the
+ * edges touching this listing on save" check (field compatibility and add-on
+ * reachability), so they load the same way. */
+export const edgeIdsTouching = async (
+  listingId: number,
+): Promise<{ childIds: number[]; parentIds: number[] }> => {
+  const [childIds, parentIds] = await Promise.all([
+    getChildIds(listingId),
+    getParentIds(listingId),
+  ]);
+  return { childIds, parentIds };
+};
+
 /**
  * Re-validate every edge touching a listing against its *would-be* field values,
  * for a listing save (a type / duration / day-price / renewal-tier edit can
@@ -168,10 +182,7 @@ export const getParentsOf = async (
 export const edgeIncompatibilityAfterChange = async (
   updated: EdgeListing,
 ): Promise<string | null> => {
-  const [childIds, parentIds] = await Promise.all([
-    getChildIds(updated.id),
-    getParentIds(updated.id),
-  ]);
+  const { childIds, parentIds } = await edgeIdsTouching(updated.id);
   if (childIds.length === 0 && parentIds.length === 0) return null;
   const byId = await getListingsById();
   for (const childId of childIds) {

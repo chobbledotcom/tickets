@@ -10,15 +10,20 @@ import { isListingParentsEnabled } from "#shared/config.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { groupsTable, validateGroupListingType } from "#shared/db/groups.ts";
-import { edgeIncompatibilityAfterChange } from "#shared/db/listing-parents.ts";
+import {
+  edgeIdsTouching,
+  edgeIncompatibilityAfterChange,
+} from "#shared/db/listing-parents.ts";
 import {
   computeSlugIndex,
   deleteListing,
+  getAllListings,
   getListingWithCount,
   isSlugTaken,
   type ListingInput,
   listingsTable,
 } from "#shared/db/listings.ts";
+import { childOnlyAddOnNameForListings } from "#shared/db/modifier-resolve.ts";
 import type { EdgeListing } from "#shared/listing-parents-rules.ts";
 import { generateUniqueSlug } from "#shared/slug.ts";
 import { deleteListingStorageFiles } from "#shared/storage.ts";
@@ -113,16 +118,62 @@ export const listingInputToEdge = (
   name: input.name,
 });
 
+/** The first child-only add-on the listing's edges would orphan under its
+ * would-be `group_id`, or null. Reuses the same reachability helper the edge/
+ * modifier saves use, resolved against an in-memory listing set with this
+ * listing's group move applied (the live `modifier_groups`→`listings` join can't
+ * see the pending change — parents.md Fix 4). The listing is checked both as a
+ * parent (its children, against its own page id `[id]`) and as a child (under
+ * each parent's page id `[parentId]`). */
+const orphanedAddOnAfterChange = async (
+  id: number,
+  wouldBeGroupId: number,
+): Promise<string | null> => {
+  const { childIds, parentIds } = await edgeIdsTouching(id);
+  if (childIds.length === 0 && parentIds.length === 0) return null;
+  // Apply this listing's would-be group_id to the in-memory listing set, so a
+  // group-scoped add-on resolves against the move the save is about to make.
+  const allListings = (await getAllListings()).map((listing) =>
+    listing.id === id ? { ...listing, group_id: wouldBeGroupId } : listing,
+  );
+  // Each edge is checked as a (suppressed child, parent page id) pair: as a
+  // parent of each child (`[id]` is the parent page), and as a child under each
+  // parent (`[parentId]` is the parent page).
+  const edges: [childId: number, pageId: number][] = [
+    ...childIds.map((childId): [number, number] => [childId, id]),
+    ...parentIds.map((parentId): [number, number] => [id, parentId]),
+  ];
+  for (const [childId, pageId] of edges) {
+    const addOn = await childOnlyAddOnNameForListings(
+      childId,
+      [pageId],
+      allListings,
+    );
+    if (addOn) {
+      return t("listings_table.children_err_child_addon_save", {
+        addon: addOn,
+      });
+    }
+  }
+  return null;
+};
+
 /**
  * On an update (and only when the parents feature is enabled), re-validate every
- * parent/child edge touching this listing against its would-be field values, so
- * a type/duration/renewal change can't leave a persisted edge the booking gate
- * can't honour. No-op for creates (no edges yet) and when the flag is off.
+ * parent/child edge touching this listing against its would-be field values *and*
+ * its would-be `group_id`, so a type/duration/renewal change can't leave a
+ * persisted edge the booking gate can't honour, and a group change can't orphan
+ * a group-scoped add-on that the edge's child suppresses (Fix 4). No-op for
+ * creates (no edges yet) and when the flag is off.
  */
-const validateListingEdges: ListingUpdateCheck = (input, existingId) =>
-  existingId === undefined || !isListingParentsEnabled()
-    ? Promise.resolve(null)
-    : edgeIncompatibilityAfterChange(listingInputToEdge(input, existingId));
+const validateListingEdges: ListingUpdateCheck = async (input, existingId) => {
+  if (existingId === undefined || !isListingParentsEnabled()) return null;
+  const fieldError = await edgeIncompatibilityAfterChange(
+    listingInputToEdge(input, existingId),
+  );
+  if (fieldError) return fieldError;
+  return orphanedAddOnAfterChange(existingId, input.groupId ?? 0);
+};
 
 /** Validate listing input (slug uniqueness on update, group, max price, listing type) */
 export const validateListingInput = async (

@@ -13,6 +13,7 @@ import {
   hasRequiredSessionMetadata,
   PaymentUserError,
   packMetadata,
+  SQUARE_METADATA_MAX_ENTRIES,
   SQUARE_METADATA_MAX_VALUE_LENGTH,
   STRIPE_METADATA_MAX_VALUE_LENGTH,
   safeAsync,
@@ -997,6 +998,81 @@ describeWithEnv(
           sig,
         ),
       ).toBe(true);
+    });
+
+    test("omits a short URL that would exceed the provider entry cap, proof still verifies", async () => {
+      // An order whose packed Square metadata already sits at the 10-entry cap
+      // (4 base + packed `b` + address + special_instructions + answer_ids +
+      // modifiers = 9, then + price_proof = 10) plus a *short* thank-you URL
+      // would reach 11 entries — over Square's cap. The URL is the last-priority
+      // optional field, so it is dropped before signing.
+      const intent: CheckoutIntent = {
+        address: "12 Some Street, Town",
+        date: "2026-07-01",
+        email: "buyer@example.com",
+        items: [
+          {
+            listingId: 1,
+            name: "Base",
+            quantity: 1,
+            slug: "b",
+            unitPrice: 1000,
+          },
+        ],
+        listingAnswerIds: { "1": [10, 20] },
+        modifiers: [
+          {
+            id: 5,
+            kind: "fixed",
+            listingIds: null,
+            name: "Extra",
+            quantity: 1,
+            trigger: "automatic",
+            value: 500,
+          },
+        ],
+        name: "Buyer",
+        phone: "07700900000",
+        special_instructions: "Leave at door",
+        thankYouUrl: "https://example.com/thanks",
+      };
+      const total = priceCheckout(intent).total;
+      const metadata = await buildItemsMetadata(
+        intent,
+        total,
+        SQUARE_METADATA_MAX_VALUE_LENGTH,
+        SQUARE_METADATA_MAX_ENTRIES,
+      );
+      // The short URL is dropped because keeping it would overflow the cap...
+      expect("thank_you_url" in metadata).toBe(false);
+      // ...and the wire (after Square packs the small fields) is within the cap.
+      const wire = packMetadata(metadata);
+      expect(Object.keys(wire).length).toBeLessThanOrEqual(
+        SQUARE_METADATA_MAX_ENTRIES,
+      );
+      // The proof signed over the URL-less payload still verifies.
+      const { sig, total: signedTotal } = proofParts(metadata);
+      expect(
+        await verifyPrice(
+          extractSessionMetadata(wire as unknown as SessionMetadata),
+          signedTotal,
+          sig,
+        ),
+      ).toBe(true);
+    });
+
+    test("keeps a short URL under the entry cap when there is room", async () => {
+      // A minimal order has plenty of entry headroom, so a short URL is kept
+      // even under Square's tight 10-entry cap.
+      const intent = intentWithUrl("https://example.com/thanks");
+      const total = priceCheckout(intent).total;
+      const metadata = await buildItemsMetadata(
+        intent,
+        total,
+        SQUARE_METADATA_MAX_VALUE_LENGTH,
+        SQUARE_METADATA_MAX_ENTRIES,
+      );
+      expect(metadata.thank_you_url).toBe("https://example.com/thanks");
     });
 
     test("carries a within-cap URL and the proof verifies with it present", async () => {

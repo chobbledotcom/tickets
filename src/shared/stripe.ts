@@ -313,6 +313,7 @@ export const stripeApi: {
           intent,
           order.total,
           STRIPE_METADATA_MAX_VALUE_LENGTH,
+          STRIPE_METADATA_MAX_ENTRIES,
         ),
         STRIPE_METADATA_MAX_VALUE_LENGTH,
         STRIPE_METADATA_MAX_ENTRIES,

@@ -582,6 +582,7 @@ export const squareApi: {
           intent,
           order.total,
           SQUARE_METADATA_MAX_VALUE_LENGTH,
+          SQUARE_METADATA_MAX_ENTRIES,
         ),
       ),
       `payment link for ${intent.items.length} listing(s)`,
