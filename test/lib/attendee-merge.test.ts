@@ -1,5 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import {
+  attendeeAccount,
+  revenueAccount,
+  WORLD,
+} from "#shared/accounting/accounts.ts";
+import { transfersByAccount } from "#shared/accounting/queries.ts";
+import { postTransfers } from "#shared/accounting/store.ts";
 import { createAttendeeAtomic } from "#shared/db/attendees.ts";
 import { queryAll } from "#shared/db/client.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
@@ -90,6 +97,95 @@ const createQuestionWithAnswers = async (
 };
 
 describeWithEnv("attendee merge service", { db: true }, () => {
+  test("repoints the source's ledger rows onto the target", async () => {
+    const listing1 = await createTestListing({ maxAttendees: 10 });
+    const listing2 = await createTestListing({ maxAttendees: 10 });
+    const target = await createAttendee(listing1.id, "Alice", "alice@test.com");
+    const source = await createAttendee(listing2.id, "Bob", "bob@test.com");
+
+    // A paid booking on the source attendee, recorded in the ledger.
+    await postTransfers([
+      {
+        amount: 5000,
+        currency: "GBP",
+        destination: revenueAccount(listing2.id),
+        eventGroup: "evt",
+        kind: "sale",
+        occurredAt: "2026-06-21T00:00:00.000Z",
+        reference: "sale",
+        source: attendeeAccount(source.id),
+      },
+      {
+        amount: 5000,
+        currency: "GBP",
+        destination: attendeeAccount(source.id),
+        eventGroup: "evt",
+        kind: "payment",
+        occurredAt: "2026-06-21T00:00:00.000Z",
+        reference: "pay",
+        source: WORLD,
+      },
+    ]);
+
+    const diff = await buildAttendeeMergeDiff(
+      {
+        sourceBookings: await getBookings(source.id),
+        sourceId: source.id,
+        sourcePii: {
+          address: "",
+          email: "bob@test.com",
+          name: "Bob",
+          phone: "",
+          special_instructions: "",
+        },
+        targetBookings: await getBookings(target.id),
+        targetId: target.id,
+        targetPii: {
+          address: "",
+          email: "alice@test.com",
+          name: "Alice",
+          phone: "",
+          special_instructions: "",
+        },
+      },
+      [],
+    );
+
+    const result = await applyAttendeeMerge({
+      decision: { answers: {}, bookings: {}, pii: {}, version: diff.version },
+      diff,
+      privateKey: await getTestPrivateKey(),
+      sourceId: source.id,
+      sourcePii: {
+        address: "",
+        email: "bob@test.com",
+        name: "Bob",
+        phone: "",
+        special_instructions: "",
+      },
+      targetId: target.id,
+      targetPii: {
+        address: "",
+        email: "alice@test.com",
+        name: "Alice",
+        payment_id: target.payment_id,
+        phone: "",
+        special_instructions: "",
+        ticket_token: target.ticket_token,
+      },
+    });
+
+    expect(result.success).toBe(true);
+    // The source's legs now belong to the target; nothing strands on the
+    // deleted source attendee.
+    expect((await transfersByAccount(attendeeAccount(source.id))).length).toBe(
+      0,
+    );
+    expect((await transfersByAccount(attendeeAccount(target.id))).length).toBe(
+      2,
+    );
+  });
+
   describe("bookingKey", () => {
     test("formats key with start_at", () => {
       expect(bookingKey(1, "2026-05-01")).toBe("1:2026-05-01");

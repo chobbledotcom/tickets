@@ -7,6 +7,7 @@
  */
 
 import { filter, map, reduce } from "#fp";
+import { repointAttendeeStatements } from "#shared/accounting/repoint.ts";
 import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
 import { executeBatch, insert } from "#shared/db/client.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
@@ -542,6 +543,10 @@ export const applyAttendeeMerge = async (
       sql: "DELETE FROM listing_attendees WHERE attendee_id = ?",
     },
     { args: [sourceId], sql: "DELETE FROM attendees WHERE id = ?" },
+    // Move the source's ledger rows onto the target — the sole sanctioned
+    // account-id mutation — so its financial history follows the merged person
+    // rather than stranding on the deleted source (plan §5.17).
+    ...repointAttendeeStatements(sourceId, targetId),
   ]);
 
   // Save merged answers for target. The choice decisions reduce to one answer
