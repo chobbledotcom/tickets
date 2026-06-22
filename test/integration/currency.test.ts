@@ -1,7 +1,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { settings } from "#shared/db/settings.ts";
-import { adminGet, createTestListing, describeWithEnv } from "#test-utils";
+import {
+  adminGet,
+  createTestListing,
+  describeWithEnv,
+  seedCountry,
+} from "#test-utils";
 
 describeWithEnv("integration: currency from country", { db: true }, () => {
   test("default country GB uses GBP (pound symbol)", async () => {
@@ -11,24 +15,24 @@ describeWithEnv("integration: currency from country", { db: true }, () => {
     expect(html).toContain("£10");
   });
 
-  test("switching country to US uses USD (dollar symbol)", async () => {
-    await settings.update.country("US");
+  test("country US derives USD (dollar symbol)", async () => {
+    await seedCountry("US");
 
     const { response } = await adminGet("/admin/guide");
     const html = await response.text();
     expect(html).toContain("$10");
   });
 
-  test("switching country to JP uses JPY (yen symbol, no decimals)", async () => {
-    await settings.update.country("JP");
+  test("country JP derives JPY (yen symbol, no decimals)", async () => {
+    await seedCountry("JP");
 
     const { response } = await adminGet("/admin/guide");
     const html = await response.text();
     expect(html).toContain("¥");
   });
 
-  test("switching country to DE uses EUR (euro symbol)", async () => {
-    await settings.update.country("DE");
+  test("country DE derives EUR (euro symbol)", async () => {
+    await seedCountry("DE");
 
     const { response } = await adminGet("/admin/guide");
     const html = await response.text();
@@ -36,7 +40,7 @@ describeWithEnv("integration: currency from country", { db: true }, () => {
   });
 
   test("currency is reflected on admin dashboard", async () => {
-    await settings.update.country("US");
+    await seedCountry("US");
     await createTestListing({ unitPrice: 1000 });
 
     const { response } = await adminGet("/admin");
