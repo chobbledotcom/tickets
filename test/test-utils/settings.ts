@@ -1,7 +1,20 @@
 import { afterEach, beforeEach, it } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import type { SettingsData } from "#shared/db/settings.ts";
-import { settings } from "#shared/db/settings.ts";
+import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
+
+/**
+ * Seed the site country directly in the database for a test.
+ *
+ * Country is write-once in the app (chosen at /setup, with no runtime updater),
+ * so tests can't go through a `settings.update.*` setter. This writes the raw
+ * row and drops the cached snapshot, so the next `loadKeys`/request re-derives
+ * currency, timezone, and phone prefix from it via the production load path.
+ */
+export const seedCountry = async (code: string): Promise<void> => {
+  await settings.setRaw(CONFIG_KEYS.COUNTRY, code);
+  settings.invalidateCache();
+};
 
 export const withSetting = async <T>(
   overrides: Partial<SettingsData>,

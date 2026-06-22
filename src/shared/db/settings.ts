@@ -1183,11 +1183,6 @@ const settingsBase = {
       CONFIG_KEYS.CONTACT_FORM_ENABLED,
       "contact_form_enabled",
     ),
-    country: async (v: string): Promise<void> => {
-      await writeRaw(CONFIG_KEYS.COUNTRY, v);
-      data.country = v;
-      applyCountryDerived(getCountry(v));
-    },
     customDomainLastValidated: async (): Promise<void> => {
       const ts = new Date().toISOString();
       await writeRaw(CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED, ts);
