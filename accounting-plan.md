@@ -13,11 +13,14 @@ compatibility (§8).
 
 **Built so far:** the pure, context-free ledger library in
 [`src/shared/ledger/`](src/shared/ledger/) (100% covered) and the `transfers`
-table; new money events dual-write to the ledger (bookings, balance settlement,
-refunds). **Remaining:** the merge repoint and balance adjustments, a one-shot
-backfill of all history, repointing every read onto the ledger, and dropping the
-columns (§7). **The code is the source of truth for the model**; when code and
-prose disagree, the code wins and this doc is updated to match.
+table; the booking and refund money events post their legs to the ledger; and the
+one-shot backfill (§6) has reconstructed all history, so the ledger holds the
+complete record. **Remaining:** wire the few remaining write paths (admin
+manual-add, balance edits, merge repoint) straight to the ledger, then swap every
+read off the legacy money columns onto `SUM` projections and delete those columns,
+concern by concern (§7). **There is no dual-write phase** — see §7. **The code is
+the source of truth for the model**; when code and prose disagree, the code wins
+and this doc is updated to match.
 
 ### Production data invariants
 
@@ -40,9 +43,9 @@ ever**:
 In short, **every historical booking is paid in full, refunded in full, or free**,
 with no modifiers, deposits, or partial refunds. This bounds what the backfill (§6)
 must reconstruct, and is why several reviewed edge cases — historical
-modifier/reservation/partial-refund reconstruction, and double-posting onto live
-dual-write legs — cannot arise on the real data, even where the code still guards
-against them.
+modifier/reservation/partial-refund reconstruction, and double-posting onto an
+attendee's existing booking legs — cannot arise on the real data, even where the
+code still guards against them.
 
 ---
 
@@ -306,7 +309,7 @@ booking is paid in full with no discount/surcharge and the reconstruction is exa
   all-or-nothing, so a partially-refunded order is left booked for a manual check
   rather than mis-reversed.
 - [ ] No historical `fee`/`modifier`/reservation legs exist to reconstruct;
-  `remaining_balance` is uniformly zero. Going forward, dual-write records fees,
+  `remaining_balance` is uniformly zero. Going forward, the ledger records fees,
   modifiers, and deposits as their own legs.
 - [ ] Ships as a **data-only migration** (`2026-06-22_backfill_transfers`, empty
   `requires`) that bumps `LATEST_UPDATE` so already-up-to-date sites run it; a
@@ -319,18 +322,31 @@ booking is paid in full with no discount/surcharge and the reconstruction is exa
 
 ## 7. Delivery
 
-The end state is ledger-only; there is no lingering dual-source window. The
-remaining steps ship together:
+The end state is ledger-only, and there is **no dual-write stage** — keeping the
+legacy money columns and the ledger in step in parallel is exactly the complexity
+this avoids. The ledger is already populated (bookings and refunds post their legs;
+the backfill (§6) reconstructed all history), so each legacy money column is
+swapped **straight** to its `SUM` projection and deleted in one change, covered by
+the existing exhaustive tests. No intermediate dual-source window, and no read is
+ever served from two places at once.
 
-1. **Dual-write** every money event — booking, balance settlement, refund (done);
-   attendee-merge repoint and admin balance adjustments (remaining).
-2. **Backfill** all existing bookings into the ledger (§6), reconciled against the
-   pre-migration column totals.
-3. **Repoint every read** onto ledger `SUM`s — amount paid, outstanding balance,
-   listing income, refund status, modifier revenue, dashboards, exports, reports —
-   behind the one shared renderer (§5.15).
-4. **Delete** the money columns, their triggers, and their now-dead write paths
-   (§8).
+Swap one concern at a time — each is a self-contained commit that points any
+remaining writes at the ledger (the sole write, not alongside the column), points
+every read at the projection, drops the column and its triggers, and updates the
+tests:
+
+1. **Backfill** history into the ledger (§6) — **done**.
+2. **Refund status** — `listing_attendees.refunded` → "the order has refund legs".
+3. **Listing income** — `listings.income` (+ its trigger) → `balanceOf(revenue:L)`.
+4. **Amount paid** — `listing_attendees.price_paid` → the attendee's payment legs
+   (the largest read surface: templates, tickets/wallets, webhooks, CSV, email).
+5. **Outstanding balance** — `attendees.remaining_balance` → `−balanceOf(attendee)`
+   (uniformly zero in production — no reservations).
+6. **Modifier revenue** — `modifiers.total_revenue` (+ trigger) →
+   `balanceOf(modifier:M)` (no modifier has ever been used in production).
+
+A single shared ledger renderer (§5.15) follows once the per-account reads are in
+place. `booked_quantity` / `tickets_count` are counts, not money, so they stay.
 
 ---
 
