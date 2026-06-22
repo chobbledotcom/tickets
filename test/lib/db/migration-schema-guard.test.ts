@@ -43,8 +43,9 @@ describe("db > migrations > schema change guard", () => {
         "2026-06-20_contact_booking_counts",
         "2026-06-20_user_kek_v2",
         "2026-06-21_transfers",
+        "2026-06-22_transfers_time_int",
       ],
-      schemaHash: "14x20pp",
+      schemaHash: "aos567",
     });
   });
 });
