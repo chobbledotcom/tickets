@@ -1,0 +1,48 @@
+name: Restore code to a commit
+
+# Rebuilds and deploys the edge script at a specific commit — the "code" half of
+# restoring a site to a point in time. A backup's restore surfaces the commit
+# the site was running when it was taken (recorded in the DB by the running
+# build); run this with that commit to roll the code back to match the data.
+#
+# The code is built fresh from our own repository at the given commit (git is
+# the per-commit source of truth), never from a backup file — so a restore can
+# never deploy untrusted code, only a commit that exists in our history.
+#
+# Stored secrets: BUNNY_ACCESS_KEY (and BUNNY_SCRIPT_ID as the default target).
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: "Commit SHA to build and deploy (from a backup's recorded commit)"
+        required: true
+        type: string
+      script_id:
+        description: "Target Bunny script ID (defaults to BUNNY_SCRIPT_ID secret)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubicloud-standard-4
+
+    steps:
+      - name: Checkout the requested commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit }}
+
+      - name: Build Bunny edge script at that commit
+        uses: ./.github/actions/build-bunny-script
+        with:
+          build_commit: ${{ inputs.commit }}
+
+      - name: Deploy to the target script
+        uses: ./.github/actions/deploy-bunny-script
+        with:
+          script_id: ${{ inputs.script_id || secrets.BUNNY_SCRIPT_ID }}
+          api_key: ${{ secrets.BUNNY_ACCESS_KEY }}

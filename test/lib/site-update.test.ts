@@ -8,7 +8,9 @@ import { siteDbApi } from "#shared/site-db.ts";
 import { loadBuiltSiteUpdateState } from "#shared/site-update.ts";
 import {
   CURRENT_SCRIPT_VERSION_KEY,
+  readRecordedScriptCommit,
   recordScriptVersion,
+  setBuildCommitForTest,
   setBuildTimestampForTest,
 } from "#shared/update.ts";
 import { createTestBuiltSite, describeWithEnv } from "#test-utils";
@@ -142,6 +144,7 @@ describeWithEnv(
 describeWithEnv("recordScriptVersion", { db: true }, () => {
   afterEach(() => {
     setBuildTimestampForTest(null);
+    setBuildCommitForTest(null);
   });
 
   const readVersion = (): Promise<{ value: string } | null> =>
@@ -153,6 +156,29 @@ describeWithEnv("recordScriptVersion", { db: true }, () => {
     setBuildTimestampForTest("2026-06-19T12:00:00Z");
     await recordScriptVersion();
     expect((await readVersion())?.value).toBe("2026-06-19T12:00:00Z");
+  });
+
+  test("records the running build's commit alongside the version", async () => {
+    setBuildTimestampForTest("2026-06-19T12:00:00Z");
+    setBuildCommitForTest("abc123def4567890");
+    await recordScriptVersion();
+    // Reads back through the public helper a restore uses to surface it.
+    expect(await readRecordedScriptCommit()).toBe("abc123def4567890");
+  });
+
+  test("records the commit even when the timestamp is empty", async () => {
+    // The two markers are independent — a missing timestamp must not suppress
+    // the commit (and vice versa).
+    setBuildTimestampForTest(null);
+    setBuildCommitForTest("deadbeefcafe");
+    await recordScriptVersion();
+    expect(await readVersion()).toBeNull();
+    expect(await readRecordedScriptCommit()).toBe("deadbeefcafe");
+  });
+
+  test("readRecordedScriptCommit returns empty string when unrecorded", async () => {
+    // Older backups / dev builds have no commit row.
+    expect(await readRecordedScriptCommit()).toBe("");
   });
 
   test("leaves the stored version untouched when it is unchanged", async () => {

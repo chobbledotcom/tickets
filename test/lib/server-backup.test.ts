@@ -4,6 +4,7 @@ import { zipSync } from "fflate";
 import { handleRequest } from "#routes";
 import { backupDir, createBackupZip } from "#shared/db/backup.ts";
 import { downloadRaw, uploadRaw } from "#shared/storage.ts";
+import { recordScriptVersion, setBuildCommitForTest } from "#shared/update.ts";
 import { RESTORE_CONFIRM_PHRASE } from "#templates/admin/backup.tsx";
 import {
   adminFormPost,
@@ -337,6 +338,33 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
         );
         expect(restored).toBeDefined();
         expect(restored!.name).toBe("Restore Me");
+      });
+    });
+
+    test("surfaces the recorded commit so the operator can redeploy the code", async () => {
+      await withLocalStorageEnabled(async () => {
+        // The running build records its commit into settings; the dump carries
+        // it, so the restore can tell the operator which commit to redeploy.
+        setBuildCommitForTest("abc123def4567890");
+        try {
+          await recordScriptVersion();
+          const zipData = await createBackupZip();
+          await uploadRaw(zipData, "restore-pending-commit.zip");
+
+          const { response } = await adminFormPost(
+            "/admin/backup/restore/confirm",
+            {
+              backup_filename: "restore-pending-commit.zip",
+              confirm_identifier: RESTORE_CONFIRM_PHRASE,
+            },
+          );
+          await expectFlashRedirect(
+            "/admin/backup",
+            "Database restored from backup. It was running commit abc123def456 — redeploy that commit to restore the code to this point in time.",
+          )(response);
+        } finally {
+          setBuildCommitForTest(null);
+        }
       });
     });
 

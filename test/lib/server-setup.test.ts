@@ -6,7 +6,6 @@ import { getDb } from "#shared/db/client.ts";
 import { invalidateInitDbCache, resetDatabase } from "#shared/db/migrations.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
-  assertJson,
   assertPublicHtml,
   awaitTestRequest,
   createTestDb,
@@ -142,17 +141,17 @@ describeWithEnv("server (setup)", { db: true }, () => {
       });
 
       test("health check still works", async () => {
-        await assertJson(handleRequest(mockRequest("/health")), 200, (json) => {
-          expect(json).toEqual({ status: "ok" });
-        });
+        const response = await handleRequest(mockRequest("/health"));
+        expect(response.status).toBe(200);
+        expect(await response.text()).toBe("Up :)");
       });
 
       test("health check works without a settings table", async () => {
         await resetToBrandNewDatabase();
 
-        await assertJson(handleRequest(mockRequest("/health")), 200, (json) => {
-          expect(json).toEqual({ status: "ok" });
-        });
+        const response = await handleRequest(mockRequest("/health"));
+        expect(response.status).toBe(200);
+        expect(await response.text()).toBe("Up :)");
         expect(await settingsTableExists()).toBe(false);
       });
 
@@ -173,13 +172,9 @@ describeWithEnv("server (setup)", { db: true }, () => {
         );
 
         try {
-          await assertJson(
-            handleRequest(mockRequest("/health")),
-            200,
-            (json) => {
-              expect(json).toEqual({ status: "ok" });
-            },
-          );
+          const health = await handleRequest(mockRequest("/health"));
+          expect(health.status).toBe(200);
+          expect(await health.text()).toBe("Up :)");
 
           const response = await handleRequest(mockRequest("/style.css"));
           expect(response.status).toBe(200);
