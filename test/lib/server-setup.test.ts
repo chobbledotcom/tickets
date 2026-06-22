@@ -6,7 +6,6 @@ import { getDb } from "#shared/db/client.ts";
 import { invalidateInitDbCache, resetDatabase } from "#shared/db/migrations.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
-  assertJson,
   assertPublicHtml,
   awaitTestRequest,
   createTestDb,
