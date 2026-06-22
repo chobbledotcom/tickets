@@ -139,8 +139,12 @@ export const buildCapacityCheckedInsert = (
   attendeeIdArg?: number,
   allowOverbook = false,
 ): { sql: string; args: InValue[] } => {
-  const { listingId, quantity: qty = 1, date = null, durationDays = 1 } =
-    booking;
+  const {
+    listingId,
+    quantity: qty = 1,
+    date = null,
+    durationDays = 1,
+  } = booking;
   const { startAt, endAt } = dateToStartEnd(date, durationDays);
   const args: InValue[] = [listingId];
   if (attendeeIdArg !== undefined) args.push(attendeeIdArg);

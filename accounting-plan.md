@@ -16,11 +16,12 @@ compatibility (§8).
 table; the booking and refund money events post their legs to the ledger; the
 one-shot backfill (§6) has reconstructed all history; a reusable batch-transfer
 primitive (`postTransferGroups`, §4) posts many events atomically; and the first
-two read concerns are fully swapped and their columns dropped — **refund status**
-(no more `listing_attendees.refunded`) and **listing income** (no more
-`listings.income`). **Remaining read concerns (§7):** amount paid
-(`listing_attendees.price_paid`), outstanding balance
-(`attendees.remaining_balance`), and modifier revenue (`modifiers.total_revenue`);
+three read concerns are fully swapped and their columns dropped — **refund status**
+(no more `listing_attendees.refunded`), **listing income** (no more
+`listings.income`), and **amount paid** (no more `listing_attendees.price_paid` —
+a booking row's amount projects from its gross `sale` leg, keyed by the row's
+`ledger_event_group`). **Remaining read concerns (§7):** outstanding balance
+(`attendees.remaining_balance`) and modifier revenue (`modifiers.total_revenue`);
 then the shared ledger renderer (§5.15) and the manual ledger-edit UI that
 replaces the money-aggregate overrides (decision 14, currently just removed from
 the form). **There is no dual-write phase** — see §7. **The code is the source of
@@ -401,8 +402,9 @@ tests:
    `booked_quantity`, `tickets_count` — stay column overrides); restoring it as a
    warned `writeoff` ledger edit is decision 14's deferred work.
 4. **Amount paid** — `listing_attendees.price_paid` → a **per-row ledger
-   projection** (the largest read surface: templates, tickets/wallets, webhooks,
-   CSV, email). **Design (decided):** `price_paid` is per booking row, but ledger
+   projection**. **Done** (the column is dropped). The largest read surface
+   (templates, tickets/wallets, webhooks, CSV, email) reads the projection
+   transparently. **Design (decided):** `price_paid` is per booking row, but ledger
    legs are per (attendee, listing, order), and a row carries no link to its
    order — so a naive per-(attendee,listing) `SUM` would double-count an attendee
    booked onto one listing across several orders (merges, re-bookings). Fix: store
@@ -426,6 +428,34 @@ tests:
    manual edits cover deliberate corrections). Existing rows get
    `ledger_event_group` set by the backfill (the event it posts each attendee's
    sale under), so this concern depends on the backfill writing it.
+
+   **Concern 4 — nuances discovered while shipping it:**
+   - **The projection is the gross _list_ price, and the divergence is wider than
+     reservations.** A `sale` leg is the line's gross (list) amount; a discount or
+     a deposit is a _separate_ leg (contra-revenue / payment), never folded into
+     the sale. So `price_paid = SUM(sale legs)` overstates for **any** discounted
+     or partially-paid order — a modifier discount _or_ a reservation deposit, not
+     just reservations. This is exact for every production order (no modifier or
+     reservation has ever been used), and the deposit/discount/cash-collected
+     accuracy is **concern 5** (reservation cash + modifier modelling). The
+     reservation balance page and the per-listing deposit split now show the gross
+     sale; tests pin this as the accepted divergence with a concern-5 note.
+   - **`settleAttendeeBalance` no longer folds into a column.** The old
+     `UPDATE listing_attendees SET price_paid = price_paid + paid` was display-only
+     bookkeeping; with reads on the projection it is dead, and the settled cash is
+     already captured by the balance checkout's own `payment` leg. The settle now
+     just clears `remaining_balance` (+ status), guarded as before.
+   - **The legacy reconcile does not carry the pre-ledger amount.** Like the
+     dropped `refunded` flag, `schema-sync` stops carrying `attendees.price_paid_v2`
+     into the rebuilt `listing_attendees` (the current schema has no `price_paid`
+     to write). A pre-2026-06-11 paid booking is therefore not reconstructed in the
+     ledger — accepted: no live site predates the ledger.
+   - **The backfill self-heals the column.** `2026-06-22_backfill_transfers` runs
+     before the drop and `ALTER TABLE ADD COLUMN` re-adds `refunded`/`price_paid`
+     if a freshly-created (already-column-less) schema lacks them, so its read
+     never hits a missing column. The drop migration
+     (`2026-06-22_drop_listing_attendee_price_paid`, after the backfill) removes it
+     again. The test helper `seedPreDropLedgerColumns` mirrors this for fixtures.
 5. **Outstanding balance** — `attendees.remaining_balance` → `−balanceOf(attendee)`
    (uniformly zero in production — no reservations).
 6. **Modifier revenue** — `modifiers.total_revenue` (+ trigger) →
