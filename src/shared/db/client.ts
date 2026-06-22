@@ -9,8 +9,10 @@
 import {
   type Client,
   createClient,
+  type InStatement,
   type InValue,
   type ResultSet,
+  type Transaction,
   type TransactionMode,
 } from "@libsql/client";
 import { lazyRef } from "#fp";
@@ -24,6 +26,7 @@ import {
   trackQuery,
 } from "#shared/db/query-log.ts";
 import { getEnv } from "#shared/env.ts";
+import { delay } from "#shared/now.ts";
 
 /**
  * Match the target table of a mutating statement (INSERT/UPDATE/DELETE/REPLACE),
@@ -285,6 +288,91 @@ export const executeBatch = async (
   statements: Array<{ sql: string; args: InValue[] }>,
 ): Promise<void> => {
   await executeBatchWithResults(statements);
+};
+
+/** The slice of an open write transaction handed to a {@link withTransaction}
+ *  callback: run statements with `execute`; commit/rollback are managed for you. */
+export type TxScope = {
+  execute: (stmt: InStatement) => Promise<ResultSet>;
+};
+
+/** Raised by {@link withTransaction} when it cannot acquire the write lock after
+ *  retrying — the database is too busy. The request layer turns this into a
+ *  friendly auto-reloading page rather than a generic error. */
+export class DatabaseBusyError extends Error {
+  constructor() {
+    super("the database is too busy to complete this write");
+    this.name = "DatabaseBusyError";
+  }
+}
+
+/** Backoff before each retry of a contended write-lock acquisition; its length is
+ *  the number of retries, so three attempts in total. */
+const WRITE_LOCK_RETRY_BACKOFF_MS = [50, 150] as const;
+const WRITE_LOCK_ATTEMPTS = WRITE_LOCK_RETRY_BACKOFF_MS.length + 1;
+
+/** A contended interactive write transaction surfaces as SQLITE_BUSY (the local
+ *  driver throws immediately; a remote one may throw after its own wait). */
+const isDatabaseLocked = (error: unknown): boolean =>
+  error instanceof Error &&
+  /SQLITE_BUSY|database is locked/i.test(error.message);
+
+/**
+ * Acquire an interactive write transaction, retrying a contended lock a couple of
+ * times with backoff so concurrent writers serialize instead of failing the
+ * loser. Gives up as {@link DatabaseBusyError} once the retries are exhausted; a
+ * non-lock error propagates immediately.
+ */
+const beginWriteTransaction = async (): Promise<Transaction> => {
+  for (let attempt = 0; attempt < WRITE_LOCK_ATTEMPTS; attempt++) {
+    if (attempt > 0) await delay(WRITE_LOCK_RETRY_BACKOFF_MS[attempt - 1]!);
+    try {
+      return await getDb().transaction("write");
+    } catch (error) {
+      if (!isDatabaseLocked(error)) throw error;
+    }
+  }
+  throw new DatabaseBusyError();
+};
+
+/**
+ * Run `work` inside one interactive write transaction, committing on success and
+ * rolling back (then rethrowing) on any error. Use this — rather than a plain
+ * batch — when a multi-step write needs conditional logic between steps, e.g.
+ * create → check capacity → finalize, where a zero-row guard must abort and undo
+ * everything.
+ *
+ * The write lock is acquired with a short retry (see {@link beginWriteTransaction})
+ * so concurrent writers serialize rather than failing; a database that stays
+ * locked surfaces as {@link DatabaseBusyError}. Statements run through the
+ * provided `execute` are tracked, and their table-scoped cache invalidations fire
+ * once after the commit succeeds (a rollback fires none) — so callers get the
+ * same automatic invalidation as the single-statement `execute`, driven by the
+ * writes themselves rather than by each call site remembering to invalidate.
+ */
+export const withTransaction = async <T>(
+  work: (tx: TxScope) => Promise<T>,
+): Promise<T> => {
+  const tx = await beginWriteTransaction();
+  const writtenSql: string[] = [];
+  const scope: TxScope = {
+    execute: (stmt) => {
+      const sql = typeof stmt === "string" ? stmt : stmt.sql;
+      writtenSql.push(sql);
+      // Track transactional statements too, so reads inside the callback still
+      // show in the debug footer and count toward the N+1 guard.
+      return trackQuery(sql, () => tx.execute(stmt));
+    },
+  };
+  try {
+    const result = await work(scope);
+    await tx.commit();
+    for (const sql of writtenSql) invalidateForSql(sql);
+    return result;
+  } catch (error) {
+    await tx.rollback();
+    throw error;
+  }
 };
 
 /** Build SQL placeholders for an IN clause, e.g. "?, ?, ?" */

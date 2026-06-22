@@ -22,6 +22,7 @@ import {
 } from "#shared/payments.ts";
 import {
   createCheckoutSession,
+  isoFromUnixSeconds,
   retrieveCheckoutSession,
   retrievePaymentIntent,
   setupWebhookEndpoint,
@@ -70,6 +71,7 @@ export const stripePaymentProvider: PaymentProvider = {
     ) {
       return Promise.resolve({
         amountTotal,
+        createdAt: isoFromUnixSeconds(obj.created),
         id,
         metadata: extractSessionMetadata(metadata),
         paymentReference: asString(obj.payment_intent),
@@ -104,6 +106,7 @@ export const stripePaymentProvider: PaymentProvider = {
 
     return {
       amountTotal: amount_total,
+      createdAt: isoFromUnixSeconds(session.created),
       id,
       metadata: extractSessionMetadata(metadata),
       paymentReference: payment_intent ?? "",

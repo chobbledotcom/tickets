@@ -71,6 +71,36 @@ describe("square-provider", () => {
       );
     });
 
+    test("normalises a non-canonical order date to canonical ISO", async () => {
+      await withMocks(
+        () => ({
+          order: stub(squareApi, "retrieveOrder", () =>
+            Promise.resolve({
+              // Square timestamps can omit milliseconds; the ledger needs .sssZ.
+              createdAt: "2026-06-20T09:00:00Z",
+              id: "order_dated",
+              metadata: {
+                email: "alice@example.com",
+                items: '[{"e":1,"q":1,"p":0}]',
+                name: "Alice",
+              },
+              state: "COMPLETED",
+              tenders: [{ id: "tender_1", paymentId: "pay_1" }],
+              totalMoney: { amount: BigInt(1000), currency: "USD" },
+            }),
+          ),
+          payment: stub(squareApi, "retrievePayment", () =>
+            Promise.resolve({ id: "pay_1", status: "COMPLETED" }),
+          ),
+        }),
+        async () => {
+          const result =
+            await squarePaymentProvider.retrieveSession("order_dated");
+          expect(result!.createdAt).toBe("2026-06-20T09:00:00.000Z");
+        },
+      );
+    });
+
     test("returns paid when order state is OPEN but payment is COMPLETED", async () => {
       await withMocks(
         () => ({

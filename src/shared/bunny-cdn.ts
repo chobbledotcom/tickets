@@ -13,6 +13,7 @@ import {
 } from "#shared/config.ts";
 import { type FetchResult, fetchText } from "#shared/fetch.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
+import { delay } from "#shared/now.ts";
 
 const BUNNY_API_BASE = "https://api.bunny.net";
 
@@ -278,10 +279,6 @@ const checkSubdomainAvailableImpl = async (
   const taken = zoneResult.zone.Records.some((r) => r.Name === recordName);
   return { available: !taken, fullDomain, ok: true };
 };
-
-/** Delay helper for retry backoff. */
-const delay = (ms: number): Promise<void> =>
-  new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Maximum number of retries for certificate loading after DNS record creation. */
 const CERT_RETRY_COUNT = 4;

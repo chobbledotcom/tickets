@@ -9,6 +9,7 @@ import { appendIframeParam, getIframeMode } from "#shared/iframe.ts";
 import { getRequestId } from "#shared/logger.ts";
 import { checkoutPopupPage, paymentErrorPage } from "#templates/payment.tsx";
 import {
+  databaseBusyPage,
   migrationInProgressPage,
   notFoundPage,
   rateLimitedPage,
@@ -61,6 +62,15 @@ export const paymentErrorResponse = (message: string, status = 400): Response =>
  */
 export const temporaryErrorResponse = (): Response =>
   htmlResponse(temporaryErrorPage(), 503);
+
+/**
+ * Create "database too busy" response: a write couldn't acquire the lock after
+ * retrying. 503. `autoRefresh` (idempotent GET/HEAD only) reloads the page to
+ * retry itself; non-idempotent methods get a "go back and resubmit" message
+ * instead, since a reload would drop the submitted form body.
+ */
+export const databaseBusyResponse = (autoRefresh: boolean): Response =>
+  htmlResponse(databaseBusyPage(autoRefresh), 503);
 
 /**
  * Create "site not activated" response for sites whose database has not

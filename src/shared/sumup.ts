@@ -70,6 +70,8 @@ export type SumupCheckout = {
   amountMinor: number;
   /** Transaction id of the completing payment (refund/payment reference). */
   transactionId: string;
+  /** Checkout creation time (ISO 8601), from SumUp's `date` field. */
+  createdAt?: string;
 };
 
 /** Result of creating a hosted checkout. */
@@ -135,6 +137,7 @@ const sumupKeyError = (err: unknown): string => {
  */
 const toSumupCheckout = (c: CheckoutSuccess): SumupCheckout => ({
   amountMinor: toMinorUnits(c.amount!),
+  createdAt: c.date,
   reference: c.checkout_reference!,
   status: c.status,
   transactionId:
