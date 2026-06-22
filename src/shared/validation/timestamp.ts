@@ -22,11 +22,16 @@ import { Temporal } from "temporal-polyfill";
  * round-trip.
  */
 
-/** Whether a string is a real ISO-8601 instant Temporal can parse. */
+/**
+ * Whether a string is a real ISO-8601 instant Temporal can parse *and* one we can
+ * store losslessly. The ledger persists millisecond resolution (epoch-millis), so
+ * an instant carrying finer precision is rejected rather than silently truncated —
+ * otherwise two sub-millisecond-distinct moments would collapse to one stored ms
+ * and read back equal.
+ */
 export const isInstant = (value: string): boolean => {
   try {
-    Temporal.Instant.from(value);
-    return true;
+    return Temporal.Instant.from(value).epochNanoseconds % 1_000_000n === 0n;
   } catch {
     return false;
   }

@@ -10,8 +10,8 @@ describe("validation > timestamp", () => {
   describe("isInstant", () => {
     const accepted: [name: string, value: string][] = [
       ["canonical .sssZ", "2026-01-01T00:00:00.000Z"],
+      ["millisecond precision", "2026-01-01T00:00:00.123Z"],
       ["no milliseconds", "2026-01-01T00:00:00Z"],
-      ["nanosecond precision", "2026-01-01T00:00:00.123456789Z"],
       ["numeric offset", "2026-01-01T01:00:00+01:00"],
     ];
     for (const [name, value] of accepted) {
@@ -21,6 +21,10 @@ describe("validation > timestamp", () => {
     }
 
     const rejected: [name: string, value: string][] = [
+      [
+        "sub-millisecond precision (cannot be stored)",
+        "2026-01-01T00:00:00.123456789Z",
+      ],
       ["an impossible day (Feb 30)", "2026-02-30T00:00:00Z"],
       ["an out-of-range month", "2026-13-01T00:00:00Z"],
       ["an out-of-range hour", "2026-01-01T24:00:00Z"],
