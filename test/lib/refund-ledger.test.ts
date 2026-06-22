@@ -297,12 +297,12 @@ describeWithEnv(
       expect((await allTransfers()).length).toBe(before);
     });
 
-    test("on a failed batch write, keeps already-refunded true and new posts false", async () => {
+    test("on a failed batch, keeps already-refunded true and an unrecoverable post false", async () => {
       // 15 is already refunded (its refund_cash leg is the durable record, so it
       // contributes no new legs); 16 is a fresh booking whose refund reference is
-      // pre-claimed under another event, so the batch write conflicts and rolls
-      // back. The already-refunded attendee stays recorded; the missed new post
-      // surfaces as false.
+      // pre-claimed under another event, so the batch conflicts. The per-attendee
+      // fallback then replays 15 (a no-op success) and retries 16 (still conflicts
+      // → errored), so the missed post surfaces as false.
       await postBooking({ attendeeId: 15, eventId: "sess-15" });
       await recordAttendeeRefund(15);
       await postBooking({ attendeeId: 16, eventId: "sess-16" });
@@ -335,9 +335,57 @@ describeWithEnv(
           [16, false],
         ]),
       );
-      // 16's reversal never landed (batch rolled back).
+      // 16's reversal never landed (both the batch and its fallback conflicted).
       expect(
         refundLegsOf(await transfersByAccount(attendeeAccount(16))).length,
+      ).toBe(0);
+    });
+
+    test("recovers the clean refunds when one group in the batch conflicts", async () => {
+      // 17 is a clean fully-paid booking; 18's refund reference is pre-claimed, so
+      // the atomic batch rolls back BOTH groups. The fallback records each on its
+      // own, so 17's refund still lands — only 18 stays errored. This is the whole
+      // point: one bad group must not strand the others' (already-provider-issued)
+      // refunds unrecorded.
+      await postBooking({ attendeeId: 17, eventId: "sess-17" });
+      await postBooking({ attendeeId: 18, eventId: "sess-18" });
+
+      const sale18 = (await transfersByAccount(attendeeAccount(18))).find(
+        (l) => l.kind === "sale",
+      )!;
+      const collidingRef = await legReference([
+        "refund",
+        sale18.eventGroup,
+        sale18.reference,
+      ]);
+      await postTransfers([
+        {
+          amount: 100,
+          currency: "GBP",
+          destination: revenueAccount(97),
+          eventGroup: "blocker-18",
+          kind: "sale",
+          occurredAt: BOOKING_AT,
+          reference: collidingRef,
+          source: attendeeAccount(97),
+        },
+      ]);
+
+      const posted = await recordAttendeeRefundsBatch([17, 18]);
+      expect(posted).toEqual(
+        new Map([
+          [17, true],
+          [18, false],
+        ]),
+      );
+      // 17's reversal landed via the fallback; 18's never did.
+      expect(
+        refundLegsOf(await transfersByAccount(attendeeAccount(17))).filter(
+          (l) => l.kind === "refund_cash",
+        ).length,
+      ).toBe(1);
+      expect(
+        refundLegsOf(await transfersByAccount(attendeeAccount(18))).length,
       ).toBe(0);
     });
 

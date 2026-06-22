@@ -119,42 +119,50 @@ export const recordAttendeeRefund = async (
 };
 
 /**
- * Record refunds for many attendees in ONE write transaction, returning each
- * attendee's posted status. A bulk refund would otherwise open an interactive
- * write transaction per attendee and contend the single SQLite writer
- * (SQLITE_BUSY) once enough overlap — and that swallowed loss, now that refund
- * status is ledger-only, would silently leave payments re-refundable. So the
- * per-attendee reversals are computed read-only and posted together. On a write
- * failure no new reversal is recorded (already-refunded attendees stay refunded).
- * Never throws.
+ * Record refunds for many attendees, returning each attendee's posted status.
+ * The fast path computes every reversal and posts them as ONE atomic batch, so a
+ * bulk refund doesn't open an interactive write transaction per attendee and
+ * contend the single SQLite writer (SQLITE_BUSY) once enough overlap.
+ *
+ * But that batch is all-or-nothing, and the provider refunds have *already*
+ * committed by the time we post: if one group fails (a reference conflict, a
+ * transient write error) — or even a single attendee's read/mapping throws while
+ * computing — the whole batch rolls back, and a later retry sees those payments
+ * as already-refunded (`refundPayment` returns false) and never re-posts them, so
+ * they'd be stranded without a `refund_cash` leg forever. So on *any* fast-path
+ * failure we fall back to recording each attendee on its own through the
+ * never-throw {@link recordAttendeeRefund}: the clean refunds still land and only
+ * the genuinely failing attendees stay errored (`posted:false`). Never throws.
  */
 export const recordAttendeeRefundsBatch = async (
   attendeeIds: number[],
 ): Promise<Map<number, boolean>> => {
-  // Compute sequentially: overlapping reads (Promise.all) can leave statements
-  // open that collide with the batch transaction's commit at scale.
-  const computed: { id: number; posted: boolean; legs: TransferInput[] }[] = [];
-  for (const id of attendeeIds) {
-    computed.push({ id, ...(await computeAttendeeRefund(id)) });
-  }
-  const groups = computed
-    .map((entry) => entry.legs)
-    .filter((legs) => legs.length > 0);
   try {
+    // Fast path: compute every reversal, then post them all in one batch. A
+    // compute read here can throw; the whole thing is guarded so it degrades to
+    // the resilient per-attendee fallback rather than 500ing the bulk request.
+    const computed: { id: number; posted: boolean; legs: TransferInput[] }[] =
+      [];
+    for (const id of attendeeIds) {
+      computed.push({ id, ...(await computeAttendeeRefund(id)) });
+    }
+    const groups = computed
+      .map((entry) => entry.legs)
+      .filter((legs) => legs.length > 0);
     if (groups.length > 0) await postTransferGroups(groups);
     return new Map(computed.map((entry) => [entry.id, entry.posted]));
   } catch (error) {
     logError({
       code: ErrorCode.LEDGER_POST,
-      detail: `bulk refund ledger post failed (${attendeeIds.length}): ${error}`,
+      detail: `bulk refund batch failed, falling back to per-attendee (${attendeeIds.length}): ${error}`,
     });
-    // The single batched post failed: only attendees that already carried a
-    // refund_cash leg (no new legs to write) remain recorded as refunded.
-    return new Map(
-      computed.map((entry) => [
-        entry.id,
-        entry.legs.length === 0 ? entry.posted : false,
-      ]),
-    );
+    // Record each attendee independently so one failure never strands the rest:
+    // recordAttendeeRefund opens its own transaction, is idempotent (an
+    // already-posted refund replays as a no-op), and never throws.
+    const result = new Map<number, boolean>();
+    for (const id of attendeeIds) {
+      result.set(id, (await recordAttendeeRefund(id)).posted);
+    }
+    return result;
   }
 };
