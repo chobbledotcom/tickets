@@ -156,24 +156,29 @@ type RefundCounts = {
 };
 
 /**
- * Attempt the provider refund for one attendee — network I/O only, no DB or
- * ledger writes, so a batch can run these in parallel. The status + ledger
- * writes for a success are serialised by {@link processRefundBatch}.
+ * Refund one attendee at the provider and mark the status column — the parts
+ * safe to run in parallel (network I/O plus a single-row UPDATE). Provider and
+ * status-write errors are caught per attendee, so one failure never aborts the
+ * batch. The ledger post is NOT done here; it is serialised by
+ * {@link processRefundBatch} to avoid concurrent write-transaction contention.
  */
-const attemptProviderRefund = async (
+const refundAndMark = async (
   provider: NonNullable<Awaited<ReturnType<typeof getActivePaymentProvider>>>,
   attendee: Attendee,
   listingId: number,
 ): Promise<{ attendee: Attendee; outcome: RefundOutcome }> => {
   try {
     const refunded = await provider.refundPayment(attendee.payment_id);
-    if (refunded) return { attendee, outcome: "refunded" };
-    logError({
-      code: ErrorCode.PAYMENT_REFUND,
-      detail: `Admin bulk refund failed for attendee ${attendee.id}, payment ${attendee.payment_id}`,
-      listingId,
-    });
-    return { attendee, outcome: "failed" };
+    if (!refunded) {
+      logError({
+        code: ErrorCode.PAYMENT_REFUND,
+        detail: `Admin bulk refund failed for attendee ${attendee.id}, payment ${attendee.payment_id}`,
+        listingId,
+      });
+      return { attendee, outcome: "failed" };
+    }
+    await markRefunded(attendee.id, listingId);
+    return { attendee, outcome: "refunded" };
   } catch (err) {
     logError({
       code: ErrorCode.PAYMENT_REFUND,
@@ -185,11 +190,11 @@ const attemptProviderRefund = async (
 };
 
 /**
- * Process a batch of refundable attendees and tally results. Provider refunds in
- * each chunk run in parallel (network I/O), but the ledger + status writes that
- * follow a success run one at a time: concurrent ledger write transactions
- * contend on the single SQLite writer and a post lost to a busy timeout is only
- * logged, so serialising them keeps every refunded payment actually ledgered.
+ * Process a batch of refundable attendees and tally results. The provider refund
+ * and status mark in each chunk run in parallel; the ledger post that follows a
+ * success runs one at a time — its interactive write transaction would otherwise
+ * contend on the single SQLite writer, and a busy-timeout loss is only logged.
+ * `recordAttendeeRefund` never throws, so the serial pass needs no guard.
  */
 const processRefundBatch = async (
   provider: NonNullable<Awaited<ReturnType<typeof getActivePaymentProvider>>>,
@@ -203,18 +208,15 @@ const processRefundBatch = async (
     refundedCount: 0,
   };
   for (const group of chunk(REFUND_CHUNK_SIZE)(batch)) {
-    const attempts = await Promise.all(
-      group.map((attendee) =>
-        attemptProviderRefund(provider, attendee, listingId),
-      ),
+    const results = await Promise.all(
+      group.map((attendee) => refundAndMark(provider, attendee, listingId)),
     );
-    for (const { attendee, outcome } of attempts) {
+    for (const { attendee, outcome } of results) {
       if (outcome === "errored") {
         counts.errorCount++;
       } else if (outcome === "failed") {
         counts.failedCount++;
       } else {
-        await markRefunded(attendee.id, listingId);
         await recordAttendeeRefund(attendee.id);
         counts.refundedCount++;
       }
