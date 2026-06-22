@@ -7,7 +7,7 @@
  */
 
 import { lazyRef } from "#fp";
-import { BUILD_TIMESTAMP } from "#shared/build-info.ts";
+import { BUILD_COMMIT, BUILD_TIMESTAMP } from "#shared/build-info.ts";
 import { deployScriptCode } from "#shared/bunny-cdn.ts";
 import { execute, queryOne } from "#shared/db/client.ts";
 import { logDebug } from "#shared/logger.ts";
@@ -23,6 +23,15 @@ export const GITHUB_REPO = "chobbledotcom/tickets";
  * the migrator (db_schema_hash / latest_db_update), not a snapshot setting.
  */
 export const CURRENT_SCRIPT_VERSION_KEY = "current_script_version";
+
+/**
+ * Plaintext settings key under which the running build records the git commit it
+ * was built from (the embedded BUILD_COMMIT). Stored next to the version marker
+ * so a database backup carries the commit the site was running when it was
+ * taken — that is how a restore knows which commit to redeploy to return the
+ * code to that point in time. Empty in development/test builds.
+ */
+const CURRENT_SCRIPT_COMMIT_KEY = "current_script_commit";
 
 /** GitHub releases page URL */
 export const GITHUB_RELEASES_URL = `https://github.com/${GITHUB_REPO}/releases`;
@@ -66,6 +75,20 @@ export const setBuildTimestampForTest = (ts: string | null): void => {
 const getEffectiveBuildTimestamp = (): string =>
   getBuildTimestampOverride() ?? BUILD_TIMESTAMP;
 
+/** Override for BUILD_COMMIT in tests; null falls back to the compile-time constant. */
+const [getBuildCommitOverride, setBuildCommitOverride] = lazyRef<string | null>(
+  () => null,
+);
+
+/** Set a build commit override for testing. Pass null to clear. */
+export const setBuildCommitForTest = (commit: string | null): void => {
+  setBuildCommitOverride(commit);
+};
+
+/** Get the effective build commit (override or real). */
+const getEffectiveBuildCommit = (): string =>
+  getBuildCommitOverride() ?? BUILD_COMMIT;
+
 /**
  * Check if a release tag is newer than a build timestamp. Defaults to this
  * host's own build (self-update check); pass `buildTimestamp` to compare a
@@ -82,25 +105,43 @@ export const isNewerVersion = (
 };
 
 /**
- * Record the running build's version into this database's `settings` table so a
- * parent host can read it back (read-only) and tell which release we are on.
- * Writes only when the stored value differs from the running build, so the
- * common unchanged path costs a single indexed read and no write. Best-effort:
- * any failure is logged and swallowed so it can never block boot, and it is a
- * no-op for development/test builds where the timestamp is empty.
+ * Upsert a plaintext settings marker, writing only when the stored value
+ * differs (so the unchanged path costs one indexed read and no write). A blank
+ * value is a no-op, matching development/test builds where build info is empty.
+ */
+const recordSettingMarker = async (
+  key: string,
+  value: string,
+): Promise<void> => {
+  if (!value) return;
+  const row = await queryOne<{ value: string }>(
+    "SELECT value FROM settings WHERE key = ?",
+    [key],
+  );
+  if (row?.value === value) return;
+  await execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", [
+    key,
+    value,
+  ]);
+};
+
+/**
+ * Record the running build's version *and* commit into this database's
+ * `settings` table so a parent host can read them back (read-only) — both which
+ * release we are on and which commit it was built from. The commit is what a
+ * backup carries so a restore can redeploy that exact point in time.
+ * Best-effort: any failure is logged and swallowed so it can never block boot,
+ * and each marker is a no-op for development/test builds where it is empty.
  */
 export const recordScriptVersion = async (): Promise<void> => {
-  const version = getEffectiveBuildTimestamp();
-  if (!version) return;
   try {
-    const row = await queryOne<{ value: string }>(
-      "SELECT value FROM settings WHERE key = ?",
-      [CURRENT_SCRIPT_VERSION_KEY],
+    await recordSettingMarker(
+      CURRENT_SCRIPT_VERSION_KEY,
+      getEffectiveBuildTimestamp(),
     );
-    if (row?.value === version) return;
-    await execute(
-      "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-      [CURRENT_SCRIPT_VERSION_KEY, version],
+    await recordSettingMarker(
+      CURRENT_SCRIPT_COMMIT_KEY,
+      getEffectiveBuildCommit(),
     );
   } catch (e) {
     logDebug(
@@ -108,6 +149,19 @@ export const recordScriptVersion = async (): Promise<void> => {
       `Failed to record script version: ${(e as Error).message}`,
     );
   }
+};
+
+/**
+ * Read the git commit a database recorded for its running script, or "" when
+ * unset (older backups, or development builds). A restore reads this from the
+ * just-restored data to tell the operator which commit to redeploy.
+ */
+export const readRecordedScriptCommit = async (): Promise<string> => {
+  const row = await queryOne<{ value: string }>(
+    "SELECT value FROM settings WHERE key = ?",
+    [CURRENT_SCRIPT_COMMIT_KEY],
+  );
+  return row?.value ?? "";
 };
 
 /**
