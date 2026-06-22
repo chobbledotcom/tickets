@@ -259,24 +259,21 @@ tests) before the corresponding path goes live.
 ### Backfill (mandatory — no column survives to fall back to)
 
 The columns are deleted, so the backfill's output *becomes* the historical record.
-Reconstruct each booking from the row being retired, idempotently (same reference
-keys as the live mappers), in a transaction per booking group:
+**No modifier or reservation has ever existed in production**, so every historical
+booking is paid in full with no discount/surcharge and the reconstruction is exact:
 
-- [ ] **Gross sale** = `price_paid + remaining_balance` posted `attendee → revenue`;
-  **payment** = `price_paid` posted `world → attendee`; the remainder stays owed.
-  This reproduces today's amount-paid and outstanding-balance exactly, and
-  recognises an open reservation's gross at sale (income rises from deposit to full
-  price — decision 2).
-- [ ] **Refunded rows** post the reversal of their booking group plus a
+- [ ] Per `listing_attendees` row with `price_paid > 0`: post a **sale**
+  (`attendee → revenue`, `price_paid`) and a **payment** (`world → attendee`,
+  `price_paid`); the attendee nets to zero (paid in full). Same reference keys as
+  the live mappers, one transaction per booking, idempotent.
+- [ ] **Refunded rows** also post the reversal of that booking group plus a
   `refund_cash`, matching the live refund mapping.
-- [ ] **Accepted simplification for history:** historical bookings get no separate
-  `fee`/`modifier` legs — the booking fee and net modifier effect fold into the
-  reconstructed gross, because neither is reliably recoverable per order. Going
-  forward, dual-write records them as their own legs.
+- [ ] No historical `fee`/`modifier`/reservation legs exist to reconstruct;
+  `remaining_balance` is uniformly zero. Going forward, dual-write records fees,
+  modifiers, and deposits as their own legs.
 - [ ] **Reconcile before dropping columns:** the backfilled ledger's `SUM`
-  projections must match the pre-migration `SUM(price_paid)` (amount paid),
-  `SUM(remaining_balance)` (outstanding), and refunded totals; a mismatch blocks the
-  drop.
+  projections must equal the pre-migration `SUM(price_paid)` (amount paid and
+  income) and refunded totals; a mismatch blocks the drop.
 
 ---
 
