@@ -19,6 +19,7 @@ import {
   runWithQueryLogContext,
 } from "#shared/db/query-log.ts";
 import { createTestListing, describeWithEnv } from "#test-utils";
+import { postListingSale } from "#test-utils/ledger.ts";
 
 /** Create a reserved attendee with an outstanding balance. */
 const createReservedAttendee = async (remainingBalance: number) => {
@@ -165,7 +166,13 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     });
     await getDb().execute({
       args: [listing.id, 999999],
-      sql: "INSERT INTO listing_attendees (listing_id, attendee_id, quantity, price_paid) VALUES (?, ?, 2, 300)",
+      sql: "INSERT INTO listing_attendees (listing_id, attendee_id, quantity) VALUES (?, ?, 2)",
+    });
+    // price_paid projects from the ledger: post the 300 sale leg for this row.
+    await postListingSale({
+      attendeeId: 999999,
+      gross: 300,
+      listingId: listing.id,
     });
 
     const summary = await getAttendeeOrderSummary(999999);

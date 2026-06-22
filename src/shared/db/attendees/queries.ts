@@ -59,14 +59,17 @@ export const pricePaidFromLedger = (
        AND dest_type = 'revenue' AND dest_id = CAST(${listingIdExpr} AS TEXT)
        AND event_group = ${eventGroupExpr}) AS price_paid`;
 
-/** Columns sourced from listing_attendees (per-listing data) */
-const EA_COLS = `ea.listing_id, SUBSTR(ea.start_at, 1, 10) as date, SUBSTR(ea.end_at, 1, 10) as end_date, ea.quantity, ea.checked_in, ${refundedFromLedger(
-  "ea.attendee_id",
-)}, ${pricePaidFromLedger(
+/** The two ledger-projected money columns (refunded flag + per-row amount paid)
+ *  for a listing_attendees row reached through the `ea` alias. Shared by the
+ *  INNER and LEFT JOIN selects so the projections never drift apart. */
+const EA_LEDGER_MONEY_COLS = `${refundedFromLedger("ea.attendee_id")}, ${pricePaidFromLedger(
   "ea.attendee_id",
   "ea.listing_id",
   "ea.ledger_event_group",
-)}, ea.attachment_downloads`;
+)}`;
+
+/** Columns sourced from listing_attendees (per-listing data) */
+const EA_COLS = `ea.listing_id, SUBSTR(ea.start_at, 1, 10) as date, SUBSTR(ea.end_at, 1, 10) as end_date, ea.quantity, ea.checked_in, ${EA_LEDGER_MONEY_COLS}, ea.attachment_downloads`;
 
 /** SELECT clause for attendee + listing_attendees JOINs (INNER JOIN context).
  * Derives `date` from start_at for the Attendee type shape. */
@@ -75,13 +78,7 @@ export const ATTENDEE_JOIN_SELECT = `${ATTENDEE_COLS}, ${EA_COLS}`;
 /** SELECT clause for LEFT JOIN context — COALESCEs nullable join columns so
  * attendees with broken/missing listing_attendees linkage still appear in results
  * (with listing_id=0 as an obvious corruption indicator). */
-export const ATTENDEE_LEFT_JOIN_SELECT = `${ATTENDEE_COLS}, COALESCE(ea.listing_id, 0) as listing_id, SUBSTR(ea.start_at, 1, 10) as date, SUBSTR(ea.end_at, 1, 10) as end_date, COALESCE(ea.quantity, 0) as quantity, COALESCE(ea.checked_in, 0) as checked_in, ${refundedFromLedger(
-  "ea.attendee_id",
-)}, ${pricePaidFromLedger(
-  "ea.attendee_id",
-  "ea.listing_id",
-  "ea.ledger_event_group",
-)}, COALESCE(ea.attachment_downloads, 0) as attachment_downloads`;
+export const ATTENDEE_LEFT_JOIN_SELECT = `${ATTENDEE_COLS}, COALESCE(ea.listing_id, 0) as listing_id, SUBSTR(ea.start_at, 1, 10) as date, SUBSTR(ea.end_at, 1, 10) as end_date, COALESCE(ea.quantity, 0) as quantity, COALESCE(ea.checked_in, 0) as checked_in, ${EA_LEDGER_MONEY_COLS}, COALESCE(ea.attachment_downloads, 0) as attachment_downloads`;
 
 /**
  * Columns for a `ListingAttendeeRow` read straight from `listing_attendees`

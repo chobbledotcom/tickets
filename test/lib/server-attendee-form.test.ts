@@ -43,6 +43,7 @@ import {
   testRequiresAuth,
   withMocks,
 } from "#test-utils";
+import { postListingSale } from "#test-utils/ledger.ts";
 
 describeWithEnv("server (unified attendee form)", { db: true }, () => {
   describe("GET /admin/attendees/new", () => {
@@ -1286,6 +1287,16 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         statusId,
       });
       if (!created.success) throw new Error("setup failed");
+      // price_paid projects from the ledger sale leg now: post one of gross =
+      // pricePaid so the per-row amount-paid projection matches the seed (what
+      // the price_paid column used to hold). Mirrors production's booking poster.
+      if (pricePaid > 0) {
+        await postListingSale({
+          attendeeId: created.attendees[0]!.id,
+          gross: pricePaid,
+          listingId: listing.id,
+        });
+      }
       return created.attendees[0]!.id;
     };
 
