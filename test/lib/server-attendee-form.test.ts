@@ -1287,13 +1287,15 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         statusId,
       });
       if (!created.success) throw new Error("setup failed");
-      // price_paid projects from the ledger sale leg now: post one of gross =
-      // pricePaid so the per-row amount-paid projection matches the seed (what
-      // the price_paid column used to hold). Mirrors production's booking poster.
-      if (pricePaid > 0) {
+      // Both amount paid and outstanding balance project from the ledger now:
+      // post the gross sale (deposit + owed) and the deposit payment, so the
+      // attendee has paid `pricePaid` and owes `remainingBalance` in the ledger.
+      const gross = pricePaid + remainingBalance;
+      if (gross > 0) {
         await postListingSale({
+          amountPaid: pricePaid,
           attendeeId: created.attendees[0]!.id,
-          gross: pricePaid,
+          gross,
           listingId: listing.id,
         });
       }

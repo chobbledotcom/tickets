@@ -20,6 +20,7 @@ import {
   describeWithEnv,
   getTestPrivateKey,
 } from "#test-utils";
+import { postListingSale } from "#test-utils/ledger.ts";
 
 describeWithEnv("db > attendee statuses", { db: true }, () => {
   test("the migration seeds a single non-reservation default status", async () => {
@@ -169,6 +170,15 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
     expect(result.success).toBe(true);
     if (!result.success) throw new Error("expected success");
 
+    // Outstanding balance projects from the ledger now: post the booking's gross
+    // sale (£20 = £5 deposit + £15 owed) and the £5 deposit, so balanceOf nets to
+    // −1500 and remaining_balance reads 1500.
+    await postListingSale({
+      amountPaid: 500,
+      attendeeId: result.attendees[0]!.id,
+      gross: 2000,
+      listingId: listing.id,
+    });
     const stored = await getAttendee(
       result.attendees[0]!.id,
       await getTestPrivateKey(),
