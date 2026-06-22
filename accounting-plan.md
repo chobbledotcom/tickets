@@ -19,6 +19,31 @@ backfill of all history, repointing every read onto the ledger, and dropping the
 columns (§7). **The code is the source of truth for the model**; when code and
 prose disagree, the code wins and this doc is updated to match.
 
+### Production data invariants
+
+The product owner has confirmed that, as of this migration, **no live site has
+ever**:
+
+- **written a `transfers` row** — the ledger is empty in production (Phase 0), so
+  the backfill runs against an empty ledger and is the sole writer of history. The
+  backfill's skip-already-ledgered and adopt-existing-currency guards (§6) are
+  belt-and-suspenders against deploy re-ordering, not load-bearing.
+- **used a modifier** — no historical surcharge/discount legs to reconstruct; the
+  backfill posts `modifiers: []`.
+- **done a partial refund** — every refund returned the whole payment, so a single
+  flagged `listing_attendees.refunded` row means the whole order was refunded (the
+  backfill reverses on *any* flagged line, not all).
+- **taken a reservation** — no deposits or owed balances; every booking is paid in
+  full (`remaining_balance` is uniformly zero), so a backfilled sale and its
+  payment net the attendee to zero.
+
+In short, **every historical booking is paid in full, refunded in full, or free**,
+with no modifiers, deposits, or partial refunds. This bounds what the backfill (§6)
+must reconstruct, and is why several reviewed edge cases — historical
+modifier/reservation/partial-refund reconstruction, and double-posting onto live
+dual-write legs — cannot arise on the real data, even where the code still guards
+against them.
+
 ---
 
 ## 1. Goals & non-goals
