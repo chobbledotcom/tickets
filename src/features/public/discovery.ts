@@ -25,6 +25,7 @@
  * "Public listing cards" and "no bookable child ⇒ sold out" sections.
  */
 
+import { compact } from "#fp";
 import { isRegistrationClosed } from "#routes/format.ts";
 import { isListingParentsEnabled } from "#shared/config.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
@@ -179,23 +180,39 @@ export const classifyForDiscovery = async (
   ]);
   const byId = new Map(listings.map((l) => [l.id, l]));
   const everyChild = [...childrenByParent.values()].flat();
-  // A child is an add-on only when at least one of its parents is itself
-  // bookable (active, not sold out, not closed) — otherwise the parent page
-  // can't offer it and the note would be a dead end (Fix 1). Parents may live
-  // outside the displayed set, so their group-remaining is fetched here.
+  // Displayed children whose add-on label we are deciding. They are in `byId`
+  // (keys of parentsByChild are among the displayed `ids`), so their own
+  // group-remaining must be fetched for the combined-demand check below — the
+  // map is keyed by listing id, so it is unioned into the single child map.
+  const displayedChildren = compact(
+    [...parentsByChild.keys()].map((id) => byId.get(id)),
+  );
   const everyParent = [...parentsByChild.values()].flat();
   const [groupRemaining, parentGroupRemaining, holidays] = await Promise.all([
-    getGroupRemainingByListingId(everyChild),
+    getGroupRemainingByListingId([...everyChild, ...displayedChildren]),
     getGroupRemainingByListingId(everyParent),
     getActiveHolidays(),
   ]);
+  // A child is an add-on only when at least one of its parents is itself
+  // bookable (active, not sold out, not closed) AND that parent can actually
+  // offer THIS child given the *combined* parent+child group demand (invariant
+  // I7, Fix 5). Using only `parentBookable` (the parent's own row) would mark a
+  // child available as an add-on while the parent's sold-out projection below —
+  // which uses childBookableForParent — reads the parent sold out, leaving the
+  // note a dead end (e.g. a child whose only parent shares a 1-spot capped group
+  // with it: one parent+child order needs two spots). Reuse the same
+  // combined-demand check both surfaces use.
   const addOnChildIds = new Set<number>();
   for (const [childId, parents] of parentsByChild) {
-    if (
-      parents.some((p) => parentBookable(p, parentGroupRemaining.get(p.id)))
-    ) {
-      addOnChildIds.add(childId);
-    }
+    // childId is a key of parentsByChild, which is built from the displayed
+    // `ids`, so the listing is always present in `byId` (invariant).
+    const child = byId.get(childId)!;
+    const offerable = parents.some(
+      (p) =>
+        parentBookable(p, parentGroupRemaining.get(p.id)) &&
+        childBookableForParent(p, child, groupRemaining.get(childId), holidays),
+    );
+    if (offerable) addOnChildIds.add(childId);
   }
   const soldOutParentIds = new Set<number>();
   for (const [parentId, children] of childrenByParent) {

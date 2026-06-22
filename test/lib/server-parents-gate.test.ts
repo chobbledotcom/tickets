@@ -1325,6 +1325,114 @@ describeWithEnv(
       expect(html).toContain(">2 days");
     });
 
+    test("a daily parent builds its date union from SELECTABLE children only", async () => {
+      // ACTIVE child bookable only Monday, INACTIVE child bookable only Tuesday.
+      // The inactive child must contribute NOTHING to the union, so only Monday
+      // is offered — its Tuesday must never become selectable (Fix 2).
+      const { DAY_NAMES, getBookableStartDates } = await import(
+        "#shared/dates.ts"
+      );
+      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
+      const { getListingWithCount } = await import("#shared/db/listings.ts");
+
+      const parent = await createDailyTestListing({ name: "Daily base" });
+      const parentRow = (await getListingWithCount(parent.id))!;
+      const holidays = await getActiveHolidays();
+      const parentDates = getBookableStartDates(parentRow, holidays);
+      const mondayDate = parentDates[0]!;
+      const tuesdayDate = parentDates.find((d) => d !== mondayDate)!;
+      const mondayName =
+        DAY_NAMES[new Date(`${mondayDate}T00:00:00Z`).getUTCDay()]!;
+      const tuesdayName =
+        DAY_NAMES[new Date(`${tuesdayDate}T00:00:00Z`).getUTCDay()]!;
+
+      const activeChild = await createDailyTestListing({
+        bookableDays: [mondayName],
+        name: "Active add-on",
+      });
+      const inactiveChild = await createDailyTestListing({
+        bookableDays: [tuesdayName],
+        name: "Inactive add-on",
+      });
+      await setChildIds(parent.id, [activeChild.id, inactiveChild.id]);
+      await deactivateTestListing(inactiveChild.id);
+
+      const html = await ticketPageHtml(parent.slug);
+      expect(html).toContain(`<option value="${mondayDate}"`);
+      // The inactive child's Tuesday must NOT be offered.
+      expect(html).not.toContain(`<option value="${tuesdayDate}"`);
+    });
+
+    test("a fixed-span daily parent drops a child date with no valid full-span start", async () => {
+      // A fixed 3-day parent with a customisable child priced for 3 days but
+      // bookable only on Mondays: a 3-day span starting Monday needs Mon+Tue+Wed
+      // all bookable for the child, which it is not, so Monday must NOT be offered
+      // (Fix 3: the union validates the inherited fixed span with
+      // isBookingRangeValid, not single-day starts).
+      const { DAY_NAMES, getBookableStartDates } = await import(
+        "#shared/dates.ts"
+      );
+      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
+      const { getListingWithCount } = await import("#shared/db/listings.ts");
+
+      const parent = await createDailyTestListing({
+        durationDays: 3,
+        name: "Fixed 3-day base",
+      });
+      const parentRow = (await getListingWithCount(parent.id))!;
+      const holidays = await getActiveHolidays();
+      const parentDates = getBookableStartDates(parentRow, holidays);
+      const mondayDate = parentDates[0]!;
+      const mondayName =
+        DAY_NAMES[new Date(`${mondayDate}T00:00:00Z`).getUTCDay()]!;
+
+      const child = await createDailyTestListing({
+        bookableDays: [mondayName],
+        customisableDays: true,
+        dayPrices: { 1: 1000, 2: 1800, 3: 2500 },
+        durationDays: 3,
+        maxPrice: 0,
+        name: "Mon-only add-on",
+        unitPrice: 0,
+      });
+      await setChildIds(parent.id, [child.id]);
+
+      const html = await ticketPageHtml(parent.slug);
+      // No Monday→Wednesday span is valid for the child, so Monday is not offered.
+      expect(html).not.toContain(`<option value="${mondayDate}"`);
+    });
+
+    test("a customisable parent builds its day-count union from SELECTABLE children only", async () => {
+      // An INACTIVE 1-day child must contribute no spans (and must not preserve
+      // every parent span via its "any" null result); the ACTIVE 2-day child
+      // alone drives the union, so only the 2-day option renders (Fix 4).
+      const parent = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 1000, 2: 1800 },
+        durationDays: 2,
+        name: "Customisable base",
+      });
+      const inactiveOneDay = await createTestListing({
+        maxPrice: 0,
+        name: "Inactive 1-day add-on",
+        unitPrice: 0,
+      });
+      const activeTwoDay = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 2: 2500 },
+        durationDays: 2,
+        maxPrice: 0,
+        name: "Active 2-day add-on",
+        unitPrice: 0,
+      });
+      await setChildIds(parent.id, [inactiveOneDay.id, activeTwoDay.id]);
+      await deactivateTestListing(inactiveOneDay.id);
+
+      const html = await ticketPageHtml(parent.slug);
+      expect(html).toContain(">2 days");
+      expect(html).not.toContain(">1 day");
+    });
+
     test("a daily child full on one date does not make its parent render sold out", async () => {
       // A 1-capacity daily child fully booked on one date reads date-less
       // isSoldOut=true, but the parent page must still render a bookable form —

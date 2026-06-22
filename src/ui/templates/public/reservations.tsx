@@ -35,7 +35,11 @@ import {
 } from "#shared/types.ts";
 import { getTicketFields, mergeListingFields } from "#templates/fields.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
-import { renderListingImage, type TicketListing } from "./shared.tsx";
+import {
+  childSelectableIgnoringSpan,
+  renderListingImage,
+  type TicketListing,
+} from "./shared.tsx";
 /** Build OpenGraph meta tags for a public listing page */
 export const buildOgTags = (
   listing: {
@@ -130,10 +134,18 @@ const childSupportedSpans = (child: TicketListing): number[] | null => {
 
 /**
  * Constrain a customisable parent's day-count options to the spans at least one
- * of its required children can serve (Codex 1030): `parentDayCounts ∩ (UNION of
- * the children's supported spans)`. Without this, a customisable parent offering
- * {1,2} days whose only child prices only 2 days still shows the 1-day option,
- * which the submit-side fold then rejects.
+ * of its SELECTABLE required children can serve (Codex 1030/158):
+ * `parentDayCounts ∩ (UNION of the selectable children's supported spans)`.
+ * Without this, a customisable parent offering {1,2} days whose only child prices
+ * only 2 days still shows the 1-day option, which the submit-side fold rejects.
+ *
+ * Children are first filtered by the date-independent disqualifiers
+ * ({@link childSelectableIgnoringSpan}) so an inactive / closed / sold-out child
+ * contributes NOTHING (Codex 158): in particular an inactive STANDARD child
+ * returns `null` from {@link childSupportedSpans} ("any span") and would
+ * otherwise preserve every parent span, and an inactive 1-day child would keep a
+ * 1-day option the active 2-day child can't serve. After filtering, a child that
+ * imposes no span constraint ("any") still keeps every parent span.
  *
  * Scope mirrors the date rule (see `constrainDatesByChildUnion` in
  * ticket-payment.ts): only a SINGLE-listing page that is itself a parent is
@@ -148,8 +160,12 @@ const constrainDayCountsByChildUnion = (
   childrenByParentId: Map<number, TicketListing[]> | undefined,
 ): number[] => {
   if (!childrenByParentId || listings.length !== 1) return parentDayCounts;
-  const children = childrenByParentId.get(listings[0]!.listing.id);
-  if (!children || children.length === 0) return parentDayCounts;
+  const all = childrenByParentId.get(listings[0]!.listing.id);
+  if (!all || all.length === 0) return parentDayCounts;
+  const children = all.filter(childSelectableIgnoringSpan);
+  // Every child unavailable ⇒ no child can serve any span; the parent is sold
+  // out, so offer nothing (the gate rejects the order anyway).
+  if (children.length === 0) return [];
   const union = new Set<number>();
   for (const child of children) {
     const spans = childSupportedSpans(child);

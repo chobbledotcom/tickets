@@ -13,6 +13,8 @@ import {
   hasRequiredSessionMetadata,
   PaymentUserError,
   packMetadata,
+  SQUARE_METADATA_MAX_VALUE_LENGTH,
+  STRIPE_METADATA_MAX_VALUE_LENGTH,
   safeAsync,
   singleListingAnswerIds,
   toBookingItems,
@@ -720,27 +722,16 @@ describe("payment-helpers", () => {
       expect(enforceMetadataLimits(manyKeys, 500)).toEqual(manyKeys);
     });
 
-    test("omits an over-cap thank_you_url instead of failing the checkout", () => {
-      // A folded paid parent's long configured thank-you URL must not break
-      // session creation: it is dropped and the order falls back to the generic
-      // success page (Fix 2).
+    test("leaves a too-long thank_you_url untouched (capping moved pre-sign)", () => {
+      // enforceMetadataLimits no longer strips thank_you_url: that is done in
+      // buildItemsMetadata before signing so the proof and metadata stay
+      // consistent (parents.md Fix 1). An over-cap URL passing through here is
+      // unchanged (it never reaches here over-cap in production).
       const metadata = {
         email: "j@x.com",
         items: '[{"e":1,"q":1,"p":0}]',
         name: "John",
         thank_you_url: `https://example.com/${"x".repeat(255)}`,
-      };
-      const result = enforceMetadataLimits(metadata, 255);
-      expect(result.thank_you_url).toBeUndefined();
-      expect(result.items).toBe(metadata.items);
-    });
-
-    test("keeps a within-cap thank_you_url", () => {
-      const metadata = {
-        email: "j@x.com",
-        items: '[{"e":1,"q":1,"p":0}]',
-        name: "John",
-        thank_you_url: "https://example.com/thanks",
       };
       expect(enforceMetadataLimits(metadata, 255)).toEqual(metadata);
     });
@@ -866,6 +857,7 @@ describeWithEnv(
       const metadata = await buildItemsMetadata(
         baseIntent("plain-token-xyz"),
         0,
+        STRIPE_METADATA_MAX_VALUE_LENGTH,
       );
       const expected = await hmacHash("plain-token-xyz");
       // site_token_index is packed into `b` on the wire; the webhook recovers it
@@ -880,6 +872,7 @@ describeWithEnv(
       const metadata = await buildItemsMetadata(
         baseIntent("plain-token-xyz"),
         0,
+        STRIPE_METADATA_MAX_VALUE_LENGTH,
       );
       for (const value of Object.values(metadata)) {
         expect(value.includes("plain-token-xyz")).toBe(false);
@@ -887,7 +880,11 @@ describeWithEnv(
     });
 
     test("omits site_token_index when siteToken is absent", async () => {
-      const metadata = await buildItemsMetadata(baseIntent(), 0);
+      const metadata = await buildItemsMetadata(
+        baseIntent(),
+        0,
+        STRIPE_METADATA_MAX_VALUE_LENGTH,
+      );
       expect("site_token_index" in metadata).toBe(false);
     });
   },
@@ -915,7 +912,13 @@ describeWithEnv(
     test("the signed proof verifies against the unpacked metadata", async () => {
       const total = priceCheckout(intent).total;
       // Apply the Square packing step over the signed metadata.
-      const wire = packMetadata(await buildItemsMetadata(intent, total));
+      const wire = packMetadata(
+        await buildItemsMetadata(
+          intent,
+          total,
+          SQUARE_METADATA_MAX_VALUE_LENGTH,
+        ),
+      );
       // Small fields (phone, date, …) are packed on the wire.
       expect("phone" in wire).toBe(false);
       expect(typeof wire.b).toBe("string");
@@ -937,6 +940,91 @@ describeWithEnv(
           sig,
         ),
       ).toBe(false);
+    });
+  },
+);
+
+// parents.md Fix 1: a folded paid parent's thank_you_url is capped/omitted
+// BEFORE the metadata is signed, so the signed payload and the emitted metadata
+// stay identical and the webhook never sees a tampered session for an honest
+// over-cap URL.
+describeWithEnv(
+  "buildItemsMetadata caps thank_you_url before signing",
+  { encryptionKey: true },
+  () => {
+    const intentWithUrl = (thankYouUrl: string): CheckoutIntent => ({
+      address: "",
+      date: "2026-07-01",
+      email: "buyer@example.com",
+      items: [
+        { listingId: 1, name: "Base", quantity: 1, slug: "b", unitPrice: 1000 },
+      ],
+      name: "Buyer",
+      phone: "",
+      special_instructions: "",
+      thankYouUrl,
+    });
+
+    const proofParts = (metadata: Record<string, string>) => {
+      const proof = metadata.price_proof!;
+      const dot = proof.indexOf(".");
+      return {
+        sig: proof.slice(dot + 1),
+        total: Number(proof.slice(0, dot)),
+      };
+    };
+
+    test("omits an over-cap URL and the proof still verifies (not tampered)", async () => {
+      const longUrl = `https://example.com/${"x".repeat(
+        SQUARE_METADATA_MAX_VALUE_LENGTH,
+      )}`;
+      const intent = intentWithUrl(longUrl);
+      const total = priceCheckout(intent).total;
+      const metadata = await buildItemsMetadata(
+        intent,
+        total,
+        SQUARE_METADATA_MAX_VALUE_LENGTH,
+      );
+      // The over-cap URL is dropped from the emitted metadata...
+      expect("thank_you_url" in metadata).toBe(false);
+      // ...and the proof — signed over that same URL-less payload — verifies, so
+      // the webhook classifies the session as legitimate, not tampered.
+      const { sig, total: signedTotal } = proofParts(metadata);
+      expect(
+        await verifyPrice(
+          extractSessionMetadata(metadata as unknown as SessionMetadata),
+          signedTotal,
+          sig,
+        ),
+      ).toBe(true);
+    });
+
+    test("carries a within-cap URL and the proof verifies with it present", async () => {
+      const url = "https://example.com/thanks";
+      const intent = intentWithUrl(url);
+      const total = priceCheckout(intent).total;
+      const metadata = await buildItemsMetadata(
+        intent,
+        total,
+        SQUARE_METADATA_MAX_VALUE_LENGTH,
+      );
+      expect(metadata.thank_you_url).toBe(url);
+      const { sig, total: signedTotal } = proofParts(metadata);
+      const extracted = extractSessionMetadata(
+        metadata as unknown as SessionMetadata,
+      );
+      expect(extracted.thank_you_url).toBe(url);
+      expect(await verifyPrice(extracted, signedTotal, sig)).toBe(true);
+      // Stripe's larger cap also retains it.
+      expect(
+        (
+          await buildItemsMetadata(
+            intent,
+            total,
+            STRIPE_METADATA_MAX_VALUE_LENGTH,
+          )
+        ).thank_you_url,
+      ).toBe(url);
     });
   },
 );

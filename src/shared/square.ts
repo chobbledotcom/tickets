@@ -577,7 +577,13 @@ export const squareApi: {
     const order = priceCheckout(intent);
 
     const prep = await preparePaymentLink(
-      packMetadata(await buildItemsMetadata(intent, order.total)),
+      packMetadata(
+        await buildItemsMetadata(
+          intent,
+          order.total,
+          SQUARE_METADATA_MAX_VALUE_LENGTH,
+        ),
+      ),
       `payment link for ${intent.items.length} listing(s)`,
     );
     if (!prep) return null;

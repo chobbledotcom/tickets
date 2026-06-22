@@ -111,6 +111,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       const metadata = await buildItemsMetadata(
         intent,
         priceCheckout(intent).total,
+        Number.POSITIVE_INFINITY,
       );
       await storeSumupCheckout(reference, metadata);
       await setSumupCheckoutId(reference, "co_e2e");

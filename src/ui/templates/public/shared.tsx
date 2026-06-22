@@ -81,6 +81,24 @@ export type TicketListing = {
   maxPurchasable: number;
 };
 
+/** Whether a required child clears the date- AND span-INDEPENDENT disqualifiers:
+ * it is active, not registration-closed, and — for a STANDARD child, whose
+ * capacity is cumulative and date-independent — not sold out. A DAILY child's
+ * date-less `isSoldOut` aggregate is meaningless (it reads true once full on ANY
+ * single date), so a daily child is never filtered on it here — its per-date
+ * capacity is enforced against the resolved date downstream.
+ *
+ * This is the single source of truth both the date union (ticket-payment.ts) and
+ * the day-count union (reservations.tsx) use to drop children the fold would
+ * categorically reject, so an inactive/closed/sold-out child never keeps a
+ * date/span selectable (parents.md Fixes 2–4). Span- and date-dependent checks
+ * (priced-for-duration, fixed-daily duration match, the child's own calendar)
+ * layer on top of this in the caller that knows the inherited span/date. */
+export const childSelectableIgnoringSpan = (child: TicketListing): boolean =>
+  child.listing.active &&
+  !child.isClosed &&
+  (child.listing.listing_type === "daily" || !child.isSoldOut);
+
 /** `groupRemaining`, when defined, clamps the displayed sold-out state and
  * `maxPurchasable` to the group's combined cap. */
 export const buildTicketListing = (

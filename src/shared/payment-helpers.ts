@@ -210,11 +210,25 @@ export const singleListingAnswerIds = (
  * prices the order once and passes that same total here, so the signed proof
  * and the charged amount can never disagree even if pricing settings change
  * mid-checkout (re-pricing here would reopen that window — see #1300).
+ *
+ * `maxValueLength` is the provider's per-value metadata cap. The one
+ * provider-cap-sensitive field that must **not** fail the checkout is
+ * `thank_you_url`: a folded paid parent copies its operator-configured URL into
+ * metadata, but a long URL would exceed the cap and break session creation for
+ * an order that is otherwise valid. It is purely a post-completion redirect, so
+ * an over-cap URL is **omitted before signing** (the order completes and falls
+ * back to the generic success page). Dropping it *before* `signPriceSync` keeps
+ * the signed payload and the emitted metadata identical, so the webhook's
+ * unpack-then-verify never sees a key the proof was signed with but the wire
+ * omitted (which would classify the paid session as tampered — parents.md Fix 1).
  */
 export const buildItemsMetadata = async (
   intent: CheckoutIntent,
   total: number,
+  maxValueLength: number,
 ): Promise<Record<string, string>> => {
+  const thankYouUrlFits =
+    !intent.thankYouUrl || intent.thankYouUrl.length <= maxValueLength;
   const base = buildMetadata({
     ...intent,
     items: toBookingItems(intent.items),
@@ -222,6 +236,7 @@ export const buildItemsMetadata = async (
     siteTokenIndex: intent.siteToken
       ? await hmacHash(intent.siteToken)
       : undefined,
+    ...(thankYouUrlFits ? {} : { thankYouUrl: undefined }),
   });
   // Sign the agreed total bound to every stored booking field, so the webhook
   // can trust it as an oracle rather than re-deriving and hoping they agree.
@@ -426,28 +441,20 @@ const parsePackedFields = (raw: string): Partial<Record<string, string>> => {
  * count is checked too and surfaces the same batching error rather than a
  * generic provider rejection.
  *
- * `thank_you_url` is the one provider-cap-sensitive field that must **not** fail
- * the checkout: a folded paid parent copies its operator-configured
- * `thank_you_url` into metadata, but a long URL would exceed the provider's
- * per-value cap and break session creation for an order that is otherwise valid.
- * It is purely a post-completion redirect, so an over-cap URL is **omitted** (the
- * order completes and falls back to the generic success page) rather than
- * rejected. This is bounded before the entry-count check so dropping it also
- * frees its slot (parents.md Fix 2).
+ * `thank_you_url` is **not** handled here. It is the one provider-cap-sensitive
+ * field that must not fail the checkout (a long operator URL on a folded paid
+ * parent is purely a post-completion redirect), so an over-cap URL is dropped
+ * **before** the metadata is signed, in `buildItemsMetadata`. Capping it here —
+ * after `signPriceSync` — would strip a key the proof was signed with, so the
+ * webhook's verification would classify the paid session as tampered. Bounding
+ * it pre-sign keeps the signed payload and the emitted metadata identical
+ * (parents.md Fix 1).
  */
 export const enforceMetadataLimits = (
   metadata: Record<string, string>,
   maxValueLength: number,
   maxEntries?: number,
 ): Record<string, string> => {
-  if (
-    metadata.thank_you_url &&
-    metadata.thank_you_url.length > maxValueLength
-  ) {
-    const { thank_you_url: _omitted, ...rest } = metadata;
-    metadata = rest;
-  }
-
   const items = metadata.items;
   if (items && items.length > maxValueLength) {
     throw new PaymentUserError(

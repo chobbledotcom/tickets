@@ -177,9 +177,12 @@ export const sumupApi: {
     // Persist metadata before creating the checkout so it is present when the
     // webhook or redirect arrives. An orphaned row (if create fails) is pruned.
     const reference = crypto.randomUUID();
+    // SumUp carries no provider metadata: the booking fields are stored locally
+    // (db/sumup-checkouts.ts), so there is no per-value cap to bound and the
+    // operator's thank_you_url is always retained (pass an unbounded cap).
     await storeSumupCheckout(
       reference,
-      await buildItemsMetadata(intent, totalMinor),
+      await buildItemsMetadata(intent, totalMinor, Number.POSITIVE_INFINITY),
     );
 
     return withClient(async (client) => {

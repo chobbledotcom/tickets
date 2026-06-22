@@ -309,7 +309,11 @@ export const stripeApi: {
       success_url: `${baseUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
       ...(intent.email ? { customer_email: intent.email } : {}),
       metadata: enforceMetadataLimits(
-        await buildItemsMetadata(intent, order.total),
+        await buildItemsMetadata(
+          intent,
+          order.total,
+          STRIPE_METADATA_MAX_VALUE_LENGTH,
+        ),
         STRIPE_METADATA_MAX_VALUE_LENGTH,
         STRIPE_METADATA_MAX_ENTRIES,
       ),

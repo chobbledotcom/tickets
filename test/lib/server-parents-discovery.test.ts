@@ -285,6 +285,50 @@ describeWithEnv(
         const body = await publicBody("/listings");
         expect(body).toContain(`href="/ticket/${parent.slug}"`);
       });
+
+      test("a child whose only parent shares a 1-spot capped group is not labeled add-on", async () => {
+        // The child's only parent shares a capped group with it, so the minimum
+        // parent+child order needs two spots. With one spot left the parent is
+        // projected sold out, so the add-on note would be a dead end — the child
+        // must read unavailable, NOT "available as an add-on" (Fix 5: addOnChildIds
+        // must use the same combined-demand check as the parent sold-out
+        // projection).
+        const group = await createTestGroup({ maxAttendees: 2, name: "Pool" });
+        const parent = await createTestListing({
+          groupId: group.id,
+          name: "Base unit",
+        });
+        const child = await createTestListing({
+          groupId: group.id,
+          name: "Add-on",
+        });
+        const filler = await createTestListing({
+          groupId: group.id,
+          name: "Filler",
+        });
+        await setChildIds(parent.id, [child.id]);
+        await createTestAttendee(filler.id, filler.slug, "Buyer", "b@x.com");
+        const body = await publicBody("/listings");
+        expect(body).toContain("Add-on");
+        expect(body).not.toContain("Available as an add-on to another booking");
+      });
+
+      test("a child whose only parent shares a 2-spot capped group shows the add-on note", async () => {
+        // Two spots free ⇒ the combined parent+child demand fits, so the parent
+        // can offer the child and the add-on note appears (Fix 5).
+        const group = await createTestGroup({ maxAttendees: 2, name: "Pool" });
+        const parent = await createTestListing({
+          groupId: group.id,
+          name: "Base unit",
+        });
+        const child = await createTestListing({
+          groupId: group.id,
+          name: "Add-on",
+        });
+        await setChildIds(parent.id, [child.id]);
+        const body = await publicBody("/listings");
+        expect(body).toContain("Available as an add-on to another booking");
+      });
     });
 
     describe("RSS/ICS feeds", () => {

@@ -30,6 +30,7 @@ export {
 } from "./public/reservations.tsx";
 export {
   buildTicketListing,
+  childSelectableIgnoringSpan,
   FEED_DISCOVERY_TAGS,
   ICS_DISCOVERY_TAG,
   RSS_DISCOVERY_TAG,
