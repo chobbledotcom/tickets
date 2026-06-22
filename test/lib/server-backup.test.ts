@@ -4,11 +4,7 @@ import { zipSync } from "fflate";
 import { handleRequest } from "#routes";
 import { backupDir, createBackupZip } from "#shared/db/backup.ts";
 import { downloadRaw, uploadRaw } from "#shared/storage.ts";
-import {
-  recordScriptVersion,
-  setBuildCommitForTest,
-  setBuildTimestampForTest,
-} from "#shared/update.ts";
+import { recordScriptVersion, setBuildCommitForTest } from "#shared/update.ts";
 import { RESTORE_CONFIRM_PHRASE } from "#templates/admin/backup.tsx";
 import {
   adminFormPost,
@@ -345,13 +341,13 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
       });
     });
 
-    test("surfaces the recorded commit so the operator can redeploy the code", async () => {
+    test("surfaces the full recorded commit so the operator can redeploy the code", async () => {
       await withLocalStorageEnabled(async () => {
-        // The running build records its commit + version into settings; the
-        // dump carries them, so the restore tells the operator which commit (and
-        // version) to redeploy.
-        setBuildCommitForTest("abc123def4567890");
-        setBuildTimestampForTest("2026-06-19T12:00:00Z");
+        // The running build records its commit into settings; the dump carries
+        // it, so the restore tells the operator which commit to redeploy. The
+        // FULL SHA is shown because the restore-deploy workflow requires one.
+        const fullSha = "0123456789abcdef0123456789abcdef01234567";
+        setBuildCommitForTest(fullSha);
         try {
           await recordScriptVersion();
           const zipData = await createBackupZip();
@@ -366,35 +362,7 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
           );
           await expectFlashRedirect(
             "/admin/backup",
-            "Database restored from backup. It was running commit abc123def456 (version 2026-06-19T12:00:00Z) — run the restore-deploy workflow with that commit and version to restore the code to this point in time.",
-          )(response);
-        } finally {
-          setBuildCommitForTest(null);
-          setBuildTimestampForTest(null);
-        }
-      });
-    });
-
-    test("surfaces the commit without a version when none was recorded", async () => {
-      await withLocalStorageEnabled(async () => {
-        // A backup with a commit but no recorded version (older build) drops the
-        // parenthetical rather than printing an empty one.
-        setBuildCommitForTest("abc123def4567890");
-        try {
-          await recordScriptVersion();
-          const zipData = await createBackupZip();
-          await uploadRaw(zipData, "restore-pending-noversion.zip");
-
-          const { response } = await adminFormPost(
-            "/admin/backup/restore/confirm",
-            {
-              backup_filename: "restore-pending-noversion.zip",
-              confirm_identifier: RESTORE_CONFIRM_PHRASE,
-            },
-          );
-          await expectFlashRedirect(
-            "/admin/backup",
-            "Database restored from backup. It was running commit abc123def456 — run the restore-deploy workflow with that commit and version to restore the code to this point in time.",
+            `Database restored from backup. It was running commit ${fullSha} — run the restore-deploy workflow with that commit to restore the code to this point in time.`,
           )(response);
         } finally {
           setBuildCommitForTest(null);

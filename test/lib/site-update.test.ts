@@ -9,7 +9,6 @@ import { loadBuiltSiteUpdateState } from "#shared/site-update.ts";
 import {
   CURRENT_SCRIPT_VERSION_KEY,
   readRecordedScriptCommit,
-  readRecordedScriptVersion,
   recordScriptVersion,
   setBuildCommitForTest,
   setBuildTimestampForTest,
@@ -180,12 +179,6 @@ describeWithEnv("recordScriptVersion", { db: true }, () => {
   test("readRecordedScriptCommit returns empty string when unrecorded", async () => {
     // Older backups / dev builds have no commit row.
     expect(await readRecordedScriptCommit()).toBe("");
-  });
-
-  test("readRecordedScriptVersion round-trips the recorded version", async () => {
-    setBuildTimestampForTest("2026-06-19T12:00:00Z");
-    await recordScriptVersion();
-    expect(await readRecordedScriptVersion()).toBe("2026-06-19T12:00:00Z");
   });
 
   test("clears a stale commit marker when the running build has no commit", async () => {

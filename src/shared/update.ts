@@ -177,16 +177,6 @@ export const readRecordedScriptCommit = (): Promise<string> =>
   readSettingMarker(CURRENT_SCRIPT_COMMIT_KEY);
 
 /**
- * Read the build timestamp (version) a database recorded for its running
- * script, or "" when unset. Surfaced alongside the commit on restore so the
- * rebuild can stamp the restored code with its *original* version — otherwise
- * the rebuilt old code reports the rebuild time and the upgrade path treats it
- * as already up to date.
- */
-export const readRecordedScriptVersion = (): Promise<string> =>
-  readSettingMarker(CURRENT_SCRIPT_VERSION_KEY);
-
-/**
  * Format a build timestamp for display.
  */
 export const formatBuildDate = (iso: string): string => {

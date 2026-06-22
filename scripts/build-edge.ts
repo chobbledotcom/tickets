@@ -66,18 +66,10 @@ for (const [filename] of ASSET_DEFS) {
 }
 
 /**
- * Build timestamp — the current time, unless `BUILD_TIMESTAMP` is set in the
- * env (the restore-deploy workflow passes a backup's recorded version so the
- * rebuilt old code reports its *original* build time, not the rebuild time, and
- * the upgrade path still treats later releases as newer). Used both as
- * BUILD_TIMESTAMP and (formatted) as the release tag in release builds, so the
- * two always match. A blank/whitespace override falls back to the current time.
+ * Build timestamp — always the current time. Used both as BUILD_TIMESTAMP
+ * and (formatted) as the release tag in release builds, so the two always match.
  */
-const BUILD_TIMESTAMP_OVERRIDE = Deno.env.get("BUILD_TIMESTAMP")?.trim();
-const BUILD_ISO =
-  BUILD_TIMESTAMP_OVERRIDE && BUILD_TIMESTAMP_OVERRIDE.length > 0
-    ? BUILD_TIMESTAMP_OVERRIDE
-    : new Date().toISOString();
+const BUILD_ISO = new Date().toISOString();
 
 /** Build the inline build-info module with timestamp and commit SHA */
 const buildBuildInfoModule = (): string => {
