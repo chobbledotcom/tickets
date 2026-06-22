@@ -10,7 +10,7 @@ import type {
   AdminSession,
   LogisticsAgent,
 } from "#shared/types.ts";
-import { AdminNav, UsersSubNav } from "#templates/admin/nav.tsx";
+import { AdminNav } from "#templates/admin/nav.tsx";
 import {
   ActionButton,
   DeleteSection,
@@ -86,7 +86,6 @@ export const adminUsersPage = (
   String(
     <Layout title={t("terms.users")}>
       <AdminNav active="/admin/users" session={session} />
-      <UsersSubNav />
       <p class="actions">
         <GuideLink href="/admin/guide#user-classes">
           {t("users.roles_link")}
@@ -160,7 +159,6 @@ export const adminUserManagePage = (
   String(
     <Layout title={`${t("terms.users")}: ${user.username}`}>
       <AdminNav active="/admin/users" session={session} />
-      <UsersSubNav />
       <h1>{user.username}</h1>
       <Flash error={opts.error} success={opts.success} />
 

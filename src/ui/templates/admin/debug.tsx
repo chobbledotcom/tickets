@@ -6,7 +6,7 @@ import { t } from "#i18n";
 import { formatLimitValue, type LIMIT_ENTRIES } from "#shared/limits.ts";
 import type { RuntimeInfo } from "#shared/runtime.ts";
 import type { AdminSession, Theme } from "#shared/types.ts";
-import { AdminNav, SettingsSubNav } from "#templates/admin/nav.tsx";
+import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 export type DebugPageState = {
@@ -668,8 +668,6 @@ export const adminDebugPage = (
   String(
     <Layout theme={s.theme} title={t("debug.title")}>
       <AdminNav active="/admin/settings" session={session} />
-      <SettingsSubNav />
-
       <div class="prose">
         <h1>{t("debug.heading")}</h1>
         <p>{t("debug.description")}</p>
