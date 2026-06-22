@@ -36,10 +36,37 @@ const refundedFromLedger = (attendeeIdExpr: string): string =>
   `(SELECT EXISTS(SELECT 1 FROM transfers WHERE kind = 'refund_cash'` +
   ` AND source_type = 'attendee' AND source_id = CAST(${attendeeIdExpr} AS TEXT))) AS refunded`;
 
+/**
+ * Per-row amount paid, projected from the ledger instead of a stored column: the
+ * gross `sale` leg this booking row recognised — `kind='sale'`, billed from the
+ * attendee to the listing's revenue account, within the row's stored
+ * `ledger_event_group` (so an attendee holding several orders for one listing
+ * resolves to exactly this booking's leg). A site has one currency, so amounts
+ * sum directly. Equals the dropped `price_paid` column for a fully-paid booking
+ * (every production booking) and stays put after a refund (the reversal is a
+ * separate `refund_*` leg). 0 when the row has no sale leg — a free or
+ * provider-less-owed booking, or an unmatched LEFT JOIN row (NULL ids/group match
+ * nothing). `eventGroupExpr` is the row's `ledger_event_group` column.
+ */
+export const pricePaidFromLedger = (
+  attendeeIdExpr: string,
+  listingIdExpr: string,
+  eventGroupExpr: string,
+): string =>
+  `(SELECT COALESCE(SUM(amount), 0) FROM transfers
+     WHERE kind = 'sale'
+       AND source_type = 'attendee' AND source_id = CAST(${attendeeIdExpr} AS TEXT)
+       AND dest_type = 'revenue' AND dest_id = CAST(${listingIdExpr} AS TEXT)
+       AND event_group = ${eventGroupExpr}) AS price_paid`;
+
 /** Columns sourced from listing_attendees (per-listing data) */
 const EA_COLS = `ea.listing_id, SUBSTR(ea.start_at, 1, 10) as date, SUBSTR(ea.end_at, 1, 10) as end_date, ea.quantity, ea.checked_in, ${refundedFromLedger(
   "ea.attendee_id",
-)}, ea.price_paid, ea.attachment_downloads`;
+)}, ${pricePaidFromLedger(
+  "ea.attendee_id",
+  "ea.listing_id",
+  "ea.ledger_event_group",
+)}, ea.attachment_downloads`;
 
 /** SELECT clause for attendee + listing_attendees JOINs (INNER JOIN context).
  * Derives `date` from start_at for the Attendee type shape. */
@@ -50,7 +77,11 @@ export const ATTENDEE_JOIN_SELECT = `${ATTENDEE_COLS}, ${EA_COLS}`;
  * (with listing_id=0 as an obvious corruption indicator). */
 export const ATTENDEE_LEFT_JOIN_SELECT = `${ATTENDEE_COLS}, COALESCE(ea.listing_id, 0) as listing_id, SUBSTR(ea.start_at, 1, 10) as date, SUBSTR(ea.end_at, 1, 10) as end_date, COALESCE(ea.quantity, 0) as quantity, COALESCE(ea.checked_in, 0) as checked_in, ${refundedFromLedger(
   "ea.attendee_id",
-)}, COALESCE(ea.price_paid, 0) as price_paid, COALESCE(ea.attachment_downloads, 0) as attachment_downloads`;
+)}, ${pricePaidFromLedger(
+  "ea.attendee_id",
+  "ea.listing_id",
+  "ea.ledger_event_group",
+)}, COALESCE(ea.attachment_downloads, 0) as attachment_downloads`;
 
 /**
  * Columns for a `ListingAttendeeRow` read straight from `listing_attendees`
@@ -60,7 +91,11 @@ export const ATTENDEE_LEFT_JOIN_SELECT = `${ATTENDEE_COLS}, COALESCE(ea.listing_
  */
 export const LISTING_ATTENDEE_ROW_COLS = `listing_id, start_at, end_at, quantity, checked_in, ${refundedFromLedger(
   "attendee_id",
-)}, price_paid, ledger_event_group, attachment_downloads`;
+)}, ${pricePaidFromLedger(
+  "attendee_id",
+  "listing_id",
+  "ledger_event_group",
+)}, ledger_event_group, attachment_downloads`;
 
 /**
  * Get attendees for an listing without decrypting PII

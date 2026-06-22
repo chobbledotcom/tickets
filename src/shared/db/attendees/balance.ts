@@ -12,6 +12,7 @@ import { decrypt } from "#shared/crypto/encryption.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getPaidDefaultStatus } from "#shared/db/attendee-statuses.ts";
+import { pricePaidFromLedger } from "#shared/db/attendees/queries.ts";
 import {
   executeBatchWithResults,
   queryAll,
@@ -77,7 +78,11 @@ const getAttendeeOrderRows = (attendeeId: number): Promise<OrderRow[]> =>
   queryAll<OrderRow>(
     `SELECT listingAttendee.listing_id,
             listingAttendee.quantity,
-            listingAttendee.price_paid,
+            ${pricePaidFromLedger(
+              "listingAttendee.attendee_id",
+              "listingAttendee.listing_id",
+              "listingAttendee.ledger_event_group",
+            )},
             listing.name AS listing_name,
             listing.unit_price AS listing_unit_price
        FROM listing_attendees AS listingAttendee

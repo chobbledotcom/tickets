@@ -1,6 +1,7 @@
 import { afterEach, beforeEach } from "@std/testing/bdd";
 import { mapBooking, mapRefund } from "#shared/accounting/mappers.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
+import { getDb } from "#shared/db/client.ts";
 import { account } from "#shared/ledger/account.ts";
 import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
 import { setupTransactionalTestDb } from "#test-utils";
@@ -61,7 +62,9 @@ const oneListingBookingLegs = ({
  * reads (`SUM(amount)` of gross credits to that revenue account). Use this in
  * place of the removed `price_paid`-driven income: a `listing_attendees` row no
  * longer contributes to income on its own. `amountPaid` defaults to `gross`
- * (paid in full, so the attendee account nets to zero).
+ * (paid in full, so the attendee account nets to zero). Mirrors production by
+ * stamping the booking row's `ledger_event_group`, so the per-row amount-paid
+ * projection resolves this sale leg.
  */
 export const postListingSale = async ({
   listingId,
@@ -76,15 +79,18 @@ export const postListingSale = async ({
   amountPaid?: number;
   eventId?: string;
 }): Promise<void> => {
-  await postTransfers(
-    await oneListingBookingLegs({
-      amountPaid,
-      attendeeId,
-      eventId,
-      gross,
-      listingId,
-    }),
-  );
+  const legs = await oneListingBookingLegs({
+    amountPaid,
+    attendeeId,
+    eventId,
+    gross,
+    listingId,
+  });
+  await postTransfers(legs);
+  await getDb().execute({
+    args: [legs[0]!.eventGroup, attendeeId, listingId],
+    sql: "UPDATE listing_attendees SET ledger_event_group = ? WHERE attendee_id = ? AND listing_id = ?",
+  });
 };
 
 /**
