@@ -12,7 +12,6 @@ import { notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { isListingParentsEnabled } from "#shared/config.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { getListingsByGroupId } from "#shared/db/groups.ts";
 import {
   getChildIds,
   getParentIds,
@@ -55,17 +54,6 @@ export const loadListingParentsSection = async (
   };
 };
 
-/** The page listing ids a rendered parent would expose for add-on reachability:
- * the parent itself plus, when it belongs to a group, that group's listings —
- * mirroring the booking page's `getOptionalAddOns(pageListingIds)` set. */
-const parentPageListingIds = async (
-  parent: ListingWithCount,
-): Promise<number[]> => {
-  if (parent.group_id === 0) return [parent.id];
-  const siblings = await getListingsByGroupId(parent.group_id);
-  return [parent.id, ...siblings.map((sibling) => sibling.id)];
-};
-
 /**
  * Reject a parent→children edge set that the inherited-date booking model or the
  * v1 add-on scoping can't honour, returning a user-facing error (or null when
@@ -91,7 +79,10 @@ const childEdgeError = async (
       name: parent.name,
     });
   }
-  const pageIds = await parentPageListingIds(parent);
+  // The parent's own direct booking page loads add-ons from ONLY its own
+  // listing id (`getTicketContext` → `getOptionalAddOns([parent.id])`), never
+  // its group siblings, so reachability is checked against just `[parent.id]`.
+  const pageIds = [parent.id];
   for (const { listing, isParent } of children) {
     if (isParent) {
       return t("listings_table.children_err_child_is_parent", {

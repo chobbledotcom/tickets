@@ -9,6 +9,7 @@
  */
 
 import { unique } from "#fp";
+import { t } from "#i18n";
 import { itemsSubtotal } from "#shared/booking-fee.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { formatCurrency, toMinorUnits } from "#shared/currency.ts";
@@ -29,7 +30,7 @@ import type {
   ModifierRef,
   ModifierSpec,
 } from "#shared/payments.ts";
-import { normalizeCode } from "#shared/price-modifier.ts";
+import { type ModifierTrigger, normalizeCode } from "#shared/price-modifier.ts";
 import type { Modifier } from "#shared/types.ts";
 
 /** The signed pricing value the engine applies, from a modifier's stored
@@ -170,6 +171,34 @@ const scopeReachesPage = (
   scope: number[] | null,
   pageIds: Set<number>,
 ): boolean => scope === null || scope.some((id) => pageIds.has(id));
+
+/**
+ * The single reachability test shared by both child-scoped-add-on hard blocks
+ * (the parent's edge save and a modifier's own scope/trigger save), so they can
+ * never diverge. An opt-in add-on is a dead end exactly when its resolved scope
+ * is a **listing set** (a whole-order scope, `null`, is reachable everywhere)
+ * that **names at least one suppressed child** yet **does not reach any of the
+ * pages that would actually load it** — so no direct `/ticket/<listing>` page
+ * (which loads add-ons from only that listing's own id) and no group page can
+ * ever offer it.
+ *
+ * Callers supply the two id sets that define "reachable" from their own side:
+ * - the **edge save** treats the new child as the only `suppressed` id and the
+ *   parent's own page id as the only `reachable` one;
+ * - the **modifier save** treats every existing child as `suppressed` and every
+ *   non-child listing as `reachable` (each has its own bookable page).
+ */
+const scopeIsChildDeadEnd = (
+  scope: number[] | null,
+  suppressed: Set<number>,
+  reachable: Set<number>,
+): boolean => {
+  if (scope === null) return false;
+  return (
+    scope.some((id) => suppressed.has(id)) &&
+    !scopeReachesPage(scope, reachable)
+  );
+};
 
 /**
  * Total quantity each "answer"-triggered modifier is requested for, respecting
@@ -422,37 +451,74 @@ export const getOptionalAddOns = async (
 
 /**
  * The name of an active opt-in add-on that would become **unreachable** if
- * `childId` were made a child of a parent rendered with `parentPageListingIds`
- * (the parent itself plus, on a group page, its group siblings), or null when
- * none would.
+ * `childId` were made a child of a parent whose own booking page loads add-ons
+ * from `parentPageListingIds`, or null when none would.
+ *
+ * A direct `/ticket/<parent>` page loads add-ons from **only the parent's own
+ * listing id** (`getTicketContext` → `getOptionalAddOns([parent.id])`), never
+ * its group siblings — a sibling-scoped modifier loads only on that sibling's
+ * own page/group page. So `parentPageListingIds` is the parent's *actual* page
+ * id set (`[parent.id]`), not the wider group: an add-on scoped to
+ * {child, parent-sibling} but not the parent is a dead end the direct parent
+ * page can't reach, and must block.
  *
  * v1 doesn't support child-scoped add-ons: a child is never one of a parent
- * page's listing ids, so the booking page's `getOptionalAddOns(pageListingIds)`
- * never loads an add-on whose entire reachable scope is suppressed children.
- * The test is **reachability**, not "the child appears in the scope": an add-on
- * scoped to the child *and also* to the parent (or to a group containing the
- * parent) still loads via the parent's page ids and must NOT block the edge.
- *
- * So an add-on blocks only when its resolved scope (a) is a listing set (a
- * whole-order add-on is reachable everywhere) that (b) includes `childId` yet
- * (c) shares nothing with the parent's page ids. (See parents.md, the
- * "Optional add-ons" fold-checklist bullet.)
+ * page's listing ids, so `getOptionalAddOns(pageListingIds)` never loads an
+ * add-on whose entire reachable scope is suppressed children. The test is
+ * **reachability**, not "the child appears in the scope": an add-on scoped to
+ * the child *and also* to the parent (or to a group containing the parent) still
+ * loads via the parent's page ids and must NOT block the edge. (See parents.md,
+ * the "Optional add-ons" fold-checklist bullet.)
  */
 export const childOnlyAddOnName = async (
   childId: number,
   parentPageListingIds: readonly number[],
 ): Promise<string | null> => {
   const { optional, scopes } = await optionalAddOnsWithScopes();
-  const pageIds = new Set(parentPageListingIds);
-  const blocking = optional.find((modifier) => {
-    const listingIds = scopes.get(modifier.id)!;
-    // Reachable only through the child: child in scope, but the parent's page
-    // ids (which the booking page would actually load add-ons for) are not.
-    return (
-      listingIds?.includes(childId) && !scopeReachesPage(listingIds, pageIds)
-    );
-  });
+  const suppressed = new Set([childId]);
+  const reachable = new Set(parentPageListingIds);
+  const blocking = optional.find((modifier) =>
+    scopeIsChildDeadEnd(scopes.get(modifier.id)!, suppressed, reachable),
+  );
   return blocking?.name ?? null;
+};
+
+/** The post-save shape of an opt-in add-on whose child-reachability must hold:
+ * its trigger/active state and its **already-resolved** listing scope (null =
+ * whole order; for a group scope, every listing in the linked groups). */
+export type AddOnReachabilityCheck = {
+  active: boolean;
+  trigger: ModifierTrigger;
+  name: string;
+  scope: number[] | null;
+};
+
+/**
+ * The error to show when saving an opt-in add-on (created, or its
+ * scope/trigger/active edited) would leave it reachable **only** through a
+ * suppressed child listing — the modifier-side mirror of {@link childOnlyAddOnName},
+ * sharing one reachability core ({@link scopeIsChildDeadEnd}) so the edge-save
+ * and modifier-save blocks can't drift, or null when the save is allowed.
+ *
+ * Only an **active, opt-in** add-on is gated: an inactive or non-`optional`
+ * modifier never loads on a booking page, so it can't dead-end. The resolved
+ * scope is treated as reachable from every **non-child** listing (each has its
+ * own bookable page/group page that loads it) and a dead end only when it names
+ * a child but no non-child listing.
+ */
+export const childUnreachableAddOnError = (
+  candidate: AddOnReachabilityCheck,
+  childListingIds: Set<number>,
+  nonChildListingIds: Set<number>,
+): string | null => {
+  if (!candidate.active || candidate.trigger !== "optional") return null;
+  return scopeIsChildDeadEnd(
+    candidate.scope,
+    childListingIds,
+    nonChildListingIds,
+  )
+    ? t("modifiers.err_child_only_addon", { name: candidate.name })
+    : null;
 };
 
 /**

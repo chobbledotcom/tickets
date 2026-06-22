@@ -493,6 +493,25 @@ describeWithEnv(
       await postChildren(parent.id, [child.id]);
       expect(await getChildIds(parent.id)).toEqual([child.id]);
     });
+
+    test("blocks a child whose add-on is reachable only via a parent's group sibling", async () => {
+      // The direct /ticket/<parent> page loads add-ons from only the parent's
+      // own id, never its group siblings — so an add-on scoped to {child,
+      // sibling} but not the parent is a dead end and the edge must be blocked.
+      const group = await createTestGroup({ name: "Bundle" });
+      const parent = await createTestListing({
+        groupId: group.id,
+        name: "Base unit",
+      });
+      const sibling = await createTestListing({
+        groupId: group.id,
+        name: "Sibling",
+      });
+      const child = await createTestListing({ name: "Add-on" });
+      await optInAddOnForListings("Sibling-only extra", [sibling.id, child.id]);
+      await postChildren(parent.id, [child.id]);
+      expect(await getChildIds(parent.id)).toEqual([]);
+    });
   },
 );
 

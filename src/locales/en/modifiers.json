@@ -31,6 +31,7 @@
   "modifiers.scope.groups_heading": "Linked groups",
   "modifiers.scope.none": "Nothing available to link yet.",
   "modifiers.scope.save": "Save scope",
+  "modifiers.err_child_only_addon": "'{name}' is an opt-in add-on reachable only through a required child listing, so no booking page would offer it — scope it to the parent (or another bookable listing), or remove it as a child, before saving.",
   "modifiers.answers.heading": "Linked answers",
   "modifiers.answers.hint": "This modifier applies when a buyer selects any of the ticked answers.",
   "modifiers.answers.none": "No question answers to link yet.",

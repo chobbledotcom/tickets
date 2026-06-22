@@ -1,10 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { t } from "#i18n";
 import { handleRequest } from "#routes";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import { getDb } from "#shared/db/client.ts";
+import { setChildIds } from "#shared/db/listing-parents.ts";
 import {
   getAllModifiers,
   getModifierAnswerIds,
@@ -28,6 +30,9 @@ import {
   expectHtmlResponse,
   expectStatus,
   followRedirectWithFlash,
+  insertModifier,
+  linkModifierListing,
+  patchModifier,
   testRequiresAuth,
 } from "#test-utils";
 
@@ -822,3 +827,215 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
     });
   });
 });
+
+describeWithEnv(
+  "server (admin modifiers) > child-only add-on guard (parents on)",
+  { db: true, env: { LISTING_PARENTS_ENABLED: "true" } },
+  () => {
+    /** An active opt-in, listings-scoped add-on with no links yet. */
+    const optInAddOn = async (name: string): Promise<Modifier> => {
+      const modifier = await insertModifier({ name });
+      await patchModifier(modifier.id, {
+        active: 1,
+        scope: "listings",
+        trigger: "optional",
+      });
+      return modifier;
+    };
+
+    test("allows creating a whole-order opt-in add-on (reachable everywhere)", async () => {
+      // A whole-order (scope "all") add-on loads on every page, so it can never
+      // be a child-only dead end — creating one with the flag on is allowed.
+      const { response } = await adminFormPost(
+        "/admin/modifiers",
+        createData({
+          calc_kind: "fixed",
+          calc_value: "5",
+          direction: "charge",
+          name: "Order extra",
+          trigger: "optional",
+        }),
+      );
+      await expectFlashRedirect(
+        "/admin/modifiers",
+        "Modifier created",
+        true,
+      )(response);
+      expect((await lastModifier()).trigger).toBe("optional");
+    });
+
+    test("blocks scoping an opt-in add-on to only a child via the links form", async () => {
+      const parent = await createTestListing({ name: "Base unit" });
+      const child = await createTestListing({ name: "Add-on" });
+      await setChildIds(parent.id, [child.id]);
+      const modifier = await optInAddOn("Child-only extra");
+      const { response } = await adminFormPost(
+        `/admin/modifiers/${modifier.id}/links`,
+        { listing_ids: String(child.id) },
+      );
+      await expectFlashRedirect(
+        `/admin/modifiers/${modifier.id}/edit`,
+        t("modifiers.err_child_only_addon", { name: "Child-only extra" }),
+        false,
+      )(response);
+      expect(await getModifierListingIds(modifier.id)).toEqual([]);
+    });
+
+    test("blocks flipping a child-scoped modifier to an opt-in add-on on edit", async () => {
+      const parent = await createTestListing({ name: "Base unit" });
+      const child = await createTestListing({ name: "Add-on" });
+      await setChildIds(parent.id, [child.id]);
+      const modifier = await insertModifier({ name: "Becomes add-on" });
+      await patchModifier(modifier.id, { scope: "listings" });
+      await linkModifierListing(modifier.id, child.id);
+      const { response } = await adminFormPost(
+        `/admin/modifiers/${modifier.id}/edit`,
+        createData({
+          calc_kind: "fixed",
+          calc_value: "5",
+          direction: "charge",
+          name: "Becomes add-on",
+          scope: "listings",
+          trigger: "optional",
+        }),
+      );
+      await expectFlashRedirect(
+        `/admin/modifiers/${modifier.id}/edit`,
+        t("modifiers.err_child_only_addon", { name: "Becomes add-on" }),
+        false,
+      )(response);
+      expect((await modifiersTable.findById(modifier.id))!.trigger).toBe(
+        "automatic",
+      );
+    });
+
+    test("allows flipping a {child, parent}-scoped modifier to an opt-in add-on", async () => {
+      const parent = await createTestListing({ name: "Base unit" });
+      const child = await createTestListing({ name: "Add-on" });
+      await setChildIds(parent.id, [child.id]);
+      const modifier = await insertModifier({ name: "Shared add-on" });
+      await patchModifier(modifier.id, { scope: "listings" });
+      // Scoped to both the parent (a reachable page) and the child: not a dead
+      // end, so flipping it to an opt-in add-on is allowed.
+      await linkModifierListing(modifier.id, parent.id);
+      await linkModifierListing(modifier.id, child.id);
+      const { response } = await adminFormPost(
+        `/admin/modifiers/${modifier.id}/edit`,
+        createData({
+          calc_kind: "fixed",
+          calc_value: "5",
+          direction: "charge",
+          name: "Shared add-on",
+          scope: "listings",
+          trigger: "optional",
+        }),
+      );
+      await expectFlashRedirect(
+        "/admin/modifiers",
+        "Modifier updated",
+        true,
+      )(response);
+      expect((await modifiersTable.findById(modifier.id))!.trigger).toBe(
+        "optional",
+      );
+    });
+
+    test("blocks scoping an opt-in add-on to a group of only children", async () => {
+      const group = await createTestGroup({ name: "Add-ons" });
+      const parent = await createTestListing({ name: "Base unit" });
+      const child = await createTestListing({
+        groupId: group.id,
+        name: "Add-on",
+      });
+      await setChildIds(parent.id, [child.id]);
+      const modifier = await insertModifier({ name: "Group child extra" });
+      await patchModifier(modifier.id, {
+        active: 1,
+        scope: "groups",
+        trigger: "optional",
+      });
+      const { response } = await adminFormPost(
+        `/admin/modifiers/${modifier.id}/links`,
+        { group_ids: String(group.id) },
+      );
+      await expectFlashRedirect(
+        `/admin/modifiers/${modifier.id}/edit`,
+        t("modifiers.err_child_only_addon", { name: "Group child extra" }),
+        false,
+      )(response);
+      expect(await getModifierGroupIds(modifier.id)).toEqual([]);
+    });
+
+    test("allows scoping a non-opt-in modifier to only a child (not an add-on)", async () => {
+      const parent = await createTestListing({ name: "Base unit" });
+      const child = await createTestListing({ name: "Add-on" });
+      await setChildIds(parent.id, [child.id]);
+      // An automatic surcharge is never offered as an opt-in add-on, so it can
+      // be scoped to a child without dead-ending.
+      const modifier = await insertModifier({ name: "Auto surcharge" });
+      await patchModifier(modifier.id, { active: 1, scope: "listings" });
+      const { response } = await adminFormPost(
+        `/admin/modifiers/${modifier.id}/links`,
+        { listing_ids: String(child.id) },
+      );
+      await expectFlashRedirect(
+        `/admin/modifiers/${modifier.id}/edit`,
+        "Scope updated",
+        true,
+      )(response);
+      expect(await getModifierListingIds(modifier.id)).toEqual([child.id]);
+    });
+
+    test("allows an inactive child-scoped opt-in add-on (never loads on a page)", async () => {
+      const parent = await createTestListing({ name: "Base unit" });
+      const child = await createTestListing({ name: "Add-on" });
+      await setChildIds(parent.id, [child.id]);
+      const modifier = await insertModifier({ name: "Inactive extra" });
+      // An inactive *opt-in* add-on: the trigger would dead-end if it were
+      // active, but an inactive modifier never loads, so the save is allowed.
+      await patchModifier(modifier.id, {
+        active: 0,
+        scope: "listings",
+        trigger: "optional",
+      });
+      const { response } = await adminFormPost(
+        `/admin/modifiers/${modifier.id}/links`,
+        { listing_ids: String(child.id) },
+      );
+      await expectFlashRedirect(
+        `/admin/modifiers/${modifier.id}/edit`,
+        "Scope updated",
+        true,
+      )(response);
+      expect(await getModifierListingIds(modifier.id)).toEqual([child.id]);
+    });
+  },
+);
+
+describeWithEnv(
+  "server (admin modifiers) > child-only add-on guard (parents off)",
+  { db: true },
+  () => {
+    test("allows scoping an opt-in add-on to only a child when the flag is off", async () => {
+      const parent = await createTestListing({ name: "Base unit" });
+      const child = await createTestListing({ name: "Add-on" });
+      await setChildIds(parent.id, [child.id]);
+      const modifier = await insertModifier({ name: "Child-only extra" });
+      await patchModifier(modifier.id, {
+        active: 1,
+        scope: "listings",
+        trigger: "optional",
+      });
+      const { response } = await adminFormPost(
+        `/admin/modifiers/${modifier.id}/links`,
+        { listing_ids: String(child.id) },
+      );
+      await expectFlashRedirect(
+        `/admin/modifiers/${modifier.id}/edit`,
+        "Scope updated",
+        true,
+      )(response);
+      expect(await getModifierListingIds(modifier.id)).toEqual([child.id]);
+    });
+  },
+);
