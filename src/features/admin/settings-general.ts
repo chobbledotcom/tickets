@@ -16,7 +16,6 @@ import { validateColumnTemplate } from "#shared/column-order.ts";
 import { ATTENDEE_TABLE_COLUMNS } from "#shared/columns/attendee-columns.ts";
 import { LISTING_TABLE_COLUMNS } from "#shared/columns/listing-columns.ts";
 import { clearSessionCookie } from "#shared/cookies.ts";
-import { isValidCountry } from "#shared/countries.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import { resetDatabase } from "#shared/db/migrations.ts";
@@ -94,21 +93,6 @@ export const handleTermsPost = settingsHandler({
     v.length > MAX_TEXTAREA_LENGTH
       ? `Terms must be ${MAX_TEXTAREA_LENGTH} characters or fewer (currently ${v.length})`
       : null,
-});
-
-/** Handle POST /admin/settings/country - owner only */
-export const handleCountryPost = settingsHandler({
-  extract: (form) => form.getString("country").toUpperCase(),
-  formId: "settings-country",
-  label: "Country",
-  log: (v) => `Country set to ${v}`,
-  save: (v) => settings.update.country(v),
-  validate: (v) =>
-    v === ""
-      ? t("error.country_required")
-      : !isValidCountry(v)
-        ? t("error.country_invalid")
-        : null,
 });
 
 /** Handle POST /admin/settings/business-email - owner only */
