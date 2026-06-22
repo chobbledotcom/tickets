@@ -2,12 +2,22 @@
 
 ## Status
 
-**Phase 0 is built and shipped:** the pure, context-free ledger library lives in
-[`src/shared/ledger/`](src/shared/ledger/) with 100% branch+line coverage. **That
-code is the source of truth for the model.** This document deliberately carries no
-pseudocode — only the decisions, the account chart, and the Phase-1 constraints
-checklist (every accepted review finding distilled into something implementable).
-When code and prose disagree, the code wins; update this doc to match.
+**The `transfers` ledger is the single source of truth for money and balances.**
+Every figure — income, outstanding balance, amount paid, refund totals, modifier
+revenue — is a `SUM` projection over `transfers`. There is **no parallel money
+state and no fallback path**: the denormalised money columns and their triggers
+(`listing_attendees.price_paid`, `attendees.remaining_balance`, `listings.income`,
+`modifiers.total_revenue`, the per-row `refunded` flag, and the money columns on
+`modifier_usages`) are **deleted** as part of this work, not kept for backwards
+compatibility (§8).
+
+**Built so far:** the pure, context-free ledger library in
+[`src/shared/ledger/`](src/shared/ledger/) (100% covered) and the `transfers`
+table; new money events dual-write to the ledger (bookings, balance settlement,
+refunds). **Remaining:** the merge repoint and balance adjustments, a one-shot
+backfill of all history, repointing every read onto the ledger, and dropping the
+columns (§7). **The code is the source of truth for the model**; when code and
+prose disagree, the code wins and this doc is updated to match.
 
 ---
 
@@ -17,9 +27,10 @@ When code and prose disagree, the code wins; update this doc to match.
 
 - **One source of truth for money.** Every penny in or out is one immutable,
   timestamped row moving a positive `amount` from one account to another.
-- **Balances are derived, never stored.** Income, outstanding balance, refund
-  totals, amount-paid, modifier revenue — all become `SUM` over the ledger; the
-  denormalised money columns and their triggers are retired (§8).
+- **Balances are derived, never stored — and never duplicated.** Income,
+  outstanding balance, refund totals, amount-paid, modifier revenue are all `SUM`
+  over the ledger. The denormalised money columns and their triggers are
+  **deleted** (§8); nothing reads them and there is no fallback path.
 - **A pure, unit-testable library** with zero knowledge of tickets, attendees, or
   Stripe.
 - **The financial record outlives the people in it.** Erasing an attendee must
@@ -103,11 +114,12 @@ inputs. 100% covered.
 | `reverse.ts` | `reverseOf` — the exact inverse for admin void/correction (not refunds). |
 | `reconcile.ts` | Non-tautological checks: `reconcileExternal` (vs a provider-reported balance) and `reconcileLegs` (observed leg *fingerprints* — kind, accounts, amount, currency — per event vs source-record expectations). |
 
-**Not yet built — lands in Phase 1 (persistence boundary, integration-tested):**
-the SQL statement descriptors (`statements.ts`: idempotent insert + the
-guarded compare-and-post inserts) and the `LedgerStore` port + adapter
-(`ports.ts`/`store.ts`). They were intentionally deferred from Phase 0 because
-their correctness is only meaningful against a real database.
+**Built — the host glue in `src/shared/accounting/` (persistence + mapping,
+integration-tested):** the chart of accounts (`accounts.ts`), opaque HMAC
+references (`refs.ts`), event mappers (`mappers.ts`: `mapBooking`, `mapRefund`),
+the SQL row plumbing and guarded compare-and-post inserts (`rows.ts`), the
+idempotent write path with replay/reversal conflict checks (`store.ts`,
+`conflicts.ts`), and the balance read queries (`queries.ts`).
 
 ---
 
@@ -137,21 +149,25 @@ their correctness is only meaningful against a real database.
 12. **`modifier_usages` stays as a stock ledger** (money stripped).
 13. **`Σ balance == 0` is a sanity check only**; reconcile against provider
     balances and per-event leg kinds.
-14. **Corrections are the default**; a destructive edit exists on
-    `/admin/accounting` but warns and steers to an attendee-ledger adjustment;
-    sensitive-content edits **log redacted**, never the raw value.
+14. **Balance changes are ledger adjustments.** With `remaining_balance` gone, an
+    admin changing what an attendee owes posts an `adjustment` leg (attendee ↔
+    `writeoff`) instead of editing a column; corrections are appended, never
+    destructive. Sensitive-content edits **log redacted**, never the raw value.
 15. **One shared ledger renderer** for the historical list, the account
     statement, and the edit-attendee page.
 16. **Carts are all-or-nothing** (via `ensureAllBookings`); order legs ride the
     create batch under one `eventGroup`, deleted as a group on rollback.
-17. **Attendee merge re-points the receivable account** — the only sanctioned
-    mutation of account ids, confined to the merge batch and logged.
+17. **Attendee merge rewrites the source's ledger rows to the target attendee
+    id** — the only sanctioned mutation of account ids, done inside the merge
+    batch and logged. Every source leg moves wholesale onto the target (both
+    records' real payments legitimately follow the person), so no money is
+    stranded on the deleted source.
 18. **A memo that could carry PII is owner-key encrypted by the host** before
     persisting; the ledger treats it as an opaque string and never logs it.
 
 ---
 
-## 6. Phase-1 constraints checklist
+## 6. Constraints checklist
 
 Every accepted review finding, distilled. Each must be satisfied (in code, with
 tests) before the corresponding path goes live.
@@ -240,41 +256,57 @@ tests) before the corresponding path goes live.
 - [ ] Reconciliation stays non-tautological (external balance + source-driven leg
   **kinds**).
 
-### Backfill (each needs an explicit unrecoverable / manual-review path)
+### Backfill (mandatory — no column survives to fall back to)
 
-- [ ] Historical **booking-fee** income is not reconstructable from `price_paid`
-  (the fee was a provider extras line) → mark unrecoverable or derive from a real
-  stored amount.
-- [ ] **Open-reservation gross** is not reconstructable (`price_paid` = deposit;
-  `remaining_balance` is order-level) → best-effort / manual review.
-- [ ] **Multi-listing shared-payment refunds** aren't reconstructable from
-  per-listing `refunded` flags → order-level recovery or manual review.
-- [ ] **Modifier direction** (discount vs surcharge) isn't reliable from
-  `amount_applied` alone → needs an immutable signed delta going forward.
-- [ ] Backfill **parity oracles** must compare against the right historical
-  aggregate (gross `SUM(price_paid)` before refund legs; account for refunded
-  rows; exclude open reservations whose `price_paid` is only a deposit).
+The columns are deleted, so the backfill's output *becomes* the historical record.
+Reconstruct each booking from the row being retired, idempotently (same reference
+keys as the live mappers), in a transaction per booking group:
 
----
-
-## 7. Phasing
-
-- **Phase 0 — ✅ library + table, zero behaviour change.** Pure library shipped;
-  the `transfers` table is the remaining Phase-0 schema step.
-- **Phase 1 — persistence + dual-write.** Statement descriptors + `LedgerStore`
-  adapter + chart/refs + event mappers; the prerequisite paid-finalize refactor;
-  dual-write new money events to the ledger; backfill history (with the caveats
-  above). Satisfy the §6 checklist with integration tests.
-- **Phase 2 — migrate reads to the ledger;** add the reports and the one shared
-  admin renderer.
-- **Phase 3 — retire** every redundant money column and trigger (§8); reads come
-  only from the ledger.
+- [ ] **Gross sale** = `price_paid + remaining_balance` posted `attendee → revenue`;
+  **payment** = `price_paid` posted `world → attendee`; the remainder stays owed.
+  This reproduces today's amount-paid and outstanding-balance exactly, and
+  recognises an open reservation's gross at sale (income rises from deposit to full
+  price — decision 2).
+- [ ] **Refunded rows** post the reversal of their booking group plus a
+  `refund_cash`, matching the live refund mapping.
+- [ ] **Accepted simplification for history:** historical bookings get no separate
+  `fee`/`modifier` legs — the booking fee and net modifier effect fold into the
+  reconstructed gross, because neither is reliably recoverable per order. Going
+  forward, dual-write records them as their own legs.
+- [ ] **Reconcile before dropping columns:** the backfilled ledger's `SUM`
+  projections must match the pre-migration `SUM(price_paid)` (amount paid),
+  `SUM(remaining_balance)` (outstanding), and refunded totals; a mismatch blocks the
+  drop.
 
 ---
 
-## 8. What this retires (eventually)
+## 7. Delivery
 
-The denormalised money state the ledger replaces: stored `price_paid`,
-`remaining_balance`, `modifiers.total_revenue`, the `listings.income` trigger, and
-the per-row `refunded` money semantics — all become `SUM` projections over
-`transfers`. (`modifier_usages` survives as a non-money stock ledger.)
+The end state is ledger-only; there is no lingering dual-source window. The
+remaining steps ship together:
+
+1. **Dual-write** every money event — booking, balance settlement, refund (done);
+   attendee-merge repoint and admin balance adjustments (remaining).
+2. **Backfill** all existing bookings into the ledger (§6), reconciled against the
+   pre-migration column totals.
+3. **Repoint every read** onto ledger `SUM`s — amount paid, outstanding balance,
+   listing income, refund status, modifier revenue, dashboards, exports, reports —
+   behind the one shared renderer (§5.15).
+4. **Delete** the money columns, their triggers, and their now-dead write paths
+   (§8).
+
+---
+
+## 8. What this deletes
+
+Removed outright — no compatibility shim — once every read is on the ledger:
+
+- `listing_attendees.price_paid`
+- `attendees.remaining_balance`
+- `listings.income` and its maintaining trigger
+- `modifiers.total_revenue` and its maintaining trigger
+- the per-row `refunded` money flag on `listing_attendees`
+- the money columns on `modifier_usages` (the table survives as a non-money stock
+  ledger)
+
+Each becomes a `SUM` projection over `transfers`.
