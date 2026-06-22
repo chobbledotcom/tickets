@@ -5,8 +5,9 @@
  * the ledger mirrors it by reversing exactly the booking order's stored legs
  * (see {@link mapRefund}). It only auto-reverses when the refund maps cleanly:
  * the attendee's ledger is exactly one revenue-recognising booking group (see
- * {@link soleBookingOrder}). Pre-ledger, balance-settled, and merged accounts
- * are left for a manual adjustment rather than half- or over-reversed.
+ * {@link soleBookingOrder}) that is **paid in full**. Pre-ledger, balance-settled,
+ * merged, or still-owing accounts are left for a manual adjustment rather than
+ * half- or over-reversed.
  *
  * Posting never throws: the provider refund and the `refunded` flag have already
  * committed by the time we get here, so a ledger write must not turn a completed
@@ -18,6 +19,7 @@ import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import { mapRefund } from "#shared/accounting/mappers.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
+import { balanceOf } from "#shared/ledger/project.ts";
 import type { Transfer } from "#shared/ledger/types.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
@@ -67,10 +69,16 @@ export const recordAttendeeRefund = async (
   attendeeId: number,
 ): Promise<void> => {
   try {
-    const order = soleBookingOrder(
-      await transfersByAccount(attendeeAccount(attendeeId)),
-    );
+    const account = attendeeAccount(attendeeId);
+    const legs = await transfersByAccount(account);
+    const order = soleBookingOrder(legs);
     if (order === null) return;
+    // Only auto-reverse a fully-paid booking. If the attendee still owes (an
+    // unpaid reservation) or holds credit, this single full provider refund
+    // can't map cleanly onto the ledger: reversing the sale while the balance
+    // stays payable would let a later balance payment post against it. Such
+    // cases go to a manual adjustment instead.
+    if (balanceOf(account)(legs) !== 0) return;
     // Idempotent without a pre-check: once the refund is posted the account has
     // two event groups (booking + refund), so a re-submit fails the single-group
     // test above and skips rather than rebuilding legs with a fresh `nowIso()`.

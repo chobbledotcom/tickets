@@ -170,6 +170,19 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
     ).toBe(0);
   });
 
+  test("skips a reservation that is not paid in full", async () => {
+    // Deposit booking: 2000 paid against a 10000 sale, still owes 8000. A
+    // single deposit refund must not reverse the whole sale here.
+    await postBooking({
+      amountPaid: 2000,
+      lines: [{ gross: 10000, listingId: 1 }],
+    });
+    await recordAttendeeRefund(ATTENDEE);
+    expect(
+      refundLegsOf(await transfersByAccount(attendeeAccount(ATTENDEE))).length,
+    ).toBe(0);
+  });
+
   test("is idempotent — a second refund writes nothing", async () => {
     await postBooking();
     await recordAttendeeRefund(ATTENDEE);
