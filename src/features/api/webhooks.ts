@@ -82,7 +82,6 @@ import {
   groupListingAnswers,
   saveAttendeeAnswers,
 } from "#shared/db/questions.ts";
-import { settings } from "#shared/db/settings.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
