@@ -58,6 +58,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.commit }}
+          # The build runs the checked-out (possibly old/untrusted) commit's
+          # action; don't leave github.token in the git config for it to read.
+          persist-credentials: false
 
       # Builds the requested commit's source. No secrets are available here.
       - name: Build Bunny edge script at that commit

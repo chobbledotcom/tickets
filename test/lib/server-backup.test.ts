@@ -370,6 +370,34 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
       });
     });
 
+    test("omits the redeploy hint when the restored commit is not a full SHA", async () => {
+      await withLocalStorageEnabled(async () => {
+        // An uploaded/old backup may hold a non-SHA commit value; it must not be
+        // echoed into the flash (it's unusable by restore-deploy and could be
+        // oversized), so the message falls back to the plain confirmation.
+        setBuildCommitForTest("not-a-real-sha");
+        try {
+          await recordScriptVersion();
+          const zipData = await createBackupZip();
+          await uploadRaw(zipData, "restore-pending-badsha.zip");
+
+          const { response } = await adminFormPost(
+            "/admin/backup/restore/confirm",
+            {
+              backup_filename: "restore-pending-badsha.zip",
+              confirm_identifier: RESTORE_CONFIRM_PHRASE,
+            },
+          );
+          await expectFlashRedirect(
+            "/admin/backup",
+            "Database restored from backup",
+          )(response);
+        } finally {
+          setBuildCommitForTest(null);
+        }
+      });
+    });
+
     test("rejects filename with traversal despite valid prefix and suffix", async () => {
       await withLocalStorageEnabled(async () => {
         // Place a decoy at the traversal target — if traversal were allowed,
