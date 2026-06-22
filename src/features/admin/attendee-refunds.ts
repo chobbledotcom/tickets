@@ -148,44 +148,49 @@ const handleAdminRefundAllGet = (
         );
   });
 
-type RefundResult = "ok" | "failed" | "errored";
+type RefundOutcome = "refunded" | "failed" | "errored";
 type RefundCounts = {
   refundedCount: number;
   failedCount: number;
   errorCount: number;
 };
 
-/** Refund a single attendee, returning a typed result. */
-const refundOneAttendee = async (
+/**
+ * Attempt the provider refund for one attendee — network I/O only, no DB or
+ * ledger writes, so a batch can run these in parallel. The status + ledger
+ * writes for a success are serialised by {@link processRefundBatch}.
+ */
+const attemptProviderRefund = async (
   provider: NonNullable<Awaited<ReturnType<typeof getActivePaymentProvider>>>,
   attendee: Attendee,
   listingId: number,
-): Promise<RefundResult> => {
+): Promise<{ attendee: Attendee; outcome: RefundOutcome }> => {
   try {
     const refunded = await provider.refundPayment(attendee.payment_id);
-    if (refunded) {
-      await markRefunded(attendee.id, listingId);
-      await recordAttendeeRefund(attendee.id);
-      return "ok";
-    }
+    if (refunded) return { attendee, outcome: "refunded" };
     logError({
       code: ErrorCode.PAYMENT_REFUND,
       detail: `Admin bulk refund failed for attendee ${attendee.id}, payment ${attendee.payment_id}`,
       listingId,
     });
-    return "failed";
+    return { attendee, outcome: "failed" };
   } catch (err) {
-    const msg = String(err);
     logError({
       code: ErrorCode.PAYMENT_REFUND,
-      detail: `Admin bulk refund errored for attendee ${attendee.id}, payment ${attendee.payment_id}: ${msg}`,
+      detail: `Admin bulk refund errored for attendee ${attendee.id}, payment ${attendee.payment_id}: ${String(err)}`,
       listingId,
     });
-    return "errored";
+    return { attendee, outcome: "errored" };
   }
 };
 
-/** Process a batch of refundable attendees and tally results. */
+/**
+ * Process a batch of refundable attendees and tally results. Provider refunds in
+ * each chunk run in parallel (network I/O), but the ledger + status writes that
+ * follow a success run one at a time: concurrent ledger write transactions
+ * contend on the single SQLite writer and a post lost to a busy timeout is only
+ * logged, so serialising them keeps every refunded payment actually ledgered.
+ */
 const processRefundBatch = async (
   provider: NonNullable<Awaited<ReturnType<typeof getActivePaymentProvider>>>,
   batch: Attendee[],
@@ -198,13 +203,21 @@ const processRefundBatch = async (
     refundedCount: 0,
   };
   for (const group of chunk(REFUND_CHUNK_SIZE)(batch)) {
-    const results = await Promise.all(
-      group.map((attendee) => refundOneAttendee(provider, attendee, listingId)),
+    const attempts = await Promise.all(
+      group.map((attendee) =>
+        attemptProviderRefund(provider, attendee, listingId),
+      ),
     );
-    for (const result of results) {
-      if (result === "ok") counts.refundedCount++;
-      else if (result === "errored") counts.errorCount++;
-      else counts.failedCount++;
+    for (const { attendee, outcome } of attempts) {
+      if (outcome === "errored") {
+        counts.errorCount++;
+      } else if (outcome === "failed") {
+        counts.failedCount++;
+      } else {
+        await markRefunded(attendee.id, listingId);
+        await recordAttendeeRefund(attendee.id);
+        counts.refundedCount++;
+      }
     }
   }
   return counts;
