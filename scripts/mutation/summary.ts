@@ -90,16 +90,25 @@ const survivorLine = (result: MutantResult): string => {
 };
 
 /** The full terminal report as lines, ready for the runner to print. Pure. */
-export const formatSummaryLines = (s: Summary): string[] => [
-  bold("\nMutation testing summary"),
-  ...countRows(s).map(renderRow),
-  ...(s.survivors.length === 0
-    ? [green("\nAll mutants were detected.")]
-    : [
-        red("\nSurvivors — these mutations did not fail any test:"),
-        ...s.survivors.map(survivorLine),
-      ]),
-];
+export const formatSummaryLines = (s: Summary): string[] => {
+  if (s.total === 0) {
+    return [
+      bold("\nMutation testing summary"),
+      yellow("  No mutable operators were found — nothing to mutate."),
+      yellow("  Result is INCONCLUSIVE (a mutation score needs ≥1 mutant)."),
+    ];
+  }
+  return [
+    bold("\nMutation testing summary"),
+    ...countRows(s).map(renderRow),
+    ...(s.survivors.length === 0
+      ? [green("\nAll mutants were detected.")]
+      : [
+          red("\nSurvivors — these mutations did not fail any test:"),
+          ...s.survivors.map(survivorLine),
+        ]),
+  ];
+};
 
 // --- GitHub step summary (Markdown) --------------------------------------
 
@@ -109,6 +118,15 @@ const survivorRow = (result: MutantResult): string => {
 };
 
 const markdownSummary = (s: Summary): string => {
+  if (s.total === 0) {
+    return [
+      "## 🧬 Mutation testing",
+      "",
+      "⚠️ **Inconclusive** — no mutable operators were found, so nothing was" +
+        " mutated. A mutation score needs at least one mutant.",
+      "",
+    ].join("\n");
+  }
   const headline =
     s.survived === 0
       ? `✅ **All ${s.total} mutants detected** — score ${s.score.toFixed(1)}%`

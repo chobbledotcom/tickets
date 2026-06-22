@@ -130,11 +130,17 @@ const evaluateMutant = async (
   }
 };
 
-/** Print the report (and the CI step summary), returning the exit code. */
+/**
+ * Print the report (and the CI step summary), returning the exit code:
+ * 0 = every mutant detected, 1 = survivors, 2 = inconclusive (no mutants, so
+ * the run proved nothing — fail rather than report a vacuous 100% that would
+ * let CI go green on a module with nothing to test).
+ */
 const report = (results: MutantResult[]): number => {
   const summary = summarize(results);
   for (const line of formatSummaryLines(summary)) console.log(line);
   writeStepSummary(summary);
+  if (summary.total === 0) return 2;
   return summary.survived === 0 ? 0 : 1;
 };
 
