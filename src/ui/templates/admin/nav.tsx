@@ -36,16 +36,25 @@ interface NavItem {
   label: string;
 }
 
-/** The resolved menu for the active section: which top-level link to
- * highlight, its sub-nav items, and an optional third level nested under one of
- * them (the site editor's pages). */
+/** A third navigation level nested beneath one sub-nav item (the site editor's
+ * pages, under Settings → Site). */
+interface NestedSub {
+  /** href of the sub-item these items hang beneath (e.g. /admin/site). */
+  under: string;
+  /** Accessible name for this level's mobile nav landmark. */
+  label: string;
+  items: NavItem[];
+}
+
+/** The resolved menu for the active section: which top-level link to highlight,
+ * an accessible name for its sub-nav, its items, and an optional third level. */
 interface Section {
   /** Top-level link highlighted for this section (the page may live deeper). */
   topHref: string;
+  /** Accessible name for this section's sub-nav (mobile) landmark. */
+  label: string;
   items: NavItem[];
-  /** href of the sub-item the `nested` items hang beneath (e.g. /admin/site). */
-  nestedUnder?: string;
-  nested?: NavItem[];
+  nested?: NestedSub;
 }
 
 /** Render read-only or warning banner with optional renewal URL */
@@ -152,19 +161,29 @@ const siteSub = (): NavItem[] => [
 const resolveSection = (active: string): Section | null => {
   if (active === "/admin/calendar") {
     const items = calendarSub();
-    return items ? { items, topHref: "/admin/calendar" } : null;
+    return items
+      ? { items, label: t("nav.calendar"), topHref: "/admin/calendar" }
+      : null;
   }
   if (active === "/admin/users") {
-    return { items: usersSub(), topHref: "/admin/users" };
+    return {
+      items: usersSub(),
+      label: t("terms.users"),
+      topHref: "/admin/users",
+    };
   }
   if (active === "/admin/settings") {
-    return { items: settingsSub(), topHref: "/admin/settings" };
+    return {
+      items: settingsSub(),
+      label: t("nav.settings"),
+      topHref: "/admin/settings",
+    };
   }
   if (active === "/admin/site") {
     return {
       items: settingsSub(true),
-      nested: siteSub(),
-      nestedUnder: "/admin/site",
+      label: t("nav.settings"),
+      nested: { items: siteSub(), label: t("nav.site"), under: "/admin/site" },
       topHref: "/admin/settings",
     };
   }
@@ -194,7 +213,11 @@ const DesktopNav = ({
   highlight: string;
   section: Section | null;
 }): JSX.Element => (
-  <nav class="admin-nav admin-nav--desktop" id="main-nav">
+  <nav
+    aria-label={t("nav.admin")}
+    class="admin-nav admin-nav--desktop"
+    id="main-nav"
+  >
     <ul>
       {items.map((item) => (
         <li>
@@ -204,8 +227,10 @@ const DesktopNav = ({
               {section.items.map((sub) => (
                 <li>
                   {navAnchor(sub, "")}
-                  {section.nested && sub.href === section.nestedUnder && (
-                    <ul class="admin-subnav">{navItems(section.nested, "")}</ul>
+                  {section.nested && sub.href === section.nested.under && (
+                    <ul class="admin-subnav">
+                      {navItems(section.nested.items, "")}
+                    </ul>
                   )}
                 </li>
               ))}
@@ -217,9 +242,10 @@ const DesktopNav = ({
   </nav>
 );
 
-/** One mobile nav bar (the top-level row, or a sub-nav row beneath it). */
-const mobileBar = (lis: JSX.Element[]): JSX.Element => (
-  <nav class="admin-nav admin-nav--mobile">
+/** One mobile nav bar (the top-level row, or a sub-nav row beneath it), with an
+ * accessible name so screen-reader users can tell the stacked bars apart. */
+const mobileBar = (label: string, lis: JSX.Element[]): JSX.Element => (
+  <nav aria-label={label} class="admin-nav admin-nav--mobile">
     <ul>{lis}</ul>
   </nav>
 );
@@ -236,9 +262,10 @@ const MobileNav = ({
   section: Section | null;
 }): JSX.Element => (
   <>
-    {mobileBar(navItems(items, highlight))}
-    {section && mobileBar(navItems(section.items, ""))}
-    {section?.nested && mobileBar(navItems(section.nested, ""))}
+    {mobileBar(t("nav.admin"), navItems(items, highlight))}
+    {section && mobileBar(section.label, navItems(section.items, ""))}
+    {section?.nested &&
+      mobileBar(section.nested.label, navItems(section.nested.items, ""))}
   </>
 );
 
