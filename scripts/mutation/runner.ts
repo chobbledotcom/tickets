@@ -20,6 +20,7 @@ import {
 } from "../test-harness.ts";
 import { type AssetRebuilder, createAssetRebuilder } from "./assets.ts";
 import { applyMutant, generateMutants, type Mutant } from "./generate.ts";
+import { isIgnored, loadIgnoreList } from "./ignore.ts";
 import {
   formatSummaryLines,
   type MutantResult,
@@ -95,7 +96,9 @@ const statusGlyph = (status: Status): string =>
     ? green(".")
     : status === "timed-out"
       ? yellow("T")
-      : red("S");
+      : status === "ignored"
+        ? dim("i")
+        : red("S");
 
 /**
  * Hooks for keeping a mutated source's built client bundle(s) in sync, used
@@ -140,13 +143,14 @@ const report = (results: MutantResult[]): number => {
   const summary = summarize(results);
   for (const line of formatSummaryLines(summary)) console.log(line);
   writeStepSummary(summary);
-  if (summary.total === 0) return 2;
+  if (summary.effective === 0) return 2;
   return summary.survived === 0 ? 0 : 1;
 };
 
 interface RunMutantsOptions {
   abortSignal: AbortSignal;
   exhaustive: boolean;
+  ignoreList: Set<string>;
   isAborted: () => boolean;
   originals: Map<string, string>;
   restoreAll: () => void;
@@ -162,6 +166,7 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
   const {
     abortSignal,
     exhaustive,
+    ignoreList,
     isAborted,
     originals,
     restoreAll,
@@ -226,7 +231,7 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
       }
       for (const mutant of mutants) {
         if (isAborted()) break;
-        const status = await evaluateMutant(
+        const outcome = await evaluateMutant(
           file,
           original,
           mutant,
@@ -236,6 +241,11 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
           abortSignal,
         );
         if (isAborted()) break;
+        // A survivor recorded as known-equivalent is suppressed, not a failure.
+        const status: Status =
+          outcome === "survived" && isIgnored(ignoreList, file, mutant)
+            ? "ignored"
+            : outcome;
         results.push({ file, mutant, status });
         write(statusGlyph(status));
       }
@@ -256,6 +266,7 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
 
 const mutate = async (options: MutationOptions): Promise<number> => {
   const { exhaustive, sourceFiles, testFiles, timeout } = options;
+  const ignoreList = await loadIgnoreList();
 
   const results: MutantResult[] = [];
   const originals = new Map<string, string>();
@@ -300,6 +311,7 @@ const mutate = async (options: MutationOptions): Promise<number> => {
     return await runMutants({
       abortSignal: abortController.signal,
       exhaustive,
+      ignoreList,
       isAborted: () => aborted,
       originals,
       restoreAll,
