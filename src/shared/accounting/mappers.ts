@@ -52,7 +52,6 @@ const refundKind = (kind: string): string =>
  */
 export type BookingFacts = {
   readonly attendeeId: number;
-  readonly currency: string;
   readonly occurredAt: string;
   readonly eventId: string;
   readonly lines: ReadonlyArray<{ listingId: number; gross: number }>;
@@ -198,7 +197,6 @@ export const mapBooking = async (
   return Promise.all(
     bookingLegSpecs(facts, attendee).map(async (spec) => ({
       amount: spec.amount,
-      currency: facts.currency,
       destination: spec.destination,
       eventGroup: group,
       kind: spec.kind,
@@ -246,7 +244,6 @@ export const mapRefund = async (
   return Promise.all(
     legs.map(async (leg) => ({
       amount: leg.amount,
-      currency: leg.currency,
       destination: leg.source,
       eventGroup: group,
       kind: refundKind(leg.kind ?? ""),

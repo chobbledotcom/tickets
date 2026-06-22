@@ -844,7 +844,6 @@ const createAttendeeForSession = async (
   // paid booking just keys the event on its payment session and dates it from
   // the provider's checkout time rather than now.
   const postLedger = bookingLedgerPoster(pricedOrder.modifierApplications, {
-    currency: settings.currency,
     eventId: () => session.id,
     occurredAt: businessTime(session),
     pricedOrder,
@@ -960,7 +959,6 @@ const settleBalanceSession = async (
       guardedInsertStatement(
         {
           amount: expectedAmount,
-          currency: bookingLegs[0]!.currency,
           destination: attendeeAccount(attendeeId),
           eventGroup: await eventGroup(["balance", sessionId]),
           kind: "payment",

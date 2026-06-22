@@ -16,23 +16,17 @@
  * an interactive transaction so it never contends the single SQLite writer
  * mid-migration.
  *
- * Two guards keep it safe even though, at the Phase-0 point it runs (the ledger
- * is rebuilt empty by the immediately-preceding migration), neither normally
- * fires: an attendee that already carries ledger legs is skipped, so a booking
- * the live dual-write path already recorded is never double-posted; and legs are
- * written in the currency the ledger already holds when it is non-empty, so a
- * changed site currency can never mix currencies in one ledger.
+ * A guard keeps it safe even though, at the Phase-0 point it runs (the ledger is
+ * rebuilt empty by the immediately-preceding migration), it never normally fires:
+ * an attendee that already carries ledger legs is skipped, so a booking the live
+ * dual-write path already recorded is never double-posted. (Currency needs no
+ * guard — a site has one, fixed at setup, so every transfer shares it.)
  */
 
 import type { InValue } from "@libsql/client";
 import { mapBooking, mapRefund } from "#shared/accounting/mappers.ts";
 import { accountBalancesForIds } from "#shared/accounting/queries.ts";
-import {
-  fromDb,
-  insertStatement,
-  ledgerCurrency,
-  orIgnore,
-} from "#shared/accounting/rows.ts";
+import { insertStatement, orIgnore } from "#shared/accounting/rows.ts";
 import { executeBatch, inPlaceholders, queryAll } from "#shared/db/client.ts";
 import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
 import { nowIso } from "#shared/now.ts";
@@ -99,7 +93,6 @@ const groupByAttendee = (rows: PaidRow[]): Map<number, PaidRow[]> => {
 const attendeeLegs = async (
   attendeeId: number,
   rows: PaidRow[],
-  currency: string,
 ): Promise<TransferInput[]> => {
   const occurredAt = toCanonicalIso(rows[0]!.created);
   if (occurredAt === undefined) {
@@ -112,7 +105,6 @@ const attendeeLegs = async (
     amountPaid: rows.reduce((sum, row) => sum + Number(row.price_paid), 0),
     attendeeId,
     bookingFee: 0,
-    currency,
     eventId: `backfill:att:${attendeeId}`,
     lines: rows.map((row) => ({
       gross: Number(row.price_paid),
@@ -161,16 +153,11 @@ const stampFromExistingStatement = (
 });
 
 /**
- * Backfill the ledger from every existing paid booking. `siteCurrency` is the
- * currency to post in when the ledger is still empty; a non-empty ledger's own
- * currency wins so the single-currency invariant always holds. Idempotent:
+ * Backfill the ledger from every existing paid booking. Idempotent:
  * already-ledgered attendees are skipped and the deterministic references plus
  * `INSERT OR IGNORE` make a re-run write nothing.
  */
-export const backfillTransfers = async (
-  siteCurrency: string,
-): Promise<void> => {
-  const currency = (await ledgerCurrency(fromDb)) ?? siteCurrency;
+export const backfillTransfers = async (): Promise<void> => {
   let afterId = 0;
   for (;;) {
     const attendeeIds = await nextPaidAttendeeIds(afterId);
@@ -188,7 +175,7 @@ export const backfillTransfers = async (
         continue;
       }
       const recordedAt = nowIso();
-      const legs = await attendeeLegs(attendeeId, rows, currency);
+      const legs = await attendeeLegs(attendeeId, rows);
       // Stamp the order's rows with their booking event group (the first leg's,
       // since booking legs precede any refund legs) so the per-row amount-paid
       // projection resolves exactly this booking's sale leg. Folded into the same

@@ -28,7 +28,6 @@ import {
   fromDb,
   fromTx,
   insertStatement,
-  ledgerCurrency,
   orIgnore,
   selectByEventGroup,
   selectByReferences,
@@ -66,29 +65,10 @@ const assertShared = (label: string, values: string[]): void => {
 };
 
 /**
- * The single-currency guard shared by the single and batch write paths: a new
- * event must be in the currency the ledger already holds, so whole-ledger balance
- * projections never mix currencies. `established` is the ledger's currency (null
- * when empty, which any currency satisfies). Throws naming both currencies.
- */
-const assertLedgerCurrency = (
-  established: string | null,
-  inputs: TransferInput[],
-): void => {
-  if (established !== null && established !== inputs[0]!.currency) {
-    throw new LedgerConflictError(
-      inputs[0]!.reference,
-      `currency ${inputs[0]!.currency} differs from ledger currency ${established}`,
-    );
-  }
-};
-
-/**
  * Checks that need no database, run before any DB work so a malformed batch never
  * opens a transaction: every leg is valid on its own, the batch shares one event
- * group and one currency (a mixed-currency event passes per-leg validation but
- * would later make every balance projection throw), and no reference is repeated
- * (which would silently under-post).
+ * group, and no reference is repeated (which would silently under-post). Currency
+ * needs no check — a site has one, fixed at setup, so every leg shares it.
  */
 const assertPostable = (inputs: TransferInput[]): void => {
   for (const input of inputs) {
@@ -102,10 +82,6 @@ const assertPostable = (inputs: TransferInput[]): void => {
     "eventGroup",
     inputs.map((t) => t.eventGroup),
   );
-  assertShared(
-    "currency",
-    inputs.map((t) => t.currency),
-  );
   const references = inputs.map((t) => t.reference);
   if (new Set(references).size !== references.length) {
     throw new Error("postTransfers: duplicate reference within one event");
@@ -117,9 +93,8 @@ const assertPostable = (inputs: TransferInput[]): void => {
  * ledger write commits or rolls back together with the domain rows it
  * accompanies (a booking and its sale/payment legs land together or not at all).
  * Same idempotency rules as {@link postTransfers}: if the event is already
- * stored the whole leg set must match, otherwise the legs are inserted. The
- * batch must also be in the currency the ledger already holds. An empty post is
- * a no-op.
+ * stored the whole leg set must match, otherwise the legs are inserted. An empty
+ * post is a no-op.
  */
 export const postTransfersTx = async (
   tx: TxScope,
@@ -144,9 +119,6 @@ export const postTransfersTx = async (
       "reference already belongs to a different event",
     );
   }
-  // assertPostable checked one currency within the batch; this checks it against
-  // the rest of the ledger so the whole history stays single-currency.
-  assertLedgerCurrency(await ledgerCurrency(read), inputs);
   const recordedAt = nowIso();
   for (const input of inputs) {
     // Check the void link against the stored original before inserting, so a bad
@@ -159,9 +131,9 @@ export const postTransfersTx = async (
 
 /**
  * Post the legs of one business event in its own write transaction, idempotently.
- * Every leg must share one `eventGroup` and one `currency` and carry a distinct
- * `reference`. Use {@link postTransfersTx} to post within a wider transaction
- * (e.g. together with a booking).
+ * Every leg must share one `eventGroup` and carry a distinct `reference`. Use
+ * {@link postTransfersTx} to post within a wider transaction (e.g. together with
+ * a booking).
  */
 export const postTransfers = (inputs: TransferInput[]): Promise<PostResult> =>
   withTransaction((tx) => postTransfersTx(tx, inputs));
@@ -174,14 +146,13 @@ const EMPTY_RESULT: PostResult = { inserted: 0, skipped: 0 };
  * events stays well under the N+1 read guard and — crucially — does all its
  * reads *before* the write opens. Holds: the legs already stored for the batch's
  * event groups (idempotent-replay / changed-leg check), every stored leg sharing
- * one of the batch's references (cross-event collision check), the originals any
- * reversing leg points at, and the ledger's established currency.
+ * one of the batch's references (cross-event collision check), and the originals
+ * any reversing leg points at.
  */
 type BatchSnapshot = {
   readonly existingByGroup: ReadonlyMap<string, Transfer[]>;
   readonly storedByReference: ReadonlyMap<string, Transfer>;
   readonly originalsById: ReadonlyMap<number, Transfer>;
-  readonly currency: string | null;
 };
 
 /** Read every transfer whose `column` is one of `values`; [] for an empty set
@@ -213,7 +184,7 @@ const groupBy = <K>(
 };
 
 /** Load everything {@link planGroup} needs to validate the batch, in three bulk
- *  selects plus the currency probe — independent of the number of groups. */
+ *  selects — independent of the number of groups. */
 const loadBatchSnapshot = async (
   groups: TransferInput[][],
 ): Promise<BatchSnapshot> => {
@@ -230,14 +201,12 @@ const loadBatchSnapshot = async (
       ),
     ),
   ];
-  const [existing, stored, originals, currency] = await Promise.all([
+  const [existing, stored, originals] = await Promise.all([
     selectByColumnIn("event_group", eventGroups),
     selectByColumnIn("reference", references),
     selectByColumnIn("id", reversesIds),
-    ledgerCurrency(fromDb),
   ]);
   return {
-    currency,
     existingByGroup: groupBy(existing, (leg) => leg.eventGroup),
     originalsById: new Map(originals.map((leg) => [leg.id, leg])),
     storedByReference: new Map(stored.map((leg) => [leg.reference, leg])),
@@ -250,8 +219,8 @@ const loadBatchSnapshot = async (
  * {@link PostResult}. Pure — every conflict is detected *here*, before any write,
  * so the batch's transaction body is a plain list of inserts that commits without
  * interleaved reads. Throws {@link LedgerConflictError} on a real conflict: a
- * changed leg on an already-stored event, a reference owned by another event, a
- * wrong currency, or a bad reversal link.
+ * changed leg on an already-stored event, a reference owned by another event, or
+ * a bad reversal link.
  */
 const planGroup = (
   inputs: TransferInput[],
@@ -266,7 +235,6 @@ const planGroup = (
     assertEventMatches(eventGroup, existing, inputs);
     return { inserts: [], result: { inserted: 0, skipped: inputs.length } };
   }
-  assertLedgerCurrency(snapshot.currency, inputs);
   const inserts: Statement[] = [];
   for (const input of inputs) {
     // A stored leg holding our reference but belonging to a different event owns
@@ -322,13 +290,9 @@ export const postTransferGroups = async (
   const nonEmpty = groups.filter((inputs) => inputs.length > 0);
   if (nonEmpty.length === 0) return groups.map(() => EMPTY_RESULT);
   // No-DB checks for the whole batch first, so a malformed batch never reads or
-  // writes: each group valid on its own, and across the batch one currency and no
-  // repeated reference (which would silently under-post or collide two events).
+  // writes: each group valid on its own, and across the batch no repeated
+  // reference (which would silently under-post or collide two events).
   for (const inputs of nonEmpty) assertPostable(inputs);
-  assertShared(
-    "currency",
-    nonEmpty.flatMap((inputs) => inputs.map((t) => t.currency)),
-  );
   const allRefs = nonEmpty.flatMap((inputs) => inputs.map((t) => t.reference));
   if (new Set(allRefs).size !== allRefs.length) {
     throw new Error("postTransferGroups: duplicate reference across the batch");

@@ -1,6 +1,5 @@
 import { backfillTransfers } from "#shared/accounting/backfill.ts";
 import { getDb } from "#shared/db/client.ts";
-import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
 import { schemaMigration } from "./define.ts";
 import { getExistingColumns } from "./schema-sync.ts";
 
@@ -15,11 +14,6 @@ export default schemaMigration(
     "it. Idempotent via the mappers' deterministic references (INSERT OR IGNORE).",
   {},
   async () => {
-    // A migration boots without the settings snapshot populated, so load COUNTRY
-    // (which derives the site currency) before posting the single-currency
-    // ledger. A fresh database never reaches here — it baselines every migration
-    // without running up() — so this only runs on an existing site's upgrade.
-    await settings.loadKeys([CONFIG_KEYS.COUNTRY]);
     // The backfill reconstructs historical refunds from listing_attendees.refunded,
     // which 2026-06-22_drop_listing_attendee_refunded removes *after* this runs.
     // In production the column is still present here (real refund values intact);
@@ -30,6 +24,6 @@ export default schemaMigration(
         "ALTER TABLE listing_attendees ADD COLUMN refunded INTEGER NOT NULL DEFAULT 0",
       );
     }
-    await backfillTransfers(settings.currency);
+    await backfillTransfers();
   },
 );

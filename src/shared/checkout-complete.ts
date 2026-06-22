@@ -39,7 +39,6 @@ export class ModifierSoldOutError extends Error {}
  */
 export type BookingLedger = {
   readonly pricedOrder: PricedOrder;
-  readonly currency: string;
   readonly occurredAt: string;
   readonly eventId: (attendeeId: number) => string;
 };
@@ -64,7 +63,6 @@ export const bookingLedgerPoster =
       const legs = await mapBooking(
         bookingFactsFromOrder(ledger.pricedOrder, {
           attendeeId,
-          currency: ledger.currency,
           eventId: ledger.eventId(attendeeId),
           occurredAt: ledger.occurredAt,
         }),
