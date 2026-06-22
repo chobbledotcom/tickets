@@ -6,11 +6,13 @@ import {
   WORLD,
 } from "#shared/accounting/accounts.ts";
 import { backfillTransfers } from "#shared/accounting/backfill.ts";
+import { type BookingFacts, mapBooking } from "#shared/accounting/mappers.ts";
 import {
   accountBalance,
   allTransfers,
   transfersByAccount,
 } from "#shared/accounting/queries.ts";
+import { postTransfers } from "#shared/accounting/store.ts";
 import type { ListingBooking } from "#shared/db/attendee-types.ts";
 import { createAttendeeAtomic, markRefunded } from "#shared/db/attendees.ts";
 import { getDb } from "#shared/db/client.ts";
@@ -26,6 +28,25 @@ const historicalBooking = async (bookings: ListingBooking[]) => {
   });
   if (!result.success) throw new Error(`setup failed: ${result.reason}`);
   return result.attendees[0]!;
+};
+
+/** Post one live-style booking leg-set, as the dual-write path would have. */
+const postLiveBooking = async (
+  overrides: Partial<BookingFacts>,
+): Promise<void> => {
+  await postTransfers(
+    await mapBooking({
+      amountPaid: 5000,
+      attendeeId: 1,
+      bookingFee: 0,
+      currency: "GBP",
+      eventId: "live-session",
+      lines: [{ gross: 5000, listingId: 1 }],
+      modifiers: [],
+      occurredAt: "2026-06-21T00:00:00.000Z",
+      ...overrides,
+    }),
+  );
 };
 
 const refundCashOf = (legs: Transfer[]): Transfer[] =>
@@ -94,26 +115,77 @@ describeWithEnv("accounting > backfill", { db: true }, () => {
     expect(cash[0]!.destination).toEqual(WORLD);
   });
 
-  test("does not reverse a partially-refunded multi-listing order", async () => {
-    // The data guarantees this can't occur, but a half-refunded order must not
-    // be reversed: leave it booked for a manual check rather than mis-reverse.
+  test("reverses the whole order when any line is flagged refunded", async () => {
+    // A multi-listing order is one provider payment; refunding it returns the
+    // whole payment, but markRefunded flags only the listing the admin acted on.
+    // Any flagged line therefore means the whole order was refunded.
     const first = await createTestListing({ maxAttendees: 5 });
     const second = await createTestListing({ maxAttendees: 5 });
     const attendee = await historicalBooking([
       { listingId: first.id, pricePaid: 3000 },
       { listingId: second.id, pricePaid: 2000 },
     ]);
-    await markRefunded(attendee.id, first.id); // only one line refunded
+    await markRefunded(attendee.id, first.id); // one line flagged → whole order
 
     await backfillTransfers("GBP");
 
-    // Still booked: revenue recognised, nothing reversed.
-    expect(await accountBalance(revenueAccount(first.id))).toBe(3000);
-    expect(await accountBalance(revenueAccount(second.id))).toBe(2000);
-    expect(
-      refundCashOf(await transfersByAccount(attendeeAccount(attendee.id)))
-        .length,
-    ).toBe(0);
+    expect(await accountBalance(revenueAccount(first.id))).toBe(0); // reversed
+    expect(await accountBalance(revenueAccount(second.id))).toBe(0); // reversed
+    expect(await accountBalance(attendeeAccount(attendee.id))).toBe(0);
+    const cash = refundCashOf(
+      await transfersByAccount(attendeeAccount(attendee.id)),
+    );
+    expect(cash.length).toBe(1);
+    expect(cash[0]!.amount).toBe(5000); // the whole payment returned
+  });
+
+  test("skips an attendee that already carries ledger legs (no double-post)", async () => {
+    const listing = await createTestListing({ maxAttendees: 5 });
+    const attendee = await historicalBooking([
+      { listingId: listing.id, pricePaid: 5000 },
+    ]);
+    // The live dual-write path already recorded this booking under its own event.
+    await postLiveBooking({
+      attendeeId: attendee.id,
+      lines: [{ gross: 5000, listingId: listing.id }],
+    });
+    const before = (await allTransfers()).length;
+
+    await backfillTransfers("GBP");
+
+    expect((await allTransfers()).length).toBe(before); // nothing re-posted
+    const groups = new Set(
+      (await transfersByAccount(attendeeAccount(attendee.id))).map(
+        (leg) => leg.eventGroup,
+      ),
+    );
+    expect(groups.size).toBe(1); // only the live booking group, no backfill group
+  });
+
+  test("posts in the currency the ledger already holds, not the requested one", async () => {
+    // An existing USD leg fixes the ledger currency for an unrelated attendee.
+    const occupied = await createTestListing({ maxAttendees: 5 });
+    const ledgered = await historicalBooking([
+      { listingId: occupied.id, pricePaid: 1000 },
+    ]);
+    await postLiveBooking({
+      amountPaid: 1000,
+      attendeeId: ledgered.id,
+      currency: "USD",
+      eventId: "live-usd",
+      lines: [{ gross: 1000, listingId: occupied.id }],
+    });
+    // A fresh attendee (no legs) is backfilled despite the requested GBP.
+    const listing = await createTestListing({ maxAttendees: 5 });
+    const fresh = await historicalBooking([
+      { listingId: listing.id, pricePaid: 2000 },
+    ]);
+
+    await backfillTransfers("GBP");
+
+    const legs = await transfersByAccount(attendeeAccount(fresh.id));
+    expect(legs.length).toBeGreaterThan(0);
+    expect(legs.every((leg) => leg.currency === "USD")).toBe(true);
   });
 
   test("skips rows with no payment", async () => {
