@@ -181,6 +181,20 @@ describeWithEnv("recordScriptVersion", { db: true }, () => {
     expect(await readRecordedScriptCommit()).toBe("");
   });
 
+  test("clears a stale commit marker when the running build has no commit", async () => {
+    // A CI deploy records a commit…
+    setBuildCommitForTest("abc123def4567890");
+    await recordScriptVersion();
+    expect(await readRecordedScriptCommit()).toBe("abc123def4567890");
+
+    // …then a local build that ships without a commit (e.g. deno task
+    // deploy:edge) must clear it, not leave the stale value to mislead a later
+    // restore into naming the wrong commit.
+    setBuildCommitForTest("");
+    await recordScriptVersion();
+    expect(await readRecordedScriptCommit()).toBe("");
+  });
+
   test("leaves the stored version untouched when it is unchanged", async () => {
     setBuildTimestampForTest("2026-06-19T12:00:00Z");
     await recordScriptVersion();
