@@ -17,6 +17,10 @@ import {
 } from "#shared/db/client.ts";
 import { account } from "#shared/ledger/account.ts";
 import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
+import {
+  epochMsToIso,
+  instantToEpochMs,
+} from "#shared/validation/timestamp.ts";
 
 /** One row of the transfers table, as the database returns it. */
 type TransferRow = {
@@ -27,8 +31,8 @@ type TransferRow = {
   dest_id: string;
   amount: number | bigint;
   currency: string;
-  occurred_at: string;
-  recorded_at: string;
+  occurred_at: number | bigint;
+  recorded_at: number | bigint;
   reference: string;
   event_group: string;
   kind: string;
@@ -51,9 +55,9 @@ const rowToTransfer = (row: TransferRow): Transfer => ({
   id: Number(row.id),
   kind: row.kind,
   memo: row.memo,
-  occurredAt: row.occurred_at,
+  occurredAt: epochMsToIso(Number(row.occurred_at)),
   postedBy: row.posted_by,
-  recordedAt: row.recorded_at,
+  recordedAt: epochMsToIso(Number(row.recorded_at)),
   reference: row.reference,
   reversesId: row.reverses_id === null ? undefined : Number(row.reverses_id),
   source: account(row.source_type, row.source_id),
@@ -72,9 +76,9 @@ export const insertStatement = (
     event_group: t.eventGroup,
     kind: t.kind ?? "",
     memo: t.memo ?? "",
-    occurred_at: t.occurredAt,
+    occurred_at: instantToEpochMs(t.occurredAt),
     posted_by: t.postedBy ?? "system",
-    recorded_at: recordedAt,
+    recorded_at: instantToEpochMs(recordedAt),
     reference: t.reference,
     reverses_id: t.reversesId ?? null,
     source_id: t.source.id,

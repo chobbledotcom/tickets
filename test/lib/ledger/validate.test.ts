@@ -36,8 +36,8 @@ const cases: [
     "invalid_occurred_at",
   ],
   [
-    "non-canonical precision occurred-at (no milliseconds)",
-    { occurredAt: "2026-01-01T00:00:00Z" },
+    "out-of-range hour occurred-at",
+    { occurredAt: "2026-01-01T24:00:00.000Z" },
     "invalid_occurred_at",
   ],
   ["fractional reverses id", { reversesId: 1.5 }, "invalid_reverses_id"],
@@ -66,6 +66,17 @@ describe("validateTransfer", () => {
 
   it("accepts a valid positive-integer reverses id", () => {
     expect(validateTransfer({ ...base, reversesId: 5 }).ok).toBe(true);
+  });
+
+  it("accepts a non-canonical instant (no milliseconds or an offset)", () => {
+    // The host normalises any real instant to canonical epoch-millis on write,
+    // so occurredAt need not arrive in the canonical .sssZ form.
+    expect(
+      validateTransfer({ ...base, occurredAt: "2026-01-01T00:00:00Z" }).ok,
+    ).toBe(true);
+    expect(
+      validateTransfer({ ...base, occurredAt: "2026-01-01T01:00:00+01:00" }).ok,
+    ).toBe(true);
   });
 
   for (const [name, patch, code] of cases) {
