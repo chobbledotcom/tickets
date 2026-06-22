@@ -5,7 +5,7 @@
  */
 
 import { filter, sumOf, unique } from "#fp";
-import { isInstant } from "#shared/validation/timestamp.ts";
+import { instantToEpochMs, isInstant } from "#shared/validation/timestamp.ts";
 import { accountKey, sameAccount } from "./account.ts";
 import type { AccountRef, Transfer } from "./types.ts";
 
@@ -81,13 +81,13 @@ export const inPeriod =
     if (!isInstant(from) || !isInstant(to)) {
       throw new Error(`inPeriod: invalid bound (from=${from}, to=${to})`);
     }
-    const fromMs = Date.parse(from);
-    const toMs = Date.parse(to);
+    const fromMs = instantToEpochMs(from);
+    const toMs = instantToEpochMs(to);
     if (fromMs > toMs) {
       throw new Error(`inPeriod: inverted window (from=${from}, to=${to})`);
     }
     return filter((t: Transfer) => {
-      const at = Date.parse(t.occurredAt);
+      const at = instantToEpochMs(t.occurredAt);
       return at >= fromMs && at < toMs;
     })(transfers);
   };
@@ -103,7 +103,8 @@ export type StatementLine = {
 };
 
 const byOccurredThenId = (a: Transfer, b: Transfer): number =>
-  Date.parse(a.occurredAt) - Date.parse(b.occurredAt) || a.id - b.id;
+  instantToEpochMs(a.occurredAt) - instantToEpochMs(b.occurredAt) ||
+  a.id - b.id;
 
 /**
  * A running-balance statement for one account, ordered by business time (as a

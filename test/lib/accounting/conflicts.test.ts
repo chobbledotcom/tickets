@@ -55,6 +55,17 @@ describe("db > accounting > conflicts", () => {
       expect((await allTransfers()).length).toBe(2);
     });
 
+    test("replays the same instant in a different ISO form as a no-op", async () => {
+      // The store persists time as epoch-millis and reads it back canonical, so
+      // a replay carrying the same moment without milliseconds, or as an offset,
+      // must match the stored leg rather than read as an occurredAt conflict.
+      await postTransfers([tx({ occurredAt: "2026-06-21T00:00:00Z" })]);
+      expect(
+        await postTransfers([tx({ occurredAt: "2026-06-21T01:00:00+01:00" })]),
+      ).toEqual({ inserted: 0, skipped: 1 });
+      expect((await allTransfers()).length).toBe(1);
+    });
+
     test("preserves kind/memo/posted_by/reverses_id and replays them", async () => {
       const legs = [
         tx({ eventGroup: "e1", reference: "orig" }),
