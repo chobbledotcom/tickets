@@ -29,6 +29,23 @@ import type { ContactInfo } from "#shared/types.ts";
 export const errorMessage = (err: unknown): string =>
   err instanceof Error ? err.message : "Unknown error";
 
+/**
+ * Normalise a provider timestamp to the ledger's canonical ISO 8601 form
+ * (`YYYY-MM-DDTHH:mm:ss.sssZ`), or undefined when it's absent or unparseable.
+ *
+ * Providers return assorted shapes — SumUp uses a `+00:00` offset, Square may
+ * omit milliseconds — but the ledger validator accepts only the exact canonical
+ * form. Normalising here, where a session is built, keeps `createdAt` safe to
+ * use as a ledger `occurredAt` without a paid booking throwing at post time.
+ */
+export const toCanonicalIso = (
+  value: string | undefined,
+): string | undefined => {
+  if (value === undefined) return undefined;
+  const ms = Date.parse(value);
+  return Number.isNaN(ms) ? undefined : new Date(ms).toISOString();
+};
+
 /** Shared shape for a provider credential check in connection-test results. */
 export type CredentialCheck = {
   valid: boolean;

@@ -270,8 +270,12 @@ export const logAndNotifyRegistration = async (
   entries: EmailEntry[],
   siteTokenIndex?: string,
 ): Promise<void> => {
-  for (const { listing } of entries) {
-    await logActivity(`Attendee registered for '${listing.name}'`, listing);
+  for (const { listing, attendee } of entries) {
+    await logActivity(
+      `Attendee registered for '${listing.name}'`,
+      listing,
+      attendee.id,
+    );
   }
   const currency = settings.currency;
   addPendingWork(sendRegistrationWebhooks(entries, currency));

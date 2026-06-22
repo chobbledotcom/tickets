@@ -12,7 +12,6 @@
  */
 
 import type {
-  AttendeeInput,
   BatchAvailabilityItem,
   CreateAttendeeResult,
 } from "#shared/db/attendee-types.ts";
@@ -75,6 +74,7 @@ export {
   ATTENDEES_PAGE_SIZE,
   getAllAttendeePiiBlobs,
   getAttendee,
+  getAttendeeNamesByIds,
   getAttendeePiiBlobsForListings,
   getAttendeeRaw,
   getAttendeesByIds,
@@ -115,10 +115,12 @@ export const hasAvailableSpots = (
   ...args: Parameters<typeof attendeesApi.hasAvailableSpots>
 ): Promise<boolean> => attendeesApi.hasAvailableSpots(...args);
 
-/** Wrapper for test mocking - delegates to attendeesApi at runtime */
+/** Wrapper for test mocking - delegates to attendeesApi at runtime. Forwards the
+ *  optional ledger-poster so the paid path can post legs in the create
+ *  transaction. */
 export const createAttendeeAtomic = (
-  input: AttendeeInput,
-): Promise<CreateAttendeeResult> => attendeesApi.createAttendeeAtomic(input);
+  ...args: Parameters<typeof attendeesApi.createAttendeeAtomic>
+): Promise<CreateAttendeeResult> => attendeesApi.createAttendeeAtomic(...args);
 
 /** Wrapper for test mocking - delegates to attendeesApi at runtime */
 export const checkBatchAvailability = (

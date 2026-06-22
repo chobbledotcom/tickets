@@ -207,6 +207,7 @@ type SquareOrderResponse = {
     tenders?: SquareRawTender[];
     state?: string;
     total_money?: { amount: number; currency: string };
+    created_at?: string;
   };
 };
 
@@ -297,6 +298,7 @@ const createSquareClient = (accessToken: string, sandbox: boolean) => {
         if (!o) return { order: null };
         return {
           order: {
+            createdAt: o.created_at,
             id: o.id,
             metadata: o.metadata,
             state: o.state,
@@ -411,6 +413,8 @@ type SquareOrder = {
   }>;
   state?: string;
   totalMoney: { amount: bigint; currency: string };
+  /** Order creation time (RFC 3339 / ISO 8601), from the Square API. */
+  createdAt?: string;
 };
 
 /** Square payment response shape (subset we use) */
@@ -650,6 +654,7 @@ export const squareApi: {
         : undefined;
 
       return {
+        createdAt: order.createdAt,
         id: order.id,
         metadata,
         state: order.state,

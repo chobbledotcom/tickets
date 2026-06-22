@@ -9,6 +9,7 @@ import {
 import {
   createAttendeeAtomic,
   decryptAttendees,
+  getAttendeeNamesByIds,
   getAttendeeRaw,
   getAttendeesRaw,
 } from "#shared/db/attendees.ts";
@@ -18,6 +19,7 @@ import {
   deleteListing,
   getAllListings,
   getListing,
+  getListingNamesByIds,
   getListingsBySlugsBatch,
   getListingWithAttendeeRaw,
   getListingWithAttendeesRaw,
@@ -784,6 +786,47 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
       });
       const saved = await getListingWithCount(listing.id);
       expect(saved?.bookable_days).toEqual([]);
+    });
+  });
+
+  describe("bounded name lookups", () => {
+    test("getListingNamesByIds returns decrypted names only for the given ids", async () => {
+      const alpha = await createTestListing({
+        maxAttendees: 10,
+        name: "Alpha",
+      });
+      const beta = await createTestListing({ maxAttendees: 10, name: "Beta" });
+
+      const names = await getListingNamesByIds([alpha.id]);
+
+      expect(names.get(alpha.id)).toBe("Alpha");
+      expect(names.has(beta.id)).toBe(false);
+    });
+
+    test("getListingNamesByIds returns an empty map for no ids", async () => {
+      const names = await getListingNamesByIds([]);
+      expect(names.size).toBe(0);
+    });
+
+    test("getAttendeeNamesByIds decrypts the name for the given attendee id", async () => {
+      const listing = await createTestListing({ maxAttendees: 10 });
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Grace Hopper",
+        "grace@example.com",
+      );
+
+      const privateKey = await getTestPrivateKey();
+      const names = await getAttendeeNamesByIds([attendee.id], privateKey);
+
+      expect(names.get(attendee.id)).toBe("Grace Hopper");
+    });
+
+    test("getAttendeeNamesByIds returns an empty map for no ids", async () => {
+      const privateKey = await getTestPrivateKey();
+      const names = await getAttendeeNamesByIds([], privateKey);
+      expect(names.size).toBe(0);
     });
   });
 });

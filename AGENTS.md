@@ -142,6 +142,7 @@ Even when a caller genuinely needs many columns, list them explicitly rather tha
 - `deno task build:edge` - Build for Bunny Edge deployment
 - `deno task backup` - Dump the database out-of-band to a `.zip`. Uploads to the configured storage zone by default (so it appears on the Backups page and lets the next migration skip its own inline backup); pass `--out <path>` to write a local file. Runs in a full Deno process, so unlike the in-edge backup it has no per-request subrequest budget and can dump arbitrarily large databases.
 - `deno task precommit` - Run all checks (typecheck, lint, tests)
+- `deno task mutation <source-glob> <test-glob>` - Mutation-test your tests: mutate operators in the source and check your tests catch it (see [Mutation Testing](#mutation-testing))
 
 ### Running Individual Test Files
 
@@ -196,6 +197,7 @@ Environment variables are configured as **Bunny native secrets** in the Bunny Ed
 - `BUNNY_DNS_ZONE_ID` - Bunny DNS zone ID for subdomain registration (enables subdomain feature when set with `BUNNY_API_KEY`)
 - `BUNNY_DNS_SUBDOMAIN_SUFFIX` - Suffix appended to user-chosen subdomain (e.g. `.tickets`)
 - `NTFY_URL` - Ntfy endpoint URL for error notifications (e.g. `https://ntfy.sh/your-topic`). Sends domain and error code only, no personal or encrypted data.
+- `DEBUG_KEY` - Optional diagnostic key. `GET /health` returns a plain `Up :)` by default; a request with a matching `X-Debug-Key` header instead returns JSON build diagnostics (commit, build timestamp, server time) — non-private but useful to operators. Unset ⇒ verbose health disabled. The running build also records its commit into `settings.current_script_commit` on boot, so a backup carries the commit the site was on and a restore can surface which commit to redeploy (via `.github/workflows/restore-deploy.yml`).
 - `BOTPOISON_PUBLIC_KEY` - Optional Botpoison public key (sent to the browser). The contact form works without it; setting it together with `BOTPOISON_SECRET_KEY` adds proof-of-work spam protection as a progressive enhancement. The owner still enables the form under Site → Contact and sets a business email.
 - `BOTPOISON_SECRET_KEY` - Optional Botpoison secret key. Used server-side to verify contact form submissions when Botpoison is enabled. Never sent to the browser.
 - `ADMIN_EMAIL_ADDRESS` - Enables a superuser recovery option in owner settings. The local-part (before `@`) must be a valid app username (2–32 characters, letters, numbers, hyphens, underscores). Email delivery must be configured before the superuser can be enabled. Also enables the owner-only **Support** page (`/admin/support`), where the operator can message this address.
@@ -286,6 +288,41 @@ All tests must meet these mandatory criteria:
 - For pure functions, add table-driven or property-style examples that cover families of inputs and state the invariant being protected. Keep any generated cases deterministic.
 - For critical flows, include negative-path, idempotency, concurrency, and metamorphic tests: e.g. payment/webhook replay does not double-credit, capacity cannot go below zero across edits/deletes, role downgrades remove access, and PII/secrets remain encrypted or absent from responses/logs.
 - When generated or bulk-added tests are involved, run `deno task test:quality-audit` and review assertionless, truthiness, presence-only, and compound-boolean findings before trusting the coverage number.
+
+### Mutation Testing
+
+`test:quality-audit` only *guesses* which assertions look weak. `deno task
+mutation` **proves** it: it mutates operators in your source and checks whether
+your tests fail. A mutant your tests still pass on ("survived") is a real gap —
+a code change nothing would have caught.
+
+```bash
+# Mutate a module's operators and run its mapped tests
+deno task mutation src/shared/dates.ts test/lib/dates.test.ts
+
+# Globs and exhaustive mode (every operator replacement, not just one each)
+deno task mutation 'src/lib/forms/*.ts' 'test/lib/forms/*.test.ts' --exhaustive
+```
+
+It reports a mutation score and lists each survivor as
+`file:line:col  old → new`. Exit code is non-zero if any mutant survived, so it
+can gate CI on a chosen module. By default it runs the test files directly
+(fast, for pure-unit modules); pass `--harness` for tests that import the app /
+Stripe and need built static assets + stripe-mock. Under `--harness`, mutating a
+client-bundle source (anything bundled into `src/ui/static/*.js` — e.g.
+`src/ui/client/admin.ts` or a module it imports) rebuilds just the affected
+bundle for each mutant, so the mutation reaches the built asset the tests load.
+
+How it works (and why it is bespoke): it mutates the source file **in place**,
+runs the mapped tests in a fresh `deno test` subprocess, then restores the
+file. In-place mutation is what makes mutations bind through `#…` import-map
+aliases. The operator tables and AST walk are vendored from
+[Mutasaurus](https://github.com/christoshrousis/mutasaurus) (MIT); its own
+execution model writes a temp copy but runs the original tests, so every mutant
+falsely "survives" on an alias-based project — see
+`scripts/mutation/LICENSE.mutasaurus.md`. It is a **targeted** tool (run it on
+the module you are hardening), not part of `deno task precommit`, which would be
+far too slow across the whole tree.
 
 ### Coverage Requirements
 

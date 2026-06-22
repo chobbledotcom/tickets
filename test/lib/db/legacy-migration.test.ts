@@ -15,8 +15,31 @@ import { resetDb, setupTestEncryptionKey } from "#test-utils";
  * HTTP requests).
  */
 describe("db > listing_attendees migration from legacy schema", () => {
-  afterEach(() => {
+  // recreateTable now rebuilds inside an interactive transaction, which opens a
+  // second connection — so these tests use a temp file rather than ":memory:"
+  // (each ":memory:" connection is its own empty database; see test-utils/db.ts).
+  const openFileDbs: Array<{
+    client: ReturnType<typeof createClient>;
+    path: string;
+  }> = [];
+
+  const newFileDb = async (): Promise<ReturnType<typeof createClient>> => {
+    const path = await Deno.makeTempFile({ suffix: ".db" });
+    const client = createClient({ url: `file:${path}` });
+    openFileDbs.push({ client, path });
+    return client;
+  };
+
+  afterEach(async () => {
     resetDb();
+    for (const { client, path } of openFileDbs.splice(0)) {
+      try {
+        client.close();
+      } catch {
+        // already closed
+      }
+      await Deno.remove(path).catch(() => {});
+    }
   });
 
   const LEGACY_DB_UPDATE = "legacy-update";
@@ -194,7 +217,7 @@ describe("db > listing_attendees migration from legacy schema", () => {
   /** Create the legacy schema and return the client */
   const createLegacyDb = async () => {
     setupTestEncryptionKey();
-    const client = createClient({ url: ":memory:" });
+    const client = await newFileDb();
     setDb(client);
     for (const sql of LEGACY_SCHEMA_SQL) {
       await client.execute(sql);
@@ -414,7 +437,7 @@ describe("db > listing_attendees migration from legacy schema", () => {
 
   test("drops PII columns when listing_id was dropped in a prior partial run", async () => {
     setupTestEncryptionKey();
-    const client = createClient({ url: ":memory:" });
+    const client = await newFileDb();
     setDb(client);
 
     // Simulate a DB in the intermediate state: listing_id and its relatives
@@ -470,7 +493,7 @@ describe("db > listing_attendees migration from legacy schema", () => {
 
   test("fails instead of marking progress for unknown legacy attendee shape", async () => {
     setupTestEncryptionKey();
-    const client = createClient({ url: ":memory:" });
+    const client = await newFileDb();
     setDb(client);
 
     await client.execute(
@@ -508,7 +531,7 @@ describe("db > listing_attendees migration from legacy schema", () => {
 
   test("skips table recreation when attendees already matches schema", async () => {
     setupTestEncryptionKey();
-    const client = createClient({ url: ":memory:" });
+    const client = await newFileDb();
     setDb(client);
 
     // Run initDb on a fresh DB so everything is created and up to date

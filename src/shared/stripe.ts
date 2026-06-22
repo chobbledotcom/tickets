@@ -52,18 +52,31 @@ export type StripeCheckoutFields = {
   payment_intent: string | null;
   metadata: Record<string, string> | null;
   amount_total: number | null;
+  /** Session creation time as a Unix epoch (seconds), Stripe's native format. */
+  created: number;
 };
 
 const narrowCheckoutSession = (
   session: Stripe.Checkout.Session,
 ): StripeCheckoutFields => ({
   amount_total: session.amount_total,
+  created: session.created,
   id: session.id,
   metadata: session.metadata,
   payment_intent:
     typeof session.payment_intent === "string" ? session.payment_intent : null,
   payment_status: session.payment_status,
 });
+
+/**
+ * Convert a Unix epoch (seconds) to an ISO 8601 string, or undefined when the
+ * value isn't a number. Stripe timestamps (e.g. a checkout session's `created`)
+ * are epoch seconds, while the ledger wants an ISO occurredAt.
+ */
+export const isoFromUnixSeconds = (seconds: unknown): string | undefined =>
+  typeof seconds === "number"
+    ? new Date(seconds * 1000).toISOString()
+    : undefined;
 
 /**
  * Narrowed payment intent with expanded latest_charge.

@@ -19,5 +19,5 @@ if (!request) {
   Deno.exit(2);
 }
 
-const config = await loadConfig();
+const config = await loadConfig(Deno.cwd());
 await writeOut(`${JSON.stringify(await curlJson(config, request), null, 2)}\n`);

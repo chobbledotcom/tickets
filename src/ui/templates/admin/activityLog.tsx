@@ -31,7 +31,40 @@ const SquareSignatureHint = (): SafeHtml => (
   </>
 );
 
-const ActivityLogRow = ({ entry }: { entry: ActivityLogEntry }): string =>
+/**
+ * Display names for the global log's optional Attendee and Listing columns:
+ * each map turns a record id into the name shown (and linked) for it. The
+ * feature layer builds these — decrypting attendee names with the session key
+ * and reading listing names from cache — so the template stays render-only.
+ */
+export interface ActivityLogRefs {
+  attendees: Map<number, string>;
+  listings: Map<number, string>;
+}
+
+/**
+ * Cell content linking a log entry to an attendee/listing detail page, with the
+ * record's name as the link text. Renders nothing (an empty cell) when the entry
+ * has no such id, or when the id points at a record that no longer exists — a
+ * deleted attendee keeps its log rows, so its id can outlive the attendee.
+ */
+const refLink = (
+  id: number | null,
+  names: Map<number, string>,
+  base: string,
+): JSX.Element | null => {
+  if (id === null) return null;
+  const name = names.get(id);
+  return name === undefined ? null : <a href={`${base}/${id}`}>{name}</a>;
+};
+
+const ActivityLogRow = ({
+  entry,
+  refs,
+}: {
+  entry: ActivityLogEntry;
+  refs?: ActivityLogRefs;
+}): string =>
   String(
     <tr>
       <td>{formatDatetimeShort(entry.created)}</td>
@@ -41,27 +74,42 @@ const ActivityLogRow = ({ entry }: { entry: ActivityLogEntry }): string =>
         ) : null}
         {entry.message}
       </td>
+      {refs ? (
+        <>
+          <td>
+            {refLink(entry.attendee_id, refs.attendees, "/admin/attendees")}
+          </td>
+          <td>{refLink(entry.listing_id, refs.listings, "/admin/listing")}</td>
+        </>
+      ) : null}
     </tr>,
   );
 
 /** Generate activity log table rows */
-const activityLogRows = (entries: ActivityLogEntry[]): string =>
+const activityLogRows = (
+  entries: ActivityLogEntry[],
+  refs?: ActivityLogRefs,
+): string =>
   entries.length > 0
     ? pipe(
-        map((entry: ActivityLogEntry) => ActivityLogRow({ entry })),
+        map((entry: ActivityLogEntry) => ActivityLogRow({ entry, refs })),
         joinStrings,
       )(entries)
-    : `<tr><td colspan="2">${t("admin.log.no_activity")}</td></tr>`;
+    : `<tr><td colspan="${refs ? 4 : 2}">${t("admin.log.no_activity")}</td></tr>`;
 
 /**
  * The Time/Activity log table, scrollable on narrow screens. Shared by the
- * listing and global log pages and the per-attendee log section so every
- * activity log renders identically.
+ * listing and global log pages and the per-attendee log section. Passing `refs`
+ * (only the global log does) appends Attendee and Listing columns that link
+ * each entry to its records; the listing and attendee views omit them, since
+ * there every row already shares the same listing or attendee.
  */
 export const ActivityLogTable = ({
   entries,
+  refs,
 }: {
   entries: ActivityLogEntry[];
+  refs?: ActivityLogRefs;
 }): JSX.Element => (
   <div class="table-scroll">
     <table>
@@ -69,10 +117,16 @@ export const ActivityLogTable = ({
         <tr>
           <th>{t("admin.log.col.time")}</th>
           <th>{t("admin.log.col.activity")}</th>
+          {refs ? (
+            <>
+              <th>{t("terms.attendee")}</th>
+              <th>{t("terms.listing")}</th>
+            </>
+          ) : null}
         </tr>
       </thead>
       <tbody>
-        <Raw html={activityLogRows(entries)} />
+        <Raw html={activityLogRows(entries, refs)} />
       </tbody>
     </table>
   </div>
@@ -106,6 +160,7 @@ export const adminGlobalActivityLogPage = (
   entries: ActivityLogEntry[],
   truncated = false,
   session: AdminSession,
+  refs: ActivityLogRefs,
 ): string =>
   String(
     <Layout title={t("admin.log.heading")}>
@@ -115,7 +170,7 @@ export const adminGlobalActivityLogPage = (
           Activity log guide
         </GuideLink>
       </p>
-      <ActivityLogTable entries={entries} />
+      <ActivityLogTable entries={entries} refs={refs} />
       {truncated && <p>{t("admin.log.recent_entries")}</p>}
     </Layout>,
   );

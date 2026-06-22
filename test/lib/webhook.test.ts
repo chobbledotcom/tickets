@@ -551,6 +551,22 @@ describe("webhook", () => {
 
       expect(fetchSpy.calls.length).toBe(0);
     });
+
+    test("records the attendee id on the registration activity log", async () => {
+      const { logAndNotifyRegistration } = await import("#shared/webhook.ts");
+      const dbListing = await createTestListing();
+      const listing = makeListing(listingFromDb(dbListing, ""));
+
+      await logAndNotifyRegistration([
+        { attendee: makeAttendee({ id: 7 }), listing },
+      ]);
+
+      const entry = (await getAllActivityLog()).find((e) =>
+        e.message.startsWith("Attendee registered for"),
+      );
+      expect(entry?.attendee_id).toBe(7);
+      expect(entry?.listing_id).toBe(listing.id);
+    });
   });
 
   describeWithEnv("logAndNotifyRegistration", { db: true }, () => {

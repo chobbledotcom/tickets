@@ -183,7 +183,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
       await assertAdminHtml(
         "/admin/guide",
         "Settings Overview",
-        "Country",
+        "Business email",
         "Site theme",
       );
     });

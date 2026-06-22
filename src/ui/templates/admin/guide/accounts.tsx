@@ -33,6 +33,7 @@ export const accountsSections = (): GuideSection[] => [
   {
     entries: [
       faq("attendee_data_protection"),
+      faq("encryption_overview"),
       faq("privacy_first_by_default"),
       faq("lost_password"),
       faq("export_attendee_data"),

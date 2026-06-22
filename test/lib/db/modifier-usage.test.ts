@@ -3,7 +3,6 @@ import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#shared/db/client.ts";
 import {
   consumeModifierStock,
-  consumeModifierStockOrRollback,
   modifierUsedQuantities,
 } from "#shared/db/modifier-usage.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
@@ -75,27 +74,6 @@ describeWithEnv("db > modifier-usage", { db: true }, () => {
   describe("modifierUsedQuantities", () => {
     test("returns an empty map for no ids", async () => {
       expect(await modifierUsedQuantities([])).toEqual(new Map());
-    });
-  });
-
-  describe("consumeModifierStockOrRollback", () => {
-    test("returns true without consuming anything when no usages apply", async () => {
-      expect(await consumeModifierStockOrRollback(100, [])).toBe(true);
-    });
-
-    test("records the priced usage amounts supplied by the caller", async () => {
-      const m = await makeModifier(null);
-      const consumed = await consumeModifierStockOrRollback(100, [
-        { amountApplied: 1234, modifierId: m.id, quantity: 3 },
-      ]);
-      expect(consumed).toBe(true);
-
-      const { rows } = await getDb().execute({
-        args: [m.id],
-        sql: "SELECT quantity, amount_applied FROM modifier_usages WHERE modifier_id = ?",
-      });
-      expect(Number(rows[0]!.quantity)).toBe(3);
-      expect(Number(rows[0]!.amount_applied)).toBe(1234);
     });
   });
 });

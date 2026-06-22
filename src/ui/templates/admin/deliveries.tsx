@@ -11,7 +11,7 @@ import { t } from "#i18n";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import type { AdminSession } from "#shared/types.ts";
 import { markAdminFooter } from "#templates/admin/footer.tsx";
-import { AdminNav, CalendarSubNav } from "#templates/admin/nav.tsx";
+import { AdminNav } from "#templates/admin/nav.tsx";
 import { MapsLinks } from "#templates/components/maps-links.tsx";
 import { PhoneLinks } from "#templates/components/phone-links.tsx";
 import { Layout } from "#templates/layout.tsx";
@@ -163,8 +163,10 @@ export const agentDeliveriesPage = (
         <AgentHeader />
       ) : (
         <>
-          <AdminNav active="/admin/deliveries" session={session} />
-          <CalendarSubNav />
+          {/* Deliveries lives in the Calendar section, so highlight Calendar:
+              it gives the Calendar sub-nav a parent link to sit beneath in the
+              desktop sidebar. */}
+          <AdminNav active="/admin/calendar" session={session} />
           <h1>{t("deliveries.title")}</h1>
         </>
       )}

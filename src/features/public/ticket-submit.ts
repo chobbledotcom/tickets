@@ -22,10 +22,7 @@ import { hmacHash } from "#shared/crypto/hashing.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { getPublicDefaultStatus } from "#shared/db/attendee-statuses.ts";
-import {
-  getGroupRemainingByListingId,
-  reverseOrderActivity,
-} from "#shared/db/attendees.ts";
+import { getGroupRemainingByListingId } from "#shared/db/attendees.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {
   answerModifierQuantities,
@@ -34,7 +31,6 @@ import {
   type ResolveOptions,
   resolveModifiers,
 } from "#shared/db/modifier-resolve.ts";
-import { consumeModifierStockOrRollback } from "#shared/db/modifier-usage.ts";
 import {
   getOrCreateStringIds,
   parseQuestionAnswers,
@@ -42,7 +38,6 @@ import {
 } from "#shared/db/questions.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import { bestEffort } from "#shared/logger.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { verifyQrBookToken } from "#shared/qr-token.ts";
 import { validateSiteAssignmentConfig } from "#shared/site-assignment.ts";
@@ -210,6 +205,10 @@ const computeListingTextAnswerIdMap = async (
       ),
     ).map(([listingId, answers]) => [
       listingId,
+      // These answers are a subset of the texts handed to getOrCreateStringIds,
+      // which returns an id for every input text or throws — so `s` is always a
+      // real id here, never the undefined that JSON.stringify would silently
+      // drop from the signed metadata.
       answers.map((answer) => ({
         q: answer.questionId,
         s: stringIds.get(answer.text)!,
@@ -333,12 +332,6 @@ const publicReservationAmount = async (): Promise<string | undefined> => {
     : undefined;
 };
 
-/** User-facing message when a chosen add-on or discount sold out during a
- * zero-total completion (no provider in the loop, so it didn't sell out
- * "while completing payment" as the webhook path phrases it). */
-const MODIFIER_SOLD_OUT_MESSAGE =
-  "An extra you selected sold out while you were checking out. Please try again.";
-
 /**
  * Complete a reservation without a payment provider: create the attendee
  * atomically, consume any resolved modifier stock (rolling the order back on
@@ -359,6 +352,7 @@ const handleFreePath = async (
     /** Pre-fold single-parent thank-you URL, kept across the fold so a parent +
      * its folded children still redirects to the parent's configured URL. */
     thankYouUrl?: string | null;
+    ledgerOrder: PricedOrder | null;
   },
 ): Promise<Response> => {
   const {
@@ -371,41 +365,24 @@ const handleFreePath = async (
     modifierUsages,
     paymentBreakdown,
     thankYouUrl,
+    ledgerOrder,
   } = params;
   const result = await createFreeReservation({
     contact,
     date,
     dayCount,
+    // The caller decides whether this booking dual-writes the ledger: an enabled,
+    // zero-total checkout posts the same gross-sale / discount / owed legs a paid
+    // one would; a provider-less booking passes null and records nothing here
+    // (stock is consumed in the create transaction either way).
+    ledgerOrder,
     listings: ctx.listings,
+    modifierUsages,
     paidByListingId: paymentBreakdown?.paidByListingId,
     quantities,
     remainingBalance: paymentBreakdown?.remainingBalance,
   });
   if (!result.success) return ticketFormErrorResponse(ctx)(result.error);
-
-  // Persist the exact usage amounts returned by the pricing engine. A
-  // stock-limited modifier that sold out between resolution and consumption
-  // rolls the new attendee back so the buyer isn't granted a free order they
-  // shouldn't have. Answer-triggered modifiers are ordinary modifiers now, so
-  // they consume stock and record usage just like the rest.
-  if (modifierUsages.length > 0) {
-    const attendeeId = result.entries[0]!.attendee.id;
-    const consumed = await consumeModifierStockOrRollback(
-      attendeeId,
-      modifierUsages,
-    );
-    if (!consumed) {
-      // consumeModifierStockOrRollback deleted the attendee, but the greedy
-      // create already recorded a visit + public booking for this contact.
-      // Undo it so a sold-out free order leaves no contact-history trace.
-      // Best-effort, like the paid paths: a stats-write failure must not 500
-      // the buyer instead of showing the sold-out form error below.
-      await bestEffort("free-path reverseOrderActivity on rollback", () =>
-        reverseOrderActivity(contact.email, contact.phone, "public"),
-      );
-      return ticketFormErrorResponse(ctx)(MODIFIER_SOLD_OUT_MESSAGE);
-    }
-  }
 
   // Notify only after stock is committed; a rolled-back order should not
   // trigger a registration notification. The hash before passing on so the
@@ -779,6 +756,12 @@ const processSubmission = async (
     dayCount,
     hasCustomisable,
     info,
+    // Dual-write the ledger only when a payment provider is configured: an
+    // enabled but zero-total checkout — fully discounted, or a zero-deposit
+    // reservation — records the same sale/owed legs a paid booking would. With no
+    // provider the owed value lives in remaining_balance and is reconstructed by
+    // the backfill, like every other pre-ledger order, so it posts no legs here.
+    ledgerOrder: paymentsEnabled ? finalPricedOrder : null,
     // Record modifier usage (and consume stock) on every completion, including
     // bookings taken with no payment provider, so a stock-limited answer tier is
     // capped across all bookings — not just the paid ones the webhook would have

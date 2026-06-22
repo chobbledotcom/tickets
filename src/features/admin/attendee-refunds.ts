@@ -112,6 +112,7 @@ const handleAttendeeRefund = verifiedAttendeeForm(
     await logActivity(
       `Refund issued for attendee '${data.attendee.name}'`,
       listingId,
+      data.attendee.id,
     );
     return ok(`/admin/listing/${listingId}`, t("success.refund_issued"));
   },

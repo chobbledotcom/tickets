@@ -16,13 +16,23 @@ import { resetDb } from "#test-utils";
  * both tables, which is what this verifies.
  */
 describe("db > free-text migration constraint relaxation", () => {
-  afterEach(() => {
+  // recreateTable rebuilds inside an interactive transaction, which opens a
+  // second connection — so this uses a temp file rather than ":memory:" (each
+  // ":memory:" connection is its own empty database; see test-utils/db.ts).
+  let dbPath: string | undefined;
+
+  afterEach(async () => {
     resetDb();
+    if (dbPath) {
+      await Deno.remove(dbPath).catch(() => {});
+      dbPath = undefined;
+    }
   });
 
   /** A database shaped as it was before the free-text feature shipped. */
   const seedLegacyDb = async () => {
-    const db = createClient({ url: ":memory:" });
+    dbPath = await Deno.makeTempFile({ suffix: ".db" });
+    const db = createClient({ url: `file:${dbPath}` });
     setDb(db);
     await db.execute(
       `CREATE TABLE attendee_answers (

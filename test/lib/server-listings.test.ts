@@ -2145,6 +2145,29 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       const html = await response.text();
       expect(html).toContain("Showing the most recent 200 entries");
     });
+
+    test("links each entry to its attendee and listing by name", async () => {
+      const { listing, cookie } = await setupListingAndLogin({
+        maxAttendees: 50,
+        name: "Gala Dinner",
+      });
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Ada Lovelace",
+        "ada@example.com",
+      );
+      await logActivity("Balance updated", listing.id, attendee.id);
+
+      const response = await awaitTestRequest("/admin/log", { cookie });
+      const html = await response.text();
+      expect(html).toContain(
+        `<a href="/admin/attendees/${attendee.id}">Ada Lovelace</a>`,
+      );
+      expect(html).toContain(
+        `<a href="/admin/listing/${listing.id}">Gala Dinner</a>`,
+      );
+    });
   });
 
   describe("GET /admin/listing/:id/log", () => {

@@ -503,6 +503,18 @@ describe("code quality", () => {
       "shared/jsx/jsx-runtime.ts", // JSX compiler runtime
       "shared/jsx/jsx-dev-runtime.ts", // JSX dev runtime
       "shared/asset-paths.ts", // Build-time config consumed by .tsx templates
+      // The transfer ledger (src/shared/ledger + src/shared/accounting) is being
+      // wired in incrementally; like fp.ts, some exports have no production
+      // caller yet. account.ts and validate.ts are already consumed by the store
+      // adapter, so they are no longer exempt — the remaining modules lose their
+      // exemption as the event mappers and checkout wiring land.
+      "shared/ledger/project.ts",
+      "shared/ledger/reverse.ts",
+      "shared/ledger/reconcile.ts",
+      "shared/checkout-ledger.ts",
+      "shared/accounting/store.ts",
+      "shared/accounting/queries.ts",
+      "shared/accounting/mappers.ts",
     ];
 
     /** Index modules that only re-export from sub-modules */
@@ -603,8 +615,9 @@ describe("code quality", () => {
       "shared/logger.ts:setSuppressDebugLogs",
       // Rethrow errors in tests without env var races
       "shared/test-overrides.ts:setRethrowErrorsForTest",
-      // Override BUILD_TIMESTAMP in tests (compile-time constant can't be changed otherwise)
+      // Override BUILD_TIMESTAMP / BUILD_COMMIT in tests (compile-time constants can't be changed otherwise)
       "shared/update.ts:setBuildTimestampForTest",
+      "shared/update.ts:setBuildCommitForTest",
       // Route maps used by API documentation tests (production uses via dynamic import / createRouter)
       "features/api/index.ts:apiRoutes",
       "features/admin/api.ts:adminApiRoutes",

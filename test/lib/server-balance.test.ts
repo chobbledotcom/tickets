@@ -2,6 +2,16 @@ import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
+import {
+  attendeeAccount,
+  revenueAccount,
+  WORLD,
+} from "#shared/accounting/accounts.ts";
+import {
+  accountBalance,
+  transfersByAccount,
+} from "#shared/accounting/queries.ts";
+import { postTransfers } from "#shared/accounting/store.ts";
 import { signBalanceToken } from "#shared/balance-link.ts";
 import {
   attendeeStatusesTable,
@@ -101,6 +111,16 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
     const response = await handleRequest(mockRequest("/pay/bal1.bogus.bogus"));
     const html = await response.text();
     expect(html).toContain("not valid");
+  });
+
+  test("GET rejects a validly-signed token for a missing attendee", async () => {
+    // The token verifies, but no attendee row matches, so the balance state is
+    // null. The handler must short-circuit to the not-valid page rather than
+    // dereference the absent state.
+    const token = await signBalanceToken(999_999);
+    const response = await handleRequest(mockRequest(`/pay/${token}`));
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain("not valid");
   });
 
   test("GET treats a balance with no status as settled", async () => {
@@ -256,6 +276,79 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
       const state = await getAttendeeBalanceState(attendeeId);
       expect(state?.remainingBalance).toBe(0);
       expect(state?.statusId).toBe(paid!.id);
+    } finally {
+      session.restore();
+    }
+  });
+
+  test("posts a balance payment leg once the booking is in the ledger", async () => {
+    await setupStripe();
+    const attendeeId = await createReserved(1500);
+    // Booking dual-write would have left the attendee owing 1500 in the ledger:
+    // a 5000 sale funded by a 3500 deposit.
+    await postTransfers([
+      {
+        amount: 5000,
+        currency: "GBP",
+        destination: revenueAccount(1),
+        eventGroup: "evt-book",
+        kind: "sale",
+        occurredAt: "2026-06-21T00:00:00.000Z",
+        reference: "book-sale",
+        source: attendeeAccount(attendeeId),
+      },
+      {
+        amount: 3500,
+        currency: "GBP",
+        destination: attendeeAccount(attendeeId),
+        eventGroup: "evt-book",
+        kind: "payment",
+        occurredAt: "2026-06-21T00:00:00.000Z",
+        reference: "book-deposit",
+        source: WORLD,
+      },
+    ]);
+    expect(await accountBalance(attendeeAccount(attendeeId))).toBe(-1500);
+    // Stripe stamps `created` (Unix seconds) when the checkout is made; the
+    // balance-payment leg should be dated from it, not from processing time.
+    const created = Math.floor(Date.parse("2026-06-20T09:00:00.000Z") / 1000);
+    const session = stub(stripeApi, "retrieveCheckoutSession", () =>
+      Promise.resolve({
+        amount_total: 1500,
+        created,
+        id: "cs_balance_ledger",
+        metadata: signMeta(
+          webhookMeta({
+            balance_attendee_id: String(attendeeId),
+            items: JSON.stringify([{ e: 1, p: 1500, q: 1 }]),
+            name: "Balance payment",
+          }),
+          1500,
+        ),
+        payment_intent: "pi_balance_ledger",
+        payment_status: "paid",
+      } as unknown as Awaited<
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      >),
+    );
+    try {
+      const response = await handleRequest(
+        mockRequest("/payment/success?session_id=cs_balance_ledger"),
+      );
+      expect(response.status).toBe(200);
+      expect(
+        (await getAttendeeBalanceState(attendeeId))?.remainingBalance,
+      ).toBe(0);
+      // The balance payment leg cleared the ledger balance too.
+      expect(await accountBalance(attendeeAccount(attendeeId))).toBe(0);
+      // …and it carries the checkout's business time, not the processing clock.
+      const legs = await transfersByAccount(attendeeAccount(attendeeId));
+      const balancePayment = legs.find(
+        (leg) => leg.kind === "payment" && leg.amount === 1500,
+      );
+      expect(balancePayment?.occurredAt).toBe(
+        new Date(created * 1000).toISOString(),
+      );
     } finally {
       session.restore();
     }
