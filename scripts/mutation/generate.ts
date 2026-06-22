@@ -207,11 +207,24 @@ const mutantsForNode =
   };
 
 /**
+ * Fields whose value is a TypeScript type rather than runtime code. Crossing one
+ * enters type context, and nothing runtime lives below a type, so the flag
+ * sticks. Keying on the field (not the node's type) means runtime code carried
+ * by TS-prefixed nodes is still mutated — e.g. `enum E { A = 1 + 2 }`,
+ * `constructor(private x = build())`, and the operand of `x as T`.
+ */
+const TYPE_FIELDS = new Set([
+  "returnType",
+  "superTypeArguments",
+  "typeAnnotation",
+  "typeArguments",
+  "typeParameters",
+]);
+
+/**
  * Depth-first stream of every typed node, tagged with whether it sits inside a
  * TypeScript type. A type is erased at runtime, so mutating it (e.g. the `true`
  * in `{ ok: true }`) is always an equivalent no-op — those nodes are skipped.
- * The runtime operand of `x as T` / `x!` / `x satisfies T` (the `expression`
- * field) is kept as runtime so its mutations still fire.
  */
 function* walk(
   node: unknown,
@@ -219,12 +232,10 @@ function* walk(
 ): Generator<{ inType: boolean; node: AstNode }> {
   if (!node || typeof node !== "object") return;
   const record = node as Record<string, unknown>;
-  const { type } = record;
-  if (typeof type === "string") yield { inType, node: record as AstNode };
-  const descendInType =
-    inType || (typeof type === "string" && type.startsWith("TS"));
+  if (typeof record.type === "string")
+    yield { inType, node: record as AstNode };
   for (const [key, value] of Object.entries(record)) {
-    const childInType = key === "expression" ? inType : descendInType;
+    const childInType = inType || TYPE_FIELDS.has(key);
     if (Array.isArray(value)) {
       for (const child of value) yield* walk(child, childInType);
     } else if (value && typeof value === "object") {

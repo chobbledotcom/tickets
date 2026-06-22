@@ -106,15 +106,21 @@ const survivorLine = (result: MutantResult): string => {
 
 /** The full terminal report as lines, ready for the runner to print. Pure. */
 export const formatSummaryLines = (s: Summary): string[] => {
-  if (s.effective === 0) {
+  if (s.total === 0) {
     return [
       bold("\nMutation testing summary"),
-      yellow(
-        s.total === 0
-          ? "  No mutable operators were found — nothing to mutate."
-          : `  All ${s.total} mutant(s) are suppressed as known-equivalent.`,
+      yellow("  No mutable operators were found — nothing to mutate."),
+      yellow("  Result is INCONCLUSIVE (a mutation score needs ≥1 mutant)."),
+    ];
+  }
+  if (s.effective === 0) {
+    // Every mutant is a recorded known-equivalent — exactly what the ignore
+    // list is for. There is nothing killable, but nothing unexpected: a pass.
+    return [
+      bold("\nMutation testing summary"),
+      green(
+        `  All ${s.total} mutant(s) suppressed as known-equivalent — nothing killable.`,
       ),
-      yellow("  Result is INCONCLUSIVE (the score needs ≥1 effective mutant)."),
     ];
   }
   const allDetected = green(
@@ -142,15 +148,20 @@ const survivorRow = (result: MutantResult): string => {
 };
 
 const markdownSummary = (s: Summary): string => {
-  if (s.effective === 0) {
-    const why =
-      s.total === 0
-        ? "no mutable operators were found, so nothing was mutated"
-        : `all ${s.total} mutant(s) are suppressed as known-equivalent`;
+  if (s.total === 0) {
     return [
       "## 🧬 Mutation testing",
       "",
-      `⚠️ **Inconclusive** — ${why}. The score needs at least one effective mutant.`,
+      "⚠️ **Inconclusive** — no mutable operators were found, so nothing was" +
+        " mutated. A mutation score needs at least one mutant.",
+      "",
+    ].join("\n");
+  }
+  if (s.effective === 0) {
+    return [
+      "## 🧬 Mutation testing",
+      "",
+      `✅ All ${s.total} mutant(s) suppressed as known-equivalent — nothing killable.`,
       "",
     ].join("\n");
   }
