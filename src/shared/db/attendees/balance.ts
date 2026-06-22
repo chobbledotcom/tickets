@@ -1,9 +1,11 @@
 /**
  * Settle a reserved attendee's outstanding balance.
  *
- * Works entirely off plaintext columns (status_id, remaining_balance,
- * listing_attendees.price_paid), so it can run in the keyless payment-webhook
- * context. Idempotent: a second call once the balance is cleared is a no-op.
+ * Money is read from the transfers ledger (the outstanding balance projects as
+ * −balanceOf(attendee); amounts paid from the booking's sale legs), and the
+ * settle posts its own balance-payment leg — no PII and no decryption, so it can
+ * run in the keyless payment-webhook context. Idempotent: a second call once the
+ * balance is cleared is a no-op.
  */
 
 import type { InValue } from "@libsql/client";
@@ -153,13 +155,13 @@ export type SettleBalanceResult =
  * payment leg, so the balance settle only has to clear the receivable.
  *
  * `expectedAmount` is the balance the paying checkout was created for. The
- * clear is an atomic conditional update guarded on `remaining_balance =
- * expectedAmount`, so a balance edited (or already settled by a racing/stale
- * checkout) after this checkout was created no longer matches and we refuse
- * rather than clear the wrong amount.
+ * status move and the balance-payment leg are both guarded on the projected
+ * outstanding balance still equalling `expectedAmount`, so a balance edited (or
+ * already settled by a racing/stale checkout) after this checkout was created no
+ * longer matches and we refuse rather than settle the wrong amount.
  *
- * `extraStatements` are committed in the SAME transaction, ahead of the
- * balance-clearing write — used to finalize the payment session atomically with
+ * `extraStatements` are committed in the SAME transaction, between the status
+ * move and the payment leg — used to finalize the payment session atomically with
  * the settle (see balanceFinalizeStatement) so a crash between the two can't
  * leave a paid-but-unfinalized row. Each must carry its own balance guard so it
  * no-ops on a mismatch, exactly like the settle writes.

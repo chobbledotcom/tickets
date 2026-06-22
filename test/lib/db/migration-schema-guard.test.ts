@@ -51,8 +51,9 @@ describe("db > migrations > schema change guard", () => {
         "2026-06-22_drop_listing_attendee_refunded",
         "2026-06-22_drop_listing_attendee_price_paid",
         "2026-06-22_drop_attendees_price_paid",
+        "2026-06-22_drop_attendees_remaining_balance",
       ],
-      schemaHash: "pefg1v",
+      schemaHash: "jqt93x",
     });
   });
 });

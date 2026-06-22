@@ -100,8 +100,8 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
          VALUES (901, 'migration-group', 'group-index', 'Migration Group', 'historic group', 50)`,
         `INSERT INTO listings (id, created, max_attendees, name, slug, slug_index, group_id, unit_price, max_quantity, listing_type, date, location, customisable_days, uses_logistics)
          VALUES (902, '2024-01-01T00:00:00Z', 25, 'migration-listing', 'migration-listing', 'listing-index', 901, 1200, 4, 'standard', '2024-02-01', 'Town Hall', 1, 1)`,
-        `INSERT INTO attendees (id, created, checked_in, ticket_token_index, pii_blob, status_id, remaining_balance, split_logistics_agents, phone_index)
-         VALUES (903, '2024-01-02T00:00:00Z', '', 'ticket-index', '{"name":"Migration Guest"}', 1, 300, 1, 'phone-index')`,
+        `INSERT INTO attendees (id, created, checked_in, ticket_token_index, pii_blob, status_id, split_logistics_agents, phone_index)
+         VALUES (903, '2024-01-02T00:00:00Z', '', 'ticket-index', '{"name":"Migration Guest"}', 1, 1, 'phone-index')`,
         `INSERT INTO listing_attendees (id, listing_id, attendee_id, start_at, end_at, quantity, checked_in, start_agent_id, end_agent_id, start_time, end_time, start_done, end_done)
          VALUES (904, 902, 903, '2024-02-01T10:00:00Z', '2024-02-01T12:00:00Z', 2, 1, NULL, NULL, '10:00', '12:00', 1, 0)`,
         `INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at, ticket_tokens, failure_data)
@@ -284,10 +284,11 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
     // Guards against a future migration slipping through with no restore test.
     // The non-additive migrations excluded here are: the baseline reconcile, the
     // events→listings rename, the transfers time-int rebuild, the transfers
-    // backfill (data-only), and the five column-drop migrations (drop_transfers_
+    // backfill (data-only), and the six column-drop migrations (drop_transfers_
     // currency, drop_listing_income, drop_listing_attendee_refunded,
-    // drop_listing_attendee_price_paid and drop_attendees_price_paid).
-    expect(additiveMigrations.length).toBe(MIGRATIONS.length - 9);
+    // drop_listing_attendee_price_paid, drop_attendees_price_paid and
+    // drop_attendees_remaining_balance).
+    expect(additiveMigrations.length).toBe(MIGRATIONS.length - 10);
   });
 
   for (const migration of additiveMigrations) {
