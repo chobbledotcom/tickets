@@ -83,6 +83,21 @@ export const seedListingDomainRows = async (): Promise<number> => {
   return listing.id;
 };
 
+/**
+ * Recreate the legacy `listing_attendees.refunded` column on a test database
+ * built from the current (post-drop) SCHEMA. The `2026-06-22_backfill_transfers`
+ * migration reads this column, and it runs BEFORE
+ * `2026-06-22_drop_listing_attendee_refunded` removes it — so production still
+ * has the column when the backfill runs. Fixtures that build from the current
+ * schema must restore it first to reproduce the schema the backfill really runs
+ * against (the drop migration removes it again, leaving the final schema
+ * correct). Mirrors `seedPreDropRefundedColumn` in the backfill unit test.
+ */
+export const seedPreDropRefundedColumn = (): Promise<unknown> =>
+  getDb().execute(
+    "ALTER TABLE listing_attendees ADD COLUMN refunded INTEGER NOT NULL DEFAULT 0",
+  );
+
 export const columnNames = async (table: string): Promise<string[]> => {
   const result = await getDb().execute(
     `SELECT name FROM pragma_table_info('${table}')`,

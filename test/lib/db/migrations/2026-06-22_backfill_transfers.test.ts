@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { it as test } from "@std/testing/bdd";
+import { beforeEach, it as test } from "@std/testing/bdd";
 import {
   attendeeAccount,
   revenueAccount,
@@ -19,6 +19,7 @@ import type {
   SchemaRequirement,
 } from "#shared/db/migrations/types.ts";
 import { createTestListing, describeWithEnv } from "#test-utils";
+import { seedPreDropRefundedColumn } from "../migration-test-helpers.ts";
 
 // Promise<never> so one stub satisfies both the void- and boolean-returning
 // context members; the backfill up() touches none of them.
@@ -53,6 +54,11 @@ describeWithEnv(
   "db > migrations > 2026-06-22_backfill_transfers",
   { db: true },
   () => {
+    // The backfill reads listing_attendees.refunded, dropped by the later
+    // 2026-06-22_drop_listing_attendee_refunded migration; restore it so each
+    // test exercises the pre-drop schema the backfill runs against in production.
+    beforeEach(seedPreDropRefundedColumn);
+
     test("posts the ledger for an existing paid booking in the site currency", async () => {
       const listing = await createTestListing({ maxAttendees: 5 });
       const result = await createAttendeeAtomic({

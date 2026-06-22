@@ -46,8 +46,9 @@ describe("db > migrations > schema change guard", () => {
         "2026-06-22_transfers_time_int",
         "2026-06-22_backfill_transfers",
         "2026-06-22_drop_listing_income",
+        "2026-06-22_drop_listing_attendee_refunded",
       ],
-      schemaHash: "1eajbpv",
+      schemaHash: "ai0run",
     });
   });
 });

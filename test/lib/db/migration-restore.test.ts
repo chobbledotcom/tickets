@@ -19,6 +19,7 @@ import {
 import { describeWithEnv } from "#test-utils";
 import {
   downgradeListingDomainToLegacyNames,
+  seedPreDropRefundedColumn,
   tableRowCount,
 } from "./migration-test-helpers.ts";
 
@@ -281,7 +282,10 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
 
   test("every additive migration is covered by a restore case", () => {
     // Guards against a future migration slipping through with no restore test.
-    expect(additiveMigrations.length).toBe(MIGRATIONS.length - 5);
+    // The non-additive migrations excluded here are: the baseline reconcile, the
+    // events→listings rename, the transfers backfill (data-only), and the two
+    // column-drop migrations (drop_listing_income and drop_listing_attendee_refunded).
+    expect(additiveMigrations.length).toBe(MIGRATIONS.length - 6);
   });
 
   for (const migration of additiveMigrations) {
@@ -334,6 +338,13 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
   for (const baseMigration of migrationBoundaries) {
     test(`migrates a populated database from ${baseMigration.id} to the current schema`, async () => {
       await seedPopulatedMigrationFixture();
+      // The fixture is built from the current (post-drop) schema, but the
+      // 2026-06-22_backfill_transfers migration in the chain reads
+      // listing_attendees.refunded — present in production until the later
+      // 2026-06-22_drop_listing_attendee_refunded migration recreates the table
+      // without it. Restore the column so the chain reproduces production; the
+      // drop migration then removes it again, leaving the verified schema correct.
+      await seedPreDropRefundedColumn();
 
       const pending = MIGRATIONS.slice(MIGRATIONS.indexOf(baseMigration) + 1);
       for (const migration of [...pending].reverse()) {

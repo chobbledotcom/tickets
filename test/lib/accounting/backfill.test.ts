@@ -18,20 +18,7 @@ import { createAttendeeAtomic } from "#shared/db/attendees.ts";
 import { getDb } from "#shared/db/client.ts";
 import type { Transfer } from "#shared/ledger/types.ts";
 import { createTestListing, describeWithEnv } from "#test-utils";
-
-/**
- * Recreate the legacy `listing_attendees.refunded` column. The backfill runs as
- * the `2026-06-22_backfill_transfers` migration — BEFORE
- * `2026-06-22_drop_listing_attendee_refunded` — so in production it reads the
- * column while it still exists. The test DB is built from the current (post-drop)
- * SCHEMA, so restore the column to reproduce the schema the backfill really runs
- * against, just as the income-drop migration's own test restores `listings.income`.
- */
-const seedPreDropRefundedColumn = async (): Promise<void> => {
-  await getDb().execute(
-    "ALTER TABLE listing_attendees ADD COLUMN refunded INTEGER NOT NULL DEFAULT 0",
-  );
-};
+import { seedPreDropRefundedColumn } from "../db/migration-test-helpers.ts";
 
 /** Flag a historical booking line refunded, the way a pre-ledger DB recorded a
  *  provider refund before the column was projected from the ledger. */
