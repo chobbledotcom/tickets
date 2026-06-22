@@ -12,8 +12,8 @@ import {
   adminFormPost,
   adminGet,
   describeWithEnv,
+  expectFlashRedirect,
   expectHtmlResponse,
-  expectRedirectWithFlash,
   testRequiresAuth,
 } from "#test-utils";
 
@@ -70,7 +70,7 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
         name: "Reserved",
         reservation_amount: "10%",
       });
-      expectRedirectWithFlash(PATH, "Status created")(response);
+      await expectFlashRedirect(PATH, "Status created")(response);
 
       const statuses = await getAllAttendeeStatuses();
       const created = statuses.find((s) => s.name === "Reserved")!;
@@ -82,7 +82,7 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
 
     test("rejects a missing name", async () => {
       const { response } = await adminFormPost(PATH, { name: "" });
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `${PATH}/new`,
         "Please enter a name",
         false,
@@ -95,7 +95,7 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
         name: "Bad",
         reservation_amount: "lots",
       });
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `${PATH}/new`,
         RESERVATION_AMOUNT_HINT,
         false,
@@ -109,7 +109,7 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
         name: "Contradiction",
         reservation_amount: "10",
       });
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `${PATH}/new`,
         "A paid status can't also be a reservation",
         false,
@@ -124,7 +124,7 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
         is_public_default: "1",
         name: "New Default",
       });
-      expectRedirectWithFlash(PATH, "Status created")(response);
+      await expectFlashRedirect(PATH, "Status created")(response);
 
       const newDefault = await getPublicDefaultStatus();
       expect(newDefault?.name).toBe("New Default");
@@ -138,7 +138,7 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
         is_paid_default: "1",
         name: "Settled",
       });
-      expectRedirectWithFlash(PATH, "Status created")(response);
+      await expectFlashRedirect(PATH, "Status created")(response);
       expect((await getAttendeeStatus(seed.id))?.is_paid_default).toBe(false);
     });
   });
@@ -149,7 +149,7 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
       const { response } = await adminFormPost(`${PATH}/${created.id}/edit`, {
         name: "Renamed",
       });
-      expectRedirectWithFlash(PATH, "Status updated")(response);
+      await expectFlashRedirect(PATH, "Status updated")(response);
       expect((await getAttendeeStatus(created.id))?.name).toBe("Renamed");
     });
 
@@ -160,7 +160,7 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
         is_paid_default: "1",
         name: "Confirmed",
       });
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `${PATH}/${seed.id}/edit`,
         "Choose another public default before clearing this one",
         false,
@@ -204,7 +204,7 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
       const { response } = await adminFormPost(`${PATH}/${seed.id}/edit`, {
         name: "",
       });
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `${PATH}/${seed.id}/edit`,
         "Please enter a name",
         false,
@@ -217,7 +217,7 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
         is_public_default: "1",
         name: "Confirmed",
       });
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `${PATH}/${seed.id}/edit`,
         "Choose another paid default before clearing this one",
         false,
@@ -252,7 +252,7 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
       const { response } = await adminFormPost(`${PATH}/${spare.id}/delete`, {
         confirm_identifier: "wrong",
       });
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `${PATH}/${spare.id}/delete`,
         "Name does not match. Please type the exact name to confirm deletion.",
         false,
@@ -265,7 +265,7 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
       const { response } = await adminFormPost(`${PATH}/${seed.id}/delete`, {
         confirm_identifier: seed.name,
       });
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `${PATH}/${seed.id}/delete`,
         "You must keep at least one status",
         false,
@@ -278,7 +278,7 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
       const { response } = await adminFormPost(`${PATH}/${seed.id}/delete`, {
         confirm_identifier: seed.name,
       });
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `${PATH}/${seed.id}/delete`,
         "Choose another public default before deleting this status",
         false,
@@ -296,7 +296,7 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
       const { response } = await adminFormPost(`${PATH}/${inUse.id}/delete`, {
         confirm_identifier: "Active",
       });
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `${PATH}/${inUse.id}/delete`,
         "This status is in use by attendees",
         false,
@@ -308,7 +308,7 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
       const { response } = await adminFormPost(`${PATH}/${spare.id}/delete`, {
         confirm_identifier: "Disposable",
       });
-      expectRedirectWithFlash(PATH, "Status deleted")(response);
+      await expectFlashRedirect(PATH, "Status deleted")(response);
       expect(await getAttendeeStatus(spare.id)).toBeNull();
     });
 
@@ -328,7 +328,7 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
       const { response } = await adminFormPost(`${PATH}/${settled.id}/delete`, {
         confirm_identifier: "Settled",
       });
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `${PATH}/${settled.id}/delete`,
         "Choose another paid default before deleting this status",
         false,
@@ -348,7 +348,7 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
         sortOrder: 2,
       });
       const { response } = await adminFormPost(`${PATH}/${second.id}/move-up`);
-      expectRedirectWithFlash(PATH, "Status moved")(response);
+      await expectFlashRedirect(PATH, "Status moved")(response);
 
       const order = (await getAllAttendeeStatuses()).map((s) => s.name);
       const firstIdx = order.indexOf("First");
@@ -361,7 +361,7 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
     test("move at the boundary is a no-op", async () => {
       const seed = await seedStatus();
       const { response } = await adminFormPost(`${PATH}/${seed.id}/move-up`);
-      expectRedirectWithFlash(PATH, "Status moved")(response);
+      await expectFlashRedirect(PATH, "Status moved")(response);
     });
 
     test("returns 404 moving a missing status", async () => {

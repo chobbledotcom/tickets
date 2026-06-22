@@ -48,6 +48,7 @@ type BookResponseBody = {
     ticketToken?: string;
     ticketUrl?: string;
     checkoutUrl?: string;
+    amountOwed?: number;
   };
 };
 
@@ -563,17 +564,51 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
       expect(response.status).toBe(409);
     });
 
-    test("books a paid listing as free when no payment provider is configured", async () => {
+    test("books a paid listing owing the full value when no payment provider is configured", async () => {
       // Don't call setupStripe — unit_price > 0 but payments are disabled, so
-      // the booking falls through to the free path instead of attempting
-      // checkout, issuing a ticket directly.
+      // the booking is taken without checkout and the full value is recorded as
+      // the amount owed (like a zero-deposit reservation), issuing a ticket.
       const listing = await createTestListing({
         maxAttendees: 10,
         unitPrice: 1000,
       });
       const { response, body } = await bookListing(listing.slug);
       expect(response.status).toBe(200);
-      expect(body.booking?.ticketToken).toBeDefined();
+      const token = body.booking?.ticketToken;
+      expect(token).toBeDefined();
+      // The response surfaces the owed amount so integrations can collect it.
+      expect(body.booking?.amountOwed).toBe(1000);
+
+      const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
+      const [attendee] = await getAttendeesByTokens([token!]);
+      // Nothing collected up front, full £10.00 booking value owed.
+      expect(attendee?.remaining_balance).toBe(1000);
+      expect(attendee?.bookings[0]?.price_paid).toBe(0);
+      // The booking carries the public-default status, matching the web free
+      // path so a balance-carrying attendee is never left status-less.
+      const { getPublicStatusId } = await import(
+        "#shared/db/attendee-statuses.ts"
+      );
+      expect(attendee?.status_id).toBe(await getPublicStatusId());
+    });
+
+    test("books a free listing without an owed balance when a provider is configured", async () => {
+      // Payments are enabled but the listing is free, so it takes the no-charge
+      // path and owes nothing — the provider is never invoked for checkout.
+      await setupStripe();
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        unitPrice: 0,
+      });
+      const { response, body } = await bookListing(listing.slug);
+      expect(response.status).toBe(200);
+      const token = body.booking?.ticketToken;
+      expect(token).toBeDefined();
+      expect(body.booking?.checkoutUrl).toBeUndefined();
+
+      const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
+      const [attendee] = await getAttendeesByTokens([token!]);
+      expect(attendee?.remaining_balance).toBe(0);
     });
 
     test("books daily listing with valid date", async () => {

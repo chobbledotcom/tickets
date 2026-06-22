@@ -30,8 +30,8 @@ import {
   deactivateTestListing,
   describeWithEnv,
   expectFlash,
+  expectFlashRedirect,
   expectHtmlResponse,
-  expectRedirectWithFlash,
   expectStatus,
   followRedirectWithFlash,
   mockFormRequest,
@@ -109,7 +109,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
           await testCookie(),
         ),
       );
-      expectRedirectWithFlash("/admin", "Listing created")(response);
+      await expectFlashRedirect("/admin", "Listing created")(response);
 
       // Verify listing was actually created
       const { getListing } = await import("#shared/db/listings.ts");
@@ -134,7 +134,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
           await testCookie(),
         ),
       );
-      expectRedirectWithFlash("/admin", "Listing created")(response);
+      await expectFlashRedirect("/admin", "Listing created")(response);
 
       // Verify webhook_url was cleared
       const { getListing } = await import("#shared/db/listings.ts");
@@ -162,7 +162,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
           await testCookie(),
         ),
       );
-      expectRedirectWithFlash("/admin", "Listing created")(response);
+      await expectFlashRedirect("/admin", "Listing created")(response);
 
       const { getListing } = await import("#shared/db/listings.ts");
       const listing = await getListing(1);
@@ -296,7 +296,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         ),
       );
       // Slug auto-generated so creation succeeds
-      expectRedirectWithFlash("/admin", "Listing created")(response);
+      await expectFlashRedirect("/admin", "Listing created")(response);
     });
   });
 
@@ -894,7 +894,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         `/admin/listings/recalculate/${listing.id}`,
         { recalculate_fields: "booked_quantity" },
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/listing/${listing.id}/edit`,
         "Listing totals recalculated",
         true,
@@ -916,7 +916,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         `/admin/listings/recalculate/${listing.id}`,
         { recalculate_fields: "booked_quantity" },
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/listing/${listing.id}/edit`,
         "Listing totals recalculated",
         true,
@@ -1048,7 +1048,10 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
           cookie,
         ),
       );
-      expectRedirectWithFlash("/admin/listing/1", "Listing updated")(response);
+      await expectFlashRedirect(
+        "/admin/listing/1",
+        "Listing updated",
+      )(response);
 
       // Verify the listing was updated
       const { getListingWithCount } = await import("#shared/db/listings.ts");
@@ -1081,7 +1084,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
           cookie,
         ),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/listing/${listing.id}`,
         "Listing updated",
       )(response);
@@ -1145,7 +1148,10 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
           cookie,
         ),
       );
-      expectRedirectWithFlash("/admin/listing/1", "Listing updated")(response);
+      await expectFlashRedirect(
+        "/admin/listing/1",
+        "Listing updated",
+      )(response);
 
       // Verify webhook_url was cleared
       const { getListingWithCount } = await import("#shared/db/listings.ts");
@@ -1181,7 +1187,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
           cookie,
         ),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/listing/${listing.id}`,
         "Listing updated",
       )(response);
@@ -1283,7 +1289,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
           cookie,
         ),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/listing/${listing.id}`,
         "Listing updated",
       )(response);
@@ -1310,7 +1316,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
           cookie,
         ),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/listing/${listing.id}`,
         "Listing updated",
       )(response);
@@ -1339,7 +1345,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
           cookie,
         ),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/listing/${listing.id}`,
         "Listing updated",
       )(response);
@@ -1451,7 +1457,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
           cookie,
         ),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/listing/${listing.id}`,
         "Listing updated",
       )(response);
@@ -1522,7 +1528,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
           cookie,
         ),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/listing/1",
         "Listing deactivated",
       )(response);
@@ -1623,7 +1629,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
           cookie,
         ),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/listing/1",
         "Listing reactivated",
       )(response);
@@ -1819,7 +1825,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
           cookie,
         ),
       );
-      expectRedirectWithFlash("/admin", "Listing deleted")(response);
+      await expectFlashRedirect("/admin", "Listing deleted")(response);
 
       // Verify listing was deleted
       const { getListing } = await import("#shared/db/listings.ts");
@@ -1844,7 +1850,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
           cookie,
         ),
       );
-      expectRedirectWithFlash("/admin", "Listing deleted")(response);
+      await expectFlashRedirect("/admin", "Listing deleted")(response);
     });
 
     test("deletes the listing and unlinks its attendees", async () => {
@@ -2139,6 +2145,29 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       const html = await response.text();
       expect(html).toContain("Showing the most recent 200 entries");
     });
+
+    test("links each entry to its attendee and listing by name", async () => {
+      const { listing, cookie } = await setupListingAndLogin({
+        maxAttendees: 50,
+        name: "Gala Dinner",
+      });
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Ada Lovelace",
+        "ada@example.com",
+      );
+      await logActivity("Balance updated", listing.id, attendee.id);
+
+      const response = await awaitTestRequest("/admin/log", { cookie });
+      const html = await response.text();
+      expect(html).toContain(
+        `<a href="/admin/attendees/${attendee.id}">Ada Lovelace</a>`,
+      );
+      expect(html).toContain(
+        `<a href="/admin/listing/${listing.id}">Gala Dinner</a>`,
+      );
+    });
   });
 
   describe("GET /admin/listing/:id/log", () => {
@@ -2373,7 +2402,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
           cookie,
         ),
       );
-      expectRedirectWithFlash("/admin", "Listing deleted")(response);
+      await expectFlashRedirect("/admin", "Listing deleted")(response);
 
       const { getListing: getListingFn } = await import(
         "#shared/db/listings.ts"
@@ -2428,7 +2457,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
           cookie,
         ),
       );
-      expectRedirectWithFlash("/admin", "Listing deleted")(response);
+      await expectFlashRedirect("/admin", "Listing deleted")(response);
 
       const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       const attendees = await getAttendeesRaw(listing.id);

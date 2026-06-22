@@ -6,8 +6,8 @@ import {
   awaitTestRequest,
   createTestAttendeeWithToken,
   describeWithEnv,
+  expectFlashRedirect,
   expectRedirect,
-  expectRedirectWithFlash,
   loginAsAdmin,
   mockFormRequest,
   setTestEnv,
@@ -169,7 +169,7 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
         cookie,
       ),
     );
-    expectRedirectWithFlash(
+    await expectFlashRedirect(
       "/admin/settings-advanced?form=settings-google-wallet#settings-google-wallet",
       expect.stringContaining("Issuer ID is required"),
       false,
@@ -192,7 +192,7 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
         cookie,
       ),
     );
-    expectRedirectWithFlash(
+    await expectFlashRedirect(
       "/admin/settings-advanced?form=settings-google-wallet#settings-google-wallet",
       expect.stringContaining("Service account email is required"),
       false,
@@ -215,7 +215,7 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
         cookie,
       ),
     );
-    expectRedirectWithFlash(
+    await expectFlashRedirect(
       "/admin/settings-advanced?form=settings-google-wallet#settings-google-wallet",
       expect.stringContaining("Service account private key is required"),
       false,
@@ -238,7 +238,7 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
         cookie,
       ),
     );
-    expectRedirectWithFlash(
+    await expectFlashRedirect(
       "/admin/settings-advanced?form=settings-google-wallet#settings-google-wallet",
       expect.stringContaining(
         "Service account private key is not a valid PEM private key",
@@ -265,7 +265,7 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
       ),
     );
 
-    expectRedirectWithFlash(
+    await expectFlashRedirect(
       "/admin/settings-advanced?form=settings-google-wallet#settings-google-wallet",
       "Google Wallet configuration updated",
     )(response);
@@ -295,7 +295,7 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
       ),
     );
 
-    expectRedirectWithFlash(
+    await expectFlashRedirect(
       "/admin/settings-advanced?form=settings-google-wallet#settings-google-wallet",
       "Google Wallet configuration cleared",
     )(response);

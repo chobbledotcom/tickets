@@ -82,10 +82,16 @@ export const bookingLedgerPoster =
  * form. Any other error propagates. Shared so both paths translate a sold-out
  * race the same way, and so the in-transaction rollback (no attendee, no stock,
  * no legs) lives in one place.
+ *
+ * Omit `postLedger` when there are no legs to post and no stock to consume: the
+ * create then runs as a single batch rather than an interactive transaction, so
+ * concurrent provider-less bookings don't contend on the one connection (an
+ * empty interactive transaction would still serialise them and can fail to
+ * commit while another is mid-flight).
  */
 export const createOrSoldOut = (
   input: AttendeeInput,
-  postLedger: LedgerPoster,
+  postLedger?: LedgerPoster,
 ): Promise<CreateAttendeeResult | "sold-out"> =>
   createAttendeeAtomic(input, postLedger).catch((error: unknown) => {
     if (error instanceof ModifierSoldOutError) return "sold-out" as const;

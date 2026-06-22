@@ -6,7 +6,7 @@ import {
   adminFormPost,
   adminGet,
   describeWithEnv,
-  expectRedirectWithFlash,
+  expectFlashRedirect,
   mockRequest,
 } from "#test-utils";
 
@@ -21,7 +21,7 @@ describeWithEnv("integration: theme settings", { db: true }, () => {
     const { response } = await adminFormPost("/admin/settings/theme", {
       theme: "dark",
     });
-    expectRedirectWithFlash(
+    await expectFlashRedirect(
       "/admin/settings?form=settings-theme#settings-theme",
       "Theme set to dark",
     )(response);

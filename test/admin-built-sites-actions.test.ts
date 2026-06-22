@@ -17,7 +17,7 @@ import {
   createTestBuiltSite,
   createTestListing,
   describeWithEnv,
-  expectRedirectWithFlash,
+  expectFlashRedirect,
   provisionTestBuiltSite,
   testCookie,
 } from "#test-utils";
@@ -56,7 +56,7 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/built-sites/${site.id}/rotate-renewal-token`,
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/built-sites/${site.id}/edit`,
         "Renewal token rotated",
       )(response);
@@ -85,7 +85,7 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/built-sites/${site.id}/rotate-renewal-token`,
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/built-sites/${site.id}/edit`,
         "Renewal is not provisioned for this site",
         false,
@@ -244,7 +244,7 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
           `/admin/built-sites/${site.id}/bump-deadline`,
           { months: "1" },
         );
-        expectRedirectWithFlash(
+        await expectFlashRedirect(
           `/admin/built-sites/${site.id}/edit`,
           expect.stringContaining("could not be pushed"),
           false,
@@ -325,7 +325,7 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/built-sites/${site.id}/override-deadline`,
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/built-sites/${site.id}/edit`,
         "Choose a deadline date",
         false,
@@ -348,7 +348,7 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
         `/admin/built-sites/${site.id}/override-deadline`,
         { date: "2027-02-31" },
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/built-sites/${site.id}/edit`,
         "Choose a valid deadline date",
         false,
@@ -372,7 +372,7 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
         `/admin/built-sites/${site.id}/override-deadline`,
         { date: "hello" },
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/built-sites/${site.id}/edit`,
         "Choose a valid deadline date",
         false,
@@ -403,7 +403,7 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/built-sites/${site.id}/re-sync-deadline`,
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/built-sites/${site.id}/edit`,
         "Deadline re-synced",
       )(response);
@@ -450,7 +450,7 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/built-sites/${site.id}/re-sync-deadline`,
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/built-sites/${site.id}/edit`,
         "No deadline to re-sync",
         false,
@@ -501,7 +501,7 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
         `/admin/built-sites/${site.id}/provision-renewal`,
         { months: "3" },
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/built-sites/${site.id}/edit`,
         "Create a qualifying renewal tier listing before provisioning",
         false,
@@ -528,7 +528,7 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
         `/admin/built-sites/${site.id}/provision-renewal`,
         { months: "3" },
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/built-sites/${site.id}/edit`,
         "Renewal is already provisioned for this site",
         false,
@@ -557,7 +557,7 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
           `/admin/built-sites/${site.id}/provision-renewal`,
           { months: "3" },
         );
-        expectRedirectWithFlash(
+        await expectFlashRedirect(
           `/admin/built-sites/${site.id}/edit`,
           "Renewal could not be pushed to the site",
           false,
@@ -643,7 +643,7 @@ describeWithEnv(
         const { response } = await adminFormPost(
           `/admin/built-sites/${site.id}/add-secrets`,
         );
-        expectRedirectWithFlash(
+        await expectFlashRedirect(
           `/admin/built-sites/${site.id}/edit`,
           expect.stringContaining("missing secret(s)"),
         )(response);
@@ -679,7 +679,7 @@ describeWithEnv(
         const { response } = await adminFormPost(
           `/admin/built-sites/${site.id}/add-secrets`,
         );
-        expectRedirectWithFlash(
+        await expectFlashRedirect(
           `/admin/built-sites/${site.id}/edit`,
           "Set 1 missing secret(s): NTFY_URL",
         )(response);
@@ -703,7 +703,7 @@ describeWithEnv(
         const { response } = await adminFormPost(
           `/admin/built-sites/${site.id}/add-secrets`,
         );
-        expectRedirectWithFlash(
+        await expectFlashRedirect(
           `/admin/built-sites/${site.id}/edit`,
           "No missing secrets — nothing to set",
         )(response);
@@ -728,7 +728,7 @@ describeWithEnv(
         const { response } = await adminFormPost(
           `/admin/built-sites/${site.id}/add-secrets`,
         );
-        expectRedirectWithFlash(
+        await expectFlashRedirect(
           `/admin/built-sites/${site.id}/edit`,
           expect.stringContaining("Secrets could not be set"),
           false,

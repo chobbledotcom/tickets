@@ -314,7 +314,10 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       const result = await createFreeReservation({
         contact,
         date: null,
-        ledgerOrder: zeroTotalOrder(listing.id, 5000),
+        // No provider configured, but the booking still carries a stock-limited
+        // add-on: the create runs in a transaction to consume stock and rolls the
+        // whole thing back when that add-on is gone, even with no ledger to post.
+        ledgerOrder: null,
         listings: [await ticketListingFor(listing.id)],
         modifierUsages: [{ amountApplied: 500, modifierId: m.id, quantity: 1 }],
         quantities: new Map([[listing.id, 1]]),

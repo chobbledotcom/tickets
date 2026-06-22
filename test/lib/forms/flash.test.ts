@@ -2,15 +2,27 @@ import { expect } from "@std/expect";
 import { afterEach, beforeAll, describe, it as test } from "@std/testing/bdd";
 import { getCurrentCsrfToken, signCsrfToken } from "#shared/csrf.ts";
 import {
-  CsrfForm,
-  Flash,
-  renderError,
-  renderSuccess,
-  setFormError,
-  setFormSuccess,
-} from "#shared/forms.tsx";
+  type Flash as FlashMessage,
+  runWithFlashContext,
+  setFlashContext,
+  setFlashFormId,
+} from "#shared/flash-context.ts";
+import { CsrfForm, Flash, renderError, renderSuccess } from "#shared/forms.tsx";
 import { detectIframeMode } from "#shared/iframe.ts";
 import { hasInputWithValue, setupTestEncryptionKey } from "#test-utils";
+
+/** Render a CsrfForm inside a flash context targeting `formId`, so the form's
+ *  inline-flash branch (id === target form) can be exercised. */
+const csrfFormInFlash = (
+  props: { action: string; id?: string },
+  flash: FlashMessage,
+  formId: string | null,
+): string =>
+  runWithFlashContext(() => {
+    setFlashContext(flash);
+    setFlashFormId(formId);
+    return String(CsrfForm(props));
+  });
 
 beforeAll(async () => {
   setupTestEncryptionKey();
@@ -97,8 +109,6 @@ describe("Flash", () => {
 
 describe("CsrfForm", () => {
   afterEach(() => {
-    setFormSuccess("", "");
-    setFormError("", "");
     detectIframeMode("https://example.com/");
   });
 
@@ -140,38 +150,49 @@ describe("CsrfForm", () => {
     expect(html).toContain("Submit here");
   });
 
-  test("shows success flash when id matches stored success state", () => {
-    setFormSuccess("my-form", "Saved");
-    const html = String(CsrfForm({ action: "/submit", id: "my-form" }));
+  test("shows success flash when id matches the targeted form", () => {
+    const html = csrfFormInFlash(
+      { action: "/submit", id: "my-form" },
+      { success: "Saved" },
+      "my-form",
+    );
     expect(html).toContain("Saved");
     expect(html).toContain('class="success"');
   });
 
   test("does not show success when id does not match", () => {
-    setFormSuccess("other-form", "Saved");
     expect(
-      String(CsrfForm({ action: "/submit", id: "my-form" })),
+      csrfFormInFlash(
+        { action: "/submit", id: "my-form" },
+        { success: "Saved" },
+        "other-form",
+      ),
     ).not.toContain('class="success"');
   });
 
   test("does not show success when no id on form", () => {
-    setFormSuccess("my-form", "Saved");
-    expect(String(CsrfForm({ action: "/submit" }))).not.toContain(
-      'class="success"',
-    );
+    expect(
+      csrfFormInFlash({ action: "/submit" }, { success: "Saved" }, "my-form"),
+    ).not.toContain('class="success"');
   });
 
-  test("shows error flash when id matches stored error state", () => {
-    setFormError("my-form", "Something went wrong");
-    const html = String(CsrfForm({ action: "/submit", id: "my-form" }));
+  test("shows error flash when id matches the targeted form", () => {
+    const html = csrfFormInFlash(
+      { action: "/submit", id: "my-form" },
+      { error: "Something went wrong" },
+      "my-form",
+    );
     expect(html).toContain("Something went wrong");
     expect(html).toContain('class="error"');
   });
 
   test("does not show error when id does not match", () => {
-    setFormError("other-form", "err");
     expect(
-      String(CsrfForm({ action: "/submit", id: "my-form" })),
+      csrfFormInFlash(
+        { action: "/submit", id: "my-form" },
+        { error: "err" },
+        "other-form",
+      ),
     ).not.toContain('class="error"');
   });
 

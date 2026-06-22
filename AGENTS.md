@@ -142,6 +142,7 @@ Even when a caller genuinely needs many columns, list them explicitly rather tha
 - `deno task build:edge` - Build for Bunny Edge deployment
 - `deno task backup` - Dump the database out-of-band to a `.zip`. Uploads to the configured storage zone by default (so it appears on the Backups page and lets the next migration skip its own inline backup); pass `--out <path>` to write a local file. Runs in a full Deno process, so unlike the in-edge backup it has no per-request subrequest budget and can dump arbitrarily large databases.
 - `deno task precommit` - Run all checks (typecheck, lint, tests)
+- `deno task mutation <source-glob> <test-glob>` - Mutation-test your tests: mutate operators in the source and check your tests catch it (see [Mutation Testing](#mutation-testing))
 
 ### Running Individual Test Files
 
@@ -201,6 +202,7 @@ Environment variables are configured as **Bunny native secrets** in the Bunny Ed
 - `ADMIN_EMAIL_ADDRESS` - Enables a superuser recovery option in owner settings. The local-part (before `@`) must be a valid app username (2–32 characters, letters, numbers, hyphens, underscores). Email delivery must be configured before the superuser can be enabled. Also enables the owner-only **Support** page (`/admin/support`), where the operator can message this address.
 - `SUPPORT_PAGE_TEXT` - Optional markdown shown at the top of the Support page (requires `ADMIN_EMAIL_ADDRESS`). Use literal `\n` for line breaks since Bunny secrets can't hold real newlines. When unset, a placeholder note is shown instead. The support form below it (which delivers to `ADMIN_EMAIL_ADDRESS`) needs a business email to be set, like the public contact form.
 - `SUPPORT_FORM_NAG_DAYS` - Optional positive integer (default `7`). For this many days after a support-form submission, the Support page shows a "you last submitted this form …" notice to discourage duplicate messages.
+- `I18N_REPLACEMENTS` - Optional comma-separated `from|to` substring replacements that rebrand the **translatable copy** of every rendered message, e.g. `ticket|booking,attendee|guest`. Matching is case-insensitive and by substring (`ticket|booking` turns `tickets` into `bookings`), and the output copies the source word's capitalisation — `Ticket` → `Booking`, `ticket` → `booking` (only lowercase and title-case occur in real copy). It is applied to each message **template** once at load, and the rebranded template is compiled and cached, so rendering stays a plain ICU format with no per-call cost (important on a cold-booting edge runtime). It deliberately leaves alone: HTML tags and attributes (so link `href`s survive), `<code>` examples (literal route/CLI text), interpolated values such as a stored listing name (so "type this exact name" confirmations still match), and the fallback key returned for a missing translation. Avoid terms that collide with ICU keywords or placeholder names (`name`, `count`, `plural`, …).
 - `APPLE_WALLET_PASS_TYPE_ID` - Apple Wallet Pass Type ID (e.g. `pass.com.example.tickets`)
 - `APPLE_WALLET_TEAM_ID` - Apple Developer Team ID (e.g. `ABC1234567`)
 - `APPLE_WALLET_SIGNING_CERT` - PEM-encoded signing certificate
@@ -285,6 +287,41 @@ All tests must meet these mandatory criteria:
 - For pure functions, add table-driven or property-style examples that cover families of inputs and state the invariant being protected. Keep any generated cases deterministic.
 - For critical flows, include negative-path, idempotency, concurrency, and metamorphic tests: e.g. payment/webhook replay does not double-credit, capacity cannot go below zero across edits/deletes, role downgrades remove access, and PII/secrets remain encrypted or absent from responses/logs.
 - When generated or bulk-added tests are involved, run `deno task test:quality-audit` and review assertionless, truthiness, presence-only, and compound-boolean findings before trusting the coverage number.
+
+### Mutation Testing
+
+`test:quality-audit` only *guesses* which assertions look weak. `deno task
+mutation` **proves** it: it mutates operators in your source and checks whether
+your tests fail. A mutant your tests still pass on ("survived") is a real gap —
+a code change nothing would have caught.
+
+```bash
+# Mutate a module's operators and run its mapped tests
+deno task mutation src/shared/dates.ts test/lib/dates.test.ts
+
+# Globs and exhaustive mode (every operator replacement, not just one each)
+deno task mutation 'src/lib/forms/*.ts' 'test/lib/forms/*.test.ts' --exhaustive
+```
+
+It reports a mutation score and lists each survivor as
+`file:line:col  old → new`. Exit code is non-zero if any mutant survived, so it
+can gate CI on a chosen module. By default it runs the test files directly
+(fast, for pure-unit modules); pass `--harness` for tests that import the app /
+Stripe and need built static assets + stripe-mock. Under `--harness`, mutating a
+client-bundle source (anything bundled into `src/ui/static/*.js` — e.g.
+`src/ui/client/admin.ts` or a module it imports) rebuilds just the affected
+bundle for each mutant, so the mutation reaches the built asset the tests load.
+
+How it works (and why it is bespoke): it mutates the source file **in place**,
+runs the mapped tests in a fresh `deno test` subprocess, then restores the
+file. In-place mutation is what makes mutations bind through `#…` import-map
+aliases. The operator tables and AST walk are vendored from
+[Mutasaurus](https://github.com/christoshrousis/mutasaurus) (MIT); its own
+execution model writes a temp copy but runs the original tests, so every mutant
+falsely "survives" on an alias-based project — see
+`scripts/mutation/LICENSE.mutasaurus.md`. It is a **targeted** tool (run it on
+the module you are hardening), not part of `deno task precommit`, which would be
+far too slow across the whole tree.
 
 ### Coverage Requirements
 

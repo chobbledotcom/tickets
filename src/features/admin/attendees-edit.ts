@@ -89,6 +89,7 @@ export const handleRefreshPayment: TypedRouteHandler<
       await logActivity(
         `Payment marked as refunded for attendee '${attendee.name}'`,
         listing.id,
+        attendeeId,
       );
       return redirect(
         `/admin/attendees/${attendeeId}`,

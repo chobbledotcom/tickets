@@ -8,6 +8,7 @@ import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getBaseUrl } from "#routes/url.ts";
 import { signBalanceToken } from "#shared/balance-link.ts";
+import { isPaymentsEnabled } from "#shared/config.ts";
 import { getAttendeeActivityLog } from "#shared/db/activityLog.ts";
 import { getAttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import {
@@ -48,6 +49,9 @@ export const handleAttendeeBalanceGet: TypedRouteHandler<
         deposit,
         history,
         link: `${getBaseUrl(request)}/pay/${token}`,
+        // The customer pay link only works when a provider can take the payment;
+        // without one, the /pay POST dead-ends, so the template withholds it.
+        paymentsEnabled: isPaymentsEnabled(),
         remainingBalance: state.remainingBalance,
         session,
         status,

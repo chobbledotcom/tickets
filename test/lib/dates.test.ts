@@ -64,6 +64,20 @@ describe("dates", () => {
       );
     });
 
+    test("clamps to Feb 28 in a non-leap century year (1900)", () => {
+      // 1900 is divisible by 100 but not 400, so it is NOT a leap year.
+      expect(addMonthsIso("1900-01-31T12:00:00.000Z", 1)).toBe(
+        "1900-02-28T12:00:00.000Z",
+      );
+    });
+
+    test("clamps to Feb 29 in a leap century year (2000)", () => {
+      // 2000 is divisible by 400, so it IS a leap year.
+      expect(addMonthsIso("2000-01-31T12:00:00.000Z", 1)).toBe(
+        "2000-02-29T12:00:00.000Z",
+      );
+    });
+
     test("clamps Mar 31 + 1mo to Apr 30", () => {
       expect(addMonthsIso("2026-03-31T00:00:00.000Z", 1)).toBe(
         "2026-04-30T00:00:00.000Z",
@@ -362,6 +376,29 @@ describe("dates", () => {
         addDays(today(), 1),
       );
       expect(getAvailableDates(listing, holidays, 1)).toContain(
+        addDays(today(), 1),
+      );
+    });
+
+    test("durationOverride of 0 is clamped to one day, not treated as absent", () => {
+      // An explicit 0 is a provided override (clamped to the 1-day minimum),
+      // distinct from omitting it (which falls back to duration_days). This is
+      // the `??` (not `||`) contract: `0 ?? duration_days` keeps the 0.
+      const holidayDay = addDays(today(), 2);
+      const listing = testListing({
+        bookable_days: [...VALID_DAY_NAMES],
+        duration_days: 5,
+        listing_type: "daily",
+        maximum_days_after: 14,
+        minimum_days_before: 0,
+      });
+      const holidays = [
+        { end_date: holidayDay, id: 1, name: "H", start_date: holidayDay },
+      ];
+      // Override 0 → 1-day span, so the day+1 start clears the day+2 holiday and
+      // is offered. Were 0 mistaken for "absent" it would use duration_days (5),
+      // span the holiday, and be excluded.
+      expect(getAvailableDates(listing, holidays, 0)).toContain(
         addDays(today(), 1),
       );
     });

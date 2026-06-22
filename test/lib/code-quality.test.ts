@@ -547,6 +547,8 @@ describe("code quality", () => {
       // (settings.ts functions now accessed via settings namespace, not individual exports)
       // Reset cached sessions between tests
       "shared/db/sessions.ts:resetSessionCache",
+      // Reset cached I18N_REPLACEMENTS replacer + compiled formats between tests
+      "shared/i18n.ts:resetI18nForTest",
       // DB version/hash constants used in production but test pattern doesn't detect constant comparison
       "shared/db/migrations.ts:LATEST_UPDATE",
       "shared/db/migrations.ts:SCHEMA_HASH",

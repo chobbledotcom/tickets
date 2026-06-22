@@ -301,9 +301,10 @@ export const modifierIdsByAnswerId = async (
     [
       ...(await columnMapByIds(
         "answers",
+        "answer",
         "modifier_id",
         answerIds,
-        " AND modifier_id IS NOT NULL",
+        " AND answer.modifier_id IS NOT NULL",
       )),
     ].map(([id, modifierId]) => [id, [modifierId]]),
   );

@@ -317,25 +317,31 @@ export const createFreeReservation = async ({
       ? { pricePaid: paidByListingId.get(booking.listingId)! }
       : {}),
   }));
-  // Consume modifier stock and (when payments are enabled) post the booking's
-  // ledger legs inside the create transaction, exactly as the paid webhook does,
-  // so the booking, its stock, and its sale/payment legs are all-or-nothing. The
-  // free path has no payment session, so the ledger event is keyed on the new
-  // attendee id and dated now. A modifier sold out mid-checkout rolls it all back.
+  // When there are legs to post or stock to consume, do it inside the create
+  // transaction, exactly as the paid webhook does, so the booking, its stock, and
+  // its sale/payment legs are all-or-nothing. The free path has no payment
+  // session, so the ledger event is keyed on the new attendee id and dated now; a
+  // modifier sold out mid-checkout rolls the whole create back.
   const statusId = await getPublicStatusId();
+  const ledger = ledgerOrder
+    ? {
+        currency: settings.currency,
+        eventId: (attendeeId: number) => String(attendeeId),
+        occurredAt: nowIso(),
+        pricedOrder: ledgerOrder,
+      }
+    : null;
+  // A plain provider-less booking has neither legs nor stock, so it skips the
+  // interactive transaction and writes as a single batch — that keeps concurrent
+  // free submissions from contending on the one connection (an empty interactive
+  // transaction would still serialise them and can fail to commit mid-flight).
+  const postLedger =
+    ledger !== null || modifierUsages.length > 0
+      ? bookingLedgerPoster(modifierUsages, ledger)
+      : undefined;
   const result = await createOrSoldOut(
     { ...contact, bookings, remainingBalance, statusId },
-    bookingLedgerPoster(
-      modifierUsages,
-      ledgerOrder
-        ? {
-            currency: settings.currency,
-            eventId: (attendeeId) => String(attendeeId),
-            occurredAt: nowIso(),
-            pricedOrder: ledgerOrder,
-          }
-        : null,
-    ),
+    postLedger,
   );
   if (result === "sold-out") {
     return { error: MODIFIER_SOLD_OUT_MESSAGE, success: false };

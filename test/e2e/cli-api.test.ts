@@ -1,3 +1,5 @@
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
@@ -6,6 +8,11 @@ import {
   createTestListing,
   describeWithEnv,
 } from "#test-utils";
+
+// Absolute project root, derived from this file's location rather than the
+// process cwd. The suite runs with --parallel, so the cwd is shared mutable
+// state: another test file may Deno.chdir() into a temp dir it then deletes.
+const projectRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 const decode = (bytes: Uint8Array): string => new TextDecoder().decode(bytes);
 
@@ -39,6 +46,10 @@ const runCliApiRaw = async (
       "cli/api.ts",
       ...args,
     ],
+    // Pin the spawn's cwd to the project root so it never inherits whatever
+    // transient directory a parallel test left behind (which would fail with
+    // "No such cwd"), and so the relative cli/api.ts path always resolves.
+    cwd: projectRoot,
     env: { API_HOSTNAME: hostname, API_KEY: apiKey },
     stderr: "piped",
     stdout: "piped",

@@ -62,6 +62,9 @@ describe("API example", () => {
     const parsed = JSON.parse(API_BOOK_FREE_EXAMPLE_JSON);
     expect(parsed.booking.ticketToken).toBeDefined();
     expect(parsed.booking.ticketUrl).toBeDefined();
+    // The owed amount is surfaced so integrations can collect provider-less
+    // balances; a fully-paid free booking owes nothing.
+    expect(parsed.booking.amountOwed).toBe(0);
   });
 
   test("paid booking example JSON has checkoutUrl", () => {

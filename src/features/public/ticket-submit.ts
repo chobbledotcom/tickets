@@ -20,6 +20,7 @@ import {
 import { isPaymentsEnabled } from "#shared/config.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
+import { formatCurrency } from "#shared/currency.ts";
 import { getPublicDefaultStatus } from "#shared/db/attendee-statuses.ts";
 import {
   answerModifierQuantities,
@@ -200,6 +201,10 @@ const computeListingTextAnswerIdMap = async (
       ),
     ).map(([listingId, answers]) => [
       listingId,
+      // These answers are a subset of the texts handed to getOrCreateStringIds,
+      // which returns an id for every input text or throws — so `s` is always a
+      // real id here, never the undefined that JSON.stringify would silently
+      // drop from the signed metadata.
       answers.map((answer) => ({
         q: answer.questionId,
         s: stringIds.get(answer.text)!,
@@ -340,7 +345,7 @@ const handleFreePath = async (
   params: PathParams & {
     modifierUsages: ModifierApplication[];
     paymentBreakdown?: TicketPaymentBreakdown;
-    pricedOrder: PricedOrder;
+    ledgerOrder: PricedOrder | null;
   },
 ): Promise<Response> => {
   const {
@@ -352,18 +357,17 @@ const handleFreePath = async (
     info,
     modifierUsages,
     paymentBreakdown,
-    pricedOrder,
+    ledgerOrder,
   } = params;
   const result = await createFreeReservation({
     contact,
     date,
     dayCount,
-    // Payments enabled but the order priced to zero — a fully-discounted listing
-    // or a zero-deposit reservation — so post the booking's ledger legs just as
-    // the paid webhook would: the gross sale, any discount/contra legs, and any
-    // balance still owed. With payments disabled there is no money to record, so
-    // no ledger (null); stock is consumed in the create transaction either way.
-    ledgerOrder: paymentBreakdown ? pricedOrder : null,
+    // The caller decides whether this booking dual-writes the ledger: an enabled,
+    // zero-total checkout posts the same gross-sale / discount / owed legs a paid
+    // one would; a provider-less booking passes null and records nothing here
+    // (stock is consumed in the create transaction either way).
+    ledgerOrder,
     listings: ctx.listings,
     modifierUsages,
     paidByListingId: paymentBreakdown?.paidByListingId,
@@ -686,6 +690,16 @@ const processSubmission = async (
       quantities,
     });
   }
+  // With no payment provider configured we still accept bookings for paid items.
+  // The order is recorded exactly like a zero-deposit reservation: nothing is
+  // collected up front and the full value of the booking becomes the amount
+  // owed. Forcing reservationAmount to "0" charges every line zero while the
+  // remaining balance captures the full order value — regardless of any
+  // reservation amount the public-default status configures, since no deposit
+  // can be taken without a provider.
+  const breakdownIntent: CheckoutIntent = paymentsEnabled
+    ? intent
+    : { ...intent, reservationAmount: "0" };
   return handleFreePath({
     contact,
     ctx,
@@ -693,22 +707,20 @@ const processSubmission = async (
     dayCount,
     hasCustomisable,
     info,
+    // Dual-write the ledger only when a payment provider is configured: an
+    // enabled but zero-total checkout — fully discounted, or a zero-deposit
+    // reservation — records the same sale/owed legs a paid booking would. With no
+    // provider the owed value lives in remaining_balance and is reconstructed by
+    // the backfill, like every other pre-ledger order, so it posts no legs here.
+    ledgerOrder: paymentsEnabled ? finalPricedOrder : null,
     // Record modifier usage (and consume stock) on every completion, including
-    // disabled-payments free bookings, so a stock-limited answer tier is capped
-    // across all bookings — not just the paid ones the webhook would have
-    // consumed. With payments disabled the booking collects nothing, so the
-    // applied amounts are zeroed: stock is still consumed (it's keyed on
-    // quantity) while the modifier revenue aggregates correctly stay at zero.
-    modifierUsages: paymentsEnabled
-      ? finalPricedOrder.modifierApplications
-      : finalPricedOrder.modifierApplications.map((m) => ({
-          ...m,
-          amountApplied: 0,
-        })),
-    paymentBreakdown: paymentsEnabled
-      ? ticketPaymentBreakdown(intent)
-      : undefined,
-    pricedOrder: finalPricedOrder,
+    // bookings taken with no payment provider, so a stock-limited answer tier is
+    // capped across all bookings — not just the paid ones the webhook would have
+    // consumed. The applied amounts are the real per-modifier impact: a
+    // provider-less booking owes the full order value (modifiers included), so
+    // its modifiers count exactly as a zero-deposit reservation's would.
+    modifierUsages: finalPricedOrder.modifierApplications,
+    paymentBreakdown: ticketPaymentBreakdown(breakdownIntent),
     quantities,
   });
 };
@@ -733,8 +745,9 @@ const submitTicket = (request: Request, ctx: TicketCtx): Promise<Response> =>
  * the submit path would actually collect:
  * - a sold-out answer tier is rejected (as submit would), run at zero visits
  *   since a quote strips the PII needed to look the buyer's count up;
- * - with no payment provider configured every booking completes free (see
- *   {@link handleFreePath}), so the quote shows no amount owed.
+ * - with no payment provider configured the booking is taken without charging,
+ *   but a paid order still owes its full value (see {@link handleFreePath}), so
+ *   the quote surfaces that amount owed rather than implying the order is free.
  *
  * A returning buyer's `min_visits` modifiers are not reflected — that needs the
  * stripped contact details — so the quote is a zero-visits estimate; the submit
@@ -760,9 +773,19 @@ const renderQuote = async (
   if (!available) {
     return htmlResponse(orderSummaryMessage(TICKETS_UNAVAILABLE_MESSAGE));
   }
+  if (isPaymentsEnabled()) return htmlResponse(orderSummary(pricedOrder));
+  // No payment provider: the booking is taken without charging, but a paid order
+  // still records its full value as the amount owed (see processSubmission), so
+  // surface that figure instead of implying the order is free. fullSubtotal is
+  // the order value before any deposit split or booking fee — exactly what the
+  // submit path stores as the remaining balance.
   return htmlResponse(
-    isPaymentsEnabled()
-      ? orderSummary(pricedOrder)
+    pricedOrder.fullSubtotal > 0
+      ? orderSummaryMessage(
+          `No online payment is needed now — you'll owe ${formatCurrency(
+            pricedOrder.fullSubtotal,
+          )} for this booking.`,
+        )
       : orderSummaryMessage("No payment required for this booking."),
   );
 };

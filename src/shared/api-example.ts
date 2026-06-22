@@ -90,7 +90,13 @@ export const API_AVAILABILITY_EXAMPLE_JSON: string = JSON.stringify(
 
 /** Example free booking response JSON */
 export const API_BOOK_FREE_EXAMPLE_JSON: string = JSON.stringify(
-  { booking: { ticketToken: "A1B2C3D4E5", ticketUrl: "/t/A1B2C3D4E5" } },
+  {
+    booking: {
+      amountOwed: 0,
+      ticketToken: "A1B2C3D4E5",
+      ticketUrl: "/t/A1B2C3D4E5",
+    },
+  },
   null,
   2,
 );

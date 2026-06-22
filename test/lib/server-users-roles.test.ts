@@ -13,8 +13,8 @@ import {
   awaitTestRequest,
   createTestManagerSession,
   describeWithEnv,
+  expectFlashRedirect,
   expectHtmlResponse,
-  expectRedirectWithFlash,
   mockFormRequest,
   mockRequest,
   TEST_ADMIN_PASSWORD,
@@ -124,7 +124,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         new_password: "newpassword123",
         new_password_confirm: "newpassword123",
       });
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/settings?form=settings-password#settings-password",
         expect.stringContaining("Failed to update password"),
         false,
