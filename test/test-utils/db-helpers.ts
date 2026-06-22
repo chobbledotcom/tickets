@@ -548,7 +548,7 @@ export const bookAttendee = async (
   if (opts.quantity !== undefined) booking.quantity = opts.quantity;
   if (opts.pricePaid !== undefined) booking.pricePaid = opts.pricePaid;
   if (opts.durationDays !== undefined) booking.durationDays = opts.durationDays;
-  return createAttendeeAtomic({
+  const result = await createAttendeeAtomic({
     bookings: [booking],
     email: opts.email ?? "x@example.com",
     name: opts.name ?? "X",
@@ -559,6 +559,18 @@ export const bookAttendee = async (
     }),
     ...(opts.paymentId !== undefined && { paymentId: opts.paymentId }),
   });
+  // Mirror the live paid-checkout flow: a paid booking recognises gross revenue
+  // with a ledger sale leg (which the per-row amount-paid projection reads), so a
+  // bare price_paid no longer means anything on its own.
+  if (result.success && opts.pricePaid && opts.pricePaid > 0) {
+    const { postListingSale } = await import("#test-utils/ledger.ts");
+    await postListingSale({
+      attendeeId: result.attendees[0]!.id,
+      gross: opts.pricePaid,
+      listingId: listing.id,
+    });
+  }
+  return result;
 };
 
 export const createDailyTestAttendee = async (
