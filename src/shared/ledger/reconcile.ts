@@ -56,16 +56,39 @@ type LegFacts = {
  */
 export type LegFingerprint = string;
 
+/**
+ * The money-defining facts of a leg, in a fixed order: change any one of them and
+ * it is a *different* transfer. Both the reconciliation fingerprint
+ * ({@link legFingerprint}) and the replay-equality guard ({@link legIdentityDiff},
+ * used by the store's conflict check) derive from this single table, so the two
+ * can never disagree on what "the same leg" means — adding a field here updates
+ * both at once.
+ */
+const IDENTITY_FIELDS: ReadonlyArray<
+  readonly [field: string, value: (leg: LegFacts) => string | number | null]
+> = [
+  ["kind", (leg) => leg.kind ?? ""],
+  ["source", (leg) => accountKey(leg.source)],
+  ["destination", (leg) => accountKey(leg.destination)],
+  ["amount", (leg) => leg.amount],
+  ["currency", (leg) => leg.currency],
+  ["occurredAt", (leg) => leg.occurredAt],
+  ["reversesId", (leg) => leg.reversesId ?? null],
+];
+
 export const legFingerprint = (leg: LegFacts): LegFingerprint =>
-  JSON.stringify([
-    leg.kind ?? "",
-    accountKey(leg.source),
-    accountKey(leg.destination),
-    leg.amount,
-    leg.currency,
-    leg.occurredAt,
-    leg.reversesId ?? null,
-  ]);
+  JSON.stringify(IDENTITY_FIELDS.map(([, value]) => value(leg)));
+
+/**
+ * The identity fields in which two legs differ, empty when they are the same
+ * money. Shares {@link IDENTITY_FIELDS} with {@link legFingerprint} so a replay's
+ * "stored leg differs in …" report and a reconciliation's fingerprint mismatch
+ * always agree on the set of fields that matter.
+ */
+export const legIdentityDiff = (a: LegFacts, b: LegFacts): string[] =>
+  IDENTITY_FIELDS.filter(([, value]) => value(a) !== value(b)).map(
+    ([field]) => field,
+  );
 
 /** A per-event mismatch between the legs an event should have and those actually
  *  present in the ledger, compared as {@link LegFingerprint}s. */
