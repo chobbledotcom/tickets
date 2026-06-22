@@ -41,7 +41,10 @@ import {
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { parseTokens } from "#routes/tickets/token-utils.ts";
 import { getSearchParam } from "#routes/url.ts";
+import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
 import { mapBooking } from "#shared/accounting/mappers.ts";
+import { eventGroup, legReference } from "#shared/accounting/refs.ts";
+import { guardedInsertStatement } from "#shared/accounting/rows.ts";
 import { postTransfersTx } from "#shared/accounting/store.ts";
 import { calculateBookingFee } from "#shared/booking-fee.ts";
 import { bookingFactsFromOrder } from "#shared/checkout-ledger.ts";
@@ -920,8 +923,30 @@ const settleBalanceSession = async (
   const expectedAmount = intent.items[0]!.p;
   const listingId = intent.items[0]!.e;
 
+  // The balance payment is cash arriving for the order: world funds the
+  // attendee, clearing what they owed (the sale was recognised at booking). Fold
+  // the leg into the settle batch, guarded on the same live balance, so it lands
+  // atomically with the settle and only when the settle actually applies. Its
+  // own event group keeps it distinct from the original booking.
+  const paymentLeg = guardedInsertStatement(
+    {
+      amount: expectedAmount,
+      currency: settings.currency,
+      destination: attendeeAccount(attendeeId),
+      eventGroup: await eventGroup(["balance", sessionId]),
+      kind: "payment",
+      occurredAt: nowIso(),
+      reference: await legReference(["balance", sessionId, "payment"]),
+      source: WORLD,
+    },
+    nowIso(),
+    "(SELECT remaining_balance FROM attendees WHERE id = ?) = ?",
+    [attendeeId, expectedAmount],
+  );
+
   const settled = await settleAttendeeBalance(attendeeId, expectedAmount, [
     balanceFinalizeStatement(sessionId, attendeeId, expectedAmount),
+    paymentLeg,
   ]);
   if (!settled.settled) {
     return refundAndFail(

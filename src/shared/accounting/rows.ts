@@ -82,6 +82,26 @@ export const insertStatement = (
   });
 
 /**
+ * A guarded INSERT for one transfer: `INSERT … SELECT … WHERE <guard>`, so a leg
+ * can be folded into a one-shot batch and land only when the guard still holds.
+ * Used to post a balance-payment leg atomically inside the settle batch (which
+ * stays a batch, not an interactive transaction, for its concurrency guard).
+ * Reuses {@link insertStatement} so the column list is never duplicated.
+ */
+export const guardedInsertStatement = (
+  t: TransferInput,
+  recordedAt: string,
+  guardSql: string,
+  guardArgs: InValue[],
+): { sql: string; args: InValue[] } => {
+  const base = insertStatement(t, recordedAt);
+  return {
+    args: [...base.args, ...guardArgs],
+    sql: base.sql.replace(/VALUES \(([^)]*)\)/, `SELECT $1 WHERE ${guardSql}`),
+  };
+};
+
+/**
  * Reads rows either from the global client or from an open transaction. The
  * write path reads through its own transaction: the database write lock then
  * makes concurrent posters of the same event take turns, so the second one sees
