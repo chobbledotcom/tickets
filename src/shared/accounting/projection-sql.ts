@@ -40,3 +40,21 @@ export const accountPredicate = (
  */
 export const sumAmountFromTransfers = (where: string, alias: string): string =>
   `(SELECT COALESCE(SUM(amount), 0) FROM transfers WHERE ${where}) AS ${alias}`;
+
+/**
+ * A *bare* scalar subquery (no alias) for an account's net ledger balance: money
+ * in as the destination minus money out as the source — the same signed sum the
+ * TS-side `balanceOf` computes. The caller names it and chooses the sign: a
+ * revenue/modifier account reads it directly (`balance AS income`), while an
+ * "owed" figure negates it (outstanding = `-balance`). Scanning only the
+ * account's own legs (`<dest> OR <source>`) keeps it index-backed.
+ */
+export const accountBalanceSubquery = (type: string, idExpr: string): string => {
+  const asDest = accountPredicate("dest", type, idExpr);
+  const asSource = accountPredicate("source", type, idExpr);
+  return (
+    `(SELECT COALESCE(SUM(` +
+    `CASE WHEN ${asDest} THEN amount WHEN ${asSource} THEN -amount ELSE 0 END` +
+    `), 0) FROM transfers WHERE ${asDest} OR ${asSource})`
+  );
+};

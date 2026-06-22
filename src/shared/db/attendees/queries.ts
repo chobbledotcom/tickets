@@ -4,6 +4,7 @@
 
 import { map, unique } from "#fp";
 import {
+  accountBalanceSubquery,
   accountPredicate,
   sumAmountFromTransfers,
 } from "#shared/accounting/projection-sql.ts";
@@ -64,6 +65,17 @@ export const pricePaidFromLedger = (
       ` AND event_group = ${eventGroupExpr}`,
     "price_paid",
   );
+
+/**
+ * An attendee's outstanding balance, projected from the ledger instead of a
+ * stored column: the negated account balance — what they still owe is the money
+ * they were billed (sale legs sourced from them) minus the cash received (deposit
+ * and balance-payment legs into them), with a refund's reversal legs netting back
+ * out. 0 for a fully-paid booking (every production attendee) and for an attendee
+ * with no legs. `attendeeIdExpr` is the attendee id in the surrounding query.
+ */
+export const remainingBalanceFromLedger = (attendeeIdExpr: string): string =>
+  `-${accountBalanceSubquery("attendee", attendeeIdExpr)} AS remaining_balance`;
 
 /** The two ledger-projected money columns (refunded flag + per-row amount paid)
  *  for a listing_attendees row reached through the `ea` alias. Shared by the

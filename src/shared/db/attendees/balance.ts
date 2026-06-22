@@ -12,7 +12,10 @@ import { decrypt } from "#shared/crypto/encryption.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getPaidDefaultStatus } from "#shared/db/attendee-statuses.ts";
-import { pricePaidFromLedger } from "#shared/db/attendees/queries.ts";
+import {
+  pricePaidFromLedger,
+  remainingBalanceFromLedger,
+} from "#shared/db/attendees/queries.ts";
 import {
   executeBatchWithResults,
   queryAll,
@@ -32,9 +35,10 @@ export const getAttendeeBalanceState = async (
   const row = await queryOne<{
     status_id: number | null;
     remaining_balance: number;
-  }>("SELECT status_id, remaining_balance FROM attendees WHERE id = ?", [
-    attendeeId,
-  ]);
+  }>(
+    `SELECT status_id, ${remainingBalanceFromLedger("attendees.id")} FROM attendees WHERE id = ?`,
+    [attendeeId],
+  );
   return row
     ? {
         remainingBalance: Number(row.remaining_balance),
