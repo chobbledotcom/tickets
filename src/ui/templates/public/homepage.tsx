@@ -22,7 +22,7 @@ import {
 export type ChildCardState = "none" | "addon" | "unavailable";
 
 /** Map a listing id to its {@link ChildCardState} from the discovery child
- * classification: a child with an active parent → add-on; any other child →
+ * classification: a child with a bookable parent → add-on; any other child →
  * unavailable; a non-child → none. */
 export const childCardState =
   (childIds: ReadonlySet<number>, addOnChildIds: ReadonlySet<number>) =>
@@ -31,8 +31,9 @@ export const childCardState =
 
 /** Booking CTA / status line for a public listing card. A child listing is
  * never standalone-bookable (invariant I3), so its Book/Buy button is replaced
- * with the "available as an add-on" note (a child with a live parent) or the
- * "currently unavailable" note (a child with no active parent page to offer it)
+ * with the "available as an add-on" note (a child with a live bookable parent)
+ * or the "currently unavailable" note (a child with no bookable parent to offer
+ * it)
  * — but only when the child is otherwise bookable: an unavailable child (sold
  * out / closed / read-only site) must still read as such, so those checks run
  * first (parents.md, "Public listing cards"). */

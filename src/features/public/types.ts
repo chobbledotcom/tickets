@@ -28,6 +28,11 @@ export type TicketCtx = {
   /** Parent→children relationship for the page's listings (see
    * {@link ChildrenByParentId}). */
   childrenByParentId: ChildrenByParentId;
+  /** Each listing id → its capped group's remaining spots, set on the render path
+   * so a parent sharing a capped group with its child clamps its quantity by the
+   * combined parent+child demand (invariant I7, Fix 3). Omitted on submit/quote
+   * (the fold's authoritative date-specific check runs there instead). */
+  groupRemainingByListingId?: ReadonlyMap<number, number>;
   baseUrl?: string;
   groupName?: string;
   groupDescription?: string;

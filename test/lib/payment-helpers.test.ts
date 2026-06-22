@@ -719,6 +719,31 @@ describe("payment-helpers", () => {
       );
       expect(enforceMetadataLimits(manyKeys, 500)).toEqual(manyKeys);
     });
+
+    test("omits an over-cap thank_you_url instead of failing the checkout", () => {
+      // A folded paid parent's long configured thank-you URL must not break
+      // session creation: it is dropped and the order falls back to the generic
+      // success page (Fix 2).
+      const metadata = {
+        email: "j@x.com",
+        items: '[{"e":1,"q":1,"p":0}]',
+        name: "John",
+        thank_you_url: `https://example.com/${"x".repeat(255)}`,
+      };
+      const result = enforceMetadataLimits(metadata, 255);
+      expect(result.thank_you_url).toBeUndefined();
+      expect(result.items).toBe(metadata.items);
+    });
+
+    test("keeps a within-cap thank_you_url", () => {
+      const metadata = {
+        email: "j@x.com",
+        items: '[{"e":1,"q":1,"p":0}]',
+        name: "John",
+        thank_you_url: "https://example.com/thanks",
+      };
+      expect(enforceMetadataLimits(metadata, 255)).toEqual(metadata);
+    });
   });
 
   describe("metadata packing codec", () => {

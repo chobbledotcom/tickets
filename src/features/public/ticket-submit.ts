@@ -932,6 +932,11 @@ const renderCtx = async (ctx: TicketCtx): Promise<TicketCtx> => {
   ]);
   return {
     ...ctx,
+    // The same children's group-remaining drives the per-parent quantity clamp:
+    // a parent sharing a capped group with its child offers only
+    // floor(groupRemaining / 2) orders (invariant I7, Fix 3). Carried on the
+    // render ctx so `childCappedMax` sees it; submit/quote keep it unset.
+    groupRemainingByListingId: groupRemaining,
     listings: applyBookingPageParentSoldOut(
       ctx.listings,
       ctx.childrenByParentId,

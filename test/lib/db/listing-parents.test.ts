@@ -6,6 +6,7 @@ import {
   getChildListingIds,
   getChildrenForParents,
   getParentIds,
+  getParentsForChildren,
   getParentsOf,
   setChildIds,
 } from "#shared/db/listing-parents.ts";
@@ -144,6 +145,35 @@ describeWithEnv("db > listing-parents", { db: true }, () => {
       await setChildIds(parent.id, [childA.id, missingChildId]);
       const map = await getChildrenForParents([parent.id]);
       expect(map.get(parent.id)?.map((c) => c.id)).toEqual([childA.id]);
+    });
+  });
+
+  describe("getParentsForChildren", () => {
+    test("groups hydrated parents by child, preserving parent-id order", async () => {
+      const { parent, childA } = await threeListings();
+      const parent2 = await createTestListing({ name: "Base unit 2" });
+      await setChildIds(parent.id, [childA.id]);
+      await setChildIds(parent2.id, [childA.id]);
+      const map = await getParentsForChildren([childA.id]);
+      expect(map.get(childA.id)?.map((p) => p.id)).toEqual(
+        ascending([parent.id, parent2.id]),
+      );
+    });
+
+    test("omits children with no parents and returns empty for empty input", async () => {
+      const { childA } = await threeListings();
+      expect((await getParentsForChildren([childA.id])).size).toBe(0);
+      expect((await getParentsForChildren([])).size).toBe(0);
+    });
+
+    test("drops a parent edge whose listing no longer exists", async () => {
+      const { parent, childA } = await threeListings();
+      const missingParentId = childA.id + 100_000;
+      await setChildIds(parent.id, [childA.id]);
+      await setChildIds(missingParentId, [childA.id]);
+      const map = await getParentsForChildren([childA.id]);
+      // The edge to the missing parent is dropped; the real parent survives.
+      expect(map.get(childA.id)?.map((p) => p.id)).toEqual([parent.id]);
     });
   });
 

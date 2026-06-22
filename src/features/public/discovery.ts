@@ -31,11 +31,16 @@ import { getBookableStartDates } from "#shared/dates.ts";
 import { getGroupRemainingByListingId } from "#shared/db/attendees.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {
-  getChildIdsWithActiveParent,
   getChildListingIds,
   getChildrenForParents,
+  getParentsForChildren,
 } from "#shared/db/listing-parents.ts";
-import type { Holiday, ListingWithCount } from "#shared/types.ts";
+import {
+  type Holiday,
+  type ListingWithCount,
+  PARENT_CHILD_GROUP_UNITS,
+  sharedGroupRemaining,
+} from "#shared/types.ts";
 import { buildTicketListing, type TicketListing } from "#templates/public.tsx";
 
 /**
@@ -45,12 +50,15 @@ import { buildTicketListing, type TicketListing } from "#templates/public.tsx";
  *   slugs regardless of parent.active — so a child's standalone Book/Buy CTA
  *   (and feed/gallery/builder/share affordance) must be suppressed in every
  *   case, matching what `getChildListingIds` rejects at the booking entry point.
- * - `addOnChildIds` — the subset of `childIds` that have at least one **active**
- *   parent. Such a child has a live parent page that can offer/fold it, so its
- *   card shows the "available as an add-on" note. A child in `childIds` but not
- *   here has *no* active parent page to be offered under, so the add-on note
- *   would point at nothing: it renders **unavailable** instead (parents.md,
- *   "Public listing cards").
+ * - `addOnChildIds` — the subset of `childIds` that have at least one
+ *   **bookable** parent: a parent that is active AND not sold out AND not
+ *   registration-closed (its own date-less row availability, matching the rest
+ *   of discovery). Such a child has a live parent page that can actually offer
+ *   and fold it, so its card shows the "available as an add-on" note. A child
+ *   whose every parent is inactive, sold out, or closed has *no* parent page
+ *   that can offer it (the parent page suppresses the child's own CTA/slug, a
+ *   dead end), so the add-on note would point at nothing: it renders
+ *   **unavailable** instead (parents.md, "Public listing cards", Fix 1).
  * - `soldOutParentIds` — parents with no bookable child (combined parent+child
  *   demand, invariant I7); their card must render as sold out (and they must be
  *   omitted from feeds/gallery), since the booking gate would reject the order.
@@ -93,20 +101,42 @@ const childBookable = (child: TicketListing, holidays: Holiday[]): boolean => {
  * Whether the *combined* minimum order — one parent plus one of this child —
  * fits the capacity they share (invariant I7, parents.md "combined parent+child
  * demand"). When the parent and child sit in the **same capped group** they
- * consume **two** group spots per order, so a single remaining spot is not
- * enough even though each row looks individually bookable; that needs ≥2
- * remaining. `childGroupRemaining` is the child's group-remaining entry (only
- * present for a capped group), which equals the shared group's remaining when
- * parent and child are co-grouped. When they are in different/uncapped groups
- * the per-row check already stands, so the combined demand always fits. */
+ * consume {@link PARENT_CHILD_GROUP_UNITS} group spots per order, so a single
+ * remaining spot is not enough even though each row looks individually bookable.
+ * When they are in different/uncapped groups the per-row check already stands, so
+ * the combined demand always fits. Shares the shared-group resolution with the
+ * booking-page quantity ceiling (`childCappedMax`) via {@link sharedGroupRemaining}. */
 const combinedDemandFits = (
   parent: ListingWithCount,
   child: ListingWithCount,
   childGroupRemaining: number | undefined,
 ): boolean => {
-  const sharedCappedGroup =
-    parent.group_id === child.group_id && childGroupRemaining !== undefined;
-  return !sharedCappedGroup || childGroupRemaining >= 2;
+  const shared = sharedGroupRemaining(
+    parent.group_id,
+    child.group_id,
+    childGroupRemaining,
+  );
+  return shared === undefined || shared >= PARENT_CHILD_GROUP_UNITS;
+};
+
+/** Whether a *parent* can currently offer its children as add-ons (Fix 1): its
+ * own row must be active AND not sold out AND not registration-closed. A parent
+ * that is inactive, sold out, or closed cannot fold a child into a booking, so a
+ * child whose only parents are all in this state has no live parent page to be
+ * offered under — its "available as an add-on" note would be a dead end. The
+ * sold-out/closed state is judged date-less (the parent's own row availability),
+ * matching the rest of discovery. */
+const parentBookable = (
+  parent: ListingWithCount,
+  groupRemaining: number | undefined,
+): boolean => {
+  if (!parent.active) return false;
+  const info = buildTicketListing(
+    parent,
+    isRegistrationClosed(parent),
+    groupRemaining,
+  );
+  return !info.isSoldOut && !info.isClosed;
 };
 
 /** Whether a child counts as bookable *for a given parent* on a discovery
@@ -142,17 +172,31 @@ export const classifyForDiscovery = async (
   // list, so the only short-circuit needed is the feature flag.
   if (!isListingParentsEnabled()) return EMPTY_CLASSIFICATION;
   const ids = listings.map((l) => l.id);
-  const [childIds, addOnChildIds, childrenByParent] = await Promise.all([
+  const [childIds, childrenByParent, parentsByChild] = await Promise.all([
     getChildListingIds(ids),
-    getChildIdsWithActiveParent(ids),
     getChildrenForParents(ids),
+    getParentsForChildren(ids),
   ]);
   const byId = new Map(listings.map((l) => [l.id, l]));
   const everyChild = [...childrenByParent.values()].flat();
-  const [groupRemaining, holidays] = await Promise.all([
+  // A child is an add-on only when at least one of its parents is itself
+  // bookable (active, not sold out, not closed) — otherwise the parent page
+  // can't offer it and the note would be a dead end (Fix 1). Parents may live
+  // outside the displayed set, so their group-remaining is fetched here.
+  const everyParent = [...parentsByChild.values()].flat();
+  const [groupRemaining, parentGroupRemaining, holidays] = await Promise.all([
     getGroupRemainingByListingId(everyChild),
+    getGroupRemainingByListingId(everyParent),
     getActiveHolidays(),
   ]);
+  const addOnChildIds = new Set<number>();
+  for (const [childId, parents] of parentsByChild) {
+    if (
+      parents.some((p) => parentBookable(p, parentGroupRemaining.get(p.id)))
+    ) {
+      addOnChildIds.add(childId);
+    }
+  }
   const soldOutParentIds = new Set<number>();
   for (const [parentId, children] of childrenByParent) {
     const parent = byId.get(parentId);

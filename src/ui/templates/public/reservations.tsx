@@ -30,6 +30,8 @@ import {
   type ListingFields,
   type ListingWithCount,
   normalizeDurationDays,
+  PARENT_CHILD_GROUP_UNITS,
+  sharedGroupRemaining,
 } from "#shared/types.ts";
 import { getTicketFields, mergeListingFields } from "#templates/fields.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
@@ -389,6 +391,9 @@ const restoredQuantity = (
  */
 export type ChildRenderCtx = {
   children: Map<number, TicketListing[]>;
+  /** Each listing id → its capped group's remaining spots, for the combined
+   * parent+child demand clamp (invariant I7); empty when no group caps apply. */
+  groupRemainingByListingId: ReadonlyMap<number, number>;
   questions: QuestionWithAnswers[];
   questionListingMap: QuestionListingMap | undefined;
   rendered: Set<number>;
@@ -403,25 +408,60 @@ const childBookable = (child: TicketListing): boolean =>
   child.listing.active && !child.isSoldOut && !child.isClosed;
 
 /**
+ * A single bookable child's contribution to its parent's quantity ceiling, in
+ * whole parent+child orders (Fix 3, invariant I7). Each order consumes one parent
+ * unit plus one child unit. When the parent and child share a **capped group**
+ * those two units land in the *same* pool, so the cap is
+ * `floor(sharedRemaining / PARENT_CHILD_GROUP_UNITS)` — e.g. 3 shared spots offer
+ * only 1 order (2 consumed), 4 offer 2. In different or uncapped groups they draw
+ * from separate pools, so the child's own `maxPurchasable` stands. `checkBatch-
+ * Availability` rejects (never clamps) anything above this at submit, so the
+ * selector must not offer a quantity it would reject.
+ */
+const childOrderCap = (
+  parent: TicketListing,
+  child: TicketListing,
+  groupRemainingByListingId: ReadonlyMap<number, number>,
+): number => {
+  const shared = sharedGroupRemaining(
+    parent.listing.group_id,
+    child.listing.group_id,
+    groupRemainingByListingId.get(child.listing.id),
+  );
+  return shared === undefined
+    ? child.maxPurchasable
+    : Math.floor(shared / PARENT_CHILD_GROUP_UNITS);
+};
+
+/**
  * The quantity cap to offer for a parent's own selector, clamped to its required
  * children's capacity (Codex 565). Child quantity is slaved to the parent's
  * (invariant I2), so a parent offering 5 with a single auto-selected child capped
  * at 1 must offer only 1 — the submit-side fold rejects (never clamps) a higher
- * quantity. The child cap is the MAX `maxPurchasable` across the bookable
- * children (a single auto-selected child contributes its own cap; with several,
- * don't block a high-capacity sibling — the per-child cap is enforced at submit),
- * and the effective max is `min(parentMax, childCap)`. A parent with no bookable
- * child is handled upstream (sold out, invariant I6); here that yields a 0 cap.
+ * quantity. Each child's contribution is its combined parent+child order capacity
+ * ({@link childOrderCap}): a shared capped group consumes two spots per order, so
+ * the parent qty is clamped by `floor(groupRemaining / 2)`, not the child's own
+ * `maxPurchasable`. The child cap is the MAX of those across the bookable children
+ * (a single auto-selected child contributes its own cap; with several, don't
+ * block a high-capacity sibling — the per-child cap is enforced at submit), and
+ * the effective max is `min(parentMax, childCap)`. A parent with no bookable child
+ * is handled upstream (sold out, invariant I6); here that yields a 0 cap.
  */
 const childCappedMax = (
   info: TicketListing,
   childCtx: ChildRenderCtx | undefined,
 ): number => {
   const children = childCtx?.children.get(info.listing.id);
-  if (!children || children.length === 0) return info.maxPurchasable;
+  if (!childCtx || !children || children.length === 0) {
+    return info.maxPurchasable;
+  }
   const bookable = children.filter(childBookable);
   const childCap = bookable.reduce(
-    (max, child) => Math.max(max, child.maxPurchasable),
+    (max, child) =>
+      Math.max(
+        max,
+        childOrderCap(info, child, childCtx.groupRemainingByListingId),
+      ),
     0,
   );
   return Math.min(info.maxPurchasable, childCap);
@@ -770,6 +810,10 @@ export type TicketPageOptions = {
   /** Parent listing id → its children (each a TicketListing). Drives the
    * per-parent child selector rendered under each parent row. */
   childrenByParentId?: Map<number, TicketListing[]>;
+  /** Each listing id → its capped group's remaining spots, so a parent sharing a
+   * capped group with its child clamps its quantity by the combined parent+child
+   * demand (invariant I7, Fix 3). Empty/omitted when no group caps apply. */
+  groupRemainingByListingId?: ReadonlyMap<number, number>;
 };
 
 /** Unavailability message shown when all listings are sold out or closed */
@@ -1012,6 +1056,7 @@ const splitChildQuestions = (
   questions: QuestionWithAnswers[],
   questionListingMap: QuestionListingMap | undefined,
   childrenByParentId: Map<number, TicketListing[]> | undefined,
+  groupRemainingByListingId: ReadonlyMap<number, number>,
 ): { pageQuestions: QuestionWithAnswers[]; childCtx?: ChildRenderCtx } => {
   if (!childrenByParentId || childrenByParentId.size === 0) {
     return { pageQuestions: questions };
@@ -1025,6 +1070,7 @@ const splitChildQuestions = (
   return {
     childCtx: {
       children: childrenByParentId,
+      groupRemainingByListingId,
       questionListingMap,
       questions,
       rendered: new Set<number>(pageQuestions.map((q) => q.id)),
@@ -1108,6 +1154,7 @@ export const ticketPage = ({
   addOns,
   promoCodesEnabled,
   childrenByParentId,
+  groupRemainingByListingId,
 }: TicketPageOptions): string => {
   const inIframe = getIframeMode();
   const allUnavailable = listings.every((e) => e.isSoldOut || e.isClosed);
@@ -1137,6 +1184,7 @@ export const ticketPage = ({
     questions ?? [],
     questionListingMap,
     childrenByParentId,
+    groupRemainingByListingId ?? new Map(),
   );
 
   const listingRows = buildListingRows(

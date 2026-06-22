@@ -227,6 +227,36 @@ export const dayPriceFor = (
   return listing.day_prices[days] ?? null;
 };
 
+/**
+ * Units of a shared capped group consumed by one parent+child order: the parent
+ * line plus its single required child line each take one spot in the group they
+ * share (invariants I1, I7). Used to convert a shared group's remaining spots
+ * into how many whole parent+child orders still fit.
+ */
+export const PARENT_CHILD_GROUP_UNITS = 2;
+
+/**
+ * The remaining spots of the **capped group a parent and one of its children
+ * share**, or `undefined` when they don't share a capped group. A parent and its
+ * required child in the same capped group consume two group spots per order
+ * (invariant I7), so callers must reason about combined demand, not each row in
+ * isolation. `childGroupRemaining` is the child's group-remaining entry (only
+ * present for a capped group), which equals the shared group's remaining when the
+ * two are co-grouped; in different or uncapped groups there is no shared cap.
+ *
+ * The single source of truth for both discovery (does the minimum order fit?) and
+ * the booking-page quantity ceiling (how many orders fit?), so the two surfaces
+ * can never disagree about a shared-group parent's availability.
+ */
+export const sharedGroupRemaining = (
+  parentGroupId: number,
+  childGroupId: number,
+  childGroupRemaining: number | undefined,
+): number | undefined =>
+  parentGroupId === childGroupId && childGroupRemaining !== undefined
+    ? childGroupRemaining
+    : undefined;
+
 export interface Listing {
   active: boolean;
   assign_built_site: boolean;

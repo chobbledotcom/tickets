@@ -55,26 +55,6 @@ export const getChildListingIds = (
     ids,
   );
 
-/**
- * Of the given listing ids, the subset that are a child of at least one **active**
- * parent. A child whose only parent is deactivated (`active = 0`) has no active
- * parent page that can offer or fold it, so the "available as an add-on" CTA
- * suppression would be a dead end (parents.md, "Public listing cards"): such a
- * child must fall back to its own normal availability, so it is excluded here.
- * Returns an empty set for an empty input (no query).
- */
-export const getChildIdsWithActiveParent = (
-  ids: readonly number[],
-): Promise<Set<number>> =>
-  childIdSet(
-    `SELECT DISTINCT edge.child_listing_id AS id
-       FROM listing_parents AS edge
-       JOIN listings AS parent ON parent.id = edge.parent_listing_id
-      WHERE edge.child_listing_id IN (${inPlaceholders(ids)})
-        AND parent.active = 1`,
-    ids,
-  );
-
 /** Child listing ids that must be chosen under `parentId` (relationship only). */
 export const getChildIds = (parentId: number): Promise<number[]> =>
   queryIdColumn(
@@ -106,34 +86,63 @@ export const setChildIds = (
     })),
   ]);
 
+type EdgeColumn = "child_listing_id" | "parent_listing_id";
+
 /**
- * The children of each of `parentIds`, hydrated to full rows (relationship
- * only — never availability-filtered; see invariant I3 and the module note).
- * One query for all edges (no N+1), then grouped by parent. Each parent's
- * children preserve child-id order and drop any that no longer exist; only
- * parents with at least one surviving child appear in the result map.
+ * Batch-load `listing_parents` edges filtered by one endpoint and grouped,
+ * hydrated, by the opposite one. `keyColumn` is matched against `ids` and used
+ * as the result-map key; `valueColumn` is the opposite endpoint hydrated to full
+ * rows (preserving id order, dropping any that no longer exist). One query (no
+ * N+1); only keys with at least one surviving listing appear. Shared by
+ * {@link getChildrenForParents} and {@link getParentsForChildren} so the two
+ * directions never drift. (Column names come from the fixed {@link EdgeColumn}
+ * union, never user input, so the interpolation is safe.)
  */
-export const getChildrenForParents = async (
-  parentIds: readonly number[],
+const groupEdges = async (
+  ids: readonly number[],
+  keyColumn: EdgeColumn,
+  valueColumn: EdgeColumn,
 ): Promise<Map<number, ListingWithCount[]>> => {
-  if (parentIds.length === 0) return new Map();
-  const rows = await queryAll<{ parent: number; child: number }>(
-    `SELECT parent_listing_id AS parent, child_listing_id AS child
-       FROM listing_parents
-      WHERE parent_listing_id IN (${inPlaceholders(parentIds)})
-      ORDER BY parent_listing_id, child_listing_id`,
-    [...parentIds],
-  );
-  if (rows.length === 0) return new Map();
-  const byId = await getListingsById();
   const result = new Map<number, ListingWithCount[]>();
-  for (const { parent, child } of rows) {
-    const listing = byId.get(child);
+  if (ids.length === 0) return result;
+  const byId = await getListingsById();
+  const rows = await queryAll<{ key: number; value: number }>(
+    `SELECT ${keyColumn} AS key, ${valueColumn} AS value
+       FROM listing_parents
+      WHERE ${keyColumn} IN (${inPlaceholders(ids)})
+      ORDER BY ${keyColumn}, ${valueColumn}`,
+    [...ids],
+  );
+  for (const { key, value } of rows) {
+    const listing = byId.get(value);
     if (!listing) continue;
-    (result.get(parent) ?? result.set(parent, []).get(parent)!).push(listing);
+    (result.get(key) ?? result.set(key, []).get(key)!).push(listing);
   }
   return result;
 };
+
+/**
+ * The children of each of `parentIds`, hydrated to full rows (relationship
+ * only — never availability-filtered; see invariant I3 and the module note).
+ * Each parent's children preserve child-id order and drop any that no longer
+ * exist; only parents with at least one surviving child appear in the result.
+ */
+export const getChildrenForParents = (
+  parentIds: readonly number[],
+): Promise<Map<number, ListingWithCount[]>> =>
+  groupEdges(parentIds, "parent_listing_id", "child_listing_id");
+
+/**
+ * The parents of each of `childIds`, hydrated to full rows (relationship only —
+ * never availability-filtered; see invariant I3 and the module note). The
+ * reverse of {@link getChildrenForParents}, used by discovery to decide whether
+ * a child has any **bookable** parent that can offer it as an add-on
+ * (parents.md, "Public listing cards").
+ */
+export const getParentsForChildren = (
+  childIds: readonly number[],
+): Promise<Map<number, ListingWithCount[]>> =>
+  groupEdges(childIds, "child_listing_id", "parent_listing_id");
 
 /** The listings `childId` is offered under, hydrated to full rows (relationship
  * only; preserves id order and drops any that no longer exist). */

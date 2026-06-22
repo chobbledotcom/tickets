@@ -1,16 +1,12 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import {
-  getChildIds,
-  getChildIdsWithActiveParent,
-} from "#shared/db/listing-parents.ts";
+import { getChildIds } from "#shared/db/listing-parents.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import {
   apiRequest,
   assertJson,
   createTestGroup,
   createTestListing,
-  deactivateTestListing,
   describeWithEnv,
   getTestSession,
   insertModifier,
@@ -361,40 +357,6 @@ describeWithEnv(
       });
       expect(after.name).toBe("Renamed base");
       expect(await getChildIds(parent.id)).toEqual([child.id]);
-    });
-
-    test("getChildIdsWithActiveParent returns empty for empty input", async () => {
-      // The no-query short-circuit (Fix 1): no ids ⇒ no query, empty set.
-      expect((await getChildIdsWithActiveParent([])).size).toBe(0);
-    });
-
-    test("getChildIdsWithActiveParent includes a child of an active parent", async () => {
-      const parent = await createTestListing({ name: "Base unit" });
-      const child = await createTestListing({ name: "Add-on" });
-      await postChildren(parent.id, [child.id]);
-      const ids = await getChildIdsWithActiveParent([child.id]);
-      expect([...ids]).toEqual([child.id]);
-    });
-
-    test("getChildIdsWithActiveParent excludes a child whose only parent is inactive", async () => {
-      // A child with no active parent has no page that can offer it, so it is
-      // excluded — the discovery surface falls it back to its own CTA (Fix 1).
-      const parent = await createTestListing({ name: "Base unit" });
-      const child = await createTestListing({ name: "Add-on" });
-      await postChildren(parent.id, [child.id]);
-      await deactivateTestListing(parent.id);
-      expect((await getChildIdsWithActiveParent([child.id])).size).toBe(0);
-    });
-
-    test("getChildIdsWithActiveParent keeps a child with at least one active parent", async () => {
-      const activeParent = await createTestListing({ name: "Active base" });
-      const deadParent = await createTestListing({ name: "Dead base" });
-      const child = await createTestListing({ name: "Add-on" });
-      await postChildren(activeParent.id, [child.id]);
-      await postChildren(deadParent.id, [child.id]);
-      await deactivateTestListing(deadParent.id);
-      const ids = await getChildIdsWithActiveParent([child.id]);
-      expect([...ids]).toEqual([child.id]);
     });
 
     test("lets a listing that is itself a child save an empty children set", async () => {

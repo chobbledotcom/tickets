@@ -99,6 +99,52 @@ describeWithEnv(
       expect(options).not.toContain('value="5"');
     });
 
+    test("a parent + child sharing a capped group with 2 spots offers only qty 1", async () => {
+      // Parent and its only child share a capped group, so each order consumes
+      // TWO group spots (parent + auto-selected child). With two spots free the
+      // selector must offer quantity 1 and never 2, which the submit-side
+      // combined-demand check would reject (Fix 3, invariant I7).
+      const group = await createTestGroup({ maxAttendees: 2, name: "Pool" });
+      const parent = await createTestListing({
+        groupId: group.id,
+        maxQuantity: 5,
+        name: "Base unit",
+      });
+      const child = await createTestListing({
+        groupId: group.id,
+        maxQuantity: 5,
+        name: "Add-on",
+      });
+      await setChildIds(parent.id, [child.id]);
+      const body = await (await ticketGet(parent.slug)).text();
+      const select = body.slice(body.indexOf(`name="quantity_${parent.id}"`));
+      const options = select.slice(0, select.indexOf("</select>"));
+      expect(options).toContain('value="1"');
+      expect(options).not.toContain('value="2"');
+    });
+
+    test("a parent + child sharing a capped group with 4 spots offers up to qty 2", async () => {
+      // With four shared spots free, two parent+child orders fit (four units), so
+      // the selector offers up to quantity 2 and no higher (Fix 3).
+      const group = await createTestGroup({ maxAttendees: 4, name: "Pool" });
+      const parent = await createTestListing({
+        groupId: group.id,
+        maxQuantity: 5,
+        name: "Base unit",
+      });
+      const child = await createTestListing({
+        groupId: group.id,
+        maxQuantity: 5,
+        name: "Add-on",
+      });
+      await setChildIds(parent.id, [child.id]);
+      const body = await (await ticketGet(parent.slug)).text();
+      const select = body.slice(body.indexOf(`name="quantity_${parent.id}"`));
+      const options = select.slice(0, select.indexOf("</select>"));
+      expect(options).toContain('value="2"');
+      expect(options).not.toContain('value="3"');
+    });
+
     test("a group containing a child member still renders (not 404)", async () => {
       // The group page loads members indirectly, so a child member is suppressed
       // /folded — not a reason to 404 the whole group (the buyer isn't starting

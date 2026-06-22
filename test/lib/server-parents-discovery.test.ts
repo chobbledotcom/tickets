@@ -136,6 +136,58 @@ describeWithEnv(
         expect(response.status).toBe(404);
       });
 
+      test("a child whose only parent is sold out renders unavailable", async () => {
+        // The only parent page that could offer this child is itself sold out, so
+        // it cannot fold the child into a booking — the "available as an add-on"
+        // note would be a dead end. The child is never standalone-bookable, so its
+        // card reads as currently unavailable (Fix 1, parentBookable sold-out).
+        const parent = await createTestListing({
+          maxAttendees: 1,
+          name: "Base unit",
+        });
+        await createTestAttendee(parent.id, parent.slug, "Buyer", "b@x.com");
+        const child = await createTestListing({ name: "Add-on" });
+        await setChildIds(parent.id, [child.id]);
+        const body = await publicBody("/listings");
+        expect(body).toContain("Add-on");
+        expect(body).not.toContain("Available as an add-on to another booking");
+        expect(body).not.toContain(`href="/ticket/${child.slug}"`);
+        expect(body).toContain("Currently Unavailable");
+      });
+
+      test("a child whose only parent has closed registration renders unavailable", async () => {
+        // The only parent is past its own closes_at, so it cannot offer the child
+        // — the add-on note would be a dead end and the child reads unavailable
+        // (Fix 1, parentBookable registration-closed).
+        const pastDate = new Date(Date.now() - 60000)
+          .toISOString()
+          .slice(0, 16);
+        const parent = await createTestListing({
+          closesAt: pastDate,
+          name: "Base unit",
+        });
+        const child = await createTestListing({ name: "Add-on" });
+        await setChildIds(parent.id, [child.id]);
+        const body = await publicBody("/listings");
+        expect(body).toContain("Add-on");
+        expect(body).not.toContain("Available as an add-on to another booking");
+        expect(body).not.toContain(`href="/ticket/${child.slug}"`);
+        expect(body).toContain("Currently Unavailable");
+      });
+
+      test("a child with a bookable parent shows the add-on note", async () => {
+        // The parent is active, not sold out, and not closed, so it can fold the
+        // child into a booking — the child's card shows the add-on note and the
+        // child's own standalone CTA stays suppressed (Fix 1, parentBookable
+        // bookable case).
+        const parent = await createTestListing({ name: "Base unit" });
+        const child = await createTestListing({ name: "Add-on" });
+        await setChildIds(parent.id, [child.id]);
+        const body = await publicBody("/listings");
+        expect(body).toContain("Available as an add-on to another booking");
+        expect(body).not.toContain(`href="/ticket/${child.slug}"`);
+      });
+
       test("a child with one active and one inactive parent stays labeled add-on", async () => {
         // At least one active parent can still offer the child, so the standalone
         // CTA must stay suppressed (Fix 1).

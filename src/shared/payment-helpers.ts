@@ -408,12 +408,29 @@ const parsePackedFields = (raw: string): Partial<Record<string, string>> => {
  * ref can reach the 10-entry limit, so when `maxEntries` is supplied the key
  * count is checked too and surfaces the same batching error rather than a
  * generic provider rejection.
+ *
+ * `thank_you_url` is the one provider-cap-sensitive field that must **not** fail
+ * the checkout: a folded paid parent copies its operator-configured
+ * `thank_you_url` into metadata, but a long URL would exceed the provider's
+ * per-value cap and break session creation for an order that is otherwise valid.
+ * It is purely a post-completion redirect, so an over-cap URL is **omitted** (the
+ * order completes and falls back to the generic success page) rather than
+ * rejected. This is bounded before the entry-count check so dropping it also
+ * frees its slot (parents.md Fix 2).
  */
 export const enforceMetadataLimits = (
   metadata: Record<string, string>,
   maxValueLength: number,
   maxEntries?: number,
 ): Record<string, string> => {
+  if (
+    metadata.thank_you_url &&
+    metadata.thank_you_url.length > maxValueLength
+  ) {
+    const { thank_you_url: _omitted, ...rest } = metadata;
+    metadata = rest;
+  }
+
   const items = metadata.items;
   if (items && items.length > maxValueLength) {
     throw new PaymentUserError(
