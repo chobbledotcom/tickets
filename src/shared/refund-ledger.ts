@@ -21,9 +21,9 @@
 import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import { mapRefund } from "#shared/accounting/mappers.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
-import { postTransfers } from "#shared/accounting/store.ts";
+import { postTransfers, postTransferGroups } from "#shared/accounting/store.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
-import type { Transfer } from "#shared/ledger/types.ts";
+import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
 
@@ -64,6 +64,38 @@ export const soleBookingOrder = (legs: Transfer[]): Transfer[] | null => {
 };
 
 /**
+ * Compute one attendee's refund reversal without posting it: the ledger legs to
+ * write (empty when already refunded or not a clean order) and whether the ledger
+ * records — or will record — the refund. Read-only, so the bulk path can compute
+ * many in parallel and post them in one transaction. Shared by the single
+ * {@link recordAttendeeRefund} and the batched {@link recordAttendeeRefundsBatch}.
+ */
+const computeAttendeeRefund = async (
+  attendeeId: number,
+): Promise<{ posted: boolean; legs: TransferInput[] }> => {
+  const account = attendeeAccount(attendeeId);
+  const legs = await transfersByAccount(account);
+  // Already refunded (e.g. an idempotent re-submit): the `refund_cash` leg is the
+  // durable refund record, so report success without re-posting — and without
+  // rebuilding legs under a fresh `nowIso()`.
+  if (legs.some((leg) => leg.kind === "refund_cash")) {
+    return { legs: [], posted: true };
+  }
+  const order = soleBookingOrder(legs);
+  if (order === null) return { legs: [], posted: false };
+  // Only auto-reverse a fully-paid booking. If the attendee still owes (an unpaid
+  // reservation) or holds credit, this single full provider refund can't map
+  // cleanly onto the ledger: reversing the sale while the balance stays payable
+  // would let a later balance payment post against it. Such cases go to a manual
+  // adjustment instead.
+  if (balanceOf(account)(legs) !== 0) return { legs: [], posted: false };
+  return {
+    legs: await mapRefund({ occurredAt: nowIso(), orderLegs: order }),
+    posted: true,
+  };
+};
+
+/**
  * Post the ledger legs reversing one attendee's booking and report whether the
  * ledger records the refund. `{ posted: true }` when it posts the reversal — or
  * when the attendee is already refunded, so an idempotent re-submit is a no-op
@@ -73,30 +105,56 @@ export const soleBookingOrder = (legs: Transfer[]): Transfer[] | null => {
 export const recordAttendeeRefund = async (
   attendeeId: number,
 ): Promise<{ posted: boolean }> => {
-  const account = attendeeAccount(attendeeId);
   try {
-    const legs = await transfersByAccount(account);
-    // Already refunded (e.g. an idempotent re-submit): the `refund_cash` leg is
-    // the durable refund record, so report success without re-posting — and
-    // without rebuilding legs under a fresh `nowIso()`.
-    if (legs.some((leg) => leg.kind === "refund_cash")) return { posted: true };
-    const order = soleBookingOrder(legs);
-    if (order === null) return { posted: false };
-    // Only auto-reverse a fully-paid booking. If the attendee still owes (an
-    // unpaid reservation) or holds credit, this single full provider refund
-    // can't map cleanly onto the ledger: reversing the sale while the balance
-    // stays payable would let a later balance payment post against it. Such
-    // cases go to a manual adjustment instead.
-    if (balanceOf(account)(legs) !== 0) return { posted: false };
-    await postTransfers(
-      await mapRefund({ occurredAt: nowIso(), orderLegs: order }),
-    );
-    return { posted: true };
+    const { posted, legs } = await computeAttendeeRefund(attendeeId);
+    if (legs.length > 0) await postTransfers(legs);
+    return { posted };
   } catch (error) {
     logError({
       code: ErrorCode.LEDGER_POST,
       detail: `refund ledger post failed for attendee ${attendeeId}: ${error}`,
     });
     return { posted: false };
+  }
+};
+
+/**
+ * Record refunds for many attendees in ONE write transaction, returning each
+ * attendee's posted status. A bulk refund would otherwise open an interactive
+ * write transaction per attendee and contend the single SQLite writer
+ * (SQLITE_BUSY) once enough overlap — and that swallowed loss, now that refund
+ * status is ledger-only, would silently leave payments re-refundable. So the
+ * per-attendee reversals are computed read-only and posted together. On a write
+ * failure no new reversal is recorded (already-refunded attendees stay refunded).
+ * Never throws.
+ */
+export const recordAttendeeRefundsBatch = async (
+  attendeeIds: number[],
+): Promise<Map<number, boolean>> => {
+  // Compute sequentially: overlapping reads (Promise.all) can leave statements
+  // open that collide with the batch transaction's commit at scale.
+  const computed: { id: number; posted: boolean; legs: TransferInput[] }[] = [];
+  for (const id of attendeeIds) {
+    computed.push({ id, ...(await computeAttendeeRefund(id)) });
+  }
+  const groups = computed
+    .map((entry) => entry.legs)
+    .filter((legs) => legs.length > 0);
+  try {
+    if (groups.length > 0) await postTransferGroups(groups);
+    return new Map(computed.map((entry) => [entry.id, entry.posted]));
+  } catch (error) {
+    logError({
+      code: ErrorCode.LEDGER_POST,
+      detail: `bulk refund ledger post failed (${attendeeIds.length}): ${error}`,
+    });
+    // The single batched post failed: only attendees that already carried a
+    // refund_cash leg (no new legs to write) remain recorded as refunded.
+    return new Map(
+      computed.map((entry) => [
+        entry.id,
+        entry.legs.length === 0 ? entry.posted : false,
+      ]),
+    );
   }
 };

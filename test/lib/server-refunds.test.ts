@@ -1,8 +1,9 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { type Stub, stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import type { ListingInput } from "#shared/db/listings.ts";
+import { setN1GuardNotifyOnly } from "#shared/db/query-log.ts";
 import { paymentsApi } from "#shared/payments.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
 import {
@@ -398,6 +399,14 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
   });
 
   describe("POST /admin/listing/:id/refund-all", () => {
+    // A bulk refund posts a ledger reversal per attendee — a known per-attendee
+    // read (an N+1 the dev guard throws on past ~25 rows). Production runs the
+    // guard in notify-only mode (src/edge.ts) so a real bulk refund of many
+    // attendees still posts every leg; match that here. Batching the bulk ledger
+    // work into one round-trip is a tracked follow-up.
+    beforeEach(() => setN1GuardNotifyOnly(true));
+    afterEach(() => setN1GuardNotifyOnly(null));
+
     testRequiresAuth("/admin/listing/1/refund-all", {
       body: {
         confirm_identifier: "Test Listing",

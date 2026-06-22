@@ -17,7 +17,10 @@ import { logActivity } from "#shared/db/activityLog.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { getActivePaymentProvider } from "#shared/payments.ts";
-import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
+import {
+  recordAttendeeRefund,
+  recordAttendeeRefundsBatch,
+} from "#shared/refund-ledger.ts";
 import { fail, ok } from "#shared/response.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
 import {
@@ -193,11 +196,13 @@ const refundAtProvider = async (
 };
 
 /**
- * Process a batch of refundable attendees and tally results. The provider refund
- * in each chunk runs in parallel; the ledger post that follows a success runs
- * one at a time — its interactive write transaction would otherwise contend on
- * the single SQLite writer, and a busy-timeout loss is only logged.
- * `recordAttendeeRefund` never throws, so the serial pass needs no guard.
+ * Process a batch of refundable attendees and tally results. Provider refunds run
+ * in parallel within each chunk; the ledger reversals for every success are then
+ * posted together in one transaction (see {@link recordAttendeeRefundsBatch}) —
+ * a per-attendee interactive write would otherwise contend the single SQLite
+ * writer (SQLITE_BUSY) at scale. A missed post is tallied as errored, not
+ * refunded: refund status is ledger-only now, so it must surface rather than
+ * leave the payment silently re-refundable. Never 500s — neither helper throws.
  */
 const processRefundBatch = async (
   provider: NonNullable<Awaited<ReturnType<typeof getActivePaymentProvider>>>,
@@ -210,25 +215,21 @@ const processRefundBatch = async (
     failedCount: 0,
     refundedCount: 0,
   };
+  const refundedIds: number[] = [];
   for (const group of chunk(REFUND_CHUNK_SIZE)(batch)) {
     const results = await Promise.all(
       group.map((attendee) => refundAtProvider(provider, attendee, listingId)),
     );
     for (const { attendee, outcome } of results) {
-      if (outcome === "errored") {
-        counts.errorCount++;
-      } else if (outcome === "failed") {
-        counts.failedCount++;
-      } else {
-        // Provider refund succeeded; a missed ledger post (refund status is now
-        // ledger-only) is tallied as errored, not refunded — so it surfaces and
-        // isn't silently left re-refundable. Never a 500: recordAttendeeRefund
-        // returns { posted } rather than throwing.
-        const { posted } = await recordAttendeeRefund(attendee.id);
-        if (posted) counts.refundedCount++;
-        else counts.errorCount++;
-      }
+      if (outcome === "errored") counts.errorCount++;
+      else if (outcome === "failed") counts.failedCount++;
+      else refundedIds.push(attendee.id);
     }
+  }
+  const posted = await recordAttendeeRefundsBatch(refundedIds);
+  for (const ok of posted.values()) {
+    if (ok) counts.refundedCount++;
+    else counts.errorCount++;
   }
   return counts;
 };

@@ -140,3 +140,22 @@ export const postTransfersTx = async (
  */
 export const postTransfers = (inputs: TransferInput[]): Promise<PostResult> =>
   withTransaction((tx) => postTransfersTx(tx, inputs));
+
+/**
+ * Post the legs of MANY business events in ONE write transaction. Each element of
+ * `groups` is one event's legs (one `eventGroup`), validated and inserted exactly
+ * as {@link postTransfersTx}, but all committed together. Use this whenever a
+ * single operation produces several independent events — a bulk refund, an
+ * import, a multi-order adjustment — so it opens one interactive write
+ * transaction instead of contending the single SQLite writer (SQLITE_BUSY) once
+ * per event. Idempotent per event; returns the per-group results in order. Rolls
+ * back every group if any one fails, so the batch lands all-or-nothing.
+ */
+export const postTransferGroups = (
+  groups: TransferInput[][],
+): Promise<PostResult[]> =>
+  withTransaction(async (tx) => {
+    const results: PostResult[] = [];
+    for (const inputs of groups) results.push(await postTransfersTx(tx, inputs));
+    return results;
+  });

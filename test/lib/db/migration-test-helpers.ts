@@ -93,10 +93,11 @@ export const seedListingDomainRows = async (): Promise<number> => {
  * against (the drop migration removes it again, leaving the final schema
  * correct). Mirrors `seedPreDropRefundedColumn` in the backfill unit test.
  */
-export const seedPreDropRefundedColumn = (): Promise<unknown> =>
-  getDb().execute(
+export const seedPreDropRefundedColumn = async (): Promise<void> => {
+  await getDb().execute(
     "ALTER TABLE listing_attendees ADD COLUMN refunded INTEGER NOT NULL DEFAULT 0",
   );
+};
 
 export const columnNames = async (table: string): Promise<string[]> => {
   const result = await getDb().execute(
