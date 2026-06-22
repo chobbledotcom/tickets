@@ -126,7 +126,7 @@ describeWithEnv(
       expect(after).toBe(before); // same cached reference
     });
 
-    test("settling a balance refreshes the cached listing income", async () => {
+    test("settling a balance leaves listing income unchanged (gross at sale)", async () => {
       const listing = await createTestListing({
         maxAttendees: 50,
         unitPrice: 500,
@@ -151,8 +151,10 @@ describeWithEnv(
       const result = await settleAttendeeBalance(attendee.id, 500);
       expect(result.settled).toBe(true);
 
+      // A balance payment is cash settling the receivable, not new revenue, so a
+      // listing's gross income — recognised in full at sale — does not move.
       const after = (await getListingWithCount(listing.id))!;
-      expect(after.income).toBe(1500);
+      expect(after.income).toBe(1000);
     });
   },
 );

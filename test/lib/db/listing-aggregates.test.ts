@@ -179,13 +179,21 @@ describeWithEnv(
 
       // A posted booking credits revenue:<listingId>, which the income subquery
       // sums — equalling the old SUM(price_paid) for the same paid booking.
-      await postListingSale({ attendeeId: 1, gross: 1500, listingId: listing.id });
+      await postListingSale({
+        attendeeId: 1,
+        gross: 1500,
+        listingId: listing.id,
+      });
       expect(await incomeOf(listing.id)).toBe(1500);
     });
 
     test("a refund does not reduce a listing's gross income", async () => {
       const listing = await createTestListing({ maxAttendees: 50 });
-      await postListingSale({ attendeeId: 7, gross: 4000, listingId: listing.id });
+      await postListingSale({
+        attendeeId: 7,
+        gross: 4000,
+        listingId: listing.id,
+      });
       expect(await incomeOf(listing.id)).toBe(4000);
 
       // The refund reversal posts a SOURCE-side leg on revenue:<listingId>, so the

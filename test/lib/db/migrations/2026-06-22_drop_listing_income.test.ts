@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { getDb } from "#shared/db/client.ts";
 import dropListingIncomeMigration from "#shared/db/migrations/2026-06-22_drop_listing_income.ts";
 import {

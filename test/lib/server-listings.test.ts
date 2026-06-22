@@ -44,6 +44,7 @@ import {
   testRequiresAuth,
   updateTestListing,
 } from "#test-utils";
+import { postListingSale } from "#test-utils/ledger.ts";
 
 describeWithEnv("server (admin listings)", { db: true }, () => {
   afterEach(() => {
@@ -884,18 +885,12 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       );
       // Income is projected from the ledger, so seed it with a real sale leg on
       // revenue:<listingId> rather than the (count-only) aggregate override.
-      await postTransfers(
-        await mapBooking({
-          amountPaid: 9000,
-          attendeeId: attendee.id,
-          bookingFee: 0,
-          currency: "GBP",
-          eventId: "reset-totals",
-          lines: [{ gross: 9000, listingId: listing.id }],
-          modifiers: [],
-          occurredAt: "2026-06-21T00:00:00.000Z",
-        }),
-      );
+      await postListingSale({
+        attendeeId: attendee.id,
+        eventId: "reset-totals",
+        gross: 9000,
+        listingId: listing.id,
+      });
       await updateListingAggregateValues(listing.id, {
         booked_quantity: 9,
         tickets_count: 5,
@@ -1085,7 +1080,6 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
           {
             booked_quantity: "12",
             csrf_token: csrfToken,
-            income: "123.45",
             max_attendees: "100",
             max_quantity: "1",
             name: listing.name,
@@ -1101,9 +1095,10 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         "Listing updated",
       )(response);
 
+      // income is no longer a column override — it's projected from the ledger,
+      // so the form only edits the count aggregates now.
       const updated = await getListingWithCount(listing.id);
       expect(updated?.attendee_count).toBe(12);
-      expect(updated?.income).toBe(12345);
       expect(updated?.tickets_count).toBe(4);
     });
 
@@ -1119,7 +1114,6 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
           {
             booked_quantity: "-1",
             csrf_token: csrfToken,
-            income: "10.00",
             max_attendees: "100",
             max_quantity: "1",
             name: listing.name,

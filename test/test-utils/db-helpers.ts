@@ -497,7 +497,20 @@ export const createPaidTestAttendee = async (
     name,
     paymentId,
   });
-  return (result as { success: true; attendees: Attendee[] }).attendees[0]!;
+  const attendee = (result as { success: true; attendees: Attendee[] })
+    .attendees[0]!;
+  // A paid attendee recognises gross revenue: post the sale leg so the
+  // ledger-projected listing income reflects it (the price_paid column alone no
+  // longer feeds income). A free (pricePaid 0) attendee posts nothing.
+  if (pricePaid > 0) {
+    const { postListingSale } = await import("#test-utils/ledger.ts");
+    await postListingSale({
+      attendeeId: attendee.id,
+      gross: pricePaid,
+      listingId,
+    });
+  }
+  return attendee;
 };
 
 export const bookAttendee = async (

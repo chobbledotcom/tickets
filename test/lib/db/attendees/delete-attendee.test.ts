@@ -78,9 +78,11 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
     const updated = await getListingWithCount(listing.id);
     expect(updated).toMatchObject({
       attendee_count: 0,
-      income: 0,
       tickets_count: 0,
     });
+    // Income is the ledger projection: releasing the booking frees capacity but
+    // does not reverse the recognised revenue (a hard delete posts no reversal).
+    expect(updated!.income).toBe(1200);
   });
 
   test("can delete attendee without releasing listing aggregate totals", async () => {
