@@ -5,6 +5,7 @@ import {
   getDecimalPlaces,
   toMajorUnits,
   toMinorUnits,
+  validatePrice,
 } from "#shared/currency.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import {
@@ -152,6 +153,86 @@ describe("currency", () => {
     testWithSetting("converts KWD (3 decimals)", { currency: "KWD" }, () => {
       expect(toMajorUnits(1050)).toBe("1.050");
     });
+  });
+
+  describe("validatePrice", () => {
+    // GBP → 2 decimal places, so toMinorUnits multiplies major units by 100.
+    testWithSetting(
+      "accepts empty input as 0 when the minimum is 0 (pay-what-you-want)",
+      { currency: "GBP" },
+      () => {
+        expect(validatePrice("", 0, 100_000)).toEqual({ ok: true, price: 0 });
+      },
+    );
+
+    testWithSetting(
+      "rejects empty input when a minimum is required",
+      { currency: "GBP" },
+      () => {
+        expect(validatePrice("", 500, 100_000)).toEqual({
+          error: "Please enter a price",
+          ok: false,
+        });
+      },
+    );
+
+    testWithSetting("rejects non-numeric input", { currency: "GBP" }, () => {
+      expect(validatePrice("abc", 0, 100_000)).toEqual({
+        error: "Please enter a valid price",
+        ok: false,
+      });
+    });
+
+    testWithSetting("rejects a negative price", { currency: "GBP" }, () => {
+      expect(validatePrice("-5", 0, 100_000)).toEqual({
+        error: "Please enter a valid price",
+        ok: false,
+      });
+    });
+
+    testWithSetting(
+      "accepts an in-range price and converts it to minor units",
+      { currency: "GBP" },
+      () => {
+        expect(validatePrice("10", 0, 100_000)).toEqual({
+          ok: true,
+          price: 1000,
+        });
+      },
+    );
+
+    testWithSetting(
+      "rejects a price below the minimum",
+      { currency: "GBP" },
+      () => {
+        // £1 = 100 minor units, below the 500 minimum.
+        expect(validatePrice("1", 500, 100_000)).toEqual({
+          error: "Price must be at least the minimum ticket price",
+          ok: false,
+        });
+      },
+    );
+
+    testWithSetting(
+      "rejects a price above the maximum",
+      { currency: "GBP" },
+      () => {
+        // £2000 = 200000 minor units, above the 100000 maximum.
+        expect(validatePrice("2000", 0, 100_000)).toEqual({
+          error: "Price exceeds the maximum allowed",
+          ok: false,
+        });
+      },
+    );
+
+    testWithSetting(
+      "accepts a price exactly on the minimum and maximum bounds",
+      { currency: "GBP" },
+      () => {
+        // The guards are strict (< / >), so priceMinor === min === max passes.
+        expect(validatePrice("5", 500, 500)).toEqual({ ok: true, price: 500 });
+      },
+    );
   });
 
   describe("settings.currency integration", () => {
