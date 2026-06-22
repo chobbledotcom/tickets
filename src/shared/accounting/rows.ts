@@ -86,6 +86,22 @@ export const insertStatement = (
   });
 
 /**
+ * Rewrite a built transfer INSERT as `INSERT OR IGNORE`, so a leg whose unique
+ * `reference` is already stored is dropped rather than raising a constraint
+ * error. The one-shot backfill wraps {@link insertStatement} with this for
+ * idempotency: a re-run re-derives the same references and the duplicates are
+ * skipped. Takes the built statement (not the columns) so the column list still
+ * lives only in {@link insertStatement}.
+ */
+export const orIgnore = (statement: {
+  sql: string;
+  args: InValue[];
+}): { sql: string; args: InValue[] } => ({
+  args: statement.args,
+  sql: statement.sql.replace(/^INSERT INTO/, "INSERT OR IGNORE INTO"),
+});
+
+/**
  * A guarded INSERT for one transfer: `INSERT … SELECT … WHERE <guard>`, so a leg
  * can be folded into a one-shot batch and land only when the guard still holds.
  * Used to post a balance-payment leg atomically inside the settle batch (which

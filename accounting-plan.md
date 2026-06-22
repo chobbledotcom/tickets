@@ -268,15 +268,24 @@ The columns are deleted, so the backfill's output *becomes* the historical recor
 **No modifier or reservation has ever existed in production**, so every historical
 booking is paid in full with no discount/surcharge and the reconstruction is exact:
 
-- [ ] Per `listing_attendees` row with `price_paid > 0`: post a **sale**
-  (`attendee → revenue`, `price_paid`) and a **payment** (`world → attendee`,
-  `price_paid`); the attendee nets to zero (paid in full). Same reference keys as
-  the live mappers, one transaction per booking, idempotent.
-- [ ] **Refunded rows** also post the reversal of that booking group plus a
-  `refund_cash`, matching the live refund mapping.
+- [ ] Per **attendee** with paid rows, post one event group (`backfill:att:<id>`):
+  a **sale** (`attendee → revenue`) for each listing line's `price_paid` and one
+  **payment** (`world → attendee`) for the total; the attendee nets to zero (paid
+  in full). One group per attendee mirrors the live flow — a multi-listing booking
+  is one order — so a later admin refund still finds a single booking order. Same
+  reference keys as the live mappers; written as a batch with `INSERT OR IGNORE`
+  on the unique reference (idempotent re-run), **not** an interactive transaction,
+  so it never contends the single SQLite writer mid-migration.
+- [ ] **Fully-refunded attendees** also post the reversal of that booking group
+  plus a `refund_cash`, matching the live refund mapping. Production refunds are
+  all-or-nothing, so a partially-refunded order is left booked for a manual check
+  rather than mis-reversed.
 - [ ] No historical `fee`/`modifier`/reservation legs exist to reconstruct;
   `remaining_balance` is uniformly zero. Going forward, dual-write records fees,
   modifiers, and deposits as their own legs.
+- [ ] Ships as a **data-only migration** (`2026-06-22_backfill_transfers`, empty
+  `requires`) that bumps `LATEST_UPDATE` so already-up-to-date sites run it; a
+  fresh database baselines it without running `up()` (no history to backfill).
 - [ ] **Reconcile before dropping columns:** the backfilled ledger's `SUM`
   projections must equal the pre-migration `SUM(price_paid)` (amount paid and
   income) and refunded totals; a mismatch blocks the drop.

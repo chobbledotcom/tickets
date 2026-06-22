@@ -44,6 +44,7 @@ describe("db > migrations > schema change guard", () => {
         "2026-06-20_user_kek_v2",
         "2026-06-21_transfers",
         "2026-06-22_transfers_time_int",
+        "2026-06-22_backfill_transfers",
       ],
       schemaHash: "aos567",
     });

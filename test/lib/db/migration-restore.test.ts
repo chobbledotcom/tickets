@@ -259,16 +259,29 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
       "write",
     );
 
+  // A migration is restore-testable only if it owns concrete schema objects to
+  // drop and rebuild; a data-only migration (empty `requires`, e.g. a ledger
+  // backfill) owns nothing, so dropping "its objects" is a no-op and verify()
+  // could never fail — it is covered by its own data test instead.
+  const ownsSchemaObjects = (req: SchemaRequirement): boolean =>
+    Boolean(
+      req.newTables?.length ||
+        req.indexes?.length ||
+        req.triggers?.length ||
+        Object.values(req.columns ?? {}).some((cols) => cols.length > 0),
+    );
+
   // Additive migrations own concrete objects and can be reconstructed by
-  // re-running up(). The baseline reconcile (no `requires`) and migrations
-  // that remove legacy tables are covered separately below.
+  // re-running up(). The baseline reconcile (no `requires`), migrations that
+  // remove legacy tables, and data-only migrations are covered separately.
   const additiveMigrations = MIGRATIONS.filter(
-    (m) => m.requires && !m.requires.absentTables,
+    (m) =>
+      m.requires && !m.requires.absentTables && ownsSchemaObjects(m.requires),
   );
 
   test("every additive migration is covered by a restore case", () => {
     // Guards against a future migration slipping through with no restore test.
-    expect(additiveMigrations.length).toBe(MIGRATIONS.length - 3);
+    expect(additiveMigrations.length).toBe(MIGRATIONS.length - 4);
   });
 
   for (const migration of additiveMigrations) {
@@ -324,7 +337,11 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
 
       const pending = MIGRATIONS.slice(MIGRATIONS.indexOf(baseMigration) + 1);
       for (const migration of [...pending].reverse()) {
-        if (migration.requires && !migration.requires.absentTables) {
+        if (
+          migration.requires &&
+          !migration.requires.absentTables &&
+          ownsSchemaObjects(migration.requires)
+        ) {
           await dropOwnedObjects(migration.requires);
         }
       }
