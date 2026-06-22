@@ -93,14 +93,29 @@ export default schemaMigration(
   "Add a kind discriminator to attendees so capacity-only 'servicing' holds " +
     "(boiler service, cleaning, staff holds) can block listing quantity for a " +
     "time range without being treated as customers (no token/tickets/contact).",
-  { columns: { attendees: ["kind"] } },
+  { columns: { attendees: ["kind"] }, indexes: ["idx_attendees_kind"] },
 );
 ```
+
+**The `indexes` requirement is mandatory, not optional.** `schemaMigration` only
+calls `syncIndexes()` when `requires.indexes` is non-empty (`define.ts:23`);
+`applySchemaChanges()` only adds missing *columns*. If `indexes` is omitted, an
+existing production database would gain `attendees.kind` but **never** create
+`idx_attendees_kind`, so the kind-scoped reads would run unindexed until some
+later full reconcile. List it here.
+
+**Register the migration in the `MIGRATIONS` array.** Migrations in this repo are
+not auto-discovered — each is manually imported and appended to the `MIGRATIONS`
+array in `src/shared/db/migrations.ts:179` (the module even asserts "Every SCHEMA
+change must ship with a new entry in MIGRATIONS", `migrations.ts:316`). Add the
+`import` and the array entry, or existing databases will never run
+`2026-06-22_attendee_kind` and `attendees.kind` will be absent in production even
+though fresh schemas include it.
 
 Add the `kind` column + `idx_attendees_kind` to `schema.ts` so the declarative
 schema and the migration stay in sync (`schema-sync.ts` asserts this).
 
-### Aggregate triggers — decision needed
+### Listing aggregates (triggers + recompute paths) — decision needed
 
 The `trg_listing_attendees_aggregates_*` triggers maintain three columns on
 `listings`: `booked_quantity`, `tickets_count`, `income`
@@ -113,17 +128,32 @@ The `trg_listing_attendees_aggregates_*` triggers maintain three columns on
   unaffected. ✅ no change.
 - **`tickets_count`** — counts `listing_attendees` rows. **Recommendation:**
   exclude servicing rows here so "tickets sold" stats aren't inflated by holds.
-  This means the triggers (and any place that joins `listing_attendees` to count
-  tickets) need to know the row's kind. Since triggers fire on
-  `listing_attendees`, the cleanest path is for the trigger to look up the
-  parent attendee's `kind`, **or** to mirror a `kind`/`is_hold` flag onto
-  `listing_attendees`. See "Open questions" — this is the one place the booking
-  table may need to learn about kind.
+  Note the asymmetry: `tickets_count` excludes servicing while `booked_quantity`
+  (the same rows) **includes** it, so the kind predicate must be applied
+  per-column, not as a blanket filter on the booking table.
 
-> If we decide servicing should be fully invisible to *all* listing aggregates
-> except the capacity sum, mirroring a small flag onto `listing_attendees`
-> (e.g. `is_hold INTEGER NOT NULL DEFAULT 0`) is simplest for the triggers, at
-> the cost of one more column to keep consistent on create/edit.
+**Triggers are not the only writer of these aggregates — every recompute path
+must apply the same per-column kind predicate, or a recalculation will silently
+undo the trigger logic.** The app rebuilds the aggregates independently of the
+triggers in `src/shared/db/listings.ts`:
+
+- `getListingAggregateRecalculation` (`listings.ts:444`) — `COUNT(*)`,
+  `SUM(quantity)`, `SUM(price_paid)` straight off `listing_attendees`.
+- `resetListingAggregateFields` (`listings.ts:490`) — the `booked_quantity` /
+  `income` / `tickets_count` reset expressions (`listings.ts:482-486`).
+- The schema-sync aggregate backfill that runs during migrations.
+
+If these are not updated together with the triggers, an operator recalculation or
+an aggregate backfill will put servicing holds back into `tickets_count`.
+
+> **Recommendation — mirror a flag onto `listing_attendees`.** Because
+> `listing_attendees` has no `kind` of its own, both the triggers *and* every
+> recompute query above would otherwise need a correlated join back to
+> `attendees` to read `kind`. Mirroring a small `is_hold INTEGER NOT NULL DEFAULT
+> 0` column onto `listing_attendees` (set on create/edit from the parent kind)
+> keeps all of these as simple single-table predicates: `booked_quantity`/`income`
+> over all rows, `tickets_count` filtered to `is_hold = 0`. The cost is one extra
+> column to keep consistent on create/edit (and to backfill in the migration).
 
 ---
 
@@ -140,6 +170,21 @@ additions:
   ticket token** — set `ticket_token_index` to `NULL` and the blob's `t` to
   empty. `encryptAttendeeFields` currently always mints a token; add a path (or
   flag) that skips token generation for non-customer kinds.
+- **The atomic write must stop relying on `ticket_token_index` to identify the
+  just-inserted attendee before tokens become optional.** `createAttendeeAtomic`
+  currently locates the new attendee for each booking insert via
+  `(SELECT MAX(id) FROM attendees WHERE ticket_token_index = ?)`
+  (`create.ts:289-304`), and the all-failed cleanup DELETE uses the same subquery
+  (`create.ts:177-186`). With a `NULL` `ticket_token_index`,
+  `WHERE ticket_token_index = ?` never matches, so booking inserts would get a
+  null attendee id and the cleanup could not remove an unbooked servicing row.
+  **Fix before going tokenless:** drive both the booking inserts and the cleanup
+  off the inserted row id instead — i.e. always use the interactive-transaction
+  path (`writeWithLedger`, `create.ts:213`, which already threads `insertId`
+  through) rather than the batch path, or otherwise resolve the attendee by its
+  rowid. The batch path's `last_insert_rowid()` caveat (`create.ts:286`) is
+  exactly why it used the token-index subquery, so this is a real structural
+  change, not a one-line tweak.
 - **Skip `recordOrderActivity`** (`create.ts:349`) for servicing — there is no
   contact identity, no visit, no booking count. Guard it on `kind === 'attendee'`
   (servicing has no email/phone anyway, so `orderContactHashes` already returns
@@ -170,6 +215,27 @@ customer-facing lists:
 
 Token paths (`getAttendeesByTokens`, `getAttendeePiiBlobForToken`) need no change
 — servicing rows have `NULL` token index and never match.
+
+**The broad readers in `queries.ts` are not the only attendee loaders.** The
+per-listing detail, CSV export, refund-all, and calendar flows load attendees
+through `src/shared/db/listings.ts` — notably `getListingWithAttendeesRaw`
+(`listings.ts:509`) and the calendar's attendee loaders in the same module. These
+batch reads must take the same `attendees.kind` predicate, or servicing holds
+will still appear in per-listing attendee tables, exports, refund-all counts, and
+calendar attendee views even after the `queries.ts` helpers are fixed. Audit
+every `JOIN attendees` / `FROM listing_attendees` read that surfaces *people*, not
+just capacity numbers.
+
+**Guard single-record customer routes by kind, not just list queries.** Filtering
+lists still leaves `/admin/attendees/:id` able to load a servicing row by id —
+`getAttendee` is keyed only by id (`queries.ts:237`), and the attendee edit page
+renders customer-only actions (re-send notification, SMS, merge, delete). A
+servicing id reached from the activity log or a copied URL would be treated as a
+customer. Add a kind-aware single read (or a route guard): the normal attendee
+pages must 404/redirect when the row is `kind='servicing'`, and the servicing
+pages must load *only* `kind='servicing'` rows. Cheapest implementation: have
+`getAttendeeRaw`/`getAttendee` accept an expected kind (default `'attendee'`) and
+return null on mismatch, so both page families share one guarded read.
 
 Add a dedicated servicing reader, e.g. `getServicingEventsPage` / per-listing
 `getServicingForListing`, sharing the same SELECT via the existing
@@ -276,6 +342,12 @@ A servicing row must never be treated as a customer. Checklist (search anchor:
 
 - [ ] Admin attendees browser (`attendees-list.ts`) — show attendees only;
       add a separate servicing list.
+- [ ] Single-record customer routes (`/admin/attendees/:id` and its POST,
+      re-send/SMS/merge/delete actions) — guard by kind so a servicing id 404s
+      on the attendee pages (see "Guard single-record customer routes" above).
+- [ ] Per-listing attendee loaders in `src/shared/db/listings.ts`
+      (`getListingWithAttendeesRaw` + calendar loaders) feeding listing detail,
+      CSV export, refund-all, and calendar attendee views.
 - [ ] Dashboard "newest attendees" (`features/admin/dashboard.ts`).
 - [ ] Bulk email targets (`src/shared/bulk-email-targets.ts`,
       `getAllAttendeePiiBlobs`).
@@ -285,7 +357,10 @@ A servicing row must never be treated as a customer. Checklist (search anchor:
 - [ ] SMS / phone-index (`attendee-phone-index.ts`, webhooks).
 - [ ] Contact preferences / history (`contact-preferences.ts`) — not written for
       servicing (we skip `recordOrderActivity`).
-- [ ] Listing `tickets_count` / `income` aggregates — see trigger decision above.
+- [ ] Listing `tickets_count` aggregate — triggers **and** the recompute paths
+      (`getListingAggregateRecalculation`, `resetListingAggregateFields`,
+      schema-sync backfill) must share the kind predicate; `booked_quantity`
+      keeps counting servicing. See the aggregates decision above.
 - [ ] Activity log labels (`getAttendeeNamesByIds`) — fine to keep; a servicing
       edit can still log. Confirm the link target is the servicing edit page, not
       the attendee one.
@@ -325,16 +400,22 @@ consider `deno task mutation` on the capacity predicate and the kind filter.
 
 ## Suggested implementation order
 
-1. Migration + `schema.ts` column/index + sync assertions.
-2. Thread `kind` through types + `createAttendeeAtomic` (token-skip + activity
+1. Migration (with `indexes` + **`MIGRATIONS` registration**) + `schema.ts`
+   column/index + sync assertions.
+2. Rework the atomic write to identify the new attendee by rowid (drop the
+   `ticket_token_index` subquery) **before** making tokens optional — this is a
+   prerequisite for tokenless creates, not a later step.
+3. Thread `kind` through types + `createAttendeeAtomic` (token-skip + activity
    skip) with unit tests.
-3. Query-layer `kind` filters + new servicing readers.
-4. Aggregate-trigger decision + implementation (tickets_count exclusion).
-5. Extract the shared create/edit core from the attendee form routes; build the
-   servicing routes + name-only field schema.
-6. Nav entry + calendar deep-link.
-7. Audit and exclude across all customer surfaces (checklist above).
-8. Full test pass + precommit.
+4. Query-layer `kind` filters + kind-guarded single read + new servicing readers
+   (including the `listings.ts` loaders).
+5. Aggregates decision + implementation (triggers **and** recompute paths;
+   recommended `is_hold` mirror column).
+6. Extract the shared create/edit core from the attendee form routes; build the
+   servicing routes (with kind-guarded edit) + name-only field schema.
+7. Nav entry + calendar deep-link.
+8. Audit and exclude across all customer surfaces (checklist above).
+9. Full test pass + precommit.
 
 ---
 
@@ -348,9 +429,11 @@ consider `deno task mutation` on the capacity predicate and the kind filter.
    actually computed today. Sub-day blocking would be a larger change to the
    capacity model. **Recommendation:** start per-day; revisit sub-day later.
 2. **`tickets_count` treatment.** Exclude servicing from the "tickets sold"
-   aggregate (recommended) — accepting the trigger needs to know the row's kind
-   (look up parent, or mirror a flag onto `listing_attendees`)? Or accept the
-   simpler "servicing counts as a ticket in stats" and document it?
+   aggregate (recommended) — accepting that both the triggers *and* the recompute
+   paths (`getListingAggregateRecalculation` / `resetListingAggregateFields` /
+   backfill) need the kind predicate, most cleanly via an `is_hold` mirror column
+   on `listing_attendees`? Or accept the simpler "servicing counts as a ticket in
+   stats" and document it?
 3. **Group caps.** Should a servicing hold also consume *group*-level capacity
    (`groups.max_attendees`), not just the single listing? Reusing the existing
    capacity machinery means **yes** by default — confirm that's desired.
