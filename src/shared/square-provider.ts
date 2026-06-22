@@ -128,6 +128,7 @@ export const squarePaymentProvider: PaymentProvider = {
 
     return {
       amountTotal: Number(order.totalMoney.amount),
+      createdAt: order.createdAt,
       id: order.id,
       metadata: extractSessionMetadata(metadata),
       paymentReference,

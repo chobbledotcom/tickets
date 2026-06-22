@@ -53,6 +53,7 @@ const buildValidatedSession = (
   metadata: Record<string, string>,
 ): ValidatedPaymentSession => ({
   amountTotal: checkout.amountMinor,
+  createdAt: checkout.createdAt,
   id: checkout.reference,
   metadata: extractSessionMetadata(metadata as SessionMetadata),
   paymentReference: checkout.transactionId,

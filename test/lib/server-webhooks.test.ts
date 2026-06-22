@@ -469,6 +469,82 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
+    test("dates booking ledger legs from the checkout time, not now", async () => {
+      await setupStripe();
+      const listing = await createTestListing({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+
+      // Stripe stamps `created` (Unix seconds) when the checkout is made. Even a
+      // webhook that arrives a day late must book the revenue on the day the
+      // customer paid, so every leg takes its occurredAt from `created`.
+      const created = Math.floor(Date.parse("2026-06-19T08:00:00.000Z") / 1000);
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            listing: {
+              data: {
+                object: {
+                  amount_total: 1000,
+                  created,
+                  id: "cs_ledger_time",
+                  metadata: signedMeta(
+                    {
+                      email: "ledgertime@example.com",
+                      items: singleItem(listing.id, 1, 1000),
+                      name: "Ledger Time",
+                    },
+                    1000,
+                  ),
+                  payment_intent: "pi_ledger_time",
+                  payment_status: "paid",
+                },
+              },
+              id: "evt_ledger_time",
+              type: "checkout.session.completed",
+            },
+            valid: true,
+          }),
+      );
+
+      try {
+        await assertJson(
+          handleRequest(
+            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+          ),
+          200,
+          (json) => {
+            expect(json.processed).toBe(true);
+          },
+        );
+
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+        const { attendeeAccount } = await import(
+          "#shared/accounting/accounts.ts"
+        );
+        const { transfersByAccount } = await import(
+          "#shared/accounting/queries.ts"
+        );
+        const attendees = await getAttendeesRaw(listing.id);
+        const legs = await transfersByAccount(
+          attendeeAccount(attendees[0]!.id),
+        );
+        const expected = new Date(created * 1000).toISOString();
+        expect(legs.length).toBeGreaterThan(0);
+        for (const leg of legs) {
+          expect(leg.occurredAt).toBe(expected);
+        }
+      } finally {
+        mockVerify.restore();
+      }
+    });
+
     test("accepts a webhook whose total includes an applied modifier", async () => {
       await setupStripe();
       const listing = await createTestListing({

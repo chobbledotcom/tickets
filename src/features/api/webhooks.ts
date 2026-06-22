@@ -116,6 +116,15 @@ const MODIFIER_SOLD_OUT_MESSAGE =
  *  so the whole booking (and its ledger legs) rolls back and the caller refunds. */
 class ModifierSoldOutError extends Error {}
 
+/**
+ * The ledger occurredAt for a payment: the provider's checkout time — the
+ * customer's business time — so a late webhook (or an old redirect, or a stale
+ * retry) still books on the day they paid. Falls back to the processing clock
+ * only when the provider gave no timestamp.
+ */
+const businessTime = (session: ValidatedPaymentSession): string =>
+  session.createdAt ?? nowIso();
+
 /** Parse per-listing answer IDs from metadata JSON string.
  * Returns undefined for empty input. The JSON was serialized by our own
  * buildMetadata, so we trust the structure. */
@@ -822,7 +831,7 @@ const createAttendeeForSession = async (
           attendeeId,
           currency: settings.currency,
           eventId: session.id,
-          occurredAt: nowIso(),
+          occurredAt: businessTime(session),
         }),
       ),
     );
@@ -947,7 +956,7 @@ const settleBalanceSession = async (
           destination: attendeeAccount(attendeeId),
           eventGroup: await eventGroup(["balance", sessionId]),
           kind: "payment",
-          occurredAt: nowIso(),
+          occurredAt: businessTime(session),
           reference: await legReference(["balance", sessionId, "payment"]),
           source: WORLD,
         },

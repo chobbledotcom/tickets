@@ -197,6 +197,14 @@ export type ValidatedPaymentSession = {
   /** Total amount charged in smallest currency unit (cents), from the payment provider */
   amountTotal: number;
   metadata: SessionMetadata;
+  /**
+   * When the provider created this checkout (ISO 8601), or undefined if the
+   * provider didn't supply one. This is the customer's business time, used as the
+   * ledger leg's occurredAt so a payment processed late — a delayed webhook, an
+   * old redirect, a stale retry — is still recognised on the day it was paid,
+   * not the day we happened to process it.
+   */
+  createdAt?: string;
 };
 
 /** Result of webhook signature verification */

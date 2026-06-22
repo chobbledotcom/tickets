@@ -7,7 +7,10 @@ import {
   revenueAccount,
   WORLD,
 } from "#shared/accounting/accounts.ts";
-import { accountBalance } from "#shared/accounting/queries.ts";
+import {
+  accountBalance,
+  transfersByAccount,
+} from "#shared/accounting/queries.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
 import { signBalanceToken } from "#shared/balance-link.ts";
 import {
@@ -296,9 +299,13 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
       },
     ]);
     expect(await accountBalance(attendeeAccount(attendeeId))).toBe(-1500);
+    // Stripe stamps `created` (Unix seconds) when the checkout is made; the
+    // balance-payment leg should be dated from it, not from processing time.
+    const created = Math.floor(Date.parse("2026-06-20T09:00:00.000Z") / 1000);
     const session = stub(stripeApi, "retrieveCheckoutSession", () =>
       Promise.resolve({
         amount_total: 1500,
+        created,
         id: "cs_balance_ledger",
         metadata: signMeta(
           webhookMeta({
@@ -324,6 +331,14 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
       ).toBe(0);
       // The balance payment leg cleared the ledger balance too.
       expect(await accountBalance(attendeeAccount(attendeeId))).toBe(0);
+      // …and it carries the checkout's business time, not the processing clock.
+      const legs = await transfersByAccount(attendeeAccount(attendeeId));
+      const balancePayment = legs.find(
+        (leg) => leg.kind === "payment" && leg.amount === 1500,
+      );
+      expect(balancePayment?.occurredAt).toBe(
+        new Date(created * 1000).toISOString(),
+      );
     } finally {
       session.restore();
     }
