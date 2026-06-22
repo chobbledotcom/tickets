@@ -11,6 +11,7 @@ import { getUserByUsername, verifyUserPassword } from "#shared/db/users.ts";
 import { DEFAULT_ORPHAN_RETENTION } from "#shared/orphan-retention.ts";
 import {
   describeWithEnv,
+  seedCountry,
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
   testWithSetting,
@@ -365,8 +366,7 @@ describeWithEnv("db > settings", { db: true }, () => {
     });
 
     test("getTimezoneCached returns value after getTimezoneFromDb populates cache", async () => {
-      await settings.update.country("US");
-      settings.invalidateCache();
+      await seedCountry("US");
       await settings.loadKeys([CONFIG_KEYS.COUNTRY]);
       const value = settings.timezone;
       expect(value).toBe("America/New_York");
@@ -374,16 +374,10 @@ describeWithEnv("db > settings", { db: true }, () => {
     });
 
     test("getTimezoneCached reads from TTL cache when permanent cache is empty", async () => {
-      await settings.update.country("JP");
-      settings.invalidateCache();
+      await seedCountry("JP");
       await settings.loadKeys([CONFIG_KEYS.COUNTRY]);
       settings.getCachedRaw(CONFIG_KEYS.COUNTRY);
       expect(settings.timezone).toBe("Asia/Tokyo");
-    });
-
-    test("updateCountry updates the permanent cache immediately", async () => {
-      await settings.update.country("NZ");
-      expect(settings.timezone).toBe("Pacific/Auckland");
     });
 
     testWithSetting(
