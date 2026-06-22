@@ -16,6 +16,7 @@ import { logDebug } from "#shared/logger.ts";
 import {
   extractSessionMetadata,
   hasRequiredSessionMetadata,
+  toCanonicalIso,
   toCheckoutResult,
   withCheckoutError,
 } from "#shared/payment-helpers.ts";
@@ -128,6 +129,7 @@ export const squarePaymentProvider: PaymentProvider = {
 
     return {
       amountTotal: Number(order.totalMoney.amount),
+      createdAt: toCanonicalIso(order.createdAt),
       id: order.id,
       metadata: extractSessionMetadata(metadata),
       paymentReference,

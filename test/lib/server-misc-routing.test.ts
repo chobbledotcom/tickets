@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { getCleanUrl, handleRequest, isValidContentType } from "#routes";
 import {
+  databaseBusyResponse,
   migrationInProgressResponse,
   redirect,
   redirectResponse,
@@ -706,6 +707,31 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
       );
     });
 
+    test("databaseBusyResponse(true) returns 503 styled HTML with auto-refresh", async () => {
+      const response = databaseBusyResponse(true);
+      await expectHtmlResponse(
+        response,
+        503,
+        "The database is too busy.",
+        "Reloading so you can try again.",
+        'http-equiv="refresh"',
+      );
+      expect(response.headers.get("content-type")).toBe(
+        "text/html; charset=utf-8",
+      );
+    });
+
+    test("databaseBusyResponse(false) omits auto-refresh for non-idempotent writes", async () => {
+      const response = databaseBusyResponse(false);
+      const html = await expectHtmlResponse(
+        response,
+        503,
+        "The database is too busy.",
+        "Please go back and try again",
+      );
+      expect(html).not.toContain('http-equiv="refresh"');
+    });
+
     test("siteNotActivatedResponse returns 503 styled HTML without auto-refresh", async () => {
       const response = siteNotActivatedResponse();
       const html = await expectHtmlResponse(
@@ -796,6 +822,24 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
       } finally {
         executeStub.restore();
         if (hadExpectError) Deno.env.set("TEST_EXPECT_ERROR", hadExpectError);
+      }
+    });
+
+    test("a DatabaseBusyError renders the busy page, not a generic error", async () => {
+      const { getDb: getDbFn, DatabaseBusyError } = await import(
+        "#shared/db/client.ts"
+      );
+      const executeStub = stub(getDbFn(), "execute", () => {
+        throw new DatabaseBusyError();
+      });
+      try {
+        const response = await handleRequest(mockRequest("/ticket/anything"));
+        expect(response.status).toBe(503);
+        const html = await response.text();
+        expect(html).toContain("The database is too busy.");
+        expect(html).toContain('http-equiv="refresh"');
+      } finally {
+        executeStub.restore();
       }
     });
 

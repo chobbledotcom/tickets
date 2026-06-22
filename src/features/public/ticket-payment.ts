@@ -9,6 +9,11 @@ import {
   notFoundResponse,
 } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
+import {
+  bookingLedgerPoster,
+  createOrSoldOut,
+} from "#shared/checkout-complete.ts";
+import type { PricedOrder } from "#shared/checkout-pricing.ts";
 import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
 import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
 import type {
@@ -17,7 +22,6 @@ import type {
 } from "#shared/db/attendee-types.ts";
 import {
   checkBatchAvailability,
-  createAttendeeAtomic,
   ensureAllBookings,
 } from "#shared/db/attendees.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
@@ -26,11 +30,13 @@ import {
   getOptionalAddOns,
   hasPromoCodeModifiers,
 } from "#shared/db/modifier-resolve.ts";
+import type { ModifierUsage } from "#shared/db/modifier-usage.ts";
 import { getQuestionsWithListingIds } from "#shared/db/questions.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { EmailEntry } from "#shared/email.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { logDebug } from "#shared/logger.ts";
+import { nowIso } from "#shared/now.ts";
 import {
   type CheckoutIntent,
   type CheckoutItem,
@@ -274,11 +280,24 @@ type FreeReservationParams = {
   dayCount?: number;
   paidByListingId?: Map<number, number>;
   remainingBalance?: number;
+  /** Modifier stock to consume in the create transaction. Amounts are zeroed
+   *  when payments are disabled — stock is still capped, nothing is charged. */
+  modifierUsages: ModifierUsage[];
+  /** The priced order to post to the ledger, or null to skip it (payments
+   *  disabled — no money to record). Lets a zero-total free booking record the
+   *  same sale/discount/balance legs a paid one would. */
+  ledgerOrder: PricedOrder | null;
 };
 
 type FreeReservationResult =
   | { success: true; token: string; entries: EmailEntry[] }
   | { success: false; error: string };
+
+/** User-facing message when a chosen add-on or discount sold out during a
+ * zero-total completion (no provider in the loop, so it didn't sell out
+ * "while completing payment" as the webhook path phrases it). */
+export const MODIFIER_SOLD_OUT_MESSAGE =
+  "An extra you selected sold out while you were checking out. Please try again.";
 
 export const createFreeReservation = async ({
   listings,
@@ -288,6 +307,8 @@ export const createFreeReservation = async ({
   dayCount = 1,
   paidByListingId,
   remainingBalance = 0,
+  modifierUsages,
+  ledgerOrder,
 }: FreeReservationParams): Promise<FreeReservationResult> => {
   const selected = listingsWithQuantity(listings, quantities);
   const bookings = buildBookings(selected, date, dayCount).map((booking) => ({
@@ -296,12 +317,35 @@ export const createFreeReservation = async ({
       ? { pricePaid: paidByListingId.get(booking.listingId)! }
       : {}),
   }));
-  const result = await createAttendeeAtomic({
-    ...contact,
-    bookings,
-    remainingBalance,
-    statusId: await getPublicStatusId(),
-  });
+  // When there are legs to post or stock to consume, do it inside the create
+  // transaction, exactly as the paid webhook does, so the booking, its stock, and
+  // its sale/payment legs are all-or-nothing. The free path has no payment
+  // session, so the ledger event is keyed on the new attendee id and dated now; a
+  // modifier sold out mid-checkout rolls the whole create back.
+  const statusId = await getPublicStatusId();
+  const ledger = ledgerOrder
+    ? {
+        currency: settings.currency,
+        eventId: (attendeeId: number) => String(attendeeId),
+        occurredAt: nowIso(),
+        pricedOrder: ledgerOrder,
+      }
+    : null;
+  // A plain provider-less booking has neither legs nor stock, so it skips the
+  // interactive transaction and writes as a single batch — that keeps concurrent
+  // free submissions from contending on the one connection (an empty interactive
+  // transaction would still serialise them and can fail to commit mid-flight).
+  const postLedger =
+    ledger !== null || modifierUsages.length > 0
+      ? bookingLedgerPoster(modifierUsages, ledger)
+      : undefined;
+  const result = await createOrSoldOut(
+    { ...contact, bookings, remainingBalance, statusId },
+    postLedger,
+  );
+  if (result === "sold-out") {
+    return { error: MODIFIER_SOLD_OUT_MESSAGE, success: false };
+  }
 
   const check = await ensureAllBookings(result, bookings.length, "public");
   if (!check.ok) {

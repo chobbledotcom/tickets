@@ -1,6 +1,7 @@
 export type { PublicPageType } from "./public/basic-pages.tsx";
 export { contactPage, publicSitePage } from "./public/basic-pages.tsx";
 export {
+  databaseBusyPage,
   migrationInProgressPage,
   notFoundPage,
   qrBookErrorPage,

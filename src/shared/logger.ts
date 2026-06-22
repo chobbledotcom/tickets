@@ -105,6 +105,7 @@ const ERROR_DEFS = {
   CONFIG_MISSING: ["E_CONFIG_MISSING", "Configuration missing"],
   DATA_INVALID: ["E_DATA_INVALID", "Invalid data"],
   // Database errors
+  DB_BUSY: ["E_DB_BUSY", "Database busy"],
   DB_CONNECTION: ["E_DB_CONNECTION", "Database connection failed"],
   DB_QUERY: ["E_DB_QUERY", "Database query failed"],
 
