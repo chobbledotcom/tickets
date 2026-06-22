@@ -12,6 +12,22 @@ describe("balance-link", () => {
     setupTestEncryptionKey();
   });
 
+  // Build a correctly-signed "bal1." token wrapping an arbitrary payload, so a
+  // test can exercise the shape validation with a signature that already passes.
+  const signRawPayload = async (payload: unknown): Promise<string> => {
+    const { buildSignedToken, encodeTokenPayload } = await import(
+      "#shared/crypto/signed-token.ts"
+    );
+    const encoded = encodeTokenPayload(payload);
+    return buildSignedToken("bal1.", encoded, `balance:${encoded}`);
+  };
+
+  test("a balance link is valid for 90 days", () => {
+    // Pins the link lifetime to 90 days, expressed in seconds (90 × 86,400).
+    // Lengthening or shortening the window is a behaviour change to catch here.
+    expect(BALANCE_LINK_MAX_AGE_S).toBe(7_776_000);
+  });
+
   test("signs and verifies a token for an attendee", async () => {
     const token = await signBalanceToken(42);
     expect(token.startsWith("bal1.")).toBe(true);
@@ -51,15 +67,23 @@ describe("balance-link", () => {
   test("rejects a correctly-signed token whose payload is the wrong shape", async () => {
     // Sign a non-conforming payload with a valid HMAC, so the signature passes
     // but the field validation rejects it.
-    const { buildSignedToken, encodeTokenPayload } = await import(
-      "#shared/crypto/signed-token.ts"
-    );
-    const encoded = encodeTokenPayload({ not: "a balance" });
-    const token = await buildSignedToken(
-      "bal1.",
-      encoded,
-      `balance:${encoded}`,
-    );
+    const token = await signRawPayload({ not: "a balance" });
+    expect(await verifyBalanceToken(token)).toBeNull();
+  });
+
+  test("rejects a correctly-signed token whose attendee id is not a number", async () => {
+    // Signature and expiry are valid (a plausible near-future second), but `a`
+    // is a string. The id field must be validated independently of the expiry,
+    // and reach this check before the expiry/skew bounds can rescue it.
+    const validExpiry = Math.floor(Date.now() / 1000) + 1000;
+    const token = await signRawPayload({ a: "42", e: validExpiry });
+    expect(await verifyBalanceToken(token)).toBeNull();
+  });
+
+  test("rejects a correctly-signed token whose expiry is not a number", async () => {
+    // Signature is valid and `a` is a number, but `e` is a string. The expiry
+    // field must be validated independently of the id field.
+    const token = await signRawPayload({ a: 42, e: "soon" });
     expect(await verifyBalanceToken(token)).toBeNull();
   });
 
