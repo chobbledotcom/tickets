@@ -23,3 +23,9 @@ src/shared/site-assignment.ts:370:34  ?? → ||    # available[idx]: object|unde
 src/shared/site-assignment.ts:392:34  ?? → ||    # getEmailConfig(): EmailConfig|null
 src/shared/site-assignment.ts:416:53  ?? → ||    # parseEmail(): ValidEmail|null, always truthy or null
 
+# Invariant-based, confirmed by reading toUnits: `lineIdxs` comes from toUnits,
+# which assigns lineIdx as the flatMap array index, so the sort's input is
+# always already ascending — and `sort((a,b) => a/b)` is identity on an
+# already-ascending array, so swapping the comparator changes nothing.
+src/shared/checkout-pricing.ts:176:16  - → /     # toUnits gives ascending lineIdx; a/b is identity on sorted input
+
