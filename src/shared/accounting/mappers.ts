@@ -43,11 +43,6 @@ const REFUND_KIND: Readonly<Record<string, string>> = {
 const refundKind = (kind: string): string =>
   REFUND_KIND[kind] ?? `refund_${kind}`;
 
-/** The event group shared by every leg of the refund of one booking order,
- *  derived from the booking's own group so a re-submit is recognisable. */
-export const refundEventGroup = (bookingEventGroup: string): Promise<string> =>
-  eventGroup([REFUND, bookingEventGroup]);
-
 /**
  * The money facts of one booking, decoupled from the checkout pricing types.
  * `gross` is a listing's list price before modifiers/fee; `delta` is a modifier's
@@ -252,7 +247,7 @@ export const mapRefund = async (
   if (legs.some((leg) => leg.eventGroup !== bookingGroup)) {
     throw new Error("mapRefund: order legs span more than one event group");
   }
-  const group = await refundEventGroup(bookingGroup);
+  const group = await eventGroup([REFUND, bookingGroup]);
   return Promise.all(
     legs.map(async (leg) => ({
       amount: leg.amount,

@@ -23,6 +23,7 @@ import { queryAll, queryOne } from "#shared/db/client.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { getActivePaymentProvider } from "#shared/payments.ts";
+import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
 import { NO_PROVIDER_ERROR } from "./attendees-route-helpers.ts";
 
@@ -86,6 +87,7 @@ export const handleRefreshPayment: TypedRouteHandler<
     const isRefunded = await provider.isPaymentRefunded(attendee.payment_id);
     if (isRefunded && !attendee.refunded) {
       await markRefunded(attendeeId, listing.id);
+      await recordAttendeeRefund(attendeeId);
       await logActivity(
         `Payment marked as refunded for attendee '${attendee.name}'`,
         listing.id,

@@ -3,10 +3,10 @@
  *
  * The provider refund is a full refund of the booking payment (decision 9), so
  * the ledger mirrors it by reversing exactly the booking order's stored legs
- * (see {@link mapRefund}). The order is located from the attendee's own legs —
- * the group carrying the `sale` leg — the same way balance settlement finds
- * them, so a booking made before ledger dual-write (no legs) is skipped and left
- * for backfill rather than half-refunded.
+ * (see {@link mapRefund}). It only auto-reverses when the refund maps cleanly:
+ * the attendee's ledger is exactly one revenue-recognising booking group (see
+ * {@link soleBookingOrder}). Pre-ledger, balance-settled, and merged accounts
+ * are left for a manual adjustment rather than half- or over-reversed.
  *
  * Posting never throws: the provider refund and the `refunded` flag have already
  * committed by the time we get here, so a ledger write must not turn a completed
@@ -15,11 +15,8 @@
  */
 
 import { attendeeAccount } from "#shared/accounting/accounts.ts";
-import { mapRefund, refundEventGroup } from "#shared/accounting/mappers.ts";
-import {
-  transfersByAccount,
-  transfersByEventGroup,
-} from "#shared/accounting/queries.ts";
+import { mapRefund } from "#shared/accounting/mappers.ts";
+import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
 import type { Transfer } from "#shared/ledger/types.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
@@ -36,19 +33,30 @@ const byEventGroup = (legs: Transfer[]): Map<string, Transfer[]> => {
   return groups;
 };
 
+/** Leg kinds that recognise revenue. Their presence marks a group as a real
+ *  booking order — a free listing with a paid surcharge has a `modifier`/`fee`
+ *  leg but no `sale`, while a balance settlement posts only a `payment` leg. */
+const RECOGNITION_KINDS = new Set(["sale", "fee", "modifier"]);
+
 /**
- * The legs of the single booking order on this attendee's account, or `null`
- * when none applies: a booking that predates the ledger has no `sale` leg, and
- * an attendee carrying more than one booking order (a merge) can't be refunded
- * automatically — which order a payment maps to isn't recorded yet, so it needs
- * a manual ledger adjustment. Refund and balance-settlement groups are ignored
- * (they have no `sale` leg), so only the original booking is ever reversed.
+ * The booking legs to reverse when — and only when — a full provider refund of
+ * the original payment maps cleanly onto the ledger: the account holds exactly
+ * one event group and that group recognises revenue. Returns `null` for
+ * everything else, so those go to a manual ledger adjustment instead of being
+ * mis-reversed:
+ * - no legs at all — a booking that predates ledger dual-write (backfill's job);
+ * - a group with only a `payment` leg — a later `balance` settlement, whose cash
+ *   this refund doesn't return, so reversing the booking alone would strand it;
+ * - more than one group — a settled reservation (booking + balance) or a merge's
+ *   several orders, where one payment refund can't be attributed to one order.
  */
 export const soleBookingOrder = (legs: Transfer[]): Transfer[] | null => {
-  const bookingGroups = [...byEventGroup(legs).values()].filter((group) =>
-    group.some((leg) => leg.kind === "sale"),
-  );
-  return bookingGroups.length === 1 ? bookingGroups[0]! : null;
+  const groups = byEventGroup(legs);
+  if (groups.size !== 1) return null;
+  const order = [...groups.values()][0]!;
+  return order.some((leg) => RECOGNITION_KINDS.has(leg.kind ?? ""))
+    ? order
+    : null;
 };
 
 /**
@@ -64,11 +72,9 @@ export const recordAttendeeRefund = async (
       await transfersByAccount(attendeeAccount(attendeeId)),
     );
     if (order === null) return;
-    // Derive the refund's business time exactly once: if its event group is
-    // already posted this is a benign re-submit, so skip rather than rebuild
-    // legs with a fresh `nowIso()` that would look like a conflicting replay.
-    const group = await refundEventGroup(order[0]!.eventGroup);
-    if ((await transfersByEventGroup(group)).length > 0) return;
+    // Idempotent without a pre-check: once the refund is posted the account has
+    // two event groups (booking + refund), so a re-submit fails the single-group
+    // test above and skips rather than rebuilding legs with a fresh `nowIso()`.
     await postTransfers(
       await mapRefund({ occurredAt: nowIso(), orderLegs: order }),
     );

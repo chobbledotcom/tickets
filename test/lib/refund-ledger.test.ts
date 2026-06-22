@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   attendeeAccount,
+  modifierAccount,
   revenueAccount,
   WORLD,
 } from "#shared/accounting/accounts.ts";
@@ -61,14 +62,20 @@ const leg = (overrides: Partial<Transfer>): Transfer => ({
 });
 
 describe("refund-ledger > soleBookingOrder", () => {
-  test("returns the single sale-bearing group's legs", () => {
+  test("returns the single booking group's legs", () => {
     const sale = leg({ kind: "sale", reference: "sale" });
     const pay = leg({ kind: "payment", reference: "pay", source: WORLD });
     expect(soleBookingOrder([sale, pay])).toEqual([sale, pay]);
   });
 
-  test("returns null when no group carries a sale leg (pre-ledger booking)", () => {
-    // A balance-settlement payment with no booking sale: nothing to reverse.
+  test("returns a sale-less paid order (surcharge, no sale leg)", () => {
+    // A free listing with a paid surcharge: modifier + payment, no sale leg.
+    const mod = leg({ kind: "modifier", reference: "mod" });
+    const pay = leg({ kind: "payment", reference: "pay", source: WORLD });
+    expect(soleBookingOrder([mod, pay])).toEqual([mod, pay]);
+  });
+
+  test("returns null for a payment-only group (no recognised revenue)", () => {
     expect(soleBookingOrder([leg({ kind: "payment", source: WORLD })])).toBe(
       null,
     );
@@ -76,6 +83,23 @@ describe("refund-ledger > soleBookingOrder", () => {
 
   test("returns null for an empty account", () => {
     expect(soleBookingOrder([])).toBe(null);
+  });
+
+  test("returns null when a balance settlement accompanies the booking", () => {
+    const sale = leg({ eventGroup: "book", kind: "sale", reference: "sale" });
+    const deposit = leg({
+      eventGroup: "book",
+      kind: "payment",
+      reference: "dep",
+      source: WORLD,
+    });
+    const balance = leg({
+      eventGroup: "bal",
+      kind: "payment",
+      reference: "bal",
+      source: WORLD,
+    });
+    expect(soleBookingOrder([sale, deposit, balance])).toBe(null);
   });
 
   test("returns null when two booking orders share the attendee (a merge)", () => {
@@ -103,6 +127,47 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
     expect(cash.length).toBe(1);
     expect(cash[0]!.amount).toBe(5000);
     expect(cash[0]!.destination).toEqual(WORLD);
+  });
+
+  test("reverses a sale-less paid order (surcharge with no sale leg)", async () => {
+    await postBooking({
+      amountPaid: 500,
+      lines: [{ gross: 0, listingId: 1 }],
+      modifiers: [{ delta: 500, modifierId: 7 }],
+    });
+    await recordAttendeeRefund(ATTENDEE);
+
+    expect(await accountBalance(modifierAccount(7))).toBe(0);
+    expect(await accountBalance(attendeeAccount(ATTENDEE))).toBe(0);
+    const cash = refundLegsOf(
+      await transfersByAccount(attendeeAccount(ATTENDEE)),
+    ).filter((l) => l.kind === "refund_cash");
+    expect(cash.length).toBe(1);
+    expect(cash[0]!.amount).toBe(500);
+  });
+
+  test("skips a balance-settled reservation (booking plus a balance payment)", async () => {
+    await postBooking({
+      amountPaid: 2000,
+      lines: [{ gross: 10000, listingId: 1 }],
+    });
+    // A later balance settlement posts cash under its own event group.
+    await postTransfers([
+      {
+        amount: 8000,
+        currency: "GBP",
+        destination: attendeeAccount(ATTENDEE),
+        eventGroup: "balance-grp",
+        kind: "payment",
+        occurredAt: BOOKING_AT,
+        reference: "balance-pay",
+        source: WORLD,
+      },
+    ]);
+    await recordAttendeeRefund(ATTENDEE);
+    expect(
+      refundLegsOf(await transfersByAccount(attendeeAccount(ATTENDEE))).length,
+    ).toBe(0);
   });
 
   test("is idempotent — a second refund writes nothing", async () => {
