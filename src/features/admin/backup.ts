@@ -36,6 +36,7 @@ import {
   type StorageFileMeta,
   uploadRaw,
 } from "#shared/storage.ts";
+import { readRecordedScriptCommit } from "#shared/update.ts";
 import {
   adminBackupPage,
   adminRestoreConfirmPage,
@@ -45,6 +46,10 @@ import {
 } from "#templates/admin/backup.tsx";
 
 const RESTORE_PENDING_PREFIX = "restore-pending-";
+
+/** A full git commit SHA (40 lowercase hex) — what restore-deploy requires and
+ *  the only shape we echo back from restored (possibly untrusted) settings. */
+const FULL_COMMIT_SHA = /^[0-9a-f]{40}$/;
 
 /**
  * Reject path-traversal payloads in backup filenames.
@@ -239,7 +244,20 @@ const handleBackupRestoreConfirm: TypedRouteHandler<"POST /admin/backup/restore/
         await Promise.allSettled([deleteFile(filename)]);
       }
     },
-    message: "Database restored from backup",
+    // The restored data carries the commit the site was running when the backup
+    // was taken (recordScriptVersion writes it on boot). Surface the full SHA so
+    // the operator can redeploy that commit; restore only rolls back data, never
+    // code. The value comes from restored settings (an uploaded backup could
+    // hold anything), so only present it when it is a real 40-char SHA — both
+    // because the restore-deploy workflow requires one and to keep an oversized
+    // value out of the flash cookie. Read straight after the restore, before the
+    // next request's initDb re-stamps the running commit.
+    message: async () => {
+      const commit = await readRecordedScriptCommit();
+      return FULL_COMMIT_SHA.test(commit)
+        ? `Database restored from backup. It was running commit ${commit} — run the restore-deploy workflow with that commit to restore the code to this point in time.`
+        : "Database restored from backup";
+    },
     successRedirect: "/admin/backup",
   });
 

@@ -615,8 +615,9 @@ describe("code quality", () => {
       "shared/logger.ts:setSuppressDebugLogs",
       // Rethrow errors in tests without env var races
       "shared/test-overrides.ts:setRethrowErrorsForTest",
-      // Override BUILD_TIMESTAMP in tests (compile-time constant can't be changed otherwise)
+      // Override BUILD_TIMESTAMP / BUILD_COMMIT in tests (compile-time constants can't be changed otherwise)
       "shared/update.ts:setBuildTimestampForTest",
+      "shared/update.ts:setBuildCommitForTest",
       // Route maps used by API documentation tests (production uses via dynamic import / createRouter)
       "features/api/index.ts:apiRoutes",
       "features/admin/api.ts:adminApiRoutes",
