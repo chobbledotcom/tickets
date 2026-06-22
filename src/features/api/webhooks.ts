@@ -42,13 +42,14 @@ import { createRouter, defineRoutes } from "#routes/router.ts";
 import { parseTokens } from "#routes/tickets/token-utils.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
-import { mapBooking } from "#shared/accounting/mappers.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { eventGroup, legReference } from "#shared/accounting/refs.ts";
 import { guardedInsertStatement } from "#shared/accounting/rows.ts";
-import { postTransfersTx } from "#shared/accounting/store.ts";
 import { calculateBookingFee } from "#shared/booking-fee.ts";
-import { bookingFactsFromOrder } from "#shared/checkout-ledger.ts";
+import {
+  bookingLedgerPoster,
+  createOrSoldOut,
+} from "#shared/checkout-complete.ts";
 import {
   type ModifierApplication,
   type PricedOrder,
@@ -60,15 +61,12 @@ import { logActivity } from "#shared/db/activityLog.ts";
 import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
 import {
-  type CreateAttendeeResult,
-  createAttendeeAtomic,
+  type createAttendeeAtomic,
   ensureAllBookings,
   getAttendeesByTokens,
 } from "#shared/db/attendees.ts";
-import type { TxScope } from "#shared/db/client.ts";
 import { getListing, getListingWithCount } from "#shared/db/listings.ts";
 import { buyerVisits, specsFromRefs } from "#shared/db/modifier-resolve.ts";
-import { consumeModifierStockTx } from "#shared/db/modifier-usage.ts";
 import {
   balanceFinalizeStatement,
   clearSessionTokens,
@@ -111,10 +109,6 @@ const PRICE_CHANGED_MESSAGE =
 /** User-facing message when a chosen add-on/discount sold out during payment. */
 const MODIFIER_SOLD_OUT_MESSAGE =
   "An extra you selected sold out while you were completing payment.";
-
-/** Thrown from the create transaction when a modifier sold out during payment,
- *  so the whole booking (and its ledger legs) rolls back and the caller refunds. */
-class ModifierSoldOutError extends Error {}
 
 /**
  * The ledger occurredAt for a payment: the provider's checkout time — the
@@ -811,58 +805,41 @@ const createAttendeeForSession = async (
 
   // Consume modifier stock and post the ledger legs in the same transaction as
   // the attendee and bookings, so the booking, its stock, and its sale/payment
-  // legs are all-or-nothing. The usage amount comes from the same pricing pass
+  // legs are all-or-nothing. The usage amounts come from the same pricing pass
   // that calculated the checkout total, so scoped bases, quantities, and clamped
   // discounts match. A modifier that sold out during payment throws, rolling the
   // whole order back so the caller refunds rather than leaving orphaned legs.
-  const usages = pricedOrder.modifierApplications.map((application) => ({
-    amountApplied: application.amountApplied,
-    modifierId: application.modifierId,
-    quantity: application.quantity,
-  }));
-  const postLedger = async (tx: TxScope, attendeeId: number): Promise<void> => {
-    if (!(await consumeModifierStockTx(tx, attendeeId, usages))) {
-      throw new ModifierSoldOutError();
-    }
-    await postTransfersTx(
-      tx,
-      await mapBooking(
-        bookingFactsFromOrder(pricedOrder, {
-          attendeeId,
-          currency: settings.currency,
-          eventId: session.id,
-          occurredAt: businessTime(session),
-        }),
-      ),
-    );
-  };
+  // The free checkout posts these very same facts (see bookingLedgerPoster); a
+  // paid booking just keys the event on its payment session and dates it from
+  // the provider's checkout time rather than now.
+  const postLedger = bookingLedgerPoster(pricedOrder.modifierApplications, {
+    currency: settings.currency,
+    eventId: () => session.id,
+    occurredAt: businessTime(session),
+    pricedOrder,
+  });
 
-  let result: CreateAttendeeResult;
-  try {
-    result = await createAttendeeAtomic(
-      {
-        address: intent.address,
-        bookings,
-        email: intent.email,
-        name: intent.name,
-        paymentId: session.paymentReference,
-        phone: intent.phone,
-        remainingBalance,
-        special_instructions: intent.special_instructions,
-        statusId: await getPublicStatusId(),
-      },
-      postLedger,
+  const result = await createOrSoldOut(
+    {
+      address: intent.address,
+      bookings,
+      email: intent.email,
+      name: intent.name,
+      paymentId: session.paymentReference,
+      phone: intent.phone,
+      remainingBalance,
+      special_instructions: intent.special_instructions,
+      statusId: await getPublicStatusId(),
+    },
+    postLedger,
+  );
+  if (result === "sold-out") {
+    return refundAndFail(
+      session,
+      MODIFIER_SOLD_OUT_MESSAGE,
+      validatedItems[0]!.listing.id,
+      409,
     );
-  } catch (error) {
-    if (error instanceof ModifierSoldOutError) {
-      return refundAndFail(
-        session,
-        MODIFIER_SOLD_OUT_MESSAGE,
-        validatedItems[0]!.listing.id,
-        409,
-      );
-    }
-    throw error;
   }
 
   // All-or-nothing: a capacity failure rolled the transaction back (no legs),
