@@ -180,10 +180,17 @@ idempotent write path with replay/reversal conflict checks (`store.ts`,
 12. **`modifier_usages` stays as a stock ledger** (money stripped).
 13. **`Σ balance == 0` is a sanity check only**; reconcile against provider
     balances and per-event leg kinds.
-14. **Balance changes are ledger adjustments.** With `remaining_balance` gone, an
-    admin changing what an attendee owes posts an `adjustment` leg (attendee ↔
-    `writeoff`) instead of editing a column; corrections are appended, never
-    destructive. Sensitive-content edits **log redacted**, never the raw value.
+14. **Manual money-aggregate overrides become ledger edits, with a warning.** The
+    admin "override aggregate values" action survives, but splits by kind. The
+    *non-money counts* (`booked_quantity`, `tickets_count`) stay plain column
+    overrides. Every *money* figure it used to set — a listing's income, an
+    attendee's outstanding balance, a modifier's revenue — instead posts a manual
+    `adjustment` leg against the `writeoff` contra account: lowering a listing's
+    income is `revenue:L → writeoff` and raising it the reverse; changing what an
+    attendee owes is `attendee ↔ writeoff`. The form computes the delta from the
+    current `SUM` projection and posts only the difference, and the UI **warns**
+    that this edits the source-of-truth ledger. Corrections are appended, never
+    destructive; sensitive-content edits **log redacted**, never the raw value.
 15. **One shared ledger renderer** for the historical list, the account
     statement, and the edit-attendee page.
 16. **Carts are all-or-nothing** (via `ensureAllBookings`); order legs ride the
@@ -337,7 +344,10 @@ tests:
 
 1. **Backfill** history into the ledger (§6) — **done**.
 2. **Refund status** — `listing_attendees.refunded` → "the order has refund legs".
-3. **Listing income** — `listings.income` (+ its trigger) → `balanceOf(revenue:L)`.
+3. **Listing income** — `listings.income` (+ its trigger) → `balanceOf(revenue:L)`;
+   the income field of the "override aggregate values" form posts a `revenue:L ↔
+   writeoff` adjustment instead of writing the column (decision 14). The counts on
+   that form (`booked_quantity`, `tickets_count`) stay column overrides.
 4. **Amount paid** — `listing_attendees.price_paid` → the attendee's payment legs
    (the largest read surface: templates, tickets/wallets, webhooks, CSV, email).
 5. **Outstanding balance** — `attendees.remaining_balance` → `−balanceOf(attendee)`
