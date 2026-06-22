@@ -77,17 +77,27 @@ const parseArgs = (args: string[]): ParsedArgs => {
     } else if (arg !== undefined) positional.push(arg);
     index += 1;
   }
-  if (positional[0] !== undefined && parsed.sources.length === 0) {
-    parsed.sources.push(positional[0]);
-  }
-  if (positional[1] !== undefined && parsed.tests.length === 0) {
-    parsed.tests.push(positional[1]);
-  }
-  if (positional.length > 2) {
-    parsed.error =
-      `Too many positional arguments (${positional.length}). Quote your globs ` +
-      `so the shell can't expand them — e.g. 'src/lib/forms/*.ts' ` +
-      `'test/lib/forms/*.test.ts' — or pass repeated --source/--test flags.`;
+  if (parsed.sources.length > 0 || parsed.tests.length > 0) {
+    // Flag-form was used: positionals are not part of the grammar. Any leftover
+    // means a glob expanded past the single value --source/--test consumed
+    // (e.g. `--source src/*.ts` → src/a.ts src/b.ts …), which would silently
+    // narrow the run. Reject rather than drop the extras.
+    if (positional.length > 0) {
+      const stray = positional.join(", ");
+      parsed.error =
+        `Unexpected positional argument(s) alongside --source/--test: ${stray}. ` +
+        "A glob likely expanded to multiple files — quote it " +
+        `(e.g. --source 'src/lib/forms/*.ts') or pass repeated --source/--test flags.`;
+    }
+  } else {
+    if (positional[0] !== undefined) parsed.sources.push(positional[0]);
+    if (positional[1] !== undefined) parsed.tests.push(positional[1]);
+    if (positional.length > 2) {
+      parsed.error =
+        `Too many positional arguments (${positional.length}). Quote your globs ` +
+        `so the shell can't expand them — e.g. 'src/lib/forms/*.ts' ` +
+        `'test/lib/forms/*.test.ts' — or pass repeated --source/--test flags.`;
+    }
   }
   if (!Number.isFinite(parsed.timeout) || parsed.timeout < 0) {
     parsed.error ??=
