@@ -149,7 +149,7 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
   ): Promise<void> => {
     expect(
       await scalar(
-        "SELECT COUNT(*) AS value FROM listings WHERE id = 902 AND name = 'migration-listing' AND booked_quantity = 2 AND tickets_count = 1 AND income = 1800",
+        "SELECT COUNT(*) AS value FROM listings WHERE id = 902 AND name = 'migration-listing' AND booked_quantity = 2 AND tickets_count = 1",
       ),
     ).toBe(1);
     expect(
@@ -281,7 +281,7 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
 
   test("every additive migration is covered by a restore case", () => {
     // Guards against a future migration slipping through with no restore test.
-    expect(additiveMigrations.length).toBe(MIGRATIONS.length - 4);
+    expect(additiveMigrations.length).toBe(MIGRATIONS.length - 5);
   });
 
   for (const migration of additiveMigrations) {

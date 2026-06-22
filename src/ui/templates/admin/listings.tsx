@@ -110,10 +110,21 @@ export const buildAnswerSummaryRows = (
 export const nearCapacity = (listing: ListingWithCount): boolean =>
   listing.attendee_count >= listing.max_attendees * 0.9;
 
+/** The remaining override-managed aggregates are integer counts, so each is
+ * rendered with `String`. (Income is no longer an aggregate column — it's
+ * projected from the ledger — so it has no formatter here.) */
+const listingAggregateFormatters: Record<
+  ListingAggregateField,
+  (value: number) => string
+> = {
+  booked_quantity: String,
+  tickets_count: String,
+};
+
 const formatListingAggregateValue = (
   name: ListingAggregateField,
   value: number,
-): string => (name === "income" ? formatCurrency(value) : String(value));
+): string => listingAggregateFormatters[name](value);
 
 const listingAggregateMismatchItems = (
   aggregateRecalculation?: ListingAggregateRecalculation,
@@ -1296,7 +1307,6 @@ export const listingAggregateToFieldValues = (
   listing: ListingWithCount,
 ): FieldValues => ({
   booked_quantity: listing.attendee_count,
-  income: toMajorUnits(listing.income),
   tickets_count: listing.tickets_count,
 });
 
@@ -1331,15 +1341,6 @@ const ListingRunningTotalsSection = ({
     </div>
   </fieldset>
 );
-
-const listingAggregateFormatters: Record<
-  ListingAggregateField,
-  (value: number) => string
-> = {
-  booked_quantity: String,
-  income: formatCurrency,
-  tickets_count: String,
-};
 
 const listingRecalculateRows = (
   snapshot: ListingAggregateRecalculation,

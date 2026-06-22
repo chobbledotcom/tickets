@@ -55,6 +55,7 @@ import stringCreatedMigration from "./migrations/2026-06-20_string_created.ts";
 import userKekV2Migration from "./migrations/2026-06-20_user_kek_v2.ts";
 import transfersMigration from "./migrations/2026-06-21_transfers.ts";
 import backfillTransfersMigration from "./migrations/2026-06-22_backfill_transfers.ts";
+import dropListingIncomeMigration from "./migrations/2026-06-22_drop_listing_income.ts";
 import transfersTimeIntMigration from "./migrations/2026-06-22_transfers_time_int.ts";
 import { repairLegacyRenames } from "./migrations/rename-utils.ts";
 import {
@@ -213,6 +214,7 @@ export const MIGRATIONS: Migration[] = [
   transfersMigration,
   transfersTimeIntMigration,
   backfillTransfersMigration,
+  dropListingIncomeMigration,
 ].map((build) => build(migrationContext));
 
 export const MIGRATION_IDS: string[] = MIGRATIONS.map(

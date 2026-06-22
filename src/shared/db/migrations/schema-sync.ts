@@ -416,9 +416,7 @@ export const backfillListingAggregates = async (): Promise<void> => {
        booked_quantity = COALESCE(
          (SELECT SUM(quantity) FROM listing_attendees WHERE listing_id = listings.id), 0),
        tickets_count = COALESCE(
-         (SELECT COUNT(*) FROM listing_attendees WHERE listing_id = listings.id), 0),
-       income = COALESCE(
-         (SELECT SUM(price_paid) FROM listing_attendees WHERE listing_id = listings.id), 0)`,
+         (SELECT COUNT(*) FROM listing_attendees WHERE listing_id = listings.id), 0)`,
   );
 };
 

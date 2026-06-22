@@ -335,7 +335,6 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       );
       await updateListingAggregateValues(listing.id, {
         booked_quantity: 9,
-        income: 0,
         tickets_count: 1,
       });
 
@@ -853,7 +852,6 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       );
       await updateListingAggregateValues(listing.id, {
         booked_quantity: 9,
-        income: 9000,
         tickets_count: 5,
       });
 
@@ -877,16 +875,29 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
-      await createTestAttendee(
+      const attendee = await createTestAttendee(
         listing.id,
         listing.slug,
         "Reset User",
         "reset@example.com",
         2,
       );
+      // Income is projected from the ledger, so seed it with a real sale leg on
+      // revenue:<listingId> rather than the (count-only) aggregate override.
+      await postTransfers(
+        await mapBooking({
+          amountPaid: 9000,
+          attendeeId: attendee.id,
+          bookingFee: 0,
+          currency: "GBP",
+          eventId: "reset-totals",
+          lines: [{ gross: 9000, listingId: listing.id }],
+          modifiers: [],
+          occurredAt: "2026-06-21T00:00:00.000Z",
+        }),
+      );
       await updateListingAggregateValues(listing.id, {
         booked_quantity: 9,
-        income: 9000,
         tickets_count: 5,
       });
 
@@ -902,6 +913,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
 
       const updated = await getListingWithCount(listing.id);
       expect(updated?.attendee_count).toBe(1);
+      // Resetting only booked_quantity leaves the ledger-projected income alone.
       expect(updated?.income).toBe(9000);
       expect(updated?.tickets_count).toBe(5);
     });

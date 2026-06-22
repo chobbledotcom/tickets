@@ -271,7 +271,6 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
     const listing = await createTestListing({ maxAttendees: 1 });
     await updateListingAggregateValues(listing.id, {
       booked_quantity: 1,
-      income: 0,
       tickets_count: 0,
     });
     const result = await createAttendeeAtomic({
@@ -286,7 +285,6 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
     const listing = await createTestListing({ maxAttendees: 1 });
     await updateListingAggregateValues(listing.id, {
       booked_quantity: 1,
-      income: 0,
       tickets_count: 0,
     });
     const result = await createAttendeeAtomic({

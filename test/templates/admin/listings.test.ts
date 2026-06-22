@@ -134,7 +134,6 @@ describe("adminListingEditPage form sections", () => {
   test("renders editable running totals with a recalculation link", () => {
     const listing = testListingWithCount({
       attendee_count: 7,
-      income: 2500,
       tickets_count: 3,
     });
     const html = adminListingEditPage(listing, [], TEST_SESSION);
@@ -144,25 +143,23 @@ describe("adminListingEditPage form sections", () => {
     expect(html).toContain('value="7"');
     expect(html).toContain('name="tickets_count"');
     expect(html).toContain('value="3"');
-    expect(html).toContain('name="income"');
-    expect(html).toContain('value="25.00"');
+    // Income is no longer an override-managed aggregate (it's projected from the
+    // ledger), so the running-totals form must not render an income field.
+    expect(html).not.toContain('name="income"');
     expect(html).toContain(`/admin/listings/recalculate/${listing.id}`);
   });
 
   test("shows a running-total mismatch on the edit page", () => {
     const listing = testListingWithCount({
       attendee_count: 7,
-      income: 2500,
       tickets_count: 3,
     });
     const html = adminListingEditPage(listing, [], TEST_SESSION, undefined, {
       booked_quantity: { current: 7, recalculated: 4 },
-      income: { current: 2500, recalculated: 1500 },
       tickets_count: { current: 3, recalculated: 3 },
     });
     expect(html).toContain("Mismatch");
     expect(html).toContain("expected <strong>4</strong>, got");
-    expect(html).toContain("expected <strong>£15</strong>, got");
     expect(html).toContain(`/admin/listings/recalculate/${listing.id}`);
   });
 });
@@ -174,7 +171,6 @@ describe("adminListingRecalculatePage", () => {
       listing,
       {
         booked_quantity: { current: 9, recalculated: 4 },
-        income: { current: 5500, recalculated: 2500 },
         tickets_count: { current: 5, recalculated: 2 },
       },
       TEST_SESSION,
@@ -188,8 +184,6 @@ describe("adminListingRecalculatePage", () => {
     expect(html).toContain('value="booked_quantity"');
     expect(html).toContain(">9<");
     expect(html).toContain(">4<");
-    expect(html).toContain(">£55<");
-    expect(html).toContain(">£25<");
   });
 });
 
@@ -497,7 +491,6 @@ describe("adminListingPage", () => {
     const html = adminListingPage({
       aggregateRecalculation: {
         booked_quantity: { current: 2, recalculated: 1 },
-        income: { current: 0, recalculated: 0 },
         tickets_count: { current: 0, recalculated: 0 },
       },
       allowedDomain: "localhost",

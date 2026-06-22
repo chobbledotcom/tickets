@@ -84,7 +84,6 @@ export type ListingEditFormValues = ListingFormValues & {
 export type ListingAggregateFormValues = {
   booked_quantity: number;
   tickets_count: number;
-  income: string;
 };
 
 /** Typed values from group create form validation (no slug - auto-generated) */
@@ -816,7 +815,6 @@ const aggregateIntegerField = (name: string, label: string): Field => ({
 export const listingAggregateFields: Field[] = [
   aggregateIntegerField("booked_quantity", t("fields.listing.booked_quantity")),
   aggregateIntegerField("tickets_count", t("fields.listing.tickets_count")),
-  aggregateMoneyField("income", t("fields.listing.income")),
 ];
 
 export const modifierAggregateFields: Field[] = [

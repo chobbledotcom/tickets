@@ -103,14 +103,14 @@ export const SCHEMA: [name: string, table: Table][] = [
         ["customisable_days", "INTEGER NOT NULL DEFAULT 0"],
         ["day_prices", "TEXT NOT NULL DEFAULT '{}'"],
         ["uses_logistics", "INTEGER NOT NULL DEFAULT 0"],
-        // Precomputed aggregates over listing_attendees, maintained by the
+        // Precomputed counts over listing_attendees, maintained by the
         // LISTING_AGGREGATE_TRIGGERS so listing reads and the active-listing
-        // stats never SUM/COUNT the listing_attendees table. booked_quantity
-        // is SUM(quantity), tickets_count is COUNT(*), income is
-        // SUM(price_paid) — all scoped to this listing.
+        // stats never COUNT the listing_attendees table. booked_quantity is
+        // SUM(quantity) and tickets_count is COUNT(*), scoped to this listing.
+        // Income is no longer stored: it is projected from the transfers ledger
+        // (gross credits to revenue:<listingId>) at read time.
         ["booked_quantity", "INTEGER NOT NULL DEFAULT 0"],
         ["tickets_count", "INTEGER NOT NULL DEFAULT 0"],
-        ["income", "INTEGER NOT NULL DEFAULT 0"],
       ],
       indexes: [
         {
@@ -848,32 +848,32 @@ export const SCHEMA: [name: string, table: Table][] = [
 ];
 
 /**
- * The listing_attendees columns that shift listing aggregates (booked_quantity,
- * tickets_count, income). The UPDATE trigger fires on exactly these columns;
- * the cache-invalidation gate in listings.ts reads the same constant so the
- * two cannot drift.
+ * The listing_attendees columns that shift the listing count aggregates
+ * (booked_quantity, tickets_count). The UPDATE trigger fires on exactly these
+ * columns; the cache-invalidation gate in listings.ts reads the same constant so
+ * the two cannot drift. price_paid is no longer here — income is projected from
+ * the transfers ledger at read time, not maintained from this column.
  */
 export const LISTING_AGGREGATE_WRITE_COLUMNS = [
   "quantity",
-  "price_paid",
   "listing_id",
 ] as const;
 
 /**
- * Triggers that keep the listings aggregate columns (booked_quantity,
- * tickets_count, income) in lockstep with listing_attendees, so the hot
- * listing reads and the active-listing stats cost one row read instead of
- * scanning every attendee row.
+ * Triggers that keep the listing count aggregates (booked_quantity,
+ * tickets_count) in lockstep with listing_attendees, so the hot listing reads
+ * and the active-listing stats cost one row read instead of scanning every
+ * attendee row. Income is no longer an aggregate column — it is projected from
+ * the transfers ledger (gross credits to revenue:<listingId>) at read time.
  *
- * The UPDATE trigger is scoped to `OF quantity, price_paid, listing_id` so the
- * frequent check-in / refund / attachment-download writes (which touch other
+ * The UPDATE trigger is scoped to `OF quantity, listing_id` so the frequent
+ * check-in / refund / attachment-download / price writes (which touch other
  * columns) don't fire it. It subtracts the OLD row's contribution from its old
  * listing and adds the NEW row's to its new listing, so a row moving between
  * listings stays correct and a same-listing edit nets out to the delta.
  *
- * Semantics mirror the previous SUM(quantity) / COUNT(*) / SUM(price_paid)
- * queries exactly: refunded rows still count (refunds set `refunded`, not
- * `quantity`), matching the capacity and stats behaviour they replace.
+ * Semantics mirror the previous SUM(quantity) / COUNT(*) queries exactly:
+ * refunded rows still count, matching the capacity and stats behaviour.
  */
 const LISTING_AGGREGATE_TRIGGERS: Trigger[] = [
   {
@@ -884,8 +884,7 @@ FOR EACH ROW
 BEGIN
   UPDATE listings SET
     booked_quantity = booked_quantity + NEW.quantity,
-    tickets_count = tickets_count + 1,
-    income = income + NEW.price_paid
+    tickets_count = tickets_count + 1
   WHERE id = NEW.listing_id;
 END`,
     table: "listing_attendees",
@@ -898,8 +897,7 @@ FOR EACH ROW
 BEGIN
   UPDATE listings SET
     booked_quantity = booked_quantity - OLD.quantity,
-    tickets_count = tickets_count - 1,
-    income = income - OLD.price_paid
+    tickets_count = tickets_count - 1
   WHERE id = OLD.listing_id;
 END`,
     table: "listing_attendees",
@@ -912,13 +910,11 @@ FOR EACH ROW
 BEGIN
   UPDATE listings SET
     booked_quantity = booked_quantity - OLD.quantity,
-    tickets_count = tickets_count - 1,
-    income = income - OLD.price_paid
+    tickets_count = tickets_count - 1
   WHERE id = OLD.listing_id;
   UPDATE listings SET
     booked_quantity = booked_quantity + NEW.quantity,
-    tickets_count = tickets_count + 1,
-    income = income + NEW.price_paid
+    tickets_count = tickets_count + 1
   WHERE id = NEW.listing_id;
 END`,
     table: "listing_attendees",

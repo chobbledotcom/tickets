@@ -202,7 +202,9 @@ const rawListingsTable = defineIdTable<Listing, ListingInput>("listings", {
  * so the count source lives in one place. The count reads the precomputed
  * `booked_quantity` column (maintained by triggers on listing_attendees), so
  * this no longer joins or scans the attendee rows. */
-export const LISTING_COUNT_SELECT = `SELECT listing.*, listing.booked_quantity AS attendee_count
+export const LISTING_COUNT_SELECT = `SELECT listing.*, listing.booked_quantity AS attendee_count,
+       (SELECT COALESCE(SUM(amount), 0) FROM transfers
+         WHERE dest_type = 'revenue' AND dest_id = CAST(listing.id AS TEXT)) AS income
      FROM listings AS listing`;
 
 /** GROUP BY clause that pairs with {@link LISTING_COUNT_SELECT}. Empty now that
@@ -291,6 +293,9 @@ const listingsEntity = cachedEntityTable<
       table: "listing_attendees",
       whenColumns: [...LISTING_AGGREGATE_WRITE_COLUMNS],
     },
+    // Income is projected from the ledger, so a transfer write — a new booking's
+    // revenue leg, or a refund reversal — must refresh the cached listing income.
+    { table: "transfers" },
   ],
 );
 const listingsCache = listingsEntity.cache;
@@ -428,7 +433,6 @@ export const getListingWithCountBySlug = async (
 export const LISTING_AGGREGATE_FIELDS = [
   "booked_quantity",
   "tickets_count",
-  "income",
 ] as const;
 
 export type ListingAggregateField = (typeof LISTING_AGGREGATE_FIELDS)[number];
@@ -447,8 +451,7 @@ export const getListingAggregateRecalculation = async (
   const row = (await queryOne<ListingAggregateValues>(
     `SELECT
        COALESCE(SUM(quantity), 0) AS booked_quantity,
-       COUNT(*) AS tickets_count,
-       COALESCE(SUM(price_paid), 0) AS income
+       COUNT(*) AS tickets_count
      FROM listing_attendees
      WHERE listing_id = ?`,
     [listing.id],
@@ -458,7 +461,6 @@ export const getListingAggregateRecalculation = async (
       current: listing.attendee_count,
       recalculated: row.booked_quantity,
     },
-    income: { current: listing.income, recalculated: row.income },
     tickets_count: {
       current: listing.tickets_count,
       recalculated: row.tickets_count,
@@ -472,16 +474,14 @@ export const updateListingAggregateValues = async (
   values: ListingAggregateValues,
 ): Promise<void> => {
   await execute(
-    "UPDATE listings SET booked_quantity = ?, tickets_count = ?, income = ? WHERE id = ?",
-    [values.booked_quantity, values.tickets_count, values.income, listingId],
+    "UPDATE listings SET booked_quantity = ?, tickets_count = ? WHERE id = ?",
+    [values.booked_quantity, values.tickets_count, listingId],
   );
 };
 
 const aggregateResetSql: Record<ListingAggregateField, string> = {
   booked_quantity:
     "booked_quantity = COALESCE((SELECT SUM(quantity) FROM listing_attendees WHERE listing_id = ?), 0)",
-  income:
-    "income = COALESCE((SELECT SUM(price_paid) FROM listing_attendees WHERE listing_id = ?), 0)",
   tickets_count:
     "tickets_count = (SELECT COUNT(*) FROM listing_attendees WHERE listing_id = ?)",
 };
