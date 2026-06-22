@@ -36,7 +36,10 @@ import {
   type StorageFileMeta,
   uploadRaw,
 } from "#shared/storage.ts";
-import { readRecordedScriptCommit } from "#shared/update.ts";
+import {
+  readRecordedScriptCommit,
+  readRecordedScriptVersion,
+} from "#shared/update.ts";
 import {
   adminBackupPage,
   adminRestoreConfirmPage,
@@ -240,19 +243,24 @@ const handleBackupRestoreConfirm: TypedRouteHandler<"POST /admin/backup/restore/
         await Promise.allSettled([deleteFile(filename)]);
       }
     },
-    // The restored data carries the commit the site was running when the backup
-    // was taken (recordScriptVersion writes it on boot). Surface it so the
-    // operator can redeploy that commit to return the code to the same point in
-    // time — restore only rolls back data, never code. Read straight after the
-    // restore, before the next request's initDb re-stamps the running commit.
+    // The restored data carries the commit + version the site was running when
+    // the backup was taken (recordScriptVersion writes them on boot). Surface
+    // them so the operator can redeploy that commit to return the code to the
+    // same point in time — restore only rolls back data, never code. Passing the
+    // version to the restore-deploy workflow keeps the rebuilt code's original
+    // build time, so the upgrade path still offers later releases. Read straight
+    // after the restore, before the next request's initDb re-stamps them.
     message: async () => {
-      const commit = await readRecordedScriptCommit();
-      return commit
-        ? `Database restored from backup. It was running commit ${commit.slice(
-            0,
-            12,
-          )} — redeploy that commit to restore the code to this point in time.`
-        : "Database restored from backup";
+      const [commit, version] = await Promise.all([
+        readRecordedScriptCommit(),
+        readRecordedScriptVersion(),
+      ]);
+      if (!commit) return "Database restored from backup";
+      const versionNote = version ? ` (version ${version})` : "";
+      return `Database restored from backup. It was running commit ${commit.slice(
+        0,
+        12,
+      )}${versionNote} — run the restore-deploy workflow with that commit and version to restore the code to this point in time.`;
     },
     successRedirect: "/admin/backup",
   });

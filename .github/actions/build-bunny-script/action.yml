@@ -4,6 +4,13 @@ inputs:
   build_commit:
     description: Commit SHA to embed in the build.
     required: true
+  build_timestamp:
+    description: >-
+      Optional build timestamp to embed (ISO-8601). Used by the restore-deploy
+      workflow to stamp a rebuilt old commit with its original version. Defaults
+      to the current time when blank.
+    required: false
+    default: ""
 runs:
   using: composite
   steps:
@@ -26,3 +33,4 @@ runs:
       run: deno task build:edge
       env:
         BUILD_COMMIT: ${{ inputs.build_commit }}
+        BUILD_TIMESTAMP: ${{ inputs.build_timestamp }}

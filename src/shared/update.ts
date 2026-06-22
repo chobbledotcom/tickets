@@ -109,19 +109,39 @@ export const isNewerVersion = (
  * differs (so the unchanged path costs one indexed read and no write). A blank
  * value is a no-op, matching development/test builds where build info is empty.
  */
+/** Read a plaintext settings marker's value, or "" when the row is absent. */
+const readSettingMarker = async (key: string): Promise<string> => {
+  const row = await queryOne<{ value: string }>(
+    "SELECT value FROM settings WHERE key = ?",
+    [key],
+  );
+  return row?.value ?? "";
+};
+
 const recordSettingMarker = async (
   key: string,
   value: string,
 ): Promise<void> => {
   if (!value) return;
-  const row = await queryOne<{ value: string }>(
-    "SELECT value FROM settings WHERE key = ?",
-    [key],
-  );
-  if (row?.value === value) return;
+  if ((await readSettingMarker(key)) === value) return;
   await execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", [
     key,
     value,
+  ]);
+};
+
+/**
+ * Sync the commit marker to the running build: upsert when the build embeds a
+ * commit, but *clear* a previously-recorded one when it doesn't. Without the
+ * clear, a local build path that ships without a commit (e.g.
+ * `deno task deploy:edge`, which doesn't set BUILD_COMMIT) would leave a stale
+ * commit from an earlier CI deploy behind — so a later backup/restore would name
+ * the wrong commit for the data it captured. An honest "unknown" beats a lie.
+ */
+const syncCommitMarker = async (commit: string): Promise<void> => {
+  if (commit) return recordSettingMarker(CURRENT_SCRIPT_COMMIT_KEY, commit);
+  await execute("DELETE FROM settings WHERE key = ?", [
+    CURRENT_SCRIPT_COMMIT_KEY,
   ]);
 };
 
@@ -139,10 +159,7 @@ export const recordScriptVersion = async (): Promise<void> => {
       CURRENT_SCRIPT_VERSION_KEY,
       getEffectiveBuildTimestamp(),
     );
-    await recordSettingMarker(
-      CURRENT_SCRIPT_COMMIT_KEY,
-      getEffectiveBuildCommit(),
-    );
+    await syncCommitMarker(getEffectiveBuildCommit());
   } catch (e) {
     logDebug(
       "Migration",
@@ -156,13 +173,18 @@ export const recordScriptVersion = async (): Promise<void> => {
  * unset (older backups, or development builds). A restore reads this from the
  * just-restored data to tell the operator which commit to redeploy.
  */
-export const readRecordedScriptCommit = async (): Promise<string> => {
-  const row = await queryOne<{ value: string }>(
-    "SELECT value FROM settings WHERE key = ?",
-    [CURRENT_SCRIPT_COMMIT_KEY],
-  );
-  return row?.value ?? "";
-};
+export const readRecordedScriptCommit = (): Promise<string> =>
+  readSettingMarker(CURRENT_SCRIPT_COMMIT_KEY);
+
+/**
+ * Read the build timestamp (version) a database recorded for its running
+ * script, or "" when unset. Surfaced alongside the commit on restore so the
+ * rebuild can stamp the restored code with its *original* version — otherwise
+ * the rebuilt old code reports the rebuild time and the upgrade path treats it
+ * as already up to date.
+ */
+export const readRecordedScriptVersion = (): Promise<string> =>
+  readSettingMarker(CURRENT_SCRIPT_VERSION_KEY);
 
 /**
  * Format a build timestamp for display.

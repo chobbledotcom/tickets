@@ -9,6 +9,7 @@ import { loadBuiltSiteUpdateState } from "#shared/site-update.ts";
 import {
   CURRENT_SCRIPT_VERSION_KEY,
   readRecordedScriptCommit,
+  readRecordedScriptVersion,
   recordScriptVersion,
   setBuildCommitForTest,
   setBuildTimestampForTest,
@@ -178,6 +179,26 @@ describeWithEnv("recordScriptVersion", { db: true }, () => {
 
   test("readRecordedScriptCommit returns empty string when unrecorded", async () => {
     // Older backups / dev builds have no commit row.
+    expect(await readRecordedScriptCommit()).toBe("");
+  });
+
+  test("readRecordedScriptVersion round-trips the recorded version", async () => {
+    setBuildTimestampForTest("2026-06-19T12:00:00Z");
+    await recordScriptVersion();
+    expect(await readRecordedScriptVersion()).toBe("2026-06-19T12:00:00Z");
+  });
+
+  test("clears a stale commit marker when the running build has no commit", async () => {
+    // A CI deploy records a commit…
+    setBuildCommitForTest("abc123def4567890");
+    await recordScriptVersion();
+    expect(await readRecordedScriptCommit()).toBe("abc123def4567890");
+
+    // …then a local build that ships without a commit (e.g. deno task
+    // deploy:edge) must clear it, not leave the stale value to mislead a later
+    // restore into naming the wrong commit.
+    setBuildCommitForTest("");
+    await recordScriptVersion();
     expect(await readRecordedScriptCommit()).toBe("");
   });
 

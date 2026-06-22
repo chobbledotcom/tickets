@@ -2,12 +2,21 @@ name: Restore code to a commit
 
 # Rebuilds and deploys the edge script at a specific commit — the "code" half of
 # restoring a site to a point in time. A backup's restore surfaces the commit
-# the site was running when it was taken (recorded in the DB by the running
-# build); run this with that commit to roll the code back to match the data.
+# (and version) the site was running when it was taken (recorded in the DB by
+# the running build); run this with those to roll the code back to match.
 #
 # The code is built fresh from our own repository at the given commit (git is
 # the per-commit source of truth), never from a backup file — so a restore can
 # never deploy untrusted code, only a commit that exists in our history.
+#
+# Security: the requested commit is checked out and *built* (no secrets are
+# exposed to that step, so even a tampered historical build script can't
+# exfiltrate credentials — the worst it can do is produce a bundle, which is the
+# point of a rebuild). The deploy step that holds BUNNY_ACCESS_KEY runs a pinned
+# external action (BunnyWay/actions/deploy-script) — never a local
+# `./.github/actions/*` wrapper loaded from the checked-out commit, which could
+# be a tampered historical revision running with the production key. The commit
+# input is also validated to be a full 40-char SHA, not a movable ref.
 #
 # Stored secrets: BUNNY_ACCESS_KEY (and BUNNY_SCRIPT_ID as the default target).
 
@@ -15,8 +24,12 @@ on:
   workflow_dispatch:
     inputs:
       commit:
-        description: "Commit SHA to build and deploy (from a backup's recorded commit)"
+        description: "Full 40-character commit SHA to build and deploy (from a backup's recorded commit)"
         required: true
+        type: string
+      version:
+        description: "Backup's recorded version (build timestamp) to stamp the rebuild with, so the upgrade path still works. Optional."
+        required: false
         type: string
       script_id:
         description: "Target Bunny script ID (defaults to BUNNY_SCRIPT_ID secret)"
@@ -31,18 +44,34 @@ jobs:
     runs-on: ubicloud-standard-4
 
     steps:
+      - name: Validate the commit input is a full SHA
+        env:
+          COMMIT: ${{ inputs.commit }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "commit must be a full 40-character hex SHA, got: $COMMIT" >&2
+            exit 1
+          fi
+
       - name: Checkout the requested commit
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.commit }}
 
+      # Builds the requested commit's source. No secrets are available here.
       - name: Build Bunny edge script at that commit
         uses: ./.github/actions/build-bunny-script
         with:
           build_commit: ${{ inputs.commit }}
+          build_timestamp: ${{ inputs.version }}
 
+      # Deploy with a pinned external action — NOT the local deploy wrapper from
+      # the checked-out (possibly old/untrusted) ref — so the production key only
+      # ever flows to trusted action code.
       - name: Deploy to the target script
-        uses: ./.github/actions/deploy-bunny-script
+        uses: BunnyWay/actions/deploy-script@main
         with:
           script_id: ${{ inputs.script_id || secrets.BUNNY_SCRIPT_ID }}
+          file: bunny-script.ts
           api_key: ${{ secrets.BUNNY_ACCESS_KEY }}
