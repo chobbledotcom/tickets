@@ -69,6 +69,13 @@ type LegSpec = {
   refParts: RefPart[];
 };
 
+/** A single fixed-direction leg, dropped when its amount is zero (a free booking
+ *  posts no fee; a deposit-free reservation posts no payment). */
+const optionalLeg = (
+  amount: number,
+  spec: Omit<LegSpec, "amount">,
+): LegSpec[] => (amount > 0 ? [{ ...spec, amount }] : []);
+
 const modifierLeg = (
   attendee: AccountRef,
   modifier: { modifierId: number; delta: number },
@@ -120,30 +127,18 @@ const bookingLegSpecs = (
   const modifiers = facts.modifiers
     .filter((modifier) => modifier.delta !== 0)
     .map((modifier) => modifierLeg(attendee, modifier));
-  const fee: LegSpec[] =
-    facts.bookingFee > 0
-      ? [
-          {
-            amount: facts.bookingFee,
-            destination: BOOKING_FEE_INCOME,
-            kind: "fee",
-            refParts: ["fee"],
-            source: attendee,
-          },
-        ]
-      : [];
-  const payment: LegSpec[] =
-    facts.amountPaid > 0
-      ? [
-          {
-            amount: facts.amountPaid,
-            destination: attendee,
-            kind: "payment",
-            refParts: ["payment"],
-            source: WORLD,
-          },
-        ]
-      : [];
+  const fee = optionalLeg(facts.bookingFee, {
+    destination: BOOKING_FEE_INCOME,
+    kind: "fee",
+    refParts: ["fee"],
+    source: attendee,
+  });
+  const payment = optionalLeg(facts.amountPaid, {
+    destination: attendee,
+    kind: "payment",
+    refParts: ["payment"],
+    source: WORLD,
+  });
   return [...sales, ...modifiers, ...fee, ...payment];
 };
 
