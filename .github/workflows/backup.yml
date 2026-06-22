@@ -14,6 +14,11 @@ name: Database Backup
 #   STORAGE_ZONE_NAME  Bunny storage zone name (upload target)
 #   STORAGE_ZONE_KEY   Bunny storage zone access key
 #
+# Optional (set both to capture the active script release + deployed code in the
+# zip, so a restore can redeploy this exact code; omit for a data-only backup):
+#   BUNNY_ACCESS_KEY   Bunny API access key
+#   BUNNY_SCRIPT_ID    this instance's Bunny edge script id
+#
 # Backups are stored unencrypted (field-level PII is already encrypted), so
 # DB_ENCRYPTION_KEY is not required.
 
@@ -53,4 +58,7 @@ jobs:
           DB_TOKEN: ${{ secrets.DB_TOKEN }}
           STORAGE_ZONE_NAME: ${{ secrets.STORAGE_ZONE_NAME }}
           STORAGE_ZONE_KEY: ${{ secrets.STORAGE_ZONE_KEY }}
+          # Capture the active release + deployed code too when configured.
+          BUNNY_API_KEY: ${{ secrets.BUNNY_ACCESS_KEY }}
+          BUNNY_SCRIPT_ID: ${{ secrets.BUNNY_SCRIPT_ID }}
         run: deno task backup

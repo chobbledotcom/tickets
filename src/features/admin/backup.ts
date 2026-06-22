@@ -23,6 +23,7 @@ import {
   isRemoteDatabase,
   parseBackupTime,
   readManifest,
+  restoreBunnyReleaseFromZip,
   restoreFromZip,
 } from "#shared/db/backup.ts";
 import { SCHEMA_HASH } from "#shared/db/migrations.ts";
@@ -234,6 +235,10 @@ const handleBackupRestoreConfirm: TypedRouteHandler<"POST /admin/backup/restore/
 
       try {
         await restoreFromZip(data);
+        // Return the live edge script to the code that was deployed when this
+        // backup was taken, so data and code are restored to the same point in
+        // time. No-op when Bunny isn't configured or the backup predates this.
+        await restoreBunnyReleaseFromZip(data);
       } finally {
         // Clean up the temp file whether restore succeeds or fails
         await Promise.allSettled([deleteFile(filename)]);

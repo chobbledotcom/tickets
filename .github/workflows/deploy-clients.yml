@@ -70,7 +70,11 @@ jobs:
             echo "::add-mask::$db_token"
 
             echo "==> $name ($script_id): backing up"
-            DB_URL="$db_url" DB_TOKEN="$db_token" deno task backup
+            # Capture this site's active release + deployed code too, so the
+            # pre-deploy backup can restore the code we are about to replace.
+            DB_URL="$db_url" DB_TOKEN="$db_token" \
+              BUNNY_API_KEY="$BUNNY_ACCESS_KEY" BUNNY_SCRIPT_ID="$script_id" \
+              deno task backup
 
             echo "==> $name ($script_id): deploying"
             code=$(curl -s -o /tmp/resp -w "%{http_code}" -X POST \

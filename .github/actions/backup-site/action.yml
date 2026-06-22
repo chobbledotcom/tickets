@@ -14,6 +14,13 @@ inputs:
   script_id:
     description: Bunny script id of the site to back up.
     required: true
+  access_key:
+    description: >-
+      Bunny API access key. When set (together with script_id) the backup also
+      captures the site's active script release + deployed code, so a restore
+      can return the code to this point in time. Omit to back up data only.
+    required: false
+    default: ""
   storage_zone_name:
     description: Bunny storage zone name (backup upload target).
     required: true
@@ -29,6 +36,7 @@ runs:
         MAIN_INSTANCE: ${{ inputs.main_instance }}
         MAIN_INSTANCE_KEY: ${{ inputs.main_instance_key }}
         SCRIPT_ID: ${{ inputs.script_id }}
+        ACCESS_KEY: ${{ inputs.access_key }}
         STORAGE_ZONE_NAME: ${{ inputs.storage_zone_name }}
         STORAGE_ZONE_KEY: ${{ inputs.storage_zone_key }}
       run: |
@@ -53,5 +61,12 @@ runs:
         db_token=$(jq -r '.[0].dbToken' <<<"$match")
         echo "::add-mask::$db_token"
 
+        echo "::add-mask::$ACCESS_KEY"
+
+        # When an access key is provided, expose it (with the site's script id)
+        # as the Bunny secrets the backup reads, so it also captures the active
+        # script release + deployed code that is about to be replaced.
         echo "Backing up $(jq -r '.[0].name' <<<"$match") ($SCRIPT_ID)"
-        DB_URL="$db_url" DB_TOKEN="$db_token" deno task backup
+        DB_URL="$db_url" DB_TOKEN="$db_token" \
+          BUNNY_API_KEY="$ACCESS_KEY" BUNNY_SCRIPT_ID="$SCRIPT_ID" \
+          deno task backup

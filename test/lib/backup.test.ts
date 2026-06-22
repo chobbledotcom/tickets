@@ -2,10 +2,10 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { unzipSync, zipSync } from "fflate";
+import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import {
   BACKUP_REQUIRED_WITHIN_MS,
   type BackupManifest,
-  BUNNY_RELEASE_FILE,
   backupDir,
   backupKey,
   backupLeaf,
@@ -21,8 +21,8 @@ import {
   isRemoteDatabase,
   parseBackupTime,
   pruneOldBackups,
-  readBunnyRelease,
   readManifest,
+  restoreBunnyReleaseFromZip,
   restoreFromSql,
   restoreFromZip,
   splitStatements,
@@ -40,7 +40,6 @@ import {
   createTestListing,
   describeWithEnv,
   setTestEnv,
-  stubFetchJson,
   withMocks,
 } from "#test-utils";
 
@@ -158,102 +157,249 @@ describeWithEnv("backup", { db: true }, () => {
     });
   });
 
-  describe("createBackupZip — Bunny active release", () => {
-    // A multi-line Code field proves the snapshot round-trips losslessly.
-    const activeRelease = {
-      Code: "export default {\n  fetch() {}\n};\n",
-      Note: "deploy 2026-06-22",
-      ScriptId: 99,
-      Uuid: "ab12cd34",
-    };
-    const withBunny = (vars: Record<string, string> = {}) =>
-      setTestEnv({ BUNNY_API_KEY: "test-key", BUNNY_SCRIPT_ID: "99", ...vars });
+  describe("Bunny release capture & restore", () => {
+    const withBunny = () =>
+      setTestEnv({ BUNNY_API_KEY: "test-key", BUNNY_SCRIPT_ID: "99" });
 
-    test("stores the active release alongside the data dump when configured", async () => {
+    // Route fetches by URL: the active-release endpoint, the Get Code endpoint,
+    // and (for redeploy) the code upload + publish. Records every URL hit.
+    const routeFetch = (opts: {
+      release?: unknown;
+      releaseStatus?: number;
+      code?: unknown;
+      codeStatus?: number;
+    }) => {
+      const urls: string[] = [];
+      const handle = (url: string): Response => {
+        if (url.includes("/releases/active")) {
+          return new Response(JSON.stringify(opts.release ?? {}), {
+            status: opts.releaseStatus ?? 200,
+          });
+        }
+        // The Get Code endpoint and the deploy upload both end in "/code"; only
+        // the GET (no body) is the read we model here.
+        return new Response(JSON.stringify(opts.code ?? { Code: null }), {
+          status: opts.codeStatus ?? 200,
+        });
+      };
+      const s = stub(globalThis, "fetch", (input: string | URL | Request) => {
+        const url = String(input);
+        urls.push(url);
+        return Promise.resolve(handle(url));
+      });
+      return { restore: () => s.restore(), urls };
+    };
+
+    // Build a backup zip with whatever release/code the stub serves, captured
+    // out so a later restore can replay it under a different stub.
+    const backupWith = async (opts: Parameters<typeof routeFetch>[0]) => {
+      let zip: Uint8Array | undefined;
+      await withMocks(
+        () => routeFetch(opts),
+        async () => {
+          zip = await createBackupZip();
+        },
+      );
+      return zip!;
+    };
+
+    // Restore (redeploy) under a stubbed deployScriptCode, returning the spy.
+    const restoreUnderDeployStub = async (
+      zip: Uint8Array,
+      result: { ok: true } | { ok: false; error: string } = { ok: true },
+    ) => {
+      const deploy = stub(bunnyCdnApi, "deployScriptCode", () =>
+        Promise.resolve(result),
+      );
+      const err = stub(console, "error", () => {});
+      try {
+        await restoreBunnyReleaseFromZip(zip);
+      } finally {
+        deploy.restore();
+        err.restore();
+      }
+      return { deployCalls: deploy.calls, errLog: errText(err) };
+    };
+
+    const errText = (err: { calls: { args: unknown[] }[] }) =>
+      err.calls.map((c) => c.args.join(" ")).join("\n");
+
+    test("captures the deployed code at backup time and redeploys it on restore", async () => {
       const restore = withBunny();
       try {
         await createTestListing({ name: "Release Zip" });
-        await withMocks(
-          () => stubFetchJson(activeRelease),
-          async () => {
-            const files = unzipSync(await createBackupZip());
-            expect(Object.keys(files)).toContain(BUNNY_RELEASE_FILE);
-            const stored = JSON.parse(
-              new TextDecoder().decode(files[BUNNY_RELEASE_FILE]!),
-            );
-            expect(stored).toEqual(activeRelease);
+        // The active release carries no code inline, so the Get Code endpoint
+        // supplies it — a multi-line body proves a lossless round-trip.
+        const deployedCode = "export default {\n  fetch() {}\n};\n";
+        const zip = await backupWith({
+          code: { Code: deployedCode, LastModified: "2026-06-22T00:00:00Z" },
+          release: {
+            Note: "deploy 2026-06-22",
+            ScriptId: 99,
+            Uuid: "ab12cd34",
           },
-        );
+        });
+
+        const restoreBunny = withBunny();
+        try {
+          const { deployCalls } = await restoreUnderDeployStub(zip);
+          expect(deployCalls).toHaveLength(1);
+          expect(deployCalls[0]!.args[0]).toBe(deployedCode);
+        } finally {
+          restoreBunny();
+        }
       } finally {
         restore();
       }
     });
 
-    test("readBunnyRelease recovers the stored release, Code intact", async () => {
+    test("uses the release's inline Code without a second Get Code request", async () => {
       const restore = withBunny();
       try {
+        let recordedUrls: string[] = [];
         await withMocks(
-          () => stubFetchJson(activeRelease),
+          () => {
+            const r = routeFetch({
+              release: { Code: "INLINE", Uuid: "aa11bb22" },
+            });
+            recordedUrls = r.urls;
+            return r;
+          },
           async () => {
-            const release = readBunnyRelease(await createBackupZip());
-            expect(release).toEqual(activeRelease);
-            // The deployed code survives the JSON round-trip byte-for-byte.
-            expect((release as { Code: string }).Code).toBe(activeRelease.Code);
+            await createBackupZip();
           },
         );
+        // Only the active-release endpoint is hit — no separate /code read.
+        expect(recordedUrls.some((u) => u.includes("/releases/active"))).toBe(
+          true,
+        );
+        expect(recordedUrls.some((u) => u.endsWith("/code"))).toBe(false);
       } finally {
         restore();
       }
     });
 
-    test("omits the release file when Bunny is not configured", async () => {
-      // No BUNNY_* env in this describe — createBackupZip must not call the API.
+    test("omits the release when Bunny is not configured (no API call)", async () => {
+      // No BUNNY_* env here — createBackupZip must not call the API at all…
+      let zip: Uint8Array<ArrayBufferLike> = new Uint8Array();
       await withMocks(
         () =>
           stub(globalThis, "fetch", () => {
             throw new Error("fetch must not be called when Bunny is disabled");
           }),
         async () => {
-          const zip = await createBackupZip();
-          expect(Object.keys(unzipSync(zip))).not.toContain(BUNNY_RELEASE_FILE);
-          expect(readBunnyRelease(zip)).toBeNull();
+          zip = await createBackupZip();
         },
       );
-    });
-
-    test("still produces a valid data backup when the release fetch fails", async () => {
+      // …and the resulting backup carries nothing to redeploy.
       const restore = withBunny();
       try {
-        await createTestListing({ name: "Resilient" });
-        await withMocks(
-          () => ({
-            err: stub(console, "error", () => {}),
-            fetch: stub(globalThis, "fetch", () =>
-              Promise.resolve(new Response("boom", { status: 500 })),
-            ),
-          }),
-          async ({ err }) => {
-            const files = unzipSync(await createBackupZip());
-            // The database dump is intact and the manifest is present…
-            expect(Object.keys(files)).toContain("listings.sql");
-            expect(Object.keys(files)).toContain("manifest.json");
-            // …but a CDN hiccup leaves out the release rather than blocking it.
-            expect(Object.keys(files)).not.toContain(BUNNY_RELEASE_FILE);
-            // The failure is logged, not silently swallowed.
-            const logged = err.calls.map((c) => c.args.join(" ")).join("\n");
-            expect(logged).toContain("Backup active script release");
-          },
-        );
+        const { deployCalls } = await restoreUnderDeployStub(zip);
+        expect(deployCalls).toHaveLength(0);
       } finally {
         restore();
       }
     });
-  });
 
-  describe("readBunnyRelease", () => {
-    test("returns null for a zip without a release file", () => {
-      const zip = zipSync({ "manifest.json": new Uint8Array(0) });
-      expect(readBunnyRelease(zip)).toBeNull();
+    test("still produces a valid backup when the release API returns an error", async () => {
+      const restore = withBunny();
+      try {
+        await createTestListing({ name: "Resilient" });
+        let zip: Uint8Array<ArrayBufferLike> = new Uint8Array();
+        const err = stub(console, "error", () => {});
+        await withMocks(
+          () => routeFetch({ releaseStatus: 500 }),
+          async () => {
+            zip = await createBackupZip();
+          },
+        );
+        err.restore();
+        // The DB dump is intact even though the release could not be fetched.
+        expect(readManifest(zip)).not.toBeNull();
+        expect(Object.keys(unzipSync(zip))).toContain("listings.sql");
+        expect(errText(err)).toContain("Backup active script release");
+        // Nothing to redeploy from this backup.
+        const { deployCalls } = await restoreUnderDeployStub(zip);
+        expect(deployCalls).toHaveLength(0);
+      } finally {
+        restore();
+      }
+    });
+
+    test("still produces a valid backup when the fetch throws (network/DNS)", async () => {
+      const restore = withBunny();
+      try {
+        await createTestListing({ name: "Throws" });
+        let zip: Uint8Array<ArrayBufferLike> = new Uint8Array();
+        const err = stub(console, "error", () => {});
+        await withMocks(
+          () =>
+            stub(globalThis, "fetch", () =>
+              Promise.reject(new Error("getaddrinfo ENOTFOUND")),
+            ),
+          async () => {
+            zip = await createBackupZip();
+          },
+        );
+        err.restore();
+        expect(readManifest(zip)).not.toBeNull();
+        // A thrown rejection is caught and logged, not propagated.
+        expect(errText(err)).toContain("threw");
+      } finally {
+        restore();
+      }
+    });
+
+    test("omits the release when the Get Code request fails", async () => {
+      const restore = withBunny();
+      try {
+        let zip: Uint8Array<ArrayBufferLike> = new Uint8Array();
+        const err = stub(console, "error", () => {});
+        await withMocks(
+          // Release has no inline code, and the follow-up Get Code 500s.
+          () => routeFetch({ codeStatus: 500, release: { Uuid: "no-code" } }),
+          async () => {
+            zip = await createBackupZip();
+          },
+        );
+        err.restore();
+        expect(readManifest(zip)).not.toBeNull();
+        expect(errText(err)).toContain("Backup script code");
+        const { deployCalls } = await restoreUnderDeployStub(zip);
+        expect(deployCalls).toHaveLength(0);
+      } finally {
+        restore();
+      }
+    });
+
+    test("restore is a no-op when Bunny is not configured", async () => {
+      const zip = await backupWith({ code: { Code: "x" }, release: {} });
+      // No withBunny() here: restore must not redeploy when Bunny is disabled.
+      const { deployCalls } = await restoreUnderDeployStub(zip);
+      expect(deployCalls).toHaveLength(0);
+    });
+
+    test("logs but does not throw when the redeploy fails", async () => {
+      const restore = withBunny();
+      try {
+        const zip = await backupWith({
+          code: { Code: "OLD CODE" },
+          release: { Uuid: "z" },
+        });
+        const restoreBunny = withBunny();
+        try {
+          const { deployCalls, errLog } = await restoreUnderDeployStub(zip, {
+            error: "Upload script code failed (500): nope",
+            ok: false,
+          });
+          expect(deployCalls).toHaveLength(1);
+          expect(errLog).toContain("Restore script redeploy");
+        } finally {
+          restoreBunny();
+        }
+      } finally {
+        restore();
+      }
     });
   });
 

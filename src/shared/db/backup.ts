@@ -242,34 +242,57 @@ const buildManifest = (
 });
 
 /**
- * Filename inside the backup zip holding Bunny's active script release (the
- * deployed code plus its release metadata) as it stood when the backup was
+ * Filename inside the backup zip holding Bunny's active script release — the
+ * release metadata plus the deployed `Code` — as it stood when the backup was
  * taken. Pairing the live code with the data snapshot is what lets a restore
  * return to that point in time exactly. Absent from backups taken where Bunny
  * isn't configured (local dev) or where the API call failed.
  */
-export const BUNNY_RELEASE_FILE = "bunny-release.json";
+const BUNNY_RELEASE_FILE = "bunny-release.json";
+
+/** Log a CDN failure that should not abort a backup, then yield `null`. */
+const skipRelease = (detail: string): null => {
+  logError({ code: ErrorCode.CDN_REQUEST, detail });
+  return null;
+};
+
+/**
+ * The active release with its deployed code guaranteed present. The release
+ * object identifies which release is live but may not carry the code inline, so
+ * when it doesn't we fetch it from the Get Code endpoint and merge it in. The
+ * result is a self-contained snapshot a restore can redeploy verbatim.
+ */
+const fetchReleaseSnapshot = async (): Promise<EdgeScriptRelease | null> => {
+  const release = await bunnyCdnApi.getActiveScriptRelease();
+  if (!release.ok) {
+    return skipRelease(`Backup active script release: ${release.error}`);
+  }
+  if (typeof release.data.Code === "string") return release.data;
+
+  const code = await bunnyCdnApi.getScriptCode();
+  if (!code.ok) return skipRelease(`Backup script code: ${code.error}`);
+  return { ...release.data, Code: code.data.Code };
+};
 
 /**
  * Fetch Bunny's active script release for inclusion in a backup, or null when
  * there is nothing to store. Returns null when Bunny CDN isn't configured (no
- * BUNNY_API_KEY/BUNNY_SCRIPT_ID — local dev, tests) and, deliberately, also on
- * an API failure: a database dump is the critical artifact (it gates
- * migrations) and must never be blocked by a CDN API hiccup, so a failed fetch
- * is logged and the dump proceeds without the release file. Stored as the
+ * BUNNY_API_KEY/BUNNY_SCRIPT_ID — local dev, tests) and, deliberately, on any
+ * failure: a database dump is the critical artifact (it gates migrations) and
+ * must never be blocked by a CDN hiccup, so a failed API response *or a thrown
+ * fetch/parse error* (DNS/timeout rejection, interrupted body, invalid JSON) is
+ * logged and the dump proceeds without the release file. Stored as the
  * re-serialized JSON object, which round-trips the `Code` string losslessly.
  */
 const exportBunnyRelease = async (): Promise<Uint8Array | null> => {
   if (!isBunnyCdnEnabled()) return null;
-  const result = await bunnyCdnApi.getActiveScriptRelease();
-  if (!result.ok) {
-    logError({
-      code: ErrorCode.CDN_REQUEST,
-      detail: `Backup active script release: ${result.error}`,
-    });
-    return null;
+  try {
+    const snapshot = await fetchReleaseSnapshot();
+    if (!snapshot) return null;
+    return new TextEncoder().encode(JSON.stringify(snapshot, null, 2));
+  } catch (error) {
+    return skipRelease(`Backup active script release threw: ${String(error)}`);
   }
-  return new TextEncoder().encode(JSON.stringify(result.data, null, 2));
 };
 
 /** Create a zip archive from table backups with manifest */
@@ -410,17 +433,39 @@ export const readManifest = (zipData: Uint8Array): BackupManifest | null => {
 
 /**
  * Read Bunny's active-release snapshot from a backup zip, or null when the file
- * is absent (older backups, or one taken where Bunny wasn't configured). The
- * returned object carries the deployed `Code`, so a restore can redeploy the
- * exact release that was live via `deployScriptCode`.
+ * is absent (older backups, or one taken where Bunny wasn't configured).
  */
-export const readBunnyRelease = (
-  zipData: Uint8Array,
-): EdgeScriptRelease | null => {
+const readBunnyRelease = (zipData: Uint8Array): EdgeScriptRelease | null => {
   const files = unzipSync(zipData);
   const bytes = files[BUNNY_RELEASE_FILE];
   if (!bytes) return null;
   return JSON.parse(new TextDecoder().decode(bytes)) as EdgeScriptRelease;
+};
+
+/**
+ * Redeploy the script code captured in a backup zip, returning the live edge
+ * script to the exact code that was running when the backup was taken — the
+ * code half of "restore to that point in time". A no-op when Bunny isn't
+ * configured or the backup carries no release (older backups), so restoring a
+ * data-only backup is safe. A redeploy failure is logged rather than thrown:
+ * the database has already been restored, so the restore as a whole still
+ * succeeded and the operator can redeploy manually.
+ */
+export const restoreBunnyReleaseFromZip = async (
+  zipData: Uint8Array,
+): Promise<void> => {
+  if (!isBunnyCdnEnabled()) return;
+  const release = readBunnyRelease(zipData);
+  const code = release?.Code;
+  if (typeof code !== "string") return;
+
+  const result = await bunnyCdnApi.deployScriptCode(code);
+  if (!result.ok) {
+    logError({
+      code: ErrorCode.CDN_REQUEST,
+      detail: `Restore script redeploy: ${result.error}`,
+    });
+  }
 };
 
 /** Count SQL statements across all .sql files in a zip archive */

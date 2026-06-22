@@ -47,6 +47,7 @@ jobs:
           main_instance: ${{ secrets.MAIN_INSTANCE }}
           main_instance_key: ${{ inputs.main_instance_key || secrets.MAIN_INSTANCE_KEY }}
           script_id: ${{ inputs.script_id || secrets.BUNNY_STAGING_SCRIPT_ID }}
+          access_key: ${{ secrets.BUNNY_ACCESS_KEY }}
           storage_zone_name: ${{ secrets.STORAGE_ZONE_NAME }}
           storage_zone_key: ${{ secrets.STORAGE_ZONE_KEY }}
 

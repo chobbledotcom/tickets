@@ -160,6 +160,75 @@ describeWithEnv(
 );
 
 describeWithEnv(
+  "getScriptCode",
+  { env: { BUNNY_API_KEY: "test-bunny-key", BUNNY_SCRIPT_ID: "99" } },
+  () => {
+    const codeBody = { Code: "export default {}", LastModified: "2026-01-01" };
+
+    test("returns the deployed code on success", async () => {
+      await withMocks(
+        () => stubFetchJson(codeBody),
+        async () => {
+          const result = await bunnyCdnApi.getScriptCode();
+          expect(result).toEqual({ data: codeBody, ok: true });
+        },
+      );
+    });
+
+    test("GETs the host's own script code endpoint by default", async () => {
+      const calls: { url: string; init?: RequestInit }[] = [];
+      await withMocks(
+        () =>
+          stub(
+            globalThis,
+            "fetch",
+            (input: string | URL | Request, init?: RequestInit) => {
+              calls.push({ init, url: String(input) });
+              return Promise.resolve(new Response(JSON.stringify(codeBody)));
+            },
+          ),
+        async () => {
+          await bunnyCdnApi.getScriptCode();
+          expect(calls[0]!.url).toContain("/compute/script/99/code");
+          expect(calls[0]!.init?.method).toBeUndefined();
+        },
+      );
+    });
+
+    test("targets an explicit script id when given one", async () => {
+      const calls: { url: string }[] = [];
+      await withMocks(
+        () =>
+          stub(globalThis, "fetch", (input: string | URL | Request) => {
+            calls.push({ url: String(input) });
+            return Promise.resolve(new Response(JSON.stringify(codeBody)));
+          }),
+        async () => {
+          await bunnyCdnApi.getScriptCode(12345);
+          expect(calls[0]!.url).toContain("/compute/script/12345/code");
+        },
+      );
+    });
+
+    test("returns an error when the API request fails", async () => {
+      await withMocks(
+        () =>
+          stub(globalThis, "fetch", () =>
+            Promise.resolve(new Response("Not found", { status: 404 })),
+          ),
+        async () => {
+          const result = await bunnyCdnApi.getScriptCode();
+          expect(result).toEqual({
+            error: "Get script code failed (404): Not found",
+            ok: false,
+          });
+        },
+      );
+    });
+  },
+);
+
+describeWithEnv(
   "findPullZoneId",
   { env: { BUNNY_API_KEY: "test-bunny-key", BUNNY_SCRIPT_ID: "99" } },
   () => {
