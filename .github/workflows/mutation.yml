@@ -1,0 +1,89 @@
+name: Mutation Testing
+
+# Manually triggered so you can mutation-test a chosen module on demand.
+# Mutation testing is far too slow to gate every push (it reruns the mapped
+# tests once per mutant), so it is deliberately NOT part of the Test workflow —
+# point it at the module you are hardening. Note: GitHub only shows the
+# "Run workflow" button for workflows that exist on the default branch, so this
+# becomes runnable from the UI once merged to main.
+on:
+  workflow_dispatch:
+    inputs:
+      source:
+        description: "Source glob to mutate (quote globs, e.g. 'src/lib/forms/*.ts')"
+        required: true
+        default: "src/shared/dates.ts"
+      test:
+        description: "Test glob run against each mutant"
+        required: true
+        default: "test/lib/dates.test.ts"
+      exhaustive:
+        description: "Try every operator replacement, not just one per operator"
+        type: boolean
+        default: false
+      harness:
+        description: "Build static assets + start stripe-mock first (tests that import the app / Stripe)"
+        type: boolean
+        default: false
+      timeout:
+        description: "Per-mutant timeout floor in ms (blank = tool default)"
+        required: false
+        default: ""
+
+env:
+  STRIPE_MOCK_VERSION: "0.188.0"
+
+jobs:
+  mutation:
+    runs-on: ubicloud-standard-30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.5.6
+
+      # Only needed under --harness, but caching .bin is harmless otherwise and
+      # saves re-downloading stripe-mock when the harness is used.
+      - name: Cache stripe-mock
+        uses: actions/cache@v4
+        with:
+          path: .bin
+          key: stripe-mock-${{ env.STRIPE_MOCK_VERSION }}-linux-amd64
+
+      - name: Install dependencies
+        run: deno install --allow-scripts
+
+      # The runner streams one coloured glyph per mutant as it goes — "." killed,
+      # "S" survived, "T" timed out — then prints a summary, and writes a Markdown
+      # table to this job's Summary panel via $GITHUB_STEP_SUMMARY. Exit is
+      # non-zero if any mutant survived, so a survivor turns the run red.
+      #
+      # Inputs are passed through the environment and only ever referenced as
+      # quoted shell variables, never interpolated into the script, so a crafted
+      # glob can't inject shell commands.
+      - name: Run mutation testing
+        env:
+          SOURCE: ${{ inputs.source }}
+          TEST: ${{ inputs.test }}
+          EXHAUSTIVE: ${{ inputs.exhaustive }}
+          HARNESS: ${{ inputs.harness }}
+          TIMEOUT: ${{ inputs.timeout }}
+          # The app/tests need a key present under --harness; this is the same
+          # throwaway value the Test workflow uses, not a real secret.
+          DB_ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+        run: |
+          args=("$SOURCE" "$TEST")
+          if [ "$EXHAUSTIVE" = "true" ]; then args+=(--exhaustive); fi
+          if [ "$HARNESS" = "true" ]; then args+=(--harness); fi
+          if [ -n "$TIMEOUT" ]; then args+=(--timeout "$TIMEOUT"); fi
+          echo "::notice::deno task mutation ${args[*]}"
+          deno task mutation "${args[@]}"

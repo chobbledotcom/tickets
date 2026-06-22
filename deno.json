@@ -21,7 +21,8 @@
     "backup": "deno run --env-file --allow-env --allow-read --allow-write --allow-net --allow-sys --allow-ffi scripts/backup.ts",
     "cli:tui": "deno run --allow-env --allow-read --allow-run cli/tui.ts",
     "cli:api": "deno run --allow-env --allow-read --allow-run cli/api.ts",
-    "test:quality-audit": "deno run --allow-read scripts/test-quality-audit.ts"
+    "test:quality-audit": "deno run --allow-read scripts/test-quality-audit.ts",
+    "mutation": "deno run -A scripts/mutation.ts"
   },
   "imports": {
     "#fp": "./src/fp.ts",
