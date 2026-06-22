@@ -25,11 +25,13 @@ import {
   createTestGroup,
   createTestListing,
   createTestManagerSession,
+  deactivateTestListing,
   describeWithEnv,
   expectFlashRedirect,
   expectHtmlResponse,
   expectStatus,
   followRedirectWithFlash,
+  getTestSession,
   insertModifier,
   linkModifierListing,
   patchModifier,
@@ -1008,6 +1010,73 @@ describeWithEnv(
         true,
       )(response);
       expect(await getModifierListingIds(modifier.id)).toEqual([child.id]);
+    });
+
+    /** POST the scope-links form with repeated `listing_ids` values
+     * (mockFormRequest only carries a single value per key). */
+    const postListingLinks = async (
+      modifierId: number,
+      listingIds: number[],
+    ): Promise<Response> => {
+      const { cookie, csrfToken } = await getTestSession();
+      const body = new URLSearchParams();
+      body.set("csrf_token", csrfToken);
+      for (const id of listingIds) body.append("listing_ids", String(id));
+      return handleRequest(
+        new Request(`http://localhost/admin/modifiers/${modifierId}/links`, {
+          body: body.toString(),
+          headers: {
+            "content-type": "application/x-www-form-urlencoded",
+            cookie,
+            host: "localhost",
+          },
+          method: "POST",
+        }),
+      );
+    };
+
+    test("blocks scoping an opt-in add-on to {child, inactive non-child}", async () => {
+      // The non-child listing is INACTIVE, so it serves no public booking page
+      // and can't load the add-on. The add-on is therefore reachable only via
+      // the suppressed child — still a dead end, so the save is blocked.
+      const parent = await createTestListing({ name: "Base unit" });
+      const child = await createTestListing({ name: "Add-on" });
+      const inactive = await createTestListing({ name: "Hidden extra page" });
+      await deactivateTestListing(inactive.id);
+      await setChildIds(parent.id, [child.id]);
+      const modifier = await optInAddOn("Stranded extra");
+      const response = await postListingLinks(modifier.id, [
+        child.id,
+        inactive.id,
+      ]);
+      await expectFlashRedirect(
+        `/admin/modifiers/${modifier.id}/edit`,
+        t("modifiers.err_child_only_addon", { name: "Stranded extra" }),
+        false,
+      )(response);
+      expect(await getModifierListingIds(modifier.id)).toEqual([]);
+    });
+
+    test("allows scoping an opt-in add-on to {child, active non-child}", async () => {
+      // The non-child listing is ACTIVE, so its booking page loads the add-on:
+      // not a dead end, so the save is allowed.
+      const parent = await createTestListing({ name: "Base unit" });
+      const child = await createTestListing({ name: "Add-on" });
+      const reachable = await createTestListing({ name: "Live extra page" });
+      await setChildIds(parent.id, [child.id]);
+      const modifier = await optInAddOn("Reachable extra");
+      const response = await postListingLinks(modifier.id, [
+        child.id,
+        reachable.id,
+      ]);
+      await expectFlashRedirect(
+        `/admin/modifiers/${modifier.id}/edit`,
+        "Scope updated",
+        true,
+      )(response);
+      expect(await getModifierListingIds(modifier.id)).toEqual(
+        [child.id, reachable.id].sort((a, b) => a - b),
+      );
     });
   },
 );

@@ -432,13 +432,60 @@ describeWithEnv(
       expect(await getChildIds(parent.id)).toEqual([child.id]);
     });
 
-    test("admin API treats a non-array child_listing_ids as empty", async () => {
+    test("admin API rejects a string child_listing_ids without clearing edges", async () => {
       const parent = await createTestListing({ name: "Base unit" });
       const child = await createTestListing({ name: "Add-on" });
       await postChildren(parent.id, [child.id]);
       await assertJson(
         apiRequest(`/api/admin/listings/${parent.id}`, {
           body: { child_listing_ids: "not-an-array" },
+          method: "PUT",
+        }),
+        400,
+        (json) => {
+          expect(json.error).toBe(
+            "child_listing_ids must be an array of listing ids",
+          );
+        },
+      );
+      expect(await getChildIds(parent.id)).toEqual([child.id]);
+    });
+
+    test("admin API rejects an object child_listing_ids without clearing edges", async () => {
+      const parent = await createTestListing({ name: "Base unit" });
+      const child = await createTestListing({ name: "Add-on" });
+      await postChildren(parent.id, [child.id]);
+      await assertJson(
+        apiRequest(`/api/admin/listings/${parent.id}`, {
+          body: { child_listing_ids: { [child.id]: true } },
+          method: "PUT",
+        }),
+        400,
+      );
+      expect(await getChildIds(parent.id)).toEqual([child.id]);
+    });
+
+    test("admin API leaves edges untouched when child_listing_ids is omitted", async () => {
+      const parent = await createTestListing({ name: "Base unit" });
+      const child = await createTestListing({ name: "Add-on" });
+      await postChildren(parent.id, [child.id]);
+      await assertJson(
+        apiRequest(`/api/admin/listings/${parent.id}`, {
+          body: { name: "Renamed base" },
+          method: "PUT",
+        }),
+        200,
+      );
+      expect(await getChildIds(parent.id)).toEqual([child.id]);
+    });
+
+    test("admin API clears edges when child_listing_ids is an empty array", async () => {
+      const parent = await createTestListing({ name: "Base unit" });
+      const child = await createTestListing({ name: "Add-on" });
+      await postChildren(parent.id, [child.id]);
+      await assertJson(
+        apiRequest(`/api/admin/listings/${parent.id}`, {
+          body: { child_listing_ids: [] },
           method: "PUT",
         }),
         200,

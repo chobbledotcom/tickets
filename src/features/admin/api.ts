@@ -329,17 +329,32 @@ export const toAdminListing = ({
   ...rest
 }: ListingWithCount): AdminListing => rest;
 
-/** The submitted `child_listing_ids` as a numeric array (non-numbers dropped),
- * or null when the parents feature is off or the body omits the field — in
- * which case the API leaves a listing's existing edges untouched. */
-const submittedChildIds = (body: Record<string, unknown>): number[] | null => {
+/**
+ * Interpret the optional `child_listing_ids` field on a write body, telling
+ * three cases apart so a client typo can never silently wipe existing edges:
+ * - `{ skip: true }` — the parents feature is off or the field is omitted, so
+ *   the API leaves the listing's existing edges untouched;
+ * - `{ error }` — the field is present but not an array (a string, object, …),
+ *   reported as a 400 with the edges left intact;
+ * - `{ childIds }` — a real array, narrowed to its numeric ids (non-numbers
+ *   dropped), ready for {@link writeChildEdges}.
+ */
+type SubmittedChildIds =
+  | { skip: true }
+  | { error: string }
+  | { childIds: number[] };
+
+const submittedChildIds = (
+  body: Record<string, unknown>,
+): SubmittedChildIds => {
   if (!isListingParentsEnabled() || body.child_listing_ids === undefined) {
-    return null;
+    return { skip: true };
   }
   const raw = body.child_listing_ids;
-  return Array.isArray(raw)
-    ? raw.filter((id): id is number => typeof id === "number")
-    : [];
+  if (!Array.isArray(raw)) {
+    return { error: "child_listing_ids must be an array of listing ids" };
+  }
+  return { childIds: raw.filter((id): id is number => typeof id === "number") };
 };
 
 /**
@@ -361,12 +376,13 @@ const writeChildEdges = async (
 const listingApiRoutes = defineCrudApi<Listing, ListingInput, ListingWithCount>(
   {
     // No-op — the field is ignored — when the parents feature is off or the body
-    // omits it; otherwise validate + persist the required-child gate.
+    // omits it; reject a present-but-malformed field (so a client typo can't
+    // silently clear edges); otherwise validate + persist the required-child gate.
     afterWrite: (listing, body) => {
       const submitted = submittedChildIds(body);
-      return submitted === null
-        ? Promise.resolve(null)
-        : writeChildEdges(listing, submitted);
+      if ("skip" in submitted) return Promise.resolve(null);
+      if ("error" in submitted) return Promise.resolve(submitted.error);
+      return writeChildEdges(listing, submitted.childIds);
     },
     extraRoutes: {
       "DELETE /api/admin/listings/:listingId": handleDeleteListing,

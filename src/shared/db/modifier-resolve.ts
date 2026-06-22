@@ -200,7 +200,8 @@ const scopeReachesPage = (
  * - the **edge save** treats the new child as the only `suppressed` id and the
  *   parent's own page id as the only `reachable` one;
  * - the **modifier save** treats every existing child as `suppressed` and every
- *   non-child listing as `reachable` (each has its own bookable page).
+ *   active non-child listing as `reachable` (each has its own bookable page; an
+ *   inactive listing serves no public page, so it can't rescue the add-on).
  */
 const scopeIsChildDeadEnd = (
   scope: number[] | null,
@@ -594,21 +595,18 @@ export type AddOnReachabilityCheck = {
  *
  * Only an **active, opt-in** add-on is gated: an inactive or non-`optional`
  * modifier never loads on a booking page, so it can't dead-end. The resolved
- * scope is treated as reachable from every **non-child** listing (each has its
- * own bookable page/group page that loads it) and a dead end only when it names
- * a child but no non-child listing.
+ * scope is treated as reachable from each listing in `reachablePageIds` — the
+ * **active, non-child** listings, since only those serve a public booking page
+ * that loads add-ons — and a dead end only when it names a child but reaches
+ * none of those pages.
  */
 export const childUnreachableAddOnError = (
   candidate: AddOnReachabilityCheck,
   childListingIds: Set<number>,
-  nonChildListingIds: Set<number>,
+  reachablePageIds: Set<number>,
 ): string | null => {
   if (!candidate.active || candidate.trigger !== "optional") return null;
-  return scopeIsChildDeadEnd(
-    candidate.scope,
-    childListingIds,
-    nonChildListingIds,
-  )
+  return scopeIsChildDeadEnd(candidate.scope, childListingIds, reachablePageIds)
     ? t("modifiers.err_child_only_addon", { name: candidate.name })
     : null;
 };

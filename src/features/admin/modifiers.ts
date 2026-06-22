@@ -156,7 +156,15 @@ const childAddOnSaveError = async (
   const allListings = await getAllListings();
   const allIds = allListings.map((listing) => listing.id);
   const childIds = await getChildListingIds(allIds);
-  const nonChildIds = new Set(allIds.filter((id) => !childIds.has(id)));
+  // Only an ACTIVE non-child listing can serve a booking page (public ticket
+  // contexts load active listings only — `withActiveListings`), so an inactive
+  // non-child listing must NOT count as a reachable page that rescues a
+  // child-only add-on from being a dead end.
+  const reachableIds = new Set(
+    allListings
+      .filter((listing) => listing.active && !childIds.has(listing.id))
+      .map((listing) => listing.id),
+  );
   return childUnreachableAddOnError(
     {
       active: candidate.active,
@@ -170,7 +178,7 @@ const childAddOnSaveError = async (
       trigger: candidate.trigger,
     },
     childIds,
-    nonChildIds,
+    reachableIds,
   );
 };
 
