@@ -150,4 +150,26 @@ describe("withTransaction lock contention", () => {
       setDb(null);
     }
   });
+
+  test("surfaces the original error when the rollback also fails", async () => {
+    // A failed commit leaves the transaction in a state where rollback can itself
+    // throw; that failure is swallowed so the real cause (here the commit error)
+    // is what propagates — and what the retry/give-up logic keys off.
+    const tx = {
+      commit: () => Promise.reject(new Error("commit boom")),
+      rollback: () => Promise.reject(new Error("rollback boom")),
+    } as unknown as Transaction;
+    setDb(clientWith(() => Promise.resolve(tx)));
+    try {
+      let message = "";
+      try {
+        await withTransaction(async () => "x");
+      } catch (error) {
+        message = (error as Error).message;
+      }
+      expect(message).toBe("commit boom");
+    } finally {
+      setDb(null);
+    }
+  });
 });

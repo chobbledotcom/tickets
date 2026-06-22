@@ -12,7 +12,6 @@ import {
   type InStatement,
   type InValue,
   type ResultSet,
-  type Transaction,
   type TransactionMode,
 } from "@libsql/client";
 import { lazyRef } from "#fp";
@@ -137,12 +136,56 @@ export const setDb = (client: Client | null): void => dbSetter(client);
 export const resultRows = <T>(result: ResultSet): T[] =>
   result.rows as unknown as T[];
 
+/** Raised when a write can't get through because the database stays locked after
+ *  the retries below — too busy. The request layer turns this into a friendly
+ *  auto-reloading page rather than a generic error. */
+export class DatabaseBusyError extends Error {
+  constructor() {
+    super("the database is too busy to complete this write");
+    this.name = "DatabaseBusyError";
+  }
+}
+
+/** Backoff before each retry of a contended database lock; its length is the
+ *  number of retries, so four attempts in total. */
+const WRITE_LOCK_RETRY_BACKOFF_MS = [50, 150, 350] as const;
+const WRITE_LOCK_ATTEMPTS = WRITE_LOCK_RETRY_BACKOFF_MS.length + 1;
+
+/** SQLite has a single writer, so a contended write surfaces as SQLITE_BUSY —
+ *  thrown immediately by the local driver as "database is locked" when a bare
+ *  statement can't take the lock, or at an interactive transaction's commit as
+ *  "cannot commit transaction - SQL statements in progress" when another writer
+ *  still holds the connection. Both carry SQLITE_BUSY in the message. */
+const isDatabaseLocked = (error: unknown): boolean =>
+  error instanceof Error &&
+  /SQLITE_BUSY|database is locked/i.test(error.message);
+
+/**
+ * Retry `run` while it loses a contended write lock, backing off between attempts
+ * so a brief overlap with another writer resolves itself rather than failing the
+ * loser. A lock that outlasts the retries surfaces as {@link DatabaseBusyError}
+ * (the request layer's friendly busy page); every other error propagates at once.
+ */
+const retryOnDatabaseLock = async <T>(run: () => Promise<T>): Promise<T> => {
+  for (let attempt = 0; attempt < WRITE_LOCK_ATTEMPTS; attempt++) {
+    if (attempt > 0) await delay(WRITE_LOCK_RETRY_BACKOFF_MS[attempt - 1]!);
+    try {
+      return await run();
+    } catch (error) {
+      if (!isDatabaseLocked(error)) throw error;
+    }
+  }
+  throw new DatabaseBusyError();
+};
+
 const executeTrackedStatement = (
   sql: string,
   args?: InValue[],
 ): Promise<ResultSet> =>
   trackQuery(sql, () =>
-    args ? getDb().execute({ args, sql }) : getDb().execute(sql),
+    retryOnDatabaseLock(() =>
+      args ? getDb().execute({ args, sql }) : getDb().execute(sql),
+    ),
   );
 
 /**
@@ -296,64 +339,21 @@ export type TxScope = {
   execute: (stmt: InStatement) => Promise<ResultSet>;
 };
 
-/** Raised by {@link withTransaction} when it cannot acquire the write lock after
- *  retrying — the database is too busy. The request layer turns this into a
- *  friendly auto-reloading page rather than a generic error. */
-export class DatabaseBusyError extends Error {
-  constructor() {
-    super("the database is too busy to complete this write");
-    this.name = "DatabaseBusyError";
-  }
-}
-
-/** Backoff before each retry of a contended write-lock acquisition; its length is
- *  the number of retries, so three attempts in total. */
-const WRITE_LOCK_RETRY_BACKOFF_MS = [50, 150] as const;
-const WRITE_LOCK_ATTEMPTS = WRITE_LOCK_RETRY_BACKOFF_MS.length + 1;
-
-/** A contended interactive write transaction surfaces as SQLITE_BUSY (the local
- *  driver throws immediately; a remote one may throw after its own wait). */
-const isDatabaseLocked = (error: unknown): boolean =>
-  error instanceof Error &&
-  /SQLITE_BUSY|database is locked/i.test(error.message);
+/** The callback {@link withTransaction} runs inside the write transaction: it
+ *  issues statements through its {@link TxScope} and resolves to a result. */
+type TransactionWork<T> = (tx: TxScope) => Promise<T>;
 
 /**
- * Acquire an interactive write transaction, retrying a contended lock a couple of
- * times with backoff so concurrent writers serialize instead of failing the
- * loser. Gives up as {@link DatabaseBusyError} once the retries are exhausted; a
- * non-lock error propagates immediately.
+ * Run `work` in one freshly-begun interactive write transaction, committing on
+ * success and rolling back on any error. Cache invalidations fire once after a
+ * successful commit (a rollback fires none). A write lock lost while beginning or
+ * committing throws SQLITE_BUSY, which {@link withTransaction} treats as
+ * retryable; every other error propagates.
  */
-const beginWriteTransaction = async (): Promise<Transaction> => {
-  for (let attempt = 0; attempt < WRITE_LOCK_ATTEMPTS; attempt++) {
-    if (attempt > 0) await delay(WRITE_LOCK_RETRY_BACKOFF_MS[attempt - 1]!);
-    try {
-      return await getDb().transaction("write");
-    } catch (error) {
-      if (!isDatabaseLocked(error)) throw error;
-    }
-  }
-  throw new DatabaseBusyError();
-};
-
-/**
- * Run `work` inside one interactive write transaction, committing on success and
- * rolling back (then rethrowing) on any error. Use this — rather than a plain
- * batch — when a multi-step write needs conditional logic between steps, e.g.
- * create → check capacity → finalize, where a zero-row guard must abort and undo
- * everything.
- *
- * The write lock is acquired with a short retry (see {@link beginWriteTransaction})
- * so concurrent writers serialize rather than failing; a database that stays
- * locked surfaces as {@link DatabaseBusyError}. Statements run through the
- * provided `execute` are tracked, and their table-scoped cache invalidations fire
- * once after the commit succeeds (a rollback fires none) — so callers get the
- * same automatic invalidation as the single-statement `execute`, driven by the
- * writes themselves rather than by each call site remembering to invalidate.
- */
-export const withTransaction = async <T>(
-  work: (tx: TxScope) => Promise<T>,
+const runWriteTransactionOnce = async <T>(
+  work: TransactionWork<T>,
 ): Promise<T> => {
-  const tx = await beginWriteTransaction();
+  const tx = await getDb().transaction("write");
   const writtenSql: string[] = [];
   const scope: TxScope = {
     execute: (stmt) => {
@@ -370,9 +370,53 @@ export const withTransaction = async <T>(
     for (const sql of writtenSql) invalidateForSql(sql);
     return result;
   } catch (error) {
-    await tx.rollback();
+    // After a failed commit the transaction may already be aborted, so the
+    // rollback can itself throw; ignore that and surface the original error.
+    await tx.rollback().catch(() => undefined);
     throw error;
   }
+};
+
+/** Every interactive write transaction shares the one libsql connection, so two
+ *  that overlap can leave a statement in progress at the other's commit ("cannot
+ *  commit transaction - SQL statements in progress") or lose the write lock.
+ *  Chaining each transaction through this promise serialises them — one runs
+ *  begin-to-commit before the next begins — the in-process realisation of
+ *  SQLite's single writer, turning would-be contention into an orderly wait.
+ *  A `const` holder (not a module-level `let`) carries the mutable tail. */
+const writeQueue: { tail: Promise<unknown> } = { tail: Promise.resolve() };
+
+/**
+ * Run `work` inside one interactive write transaction, committing on success and
+ * rolling back (then rethrowing) on any error. Use this — rather than a plain
+ * batch — when a multi-step write needs conditional logic between steps, e.g.
+ * create → check capacity → finalize, where a zero-row guard must abort and undo
+ * everything.
+ *
+ * Concurrent calls serialise: each waits for the previous interactive
+ * transaction to settle before it begins, so two never overlap on the shared
+ * connection (the documented "concurrent writers serialise rather than failing
+ * the loser"). A genuinely contended lock — e.g. a non-transactional read racing
+ * the commit — is still retried a few times with backoff (each retry re-runs
+ * `work` on a fresh transaction, the prior attempt having rolled back), and a
+ * database that stays locked surfaces as {@link DatabaseBusyError}. Statements run
+ * through the provided `execute` are tracked, and their table-scoped cache
+ * invalidations fire once after the commit succeeds — so callers get the same
+ * automatic invalidation as the single-statement `execute`, driven by the writes
+ * themselves rather than by each call site remembering to invalidate.
+ */
+export const withTransaction = <T>(work: TransactionWork<T>): Promise<T> => {
+  // The async body runs synchronously up to its first await — reading the prior
+  // tail there — so reserving our slot (`writeQueue.tail = run`) before any other
+  // call interleaves keeps the queue strictly ordered. We wait for the previous
+  // transaction however it settled (`.catch` swallows its failure — that is its
+  // own caller's concern), then run, retrying a contended lock on a fresh tx.
+  const run = (async (): Promise<T> => {
+    await writeQueue.tail.catch(() => undefined);
+    return retryOnDatabaseLock(() => runWriteTransactionOnce(work));
+  })();
+  writeQueue.tail = run;
+  return run;
 };
 
 /** Build SQL placeholders for an IN clause, e.g. "?, ?, ?" */
