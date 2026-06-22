@@ -69,11 +69,7 @@ const reconcileLedgerBalance = async (
       eventGroup: group,
       kind: "adjustment",
       occurredAt,
-      reference: await legReference([
-        "balance-adjust",
-        attendeeId,
-        occurredAt,
-      ]),
+      reference: await legReference(["balance-adjust", attendeeId, occurredAt]),
       source: delta > 0 ? attendee : WORLD,
     },
   ]);

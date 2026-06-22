@@ -41,10 +41,6 @@ import {
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { parseTokens } from "#routes/tickets/token-utils.ts";
 import { getSearchParam } from "#routes/url.ts";
-import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
-import { transfersByAccount } from "#shared/accounting/queries.ts";
-import { eventGroup, legReference } from "#shared/accounting/refs.ts";
-import { guardedInsertStatement } from "#shared/accounting/rows.ts";
 import { calculateBookingFee } from "#shared/booking-fee.ts";
 import {
   bookingLedgerPoster,

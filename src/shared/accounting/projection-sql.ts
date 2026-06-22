@@ -49,11 +49,14 @@ export const sumAmountFromTransfers = (where: string, alias: string): string =>
  * "owed" figure negates it (outstanding = `-balance`). Scanning only the
  * account's own legs (`<dest> OR <source>`) keeps it index-backed.
  */
-export const accountBalanceSubquery = (type: string, idExpr: string): string => {
+export const accountBalanceSubquery = (
+  type: string,
+  idExpr: string,
+): string => {
   const asDest = accountPredicate("dest", type, idExpr);
   const asSource = accountPredicate("source", type, idExpr);
   return (
-    `(SELECT COALESCE(SUM(` +
+    "(SELECT COALESCE(SUM(" +
     `CASE WHEN ${asDest} THEN amount WHEN ${asSource} THEN -amount ELSE 0 END` +
     `), 0) FROM transfers WHERE ${asDest} OR ${asSource})`
   );

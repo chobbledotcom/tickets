@@ -10,7 +10,7 @@
 
 import type { InValue } from "@libsql/client";
 import { compact, mapParallel, sumOf } from "#fp";
-import { WORLD, attendeeAccount } from "#shared/accounting/accounts.ts";
+import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
 import { accountBalanceSubquery } from "#shared/accounting/projection-sql.ts";
 import { eventGroup, legReference } from "#shared/accounting/refs.ts";
 import { guardedInsertStatement } from "#shared/accounting/rows.ts";

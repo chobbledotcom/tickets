@@ -2,16 +2,11 @@ import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
-import {
-  attendeeAccount,
-  revenueAccount,
-  WORLD,
-} from "#shared/accounting/accounts.ts";
+import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import {
   accountBalance,
   transfersByAccount,
 } from "#shared/accounting/queries.ts";
-import { postTransfers } from "#shared/accounting/store.ts";
 import { signBalanceToken } from "#shared/balance-link.ts";
 import {
   attendeeStatusesTable,
