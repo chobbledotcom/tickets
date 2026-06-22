@@ -24,6 +24,7 @@
  * changed site currency can never mix currencies in one ledger.
  */
 
+import type { InValue } from "@libsql/client";
 import { mapBooking, mapRefund } from "#shared/accounting/mappers.ts";
 import { accountBalancesForIds } from "#shared/accounting/queries.ts";
 import {
@@ -136,6 +137,29 @@ const attendeeLegs = async (
   return [...bookingLegs, ...(await mapRefund({ occurredAt, orderLegs }))];
 };
 
+/** The UPDATE that links an attendee's booking rows to their order's ledger
+ *  event group — what the per-row amount-paid projection keys on. */
+const stampStatement = (
+  attendeeId: number,
+  eventGroup: string,
+): { sql: string; args: InValue[] } => ({
+  args: [eventGroup, attendeeId],
+  sql: "UPDATE listing_attendees SET ledger_event_group = ? WHERE attendee_id = ?",
+});
+
+/** Stamp the row→event link for an already-ledgered attendee from their existing
+ *  booking's sale leg, in one statement (so no read-then-write and no re-post).
+ *  COALESCE to '' when no sale leg exists, which the projection reads as 0. */
+const stampFromExistingStatement = (
+  attendeeId: number,
+): { sql: string; args: InValue[] } => ({
+  args: [String(attendeeId), attendeeId],
+  sql:
+    "UPDATE listing_attendees SET ledger_event_group = COALESCE(" +
+    "(SELECT event_group FROM transfers WHERE source_type = 'attendee'" +
+    " AND source_id = ? AND kind = 'sale' LIMIT 1), '') WHERE attendee_id = ?",
+});
+
 /**
  * Backfill the ledger from every existing paid booking. `siteCurrency` is the
  * currency to post in when the ledger is still empty; a non-empty ledger's own
@@ -154,7 +178,15 @@ export const backfillTransfers = async (
     const ledgered = await alreadyLedgered(attendeeIds);
     const groups = groupByAttendee(await paidRowsForAttendees(attendeeIds));
     for (const [attendeeId, rows] of groups) {
-      if (ledgered.has(String(attendeeId))) continue;
+      if (ledgered.has(String(attendeeId))) {
+        // Already ledgered by the live dual-write path: don't re-post, but still
+        // stamp the row→event link from the existing booking's sale leg so the
+        // per-row amount-paid projection resolves it. On the shipping path the
+        // ledger is empty here, so this branch never runs — it is deploy-order
+        // robustness, matching the skip-already-ledgered guard it pairs with.
+        await executeBatch([stampFromExistingStatement(attendeeId)]);
+        continue;
+      }
       const recordedAt = nowIso();
       const legs = await attendeeLegs(attendeeId, rows, currency);
       // Stamp the order's rows with their booking event group (the first leg's,
@@ -163,10 +195,7 @@ export const backfillTransfers = async (
       // batch as the inserts so the rows and their legs land together.
       await executeBatch([
         ...legs.map((leg) => orIgnore(insertStatement(leg, recordedAt))),
-        {
-          args: [legs[0]!.eventGroup, attendeeId],
-          sql: "UPDATE listing_attendees SET ledger_event_group = ? WHERE attendee_id = ?",
-        },
+        stampStatement(attendeeId, legs[0]!.eventGroup),
       ]);
     }
     afterId = attendeeIds[attendeeIds.length - 1]!;

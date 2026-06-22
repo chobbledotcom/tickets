@@ -66,6 +66,7 @@ const getBookings = (attendeeId: number) =>
     checked_in: number;
     refunded: number;
     price_paid: number;
+    ledger_event_group: string;
     attachment_downloads: number;
   }>(
     `SELECT ${LISTING_ATTENDEE_ROW_COLS}
@@ -639,6 +640,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               attachment_downloads: 0,
               checked_in: 0,
               end_at: null,
+              ledger_event_group: "",
               listing_id: 5,
               price_paid: 0,
               quantity: 1,
@@ -650,6 +652,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               attachment_downloads: 0,
               checked_in: 0,
               end_at: null,
+              ledger_event_group: "",
               listing_id: 5,
               price_paid: 0,
               quantity: 2,
@@ -687,6 +690,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               attachment_downloads: 0,
               checked_in: 0,
               end_at: null,
+              ledger_event_group: "",
               listing_id: 7,
               price_paid: 0,
               quantity: 1,
@@ -698,6 +702,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               attachment_downloads: 0,
               checked_in: 0,
               end_at: null,
+              ledger_event_group: "",
               listing_id: 7,
               price_paid: 0,
               quantity: 2,
@@ -745,6 +750,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               attachment_downloads: 0,
               checked_in: 0,
               end_at: null,
+              ledger_event_group: "",
               listing_id: 5,
               price_paid: 0,
               quantity: 1,
@@ -756,6 +762,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               attachment_downloads: 0,
               checked_in: 0,
               end_at: null,
+              ledger_event_group: "",
               listing_id: 5,
               price_paid: 0,
               quantity: 2,

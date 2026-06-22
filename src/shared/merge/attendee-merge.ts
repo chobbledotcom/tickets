@@ -411,7 +411,10 @@ const applyAnswerDecisions = async (
 /** Build an INSERT statement to copy a source booking to the target.
  *  `refunded` is not written — the column is gone; refund status follows the
  *  attendee through the merge's ledger repoint (the source's `refund_cash` legs
- *  are re-sourced onto the target), so the projection still reports it. */
+ *  are re-sourced onto the target), so the projection still reports it. The
+ *  source's `ledger_event_group` IS carried: the repoint re-sources that booking's
+ *  legs onto the target without changing their event group, so the copied row must
+ *  keep the link or the per-row amount-paid projection loses it. */
 const bookingInsertStatement = (
   targetId: number,
   booking: ListingAttendeeRow,
@@ -421,6 +424,7 @@ const bookingInsertStatement = (
     attendee_id: targetId,
     checked_in: booking.checked_in,
     end_at: booking.end_at,
+    ledger_event_group: booking.ledger_event_group,
     listing_id: booking.listing_id,
     price_paid: booking.price_paid,
     quantity: booking.quantity,

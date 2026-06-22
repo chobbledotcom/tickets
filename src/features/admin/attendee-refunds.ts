@@ -197,12 +197,15 @@ const refundAtProvider = async (
 
 /**
  * Process a batch of refundable attendees and tally results. Provider refunds run
- * in parallel within each chunk; the ledger reversals for every success are then
- * posted together in one transaction (see {@link recordAttendeeRefundsBatch}) —
- * a per-attendee interactive write would otherwise contend the single SQLite
- * writer (SQLITE_BUSY) at scale. A missed post is tallied as errored, not
- * refunded: refund status is ledger-only now, so it must surface rather than
- * leave the payment silently re-refundable. Never 500s — neither helper throws.
+ * in parallel within each chunk; then — before issuing the next chunk's provider
+ * refunds — that chunk's successes are recorded in the ledger in one transaction
+ * (see {@link recordAttendeeRefundsBatch}), so an edge timeout mid-batch can't
+ * leave a completed provider refund without its `refund_cash` leg (a retry would
+ * see it already-refunded and never re-post). The per-attendee interactive write
+ * is avoided because it contends the single SQLite writer (SQLITE_BUSY) at scale.
+ * A missed post is tallied as errored, not refunded: refund status is ledger-only
+ * now, so it must surface rather than leave the payment silently re-refundable.
+ * Never 500s — neither helper throws.
  */
 const processRefundBatch = async (
   provider: NonNullable<Awaited<ReturnType<typeof getActivePaymentProvider>>>,
@@ -215,21 +218,24 @@ const processRefundBatch = async (
     failedCount: 0,
     refundedCount: 0,
   };
-  const refundedIds: number[] = [];
   for (const group of chunk(REFUND_CHUNK_SIZE)(batch)) {
     const results = await Promise.all(
       group.map((attendee) => refundAtProvider(provider, attendee, listingId)),
     );
+    const chunkRefundedIds: number[] = [];
     for (const { attendee, outcome } of results) {
       if (outcome === "errored") counts.errorCount++;
       else if (outcome === "failed") counts.failedCount++;
-      else refundedIds.push(attendee.id);
+      else chunkRefundedIds.push(attendee.id);
     }
-  }
-  const posted = await recordAttendeeRefundsBatch(refundedIds);
-  for (const ok of posted.values()) {
-    if (ok) counts.refundedCount++;
-    else counts.errorCount++;
+    // Record this chunk's ledger reversals before moving on to the next chunk's
+    // provider refunds, narrowing the window where a completed provider refund
+    // has no ledger leg.
+    const posted = await recordAttendeeRefundsBatch(chunkRefundedIds);
+    for (const ok of posted.values()) {
+      if (ok) counts.refundedCount++;
+      else counts.errorCount++;
+    }
   }
   return counts;
 };

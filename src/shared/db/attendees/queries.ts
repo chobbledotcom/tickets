@@ -60,7 +60,7 @@ export const ATTENDEE_LEFT_JOIN_SELECT = `${ATTENDEE_COLS}, COALESCE(ea.listing_
  */
 export const LISTING_ATTENDEE_ROW_COLS = `listing_id, start_at, end_at, quantity, checked_in, ${refundedFromLedger(
   "attendee_id",
-)}, price_paid, attachment_downloads`;
+)}, price_paid, ledger_event_group, attachment_downloads`;
 
 /**
  * Get attendees for an listing without decrypting PII
@@ -325,6 +325,7 @@ export const getAttendeesByTokens = async (
       attachment_downloads: row.attachment_downloads,
       checked_in: row.checked_in,
       end_at: row.end_at,
+      ledger_event_group: row.ledger_event_group,
       listing_id: row.listing_id,
       price_paid: row.price_paid,
       quantity: row.quantity,
