@@ -8,7 +8,7 @@ import { formatDatetimeShort } from "#shared/dates.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession, Session } from "#shared/types.ts";
-import { AdminNav, UsersSubNav } from "#templates/admin/nav.tsx";
+import { AdminNav } from "#templates/admin/nav.tsx";
 import { GuideLink, SubmitButton } from "#templates/components/actions.tsx";
 import { Layout } from "#templates/layout.tsx";
 
@@ -52,9 +52,7 @@ export const adminSessionsPage = (
 
   return String(
     <Layout title={t("sessions.title")}>
-      <AdminNav active="/admin/users" session={adminSession}>
-        <UsersSubNav />
-      </AdminNav>
+      <AdminNav active="/admin/users" session={adminSession} />
       <Flash success={success} />
 
       <p class="actions">

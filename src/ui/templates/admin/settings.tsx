@@ -5,7 +5,7 @@
 import { t } from "#i18n";
 import type { SuperuserState } from "#shared/superuser.ts";
 import type { AdminSession, Theme } from "#shared/types.ts";
-import { AdminNav, SettingsSubNav } from "#templates/admin/nav.tsx";
+import { AdminNav } from "#templates/admin/nav.tsx";
 import { BusinessEmailForm } from "#templates/admin/settings/business-email.tsx";
 import { CalendarFeedsForm } from "#templates/admin/settings/calendar-feeds.tsx";
 import { ChangePasswordForm } from "#templates/admin/settings/change-password.tsx";
@@ -71,9 +71,7 @@ export const adminSettingsPage = (
 ): string =>
   String(
     <Layout theme={s.theme} title={t("settings.title")}>
-      <AdminNav active="/admin/settings" session={session}>
-        <SettingsSubNav />
-      </AdminNav>
+      <AdminNav active="/admin/settings" session={session} />
       {CountryForm(s)}
       {BusinessEmailForm(s)}
       {HeaderImageForm(s)}

@@ -18,7 +18,7 @@ import {
   type ExpectedActualItem,
   ExpectedActualNotice,
 } from "#templates/admin/expected-actual.tsx";
-import { AdminNav, SettingsSubNav } from "#templates/admin/nav.tsx";
+import { AdminNav } from "#templates/admin/nav.tsx";
 import {
   adminRecalculatePage,
   type RecalculateRow,
@@ -90,9 +90,7 @@ export const adminQuestionsPage = (
 ): string =>
   String(
     <Layout title={t("questions.title")}>
-      <AdminNav active="/admin/settings" session={session}>
-        <SettingsSubNav />
-      </AdminNav>
+      <AdminNav active="/admin/settings" session={session} />
       <p class="actions">
         <GuideLink href="/admin/guide#questions">Questions guide</GuideLink>
       </p>
@@ -157,9 +155,7 @@ export const adminQuestionPage = (
 ): string =>
   String(
     <Layout title={`Question: ${question.text}`}>
-      <AdminNav active="/admin/settings" session={session}>
-        <SettingsSubNav />
-      </AdminNav>
+      <AdminNav active="/admin/settings" session={session} />
       <h1>{question.text}</h1>
       <Flash error={error} />
 
@@ -374,9 +370,7 @@ export const adminAnswerEditPage = (
 ): string =>
   String(
     <Layout title={t("questions.edit_answer.title")}>
-      <AdminNav active="/admin/settings" session={session}>
-        <SettingsSubNav />
-      </AdminNav>
+      <AdminNav active="/admin/settings" session={session} />
       <p>
         <BackButton href={`/admin/questions/${question.id}`}>
           {t("questions.edit_answer.back_to_question")}
@@ -490,9 +484,7 @@ export const adminQuestionDeletePage = (
 ): string =>
   String(
     <Layout title={t("questions.delete.heading")}>
-      <AdminNav active="/admin/settings" session={session}>
-        <SettingsSubNav />
-      </AdminNav>
+      <AdminNav active="/admin/settings" session={session} />
       <ConfirmForm
         action={`/admin/questions/${question.id}/delete`}
         buttonText={t("questions.delete.submit")}
@@ -516,9 +508,7 @@ export const adminAnswerDeletePage = (
 ): string =>
   String(
     <Layout title={t("questions.delete_answer.title")}>
-      <AdminNav active="/admin/settings" session={session}>
-        <SettingsSubNav />
-      </AdminNav>
+      <AdminNav active="/admin/settings" session={session} />
       <ConfirmForm
         action={`/admin/questions/${question.id}/answers/${answer.id}/delete`}
         buttonText={t("questions.delete_answer.submit")}

@@ -11,26 +11,9 @@ import {
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
-import { AdminNav, SettingsSubNav } from "#templates/admin/nav.tsx";
+import { AdminNav } from "#templates/admin/nav.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
 import { Layout } from "#templates/layout.tsx";
-
-/** Sub-navigation for site editor pages */
-const SiteSubNav = (): JSX.Element => (
-  <nav>
-    <ul>
-      <li>
-        <a href="/admin/site">{t("site.sub_nav.homepage")}</a>
-      </li>
-      <li>
-        <a href="/admin/site/contact">{t("site.sub_nav.contact")}</a>
-      </li>
-      <li>
-        <a href="/admin/site/order">{t("site.sub_nav.order")}</a>
-      </li>
-    </ul>
-  </nav>
-);
 
 /**
  * Homepage editor - website title + homepage text
@@ -44,10 +27,7 @@ export const adminSiteHomePage = (
 ): string =>
   String(
     <Layout title={t("site.home_title")}>
-      <AdminNav active="/admin/settings" session={session}>
-        <SettingsSubNav />
-        <SiteSubNav />
-      </AdminNav>
+      <AdminNav active="/admin/site" session={session} />
       <Flash error={error} success={success} />
 
       <h2>{t("site.home.heading")}</h2>
@@ -140,10 +120,7 @@ export const adminSiteContactPage = (
 ): string =>
   String(
     <Layout title={t("site.contact_title")}>
-      <AdminNav active="/admin/settings" session={session}>
-        <SettingsSubNav />
-        <SiteSubNav />
-      </AdminNav>
+      <AdminNav active="/admin/site" session={session} />
       <Flash error={error} success={success} />
 
       <h2>{t("site.contact.heading")}</h2>
@@ -207,10 +184,7 @@ export const adminSiteOrderPage = (
 ): string =>
   String(
     <Layout title={t("site.order_title")}>
-      <AdminNav active="/admin/settings" session={session}>
-        <SettingsSubNav />
-        <SiteSubNav />
-      </AdminNav>
+      <AdminNav active="/admin/site" session={session} />
       <Flash error={error} success={success} />
 
       <div class="prose">

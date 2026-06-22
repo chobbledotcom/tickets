@@ -8,7 +8,7 @@ import { ConfirmForm, CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { RESERVATION_AMOUNT_HINT } from "#shared/reservation-amount.ts";
 import type { AdminSession } from "#shared/types.ts";
-import { AdminNav, SettingsSubNav } from "#templates/admin/nav.tsx";
+import { AdminNav } from "#templates/admin/nav.tsx";
 import {
   ActionButton,
   DeleteSection,
@@ -77,9 +77,7 @@ export const adminAttendeeStatusesPage = (
 ): string =>
   String(
     <Layout title={t("statuses.attendee_statuses_page_title")}>
-      <AdminNav active="/admin/settings" session={session}>
-        <SettingsSubNav />
-      </AdminNav>
+      <AdminNav active="/admin/settings" session={session} />
       <div class="prose">
         <h1>{t("statuses.attendee_statuses_page_title")}</h1>
         <p>
@@ -139,9 +137,7 @@ export const adminAttendeeStatusFormPage = (
         editing ? t("statuses.form_title_edit") : t("statuses.form_title_add")
       }
     >
-      <AdminNav active="/admin/settings" session={session}>
-        <SettingsSubNav />
-      </AdminNav>
+      <AdminNav active="/admin/settings" session={session} />
       <h1>
         {editing ? t("statuses.form_title_edit") : t("statuses.form_title_add")}
       </h1>
@@ -206,9 +202,7 @@ export const adminAttendeeStatusDeletePage = (
 ): string =>
   String(
     <Layout title={t("statuses.delete_title")}>
-      <AdminNav active="/admin/settings" session={session}>
-        <SettingsSubNav />
-      </AdminNav>
+      <AdminNav active="/admin/settings" session={session} />
       <ConfirmForm
         action={`${LIST_PATH}/${status.id}/delete`}
         buttonText={t("statuses.delete_button")}

@@ -331,44 +331,7 @@ nav ul {
 }
 
 nav ul li {
-  position: relative;
   text-align: left;
-}
-
-/* Nav Dropdown */
-nav ul li:hover ul {
-  display: block;
-}
-
-nav ul li ul {
-  background: var(--color-bg);
-  border: 1px solid var(--color-bg-secondary);
-  border-radius: var(--border-radius);
-  box-shadow: var(--box-shadow) var(--color-shadow);
-  display: none;
-  height: auto;
-  left: -2px;
-  padding: 0.5rem 1rem;
-  position: absolute;
-  top: 1.7rem;
-  white-space: nowrap;
-  width: auto;
-  z-index: 1;
-}
-
-nav ul li ul::before {
-  /* fill gap above to make mousing over them easier */
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: -0.5rem;
-  height: 0.5rem;
-}
-
-nav ul li ul li,
-nav ul li ul li a {
-  display: block;
 }
 
 /* Nav for Mobile */
@@ -377,20 +340,20 @@ nav ul li ul li a {
     flex-wrap: wrap;
     justify-content: flex-start;
   }
-
-  nav ul li ul {
-    border: none;
-    box-shadow: none;
-    display: block;
-    position: static;
-  }
 }
 
-/* The admin nav and its section sub-nav share this wrapper. On mobile/tablet
-   it is transparent (display: contents), so the navs lay out as the plain
-   stacked bars they always have. On desktop it becomes a sticky left column. */
+/* The admin nav wraps a desktop sidebar nav and the mobile bars; CSS shows
+   whichever suits the viewport. On mobile/tablet the wrapper is transparent
+   (display: contents), so the mobile bars lay out as the plain stacked bars
+   admin has always shown; on desktop it becomes a sticky left column. */
 .admin-nav-group {
   display: contents;
+}
+
+/* The desktop sidebar nav is hidden until the desktop breakpoint (below); the
+   mobile bars use the default nav styling above. */
+.admin-nav--desktop {
+  display: none;
 }
 
 nav a.active {
@@ -398,11 +361,11 @@ nav a.active {
 }
 
 /* Nav for Desktop: pin the admin menu to the left as a sticky sidebar, with the
-   page content flowing to its right. The main nav and its sub-nav stack into one
-   simple list of plain links — no boxes or borders — and the sub-nav is indented
-   so it reads as merged into the top-level menu. */
+   page content flowing to its right. The sidebar is a plain vertical list of
+   links — no boxes or borders — with each section's sub-nav nested and indented
+   beneath its parent link. */
 @media (min-width: 769px) {
-  body:has(.admin-nav-group) main {
+  body:has(#main-nav) main {
     display: grid;
     grid-template-columns: var(--admin-nav-width) minmax(0, 1fr);
     gap: 0 var(--space-xl);
@@ -410,9 +373,7 @@ nav a.active {
   }
 
   .admin-nav-group {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-s);
+    display: block;
     grid-column: 1;
     /* Span every content row (9999 stands in for "all rows" — `-1` can't target
        the implicit grid) so the sidebar's height never stretches a content row
@@ -428,68 +389,55 @@ nav a.active {
   }
 
   /* Everything that isn't the sidebar flows down column 2... */
-  body:has(.admin-nav-group) main > :not(.admin-nav-group) {
+  body:has(#main-nav) main > :not(.admin-nav-group) {
     grid-column: 2;
     min-width: 0;
   }
 
   /* ...with margins re-creating the inter-block gap, since a real row-gap would
      be multiplied across the 9999 spanned (empty) rows. */
-  body:has(.admin-nav-group)
-    main
-    > :not(.admin-nav-group)
-    ~ :not(.admin-nav-group) {
+  body:has(#main-nav) main > :not(.admin-nav-group) ~ :not(.admin-nav-group) {
     margin-top: var(--space-xl);
   }
 
-  /* Flatten the main nav so its <li> items and the sub-nav become flex children
-     of the same column, dropping the horizontal-bar layout and the sticky pill. */
-  .admin-nav-group nav#main-nav,
-  .admin-nav-group nav#main-nav > ul {
-    display: contents;
+  /* Swap which nav shows: the desktop sidebar replaces the mobile bars. */
+  .admin-nav--mobile {
+    display: none;
   }
 
-  /* Slot the sub-nav directly beneath its parent top-level link. The sub-nav
-     follows the whole main nav in the source (so it stays a separate bar on
-     mobile); pushing the links *after* the active one to a later order lets the
-     sub-nav — left at the default order — fall in right below the active link.
-     With no sub-nav present this reorders nothing (the tail keeps its sequence),
-     so the rule is safe on every page. */
-  .admin-nav-group nav#main-nav li:has(a.active) ~ li {
-    order: 1;
-  }
-
-  .admin-nav-group nav#main-nav li {
-    padding: 0;
-  }
-
-  /* Sub-nav: a plain indented column in the same font, reading as a merged
-     continuation of the menu. A second level indents one step further. */
-  .admin-nav-group nav:not(#main-nav) {
+  .admin-nav--desktop {
     display: block;
+  }
+
+  /* Plain stacked links. Every list — the top level and each nested sub-nav —
+     is a simple column; nesting a sub-nav indents it one step, so the site
+     editor's third level indents twice, all without boxes or borders. */
+  .admin-nav--desktop ul {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-s);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .admin-nav--desktop li {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-s);
+    padding: 0;
+    text-align: left;
+  }
+
+  .admin-nav--desktop .admin-subnav {
     padding-left: var(--space-m);
   }
 
-  .admin-nav-group nav:not(#main-nav) ~ nav:not(#main-nav) {
-    padding-left: var(--space-lg);
-  }
-
-  .admin-nav-group nav:not(#main-nav) ul {
-    flex-direction: column;
-    flex-wrap: nowrap;
-    gap: var(--space-s);
-    padding: 0;
-  }
-
-  .admin-nav-group nav:not(#main-nav) li {
-    padding: 0;
-  }
-
-  .admin-nav-group a {
+  .admin-nav--desktop a {
     text-decoration: none;
   }
 
-  .admin-nav-group a:hover {
+  .admin-nav--desktop a:hover {
     text-decoration: underline;
   }
 }
@@ -2105,7 +2053,7 @@ button.secondary:hover,
   }
 
   /* Drop the two-column admin layout for print: no sidebar, full-width content */
-  body:has(.admin-nav-group) main {
+  body:has(#main-nav) main {
     display: block;
   }
 

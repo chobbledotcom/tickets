@@ -15,7 +15,7 @@ import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { ORPHAN_RETENTION_OPTIONS } from "#shared/orphan-retention.ts";
 import type { AdminSession } from "#shared/types.ts";
-import { AdminNav, SettingsSubNav } from "#templates/admin/nav.tsx";
+import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 export type PrivacyPageData = {
@@ -112,9 +112,7 @@ export const adminPrivacyPage = (
 ): string =>
   String(
     <Layout title={t("privacy.title")}>
-      <AdminNav active="/admin/settings" session={session}>
-        <SettingsSubNav />
-      </AdminNav>
+      <AdminNav active="/admin/settings" session={session} />
       <div class="prose">
         <h1>{t("privacy.title")}</h1>
         <h2>{t("privacy.not_a_crm_heading")}</h2>

@@ -20,7 +20,7 @@ import {
   buildSharedDetailRows,
   renderDetailRows,
 } from "#templates/admin/detail-rows.tsx";
-import { AdminNav, CalendarSubNav } from "#templates/admin/nav.tsx";
+import { AdminNav } from "#templates/admin/nav.tsx";
 import {
   AttendeeTable,
   type AttendeeTableRow,
@@ -102,9 +102,7 @@ export const adminCalendarPage = (
 
   return String(
     <Layout title={t("admin.calendar.title")}>
-      <AdminNav active="/admin/calendar" session={session}>
-        <CalendarSubNav />
-      </AdminNav>
+      <AdminNav active="/admin/calendar" session={session} />
       <p class="actions">
         <GuideLink href="/admin/guide#calendar">Calendar guide</GuideLink>
       </p>
