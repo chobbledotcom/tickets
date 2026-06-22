@@ -21,7 +21,7 @@
 import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import { mapRefund } from "#shared/accounting/mappers.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
-import { postTransfers, postTransferGroups } from "#shared/accounting/store.ts";
+import { postTransferGroups, postTransfers } from "#shared/accounting/store.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
 import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";

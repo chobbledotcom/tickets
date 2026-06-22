@@ -48,6 +48,7 @@ import {
   describeWithEnv,
   getTestPrivateKey,
 } from "#test-utils";
+import { postListingSale } from "#test-utils/ledger.ts";
 
 describeWithEnv("db > listings", { db: true, triggers: true }, () => {
   describe("CRUD", () => {
@@ -538,6 +539,56 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
     test("getListingWithAttendeeRaw returns null for non-existent listing", async () => {
       const result = await getListingWithAttendeeRaw(999, 1);
       expect(result).toBeNull();
+    });
+
+    // Regression: these loaders SELECT the listing row directly (not via
+    // LISTING_COUNT_SELECT), and income is now projected from the ledger rather
+    // than read off a `listings.income` column. Dropping that column without
+    // adding the projection to these queries left `income` undefined, so
+    // decryptListingWithCount's Number(undefined) produced NaN. Both must report
+    // the real ledger income.
+    test("getListingWithAttendeesRaw projects ledger income (never NaN)", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Ada",
+        "ada@example.com",
+      );
+      await postListingSale({
+        attendeeId: attendee.id,
+        gross: 2500,
+        listingId: listing.id,
+      });
+
+      const result = await getListingWithAttendeesRaw(listing.id);
+      expect(Number.isNaN(result?.listing.income)).toBe(false);
+      expect(result?.listing.income).toBe(2500);
+    });
+
+    test("getListingWithAttendeeRaw projects ledger income (never NaN)", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Grace",
+        "grace@example.com",
+      );
+      await postListingSale({
+        attendeeId: attendee.id,
+        gross: 1800,
+        listingId: listing.id,
+      });
+
+      const result = await getListingWithAttendeeRaw(listing.id, attendee.id);
+      expect(Number.isNaN(result?.listing.income)).toBe(false);
+      expect(result?.listing.income).toBe(1800);
     });
 
     test("getListingsBySlugsBatch returns empty array for empty slugs", async () => {

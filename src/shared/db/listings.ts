@@ -196,6 +196,19 @@ const rawListingsTable = defineIdTable<Listing, ListingInput>("listings", {
   webhook_url: col.encryptedText(encrypt, decrypt),
 });
 
+/**
+ * Subquery projecting a listing's GROSS income from the ledger: the sum of every
+ * revenue-recognising leg credited to the listing's `revenue` account (decision
+ * matching what admins see per job). `idExpr` is the SQL for the listing's id in
+ * the surrounding query (e.g. `listing.id` or `listings.id`). Shared by
+ * {@link LISTING_COUNT_SELECT} and the batch `SELECT *` loaders so income is read
+ * from the ledger in exactly one place, never off the now-dropped column. The
+ * trailing `AS income` names the projected column.
+ */
+export const listingIncomeSubquery = (idExpr: string): string =>
+  `(SELECT COALESCE(SUM(amount), 0) FROM transfers
+     WHERE dest_type = 'revenue' AND dest_id = CAST(${idExpr} AS TEXT)) AS income`;
+
 /** SELECT projecting each listing plus its booked-quantity count. Callers
  * append their own WHERE and {@link LISTING_COUNT_GROUP_BY}. Shared by the
  * cache's fetchers and by the filtered group / ungrouped / activity-log queries
@@ -203,8 +216,7 @@ const rawListingsTable = defineIdTable<Listing, ListingInput>("listings", {
  * `booked_quantity` column (maintained by triggers on listing_attendees), so
  * this no longer joins or scans the attendee rows. */
 export const LISTING_COUNT_SELECT = `SELECT listing.*, listing.booked_quantity AS attendee_count,
-       (SELECT COALESCE(SUM(amount), 0) FROM transfers
-         WHERE dest_type = 'revenue' AND dest_id = CAST(listing.id AS TEXT)) AS income
+       ${listingIncomeSubquery("listing.id")}
      FROM listings AS listing`;
 
 /** GROUP BY clause that pairs with {@link LISTING_COUNT_SELECT}. Empty now that
@@ -362,15 +374,19 @@ export const deleteListing = async (listingId: number): Promise<void> => {
   ]);
 };
 
-/** The precomputed aggregate columns every `SELECT * FROM listings` row carries. */
+/** The aggregate columns a listing-load row carries: `booked_quantity` and
+ *  `tickets_count` are trigger-maintained columns on `listings`; `income` is
+ *  projected from the ledger by {@link listingIncomeSubquery}, which every loader
+ *  must select alongside `listings.*` (the column itself is gone). */
 type ListingAggregateColumns = {
   booked_quantity: number;
   income: number;
   tickets_count: number;
 };
 
-/** Extract listing row from batch result, returning null if not found. The raw
- * `SELECT *` row carries the precomputed aggregate columns. */
+/** Extract listing row from batch result, returning null if not found. The row
+ * carries the trigger-maintained count columns plus the ledger income projection
+ * its loader selected. */
 const extractListingRow = (
   result: ResultSet,
 ): (Listing & ListingAggregateColumns) | null =>
@@ -510,7 +526,10 @@ export const getListingWithAttendeesRaw = async (
   id: number,
 ): Promise<ListingWithAttendees | null> => {
   const [listingResult, attendeesResult] = await queryBatch([
-    { args: [id], sql: "SELECT * FROM listings WHERE id = ?" },
+    {
+      args: [id],
+      sql: `SELECT listings.*, ${listingIncomeSubquery("listings.id")} FROM listings WHERE id = ?`,
+    },
     {
       args: [id],
       sql: `SELECT ${ATTENDEE_JOIN_SELECT}
@@ -610,7 +629,10 @@ export const getListingWithAttendeeRaw = async (
   attendeeId: number,
 ): Promise<ListingWithAttendeeRaw | null> => {
   const [listingResult, attendeeResult] = await queryBatch([
-    { args: [listingId], sql: "SELECT * FROM listings WHERE id = ?" },
+    {
+      args: [listingId],
+      sql: `SELECT listings.*, ${listingIncomeSubquery("listings.id")} FROM listings WHERE id = ?`,
+    },
     {
       args: [attendeeId],
       sql: `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}

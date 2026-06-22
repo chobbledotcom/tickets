@@ -205,7 +205,9 @@ const groupBy = <K>(
 const loadBatchSnapshot = async (
   groups: TransferInput[][],
 ): Promise<BatchSnapshot> => {
-  const eventGroups = [...new Set(groups.map((inputs) => inputs[0]!.eventGroup))];
+  const eventGroups = [
+    ...new Set(groups.map((inputs) => inputs[0]!.eventGroup)),
+  ];
   const references = groups.flatMap((inputs) => inputs.map((t) => t.reference));
   const reversesIds = [
     ...new Set(
