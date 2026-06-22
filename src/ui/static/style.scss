@@ -39,7 +39,7 @@
   --space-lg: 2rem;
   --space-xl: 4rem;
   /* Width of the pinned admin sidebar nav (desktop only) */
-  --admin-nav-width: 13rem;
+  --admin-nav-width: 8rem;
   /* Breakpoint: desktop ≥ 769px, mobile ≤ 768px (use in @media rules) */
 }
 
@@ -182,6 +182,14 @@ main {
      eases through ~lg across tablet widths, and caps at the --space-xl
      ceiling on desktop. Vertical padding stays as set by the base rule. */
   padding-inline: clamp(var(--space-m), 4.5vw, var(--space-xl));
+}
+
+/* Admin pages span the full viewport width (the left sidebar already gives the
+   content its own column) and cap their horizontal padding a step lower. */
+body:has(#main-nav) main,
+.admin-footer {
+  max-width: none;
+  padding-inline: clamp(var(--space-m), 4.5vw, var(--space-lg));
 }
 
 main {
@@ -413,6 +421,10 @@ nav a.active {
     align-self: start;
     position: sticky;
     top: var(--space-m);
+    /* If the menu is taller than a short viewport, let it scroll on its own so
+       the lower links stay reachable while the sidebar is stuck. */
+    max-height: calc(100dvh - 2 * var(--space-m));
+    overflow-y: auto;
   }
 
   /* Everything that isn't the sidebar flows down column 2... */
