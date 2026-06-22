@@ -60,18 +60,6 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     expect(log[0]!.message).toContain("Reservation balance paid");
   });
 
-  test("folds the balance into the recorded price_paid", async () => {
-    const { attendeeId } = await createReservedAttendee(1500);
-    await settleAttendeeBalance(attendeeId, 1500);
-    const { getDb } = await import("#shared/db/client.ts");
-    const row = await getDb().execute({
-      args: [attendeeId],
-      sql: "SELECT price_paid FROM listing_attendees WHERE attendee_id = ?",
-    });
-    // 100 deposit + 1500 balance.
-    expect(Number(row.rows[0]!.price_paid)).toBe(1600);
-  });
-
   test("is idempotent once the balance is cleared", async () => {
     const { attendeeId } = await createReservedAttendee(1500);
     await settleAttendeeBalance(attendeeId, 1500);
@@ -112,12 +100,6 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     expect([a, b].filter((r) => r.settled)).toHaveLength(1);
     const state = await getAttendeeBalanceState(attendeeId);
     expect(state?.remainingBalance).toBe(0);
-    // price_paid reflects a single settlement (100 deposit + 1500), not 3000.
-    const row = await getDb().execute({
-      args: [attendeeId],
-      sql: "SELECT price_paid FROM listing_attendees WHERE attendee_id = ?",
-    });
-    expect(Number(row.rows[0]!.price_paid)).toBe(1600);
   });
 
   test("settles even when no paid-default status is configured", async () => {
@@ -187,7 +169,7 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     const { attendeeId } = await createReservedAttendee(1500);
     await getDb().execute({
       args: [attendeeId],
-      sql: "INSERT INTO listing_attendees (listing_id, attendee_id, quantity, price_paid) VALUES (98765, ?, 1, 0)",
+      sql: "INSERT INTO listing_attendees (listing_id, attendee_id, quantity) VALUES (98765, ?, 1)",
     });
     const summary = await getAttendeeOrderSummary(attendeeId);
     // Only the real listing is included; the dangling row is dropped.
@@ -203,7 +185,7 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     });
     await getDb().execute({
       args: [otherListing.id, attendeeId],
-      sql: "INSERT INTO listing_attendees (listing_id, attendee_id, quantity, price_paid) VALUES (?, ?, 2, 240)",
+      sql: "INSERT INTO listing_attendees (listing_id, attendee_id, quantity) VALUES (?, ?, 2)",
     });
 
     const { entries, summary } = await runWithQueryLogContext(async () => {

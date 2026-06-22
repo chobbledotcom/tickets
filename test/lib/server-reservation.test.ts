@@ -11,6 +11,7 @@ import {
   getAttendeeBalanceState,
   getAttendeeOrderSummary,
 } from "#shared/db/attendees/balance.ts";
+import { pricePaidFromLedger } from "#shared/db/attendees/queries.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
   hashEmail,
@@ -76,9 +77,12 @@ const latestAttendee = async (): Promise<{
   );
   const id = Number(rows[0]!.id);
   const state = await getAttendeeBalanceState(id);
+  // price_paid is a ledger projection now (the booking's gross sale leg), not a
+  // stored column. For a reservation this is the gross sale, not the deposit —
+  // the accepted gross-sale divergence (deposit accuracy returns in concern 5).
   const paid = await getDb().execute({
     args: [id],
-    sql: "SELECT price_paid FROM listing_attendees WHERE attendee_id = ?",
+    sql: `SELECT ${pricePaidFromLedger("attendee_id", "listing_id", "ledger_event_group")} FROM listing_attendees WHERE attendee_id = ?`,
   });
   return {
     id,
@@ -195,8 +199,10 @@ describeWithEnv(
         expect([200, 302, 303]).toContain(response.status);
 
         const attendee = await latestAttendee();
-        // Paid the £1.00 deposit; the remaining £9.00 is owed.
-        expect(attendee.pricePaid).toBe(100);
+        // price_paid projects the gross sale leg (£10), not the £1.00 deposit —
+        // the accepted gross-sale divergence (concern 5 restores deposit
+        // accuracy). The £9.00 still owed stays correct.
+        expect(attendee.pricePaid).toBe(1000);
         expect(attendee.remainingBalance).toBe(900);
         // The booking starts in the public-default reservation status.
         expect(attendee.statusId).toBe(statusId);
@@ -243,9 +249,12 @@ describeWithEnv(
 
         const attendee = await latestAttendee();
         expect(attendee.remainingBalance).toBe(2700);
+        // Per-row price_paid projects each listing's gross sale leg (£10 / £20),
+        // not the distributed £1 / £2 deposit — the gross-sale divergence. The
+        // £27 owed stays accurate; concern 5 restores the deposit distribution.
         const paidRows = await getDb().execute({
           args: [attendee.id],
-          sql: "SELECT listing_id, price_paid FROM listing_attendees WHERE attendee_id = ?",
+          sql: `SELECT listing_id, ${pricePaidFromLedger("attendee_id", "listing_id", "ledger_event_group")} FROM listing_attendees WHERE attendee_id = ?`,
         });
         const paidByListing = new Map(
           paidRows.rows.map((row) => [
@@ -253,8 +262,8 @@ describeWithEnv(
             Number(row.price_paid),
           ]),
         );
-        expect(paidByListing.get(general.id)).toBe(100);
-        expect(paidByListing.get(vip.id)).toBe(200);
+        expect(paidByListing.get(general.id)).toBe(1000);
+        expect(paidByListing.get(vip.id)).toBe(2000);
       } finally {
         session.restore();
       }
@@ -287,7 +296,9 @@ describeWithEnv(
         expect([200, 302, 303]).toContain(response.status);
 
         const attendee = await latestAttendee();
-        expect(attendee.pricePaid).toBe(1000);
+        // Gross sale leg of the 3 × £10 booking (£30); the £20 owed stays
+        // accurate. The £10 deposit lives in the payment leg (concern 5).
+        expect(attendee.pricePaid).toBe(3000);
         expect(attendee.remainingBalance).toBe(2000);
       } finally {
         session.restore();
@@ -620,7 +631,10 @@ describeWithEnv(
         expect([200, 302, 303]).toContain(response.status);
 
         const attendee = await latestAttendee();
-        expect(attendee.pricePaid).toBe(900);
+        // price_paid projects the gross sale leg (£10 list), not the £9
+        // discounted total — the £1 discount is a separate ledger leg. Paid in
+        // full, so nothing owed. (Modifiers are unused in production.)
+        expect(attendee.pricePaid).toBe(1000);
         expect(attendee.remainingBalance).toBe(0);
         expect(await modifierUsageCount(promo.id)).toBe(1);
         expect(await modifierUsageAmount(promo.id)).toBe(100);
@@ -752,7 +766,9 @@ describeWithEnv(
         expect([200, 302, 303]).toContain(response.status);
 
         const attendee = await latestAttendee();
-        expect(attendee.pricePaid).toBe(200);
+        // Gross sale leg (£10 list); the add-on uplift and the £2 deposit are
+        // separate legs. The £18 owed stays accurate.
+        expect(attendee.pricePaid).toBe(1000);
         expect(attendee.remainingBalance).toBe(1800);
         expect(await modifierUsageCount(addOn.id)).toBe(2);
         expect(await modifierUsageAmount(addOn.id)).toBe(1000);
@@ -975,7 +991,9 @@ describeWithEnv(
         );
         expect([200, 302, 303]).toContain(response.status);
         const attendee = await latestAttendee();
-        expect(attendee.pricePaid).toBe(0);
+        // Gross sale leg is the full £10 even though £0 was collected up front;
+        // the whole £10 is owed. (price_paid no longer tracks cash — concern 5.)
+        expect(attendee.pricePaid).toBe(1000);
         expect(attendee.remainingBalance).toBe(1000);
       } finally {
         session.restore();
@@ -1001,7 +1019,9 @@ describeWithEnv(
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe("https://example.com");
       const attendee = await latestAttendee();
-      expect(attendee.pricePaid).toBe(0);
+      // Gross sale leg is the full £10 (provider skipped, £0 collected); the
+      // whole £10 is owed. price_paid no longer tracks cash collected.
+      expect(attendee.pricePaid).toBe(1000);
       expect(attendee.remainingBalance).toBe(1000);
       expect(attendee.statusId).toBe(statusId);
     });
@@ -1039,7 +1059,9 @@ describeWithEnv(
         );
         expect([200, 302, 303]).toContain(response.status);
         const attendee = await latestAttendee();
-        expect(attendee.pricePaid).toBe(50);
+        // Gross sale leg (£10 list); the £5 discount and £0.50 deposit are
+        // separate legs. The £4.50 owed stays accurate.
+        expect(attendee.pricePaid).toBe(1000);
         expect(attendee.remainingBalance).toBe(450);
         expect(attendee.statusId).toBe(statusId);
       } finally {
