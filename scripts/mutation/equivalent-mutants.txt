@@ -1,14 +1,17 @@
 # Known-equivalent mutants — suppressed from the survivor count.
 #
-# A mutant is "equivalent" when no possible input distinguishes it from the
-# original, so no test can ever kill it. Recording it here lets the mutation
+# A mutant is "equivalent" when NO possible input distinguishes it from the
+# original, so no test could ever kill it. Recording it here lets the mutation
 # tester gate CI on genuinely NEW survivors instead of re-reporting these.
+#
+# Equivalent means unkillable by *any* test — not merely unkilled by the ones
+# that exist today. A survivor a stronger assertion could catch is a test gap,
+# not an equivalent: fix the test instead of listing it here. Prefer entries
+# whose equivalence is provable from types (e.g. `?? → ||` where the operand is
+# never falsy-but-non-null) over ones that lean on a domain invariant.
 #
 # Format — copy a survivor line from the report and add a reason:
 #   <path>:<line>:<col>  <from> → <to>   # why it is equivalent
-#
-# Keep this list small and justified: only add an entry after confirming, by
-# analysis, that the mutant truly cannot be killed by any realistic input.
 
 # `x ?? F` vs `x || F` differ only when x is falsy-but-not-null; these are all
 # cases where x can't be such a value, or F equals the only one it can be.
@@ -20,10 +23,3 @@ src/shared/site-assignment.ts:370:34  ?? → ||    # available[idx]: object|unde
 src/shared/site-assignment.ts:392:34  ?? → ||    # getEmailConfig(): EmailConfig|null
 src/shared/site-assignment.ts:416:53  ?? → ||    # parseEmail(): ValidEmail|null, always truthy or null
 
-# A sort comparator over an index array that is always already ascending: the
-# divisor never reorders it, so the mutated comparator yields identical output.
-src/shared/checkout-pricing.ts:176:16  - → /     # lineIdxs always ascending; a/b matches a-b order
-
-# Reached only with reservationAmount AND a feeSubtotal override — a combination
-# the app never produces (feeSubtotal is set only by balance payments).
-src/shared/checkout-pricing.ts:342:55  === → !=  # distinguishes only non-production inputs
