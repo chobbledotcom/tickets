@@ -14,6 +14,7 @@
  */
 
 import type { InValue } from "@libsql/client";
+import { accountBalanceSubquery } from "#shared/accounting/projection-sql.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { execute, insert, queryOne } from "#shared/db/client.ts";
 import { STALE_RESERVATION_MS } from "#shared/limits.ts";
@@ -258,8 +259,14 @@ export const balanceFinalizeStatement = (
   attendeeId: number,
   expectedAmount: number,
 ): { sql: string; args: InValue[] } => ({
-  args: [attendeeId, sessionId, attendeeId, expectedAmount],
-  sql: "UPDATE processed_payments SET attendee_id = ?, ticket_tokens = '' WHERE payment_session_id = ? AND (SELECT remaining_balance FROM attendees WHERE id = ?) = ?",
+  args: [attendeeId, sessionId, expectedAmount],
+  // Guarded on the ledger-projected outstanding balance (no stored column).
+  // Runs in the settle batch before the balance-payment leg, so it still sees
+  // the pre-payment balance — i.e. the attendee owing exactly expectedAmount.
+  sql: `UPDATE processed_payments SET attendee_id = ?, ticket_tokens = '' WHERE payment_session_id = ? AND -(${accountBalanceSubquery(
+    "attendee",
+    String(attendeeId),
+  )}) = ?`,
 });
 
 /**

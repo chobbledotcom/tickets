@@ -8,6 +8,10 @@
 
 import type { InValue } from "@libsql/client";
 import { compact, mapParallel, sumOf } from "#fp";
+import { WORLD, attendeeAccount } from "#shared/accounting/accounts.ts";
+import { accountBalanceSubquery } from "#shared/accounting/projection-sql.ts";
+import { eventGroup, legReference } from "#shared/accounting/refs.ts";
+import { guardedInsertStatement } from "#shared/accounting/rows.ts";
 import { decrypt } from "#shared/crypto/encryption.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
@@ -21,6 +25,7 @@ import {
   queryAll,
   queryOne,
 } from "#shared/db/client.ts";
+import { nowIso } from "#shared/now.ts";
 
 /** Plaintext reservation state for an attendee. */
 export type AttendeeBalanceState = {
@@ -162,32 +167,52 @@ export type SettleBalanceResult =
 export const settleAttendeeBalance = async (
   attendeeId: number,
   expectedAmount: number,
+  settle: { id: string; occurredAt: string },
   extraStatements: { sql: string; args: InValue[] }[] = [],
 ): Promise<SettleBalanceResult> => {
   const state = await getAttendeeBalanceState(attendeeId);
   if (!state) return { reason: "not_found", settled: false };
   if (state.remainingBalance <= 0)
     return { reason: "nothing_owed", settled: false };
-  // A non-zero balance that differs from expectedAmount is handled by the
-  // conditional update below (it affects 0 rows), so amount mismatch has a
-  // single guard — the atomic write — rather than a racy read-then-check.
 
   const paid = await getPaidDefaultStatus();
-
+  // The attendee's outstanding balance, projected from the ledger, used as an
+  // atomic guard: both writes below fire only while they still owe exactly
+  // `expectedAmount`. A concurrent settle whose payment leg already landed sees
+  // owed = 0 and no-ops, so the balance settles exactly once — no stored column.
+  const owed = `-(${accountBalanceSubquery("attendee", String(attendeeId))})`;
   const results = await executeBatchWithResults([
-    ...extraStatements,
     {
-      // Atomic clear: only the callback whose expectedAmount still matches the
-      // live balance settles it; a second concurrent callback affects 0 rows.
-      // Always the LAST statement, so its rowsAffected is the settle verdict.
+      // Verdict (first statement): move to the paid status while they still owe
+      // the expected amount. A mismatched or already-settled balance matches 0
+      // rows, exactly like the old column guard.
       args: [paid?.id ?? null, attendeeId, expectedAmount],
-      sql: "UPDATE attendees SET remaining_balance = 0, status_id = COALESCE(?, status_id) WHERE id = ? AND remaining_balance = ?",
+      sql: `UPDATE attendees SET status_id = COALESCE(?, status_id) WHERE id = ? AND ${owed} = ?`,
     },
+    ...extraStatements,
+    // The balance payment: world funds the attendee, zeroing what they owed.
+    // INSERT OR IGNORE on a settle-stable reference plus the same owed guard
+    // makes a retried/raced webhook a no-op. Runs after the status move so its
+    // guard still sees the pre-payment balance.
+    guardedInsertStatement(
+      {
+        amount: expectedAmount,
+        destination: attendeeAccount(attendeeId),
+        eventGroup: await eventGroup(["balance", settle.id]),
+        kind: "payment",
+        occurredAt: settle.occurredAt,
+        reference: await legReference(["balance", settle.id, "payment"]),
+        source: WORLD,
+      },
+      nowIso(),
+      `${owed} = ?`,
+      [expectedAmount],
+    ),
   ]);
 
-  // The clear is the final statement; 0 rows means a concurrent/stale callback
-  // changed the balance between our read and this write.
-  if (results[results.length - 1]!.rowsAffected === 0)
+  // The status move is the verdict; 0 rows means a concurrent/stale callback
+  // changed the balance between our read and this write, or the amount differs.
+  if (results[0]!.rowsAffected === 0)
     return { reason: "amount_mismatch", settled: false };
 
   const firstListing = await queryOne<{ listing_id: number }>(
