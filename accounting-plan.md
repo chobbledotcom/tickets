@@ -497,10 +497,36 @@ tests:
      has always been a per-row `listing_attendees` figure — so it was dropped in
      the same pass (`2026-06-22_drop_attendees_price_paid`, `recreateTable`; no
      FKs or triggers reference `attendees`).
-5. **Outstanding balance** — `attendees.remaining_balance` → `−balanceOf(attendee)`
-   (uniformly zero in production — no reservations).
+5. **Outstanding balance** — `attendees.remaining_balance` → `−balanceOf(attendee)`.
+   **Done** (the column is dropped). Uniformly zero in production (no
+   reservations), so the projection equals 0 for every existing attendee.
+
+   **Concern 5 — nuances (it was a write-path concern, not just a read swap):**
+   - **Reservation cash is fully modelled in the ledger now**, so the owed
+     balance reconstructs exactly: a booking posts a gross `sale` per line and a
+     `payment` for the deposit (`amountPaid`), so `balanceOf(attendee) = paid −
+     billed`; the discount/add-on legs net in too. The projection is `−balanceOf`
+     (the shared `accountBalanceSubquery` in `projection-sql.ts`, reused by
+     concern 6's modifier revenue — `balanceOf(modifier:M)` reads it directly).
+   - **Every owed booking must now post its legs at creation** — the provider-less
+     web path, the API booking (`booking.ts`), and admin add all dual-write the
+     gross `sale` with `amountPaid: 0`, since the balance is no longer a column to
+     carry the owed value. (This also closed the Codex provider-less-income gap.)
+   - **Settlement became an atomic ledger-side compare-and-post.**
+     `settleAttendeeBalance` posts its own `world→attendee` payment leg guarded on
+     `−balanceOf = expectedAmount`, with the status move as the verdict and
+     `INSERT OR IGNORE` on a settle-stable reference (`["balance", sessionId,
+     "payment"]`) for race/retry safety — replacing the old atomic
+     `remaining_balance` column clear. `balanceFinalizeStatement` guards on the
+     projection too. The status move runs first so its guard sees the pre-payment
+     balance; the leg runs last and zeroes it.
+   - The additive `2026-06-14_attendee_statuses` migration no longer lists
+     `remaining_balance` among its owned columns (a production DB that ran the
+     original keeps it until the drop; a fresh DB never gets it).
 6. **Modifier revenue** — `modifiers.total_revenue` (+ trigger) →
-   `balanceOf(modifier:M)` (no modifier has ever been used in production).
+   `balanceOf(modifier:M)` (no modifier has ever been used in production). The
+   shared `accountBalanceSubquery("revenue"/"modifier", idExpr)` from concern 5
+   is the projection — read directly (not negated).
 
 **Swap lesson (learned on concerns 2–3, applies to the rest).** Dropping a money
 column breaks **every** read of it, not just the headline query — a `SELECT *`

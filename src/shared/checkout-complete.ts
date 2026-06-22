@@ -20,6 +20,7 @@ import type {
 } from "#shared/db/attendee-types.ts";
 import type { LedgerPoster } from "#shared/db/attendees/create.ts";
 import { createAttendeeAtomic } from "#shared/db/attendees.ts";
+import type { TxScope } from "#shared/db/client.ts";
 import {
   consumeModifierStockTx,
   type ModifierUsage,
@@ -67,19 +68,31 @@ export const bookingLedgerPoster =
           occurredAt: ledger.occurredAt,
         }),
       );
-      await postTransfersTx(tx, legs);
-      // Stamp this order's rows with their booking event group so the per-row
-      // amount-paid projection resolves exactly this booking's sale leg. A
-      // fully-free order posts no legs and leaves ledger_event_group '' (its
-      // amount-paid projects to 0, matching its zero price_paid).
-      if (legs.length > 0) {
-        await tx.execute({
-          args: [legs[0]!.eventGroup, attendeeId],
-          sql: "UPDATE listing_attendees SET ledger_event_group = ? WHERE attendee_id = ?",
-        });
-      }
+      await postBookingLegsTx(tx, attendeeId, legs);
     }
   };
+
+/**
+ * Post a booking's ledger legs inside the create transaction and stamp the
+ * order's `listing_attendees` rows with its event group, so the per-row
+ * amount-paid (and the attendee's outstanding-balance) projection resolves
+ * exactly this booking's legs. A fully-free order posts no legs and leaves
+ * `ledger_event_group` '' (its money projects to 0). Shared by every booking
+ * poster — the paid/free checkout and the provider-less owed booking.
+ */
+export const postBookingLegsTx = async (
+  tx: TxScope,
+  attendeeId: number,
+  legs: Awaited<ReturnType<typeof mapBooking>>,
+): Promise<void> => {
+  await postTransfersTx(tx, legs);
+  if (legs.length > 0) {
+    await tx.execute({
+      args: [legs[0]!.eventGroup, attendeeId],
+      sql: "UPDATE listing_attendees SET ledger_event_group = ? WHERE attendee_id = ?",
+    });
+  }
+};
 
 /**
  * Create an attendee whose ledger poster may throw {@link ModifierSoldOutError},

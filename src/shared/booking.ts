@@ -7,7 +7,7 @@
  */
 
 import { mapBooking } from "#shared/accounting/mappers.ts";
-import { postTransfersTx } from "#shared/accounting/store.ts";
+import { postBookingLegsTx } from "#shared/checkout-complete.ts";
 import { isPaymentsEnabled } from "#shared/config.ts";
 import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
 import type { LedgerPoster } from "#shared/db/attendees/create.ts";
@@ -40,11 +40,7 @@ const owedBookingLedgerPoster =
       modifiers: [],
       occurredAt: new Date().toISOString(),
     });
-    await postTransfersTx(tx, legs);
-    await tx.execute({
-      args: [legs[0]!.eventGroup, attendeeId],
-      sql: "UPDATE listing_attendees SET ledger_event_group = ? WHERE attendee_id = ?",
-    });
+    await postBookingLegsTx(tx, attendeeId, legs);
   };
 
 /** Booking result — callers map this to their response format */
