@@ -18,6 +18,7 @@ import {
 } from "#shared/db/sumup-checkouts.ts";
 import {
   extractSessionMetadata,
+  toCanonicalIso,
   toCheckoutResult,
   withCheckoutError,
 } from "#shared/payment-helpers.ts";
@@ -53,7 +54,7 @@ const buildValidatedSession = (
   metadata: Record<string, string>,
 ): ValidatedPaymentSession => ({
   amountTotal: checkout.amountMinor,
-  createdAt: checkout.createdAt,
+  createdAt: toCanonicalIso(checkout.createdAt),
   id: checkout.reference,
   metadata: extractSessionMetadata(metadata as SessionMetadata),
   paymentReference: checkout.transactionId,
