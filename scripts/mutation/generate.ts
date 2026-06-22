@@ -12,6 +12,7 @@
  */
 
 import { parseSync } from "npm:oxc-parser@0.132.0";
+import { flatMap } from "#fp";
 import {
   assignmentOperators,
   assignmentOperatorsExhaustive,
@@ -48,29 +49,48 @@ const lineColumnAt = (
   return { column: lines.at(-1)!.length + 1, line: lines.length };
 };
 
-const tableFor = (type: string, exhaustive: boolean): OperatorTable => {
-  if (type === "BinaryExpression") {
-    return exhaustive ? binaryOperatorsExhaustive : binaryOperators;
-  }
-  if (type === "LogicalExpression") {
-    return exhaustive ? logicalOperatorsExhaustive : logicalOperators;
-  }
-  return exhaustive ? assignmentOperatorsExhaustive : assignmentOperators;
+/**
+ * The mutable node types, each mapped to its [plain, exhaustive] operator
+ * tables. A node whose `type` isn't a key here yields no mutants, so adding a
+ * new mutable construct is a one-line table entry rather than another branch.
+ */
+const MUTABLE_NODES: Record<string, readonly [OperatorTable, OperatorTable]> = {
+  AssignmentExpression: [assignmentOperators, assignmentOperatorsExhaustive],
+  BinaryExpression: [binaryOperators, binaryOperatorsExhaustive],
+  LogicalExpression: [logicalOperators, logicalOperatorsExhaustive],
 };
 
-const walk = (node: unknown, visit: (node: AstNode) => void): void => {
+/** Depth-first stream of every typed node in the tree. */
+function* walk(node: unknown): Generator<AstNode> {
   if (!node || typeof node !== "object") return;
   const record = node as Record<string, unknown>;
-  if (typeof record.type === "string") visit(record as AstNode);
-  for (const key of Object.keys(record)) {
-    const value = record[key];
+  if (typeof record.type === "string") yield record as AstNode;
+  for (const value of Object.values(record)) {
     if (Array.isArray(value)) {
-      for (const child of value) walk(child, visit);
+      for (const child of value) yield* walk(child);
     } else if (value && typeof value === "object") {
-      walk(value, visit);
+      yield* walk(value);
     }
   }
-};
+}
+
+/** Every mutant a single node yields — empty unless it's a mutable operator. */
+const mutantsForNode =
+  (content: string, exhaustive: boolean) =>
+  (node: AstNode): Mutant[] => {
+    const tables = node.type ? MUTABLE_NODES[node.type] : undefined;
+    const { left, operator, right } = node;
+    if (!tables || !left || !right || !operator) return [];
+    const { column, line } = lineColumnAt(content, left.end);
+    return (tables[exhaustive ? 1 : 0][operator] ?? []).map((newOperator) => ({
+      column,
+      end: right.start,
+      line,
+      newOperator,
+      operator,
+      start: left.end,
+    }));
+  };
 
 /** Generate every mutant for a source file's contents. */
 export const generateMutants = (
@@ -80,35 +100,7 @@ export const generateMutants = (
 ): Mutant[] => {
   const fileName = filePath.split("/").pop() ?? filePath;
   const { program } = parseSync(fileName, content);
-  const mutants: Mutant[] = [];
-
-  walk(program, (node) => {
-    const type = node.type;
-    if (
-      type !== "BinaryExpression" &&
-      type !== "LogicalExpression" &&
-      type !== "AssignmentExpression"
-    ) {
-      return;
-    }
-    if (!node.left || !node.right || !node.operator) return;
-
-    const start = node.left.end;
-    const end = node.right.start;
-    const { column, line } = lineColumnAt(content, start);
-    for (const newOperator of tableFor(type, exhaustive)[node.operator] ?? []) {
-      mutants.push({
-        column,
-        end,
-        line,
-        newOperator,
-        operator: node.operator,
-        start,
-      });
-    }
-  });
-
-  return mutants;
+  return flatMap(mutantsForNode(content, exhaustive))([...walk(program)]);
 };
 
 /** Apply a mutant to the original source, returning the mutated source. */

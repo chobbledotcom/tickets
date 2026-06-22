@@ -12,7 +12,7 @@
  * counts as detected).
  */
 
-import { bold, dim, green, red, write, yellow } from "../precommit/colors.ts";
+import { dim, green, red, write, yellow } from "../precommit/colors.ts";
 import {
   projectRoot,
   STRIPE_MOCK_PORT,
@@ -20,6 +20,14 @@ import {
 } from "../test-harness.ts";
 import { type AssetRebuilder, createAssetRebuilder } from "./assets.ts";
 import { applyMutant, generateMutants, type Mutant } from "./generate.ts";
+import {
+  formatSummaryLines,
+  type MutantResult,
+  rel,
+  type Status,
+  summarize,
+  writeStepSummary,
+} from "./summary.ts";
 
 export interface MutationOptions {
   exhaustive: boolean;
@@ -29,22 +37,10 @@ export interface MutationOptions {
   useHarness: boolean;
 }
 
-type Status = "killed" | "survived" | "timed-out";
 type Outcome = "failed" | "passed" | "timed-out";
-
-interface MutantResult {
-  file: string;
-  mutant: Mutant;
-  status: Status;
-}
 
 const BASELINE_TIMEOUT = 120_000;
 const TIMEOUT_MULTIPLIER = 3;
-
-const rel = (path: string): string =>
-  path.startsWith(`${projectRoot}/`)
-    ? path.slice(projectRoot.length + 1)
-    : path;
 
 const testEnv = (): Record<string, string> => ({
   ...Deno.env.toObject(),
@@ -134,42 +130,12 @@ const evaluateMutant = async (
   }
 };
 
-const tally = (results: MutantResult[], status: Status): number =>
-  results.filter((result) => result.status === status).length;
-
+/** Print the report (and the CI step summary), returning the exit code. */
 const report = (results: MutantResult[]): number => {
-  const killed = tally(results, "killed");
-  const survived = tally(results, "survived");
-  const timedOut = tally(results, "timed-out");
-  const total = results.length;
-  const detected = killed + timedOut;
-  const score = total === 0 ? 100 : (detected / total) * 100;
-
-  console.log(bold("\nMutation testing summary"));
-  console.log(`  mutants:   ${total}`);
-  console.log(`  ${green("killed:")}    ${killed}`);
-  console.log(`  ${yellow("timed out:")} ${timedOut}`);
-  console.log(`  ${red("survived:")}  ${survived}`);
-  console.log(
-    `  ${bold("score:")}     ${score.toFixed(1)}%  (detected ${detected}/${total})`,
-  );
-
-  if (survived === 0) {
-    console.log(green("\nAll mutants were detected."));
-    return 0;
-  }
-
-  console.log(red("\nSurvivors — these mutations did not fail any test:"));
-  for (const result of results) {
-    if (result.status !== "survived") continue;
-    const { column, line, newOperator, operator } = result.mutant;
-    console.log(
-      `  ${rel(result.file)}:${line}:${column}  ${bold(operator)} → ${bold(
-        newOperator,
-      )}`,
-    );
-  }
-  return 1;
+  const summary = summarize(results);
+  for (const line of formatSummaryLines(summary)) console.log(line);
+  writeStepSummary(summary);
+  return summary.survived === 0 ? 0 : 1;
 };
 
 interface RunMutantsOptions {
