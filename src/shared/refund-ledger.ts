@@ -33,10 +33,11 @@ const byEventGroup = (legs: Transfer[]): Map<string, Transfer[]> => {
   return groups;
 };
 
-/** Leg kinds that recognise revenue. Their presence marks a group as a real
- *  booking order — a free listing with a paid surcharge has a `modifier`/`fee`
- *  leg but no `sale`, while a balance settlement posts only a `payment` leg. */
-const RECOGNITION_KINDS = new Set(["sale", "fee", "modifier"]);
+/** A revenue-recognising leg marks a group as a real booking order: a free
+ *  listing with a paid surcharge has a `modifier`/`fee` leg but no `sale`, while
+ *  a balance settlement posts only a `payment` leg. */
+const recognisesRevenue = (kind: string | undefined): boolean =>
+  kind === "sale" || kind === "fee" || kind === "modifier";
 
 /**
  * The booking legs to reverse when — and only when — a full provider refund of
@@ -54,9 +55,7 @@ export const soleBookingOrder = (legs: Transfer[]): Transfer[] | null => {
   const groups = byEventGroup(legs);
   if (groups.size !== 1) return null;
   const order = [...groups.values()][0]!;
-  return order.some((leg) => RECOGNITION_KINDS.has(leg.kind ?? ""))
-    ? order
-    : null;
+  return order.some((leg) => recognisesRevenue(leg.kind)) ? order : null;
 };
 
 /**
