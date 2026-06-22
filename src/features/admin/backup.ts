@@ -36,6 +36,7 @@ import {
   type StorageFileMeta,
   uploadRaw,
 } from "#shared/storage.ts";
+import { readRecordedScriptCommit } from "#shared/update.ts";
 import {
   adminBackupPage,
   adminRestoreConfirmPage,
@@ -239,7 +240,20 @@ const handleBackupRestoreConfirm: TypedRouteHandler<"POST /admin/backup/restore/
         await Promise.allSettled([deleteFile(filename)]);
       }
     },
-    message: "Database restored from backup",
+    // The restored data carries the commit the site was running when the backup
+    // was taken (recordScriptVersion writes it on boot). Surface it so the
+    // operator can redeploy that commit to return the code to the same point in
+    // time — restore only rolls back data, never code. Read straight after the
+    // restore, before the next request's initDb re-stamps the running commit.
+    message: async () => {
+      const commit = await readRecordedScriptCommit();
+      return commit
+        ? `Database restored from backup. It was running commit ${commit.slice(
+            0,
+            12,
+          )} — redeploy that commit to restore the code to this point in time.`
+        : "Database restored from backup";
+    },
     successRedirect: "/admin/backup",
   });
 
