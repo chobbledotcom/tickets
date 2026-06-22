@@ -57,7 +57,13 @@ import {
 } from "#shared/types.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
 import {
+  childDateOk,
+  childDurationMatches,
+  childPricedForSpan,
   childSelectableIgnoringSpan,
+  constrainOptionsByChildUnion,
+  resolveInheritedDuration,
+  selectableChild,
   type TicketListing,
 } from "#templates/public.tsx";
 import {
@@ -289,39 +295,12 @@ export const resolveDayCount = async (
 
 /** The parent's resolved booking duration that its customisable children
  * inherit (invariant I4): the shared `dayCount` for a customisable parent, the
- * fixed `duration_days` for a fixed daily parent, 1 for a standard parent. */
+ * fixed `duration_days` for a fixed daily parent, 1 for a standard parent.
+ * Specialises the shared {@link resolveInheritedDuration} with `(dayCount, 1)`. */
 const parentResolvedDuration = (
   parent: TicketListing["listing"],
   dayCount: number,
-): number => {
-  if (parent.customisable_days) return dayCount;
-  if (parent.listing_type === "daily") {
-    return normalizeDurationDays(parent.duration_days);
-  }
-  return 1;
-};
-
-/** Whether the order's resolved `date` is a valid start for a daily child's own
- * calendar at the inherited `duration` — a daily child can have different
- * bookable weekdays / windows / holidays than its parent, and `checkAvailability`
- * only checks capacity, never the child's own bookable dates (parents.md fold
- * checklist "Validate the child's own bookable DATE"). A standard (dateless)
- * child has no date constraint of its own. Uses the SAME validity the booking
- * page uses: a customisable child validates the full span with
- * {@link isBookingRangeValid}; a fixed daily child validates the start against
- * {@link getBookableStartDates}. */
-const childDateIsBookable = (
-  child: TicketListing,
-  duration: number,
-  date: string | null,
-  holidays: Holiday[],
-): boolean => {
-  if (child.listing.listing_type !== "daily") return true;
-  if (!date) return false;
-  return child.listing.customisable_days
-    ? isBookingRangeValid(child.listing, date, duration, holidays)
-    : getBookableStartDates(child.listing, holidays).includes(date);
-};
+): number => resolveInheritedDuration(parent, dayCount, 1);
 
 /** Parameters for the child-bookability test: the candidate child plus the order
  * context it must be bookable against (inherited duration, resolved date, active
@@ -332,57 +311,40 @@ type ChildBookableCtx = {
   holidays: Holiday[];
 };
 
-/** Whether a child's booked span matches the parent's inherited `duration`. A
- * customisable child inherits the duration directly (priced span is checked
- * separately); a non-customisable DAILY child is booked for its own fixed
- * `duration_days` (via {@link bookingDateFields}), so it can only fold when that
- * equals the inherited duration — otherwise a {1,3}-day customisable parent
- * booked at 1 day would still reserve a fixed 3-day child for 3 days (Codex
- * 449). A standard (dateless) child is duration 1 and unaffected. */
-const childDurationMatches = (
-  child: TicketListing,
-  duration: number,
-): boolean => {
-  if (child.listing.customisable_days) return true;
-  if (child.listing.listing_type === "daily") {
-    return normalizeDurationDays(child.listing.duration_days) === duration;
-  }
-  return true;
-};
-
-/** The date-INDEPENDENT disqualifiers `childIsBookable` applies. The date- AND
- * span-independent part (active, not closed, standard child not date-less sold
- * out) is the shared {@link childSelectableIgnoringSpan} both unions use. When the
- * parent's inherited span is known (`duration` non-null) the two span-dependent
- * disqualifiers also apply: a customisable child must price the inherited
- * duration, and a fixed daily child's own `duration_days` must equal it. A null
- * `duration` (a CUSTOMISABLE parent, whose span the buyer has not chosen at
- * render) skips only those span checks — they are enforced per-span at submit.
- *
- * It deliberately omits the child's own date calendar
- * ({@link childDateIsBookable}), which the union folds in per-candidate-date
- * instead (parents.md Fixes 2–4). */
+/** The date-INDEPENDENT disqualifiers `childIsBookable` applies, composed from
+ * the shared atoms. The date- AND span-independent part (active, not closed,
+ * standard child not date-less sold out) is {@link childSelectableIgnoringSpan}.
+ * When the parent's inherited span is known (`duration` non-null) two span atoms
+ * also apply: a customisable child must price the inherited duration
+ * ({@link childPricedForSpan}), and a fixed daily child's `duration_days` must
+ * equal it ({@link childDurationMatches}). A null `duration` (a CUSTOMISABLE
+ * parent, whose span the buyer has not chosen at render) skips only those span
+ * atoms — they are enforced per-span at submit. It deliberately omits the
+ * child's own date calendar ({@link childDateOk}), which the union folds in
+ * per-candidate-date instead (parents.md Fixes 2–4). */
 const childSelectableForSpan = (
   child: TicketListing,
   duration: number | null,
 ): boolean =>
-  childSelectableIgnoringSpan(child) &&
-  (duration === null ||
-    ((!child.listing.customisable_days ||
-      dayPriceFor(child.listing, duration) !== null) &&
-      childDurationMatches(child, duration)));
+  selectableChild(
+    compact([
+      childSelectableIgnoringSpan,
+      duration === null ? null : childPricedForSpan(duration),
+      duration === null ? null : childDurationMatches(duration),
+    ]),
+  )(child);
 
 /** A child is bookable now if it is categorically selectable for the inherited
  * span ({@link childSelectableForSpan}) and — when daily — the resolved order
- * date is within its own bookable start dates for the inherited duration.
- * Date-capacity for a daily child is enforced later by the folded
- * `checkAvailability` (never clamped). */
+ * date is within its own bookable start dates for the inherited duration
+ * ({@link childDateOk}). Date-capacity for a daily child is enforced later by the
+ * folded `checkAvailability` (never clamped). */
 const childIsBookable = (
   child: TicketListing,
   { duration, date, holidays }: ChildBookableCtx,
 ): boolean =>
   childSelectableForSpan(child, duration) &&
-  childDateIsBookable(child, duration, date, holidays);
+  childDateOk(date, holidays, duration)(child);
 
 /** The order's listing set, quantity map, custom-price map and selected ids,
  * expanded with the chosen children. Shared by the mutable fold accumulator and
@@ -811,30 +773,25 @@ const constrainDatesByChildUnion = (
   children: TicketListing[],
   fixedSpan: number | null,
   holidays: Holiday[],
-): string[] => {
-  const union = new Set<string>();
-  const selectable = children.filter((c) =>
-    childSelectableForSpan(c, fixedSpan),
+): string[] =>
+  constrainOptionsByChildUnion(
+    parentDates,
+    children,
+    (c) => childSelectableForSpan(c, fixedSpan),
+    (c) => childDateContribution(c, parentDates, fixedSpan, holidays),
   );
-  for (const child of selectable) {
-    for (const d of childDateContribution(
-      child,
-      parentDates,
-      fixedSpan,
-      holidays,
-    )) {
-      union.add(d);
-    }
-  }
-  return parentDates.filter((d) => union.has(d));
-};
 
 /** The parent's render-time FIXED inherited span, or null when there is no single
  * span at render (a customisable parent — the buyer picks the day-count). A fixed
  * daily parent's span is its `duration_days`; a daily parent is otherwise fixed at
- * the single day a non-customisable daily start covers. */
+ * the single day a non-customisable daily start covers. Specialises the shared
+ * {@link resolveInheritedDuration} with `(null, duration_days)`. */
 const fixedParentSpan = (parent: TicketListing["listing"]): number | null =>
-  parent.customisable_days ? null : normalizeDurationDays(parent.duration_days);
+  resolveInheritedDuration<number | null>(
+    parent,
+    null,
+    normalizeDurationDays(parent.duration_days),
+  );
 
 /**
  * The page's sole listing + its children when it is a daily parent, else null

@@ -1,8 +1,17 @@
 import { t } from "#i18n";
 import { isContactFormActive } from "#shared/contact-form.ts";
+import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
 import { settings } from "#shared/db/settings.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { getImageProxyUrl } from "#shared/storage.ts";
+import {
+  dayPriceFor,
+  type Holiday,
+  type ListingWithCount,
+  normalizeDurationDays,
+  PARENT_CHILD_GROUP_UNITS,
+  sharedGroupRemaining,
+} from "#shared/types.ts";
 import { escapeHtml } from "#templates/layout.tsx";
 
 /** Public site navigation - hides terms/contact/order links when off/empty */
@@ -81,23 +90,169 @@ export type TicketListing = {
   maxPurchasable: number;
 };
 
-/** Whether a required child clears the date- AND span-INDEPENDENT disqualifiers:
- * it is active, not registration-closed, and — for a STANDARD child, whose
- * capacity is cumulative and date-independent — not sold out. A DAILY child's
- * date-less `isSoldOut` aggregate is meaningless (it reads true once full on ANY
- * single date), so a daily child is never filtered on it here — its per-date
- * capacity is enforced against the resolved date downstream.
+/**
+ * Curried, composable child-availability ATOMS plus a single combinator
+ * ({@link selectableChild}) — the one source of truth every parent/child surface
+ * (discovery, the submit fold, and the booking-page render) re-expresses its own
+ * predicate through, so the many slightly-differently-phrased
+ * "is this child bookable?" ideas share one implementation.
  *
- * This is the single source of truth both the date union (ticket-payment.ts) and
- * the day-count union (reservations.tsx) use to drop children the fold would
- * categorically reject, so an inactive/closed/sold-out child never keeps a
- * date/span selectable (parents.md Fixes 2–4). Span- and date-dependent checks
- * (priced-for-duration, fixed-daily duration match, the child's own calendar)
- * layer on top of this in the caller that knows the inherited span/date. */
-export const childSelectableIgnoringSpan = (child: TicketListing): boolean =>
-  child.listing.active &&
-  !child.isClosed &&
-  (child.listing.listing_type === "daily" || !child.isSoldOut);
+ * Each atom is a pure `(child) => boolean` (some curried over the context the
+ * caller carries — span, date, holidays, group-remaining). The combinator ANDs
+ * exactly the atoms a caller passes, so a site keeps its EXACT current behaviour
+ * by composing the atoms it used before — no more, no less.
+ */
+
+/** The child's listing row is active (the fold rejects an inactive child). */
+export const childActive = (child: TicketListing): boolean =>
+  child.listing.active;
+
+/** The child is not registration-closed. */
+export const childOpen = (child: TicketListing): boolean => !child.isClosed;
+
+/** Date-LESS cumulative sold-out check, **standard only**: a STANDARD child's
+ * capacity is cumulative and date-independent, so `isSoldOut` is authoritative;
+ * a DAILY child's date-less `isSoldOut` aggregate is meaningless (it reads true
+ * once full on ANY single date), so it is exempt here and judged per-date
+ * downstream. */
+export const childStandardInStock = (child: TicketListing): boolean =>
+  child.listing.listing_type === "daily" || !child.isSoldOut;
+
+/** Strict date-less sold-out check applied to **every** kind (the booking-page
+ * render variant): the child option renders enabled only when not sold out,
+ * including a daily child judged by its date-less aggregate. */
+export const childInStock = (child: TicketListing): boolean => !child.isSoldOut;
+
+/** Date-less availability with the DAILY case judged by its OWN calendar (the
+ * discovery variant): a daily child counts as potentially bookable when it has
+ * at least one bookable start date, a standard child when it is not sold out. */
+export const childCalendarOrInStock =
+  (holidays: Holiday[]) =>
+  (child: TicketListing): boolean =>
+    child.listing.listing_type === "daily"
+      ? getBookableStartDates(child.listing, holidays).length > 0
+      : !child.isSoldOut;
+
+/** The child can be PRICED for the inherited span: a customisable child must
+ * have a day price for `duration`; any other child prices independently of it. */
+export const childPricedForSpan =
+  (duration: number) =>
+  (child: TicketListing): boolean =>
+    !child.listing.customisable_days ||
+    dayPriceFor(child.listing, duration) !== null;
+
+/** The child's booked span matches the parent's inherited `duration`: a
+ * customisable child inherits it directly; a fixed DAILY child is booked for its
+ * own `duration_days`, so it folds only when that equals `duration`; a standard
+ * child is duration 1 and unaffected. */
+export const childDurationMatches =
+  (duration: number) =>
+  (child: TicketListing): boolean =>
+    child.listing.customisable_days ||
+    child.listing.listing_type !== "daily" ||
+    normalizeDurationDays(child.listing.duration_days) === duration;
+
+/** The order's resolved `date` is a valid start on a DAILY child's own calendar
+ * for the inherited `duration` (a customisable child validates the whole span; a
+ * fixed daily child validates the start). A standard (dateless) child has no
+ * date constraint of its own. */
+export const childDateOk =
+  (date: string | null, holidays: Holiday[], duration: number) =>
+  (child: TicketListing): boolean => {
+    if (child.listing.listing_type !== "daily") return true;
+    if (!date) return false;
+    return child.listing.customisable_days
+      ? isBookingRangeValid(child.listing, date, duration, holidays)
+      : getBookableStartDates(child.listing, holidays).includes(date);
+  };
+
+/** The *combined* one-parent-plus-one-child minimum order fits the capacity the
+ * two share (invariant I7): co-grouped in a capped group they consume
+ * {@link PARENT_CHILD_GROUP_UNITS} spots, so a single remaining spot is not
+ * enough; otherwise the per-row check already stands. The single source of truth
+ * for the "does the combined demand fit?" question — discovery's sold-out
+ * projection (`combinedDemandFits`) and the render quantity clamp
+ * (`childOrderCap`) both reason about this same shared-group remaining.
+ * `groupRemaining` is the child's group-remaining entry. */
+export const combinedGroupDemandFits = (
+  parentGroupId: number,
+  childGroupId: number,
+  groupRemaining: number | undefined,
+): boolean => {
+  const shared = sharedGroupRemaining(
+    parentGroupId,
+    childGroupId,
+    groupRemaining,
+  );
+  return shared === undefined || shared >= PARENT_CHILD_GROUP_UNITS;
+};
+
+/** Combine a list of child-availability atoms into one predicate that ANDs them
+ * all. Callers compose exactly the atoms their site needs (via {@link
+ * compact} to drop the optional ones they don't), keeping behaviour identical. */
+export const selectableChild =
+  (atoms: ((child: TicketListing) => boolean)[]) =>
+  (child: TicketListing): boolean =>
+    atoms.every((atom) => atom(child));
+
+/** Whether a required child clears the date- AND span-INDEPENDENT disqualifiers:
+ * active, not registration-closed, and — for a STANDARD child — not sold out (a
+ * daily child's date-less aggregate is judged per-date downstream). The single
+ * source of truth both the date union (ticket-payment.ts) and the day-count
+ * union (reservations.tsx) use to drop children the fold would categorically
+ * reject (parents.md Fixes 2–4). Span- and date-dependent checks layer on top in
+ * the caller that knows the inherited span/date. */
+export const childSelectableIgnoringSpan: (child: TicketListing) => boolean =
+  selectableChild([childActive, childOpen, childStandardInStock]);
+
+/** Single source of truth for the duration a parent's children inherit
+ * (invariant I4), parameterised by what each surface uses when the parent's span
+ * is NOT fixed at the call: a CUSTOMISABLE parent yields `customisableValue` (the
+ * resolved/submitted day count, or `null` at render when no span is chosen yet);
+ * a fixed DAILY parent yields its `duration_days`; a STANDARD parent yields
+ * `standardValue`. Callers specialise it:
+ *  - submit fold (`parentResolvedDuration`): `(dayCount, 1)`;
+ *  - render duration (`parentRenderDuration`): `(null, 1)`;
+ *  - render fixed span (`fixedParentSpan`): `(null, duration_days)`. */
+export const resolveInheritedDuration = <T extends number | null>(
+  parent: Pick<
+    ListingWithCount,
+    "customisable_days" | "duration_days" | "listing_type"
+  >,
+  customisableValue: T,
+  standardValue: T,
+): T => {
+  if (parent.customisable_days) return customisableValue;
+  if (parent.listing_type === "daily") {
+    return normalizeDurationDays(parent.duration_days) as T;
+  }
+  return standardValue;
+};
+
+/**
+ * One "union over selectable children" combinator (parents.md "union before
+ * selection"): constrain a parent's offered `options` to those at least one of
+ * its SELECTABLE children supports — `options ∩ (UNION of each child's
+ * contribution)`. The two booking-page surfaces specialise it: the date selector
+ * (`constrainDatesByChildUnion`, ticket-payment.ts) over bookable start dates,
+ * and the day-count selector (`constrainDayCountsByChildUnion`, here) over
+ * supported spans. `selectable` drops children the fold would categorically
+ * reject (so they contribute nothing); `contribution` returns the subset of
+ * `options` a kept child supports — return all of `options` for a child that
+ * imposes no constraint ("any"). With no selectable child the union is empty, so
+ * nothing is offered (the parent is sold out and the gate rejects anyway). */
+export const constrainOptionsByChildUnion = <T,>(
+  options: T[],
+  children: TicketListing[],
+  selectable: (child: TicketListing) => boolean,
+  contribution: (child: TicketListing) => T[],
+): T[] => {
+  const union = new Set<T>();
+  for (const child of children.filter(selectable)) {
+    for (const value of contribution(child)) union.add(value);
+  }
+  return options.filter((value) => union.has(value));
+};
 
 /** `groupRemaining`, when defined, clamps the displayed sold-out state and
  * `maxPurchasable` to the group's combined cap. */

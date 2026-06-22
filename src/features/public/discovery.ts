@@ -28,7 +28,6 @@
 import { compact } from "#fp";
 import { isRegistrationClosed } from "#routes/format.ts";
 import { isListingParentsEnabled } from "#shared/config.ts";
-import { getBookableStartDates } from "#shared/dates.ts";
 import { getGroupRemainingByListingId } from "#shared/db/attendees.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {
@@ -36,13 +35,16 @@ import {
   getChildrenForParents,
   getParentsForChildren,
 } from "#shared/db/listing-parents.ts";
+import type { Holiday, ListingWithCount } from "#shared/types.ts";
 import {
-  type Holiday,
-  type ListingWithCount,
-  PARENT_CHILD_GROUP_UNITS,
-  sharedGroupRemaining,
-} from "#shared/types.ts";
-import { buildTicketListing, type TicketListing } from "#templates/public.tsx";
+  buildTicketListing,
+  childActive,
+  childCalendarOrInStock,
+  childOpen,
+  combinedGroupDemandFits,
+  selectableChild,
+  type TicketListing,
+} from "#templates/public.tsx";
 
 /**
  * How a discovery surface should treat each listing:
@@ -91,34 +93,10 @@ const EMPTY_CLASSIFICATION: DiscoveryClassification = {
  * job (it rejects — never clamps — a genuinely full date). Hidden children stay
  * bookable — `hidden` governs the index, not eligibility (parents.md, Edge
  * cases). */
-const childBookable = (child: TicketListing, holidays: Holiday[]): boolean => {
-  if (!child.listing.active || child.isClosed) return false;
-  return child.listing.listing_type === "daily"
-    ? getBookableStartDates(child.listing, holidays).length > 0
-    : !child.isSoldOut;
-};
-
-/**
- * Whether the *combined* minimum order — one parent plus one of this child —
- * fits the capacity they share (invariant I7, parents.md "combined parent+child
- * demand"). When the parent and child sit in the **same capped group** they
- * consume {@link PARENT_CHILD_GROUP_UNITS} group spots per order, so a single
- * remaining spot is not enough even though each row looks individually bookable.
- * When they are in different/uncapped groups the per-row check already stands, so
- * the combined demand always fits. Shares the shared-group resolution with the
- * booking-page quantity ceiling (`childCappedMax`) via {@link sharedGroupRemaining}. */
-const combinedDemandFits = (
-  parent: ListingWithCount,
-  child: ListingWithCount,
-  childGroupRemaining: number | undefined,
-): boolean => {
-  const shared = sharedGroupRemaining(
-    parent.group_id,
-    child.group_id,
-    childGroupRemaining,
+const childBookable = (child: TicketListing, holidays: Holiday[]): boolean =>
+  selectableChild([childActive, childOpen, childCalendarOrInStock(holidays)])(
+    child,
   );
-  return shared === undefined || shared >= PARENT_CHILD_GROUP_UNITS;
-};
 
 /** Whether a *parent* can currently offer its children as add-ons (Fix 1): its
  * own row must be active AND not sold out AND not registration-closed. A parent
@@ -153,7 +131,7 @@ const childBookableForParent = (
   childBookable(
     buildTicketListing(child, isRegistrationClosed(child), groupRemaining),
     holidays,
-  ) && combinedDemandFits(parent, child, groupRemaining);
+  ) && combinedGroupDemandFits(parent.group_id, child.group_id, groupRemaining);
 
 /**
  * Classify the given listings for a discovery surface (see

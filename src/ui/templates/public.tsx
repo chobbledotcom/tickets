@@ -30,10 +30,22 @@ export {
 } from "./public/reservations.tsx";
 export {
   buildTicketListing,
+  childActive,
+  childCalendarOrInStock,
+  childDateOk,
+  childDurationMatches,
+  childInStock,
+  childOpen,
+  childPricedForSpan,
   childSelectableIgnoringSpan,
+  childStandardInStock,
+  combinedGroupDemandFits,
+  constrainOptionsByChildUnion,
   FEED_DISCOVERY_TAGS,
   ICS_DISCOVERY_TAG,
   RSS_DISCOVERY_TAG,
   renderListingImage,
+  resolveInheritedDuration,
+  selectableChild,
   type TicketListing,
 } from "./public/shared.tsx";

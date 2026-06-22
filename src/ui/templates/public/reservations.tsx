@@ -36,8 +36,14 @@ import {
 import { getTicketFields, mergeListingFields } from "#templates/fields.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 import {
+  childActive,
+  childInStock,
+  childOpen,
   childSelectableIgnoringSpan,
+  constrainOptionsByChildUnion,
   renderListingImage,
+  resolveInheritedDuration,
+  selectableChild,
   type TicketListing,
 } from "./shared.tsx";
 /** Build OpenGraph meta tags for a public listing page */
@@ -162,18 +168,14 @@ const constrainDayCountsByChildUnion = (
   if (!childrenByParentId || listings.length !== 1) return parentDayCounts;
   const all = childrenByParentId.get(listings[0]!.listing.id);
   if (!all || all.length === 0) return parentDayCounts;
-  const children = all.filter(childSelectableIgnoringSpan);
-  // Every child unavailable ⇒ no child can serve any span; the parent is sold
-  // out, so offer nothing (the gate rejects the order anyway).
-  if (children.length === 0) return [];
-  const union = new Set<number>();
-  for (const child of children) {
-    const spans = childSupportedSpans(child);
-    // A child that imposes no span constraint ("any") keeps every parent span.
-    if (spans === null) return parentDayCounts;
-    for (const n of spans) union.add(n);
-  }
-  return parentDayCounts.filter((n) => union.has(n));
+  return constrainOptionsByChildUnion(
+    parentDayCounts,
+    all,
+    childSelectableIgnoringSpan,
+    // A child that imposes no span constraint ("any", e.g. a standard child)
+    // supports every parent span; otherwise only its own supported spans.
+    (child) => childSupportedSpans(child) ?? parentDayCounts,
+  );
 };
 
 /** Render the "number of days" selector for customisable-days listings. When a
@@ -419,9 +421,13 @@ export type ChildRenderCtx = {
  * enabled): active, not sold out and not closed. The server fold rejects an
  * inactive child (`child.listing.active`), so an inactive child option must
  * never render enabled or auto-checked — it would be a control that always fails
- * at submit. Unavailable children render disabled (parents.md, invariant I6). */
-const childBookable = (child: TicketListing): boolean =>
-  child.listing.active && !child.isSoldOut && !child.isClosed;
+ * at submit. Unavailable children render disabled (parents.md, invariant I6).
+ * Composed from the shared atoms (date-less, strict sold-out for every kind). */
+const childBookable: (child: TicketListing) => boolean = selectableChild([
+  childActive,
+  childOpen,
+  childInStock,
+]);
 
 /**
  * A single bookable child's contribution to its parent's quantity ceiling, in
@@ -499,14 +505,10 @@ const childQuestionsToRender = (
 
 /** The duration a customisable child inherits at no-JS render, or null when the
  * parent is itself customisable (the buyer hasn't yet chosen a day count, so
- * there is no single render-time duration). Mirrors `parentResolvedDuration`:
- * a fixed daily parent supplies its `duration_days`, a standard parent 1. */
-const parentRenderDuration = (parent: ListingWithCount): number | null => {
-  if (parent.customisable_days) return null;
-  return parent.listing_type === "daily"
-    ? normalizeDurationDays(parent.duration_days)
-    : 1;
-};
+ * there is no single render-time duration). Specialises the shared
+ * {@link resolveInheritedDuration}: customisable → null, standard → 1. */
+const parentRenderDuration = (parent: ListingWithCount): number | null =>
+  resolveInheritedDuration<number | null>(parent, null, 1);
 
 /** The "from" price for a customisable child under a customisable parent: the
  * minimum child day price over the spans the parent can ACTUALLY offer — the
