@@ -43,6 +43,7 @@ import { parseTokens } from "#routes/tickets/token-utils.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
 import { mapBooking } from "#shared/accounting/mappers.ts";
+import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { eventGroup, legReference } from "#shared/accounting/refs.ts";
 import { guardedInsertStatement } from "#shared/accounting/rows.ts";
 import { postTransfersTx } from "#shared/accounting/store.ts";
@@ -924,30 +925,44 @@ const settleBalanceSession = async (
   const listingId = intent.items[0]!.e;
 
   // The balance payment is cash arriving for the order: world funds the
-  // attendee, clearing what they owed (the sale was recognised at booking). Fold
-  // the leg into the settle batch, guarded on the same live balance, so it lands
-  // atomically with the settle and only when the settle actually applies. Its
-  // own event group keeps it distinct from the original booking.
-  const paymentLeg = guardedInsertStatement(
-    {
-      amount: expectedAmount,
-      currency: settings.currency,
-      destination: attendeeAccount(attendeeId),
-      eventGroup: await eventGroup(["balance", sessionId]),
-      kind: "payment",
-      occurredAt: nowIso(),
-      reference: await legReference(["balance", sessionId, "payment"]),
-      source: WORLD,
-    },
-    nowIso(),
-    "(SELECT remaining_balance FROM attendees WHERE id = ?) = ?",
-    [attendeeId, expectedAmount],
-  );
-
-  const settled = await settleAttendeeBalance(attendeeId, expectedAmount, [
+  // attendee, clearing what they owed (the sale was recognised at booking).
+  //
+  // Only post the leg once the original booking is already in the ledger. A
+  // reservation created before booking dual-write has no sale/deposit legs, so a
+  // lone payment leg would leave cash with no matching revenue (and a later
+  // backfill from the columns would double-count it); those legacy orders are
+  // reconstructed wholesale by the backfill instead. Take the currency from the
+  // booking's own legs, not the (possibly since-changed) site currency, so the
+  // batch can't append a mixed-currency leg.
+  const bookingLegs = await transfersByAccount(attendeeAccount(attendeeId));
+  const settleStatements = [
     balanceFinalizeStatement(sessionId, attendeeId, expectedAmount),
-    paymentLeg,
-  ]);
+  ];
+  if (bookingLegs.length > 0) {
+    settleStatements.push(
+      guardedInsertStatement(
+        {
+          amount: expectedAmount,
+          currency: bookingLegs[0]!.currency,
+          destination: attendeeAccount(attendeeId),
+          eventGroup: await eventGroup(["balance", sessionId]),
+          kind: "payment",
+          occurredAt: nowIso(),
+          reference: await legReference(["balance", sessionId, "payment"]),
+          source: WORLD,
+        },
+        nowIso(),
+        "(SELECT remaining_balance FROM attendees WHERE id = ?) = ?",
+        [attendeeId, expectedAmount],
+      ),
+    );
+  }
+
+  const settled = await settleAttendeeBalance(
+    attendeeId,
+    expectedAmount,
+    settleStatements,
+  );
   if (!settled.settled) {
     return refundAndFail(
       session,
