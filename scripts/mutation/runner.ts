@@ -21,6 +21,12 @@ import {
 import { type AssetRebuilder, createAssetRebuilder } from "./assets.ts";
 import { applyMutant, generateMutants, type Mutant } from "./generate.ts";
 import {
+  type IgnoreList,
+  ignoreListProblems,
+  isIgnored,
+  loadIgnoreList,
+} from "./ignore.ts";
+import {
   formatSummaryLines,
   type MutantResult,
   rel,
@@ -95,7 +101,9 @@ const statusGlyph = (status: Status): string =>
     ? green(".")
     : status === "timed-out"
       ? yellow("T")
-      : red("S");
+      : status === "ignored"
+        ? dim("i")
+        : red("S");
 
 /**
  * Hooks for keeping a mutated source's built client bundle(s) in sync, used
@@ -132,9 +140,11 @@ const evaluateMutant = async (
 
 /**
  * Print the report (and the CI step summary), returning the exit code:
- * 0 = every mutant detected, 1 = survivors, 2 = inconclusive (no mutants, so
- * the run proved nothing — fail rather than report a vacuous 100% that would
- * let CI go green on a module with nothing to test).
+ * 0 = every mutant detected (or all survivors are known-equivalent), 1 =
+ * survivors, 2 = inconclusive (no mutants at all, so the run proved nothing —
+ * fail rather than report a vacuous 100%). A file whose every mutant is
+ * suppressed is *not* inconclusive: that is what the ignore-list is for, so it
+ * passes.
  */
 const report = (results: MutantResult[]): number => {
   const summary = summarize(results);
@@ -147,6 +157,7 @@ const report = (results: MutantResult[]): number => {
 interface RunMutantsOptions {
   abortSignal: AbortSignal;
   exhaustive: boolean;
+  ignoreList: IgnoreList;
   isAborted: () => boolean;
   originals: Map<string, string>;
   restoreAll: () => void;
@@ -162,6 +173,7 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
   const {
     abortSignal,
     exhaustive,
+    ignoreList,
     isAborted,
     originals,
     restoreAll,
@@ -226,7 +238,7 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
       }
       for (const mutant of mutants) {
         if (isAborted()) break;
-        const status = await evaluateMutant(
+        const outcome = await evaluateMutant(
           file,
           original,
           mutant,
@@ -236,6 +248,11 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
           abortSignal,
         );
         if (isAborted()) break;
+        // A survivor recorded as known-equivalent is suppressed, not a failure.
+        const status: Status =
+          outcome === "survived" && isIgnored(ignoreList, file, mutant)
+            ? "ignored"
+            : outcome;
         results.push({ file, mutant, status });
         write(statusGlyph(status));
       }
@@ -251,11 +268,26 @@ const runMutants = async (opts: RunMutantsOptions): Promise<number> => {
     console.log(yellow("Interrupted — restored sources and built assets."));
     return 130;
   }
-  return report(results);
+
+  const exitCode = report(results);
+  // The ignore-list is location-based, so it drifts as code moves. Re-check it
+  // here — only for the files just mutated — and fail if any entry no longer
+  // lines up with a real survivor, so it gets fixed instead of rotting.
+  const problems = ignoreListProblems(ignoreList, results, sourceFiles);
+  if (problems.length === 0) return exitCode;
+  console.error(
+    yellow("\nIgnore-list issues (scripts/mutation/equivalent-mutants.txt):"),
+  );
+  for (const problem of problems) console.error(red(`  ✗ ${problem}`));
+  console.error(
+    dim("  Update or remove these so the list stays in sync with reality."),
+  );
+  return exitCode === 0 ? 1 : exitCode;
 };
 
 const mutate = async (options: MutationOptions): Promise<number> => {
   const { exhaustive, sourceFiles, testFiles, timeout } = options;
+  const ignoreList = await loadIgnoreList();
 
   const results: MutantResult[] = [];
   const originals = new Map<string, string>();
@@ -300,6 +332,7 @@ const mutate = async (options: MutationOptions): Promise<number> => {
     return await runMutants({
       abortSignal: abortController.signal,
       exhaustive,
+      ignoreList,
       isAborted: () => aborted,
       originals,
       restoreAll,
