@@ -41,7 +41,10 @@ import {
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { parseTokens } from "#routes/tickets/token-utils.ts";
 import { getSearchParam } from "#routes/url.ts";
+import { mapBooking } from "#shared/accounting/mappers.ts";
+import { postTransfersTx } from "#shared/accounting/store.ts";
 import { calculateBookingFee } from "#shared/booking-fee.ts";
+import { bookingFactsFromOrder } from "#shared/checkout-ledger.ts";
 import {
   type ModifierApplication,
   type PricedOrder,
@@ -53,15 +56,15 @@ import { logActivity } from "#shared/db/activityLog.ts";
 import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
 import {
+  type CreateAttendeeResult,
   createAttendeeAtomic,
-  deleteAttendee,
   ensureAllBookings,
   getAttendeesByTokens,
-  reverseOrderActivity,
 } from "#shared/db/attendees.ts";
+import type { TxScope } from "#shared/db/client.ts";
 import { getListing, getListingWithCount } from "#shared/db/listings.ts";
 import { buyerVisits, specsFromRefs } from "#shared/db/modifier-resolve.ts";
-import { consumeModifierStock } from "#shared/db/modifier-usage.ts";
+import { consumeModifierStockTx } from "#shared/db/modifier-usage.ts";
 import {
   balanceFinalizeStatement,
   clearSessionTokens,
@@ -77,7 +80,9 @@ import {
   groupListingAnswers,
   saveAttendeeAnswers,
 } from "#shared/db/questions.ts";
-import { bestEffort, ErrorCode, logDebug, logError } from "#shared/logger.ts";
+import { settings } from "#shared/db/settings.ts";
+import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
+import { nowIso } from "#shared/now.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import { verifyPrice } from "#shared/payment-signature.ts";
 import {
@@ -102,6 +107,10 @@ const PRICE_CHANGED_MESSAGE =
 /** User-facing message when a chosen add-on/discount sold out during payment. */
 const MODIFIER_SOLD_OUT_MESSAGE =
   "An extra you selected sold out while you were completing payment.";
+
+/** Thrown from the create transaction when a modifier sold out during payment,
+ *  so the whole booking (and its ledger legs) rolls back and the caller refunds. */
+class ModifierSoldOutError extends Error {}
 
 /** Parse per-listing answer IDs from metadata JSON string.
  * Returns undefined for empty input. The JSON was serialized by our own
@@ -787,19 +796,65 @@ const createAttendeeForSession = async (
   const remainingBalance =
     intent.reservationAmount === undefined ? 0 : fullTotal - depositTotal;
 
-  const result = await createAttendeeAtomic({
-    address: intent.address,
-    bookings,
-    email: intent.email,
-    name: intent.name,
-    paymentId: session.paymentReference,
-    phone: intent.phone,
-    remainingBalance,
-    special_instructions: intent.special_instructions,
-    statusId: await getPublicStatusId(),
-  });
+  // Consume modifier stock and post the ledger legs in the same transaction as
+  // the attendee and bookings, so the booking, its stock, and its sale/payment
+  // legs are all-or-nothing. The usage amount comes from the same pricing pass
+  // that calculated the checkout total, so scoped bases, quantities, and clamped
+  // discounts match. A modifier that sold out during payment throws, rolling the
+  // whole order back so the caller refunds rather than leaving orphaned legs.
+  const usages = pricedOrder.modifierApplications.map((application) => ({
+    amountApplied: application.amountApplied,
+    modifierId: application.modifierId,
+    quantity: application.quantity,
+  }));
+  const postLedger = async (tx: TxScope, attendeeId: number): Promise<void> => {
+    if (!(await consumeModifierStockTx(tx, attendeeId, usages))) {
+      throw new ModifierSoldOutError();
+    }
+    await postTransfersTx(
+      tx,
+      await mapBooking(
+        bookingFactsFromOrder(pricedOrder, {
+          attendeeId,
+          currency: settings.currency,
+          eventId: session.id,
+          occurredAt: nowIso(),
+        }),
+      ),
+    );
+  };
 
-  // For paid bookings, require all-or-nothing: partial success = rollback + refund
+  let result: CreateAttendeeResult;
+  try {
+    result = await createAttendeeAtomic(
+      {
+        address: intent.address,
+        bookings,
+        email: intent.email,
+        name: intent.name,
+        paymentId: session.paymentReference,
+        phone: intent.phone,
+        remainingBalance,
+        special_instructions: intent.special_instructions,
+        statusId: await getPublicStatusId(),
+      },
+      postLedger,
+    );
+  } catch (error) {
+    if (error instanceof ModifierSoldOutError) {
+      return refundAndFail(
+        session,
+        MODIFIER_SOLD_OUT_MESSAGE,
+        validatedItems[0]!.listing.id,
+        409,
+      );
+    }
+    throw error;
+  }
+
+  // All-or-nothing: a capacity failure rolled the transaction back (no legs),
+  // so this only refunds; the partial-rollback branch never fires for the paid
+  // path.
   const bookingCheck = await ensureAllBookings(
     result,
     bookings.length,
@@ -818,39 +873,6 @@ const createAttendeeForSession = async (
     );
   }
   const created = result as Extract<typeof result, { success: true }>;
-
-  // Consume modifier stock atomically; a sold-out race rolls the order back.
-  // The usage amount comes from the same pricing pass that calculated the
-  // checkout total, so scoped bases, quantities, and clamped discounts match.
-  // Answer-triggered modifiers are ordinary modifiers, so they consume stock
-  // and record usage (and its revenue aggregates) like every other modifier.
-  if (pricedOrder.modifierApplications.length > 0) {
-    const attendeeId = created.attendees[0]!.id;
-    const consumed = await consumeModifierStock(
-      attendeeId,
-      pricedOrder.modifierApplications.map((application) => ({
-        amountApplied: application.amountApplied,
-        modifierId: application.modifierId,
-        quantity: application.quantity,
-      })),
-    );
-    if (!consumed) {
-      await deleteAttendee(attendeeId);
-      // Undo the visit + booking the greedy create recorded for this contact,
-      // since the paid order is being rolled back and refunded. Best-effort:
-      // the buyer has already been charged, so a contact-stats write failure
-      // must never block the refund below.
-      await bestEffort("reverseOrderActivity on rollback", () =>
-        reverseOrderActivity(intent.email, intent.phone, "public"),
-      );
-      return refundAndFail(
-        session,
-        MODIFIER_SOLD_OUT_MESSAGE,
-        validatedItems[0]!.listing.id,
-        409,
-      );
-    }
-  }
 
   const entries = created.attendees.map((attendee, i) => ({
     attendee,

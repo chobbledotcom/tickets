@@ -94,6 +94,38 @@ describeWithEnv(
       expect((await allTransfers()).length).toBe(0);
     });
 
+    test("rolls back the whole order (and posts nothing) on a partial create", async () => {
+      // Two listings, one already full: the paid path is all-or-nothing, so the
+      // create must roll back rather than post legs for the line that did book.
+      const open = await createTestListing({ maxAttendees: 5 });
+      const full = await createTestListing({ maxAttendees: 1 });
+      let posted = false;
+      const postLedger = async (
+        tx: TxScope,
+        attendeeId: number,
+      ): Promise<void> => {
+        posted = true;
+        await postTransfersTx(tx, saleAndPayment(open.id, attendeeId));
+      };
+
+      const result = await createAttendeeAtomic(
+        {
+          bookings: [
+            { listingId: open.id, quantity: 1 },
+            { listingId: full.id, quantity: 2 },
+          ],
+          email: "a@b.c",
+          name: "A",
+        },
+        postLedger,
+      );
+
+      expect(result.success).toBe(false);
+      expect(posted).toBe(false);
+      expect((await getAttendeesRaw(open.id)).length).toBe(0);
+      expect((await allTransfers()).length).toBe(0);
+    });
+
     test("returns capacity_exceeded without posting when no booking fits", async () => {
       const listing = await createTestListing({ maxAttendees: 1 });
       let posted = false;

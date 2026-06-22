@@ -206,8 +206,10 @@ const writeAsBatch = async (
 };
 
 /** The ledger path: an interactive transaction so the ledger legs commit
- *  atomically with the attendee and bookings. A zero-booking order throws to
- *  roll the whole thing back; returns null in that case. */
+ *  atomically with the attendee and bookings. This path is all-or-nothing —
+ *  the legs describe the whole order, so if any booking fails its capacity check
+ *  the transaction rolls back and null is returned (the caller refunds), rather
+ *  than posting legs for listings that were not booked. */
 const writeWithLedger = (
   attendeeInsert: Statement,
   bookingStatements: Statement[],
@@ -219,7 +221,7 @@ const writeWithLedger = (
     for (const statement of bookingStatements) {
       flags.push((await tx.execute(statement)).rowsAffected > 0);
     }
-    if (!flags.some(Boolean)) throw new NoBookingsCreated();
+    if (!flags.every(Boolean)) throw new NoBookingsCreated();
     await postLedger(tx, Number(insertId));
     return { flags, insertId };
   }).catch((error) => {

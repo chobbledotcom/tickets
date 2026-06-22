@@ -2528,6 +2528,58 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
+    test("a real create error propagates instead of refunding", async () => {
+      await setupStripe();
+      const listing = await createTestListing({
+        maxAttendees: 50,
+        name: "Create Boom",
+        unitPrice: 500,
+      });
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+        Promise.resolve({
+          amount_total: 500,
+          id: "cs_create_boom",
+          metadata: signMeta(
+            webhookMeta({
+              email: "boom@example.com",
+              items: JSON.stringify([{ e: listing.id, p: 500, q: 1 }]),
+              name: "Boom",
+            }),
+            500,
+          ),
+          payment_intent: "pi_create_boom",
+          payment_status: "paid",
+        } as unknown as Awaited<
+          ReturnType<typeof stripeApi.retrieveCheckoutSession>
+        >),
+      );
+      const mockRefund = stub(stripeApi, "refundPayment", () =>
+        Promise.resolve({ id: "re_test" } as unknown as Awaited<
+          ReturnType<typeof stripeApi.refundPayment>
+        >),
+      );
+      const { attendeesApi } = await import("#shared/db/attendees.ts");
+      const mockAtomic = stub(attendeesApi, "createAttendeeAtomic", () =>
+        Promise.reject(new Error("synthetic create failure")),
+      );
+      const hadExpectError = Deno.env.get("TEST_EXPECT_ERROR");
+      Deno.env.delete("TEST_EXPECT_ERROR");
+      try {
+        // A non-sold-out error is not swallowed as a refund: it propagates.
+        await expect(
+          handleRequest(
+            mockRequest("/payment/success?session_id=cs_create_boom"),
+          ),
+        ).rejects.toThrow("synthetic create failure");
+        expect(mockRefund.calls.length).toBe(0);
+      } finally {
+        mockRetrieve.restore();
+        mockRefund.restore();
+        mockAtomic.restore();
+        if (hadExpectError) Deno.env.set("TEST_EXPECT_ERROR", hadExpectError);
+      }
+    });
+
     test("multi-ticket no firstAttendee returns refund error", async () => {
       await setupStripe();
 

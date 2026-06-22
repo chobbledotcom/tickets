@@ -10,7 +10,11 @@
 
 import type { InValue } from "@libsql/client";
 import { deleteAttendee } from "#shared/db/attendees/delete.ts";
-import { execute, executeBatchWithResults } from "#shared/db/client.ts";
+import {
+  execute,
+  executeBatchWithResults,
+  type TxScope,
+} from "#shared/db/client.ts";
 import { mapByIds } from "#shared/db/query.ts";
 import { nowIso } from "#shared/now.ts";
 
@@ -82,6 +86,24 @@ export const consumeModifierStock = async (
     attendeeId,
   ]);
   return false;
+};
+
+/**
+ * Consume modifier stock inside an open transaction. Returns false as soon as a
+ * modifier is sold out (a guarded insert affects no row); the caller rolls the
+ * transaction back, so — unlike {@link consumeModifierStock} — no cleanup DELETE
+ * is needed here. With no usages this is a no-op.
+ */
+export const consumeModifierStockTx = async (
+  tx: TxScope,
+  attendeeId: number,
+  usages: ModifierUsage[],
+): Promise<boolean> => {
+  for (const usage of usages) {
+    const result = await tx.execute(guardedUsageInsert(attendeeId, usage));
+    if (result.rowsAffected === 0) return false;
+  }
+  return true;
 };
 
 /**
