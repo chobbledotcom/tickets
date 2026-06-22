@@ -25,23 +25,6 @@ export const assertSingleCurrency = (transfers: Transfer[]): void => {
   }
 };
 
-/**
- * Net balance of one account: money in (as destination) minus money out (as
- * source). Positive ⇒ the account holds value; negative ⇒ it owes.
- */
-export const balanceOf =
-  (acct: AccountRef) =>
-  (transfers: Transfer[]): number => {
-    assertSingleCurrency(transfers);
-    const into = sumOf((t: Transfer) =>
-      sameAccount(t.destination, acct) ? t.amount : 0,
-    )(transfers);
-    const outOf = sumOf((t: Transfer) =>
-      sameAccount(t.source, acct) ? t.amount : 0,
-    )(transfers);
-    return into - outOf;
-  };
-
 /** Every account's balance, keyed by {@link accountKey}. */
 export const allBalances = (transfers: Transfer[]): Map<string, number> => {
   assertSingleCurrency(transfers);
@@ -56,6 +39,17 @@ export const allBalances = (transfers: Transfer[]): Map<string, number> => {
   }
   return balances;
 };
+
+/**
+ * Net balance of one account: money in (as destination) minus money out (as
+ * source). Positive ⇒ the account holds value; negative ⇒ it owes. Reads the
+ * one balance algorithm in {@link allBalances}, so a single account is never
+ * summed a second, different way.
+ */
+export const balanceOf =
+  (acct: AccountRef) =>
+  (transfers: Transfer[]): number =>
+    allBalances(transfers).get(accountKey(acct)) ?? 0;
 
 /** Total amount across transfers of one kind (e.g. cash refunded). */
 export const sumOfKind =
