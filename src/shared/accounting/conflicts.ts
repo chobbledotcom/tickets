@@ -9,7 +9,7 @@
  */
 
 import { type RowReader, selectById } from "#shared/accounting/rows.ts";
-import { sameAccount } from "#shared/ledger/account.ts";
+import { legIdentityDiff } from "#shared/ledger/reconcile.ts";
 import { isInverseOf } from "#shared/ledger/reverse.ts";
 import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
 
@@ -23,32 +23,12 @@ export class LedgerConflictError extends Error {
   }
 }
 
-// Money-defining fields only: `memo` (non-deterministic ciphertext) and the
-// write-time `recorded_at`/`posted_by` metadata are not compared on replay.
-const kindOf = (t: { kind?: string }): string => t.kind ?? "";
-const reversesIdOf = (t: { reversesId?: number }): number | null =>
-  t.reversesId ?? null;
-
-const financialMismatches = (
-  prior: Transfer,
-  input: TransferInput,
-): string[] => {
-  const checks: [field: string, matches: boolean][] = [
-    ["amount", prior.amount === input.amount],
-    ["currency", prior.currency === input.currency],
-    ["source", sameAccount(prior.source, input.source)],
-    ["destination", sameAccount(prior.destination, input.destination)],
-    ["occurredAt", prior.occurredAt === input.occurredAt],
-    ["kind", kindOf(prior) === kindOf(input)],
-    ["reversesId", reversesIdOf(prior) === reversesIdOf(input)],
-  ];
-  return checks.filter(([, matches]) => !matches).map(([field]) => field);
-};
-
 /**
  * Check that a replayed event presents exactly the stored leg set. Throws if the
  * replay omits a stored leg, adds a leg that was never stored, or changes a
- * leg's money facts.
+ * leg's money facts. The per-leg comparison is {@link legIdentityDiff}, the same
+ * money-identity test reconciliation fingerprints use, so `memo` (non-deterministic
+ * ciphertext) and the write-time `recorded_at`/`posted_by` metadata are ignored.
  */
 export const assertEventMatches = (
   eventGroup: string,
@@ -73,7 +53,7 @@ export const assertEventMatches = (
         `event "${eventGroup}" is already posted without this leg`,
       );
     }
-    const mismatches = financialMismatches(prior, input);
+    const mismatches = legIdentityDiff(prior, input);
     if (mismatches.length > 0) {
       throw new LedgerConflictError(
         input.reference,
