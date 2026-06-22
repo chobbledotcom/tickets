@@ -113,6 +113,16 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
     expect(html).toContain("not valid");
   });
 
+  test("GET rejects a validly-signed token for a missing attendee", async () => {
+    // The token verifies, but no attendee row matches, so the balance state is
+    // null. The handler must short-circuit to the not-valid page rather than
+    // dereference the absent state.
+    const token = await signBalanceToken(999_999);
+    const response = await handleRequest(mockRequest(`/pay/${token}`));
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain("not valid");
+  });
+
   test("GET treats a balance with no status as settled", async () => {
     const attendeeId = await insertBareAttendee(null, 1500);
     const token = await signBalanceToken(attendeeId);
