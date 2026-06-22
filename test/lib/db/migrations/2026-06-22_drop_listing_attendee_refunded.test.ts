@@ -15,7 +15,7 @@ import {
 } from "#test-utils";
 import {
   columnNames,
-  seedPreDropRefundedColumn,
+  seedPreDropLedgerColumns,
 } from "../migration-test-helpers.ts";
 
 // Promise<never> so one stub satisfies both the void- and boolean-returning
@@ -52,7 +52,7 @@ describeWithEnv(
   { db: true, triggers: true },
   () => {
     test("drops the refunded column from listing_attendees", async () => {
-      await seedPreDropRefundedColumn();
+      await seedPreDropLedgerColumns();
       expect(await columnNames("listing_attendees")).toContain("refunded");
       await runMigration();
       expect(await columnNames("listing_attendees")).not.toContain("refunded");
@@ -67,7 +67,7 @@ describeWithEnv(
         "row@example.com",
       );
       // Reproduce a production row that still carried the (now-dropped) column.
-      await seedPreDropRefundedColumn();
+      await seedPreDropLedgerColumns();
       await getDb().execute({
         args: [attendee.id],
         sql: "UPDATE listing_attendees SET refunded = 1 WHERE attendee_id = ?",

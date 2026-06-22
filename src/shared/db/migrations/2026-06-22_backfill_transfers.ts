@@ -14,14 +14,21 @@ export default schemaMigration(
     "it. Idempotent via the mappers' deterministic references (INSERT OR IGNORE).",
   {},
   async () => {
-    // The backfill reconstructs historical refunds from listing_attendees.refunded,
-    // which 2026-06-22_drop_listing_attendee_refunded removes *after* this runs.
-    // In production the column is still present here (real refund values intact);
-    // ensure it exists so a freshly-created schema — where it has already been
+    // The backfill reconstructs historical money from listing_attendees.refunded
+    // and price_paid, which 2026-06-22_drop_listing_attendee_refunded /
+    // 2026-06-22_drop_listing_attendee_price_paid remove *after* this runs. In
+    // production both columns are still present here (real values intact); ensure
+    // they exist so a freshly-created schema — where they have already been
     // dropped from the table definition — doesn't fail the backfill's read.
-    if (!(await getExistingColumns("listing_attendees")).has("refunded")) {
+    const columns = await getExistingColumns("listing_attendees");
+    if (!columns.has("refunded")) {
       await getDb().execute(
         "ALTER TABLE listing_attendees ADD COLUMN refunded INTEGER NOT NULL DEFAULT 0",
+      );
+    }
+    if (!columns.has("price_paid")) {
+      await getDb().execute(
+        "ALTER TABLE listing_attendees ADD COLUMN price_paid INTEGER NOT NULL DEFAULT 0",
       );
     }
     await backfillTransfers();

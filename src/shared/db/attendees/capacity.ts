@@ -139,19 +139,16 @@ export const buildCapacityCheckedInsert = (
   attendeeIdArg?: number,
   allowOverbook = false,
 ): { sql: string; args: InValue[] } => {
-  const {
-    listingId,
-    quantity: qty = 1,
-    pricePaid = 0,
-    date = null,
-    durationDays = 1,
-  } = booking;
+  const { listingId, quantity: qty = 1, date = null, durationDays = 1 } =
+    booking;
   const { startAt, endAt } = dateToStartEnd(date, durationDays);
   const args: InValue[] = [listingId];
   if (attendeeIdArg !== undefined) args.push(attendeeIdArg);
-  args.push(startAt, endAt, qty, pricePaid);
-  const insertSelect = `INSERT INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, price_paid)
-          SELECT ?, ${attendeeIdExpr}, ?, ?, ?, ?`;
+  args.push(startAt, endAt, qty);
+  // price_paid is no longer stored — a booking row's amount paid projects from
+  // its ledger sale leg (posted by the booking poster from booking.pricePaid).
+  const insertSelect = `INSERT INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity)
+          SELECT ?, ${attendeeIdExpr}, ?, ?, ?`;
   if (allowOverbook) return { args, sql: insertSelect };
 
   const condition = buildCapacityCondition(

@@ -18,7 +18,7 @@ import { createAttendeeAtomic } from "#shared/db/attendees.ts";
 import { getDb } from "#shared/db/client.ts";
 import type { Transfer } from "#shared/ledger/types.ts";
 import { createTestListing, describeWithEnv } from "#test-utils";
-import { seedPreDropRefundedColumn } from "../db/migration-test-helpers.ts";
+import { seedPreDropLedgerColumns } from "../db/migration-test-helpers.ts";
 
 /** Flag a historical booking line refunded, the way a pre-ledger DB recorded a
  *  provider refund before the column was projected from the ledger. */
@@ -39,7 +39,17 @@ const historicalBooking = async (bookings: ListingBooking[]) => {
     name: "Historical",
   });
   if (!result.success) throw new Error(`setup failed: ${result.reason}`);
-  return result.attendees[0]!;
+  const attendee = result.attendees[0]!;
+  // A pre-ledger row carried its amount in the price_paid column — the backfill's
+  // only source. createAttendeeAtomic no longer writes it (amounts live in the
+  // ledger now), so stamp the restored column directly to reproduce that history.
+  for (const booking of bookings) {
+    await getDb().execute({
+      args: [booking.pricePaid ?? 0, attendee.id, booking.listingId],
+      sql: "UPDATE listing_attendees SET price_paid = ? WHERE attendee_id = ? AND listing_id = ?",
+    });
+  }
+  return attendee;
 };
 
 /** Post one live-style booking leg-set, as the dual-write path would have. */
@@ -66,7 +76,7 @@ const refundCashOf = (legs: Transfer[]): Transfer[] =>
 describeWithEnv("accounting > backfill", { db: true }, () => {
   // The backfill reads listing_attendees.refunded, which a later migration drops;
   // restore it so each test exercises the schema the migration runs against.
-  beforeEach(seedPreDropRefundedColumn);
+  beforeEach(seedPreDropLedgerColumns);
 
   test("reconstructs sale + payment for a paid booking", async () => {
     const listing = await createTestListing({ maxAttendees: 5 });

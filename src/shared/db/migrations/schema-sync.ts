@@ -242,7 +242,6 @@ const backfillListingAttendees = async (): Promise<void> => {
     "date",
     "quantity",
     "checked_in_v2",
-    "price_paid_v2",
     "attachment_downloads",
   ]);
   requireColumns(
@@ -255,21 +254,21 @@ const backfillListingAttendees = async (): Promise<void> => {
       "end_at",
       "quantity",
       "checked_in",
-      "price_paid",
       "attachment_downloads",
     ],
   );
 
-  // refunded was dropped from listing_attendees (refund status is projected from
-  // the transfers ledger), so the legacy attendees.refunded_v2 column is not
-  // restored — a refunded historical booking re-surfaces via its backfilled
-  // refund_cash leg, not a per-row flag.
+  // refunded and price_paid were both dropped from listing_attendees (refund
+  // status and per-row amount paid are now projected from the transfers ledger),
+  // so the legacy attendees.refunded_v2 / price_paid_v2 values are not restored —
+  // a historical paid or refunded booking re-surfaces via its backfilled sale /
+  // refund_cash leg, not a per-row column.
   await getDb().execute(
-    `INSERT OR IGNORE INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, checked_in, price_paid, attachment_downloads)
+    `INSERT OR IGNORE INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, checked_in, attachment_downloads)
      SELECT listing_id, id,
        CASE WHEN date IS NOT NULL THEN date || 'T00:00:00Z' ELSE NULL END,
        CASE WHEN date IS NOT NULL THEN DATE(date, '+1 day') || 'T00:00:00Z' ELSE NULL END,
-       quantity, checked_in_v2, price_paid_v2, attachment_downloads
+       quantity, checked_in_v2, attachment_downloads
      FROM attendees
      WHERE id NOT IN (SELECT attendee_id FROM listing_attendees)`,
   );

@@ -19,7 +19,7 @@ import {
 import { describeWithEnv } from "#test-utils";
 import {
   downgradeListingDomainToLegacyNames,
-  seedPreDropRefundedColumn,
+  seedPreDropLedgerColumns,
   tableRowCount,
 } from "./migration-test-helpers.ts";
 
@@ -102,8 +102,8 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
          VALUES (902, '2024-01-01T00:00:00Z', 25, 'migration-listing', 'migration-listing', 'listing-index', 901, 1200, 4, 'standard', '2024-02-01', 'Town Hall', 1, 1)`,
         `INSERT INTO attendees (id, created, price_paid, checked_in, ticket_token_index, pii_blob, status_id, remaining_balance, split_logistics_agents, phone_index)
          VALUES (903, '2024-01-02T00:00:00Z', '1800', '', 'ticket-index', '{"name":"Migration Guest"}', 1, 300, 1, 'phone-index')`,
-        `INSERT INTO listing_attendees (id, listing_id, attendee_id, start_at, end_at, quantity, checked_in, price_paid, start_agent_id, end_agent_id, start_time, end_time, start_done, end_done)
-         VALUES (904, 902, 903, '2024-02-01T10:00:00Z', '2024-02-01T12:00:00Z', 2, 1, 1800, NULL, NULL, '10:00', '12:00', 1, 0)`,
+        `INSERT INTO listing_attendees (id, listing_id, attendee_id, start_at, end_at, quantity, checked_in, start_agent_id, end_agent_id, start_time, end_time, start_done, end_done)
+         VALUES (904, 902, 903, '2024-02-01T10:00:00Z', '2024-02-01T12:00:00Z', 2, 1, NULL, NULL, '10:00', '12:00', 1, 0)`,
         `INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at, ticket_tokens, failure_data)
          VALUES ('payment-session', 903, '2024-01-02T00:10:00Z', 'ticket-token', '{"code":"card_declined"}')`,
         `INSERT INTO activity_log (id, created, listing_id, message, attendee_id)
@@ -155,7 +155,7 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
     ).toBe(1);
     expect(
       await scalar(
-        "SELECT COUNT(*) AS value FROM listing_attendees WHERE id = 904 AND listing_id = 902 AND attendee_id = 903 AND quantity = 2 AND price_paid = 1800",
+        "SELECT COUNT(*) AS value FROM listing_attendees WHERE id = 904 AND listing_id = 902 AND attendee_id = 903 AND quantity = 2",
       ),
     ).toBe(1);
     expect(
@@ -283,10 +283,11 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
   test("every additive migration is covered by a restore case", () => {
     // Guards against a future migration slipping through with no restore test.
     // The non-additive migrations excluded here are: the baseline reconcile, the
-    // events→listings rename, the transfers backfill (data-only), and the three
-    // column-drop migrations (drop_listing_income, drop_listing_attendee_refunded
-    // and drop_transfers_currency).
-    expect(additiveMigrations.length).toBe(MIGRATIONS.length - 7);
+    // events→listings rename, the transfers time-int rebuild, the transfers
+    // backfill (data-only), and the four column-drop migrations (drop_transfers_
+    // currency, drop_listing_income, drop_listing_attendee_refunded and
+    // drop_listing_attendee_price_paid).
+    expect(additiveMigrations.length).toBe(MIGRATIONS.length - 8);
   });
 
   for (const migration of additiveMigrations) {
@@ -341,11 +342,12 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
       await seedPopulatedMigrationFixture();
       // The fixture is built from the current (post-drop) schema, but the
       // 2026-06-22_backfill_transfers migration in the chain reads
-      // listing_attendees.refunded — present in production until the later
-      // 2026-06-22_drop_listing_attendee_refunded migration recreates the table
-      // without it. Restore the column so the chain reproduces production; the
-      // drop migration then removes it again, leaving the verified schema correct.
-      await seedPreDropRefundedColumn();
+      // listing_attendees.refunded and price_paid — present in production until
+      // the later drop_listing_attendee_refunded / drop_listing_attendee_price_paid
+      // migrations recreate the table without them. Restore the columns so the
+      // chain reproduces production; the drop migrations then remove them again,
+      // leaving the verified schema correct.
+      await seedPreDropLedgerColumns();
 
       const pending = MIGRATIONS.slice(MIGRATIONS.indexOf(baseMigration) + 1);
       for (const migration of [...pending].reverse()) {

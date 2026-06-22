@@ -19,7 +19,7 @@ import type {
   SchemaRequirement,
 } from "#shared/db/migrations/types.ts";
 import { createTestListing, describeWithEnv } from "#test-utils";
-import { seedPreDropRefundedColumn } from "../migration-test-helpers.ts";
+import { seedPreDropLedgerColumns } from "../migration-test-helpers.ts";
 
 // Promise<never> so one stub satisfies both the void- and boolean-returning
 // context members; the backfill up() touches none of them.
@@ -57,7 +57,7 @@ describeWithEnv(
     // The backfill reads listing_attendees.refunded, dropped by the later
     // 2026-06-22_drop_listing_attendee_refunded migration; restore it so each
     // test exercises the pre-drop schema the backfill runs against in production.
-    beforeEach(seedPreDropRefundedColumn);
+    beforeEach(seedPreDropLedgerColumns);
 
     test("posts the ledger for an existing paid booking in the site currency", async () => {
       const listing = await createTestListing({ maxAttendees: 5 });
@@ -68,6 +68,12 @@ describeWithEnv(
       });
       if (!result.success) throw new Error(`setup failed: ${result.reason}`);
       const attendee = result.attendees[0]!;
+      // A pre-ledger row carried its amount in price_paid (the backfill's source);
+      // createAttendeeAtomic no longer writes it, so stamp the restored column.
+      await getDb().execute({
+        args: [attendee.id, listing.id],
+        sql: "UPDATE listing_attendees SET price_paid = 4200 WHERE attendee_id = ? AND listing_id = ?",
+      });
       expect((await allTransfers()).length).toBe(0); // pre-dual-write booking
 
       await runMigration();

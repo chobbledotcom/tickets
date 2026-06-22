@@ -84,18 +84,22 @@ export const seedListingDomainRows = async (): Promise<number> => {
 };
 
 /**
- * Recreate the legacy `listing_attendees.refunded` column on a test database
- * built from the current (post-drop) SCHEMA. The `2026-06-22_backfill_transfers`
- * migration reads this column, and it runs BEFORE
- * `2026-06-22_drop_listing_attendee_refunded` removes it — so production still
- * has the column when the backfill runs. Fixtures that build from the current
- * schema must restore it first to reproduce the schema the backfill really runs
- * against (the drop migration removes it again, leaving the final schema
- * correct). Mirrors `seedPreDropRefundedColumn` in the backfill unit test.
+ * Recreate the legacy `listing_attendees.refunded` and `price_paid` columns on a
+ * test database built from the current (post-drop) SCHEMA. The
+ * `2026-06-22_backfill_transfers` migration reads both columns, and it runs
+ * BEFORE the `2026-06-22_drop_listing_attendee_refunded` /
+ * `2026-06-22_drop_listing_attendee_price_paid` migrations remove them — so
+ * production still has the columns when the backfill runs. Fixtures that build
+ * from the current schema must restore them first to reproduce the schema the
+ * backfill really runs against (the drop migrations remove them again, leaving
+ * the final schema correct).
  */
-export const seedPreDropRefundedColumn = async (): Promise<void> => {
+export const seedPreDropLedgerColumns = async (): Promise<void> => {
   await getDb().execute(
     "ALTER TABLE listing_attendees ADD COLUMN refunded INTEGER NOT NULL DEFAULT 0",
+  );
+  await getDb().execute(
+    "ALTER TABLE listing_attendees ADD COLUMN price_paid INTEGER NOT NULL DEFAULT 0",
   );
 };
 

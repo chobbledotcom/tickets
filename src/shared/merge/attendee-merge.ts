@@ -426,7 +426,6 @@ const bookingInsertStatement = (
     end_at: booking.end_at,
     ledger_event_group: booking.ledger_event_group,
     listing_id: booking.listing_id,
-    price_paid: booking.price_paid,
     quantity: booking.quantity,
     start_at: booking.start_at,
   }) as BatchStatement;

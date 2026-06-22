@@ -138,15 +138,16 @@ export type SettleBalanceResult =
 
 /**
  * Mark a reserved attendee as paid for an exact, verified amount: clear the
- * remaining balance, move them to the paid-default status, fold the amount into
- * the booking's recorded price_paid, and log the payment.
+ * remaining balance, move them to the paid-default status, and log the payment.
+ * The amount paid is no longer folded into a column — a booking row's amount
+ * paid projects from its ledger sale leg, and the paying checkout posts its own
+ * payment leg, so the balance settle only has to clear the receivable.
  *
  * `expectedAmount` is the balance the paying checkout was created for. The
  * clear is an atomic conditional update guarded on `remaining_balance =
  * expectedAmount`, so a balance edited (or already settled by a racing/stale
  * checkout) after this checkout was created no longer matches and we refuse
- * rather than clear the wrong amount. The folded price_paid is part of the same
- * batch, conditioned on the same guard, so the two writes never half-apply.
+ * rather than clear the wrong amount.
  *
  * `extraStatements` are committed in the SAME transaction, ahead of the
  * balance-clearing write — used to finalize the payment session atomically with
@@ -171,22 +172,6 @@ export const settleAttendeeBalance = async (
 
   const results = await executeBatchWithResults([
     ...extraStatements,
-    {
-      // Fold the paid amount into the earliest booking line so the recorded
-      // amount-paid reconciles to the full order price. Guarded on the live
-      // balance so it can't apply if a concurrent settlement got there first.
-      args: [
-        expectedAmount,
-        attendeeId,
-        attendeeId,
-        expectedAmount,
-        attendeeId,
-      ],
-      sql: `UPDATE listing_attendees SET price_paid = price_paid + ?
-            WHERE attendee_id = ?
-              AND (SELECT remaining_balance FROM attendees WHERE id = ?) = ?
-              AND id = (SELECT MIN(id) FROM listing_attendees WHERE attendee_id = ?)`,
-    },
     {
       // Atomic clear: only the callback whose expectedAmount still matches the
       // live balance settles it; a second concurrent callback affects 0 rows.
