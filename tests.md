@@ -15,6 +15,12 @@ e2e (`TestBrowser`).
 exercises the same branch in-process — the e2e is the user-visible proof, the
 unit/integration test is what actually holds the coverage deterministically.
 
+**Three levels, on purpose:** pure logic gets a **[U]** test (§0), DB/helper
+behaviour gets an **[I]** test, and the user-visible flows get a story-driven
+**[E]** test (§21) that reads as a real operator narrative — not an unordered pile
+of assertions. The **[E]** scenarios reuse the same fixtures the **[I]** tests
+build, so a behaviour is covered at every level it touches.
+
 ---
 
 ## 0. Unit tests (pure functions, no DB)
@@ -274,6 +280,149 @@ entry so the demo surface isn't lost in the cross-check.
 
 ---
 
+# Usability & quality
+
+The tests above prove the mechanics work; these prove the feature is *usable* and
+the code is *clean*. (Service events are attendee-kind rows that book existing
+listings, so they never appear on listing-collection pages by nature — but we
+still assert it explicitly as a regression guard, because "naturally true" rots.)
+
+## 16. Public-facing exclusion (defence in depth)
+
+- **`/listings does not render service events` [E]** — the public listings page
+  (`public/pages.ts`) shows the held listings with reduced availability but never
+  the service event itself; no servicing name/row appears.
+- **`public homepage does not render service events` [E]** — same for the public
+  home (`homepagePage`).
+- **`the public quote/calculate flow never surfaces a service event` [E]** — a
+  `/calculate` quote prices listings only; a service event can't be added to or
+  shown in a public cart, and its reduced capacity is the only visible effect.
+- **`GET /api/listings excludes service events` [I]** — the public API
+  (active, non-hidden listings) returns no servicing rows.
+- **`RSS/ICS public feed excludes service events` [I]** — see §8; restated here
+  as a public-surface guard.
+- **`a service event is hidden from the public site by construction` [I]** —
+  asserts the created row carries the locked hidden-from-public state so none of
+  the above can regress by toggling a flag.
+
+## 17. Admin homepage: upcoming service events table (reuse)
+
+> Assumption: "homepage" here is the **admin** dashboard/home — service events
+> must never be public (§16). Flag if you meant something else.
+
+- **`admin homepage shows an upcoming service events table` [E]** — the admin
+  home lists upcoming service events (name, listing(s), date, quantity), the way
+  it lists active listings.
+- **`the service events table reuses the shared listings-table renderer` [U]** —
+  the upcoming-service-events block renders through the **same** component as the
+  listings table (`renderListingsTableSection` / `ListingsTableBlock`,
+  `dashboard.tsx`), not a parallel copy: feed equivalent rows to both and assert
+  the same markup structure (this is the reuse contract, and it's what keeps
+  jscpd at 0% — see §20).
+- **`service events table links to the servicing routes` [E]** — rows link to
+  `/admin/servicing/:id`, not `/admin/attendees/:id`.
+- **`only upcoming service events are listed` [I]** — past-dated holds are
+  excluded (or shown in a separate past section), matching the listings behaviour.
+
+## 18. Duplicating a service event
+
+- **`duplicating a service event copies its name and all its listing bookings`
+  [I]** — the duplicate is a new `kind='servicing'` row with the same name and one
+  `listing_attendees` row per original booking (listing, quantity, date range).
+- **`a duplicated service event holds capacity independently` [I]** — the copy's
+  bookings consume capacity on top of the original (two holds, not a shared one);
+  deleting the original leaves the duplicate's holds intact.
+- **`duplicating mints a fresh token and copies no contact data` [I]** — the
+  duplicate has its own `ticket_token`, empty contact fields, and `kind` stays
+  `'servicing'`.
+- **`duplicating reuses the shared duplicate helper, not a bespoke copy` [U]** —
+  the servicing duplicate goes through the same extracted helper as the listing/
+  group duplication flow (`bulk-actions.ts` duplicate path) rather than a new
+  hand-rolled copier (see §20).
+- **`duplicate-then-edit is independent of the original` [E]** — editing the copy
+  (name, quantities, dates) does not change the original.
+
+## 19. URL / parameter tampering (adversarial)
+
+These assert the contract holds against a hostile/curious operator crafting URLs
+and POST bodies, not just the happy-path UI. (Overlaps §3/§9; restated as
+adversarial scenarios because the user called them out explicitly.)
+
+- **`a service event cannot be opened or edited via the attendee URL` [E]** —
+  `GET`/`POST /admin/attendees/:id` for a servicing id 404s; the operator cannot
+  drive a service event through the customer editor (re-send, SMS, merge,
+  balance, refresh-payment all 404 — §9).
+- **`a crafted servicing POST cannot toggle hidden off` [I]** — submitting a
+  `hidden=0` / "make public" param on the servicing edit leaves the row hidden;
+  the kind, not the form, owns that state.
+- **`a crafted servicing POST cannot set a status, balance, or contact data` [I]**
+  — see §3; the server normalizes customer-only fields to empty for
+  `kind='servicing'` regardless of submitted params.
+- **`an attendee cannot be converted into a service event (or vice-versa) via
+  params` [I]** — neither editor accepts a `kind` change; an existing row's kind
+  is immutable through the forms.
+- **`a service event cannot be assigned to a logistics agent via params` [I]** —
+  a submitted agent id is dropped when the row is `kind='servicing'`.
+
+## 20. Code quality & reuse (DRY / shared helpers)
+
+The mechanical guard is `deno task cpd` (jscpd at a non-negotiable 0%, run in
+precommit) — these tests pin the *specific* shared helpers so the feature can't
+land as near-duplicate logic sprinkled across files.
+
+- **`one shared kind-guarded single-record loader backs every customer route` [I]**
+  — `getAttendee` and the merge/refresh/balance/listing-scoped loaders resolve
+  through a single kind-checking read (default `'attendee'`), proven by every
+  guarded route 404ing identically for a servicing id (§9) — not five copies of
+  the predicate.
+- **`attendee and servicing submit share one create/edit core` [I]** — both go
+  through the same extracted submit core (parse → normalize-by-kind → atomic
+  save), differing only by the field schema, the kind, and the
+  field-normalization step; assert by exercising both kinds through the shared
+  entry point.
+- **`listings table and service-events table share one renderer` [U]** — see §17;
+  identical markup structure for equivalent rows.
+- **`activity log and calendar share one kind-aware link builder` [U]** — both
+  call the single helper from §0 (`kind-aware ref link routing`); no second
+  copy of the `/admin/servicing` vs `/admin/attendees` choice.
+- **`servicing query readers reuse the shared SELECT constant` [U]** — the
+  servicing readers build on `ATTENDEE_JOIN_SELECT` (`queries.ts:23`) with a kind
+  predicate rather than a copy-pasted column list.
+- **`precommit duplication check stays at 0%` [I]** — a meta-guard: the feature
+  branch passes `deno task cpd` (documents that new duplication is a build break,
+  not a review nit).
+
+## 21. End-to-end narrative scenarios
+
+Story-driven e2e flows (`TestBrowser`) that string the units together the way a
+real operator would hit them — each is one coherent narrative, not a grab-bag of
+assertions:
+
+- **`Boiler service blocks a room, then frees it` [E]** — *Operator logs in,
+  creates a "Boiler Service" event holding all of Room A's capacity next Tuesday.
+  A would-be customer's booking for Tuesday is refused (sold out), while Wednesday
+  still books fine. The operator deletes the service event; Tuesday is bookable
+  again.* Exercises capacity (§2), hidden-from-public (§5), restore-on-delete.
+- **`Annual servicing schedule, duplicated for next year` [E]** — *Operator opens
+  last year's multi-listing "Annual Inspection" service event, duplicates it, and
+  edits the copy's dates to this year. Both events exist; both hold capacity on
+  their own dates; the original is untouched.* Exercises duplication (§18) and
+  independence.
+- **`The morning dashboard glance` [E]** — *Operator lands on the admin home and
+  sees today's upcoming service events listed beside active listings, each linking
+  to its servicing page; the public homepage in another tab shows none of them.*
+  Exercises the homepage table (§17) and public exclusion (§16).
+- **`The curious operator pokes at URLs` [E]** — *Operator copies a service
+  event's id, tries `/admin/attendees/:id`, `/admin/attendees/:id/merge`, and a
+  hand-edited POST setting it public with an email — every attempt 404s or is
+  normalized away; the event stays a hidden, contact-less hold.* Exercises the
+  guards (§9) and tampering defences (§19).
+- **`A hold with a custom question` [E]** — *Operator creates a service event on a
+  listing that has a custom question, answers it, saves, reopens it, and sees the
+  answer persisted.* Exercises create-mode questions (§11).
+
+---
+
 ## Coverage cross-check
 
 Each `servicing.md` risk maps to at least one test above:
@@ -296,3 +445,9 @@ Each `servicing.md` risk maps to at least one test above:
 | Merge guarded at the action | §9 |
 | Demo-mode name rewrite | §13 |
 | Orphan purge / delete parity | §15 |
+| Public-facing exclusion (`/listings`, home, quote, API) | §16 |
+| Admin homepage service-events table (shared renderer) | §17 |
+| Duplicating a service event + its listings | §18 |
+| URL/param tampering (can't edit-as-attendee, can't unhide) | §19 |
+| DRY / shared helpers (no copy-paste across files) | §20 |
+| Story-driven e2e at every level | §21 |
