@@ -594,6 +594,15 @@ input[type="submit"],
   color: var(--color-bg);
 }
 
+/* A button-styled link keeps its --color-bg text when active: without this the
+   universal a:active / a.active link colour would darken the text against the
+   button's colored background. Buttons aren't links in the design sense, so the
+   "white when active" link rule shouldn't reach them. */
+.btn:active,
+.btn.active {
+  color: var(--color-bg);
+}
+
 .btn.outline {
   background-color: transparent;
   color: var(--color-link);
@@ -2252,9 +2261,11 @@ span.cal-day {
   outline: 1px solid var(--color-link);
 }
 
-/* Currently selected date */
+/* Currently selected date. The :active selector keeps the light text when the
+   selected day is tapped (touch/keyboard have no :hover to fall back on). */
 .cal-day-selected,
-a.cal-day-selected:hover {
+a.cal-day-selected:hover,
+a.cal-day-selected:active {
   background: var(--color-link);
   color: var(--color-bg);
 }
