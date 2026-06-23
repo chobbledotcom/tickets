@@ -12,9 +12,18 @@
  *
  * It reuses the live mappers, so references and validation match the dual-write
  * path exactly. Each attendee's legs are written with `INSERT OR IGNORE` keyed
- * on the unique reference, which makes a re-run a no-op, in a batch rather than
- * an interactive transaction so it never contends the single SQLite writer
+ * on the unique reference, which makes a re-run a no-op, in batches rather than
+ * interactive transactions so it never contends the single SQLite writer
  * mid-migration.
+ *
+ * A whole page of attendees is written in one batch (see {@link ATTENDEE_PAGE})
+ * rather than one batch per attendee: the migration runs inline on a Bunny edge
+ * isolate whose subrequest/CPU budget a round-trip-per-attendee backfill would
+ * blow on any real booking history, evicting the isolate mid-run and leaving the
+ * migration lock held (endless 503s). One batch per page keeps the cost at
+ * O(pages) round-trips, and an attendee's legs and row-stamp always land in the
+ * same batch, so each attendee still posts all-or-nothing — the already-ledgered
+ * guard relies on "has legs ⟺ fully posted".
  *
  * A guard keeps it safe even though, at the Phase-0 point it runs (the ledger is
  * rebuilt empty by the immediately-preceding migration), it never normally fires:
@@ -42,10 +51,21 @@ type PaidRow = {
   created: string;
 };
 
+/** A leg INSERT or row-stamp UPDATE the backfill writes to the database. */
+type Statement = { sql: string; args: InValue[] };
+
 /** The `attendee` account type — what the receivable legs are keyed under. */
 const ATTENDEE = "attendee";
 
-/** Attendees are paged so a large booking history never loads all at once. */
+/**
+ * Attendees are paged so a large booking history never loads all at once, and
+ * each page's legs are written in a single batch (one libsql round-trip), so the
+ * backfill costs O(pages) edge subrequests instead of one per attendee — a
+ * round-trip-per-attendee backfill blew the inline migration's subrequest budget
+ * and got the isolate evicted mid-run (lock held → endless 503s). The page also
+ * caps the batch: ~500 attendees' legs sit well under the statement count a
+ * single libsql batch handles comfortably.
+ */
 const ATTENDEE_PAGE = 500;
 
 /** The next page of attendee ids holding a paid booking row, after `afterId`. */
@@ -141,6 +161,23 @@ const stampFromExistingStatement = (
     " AND source_id = ? AND kind = 'sale' LIMIT 1), '') WHERE attendee_id = ?",
 });
 
+/** The leg-INSERT and row-stamp statements for one not-yet-ledgered attendee.
+ *  The stamp uses the order's booking event group (the first leg's, since
+ *  booking legs precede any refund legs) so the per-row amount-paid projection
+ *  resolves exactly this booking's sale leg; it sits in the same group as the
+ *  inserts so the rows and their legs always land in one batch together. */
+const attendeeStatements = async (
+  attendeeId: number,
+  rows: PaidRow[],
+  recordedAt: string,
+): Promise<Statement[]> => {
+  const legs = await attendeeLegs(attendeeId, rows);
+  return [
+    ...legs.map((leg) => orIgnore(insertStatement(leg, recordedAt))),
+    stampStatement(attendeeId, legs[0]!.eventGroup),
+  ];
+};
+
 /**
  * Backfill the ledger from every existing paid booking. Idempotent:
  * already-ledgered attendees are skipped and the deterministic references plus
@@ -155,27 +192,24 @@ export const backfillTransfers = async (): Promise<void> => {
     const groups = groupBy(await paidRowsForAttendees(attendeeIds), (row) =>
       Number(row.attendee_id),
     );
+    const recordedAt = nowIso();
+    const statements: Statement[] = [];
     for (const [attendeeId, rows] of groups) {
-      if (ledgered.has(String(attendeeId))) {
-        // Already ledgered by the live dual-write path: don't re-post, but still
-        // stamp the row→event link from the existing booking's sale leg so the
-        // per-row amount-paid projection resolves it. On the shipping path the
-        // ledger is empty here, so this branch never runs — it is deploy-order
-        // robustness, matching the skip-already-ledgered guard it pairs with.
-        await executeBatch([stampFromExistingStatement(attendeeId)]);
-        continue;
-      }
-      const recordedAt = nowIso();
-      const legs = await attendeeLegs(attendeeId, rows);
-      // Stamp the order's rows with their booking event group (the first leg's,
-      // since booking legs precede any refund legs) so the per-row amount-paid
-      // projection resolves exactly this booking's sale leg. Folded into the same
-      // batch as the inserts so the rows and their legs land together.
-      await executeBatch([
-        ...legs.map((leg) => orIgnore(insertStatement(leg, recordedAt))),
-        stampStatement(attendeeId, legs[0]!.eventGroup),
-      ]);
+      // Already ledgered by the live dual-write path: don't re-post, but still
+      // stamp the row→event link from the existing booking's sale leg so the
+      // per-row amount-paid projection resolves it. On the shipping path the
+      // ledger is empty here, so this branch never runs — it is deploy-order
+      // robustness, matching the skip-already-ledgered guard it pairs with.
+      statements.push(
+        ...(ledgered.has(String(attendeeId))
+          ? [stampFromExistingStatement(attendeeId)]
+          : await attendeeStatements(attendeeId, rows, recordedAt)),
+      );
     }
+    // The whole page in one batch (one round-trip): each attendee's legs and
+    // stamp stay together in a single transaction, and the migration spends
+    // O(pages) edge subrequests rather than one per attendee.
+    await executeBatch(statements);
     afterId = attendeeIds[attendeeIds.length - 1]!;
   }
 };
