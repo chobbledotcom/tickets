@@ -22,6 +22,18 @@ export type MergeAnswerChoice = "target" | "source" | "clear";
 /** How to handle a source booking conflict */
 export type MergeBookingChoice = "keep_target" | "take_source" | "skip_source";
 
+/**
+ * What happens to a CONFLICTING booking's money when its row is discarded by the
+ * booking choice (decision 17 — a required operator choice, never a silent
+ * default). The losing booking's `sale` is always un-billed (so the listing's
+ * income counts the kept ticket once); the choice decides the over-collected
+ * cash:
+ * - `credit` — keep it as the merged person's credit (they show a negative owed).
+ * - `writeoff` — park it in the `writeoff` contra account (they owe nothing; the
+ *   cash is written off transparently).
+ */
+export type MergeMoneyChoice = "credit" | "writeoff";
+
 // ---------------------------------------------------------------------------
 // Diff (output of analyze step)
 // ---------------------------------------------------------------------------
@@ -60,6 +72,14 @@ export type AttendeeMergeDiffBookingItem = {
   sourceBooking: ListingAttendeeRow;
   targetBooking: ListingAttendeeRow | null;
   conflictClass: BookingConflictClass;
+  /** The source booking's recognised `sale` amount (gross ticket price) in the
+   *  ledger, 0 when it carries no money. Decision 17 requires a money choice when
+   *  the booking the operator discards has an amount > 0. */
+  sourceSaleAmount: number;
+  /** The conflicting target booking's `sale` amount; 0 for a moveable source
+   *  booking (no target) or a free target. (`targetBooking === null` is the
+   *  signal for "no target", so this stays a plain number.) */
+  targetSaleAmount: number;
 };
 
 /** Full diff result from analyze step */
@@ -86,11 +106,16 @@ export type AttendeeMergeDecisionAnswers = Record<string, MergeAnswerChoice>;
 /** Per-booking decision (keyed by "listingId:startAt") */
 export type AttendeeMergeDecisionBookings = Record<string, MergeBookingChoice>;
 
+/** Per-conflict money decision (keyed by "listingId:startAt"), required when the
+ *  booking the operator discards carries money (decision 17). */
+export type AttendeeMergeDecisionMoney = Record<string, MergeMoneyChoice>;
+
 /** Full decision payload from the form */
 export type AttendeeMergeDecisionInput = {
   pii: AttendeeMergeDecisionPii;
   answers: AttendeeMergeDecisionAnswers;
   bookings: AttendeeMergeDecisionBookings;
+  money: AttendeeMergeDecisionMoney;
   version: string;
 };
 
@@ -115,6 +140,10 @@ export type AttendeeMergeApplySummary = {
   bookingsMoved: number;
   bookingsSkipped: number;
   bookingsReplacedTarget: number;
+  /** Conflicting bookings whose money was kept as the person's credit. */
+  bookingsCredited: number;
+  /** Conflicting bookings whose money was written off (decision 17). */
+  bookingsWrittenOff: number;
 };
 
 /** Result of applying a merge */

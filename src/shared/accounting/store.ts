@@ -281,6 +281,18 @@ export const postTransferGroups = async (
   // writes: each group valid on its own, and across the batch no repeated
   // reference (which would silently under-post or collide two events).
   for (const inputs of nonEmpty) assertPostable(inputs);
+  // Each element of `groups` must be ONE event — distinct event groups. Two
+  // elements sharing an eventGroup would both plan against the same pre-write
+  // snapshot (neither sees the other), both insert, and the event would end up
+  // holding the UNION of their legs — after which an idempotent replay of either
+  // original fails `assertEventMatches`. Reject up front (chunks for one event
+  // must be combined into a single group before calling this).
+  const eventGroups = nonEmpty.map((inputs) => inputs[0]!.eventGroup);
+  if (new Set(eventGroups).size !== eventGroups.length) {
+    throw new Error(
+      "postTransferGroups: duplicate eventGroup across the batch",
+    );
+  }
   const allRefs = nonEmpty.flatMap((inputs) => inputs.map((t) => t.reference));
   if (new Set(allRefs).size !== allRefs.length) {
     throw new Error("postTransferGroups: duplicate reference across the batch");
