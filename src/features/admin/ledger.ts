@@ -21,7 +21,7 @@
 
 import { mapNotNullish, unique } from "#fp";
 import { loadAttendeeNames } from "#routes/admin/actions.ts";
-import { type AuthSession, requireOwnerOr } from "#routes/auth.ts";
+import { requireOwnerOr } from "#routes/auth.ts";
 import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
@@ -65,21 +65,20 @@ const referencedIds = (transfers: Transfer[], type: string): number[] =>
 
 /**
  * Build the id→name lookup for every row-backed account a slice of transfers
- * references. Attendee names are decrypted with the session key (only when an
- * attendee is actually referenced, so a ledger of system-only legs never forces
- * a key prompt); listing and modifier names come from their loaders. An entity
- * that has since been deleted simply has no entry — its legs render as plain
- * text, no link.
+ * references. Attendee names are decrypted with the current request's key (only
+ * when an attendee is actually referenced, so a ledger of system-only legs never
+ * forces a key derivation); listing and modifier names come from their loaders.
+ * An entity that has since been deleted simply has no entry — its legs render as
+ * plain text, no link.
  */
 export const loadLedgerNames = async (
   transfers: Transfer[],
-  session: AuthSession,
 ): Promise<LedgerNames> => {
   const attendeeIds = referencedIds(transfers, "attendee");
   const listingIds = referencedIds(transfers, "revenue");
   const modifierIds = new Set(referencedIds(transfers, "modifier"));
   const [attendees, listings, modifiers] = await Promise.all([
-    loadAttendeeNames(attendeeIds, session),
+    loadAttendeeNames(attendeeIds),
     getListingNamesByIds(listingIds),
     modifierIds.size > 0 ? getAllModifiers() : Promise.resolve([]),
   ]);
@@ -108,7 +107,7 @@ export const handleLedgerGet: TypedRouteHandler<"GET /admin/ledger"> = (
     const transfers = truncated
       ? fetched.slice(0, LEDGER_DISPLAY_LIMIT)
       : fetched;
-    const names = await loadLedgerNames(transfers, session);
+    const names = await loadLedgerNames(transfers);
     return htmlResponse(adminLedgerPage(transfers, names, truncated, session));
   });
 
@@ -150,7 +149,7 @@ export const handleAccountStatementGet: TypedRouteHandler<
     if (!account) return notFoundResponse();
     const transfers = await transfersByAccount(account);
     const lines = statementFor(account)(transfers);
-    const names = await loadLedgerNames(transfers, session);
+    const names = await loadLedgerNames(transfers);
     return htmlResponse(
       adminAccountStatementPage(account, lines, names, session),
     );

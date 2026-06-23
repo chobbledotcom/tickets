@@ -26,6 +26,7 @@ import {
 } from "#shared/db/attendees.ts";
 import { getListingWithAttendeesRaw } from "#shared/db/listings.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
 
@@ -62,17 +63,15 @@ export const requirePrivateKey = async (
 
 /**
  * Bounded attendee id → name lookup for link labels (activity log, ledger). The
- * session private key is unwrapped only when at least one attendee is actually
- * referenced, so a system-only page still renders for a session whose key is
- * unavailable. A deleted attendee's id simply has no entry — it renders as plain
- * text, no link.
+ * current request's private key is unwrapped only when at least one attendee is
+ * actually referenced, so a system-only page never forces a key derivation. A
+ * deleted attendee's id simply has no entry — it renders as plain text, no link.
  */
 export const loadAttendeeNames = async (
   attendeeIds: number[],
-  session: AuthSession,
 ): Promise<Map<number, string>> => {
   if (attendeeIds.length === 0) return new Map();
-  const key = await requirePrivateKey(session);
+  const key = await requireRequestPrivateKey();
   return getAttendeeNamesByIds(attendeeIds, key);
 };
 

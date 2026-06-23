@@ -224,7 +224,6 @@ const ATTENDEE_LOG_LIMIT = 1000;
  * transfer history, the running-balance lines, and the counterparties' display
  * names (the shared ledger loader, so names resolve exactly as /admin/ledger). */
 const loadAttendeeLedger = async (
-  session: AuthSession,
   attendeeId: number,
 ): Promise<AttendeeLedgerData> => {
   const account = attendeeAccount(attendeeId);
@@ -232,7 +231,7 @@ const loadAttendeeLedger = async (
   return {
     account,
     lines: statementFor(account)(transfers),
-    names: await loadLedgerNames(transfers, session),
+    names: await loadLedgerNames(transfers),
   };
 };
 
@@ -245,7 +244,7 @@ const loadAttendeeLedgerForSession = (
   attendeeId: number,
 ): Promise<AttendeeLedgerData | undefined> =>
   session.adminLevel === "owner"
-    ? loadAttendeeLedger(session, attendeeId)
+    ? loadAttendeeLedger(attendeeId)
     : Promise.resolve(undefined);
 
 /** A booked daily listing booked for longer than its own duration allows —

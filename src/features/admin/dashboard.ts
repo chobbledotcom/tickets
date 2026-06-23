@@ -9,12 +9,7 @@ import {
   requirePrivateKey,
 } from "#routes/admin/actions.ts";
 import { generateListingsCsv } from "#routes/admin/listings-csv.ts";
-import {
-  type AuthSession,
-  requireSessionOr,
-  sessionPage,
-  withSession,
-} from "#routes/auth.ts";
+import { requireSessionOr, sessionPage, withSession } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, redirectResponse } from "#routes/response.ts";
 /* jscpd:ignore-start */
@@ -146,19 +141,18 @@ const LOG_DISPLAY_LIMIT = 200;
  * Resolve the attendee and listing display names referenced by a batch of log
  * entries, so the global log can show each entry's attendee/listing as a link.
  * Both are bounded id → name lookups over only the ids the entries reference —
- * attendee names decrypted with the session's private key, listing names from
- * the listings table — so the page never scans whole tables to label a few
+ * attendee names decrypted with the current request's private key, listing names
+ * from the listings table — so the page never scans whole tables to label a few
  * rows. An attendee that has since been deleted simply has no entry here; its
  * log rows keep the id but render without a link.
  */
 const loadActivityLogRefs = async (
   entries: ActivityLogEntry[],
-  session: AuthSession,
 ): Promise<ActivityLogRefs> => {
   const attendeeIds = unique(compact(entries.map((e) => e.attendee_id)));
   const listingIds = unique(compact(entries.map((e) => e.listing_id)));
   const [attendees, listings] = await Promise.all([
-    loadAttendeeNames(attendeeIds, session),
+    loadAttendeeNames(attendeeIds),
     getListingNamesByIds(listingIds),
   ]);
   return { attendees, listings };
@@ -174,7 +168,7 @@ const handleAdminLog: TypedRouteHandler<"GET /admin/log"> = sessionPage(
     const displayEntries = truncated
       ? entries.slice(0, LOG_DISPLAY_LIMIT)
       : entries;
-    const refs = await loadActivityLogRefs(displayEntries, session);
+    const refs = await loadActivityLogRefs(displayEntries);
     return adminGlobalActivityLogPage(displayEntries, truncated, session, refs);
   },
 );

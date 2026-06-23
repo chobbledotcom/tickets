@@ -380,7 +380,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       await adminFormPost(`/admin/modifiers/${id}/revenue`, {
         total_revenue: "12.34",
       });
-      const { getAllActivityLog } = await import("#shared/db/activityLog.ts");
+      const { getAllActivityLog } = await import("#test-utils");
       const log = await getAllActivityLog(10);
       const entry = log.find((e) => e.message.includes("revenue adjusted"));
       expect(entry?.message).toBe("Modifier 'Promo' revenue adjusted");

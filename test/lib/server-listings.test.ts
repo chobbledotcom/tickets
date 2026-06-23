@@ -950,7 +950,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       await adminFormPost(`/admin/listing/${listing.id}/income`, {
         income: "12.34",
       });
-      const { getAllActivityLog } = await import("#shared/db/activityLog.ts");
+      const { getAllActivityLog } = await import("#test-utils");
       const log = await getAllActivityLog(10);
       const entry = log.find((e) => e.message.includes("income adjusted"));
       expect(entry?.message).toBe("Listing 'Gala' income adjusted");
