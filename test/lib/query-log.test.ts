@@ -13,9 +13,11 @@ import {
   sqlWallClockMs,
   trackQuery,
 } from "#shared/db/query-log.ts";
-// Preloaded so the guard's dynamic `import("#shared/logger.ts")` is a cache hit,
-// making the notify-mode test's flush deterministic rather than time-dependent.
-import "#shared/logger.ts";
+// Importing logger eagerly also preloads it, so the dynamic
+// `import("#shared/logger.ts")` in the N+1 guard and the SQL system-log
+// mirror is a cache hit — keeping their fire-and-forget flush deterministic
+// rather than time-dependent.
+import { setSuppressDebugLogs } from "#shared/logger.ts";
 
 describe("query-log", () => {
   describe("enableQueryLog", () => {
@@ -178,6 +180,47 @@ describe("query-log", () => {
         expect(logged!.startedAtMs).toBeLessThanOrEqual(after);
         expect(logged!.durationMs).toBeGreaterThanOrEqual(0);
       });
+    });
+  });
+
+  describe("system-log mirroring", () => {
+    // A completed query is mirrored to the system logs via console.debug; let the
+    // fire-and-forget dynamic import + logDebug settle before asserting.
+    const captureSqlLogs = async (
+      run: () => Promise<void>,
+    ): Promise<string[]> => {
+      setSuppressDebugLogs(false);
+      const debugSpy = stub(console, "debug");
+      try {
+        await run();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        return debugSpy.calls.map((call) => call.args.join(" "));
+      } finally {
+        debugSpy.restore();
+        setSuppressDebugLogs(null);
+      }
+    };
+
+    test("mirrors a completed statement, omitting bound values", async () => {
+      const logs = await captureSqlLogs(() =>
+        trackQuery("SELECT name FROM users WHERE id = ?", () =>
+          Promise.resolve("ok"),
+        ),
+      );
+      expect(
+        logs.some((line) =>
+          line.includes("[SQL] SELECT name FROM users WHERE id = ?"),
+        ),
+      ).toBe(true);
+    });
+
+    test("collapses whitespace so a multi-line statement logs on one line", async () => {
+      const logs = await captureSqlLogs(() =>
+        trackQuery("SELECT\n  id\nFROM   users", () => Promise.resolve("ok")),
+      );
+      expect(
+        logs.some((line) => line.includes("[SQL] SELECT id FROM users")),
+      ).toBe(true);
     });
   });
 

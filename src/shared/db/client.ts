@@ -22,6 +22,7 @@ import {
 import {
   addQueryLogEntry,
   isQueryLogEnabled,
+  logCompletedSql,
   trackQuery,
 } from "#shared/db/query-log.ts";
 import { getEnv } from "#shared/env.ts";
@@ -300,7 +301,10 @@ const trackedBatch = async (
     // so the footer's wall-clock union counts that time once (not N times).
     for (const stmt of statements) addQueryLogEntry(stmt.sql, elapsed, start);
   }
-  for (const stmt of statements) invalidateForSql(stmt.sql);
+  for (const stmt of statements) {
+    logCompletedSql(stmt.sql);
+    invalidateForSql(stmt.sql);
+  }
   return results;
 };
 
