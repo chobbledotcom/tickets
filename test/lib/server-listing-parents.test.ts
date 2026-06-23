@@ -831,6 +831,47 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     expect((await getListingWithCount(thatPage.id))?.active).toBe(true);
   });
 
+  test("API deactivate of the only rescuing page of a child add-on is rejected, leaving it active (Fix 5)", async () => {
+    // The JSON API toggle (POST /api/admin/listings/:id/deactivate) must run the
+    // same orphaned-add-on guard the HTML deactivate route does: deactivating
+    // `thatPage` — the only active non-child page rescuing a {child, thatPage}-
+    // scoped opt-in add-on — would leave the add-on reachable only via the
+    // suppressed child. The API must reject with a 400 and the listing must stay
+    // active.
+    const parent = await createTestListing({ name: "Base unit" });
+    const child = await createTestListing({ name: "Add-on" });
+    const thatPage = await createTestListing({ name: "Rescuing page" });
+    await postChildren(parent.id, [child.id]);
+    await optInAddOnForListings("Child-scoped extra", [child.id, thatPage.id]);
+
+    await assertJson(
+      apiRequest(`/api/admin/listings/${thatPage.id}/deactivate`, {
+        method: "POST",
+      }),
+      400,
+      (json) => {
+        expect(json.error).toContain("opt-in add-on reachable only through");
+      },
+    );
+    expect((await getListingWithCount(thatPage.id))?.active).toBe(true);
+  });
+
+  test("API deactivate of a listing unrelated to any child add-on still succeeds (Fix 5)", async () => {
+    // The guard must not block an ordinary API deactivation: a plain listing
+    // rescuing no child-scoped add-on toggles inactive normally.
+    const plain = await createTestListing({ name: "Plain" });
+    await assertJson(
+      apiRequest(`/api/admin/listings/${plain.id}/deactivate`, {
+        method: "POST",
+      }),
+      200,
+      (json) => {
+        expect(json.listing.active).toBe(false);
+      },
+    );
+    expect((await getListingWithCount(plain.id))?.active).toBe(false);
+  });
+
   test("deactivating a listing unrelated to any child add-on still succeeds (Fix 5)", async () => {
     // A plain listing not rescuing any child-scoped add-on deactivates normally
     // — Fix 5 must not block ordinary deactivations.

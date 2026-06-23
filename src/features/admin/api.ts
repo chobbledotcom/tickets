@@ -314,13 +314,16 @@ const handleToggleActive = (
   active: boolean,
 ): Promise<Response> =>
   withListing(request, listingId, async (listing) => {
-    const updated = await toggleListingActive(listingId, listing, active);
-    if (!updated) {
+    const result = await toggleListingActive(listingId, listing, active);
+    if ("noChange" in result) {
       return apiErrorResponse(
         `Listing is already ${active ? "active" : "deactivated"}`,
       );
     }
-    return jsonResponse({ listing: toAdminListing(updated) });
+    // A deactivation that would orphan a child-scoped add-on is rejected with
+    // the same 400 + error the HTML deactivate route gives (parents.md Fix 5).
+    if ("error" in result) return apiErrorResponse(result.error);
+    return jsonResponse({ listing: toAdminListing(result.updated) });
   });
 
 /** Strip slug_index from listing row, producing the admin API shape */

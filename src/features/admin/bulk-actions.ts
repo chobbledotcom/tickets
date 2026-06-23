@@ -30,7 +30,10 @@ import {
 } from "#shared/db/groups.ts";
 import { listingsTable } from "#shared/db/listings.ts";
 import { getFlash } from "#shared/flash-context.ts";
-import { buildDuplicateListingInput } from "#shared/listings-actions.ts";
+import {
+  buildDuplicateListingInput,
+  deactivationOrphanedAddOnError,
+} from "#shared/listings-actions.ts";
 import { sortListings } from "#shared/sort-listings.ts";
 import type { AdminSession, Group, ListingWithCount } from "#shared/types.ts";
 import {
@@ -82,6 +85,23 @@ const groupTogglePost = (opts: { active: boolean; action: string }) =>
     mismatchRedirect: (group) =>
       `/admin/groups/${group.id}/bulk-actions/${opts.action}`,
     onConfirm: async ({ context: group }) => {
+      // A bulk DEACTIVATE marks every group member inactive at once, which can
+      // orphan a child-scoped opt-in add-on rescued only by those members'
+      // pages. Run the same shared guard the single-listing/API paths use,
+      // with all members' ids marked inactive together, and block before the
+      // batch UPDATE (parents.md Fix 5). Reactivation can only add pages.
+      if (!opts.active) {
+        const members = await getListingsByGroupId(group.id);
+        const error = await deactivationOrphanedAddOnError(
+          new Set(members.map((listing) => listing.id)),
+        );
+        if (error) {
+          return errorRedirect(
+            `/admin/groups/${group.id}/bulk-actions/${opts.action}`,
+            error,
+          );
+        }
+      }
       const affected = await setGroupListingsActive(group.id, opts.active);
       await logActivity(
         `Group '${group.name}' ${opts.action}d (${affected} listing(s))`,

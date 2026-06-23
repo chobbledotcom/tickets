@@ -158,29 +158,32 @@ const orphanedAddOnAfterChange = async (
 };
 
 /**
- * Block a save that DEACTIVATES a listing which is the only active non-child page
- * rescuing a child-scoped opt-in add-on from being a dead end (parents.md Fix 5).
+ * Block a DEACTIVATION (of one listing, or a whole group at once) that would
+ * leave a child-scoped opt-in add-on a dead end — reachable only through a
+ * suppressed child once the would-be-inactive listings stop serving a public
+ * page (parents.md Fix 5; generalised to a SET for the group-bulk path).
  *
  * The edge-touching re-check ({@link orphanedAddOnAfterChange}) only walks edges
- * that touch this listing, so it MISSES the case here: the deactivated listing
- * has no parent/child edge of its own — it is just an ordinary page whose scope
+ * that touch a listing, so it MISSES the case here: a deactivated listing may
+ * have no parent/child edge of its own — it is just an ordinary page whose scope
  * happens to include a child-scoped add-on, keeping that add-on reachable. So
  * re-run the reachability for EVERY active opt-in add-on against an in-memory
- * listing set with this listing marked inactive; if any add-on is then reachable
- * only through a suppressed child, block the save. Contained: only opt-in add-ons
- * are scanned (the shared {@link firstChildUnreachableAddOnForListings} core),
- * never unrelated modifiers.
+ * listing set with ALL the target listings marked inactive AT ONCE (so an add-on
+ * rescued only by several group members going inactive together is still caught);
+ * if any add-on is then reachable only through a suppressed child, block the
+ * deactivation. Contained: only opt-in add-ons are scanned (the shared
+ * {@link firstChildUnreachableAddOnForListings} core), never unrelated modifiers.
  *
- * Only runs when the would-be `active` is false — activating or leaving a listing
+ * Callers only invoke this for DEACTIVATION — activating or leaving a listing
  * active can only ADD reachable pages, never orphan an add-on.
  */
 export const deactivationOrphanedAddOnError = async (
-  existingId: number,
+  inactiveIds: ReadonlySet<number>,
 ): Promise<string | null> => {
   const allListings = await getAllListings();
-  // Apply this save's would-be inactive state to the in-memory set.
+  // Apply the would-be inactive state of every target listing to the in-memory set.
   const wouldBe = allListings.map((listing) =>
-    listing.id === existingId ? { ...listing, active: false } : listing,
+    inactiveIds.has(listing.id) ? { ...listing, active: false } : listing,
   );
   const childIds = await getChildListingIds(allListings.map((l) => l.id));
   return firstChildUnreachableAddOnForListings(wouldBe, childIds);
@@ -191,7 +194,7 @@ const deactivationOrphanedAddOn = async (
   existingId: number,
 ): Promise<string | null> => {
   if (input.active !== false) return null;
-  return deactivationOrphanedAddOnError(existingId);
+  return deactivationOrphanedAddOnError(new Set([existingId]));
 };
 
 /**
@@ -291,17 +294,36 @@ export const buildDuplicateListingInput = async (
 });
 
 /**
+ * The outcome of {@link toggleListingActive}: the updated listing, an
+ * already-in-state no-op, or a guard error (a deactivation that would orphan a
+ * child-scoped add-on). Callers map each case to their own response shape.
+ */
+export type ToggleActiveResult =
+  | { updated: ListingWithCount }
+  | { noChange: true }
+  | { error: string };
+
+/**
  * Toggle listing active state, log activity, and return the updated listing.
- * Returns null if the listing is already in the target state.
+ *
+ * A DEACTIVATION runs the same orphaned-add-on guard the HTML deactivate route
+ * uses ({@link deactivationOrphanedAddOnError}), so the JSON API toggle can't
+ * orphan a child-scoped add-on the HTML route would block. Reactivation is
+ * unguarded (it only ADDS a reachable page). Returns `{ noChange }` when the
+ * listing is already in the target state.
  */
 export const toggleListingActive = async (
   listingId: number,
   listing: ListingWithCount,
   active: boolean,
-): Promise<ListingWithCount | null> => {
-  if (listing.active === active) return null;
+): Promise<ToggleActiveResult> => {
+  if (listing.active === active) return { noChange: true };
+  if (!active) {
+    const error = await deactivationOrphanedAddOnError(new Set([listingId]));
+    if (error) return { error };
+  }
   await listingsTable.update(listingId, { active });
   const verb = active ? "reactivated" : "deactivated";
   await logActivity(`Listing '${listing.name}' ${verb}`, listingId);
-  return (await getListingWithCount(listingId))!;
+  return { updated: (await getListingWithCount(listingId))! };
 };

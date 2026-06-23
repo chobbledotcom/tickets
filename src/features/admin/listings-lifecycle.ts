@@ -74,7 +74,7 @@ const listingToggleHandlers = (opts: {
 const blockDeactivationOrphaningAddOn = async (
   id: number,
 ): Promise<Response | null> => {
-  const error = await deactivationOrphanedAddOnError(id);
+  const error = await deactivationOrphanedAddOnError(new Set([id]));
   return error ? errorRedirect(`/admin/listing/${id}/deactivate`, error) : null;
 };
 
