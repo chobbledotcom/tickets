@@ -8,7 +8,11 @@ import type {
   QuestionWithAnswers,
 } from "#shared/db/questions.ts";
 import type { ListingWithCount } from "#shared/types.ts";
-import type { BookingPrefill, TicketListing } from "#templates/public.tsx";
+import type {
+  BookingPrefill,
+  ChildSpanDates,
+  TicketListing,
+} from "#templates/public.tsx";
 
 /** Parent listing id → its bookable-child candidates, each hydrated to a
  * {@link TicketListing} so availability (isSoldOut/isClosed/maxPurchasable) is
@@ -32,8 +36,9 @@ export type TicketCtx = {
    * (parent, child) PAIR (`childDateKey`) so the same child required by two
    * parents carries each parent's own dates (Fix 4). Threaded into the render so
    * each child control carries `data-child-dates` for the client compatibility
-   * script (Codex 430). Non-daily children are omitted (no date constraint). */
-  childDatesById: Map<string, string[]>;
+   * script (Codex 430). Non-daily children are omitted (no date constraint).
+   * Per selectable parent span ({@link ChildSpanDates}, Fix 4). */
+  childDatesById: Map<string, ChildSpanDates>;
   /** Each listing id → its capped group's remaining spots, set on the render path
    * so a parent sharing a capped group with its child clamps its quantity by the
    * combined parent+child demand (invariant I7, Fix 3). Omitted on submit/quote
@@ -73,8 +78,8 @@ export type TicketSharedContext = {
    * (parent, child) PAIR (`childDateKey`) so a child required by two parents
    * carries each parent's own dates (Fix 4); emitted as `data-child-dates` for
    * the client compatibility script (Codex 430); empty map when the page has no
-   * daily children. */
-  childDatesById: Map<string, string[]>;
+   * daily children. Per selectable parent span ({@link ChildSpanDates}, Fix 4). */
+  childDatesById: Map<string, ChildSpanDates>;
   groupName?: string;
   groupDescription?: string;
   actionUrl?: string;

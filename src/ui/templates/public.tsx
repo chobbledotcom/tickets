@@ -30,6 +30,7 @@ export {
 } from "./public/reservations.tsx";
 export {
   buildTicketListing,
+  type ChildSpanDates,
   childActive,
   childCalendarOrInStockForSpan,
   childDateKey,
@@ -42,6 +43,7 @@ export {
   childStandardInStock,
   combinedGroupDemandFits,
   constrainOptionsByChildUnion,
+  encodeChildSpanDates,
   FEED_DISCOVERY_TAGS,
   fixedParentSpan,
   ICS_DISCOVERY_TAG,

@@ -10,6 +10,7 @@ import {
   childQtySpec as qty,
   quantitySpec as quantity,
   restoreDocument,
+  soleChildSpec as soleChild,
 } from "#test-utils/fake-dom.ts";
 
 const byName = (roots: FakeElement[], name: string): FakeElement =>
@@ -112,6 +113,36 @@ describe("child required toggling", () => {
     byName(roots, "child_qty_101_303").value = "2";
     byName(roots, "child_qty_101_303").dispatch("change");
     expect(byHint(roots, "101").textContent).toBe("3 / 3");
+  });
+
+  test("requires a sole auto-selected pay-more child's price when the parent is in the cart (Fix 2)", () => {
+    // A sole bookable child renders informational (no `child_qty_*` control), so
+    // `chosenChildIds` never reports it. Its pay-more price input is still
+    // collected and the server fold rejects a blank one, so it must be required
+    // whenever the parent is in the cart.
+    const roots = installFakeDom([
+      quantity("101", "2"),
+      childSelector("101"),
+      soleChild("101", "202"),
+      priceInput("101", "202"),
+    ]);
+
+    initChildRequired();
+
+    expect(byName(roots, "child_price_101_202").required).toBe(true);
+  });
+
+  test("does not require a sole pay-more child's price when the parent is at zero quantity (Fix 2)", () => {
+    const roots = installFakeDom([
+      quantity("101", "0"),
+      childSelector("101"),
+      soleChild("101", "202"),
+      priceInput("101", "202"),
+    ]);
+
+    initChildRequired();
+
+    expect(byName(roots, "child_price_101_202").required).toBe(false);
   });
 
   test("blanks the hint when the parent is at zero quantity", () => {

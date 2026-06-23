@@ -114,6 +114,26 @@ export type TicketListing = {
 export const childDateKey = (parentId: number, childId: number): string =>
   `${parentId}:${childId}`;
 
+/** A daily child's serveable start dates per selectable parent day-count (Fix 4):
+ * span (day-count) → the holiday-aware starts from which the child can serve the
+ * WHOLE span. A FIXED-duration parent has a single entry keyed by its one span; a
+ * CUSTOMISABLE parent has one entry per selectable day-count, so the render and
+ * the client compatibility script can pick the dates matching the buyer's chosen
+ * `day_count` (rather than the span-agnostic one-day starts that let a 2-day child
+ * be offered a Monday it can't cover). Encoded into `data-child-dates` as
+ * `span:d,d|span:d,d` ({@link encodeChildSpanDates}). */
+export type ChildSpanDates = ReadonlyMap<number, string[]>;
+
+/** Encode a child's per-span serveable dates for the `data-child-dates`
+ * attribute: each `span:date,date,…` segment joined by `|` (Fix 4). The single
+ * source of truth both the render producer ({@link childCompatAttrs}) and the
+ * client consumer (`child-compat.ts` `parseChildSpanDates`) format/parse, so the
+ * span-keyed wire shape lives in one place. Empty spans are kept (a span the
+ * child can't serve at all encodes `span:` with no dates), so the client can tell
+ * "no date serves this span" from "this span isn't constrained". */
+export const encodeChildSpanDates = (bySpan: ChildSpanDates): string =>
+  [...bySpan].map(([span, dates]) => `${span}:${dates.join(",")}`).join("|");
+
 /** The child's listing row is active (the fold rejects an inactive child). */
 export const childActive = (child: TicketListing): boolean =>
   child.listing.active;

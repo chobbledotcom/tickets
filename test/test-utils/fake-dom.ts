@@ -23,6 +23,10 @@ export type FakeElement = {
   dataset: Record<string, string>;
   children: FakeElement[];
   getAttribute: (name: string) => string | null;
+  /** Add (force=true) or remove (force=false) a boolean-ish attribute, mirroring
+   * the DOM `Element.toggleAttribute(name, force)` the scripts use to flag a
+   * sole-child block incompatible (Fix 1). */
+  toggleAttribute: (name: string, force: boolean) => void;
   querySelectorAll: (selector: string) => FakeElement[];
   addEventListener: (event: string, listener: () => void) => void;
   /** Dispatch a real `Event` to the registered listeners (the production scripts
@@ -150,6 +154,15 @@ const makeElement = (spec: ElementSpec): FakeElement => {
     required: spec.required ?? false,
     tag: spec.tag ?? "input",
     textContent: "",
+    toggleAttribute: (name, force) => {
+      if (force) {
+        attrs.set(name, "");
+        if (name.startsWith("data-")) dataset[datasetKey(name)] = "";
+      } else {
+        attrs.delete(name);
+        if (name.startsWith("data-")) delete dataset[datasetKey(name)];
+      }
+    },
     type: spec.type,
     value: spec.value ?? "",
   };
@@ -179,6 +192,36 @@ export const childSelectorSpec = (parentId: string): ElementSpec => ({
   tag: "fieldset",
 });
 
+/** The date/span compatibility attributes a bookable child carries (Codex 430,
+ * Fix 4). `data-child-dates` is the span-keyed wire shape `span:d,d|span:d,d`
+ * (`encodeChildSpanDates`). `dates` is given as span → dates (a single span when
+ * the parent is fixed-duration); a flat `string[]` is sugar for one span "1".
+ * `spans` are the supported day counts. */
+export type ChildCompat = {
+  dates?: string[] | Record<string, string[]>;
+  spans?: number[];
+};
+
+/** Encode the `data-child-dates` attribute value from a {@link ChildCompat}
+ * `dates` spec, mirroring the server's `encodeChildSpanDates`. */
+const encodeCompatDates = (
+  dates: string[] | Record<string, string[]>,
+): string =>
+  Array.isArray(dates)
+    ? `1:${dates.join(",")}`
+    : Object.entries(dates)
+        .map(([span, ds]) => `${span}:${ds.join(",")}`)
+        .join("|");
+
+const compatData = (
+  childId: string,
+  compat: ChildCompat,
+): Record<string, string> => ({
+  childQty: childId,
+  ...(compat.dates && { childDates: encodeCompatDates(compat.dates) }),
+  ...(compat.spans && { childSpans: compat.spans.join(",") }),
+});
+
 /** A per-child quantity select (`child_qty_<parentId>_<childId>`), the per-unit
  * selection control that replaced the old radio. `value` is the chosen quantity
  * (default "0"); a disabled control models a sold-out child.
@@ -192,15 +235,9 @@ export const childQtySpec = (
   childId: string,
   value = "0",
   disabled = false,
-  compat?: { dates?: string[]; spans?: number[] },
+  compat?: ChildCompat,
 ): ElementSpec => ({
-  data: compat
-    ? {
-        childQty: childId,
-        ...(compat.dates && { childDates: compat.dates.join(",") }),
-        ...(compat.spans && { childSpans: compat.spans.join(",") }),
-      }
-    : undefined,
+  data: compat ? compatData(childId, compat) : undefined,
   disabled,
   name: `child_qty_${parentId}_${childId}`,
   tag: "select",
@@ -210,13 +247,21 @@ export const childQtySpec = (
 /** A sole auto-selected child's informational marker (`renderSoleChildOption`):
  * a `data-sole-parent`/`data-sole-child` element with NO `child_qty_*` control,
  * so the active-listing set must pick it up from the parent being in the cart
- * alone (Fix 1). */
+ * alone (Fix 1). `compat` adds the same `data-child-dates` / `data-child-spans`
+ * the server now emits on the marker so the compatibility script can flag the
+ * parent when the sole child can't serve the selection (Fix 1). */
 export const soleChildSpec = (
   parentId: string,
   childId: string,
+  compat?: ChildCompat,
 ): ElementSpec => ({
   class: "child-option child-sole",
-  data: { soleChild: childId, soleParent: parentId },
+  data: {
+    soleChild: childId,
+    soleParent: parentId,
+    ...(compat?.dates && { childDates: encodeCompatDates(compat.dates) }),
+    ...(compat?.spans && { childSpans: compat.spans.join(",") }),
+  },
   tag: "p",
 });
 

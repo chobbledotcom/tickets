@@ -49,6 +49,7 @@ import {
   getActivePaymentProvider,
 } from "#shared/payments.ts";
 import {
+  availableDayCounts,
   type ContactInfo,
   dayPriceFor,
   type Group,
@@ -58,6 +59,7 @@ import {
 } from "#shared/types.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
 import {
+  type ChildSpanDates,
   childDateKey,
   childDateOk,
   childDurationMatches,
@@ -942,14 +944,43 @@ export const childListingIdsOf = (
   return [...ids];
 };
 
-/** The holiday-aware set of start dates each DAILY child can serve for the span
- * it inherits from its parent, keyed by the (parent, child) PAIR ({@link
- * childDateKey}) for the client compatibility script (Codex 430). A daily child
- * contributes only its own bookable starts that cover the inherited span — a
- * fixed daily parent's {@link fixedParentSpan}, or a single day when the parent's
- * span isn't fixed (a customisable parent) — reusing the SAME {@link
- * childDateContribution} rule the parent's date union uses, so the client never
- * disables a date the server would accept (and never re-enables one it rejects).
+/** The selectable parent spans the child date sets are computed over (Fix 4): a
+ * FIXED-duration parent has a single span ({@link fixedParentSpan} — 1 for a
+ * standard parent, `duration_days` for a fixed daily parent); a CUSTOMISABLE
+ * parent has one per offered day-count ({@link availableDayCounts}), since the
+ * buyer picks the span and a daily child's serveable starts differ per span (a
+ * 2-day span can't start where only a 1-day window fits). */
+const parentRenderSpans = (parent: ListingWithCount): number[] => {
+  const fixed = fixedParentSpan(parent);
+  return fixed === null ? availableDayCounts(parent) : [fixed];
+};
+
+/** A DAILY child's serveable starts PER selectable parent span ({@link
+ * ChildSpanDates}, Fix 4): for each span the parent can offer, the holiday-aware
+ * parent dates from which the child can serve the WHOLE span — reusing the SAME
+ * {@link childDateContribution} rule (with the span as its fixed span) the
+ * parent's date union uses, so the client never disables a date the server would
+ * accept (and never re-enables one it rejects). A fixed parent yields one entry;
+ * a customisable parent yields one per day-count, so the client picks the dates
+ * matching the buyer's chosen `day_count` rather than the span-agnostic one-day
+ * starts (which let a 2-day child be offered a Monday it can't cover). */
+const childSpanDates = (
+  child: TicketListing,
+  parent: ListingWithCount,
+  holidays: Holiday[],
+): ChildSpanDates => {
+  const parentDates = getBookableStartDates(parent, holidays);
+  return new Map(
+    parentRenderSpans(parent).map((span) => [
+      span,
+      childDateContribution(child, parentDates, span, holidays),
+    ]),
+  );
+};
+
+/** The holiday-aware serveable start dates each DAILY child can serve per
+ * selectable parent span, keyed by the (parent, child) PAIR ({@link childDateKey})
+ * for the client compatibility script (Codex 430, Fix 4).
  *
  * Keying by the pair (Fix 4): the same daily child can be required by two parents
  * whose calendars/inherited spans differ, so each parent's block needs its OWN
@@ -962,18 +993,16 @@ export const buildChildDatesById = (
   activeListings: TicketListing[],
   childrenByParentId: ChildrenByParentId,
   holidays: Holiday[],
-): Map<string, string[]> => {
-  const result = new Map<string, string[]>();
+): Map<string, ChildSpanDates> => {
+  const result = new Map<string, ChildSpanDates>();
   for (const { listing: parent } of activeListings) {
     const children = childrenByParentId.get(parent.id);
     if (!children) continue;
-    const fixedSpan = fixedParentSpan(parent);
-    const parentDates = getBookableStartDates(parent, holidays);
     for (const child of children) {
       if (child.listing.listing_type !== "daily") continue;
       result.set(
         childDateKey(parent.id, child.listing.id),
-        childDateContribution(child, parentDates, fixedSpan, holidays),
+        childSpanDates(child, parent, holidays),
       );
     }
   }

@@ -174,6 +174,75 @@ describeWithEnv(
       expect(options).not.toContain('value="3"');
     });
 
+    test("an ungrouped parent + two children sharing a 1-spot capped group offers parent max 1 (Fix 3)", async () => {
+      // The parent is ungrouped, but its two children share ONE capped child-only
+      // group with a single spot. Under per-unit selection 1-of-each consumes TWO
+      // spots from that one pool, so only one combined order fits. The parent
+      // quantity selector must offer 1 and never 2 — summing each child's own cap
+      // (1 + 1 = 2) over-offered, and `checkBatchAvailability` would reject a 2.
+      const childGroup = await createTestGroup({
+        maxAttendees: 1,
+        name: "Add-on pool",
+      });
+      const parent = await createTestListing({
+        maxAttendees: 50,
+        maxQuantity: 5,
+        name: "Base unit",
+      });
+      const childA = await createTestListing({
+        groupId: childGroup.id,
+        maxAttendees: 50,
+        maxQuantity: 5,
+        name: "Add-on A",
+      });
+      const childB = await createTestListing({
+        groupId: childGroup.id,
+        maxAttendees: 50,
+        maxQuantity: 5,
+        name: "Add-on B",
+      });
+      await setChildIds(parent.id, [childA.id, childB.id]);
+      const body = await (await ticketGet(parent.slug)).text();
+      const select = body.slice(body.indexOf(`name="quantity_${parent.id}"`));
+      const options = select.slice(0, select.indexOf("</select>"));
+      expect(options).toContain('value="1"');
+      expect(options).not.toContain('value="2"');
+    });
+
+    test("an ungrouped parent + two children sharing a 3-spot capped group offers parent max 3 (Fix 3)", async () => {
+      // The same child-only capped group with three spots fits three child units
+      // total across the two children, so the parent offers up to 3 and no higher
+      // — proving the cohort is clamped by the pool's remaining (3), not summed
+      // per child (5 + 5) and not floor-divided (this group has no parent in it).
+      const childGroup = await createTestGroup({
+        maxAttendees: 3,
+        name: "Add-on pool",
+      });
+      const parent = await createTestListing({
+        maxAttendees: 50,
+        maxQuantity: 9,
+        name: "Base unit",
+      });
+      const childA = await createTestListing({
+        groupId: childGroup.id,
+        maxAttendees: 50,
+        maxQuantity: 5,
+        name: "Add-on A",
+      });
+      const childB = await createTestListing({
+        groupId: childGroup.id,
+        maxAttendees: 50,
+        maxQuantity: 5,
+        name: "Add-on B",
+      });
+      await setChildIds(parent.id, [childA.id, childB.id]);
+      const body = await (await ticketGet(parent.slug)).text();
+      const select = body.slice(body.indexOf(`name="quantity_${parent.id}"`));
+      const options = select.slice(0, select.indexOf("</select>"));
+      expect(options).toContain('value="3"');
+      expect(options).not.toContain('value="4"');
+    });
+
     test("a parent + child sharing a big capped group is clamped by the child's own capacity (Fix 5)", async () => {
       // The shared group has 10 spots — `floor(10 / 2) = 5` parent+child orders
       // would fit the pool — but the single child itself caps at 1, so only ONE

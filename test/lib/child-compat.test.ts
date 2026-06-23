@@ -12,6 +12,7 @@ import {
   installFakeDom,
   quantitySpec as quantity,
   restoreDocument,
+  soleChildSpec as soleChild,
 } from "#test-utils/fake-dom.ts";
 
 const byName = (roots: FakeElement[], name: string): FakeElement =>
@@ -166,6 +167,75 @@ describe("child date/span compatibility", () => {
     expect(byName(roots, "child_qty_101_202").value).toBe("1");
   });
 
+  test("picks the date set matching the selected day-count for a customisable parent (Fix 4)", () => {
+    // A daily child under a customisable parent serves a different set of start
+    // dates per span: it can start 2026-06-08 for a 1-day span but only
+    // 2026-06-09 for a 2-day span. With day_count=2 chosen, selecting 2026-06-08
+    // (valid for a 1-day span but NOT a 2-day span) must disable the child; a
+    // span/date it can serve (day_count=1, 2026-06-08) keeps it enabled.
+    const roots = installFakeDom([
+      date("2026-06-08"),
+      dayCount("2"),
+      quantity("101", "1"),
+      childSelector("101"),
+      childQty("101", "202", "1", false, {
+        dates: { "1": ["2026-06-08", "2026-06-09"], "2": ["2026-06-09"] },
+        spans: [1, 2],
+      }),
+    ]);
+
+    initChildCompat();
+    // day_count=2 + 2026-06-08: the 2-day span can't start that day → disabled.
+    expect(byName(roots, "child_qty_101_202").disabled).toBe(true);
+    expect(byName(roots, "child_qty_101_202").value).toBe("0");
+
+    // Switch to a 1-day span: 2026-06-08 is a valid 1-day start → re-enabled.
+    byName(roots, "child_qty_101_202").value = "1";
+    byName(roots, "day_count").value = "1";
+    byName(roots, "day_count").dispatch("change");
+    expect(byName(roots, "child_qty_101_202").disabled).toBe(false);
+  });
+
+  test("flags and disables the parent when a sole child can't serve the selection (Fix 1)", () => {
+    // A sole auto-selected child has no quantity control, so its incompatibility
+    // is surfaced on the PARENT: when the selected date can't be served the
+    // parent's quantity is disabled+zeroed and the sole block flagged, rather
+    // than showing "Includes …" and failing at submit.
+    const roots = installFakeDom([
+      date("2026-06-08"),
+      quantity("101", "2"),
+      childSelector("101"),
+      soleChild("101", "202", { dates: ["2026-06-01"] }),
+    ]);
+
+    initChildCompat();
+
+    expect(byName(roots, "quantity_101").disabled).toBe(true);
+    expect(byName(roots, "quantity_101").value).toBe("0");
+    const sole = roots.find((r) => r.dataset.soleParent === "101")!;
+    expect(sole.getAttribute("data-sole-incompatible")).toBe("");
+  });
+
+  test("re-enables the parent and clears the flag when the sole child can serve the selection (Fix 1)", () => {
+    const roots = installFakeDom([
+      date("2026-06-08"),
+      quantity("101", "2"),
+      childSelector("101"),
+      soleChild("101", "202", { dates: ["2026-06-01"] }),
+    ]);
+
+    initChildCompat();
+    expect(byName(roots, "quantity_101").disabled).toBe(true);
+
+    // Switch to a date the sole child serves: parent re-enabled, flag cleared.
+    byName(roots, "date").value = "2026-06-01";
+    byName(roots, "date").dispatch("change");
+
+    expect(byName(roots, "quantity_101").disabled).toBe(false);
+    const sole = roots.find((r) => r.dataset.soleParent === "101")!;
+    expect(sole.getAttribute("data-sole-incompatible")).toBe(null);
+  });
+
   test("leaves a date/span-constrained child enabled until a date and day-count are chosen", () => {
     const roots = installFakeDom([
       date(""),
@@ -183,5 +253,74 @@ describe("child date/span compatibility", () => {
     initChildCompat();
 
     expect(byName(roots, "child_qty_101_202").disabled).toBe(false);
+  });
+
+  test("disables a child whose selected span serves no date (empty per-span set) (Fix 4)", () => {
+    // The child serves the 8th for a 1-day span, but its 2-day span serves no
+    // date at all (encoded `2:`); with day_count=2 chosen it can't be booked.
+    const roots = installFakeDom([
+      date("2026-06-08"),
+      dayCount("2"),
+      quantity("101", "1"),
+      childSelector("101"),
+      childQty("101", "202", "1", false, {
+        dates: { "1": ["2026-06-08"], "2": [] },
+      }),
+    ]);
+
+    initChildCompat();
+
+    expect(byName(roots, "child_qty_101_202").disabled).toBe(true);
+    expect(byName(roots, "child_qty_101_202").value).toBe("0");
+  });
+
+  test("leaves a child enabled when the selected day-count has no date entry (Fix 4)", () => {
+    // The child only declares dates for a 1-day span; with day_count=3 (no entry)
+    // the date constraint can't be applied, so it stays enabled and the fold
+    // decides at submit.
+    const roots = installFakeDom([
+      date("2026-06-08"),
+      dayCount("3"),
+      quantity("101", "1"),
+      childSelector("101"),
+      childQty("101", "202", "1", false, { dates: { "1": ["2026-06-01"] } }),
+    ]);
+
+    initChildCompat();
+
+    expect(byName(roots, "child_qty_101_202").disabled).toBe(false);
+    expect(byName(roots, "child_qty_101_202").value).toBe("1");
+  });
+
+  test("leaves a multi-span child enabled until a day-count is chosen (Fix 4)", () => {
+    // Two span entries but no day-count chosen yet: the applicable date set is
+    // ambiguous, so the date constraint is left un-applied (enabled).
+    const roots = installFakeDom([
+      date("2026-06-08"),
+      dayCount(""),
+      quantity("101", "1"),
+      childSelector("101"),
+      childQty("101", "202", "1", false, {
+        dates: { "1": ["2026-06-01"], "2": ["2026-06-02"] },
+      }),
+    ]);
+
+    initChildCompat();
+
+    expect(byName(roots, "child_qty_101_202").disabled).toBe(false);
+  });
+
+  test("flags an incompatible sole child even when the parent has no quantity control (Fix 1)", () => {
+    // A hidden-quantity page has no `quantity_<parent>` control, so an
+    // incompatible sole child only flags its marker (nothing to disable).
+    const roots = installFakeDom([
+      date("2026-06-08"),
+      childSelector("101"),
+      soleChild("101", "202", { dates: ["2026-06-01"] }),
+    ]);
+
+    expect(() => initChildCompat()).not.toThrow();
+    const sole = roots.find((r) => r.dataset.soleParent === "101")!;
+    expect(sole.getAttribute("data-sole-incompatible")).toBe("");
   });
 });
