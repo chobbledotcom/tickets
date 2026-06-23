@@ -735,24 +735,22 @@ const PAID_NO_QTY_ERROR =
   "Refund this booking's payment before marking it no quantity.";
 
 /**
- * True when any no-quantity line satisfies a per-(attendee, listing) check,
- * judged from the live DB (not the form's submitted key). Used by applyEdit to
- * block marking a line no-quantity while it still holds an assigned built site
- * (the assignment + public /renew/ path would survive behind a hidden line) or a
- * recorded payment (a stale form key would otherwise hide the booking from the
- * per-line model guard and let the atomic edit drop the paid row).
+ * True when any no-quantity line satisfies a check, judged from the live DB (not
+ * the form's submitted key). Used by applyEdit to block marking a line
+ * no-quantity while it still holds an assigned built site (the assignment +
+ * public /renew/ path would survive behind a hidden line) or a recorded payment
+ * (a stale form key would otherwise hide the booking from the per-line model
+ * guard and let the atomic edit drop the paid row). One query over all the IDs.
  */
-const anyNoQuantityLineMatches = async (
+const anyNoQuantityLineMatches = (
   attendeeId: number,
   lines: AttendeeFormLine[],
-  check: (attendeeId: number, listingId: number) => Promise<boolean>,
+  check: (attendeeId: number, listingIds: number[]) => Promise<boolean>,
 ): Promise<boolean> => {
-  for (const line of lines) {
-    if (isNoQuantityLine(line) && (await check(attendeeId, line.listingId))) {
-      return true;
-    }
-  }
-  return false;
+  const listingIds = lines.filter(isNoQuantityLine).map((l) => l.listingId);
+  return listingIds.length > 0
+    ? check(attendeeId, listingIds)
+    : Promise.resolve(false);
 };
 
 /** Shown when capacity can't fit the submitted lines. */

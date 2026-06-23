@@ -260,12 +260,10 @@ export const balanceFinalizeStatement = (
   expectedAmount: number,
 ): { sql: string; args: InValue[] } => ({
   args: [attendeeId, sessionId, expectedAmount],
-  // Guarded on the ledger-projected outstanding balance (no stored column).
-  // Runs in the settle batch before the balance-payment leg, so it still sees
-  // the pre-payment balance — i.e. the attendee owing exactly expectedAmount.
-  // This subsumes the old "must have a real (quantity > 0) line" guard: a
-  // no-real-line attendee recognises no sale leg, so owes 0 ≠ expectedAmount and
-  // the finalize is skipped, leaving the session unresolved for the failure log.
+  // Guarded on the ledger-projected balance (no stored column), and it runs
+  // before the payment leg so it still sees the pre-payment balance. A
+  // no-real-line attendee owes 0 ≠ expectedAmount, so the finalize is skipped and
+  // the session stays unresolved for the failure log.
   sql: `UPDATE processed_payments SET attendee_id = ?, ticket_tokens = '' WHERE payment_session_id = ? AND ${attendeeOwedSubquery(
     String(attendeeId),
   )} = ?`,

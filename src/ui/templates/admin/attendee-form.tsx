@@ -186,7 +186,7 @@ const ListingRow = ({
           type="number"
           value={line.quantity === null ? "0" : String(line.quantity)}
         />
-        <label class="no-quantity small">
+        <label class="small">
           <input
             checked={line.noQuantity}
             class="no-quantity-toggle"

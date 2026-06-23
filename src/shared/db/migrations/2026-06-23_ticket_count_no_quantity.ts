@@ -12,13 +12,11 @@ export default schemaMigration(
   "Exclude no-quantity (quantity = 0) booking lines from listings.tickets_count by rebuilding the three listing-aggregate triggers so an INSERT/DELETE/UPDATE only shifts tickets_count for a quantity > 0 row; recompute tickets_count for existing data. Runs after 2026-06-22_drop_listing_income, which rebuilt these same triggers in their income-free form, so this is the final word on their bodies on every database — fresh or already-migrated",
   {},
   async ({ getDb, syncTriggers, backfillListingAggregates }) => {
-    // syncTriggers only CREATEs triggers whose names are MISSING (CREATE TRIGGER
-    // IF NOT EXISTS runs only for absent names), so the three listing-aggregate
-    // triggers — same names, new CASE bodies — must be dropped explicitly before
-    // re-syncing. A database that already applied 2026-06-22_drop_listing_income
-    // otherwise keeps the COUNT(*)-style `tickets_count +/- 1` bodies and goes on
-    // counting quantity = 0 writes. Mirrors the answer-/modifier-aggregate
-    // migrations, which drop before re-syncing.
+    // syncTriggers only CREATEs absent trigger names, so the three triggers —
+    // same names, new CASE bodies — must be dropped first. Otherwise a database
+    // that already ran 2026-06-22_drop_listing_income keeps the COUNT(*)-style
+    // bodies and goes on counting quantity = 0 writes. (Mirrors the answer-/
+    // modifier-aggregate migrations.)
     for (const name of LISTING_AGGREGATE_TRIGGER_NAMES) {
       await getDb().execute(`DROP TRIGGER IF EXISTS ${name}`);
     }

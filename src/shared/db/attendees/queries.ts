@@ -300,23 +300,21 @@ export const hasActiveBookingLine = (
   );
 
 /**
- * True when the attendee has a paid line on the exact listing, judged from the
- * live ledger — the row's booking recognised a gross `sale` leg (its
- * ledger_event_group credits this listing's revenue account). Mirrors the
- * dropped `price_paid > 0` test: a sale leg's amount is always > 0, so its
- * existence is exactly a non-zero projected price_paid (refunds keep the gross
- * leg, so a refunded line still reads as paid — matching listing income). Read
- * from the live row, not the edit form's submitted line key, which a
- * stale/missing key can leave null, so a recorded payment is never silently
- * dropped onto a fresh quantity-0 row.
+ * True when any of the listings has a paid line for this attendee — a gross
+ * `sale` leg in the row's ledger_event_group (a sale leg's amount is always > 0,
+ * so its existence is exactly a non-zero projected price_paid; a refund keeps the
+ * gross leg, so a refunded line still reads as paid). One query over all the IDs,
+ * read from the live ledger rather than the edit form's submitted key (a
+ * stale/missing key can leave it null), so a recorded payment is never dropped
+ * onto a fresh quantity-0 row. Callers pass a non-empty list.
  */
 export const hasPaidLine = (
   attendeeId: number,
-  listingId: number,
+  listingIds: number[],
 ): Promise<boolean> =>
   rowExists(
     `SELECT 1 FROM listing_attendees la
-     WHERE la.attendee_id = ? AND la.listing_id = ?
+     WHERE la.attendee_id = ? AND la.listing_id IN (${inPlaceholders(listingIds)})
        AND EXISTS (
          SELECT 1 FROM transfers
          WHERE kind = 'sale'
@@ -324,7 +322,7 @@ export const hasPaidLine = (
            AND ${accountPredicate("dest", "revenue", "la.listing_id")}
            AND event_group = la.ledger_event_group
        ) LIMIT 1`,
-    [attendeeId, listingId],
+    [attendeeId, ...listingIds],
   );
 
 /**
