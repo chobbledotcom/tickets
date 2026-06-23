@@ -15,7 +15,7 @@ import {
   generateCalendarCsv,
   toCalendarAttendees,
 } from "#routes/admin/calendar-csv.ts";
-import { getPrivateKey, requireSessionOr } from "#routes/auth.ts";
+import { requireSessionOr } from "#routes/auth.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
@@ -52,6 +52,7 @@ import {
   assignmentMatchesAgentFilter,
   parseAgentFilter,
 } from "#shared/logistics-filter.ts";
+import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import {
   type Attendee,
@@ -319,7 +320,7 @@ const handleAdminCalendarGet = (request: Request) =>
       : { agentFilter: "all" as AgentFilter, agents: [] };
     let attendees: CalendarAttendeeRow[] = [];
     if (dateFilter) {
-      const privateKey = (await getPrivateKey(session))!;
+      const privateKey = await requireRequestPrivateKey();
       const [rawDailyAttendees, standardAttendees] = await Promise.all([
         getDailyListingAttendeesByDate(dateFilter),
         loadStandardListingAttendees(
@@ -355,7 +356,7 @@ const handleAdminCalendarGet = (request: Request) =>
     const questionData = await loadAttendeeQuestionData(
       attendees.map((a) => a.listingId),
       attendees.map((a) => a.id),
-      (await getPrivateKey(session))!,
+      await requireRequestPrivateKey(),
     );
 
     const hasPaidListing = allListings.some(isPaidListing);
@@ -383,12 +384,12 @@ const handleAdminCalendarGet = (request: Request) =>
  * Handle GET /admin/calendar/export (CSV export for calendar view)
  */
 const handleAdminCalendarExport = (request: Request) =>
-  withCalendarSession(request, async (session, dateFilter) => {
+  withCalendarSession(request, async (_session, dateFilter) => {
     if (!dateFilter) {
       return redirect("/admin/calendar", "Select a date to export", false);
     }
 
-    const privateKey = (await getPrivateKey(session))!;
+    const privateKey = await requireRequestPrivateKey();
     const [listingCtx, rawDailyAttendees] = await Promise.all([
       loadListingContext(),
       getDailyListingAttendeesByDate(dateFilter),

@@ -768,7 +768,7 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       expectListingRowQuantity(html, kayak.id, 2);
       expectListingRowQuantity(html, canoe.id, 3);
       // ...and the summary footer totals them (2 + 3 = 5).
-      expect(html).toContain("<td>5</td>");
+      expect(html).toContain('<td class="col-quantity">5</td>');
     });
 
     test("surfaces the checked-in status of a booking", async () => {

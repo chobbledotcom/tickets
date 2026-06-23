@@ -6,11 +6,9 @@ import type { AuthSession } from "#routes/auth.ts";
 import {
   AUTH_FORM,
   AUTH_MULTIPART,
-  getPrivateKey,
   OWNER_FORM,
   OWNER_MULTIPART,
   requireSessionOr,
-  SessionKeyError,
   withAuth,
 } from "#routes/auth.ts";
 import {
@@ -52,15 +50,6 @@ export const csvResponse = (csv: string, filename: string): Response =>
     },
   });
 
-/** Get the admin private key from session, throwing if unavailable */
-export const requirePrivateKey = async (
-  session: AuthSession,
-): Promise<CryptoKey> => {
-  const key = await getPrivateKey(session);
-  if (!key) throw new SessionKeyError();
-  return key;
-};
-
 /**
  * Bounded attendee id → name lookup for link labels (activity log, ledger). The
  * current request's private key is unwrapped only when at least one attendee is
@@ -90,7 +79,7 @@ export const withDecryptedAttendees = async (
   listingId: number,
   handler: ListingAttendeesHandler,
 ): Promise<Response> => {
-  const pk = await requirePrivateKey(session);
+  const pk = await requireRequestPrivateKey();
   const result = await getListingWithAttendeesRaw(listingId);
   if (!result) return notFoundResponse();
   const attendees = await decryptAttendees(result.attendeesRaw, pk);

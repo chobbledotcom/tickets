@@ -29,29 +29,31 @@ const SummaryRow = ({
  */
 export const orderSummary = (order: PricedOrder): string =>
   String(
-    <table class="order-summary">
-      <tbody>
-        {order.lines.map((line) => (
+    <div class="table-scroll">
+      <table class="order-summary">
+        <tbody>
+          {order.lines.map((line) => (
+            <SummaryRow
+              amount={line.chargedUnitAmount * line.quantity}
+              label={quantityLabel(line.quantity, line.item.name)}
+            />
+          ))}
+          {order.extras.map((extra) => (
+            <SummaryRow
+              amount={extra.amount * extra.quantity}
+              label={quantityLabel(extra.quantity, extra.name)}
+            />
+          ))}
+        </tbody>
+        <tfoot>
           <SummaryRow
-            amount={line.chargedUnitAmount * line.quantity}
-            label={quantityLabel(line.quantity, line.item.name)}
+            amount={order.total}
+            label={t("public.ticket.order_total")}
+            total
           />
-        ))}
-        {order.extras.map((extra) => (
-          <SummaryRow
-            amount={extra.amount * extra.quantity}
-            label={quantityLabel(extra.quantity, extra.name)}
-          />
-        ))}
-      </tbody>
-      <tfoot>
-        <SummaryRow
-          amount={order.total}
-          label={t("public.ticket.order_total")}
-          total
-        />
-      </tfoot>
-    </table>,
+        </tfoot>
+      </table>
+    </div>,
   );
 
 /**

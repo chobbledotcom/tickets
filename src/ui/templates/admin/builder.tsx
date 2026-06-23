@@ -51,28 +51,30 @@ const BuiltSitesTable = ({
       <em>{t("builder.no_sites_yet")}</em>
     </p>
   ) : (
-    <table>
-      <thead>
-        <tr>
-          <th>{t("common.name")}</th>
-          <th>{t("builder.table_url")}</th>
-          <th>{t("builder.table_built")}</th>
-        </tr>
-      </thead>
-      <tbody>
-        {sites.map((site) => (
+    <div class="table-scroll">
+      <table>
+        <thead>
           <tr>
-            <td>{site.name}</td>
-            <td>
-              <a href={site.bunnyUrl} rel="noopener" target="_blank">
-                {site.bunnyUrl}
-              </a>
-            </td>
-            <td>{site.created}</td>
+            <th>{t("common.name")}</th>
+            <th>{t("builder.table_url")}</th>
+            <th>{t("builder.table_built")}</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {sites.map((site) => (
+            <tr>
+              <td>{site.name}</td>
+              <td>
+                <a href={site.bunnyUrl} rel="noopener" target="_blank">
+                  {site.bunnyUrl}
+                </a>
+              </td>
+              <td>{site.created}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 
 export const adminBuilderPage = (

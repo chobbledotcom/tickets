@@ -27,6 +27,7 @@ import {
   Icon,
   SubmitButton,
 } from "#templates/components/actions.tsx";
+import { colClass } from "#templates/components/table-columns.ts";
 import { getBuiltSiteFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
@@ -54,9 +55,15 @@ const RenewalTierSummary = ({
           <thead>
             <tr>
               <th>{t("built_sites.tier_table_tier")}</th>
-              <th>{t("built_sites.tier_table_months")}</th>
-              <th>{t("built_sites.tier_table_price")}</th>
-              <th>{t("built_sites.tier_table_units")}</th>
+              <th class={colClass("quantity")}>
+                {t("built_sites.tier_table_months")}
+              </th>
+              <th class={colClass("amount")}>
+                {t("built_sites.tier_table_price")}
+              </th>
+              <th class={colClass("quantity")}>
+                {t("built_sites.tier_table_units")}
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -65,9 +72,11 @@ const RenewalTierSummary = ({
                 <td>
                   <a href={`/admin/listing/${tier.id}`}>{tier.name}</a>
                 </td>
-                <td>{tier.months_per_unit}</td>
-                <td>{formatCurrency(tier.unit_price)}</td>
-                <td>{tier.attendee_count}</td>
+                <td class={colClass("quantity")}>{tier.months_per_unit}</td>
+                <td class={colClass("amount")}>
+                  {formatCurrency(tier.unit_price)}
+                </td>
+                <td class={colClass("quantity")}>{tier.attendee_count}</td>
               </tr>
             ))}
           </tbody>

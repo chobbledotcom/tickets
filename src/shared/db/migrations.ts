@@ -17,8 +17,9 @@ import { ensureDefaultAttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import { getDb } from "#shared/db/client.ts";
 import { getEnv } from "#shared/env.ts";
 import { logDebug } from "#shared/logger.ts";
-import { delay, nowIso } from "#shared/now.ts";
+import { nowIso } from "#shared/now.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
+import { retryWithBackoff } from "#shared/retry.ts";
 import { recordScriptVersion } from "#shared/update.ts";
 import currentSchemaMigration from "./migrations/2026-06-11_current_schema.ts";
 import sumupCheckoutsMigration from "./migrations/2026-06-12_sumup_checkouts.ts";
@@ -356,25 +357,20 @@ export const VERIFY_RETRY_BACKOFF_MS = [50, 150, 350] as const;
  * Run a migration's verify(), retrying a transient failure (read-your-writes
  * lag on the just-applied DDL) on a fresh schema snapshot before giving up.
  */
-export const verifyMigrationWithRetry = async (
-  migration: Migration,
-): Promise<void> => {
-  for (let attempt = 0; ; attempt++) {
-    try {
-      await migration.verify();
-      return;
-    } catch (error) {
-      if (attempt >= VERIFY_RETRY_BACKOFF_MS.length) throw error;
+export const verifyMigrationWithRetry = (migration: Migration): Promise<void> =>
+  retryWithBackoff(
+    () => migration.verify(),
+    VERIFY_RETRY_BACKOFF_MS,
+    (error, { attempt, willRetry }) => {
+      if (!willRetry) return;
       logDebug(
         "Migration",
         `verify ${migration.id} failed on attempt ${
           attempt + 1
         }, retrying: ${error instanceof Error ? error.message : String(error)}`,
       );
-      await delay(VERIFY_RETRY_BACKOFF_MS[attempt]!);
-    }
-  }
-};
+    },
+  );
 
 const runPendingMigrations = async (pending: Migration[]): Promise<void> => {
   for (const migration of pending) {

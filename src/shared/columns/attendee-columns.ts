@@ -10,6 +10,7 @@ import { formatDateLabel, formatDatetimeShort } from "#shared/dates.ts";
 import { normalizePhone } from "#shared/phone.ts";
 import type { AttendeeTableRow } from "#shared/types.ts";
 import type { AttendeeColumnOpts } from "#templates/attendee-table.tsx";
+import { colClass } from "#templates/components/table-columns.ts";
 import { escapeHtml } from "#templates/layout.tsx";
 
 type AttendeeCol = ColumnDef<AttendeeTableRow, AttendeeColumnOpts>;
@@ -151,7 +152,9 @@ const answers: AttendeeCol = {
 
 const qty: AttendeeCol = {
   cell: (row) => String(row.attendee.quantity),
+  className: colClass("quantity"),
   description: "Number of tickets in this booking",
+  headerClassName: colClass("quantity"),
   label: "Qty",
 };
 

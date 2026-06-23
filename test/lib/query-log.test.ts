@@ -1,11 +1,13 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
+import { returnsNext, stub } from "@std/testing/mock";
 import {
   addQueryLogEntry,
+  enableFooterDebug,
   enableQueryLog,
   getQueryLog,
   getQueryLogStartTime,
+  isFooterDebugEnabled,
   isQueryLogEnabled,
   N_PLUS_ONE_THRESHOLD,
   runWithQueryLogContext,
@@ -13,9 +15,11 @@ import {
   sqlWallClockMs,
   trackQuery,
 } from "#shared/db/query-log.ts";
-// Preloaded so the guard's dynamic `import("#shared/logger.ts")` is a cache hit,
-// making the notify-mode test's flush deterministic rather than time-dependent.
-import "#shared/logger.ts";
+// Importing logger eagerly also preloads it, so the dynamic
+// `import("#shared/logger.ts")` in the N+1 guard and the SQL system-log
+// mirror is a cache hit — keeping their fire-and-forget flush deterministic
+// rather than time-dependent.
+import { setSuppressDebugLogs } from "#shared/logger.ts";
 
 describe("query-log", () => {
   describe("enableQueryLog", () => {
@@ -163,6 +167,35 @@ describe("query-log", () => {
         expect(second).toBeGreaterThanOrEqual(first);
       });
     });
+
+    test("each enable assigns the fresh clock value, never accumulates it", () => {
+      // Stubbing the clock pins the exact value the second enable must store:
+      // a re-assignment yields 2000, whereas an accumulating `+=` would carry
+      // the first reading forward to 3000.
+      runWithQueryLogContext(() => {
+        const nowStub = stub(performance, "now", returnsNext([1000, 2000]));
+        try {
+          enableQueryLog();
+          expect(getQueryLogStartTime()).toBe(1000);
+          enableQueryLog();
+          expect(getQueryLogStartTime()).toBe(2000);
+        } finally {
+          nowStub.restore();
+        }
+      });
+    });
+  });
+
+  describe("footer debug visibility", () => {
+    test("is hidden by default and shown only after enableFooterDebug", () => {
+      // A fresh request context must not expose the staff-only debug footer
+      // (default `false`); enabling it flips the flag to exactly `true`.
+      runWithQueryLogContext(() => {
+        expect(isFooterDebugEnabled()).toBe(false);
+        enableFooterDebug();
+        expect(isFooterDebugEnabled()).toBe(true);
+      });
+    });
   });
 
   describe("trackQuery recording", () => {
@@ -178,6 +211,65 @@ describe("query-log", () => {
         expect(logged!.startedAtMs).toBeLessThanOrEqual(after);
         expect(logged!.durationMs).toBeGreaterThanOrEqual(0);
       });
+    });
+
+    test("records the elapsed difference, not a ratio, of the clock readings", async () => {
+      // Pin the start/end clock readings so the recorded duration is the exact
+      // subtraction (1005 - 1000 = 5). A `now() / start` regression would log
+      // ~1.005 instead, so the precise value guards the arithmetic.
+      await runWithQueryLogContext(async () => {
+        enableQueryLog();
+        const nowStub = stub(performance, "now", returnsNext([1000, 1005]));
+        try {
+          await trackQuery("SELECT 1", () => Promise.resolve("ok"));
+        } finally {
+          nowStub.restore();
+        }
+        const [logged] = getQueryLog();
+        expect(logged!.startedAtMs).toBe(1000);
+        expect(logged!.durationMs).toBe(5);
+      });
+    });
+  });
+
+  describe("system-log mirroring", () => {
+    // A completed query is mirrored to the system logs via console.debug; let the
+    // fire-and-forget dynamic import + logDebug settle before asserting.
+    const captureSqlLogs = async (
+      run: () => Promise<unknown>,
+    ): Promise<string[]> => {
+      setSuppressDebugLogs(false);
+      const debugSpy = stub(console, "debug");
+      try {
+        await run();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        return debugSpy.calls.map((call) => call.args.join(" "));
+      } finally {
+        debugSpy.restore();
+        setSuppressDebugLogs(null);
+      }
+    };
+
+    test("mirrors a completed statement, omitting bound values", async () => {
+      const logs = await captureSqlLogs(() =>
+        trackQuery("SELECT name FROM users WHERE id = ?", () =>
+          Promise.resolve("ok"),
+        ),
+      );
+      expect(
+        logs.some((line) =>
+          line.includes("[SQL] SELECT name FROM users WHERE id = ?"),
+        ),
+      ).toBe(true);
+    });
+
+    test("collapses whitespace so a multi-line statement logs on one line", async () => {
+      const logs = await captureSqlLogs(() =>
+        trackQuery("SELECT\n  id\nFROM   users", () => Promise.resolve("ok")),
+      );
+      expect(
+        logs.some((line) => line.includes("[SQL] SELECT id FROM users")),
+      ).toBe(true);
     });
   });
 

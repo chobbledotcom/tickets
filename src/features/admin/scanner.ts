@@ -5,14 +5,8 @@
  */
 
 import { filter, map, pipe } from "#fp";
-import { requirePrivateKey } from "#routes/admin/actions.ts";
 import { withEntityLoader } from "#routes/admin/entity-handlers.ts";
-import {
-  getPrivateKey,
-  requireSessionOr,
-  SCANNER_JSON,
-  withAuth,
-} from "#routes/auth.ts";
+import { requireSessionOr, SCANNER_JSON, withAuth } from "#routes/auth.ts";
 import type { IdRouteHandler } from "#routes/entity.ts";
 import { htmlResponse, jsonResponse } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
@@ -31,6 +25,10 @@ import {
 } from "#shared/db/attendees.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
+import {
+  getRequestPrivateKey,
+  requireRequestPrivateKey,
+} from "#shared/session-private-key.ts";
 import type { Attendee } from "#shared/types.ts";
 import { adminScannerPage } from "#templates/admin/scanner.tsx";
 
@@ -40,7 +38,7 @@ const withListing = withEntityLoader(getListingWithCount);
 const handleScannerGet: IdRouteHandler = (request, { id }) =>
   requireSessionOr(request, (session) =>
     withListing(id)(async (listing) => {
-      const privateKey = await requirePrivateKey(session);
+      const privateKey = await requireRequestPrivateKey();
       const rawAttendees = await getAttendeesRaw(listing.id);
       const attendees = await decryptAttendees(rawAttendees, privateKey);
       const uncheckedIn = pipe(
@@ -148,7 +146,7 @@ const performCheckIn = async (
  * accidental check-outs from double-scans during rapid door check-in.
  */
 const handleScanPost: IdRouteHandler = (request, { id }) =>
-  withAuth(request, SCANNER_JSON, async (session, body) => {
+  withAuth(request, SCANNER_JSON, async (_session, body) => {
     if (typeof body.token !== "string") {
       return jsonResponse({ error: "Missing token" }, 400);
     }
@@ -157,7 +155,7 @@ const handleScanPost: IdRouteHandler = (request, { id }) =>
     const force = body.force === true;
     const idVerified = body.id_verified === true;
 
-    const privateKey = await getPrivateKey(session);
+    const privateKey = await getRequestPrivateKey();
     if (!privateKey) {
       logError({
         code: ErrorCode.KEY_DERIVATION,

@@ -153,7 +153,13 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     );
 
     const result = await applyAttendeeMerge({
-      decision: { answers: {}, bookings: {}, pii: {}, version: diff.version },
+      decision: {
+        answers: {},
+        bookings: {},
+        money: {},
+        pii: {},
+        version: diff.version,
+      },
       diff,
       privateKey: await getTestPrivateKey(),
       sourceId: source.id,
@@ -585,6 +591,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       const decision: AttendeeMergeDecisionInput = {
         answers: {},
         bookings: {},
+        money: {},
         pii: {},
         version: "v2",
       };
@@ -617,6 +624,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       const decision: AttendeeMergeDecisionInput = {
         answers: {},
         bookings: {},
+        money: {},
         pii: {},
         version: "v1",
       };
@@ -645,6 +653,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               refunded: 0,
               start_at: null,
             },
+            sourceSaleAmount: 0,
             startAt: null,
             targetBooking: {
               attachment_downloads: 0,
@@ -657,6 +666,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               refunded: 0,
               start_at: null,
             },
+            targetSaleAmount: 0,
           },
         ],
         piiFields: [],
@@ -667,6 +677,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       const decision: AttendeeMergeDecisionInput = {
         answers: {},
         bookings: {},
+        money: {},
         pii: {},
         version: "v1",
       };
@@ -695,6 +706,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               refunded: 0,
               start_at: "2026-06-15T10:00:00Z",
             },
+            sourceSaleAmount: 0,
             startAt: "2026-06-15T10:00:00Z",
             targetBooking: {
               attachment_downloads: 0,
@@ -707,6 +719,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               refunded: 0,
               start_at: "2026-06-15T10:00:00Z",
             },
+            targetSaleAmount: 0,
           },
         ],
         piiFields: [],
@@ -717,6 +730,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       const decision: AttendeeMergeDecisionInput = {
         answers: {},
         bookings: {},
+        money: {},
         pii: {},
         version: "v1",
       };
@@ -747,8 +761,10 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               refunded: 0,
               start_at: null,
             },
+            sourceSaleAmount: 1500,
             startAt: null,
             targetBooking: null,
+            targetSaleAmount: 0,
           },
         ],
         piiFields: [],
@@ -759,13 +775,16 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       const decision: AttendeeMergeDecisionInput = {
         answers: {},
         bookings: {},
+        money: {},
         pii: {},
         version: "v1",
       };
       const result = validateAttendeeMergeDecision(diff, decision);
       expect(result.valid).toBe(false);
       if (!result.valid) {
-        expect(result.errors[0]).toContain("strand a recorded payment");
+        expect(
+          result.errors.some((e) => e.includes("strand a recorded payment")),
+        ).toBe(true);
       }
     });
 
@@ -789,6 +808,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               refunded: 0,
               start_at: null,
             },
+            sourceSaleAmount: 0,
             startAt: null,
             targetBooking: {
               attachment_downloads: 0,
@@ -801,6 +821,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               refunded: 0,
               start_at: null,
             },
+            targetSaleAmount: 1500,
           },
         ],
         piiFields: [],
@@ -811,13 +832,16 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       const decision: AttendeeMergeDecisionInput = {
         answers: {},
         bookings: { "5:null": "take_source" },
+        money: {},
         pii: {},
         version: "v1",
       };
       const result = validateAttendeeMergeDecision(diff, decision);
       expect(result.valid).toBe(false);
       if (!result.valid) {
-        expect(result.errors[0]).toContain("strand a recorded payment");
+        expect(
+          result.errors.some((e) => e.includes("strand a recorded payment")),
+        ).toBe(true);
       }
     });
 
@@ -840,8 +864,10 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               refunded: 0,
               start_at: null,
             },
+            sourceSaleAmount: 0,
             startAt: null,
             targetBooking: null,
+            targetSaleAmount: 0,
           },
         ],
         piiFields: [],
@@ -852,6 +878,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       const decision: AttendeeMergeDecisionInput = {
         answers: {},
         bookings: {},
+        money: {},
         pii: {},
         version: "v1",
       };
@@ -886,6 +913,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               refunded: 0,
               start_at: null,
             },
+            sourceSaleAmount: 0,
             startAt: null,
             targetBooking: {
               attachment_downloads: 0,
@@ -898,6 +926,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               refunded: 0,
               start_at: null,
             },
+            targetSaleAmount: 0,
           },
         ],
         piiFields: [],
@@ -908,11 +937,105 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       const decision: AttendeeMergeDecisionInput = {
         answers: { "10": "source" },
         bookings: { "5:null": "keep_target" },
+        money: {},
         pii: { name: "target" },
         version: "v1",
       };
       const result = validateAttendeeMergeDecision(diff, decision);
       expect(result.valid).toBe(true);
+    });
+
+    // --- Decision 17: a discarded booking that carries money needs a choice --- //
+
+    const bookingRow =
+      (): import("#shared/db/attendee-types.ts").ListingAttendeeRow => ({
+        attachment_downloads: 0,
+        checked_in: 0,
+        end_at: null,
+        ledger_event_group: "grp",
+        listing_id: 5,
+        price_paid: 5000,
+        quantity: 1,
+        refunded: 0,
+        start_at: null,
+      });
+
+    /** A single same-listing duplicate conflict carrying the given ledger sale
+     *  amounts on each side. */
+    const moneyConflictDiff = (
+      sourceSaleAmount: number,
+      targetSaleAmount: number,
+    ): AttendeeMergeDiff => ({
+      answerItems: [],
+      bookingItems: [
+        {
+          conflictClass: "duplicate",
+          listingId: 5,
+          sourceBooking: bookingRow(),
+          sourceSaleAmount,
+          startAt: null,
+          targetBooking: bookingRow(),
+          targetSaleAmount,
+        },
+      ],
+      piiFields: [],
+      sourceId: 2,
+      targetId: 1,
+      version: "v1",
+    });
+
+    const decisionWith = (
+      money: AttendeeMergeDecisionInput["money"],
+      booking: "keep_target" | "take_source" = "keep_target",
+    ): AttendeeMergeDecisionInput => ({
+      answers: {},
+      bookings: { "5:null": booking },
+      money,
+      pii: {},
+      version: "v1",
+    });
+
+    test("rejects a discarded paid booking with no money decision", () => {
+      // keep_target discards the SOURCE booking (£50 of recognised sale), so the
+      // operator must choose credit vs write-off — never a silent default.
+      const result = validateAttendeeMergeDecision(
+        moneyConflictDiff(5000, 5000),
+        decisionWith({}),
+      );
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors[0]).toContain("money decision");
+      }
+    });
+
+    test("accepts a discarded paid booking once a money choice is given", () => {
+      const result = validateAttendeeMergeDecision(
+        moneyConflictDiff(5000, 5000),
+        decisionWith({ "5:null": "credit" }),
+      );
+      expect(result.valid).toBe(true);
+    });
+
+    test("needs no money decision when the discarded booking is free", () => {
+      // A £0 conflict carries no money, so only the row choice is required.
+      const result = validateAttendeeMergeDecision(
+        moneyConflictDiff(0, 0),
+        decisionWith({}),
+      );
+      expect(result.valid).toBe(true);
+    });
+
+    test("take_source weighs the TARGET amount it discards, not the source", () => {
+      // Replacing with the source discards the TARGET booking; its £50 is what
+      // needs a decision even though the source booking is free.
+      const result = validateAttendeeMergeDecision(
+        moneyConflictDiff(0, 5000),
+        decisionWith({}, "take_source"),
+      );
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors[0]).toContain("money decision");
+      }
     });
   });
 
@@ -958,7 +1081,13 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         [],
       );
       const result = await applyAttendeeMerge({
-        decision: { answers: {}, bookings: {}, pii: {}, version: diff.version },
+        decision: {
+          answers: {},
+          bookings: {},
+          money: {},
+          pii: {},
+          version: diff.version,
+        },
         diff,
         privateKey: await getTestPrivateKey(),
         sourceId: source.id,
@@ -1046,6 +1175,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       const decision: AttendeeMergeDecisionInput = {
         answers: { [String(question.id)]: "source" },
         bookings: {},
+        money: {},
         pii: { email: "target", name: "source" },
         version: diff.version,
       };
@@ -1156,7 +1286,13 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       );
 
       const result = await applyAttendeeMerge({
-        decision: { answers: {}, bookings: {}, pii: {}, version: diff.version },
+        decision: {
+          answers: {},
+          bookings: {},
+          money: {},
+          pii: {},
+          version: diff.version,
+        },
         diff,
         privateKey: await getTestPrivateKey(),
         sourceId: source.id,
@@ -1243,7 +1379,13 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       );
 
       const result = await applyAttendeeMerge({
-        decision: { answers: {}, bookings: {}, pii: {}, version: diff.version },
+        decision: {
+          answers: {},
+          bookings: {},
+          money: {},
+          pii: {},
+          version: diff.version,
+        },
         diff,
         privateKey: await getTestPrivateKey(),
         sourceId: source.id,
@@ -1323,6 +1465,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         decision: {
           answers: { [String(question.id)]: "clear" },
           bookings: {},
+          money: {},
           pii: {},
           version: diff.version,
         },
@@ -1402,6 +1545,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         decision: {
           answers: {},
           bookings: {},
+          money: {},
           pii: {},
           version: diff.version,
         },
@@ -1472,6 +1616,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         decision: {
           answers: {},
           bookings: { [key]: "keep_target" },
+          money: {},
           pii: {},
           version: diff.version,
         },
@@ -1554,6 +1699,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         decision: {
           answers: {},
           bookings: { [key]: "take_source" },
+          money: {},
           pii: {},
           version: diff.version,
         },
@@ -1638,6 +1784,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         decision: {
           answers: {},
           bookings: {},
+          money: {},
           pii: { name: "source" },
           version: diff.version,
         },

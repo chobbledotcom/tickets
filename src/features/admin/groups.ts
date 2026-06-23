@@ -4,7 +4,6 @@
 
 import { map } from "#fp";
 import { t } from "#i18n";
-import { requirePrivateKey } from "#routes/admin/actions.ts";
 import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { requireSessionOr } from "#routes/auth.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
@@ -33,6 +32,7 @@ import { GROUP_DEMO_FIELDS, wrapResourceForDemo } from "#shared/demo.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { defineNamedResource } from "#shared/rest/resource.ts";
+import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { generateUniqueSlug, normalizeSlug } from "#shared/slug.ts";
 import { sortListings } from "#shared/sort-listings.ts";
 import { type Attendee, type Group, isPaidListing } from "#shared/types.ts";
@@ -175,7 +175,7 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/groups/:id"> = (
       let attendees: Attendee[] = [];
       let phonePrefix: string | undefined;
       if (listingIds.length > 0) {
-        const privateKey = await requirePrivateKey(session);
+        const privateKey = await requireRequestPrivateKey();
         const hasPaidListing = sortedListings.some(isPaidListing);
         const [rawAttendees, prefix] = await Promise.all([
           getAttendeesByListingIds(listingIds),
@@ -193,7 +193,7 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/groups/:id"> = (
       const questionData = await loadAttendeeQuestionData(
         listingIds,
         attendees.map((a) => a.id),
-        await requirePrivateKey(session),
+        await requireRequestPrivateKey(),
       );
 
       return htmlResponse(

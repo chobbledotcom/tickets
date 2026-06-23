@@ -217,6 +217,26 @@ describe("db > accounting > store", () => {
       expect((await allTransfers()).length).toBe(0);
     });
 
+    test("rejects two groups that share an eventGroup in the batch", async () => {
+      // Each group is meant to be one event; two sharing a group would both plan
+      // against the same snapshot and merge into one event's legs, breaking a
+      // later idempotent replay of either.
+      const error = await rejection(
+        postTransferGroups([
+          [tx({ eventGroup: "evt-shared", reference: "a" })],
+          [
+            tx({
+              destination: account("fee_income", "booking"),
+              eventGroup: "evt-shared",
+              reference: "b",
+            }),
+          ],
+        ]),
+      );
+      expect(error.message).toContain("duplicate eventGroup across the batch");
+      expect((await allTransfers()).length).toBe(0);
+    });
+
     test("validates every group up front, rejecting the whole batch before any write", async () => {
       const error = await rejection(
         postTransferGroups([

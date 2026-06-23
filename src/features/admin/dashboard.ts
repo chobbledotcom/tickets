@@ -3,11 +3,7 @@
  */
 
 import { compact, unique } from "#fp";
-import {
-  csvResponse,
-  loadAttendeeNames,
-  requirePrivateKey,
-} from "#routes/admin/actions.ts";
+import { csvResponse, loadAttendeeNames } from "#routes/admin/actions.ts";
 import { generateListingsCsv } from "#routes/admin/listings-csv.ts";
 import { requireSessionOr, sessionPage, withSession } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
@@ -33,6 +29,7 @@ import {
   filterListingsByType,
   listingTypeFromRequest,
 } from "#shared/listing-filter.ts";
+import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { sortListings } from "#shared/sort-listings.ts";
 /* jscpd:ignore-end */
 import {
@@ -85,7 +82,7 @@ const handleAdminGet = (request: Request): Promise<Response> =>
         getAllListings(),
         getActiveHolidays(),
         getNewestAttendeesRaw(NEWEST_ATTENDEES_LIMIT),
-        requirePrivateKey(session),
+        requireRequestPrivateKey(),
       ]);
       const newestAttendees = await decryptAttendees(newestRaw, privateKey);
       const sortedListings = sortListings(listings, holidays);

@@ -65,6 +65,7 @@ import {
   MaybeButtonLink,
   SubmitButton,
 } from "#templates/components/actions.tsx";
+import { colClass } from "#templates/components/table-columns.ts";
 import {
   getAddAttendeeFields,
   getAssignBuiltSiteField,
@@ -215,9 +216,9 @@ const FailedPaymentRow = ({
   String(
     <tr>
       <td>{attendee.name}</td>
-      <td>{attendee.quantity}</td>
+      <td class={colClass("quantity")}>{attendee.quantity}</td>
       <td>{formatDatetimeShort(attendee.created)}</td>
-      <td>
+      <td class={colClass("actions")}>
         <CsrfForm
           action={`/admin/listing/${listingId}/attendee/${attendee.id}/delete-incomplete`}
           class="inline"
@@ -243,9 +244,9 @@ const FailedPaymentsTable = ({
       <thead>
         <tr>
           <th>{t("common.name")}</th>
-          <th>{t("common.qty")}</th>
+          <th class={colClass("quantity")}>{t("common.qty")}</th>
           <th>{t("common.registered")}</th>
-          <th></th>
+          <th class={colClass("actions")}></th>
         </tr>
       </thead>
       <tbody>
@@ -360,7 +361,7 @@ const BreakdownRow = ({
 }): JSX.Element => (
   <tr class={subtotal ? "breakdown-subtotal" : undefined}>
     <th>{subtotal ? <strong>{label}</strong> : label}</th>
-    <td class="breakdown-amount">
+    <td class={colClass("amount")}>
       {subtotal ? <strong>{amount}</strong> : amount}
     </td>
   </tr>
@@ -1125,9 +1126,9 @@ const AttendeesSection = ({
           })}
         />
       </div>
-      <p class="table-footer-actions">
+      <div class="table-actions">
         <a href={exportHref}>{t("listings_table.export_csv")}</a>
-      </p>
+      </div>
     </article>
   );
 };

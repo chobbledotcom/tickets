@@ -10,7 +10,6 @@
 
 /* jscpd:ignore-start */
 import { t } from "#i18n";
-import { requirePrivateKey } from "#routes/admin/actions.ts";
 import { AUTH_FORM, requireSessionOr, withAuth } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, redirect } from "#routes/response.ts";
@@ -26,6 +25,7 @@ import {
 import type { FormParams } from "#shared/form-data.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
+import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { contactHistoryPage } from "#templates/admin/contact-history.tsx";
 
 /* jscpd:ignore-end */
@@ -78,7 +78,7 @@ export const handleContactHistoryGet: TypedRouteHandler<
   requireSessionOr(request, async (session) => {
     const record = await loadForRepair(
       fromContactHashParam(hmac),
-      await requirePrivateKey(session),
+      await requireRequestPrivateKey(),
     );
     const flash = applyFlash(request);
     return htmlResponse(
@@ -97,7 +97,7 @@ export const handleContactHistoryPost: TypedRouteHandler<
   "POST /admin/history/:hmac"
 > = (request, { hmac }) =>
   withAuth(request, AUTH_FORM, async (session, form) => {
-    const pk = await requirePrivateKey(session);
+    const pk = await requireRequestPrivateKey();
     const hash = fromContactHashParam(hmac);
     const current = await loadForRepair(hash, pk);
     const updated = recordFromForm(form, current);

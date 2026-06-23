@@ -380,12 +380,18 @@ tests) before the corresponding path goes live.
 
 ### Merge
 
-- [ ] **A merge conflict requires an explicit operator decision** — a *required*
-  field resolves each conflicting booking (keep both records' payments as the
-  person's credit, or route the losing side to a manual adjustment). A clean merge
-  still moves every leg wholesale; a conflict never auto-moves a discarded order's
-  money onto the target by a silent default (decision 17; AGENTS.md "Operator
-  decides genuine conflicts").
+- [x] **A merge conflict requires an explicit operator decision** — when the
+  booking the operator discards carries a recognised `sale`, a *required* money
+  field resolves it (no silent default): `credit` keeps the over-collected cash as
+  the merged person's credit (`writeoff → attendee`), `writeoff` parks it in the
+  `writeoff` contra account. Either way the discarded `sale` is un-billed
+  (`revenue → writeoff`) so the listing's income counts the kept ticket once
+  instead of double-counting the duplicate. A clean (moveable) booking still moves
+  every leg wholesale with no decision; a conflict never auto-moves a discarded
+  order's money onto the target. `validateAttendeeMergeDecision` rejects a merge
+  that omits the choice, and the un-bill/credit legs post in the same write
+  transaction as the repoint (decision 17; AGENTS.md "Operator decides genuine
+  conflicts").
 
 ### PSP modelling (later)
 

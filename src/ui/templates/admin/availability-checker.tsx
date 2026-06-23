@@ -16,6 +16,7 @@ import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
 import { SELECT_PREFIX, START_DATE_FIELD } from "#shared/order-select.ts";
 import { Icon } from "#templates/components/actions.tsx";
+import { colClass } from "#templates/components/table-columns.ts";
 
 /** One row of the availability table: a bookable listing and its remaining
  * capacity for the selected date (or overall when no date is selected). */
@@ -57,10 +58,14 @@ const Row = ({ row }: { row: AvailabilityRow }): JSX.Element => {
       <td>
         <a href={`/admin/listing/${row.id}`}>{row.name}</a>
       </td>
-      <td class={row.remaining <= 0 ? "danger" : undefined}>
+      <td
+        class={[colClass("quantity"), row.remaining <= 0 ? "danger" : null]
+          .filter(Boolean)
+          .join(" ")}
+      >
         {row.remaining}/{row.total}
       </td>
-      <td>{priceLabel(row)}</td>
+      <td class={colClass("amount")}>{priceLabel(row)}</td>
     </tr>
   );
 };
@@ -102,8 +107,10 @@ export const AvailabilityChecker = ({
                     </span>
                   </th>
                   <th>{t("availability.listing")}</th>
-                  <th>{t("availability.remaining")}</th>
-                  <th>{t("availability.price")}</th>
+                  <th class={colClass("quantity")}>
+                    {t("availability.remaining")}
+                  </th>
+                  <th class={colClass("amount")}>{t("availability.price")}</th>
                 </tr>
               </thead>
               <tbody>
