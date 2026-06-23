@@ -81,6 +81,7 @@ const bookingsForDate = (
     }
     booking.legs.push({
       agentName: lookups.agentNameById.get(leg.agentId)!,
+      date: leg.date,
       done: leg.done,
       kind: leg.kind,
       time: leg.time,
@@ -172,6 +173,7 @@ const handleDeliveriesMark = (request: Request): Promise<Response> =>
     const attendeeId = form.getOptionalInt("attendee_id");
     const listingId = form.getOptionalInt("listing_id");
     const kind = form.getString("kind");
+    const date = form.getString("date");
     const done = form.getString("done") === "1";
     if (attendeeId === null || listingId === null) {
       return errorRedirect(
@@ -185,12 +187,21 @@ const handleDeliveriesMark = (request: Request): Promise<Response> =>
         t("deliveries.invalid_request"),
       );
     }
+    const today = todayInTz(settings.timezone);
+    const tomorrow = addDays(today, 1);
+    if (date !== today && date !== tomorrow) {
+      return errorRedirect(
+        "/admin/deliveries",
+        t("deliveries.invalid_request"),
+      );
+    }
 
     const agentIds = await getUserAgentIds(session.userId);
     const updated = await setLegDone(
       attendeeId,
       listingId,
       kind,
+      date,
       done,
       agentIds,
     );

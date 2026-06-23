@@ -217,17 +217,21 @@ export const setLegDone = async (
   attendeeId: number,
   listingId: number,
   kind: DeliveryLegKind,
+  date: string,
   done: boolean,
   agentIds: number[],
 ): Promise<boolean> => {
   if (agentIds.length === 0) return false;
   const doneColumn = kind === "start" ? "start_done" : "end_done";
   const agentColumn = kind === "start" ? "start_agent_id" : "end_agent_id";
+  const dateExpression =
+    kind === "start" ? "DATE(start_at)" : "DATE(end_at, '-1 day')";
   const result = await execute(
     `UPDATE listing_attendees SET ${doneColumn} = ?
           WHERE attendee_id = ? AND listing_id = ?
+            AND ${dateExpression} = ?
             AND ${agentColumn} IN (${inPlaceholders(agentIds)})`,
-    [done ? 1 : 0, attendeeId, listingId, ...agentIds],
+    [done ? 1 : 0, attendeeId, listingId, date, ...agentIds],
   );
   return result.rowsAffected > 0;
 };
