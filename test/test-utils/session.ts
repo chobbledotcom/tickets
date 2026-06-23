@@ -1,10 +1,15 @@
 import type { Row } from "@libsql/client";
+import type { AuthSession } from "#routes/auth.ts";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import { generateSecureToken } from "#shared/crypto/utils.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { createApiKey } from "#shared/db/api-keys.ts";
 import type { ListingInput } from "#shared/db/listings.ts";
 import { getSession } from "#shared/db/sessions.ts";
+import {
+  runWithSessionContext,
+  setCachedSession,
+} from "#shared/session-context.ts";
 import type { Listing } from "#shared/types.ts";
 import type { AdminTestContext } from "#test-utils/internal.ts";
 import {
@@ -15,7 +20,10 @@ import {
   TEST_ADMIN_USERNAME,
 } from "#test-utils/internal.ts";
 
-export const loginAsAdmin = async (): Promise<{
+export const loginAsAdmin = async (
+  username: string = TEST_ADMIN_USERNAME,
+  password: string = TEST_ADMIN_PASSWORD,
+): Promise<{
   cookie: string;
   csrfToken: string;
 }> => {
@@ -35,7 +43,7 @@ export const loginAsAdmin = async (): Promise<{
 
   const loginResponse = await handleRequest(
     await mockAdminLoginRequest(
-      { password: TEST_ADMIN_PASSWORD, username: TEST_ADMIN_USERNAME },
+      { password, username },
       loginCsrfToken,
     ),
   );
@@ -85,6 +93,50 @@ export const testCookie = async (): Promise<string> =>
 
 export const testCsrfToken = async (): Promise<string> =>
   (await getTestSession()).csrfToken;
+
+/** Build an owner AuthSession from the live test admin session row. */
+const getTestAuthSession = async (): Promise<AuthSession> => {
+  const cookie = await testCookie();
+  const token = cookie.match(
+    new RegExp(`${getSessionCookieName()}=([^;]+)`),
+  )![1]!;
+  const session = await getSession(token);
+  if (!session) throw new Error("Test admin session row not found");
+  return {
+    adminLevel: "owner",
+    token,
+    userId: session.user_id!,
+    wrappedDataKey: session.wrapped_data_key,
+  };
+};
+
+/**
+ * Run `fn` inside a request-scoped session context for the test admin owner,
+ * mirroring the server's per-request `runWithSessionContext` wrapper. Use this
+ * around direct calls to code that reads the private key from the current
+ * request (e.g. activity-log decryption via `requireRequestPrivateKey`), which
+ * otherwise has no session in scope in a unit test and fails closed.
+ */
+export const withTestSession = async <T>(fn: () => Promise<T>): Promise<T> => {
+  const session = await getTestAuthSession();
+  return runWithSessionContext(() => {
+    setCachedSession(session);
+    return fn();
+  });
+};
+
+/**
+ * Re-establish the cached test admin session after an action that logged the
+ * owner out (e.g. a password change deletes existing sessions). Logs in fresh
+ * with the given password and replaces the cached session, so subsequent
+ * `withTestSession` / `getTestSession` calls resolve a valid session.
+ */
+export const reloginAsAdmin = async (
+  password: string,
+  username: string = TEST_ADMIN_USERNAME,
+): Promise<void> => {
+  setTestSession(await loginAsAdmin(username, password));
+};
 
 export const createTestManagerSession = async (
   token = "mgr-session",

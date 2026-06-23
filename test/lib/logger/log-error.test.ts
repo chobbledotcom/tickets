@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { type Spy, spy, stub } from "@std/testing/mock";
-import { getAllActivityLog } from "#shared/db/activityLog.ts";
 import {
   bestEffort,
   ErrorCode,
@@ -12,6 +11,7 @@ import { flushPendingWork, runWithPendingWork } from "#shared/pending-work.ts";
 import {
   createTestDbWithSetup,
   createTestListing,
+  getAllActivityLog,
   resetDb,
   setTestEnv,
 } from "#test-utils";

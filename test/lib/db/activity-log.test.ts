@@ -1,5 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { decrypt, ENCRYPTION_PREFIX } from "#shared/crypto/encryption.ts";
+import { HYBRID_PREFIX } from "#shared/crypto/keys.ts";
 import {
   getAllActivityLog,
   getAttendeeActivityLog,
@@ -7,7 +9,20 @@ import {
   getListingWithActivityLog,
   logActivity,
 } from "#shared/db/activityLog.ts";
-import { createTestListing, describeWithEnv } from "#test-utils";
+import { queryOne } from "#shared/db/client.ts";
+import { settings } from "#shared/db/settings.ts";
+import {
+  createTestListing,
+  describeWithEnv,
+  withTestSession,
+} from "#test-utils";
+
+/** Raw (still-encrypted) stored message for an activity-log row. */
+const rawMessage = async (id: number): Promise<string> =>
+  (await queryOne<{ message: string }>(
+    "SELECT message FROM activity_log WHERE id = ?",
+    [id],
+  ))!.message;
 
 describeWithEnv("db > activity log", { db: true }, () => {
   test("logActivity creates log entry with message", async () => {
@@ -33,12 +48,47 @@ describeWithEnv("db > activity log", { db: true }, () => {
     expect(entry.message).toBe("Created listing 'Test Listing'");
   });
 
+  test("stores messages encrypted with the owner key, not DB_ENCRYPTION_KEY", async () => {
+    const entry = await logActivity("Sensitive note");
+    const stored = await rawMessage(entry.id);
+
+    // Owner-key (hybrid RSA+AES) format, not the env-key (enc:) format.
+    expect(stored.startsWith(HYBRID_PREFIX)).toBe(true);
+    expect(stored.startsWith(ENCRYPTION_PREFIX)).toBe(false);
+    // A database dump plus DB_ENCRYPTION_KEY cannot read it: the env-key
+    // decrypt rejects an owner-key payload outright.
+    await expect(decrypt(stored)).rejects.toThrow();
+  });
+
+  test("reading owner-key entries fails closed without a session", async () => {
+    await logActivity("Owner-key entry");
+
+    await expect(getAllActivityLog()).rejects.toThrow(
+      "Private key unavailable for session",
+    );
+  });
+
+  test("falls back to the env key before a key pair is configured", async () => {
+    // No public key yet (pre-setup); the error logger must still record.
+    settings.setForTest({ public_key: "" });
+    const entry = await logActivity("Pre-setup error");
+    const stored = await rawMessage(entry.id);
+
+    expect(stored.startsWith(ENCRYPTION_PREFIX)).toBe(true);
+    expect(await decrypt(stored)).toBe("Pre-setup error");
+
+    // Legacy env-key rows decrypt without a session in scope.
+    const entries = await getAllActivityLog();
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.message).toBe("Pre-setup error");
+  });
+
   test("logActivity records an attendee_id and getAttendeeActivityLog filters by it", async () => {
     await logActivity("Unrelated entry");
     await logActivity("Balance paid", null, 42);
     await logActivity("Other attendee", null, 99);
 
-    const entries = await getAttendeeActivityLog(42);
+    const entries = await withTestSession(() => getAttendeeActivityLog(42));
     expect(entries).toHaveLength(1);
     expect(entries[0]!.message).toBe("Balance paid");
     expect(entries[0]!.attendee_id).toBe(42);
@@ -60,7 +110,9 @@ describeWithEnv("db > activity log", { db: true }, () => {
     await logActivity("Another action for listing 1", listing1.id);
     await logActivity("Action for listing 2", listing2.id);
 
-    const listing1Log = await getListingActivityLog(listing1.id);
+    const listing1Log = await withTestSession(() =>
+      getListingActivityLog(listing1.id),
+    );
     // REST API also logs listing creation, so we have 3 entries for listing 1
     expect(listing1Log.length).toBe(3);
     expect(listing1Log[0]?.message).toBe("Another action for listing 1");
@@ -82,7 +134,9 @@ describeWithEnv("db > activity log", { db: true }, () => {
     await logActivity("Action 2", listing.id);
     await logActivity("Action 3", listing.id);
 
-    const entries = await getListingActivityLog(listing.id, 2);
+    const entries = await withTestSession(() =>
+      getListingActivityLog(listing.id, 2),
+    );
     expect(entries.length).toBe(2);
   });
 
@@ -96,7 +150,7 @@ describeWithEnv("db > activity log", { db: true }, () => {
     await logActivity("Global action");
     await logActivity("Listing action", listing.id);
 
-    const entries = await getAllActivityLog();
+    const entries = await withTestSession(() => getAllActivityLog());
     // REST API logs listing creation, so we have 3 entries total
     expect(entries.length).toBe(3);
   });
@@ -106,7 +160,7 @@ describeWithEnv("db > activity log", { db: true }, () => {
     await logActivity("Second action");
     await logActivity("Third action");
 
-    const entries = await getAllActivityLog();
+    const entries = await withTestSession(() => getAllActivityLog());
     expect(entries[0]?.message).toBe("Third action");
     expect(entries[1]?.message).toBe("Second action");
     expect(entries[2]?.message).toBe("First action");
@@ -117,7 +171,7 @@ describeWithEnv("db > activity log", { db: true }, () => {
     await logActivity("Action 2");
     await logActivity("Action 3");
 
-    const entries = await getAllActivityLog(2);
+    const entries = await withTestSession(() => getAllActivityLog(2));
     expect(entries.length).toBe(2);
   });
 
@@ -131,7 +185,9 @@ describeWithEnv("db > activity log", { db: true }, () => {
     await logActivity("First action", listing.id);
     await logActivity("Second action", listing.id);
 
-    const result = await getListingWithActivityLog(listing.id);
+    const result = await withTestSession(() =>
+      getListingWithActivityLog(listing.id),
+    );
     expect(result).not.toBeNull();
     expect(result?.listing.id).toBe(listing.id);
     expect(result?.listing.name).toBe("Batch Test Listing");

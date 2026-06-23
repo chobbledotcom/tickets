@@ -6,7 +6,6 @@ import { buildSessionCookie } from "#shared/cookies.ts";
 import { hashPassword } from "#shared/crypto/hashing.ts";
 import { generateSecureToken } from "#shared/crypto/utils.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { getAllActivityLog } from "#shared/db/activityLog.ts";
 import { createSession } from "#shared/db/sessions.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
@@ -22,6 +21,7 @@ import {
   describeWithEnv,
   expectFlash,
   expectFlashRedirect,
+  getAllActivityLog,
   mockFormRequest,
   setTestEnv,
   testCookie,

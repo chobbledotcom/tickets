@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { getAllActivityLog } from "#shared/db/activityLog.ts";
 import { getDb } from "#shared/db/client.ts";
 import { invalidateInitDbCache, resetDatabase } from "#shared/db/migrations.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -13,6 +12,7 @@ import {
   expectFlashRedirect,
   expectHtmlResponse,
   expectRedirect,
+  getAllActivityLog,
   getSetupCsrfToken,
   invalidateTestDbCache,
   mockFormRequest,

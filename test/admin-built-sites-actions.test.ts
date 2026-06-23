@@ -6,7 +6,6 @@ import { FakeTime } from "@std/testing/time";
 import { handleRequest } from "#routes";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { addMonthsIso } from "#shared/dates.ts";
-import { getAllActivityLog } from "#shared/db/activityLog.ts";
 import {
   getAllBuiltSites,
   updateBuiltSiteRenewalState,
@@ -18,6 +17,7 @@ import {
   createTestListing,
   describeWithEnv,
   expectFlashRedirect,
+  getAllActivityLog,
   provisionTestBuiltSite,
   testCookie,
 } from "#test-utils";

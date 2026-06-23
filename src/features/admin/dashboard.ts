@@ -141,9 +141,11 @@ const LOG_DISPLAY_LIMIT = 200;
 
 /**
  * Attendee id → name for the log's Attendee column. The session private key is
- * unwrapped only when an entry actually links an attendee, so a system- or
- * listing-only log still renders for a session whose key is unavailable (its
- * messages and listing names decrypt with the DB key, not the session key).
+ * unwrapped here only when an entry actually links an attendee; listing names
+ * come from the listings cache (env-key), so a system- or listing-only log
+ * needs no attendee-name decryption. The log *messages* are decrypted in
+ * decryptLogRows, which pulls the same request-scoped session key whenever an
+ * entry is in the owner-key format.
  */
 const loadAttendeeNames = async (
   attendeeIds: number[],

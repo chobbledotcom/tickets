@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
-import { getAllActivityLog } from "#shared/db/activityLog.ts";
 import { setDemoModeForTest } from "#shared/demo.ts";
 import {
   adminFormPost,
   describeWithEnv,
   expectFlash,
+  getAllActivityLog,
   testRequiresAuth,
 } from "#test-utils";
 

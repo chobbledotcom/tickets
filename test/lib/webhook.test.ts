@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { bracket, map } from "#fp";
-import { getAllActivityLog } from "#shared/db/activityLog.ts";
 import { flushPendingWork, runWithPendingWork } from "#shared/pending-work.ts";
 import {
   buildWebhookPayload,
@@ -17,6 +16,7 @@ import {
   createTestListing,
   describeWithEnv,
   type EmailEntry,
+  getAllActivityLog,
   makeTestAttendee as makeAttendee,
   makeTestEntry as makeEntry,
   makeTestListing as makeListing,
