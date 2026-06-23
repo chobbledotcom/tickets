@@ -317,6 +317,100 @@ avoid duplicating the query — jscpd runs at 0%).
 
 ---
 
+## Ledger integration: service costs & listing profit
+
+The new double-entry ledger (`src/shared/ledger/` + `src/shared/accounting/`,
+designed in `accounting-plan.md`) is where servicing earns its keep beyond
+blocking capacity: an operator records the **costs** of a service (a boiler
+service costs £90, a deep clean £120) and those costs show up **against the
+listing's profit**. The `transfers` table, idempotent posting, atomic legs, and
+the ledger admin UI already exist — servicing adds a cost account and a profit
+projection on top.
+
+### Servicing posts no revenue legs
+
+First, the contract: a servicing booking is **free and never a sale**. The normal
+booking path posts `sale` / `payment` / `fee` legs via `mapBooking`
+(`accounting/mappers.ts`); servicing must **not** go through that path, or it
+would credit phantom revenue to the listing. The servicing create/edit flow posts
+**only** cost legs (or none, if no cost is entered) — never `sale`/`payment`/`fee`.
+
+### New account type: `cost`, row-backed by listing
+
+Add a `COST = "cost"` type to the chart of accounts (`accounts.ts`) with a
+`costAccount(listingId)` builder reusing the existing `rowAccount` validation —
+parallel to `revenueAccount`. Row-backing by **listing id** makes per-listing
+cost roll-ups a one-account balance query (and lets the ledger UI link a cost to
+its listing). The chart already reserves `fees`/`deposits` for later; `cost` is
+the general operator-incurred expense those don't cover.
+
+### Recording a cost
+
+A servicing event carries one or more **cost lines**: `{ listingId, amount
+(minor units), memo }`. Each posts a single transfer:
+
+```
+cost:listingId  →  WORLD      amount,  kind: "service_cost"
+```
+
+`* → world` is cash leaving the business, so cash reports stay honest;
+`occurred_at` = the service date; `posted_by` = the admin user id; `memo` is the
+PII-free reason (owner-key-encrypted if it could carry PII). `reference` and
+`event_group` are deterministic HMACs derived from the servicing event id + cost
+line, so a re-post is an idempotent no-op (ledger invariant).
+
+> **Decision — cash-out vs accrual.** Modelling a cost as `cost:L → world`
+> records it as cash actually paid. If costs should be accrued without moving
+> cash (an unpaid bill), that's a two-leg accrual against a `payable` account —
+> more than we need now. **Recommendation:** single cash-out leg; revisit if
+> operators want unpaid-cost tracking.
+
+### Atomic posting + edit/delete
+
+Post cost legs through the existing `LedgerPoster` path so they commit in the
+**same transaction** as the servicing rows (`writeWithLedger` /
+`postTransfersTx`, `accounting/store.ts`) — a half-saved hold with orphan cost
+legs (or vice-versa) must be impossible. The ledger is append-only:
+
+- **Editing a cost** posts a correcting `adjustment` leg (decision 14: read the
+  current projection in the write tx, post only the delta), or reverse + repost —
+  never UPDATE a transfer row.
+- **Deleting a servicing event** reverses its cost legs (the `mapRefund` /
+  decision 8 reversal pattern) under a new event group, so the cost stops
+  counting against the listing but history is preserved.
+
+### Projecting profit
+
+Income is already projected gross (`creditsLessWriteoffDebits("revenue", L)` in
+`projection-sql.ts`). Add the **cost** and **profit** projections beside it,
+reusing the existing fragment builders (no copy-paste — see the quality tests):
+
+- `cost(L)` = magnitude of cost legs = `−accountBalanceSubquery("cost", L)`
+  (every `cost:L → world` leg makes the account balance more negative, so the
+  negation is the positive spend). Equivalent to `Σ amount WHERE source = cost:L`.
+- **`profit(L) = income(L) − cost(L)`** — a new projection in
+  `accounting/queries.ts` / `projection-sql.ts`.
+
+### Multi-listing allocation
+
+A servicing event can hold several listings. **Recommendation:** each cost line
+targets one held listing (a per-line listing selector), so attribution is
+explicit and `cost:L` aggregates cleanly. Splitting one cost across listings is a
+later refinement — flag if you want it now.
+
+### Display
+
+- **Listing detail + dashboard listings table** — add a **Costs** column and a
+  **Profit** (= income − costs) column next to the existing income, rendered
+  through the *same* shared table renderer (no parallel table).
+- **Ledger admin UI** (`ledger.tsx`) — cost legs appear in the historical list
+  and the per-account statement for free; add a friendly label + listing link for
+  the `cost:L` account in `resolveAccountLabel`.
+- **Servicing edit page** — lists the event's recorded cost lines with their
+  amounts and memos, and the running total.
+
+---
+
 ## Admin UI
 
 ### Routes
@@ -606,7 +700,11 @@ consider `deno task mutation` on the capacity predicate and the kind filter.
 6. Nav entry + calendar deep-link + kind-aware activity-log links
    (`/admin/servicing/:id` for servicing rows).
 7. Audit and exclude across all customer surfaces (checklist above).
-8. Full test pass + precommit.
+8. Ledger integration: add the `cost` account type + `costAccount`, post cost
+   legs via the `LedgerPoster` path (and reverse on delete), add the
+   `cost`/`profit` projections, and surface Costs/Profit in the listings table +
+   ledger UI. Ensure servicing posts **no** sale/payment/fee legs.
+9. Full test pass + precommit.
 
 ---
 
@@ -635,3 +733,12 @@ consider `deno task mutation` on the capacity predicate and the kind filter.
    reuse `pii_blob`.
 5. **Logistics.** Should servicing events be assignable to logistics agents
    (vans/crews), or never? Default: never (excluded).
+6. **Cost = cash-out or accrual?** Record a service cost as a single
+   `cost:L → world` cash-out leg (recommended, simple, keeps cash reports right),
+   or as an accrued unpaid bill (two-leg, needs a `payable` account)?
+7. **Cost allocation across listings.** When a service event holds several
+   listings, attribute each cost line to one chosen listing (recommended) or
+   split one cost across them?
+8. **Profit definition.** Is `profit(L) = income(L) − service costs(L)` the
+   figure you want surfaced (income stays gross, per the ledger's existing
+   convention), and where — listings table, listing detail, both?

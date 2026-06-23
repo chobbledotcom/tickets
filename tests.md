@@ -420,6 +420,55 @@ assertions:
 - **`A hold with a custom question` [E]** — *Operator creates a service event on a
   listing that has a custom question, answers it, saves, reopens it, and sees the
   answer persisted.* Exercises create-mode questions (§11).
+- **`Costing a boiler service` [E]** — *Operator creates a "Boiler Service" hold
+  on Room A, records a £90 cost against it, and on the listings table sees Room
+  A's profit drop by £90 while its income is unchanged; the ledger shows the cost
+  leg.* Exercises ledger integration (§22).
+
+---
+
+## 22. Ledger integration: service costs & listing profit
+
+Core (not usability) — the cost/profit accounting. Most are **[I]** against the
+real `transfers` table; pure projections/mappers get **[U]**.
+
+- **`servicing create posts no sale, payment, or fee legs` [I]** — after creating
+  a (free) service event, the listing's `transfers` have no `sale`/`payment`/`fee`
+  rows for it; income is unchanged. This is the "never a sale" guard — a mutant
+  that routed servicing through `mapBooking` must fail here.
+- **`recording a cost posts one cost leg per cost line` [I]** — a £90 cost on
+  listing L writes a single transfer `cost:L → world`, `kind='service_cost'`,
+  amount 9000, with the service date as `occurred_at`.
+- **`cost account id must be a positive listing id` [U]** — `costAccount`
+  rejects 0/negative/fractional ids (reuses `rowAccount` validation), so a cost
+  can't be minted against a phantom account.
+- **`listing cost projection sums cost legs` [U/I]** — `cost(L)` =
+  `−balanceOf(cost:L)` returns the positive total of the listing's cost legs and
+  zero when there are none.
+- **`profit projection subtracts costs from gross income` [I]** —
+  `profit(L) = income(L) − cost(L)`: with £200 income and £90 cost, profit is
+  £110; income alone stays £200 (gross convention preserved).
+- **`posting a cost is idempotent` [I]** — re-running the same cost post (same
+  deterministic reference) adds no second leg and doesn't change the projection.
+- **`cost legs commit atomically with the servicing rows` [I]** — if the
+  servicing write rolls back, no orphan cost legs remain (and vice-versa).
+- **`editing a cost posts a correcting adjustment, never mutates a row` [I]** —
+  lowering a £90 cost to £60 leaves the original leg and posts a delta; the
+  projection reads £60; no `transfers` row was UPDATEd.
+- **`deleting a servicing event reverses its cost legs` [I]** — after delete, the
+  cost no longer counts against profit, but the original + reversing legs both
+  remain in history (append-only).
+- **`cost memos are PII-free / encrypted` [I]** — a cost memo is stored
+  PII-free (or owner-key-encrypted), never plaintext PII in `transfers`.
+- **`a cost line targets a listing the event actually holds` [I]** — a cost can
+  only be attributed to one of the service event's booked listings (allocation
+  rule).
+- **`listings table shows Costs and Profit columns` [E]** — the listings table
+  renders income, costs, and profit for a listing with a costed service event,
+  through the shared table renderer (§17/§20).
+- **`ledger UI labels and links the cost account` [I/E]** — the `cost:L` account
+  resolves to a friendly label linking to listing L in `resolveAccountLabel`, and
+  the cost leg appears in the historical list and the account statement.
 
 ---
 
@@ -451,3 +500,4 @@ Each `servicing.md` risk maps to at least one test above:
 | URL/param tampering (can't edit-as-attendee, can't unhide) | §19 |
 | DRY / shared helpers (no copy-paste across files) | §20 |
 | Story-driven e2e at every level | §21 |
+| Ledger: service costs, profit projection, no revenue legs | §22 |
