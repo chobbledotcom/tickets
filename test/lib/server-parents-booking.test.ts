@@ -465,6 +465,71 @@ describeWithEnv(
       expect(body.available).toBe(true);
     });
 
+    test("API detail of a parent lists its required children with prices", async () => {
+      const { settings } = await import("#shared/db/settings.ts");
+      await settings.update.showPublicApi(true);
+      const parent = await createTestListing({ name: "Base unit" });
+      const child = await createTestListing({
+        name: "Paid add-on",
+        unitPrice: 1500,
+      });
+      await setChildIds(parent.id, [child.id]);
+      const res = await apiGet(`/api/listings/${parent.slug}`);
+      const body = (await res.json()) as {
+        listing: { children?: { slug: string; unitPrice: number }[] };
+      };
+      expect(body.listing.children).toEqual([
+        expect.objectContaining({ slug: child.slug, unitPrice: 1500 }),
+      ]);
+    });
+
+    test("API detail of an ordinary listing has no children field", async () => {
+      const { settings } = await import("#shared/db/settings.ts");
+      await settings.update.showPublicApi(true);
+      const listing = await createTestListing({ name: "Plain" });
+      const res = await apiGet(`/api/listings/${listing.slug}`);
+      const body = (await res.json()) as { listing: { children?: unknown } };
+      expect(body.listing.children).toBeUndefined();
+    });
+
+    test("API availability of a parent reports per-child availability", async () => {
+      const { settings } = await import("#shared/db/settings.ts");
+      await settings.update.showPublicApi(true);
+      const parent = await createTestListing({ name: "Base unit" });
+      const okChild = await createTestListing({ name: "In stock" });
+      const fullChild = await createTestListing({
+        maxAttendees: 0,
+        name: "Sold out",
+      });
+      await setChildIds(parent.id, [okChild.id, fullChild.id]);
+      const res = await apiGet(`/api/listings/${parent.slug}/availability`);
+      const body = (await res.json()) as {
+        children?: { slug: string; available: boolean }[];
+      };
+      expect(body.children).toEqual(
+        expect.arrayContaining([
+          { available: true, slug: okChild.slug },
+          { available: false, slug: fullChild.slug },
+        ]),
+      );
+    });
+
+    test("API availability of a daily parent with no date reports per-child availability", async () => {
+      const { settings } = await import("#shared/db/settings.ts");
+      await settings.update.showPublicApi(true);
+      // No `date` query param: a daily child's availability is checked date-less
+      // (its own cumulative capacity), so a client still sees which children
+      // exist before choosing a date.
+      const parent = await createDailyTestListing({ name: "Daily base" });
+      const child = await createDailyTestListing({ name: "Daily add-on" });
+      await setChildIds(parent.id, [child.id]);
+      const res = await apiGet(`/api/listings/${parent.slug}/availability`);
+      const body = (await res.json()) as {
+        children?: { slug: string; available: boolean }[];
+      };
+      expect(body.children).toEqual([{ available: true, slug: child.slug }]);
+    });
+
     test("a daily parent's availability is false for a date no child can serve (Fix 1)", async () => {
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.showPublicApi(true);

@@ -30,6 +30,7 @@ import {
   recordBookingAttempt,
 } from "#shared/db/booking-attempts.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
+import { getChildrenForParents } from "#shared/db/listing-parents.ts";
 import {
   getAllListings,
   getListingWithCountBySlug,
@@ -101,6 +102,11 @@ export type PublicListing = {
   isClosed: boolean;
   maxPurchasable: number;
   availableDates?: string[];
+  /** The required children a buyer must choose from when booking this listing as
+   * a parent (per-unit; the chosen quantities total the parent quantity). Present
+   * only on the detail endpoint for a parent listing, so a client knows which
+   * child slugs, prices, and inputs are valid before calling the booking POST. */
+  children?: PublicListing[];
 };
 
 /** `groupRemaining`, when defined, clamps the displayed sold-out state to
@@ -153,6 +159,50 @@ export const toPublicListing = (
 
   return result;
 };
+
+/** Resolve a listing row to its public shape, filling in the closed flag and the
+ * group-remaining clamp from the listing itself (the caller supplies only the
+ * availableDates, which differ per surface). The single place the API turns a row
+ * into a {@link PublicListing} with its live availability. */
+const toResolvedPublicListing = async (
+  listing: ListingWithCount,
+  availableDates: string[] | undefined,
+): Promise<PublicListing> =>
+  toPublicListing(
+    listing,
+    isRegistrationClosed(listing),
+    availableDates,
+    await getGroupRemainingForListing(listing),
+  );
+
+/** Map a parent's required children to a per-child result, or null when the
+ * listing is not a parent (no child edges) so the caller can omit the field. The
+ * one place the API loads a parent's children for a response, so the detail and
+ * availability surfaces never drift on which children they report. */
+const mapParentChildren = async <T>(
+  parent: ListingWithCount,
+  map: (child: ListingWithCount) => T | Promise<T>,
+): Promise<T[] | null> => {
+  const children =
+    (await getChildrenForParents([parent.id])).get(parent.id) ?? [];
+  return children.length === 0 ? null : Promise.all(children.map(map));
+};
+
+/** The public shape of each required child of a parent, for the detail endpoint.
+ * Children carry their own price/inputs/availability so a client can pick a valid
+ * one (and pay the right amount) before booking; a daily child reports its own
+ * bookable start dates. Empty array for a non-parent listing. */
+const buildChildPublicListings = async (
+  parent: ListingWithCount,
+): Promise<PublicListing[]> =>
+  (await mapParentChildren(parent, async (child) =>
+    toResolvedPublicListing(
+      child,
+      child.listing_type === "daily"
+        ? getAvailableDates(child, await getActiveHolidays())
+        : undefined,
+    ),
+  )) ?? [];
 
 // =============================================================================
 // Helpers
@@ -267,7 +317,6 @@ const handleGetListing = withActiveListing(async (_request, listing) => {
   // a 404 — the same not-bookable outcome the web booking page gives a child
   // slug (Fix 2).
   if (isChild) return apiResponse(LISTING_NOT_FOUND, 404);
-  const closed = isRegistrationClosed(listing);
   let availableDates: string[] | undefined;
   if (listing.listing_type === "daily") {
     const holidays = await getActiveHolidays();
@@ -281,21 +330,41 @@ const handleGetListing = withActiveListing(async (_request, listing) => {
       holidays,
     );
   }
-  const publicListing = toPublicListing(
-    listing,
-    closed,
-    availableDates,
-    await getGroupRemainingForListing(listing),
-  );
+  const [publicListing, children] = await Promise.all([
+    toResolvedPublicListing(listing, availableDates),
+    buildChildPublicListings(listing),
+  ]);
+  // A parent advertises its required children so a client can choose a valid one
+  // (slug, price, inputs, dates) before the booking POST.
+  const withChildren =
+    children.length > 0 ? { ...publicListing, children } : publicListing;
   // A parent with no bookable child is sold out (invariant I6); the route
   // listing's own capacity ignores its children, so project the discovery
   // sold-out outcome onto the response rather than advertising it as bookable.
   return apiResponse({
     listing: isSoldOutParent
-      ? { ...publicListing, isSoldOut: true, maxPurchasable: 0 }
-      : publicListing,
+      ? { ...withChildren, isSoldOut: true, maxPurchasable: 0 }
+      : withChildren,
   });
 });
+
+/** Per-child availability for a parent's required children at a date/quantity, or
+ * null when the listing is not a parent. A daily child takes the parent's date;
+ * a standard child is date-less. */
+const buildChildAvailability = (
+  parent: ListingWithCount,
+  date: string | undefined,
+  quantity: number,
+): Promise<{ slug: string; available: boolean }[] | null> =>
+  mapParentChildren(parent, async (child) => ({
+    available: await hasAvailableSpots(
+      child.id,
+      quantity,
+      child.listing_type === "daily" ? (date ?? null) : null,
+      child.duration_days,
+    ),
+    slug: child.slug,
+  }));
 
 /** GET /api/listings/:slug/availability — check if spots are available */
 const handleCheckAvailability = withActiveListing(async (request, listing) => {
@@ -329,14 +398,26 @@ const handleCheckAvailability = withActiveListing(async (request, listing) => {
       return apiResponse({ available: false });
     }
   }
-  return apiResponse({
-    available: await hasAvailableSpots(
-      listing.id,
-      quantity,
-      date,
-      listing.duration_days,
-    ),
-  });
+  const available = await hasAvailableSpots(
+    listing.id,
+    quantity,
+    date,
+    listing.duration_days,
+  );
+  // For a parent, also report each required child's availability for the chosen
+  // date/quantity (a daily child inherits the parent's date; a standard child is
+  // date-less), so a client can pick a child that can actually serve the booking
+  // rather than discovering it only when the booking POST rejects it.
+  const childAvailability = await buildChildAvailability(
+    listing,
+    date,
+    quantity,
+  );
+  return apiResponse(
+    childAvailability === null
+      ? { available }
+      : { available, children: childAvailability },
+  );
 });
 
 /** Convert JSON body fields to FormParams for validation compatibility */
