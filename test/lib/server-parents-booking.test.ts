@@ -27,12 +27,21 @@ const apiGet = async (path: string): Promise<Response> => {
   );
 };
 
-/** POST `/api/listings/<slug>/book` with a minimal valid contact payload. */
-const apiBook = async (slug: string): Promise<Response> => {
+/** POST `/api/listings/<slug>/book` with a minimal valid contact payload, merged
+ * with any extra body fields (e.g. `children`, `quantity`). */
+const apiBook = async (
+  slug: string,
+  extra: Record<string, unknown> = {},
+): Promise<Response> => {
   const { handleRequest } = await import("#routes");
   return handleRequest(
     new Request(`http://localhost/api/listings/${slug}/book`, {
-      body: JSON.stringify({ email: "a@b.com", name: "Ada", quantity: 1 }),
+      body: JSON.stringify({
+        email: "a@b.com",
+        name: "Ada",
+        quantity: 1,
+        ...extra,
+      }),
       headers: { "content-type": "application/json", host: "localhost" },
       method: "POST",
     }),
@@ -352,16 +361,217 @@ describeWithEnv(
       expect(res.status).toBe(400);
     });
 
-    test("the JSON API rejects booking a parent and creates no attendee", async () => {
+    test("the JSON API books a free parent with its sole child auto-filled", async () => {
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.showPublicApi(true);
       const parent = await createTestListing({ name: "Base unit" });
       const child = await createTestListing({ name: "Add-on" });
       await setChildIds(parent.id, [child.id]);
+      // No `children` array: the sole bookable child is auto-filled.
       const res = await apiBook(parent.slug);
+      expect(res.status).toBe(200);
+      const { ticketToken } = (
+        (await res.json()) as {
+          booking: { ticketToken: string };
+        }
+      ).booking;
+      const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
+      const [attendee] = await getAttendeesByTokens([ticketToken]);
+      const bookings = attendee!.bookings;
+      // Both the parent and its child are booked on the one attendee, and the
+      // child row is stored linked to its parent (pairing recomputed on save).
+      expect(bookings.map((b) => b.listing_id).sort()).toEqual(
+        [parent.id, child.id].sort((a, b) => a - b),
+      );
+      const childBooking = bookings.find((b) => b.listing_id === child.id);
+      expect(childBooking?.parent_listing_id).toBe(parent.id);
+    });
+
+    test("the JSON API books a parent with an explicit per-unit child mix", async () => {
+      const { settings } = await import("#shared/db/settings.ts");
+      await settings.update.showPublicApi(true);
+      const parent = await createTestListing({
+        maxQuantity: 5,
+        name: "Base unit",
+      });
+      const childA = await createTestListing({ name: "Add-on A" });
+      const childB = await createTestListing({ name: "Add-on B" });
+      await setChildIds(parent.id, [childA.id, childB.id]);
+      const res = await apiBook(parent.slug, {
+        children: [
+          { quantity: 1, slug: childA.slug },
+          { quantity: 1, slug: childB.slug },
+        ],
+        quantity: 2,
+      });
+      expect(res.status).toBe(200);
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      expect((await getAttendeesRaw(childA.id))[0]?.quantity).toBe(1);
+      expect((await getAttendeesRaw(childB.id))[0]?.quantity).toBe(1);
+    });
+
+    test("the JSON API rejects a child total below the parent quantity", async () => {
+      const { settings } = await import("#shared/db/settings.ts");
+      await settings.update.showPublicApi(true);
+      const parent = await createTestListing({
+        maxQuantity: 5,
+        name: "Base unit",
+      });
+      const childA = await createTestListing({ name: "Add-on A" });
+      const childB = await createTestListing({ name: "Add-on B" });
+      await setChildIds(parent.id, [childA.id, childB.id]);
+      // Two parent units but only one child chosen — the fold rejects it.
+      const res = await apiBook(parent.slug, {
+        children: [{ quantity: 1, slug: childA.slug }],
+        quantity: 2,
+      });
       expect(res.status).toBe(400);
       const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       expect((await getAttendeesRaw(parent.id)).length).toBe(0);
+    });
+
+    test("the JSON API rejects a child slug that is not a child of the parent", async () => {
+      const { settings } = await import("#shared/db/settings.ts");
+      await settings.update.showPublicApi(true);
+      const parent = await createTestListing({ name: "Base unit" });
+      const child = await createTestListing({ name: "Add-on" });
+      const stranger = await createTestListing({ name: "Stranger" });
+      await setChildIds(parent.id, [child.id]);
+      const res = await apiBook(parent.slug, {
+        children: [{ quantity: 1, slug: stranger.slug }],
+      });
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as { error: string };
+      expect(body.error).toContain("is not a child of this listing");
+    });
+
+    test("the JSON API rejects a malformed children field", async () => {
+      const { settings } = await import("#shared/db/settings.ts");
+      await settings.update.showPublicApi(true);
+      const parent = await createTestListing({ name: "Base unit" });
+      const child = await createTestListing({ name: "Add-on" });
+      await setChildIds(parent.id, [child.id]);
+      const res = await apiBook(parent.slug, { children: "nope" });
+      expect(res.status).toBe(400);
+    });
+
+    test("the JSON API rejects booking a customisable parent", async () => {
+      const { settings } = await import("#shared/db/settings.ts");
+      await settings.update.showPublicApi(true);
+      const parent = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 1000, 2: 1800 },
+        durationDays: 2,
+        name: "Customisable base",
+      });
+      const child = await createTestListing({ name: "Add-on" });
+      await setChildIds(parent.id, [child.id]);
+      const res = await apiBook(parent.slug, {
+        children: [{ quantity: 1, slug: child.slug }],
+      });
+      expect(res.status).toBe(400);
+    });
+
+    test("the JSON API rejects a null children entry", async () => {
+      const { settings } = await import("#shared/db/settings.ts");
+      await settings.update.showPublicApi(true);
+      const parent = await createTestListing({ name: "Base unit" });
+      const child = await createTestListing({ name: "Add-on" });
+      await setChildIds(parent.id, [child.id]);
+      const res = await apiBook(parent.slug, { children: [null] });
+      expect(res.status).toBe(400);
+    });
+
+    test("the JSON API rejects a children entry missing its quantity", async () => {
+      const { settings } = await import("#shared/db/settings.ts");
+      await settings.update.showPublicApi(true);
+      const parent = await createTestListing({ name: "Base unit" });
+      const child = await createTestListing({ name: "Add-on" });
+      await setChildIds(parent.id, [child.id]);
+      const res = await apiBook(parent.slug, {
+        children: [{ slug: child.slug }],
+      });
+      expect(res.status).toBe(400);
+    });
+
+    test("the JSON API sums repeated child slugs to the parent quantity", async () => {
+      const { settings } = await import("#shared/db/settings.ts");
+      await settings.update.showPublicApi(true);
+      const parent = await createTestListing({
+        maxQuantity: 5,
+        name: "Base unit",
+      });
+      const child = await createTestListing({ maxQuantity: 5, name: "Add-on" });
+      await setChildIds(parent.id, [child.id]);
+      // Two entries for the same child sum to 2, matching the parent quantity.
+      const res = await apiBook(parent.slug, {
+        children: [
+          { quantity: 1, slug: child.slug },
+          { quantity: 1, slug: child.slug },
+        ],
+        quantity: 2,
+      });
+      expect(res.status).toBe(200);
+      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+      expect((await getAttendeesRaw(child.id))[0]?.quantity).toBe(2);
+    });
+
+    test("the JSON API requires a date when booking a daily parent", async () => {
+      const { settings } = await import("#shared/db/settings.ts");
+      await settings.update.showPublicApi(true);
+      const parent = await createDailyTestListing({ name: "Daily base" });
+      const child = await createDailyTestListing({ name: "Daily add-on" });
+      await setChildIds(parent.id, [child.id]);
+      const res = await apiBook(parent.slug, {
+        children: [{ quantity: 1, slug: child.slug }],
+      });
+      expect(res.status).toBe(400);
+    });
+
+    test("the JSON API validates merged parent+child contact fields", async () => {
+      const { settings } = await import("#shared/db/settings.ts");
+      await settings.update.showPublicApi(true);
+      const parent = await createTestListing({ fields: "", name: "Base unit" });
+      // The child requires a phone the parent doesn't, so a body without one is
+      // rejected against the MERGED field set (contact validation after the fold).
+      const child = await createTestListing({
+        fields: "phone",
+        name: "Add-on",
+      });
+      await setChildIds(parent.id, [child.id]);
+      const res = await apiBook(parent.slug, {
+        children: [{ quantity: 1, slug: child.slug }],
+      });
+      expect(res.status).toBe(400);
+    });
+
+    test("the JSON API returns 409 when a child sells out before creation", async () => {
+      const { settings } = await import("#shared/db/settings.ts");
+      await settings.update.showPublicApi(true);
+      const { bookAttendee } = await import("#test-utils");
+      const { getBookableStartDates } = await import("#shared/dates.ts");
+      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
+      const { getListingWithCount } = await import("#shared/db/listings.ts");
+      const parent = await createDailyTestListing({ name: "Daily base" });
+      // A 1-capacity daily child passes the date-less fold but fails the atomic
+      // date-specific capacity check, so the all-or-nothing save reports 409.
+      const child = await createDailyTestListing({
+        maxAttendees: 1,
+        name: "Daily add-on",
+      });
+      await setChildIds(parent.id, [child.id]);
+      const parentRow = (await getListingWithCount(parent.id))!;
+      const date = getBookableStartDates(
+        parentRow,
+        await getActiveHolidays(),
+      )[0]!;
+      // Fill the child's only spot on that date.
+      await bookAttendee(child, { date, quantity: 1 });
+      const res = await apiBook(parent.slug, {
+        children: [{ quantity: 1, slug: child.slug }],
+        date,
+      });
+      expect(res.status).toBe(409);
     });
 
     test("the JSON API still books an ordinary listing", async () => {

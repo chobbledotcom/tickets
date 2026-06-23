@@ -3,6 +3,7 @@ import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import * as v from "valibot";
 import { handleRequest } from "#routes";
+import { setChildIds } from "#shared/db/listing-parents.ts";
 import { settings } from "#shared/db/settings.ts";
 import { MAX_BOOKING_ATTEMPTS } from "#shared/limits.ts";
 import {
@@ -817,6 +818,97 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
       } finally {
         mockCreate.restore();
       }
+    });
+
+    /** A free parent with a paid child and its sole-child selection. */
+    const parentWithPaidChild = async (): Promise<{ slug: string }> => {
+      const parent = await createTestListing({
+        maxAttendees: 10,
+        unitPrice: 0,
+      });
+      const child = await createTestListing({
+        maxAttendees: 10,
+        unitPrice: 1500,
+      });
+      await setChildIds(parent.id, [child.id]);
+      return { slug: parent.slug };
+    };
+
+    test("returns a checkout URL for a parent whose child is paid", async () => {
+      await setupStripe();
+      const parent = await parentWithPaidChild();
+      const { response, body } = await bookListing(parent.slug);
+      expect(response.status).toBe(200);
+      expect(body.booking?.checkoutUrl).toBeDefined();
+    });
+
+    test("returns 400 when the parent checkout session errors", async () => {
+      await setupStripe();
+      const parent = await parentWithPaidChild();
+      await withCheckoutStub({ error: "Provider rejected" }, async () => {
+        const { response, body } = await bookListing(parent.slug);
+        expect(response.status).toBe(400);
+        expect(body.error).toBe("Provider rejected");
+      });
+    });
+
+    test("returns 500 when the parent checkout session can't be created", async () => {
+      await setupStripe();
+      const parent = await parentWithPaidChild();
+      await withCheckoutStub(null, async () => {
+        const { response, body } = await bookListing(parent.slug);
+        expect(response.status).toBe(500);
+        expect(body.error).toMatch(/payment session/i);
+      });
+    });
+
+    test("books a paid-child parent owing the full value with no provider", async () => {
+      // No setupStripe: payments disabled, so the parent+child booking is taken
+      // without checkout and the child's value is recorded as owed.
+      const parent = await parentWithPaidChild();
+      const { response, body } = await bookListing(parent.slug);
+      expect(response.status).toBe(200);
+      expect(body.booking?.ticketToken).toBeDefined();
+      expect(body.booking?.amountOwed).toBe(1500);
+    });
+
+    test("books a free parent+child owing nothing when a provider is configured", async () => {
+      // Payments enabled but the whole order is free, so it takes the no-charge
+      // path and owes nothing (the provider is never invoked).
+      await setupStripe();
+      const parent = await createTestListing({
+        maxAttendees: 10,
+        unitPrice: 0,
+      });
+      const child = await createTestListing({ maxAttendees: 10, unitPrice: 0 });
+      await setChildIds(parent.id, [child.id]);
+      const { response, body } = await bookListing(parent.slug);
+      expect(response.status).toBe(200);
+      expect(body.booking?.ticketToken).toBeDefined();
+      expect(body.booking?.checkoutUrl).toBeUndefined();
+      expect(body.booking?.amountOwed).toBe(0);
+    });
+
+    test("accepts a pay-more child's custom price in a parent booking", async () => {
+      const parent = await createTestListing({
+        maxAttendees: 10,
+        unitPrice: 0,
+      });
+      const child = await createTestListing({
+        canPayMore: true,
+        maxAttendees: 10,
+        maxPrice: 5000,
+        unitPrice: 1000,
+      });
+      await setChildIds(parent.id, [child.id]);
+      // No provider configured, so the chosen £30 child price is recorded as owed.
+      const { response, body } = await bookListing(parent.slug, {
+        children: [{ customPrice: 30, quantity: 1, slug: child.slug }],
+        email: "alice@test.com",
+        name: "Alice",
+      });
+      expect(response.status).toBe(200);
+      expect(body.booking?.amountOwed).toBe(3000);
     });
   });
 
