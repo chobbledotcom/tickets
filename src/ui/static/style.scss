@@ -373,10 +373,6 @@ nav ul li {
   display: none;
 }
 
-nav a.active {
-  color: var(--color-text);
-}
-
 /* Nav for Desktop: pin the admin menu to the left as a sticky sidebar, with the
    page content flowing to its right. The sidebar is a plain vertical list of
    links — no boxes or borders — with each section's sub-nav nested and indented
@@ -448,14 +444,6 @@ nav a.active {
 
   .admin-nav--desktop .admin-subnav {
     padding-left: var(--space-m);
-  }
-
-  .admin-nav--desktop a {
-    text-decoration: none;
-  }
-
-  .admin-nav--desktop a:hover {
-    text-decoration: underline;
   }
 }
 
@@ -538,19 +526,22 @@ sup {
   top: -2px;
 }
 
-/* Links */
+/* Links: blue with no underline; underlined on hover/focus; white when active
+   (the :active state, or the .active class marking the current nav link). */
 a {
   color: var(--color-link);
   display: inline-block;
+  text-decoration: none;
+}
+
+a:hover,
+a:focus {
   text-decoration: underline;
 }
 
-a:hover {
-  filter: brightness(var(--hover-brightness));
-}
-
-a:active {
-  filter: brightness(var(--active-brightness));
+a:active,
+a.active {
+  color: var(--color-text);
 }
 
 a b,
