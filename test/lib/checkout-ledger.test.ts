@@ -31,7 +31,6 @@ const order = (overrides: Partial<PricedOrder> = {}): PricedOrder => ({
 
 const ctx = {
   attendeeId: 42,
-  currency: "GBP",
   eventId: "cs_test_1",
   occurredAt: "2026-06-21T00:00:00.000Z",
 };
@@ -59,7 +58,6 @@ describe("bookingFactsFromOrder", () => {
       amountPaid: 9800,
       attendeeId: 42,
       bookingFee: 300,
-      currency: "GBP",
       eventId: "cs_test_1",
       lines: [{ gross: 10000, listingId: 1 }],
       modifiers: [{ delta: -500, modifierId: 7 }],

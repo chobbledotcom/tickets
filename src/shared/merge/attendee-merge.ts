@@ -7,6 +7,7 @@
  */
 
 import { filter, map, reduce } from "#fp";
+import { repointAttendeeStatements } from "#shared/accounting/repoint.ts";
 import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
 import { executeBatch, insert } from "#shared/db/client.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
@@ -240,6 +241,11 @@ const buildBookingDiffItems = (
       tb.quantity === sb.quantity &&
       tb.price_paid === sb.price_paid &&
       tb.checked_in === sb.checked_in &&
+      // `refunded` is now ledger-fed (order-level: every booking of an attendee
+      // shares it), so this compares the target attendee's refund status against
+      // the source's. Kept in the duplicate test so a row that differs only in
+      // refund status is still surfaced as conflicting metadata, not a silent
+      // duplicate.
       tb.refunded === sb.refunded
     ) {
       conflictClass = "duplicate";
@@ -402,7 +408,13 @@ const applyAnswerDecisions = async (
   return { answersCleared, answersKept, answersTakenFromSource, finalAnswers };
 };
 
-/** Build an INSERT statement to copy a source booking to the target */
+/** Build an INSERT statement to copy a source booking to the target.
+ *  `refunded` is not written — the column is gone; refund status follows the
+ *  attendee through the merge's ledger repoint (the source's `refund_cash` legs
+ *  are re-sourced onto the target), so the projection still reports it. The
+ *  source's `ledger_event_group` IS carried: the repoint re-sources that booking's
+ *  legs onto the target without changing their event group, so the copied row must
+ *  keep the link or the per-row amount-paid projection loses it. */
 const bookingInsertStatement = (
   targetId: number,
   booking: ListingAttendeeRow,
@@ -412,10 +424,9 @@ const bookingInsertStatement = (
     attendee_id: targetId,
     checked_in: booking.checked_in,
     end_at: booking.end_at,
+    ledger_event_group: booking.ledger_event_group,
     listing_id: booking.listing_id,
-    price_paid: booking.price_paid,
     quantity: booking.quantity,
-    refunded: booking.refunded,
     start_at: booking.start_at,
   }) as BatchStatement;
 
@@ -542,6 +553,10 @@ export const applyAttendeeMerge = async (
       sql: "DELETE FROM listing_attendees WHERE attendee_id = ?",
     },
     { args: [sourceId], sql: "DELETE FROM attendees WHERE id = ?" },
+    // Move the source's ledger rows onto the target — the sole sanctioned
+    // account-id mutation — so its financial history follows the merged person
+    // rather than stranding on the deleted source (plan §5.17).
+    ...repointAttendeeStatements(sourceId, targetId),
   ]);
 
   // Save merged answers for target. The choice decisions reduce to one answer

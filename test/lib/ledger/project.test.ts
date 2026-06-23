@@ -3,9 +3,7 @@ import { describe, it } from "@std/testing/bdd";
 import { account, accountKey } from "#shared/ledger/account.ts";
 import {
   allBalances,
-  assertSingleCurrency,
   balanceOf,
-  currenciesIn,
   inPeriod,
   statementFor,
   sumOfKind,
@@ -67,10 +65,15 @@ describe("allBalances", () => {
 describe("sumOfKind", () => {
   it("counts only the named kind (a refund is its cash leg, not doubled)", () => {
     const ts = [
-      makeTransfer({ amount: 2000, kind: "refund_reversal" }),
+      makeTransfer({ amount: 5000, kind: "refund_reversal" }),
       makeTransfer({ amount: 2000, kind: "refund_cash" }),
+      makeTransfer({ amount: 800, kind: "refund_cash" }),
     ];
-    expect(sumOfKind("refund_cash")(ts)).toBe(2000);
+    // Only the refund_cash legs (2000 + 800) — never the reversal's 5000, and
+    // distinct amounts so summing the *other* kinds would give a different total.
+    expect(sumOfKind("refund_cash")(ts)).toBe(2800);
+    // A kind absent from the slice sums to zero, not to the legs it excludes.
+    expect(sumOfKind("sale")(ts)).toBe(0);
   });
 });
 
@@ -182,29 +185,5 @@ describe("statementFor", () => {
     });
     const lines = statementFor(attendee, 8000)([debit]);
     expect(lines.map((l) => l.running)).toEqual([6000]);
-  });
-});
-
-describe("currency guards", () => {
-  it("lists distinct currencies in first-seen order", () => {
-    const ts = [
-      makeTransfer({ currency: "GBP" }),
-      makeTransfer({ currency: "USD" }),
-      makeTransfer({ currency: "GBP" }),
-    ];
-    expect(currenciesIn(ts)).toEqual(["GBP", "USD"]);
-  });
-
-  it("tolerates a single currency or an empty slice", () => {
-    expect(() => assertSingleCurrency([])).not.toThrow();
-    expect(() => assertSingleCurrency([makeTransfer({})])).not.toThrow();
-  });
-
-  it("throws when a projection is asked to sum across currencies", () => {
-    const ts = [
-      makeTransfer({ currency: "GBP" }),
-      makeTransfer({ currency: "USD" }),
-    ];
-    expect(() => balanceOf(attendee)(ts)).toThrow("mixed-currency");
   });
 });

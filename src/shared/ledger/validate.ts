@@ -33,8 +33,9 @@ const hasInvalidReversesId = (t: TransferInput): boolean =>
  * parts are non-empty and free of the reserved key separator; occurredAt is a
  * real ISO-8601 instant ({@link isInstant} — any offset/precision, but not an
  * impossible date like Feb 30, normalised to canonical epoch-millis on write);
- * a reversesId, if present, is a positive safe integer; currency, reference, and
- * eventGroup are non-empty.
+ * a reversesId, if present, is a positive safe integer; reference and eventGroup
+ * are non-empty. (Currency is not a ledger concern: a site has one currency,
+ * fixed at setup, so every transfer shares it — see accounting-plan.md.)
  */
 export const validateTransfer = (t: TransferInput): Result<TransferInput> => {
   const errors: LedgerError[] = compact([
@@ -56,7 +57,6 @@ export const validateTransfer = (t: TransferInput): Result<TransferInput> => {
     hasReservedChar(t.source) || hasReservedChar(t.destination)
       ? ({ code: "reserved_char_in_account" } as const)
       : null,
-    t.currency ? null : ({ code: "empty_currency" } as const),
     t.reference ? null : ({ code: "empty_reference" } as const),
     t.eventGroup ? null : ({ code: "empty_event_group" } as const),
   ]);

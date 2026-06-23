@@ -157,7 +157,6 @@ describeWithEnv("db > attendees > checkBatchAvailability", { db: true }, () => {
     });
     await updateListingAggregateValues(listing.id, {
       booked_quantity: 5,
-      income: 0,
       tickets_count: 0,
     });
     expect(

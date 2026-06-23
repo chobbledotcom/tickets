@@ -64,18 +64,21 @@ export const assertEventMatches = (
 };
 
 /**
- * A leg that links to another via `reversesId` must be that original's exact
- * inverse and the original must exist. Otherwise the unique `reverses_id` slot
- * is used up without the original money actually being voided, or it points at
- * nothing — either way permanently blocking the correct reversal.
+ * The pure half of {@link assertReverses}: check a leg against the already-fetched
+ * `original` it claims to reverse. A leg that links to another via `reversesId`
+ * must be that original's exact inverse and the original must exist; otherwise the
+ * unique `reverses_id` slot is used up without the original money actually being
+ * voided, or it points at nothing — either way permanently blocking the correct
+ * reversal. Pass the original you loaded (or `null` if none); a leg with no
+ * `reversesId` passes trivially. The batch writer uses this against originals it
+ * pre-loaded in bulk, so it needs no per-leg read inside its write.
  */
-export const assertReverses = async (
-  read: RowReader,
+export const assertReversesAgainst = (
   input: TransferInput,
-): Promise<void> => {
+  original: Transfer | null,
+): void => {
   const id = input.reversesId;
   if (id === undefined || id === null) return;
-  const original = await selectById(read, id);
   if (original === null) {
     throw new LedgerConflictError(
       input.reference,
@@ -88,4 +91,19 @@ export const assertReverses = async (
       `reverses_id ${id} is not the exact inverse of the original leg`,
     );
   }
+};
+
+/**
+ * A leg that links to another via `reversesId` must be that original's exact
+ * inverse and the original must exist (see {@link assertReversesAgainst}). Reads
+ * the original through `read` — used by the single-event write path, which reads
+ * through its own transaction.
+ */
+export const assertReverses = async (
+  read: RowReader,
+  input: TransferInput,
+): Promise<void> => {
+  const id = input.reversesId;
+  if (id === undefined || id === null) return;
+  assertReversesAgainst(input, await selectById(read, id));
 };

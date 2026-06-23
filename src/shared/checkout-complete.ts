@@ -10,20 +10,28 @@
  * event id come from.
  */
 
+import { ledgerTx } from "#shared/accounting/ledger-tx.ts";
 import { mapBooking } from "#shared/accounting/mappers.ts";
-import { postTransfersTx } from "#shared/accounting/store.ts";
-import { bookingFactsFromOrder } from "#shared/checkout-ledger.ts";
+import {
+  bookingFactsFromOrder,
+  owedOrderForLedger,
+} from "#shared/checkout-ledger.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
 import type {
   AttendeeInput,
   CreateAttendeeResult,
 } from "#shared/db/attendee-types.ts";
 import type { LedgerPoster } from "#shared/db/attendees/create.ts";
-import { createAttendeeAtomic } from "#shared/db/attendees.ts";
+import {
+  createAttendeeAtomic,
+  reconcileLedgerBalanceTx,
+} from "#shared/db/attendees.ts";
+import type { TxScope } from "#shared/db/client.ts";
 import {
   consumeModifierStockTx,
   type ModifierUsage,
 } from "#shared/db/modifier-usage.ts";
+import { nowIso } from "#shared/now.ts";
 
 /** Thrown from the create transaction when a stock-limited modifier sold out
  *  between pricing and consumption, rolling the whole booking (and any ledger
@@ -39,7 +47,6 @@ export class ModifierSoldOutError extends Error {}
  */
 export type BookingLedger = {
   readonly pricedOrder: PricedOrder;
-  readonly currency: string;
   readonly occurredAt: string;
   readonly eventId: (attendeeId: number) => string;
 };
@@ -61,18 +68,68 @@ export const bookingLedgerPoster =
       throw new ModifierSoldOutError();
     }
     if (ledger) {
-      await postTransfersTx(
-        tx,
-        await mapBooking(
-          bookingFactsFromOrder(ledger.pricedOrder, {
-            attendeeId,
-            currency: ledger.currency,
-            eventId: ledger.eventId(attendeeId),
-            occurredAt: ledger.occurredAt,
-          }),
-        ),
+      const legs = await mapBooking(
+        bookingFactsFromOrder(ledger.pricedOrder, {
+          attendeeId,
+          eventId: ledger.eventId(attendeeId),
+          occurredAt: ledger.occurredAt,
+        }),
       );
+      await postBookingLegsTx(tx, attendeeId, legs);
     }
+  };
+
+/**
+ * Post a booking's ledger legs inside the create transaction and stamp the
+ * order's `listing_attendees` rows with its event group, so the per-row
+ * amount-paid (and the attendee's outstanding-balance) projection resolves
+ * exactly this booking's legs. A fully-free order posts no legs and leaves
+ * `ledger_event_group` '' (its money projects to 0). Shared by every booking
+ * poster — the paid/free checkout and the provider-less owed booking.
+ */
+export const postBookingLegsTx = async (
+  tx: TxScope,
+  attendeeId: number,
+  legs: Awaited<ReturnType<typeof mapBooking>>,
+): Promise<void> => {
+  await ledgerTx.post(tx, legs);
+  if (legs.length > 0) {
+    await tx.execute({
+      args: [legs[0]!.eventGroup, attendeeId],
+      sql: "UPDATE listing_attendees SET ledger_event_group = ? WHERE attendee_id = ?",
+    });
+  }
+};
+
+/**
+ * The {@link LedgerPoster} for an admin manual attendee add. The add form
+ * captures per-listing quantities (so each line's GROSS is its listing price ×
+ * quantity) and one order-level outstanding balance, but no amount-paid field —
+ * so this records the same shape of legs a real booking does with nothing
+ * collected: the gross `sale` legs (recognising income, exactly the live path's
+ * {@link owedOrderForLedger}) and NO `payment`/`fee` leg, then reconciles the
+ * attendee's owed balance to the operator-entered `remainingBalance`.
+ *
+ * Both steps run in the create transaction `tx` (the attendee, its sale legs and
+ * its balance reconcile commit or roll back together). The reconcile recomputes
+ * its delta from the freshly-read in-tx balance, so it is the difference between
+ * the gross just posted and what the operator says is still owed — modelling the
+ * already-paid portion as a `writeoff` adjustment (never phantom external cash),
+ * leaving the attendee owing exactly `remainingBalance`. A zero-gross add (free
+ * listings) still owes exactly `remainingBalance`.
+ */
+export const manualAddLedgerPoster =
+  (order: PricedOrder, remainingBalance: number): LedgerPoster =>
+  async (tx, attendeeId) => {
+    const legs = await mapBooking(
+      bookingFactsFromOrder(owedOrderForLedger(order), {
+        attendeeId,
+        eventId: String(attendeeId),
+        occurredAt: nowIso(),
+      }),
+    );
+    await postBookingLegsTx(tx, attendeeId, legs);
+    await reconcileLedgerBalanceTx(tx, attendeeId, remainingBalance);
   };
 
 /**

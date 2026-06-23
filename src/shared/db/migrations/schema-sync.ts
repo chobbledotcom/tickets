@@ -242,8 +242,6 @@ const backfillListingAttendees = async (): Promise<void> => {
     "date",
     "quantity",
     "checked_in_v2",
-    "refunded_v2",
-    "price_paid_v2",
     "attachment_downloads",
   ]);
   requireColumns(
@@ -256,18 +254,21 @@ const backfillListingAttendees = async (): Promise<void> => {
       "end_at",
       "quantity",
       "checked_in",
-      "refunded",
-      "price_paid",
       "attachment_downloads",
     ],
   );
 
+  // refunded and price_paid were both dropped from listing_attendees (refund
+  // status and per-row amount paid are now projected from the transfers ledger),
+  // so the legacy attendees.refunded_v2 / price_paid_v2 values are not restored —
+  // a historical paid or refunded booking re-surfaces via its backfilled sale /
+  // refund_cash leg, not a per-row column.
   await getDb().execute(
-    `INSERT OR IGNORE INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads)
+    `INSERT OR IGNORE INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, checked_in, attachment_downloads)
      SELECT listing_id, id,
        CASE WHEN date IS NOT NULL THEN date || 'T00:00:00Z' ELSE NULL END,
        CASE WHEN date IS NOT NULL THEN DATE(date, '+1 day') || 'T00:00:00Z' ELSE NULL END,
-       quantity, checked_in_v2, refunded_v2, price_paid_v2, attachment_downloads
+       quantity, checked_in_v2, attachment_downloads
      FROM attendees
      WHERE id NOT IN (SELECT attendee_id FROM listing_attendees)`,
   );
@@ -416,9 +417,7 @@ export const backfillListingAggregates = async (): Promise<void> => {
        booked_quantity = COALESCE(
          (SELECT SUM(quantity) FROM listing_attendees WHERE listing_id = listings.id), 0),
        tickets_count = COALESCE(
-         (SELECT COUNT(*) FROM listing_attendees WHERE listing_id = listings.id), 0),
-       income = COALESCE(
-         (SELECT SUM(price_paid) FROM listing_attendees WHERE listing_id = listings.id), 0)`,
+         (SELECT COUNT(*) FROM listing_attendees WHERE listing_id = listings.id), 0)`,
   );
 };
 
@@ -433,9 +432,7 @@ export const backfillModifierAggregates = async (): Promise<void> => {
        total_uses = COALESCE(
          (SELECT SUM(quantity) FROM modifier_usages WHERE modifier_id = modifiers.id), 0),
        usage_count = COALESCE(
-         (SELECT COUNT(*) FROM modifier_usages WHERE modifier_id = modifiers.id), 0),
-       total_revenue = COALESCE(
-         (SELECT SUM(amount_applied) FROM modifier_usages WHERE modifier_id = modifiers.id), 0)`,
+         (SELECT COUNT(*) FROM modifier_usages WHERE modifier_id = modifiers.id), 0)`,
   );
 };
 

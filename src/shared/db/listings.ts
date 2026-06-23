@@ -4,6 +4,12 @@
 
 import type { InValue, ResultSet } from "@libsql/client";
 import { mapParallel, reduce, sort, unique } from "#fp";
+import { inOwnTx, ledgerTx } from "#shared/accounting/ledger-tx.ts";
+import {
+  creditsLessWriteoffDebits,
+  revenueBreakdownColumns,
+  revenueBreakdownScope,
+} from "#shared/accounting/projection-sql.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { addDays } from "#shared/dates.ts";
@@ -196,13 +202,94 @@ const rawListingsTable = defineIdTable<Listing, ListingInput>("listings", {
   webhook_url: col.encryptedText(encrypt, decrypt),
 });
 
+/**
+ * Subquery projecting a listing's income from the ledger: the GROSS sum of every
+ * revenue-recognising leg credited to the listing's `revenue` account, minus
+ * manual write-offs (a `revenue:L → writeoff` adjustment from decision 14). It is
+ * deliberately NOT `balanceOf(revenue:L)`, so an ordinary refund
+ * (`revenue:L → attendee`) does NOT reduce income — matching the legacy
+ * `SUM(price_paid)` admins saw — while a deliberate manual correction does. With
+ * no `writeoff` legs (production today) it equals the plain gross credit sum, so
+ * the refinement is backward-compatible. `idExpr` is the SQL for the listing's id
+ * in the surrounding query (e.g. `listing.id` or `listings.id`). Shared by
+ * {@link LISTING_COUNT_SELECT} and the batch `SELECT *` loaders so income is read
+ * from the ledger in exactly one place, never off the now-dropped column. The
+ * trailing `AS income` names the projected column.
+ */
+export const listingIncomeSubquery = (idExpr: string): string =>
+  `${creditsLessWriteoffDebits("revenue", idExpr)} AS income`;
+
+/**
+ * A transparent breakdown of a listing's `revenue:<id>` account, deriving BOTH
+ * the reported figure and the live ledger balance from the same running totals so
+ * the two never appear to disagree without the reconciliation being visible:
+ *
+ * - `grossSales` — Σ `sale` credits to the account (gross ticket sales).
+ * - `manualAdjustments` — signed Σ of `adjustment` legs vs `writeoff`:
+ *   `(writeoff → revenue write-ups) − (revenue → writeoff write-downs)`. Positive
+ *   is a net write-up, negative a net write-down (decision 14).
+ * - `recognisedIncome` = `grossSales + manualAdjustments` — the refund-agnostic
+ *   figure shown as the listing's income and used in exports. Equals the existing
+ *   {@link listingIncomeSubquery} / `creditsLessWriteoffDebits` projection.
+ * - `refunds` — Σ `refund_sale` debits from the account, as a positive magnitude
+ *   that is then subtracted.
+ * - `netBalance` = `recognisedIncome − refunds` — the raw signed account balance
+ *   a refund also reduces (can go negative). Equals
+ *   `accountBalance(revenueAccount(id))`.
+ *
+ * One grouped query of conditional SUMs over only this account's own legs (the
+ * source/destination scan stays index-backed), never loading per-transfer rows —
+ * a popular listing could have thousands.
+ */
+export type ListingRevenueBreakdown = {
+  grossSales: number;
+  manualAdjustments: number;
+  recognisedIncome: number;
+  refunds: number;
+  netBalance: number;
+};
+
+type RevenueBreakdownRow = {
+  gross_sales: number | bigint;
+  write_ups: number | bigint;
+  write_downs: number | bigint;
+  refunds: number | bigint;
+};
+
+export const listingRevenueBreakdown = async (
+  listingId: number,
+): Promise<ListingRevenueBreakdown> => {
+  // Ledger account ids are stored as TEXT; the builders compare against
+  // `CAST(<idExpr> AS TEXT)`. The id is bound as a STRING (not the number — a
+  // numeric bind would cast to "1.0" and match nothing) once per predicate the
+  // builders emit: four in the column list, two in the own-legs scope.
+  const args: InValue[] = Array(6).fill(String(listingId));
+  const row = (await queryOne<RevenueBreakdownRow>(
+    `SELECT ${revenueBreakdownColumns("?")}
+       FROM transfers WHERE ${revenueBreakdownScope("?")}`,
+    args,
+  ))!;
+  const grossSales = Number(row.gross_sales);
+  const manualAdjustments = Number(row.write_ups) - Number(row.write_downs);
+  const refunds = Number(row.refunds);
+  const recognisedIncome = grossSales + manualAdjustments;
+  return {
+    grossSales,
+    manualAdjustments,
+    netBalance: recognisedIncome - refunds,
+    recognisedIncome,
+    refunds,
+  };
+};
+
 /** SELECT projecting each listing plus its booked-quantity count. Callers
  * append their own WHERE and {@link LISTING_COUNT_GROUP_BY}. Shared by the
  * cache's fetchers and by the filtered group / ungrouped / activity-log queries
  * so the count source lives in one place. The count reads the precomputed
  * `booked_quantity` column (maintained by triggers on listing_attendees), so
  * this no longer joins or scans the attendee rows. */
-export const LISTING_COUNT_SELECT = `SELECT listing.*, listing.booked_quantity AS attendee_count
+export const LISTING_COUNT_SELECT = `SELECT listing.*, listing.booked_quantity AS attendee_count,
+       ${listingIncomeSubquery("listing.id")}
      FROM listings AS listing`;
 
 /** GROUP BY clause that pairs with {@link LISTING_COUNT_SELECT}. Empty now that
@@ -291,6 +378,9 @@ const listingsEntity = cachedEntityTable<
       table: "listing_attendees",
       whenColumns: [...LISTING_AGGREGATE_WRITE_COLUMNS],
     },
+    // Income is projected from the ledger, so a transfer write — a new booking's
+    // revenue leg, or a refund reversal — must refresh the cached listing income.
+    { table: "transfers" },
   ],
 );
 const listingsCache = listingsEntity.cache;
@@ -357,15 +447,19 @@ export const deleteListing = async (listingId: number): Promise<void> => {
   ]);
 };
 
-/** The precomputed aggregate columns every `SELECT * FROM listings` row carries. */
+/** The aggregate columns a listing-load row carries: `booked_quantity` and
+ *  `tickets_count` are trigger-maintained columns on `listings`; `income` is
+ *  projected from the ledger by {@link listingIncomeSubquery}, which every loader
+ *  must select alongside `listings.*` (the column itself is gone). */
 type ListingAggregateColumns = {
   booked_quantity: number;
   income: number;
   tickets_count: number;
 };
 
-/** Extract listing row from batch result, returning null if not found. The raw
- * `SELECT *` row carries the precomputed aggregate columns. */
+/** Extract listing row from batch result, returning null if not found. The row
+ * carries the trigger-maintained count columns plus the ledger income projection
+ * its loader selected. */
 const extractListingRow = (
   result: ResultSet,
 ): (Listing & ListingAggregateColumns) | null =>
@@ -428,7 +522,6 @@ export const getListingWithCountBySlug = async (
 export const LISTING_AGGREGATE_FIELDS = [
   "booked_quantity",
   "tickets_count",
-  "income",
 ] as const;
 
 export type ListingAggregateField = (typeof LISTING_AGGREGATE_FIELDS)[number];
@@ -447,8 +540,7 @@ export const getListingAggregateRecalculation = async (
   const row = (await queryOne<ListingAggregateValues>(
     `SELECT
        COALESCE(SUM(quantity), 0) AS booked_quantity,
-       COUNT(*) AS tickets_count,
-       COALESCE(SUM(price_paid), 0) AS income
+       COUNT(*) AS tickets_count
      FROM listing_attendees
      WHERE listing_id = ?`,
     [listing.id],
@@ -458,7 +550,6 @@ export const getListingAggregateRecalculation = async (
       current: listing.attendee_count,
       recalculated: row.booked_quantity,
     },
-    income: { current: listing.income, recalculated: row.income },
     tickets_count: {
       current: listing.tickets_count,
       recalculated: row.tickets_count,
@@ -472,16 +563,25 @@ export const updateListingAggregateValues = async (
   values: ListingAggregateValues,
 ): Promise<void> => {
   await execute(
-    "UPDATE listings SET booked_quantity = ?, tickets_count = ?, income = ? WHERE id = ?",
-    [values.booked_quantity, values.tickets_count, values.income, listingId],
+    "UPDATE listings SET booked_quantity = ?, tickets_count = ? WHERE id = ?",
+    [values.booked_quantity, values.tickets_count, listingId],
   );
 };
+
+/**
+ * Correct a listing's projected income to `targetIncome` in its own write
+ * transaction — the standalone form of `ledgerTx.correct.income` (see
+ * {@link ledgerTx}). Raising income credits `revenue:L` (`writeoff → revenue`),
+ * which {@link listingIncomeSubquery} counts; lowering it debits
+ * `revenue:L → writeoff`, which the same projection subtracts. The delta is
+ * recomputed from the current projection read inside the transaction, so
+ * re-submitting the same target is idempotent and a no-op when already met.
+ */
+export const adjustListingIncome = inOwnTx(ledgerTx.correct.income);
 
 const aggregateResetSql: Record<ListingAggregateField, string> = {
   booked_quantity:
     "booked_quantity = COALESCE((SELECT SUM(quantity) FROM listing_attendees WHERE listing_id = ?), 0)",
-  income:
-    "income = COALESCE((SELECT SUM(price_paid) FROM listing_attendees WHERE listing_id = ?), 0)",
   tickets_count:
     "tickets_count = (SELECT COUNT(*) FROM listing_attendees WHERE listing_id = ?)",
 };
@@ -510,7 +610,10 @@ export const getListingWithAttendeesRaw = async (
   id: number,
 ): Promise<ListingWithAttendees | null> => {
   const [listingResult, attendeesResult] = await queryBatch([
-    { args: [id], sql: "SELECT * FROM listings WHERE id = ?" },
+    {
+      args: [id],
+      sql: `SELECT listings.*, ${listingIncomeSubquery("listings.id")} FROM listings WHERE id = ?`,
+    },
     {
       args: [id],
       sql: `SELECT ${ATTENDEE_JOIN_SELECT}
@@ -610,7 +713,10 @@ export const getListingWithAttendeeRaw = async (
   attendeeId: number,
 ): Promise<ListingWithAttendeeRaw | null> => {
   const [listingResult, attendeeResult] = await queryBatch([
-    { args: [listingId], sql: "SELECT * FROM listings WHERE id = ?" },
+    {
+      args: [listingId],
+      sql: `SELECT listings.*, ${listingIncomeSubquery("listings.id")} FROM listings WHERE id = ?`,
+    },
     {
       args: [attendeeId],
       sql: `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}

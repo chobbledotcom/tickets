@@ -434,7 +434,9 @@ export interface Modifier {
   total_uses: number;
   /** Trigger-maintained COUNT of this modifier's usage rows. */
   usage_count: number;
-  /** Trigger-maintained SUM(amount_applied) over this modifier's usages, in minor units. */
+  /** Projected from the transfers ledger as `balanceOf(modifier:M)` — the
+   * modifier account's net effect on revenue (surcharges in, discounts out),
+   * read directly, in minor units. */
   total_revenue: number;
 }
 

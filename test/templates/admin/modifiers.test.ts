@@ -126,14 +126,32 @@ describe("adminModifierEditPage", () => {
     expect(html).toContain('value="7"');
     expect(html).toContain('name="usage_count"');
     expect(html).toContain('value="3"');
-    expect(html).toContain('name="total_revenue"');
-    expect(html).toContain('value="25.00"');
+    // total_revenue is not a count override in the running-totals form — that
+    // form keeps only the two count aggregates (recalculate route).
+    const totalsForm = html.slice(
+      html.indexOf("Running totals"),
+      html.indexOf("Adjust revenue"),
+    );
+    expect(totalsForm).not.toContain('name="total_revenue"');
     expect(html).toContain("/admin/modifiers/recalculate/1");
     expect(html).toContain('name="min_visits"');
     expect(html).toContain('value="2"');
     // The delete action lives on the edit page.
     expect(html).toContain("Delete Modifier");
     expect(html).toContain("/admin/modifiers/1/delete");
+  });
+
+  test("renders the separate revenue-correction form (decision 14)", () => {
+    const html = adminModifierEditPage(
+      mod({ name: "Loyalty", total_revenue: 2500 }),
+      SESSION,
+    );
+    // Revenue correction is restored as a dedicated warned form that posts a
+    // writeoff adjustment to the money ledger, kept apart from the counts override.
+    expect(html).toContain("<h2>Adjust revenue</h2>");
+    expect(html).toContain('action="/admin/modifiers/1/revenue"');
+    expect(html).toContain('name="total_revenue"');
+    expect(html).toContain("correcting entry to the money ledger");
   });
 });
 
@@ -142,7 +160,6 @@ describe("adminModifierRecalculatePage", () => {
     const html = adminModifierRecalculatePage(
       mod({ name: "Loyalty" }),
       {
-        total_revenue: { current: 5500, recalculated: 2500 },
         total_uses: { current: 9, recalculated: 4 },
         usage_count: { current: 5, recalculated: 2 },
       },
@@ -155,8 +172,9 @@ describe("adminModifierRecalculatePage", () => {
     expect(html).toContain('value="total_uses"');
     expect(html).toContain(">9<");
     expect(html).toContain(">4<");
-    expect(html).toContain(">£55<");
-    expect(html).toContain(">£25<");
+    // The money figure (total_revenue) is no longer a recalculable aggregate —
+    // it projects from the ledger — so the page lists only the two counts.
+    expect(html).not.toContain('value="total_revenue"');
   });
 });
 

@@ -13,7 +13,7 @@ const meta = {
 };
 
 describe("reverseOf", () => {
-  it("swaps the ends, keeps amount/currency, and links via reversesId", () => {
+  it("swaps the ends, keeps the amount, and links via reversesId", () => {
     const original = makeTransfer({
       amount: 5000,
       destination: account("revenue", 45),
@@ -24,7 +24,6 @@ describe("reverseOf", () => {
     expect(rev.source).toEqual(original.destination);
     expect(rev.destination).toEqual(original.source);
     expect(rev.amount).toBe(5000);
-    expect(rev.currency).toBe(original.currency);
     expect(rev.reversesId).toBe(7);
     expect(rev.kind).toBe("reversal");
     expect(rev.memo).toBe("");
@@ -38,6 +37,9 @@ describe("reverseOf", () => {
     });
     expect(rev.kind).toBe("correction");
     expect(rev.memo).toBe("fat-finger");
+    // An explicit empty kind is preserved, not silently replaced by the default
+    // (`?? "reversal"` keeps "", where `|| "reversal"` would override it).
+    expect(reverseOf(makeTransfer({}), { ...meta, kind: "" }).kind).toBe("");
   });
 
   it("nets the affected account back to zero once both are posted", () => {
@@ -57,7 +59,6 @@ describe("reverseOf", () => {
 describe("isInverseOf", () => {
   const original = makeTransfer({
     amount: 5000,
-    currency: "GBP",
     destination: account("revenue", 45),
     source: account("attendee", 88),
   });
@@ -66,10 +67,9 @@ describe("isInverseOf", () => {
     expect(isInverseOf(reverseOf(original, meta), original)).toBe(true);
   });
 
-  it("rejects a different amount, currency, or direction", () => {
+  it("rejects a different amount or direction", () => {
     const inverse = reverseOf(original, meta);
     expect(isInverseOf({ ...inverse, amount: 4000 }, original)).toBe(false);
-    expect(isInverseOf({ ...inverse, currency: "USD" }, original)).toBe(false);
     // Same direction as the original (ends not swapped).
     expect(isInverseOf(original, original)).toBe(false);
   });

@@ -55,6 +55,15 @@ import freeTextQuestionsMigration from "./migrations/2026-06-20_free_text_questi
 import stringCreatedMigration from "./migrations/2026-06-20_string_created.ts";
 import userKekV2Migration from "./migrations/2026-06-20_user_kek_v2.ts";
 import transfersMigration from "./migrations/2026-06-21_transfers.ts";
+import backfillTransfersMigration from "./migrations/2026-06-22_backfill_transfers.ts";
+import dropAttendeesPricePaidMigration from "./migrations/2026-06-22_drop_attendees_price_paid.ts";
+import dropAttendeesRemainingBalanceMigration from "./migrations/2026-06-22_drop_attendees_remaining_balance.ts";
+import dropListingAttendeePricePaidMigration from "./migrations/2026-06-22_drop_listing_attendee_price_paid.ts";
+import dropListingAttendeeRefundedMigration from "./migrations/2026-06-22_drop_listing_attendee_refunded.ts";
+import dropListingIncomeMigration from "./migrations/2026-06-22_drop_listing_income.ts";
+import dropModifiersTotalRevenueMigration from "./migrations/2026-06-22_drop_modifiers_total_revenue.ts";
+import dropTransfersCurrencyMigration from "./migrations/2026-06-22_drop_transfers_currency.ts";
+import listingAttendeeLedgerEventGroupMigration from "./migrations/2026-06-22_listing_attendee_ledger_event_group.ts";
 import transfersTimeIntMigration from "./migrations/2026-06-22_transfers_time_int.ts";
 import { repairLegacyRenames } from "./migrations/rename-utils.ts";
 import {
@@ -212,6 +221,15 @@ export const MIGRATIONS: Migration[] = [
   userKekV2Migration,
   transfersMigration,
   transfersTimeIntMigration,
+  dropTransfersCurrencyMigration,
+  listingAttendeeLedgerEventGroupMigration,
+  backfillTransfersMigration,
+  dropListingIncomeMigration,
+  dropListingAttendeeRefundedMigration,
+  dropListingAttendeePricePaidMigration,
+  dropAttendeesPricePaidMigration,
+  dropAttendeesRemainingBalanceMigration,
+  dropModifiersTotalRevenueMigration,
 ].map((build) => build(migrationContext));
 
 export const MIGRATION_IDS: string[] = MIGRATIONS.map(

@@ -19,6 +19,7 @@ import {
 import { describeWithEnv } from "#test-utils";
 import {
   downgradeListingDomainToLegacyNames,
+  seedPreDropLedgerColumns,
   tableRowCount,
 } from "./migration-test-helpers.ts";
 
@@ -99,10 +100,10 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
          VALUES (901, 'migration-group', 'group-index', 'Migration Group', 'historic group', 50)`,
         `INSERT INTO listings (id, created, max_attendees, name, slug, slug_index, group_id, unit_price, max_quantity, listing_type, date, location, customisable_days, uses_logistics)
          VALUES (902, '2024-01-01T00:00:00Z', 25, 'migration-listing', 'migration-listing', 'listing-index', 901, 1200, 4, 'standard', '2024-02-01', 'Town Hall', 1, 1)`,
-        `INSERT INTO attendees (id, created, price_paid, checked_in, ticket_token_index, pii_blob, status_id, remaining_balance, split_logistics_agents, phone_index)
-         VALUES (903, '2024-01-02T00:00:00Z', '1800', '', 'ticket-index', '{"name":"Migration Guest"}', 1, 300, 1, 'phone-index')`,
-        `INSERT INTO listing_attendees (id, listing_id, attendee_id, start_at, end_at, quantity, checked_in, price_paid, start_agent_id, end_agent_id, start_time, end_time, start_done, end_done)
-         VALUES (904, 902, 903, '2024-02-01T10:00:00Z', '2024-02-01T12:00:00Z', 2, 1, 1800, NULL, NULL, '10:00', '12:00', 1, 0)`,
+        `INSERT INTO attendees (id, created, checked_in, ticket_token_index, pii_blob, status_id, split_logistics_agents, phone_index)
+         VALUES (903, '2024-01-02T00:00:00Z', '', 'ticket-index', '{"name":"Migration Guest"}', 1, 1, 'phone-index')`,
+        `INSERT INTO listing_attendees (id, listing_id, attendee_id, start_at, end_at, quantity, checked_in, start_agent_id, end_agent_id, start_time, end_time, start_done, end_done)
+         VALUES (904, 902, 903, '2024-02-01T10:00:00Z', '2024-02-01T12:00:00Z', 2, 1, NULL, NULL, '10:00', '12:00', 1, 0)`,
         `INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at, ticket_tokens, failure_data)
          VALUES ('payment-session', 903, '2024-01-02T00:10:00Z', 'ticket-token', '{"code":"card_declined"}')`,
         `INSERT INTO activity_log (id, created, listing_id, message, attendee_id)
@@ -149,12 +150,12 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
   ): Promise<void> => {
     expect(
       await scalar(
-        "SELECT COUNT(*) AS value FROM listings WHERE id = 902 AND name = 'migration-listing' AND booked_quantity = 2 AND tickets_count = 1 AND income = 1800",
+        "SELECT COUNT(*) AS value FROM listings WHERE id = 902 AND name = 'migration-listing' AND booked_quantity = 2 AND tickets_count = 1",
       ),
     ).toBe(1);
     expect(
       await scalar(
-        "SELECT COUNT(*) AS value FROM listing_attendees WHERE id = 904 AND listing_id = 902 AND attendee_id = 903 AND quantity = 2 AND price_paid = 1800",
+        "SELECT COUNT(*) AS value FROM listing_attendees WHERE id = 904 AND listing_id = 902 AND attendee_id = 903 AND quantity = 2",
       ),
     ).toBe(1);
     expect(
@@ -207,9 +208,13 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
     if (
       migrationIndex(baseMigrationId) >= migrationIndex("2026-06-16_modifiers")
     ) {
+      // total_revenue is no longer a stored column — a modifier's revenue
+      // projects from the transfers ledger as balanceOf(modifier:M). The
+      // fixture posts no modifier ledger legs, so only the count aggregates
+      // (trigger-maintained) survive here.
       expect(
         await scalar(
-          "SELECT COUNT(*) AS value FROM modifiers WHERE id = 907 AND total_uses = 2 AND usage_count = 1 AND total_revenue = 500",
+          "SELECT COUNT(*) AS value FROM modifiers WHERE id = 907 AND total_uses = 2 AND usage_count = 1",
         ),
       ).toBe(1);
       expect(
@@ -259,16 +264,35 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
       "write",
     );
 
+  // A migration is restore-testable only if it owns concrete schema objects to
+  // drop and rebuild; a data-only migration (empty `requires`, e.g. a ledger
+  // backfill) owns nothing, so dropping "its objects" is a no-op and verify()
+  // could never fail — it is covered by its own data test instead.
+  const ownsSchemaObjects = (req: SchemaRequirement): boolean =>
+    Boolean(
+      req.newTables?.length ||
+        req.indexes?.length ||
+        req.triggers?.length ||
+        Object.values(req.columns ?? {}).some((cols) => cols.length > 0),
+    );
+
   // Additive migrations own concrete objects and can be reconstructed by
-  // re-running up(). The baseline reconcile (no `requires`) and migrations
-  // that remove legacy tables are covered separately below.
+  // re-running up(). The baseline reconcile (no `requires`), migrations that
+  // remove legacy tables, and data-only migrations are covered separately.
   const additiveMigrations = MIGRATIONS.filter(
-    (m) => m.requires && !m.requires.absentTables,
+    (m) =>
+      m.requires && !m.requires.absentTables && ownsSchemaObjects(m.requires),
   );
 
   test("every additive migration is covered by a restore case", () => {
     // Guards against a future migration slipping through with no restore test.
-    expect(additiveMigrations.length).toBe(MIGRATIONS.length - 3);
+    // The non-additive migrations excluded here are: the baseline reconcile, the
+    // events→listings rename, the transfers time-int rebuild, the transfers
+    // backfill (data-only), and the seven column-drop migrations (drop_transfers_
+    // currency, drop_listing_income, drop_listing_attendee_refunded,
+    // drop_listing_attendee_price_paid, drop_attendees_price_paid,
+    // drop_attendees_remaining_balance and drop_modifiers_total_revenue).
+    expect(additiveMigrations.length).toBe(MIGRATIONS.length - 11);
   });
 
   for (const migration of additiveMigrations) {
@@ -321,10 +345,22 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
   for (const baseMigration of migrationBoundaries) {
     test(`migrates a populated database from ${baseMigration.id} to the current schema`, async () => {
       await seedPopulatedMigrationFixture();
+      // The fixture is built from the current (post-drop) schema, but the
+      // 2026-06-22_backfill_transfers migration in the chain reads
+      // listing_attendees.refunded and price_paid — present in production until
+      // the later drop_listing_attendee_refunded / drop_listing_attendee_price_paid
+      // migrations recreate the table without them. Restore the columns so the
+      // chain reproduces production; the drop migrations then remove them again,
+      // leaving the verified schema correct.
+      await seedPreDropLedgerColumns();
 
       const pending = MIGRATIONS.slice(MIGRATIONS.indexOf(baseMigration) + 1);
       for (const migration of [...pending].reverse()) {
-        if (migration.requires && !migration.requires.absentTables) {
+        if (
+          migration.requires &&
+          !migration.requires.absentTables &&
+          ownsSchemaObjects(migration.requires)
+        ) {
           await dropOwnedObjects(migration.requires);
         }
       }

@@ -19,10 +19,10 @@ import { describeWithEnv, setTestEnv } from "#test-utils";
 describe("extractUpdateColumns", () => {
   test("single column assignment", () => {
     const cols = extractUpdateColumns(
-      "UPDATE listing_attendees SET refunded = ? WHERE attendee_id = ? AND listing_id = ?",
+      "UPDATE listing_attendees SET checked_in = ? WHERE attendee_id = ? AND listing_id = ?",
     );
     expect(cols).toBeDefined();
-    expect([...cols!]).toEqual(["refunded"]);
+    expect([...cols!]).toEqual(["checked_in"]);
   });
 
   test("multiple column assignments", () => {

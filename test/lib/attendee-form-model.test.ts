@@ -38,6 +38,7 @@ const bookingRow = (
   attachment_downloads: 0,
   checked_in: 0,
   end_at: null,
+  ledger_event_group: "",
   listing_id: 1,
   price_paid: 0,
   quantity: 1,

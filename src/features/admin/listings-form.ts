@@ -136,7 +136,6 @@ export const extractListingAggregateValues = (
   values: ListingAggregateFormValues,
 ): ListingAggregateValues => ({
   booked_quantity: values.booked_quantity,
-  income: toMinorUnits(Number.parseFloat(values.income)),
   tickets_count: values.tickets_count,
 });
 

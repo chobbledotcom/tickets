@@ -493,7 +493,6 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
       );
       await updateListingAggregateValues(e1.id, {
         booked_quantity: 4,
-        income: 0,
         tickets_count: 0,
       });
 

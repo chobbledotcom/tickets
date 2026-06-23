@@ -62,6 +62,8 @@ import {
   AttendeeAnswersTable,
   AttendeeBookingsTable,
   AttendeeDetail,
+  type AttendeeLedgerData,
+  AttendeeLedgerSection,
   AttendeeLogSection,
   BookingStatusBadges,
 } from "#templates/admin/attendee-detail.tsx";
@@ -130,6 +132,9 @@ export type AttendeeFormTemplateData = {
   phonePrefix: string;
   /** This attendee's activity log entries, newest first (edit mode only). */
   activityLog: ActivityLogEntry[];
+  /** This attendee's ledger account statement (edit mode only; undefined in
+   * create mode, where the attendee has no account yet). */
+  ledger?: AttendeeLedgerData;
   /** The attendee's current bookings, for the read-only summary table at the top
    * of the page (edit mode; empty in create mode). */
   bookings: AttendeeBooking[];
@@ -701,6 +706,12 @@ const StatusAndBalanceFields = ({
           payment link clears it automatically when they pay.
         </small>
       </label>
+      <div class="error" role="alert">
+        Changing the outstanding balance posts a correcting entry to the money
+        ledger — the source of truth for what is owed. Corrections are appended,
+        never destructive: only the difference from the current figure is
+        recorded as a write-off adjustment.
+      </div>
     </>
   );
 };
@@ -884,6 +895,8 @@ export const attendeeFormPage = (
       {isEdit && a && <AttendeeActions attendee={a} />}
 
       {isEdit && <AttendeeLogSection entries={data.activityLog} />}
+
+      {isEdit && data.ledger && <AttendeeLedgerSection ledger={data.ledger} />}
 
       {data.attendeeError && (
         <div class="error" role="alert">

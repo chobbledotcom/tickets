@@ -1,5 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { attendeeAccount, WRITEOFF } from "#shared/accounting/accounts.ts";
+import { accountBalance, allTransfers } from "#shared/accounting/queries.ts";
 import {
   attendeeStatusesTable,
   getPaidDefaultStatus,
@@ -10,18 +12,23 @@ import {
   getAttendeeOrderSummary,
   settleAttendeeBalance,
 } from "#shared/db/attendees/balance.ts";
-import { createAttendeeAtomic } from "#shared/db/attendees.ts";
+import {
+  createAttendeeAtomic,
+  updateAttendeeOrder,
+} from "#shared/db/attendees.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
   enableQueryLog,
   getQueryLog,
   runWithQueryLogContext,
 } from "#shared/db/query-log.ts";
+import { accountKey } from "#shared/ledger/account.ts";
 import {
   createTestListing,
   describeWithEnv,
   getAttendeeActivityLog,
 } from "#test-utils";
+import { postListingSale } from "#test-utils/ledger.ts";
 
 /** Create a reserved attendee with an outstanding balance. */
 const createReservedAttendee = async (remainingBalance: number) => {
@@ -42,15 +49,31 @@ const createReservedAttendee = async (remainingBalance: number) => {
     statusId: reservation.id,
   });
   if (!result.success) throw new Error("setup failed");
-  return { attendeeId: result.attendees[0]!.id, listingId: listing.id };
+  const attendeeId = result.attendees[0]!.id;
+  // Outstanding balance projects from the ledger: post the booking's gross sale
+  // (full price = deposit + remaining) and the £1 deposit payment, so the
+  // attendee owes exactly `remainingBalance` (full − deposit) in the ledger.
+  await postListingSale({
+    amountPaid: 100,
+    attendeeId,
+    gross: 100 + remainingBalance,
+    listingId: listing.id,
+  });
+  return { attendeeId, listingId: listing.id };
 };
+
+/** A settle identity (session id + business time) for settleAttendeeBalance. */
+const settle = (id = "settle-session") => ({
+  id,
+  occurredAt: "2026-06-21T00:00:00.000Z",
+});
 
 describeWithEnv("db > settle attendee balance", { db: true }, () => {
   test("clears the balance, moves to the paid status and logs it", async () => {
     const { attendeeId, listingId } = await createReservedAttendee(1500);
     const paid = await getPaidDefaultStatus();
 
-    const result = await settleAttendeeBalance(attendeeId, 1500);
+    const result = await settleAttendeeBalance(attendeeId, 1500, settle());
     expect(result).toEqual({ amount: 1500, listingId, settled: true });
 
     const state = await getAttendeeBalanceState(attendeeId);
@@ -62,29 +85,17 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     expect(log[0]!.message).toContain("Reservation balance paid");
   });
 
-  test("folds the balance into the recorded price_paid", async () => {
-    const { attendeeId } = await createReservedAttendee(1500);
-    await settleAttendeeBalance(attendeeId, 1500);
-    const { getDb } = await import("#shared/db/client.ts");
-    const row = await getDb().execute({
-      args: [attendeeId],
-      sql: "SELECT price_paid FROM listing_attendees WHERE attendee_id = ?",
-    });
-    // 100 deposit + 1500 balance.
-    expect(Number(row.rows[0]!.price_paid)).toBe(1600);
-  });
-
   test("is idempotent once the balance is cleared", async () => {
     const { attendeeId } = await createReservedAttendee(1500);
-    await settleAttendeeBalance(attendeeId, 1500);
-    expect(await settleAttendeeBalance(attendeeId, 1500)).toEqual({
+    await settleAttendeeBalance(attendeeId, 1500, settle());
+    expect(await settleAttendeeBalance(attendeeId, 1500, settle())).toEqual({
       reason: "nothing_owed",
       settled: false,
     });
   });
 
   test("reports not_found for a missing attendee", async () => {
-    expect(await settleAttendeeBalance(9999, 1500)).toEqual({
+    expect(await settleAttendeeBalance(9999, 1500, settle())).toEqual({
       reason: "not_found",
       settled: false,
     });
@@ -95,7 +106,7 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     // The checkout was created for 1000, but the live balance is 1500 (e.g. the
     // owner raised it after checkout). Settling must be refused rather than
     // clearing the wrong 1500 for a 1000 payment.
-    expect(await settleAttendeeBalance(attendeeId, 1000)).toEqual({
+    expect(await settleAttendeeBalance(attendeeId, 1000, settle())).toEqual({
       reason: "amount_mismatch",
       settled: false,
     });
@@ -107,26 +118,20 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
   test("settles exactly once when two callbacks race for the same amount", async () => {
     const { attendeeId } = await createReservedAttendee(1500);
     const [a, b] = await Promise.all([
-      settleAttendeeBalance(attendeeId, 1500),
-      settleAttendeeBalance(attendeeId, 1500),
+      settleAttendeeBalance(attendeeId, 1500, settle()),
+      settleAttendeeBalance(attendeeId, 1500, settle()),
     ]);
     // One settles; the other finds the balance already cleared.
     expect([a, b].filter((r) => r.settled)).toHaveLength(1);
     const state = await getAttendeeBalanceState(attendeeId);
     expect(state?.remainingBalance).toBe(0);
-    // price_paid reflects a single settlement (100 deposit + 1500), not 3000.
-    const row = await getDb().execute({
-      args: [attendeeId],
-      sql: "SELECT price_paid FROM listing_attendees WHERE attendee_id = ?",
-    });
-    expect(Number(row.rows[0]!.price_paid)).toBe(1600);
   });
 
   test("settles even when no paid-default status is configured", async () => {
     const { attendeeId } = await createReservedAttendee(1500);
     await getDb().execute("UPDATE attendee_statuses SET is_paid_default = 0");
     invalidateAttendeeStatusesCache();
-    const result = await settleAttendeeBalance(attendeeId, 1500);
+    const result = await settleAttendeeBalance(attendeeId, 1500, settle());
     expect(result.settled).toBe(true);
     // No paid default: COALESCE keeps the existing status.
     const state = await getAttendeeBalanceState(attendeeId);
@@ -135,20 +140,29 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
 
   test("settles an attendee that has no booking lines", async () => {
     await getDb().execute(
-      "INSERT INTO attendees (created, pii_blob, remaining_balance) VALUES ('2024-01-01T00:00:00Z', '', 900)",
+      "INSERT INTO attendees (created, pii_blob) VALUES ('2024-01-01T00:00:00Z', '')",
     );
     const { rows } = await getDb().execute(
       "SELECT id FROM attendees ORDER BY id DESC LIMIT 1",
     );
     const attendeeId = Number(rows[0]!.id);
-    const result = await settleAttendeeBalance(attendeeId, 900);
+    // Owe £9 in the ledger with no listing_attendees row: a sale to a listing
+    // with no booking row, nothing paid. The settle clears it and, finding no
+    // booking line, attributes no listing.
+    await postListingSale({
+      amountPaid: 0,
+      attendeeId,
+      gross: 900,
+      listingId: 98765,
+    });
+    const result = await settleAttendeeBalance(attendeeId, 900, settle());
     // No bookings → the log entry has no listing attributed.
     expect(result).toEqual({ amount: 900, listingId: null, settled: true });
   });
 
   test("order summary is empty for an attendee with no bookings", async () => {
     await getDb().execute(
-      "INSERT INTO attendees (created, pii_blob, remaining_balance) VALUES ('2024-01-01T00:00:00Z', '', 0)",
+      "INSERT INTO attendees (created, pii_blob) VALUES ('2024-01-01T00:00:00Z', '')",
     );
     const { rows } = await getDb().execute(
       "SELECT id FROM attendees ORDER BY id DESC LIMIT 1",
@@ -168,7 +182,13 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     });
     await getDb().execute({
       args: [listing.id, 999999],
-      sql: "INSERT INTO listing_attendees (listing_id, attendee_id, quantity, price_paid) VALUES (?, ?, 2, 300)",
+      sql: "INSERT INTO listing_attendees (listing_id, attendee_id, quantity) VALUES (?, ?, 2)",
+    });
+    // price_paid projects from the ledger: post the 300 sale leg for this row.
+    await postListingSale({
+      attendeeId: 999999,
+      gross: 300,
+      listingId: listing.id,
     });
 
     const summary = await getAttendeeOrderSummary(999999);
@@ -183,7 +203,7 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     const { attendeeId } = await createReservedAttendee(1500);
     await getDb().execute({
       args: [attendeeId],
-      sql: "INSERT INTO listing_attendees (listing_id, attendee_id, quantity, price_paid) VALUES (98765, ?, 1, 0)",
+      sql: "INSERT INTO listing_attendees (listing_id, attendee_id, quantity) VALUES (98765, ?, 1)",
     });
     const summary = await getAttendeeOrderSummary(attendeeId);
     // Only the real listing is included; the dangling row is dropped.
@@ -199,7 +219,7 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     });
     await getDb().execute({
       args: [otherListing.id, attendeeId],
-      sql: "INSERT INTO listing_attendees (listing_id, attendee_id, quantity, price_paid) VALUES (?, ?, 2, 240)",
+      sql: "INSERT INTO listing_attendees (listing_id, attendee_id, quantity) VALUES (?, ?, 2)",
     });
 
     const { entries, summary } = await runWithQueryLogContext(async () => {
@@ -226,3 +246,101 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     ).toHaveLength(0);
   });
 });
+
+describeWithEnv(
+  "db > reconcile attendee balance (manual correction)",
+  { db: true },
+  () => {
+    /** The attendee's status, kept fixed so updateAttendeeOrder only moves the
+     * balance. */
+    const fixedStatus = async (): Promise<number> =>
+      (await getPaidDefaultStatus())!.id;
+
+    test("raising the outstanding balance posts an attendee→writeoff debit", async () => {
+      // Start fully paid (owes 0), then correct the balance up to £15.
+      const { attendeeId } = await createReservedAttendee(0);
+      const statusId = await fixedStatus();
+      expect(
+        (await getAttendeeBalanceState(attendeeId))?.remainingBalance,
+      ).toBe(0);
+
+      await updateAttendeeOrder(attendeeId, statusId, 1500);
+
+      // Owed rose to 1500, which is −balanceOf(attendee): raising what's owed is a
+      // debit on the attendee account, sinking to writeoff (no external cash).
+      expect(
+        (await getAttendeeBalanceState(attendeeId))?.remainingBalance,
+      ).toBe(1500);
+      const adjustments = (await allTransfers()).filter(
+        (leg) => leg.kind === "adjustment",
+      );
+      expect(adjustments).toHaveLength(1);
+      expect(accountKey(adjustments[0]!.source)).toBe(
+        accountKey(attendeeAccount(attendeeId)),
+      );
+      expect(accountKey(adjustments[0]!.destination)).toBe(
+        accountKey(WRITEOFF),
+      );
+      expect(adjustments[0]!.amount).toBe(1500);
+    });
+
+    test("lowering the outstanding balance posts a writeoff→attendee credit", async () => {
+      const { attendeeId } = await createReservedAttendee(1500);
+      const statusId = await fixedStatus();
+
+      await updateAttendeeOrder(attendeeId, statusId, 500);
+
+      expect(
+        (await getAttendeeBalanceState(attendeeId))?.remainingBalance,
+      ).toBe(500);
+      const adjustments = (await allTransfers()).filter(
+        (leg) => leg.kind === "adjustment",
+      );
+      expect(adjustments).toHaveLength(1);
+      // Lowering what's owed credits the attendee from writeoff.
+      expect(accountKey(adjustments[0]!.source)).toBe(accountKey(WRITEOFF));
+      expect(accountKey(adjustments[0]!.destination)).toBe(
+        accountKey(attendeeAccount(attendeeId)),
+      );
+      expect(adjustments[0]!.amount).toBe(1000);
+    });
+
+    test("setting the balance to its current value posts no adjustment", async () => {
+      const { attendeeId } = await createReservedAttendee(1500);
+      const statusId = await fixedStatus();
+      const before = (await allTransfers()).filter(
+        (leg) => leg.kind === "adjustment",
+      ).length;
+
+      await updateAttendeeOrder(attendeeId, statusId, 1500);
+
+      const after = (await allTransfers()).filter(
+        (leg) => leg.kind === "adjustment",
+      ).length;
+      expect(after).toBe(before);
+      expect(
+        (await getAttendeeBalanceState(attendeeId))?.remainingBalance,
+      ).toBe(1500);
+    });
+
+    test("the writeoff balance correction never touches external cash", async () => {
+      // Raising the owed balance must not book a world→attendee payment, so cash
+      // reports stay honest — the only adjustment leg is against writeoff.
+      const { attendeeId } = await createReservedAttendee(0);
+      const statusId = await fixedStatus();
+
+      await updateAttendeeOrder(attendeeId, statusId, 800);
+
+      const adjustments = (await allTransfers()).filter(
+        (leg) => leg.kind === "adjustment",
+      );
+      const touchesWorld = adjustments.some(
+        (leg) =>
+          leg.source.type === "external" || leg.destination.type === "external",
+      );
+      expect(touchesWorld).toBe(false);
+      // The correction's counterparty is the writeoff account.
+      expect(await accountBalance(WRITEOFF)).toBe(800);
+    });
+  },
+);

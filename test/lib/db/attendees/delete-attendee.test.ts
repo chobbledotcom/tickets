@@ -7,7 +7,7 @@ import {
   consumeModifierStock,
   modifierUsedQuantities,
 } from "#shared/db/modifier-usage.ts";
-import { modifiersTable } from "#shared/db/modifiers.ts";
+import { getAllModifiers, modifiersTable } from "#shared/db/modifiers.ts";
 import {
   finalizeSession as finalizePaymentSession,
   isSessionProcessed,
@@ -78,9 +78,11 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
     const updated = await getListingWithCount(listing.id);
     expect(updated).toMatchObject({
       attendee_count: 0,
-      income: 0,
       tickets_count: 0,
     });
+    // Income is the ledger projection: releasing the booking frees capacity but
+    // does not reverse the recognised revenue (a hard delete posts no reversal).
+    expect(updated!.income).toBe(1200);
   });
 
   test("can delete attendee without releasing listing aggregate totals", async () => {
@@ -146,8 +148,12 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
     expect(await modifierUsedQuantities([modifier.id])).toEqual(
       new Map([[modifier.id, 3]]),
     );
-    expect(await modifiersTable.findById(modifier.id)).toMatchObject({
-      total_revenue: 1500,
+    // The count aggregates (trigger-maintained) survive the attendee deletion.
+    // total_revenue projects from the ledger, and consumeModifierStock posts no
+    // modifier legs, so it reads 0.
+    const reread = (await getAllModifiers()).find((m) => m.id === modifier.id);
+    expect(reread).toMatchObject({
+      total_revenue: 0,
       total_uses: 3,
       usage_count: 1,
     });

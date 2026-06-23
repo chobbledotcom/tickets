@@ -82,13 +82,14 @@ export {
   getAttendeesPage,
   getAttendeesRaw,
   getNewestAttendeesRaw,
+  LISTING_ATTENDEE_ROW_COLS,
 } from "#shared/db/attendees/queries.ts";
 export { getActiveListingStats } from "#shared/db/attendees/stats.ts";
 export {
   checkGroupCapAfterDurationChange,
   incrementAttachmentDownloads,
-  markRefunded,
   recomputeListingBookingRanges,
+  reconcileLedgerBalanceTx,
   updateAttendeeOrder,
   updateAttendeePII,
   updateCheckedIn,

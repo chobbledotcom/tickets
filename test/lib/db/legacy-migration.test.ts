@@ -319,7 +319,10 @@ describe("db > listing_attendees migration from legacy schema", () => {
     expect(ea.rows[0]!.listing_id).toBe(1);
     expect(ea.rows[0]!.attendee_id).toBe(1);
     expect(ea.rows[0]!.quantity).toBe(2);
-    expect(ea.rows[0]!.price_paid).toBe(1000);
+    // price_paid is no longer a column — a booking's amount projects from the
+    // transfers ledger. Like the dropped refunded flag, the legacy price_paid_v2
+    // value isn't carried by the reconcile (no live site predates the ledger).
+    expect(ea.rows[0]!.price_paid).toBeUndefined();
     expect(ea.rows[0]!.start_at).toBe("2024-06-15T00:00:00Z");
     expect(ea.rows[0]!.end_at).toBe("2024-06-16T00:00:00Z");
 
@@ -333,6 +336,9 @@ describe("db > listing_attendees migration from legacy schema", () => {
     expect(colNames).not.toContain("phone");
     expect(colNames).not.toContain("address");
     expect(colNames).not.toContain("payment_id");
+    // price_paid is dropped — amount paid is a per-row listing_attendees figure
+    // (ledger-projected), never an attendees column.
+    expect(colNames).not.toContain("price_paid");
     expect(colNames).toContain("id");
     expect(colNames).toContain("pii_blob");
 

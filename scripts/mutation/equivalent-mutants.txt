@@ -22,6 +22,25 @@ src/shared/site-assignment.ts:192:57  ?? → ||    # parseReadOnlyFromMs(): numb
 src/shared/site-assignment.ts:370:34  ?? → ||    # available[idx]: object|undefined, never falsy non-null
 src/shared/site-assignment.ts:392:34  ?? → ||    # getEmailConfig(): EmailConfig|null
 src/shared/site-assignment.ts:416:53  ?? → ||    # parseEmail(): ValidEmail|null, always truthy or null
+src/shared/ledger/project.ts:18:41  ?? → ||    # allBalances: Map<string,number>.get; the only falsy-non-null number is 0, and 0 ?? 0 === 0 || 0
+src/shared/ledger/project.ts:36:49  ?? → ||    # balanceOf: same Map<string,number>.get fallback; 0 ?? 0 === 0 || 0
+src/shared/ledger/reconcile.ts:70:29  ?? → ||    # IDENTITY_FIELDS kind: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
+src/shared/ledger/reconcile.ts:112:56  ?? → ||   # multisetDiff: Map<string,number>.get count; 0 ?? 0 === 0 || 0
+src/shared/ledger/reconcile.ts:115:35  ?? → ||   # multisetDiff: Map<string,number>.get count; 0 ?? 0 === 0 || 0
+src/shared/ledger/reconcile.ts:136:46  ?? → ||   # observed.get(): LegFingerprint[]|undefined — an array is always truthy
+src/shared/ledger/reconcile.ts:143:44  ?? → ||   # expected.get(): LegFingerprint[]|undefined — an array is always truthy
+src/shared/ledger/reconcile.ts:144:43  ?? → ||   # observed.get(): LegFingerprint[]|undefined — an array is always truthy
+src/shared/ledger/reverse.ts:51:18  ?? → ||    # reverseOf memo: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
+src/shared/accounting/mappers.ts:44:20  ?? → ||    # REFUND_KIND[kind]: every value is non-empty and a miss is undefined — never "", so ?? and || coincide
+src/shared/accounting/mappers.ts:115:44  ?? → ||   # grossByListing: Map<number,number>.get; 0 ?? 0 === 0 || 0
+src/shared/accounting/mappers.ts:249:32  ?? → ||   # refundKind(leg.kind ?? ""): string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
+src/shared/accounting/store.ts:219:60  ?? → ||    # planGroup existingByGroup.get(): Transfer[]|undefined — an array is always truthy
+src/shared/accounting/store.ts:242:42  ?? → ||    # planGroup originalsById.get(): Transfer|undefined — a Transfer object is always truthy
+src/shared/accounting/store.ts:240:23  || → &&    # planGroup: for id in {undefined,null} both ternary branches yield null (Map<number,_>.get(undefined|null) === undefined, then ?? null === null), so || and && coincide
+src/shared/accounting/queries.ts:98:67  ?? → ||    # accountBalance: Map<string,number>.get; 0 ?? 0 === 0 || 0
+src/shared/accounting/rows.ts:74:17  ?? → ||    # insertStatement kind: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
+src/shared/accounting/rows.ts:75:17  ?? → ||    # insertStatement memo: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
+src/shared/accounting/rows.ts:181:58  ?? → ||   # selectById (await …)[0]: Transfer|undefined — a Transfer object is always truthy
 
 # Invariant-based, confirmed by reading toUnits: `lineIdxs` comes from toUnits,
 # which assigns lineIdx as the flatMap array index, so the sort's input is
