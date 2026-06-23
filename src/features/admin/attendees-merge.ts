@@ -4,7 +4,6 @@
 
 /* jscpd:ignore-start */
 import { filter, map, pipe } from "#fp";
-import { requirePrivateKey } from "#routes/admin/actions.ts";
 import { createEntityRouteHandlers } from "#routes/admin/entity-handlers.ts";
 import type { AuthSession } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
@@ -38,6 +37,7 @@ import type {
   MergeMoneyChoice,
   MergeValueChoice,
 } from "#shared/merge/attendee-merge-types.ts";
+import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee } from "#shared/types.ts";
 import { adminMergeAttendeePage } from "#templates/admin/attendees.tsx";
 
@@ -45,10 +45,9 @@ import { adminMergeAttendeePage } from "#templates/admin/attendees.tsx";
 
 /** Load and decrypt a target attendee by ID for merge operations */
 const loadMergeTarget = async (
-  session: AuthSession,
   attendeeId: number,
 ): Promise<Attendee | null> => {
-  const pk = await requirePrivateKey(session);
+  const pk = await requireRequestPrivateKey();
   const raw = await queryOne<Attendee>(
     `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
      FROM attendees a
@@ -62,7 +61,6 @@ const loadMergeTarget = async (
 /** Look up and decrypt a source attendee by ticket token */
 const loadMergeSource = async (
   token: string,
-  session: AuthSession,
 ): Promise<{
   id: number;
   name: string;
@@ -73,7 +71,7 @@ const loadMergeSource = async (
   ticket_token: string;
   bookings: ListingAttendeeRow[];
 } | null> => {
-  const pk = await requirePrivateKey(session);
+  const pk = await requireRequestPrivateKey();
   const results = await getAttendeesByTokens([token]);
   const raw = results[0];
   if (!raw) return null;
@@ -252,7 +250,6 @@ const buildMergeFlashParts = (
 const validateMergePostInput = async (
   attendeeId: number,
   form: FormParams,
-  session: AuthSession,
 ): Promise<
   | { ok: true; source: MergeSource; sourceToken: string }
   | { ok: false; response: Response }
@@ -268,7 +265,7 @@ const validateMergePostInput = async (
     };
   }
 
-  const source = await loadMergeSource(sourceToken, session);
+  const source = await loadMergeSource(sourceToken);
   if (!source) {
     return {
       ok: false,
@@ -296,7 +293,6 @@ const validateMergePostInput = async (
 
 /** Apply merge decisions and return the success redirect response */
 const applyMergeDecisions = async (
-  session: AuthSession,
   attendeeId: number,
   target: Attendee,
   source: MergeSource,
@@ -306,7 +302,7 @@ const applyMergeDecisions = async (
   const result = await applyAttendeeMerge({
     decision,
     diff,
-    privateKey: await requirePrivateKey(session),
+    privateKey: await requireRequestPrivateKey(),
     sourceId: source.id,
     sourcePii: extractSourcePii(source),
     targetId: attendeeId,
@@ -443,7 +439,7 @@ export const handleMergeGet = handlers.get(async (request, session, target) => {
   const token = getSearchParam(request, "token");
   const flash = applyFlash(request);
   if (!token) return mergeAttendeePage(request, session)(target);
-  const source = await loadMergeSource(token, session);
+  const source = await loadMergeSource(token);
   if (!source) {
     return htmlResponse(
       adminMergeAttendeePage(
@@ -474,7 +470,7 @@ export const handleMergeGet = handlers.get(async (request, session, target) => {
 
 /** Handle POST /admin/attendees/:attendeeId/merge — validate + apply decisions */
 export const handleMergePost = handlers.post(async (session, form, target) => {
-  const input = await validateMergePostInput(target.id, form, session);
+  const input = await validateMergePostInput(target.id, form);
   if (!input.ok) return input.response;
   const { source, sourceToken } = input;
   const diff = await buildMergeDiffFor(target, source, target.id);
@@ -492,12 +488,5 @@ export const handleMergePost = handlers.post(async (session, form, target) => {
       ),
     );
   }
-  return applyMergeDecisions(
-    session,
-    target.id,
-    target,
-    source,
-    diff,
-    decision,
-  );
+  return applyMergeDecisions(target.id, target, source, diff, decision);
 });

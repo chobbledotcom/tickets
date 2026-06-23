@@ -42,7 +42,7 @@ export const handleAdminListingExport: TypedRouteHandler<
   )(
     filteredAttendeesHandler(
       request,
-      async ({ listing, session, dateFilter, filteredByDate }) => {
+      async ({ listing, dateFilter, filteredByDate }) => {
         const isDaily = listing.listing_type === "daily";
         // Mirror the on-screen attendee table: drop the failed-payment rows
         // that are split into the Failed Payments section, then apply the
@@ -56,7 +56,6 @@ export const handleAdminListingExport: TypedRouteHandler<
         const questionData = await loadListingQuestionData(
           listing.id,
           attendeeIds,
-          session,
         );
 
         const csv = generateAttendeesCsv(

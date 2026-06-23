@@ -13,7 +13,6 @@
  * gateway ids to attendees for status webhooks.
  */
 
-import { requirePrivateKey } from "#routes/admin/actions.ts";
 import {
   AUTH_FORM,
   type AuthSession,
@@ -30,6 +29,7 @@ import { countSmsMessages, recordSmsMessage } from "#shared/db/sms-messages.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { bestEffort } from "#shared/logger.ts";
+import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import {
   buildMessagePayload,
   getSmsGatewayConfig,
@@ -68,7 +68,6 @@ const handleSmsGet = (request: Request): Promise<Response> =>
     }
 
     return withAttendee(
-      session,
       listingId,
       attendeeId,
     )(async (data) =>
@@ -85,7 +84,10 @@ const handleSmsGet = (request: Request): Promise<Response> =>
   });
 
 /** Send the composed text to the targeted attendee. */
-const sendSms = (session: AuthSession, form: FormParams): Promise<Response> => {
+const sendSms = (
+  _session: AuthSession,
+  form: FormParams,
+): Promise<Response> => {
   const listingId = parsePositiveIntId(form.getString("listing"));
   const attendeeId = parsePositiveIntId(form.getString("attendee"));
   if (listingId === null || attendeeId === null) {
@@ -94,7 +96,6 @@ const sendSms = (session: AuthSession, form: FormParams): Promise<Response> => {
   const backUrl = smsUrl(listingId, attendeeId);
 
   return withAttendee(
-    session,
     listingId,
     attendeeId,
   )(async (data) => {
@@ -138,7 +139,7 @@ const sendSms = (session: AuthSession, form: FormParams): Promise<Response> => {
         recordContacts(
           [await hashPhone(phone)],
           message,
-          await requirePrivateKey(session),
+          await requireRequestPrivateKey(),
         ),
       );
       await logActivity(
