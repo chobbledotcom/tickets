@@ -36,7 +36,16 @@ mise exec -- deno task cli:api get listings 1
 mise exec -- deno task cli:api create listings '{"name":"Demo","max_attendees":10}'
 mise exec -- deno task cli:api update listings 1 '{"active":false}'
 mise exec -- deno task cli:api delete listings 1 '{"confirm_identifier":"Demo"}'
+
+mise exec -- deno task cli:api list groups
+mise exec -- deno task cli:api create holidays '{"name":"Christmas","start_date":"2025-12-25","end_date":"2025-12-26"}'
 ```
 
-`attendees` and `modifiers` are included as first-class resource names so these
-scripts are ready as soon as matching `/api/admin/:resource` endpoints exist.
+## Resources
+
+The resource names — `listings`, `groups`, and `holidays` — mirror the admin
+JSON API exactly. `cli/resources.ts` is the single source of truth: both the
+TUI and the agent script read from it, and `test/lib/cli.test.ts` derives the
+expected set from the server's `adminApiRoutes` and fails if the two ever
+diverge. Exposing a new `/api/admin/:resource` family is therefore a one-line
+addition here.

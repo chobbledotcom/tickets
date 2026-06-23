@@ -601,7 +601,7 @@ describe("adminCalendarPage availability checker", () => {
       availabilityRow({ id: 8, remaining: 0, total: 2 }),
     ]);
     expect(html).toContain("0/2");
-    expect(html).toContain('class="danger"');
+    expect(html).toContain('class="col-quantity danger"');
   });
 
   test("shows Free, From and plain prices", () => {

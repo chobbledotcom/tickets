@@ -2,6 +2,7 @@ import { mapParallel } from "#fp";
 import {
   execute,
   executeBatch,
+  inPlaceholders,
   queryAll,
   resultRows,
 } from "#shared/db/client.ts";
@@ -42,3 +43,73 @@ export const swapSortOrder = async (
     },
   ]);
 };
+
+/**
+ * Run an id-keyed SELECT, short-circuiting to `[]` (no query) when `ids` is
+ * empty. `buildSql` receives the bound `?`-placeholder list for `ids`, so `ids`
+ * are the only query args. The base skeleton for the id-map helpers below.
+ */
+export const rowsByIds = async <Row>(
+  ids: number[],
+  buildSql: (placeholders: string) => string,
+): Promise<Row[]> =>
+  ids.length === 0 ? [] : queryAll<Row>(buildSql(inPlaceholders(ids)), ids);
+
+/**
+ * Run an integer-keyed lookup query and turn each row into a `[key, value]`
+ * pair via `toEntry`, returning the id-keyed map (empty when `ids` is empty).
+ */
+export const mapByIds = async <Row>(
+  ids: number[],
+  buildSql: (placeholders: string) => string,
+  toEntry: (row: Row) => [number, number],
+): Promise<Map<number, number>> =>
+  new Map((await rowsByIds<Row>(ids, buildSql)).map(toEntry));
+
+/**
+ * Map each row's `id` to a decrypted display name (`id → name`) for the rows of
+ * `table` whose id is in `ids`. `alias` is the table's singular-word alias and
+ * qualifies the selected columns (per the repo's SQL convention); `nameColumn`
+ * is the (encrypted) column to read; `decryptName` turns its raw stored value
+ * into the plaintext name — so this stays decryption-agnostic. `table`/`alias`/
+ * `nameColumn` are internal constants, never user input. Empty `ids` ⇒ empty
+ * map and no query.
+ */
+export const nameMapByIds = async <Raw>(
+  table: string,
+  alias: string,
+  nameColumn: string,
+  ids: number[],
+  decryptName: (raw: Raw) => Promise<string>,
+): Promise<Map<number, string>> => {
+  const rows = await rowsByIds<{ id: number; name: Raw }>(
+    ids,
+    (placeholders) =>
+      `SELECT ${alias}.id, ${alias}.${nameColumn} AS name FROM ${table} AS ${alias} WHERE ${alias}.id IN (${placeholders})`,
+  );
+  const entries = await Promise.all(
+    rows.map(async (row) => [row.id, await decryptName(row.name)] as const),
+  );
+  return new Map(entries);
+};
+
+/**
+ * Map each row's `id` to one of its integer columns (`id → column`) for the
+ * rows of `table` whose id is in `ids`, optionally narrowed by an extra `where`
+ * fragment appended verbatim (e.g. ` AND modifier_id IS NOT NULL`). `alias` is
+ * the table's singular-word alias and qualifies the selected columns. `table`,
+ * `alias`, `column` and `where` are always internal constants, never user input.
+ */
+export const columnMapByIds = (
+  table: string,
+  alias: string,
+  column: string,
+  ids: number[],
+  where = "",
+): Promise<Map<number, number>> =>
+  mapByIds<{ id: number; value: number }>(
+    ids,
+    (placeholders) =>
+      `SELECT ${alias}.id, ${alias}.${column} AS value FROM ${table} AS ${alias} WHERE ${alias}.id IN (${placeholders})${where}`,
+    (row) => [row.id, row.value],
+  );

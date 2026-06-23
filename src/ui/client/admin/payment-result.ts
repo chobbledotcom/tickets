@@ -1,4 +1,5 @@
 /// <reference lib="dom" />
+/// <reference lib="dom.iterable" />
 /** Payment result pages: notify opener iframe via postMessage when in a popup. */
 export const initPaymentResultNotifier = (): void => {
   const paymentResult = document.querySelector<HTMLElement>(

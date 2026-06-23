@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { t } from "#i18n";
 import { settings } from "#shared/db/settings.ts";
 import {
   resetHostEmailConfig,
@@ -182,7 +183,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
       await assertAdminHtml(
         "/admin/guide",
         "Settings Overview",
-        "Country",
+        "Business email",
         "Site theme",
       );
     });
@@ -483,6 +484,61 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
         "behind on billing",
         "undergoing maintenance",
       );
+    });
+  });
+
+  describe("guide section structure", () => {
+    const guideHtml = async (): Promise<string> => {
+      const { response } = await adminGet("/admin/guide");
+      return response.text();
+    };
+
+    // Modifiers renders as its own <h3> section immediately before Booking
+    // Questions, so the slice between those two headings is exactly the
+    // Modifiers section's body — every <summary> in it is a Modifiers FAQ.
+    test("Modifiers section contains exactly its own two FAQs", async () => {
+      const html = await guideHtml();
+      const start = html.indexOf(`>${t("guide.sections.modifiers")}</h3>`);
+      const end = html.indexOf(
+        `>${t("guide.sections.booking_questions")}</h3>`,
+      );
+      expect(start).toBeGreaterThanOrEqual(0);
+      expect(end).toBeGreaterThan(start);
+
+      const summaries = [
+        ...html.slice(start, end).matchAll(/<summary>(.*?)<\/summary>/gs),
+      ].map((match) => match[1] ?? "");
+
+      expect(summaries).toEqual([
+        t("guide.q.what_are_modifiers"),
+        t("guide.q.how_modifier_values_work"),
+      ]);
+    });
+
+    // The original bug nested the Modifiers <Section> in the middle of the
+    // Listings FAQ list, so its <h3> rendered before later listing FAQs and
+    // pulled them under its heading. Pinning the Modifiers heading after the
+    // last listing FAQ and before the next section catches any such regression.
+    test("Modifiers heading sits after the listing FAQs, not in the middle", async () => {
+      const html = await guideHtml();
+      const indexOf = (needle: string): number => {
+        const i = html.indexOf(needle);
+        expect(i).toBeGreaterThanOrEqual(0);
+        return i;
+      };
+
+      const lastListingFaq = indexOf(
+        `<summary>${t("guide.q.add_terms_and_conditions")}</summary>`,
+      );
+      const modifiersHeading = indexOf(
+        `>${t("guide.sections.modifiers")}</h3>`,
+      );
+      const nextSection = indexOf(
+        `>${t("guide.sections.booking_questions")}</h3>`,
+      );
+
+      expect(modifiersHeading).toBeGreaterThan(lastListingFaq);
+      expect(modifiersHeading).toBeLessThan(nextSection);
     });
   });
 });

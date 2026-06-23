@@ -1,13 +1,43 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
+import type { AttendeeBooking } from "#routes/admin/attendee-form-model.ts";
+import { formatCurrency } from "#shared/currency.ts";
+import { formatDateRangeLabel } from "#shared/dates.ts";
 import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
+import { account } from "#shared/ledger/account.ts";
+import { statementFor } from "#shared/ledger/project.ts";
 import {
   AttendeeAnswersTable,
+  AttendeeBookingsTable,
   AttendeeDetail,
+  AttendeeLedgerSection,
   AttendeeLogSection,
+  BookingStatusBadges,
 } from "#templates/admin/attendee-detail.tsx";
-import { setupTestEncryptionKey, testAttendee } from "#test-utils";
+import { emptyLedgerNames } from "#templates/admin/ledger.tsx";
+import {
+  expectListingRowQuantity,
+  setupTestEncryptionKey,
+  testAttendee,
+} from "#test-utils";
+
+const booking = (
+  overrides: Partial<AttendeeBooking> = {},
+): AttendeeBooking => ({
+  checkedIn: false,
+  endAt: null,
+  listingActive: true,
+  listingId: 1,
+  listingName: "Test Listing",
+  quantity: 1,
+  refunded: false,
+  startAt: null,
+  ...overrides,
+});
+
+const renderBookings = (bookings: AttendeeBooking[]): string =>
+  String(AttendeeBookingsTable({ bookings }));
 
 const ALLOWED_DOMAIN = "tickets.example.com";
 
@@ -74,19 +104,124 @@ describe("AttendeeDetail", () => {
   });
 });
 
+describe("BookingStatusBadges", () => {
+  test("returns null when the booking is neither checked in nor refunded", () => {
+    // Null lets the table swap in an em dash for the status cell.
+    expect(
+      BookingStatusBadges({ checkedIn: false, refunded: false }),
+    ).toBeNull();
+  });
+
+  test("renders a plain badge when checked in", () => {
+    const html = String(
+      BookingStatusBadges({ checkedIn: true, refunded: false }),
+    );
+    expect(html).toContain('<span class="badge">Checked in</span>');
+    expect(html).not.toContain("Refunded");
+  });
+
+  test("renders a danger badge when refunded", () => {
+    const html = String(
+      BookingStatusBadges({ checkedIn: false, refunded: true }),
+    );
+    expect(html).toContain('<span class="badge danger">Refunded</span>');
+    expect(html).not.toContain("Checked in");
+  });
+
+  test("renders both badges when checked in and refunded", () => {
+    const html = String(
+      BookingStatusBadges({ checkedIn: true, refunded: true }),
+    );
+    expect(html).toContain("Checked in");
+    expect(html).toContain("Refunded");
+  });
+});
+
+describe("AttendeeBookingsTable", () => {
+  test("returns null when the attendee has no bookings", () => {
+    // Null lets the caller drop the whole section.
+    expect(AttendeeBookingsTable({ bookings: [] })).toBeNull();
+  });
+
+  test("lists each booked listing with a link, quantity, and total", () => {
+    const html = renderBookings([
+      booking({ listingId: 7, listingName: "Kayak", quantity: 2 }),
+      booking({ listingId: 8, listingName: "Canoe", quantity: 3 }),
+    ]);
+    expect(html).toContain("Bookings");
+    expect(html).toContain('href="/admin/listing/7"');
+    expect(html).toContain("Kayak");
+    expect(html).toContain('href="/admin/listing/8"');
+    expect(html).toContain("Canoe");
+    // Each listing's row shows its own quantity (Kayak→2, Canoe→3), so a
+    // swapped grouping fails here, not just a wrong sum...
+    expectListingRowQuantity(html, 7, 2);
+    expectListingRowQuantity(html, 8, 3);
+    // ...and the footer totals them (2 + 3); only the total cell holds 5.
+    expect(html).toContain("Total");
+    expect(html).toContain('<td class="col-quantity">5</td>');
+  });
+
+  test("formats the date range for a dated (daily) booking", () => {
+    const html = renderBookings([
+      booking({
+        endAt: "2026-06-03T00:00:00Z",
+        startAt: "2026-06-01T00:00:00Z",
+      }),
+    ]);
+    expect(html).toContain(
+      formatDateRangeLabel("2026-06-01T00:00:00Z", "2026-06-03T00:00:00Z"),
+    );
+  });
+
+  test("shows an em dash in the date cell when a booking has no date", () => {
+    // A standard (fixed-date) booking carries no start date; the status badge
+    // proves the only em dash present is the date fallback.
+    const html = renderBookings([booking({ checkedIn: true, startAt: null })]);
+    expect(html).toContain("Checked in");
+    expect(html).toContain("—");
+  });
+
+  test("marks an inactive listing", () => {
+    expect(renderBookings([booking({ listingActive: false })])).toContain(
+      "(Inactive)",
+    );
+    expect(renderBookings([booking({ listingActive: true })])).not.toContain(
+      "(Inactive)",
+    );
+  });
+
+  test("falls back to an em dash when a booking has no status", () => {
+    // Dated so the only em dash can come from the empty status cell.
+    const html = renderBookings([
+      booking({
+        checkedIn: false,
+        endAt: "2026-06-02T00:00:00Z",
+        refunded: false,
+        startAt: "2026-06-01T00:00:00Z",
+      }),
+    ]);
+    expect(html).not.toContain("Checked in");
+    expect(html).not.toContain("Refunded");
+    expect(html).toContain("—");
+  });
+});
+
 describe("AttendeeAnswersTable", () => {
   const questions: QuestionWithAnswers[] = [
     {
       answers: [
-        { id: 10, question_id: 1, sort_order: 0, text: "Small" },
-        { id: 11, question_id: 1, sort_order: 1, text: "Large" },
+        { active: true, id: 10, question_id: 1, sort_order: 0, text: "Small" },
+        { active: true, id: 11, question_id: 1, sort_order: 1, text: "Large" },
       ],
       display_type: "radio" as const,
       id: 1,
       text: "Shirt size?",
     },
     {
-      answers: [{ id: 20, question_id: 2, sort_order: 0, text: "Vegan" }],
+      answers: [
+        { active: true, id: 20, question_id: 2, sort_order: 0, text: "Vegan" },
+      ],
       display_type: "radio" as const,
       id: 2,
       text: "Meal?",
@@ -139,5 +274,53 @@ describe("AttendeeLogSection", () => {
   test("shows the empty state when the attendee has no log entries", () => {
     const html = String(AttendeeLogSection({ entries: [] }));
     expect(html).toContain("No activity recorded yet");
+  });
+});
+
+describe("AttendeeLedgerSection", () => {
+  const acct = account("attendee", 7);
+
+  test("embeds the shared statement in a collapsed Ledger disclosure with the balance and a full-ledger action", () => {
+    // A single payment credits the attendee account, so its balance is +5000.
+    const lines = statementFor(acct)([
+      {
+        amount: 5000,
+        destination: acct,
+        eventGroup: "evt",
+        id: 1,
+        kind: "payment",
+        occurredAt: "2026-06-21T10:00:00.000Z",
+        recordedAt: "2026-06-21T10:00:00.000Z",
+        reference: "pay-1",
+        source: account("external", "world"),
+      },
+    ]);
+    const html = String(
+      AttendeeLedgerSection({
+        ledger: { account: acct, lines, names: emptyLedgerNames() },
+      }),
+    );
+    // Collapsed in a details/summary like the activity log — no fieldset/legend.
+    expect(html).toContain("<details>");
+    expect(html).toContain("<summary>Ledger</summary>");
+    expect(html).not.toContain("<legend>Ledger</legend>");
+    // The action row reuses .table-header-actions and links to the full ledger.
+    expect(html).toContain('class="table-header-actions"');
+    expect(html).toContain('href="/admin/ledger/attendee/7"');
+    expect(html).toContain("View full ledger");
+    // The counterparty singleton and the running balance both render.
+    expect(html).toContain("Card / bank");
+    expect(html).toContain(`Balance: ${formatCurrency(5000)}`);
+    expect(html).toContain('<th class="col-amount">Balance</th>');
+  });
+
+  test("shows the empty state for an attendee with no transfers", () => {
+    const html = String(
+      AttendeeLedgerSection({
+        ledger: { account: acct, lines: [], names: emptyLedgerNames() },
+      }),
+    );
+    expect(html).toContain("No transfers recorded yet");
+    expect(html).toContain(`Balance: ${formatCurrency(0)}`);
   });
 });

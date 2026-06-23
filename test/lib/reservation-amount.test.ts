@@ -248,6 +248,33 @@ describe("reservation-amount", () => {
     );
 
     testWithSetting(
+      "breaks leftover ties by cart order across items, not by item alone",
+      { currency: "GBP" },
+      () => {
+        // Deposit of 20 minor units across 4 units priced [90, 70, 70, 70]
+        // (item0 ×1, item1 ×2, item2 ×1; subtotal 300). Proportional floors are
+        // [6, 4, 4, 4] (18) leaving 2 leftover minor units. The three 70-priced
+        // units share the same fractional remainder, so the two leftovers must
+        // go to the *earliest* units in cart order — both of item1's units —
+        // never to item2's later unit. This pins down that each unit's tie-break
+        // key is its absolute cart position (prefix quantity + unit index), so
+        // item1's second unit outranks item2's first unit.
+        const allocation = allocateReservationDeposit("0.20", [
+          { quantity: 1, unitPrice: 90 },
+          { quantity: 2, unitPrice: 70 },
+          { quantity: 1, unitPrice: 70 },
+        ]);
+        expect(allocation.total).toBe(20);
+        expect(allocation.perItemTotals).toEqual([6, 10, 4]);
+        expect(allocation.lines).toEqual([
+          { chargedUnitAmount: 6, itemIndex: 0, quantity: 1 },
+          { chargedUnitAmount: 5, itemIndex: 1, quantity: 2 },
+          { chargedUnitAmount: 4, itemIndex: 2, quantity: 1 },
+        ]);
+      },
+    );
+
+    testWithSetting(
       "percent and per-item totals preserve their order-level semantics",
       { currency: "GBP" },
       () => {

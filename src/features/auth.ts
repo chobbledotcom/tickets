@@ -11,10 +11,7 @@ import {
 import { parseCookies } from "#routes/url.ts";
 import { getRequestClientIp } from "#shared/client-context.ts";
 import { getSessionCookieName } from "#shared/cookies.ts";
-import {
-  getPrivateKeyFromSession,
-  unwrapKeyWithToken,
-} from "#shared/crypto/keys.ts";
+import { unwrapKeyWithToken } from "#shared/crypto/keys.ts";
 import { generateSecureToken } from "#shared/crypto/utils.ts";
 import { signCsrfToken, verifySignedCsrfToken } from "#shared/csrf.ts";
 import {
@@ -23,7 +20,6 @@ import {
 } from "#shared/db/api-key-attempts.ts";
 import { getApiKeyByToken, touchApiKeyLastUsed } from "#shared/db/api-keys.ts";
 import { deleteSession, getSession } from "#shared/db/sessions.ts";
-import { settings } from "#shared/db/settings.ts";
 import { decryptAdminLevel, getUserAuthFieldsById } from "#shared/db/users.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { setSavedFormData } from "#shared/forms.tsx";
@@ -39,15 +35,16 @@ import {
   STAFF_ADMIN_LEVELS,
 } from "#shared/types.ts";
 
+// SessionKeyError and the session→private-key derivation live in #shared so
+// shared-layer modules (e.g. the activity log) can reach them without importing
+// the feature layer. Re-exported here for the central request error handler
+// (#routes/index.ts), which special-cases it into a re-authenticate response.
+// Route handlers derive the key directly via requireRequestPrivateKey /
+// getRequestPrivateKey (#shared/session-private-key.ts) — the request-scoped,
+// thread-free form that needs no session argument.
+export { SessionKeyError } from "#shared/session-private-key.ts";
 // Re-export for callers that need it
 export { generateSecureToken };
-
-/** Thrown when a session's private key cannot be derived (e.g. wrappedDataKey missing or unwrap failure) */
-export class SessionKeyError extends Error {
-  constructor() {
-    super("Private key unavailable for session");
-  }
-}
 
 /** Session with wrapped data key for private key derivation, and user role */
 export type AuthSession = {
@@ -206,29 +203,6 @@ export const getAuthenticatedApiKey = async (
   };
   setCachedSession(result);
   return result;
-};
-
-/**
- * Get private key for decrypting attendee PII from an authenticated session
- * Returns null if session doesn't have wrapped_data_key
- */
-export const getPrivateKey = async (session: {
-  token: string;
-  wrappedDataKey: string | null;
-}): Promise<CryptoKey | null> => {
-  if (!session.wrappedDataKey) return null;
-
-  if (!settings.wrappedPrivateKey) return null;
-
-  try {
-    return await getPrivateKeyFromSession(
-      session.token,
-      session.wrappedDataKey,
-      settings.wrappedPrivateKey,
-    );
-  } catch {
-    return null;
-  }
 };
 
 /** How the request was authenticated */

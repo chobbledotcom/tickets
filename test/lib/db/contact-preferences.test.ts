@@ -1,22 +1,31 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { hmacHash } from "#shared/crypto/hashing.ts";
-import { queryOne } from "#shared/db/client.ts";
+import { encryptWithOwnerKey } from "#shared/crypto/keys.ts";
+import { execute, queryOne } from "#shared/db/client.ts";
 import {
   contactHash,
   forgetContact,
+  fromContactHashParam,
+  getContactCountFields,
   getContactCounts,
-  getEmailStats,
+  getContactRecord,
   getUnsubscribedHashSet,
   getVisits,
   hashEmail,
   hashPhone,
   isHashUnsubscribed,
+  recordBooking,
   recordContacts,
   recordVisit,
   resubscribeHash,
+  saveContactRecord,
+  toContactHashParam,
+  unrecordBooking,
+  unrecordVisit,
   unsubscribeHash,
 } from "#shared/db/contact-preferences.ts";
+import { settings } from "#shared/db/settings.ts";
 import { describeWithEnv, getTestPrivateKey } from "#test-utils";
 import {
   createTestAttendeeDirect,
@@ -77,6 +86,23 @@ describeWithEnv("contact-preferences: hashing", { db: true }, () => {
       await hashPhone("+44 7700 900000"),
     );
   });
+
+  test("a contact hash round-trips through its URL-safe param", async () => {
+    // base64 hashes can contain +, / and =, which break a URL path segment;
+    // the param form must strip them and decode back to the exact hash.
+    const hash = await hashEmail("urlsafe@example.com");
+    const param = toContactHashParam(hash);
+    expect(param).not.toMatch(/[+/=]/);
+    expect(fromContactHashParam(param)).toBe(hash);
+  });
+
+  test("toContactHashParam makes a slash-bearing base64 hash URL-safe", () => {
+    // Synthetic base64 with the exact characters that break path routing.
+    const raw = "ab+cd/efGHij/klMNop/qrSTuv==";
+    const param = toContactHashParam(raw);
+    expect(param).not.toMatch(/[+/=]/);
+    expect(fromContactHashParam(param)).toBe(raw);
+  });
 });
 
 describeWithEnv("contact-preferences: unsubscribe state", { db: true }, () => {
@@ -132,7 +158,7 @@ describeWithEnv("contact-preferences: unsubscribe state", { db: true }, () => {
     await recordContacts([hash], "Hello", pk);
     await unsubscribeHash(hash);
     expect(await isHashUnsubscribed(hash)).toBe(true);
-    expect((await getEmailStats(hash, pk)).contactCount).toBe(1);
+    expect((await getContactRecord(hash, pk)).contactCount).toBe(1);
   });
 });
 
@@ -206,15 +232,68 @@ describeWithEnv("contact-preferences: contact history", { db: true }, () => {
   test("an unseen address has zeroed stats", async () => {
     const pk = await getTestPrivateKey();
     expect(
-      await getEmailStats(await hashEmail("unseen@example.com"), pk),
-    ).toEqual({ contactCount: 0, lastContact: "", lastSubject: "" });
+      await getContactRecord(await hashEmail("unseen@example.com"), pk),
+    ).toEqual({
+      adminBookingCount: 0,
+      adminNotes: "",
+      contactCount: 0,
+      lastContact: "",
+      lastSubject: "",
+      publicBookingCount: 0,
+      visits: 0,
+    });
   });
 
   test("a visited address has zero contacts", async () => {
     const pk = await getTestPrivateKey();
     const hash = await hashEmail("booked@example.com");
     await recordVisit(hash);
-    expect((await getEmailStats(hash, pk)).contactCount).toBe(0);
+    expect((await getContactRecord(hash, pk)).contactCount).toBe(0);
+  });
+
+  test("legacy stats blobs default newly-added fields", async () => {
+    const pk = await getTestPrivateKey();
+    const hash = await hashEmail("legacy@example.com");
+    const encrypted = await encryptWithOwnerKey(
+      JSON.stringify({}),
+      settings.publicKey,
+    );
+    await execute(
+      "INSERT INTO contact_preferences (contact_hash, stats_blob) VALUES (?, ?)",
+      [hash, encrypted],
+    );
+
+    expect(await getContactRecord(hash, pk)).toEqual({
+      adminBookingCount: 0,
+      adminNotes: "",
+      contactCount: 0,
+      lastContact: "",
+      lastSubject: "",
+      publicBookingCount: 0,
+      visits: 0,
+    });
+  });
+
+  test("getContactCountFields reads plaintext counts past a corrupt blob", async () => {
+    const hash = await hashEmail("corrupt@example.com");
+    await execute(
+      "INSERT INTO contact_preferences (contact_hash, visits, public_booking_count, admin_booking_count, stats_blob) VALUES (?, ?, ?, ?, ?)",
+      [hash, 4, 3, 1, "not-valid-ciphertext"],
+    );
+
+    // No private key, no decryption — the corrupt note is irrelevant, so the
+    // editor can still recover the real counts to repair the row.
+    expect(await getContactCountFields(hash)).toEqual({
+      adminBookingCount: 1,
+      publicBookingCount: 3,
+      visits: 4,
+    });
+  });
+
+  test("getContactCountFields defaults to zero for an unknown contact", async () => {
+    expect(
+      await getContactCountFields(await hashEmail("nobody@example.com")),
+    ).toEqual({ adminBookingCount: 0, publicBookingCount: 0, visits: 0 });
   });
 
   test("recordContacts bumps count and stores subject + time", async () => {
@@ -223,7 +302,7 @@ describeWithEnv("contact-preferences: contact history", { db: true }, () => {
     await recordContacts([hash], "First campaign", pk);
     await recordContacts([hash], "Second campaign", pk);
 
-    const stats = await getEmailStats(hash, pk);
+    const stats = await getContactRecord(hash, pk);
     expect(stats.contactCount).toBe(2);
     expect(stats.lastSubject).toBe("Second campaign");
     expect(stats.lastContact).not.toBe("");
@@ -254,6 +333,75 @@ describeWithEnv("contact-preferences: contact history", { db: true }, () => {
     const pk = await getTestPrivateKey();
     expect(await getContactCounts([], pk)).toEqual([]);
     await recordContacts([], "Nothing", pk);
+  });
+
+  test("recordBooking splits the count by source, leaving outreach stats intact", async () => {
+    const pk = await getTestPrivateKey();
+    const hash = await hashEmail("bookings@example.com");
+    await recordContacts([hash], "Newsletter", pk);
+    await recordBooking(hash, "public");
+    await recordBooking(hash, "public");
+    await recordBooking(hash, "admin");
+
+    const record = await getContactRecord(hash, pk);
+    expect(record.publicBookingCount).toBe(2);
+    expect(record.adminBookingCount).toBe(1);
+    // Booking counts are plaintext columns; the encrypted outreach stats are
+    // untouched, so the recorded contact subject still survives.
+    expect(record.contactCount).toBe(1);
+    expect(record.lastSubject).toBe("Newsletter");
+  });
+
+  test("recordBooking needs no owner key (plaintext column write)", async () => {
+    const pk = await getTestPrivateKey();
+    const hash = await hashEmail("keyless@example.com");
+    // No private key is passed — the public checkout/webhook paths rely on this.
+    await recordBooking(hash, "public");
+    expect((await getContactRecord(hash, pk)).publicBookingCount).toBe(1);
+  });
+
+  test("unrecordBooking reverses a recordBooking and clamps at zero", async () => {
+    const pk = await getTestPrivateKey();
+    const hash = await hashEmail("undo@example.com");
+    await recordBooking(hash, "public");
+    await recordBooking(hash, "public");
+    await unrecordBooking(hash, "public");
+    expect((await getContactRecord(hash, pk)).publicBookingCount).toBe(1);
+    // Decrementing past zero never goes negative.
+    await unrecordBooking(hash, "public");
+    await unrecordBooking(hash, "public");
+    expect((await getContactRecord(hash, pk)).publicBookingCount).toBe(0);
+  });
+
+  test("unrecordVisit reverses a recordVisit, clamped at zero", async () => {
+    const hash = await hashEmail("undovisit@example.com");
+    await recordVisit(hash);
+    await unrecordVisit(hash);
+    await unrecordVisit(hash);
+    expect(await getVisits(hash)).toBe(0);
+  });
+
+  test("saveContactRecord overwrites the counts and the encrypted note", async () => {
+    const pk = await getTestPrivateKey();
+    const hash = await hashEmail("notes@example.com");
+    await recordBooking(hash, "public");
+    await saveContactRecord(hash, {
+      adminBookingCount: 3,
+      adminNotes: "**VIP** customer",
+      contactCount: 5,
+      lastContact: "",
+      lastSubject: "Welcome",
+      publicBookingCount: 7,
+      visits: 9,
+    });
+
+    const record = await getContactRecord(hash, pk);
+    expect(record.adminNotes).toBe("**VIP** customer");
+    expect(record.lastSubject).toBe("Welcome");
+    expect(record.publicBookingCount).toBe(7);
+    expect(record.adminBookingCount).toBe(3);
+    expect(record.contactCount).toBe(5);
+    expect(record.visits).toBe(9);
   });
 });
 
@@ -293,5 +441,40 @@ describeWithEnv("contact-preferences: booking seed", { db: true }, () => {
     const listing = await createTestListing({ maxAttendees: 5, name: "Gig" });
     await createTestAttendeeDirect(listing.id, "Nameless", "");
     expect(await preferenceRowExists(await hashEmail(""))).toBe(false);
+  });
+
+  test("a default (online) order counts as a public booking", async () => {
+    const pk = await getTestPrivateKey();
+    const listing = await createTestListing({ maxAttendees: 5, name: "Pub" });
+    const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
+    await createAttendeeAtomic({
+      bookings: [{ listingId: listing.id }],
+      email: "public-buyer@example.com",
+      name: "Buyer",
+    });
+    const record = await getContactRecord(
+      await hashEmail("public-buyer@example.com"),
+      pk,
+    );
+    expect(record.publicBookingCount).toBe(1);
+    expect(record.adminBookingCount).toBe(0);
+  });
+
+  test("an admin-source order counts as an admin booking", async () => {
+    const pk = await getTestPrivateKey();
+    const listing = await createTestListing({ maxAttendees: 5, name: "Adm" });
+    const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
+    await createAttendeeAtomic({
+      bookings: [{ listingId: listing.id }],
+      email: "admin-added@example.com",
+      name: "Added",
+      source: "admin",
+    });
+    const record = await getContactRecord(
+      await hashEmail("admin-added@example.com"),
+      pk,
+    );
+    expect(record.adminBookingCount).toBe(1);
+    expect(record.publicBookingCount).toBe(0);
   });
 });

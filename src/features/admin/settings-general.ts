@@ -16,7 +16,6 @@ import { validateColumnTemplate } from "#shared/column-order.ts";
 import { ATTENDEE_TABLE_COLUMNS } from "#shared/columns/attendee-columns.ts";
 import { LISTING_TABLE_COLUMNS } from "#shared/columns/listing-columns.ts";
 import { clearSessionCookie } from "#shared/cookies.ts";
-import { isValidCountry } from "#shared/countries.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import { resetDatabase } from "#shared/db/migrations.ts";
@@ -96,21 +95,6 @@ export const handleTermsPost = settingsHandler({
       : null,
 });
 
-/** Handle POST /admin/settings/country - owner only */
-export const handleCountryPost = settingsHandler({
-  extract: (form) => form.getString("country").toUpperCase(),
-  formId: "settings-country",
-  label: "Country",
-  log: (v) => `Country set to ${v}`,
-  save: (v) => settings.update.country(v),
-  validate: (v) =>
-    v === ""
-      ? t("error.country_required")
-      : !isValidCountry(v)
-        ? t("error.country_invalid")
-        : null,
-});
-
 /** Handle POST /admin/settings/business-email - owner only */
 export const handleBusinessEmailPost = settingsClearable({
   field: "business_email",
@@ -120,15 +104,23 @@ export const handleBusinessEmailPost = settingsClearable({
   validate: (v) => (!isValidEmail(v) ? t("error.email_format") : null),
 });
 
-/** Handle POST /admin/settings/theme - owner only */
+/** Handle POST /admin/settings/theme - owner only. The Site Theme form also
+ * carries the "Underline links" checkbox, so this saves both the theme and the
+ * underline-links toggle (off when the checkbox is absent) in one submission. */
 export const handleThemePost = settingsHandler({
-  extract: (form) => form.getString("theme"),
+  extract: (form) => ({
+    theme: form.getString("theme"),
+    underlineLinks: form.get("underline_links") === "true",
+  }),
   formId: "settings-theme",
   label: "Theme",
-  log: (v) => `Theme set to ${v}`,
-  save: (v) => settings.update.theme(v as Theme),
+  log: (v) => `Theme set to ${v.theme}`,
+  save: async (v) => {
+    await settings.update.theme(v.theme as Theme);
+    await settings.update.underlineLinks(v.underlineLinks);
+  },
   validate: (v) =>
-    v !== "light" && v !== "dark" ? t("error.invalid_theme") : null,
+    v.theme !== "light" && v.theme !== "dark" ? t("error.invalid_theme") : null,
 });
 
 /** Handle POST /admin/settings/show-public-site - owner only */

@@ -6,7 +6,6 @@ import { buildSessionCookie } from "#shared/cookies.ts";
 import { hashPassword } from "#shared/crypto/hashing.ts";
 import { generateSecureToken } from "#shared/crypto/utils.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { getAllActivityLog } from "#shared/db/activityLog.ts";
 import { createSession } from "#shared/db/sessions.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
@@ -21,7 +20,8 @@ import {
   createTestManagerSession,
   describeWithEnv,
   expectFlash,
-  expectRedirectWithFlash,
+  expectFlashRedirect,
+  getAllActivityLog,
   mockFormRequest,
   setTestEnv,
   testCookie,
@@ -102,7 +102,7 @@ describeWithEnv("server (admin settings superuser)", { db: true }, () => {
       const { response } = await adminFormPost(SUPERUSER_ROUTE, {
         superuser_choice: "self-managed",
       });
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/settings?form=settings-superuser#settings-superuser",
         "Superuser recovery declined",
       )(response);
@@ -288,7 +288,7 @@ describeWithEnv("server (admin settings superuser)", { db: true }, () => {
           const { response } = await adminFormPost(SUPERUSER_ROUTE, {
             superuser_choice: "enable-superuser",
           });
-          expectRedirectWithFlash(
+          await expectFlashRedirect(
             "/admin/settings?form=settings-superuser#settings-superuser",
             "Superuser enabled and credentials sent",
           )(response);

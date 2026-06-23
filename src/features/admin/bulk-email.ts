@@ -13,7 +13,6 @@
  * button (formaction="/admin/emails/templates") creates or updates a template.
  */
 
-import { requirePrivateKey } from "#routes/admin/actions.ts";
 import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
 import {
   type AuthSession,
@@ -79,6 +78,7 @@ import type { FormParams } from "#shared/form-data.ts";
 import { MAX_EMAIL_TEMPLATES } from "#shared/limits.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import { ok } from "#shared/response.ts";
+import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { parsePositiveIntId } from "#shared/validation/number.ts";
 import {
   bulkEmailComposePage,
@@ -110,12 +110,11 @@ const getBulkAvailability = (): BulkAvailability => {
 
 /** Recipients + the private key used + the owner's bulk-send availability. */
 const loadSendContext = async (
-  session: AuthSession,
   target: BulkEmailTarget,
 ): Promise<
   { privateKey: CryptoKey; recipients: string[] } & BulkAvailability
 > => {
-  const privateKey = await requirePrivateKey(session);
+  const privateKey = await requireRequestPrivateKey();
   return {
     privateKey,
     recipients: await resolveRecipientEmails(target, privateKey),
@@ -147,7 +146,9 @@ const saveDraft = async (
   await settings.update.bulkEmailDraft(encrypted);
 };
 
-/** Wrap an owner-only page builder: gate on owner, apply flash, then build. */
+/** Wrap an owner-only page builder: gate on owner, record the flash's target
+ * form (so a matching CsrfForm renders it inline), then build. The flash itself
+ * is rendered by the targeted form or the Layout backstop — not threaded here. */
 const ownerEmailPage =
   (build: (request: Request, session: AuthSession) => Promise<Response>) =>
   (request: Request): Promise<Response> =>
@@ -191,7 +192,7 @@ const handleComposeGet = ownerEmailPage(async (request, session) => {
   const target = await targetFromQuery(params);
   if (!target) return notFoundResponse();
   const { recipients, privateKey, canBulkSend, disabledReason } =
-    await loadSendContext(session, target);
+    await loadSendContext(target);
   // A listing or attendee target with no emailable recipient (an unknown
   // attendee token, or nobody with an email on file) has nothing to send to —
   // treat it as not found rather than rendering an empty compose page. Named
@@ -287,11 +288,11 @@ const handlePreviewPost = (request: Request): Promise<Response> =>
 
 /** GET /admin/emails/preview — render the saved draft for confirmation. */
 const handlePreviewGet = ownerEmailPage(async (_request, session) => {
-  const privateKey = await requirePrivateKey(session);
+  const privateKey = await requireRequestPrivateKey();
   const draft = await parseSavedDraft(privateKey);
   if (!draft) return redirectResponse(COMPOSE_PATH);
   const { recipients, canBulkSend, disabledReason, config } =
-    await loadSendContext(session, draft.target);
+    await loadSendContext(draft.target);
   const { sendable, skipped } = await partitionRecipients(
     recipients,
     draft.marketing,
@@ -327,13 +328,12 @@ const handlePreviewGet = ownerEmailPage(async (_request, session) => {
 
 /** POST /admin/emails/send — send the saved draft via the bulk provider. */
 const handleSendPost = (request: Request): Promise<Response> =>
-  withAuth(request, OWNER_FORM, async (session, _form) => {
-    const draft = await parseSavedDraft(await requirePrivateKey(session));
+  withAuth(request, OWNER_FORM, async (_session, _form) => {
+    const draft = await parseSavedDraft(await requireRequestPrivateKey());
     if (!draft) {
       return errorRedirect(COMPOSE_PATH, "There's no email to send.");
     }
     const { privateKey, recipients, config } = await loadSendContext(
-      session,
       draft.target,
     );
     if (!config) {
@@ -441,10 +441,10 @@ const templateDelete = createConfirmedHandlers<{ id: number; subject: string }>(
     auth: "owner",
     identifier: (template) => template.subject,
     identifierLabel: "Template subject",
-    load: async (id, session) => {
+    load: async (id) => {
       const raw = await getRawEmailTemplate(id);
       if (!raw) return null;
-      const privateKey = await requirePrivateKey(session);
+      const privateKey = await requireRequestPrivateKey();
       return {
         id,
         subject: await decryptWithOwnerKey(raw.subject, privateKey),

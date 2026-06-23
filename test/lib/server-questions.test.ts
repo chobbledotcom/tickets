@@ -9,8 +9,8 @@ import {
   createTestManagerSession,
   describeWithEnv,
   expectFlash,
+  expectFlashRedirect,
   expectHtmlResponse,
-  expectRedirectWithFlash,
   expectStatus,
   mockFormRequest,
   testCookie,
@@ -107,7 +107,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       );
       const questions = await getAllQuestionsWithAnswers();
       const found = questions.find((q) => q.text === "Redirect target?")!;
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/questions/${found.id}`,
         "Question created",
       )(response);
@@ -138,7 +138,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         (q) => q.text === "Choose one?",
       );
       expect(question?.display_type).toBe("select");
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/questions/${question!.id}`,
         "Question created",
       )(response);
@@ -153,7 +153,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       expectFlash(
         response,
         expect.stringContaining(
-          "Display as must be radio buttons or a select box",
+          "Display as must be radio buttons, a select box, or free text",
         ),
         false,
       );
@@ -215,7 +215,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         display_type: "radio" as const,
         text: "After edit",
       });
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/questions/${id}`,
         "Question updated",
       )(response);
@@ -250,10 +250,40 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       expectFlash(
         response,
         expect.stringContaining(
-          "Display as must be radio buttons or a select box",
+          "Display as must be radio buttons, a select box, or free text",
         ),
         false,
       );
+    });
+
+    test("keeps a free-text question free-text, ignoring a submitted choice type", async () => {
+      const { questionsTable } = await import("#shared/db/questions.ts");
+      const q = await questionsTable.insert({
+        displayType: "free_text",
+        text: "Notes?",
+      });
+      const { response } = await adminFormPost(
+        `/admin/questions/${q.id}/edit`,
+        { display_type: "radio" as const, text: "Notes updated" },
+      );
+      await expectFlashRedirect(
+        `/admin/questions/${q.id}`,
+        "Question updated",
+      )(response);
+      const updated = await questionsTable.findById(q.id);
+      expect(updated!.display_type).toBe("free_text");
+      expect(updated!.text).toBe("Notes updated");
+    });
+
+    test("does not let a choice question be converted to free-text", async () => {
+      const id = await createQuestion("Colour?");
+      const { questionsTable } = await import("#shared/db/questions.ts");
+      await adminFormPost(`/admin/questions/${id}/edit`, {
+        display_type: "free_text",
+        text: "Colour?",
+      });
+      const updated = await questionsTable.findById(id);
+      expect(updated!.display_type).toBe("radio");
     });
 
     test("returns 404 for non-existent question on edit", async () => {
@@ -320,6 +350,37 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       );
     });
 
+    test("returns 404 when adding an answer to a non-existent question", async () => {
+      const { response } = await adminFormPost("/admin/questions/999/answers", {
+        text: "Orphan option",
+      });
+      expectStatus(404)(response);
+    });
+
+    test("rejects adding an answer to a free-text question", async () => {
+      const { questionsTable, getQuestionWithAnswers } = await import(
+        "#shared/db/questions.ts"
+      );
+      const q = await questionsTable.insert({
+        displayType: "free_text",
+        text: "Notes?",
+      });
+      const { response } = await adminFormPost(
+        `/admin/questions/${q.id}/answers`,
+        { text: "Ignored option" },
+      );
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining(
+          "Free-text questions don't have answer options",
+        ),
+        false,
+      );
+      const question = await getQuestionWithAnswers(q.id);
+      expect(question!.answers).toEqual([]);
+    });
+
     test("assigns correct sort order to answers", async () => {
       const id = await createQuestion("Sort order test");
       await addAnswer(id, "First");
@@ -367,7 +428,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         `/admin/questions/${qId}/listings`,
         { listing_ids: String(listing.id) },
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/questions/${qId}`,
         "Listings updated",
       )(response);
@@ -389,7 +450,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         `/admin/questions/${qId}/listings`,
         {},
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/questions/${qId}`,
         "Listings updated",
       )(response);
@@ -476,7 +537,10 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         `/admin/questions/${id}/delete`,
         { confirm_identifier: "Confirm Delete" },
       );
-      expectRedirectWithFlash("/admin/questions", "Question deleted")(response);
+      await expectFlashRedirect(
+        "/admin/questions",
+        "Question deleted",
+      )(response);
 
       // Verify it's gone
       const { questionsTable } = await import("#shared/db/questions.ts");
@@ -516,7 +580,10 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         `/admin/questions/${id}/delete`,
         { confirm_identifier: "case test" },
       );
-      expectRedirectWithFlash("/admin/questions", "Question deleted")(response);
+      await expectFlashRedirect(
+        "/admin/questions",
+        "Question deleted",
+      )(response);
     });
 
     test("rejects deletion when confirm_identifier is missing", async () => {
@@ -608,7 +675,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         `/admin/questions/${qId}/answers/${aId}/delete`,
         { confirm_identifier: "Goodbye Answer" },
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/questions/${qId}`,
         "Answer deleted",
       )(response);
@@ -713,7 +780,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         `/admin/questions/${qId}/answers/${aId}/edit`,
         { modifier_id: "", text: "After" },
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/questions/${qId}`,
         "Answer updated",
       )(response);
@@ -723,6 +790,34 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       );
       const question = await getQuestionWithAnswers(qId);
       expect(question!.answers.find((a) => a.id === aId)!.text).toBe("After");
+    });
+
+    test("deactivates an answer when the active box is unchecked", async () => {
+      const qId = await createQuestion("Deactivate question");
+      const aId = await addAnswer(qId, "Retired option");
+      const { getQuestionWithAnswers } = await import(
+        "#shared/db/questions.ts"
+      );
+      // New answers start active.
+      const before = await getQuestionWithAnswers(qId);
+      expect(before!.answers.find((a) => a.id === aId)!.active).toBe(true);
+
+      // An unchecked checkbox is simply absent from the POST body.
+      await adminFormPost(`/admin/questions/${qId}/answers/${aId}/edit`, {
+        modifier_id: "",
+        text: "Retired option",
+      });
+      const after = await getQuestionWithAnswers(qId);
+      expect(after!.answers.find((a) => a.id === aId)!.active).toBe(false);
+
+      // Re-checking it reactivates the answer.
+      await adminFormPost(`/admin/questions/${qId}/answers/${aId}/edit`, {
+        active: "on",
+        modifier_id: "",
+        text: "Retired option",
+      });
+      const reactivated = await getQuestionWithAnswers(qId);
+      expect(reactivated!.answers.find((a) => a.id === aId)!.active).toBe(true);
     });
 
     test("links the chosen modifier to the answer", async () => {
@@ -947,7 +1042,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         `/admin/questions/${qId}/answers/${aId}/recalculate`,
         { recalculate_fields: "times_selected" },
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/questions/${qId}/answers/${aId}/edit`,
         "Selection total recalculated",
       )(response);
@@ -1054,7 +1149,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
           cookie,
         ),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/listing/${listing.id}`,
         "Questions updated",
       )(response);
@@ -1072,7 +1167,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         `/admin/listing/${listing.id}/questions`,
         {},
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/listing/${listing.id}`,
         "Questions updated",
       )(response);
@@ -1215,7 +1310,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         `/admin/questions/${qId}/answers/${aId1}/move-down`,
         {},
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/questions/${qId}`,
         "Answer moved",
       )(response);
@@ -1237,7 +1332,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         `/admin/questions/${qId}/answers/${aId2}/move-up`,
         {},
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/questions/${qId}`,
         "Answer moved",
       )(response);
@@ -1256,7 +1351,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         `/admin/questions/${qId}/answers/${aId1}/move-up`,
         {},
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/questions/${qId}`,
         "Answer moved",
       )(response);
@@ -1269,7 +1364,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         `/admin/questions/${qId}/answers/${aId1}/move-down`,
         {},
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/questions/${qId}`,
         "Answer moved",
       )(response);
@@ -1285,8 +1380,8 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const { response } = await adminGet(`/admin/questions/${qId}`);
       const body = await response.text();
       // The answers table shows the stored selection total (0 with no bookings).
-      expect(body).toContain("<th>Times Selected</th>");
-      expect(body).toContain("<td>0</td>");
+      expect(body).toContain('<th class="col-quantity">Times Selected</th>');
+      expect(body).toContain('<td class="col-quantity">0</td>');
     });
   });
 
@@ -1313,7 +1408,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         `/admin/questions/${firstId}/move-down`,
         {},
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/questions",
         "Question moved",
       )(down.response);

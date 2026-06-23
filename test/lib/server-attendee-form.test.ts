@@ -8,6 +8,13 @@ import {
 } from "#shared/db/attendee-statuses.ts";
 import { getAttendeeBalanceState } from "#shared/db/attendees/balance.ts";
 import { attendeesApi, createAttendeeAtomic } from "#shared/db/attendees.ts";
+import { getDb } from "#shared/db/client.ts";
+import {
+  getContactRecord,
+  hashEmail,
+  saveContactRecord,
+  toContactHashParam,
+} from "#shared/db/contact-preferences.ts";
 import {
   answersTable,
   getAttendeeAnswersBatch,
@@ -23,10 +30,13 @@ import {
   createDailyTestListing,
   createTestAttendee,
   createTestListing,
+  createTestManagerSession,
   describeWithEnv,
   expectHtmlResponse,
+  expectListingRowQuantity,
   expectRedirect,
   getAttendeesRaw,
+  getTestPrivateKey,
   hasSelectedOption,
   mockFormRequest,
   setupListingAndLogin,
@@ -34,6 +44,7 @@ import {
   testRequiresAuth,
   withMocks,
 } from "#test-utils";
+import { postListingSale } from "#test-utils/ledger.ts";
 
 describeWithEnv("server (unified attendee form)", { db: true }, () => {
   describe("GET /admin/attendees/new", () => {
@@ -476,6 +487,121 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
       expect((await getAttendeesRaw(event.id))[0]!.quantity).toBe(4);
+    });
+  });
+
+  describe("bookings summary on the edit page", () => {
+    test("lists each booked listing with its quantity and a total", async () => {
+      const kayak = await createTestListing({
+        maxAttendees: 50,
+        maxQuantity: 5,
+        name: "Kayak Trip",
+      });
+      const canoe = await createTestListing({
+        maxAttendees: 50,
+        maxQuantity: 5,
+        name: "Canoe Trip",
+      });
+      const created = await createAttendeeAtomic({
+        bookings: [
+          { listingId: kayak.id, quantity: 2 },
+          { listingId: canoe.id, quantity: 3 },
+        ],
+        email: "booker@example.com",
+        name: "Booker",
+      });
+      if (!created.success) throw new Error("setup");
+      const attendeeId = created.attendees[0]!.id;
+
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendeeId}`,
+        { cookie: await testCookie() },
+      );
+      const html = await expectHtmlResponse(
+        response,
+        200,
+        "Bookings",
+        "Kayak Trip",
+        "Canoe Trip",
+      );
+      // Each listing's own row shows its quantity (Kayak→2, Canoe→3), so a
+      // swapped grouping fails here, not just a wrong sum...
+      expectListingRowQuantity(html, kayak.id, 2);
+      expectListingRowQuantity(html, canoe.id, 3);
+      // ...and the summary footer totals them (2 + 3 = 5).
+      expect(html).toContain('<td class="col-quantity">5</td>');
+    });
+
+    test("surfaces the checked-in status of a booking", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 50,
+        name: "Tour",
+      });
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Arrived",
+        "arrived@example.com",
+      );
+      const { updateCheckedIn } = await import("#shared/db/attendees.ts");
+      await updateCheckedIn(attendee.id, listing.id, true);
+
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendee.id}`,
+        { cookie: await testCookie() },
+      );
+      const html = await expectHtmlResponse(response, 200, "Bookings");
+      // Assert the rendered badge markup, not just the words "Checked in",
+      // so a mutant that drops the badge styling/element is still caught.
+      expect(html).toContain('<span class="badge">Checked in</span>');
+    });
+  });
+
+  describe("ledger panel on the edit page", () => {
+    /** Seed an attendee with a fully-paid sale (so the embedded statement has a
+     * sale leg whose counterparty is the listing and a payment leg whose
+     * counterparty is the card/bank singleton), then GET its edit page. */
+    const seedAndGetEdit = async (cookie: string): Promise<string> => {
+      const listing = await createTestListing({
+        maxAttendees: 50,
+        name: "Pottery Class",
+      });
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Ledger Lou",
+        "lou@example.com",
+      );
+      await postListingSale({
+        attendeeId: attendee.id,
+        gross: 2500,
+        listingId: listing.id,
+      });
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendee.id}`,
+        { cookie },
+      );
+      return expectHtmlResponse(response, 200);
+    };
+
+    test("an owner sees the attendee's running-balance statement with counterparties", async () => {
+      const html = await seedAndGetEdit(await testCookie());
+      // The shared statement renders inside a collapsed Ledger disclosure.
+      expect(html).toContain("<summary>Ledger</summary>");
+      expect(html).toContain("<th>Counterparty</th>");
+      // The sale's counterparty links to the listing; the payment's is card/bank.
+      expect(html).toContain("Pottery Class");
+      expect(html).toContain("Card / bank");
+    });
+
+    test("a manager does NOT see the ledger panel (owner-only money movements)", async () => {
+      // The panel exposes payment/refund/writeoff legs, so it is owner-only —
+      // matching the standalone /admin/ledger* routes. A manager session loads
+      // the same edit page but the panel is omitted entirely.
+      const managerCookie = await createTestManagerSession();
+      const html = await seedAndGetEdit(managerCookie);
+      expect(html).not.toContain("<legend>Ledger</legend>");
+      expect(html).not.toContain("<th>Counterparty</th>");
     });
   });
 
@@ -1103,7 +1229,9 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
 
       // Both answers survive — not just the first event's.
       const saved = new Set(
-        (await getAttendeeAnswersBatch([attendeeId])).get(attendeeId) ?? [],
+        (await getAttendeeAnswersBatch([attendeeId], { texts: false })).get(
+          attendeeId,
+        ) ?? [],
       );
       expect(saved.has(aA.id)).toBe(true);
       expect(saved.has(aB.id)).toBe(true);
@@ -1127,7 +1255,9 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       expect(response.status).toBe(302);
 
       const saved = new Set(
-        (await getAttendeeAnswersBatch([attendeeId])).get(attendeeId) ?? [],
+        (await getAttendeeAnswersBatch([attendeeId], { texts: false })).get(
+          attendeeId,
+        ) ?? [],
       );
       // The bogus id is silently dropped (admin answers are optional), never
       // written — so the form can't inject an arbitrary answer row.
@@ -1181,7 +1311,8 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       );
       expect(response.status).toBe(302);
 
-      const bobAnswers = (await getAttendeeAnswersBatch([bob])).get(bob) ?? [];
+      const bobAnswers =
+        (await getAttendeeAnswersBatch([bob], { texts: false })).get(bob) ?? [];
       expect(bobAnswers).toEqual([a2.id]);
     });
   });
@@ -1205,6 +1336,18 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         statusId,
       });
       if (!created.success) throw new Error("setup failed");
+      // Both amount paid and outstanding balance project from the ledger now:
+      // post the gross sale (deposit + owed) and the deposit payment, so the
+      // attendee has paid `pricePaid` and owes `remainingBalance` in the ledger.
+      const gross = pricePaid + remainingBalance;
+      if (gross > 0) {
+        await postListingSale({
+          amountPaid: pricePaid,
+          attendeeId: created.attendees[0]!.id,
+          gross,
+          listingId: listing.id,
+        });
+      }
       return created.attendees[0]!.id;
     };
 
@@ -1300,6 +1443,14 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       expect(html).not.toContain("paid status but still owes");
     });
 
+    test("the outstanding-balance field warns that edits post to the money ledger", async () => {
+      // Decision 14: changing the balance now posts a writeoff correction to the
+      // source-of-truth ledger, so the field carries a prominent warning.
+      const id = await seedAttendee(null, 0);
+      const html = await getEdit(id);
+      expect(html).toContain("correcting entry to the money ledger");
+    });
+
     test("edit page shows the attendee's status as a heading when multiple statuses exist", async () => {
       const reservation = await newReservation();
       const id = await seedAttendee(reservation.id, 900);
@@ -1351,6 +1502,135 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       // ...but the status is still submitted so a save can't clear it.
       expect(html).toContain(
         `<input name="status_id" type="hidden" value="${only!.id}">`,
+      );
+    });
+  });
+
+  // The attendee form writes booking stats but must never write contact notes
+  // (those are edited only on /admin/history). These guard the persisted
+  // contact_preferences side effects through a real form POST — the layer where
+  // the original blob bugs (leaked/overwritten notes, uncounted bookings) lived.
+  describe("contact_preferences side effects", () => {
+    const seededRecord = (adminNotes: string) => ({
+      adminBookingCount: 0,
+      adminNotes,
+      contactCount: 0,
+      lastContact: "",
+      lastSubject: "",
+      publicBookingCount: 0,
+      visits: 0,
+    });
+
+    test("admin create records an admin booking against the email contact", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 100,
+        maxQuantity: 5,
+      });
+      const { response } = await adminFormPost("/admin/attendees/new", {
+        email: "newbuyer@example.com",
+        name: "New Buyer",
+        [`qty_${listing.id}`]: "1",
+      });
+      expect(response.status).toBe(302);
+      const record = await getContactRecord(
+        await hashEmail("newbuyer@example.com"),
+        await getTestPrivateKey(),
+      );
+      // Counted as an admin booking, never an online one.
+      expect(record.adminBookingCount).toBe(1);
+      expect(record.publicBookingCount).toBe(0);
+    });
+
+    test("creating a second attendee with an existing email keeps that contact's note", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 100,
+        maxQuantity: 5,
+      });
+      const pk = await getTestPrivateKey();
+      const hash = await hashEmail("repeat@example.com");
+      // The contact already carries an operator note from a prior interaction.
+      await saveContactRecord(hash, seededRecord("Existing VIP note"));
+
+      const { response } = await adminFormPost("/admin/attendees/new", {
+        email: "repeat@example.com",
+        name: "Repeat Customer",
+        [`qty_${listing.id}`]: "1",
+      });
+      expect(response.status).toBe(302);
+
+      const record = await getContactRecord(hash, pk);
+      // The blank form does NOT clobber the stored note (the old create bug)...
+      expect(record.adminNotes).toBe("Existing VIP note");
+      // ...while the booking is still counted.
+      expect(record.adminBookingCount).toBe(1);
+    });
+
+    test("changing an attendee's email on edit never copies the note onto the new email", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 100,
+        maxQuantity: 5,
+      });
+      const pk = await getTestPrivateKey();
+      const aliceHash = await hashEmail("alice@example.com");
+      const bobHash = await hashEmail("bob@example.com");
+      // Alice's contact carries a private note; the attendee starts as Alice.
+      await saveContactRecord(aliceHash, seededRecord("Alice private note"));
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Alice",
+        "alice@example.com",
+      );
+
+      // Switch the attendee's email to Bob and save the form.
+      const form = await buildAttendeeEditForm(attendee.id, {
+        email: "bob@example.com",
+        name: "Alice",
+      });
+      const { response } = await adminFormPost(
+        `/admin/attendees/${attendee.id}`,
+        form,
+      );
+      expect(response.status).toBe(302);
+
+      // Bob's contact must NOT inherit Alice's note (the old leak bug)...
+      expect((await getContactRecord(bobHash, pk)).adminNotes).toBe("");
+      // ...and Alice's own note is left intact.
+      expect((await getContactRecord(aliceHash, pk)).adminNotes).toBe(
+        "Alice private note",
+      );
+    });
+
+    test("keeps the repair link when a contact's stats_blob is corrupt", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 100,
+        maxQuantity: 5,
+      });
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Corrupt Contact",
+        "corrupt@example.com",
+      );
+      const hash = await hashEmail("corrupt@example.com");
+      // Leave this contact's encrypted stats unreadable — the exact state the
+      // best-effort SMS write path can persist — but keep recent activity so
+      // the request's prune doesn't delete the row before it is read.
+      await getDb().execute({
+        args: [hash, Date.now()],
+        sql: `INSERT INTO contact_preferences (contact_hash, stats_blob, last_activity) VALUES (?, 'corrupt-blob', ?)
+              ON CONFLICT(contact_hash) DO UPDATE SET stats_blob = 'corrupt-blob', last_activity = excluded.last_activity`,
+      });
+
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendee.id}`,
+        { cookie: await testCookie() },
+      );
+      // The page renders AND keeps the /admin/history repair link for the bad
+      // row — dropping the channel would hide the only way to fix it.
+      expect(response.status).toBe(200);
+      expect(await response.text()).toContain(
+        `/admin/history/${toContactHashParam(hash)}`,
       );
     });
   });

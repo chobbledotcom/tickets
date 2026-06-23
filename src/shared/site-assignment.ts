@@ -18,6 +18,7 @@ import {
   builtSitesCrudTable,
   getAllBuiltSites,
   getAssignableBuiltSites,
+  siteBaseUrl,
   updateBuiltSiteRenewalState,
 } from "#shared/db/built-sites.ts";
 import { getAllListings } from "#shared/db/listings.ts";
@@ -380,10 +381,8 @@ const assignSitesForEntries = async (
 };
 
 /** Absolute /setup/ link for a site — bunnyUrl may be a bare hostname. */
-const siteSetupUrl = (siteUrl: string): string => {
-  const base = /^https?:\/\//.test(siteUrl) ? siteUrl : `https://${siteUrl}`;
-  return `${base.replace(/\/+$/, "")}/setup/`;
-};
+const siteSetupUrl = (siteUrl: string): string =>
+  `${siteBaseUrl(siteUrl)}/setup/`;
 
 /** Send site assignment notification email */
 const sendSiteAssignmentEmail = async (

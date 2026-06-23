@@ -6,8 +6,9 @@ import { t } from "#i18n";
 import { ConfirmForm, CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
-import { AdminNav, SettingsSubNav } from "#templates/admin/nav.tsx";
+import { AdminNav } from "#templates/admin/nav.tsx";
 import { GuideLink, SubmitButton } from "#templates/components/actions.tsx";
+import { colClass } from "#templates/components/table-columns.ts";
 import { Layout } from "#templates/layout.tsx";
 
 export type BackupEntry = {
@@ -60,7 +61,6 @@ export const adminBackupPage = (
   String(
     <Layout title={t("backup.page_title")}>
       <AdminNav active="/admin/settings" session={session} />
-      <SettingsSubNav />
       <div class="prose">
         <h1>{t("backup.heading")}</h1>
         <p class="actions">
@@ -123,28 +123,32 @@ export const adminBackupPage = (
                   backups={state.backups}
                   maxBackups={state.maxBackups}
                 />
-                <table>
-                  <thead>
-                    <tr>
-                      <th>{t("common.created")}</th>
-                      <th>{t("backup.table_size")}</th>
-                      <th>{t("common.actions")}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {state.backups.map((b) => (
+                <div class="table-scroll">
+                  <table>
+                    <thead>
                       <tr>
-                        <td>{b.label}</td>
-                        <td>{b.sizeLabel}</td>
-                        <td>
-                          <a href={`/admin/backup/download/${b.filename}`}>
-                            {t("backup.download_link")}
-                          </a>
-                        </td>
+                        <th>{t("common.created")}</th>
+                        <th>{t("backup.table_size")}</th>
+                        <th class={colClass("actions")}>
+                          {t("common.actions")}
+                        </th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {state.backups.map((b) => (
+                        <tr>
+                          <td>{b.label}</td>
+                          <td>{b.sizeLabel}</td>
+                          <td class={colClass("actions")}>
+                            <a href={`/admin/backup/download/${b.filename}`}>
+                              {t("backup.download_link")}
+                            </a>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </>
             )}
           </section>
@@ -188,8 +192,6 @@ export const adminRestoreConfirmPage = (
   String(
     <Layout title={t("backup.confirm_restore_title")}>
       <AdminNav active="/admin/settings" session={session} />
-      <SettingsSubNav />
-
       <ConfirmForm
         action="/admin/backup/restore/confirm"
         buttonText={t("backup.restore_button")}

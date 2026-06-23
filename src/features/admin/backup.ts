@@ -15,9 +15,11 @@ import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import { getEncryptionKeyString } from "#shared/crypto/encryption.ts";
 import { formatDatetimeLabel } from "#shared/dates.ts";
 import {
-  backupPrefix,
+  backupDir,
   countZipStatements,
   createAndUploadBackup,
+  isBackupLeaf,
+  isBackupPath,
   isRemoteDatabase,
   parseBackupTime,
   readManifest,
@@ -28,11 +30,13 @@ import { formatBytes, MAX_BACKUPS } from "#shared/limits.ts";
 import {
   deleteFile,
   downloadRaw,
+  getBasename,
   isStorageEnabled,
   listFilesWithMeta,
   type StorageFileMeta,
   uploadRaw,
 } from "#shared/storage.ts";
+import { readRecordedScriptCommit } from "#shared/update.ts";
 import {
   adminBackupPage,
   adminRestoreConfirmPage,
@@ -42,6 +46,10 @@ import {
 } from "#templates/admin/backup.tsx";
 
 const RESTORE_PENDING_PREFIX = "restore-pending-";
+
+/** A full git commit SHA (40 lowercase hex) — what restore-deploy requires and
+ *  the only shape we echo back from restored (possibly untrusted) settings. */
+const FULL_COMMIT_SHA = /^[0-9a-f]{40}$/;
 
 /**
  * Reject path-traversal payloads in backup filenames.
@@ -53,21 +61,22 @@ const isSafeBackupFilename = (filename: string): boolean =>
   !filename.includes("\\") &&
   !filename.includes("..");
 
-/** Parse a backup file into display info (friendly date + human size).
- *  Filenames are server-generated, so parseBackupTime always succeeds. */
+/** Parse a backup file into display info (friendly date + human size). The
+ *  download link uses the bare leaf; filenames are server-generated, so
+ *  parseBackupTime always succeeds. */
 const parseBackupEntry = (file: StorageFileMeta): BackupEntry => ({
-  filename: file.name,
+  filename: getBasename(file.name),
   label: formatDatetimeLabel(
     new Date(parseBackupTime(file.name)!).toISOString(),
   ),
   sizeLabel: formatBytes(file.size),
 });
 
-/** Pick out this DB's backups from a zone listing, newest first.
- *  Filenames embed ISO timestamps, so name order is chronological. */
+/** Pick out the backups from a folder listing, newest first. Filenames embed
+ *  ISO timestamps, so name order is chronological. */
 const toBackupEntries = (files: StorageFileMeta[]): BackupEntry[] =>
   files
-    .filter((f) => f.name.startsWith(backupPrefix()) && f.name.endsWith(".zip"))
+    .filter((f) => isBackupPath(f.name))
     .reverse()
     .map(parseBackupEntry);
 
@@ -80,8 +89,8 @@ const cleanupStalePendingFiles = (files: StorageFileMeta[]): Promise<unknown> =>
       .map((f) => deleteFile(f.name)),
   );
 
-/** Build page state. The Bunny listing has no server-side prefix filter, so we
- *  fetch the zone once and reuse it for both the backup list and temp cleanup. */
+/** Build page state: this DB's backups (from its own folder) plus a best-effort
+ *  sweep of stale restore-pending temp files at the storage root. */
 const getBackupPageState = async (): Promise<BackupPageState> => {
   const base = {
     encryptionKey: getEncryptionKeyString(),
@@ -92,9 +101,14 @@ const getBackupPageState = async (): Promise<BackupPageState> => {
   if (!isStorageEnabled()) return { ...base, backups: [] };
 
   try {
-    const files = await listFilesWithMeta("");
-    await cleanupStalePendingFiles(files);
-    return { ...base, backups: toBackupEntries(files) };
+    // Backups live in this DB's folder; restore-pending temp files sit at the
+    // storage root. One listing each, in parallel.
+    const [backupFiles, rootFiles] = await Promise.all([
+      listFilesWithMeta(backupDir()),
+      listFilesWithMeta(""),
+    ]);
+    await cleanupStalePendingFiles(rootFiles);
+    return { ...base, backups: toBackupEntries(backupFiles) };
   } catch {
     // Storage listing unavailable — still render the page (encryption key,
     // forms) rather than failing the whole request on a transient CDN error.
@@ -128,15 +142,14 @@ const handleBackupDownload: TypedRouteHandler<
   "GET /admin/backup/download/:filename"
 > = (request, { filename }) =>
   requireOwnerOr(request, async () => {
-    if (
-      !filename.startsWith(backupPrefix()) ||
-      !filename.endsWith(".zip") ||
-      !isSafeBackupFilename(filename)
-    ) {
+    // The route param is a bare leaf. The anchored leaf check rejects anything
+    // that isn't "backup-{timestamp}.zip" (path separators included), and we
+    // resolve it inside this DB's own folder — so it can only reach our backups.
+    if (!isBackupLeaf(filename)) {
       return htmlResponse("Invalid backup filename", 400);
     }
 
-    const data = await downloadRaw(filename);
+    const data = await downloadRaw(`${backupDir()}${filename}`);
     if (!data) return htmlResponse("Backup file not found", 404);
 
     const body = data.buffer.slice(
@@ -231,7 +244,20 @@ const handleBackupRestoreConfirm: TypedRouteHandler<"POST /admin/backup/restore/
         await Promise.allSettled([deleteFile(filename)]);
       }
     },
-    message: "Database restored from backup",
+    // The restored data carries the commit the site was running when the backup
+    // was taken (recordScriptVersion writes it on boot). Surface the full SHA so
+    // the operator can redeploy that commit; restore only rolls back data, never
+    // code. The value comes from restored settings (an uploaded backup could
+    // hold anything), so only present it when it is a real 40-char SHA — both
+    // because the restore-deploy workflow requires one and to keep an oversized
+    // value out of the flash cookie. Read straight after the restore, before the
+    // next request's initDb re-stamps the running commit.
+    message: async () => {
+      const commit = await readRecordedScriptCommit();
+      return FULL_COMMIT_SHA.test(commit)
+        ? `Database restored from backup. It was running commit ${commit} — run the restore-deploy workflow with that commit to restore the code to this point in time.`
+        : "Database restored from backup";
+    },
     successRedirect: "/admin/backup",
   });
 

@@ -2,7 +2,8 @@
  * Admin dashboard route
  */
 
-import { csvResponse, requirePrivateKey } from "#routes/admin/actions.ts";
+import { compact, unique } from "#fp";
+import { csvResponse, loadAttendeeNames } from "#routes/admin/actions.ts";
 import { generateListingsCsv } from "#routes/admin/listings-csv.ts";
 import { requireSessionOr, sessionPage, withSession } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
@@ -10,23 +11,31 @@ import { htmlResponse, redirectResponse } from "#routes/response.ts";
 /* jscpd:ignore-start */
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { getAllActivityLog, logActivity } from "#shared/db/activityLog.ts";
+import {
+  type ActivityLogEntry,
+  getAllActivityLog,
+  logActivity,
+} from "#shared/db/activityLog.ts";
 import {
   decryptAttendees,
   getActiveListingStats,
   getNewestAttendeesRaw,
 } from "#shared/db/attendees.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
-import { getAllListings } from "#shared/db/listings.ts";
+import { getAllListings, getListingNamesByIds } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import {
   filterListingsByType,
   listingTypeFromRequest,
 } from "#shared/listing-filter.ts";
+import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { sortListings } from "#shared/sort-listings.ts";
 /* jscpd:ignore-end */
-import { adminGlobalActivityLogPage } from "#templates/admin/activityLog.tsx";
+import {
+  type ActivityLogRefs,
+  adminGlobalActivityLogPage,
+} from "#templates/admin/activityLog.tsx";
 import {
   adminDashboardPage,
   adminListingsPage,
@@ -40,6 +49,7 @@ export const loginResponse = async (
 ): Promise<Response> => {
   const flash = applyFlash(request);
   await signCsrfToken();
+  // success (e.g. "Logged out") is rendered by the Layout backstop from context.
   return htmlResponse(adminLoginPage(flash.error), status);
 };
 
@@ -72,7 +82,7 @@ const handleAdminGet = (request: Request): Promise<Response> =>
         getAllListings(),
         getActiveHolidays(),
         getNewestAttendeesRaw(NEWEST_ATTENDEES_LIMIT),
-        requirePrivateKey(session),
+        requireRequestPrivateKey(),
       ]);
       const newestAttendees = await decryptAttendees(newestRaw, privateKey);
       const sortedListings = sortListings(listings, holidays);
@@ -125,6 +135,27 @@ const handleListingsCsvExport: TypedRouteHandler<"GET /admin/listings/csv"> = (
 const LOG_DISPLAY_LIMIT = 200;
 
 /**
+ * Resolve the attendee and listing display names referenced by a batch of log
+ * entries, so the global log can show each entry's attendee/listing as a link.
+ * Both are bounded id → name lookups over only the ids the entries reference —
+ * attendee names decrypted with the current request's private key, listing names
+ * from the listings table — so the page never scans whole tables to label a few
+ * rows. An attendee that has since been deleted simply has no entry here; its
+ * log rows keep the id but render without a link.
+ */
+const loadActivityLogRefs = async (
+  entries: ActivityLogEntry[],
+): Promise<ActivityLogRefs> => {
+  const attendeeIds = unique(compact(entries.map((e) => e.attendee_id)));
+  const listingIds = unique(compact(entries.map((e) => e.listing_id)));
+  const [attendees, listings] = await Promise.all([
+    loadAttendeeNames(attendeeIds),
+    getListingNamesByIds(listingIds),
+  ]);
+  return { attendees, listings };
+};
+
+/**
  * Handle GET /admin/log
  */
 const handleAdminLog: TypedRouteHandler<"GET /admin/log"> = sessionPage(
@@ -134,7 +165,8 @@ const handleAdminLog: TypedRouteHandler<"GET /admin/log"> = sessionPage(
     const displayEntries = truncated
       ? entries.slice(0, LOG_DISPLAY_LIMIT)
       : entries;
-    return adminGlobalActivityLogPage(displayEntries, truncated, session);
+    const refs = await loadActivityLogRefs(displayEntries);
+    return adminGlobalActivityLogPage(displayEntries, truncated, session, refs);
   },
 );
 

@@ -179,6 +179,22 @@ const notifyN1Violation = async (detail: string): Promise<void> => {
 };
 
 /**
+ * Mirror the debug footer to the system logs: emit each SQL statement as it
+ * completes, with its bound values omitted. The statement is parameterised, so
+ * the string carries only `?` placeholders — never PII or secrets — exactly the
+ * value-free view the admin footer renders. Whitespace is collapsed so a
+ * multi-line statement logs on one line. Routed through `logDebug` (category
+ * "SQL") so it honours the same debug-log suppression as other debug output;
+ * the dynamic import avoids the static cycle (query-log is imported by the db
+ * client, which the logger transitively depends on), mirroring
+ * {@link notifyN1Violation}.
+ */
+export const logCompletedSql = async (sql: string): Promise<void> => {
+  const { logDebug } = await import("#shared/logger.ts");
+  logDebug("SQL", sql.replace(/\s+/g, " ").trim());
+};
+
+/**
  * Count a read round-trip within a request and fire once, exactly when the
  * count crosses the threshold. Writes and queries outside a request scope (the
  * fallback state, e.g. startup migrations) are never counted.
@@ -207,13 +223,15 @@ export const trackQuery = async <T>(
   const store = asyncLocalStorage.getStore();
   if (store) enforceN1Guard(store, sql);
   const state = store ?? fallbackState;
-  if (!state.enabled) return fn();
   const start = performance.now();
   const result = await fn();
-  state.entries.push({
-    durationMs: performance.now() - start,
-    sql,
-    startedAtMs: start,
-  });
+  if (state.enabled) {
+    state.entries.push({
+      durationMs: performance.now() - start,
+      sql,
+      startedAtMs: start,
+    });
+  }
+  void logCompletedSql(sql);
   return result;
 };

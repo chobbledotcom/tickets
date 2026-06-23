@@ -2,20 +2,18 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { getSessionCookieName } from "#shared/cookies.ts";
-import {
-  createInvitedUser,
-  getUserByUsername,
-  hasPassword,
-} from "#shared/db/users.ts";
+import { createInvitedUser, getUserByUsername } from "#shared/db/users.ts";
 import {
   assertPublicHtml,
   createTestInvite,
   describeWithEnv,
+  expectFlashRedirect,
   expectHtmlResponse,
   expectRedirectWithFlash,
   mockAdminLoginRequest,
   mockFormRequest,
   mockRequest,
+  requireJoinCsrfToken,
   submitJoinForm,
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
@@ -30,7 +28,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
           username: TEST_ADMIN_USERNAME,
         }),
       );
-      expectRedirectWithFlash("/admin", "Logged in")(response);
+      await expectFlashRedirect("/admin", "Logged in")(response);
       const sessionCookie = response.headers
         .getSetCookie()
         .find((c) => c.startsWith(`${getSessionCookieName()}=`));
@@ -44,7 +42,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
           username: "nonexistent",
         }),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin",
         expect.stringContaining("Username or password was wrong"),
         false,
@@ -58,7 +56,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
           username: TEST_ADMIN_USERNAME,
         }),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin",
         expect.stringContaining("Username or password was wrong"),
         false,
@@ -92,7 +90,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       await assertPublicHtml("/join/complete", "Password Set");
     });
 
-    test("POST /join/:code sets password for invited user", async () => {
+    test("POST /join/:code self-activates the invited user", async () => {
       const { inviteCode } = await createTestInvite("joiner2");
 
       const joinPostResponse = await submitJoinForm(inviteCode, {
@@ -100,15 +98,62 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         password_confirm: "newpassword123",
       });
 
+      // Cookie-only: /join/complete is a public confirmation page (shown to the
+      // freshly-activated user, not the admin session) and states its own result.
       expectRedirectWithFlash(
         "/join/complete",
         "Password set successfully",
       )(joinPostResponse);
 
+      // Joining unwraps the DATA_KEY handoff and re-wraps it under the new
+      // password (v2), so the user is active immediately — no admin step.
       const user = await getUserByUsername("joiner2");
-      expect(user).not.toBeNull();
-      const hasPwd = await hasPassword(user!);
-      expect(hasPwd).toBe(true);
+      expect(user!.wrapped_data_key).not.toBeNull();
+      expect(user!.kek_version).toBe(2);
+    });
+
+    test("POST /join/:code tells a stale replay the invite is invalid", async () => {
+      // Race/replay: the invite is consumed elsewhere after this request has
+      // already read a (now stale) row that still shows the handoff. The guarded
+      // single-use UPDATE in acceptInvite then changes no row, and the handler
+      // must surface that as an invalid invite — never "password set".
+      const { inviteCode } = await createTestInvite("stale-replay");
+
+      // Warm this isolate's user cache with the handoff-present row and capture a
+      // valid CSRF token from the rendered form.
+      const getResponse = await handleRequest(
+        mockRequest(`/join/${inviteCode}`),
+      );
+      const csrf = requireJoinCsrfToken(await getResponse.text());
+
+      // Simulate another isolate consuming the invite without invalidating our
+      // cache: clear the handoff straight on the row, leaving our view stale.
+      const { executeWithoutCacheInvalidation } = await import(
+        "#shared/db/client.ts"
+      );
+      const consumed = (await getUserByUsername("stale-replay"))!;
+      await executeWithoutCacheInvalidation(
+        "UPDATE users SET invite_wrapped_data_key = NULL WHERE id = ?",
+        [consumed.id],
+      );
+
+      const response = await handleRequest(
+        mockFormRequest(`/join/${inviteCode}`, {
+          csrf_token: csrf,
+          password: "replaypass123",
+          password_confirm: "replaypass123",
+        }),
+      );
+
+      await expectFlashRedirect(
+        `/join/${inviteCode}`,
+        expect.stringContaining("invalid"),
+        false,
+      )(response);
+      // The replay set no password — the account never bound to it.
+      expect((await getUserByUsername("stale-replay"))!.wrapped_data_key).toBe(
+        null,
+      );
     });
 
     test("POST /join/:code rejects mismatched passwords", async () => {
@@ -119,7 +164,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         password_confirm: "differentpassword",
       });
 
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/join/${inviteCode}`,
         expect.stringContaining("do not match"),
         false,
@@ -134,7 +179,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         password_confirm: "short",
       });
 
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/join/${inviteCode}`,
         expect.stringContaining("8 characters"),
         false,
@@ -183,7 +228,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
           password_confirm: "newpassword123",
         }),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/join/${inviteCode}`,
         expect.stringContaining("try again"),
         false,

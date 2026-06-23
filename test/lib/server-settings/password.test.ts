@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { getSessionCookieName } from "#shared/cookies.ts";
-import { getAllActivityLog } from "#shared/db/activityLog.ts";
 import { invalidateUsersCache } from "#shared/db/users.ts";
 import { setDemoModeForTest } from "#shared/demo.ts";
 import {
@@ -13,8 +12,10 @@ import {
   expectHtmlResponse,
   expectRedirect,
   expectRedirectWithFlash,
+  getAllActivityLog,
   mockAdminLoginRequest,
   mockFormRequest,
+  reloginAsAdmin,
   TEST_ADMIN_PASSWORD,
   testCookie,
   testRequiresAuth,
@@ -161,6 +162,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         new_password_confirm: "newpassword123",
       });
 
+      // Changing the password deletes existing sessions; re-authenticate with
+      // the new password so the owner-key log can be read back.
+      await reloginAsAdmin("newpassword123");
       const logs = await getAllActivityLog();
       expect(logs.some((l) => l.message.includes("Password changed"))).toBe(
         true,

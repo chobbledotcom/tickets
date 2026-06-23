@@ -20,24 +20,36 @@ import { fromBase64 } from "./utils.ts";
  * =============================================================================
  * Key Encryption Key (KEK) Derivation
  * =============================================================================
- * KEK is derived from password hash + DB_ENCRYPTION_KEY.
- * This ensures that both factors are needed to unwrap the DATA_KEY.
+ * The KEK wraps the DATA_KEY in users.wrapped_data_key. Two schemes coexist:
+ *
+ * - v1 ({@link deriveKEK}) derives the KEK from the *stored password hash*. The
+ *   hash is itself only encrypted with DB_ENCRYPTION_KEY, so a DB dump plus that
+ *   key can re-derive the KEK and unwrap the DATA_KEY — i.e. PII at rest is
+ *   protected by the env key alone.
+ * - v2 ({@link deriveKEKFromPassword}) derives the KEK from the *raw password*,
+ *   which is never stored, so a DB dump plus the env key can no longer unwrap
+ *   the DATA_KEY. This is the scheme all new wraps use.
+ *
+ * Both keep DB_ENCRYPTION_KEY in the salt, so a KEK always needs the env key in
+ * addition to its secret.
  */
 
 /**
- * Derive a Key Encryption Key (KEK) from password hash and DB_ENCRYPTION_KEY
- * Uses PBKDF2 with the password hash as input and DB_ENCRYPTION_KEY as salt
+ * Shared PBKDF2 → AES-GCM KEK derivation. `secret` is the wrap secret (a stored
+ * password hash for v1, the raw password for v2); `saltPrefix` domain-separates
+ * the two schemes so they can never yield the same KEK from one DB key.
  */
-export const deriveKEK = async (passwordHash: string): Promise<CryptoKey> => {
+const deriveKek = async (
+  secret: string,
+  saltPrefix: string,
+): Promise<CryptoKey> => {
   const dbKey = getEncryptionKeyString();
   const encoder = new TextEncoder();
-
-  // Use DB_ENCRYPTION_KEY as salt - attacker needs both password hash AND env var
-  const salt = encoder.encode(dbKey);
+  const salt = encoder.encode(`${saltPrefix}${dbKey}`);
 
   const keyMaterial = await crypto.subtle.importKey(
     "raw",
-    encoder.encode(passwordHash),
+    encoder.encode(secret),
     "PBKDF2",
     false,
     ["deriveBits", "deriveKey"],
@@ -56,6 +68,32 @@ export const deriveKEK = async (passwordHash: string): Promise<CryptoKey> => {
     ["encrypt", "decrypt"],
   );
 };
+
+/**
+ * Legacy (v1) KEK derived from the stored password hash. Retained only to
+ * unwrap and migrate existing wrapped_data_keys — new wraps use
+ * {@link deriveKEKFromPassword}. Salt prefix is empty so this stays
+ * byte-compatible with keys wrapped before the v2 split.
+ */
+export const deriveKEK = (passwordHash: string): Promise<CryptoKey> =>
+  deriveKek(passwordHash, "");
+
+/**
+ * Password-bound (v2) KEK derived from the raw password. Because the password is
+ * never stored, a database dump plus DB_ENCRYPTION_KEY cannot unwrap the
+ * DATA_KEY — this is what binds attendee PII at rest to the account password.
+ *
+ * Salted *per user* with the account's stored password hash (which embeds a
+ * random per-user salt) in addition to DB_ENCRYPTION_KEY, so an offline guess
+ * must run PBKDF2 once per account rather than once for everyone — one weak
+ * password can't be used to unwrap every user's DATA_KEY from a dump. The hash
+ * is rewritten together with wrapped_data_key on every password change, so the
+ * two never drift.
+ */
+export const deriveKEKFromPassword = (
+  password: string,
+  passwordHash: string,
+): Promise<CryptoKey> => deriveKek(password, `kek-v2:${passwordHash}:`);
 
 /**
  * =============================================================================
@@ -119,6 +157,19 @@ export const wrapKey = (
   keyToWrap: CryptoKey,
   wrappingKey: CryptoKey,
 ): Promise<string> => exportAndWrapKey(keyToWrap, wrappingKey);
+
+/**
+ * Wrap a DATA_KEY under the password-bound (v2) KEK in one step. The single
+ * place new wrapped_data_keys are produced — setup, login migration, invite
+ * acceptance, password change, and superuser creation all go through here, so
+ * the derive-then-wrap pair lives in exactly one spot.
+ */
+export const wrapDataKeyForPassword = async (
+  dataKey: CryptoKey,
+  password: string,
+  passwordHash: string,
+): Promise<string> =>
+  wrapKey(dataKey, await deriveKEKFromPassword(password, passwordHash));
 
 /**
  * Unwrap a symmetric key
@@ -257,7 +308,10 @@ export const importPublicKey = (jwkString: string): Promise<CryptoKey> =>
 export const importPrivateKey = (jwkString: string): Promise<CryptoKey> =>
   importRsaKey(jwkString, "decrypt");
 
-const HYBRID_PREFIX = "hyb:1:";
+/** Prefix tagging a hybrid (RSA+AES) ciphertext, e.g. owner-key activity-log
+ * messages and attendee PII. Distinguishes them from env-key {@link
+ * ENCRYPTION_PREFIX} values so a decrypt path can route by format. */
+export const HYBRID_PREFIX = "hyb:1:";
 
 /**
  * Encrypt data using hybrid encryption (RSA + AES)

@@ -1,7 +1,8 @@
 import { expect } from "@std/expect";
 import { it } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { getAttendeeActivityLog } from "#shared/db/activityLog.ts";
+import { getDb } from "#shared/db/client.ts";
+import { getContactRecord, hashPhone } from "#shared/db/contact-preferences.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   getSmsMessageByProviderId,
@@ -13,6 +14,8 @@ import {
   createTestAttendeeDirect,
   createTestListing,
   describeWithEnv,
+  getAttendeeActivityLog,
+  getTestPrivateKey,
 } from "#test-utils";
 
 const PHONE = "+447700900123";
@@ -133,6 +136,50 @@ describeWithEnv("admin sms", { db: true }, () => {
     expect(
       log.some((e) => e.message.includes("queued for Jane Doe: Hello Jane")),
     ).toBe(true);
+
+    // The text counts against the phone contact, so the per-phone history
+    // panel's "Total messages" reflects SMS — not just bulk email.
+    const record = await getContactRecord(
+      await hashPhone(PHONE),
+      await getTestPrivateKey(),
+    );
+    expect(record.contactCount).toBe(1);
+    expect(record.lastSubject).toBe("Hello Jane");
+  });
+
+  it("POST still succeeds when the contact-history write throws", async () => {
+    await configureGateway();
+    const { attendee, form } = await setup();
+    // Seed an undecryptable stats_blob for this phone contact so recordContacts
+    // throws when it tries to update the per-phone history — the exact failure
+    // that must not be allowed to flip an already-sent text into an error.
+    await getDb().execute({
+      args: [await hashPhone(PHONE)],
+      sql: `INSERT INTO contact_preferences (contact_hash, stats_blob) VALUES (?, 'corrupt-blob')
+            ON CONFLICT(contact_hash) DO UPDATE SET stats_blob = 'corrupt-blob'`,
+    });
+    const fetchStub = okFetch();
+    try {
+      const { response } = await adminFormPost("/admin/sms", {
+        ...form,
+        message: "Hello Jane",
+      });
+      expect(response.status).toBe(302);
+    } finally {
+      fetchStub.restore();
+    }
+
+    // The gateway accepted the text, so the id→attendee map is recorded and the
+    // send is logged as queued; the stats failure must not surface as a "could
+    // not be queued" error that would prompt the operator to resend.
+    expect(await getSmsMessageByProviderId("msg-9")).not.toBeNull();
+    const log = await getAttendeeActivityLog(attendee.id);
+    expect(log.some((e) => e.message.includes("queued for Jane Doe"))).toBe(
+      true,
+    );
+    expect(log.some((e) => e.message.includes("could not be queued"))).toBe(
+      false,
+    );
   });
 
   it("POST on a gateway error logs the failure and records no row", async () => {

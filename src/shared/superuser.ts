@@ -1,7 +1,7 @@
 import { lazyRef, ttlCache } from "#fp";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { hashPassword } from "#shared/crypto/hashing.ts";
-import { deriveKEK, wrapKey } from "#shared/crypto/keys.ts";
+import { wrapDataKeyForPassword } from "#shared/crypto/keys.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   createUser,
@@ -161,8 +161,13 @@ export const createActivatedSuperuser = async (opts: {
   dataKey: CryptoKey;
 }): Promise<ReturnType<typeof createUser>> => {
   const passwordHash = await hashPassword(opts.password);
-  const kek = await deriveKEK(passwordHash);
-  const wrappedDataKey = await wrapKey(opts.dataKey, kek);
+  // v2: bind the superuser's wrapped DATA_KEY to its generated password (emailed
+  // out-of-band, never stored), making this the sanctioned recovery account.
+  const wrappedDataKey = await wrapDataKeyForPassword(
+    opts.dataKey,
+    opts.password,
+    passwordHash,
+  );
   return createUser(opts.username, passwordHash, wrappedDataKey, "owner");
 };
 

@@ -1,7 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { decryptWithKey } from "#shared/crypto/encryption.ts";
-import { deriveKEK, importPrivateKey, unwrapKey } from "#shared/crypto/keys.ts";
+import {
+  deriveKEKFromPassword,
+  importPrivateKey,
+  unwrapKey,
+} from "#shared/crypto/keys.ts";
 import { getAttendee } from "#shared/db/attendees.ts";
 import { getDb, insert } from "#shared/db/client.ts";
 import {
@@ -45,16 +49,19 @@ describeWithEnv("db > auth", { db: true }, () => {
       const oldHash = await verifyUserPassword(user!, TEST_ADMIN_PASSWORD);
       expect(oldHash).toBeTruthy();
 
-      const success = await settings.updateUserPassword(
-        user!.id,
-        oldHash!,
-        user!.wrapped_data_key!,
-        "newpassword456",
-      );
+      const success = await settings.updateUserPassword(user!.id, {
+        newPassword: "newpassword456",
+        oldKekVersion: user!.kek_version,
+        oldPassword: TEST_ADMIN_PASSWORD,
+        oldPasswordHash: oldHash!,
+        oldWrappedDataKey: user!.wrapped_data_key!,
+      });
       expect(success).toBe(true);
 
       const updatedUser = await getUserByUsername(TEST_ADMIN_USERNAME);
       expect(updatedUser!.wrapped_data_key).not.toBe(oldWrappedKey);
+      // Re-wrapped under the v2 (password-bound) scheme.
+      expect(updatedUser!.kek_version).toBe(2);
 
       expect(
         await verifyUserPassword(updatedUser!, TEST_ADMIN_PASSWORD),
@@ -65,17 +72,20 @@ describeWithEnv("db > auth", { db: true }, () => {
       ).toBeTruthy();
     });
 
-    test("updateUserPassword fails with wrong old password hash", async () => {
+    test("updateUserPassword fails with wrong old password", async () => {
       const user = await getUserByUsername(TEST_ADMIN_USERNAME);
       expect(user).not.toBeNull();
 
       const { settings: s } = await import("#shared/db/settings.ts");
-      const success = await s.updateUserPassword(
-        user!.id,
-        "pbkdf2:bogus:hash",
-        user!.wrapped_data_key!,
-        "newpassword",
-      );
+      // v2 derives the unwrap KEK from the raw old password, so a wrong one can't
+      // unwrap the DATA_KEY and the change is rejected.
+      const success = await s.updateUserPassword(user!.id, {
+        newPassword: "newpassword",
+        oldKekVersion: user!.kek_version,
+        oldPassword: "wrong-current-password",
+        oldPasswordHash: "pbkdf2:bogus:hash",
+        oldWrappedDataKey: user!.wrapped_data_key!,
+      });
       expect(success).toBe(false);
 
       const unchanged = await getUserByUsername(TEST_ADMIN_USERNAME);
@@ -108,12 +118,13 @@ describeWithEnv("db > auth", { db: true }, () => {
       const oldHash = await verifyUserPassword(user!, TEST_ADMIN_PASSWORD);
       expect(oldHash).toBeTruthy();
 
-      const changeSuccess = await settings.updateUserPassword(
-        user!.id,
-        oldHash!,
-        user!.wrapped_data_key!,
+      const changeSuccess = await settings.updateUserPassword(user!.id, {
         newPassword,
-      );
+        oldKekVersion: user!.kek_version,
+        oldPassword: TEST_ADMIN_PASSWORD,
+        oldPasswordHash: oldHash!,
+        oldWrappedDataKey: user!.wrapped_data_key!,
+      });
       expect(changeSuccess).toBe(true);
 
       // Create an attendee AFTER password change
@@ -134,7 +145,7 @@ describeWithEnv("db > auth", { db: true }, () => {
       );
       expect(newPasswordHash).toBeTruthy();
 
-      const kek = await deriveKEK(newPasswordHash!);
+      const kek = await deriveKEKFromPassword(newPassword, newPasswordHash!);
       const dataKey = await unwrapKey(updatedUser!.wrapped_data_key!, kek);
 
       const wrappedPrivateKey = settings.wrappedPrivateKey;
@@ -170,12 +181,13 @@ describeWithEnv("db > auth", { db: true }, () => {
       const initialHash = await verifyUserPassword(user!, TEST_ADMIN_PASSWORD);
       expect(initialHash).toBeTruthy();
 
-      const success = await settings.updateUserPassword(
-        user!.id,
-        initialHash!,
-        user!.wrapped_data_key!,
-        "new-password-123",
-      );
+      const success = await settings.updateUserPassword(user!.id, {
+        newPassword: "new-password-123",
+        oldKekVersion: user!.kek_version,
+        oldPassword: TEST_ADMIN_PASSWORD,
+        oldPasswordHash: initialHash!,
+        oldWrappedDataKey: user!.wrapped_data_key!,
+      });
       expect(success).toBe(true);
 
       const updatedUser = await getUserByUsername(TEST_ADMIN_USERNAME);

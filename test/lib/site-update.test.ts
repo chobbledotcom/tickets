@@ -8,7 +8,9 @@ import { siteDbApi } from "#shared/site-db.ts";
 import { loadBuiltSiteUpdateState } from "#shared/site-update.ts";
 import {
   CURRENT_SCRIPT_VERSION_KEY,
+  readRecordedScriptCommit,
   recordScriptVersion,
+  setBuildCommitForTest,
   setBuildTimestampForTest,
 } from "#shared/update.ts";
 import { createTestBuiltSite, describeWithEnv } from "#test-utils";
@@ -142,6 +144,7 @@ describeWithEnv(
 describeWithEnv("recordScriptVersion", { db: true }, () => {
   afterEach(() => {
     setBuildTimestampForTest(null);
+    setBuildCommitForTest(null);
   });
 
   const readVersion = (): Promise<{ value: string } | null> =>
@@ -153,6 +156,57 @@ describeWithEnv("recordScriptVersion", { db: true }, () => {
     setBuildTimestampForTest("2026-06-19T12:00:00Z");
     await recordScriptVersion();
     expect((await readVersion())?.value).toBe("2026-06-19T12:00:00Z");
+  });
+
+  test("records the running build's commit alongside the version", async () => {
+    setBuildTimestampForTest("2026-06-19T12:00:00Z");
+    setBuildCommitForTest("abc123def4567890");
+    await recordScriptVersion();
+    // Reads back through the public helper a restore uses to surface it.
+    expect(await readRecordedScriptCommit()).toBe("abc123def4567890");
+  });
+
+  test("records the commit even when the timestamp is empty", async () => {
+    // The two markers are independent — a missing timestamp must not suppress
+    // the commit (and vice versa).
+    setBuildTimestampForTest(null);
+    setBuildCommitForTest("deadbeefcafe");
+    await recordScriptVersion();
+    expect(await readVersion()).toBeNull();
+    expect(await readRecordedScriptCommit()).toBe("deadbeefcafe");
+  });
+
+  test("readRecordedScriptCommit returns empty string when unrecorded", async () => {
+    // Older backups / dev builds have no commit row.
+    expect(await readRecordedScriptCommit()).toBe("");
+  });
+
+  test("clears a stale commit marker when a built bundle ships without one", async () => {
+    // A CI deploy records a commit…
+    setBuildCommitForTest("abc123def4567890");
+    await recordScriptVersion();
+    expect(await readRecordedScriptCommit()).toBe("abc123def4567890");
+
+    // …then a real built bundle that ships without a commit (e.g. deno task
+    // deploy:edge — it has a build timestamp but no embedded commit) must clear
+    // it, not leave the stale value to mislead a later restore.
+    setBuildCommitForTest("");
+    setBuildTimestampForTest("2026-06-20T00:00:00Z");
+    await recordScriptVersion();
+    expect(await readRecordedScriptCommit()).toBe("");
+  });
+
+  test("preserves the commit marker on a dev/source boot with no build info", async () => {
+    // Seed a commit as a CI deploy would.
+    setBuildCommitForTest("abc123def4567890");
+    await recordScriptVersion();
+
+    // A dev/source boot has neither a timestamp nor a commit; it must NOT wipe
+    // the marker (e.g. running `deno task start` against a remote DB).
+    setBuildCommitForTest(null);
+    setBuildTimestampForTest(null);
+    await recordScriptVersion();
+    expect(await readRecordedScriptCommit()).toBe("abc123def4567890");
   });
 
   test("leaves the stored version untouched when it is unchanged", async () => {

@@ -10,8 +10,12 @@ import { fromBase64, getRandomBytes, toBase64 } from "./utils.ts";
 /**
  * Encryption format version prefix
  * Format: enc:1:$base64iv:$base64ciphertext
+ *
+ * Tags symmetric DB_ENCRYPTION_KEY ciphertext, distinguishing it from hybrid
+ * owner-key values (see HYBRID_PREFIX in keys.ts) — the activity-log backfill
+ * keys off this prefix to find legacy rows still to re-encrypt.
  */
-const ENCRYPTION_PREFIX = "enc:1:";
+export const ENCRYPTION_PREFIX = "enc:1:";
 
 export const decodeKeyBytes = (keyString: string): Uint8Array => {
   const keyBytes = fromBase64(keyString);

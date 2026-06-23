@@ -1,6 +1,7 @@
 export type { PublicPageType } from "./public/basic-pages.tsx";
 export { contactPage, publicSitePage } from "./public/basic-pages.tsx";
 export {
+  databaseBusyPage,
   migrationInProgressPage,
   notFoundPage,
   qrBookErrorPage,
@@ -11,6 +12,7 @@ export {
 } from "./public/errors.tsx";
 export { homepagePage } from "./public/homepage.tsx";
 export { orderGalleryPage } from "./public/order-gallery.tsx";
+export { orderSummary, orderSummaryMessage } from "./public/order-summary.tsx";
 export {
   type BookingPrefill,
   buildOgTags,

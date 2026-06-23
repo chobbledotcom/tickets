@@ -16,6 +16,7 @@ import {
 import type {
   ListingAggregateField,
   ListingAggregateRecalculation,
+  ListingRevenueBreakdown,
 } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
 import { buildEmbedSnippets } from "#shared/embed.ts";
@@ -61,9 +62,11 @@ import {
   type TableQuestionData,
 } from "#templates/attendee-table.tsx";
 import {
+  ActionButton,
   MaybeButtonLink,
   SubmitButton,
 } from "#templates/components/actions.tsx";
+import { colClass } from "#templates/components/table-columns.ts";
 import {
   getAddAttendeeFields,
   getAssignBuiltSiteField,
@@ -110,10 +113,21 @@ export const buildAnswerSummaryRows = (
 export const nearCapacity = (listing: ListingWithCount): boolean =>
   listing.attendee_count >= listing.max_attendees * 0.9;
 
+/** The remaining override-managed aggregates are integer counts, so each is
+ * rendered with `String`. (Income is no longer an aggregate column — it's
+ * projected from the ledger — so it has no formatter here.) */
+const listingAggregateFormatters: Record<
+  ListingAggregateField,
+  (value: number) => string
+> = {
+  booked_quantity: String,
+  tickets_count: String,
+};
+
 const formatListingAggregateValue = (
   name: ListingAggregateField,
   value: number,
-): string => (name === "income" ? formatCurrency(value) : String(value));
+): string => listingAggregateFormatters[name](value);
 
 const listingAggregateMismatchItems = (
   aggregateRecalculation?: ListingAggregateRecalculation,
@@ -203,9 +217,9 @@ const FailedPaymentRow = ({
   String(
     <tr>
       <td>{attendee.name}</td>
-      <td>{attendee.quantity}</td>
+      <td class={colClass("quantity")}>{attendee.quantity}</td>
       <td>{formatDatetimeShort(attendee.created)}</td>
-      <td>
+      <td class={colClass("actions")}>
         <CsrfForm
           action={`/admin/listing/${listingId}/attendee/${attendee.id}/delete-incomplete`}
           class="inline"
@@ -231,9 +245,9 @@ const FailedPaymentsTable = ({
       <thead>
         <tr>
           <th>{t("common.name")}</th>
-          <th>{t("common.qty")}</th>
+          <th class={colClass("quantity")}>{t("common.qty")}</th>
           <th>{t("common.registered")}</th>
-          <th></th>
+          <th class={colClass("actions")}></th>
         </tr>
       </thead>
       <tbody>
@@ -311,6 +325,107 @@ const DateSelector = ({
   )}">${options}</select>`;
 };
 
+// ---------------------------------------------------------------------------
+// Income & ledger breakdown
+//
+// A listing's income now projects from the `transfers` ledger, where two
+// correct-but-different figures exist for the same `revenue:<id>` account:
+// the RECOGNISED INCOME (refund-agnostic, the reported figure) and the NET
+// LEDGER BALANCE (which a refund also reduces). After a refund they legitimately
+// differ, so this section renders both from the same running totals — gross
+// sales (+) and manual adjustments (±) make up recognised income, and refunds
+// (−) take it down to the net balance — making the difference self-evident.
+// ---------------------------------------------------------------------------
+
+/** Render a magnitude with an explicit leading sign, so a credit and a debit of
+ * the same size never read alike (mirrors the ledger statement's signed delta).
+ * A zero shows as a plain, unsigned `£0`. */
+const signedCurrency = (value: number): string =>
+  value === 0
+    ? formatCurrency(0)
+    : `${value < 0 ? "−" : "+"}${formatCurrency(Math.abs(value))}`;
+
+/** One row of the breakdown table: a label and a right-aligned figure, with an
+ * optional `subtotal` modifier that bolds the two reconciled lines (recognised
+ * income, net balance). */
+const BreakdownRow = ({
+  label,
+  amount,
+  subtotal = false,
+}: {
+  label: string;
+  amount: string;
+  subtotal?: boolean;
+}): JSX.Element => (
+  <tr class={subtotal ? "breakdown-subtotal" : undefined}>
+    <th>{subtotal ? <strong>{label}</strong> : label}</th>
+    <td class={colClass("amount")}>
+      {subtotal ? <strong>{amount}</strong> : amount}
+    </td>
+  </tr>
+);
+
+/**
+ * The "Income & ledger" reconciliation table for one listing's revenue account.
+ * Renders gross sales (+), manual adjustments (± — omitted only when there have
+ * never been any, so the recognised-income subtotal still adds up on its face),
+ * the recognised-income subtotal (bold), refunds (−), and the net-balance
+ * subtotal (bold). Render-only: the feature layer supplies the projected
+ * {@link ListingRevenueBreakdown}; a plain-English line plus a link to the full
+ * per-account ledger statement explain why the two subtotals can differ.
+ */
+const ListingIncomeLedgerSection = ({
+  breakdown,
+  listingId,
+}: {
+  breakdown: ListingRevenueBreakdown;
+  listingId: number;
+}): JSX.Element => (
+  <article id="income-ledger">
+    <fieldset class="listing-section">
+      <legend>{t("listings_table.income_ledger_legend")}</legend>
+      <div class="table-scroll">
+        <table class="listing-breakdown-table">
+          <tbody>
+            <BreakdownRow
+              amount={signedCurrency(breakdown.grossSales)}
+              label={t("listings_table.income_ledger_gross_sales")}
+            />
+            {breakdown.manualAdjustments !== 0 && (
+              <BreakdownRow
+                amount={signedCurrency(breakdown.manualAdjustments)}
+                label={t("listings_table.income_ledger_manual_adjustments")}
+              />
+            )}
+            <BreakdownRow
+              amount={formatCurrency(breakdown.recognisedIncome)}
+              label={t("listings_table.income_ledger_recognised_income")}
+              subtotal
+            />
+            <BreakdownRow
+              amount={signedCurrency(-breakdown.refunds)}
+              label={t("listings_table.income_ledger_refunds")}
+            />
+            <BreakdownRow
+              amount={formatCurrency(breakdown.netBalance)}
+              label={t("listings_table.income_ledger_net_balance")}
+              subtotal
+            />
+          </tbody>
+        </table>
+      </div>
+      <p>
+        <small>{t("listings_table.income_ledger_recognised_note")}</small>
+      </p>
+      <p class="actions">
+        <ActionButton href={`/admin/ledger?listing=${listingId}`}>
+          {t("listings_table.income_ledger_view_full")}
+        </ActionButton>
+      </p>
+    </fieldset>
+  </article>
+);
+
 /** Options for rendering the admin listing detail page */
 /** Group + current attendee count, supplied when the listing is in a capped
  * group so the detail page can show group-wide capacity beneath the
@@ -335,6 +450,11 @@ export type AdminListingPageOptions = {
   successMessage?: string;
   questionData?: TableQuestionData;
   groupContext?: GroupContext;
+  /** The listing's revenue-account breakdown (gross sales, manual adjustments,
+   * recognised income, refunds, net balance), reconciling the reported income
+   * with the live ledger balance. Omitted only by template callers that don't
+   * exercise the section. */
+  revenueBreakdown?: ListingRevenueBreakdown;
   /** Whether any of the listing's attendees (across all dates) have an email
    * address — gates the owner-only "Email" action. */
   hasEmailableAttendees?: boolean;
@@ -1004,9 +1124,9 @@ const AttendeesSection = ({
           })}
         />
       </div>
-      <p class="table-footer-actions">
+      <div class="table-actions">
         <a href={exportHref}>{t("listings_table.export_csv")}</a>
-      </p>
+      </div>
     </article>
   );
 };
@@ -1116,6 +1236,7 @@ export const adminListingPage = ({
   successMessage,
   questionData,
   groupContext,
+  revenueBreakdown,
   hasEmailableAttendees = false,
 }: AdminListingPageOptions): string => {
   const ticketUrl = `https://${allowedDomain}/ticket/${listing.slug}`;
@@ -1191,6 +1312,12 @@ export const adminListingPage = ({
         sharedRowsHtml={renderDetailRows(sharedRows)}
         ticketUrl={ticketUrl}
       />
+      {revenueBreakdown && (
+        <ListingIncomeLedgerSection
+          breakdown={revenueBreakdown}
+          listingId={listing.id}
+        />
+      )}
       <AttendeesSection
         activeFilter={activeFilter}
         allowedDomain={allowedDomain}
@@ -1296,9 +1423,58 @@ export const listingAggregateToFieldValues = (
   listing: ListingWithCount,
 ): FieldValues => ({
   booked_quantity: listing.attendee_count,
-  income: toMajorUnits(listing.income),
   tickets_count: listing.tickets_count,
 });
+
+/**
+ * Money-correction section, kept separate from the counts override ("splits by
+ * kind", decision 14). Shows the current projected income (read-only) and an
+ * input for the corrected value; submitting posts a `writeoff` adjustment for the
+ * difference to the source-of-truth money ledger. A prominent warning states the
+ * entry is appended, not destructive. Its own CsrfForm, so it posts independently
+ * of the main edit form.
+ */
+const ListingIncomeAdjustSection = ({
+  listing,
+}: {
+  listing: ListingWithCount;
+}): JSX.Element => (
+  <CsrfForm
+    action={`/admin/listing/${listing.id}/income`}
+    class="listing-section"
+  >
+    <h2>{t("listings_table.adjust_income")}</h2>
+    <div class="error" role="alert">
+      {t("listings_table.adjust_income_warning")}
+    </div>
+    <label>
+      {t("listings_table.adjust_income_current")}
+      <input disabled type="text" value={formatCurrency(listing.income)} />
+    </label>
+    <label for="income">
+      {t("listings_table.adjust_income_new_label")}
+      <input
+        id="income"
+        inputmode="decimal"
+        min="0"
+        name="income"
+        step="0.01"
+        type="number"
+        value={toMajorUnits(listing.income)}
+      />
+    </label>
+    <p>
+      <small>
+        <a href={`/admin/listing/${listing.id}#income-ledger`}>
+          {t("listings_table.income_ledger_link")}
+        </a>
+      </small>
+    </p>
+    <SubmitButton icon="save">
+      {t("listings_table.adjust_income_submit")}
+    </SubmitButton>
+  </CsrfForm>
+);
 
 const ListingRunningTotalsSection = ({
   aggregateRecalculation,
@@ -1331,15 +1507,6 @@ const ListingRunningTotalsSection = ({
     </div>
   </fieldset>
 );
-
-const listingAggregateFormatters: Record<
-  ListingAggregateField,
-  (value: number) => string
-> = {
-  booked_quantity: String,
-  income: formatCurrency,
-  tickets_count: String,
-};
 
 const listingRecalculateRows = (
   snapshot: ListingAggregateRecalculation,
@@ -1743,6 +1910,7 @@ export const adminListingEditPage = (
           {t("common.save_changes")}
         </SubmitButton>
       </CsrfForm>
+      <ListingIncomeAdjustSection listing={listing} />
       {storageEnabled && listing.image_url && (
         <CsrfForm action={`/admin/listing/${listing.id}/image/delete`}>
           <SubmitButton class="secondary" icon="trash-2">

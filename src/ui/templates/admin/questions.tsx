@@ -18,7 +18,7 @@ import {
   type ExpectedActualItem,
   ExpectedActualNotice,
 } from "#templates/admin/expected-actual.tsx";
-import { AdminNav, SettingsSubNav } from "#templates/admin/nav.tsx";
+import { AdminNav } from "#templates/admin/nav.tsx";
 import {
   adminRecalculatePage,
   type RecalculateRow,
@@ -28,6 +28,7 @@ import {
   GuideLink,
   SubmitButton,
 } from "#templates/components/actions.tsx";
+import { colClass } from "#templates/components/table-columns.ts";
 import { answerAggregateFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
@@ -42,7 +43,7 @@ const ReorderControls = ({
   index: number;
   count: number;
 }): JSX.Element => (
-  <>
+  <td class={colClass("reorder")}>
     {index > 0 && (
       <CsrfForm action={action("up")} class="inline">
         <button class="link-button small" type="submit">
@@ -57,7 +58,7 @@ const ReorderControls = ({
         </button>
       </CsrfForm>
     )}
-  </>
+  </td>
 );
 
 /** Listings cell for a question row: a count whose title attribute spells out
@@ -75,7 +76,11 @@ const QuestionListingsCell = ({
   const all = question.assign_all === true;
   const count = all ? totalListings : listingNames.length;
   const title = all ? t("questions.all_listings") : listingNames.join(", ");
-  return <td title={title}>{count}</td>;
+  return (
+    <td class={colClass("quantity")} title={title}>
+      {count}
+    </td>
+  );
 };
 
 /** List all questions in a reorderable table, mirroring the listings table:
@@ -91,8 +96,6 @@ export const adminQuestionsPage = (
   String(
     <Layout title={t("questions.title")}>
       <AdminNav active="/admin/settings" session={session} />
-      <SettingsSubNav />
-
       <p class="actions">
         <GuideLink href="/admin/guide#questions">Questions guide</GuideLink>
       </p>
@@ -112,26 +115,30 @@ export const adminQuestionsPage = (
           <table>
             <thead>
               <tr>
-                <th>{t("questions.order_column")}</th>
+                <th class={colClass("reorder")}>
+                  {t("questions.order_column")}
+                </th>
                 <th>{t("questions.question_column")}</th>
-                <th>{t("questions.answers_column")}</th>
-                <th>{t("questions.listings_column")}</th>
+                <th class={colClass("quantity")}>
+                  {t("questions.answers_column")}
+                </th>
+                <th class={colClass("quantity")}>
+                  {t("questions.listings_column")}
+                </th>
               </tr>
             </thead>
             <tbody>
               {questions.map((q, i) => (
                 <tr>
-                  <td>
-                    <ReorderControls
-                      action={(d) => `/admin/questions/${q.id}/move-${d}`}
-                      count={questions.length}
-                      index={i}
-                    />
-                  </td>
+                  <ReorderControls
+                    action={(d) => `/admin/questions/${q.id}/move-${d}`}
+                    count={questions.length}
+                    index={i}
+                  />
                   <td>
                     <a href={`/admin/questions/${q.id}`}>{q.text}</a>
                   </td>
-                  <td>{q.answers.length}</td>
+                  <td class={colClass("quantity")}>{q.answers.length}</td>
                   <QuestionListingsCell
                     listingNames={listingNames.get(q.id) ?? []}
                     question={q}
@@ -158,71 +165,102 @@ export const adminQuestionPage = (
   String(
     <Layout title={`Question: ${question.text}`}>
       <AdminNav active="/admin/settings" session={session} />
-      <SettingsSubNav />
-
       <h1>{question.text}</h1>
       <Flash error={error} />
 
       <CsrfForm action={`/admin/questions/${question.id}/edit`}>
-        <Raw
-          html={questionTextForm.render({
-            display_type: question.display_type,
-            text: question.text,
-          })}
-        />
+        <Raw html={questionTextForm.field("text").render(question.text)} />
+        {question.display_type === "free_text" ? (
+          // Free-text questions can't become choice questions (it would orphan
+          // any stored text answers), so lock the type rather than offering it.
+          <input name="display_type" type="hidden" value="free_text" />
+        ) : (
+          <label>
+            Display as
+            <select name="display_type">
+              <option
+                selected={question.display_type === "radio"}
+                value="radio"
+              >
+                Radio buttons
+              </option>
+              <option
+                selected={question.display_type === "select"}
+                value="select"
+              >
+                Select box
+              </option>
+            </select>
+          </label>
+        )}
         <SubmitButton icon="save">{t("questions.edit.update")}</SubmitButton>
       </CsrfForm>
 
-      <h2>{t("questions.edit.answers_heading")}</h2>
-      <CsrfForm
-        action={`/admin/questions/${question.id}/answers`}
-        id="add-answer"
-      >
-        <Raw html={answerTextForm.render()} />
-        <SubmitButton icon="plus">
-          {t("questions.edit.add_answer")}
-        </SubmitButton>
-      </CsrfForm>
-
-      {question.answers.length === 0 ? (
+      {question.display_type === "free_text" ? (
         <p>
-          <em>{t("questions.edit.no_answers")}</em>
+          <em>
+            Free-text questions collect a typed answer, so they have no answer
+            options to manage.
+          </em>
         </p>
       ) : (
-        <div class="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>{t("questions.order_column")}</th>
-                <th>{t("questions.answer_column")}</th>
-                <th>{t("questions.selected_column")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {question.answers.map((a, i) => (
-                <tr>
-                  <td>
-                    <ReorderControls
-                      action={(d) =>
-                        `/admin/questions/${question.id}/answers/${a.id}/move-${d}`
-                      }
-                      count={question.answers.length}
-                      index={i}
-                    />
-                  </td>
-                  <td>
-                    <a
-                      href={`/admin/questions/${question.id}/answers/${a.id}/edit`}
-                    >
-                      {a.text}
-                    </a>
-                  </td>
-                  <td>{answerCounts?.get(a.id) ?? 0}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          <h2>{t("questions.edit.answers_heading")}</h2>
+          <CsrfForm
+            action={`/admin/questions/${question.id}/answers`}
+            id="add-answer"
+          >
+            <Raw html={answerTextForm.render()} />
+            <SubmitButton icon="plus">
+              {t("questions.edit.add_answer")}
+            </SubmitButton>
+          </CsrfForm>
+
+          {question.answers.length === 0 ? (
+            <p>
+              <em>{t("questions.edit.no_answers")}</em>
+            </p>
+          ) : (
+            <div class="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th class={colClass("reorder")}>
+                      {t("questions.order_column")}
+                    </th>
+                    <th>{t("questions.answer_column")}</th>
+                    <th class={colClass("quantity")}>
+                      {t("questions.selected_column")}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {question.answers.map((a, i) => (
+                    <tr>
+                      <ReorderControls
+                        action={(d) =>
+                          `/admin/questions/${question.id}/answers/${a.id}/move-${d}`
+                        }
+                        count={question.answers.length}
+                        index={i}
+                      />
+                      <td>
+                        <a
+                          href={`/admin/questions/${question.id}/answers/${a.id}/edit`}
+                        >
+                          {a.text}
+                        </a>
+                      </td>
+                      <td class={colClass("quantity")}>
+                        {answerCounts?.get(a.id) ?? 0}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
 
       <h2>{t("questions.assign_to_listings")}</h2>
@@ -346,8 +384,6 @@ export const adminAnswerEditPage = (
   String(
     <Layout title={t("questions.edit_answer.title")}>
       <AdminNav active="/admin/settings" session={session} />
-      <SettingsSubNav />
-
       <p>
         <BackButton href={`/admin/questions/${question.id}`}>
           {t("questions.edit_answer.back_to_question")}
@@ -379,6 +415,19 @@ export const adminAnswerEditPage = (
             ))}
           </select>
           <small>{t("questions.edit_answer.modifier_hint")}</small>
+        </label>
+        <label>
+          <input
+            checked={answer.active || undefined}
+            name="active"
+            type="checkbox"
+            value="on"
+          />{" "}
+          Active
+          <small>
+            Deactivate to hide this answer on the booking form. Attendees who
+            already chose it keep it, and it still shows on their edit page.
+          </small>
         </label>
         <AnswerRunningTotalsSection
           aggregateRecalculation={aggregateRecalculation}
@@ -449,8 +498,6 @@ export const adminQuestionDeletePage = (
   String(
     <Layout title={t("questions.delete.heading")}>
       <AdminNav active="/admin/settings" session={session} />
-      <SettingsSubNav />
-
       <ConfirmForm
         action={`/admin/questions/${question.id}/delete`}
         buttonText={t("questions.delete.submit")}
@@ -475,8 +522,6 @@ export const adminAnswerDeletePage = (
   String(
     <Layout title={t("questions.delete_answer.title")}>
       <AdminNav active="/admin/settings" session={session} />
-      <SettingsSubNav />
-
       <ConfirmForm
         action={`/admin/questions/${question.id}/answers/${answer.id}/delete`}
         buttonText={t("questions.delete_answer.submit")}

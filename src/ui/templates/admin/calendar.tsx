@@ -20,7 +20,7 @@ import {
   buildSharedDetailRows,
   renderDetailRows,
 } from "#templates/admin/detail-rows.tsx";
-import { AdminNav, CalendarSubNav } from "#templates/admin/nav.tsx";
+import { AdminNav } from "#templates/admin/nav.tsx";
 import {
   AttendeeTable,
   type AttendeeTableRow,
@@ -103,8 +103,6 @@ export const adminCalendarPage = (
   return String(
     <Layout title={t("admin.calendar.title")}>
       <AdminNav active="/admin/calendar" session={session} />
-      <CalendarSubNav />
-
       <p class="actions">
         <GuideLink href="/admin/guide#calendar">Calendar guide</GuideLink>
       </p>
@@ -158,9 +156,9 @@ export const adminCalendarPage = (
           />
         </div>
         {dateFilter && attendees.length > 0 && (
-          <p class="table-footer-actions">
+          <div class="table-actions">
             <a href={exportHref}>{t("admin.calendar.export_csv")}</a>
-          </p>
+          </div>
         )}
       </article>
     </Layout>,

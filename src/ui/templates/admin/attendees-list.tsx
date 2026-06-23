@@ -227,11 +227,11 @@ export const adminAttendeesListPage = (props: AttendeesListPageProps): string =>
           />
         </div>
 
-        <p class="table-footer-actions">
+        <div class="table-actions">
           <a href={csvHref(props.listingId, props.type)}>
             {t("listings_table.export_csv")}
           </a>
-        </p>
+        </div>
       </div>
 
       <Pagination

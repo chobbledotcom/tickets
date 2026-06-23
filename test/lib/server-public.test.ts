@@ -529,10 +529,57 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
   });
 
   describe("GET /health", () => {
-    test("returns health status", async () => {
-      await assertJson(handleRequest(mockRequest("/health")), 200, (json) => {
-        expect(json).toEqual({ status: "ok" });
-      });
+    test("returns a plain liveness reply by default", async () => {
+      const response = await handleRequest(mockRequest("/health"));
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toContain("text/plain");
+      expect(await response.text()).toBe("Up :)");
+    });
+
+    test("returns build diagnostics when the request carries the debug key", async () => {
+      const restore = setTestEnv({ DEBUG_KEY: "s3cret-diag-key" });
+      try {
+        await assertJson(
+          handleRequest(
+            mockRequest("/health", {
+              headers: { "x-debug-key": "s3cret-diag-key" },
+            }),
+          ),
+          200,
+          (json) => {
+            // The dynamic, meaningful field: a parseable server timestamp.
+            expect(typeof json.serverTime).toBe("string");
+            expect(Number.isNaN(Date.parse(json.serverTime))).toBe(false);
+            // Build markers are present (empty strings in a dev/test build).
+            expect(json).toHaveProperty("commit");
+            expect(json).toHaveProperty("buildTimestamp");
+            // Never leaks the liveness text into the diagnostics payload.
+            expect(json).not.toHaveProperty("status");
+          },
+        );
+      } finally {
+        restore();
+      }
+    });
+
+    test("ignores a wrong debug key and stays on plain liveness", async () => {
+      const restore = setTestEnv({ DEBUG_KEY: "s3cret-diag-key" });
+      try {
+        const response = await handleRequest(
+          mockRequest("/health", { headers: { "x-debug-key": "wrong" } }),
+        );
+        expect(await response.text()).toBe("Up :)");
+      } finally {
+        restore();
+      }
+    });
+
+    test("ignores the debug header when DEBUG_KEY is unset", async () => {
+      // Without DEBUG_KEY configured, no header can unlock diagnostics.
+      const response = await handleRequest(
+        mockRequest("/health", { headers: { "x-debug-key": "anything" } }),
+      );
+      expect(await response.text()).toBe("Up :)");
     });
 
     test("returns 404 for non-GET requests to /health", async () => {
@@ -4551,7 +4598,9 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
       // Verify answers were saved
       const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       const attendees = await getAttendeesRaw(listing.id);
-      const batch = await getAttendeeAnswersBatch([attendees[0]!.id]);
+      const batch = await getAttendeeAnswersBatch([attendees[0]!.id], {
+        texts: false,
+      });
       expect(batch.get(attendees[0]!.id)).toEqual([answer1.id]);
     });
 
@@ -4582,15 +4631,15 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
       );
     });
 
-    test("a free booking consumes answer-tier stock, blocking the next over it", async () => {
+    test("a provider-less booking consumes answer-tier stock, blocking the next over it", async () => {
       const listing = await createTestListing({
         maxAttendees: 50,
         thankYouUrl: "",
       });
       const { question, answer1 } = await setupQuestionForListing(listing.id);
-      // Payments are disabled here, so bookings complete for free — but a
-      // stock-limited answer tier must still be consumed so it can't be
-      // over-sold across free bookings.
+      // Payments are disabled here, so bookings are taken without charging — but
+      // a stock-limited answer tier must still be consumed so it can't be
+      // over-sold across bookings.
       const tier = await modifiersTable.insert({
         calcKind: "fixed",
         calcValue: 5,
@@ -4608,13 +4657,16 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
       });
       expectReservedRedirectWithTokens(first);
 
-      // The unit was consumed, but with payments off nothing was collected: the
-      // usage is recorded without inflating the tier's reported revenue.
+      // The unit was consumed. With no payment provider nothing is collected up
+      // front, but the booking owes the tier's £5.00 and records it on the ledger
+      // (a surcharge leg, attendee→modifier), exactly as a zero-deposit
+      // reservation's would be. total_revenue now projects that net balance —
+      // balanceOf(modifier) = +£5.00 — read directly from the ledger.
       const afterFirst = (await getAllModifiers()).find(
         (m) => m.id === tier.id,
       );
       expect(afterFirst?.total_uses).toBe(1);
-      expect(afterFirst?.total_revenue).toBe(0);
+      expect(afterFirst?.total_revenue).toBe(500);
 
       // The single unit is now spent, so the next booking of the tier is blocked.
       const second = await submitTicketForm(listing.slug, {
@@ -4744,7 +4796,9 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
       const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       const att1 = await getAttendeesRaw(listing1.id);
       const attendeeId = att1[0]!.id;
-      const batch = await getAttendeeAnswersBatch([attendeeId]);
+      const batch = await getAttendeeAnswersBatch([attendeeId], {
+        texts: false,
+      });
       expect(batch.get(attendeeId)).toEqual([answer1.id]);
     });
 
@@ -4799,7 +4853,9 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
       const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       const att1 = await getAttendeesRaw(listing1.id);
       const attendeeId = att1[0]!.id;
-      const batch = await getAttendeeAnswersBatch([attendeeId]);
+      const batch = await getAttendeeAnswersBatch([attendeeId], {
+        texts: false,
+      });
       const answers = batch.get(attendeeId) ?? [];
       expect(answers).toContain(a1.id);
       expect(answers).toContain(a2.id);
@@ -4844,7 +4900,9 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
       const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
       const att1 = await getAttendeesRaw(listing1.id);
       expect(att1.length).toBe(1);
-      const batch = await getAttendeeAnswersBatch([att1[0]!.id]);
+      const batch = await getAttendeeAnswersBatch([att1[0]!.id], {
+        texts: false,
+      });
       expect(batch.get(att1[0]!.id)).toEqual([a1.id]);
       const att2 = await getAttendeesRaw(listing2.id);
       expect(att2.length).toBe(0);

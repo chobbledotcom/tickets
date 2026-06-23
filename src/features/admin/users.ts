@@ -18,13 +18,12 @@ import { getSearchParam } from "#routes/url.ts";
 import { createAuthedFormRoute } from "#shared/app-forms.ts";
 /* jscpd:ignore-start */
 import { getEffectiveDomain } from "#shared/config.ts";
-import { unwrapKeyWithToken } from "#shared/crypto/keys.ts";
+import { unwrapKeyWithToken, wrapKeyWithToken } from "#shared/crypto/keys.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getAllLogisticsAgents } from "#shared/db/logistics-agents.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getUserAgentIds, setUserAgentIds } from "#shared/db/user-agents.ts";
 import {
-  activateUser,
   createInvitedUser,
   decryptAdminLevel,
   decryptUsername,
@@ -32,7 +31,6 @@ import {
   getAllUsers,
   getUserById,
   hashInviteCode,
-  hasPassword,
   isInviteExpired,
   isUsernameTaken,
 } from "#shared/db/users.ts";
@@ -103,7 +101,6 @@ const toDisplayUser = async (
   user: User,
   agentNameById?: Map<number, string>,
 ): Promise<DisplayUser> => {
-  const userHasPassword = await hasPassword(user);
   const adminLevel = await decryptAdminLevel(user);
   const agentNames =
     adminLevel === "agent" && agentNameById
@@ -111,13 +108,14 @@ const toDisplayUser = async (
           .map((id) => agentNameById.get(id))
           .filter((name): name is string => name !== undefined)
       : undefined;
+  const hasDataKey = user.wrapped_data_key !== null;
   return {
     adminLevel,
     agentNames,
-    hasDataKey: user.wrapped_data_key !== null,
-    hasPassword: userHasPassword,
+    hasDataKey,
     id: user.id,
-    inviteExpired: userHasPassword ? false : await isInviteExpired(user),
+    // An activated user has a data key; only un-activated invites can expire.
+    inviteExpired: hasDataKey ? false : await isInviteExpired(user),
     username: await decryptUsername(user),
   };
 };
@@ -208,7 +206,7 @@ const handleUserManageGet = ownerUserPage(async (user, session) => {
  * Handle GET /admin/user/new - show invite user form
  */
 const handleUserNewGet = ownerPage(async (session) =>
-  adminUserNewPage(session, await loadAssignableAgents()),
+  adminUserNewPage(session, await loadAssignableAgents(), getFlash().error),
 );
 
 /** Handle POST /admin/users - create invited user */
@@ -219,7 +217,7 @@ const handleUsersPost = createAuthedFormRoute<InviteUserFormValues>({
       validateForm<InviteUserFormValues>(form, getInviteUserFields()),
   },
   onInvalid: ({ error }) => errorRedirect("/admin/user/new", error),
-  onValid: async ({ values, form }) => {
+  onValid: async ({ values, form, session }) => {
     const { username, admin_level: adminLevel } = values;
 
     if (!VALID_ADMIN_LEVELS.includes(adminLevel)) {
@@ -228,16 +226,29 @@ const handleUsersPost = createAuthedFormRoute<InviteUserFormValues>({
     if (await isUsernameTaken(username)) {
       return errorRedirect("/admin/user/new", t("error.username_taken"));
     }
+    if (!session.wrappedDataKey) {
+      return errorRedirect("/admin/user/new", t("error.session_lacks_key"));
+    }
 
     const inviteCode = generateSecureToken();
     const codeHash = await hashInviteCode(inviteCode);
     const expiry = new Date(nowMs() + INVITE_EXPIRY_MS).toISOString();
+
+    // Hand the shared DATA_KEY to the invitee wrapped under their single-use
+    // invite code, so they self-activate at /join under the password-bound (v2)
+    // KEK instead of an admin re-keying them from a stored password hash.
+    const dataKey = await unwrapKeyWithToken(
+      session.wrappedDataKey,
+      session.token,
+    );
+    const inviteWrappedDataKey = await wrapKeyWithToken(dataKey, inviteCode);
 
     const user = await createInvitedUser(
       username,
       adminLevel,
       codeHash,
       expiry,
+      inviteWrappedDataKey,
     );
 
     // Agent users carry the logistics agents they drive; ignored for staff.
@@ -332,64 +343,6 @@ const handleUserAgentsPost: TypedRouteHandler<
     }),
   );
 
-type UserActionHandler = (
-  user: User,
-  session: AuthSession,
-  errorPage: UserErrorPageFn,
-) => Response | Promise<Response>;
-
-/** Owner auth + fetch user by ID, providing session, errorPage and user to handler */
-const withUserAction = (
-  request: Request,
-  userId: number,
-  handler: UserActionHandler,
-): Promise<Response> =>
-  withAuth(request, OWNER_FORM, (session) =>
-    withLoadedUser(session, userId, (user, errorPage) =>
-      handler(user, session, errorPage),
-    ),
-  );
-
-/**
- * Handle POST /admin/users/:id/activate
- */
-const handleUserActivate: UserActionHandler = async (
-  user,
-  session,
-  errorPage,
-) => {
-  // User must have a password set
-  const userHasPassword = await hasPassword(user);
-  if (!userHasPassword) {
-    return errorPage(t("error.user_no_password"), 400);
-  }
-
-  // User must not already have a data key
-  if (user.wrapped_data_key) {
-    return errorPage(t("error.user_already_activated"), 400);
-  }
-
-  // Get the data key from the current session
-  if (!session.wrappedDataKey) {
-    return errorPage(t("error.session_lacks_key"), 500);
-  }
-
-  const dataKey = await unwrapKeyWithToken(
-    session.wrappedDataKey,
-    session.token,
-  );
-
-  // Decrypt user's password hash to derive their KEK
-  const { decrypt } = await import("#shared/crypto/encryption.ts");
-  const decryptedPasswordHash = await decrypt(user.password_hash);
-
-  await activateUser(user.id, dataKey, decryptedPasswordHash);
-
-  const username = await decryptUsername(user);
-  await logActivity(`User '${username}' activated`);
-  return redirect("/admin/users", t("success.user_activated"), true);
-};
-
 /** Confirmed-delete handlers for users */
 const userDelete = createConfirmedHandlers<DisplayUser>({
   identifier: (displayUser) => displayUser.username,
@@ -410,21 +363,11 @@ const userDelete = createConfirmedHandlers<DisplayUser>({
     id === session.userId
       ? usersErrorResponse(session, t("error.cannot_delete_self"), 400)
       : null,
-  render: (displayUser, session) => adminUserDeletePage(displayUser, session),
+  render: (displayUser, session, error) =>
+    adminUserDeletePage(displayUser, session, error),
   successMessage: t("success.user_deleted"),
   successRedirect: "/admin/users",
 });
-
-/** Create a route handler that runs a user action by ID */
-const userActionRoute =
-  (
-    handler: UserActionHandler,
-  ): TypedRouteHandler<"POST /admin/users/:id/activate"> =>
-  (request, { id }) =>
-    withUserAction(request, id, handler);
-
-/** Handle POST /admin/users/:id/activate */
-const handleUserActivatePost = userActionRoute(handleUserActivate);
 
 /** User management routes */
 export const usersRoutes = {
@@ -435,7 +378,6 @@ export const usersRoutes = {
     "GET /admin/users/:id": handleUserManageGet,
     "GET /admin/users/:id/agents": handleUserAgentsGet,
     "POST /admin/users": handleUsersPost,
-    "POST /admin/users/:id/activate": handleUserActivatePost,
     "POST /admin/users/:id/agents": handleUserAgentsPost,
   }),
 };

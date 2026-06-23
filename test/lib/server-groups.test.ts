@@ -18,8 +18,8 @@ import {
   deleteTestGroup,
   describeWithEnv,
   expectFlash,
+  expectFlashRedirect,
   expectHtmlResponse,
-  expectRedirectWithFlash,
   expectStatus,
   mockFormRequest,
   testCookie,
@@ -233,9 +233,13 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         ),
       );
       expect(response.status).toBe(302);
-      expectRedirectWithFlash(
+      // Follow as the manager who made the POST, so the render check verifies
+      // the landing page that role actually sees (not the default owner's).
+      await expectFlashRedirect(
         `/admin/groups/${group.id}`,
         "Group updated",
+        true,
+        cookie,
       )(response);
     });
 
@@ -286,7 +290,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         slug: g1.slug,
         terms_and_conditions: "",
       });
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/groups/${g2.id}/edit`,
         expect.stringContaining("Slug is already in use"),
         false,
@@ -359,7 +363,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
           confirm_identifier: "Wrong Name",
         },
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/groups/${group.id}/delete`,
         expect.stringContaining("Group name does not match"),
         false,
@@ -423,7 +427,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
             cookie,
           ),
         );
-        expectRedirectWithFlash("/admin/groups", "Group deleted")(response);
+        await expectFlashRedirect("/admin/groups", "Group deleted")(response);
       } finally {
         findByIdStub.restore();
       }
@@ -590,7 +594,6 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       );
       await updateListingAggregateValues(listing.id, {
         booked_quantity: 9,
-        income: 0,
         tickets_count: 1,
       });
 
@@ -855,7 +858,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         ),
       );
       expect(response.status).toBe(302);
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/groups/${group.id}`,
         "Listings added to group",
       )(response);
@@ -884,7 +887,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         ),
       );
       expect(response.status).toBe(302);
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/groups/${group.id}`,
         "Listings added to group",
       )(response);
@@ -917,7 +920,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
           cookie,
         ),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/groups/${group.id}`,
         "This group already contains standard listings — all listings in a group must be the same type",
         false,
@@ -971,7 +974,7 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
         ),
       );
       expect(response.status).toBe(302);
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/groups/${group.id}`,
         "Group updated",
       )(response);

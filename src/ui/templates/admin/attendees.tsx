@@ -9,6 +9,7 @@ import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import { ConfirmForm, CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import {
   bookingConflictLabel,
   bookingKey,
@@ -228,41 +229,57 @@ export const PaymentDetails = ({
 export const EditQuestions = ({
   questions,
   selectedAnswerIds,
+  selectedTextAnswers,
 }: {
   questions: QuestionWithAnswers[];
   selectedAnswerIds: number[];
+  selectedTextAnswers: Map<number, string>;
 }): JSX.Element => (
   <>
     {questions.map((q) =>
-      q.display_type === "select" ? (
+      q.display_type === "free_text" ? (
+        <label class="custom-question">
+          {q.text}
+          <input
+            maxlength={MAX_TEXTAREA_LENGTH}
+            name={`question_${q.id}`}
+            type="text"
+            value={selectedTextAnswers.get(q.id) ?? ""}
+          />
+        </label>
+      ) : q.display_type === "select" ? (
         <label class="custom-question">
           {q.text}
           <select name={`question_${q.id}`}>
             <option value="">No answer</option>
-            {q.answers.map((a) => (
-              <option
-                selected={selectedAnswerIds.includes(a.id) || undefined}
-                value={String(a.id)}
-              >
-                {a.text}
-              </option>
-            ))}
+            {q.answers
+              .filter((a) => a.active || selectedAnswerIds.includes(a.id))
+              .map((a) => (
+                <option
+                  selected={selectedAnswerIds.includes(a.id) || undefined}
+                  value={String(a.id)}
+                >
+                  {a.text}
+                </option>
+              ))}
           </select>
         </label>
       ) : (
         <fieldset class="custom-question">
           <legend>{q.text}</legend>
-          {q.answers.map((a) => (
-            <label>
-              <input
-                checked={selectedAnswerIds.includes(a.id)}
-                name={`question_${q.id}`}
-                type="radio"
-                value={String(a.id)}
-              />{" "}
-              {a.text}
-            </label>
-          ))}
+          {q.answers
+            .filter((a) => a.active || selectedAnswerIds.includes(a.id))
+            .map((a) => (
+              <label>
+                <input
+                  checked={selectedAnswerIds.includes(a.id)}
+                  name={`question_${q.id}`}
+                  type="radio"
+                  value={String(a.id)}
+                />{" "}
+                {a.text}
+              </label>
+            ))}
         </fieldset>
       ),
     )}
@@ -447,6 +464,12 @@ const MergeBookingsDecisionTable = ({
               const conflictLabel = bookingConflictLabel(item);
               const targetQty = item.targetBooking!.quantity;
               const sourceQty = item.sourceBooking.quantity;
+              // The most either side's discarded ticket could be worth; >0 means
+              // a payment is at stake, so decision 17 demands a credit/write-off.
+              const moneyAtStake = Math.max(
+                item.sourceSaleAmount,
+                item.targetSaleAmount,
+              );
 
               return (
                 <tr>
@@ -478,6 +501,35 @@ const MergeBookingsDecisionTable = ({
                       <input name={name} type="radio" value="skip_source" />{" "}
                       Skip source
                     </label>
+                    {moneyAtStake > 0 && (
+                      <div class="merge-money-decision">
+                        <p class="muted">
+                          <strong>
+                            {t("attendee_form.merge_discarded_payment_label")}
+                          </strong>{" "}
+                          (source {formatCurrency(item.sourceSaleAmount)},
+                          target {formatCurrency(item.targetSaleAmount)}) — this
+                          can't be undone, so choose explicitly:
+                        </p>
+                        <label>
+                          <input
+                            name={`money_${key}`}
+                            type="radio"
+                            value="credit"
+                          />{" "}
+                          Keep as the person's credit
+                        </label>
+                        <br />
+                        <label>
+                          <input
+                            name={`money_${key}`}
+                            type="radio"
+                            value="writeoff"
+                          />{" "}
+                          Write it off
+                        </label>
+                      </div>
+                    )}
                   </td>
                 </tr>
               );

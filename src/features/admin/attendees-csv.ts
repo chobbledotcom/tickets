@@ -25,6 +25,9 @@ export type CsvListingInfo = {
 export type CsvQuestionData = {
   questions: QuestionWithAnswers[];
   attendeeAnswerMap: Map<number, number[]>;
+  /** attendeeId → (questionId → decrypted free-text answer), for free_text
+   * question columns. Absent when text answers were not loaded. */
+  textAnswerMap?: Map<number, Map<number, string>>;
 };
 
 /** Price in minor units as a decimal string in the configured currency. */
@@ -100,10 +103,12 @@ const listingInfoColumns = (
     : []),
 ];
 
-/** One column per custom question, each cell the attendee's chosen answer. */
+/** One column per custom question, each cell the attendee's chosen answer (for
+ * choice questions) or their decrypted free-text answer (for free_text). */
 const questionColumns = (data?: CsvQuestionData): Column<Attendee>[] => {
   const questions = data?.questions ?? [];
   const answerMap = data?.attendeeAnswerMap ?? new Map<number, number[]>();
+  const textMap = data?.textAnswerMap;
   const answerText = new Map<number, string>();
   for (const q of questions) {
     for (const a of q.answers) answerText.set(a.id, a.text);
@@ -111,6 +116,9 @@ const questionColumns = (data?: CsvQuestionData): Column<Attendee>[] => {
   return questions.map((q) => ({
     header: q.text,
     value: (a: Attendee) => {
+      if (q.display_type === "free_text") {
+        return textMap?.get(a.id)?.get(q.id) ?? "";
+      }
       const ids = answerMap.get(a.id) ?? [];
       const matched = ids.find((id) => q.answers.some((ans) => ans.id === id));
       return matched ? answerText.get(matched)! : "";

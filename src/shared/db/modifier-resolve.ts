@@ -20,8 +20,8 @@ import {
 import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
 import {
   getActiveModifiers,
-  getModifierGroupListingIds,
-  getModifierListingIds,
+  getModifierGroupListingIdsByModifierId,
+  getModifierListingIdsByModifierId,
   modifierIdsByAnswerId,
 } from "#shared/db/modifiers.ts";
 import type {
@@ -44,13 +44,25 @@ const signedValue = (modifier: Modifier): number => {
   return modifier.direction === "discount" ? -magnitude : magnitude;
 };
 
-/** The listing ids a modifier is charged on, or null for the whole order. */
-const listingIdsFor = (modifier: Modifier): Promise<number[]> | null => {
-  if (modifier.scope === "groups") {
-    return getModifierGroupListingIds(modifier.id);
+/** Batched listing scopes for modifiers: null = whole order, array = scoped. */
+const listingIdsByModifierId = async (
+  modifiers: Modifier[],
+): Promise<Map<number, number[] | null>> => {
+  const scopes = new Map<number, number[] | null>();
+  const listingScoped = modifiers.filter((m) => m.scope === "listings");
+  const groupScoped = modifiers.filter((m) => m.scope === "groups");
+  for (const modifier of modifiers) {
+    if (modifier.scope === "all") scopes.set(modifier.id, null);
   }
-  if (modifier.scope === "listings") return getModifierListingIds(modifier.id);
-  return null;
+  const [listingLinks, groupLinks] = await Promise.all([
+    getModifierListingIdsByModifierId(listingScoped.map((m) => m.id)),
+    getModifierGroupListingIdsByModifierId(groupScoped.map((m) => m.id)),
+  ]);
+  // Each lookup seeds an entry for every id it was given, so these maps cover
+  // exactly the scoped modifiers — copy their links straight in.
+  for (const [id, ids] of listingLinks) scopes.set(id, ids);
+  for (const [id, ids] of groupLinks) scopes.set(id, ids);
+  return scopes;
 };
 
 /** Build the checkout spec for a modifier applied `quantity` times. */
@@ -134,16 +146,13 @@ const answerModifierScopes = async (
   ids: number[],
 ): Promise<Map<number, number[] | null>> => {
   const byId = await activeModifiersById();
-  const scopes = new Map<number, number[] | null>();
-  await Promise.all(
-    ids.map(async (id) => {
-      const modifier = byId.get(id);
-      if (modifier?.trigger !== "answer") return;
-      const listingIds = listingIdsFor(modifier);
-      scopes.set(id, listingIds === null ? null : await listingIds);
-    }),
+  return listingIdsByModifierId(
+    ids
+      .map((id) => byId.get(id))
+      .filter(
+        (modifier): modifier is Modifier => modifier?.trigger === "answer",
+      ),
   );
-  return scopes;
 };
 
 /** Whether a resolved scope covers a listing: null = whole order (always),
@@ -240,11 +249,11 @@ const eligibleCandidates = async (
   const codeIndex = opts.code?.trim()
     ? await hmacHash(normalizeCode(opts.code))
     : null;
+  const activeModifiers = await getActiveModifiers();
+  const scopes = await listingIdsByModifierId(activeModifiers);
   return (
     await Promise.all(
-      (
-        await getActiveModifiers()
-      ).map(async (modifier): Promise<Candidate | null> => {
+      activeModifiers.map(async (modifier): Promise<Candidate | null> => {
         if (modifier.min_visits > ctx.visits) return null;
         const quantity = triggerQuantity(
           modifier,
@@ -253,7 +262,7 @@ const eligibleCandidates = async (
           answerQuantities,
         );
         if (quantity < 1) return null;
-        const listingIds = await listingIdsFor(modifier);
+        const listingIds = scopes.get(modifier.id)!;
         const base = inScopeSubtotal(items, listingIds);
         // A scoped modifier only applies alongside its listings/groups.
         if (listingIds !== null && base === 0) return null;
@@ -371,16 +380,11 @@ export const getOptionalAddOns = async (
     (m) => m.trigger === "optional",
   );
   const pageIds = new Set(pageListingIds);
-  const scoped = (
-    await Promise.all(
-      optional.map(async (modifier) => {
-        const listingIds = await listingIdsFor(modifier);
-        const inScope =
-          listingIds === null || listingIds.some((id) => pageIds.has(id));
-        return inScope ? modifier : null;
-      }),
-    )
-  ).filter((m): m is Modifier => m !== null);
+  const scopes = await listingIdsByModifierId(optional);
+  const scoped = optional.filter((modifier) => {
+    const listingIds = scopes.get(modifier.id)!;
+    return listingIds === null || listingIds.some((id) => pageIds.has(id));
+  });
   const used = await modifierUsedQuantities(
     scoped.filter((m) => m.stock !== null).map((m) => m.id),
   );
@@ -411,14 +415,14 @@ export const specsFromRefs = async (
 ): Promise<ModifierSpec[]> => {
   if (refs.length === 0) return [];
   const byId = await activeModifiersById();
-  const specs = await Promise.all(
-    refs.map(async (ref) => {
-      const modifier = byId.get(ref.i);
-      if (modifier && modifier.min_visits > ctx.visits) return null;
-      return modifier
-        ? toSpec(modifier, ref.q, await listingIdsFor(modifier))
-        : null;
-    }),
-  );
+  const refModifiers = refs
+    .map((ref) => byId.get(ref.i))
+    .filter((modifier): modifier is Modifier => modifier !== undefined);
+  const scopes = await listingIdsByModifierId(refModifiers);
+  const specs = refs.map((ref) => {
+    const modifier = byId.get(ref.i);
+    if (modifier && modifier.min_visits > ctx.visits) return null;
+    return modifier ? toSpec(modifier, ref.q, scopes.get(modifier.id)!) : null;
+  });
   return specs.filter((s): s is ModifierSpec => s !== null);
 };

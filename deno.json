@@ -13,13 +13,16 @@
     "test:raw": "deno task build:static && deno test --no-check --allow-net --allow-env --allow-read --allow-write --allow-run --allow-sys --allow-ffi test/",
     "lint": "deno run -A scripts/biome.ts check --write --error-on-warnings src test scripts cli",
     "lint:ci": "deno run -A scripts/biome.ts check --error-on-warnings src test scripts cli",
-    "typecheck": "deno check --unstable-tsgo src/**/*.ts src/**/*.tsx test/**/*.ts cli/**/*.ts",
+    "typecheck": "deno check src/**/*.ts src/**/*.tsx test/**/*.ts cli/**/*.ts",
     "cpd": "deno run -A scripts/cpd.ts src --config .jscpd.json",
     "precommit": "deno run -A scripts/precommit.ts",
     "find-unused-src": "deno run --allow-read scripts/find-unused-src.ts",
     "upgrade": "deno run --allow-read --allow-write --allow-net scripts/safe-upgrade.ts",
+    "backup": "deno run --env-file --allow-env --allow-read --allow-write --allow-net --allow-sys --allow-ffi scripts/backup.ts",
     "cli:tui": "deno run --allow-env --allow-read --allow-run cli/tui.ts",
-    "cli:api": "deno run --allow-env --allow-read --allow-run cli/api.ts"
+    "cli:api": "deno run --allow-env --allow-read --allow-run cli/api.ts",
+    "test:quality-audit": "deno run --allow-read scripts/test-quality-audit.ts",
+    "mutation": "deno run -A scripts/mutation.ts"
   },
   "imports": {
     "#fp": "./src/fp.ts",

@@ -1,18 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { handleRequest } from "#routes";
-import { getSessionCookieName } from "#shared/cookies.ts";
-import { createSession } from "#shared/db/sessions.ts";
 import { getAllUsers } from "#shared/db/users.ts";
 import {
   adminFormPost,
   awaitTestRequest,
-  createTestInvite,
   describeWithEnv,
+  expectFlashRedirect,
   expectHtmlResponse,
-  expectRedirectWithFlash,
-  mockFormRequest,
-  submitJoinForm,
   TEST_ADMIN_USERNAME,
   testCookie,
 } from "#test-utils";
@@ -65,7 +59,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       const { response } = await adminFormPost("/admin/users/2/delete", {
         confirm_identifier: "deleteme",
       });
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/users",
         expect.stringContaining("deleted"),
       )(response);
@@ -83,7 +77,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       const { response } = await adminFormPost("/admin/users/2/delete", {
         confirm_identifier: "wrongname",
       });
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/users/2/delete",
         expect.stringContaining("Username does not match"),
         false,
@@ -100,7 +94,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       });
 
       const { response } = await adminFormPost("/admin/users/2/delete");
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/users/2/delete",
         expect.stringContaining("Username does not match"),
         false,
@@ -126,7 +120,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       const { response } = await adminFormPost("/admin/users/2/delete", {
         confirm_identifier: "otheradmin",
       });
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/users",
         expect.stringContaining("deleted"),
       )(response);
@@ -140,77 +134,6 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     test("returns 404 for nonexistent user", async () => {
       const { response } = await adminFormPost("/admin/users/999/delete");
       await expectHtmlResponse(response, 404, "User not found");
-    });
-  });
-
-  describe("POST /admin/users/:id/activate", () => {
-    test("activates user who has set password", async () => {
-      const { inviteCode, cookie, csrfToken } =
-        await createTestInvite("activateme");
-
-      await submitJoinForm(inviteCode, {
-        password: "newpassword123",
-        password_confirm: "newpassword123",
-      });
-
-      const activateResponse = await handleRequest(
-        mockFormRequest(
-          "/admin/users/2/activate",
-          { csrf_token: csrfToken },
-          cookie,
-        ),
-      );
-      expectRedirectWithFlash(
-        "/admin/users",
-        expect.stringContaining("activated successfully"),
-      )(activateResponse);
-    });
-
-    test("returns 404 for nonexistent user", async () => {
-      const { response } = await adminFormPost("/admin/users/999/activate");
-      await expectHtmlResponse(response, 404, "User not found");
-    });
-
-    test("rejects user who has not set password", async () => {
-      await adminFormPost("/admin/users", {
-        admin_level: "manager",
-        username: "nopassword",
-      });
-
-      const { response } = await adminFormPost("/admin/users/2/activate");
-      await expectHtmlResponse(response, 400, "not set their password");
-    });
-
-    test("rejects already activated user", async () => {
-      const { response } = await adminFormPost("/admin/users/1/activate");
-      await expectHtmlResponse(response, 400, "already activated");
-    });
-
-    test("returns 500 when session lacks data key", async () => {
-      await createSession(
-        "no-dk-session",
-        "no-dk-csrf",
-        Date.now() + 3600000,
-        null,
-        1,
-      );
-
-      const { inviteCode } = await createTestInvite("needsactivation");
-      await submitJoinForm(inviteCode, {
-        password: "newpassword123",
-        password_confirm: "newpassword123",
-      });
-
-      const { signCsrfToken } = await import("#shared/csrf.ts");
-      const csrfToken = await signCsrfToken();
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/users/2/activate",
-          { csrf_token: csrfToken },
-          `${getSessionCookieName()}=no-dk-session`,
-        ),
-      );
-      await expectHtmlResponse(response, 500, "session lacks data key");
     });
   });
 });

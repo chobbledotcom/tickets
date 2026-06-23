@@ -6,7 +6,7 @@ import {
   adminFormPost,
   adminGet,
   describeWithEnv,
-  expectRedirectWithFlash,
+  expectFlashRedirect,
   mockRequest,
 } from "#test-utils";
 
@@ -21,7 +21,7 @@ describeWithEnv("integration: theme settings", { db: true }, () => {
     const { response } = await adminFormPost("/admin/settings/theme", {
       theme: "dark",
     });
-    expectRedirectWithFlash(
+    await expectFlashRedirect(
       "/admin/settings?form=settings-theme#settings-theme",
       "Theme set to dark",
     )(response);
@@ -51,5 +51,34 @@ describeWithEnv("integration: theme settings", { db: true }, () => {
     const { response } = await adminGet("/admin/settings");
     const html = await response.text();
     expect(html).toContain('data-theme="light"');
+  });
+
+  test("links are not underlined by default (no data-underline-links)", async () => {
+    const { response } = await adminGet("/admin/settings");
+    const html = await response.text();
+    expect(html).not.toContain("data-underline-links");
+  });
+
+  test("enabling underline links adds data-underline-links to the page", async () => {
+    await adminFormPost("/admin/settings/theme", {
+      theme: "light",
+      underline_links: "true",
+    });
+
+    const { response } = await adminGet("/admin/settings");
+    const html = await response.text();
+    expect(html).toContain("data-underline-links");
+  });
+
+  test("underline links setting is reflected on public pages", async () => {
+    await settings.update.showPublicSite(true);
+    await adminFormPost("/admin/settings/theme", {
+      theme: "light",
+      underline_links: "true",
+    });
+
+    const response = await handleRequest(mockRequest("/"));
+    const html = await response.text();
+    expect(html).toContain("data-underline-links");
   });
 });

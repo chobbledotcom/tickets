@@ -12,7 +12,6 @@
  */
 
 import type {
-  AttendeeInput,
   BatchAvailabilityItem,
   CreateAttendeeResult,
 } from "#shared/db/attendee-types.ts";
@@ -50,6 +49,7 @@ export {
 export {
   buildAttendeeInsert,
   ensureAllBookings,
+  reverseOrderActivity,
 } from "#shared/db/attendees/create.ts";
 export { deleteAttendee } from "#shared/db/attendees/delete.ts";
 export {
@@ -74,6 +74,7 @@ export {
   ATTENDEES_PAGE_SIZE,
   getAllAttendeePiiBlobs,
   getAttendee,
+  getAttendeeNamesByIds,
   getAttendeePiiBlobsForListings,
   getAttendeeRaw,
   getAttendeesByIds,
@@ -81,13 +82,14 @@ export {
   getAttendeesPage,
   getAttendeesRaw,
   getNewestAttendeesRaw,
+  LISTING_ATTENDEE_ROW_COLS,
 } from "#shared/db/attendees/queries.ts";
 export { getActiveListingStats } from "#shared/db/attendees/stats.ts";
 export {
   checkGroupCapAfterDurationChange,
   incrementAttachmentDownloads,
-  markRefunded,
   recomputeListingBookingRanges,
+  reconcileLedgerBalanceTx,
   updateAttendeeOrder,
   updateAttendeePII,
   updateCheckedIn,
@@ -114,10 +116,12 @@ export const hasAvailableSpots = (
   ...args: Parameters<typeof attendeesApi.hasAvailableSpots>
 ): Promise<boolean> => attendeesApi.hasAvailableSpots(...args);
 
-/** Wrapper for test mocking - delegates to attendeesApi at runtime */
+/** Wrapper for test mocking - delegates to attendeesApi at runtime. Forwards the
+ *  optional ledger-poster so the paid path can post legs in the create
+ *  transaction. */
 export const createAttendeeAtomic = (
-  input: AttendeeInput,
-): Promise<CreateAttendeeResult> => attendeesApi.createAttendeeAtomic(input);
+  ...args: Parameters<typeof attendeesApi.createAttendeeAtomic>
+): Promise<CreateAttendeeResult> => attendeesApi.createAttendeeAtomic(...args);
 
 /** Wrapper for test mocking - delegates to attendeesApi at runtime */
 export const checkBatchAvailability = (

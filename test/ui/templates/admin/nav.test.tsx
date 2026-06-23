@@ -32,6 +32,28 @@ describeWithEnv("AdminNav", {}, () => {
     }
   });
 
+  test("AdminNav shows the Ledger link to owners but not managers", () => {
+    const ownerHtml = String(
+      AdminNav({ active: "/admin/", session: { adminLevel: "owner" } }),
+    );
+    expect(ownerHtml).toContain('href="/admin/ledger"');
+    expect(ownerHtml).toContain("Ledger");
+    const managerHtml = String(
+      AdminNav({ active: "/admin/", session: { adminLevel: "manager" } }),
+    );
+    expect(managerHtml).not.toContain('href="/admin/ledger"');
+  });
+
+  test("AdminNav marks the Ledger link active on the ledger page", () => {
+    const html = String(
+      AdminNav({
+        active: "/admin/ledger",
+        session: { adminLevel: "owner" },
+      }),
+    );
+    expect(html).toContain('class="active" href="/admin/ledger"');
+  });
+
   test("AdminNav marks the attendees link active on the attendees page", () => {
     const html = String(
       AdminNav({

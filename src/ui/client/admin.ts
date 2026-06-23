@@ -1,4 +1,5 @@
 /// <reference lib="dom" />
+/// <reference lib="dom.iterable" />
 /** Admin page behaviors - bundled by build-static-assets.ts for strict CSP.
  *
  * Thin entry point: each behavior lives in its own module under ./admin/
@@ -25,7 +26,7 @@ import { initNavSelect } from "./admin/nav-select.ts";
 import { initPaymentResultNotifier } from "./admin/payment-result.ts";
 import { initPaymentTestButtons } from "./admin/payment-test-buttons.ts";
 import { initQrRefresh } from "./admin/qr-refresh.ts";
-import { initScrollHideNav } from "./admin/scroll-hide-nav.ts";
+import { initRunningTotal } from "./admin/running-total.ts";
 import { initSelectOnClick } from "./admin/select-on-click.ts";
 import { initTicketQuantityRequired } from "./admin/ticket-quantity-required.ts";
 
@@ -38,10 +39,10 @@ initFillDefaultTemplate();
 initClosesAtAutofill();
 initIframeScrollIntoView();
 initCheckoutPopup();
-initScrollHideNav();
 initPaymentResultNotifier();
 initPaymentTestButtons();
 initQrRefresh();
+initRunningTotal();
 initCharCounters();
 initMarkdownPreview();
 initManualCheckin();

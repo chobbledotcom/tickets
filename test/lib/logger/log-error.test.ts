@@ -1,12 +1,17 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { type Spy, spy, stub } from "@std/testing/mock";
-import { getAllActivityLog } from "#shared/db/activityLog.ts";
-import { ErrorCode, logError, logErrorLocal } from "#shared/logger.ts";
+import {
+  bestEffort,
+  ErrorCode,
+  logError,
+  logErrorLocal,
+} from "#shared/logger.ts";
 import { flushPendingWork, runWithPendingWork } from "#shared/pending-work.ts";
 import {
   createTestDbWithSetup,
   createTestListing,
+  getAllActivityLog,
   resetDb,
   setTestEnv,
 } from "#test-utils";
@@ -231,6 +236,29 @@ describe("log-error", () => {
         fetchStub.restore();
         restore();
       }
+    });
+  });
+
+  describe("bestEffort", () => {
+    const spyRef = setupErrorSpy();
+
+    test("runs the operation and logs nothing on success", async () => {
+      let ran = false;
+      await bestEffort("stats write", async () => {
+        ran = true;
+      });
+      expect(ran).toBe(true);
+      expect(spyRef.calls.length).toBe(0);
+    });
+
+    test("logs the failure under DB_QUERY and does not rethrow", async () => {
+      // Resolves rather than throwing, so the critical caller carries on.
+      await bestEffort("stats write", async () => {
+        throw new Error("blob corrupt");
+      });
+      expect(spyRef.lastMessage()).toBe(
+        '[Error] E_DB_QUERY detail="stats write: Error: blob corrupt"',
+      );
     });
   });
 });

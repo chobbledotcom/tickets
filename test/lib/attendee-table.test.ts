@@ -85,7 +85,7 @@ describe("AttendeeTable", () => {
 
     test("renders Qty column", () => {
       const html = AttendeeTable(makeOpts());
-      expect(html).toContain("<th>Qty</th>");
+      expect(html).toContain('<th class="col-quantity">Qty</th>');
     });
 
     test("renders Ticket column with link", () => {
@@ -589,8 +589,20 @@ describe("AttendeeTable with questionData", () => {
     questions: [
       {
         answers: [
-          { id: 10, question_id: 1, sort_order: 0, text: "Small" },
-          { id: 11, question_id: 1, sort_order: 1, text: "Large" },
+          {
+            active: true,
+            id: 10,
+            question_id: 1,
+            sort_order: 0,
+            text: "Small",
+          },
+          {
+            active: true,
+            id: 11,
+            question_id: 1,
+            sort_order: 1,
+            text: "Large",
+          },
         ],
         display_type: "radio" as const,
         id: 1,
@@ -598,8 +610,8 @@ describe("AttendeeTable with questionData", () => {
       },
       {
         answers: [
-          { id: 20, question_id: 2, sort_order: 0, text: "Red" },
-          { id: 21, question_id: 2, sort_order: 1, text: "Blue" },
+          { active: true, id: 20, question_id: 2, sort_order: 0, text: "Red" },
+          { active: true, id: 21, question_id: 2, sort_order: 1, text: "Blue" },
         ],
         display_type: "radio" as const,
         id: 2,
@@ -710,7 +722,7 @@ describe("AttendeeTable columnTemplate", () => {
     );
     // Should still render the default columns
     expect(html).toContain("<th>Name</th>");
-    expect(html).toContain("<th>Qty</th>");
+    expect(html).toContain('<th class="col-quantity">Qty</th>');
   });
 
   test("hides data-dependent column when no rows have data", () => {

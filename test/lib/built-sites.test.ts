@@ -4,15 +4,62 @@ import {
   assignBuiltSite,
   buildSiteDataBlob,
   builtSitesCrudTable,
+  claimNextBuiltSiteForPrune,
   getAllBuiltSites,
   getAssignableBuiltSites,
   getBuiltSiteByRenewalTokenIndex,
   insertBuiltSite,
   parseSiteDataBlob,
   SITE_DATA_BLOB_VERSION,
+  siteBaseUrl,
   updateBuiltSiteRenewalState,
 } from "#shared/db/built-sites.ts";
 import { describeWithEnv } from "#test-utils";
+
+describe("siteBaseUrl", () => {
+  test("prepends https:// to a bare hostname", () => {
+    expect(siteBaseUrl("site.b-cdn.net")).toBe("https://site.b-cdn.net");
+  });
+
+  test("keeps an existing scheme", () => {
+    expect(siteBaseUrl("http://example.com")).toBe("http://example.com");
+  });
+
+  test("strips a trailing slash so a path can be appended", () => {
+    expect(siteBaseUrl("https://example.com/")).toBe("https://example.com");
+  });
+
+  test("collapses a path, query, and hash to the origin", () => {
+    expect(siteBaseUrl("https://example.com/admin?x=1#y")).toBe(
+      "https://example.com",
+    );
+  });
+
+  test("normalizes an uppercase scheme to a lowercase origin", () => {
+    expect(siteBaseUrl("HTTPS://example.com")).toBe("https://example.com");
+  });
+});
+
+describeWithEnv("claimNextBuiltSiteForPrune", { db: true }, () => {
+  test("returns null when there are no built sites", async () => {
+    expect(await claimNextBuiltSiteForPrune()).toBe(null);
+  });
+
+  test("walks sites least-recently-pruned first, then round-robins", async () => {
+    await insertBuiltSite("A", "a.example.com");
+    await insertBuiltSite("B", "b.example.com");
+
+    // Both start never-pruned (''), so the lowest id goes first; after each is
+    // stamped, the other (still '') is next; then it cycles back to the oldest.
+    const first = await claimNextBuiltSiteForPrune();
+    const second = await claimNextBuiltSiteForPrune();
+    const third = await claimNextBuiltSiteForPrune();
+
+    expect(first?.bunnyUrl).toBe("a.example.com");
+    expect(second?.bunnyUrl).toBe("b.example.com");
+    expect(third?.bunnyUrl).toBe("a.example.com");
+  });
+});
 
 describeWithEnv("built-sites", { db: true }, () => {
   test("buildSiteDataBlob creates valid JSON", () => {

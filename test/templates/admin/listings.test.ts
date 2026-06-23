@@ -134,7 +134,6 @@ describe("adminListingEditPage form sections", () => {
   test("renders editable running totals with a recalculation link", () => {
     const listing = testListingWithCount({
       attendee_count: 7,
-      income: 2500,
       tickets_count: 3,
     });
     const html = adminListingEditPage(listing, [], TEST_SESSION);
@@ -144,25 +143,47 @@ describe("adminListingEditPage form sections", () => {
     expect(html).toContain('value="7"');
     expect(html).toContain('name="tickets_count"');
     expect(html).toContain('value="3"');
-    expect(html).toContain('name="income"');
-    expect(html).toContain('value="25.00"');
+    // Income is not a count override in the running-totals form — that form keeps
+    // only the two count aggregates, which post to the recalculate route.
+    const totalsForm = html.slice(
+      html.indexOf("<legend>Running totals</legend>"),
+      html.indexOf("Adjust income"),
+    );
+    expect(totalsForm).not.toContain('name="income"');
     expect(html).toContain(`/admin/listings/recalculate/${listing.id}`);
+  });
+
+  test("renders the separate income-correction form (decision 14)", () => {
+    const listing = testListingWithCount();
+    const html = adminListingEditPage(listing, [], TEST_SESSION);
+    // Income correction is restored as a dedicated warned form that posts a
+    // writeoff adjustment to the money ledger, kept apart from the counts override.
+    expect(html).toContain("<h2>Adjust income</h2>");
+    expect(html).toContain(`action="/admin/listing/${listing.id}/income"`);
+    expect(html).toContain('name="income"');
+    expect(html).toContain("correcting entry to the money ledger");
+  });
+
+  test("links from the income form to the detail page's income & ledger breakdown", () => {
+    const listing = testListingWithCount({ id: 4 });
+    const html = adminListingEditPage(listing, [], TEST_SESSION);
+    // A compact pointer beside the adjust-income form to the full reconciliation
+    // section on the detail page, so the two figures are explained in one place.
+    expect(html).toContain('href="/admin/listing/4#income-ledger"');
+    expect(html).toContain("Income &amp; ledger breakdown");
   });
 
   test("shows a running-total mismatch on the edit page", () => {
     const listing = testListingWithCount({
       attendee_count: 7,
-      income: 2500,
       tickets_count: 3,
     });
     const html = adminListingEditPage(listing, [], TEST_SESSION, undefined, {
       booked_quantity: { current: 7, recalculated: 4 },
-      income: { current: 2500, recalculated: 1500 },
       tickets_count: { current: 3, recalculated: 3 },
     });
     expect(html).toContain("Mismatch");
     expect(html).toContain("expected <strong>4</strong>, got");
-    expect(html).toContain("expected <strong>£15</strong>, got");
     expect(html).toContain(`/admin/listings/recalculate/${listing.id}`);
   });
 });
@@ -174,7 +195,6 @@ describe("adminListingRecalculatePage", () => {
       listing,
       {
         booked_quantity: { current: 9, recalculated: 4 },
-        income: { current: 5500, recalculated: 2500 },
         tickets_count: { current: 5, recalculated: 2 },
       },
       TEST_SESSION,
@@ -183,13 +203,11 @@ describe("adminListingRecalculatePage", () => {
     expect(html).toContain("Current");
     expect(html).toContain("From attendee data");
     expect(html).toContain("Compare the stored listing totals");
-    expect(html).toContain('class="checkboxes"');
+    expect(html).toContain('class="table-scroll"');
     expect(html).toContain('name="recalculate_fields"');
     expect(html).toContain('value="booked_quantity"');
     expect(html).toContain(">9<");
     expect(html).toContain(">4<");
-    expect(html).toContain(">£55<");
-    expect(html).toContain(">£25<");
   });
 });
 
@@ -497,7 +515,6 @@ describe("adminListingPage", () => {
     const html = adminListingPage({
       aggregateRecalculation: {
         booked_quantity: { current: 2, recalculated: 1 },
-        income: { current: 0, recalculated: 0 },
         tickets_count: { current: 0, recalculated: 0 },
       },
       allowedDomain: "localhost",
@@ -1137,6 +1154,120 @@ describe("adminListingPage total revenue", () => {
     });
     expect(html).toContain("Total Revenue");
     expect(html).toContain("£0");
+  });
+});
+
+describe("adminListingPage income & ledger breakdown", () => {
+  const listing = testListingWithCount({ id: 7 });
+
+  test("omits the section entirely when no breakdown is supplied", () => {
+    const html = adminListingPage({
+      allowedDomain: "localhost",
+      attendees: [],
+      listing,
+      session: TEST_SESSION,
+    });
+    expect(html).not.toContain("Income &amp; ledger");
+  });
+
+  test("renders the five figures, the explanatory line and the ledger link", () => {
+    const html = adminListingPage({
+      allowedDomain: "localhost",
+      attendees: [],
+      listing,
+      revenueBreakdown: {
+        grossSales: 10000,
+        manualAdjustments: -1000,
+        netBalance: 7000,
+        recognisedIncome: 9000,
+        refunds: 2000,
+      },
+      session: TEST_SESSION,
+    });
+    expect(html).toContain("Income &amp; ledger");
+    // Gross sales credited (+), manual write-down (−), then the two subtotals.
+    expect(html).toContain("Gross ticket sales");
+    expect(html).toContain("+£100");
+    expect(html).toContain("Manual adjustments");
+    expect(html).toContain("−£10");
+    expect(html).toContain("Recognised income");
+    expect(html).toContain("£90");
+    expect(html).toContain("Refunds");
+    expect(html).toContain("−£20");
+    expect(html).toContain("Net balance in ledger");
+    expect(html).toContain("£70");
+    // The plain-English reconciliation note and the button to the filtered
+    // ledger, preselected to this listing (no arrow glyph, button-styled).
+    expect(html).toContain("refund-agnostic");
+    expect(html).toContain('href="/admin/ledger?listing=7"');
+    expect(html).toContain("View full ledger");
+    expect(html).not.toContain("View full ledger →");
+  });
+
+  test("makes a refund-driven divergence between income and net balance visible", () => {
+    // Recognised income (£90) and the net ledger balance (£70) legitimately
+    // differ after a refund; both must render so the reconciliation is shown.
+    const html = adminListingPage({
+      allowedDomain: "localhost",
+      attendees: [],
+      listing,
+      revenueBreakdown: {
+        grossSales: 9000,
+        manualAdjustments: 0,
+        netBalance: 7000,
+        recognisedIncome: 9000,
+        refunds: 2000,
+      },
+      session: TEST_SESSION,
+    });
+    const recognisedIdx = html.indexOf("Recognised income");
+    const netIdx = html.indexOf("Net balance in ledger");
+    expect(recognisedIdx).toBeGreaterThan(-1);
+    expect(netIdx).toBeGreaterThan(netIdx === -1 ? 0 : recognisedIdx);
+    expect(html).toContain("£90");
+    expect(html).toContain("£70");
+    // The two figures differ exactly by the refunds line.
+    expect(html).toContain("−£20");
+  });
+
+  test("omits the manual-adjustments row when there are none", () => {
+    const html = adminListingPage({
+      allowedDomain: "localhost",
+      attendees: [],
+      listing,
+      revenueBreakdown: {
+        grossSales: 5000,
+        manualAdjustments: 0,
+        netBalance: 5000,
+        recognisedIncome: 5000,
+        refunds: 0,
+      },
+      session: TEST_SESSION,
+    });
+    expect(html).toContain("Income &amp; ledger");
+    expect(html).not.toContain("Manual adjustments");
+    // With no refunds either, recognised income and net balance coincide at £50.
+    expect(html).toContain("Recognised income");
+    expect(html).toContain("Net balance in ledger");
+    expect(html).toContain("£50");
+  });
+
+  test("shows a signed positive manual write-up", () => {
+    const html = adminListingPage({
+      allowedDomain: "localhost",
+      attendees: [],
+      listing,
+      revenueBreakdown: {
+        grossSales: 4000,
+        manualAdjustments: 1500,
+        netBalance: 5500,
+        recognisedIncome: 5500,
+        refunds: 0,
+      },
+      session: TEST_SESSION,
+    });
+    expect(html).toContain("Manual adjustments");
+    expect(html).toContain("+£15");
   });
 });
 

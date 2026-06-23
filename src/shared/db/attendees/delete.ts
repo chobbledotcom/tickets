@@ -8,7 +8,6 @@ import { executeBatch, queryAll } from "#shared/db/client.ts";
 type DeleteAttendeeOptions = { releaseBookings?: boolean };
 type ListingContribution = {
   booked_quantity: number;
-  income: number;
   listing_id: number;
   tickets_count: number;
 };
@@ -19,8 +18,7 @@ const attendeeListingContributions = (
   queryAll<ListingContribution>(
     `SELECT listing_id,
             COALESCE(SUM(quantity), 0) AS booked_quantity,
-            COUNT(*) AS tickets_count,
-            COALESCE(SUM(price_paid), 0) AS income
+            COUNT(*) AS tickets_count
        FROM listing_attendees
       WHERE attendee_id = ?
       GROUP BY listing_id`,
@@ -31,11 +29,10 @@ const restoreListingContributions = (
   contributions: ListingContribution[],
 ): Array<{ sql: string; args: InValue[] }> =>
   contributions.map((row) => ({
-    args: [row.booked_quantity, row.tickets_count, row.income, row.listing_id],
+    args: [row.booked_quantity, row.tickets_count, row.listing_id],
     sql: `UPDATE listings
              SET booked_quantity = booked_quantity + ?,
-                 tickets_count = tickets_count + ?,
-                 income = income + ?
+                 tickets_count = tickets_count + ?
            WHERE id = ?`,
   }));
 

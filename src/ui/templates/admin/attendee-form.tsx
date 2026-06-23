@@ -13,9 +13,10 @@
  * listing. The form works without JavaScript.
  */
 
-import { compact } from "#fp";
+import { t } from "#i18n";
 import {
   ATTENDEE_FORM_ID,
+  type AttendeeBooking,
   type AttendeeFormLine,
   type BalanceNotice,
   DAY_COUNT_FIELD,
@@ -46,10 +47,11 @@ import {
 } from "#shared/dates.ts";
 import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
 import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
-import type { EmailStats } from "#shared/db/contact-preferences.ts";
+import type { ContactRecord } from "#shared/db/contact-preferences.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { renderMarkdown } from "#shared/markdown.ts";
 import { START_DATE_FIELD } from "#shared/order-select.ts";
 import {
   type AdminSession,
@@ -58,8 +60,12 @@ import {
 } from "#shared/types.ts";
 import {
   AttendeeAnswersTable,
+  AttendeeBookingsTable,
   AttendeeDetail,
+  type AttendeeLedgerData,
+  AttendeeLedgerSection,
   AttendeeLogSection,
+  BookingStatusBadges,
 } from "#templates/admin/attendee-detail.tsx";
 import { EditQuestions, PaymentDetails } from "#templates/admin/attendees.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
@@ -70,6 +76,17 @@ import {
   SubmitButton,
 } from "#templates/components/actions.tsx";
 import { Layout } from "#templates/layout.tsx";
+
+/** One channel's contact record plus the URL-safe HMAC param that keys its
+ * /admin/history editor link. Null when the attendee has no value for that
+ * channel. */
+export type ContactChannelData = { hashParam: string; record: ContactRecord };
+
+/** Per-channel contact records shown in the read-only history panel. */
+export type ContactRecordsByChannel = {
+  email: ContactChannelData | null;
+  phone: ContactChannelData | null;
+};
 
 /** Template data for the unified attendee form. */
 export type AttendeeFormTemplateData = {
@@ -101,39 +118,32 @@ export type AttendeeFormTemplateData = {
   questions: QuestionWithAnswers[];
   /** Currently-selected answer ids for the rendered questions. */
   selectedAnswerIds: number[];
+  /** Currently-entered free-text answers, keyed by question id. */
+  selectedTextAnswers: Map<number, string>;
   /** Today's ISO date. */
   todayIso: string;
   /** Optional return URL the caller came from. */
   returnUrl?: string;
-  /** Bulk-email contact history (edit mode only). */
-  emailStats?: EmailStats | null;
+  /** Contact history by channel (edit mode only). */
+  contactRecords: ContactRecordsByChannel;
   /** Public site domain, for the read-only ticket link (edit mode). */
   allowedDomain: string;
   /** Country dialling code, for the read-only phone links. */
   phonePrefix: string;
   /** This attendee's activity log entries, newest first (edit mode only). */
   activityLog: ActivityLogEntry[];
+  /** This attendee's ledger account statement (edit mode only; undefined in
+   * create mode, where the attendee has no account yet). */
+  ledger?: AttendeeLedgerData;
+  /** The attendee's current bookings, for the read-only summary table at the top
+   * of the page (edit mode; empty in create mode). */
+  bookings: AttendeeBooking[];
   /** Overbooking / over-duration warnings per listing id (booked lines only). */
   lineWarnings: Map<number, string[]>;
   /** All warnings flattened, for the top-of-page summary. */
   topWarnings: string[];
   /** Logistics selectors data, or undefined when logistics doesn't apply. */
   logistics?: AttendeeLogisticsData;
-};
-
-/** Status badges for an existing booking — "Checked in" and/or "Refunded". */
-const bookingStatusBadges = (
-  booking: AttendeeFormLine["existingBooking"],
-): JSX.Element | null => {
-  const badges = compact([
-    booking?.checked_in ? <span class="badge">Checked in</span> : null,
-    booking?.refunded ? <span class="badge danger">Refunded</span> : null,
-  ]);
-  return badges.length > 0 ? (
-    <div class="muted small">
-      <Raw html={badges.join(" ")} />
-    </div>
-  ) : null;
 };
 
 /** One row of the listing editor — a listing and its quantity box. */
@@ -151,8 +161,11 @@ const ListingRow = ({
     <tr class={booked ? "attendee-line" : "attendee-line attendee-line-empty"}>
       <td>
         <a href={`/admin/listing/${listing.id}`}>{listing.name}</a>
-        {listing.active ? "" : <span class="muted small"> (inactive)</span>}
-        {bookingStatusBadges(line.existingBooking)}
+        {listing.active ? "" : <span class="muted small">(inactive)</span>}
+        {BookingStatusBadges({
+          checkedIn: Boolean(line.existingBooking?.checked_in),
+          refunded: Boolean(line.existingBooking?.refunded),
+        })}
       </td>
       <td>
         {isDaily ? (
@@ -370,7 +383,9 @@ const dayCountOptions = (
   const options: JSX.Element[] = [];
   for (let n = 1; n <= MAX_DURATION_DAYS; n++) {
     const label = startDate
-      ? `${n} day${n === 1 ? "" : "s"}: ${formatDateLabel(addDays(startDate, n - 1))}`
+      ? `${n} day${n === 1 ? "" : "s"}: ${formatDateLabel(
+          addDays(startDate, n - 1),
+        )}`
       : `${n} day${n === 1 ? "" : "s"}`;
     options.push(
       <option selected={n === selected} value={n}>
@@ -434,37 +449,88 @@ const SharedDateFields = ({
   );
 };
 
-/** Render the bulk-email contact history (edit mode only). */
-const EmailHistory = ({
+/** Render one channel's contact record: the per-source booking/message counts,
+ * the markdown-rendered private note, and an Edit link to its history page. */
+const ContactRecordSection = ({
+  channel,
+  label,
+}: {
+  channel: ContactChannelData;
+  label: string;
+}): JSX.Element => {
+  const { hashParam, record } = channel;
+  return (
+    <section>
+      <h4>{label}</h4>
+      <ul>
+        <li>
+          <strong>{t("attendee_form.online_bookings")}:</strong>{" "}
+          {record.publicBookingCount}
+        </li>
+        <li>
+          <strong>{t("attendee_form.admin_bookings")}:</strong>{" "}
+          {record.adminBookingCount}
+        </li>
+        <li>
+          <strong>{t("attendee_form.total_messages")}:</strong>{" "}
+          {record.contactCount}
+        </li>
+        {record.lastContact && (
+          <li>
+            <strong>{t("attendee_form.last_contacted")}:</strong>{" "}
+            {formatDatetimeShort(record.lastContact)}
+          </li>
+        )}
+        {record.lastSubject && (
+          <li>
+            <strong>{t("attendee_form.last_subject")}:</strong>{" "}
+            {record.lastSubject}
+          </li>
+        )}
+      </ul>
+      {record.adminNotes && (
+        <div class="contact-notes">
+          <Raw html={renderMarkdown(record.adminNotes)} />
+        </div>
+      )}
+      <p>
+        <a href={`/admin/history/${hashParam}`}>
+          {t("attendee_form.edit_contact_record")}
+        </a>
+      </p>
+    </section>
+  );
+};
+
+/** Render contact history for each available channel (edit mode only). */
+const ContactHistory = ({
   attendee,
-  emailStats,
+  contactRecords,
   isOwner,
 }: {
   attendee: Attendee;
-  emailStats: EmailStats | null;
+  contactRecords: ContactRecordsByChannel;
   isOwner: boolean;
 }): JSX.Element => {
   const hasEmail = Boolean(attendee.email);
   return (
     <article>
-      <h3>Email History</h3>
-      {!hasEmail ? (
-        <p>No email address on file.</p>
-      ) : emailStats && emailStats.contactCount > 0 ? (
-        <ul>
-          <li>
-            <strong>Total messages:</strong> {emailStats.contactCount}
-          </li>
-          <li>
-            <strong>Last contacted:</strong>{" "}
-            {formatDatetimeShort(emailStats.lastContact)}
-          </li>
-          <li>
-            <strong>Last subject:</strong> {emailStats.lastSubject}
-          </li>
-        </ul>
+      <h3>{t("attendee_form.contact_history")}</h3>
+      {contactRecords.email ? (
+        <ContactRecordSection
+          channel={contactRecords.email}
+          label={t("attendee_form.stats_for", { value: attendee.email })}
+        />
       ) : (
-        <p>Never contacted by bulk email.</p>
+        <p>{t("attendee_form.no_email_on_file")}</p>
+      )}
+      {contactRecords.phone ? (
+        <ContactRecordSection
+          channel={contactRecords.phone}
+          label={t("attendee_form.stats_for", { value: attendee.phone })}
+        />
+      ) : (
+        <p>{t("attendee_form.no_phone_on_file")}</p>
       )}
       {isOwner && (
         <p>
@@ -476,12 +542,10 @@ const EmailHistory = ({
               token: attendee.ticket_token,
             })}`}
             title={
-              hasEmail
-                ? undefined
-                : "This attendee has no email address on file"
+              hasEmail ? undefined : t("attendee_form.no_email_disabled_title")
             }
           >
-            Send an email to this attendee
+            {t("attendee_form.send_email_to_attendee")}
           </MaybeButtonLink>
         </p>
       )}
@@ -502,7 +566,9 @@ const isRefundable = (attendee: Attendee): boolean =>
  */
 const AttendeeActions = ({ attendee }: { attendee: Attendee }): JSX.Element => {
   const base = `/admin/listing/${attendee.listing_id}/attendee/${attendee.id}`;
-  const ret = `?return_url=${encodeURIComponent(`/admin/attendees/${attendee.id}`)}`;
+  const ret = `?return_url=${encodeURIComponent(
+    `/admin/attendees/${attendee.id}`,
+  )}`;
   return (
     <article>
       <h3>Actions</h3>
@@ -640,6 +706,12 @@ const StatusAndBalanceFields = ({
           payment link clears it automatically when they pay.
         </small>
       </label>
+      <div class="error" role="alert">
+        Changing the outstanding balance posts a correcting entry to the money
+        ledger — the source of truth for what is owed. Corrections are appended,
+        never destructive: only the difference from the current figure is
+        recorded as a write-off adjustment.
+      </div>
     </>
   );
 };
@@ -738,6 +810,7 @@ const AttendeeEditForm = ({
           <EditQuestions
             questions={data.questions}
             selectedAnswerIds={data.selectedAnswerIds}
+            selectedTextAnswers={data.selectedTextAnswers}
           />
         </>
       )}
@@ -808,6 +881,8 @@ export const attendeeFormPage = (
         />
       )}
 
+      {isEdit && <AttendeeBookingsTable bookings={data.bookings} />}
+
       {isEdit && (
         <AttendeeAnswersTable
           questions={data.questions}
@@ -820,6 +895,8 @@ export const attendeeFormPage = (
       {isEdit && a && <AttendeeActions attendee={a} />}
 
       {isEdit && <AttendeeLogSection entries={data.activityLog} />}
+
+      {isEdit && data.ledger && <AttendeeLedgerSection ledger={data.ledger} />}
 
       {data.attendeeError && (
         <div class="error" role="alert">
@@ -837,9 +914,9 @@ export const attendeeFormPage = (
       )}
 
       {isEdit && a && (
-        <EmailHistory
+        <ContactHistory
           attendee={a}
-          emailStats={data.emailStats ?? null}
+          contactRecords={data.contactRecords}
           isOwner={session.adminLevel === "owner"}
         />
       )}

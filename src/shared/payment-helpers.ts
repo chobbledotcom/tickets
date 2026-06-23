@@ -29,6 +29,23 @@ import type { ContactInfo } from "#shared/types.ts";
 export const errorMessage = (err: unknown): string =>
   err instanceof Error ? err.message : "Unknown error";
 
+/**
+ * Normalise a provider timestamp to the ledger's canonical ISO 8601 form
+ * (`YYYY-MM-DDTHH:mm:ss.sssZ`), or undefined when it's absent or unparseable.
+ *
+ * Providers return assorted shapes — SumUp uses a `+00:00` offset, Square may
+ * omit milliseconds — but the ledger validator accepts only the exact canonical
+ * form. Normalising here, where a session is built, keeps `createdAt` safe to
+ * use as a ledger `occurredAt` without a paid booking throwing at post time.
+ */
+export const toCanonicalIso = (
+  value: string | undefined,
+): string | undefined => {
+  if (value === undefined) return undefined;
+  const ms = Date.parse(value);
+  return Number.isNaN(ms) ? undefined : new Date(ms).toISOString();
+};
+
 /** Shared shape for a provider credential check in connection-test results. */
 export type CredentialCheck = {
   valid: boolean;
@@ -169,6 +186,13 @@ const listingAnswerIdsField = (
     ? { answer_ids: JSON.stringify(listingAnswerIds) }
     : {};
 
+const listingTextAnswerIdsField = (
+  listingTextAnswerIds?: BookingIntent["listingTextAnswerIds"],
+): Record<string, string> =>
+  listingTextAnswerIds && Object.keys(listingTextAnswerIds).length > 0
+    ? { text_answer_ids: JSON.stringify(listingTextAnswerIds) }
+    : {};
+
 /** Convert single-listing answerIds to the per-listing format used in metadata */
 export const singleListingAnswerIds = (
   listingId: number,
@@ -238,6 +262,7 @@ type MetadataInput = Pick<BookingIntent, "name" | "email" | "items" | "date"> &
       | "special_instructions"
       | "dayCount"
       | "listingAnswerIds"
+      | "listingTextAnswerIds"
       | "siteTokenIndex"
       | "balanceAttendeeId"
       | "reservationAmount"
@@ -257,6 +282,7 @@ export const buildMetadata = (
   name: intent.name,
   ...optionalFields(intent),
   ...listingAnswerIdsField(intent.listingAnswerIds),
+  ...listingTextAnswerIdsField(intent.listingTextAnswerIds),
   ...(intent.siteTokenIndex ? { site_token_index: intent.siteTokenIndex } : {}),
   ...(intent.balanceAttendeeId
     ? { balance_attendee_id: String(intent.balanceAttendeeId) }
@@ -411,9 +437,11 @@ export const enforceMetadataLimits = (
   }
 
   const answerIds = metadata.answer_ids;
+  const textAnswerIds = metadata.text_answer_ids;
   const modifiers = metadata.modifiers;
   if (
     (answerIds && answerIds.length > maxValueLength) ||
+    (textAnswerIds && textAnswerIds.length > maxValueLength) ||
     (modifiers && modifiers.length > maxValueLength) ||
     (maxEntries !== undefined && Object.keys(metadata).length > maxEntries)
   ) {
@@ -479,5 +507,6 @@ export const extractSessionMetadata = (
     reservation_amount: get("reservation_amount"),
     site_token_index: get("site_token_index"),
     special_instructions: get("special_instructions"),
+    text_answer_ids: get("text_answer_ids"),
   };
 };

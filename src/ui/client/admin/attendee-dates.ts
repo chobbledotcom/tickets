@@ -1,4 +1,5 @@
 /// <reference lib="dom" />
+/// <reference lib="dom.iterable" />
 /**
  * Progressive enhancement for the attendee form's shared date controls.
  *

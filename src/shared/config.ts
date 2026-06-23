@@ -117,6 +117,14 @@ export const getBunnyDnsSubdomainSuffix = (): string =>
 export const getBunnyScriptId = (): string => requireEnv("BUNNY_SCRIPT_ID");
 
 /**
+ * Diagnostic key gating the verbose `/health` response. Empty when unset, in
+ * which case `/health` only ever returns the plain liveness reply. Holding the
+ * key reveals non-private build/runtime diagnostics (commit, build time) that
+ * are useful for operators but needlessly helpful to an attacker.
+ */
+export const getDebugKey = (): string => getEnv("DEBUG_KEY") ?? "";
+
+/**
  * Get the Botpoison public key from environment (safe to expose to browsers).
  * Returns empty string when unset.
  */
@@ -137,3 +145,15 @@ export const getBotpoisonSecretKey = (): string =>
  */
 export const isBotpoisonEnabled = (): boolean =>
   !!getBotpoisonPublicKey() && !!getBotpoisonSecretKey();
+
+/**
+ * Whether the inter-instance site-credentials endpoint is enabled. Off unless
+ * MAIN_INSTANCE_KEY is set, so a non-builder instance never exposes it. The key
+ * is a high-entropy shared secret the operator passes to the upgrade workflow at
+ * trigger time (it is never stored in GitHub).
+ */
+export const isInstanceApiEnabled = (): boolean =>
+  !!getEnv("MAIN_INSTANCE_KEY");
+
+/** The shared secret authorizing the inter-instance site-credentials endpoint. */
+export const getMainInstanceKey = (): string => requireEnv("MAIN_INSTANCE_KEY");

@@ -1,0 +1,252 @@
+import { expect } from "@std/expect";
+import { it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
+import { handleRequest } from "#routes";
+import { formatCurrency } from "#shared/currency.ts";
+import { modifiersTable, setModifierAnswers } from "#shared/db/modifiers.ts";
+import {
+  answersTable,
+  questionsTable,
+  setListingQuestions,
+} from "#shared/db/questions.ts";
+import { settings } from "#shared/db/settings.ts";
+import {
+  createTestGroup,
+  createTestListing,
+  describeWithEnv,
+  extractCsrfToken,
+  mockFormRequest,
+  mockRequest,
+  setupStripe,
+} from "#test-utils";
+
+/** GET the booking page for `pageSlug` to mint a CSRF token, then POST the
+ * given inputs to `/calculate/<postSlug>` exactly as the running total would. */
+const calculate = async (
+  pageSlug: string,
+  postSlug: string,
+  data: Record<string, string>,
+): Promise<Response> => {
+  const page = await handleRequest(mockRequest(`/ticket/${pageSlug}`));
+  const csrf = extractCsrfToken(await page.text()) ?? "";
+  return handleRequest(
+    mockFormRequest(`/calculate/${postSlug}`, { csrf_token: csrf, ...data }),
+  );
+};
+
+describeWithEnv("server (/calculate running total)", { db: true }, () => {
+  test("returns a priced summary for a valid selection", async () => {
+    await setupStripe();
+    const listing = await createTestListing({
+      maxQuantity: 5,
+      name: "Adult Ticket",
+      unitPrice: 1500,
+    });
+
+    const response = await calculate(listing.slug, listing.slug, {
+      [`quantity_${listing.id}`]: "1",
+    });
+    expect(response.status).toBe(200);
+
+    const html = await response.text();
+    expect(html).toContain("Adult Ticket");
+    expect(html).toContain(formatCurrency(1500));
+    expect(html).toContain("order-summary-total");
+    expect(html).toContain("Total");
+  });
+
+  test("prices a multi-unit line with a booking-fee extra line", async () => {
+    await setupStripe();
+    await settings.update.bookingFee("10");
+    const listing = await createTestListing({
+      maxQuantity: 5,
+      name: "Workshop",
+      unitPrice: 1000,
+    });
+
+    const html = await (
+      await calculate(listing.slug, listing.slug, {
+        [`quantity_${listing.id}`]: "2",
+      })
+    ).text();
+
+    // Two units priced as one line, labelled with the quantity.
+    expect(html).toContain("2× Workshop");
+    // Booking fee (10% of 2000) added as an extra line.
+    expect(html).toContain("Booking fee");
+    expect(html).toContain(formatCurrency(200));
+    // Total = 2000 + 200 booking fee.
+    expect(html).toContain(formatCurrency(2200));
+  });
+
+  test("totals without any contact details (PII is stripped)", async () => {
+    await setupStripe();
+    const listing = await createTestListing({
+      maxQuantity: 5,
+      name: "Free Entry",
+      unitPrice: 0,
+    });
+
+    // No name/email/phone sent — a quote must not require them.
+    const response = await calculate(listing.slug, listing.slug, {
+      [`quantity_${listing.id}`]: "3",
+    });
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain("Free Entry");
+  });
+
+  test("shows a prompt when nothing is selected", async () => {
+    const listing = await createTestListing({ maxQuantity: 5, name: "Seat" });
+
+    const response = await calculate(listing.slug, listing.slug, {
+      [`quantity_${listing.id}`]: "0",
+    });
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(html).toContain("order-summary-message");
+    expect(html).toContain("Please select at least one ticket");
+  });
+
+  test("rejects an invalid CSRF token", async () => {
+    const listing = await createTestListing({ maxQuantity: 5, name: "Seat" });
+
+    const response = await handleRequest(
+      mockFormRequest(`/calculate/${listing.slug}`, {
+        csrf_token: "not-a-real-token",
+        [`quantity_${listing.id}`]: "1",
+      }),
+    );
+    expect(response.status).toBe(403);
+    expect(await response.text()).toContain("order-summary-message");
+  });
+
+  test("prices a group booking posted to the group slug", async () => {
+    await setupStripe();
+    const group = await createTestGroup({ name: "Festival", slug: "festival" });
+    const listing = await createTestListing({
+      groupId: group.id,
+      maxQuantity: 5,
+      name: "Day Pass",
+      unitPrice: 2000,
+    });
+
+    const response = await calculate("festival", "festival", {
+      [`quantity_${listing.id}`]: "1",
+    });
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(html).toContain("Day Pass");
+    expect(html).toContain(formatCurrency(2000));
+  });
+
+  test("shows the full value as owed when payments are disabled", async () => {
+    // No payment provider configured: the submit path still completes the
+    // booking but records the full value as the amount owed (like a zero-deposit
+    // reservation), so the quote must surface that figure.
+    const listing = await createTestListing({
+      maxQuantity: 5,
+      name: "Paid Seat",
+      unitPrice: 2500,
+    });
+
+    const html = await (
+      await calculate(listing.slug, listing.slug, {
+        [`quantity_${listing.id}`]: "2",
+      })
+    ).text();
+    // Two seats at £25.00 = £50.00 owed, taken with no online payment.
+    expect(html).toContain("you'll owe");
+    expect(html).toContain(formatCurrency(5000));
+  });
+
+  test("shows no amount owed for a free booking when payments are disabled", async () => {
+    // A genuinely free order owes nothing, so the quote keeps the free wording.
+    const listing = await createTestListing({
+      maxQuantity: 5,
+      name: "Free Seat",
+      unitPrice: 0,
+    });
+
+    const html = await (
+      await calculate(listing.slug, listing.slug, {
+        [`quantity_${listing.id}`]: "1",
+      })
+    ).text();
+    expect(html).toContain("No payment required");
+    expect(html).not.toContain("you'll owe");
+  });
+
+  test("rejects a sold-out answer tier in the quote", async () => {
+    await setupStripe();
+    const listing = await createTestListing({ maxAttendees: 50 });
+    const question = await questionsTable.insert({
+      displayType: "radio",
+      text: "T-shirt size?",
+    });
+    const answer = await answersTable.insert({
+      questionId: question.id,
+      sortOrder: 0,
+      text: "Small",
+    });
+    await setListingQuestions(listing.id, [question.id]);
+    // A stock-limited answer tier with no stock left, selected by the quote.
+    const tier = await modifiersTable.insert({
+      calcKind: "fixed",
+      calcValue: 5,
+      direction: "charge",
+      name: "VIP upgrade",
+      stock: 0,
+      trigger: "answer",
+    });
+    await setModifierAnswers(tier.id, [answer.id]);
+
+    const html = await (
+      await calculate(listing.slug, listing.slug, {
+        [`question_${question.id}`]: String(answer.id),
+        [`quantity_${listing.id}`]: "1",
+      })
+    ).text();
+    expect(html).toContain("no longer available");
+  });
+
+  test("reports unavailable tickets when capacity is exhausted", async () => {
+    await setupStripe();
+    const listing = await createTestListing({
+      maxQuantity: 5,
+      name: "Capped",
+      unitPrice: 1000,
+    });
+
+    // Simulate capacity exhausted between page load and the quote (e.g. a dated
+    // group day filling up), as the submit path's availability check would catch.
+    const { attendeesApi } = await import("#shared/db/attendees.ts");
+    const mockBatch = stub(attendeesApi, "checkBatchAvailability", () =>
+      Promise.resolve(false),
+    );
+    try {
+      const html = await (
+        await calculate(listing.slug, listing.slug, {
+          [`quantity_${listing.id}`]: "1",
+        })
+      ).text();
+      expect(html).toContain("no longer available");
+      expect(html).not.toContain("order-summary-total");
+    } finally {
+      mockBatch.restore();
+    }
+  });
+
+  test("returns 404 for an unknown single slug", async () => {
+    const response = await handleRequest(
+      mockFormRequest("/calculate/does-not-exist", {}),
+    );
+    expect(response.status).toBe(404);
+  });
+
+  test("returns 404 for unknown multi slugs without a group fallback", async () => {
+    const response = await handleRequest(
+      mockFormRequest("/calculate/missing-a+missing-b", {}),
+    );
+    expect(response.status).toBe(404);
+  });
+});

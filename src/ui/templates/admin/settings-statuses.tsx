@@ -8,12 +8,13 @@ import { ConfirmForm, CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { RESERVATION_AMOUNT_HINT } from "#shared/reservation-amount.ts";
 import type { AdminSession } from "#shared/types.ts";
-import { AdminNav, SettingsSubNav } from "#templates/admin/nav.tsx";
+import { AdminNav } from "#templates/admin/nav.tsx";
 import {
   ActionButton,
   DeleteSection,
   SubmitButton,
 } from "#templates/components/actions.tsx";
+import { colClass } from "#templates/components/table-columns.ts";
 import { Layout } from "#templates/layout.tsx";
 
 const LIST_PATH = "/admin/settings/statuses";
@@ -78,7 +79,6 @@ export const adminAttendeeStatusesPage = (
   String(
     <Layout title={t("statuses.attendee_statuses_page_title")}>
       <AdminNav active="/admin/settings" session={session} />
-      <SettingsSubNav />
       <div class="prose">
         <h1>{t("statuses.attendee_statuses_page_title")}</h1>
         <p>
@@ -91,26 +91,30 @@ export const adminAttendeeStatusesPage = (
           {t("statuses.add_status_button")}
         </ActionButton>
       </p>
-      <table>
-        <thead>
-          <tr>
-            <th>{t("statuses.order_header")}</th>
-            <th>{t("common.name")}</th>
-            <th>{t("statuses.flags_header")}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {statuses.map((s, i) => (
+      <div class="table-scroll">
+        <table>
+          <thead>
             <tr>
-              <td>{moveControls(s, i, statuses.length)}</td>
-              <td>
-                <a href={`${LIST_PATH}/${s.id}/edit`}>{s.name}</a>
-              </td>
-              <td>{statusBadges(s)}</td>
+              <th class={colClass("reorder")}>{t("statuses.order_header")}</th>
+              <th>{t("common.name")}</th>
+              <th>{t("statuses.flags_header")}</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {statuses.map((s, i) => (
+              <tr>
+                <td class={colClass("reorder")}>
+                  {moveControls(s, i, statuses.length)}
+                </td>
+                <td>
+                  <a href={`${LIST_PATH}/${s.id}/edit`}>{s.name}</a>
+                </td>
+                <td>{statusBadges(s)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </Layout>,
   );
 
@@ -139,7 +143,6 @@ export const adminAttendeeStatusFormPage = (
       }
     >
       <AdminNav active="/admin/settings" session={session} />
-      <SettingsSubNav />
       <h1>
         {editing ? t("statuses.form_title_edit") : t("statuses.form_title_add")}
       </h1>
@@ -205,7 +208,6 @@ export const adminAttendeeStatusDeletePage = (
   String(
     <Layout title={t("statuses.delete_title")}>
       <AdminNav active="/admin/settings" session={session} />
-      <SettingsSubNav />
       <ConfirmForm
         action={`${LIST_PATH}/${status.id}/delete`}
         buttonText={t("statuses.delete_button")}

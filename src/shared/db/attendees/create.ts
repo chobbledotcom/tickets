@@ -17,12 +17,22 @@ import {
   contactFields,
   encryptAttendeeFields,
 } from "#shared/db/attendees/pii.ts";
-import { executeBatchWithResults, insert } from "#shared/db/client.ts";
 import {
+  executeBatchWithResults,
+  insert,
+  type TxScope,
+  withTransaction,
+} from "#shared/db/client.ts";
+import {
+  type BookingSource,
   hashEmail,
   hashPhone,
+  recordBooking,
   recordVisit,
+  unrecordBooking,
+  unrecordVisit,
 } from "#shared/db/contact-preferences.ts";
+import { bestEffort } from "#shared/logger.ts";
 import { type Attendee, normalizeDurationDays } from "#shared/types.ts";
 
 /**
@@ -39,6 +49,7 @@ import { type Attendee, normalizeDurationDays } from "#shared/types.ts";
 export const ensureAllBookings = async (
   result: CreateAttendeeResult,
   expectedCount: number,
+  source: BookingSource,
 ): Promise<
   { ok: true } | { ok: false; reason: "capacity_exceeded" | "encryption_error" }
 > => {
@@ -46,7 +57,15 @@ export const ensureAllBookings = async (
     return { ok: true };
   }
   if (result.success && result.attendees.length > 0) {
-    await deleteAttendee(result.attendees[0]!.id);
+    const attendee = result.attendees[0]!;
+    await deleteAttendee(attendee.id);
+    // The greedy create already recorded a visit + booking for this contact;
+    // undo it now that the order is being rolled back. Best-effort: callers
+    // such as the paid webhook refund after this returns, so a contact-stats
+    // write failure must not escape here and skip the refund.
+    await bestEffort("reverseOrderActivity on partial rollback", () =>
+      reverseOrderActivity(attendee.email, attendee.phone, source),
+    );
   }
   return {
     ok: false,
@@ -60,7 +79,10 @@ type AttendeeOrderFields = {
   remainingBalance: number;
 };
 
-/** Build an INSERT statement for the attendees table from encrypted fields. */
+/** Build an INSERT statement for the attendees table from encrypted fields.
+ *  The outstanding balance is no longer a stored column — it projects from the
+ *  transfers ledger as −balanceOf(attendee) — so the insert never writes it; a
+ *  booking that owes money records the owed amount with its sale leg instead. */
 export const buildAttendeeInsert = (
   enc: EncryptedAttendeeData,
   order: AttendeeOrderFields,
@@ -68,7 +90,6 @@ export const buildAttendeeInsert = (
   insert("attendees", {
     created: enc.created,
     pii_blob: enc.encryptedPiiBlob,
-    remaining_balance: order.remainingBalance,
     status_id: order.statusId,
     ticket_token_index: enc.ticketTokenIndex,
   });
@@ -99,7 +120,11 @@ const buildAttendeeResult = (input: BuildAttendeeInput): Attendee => ({
   ticket_token_index: input.ticketTokenIndex,
 });
 
-const recordOrderVisit = async (email: unknown, phone: unknown) => {
+/** Collect the contact-identity hashes for an order (email and/or phone). */
+const orderContactHashes = (
+  email: unknown,
+  phone: unknown,
+): Promise<string[]> => {
   const hashes: Promise<string>[] = [];
   if (typeof email === "string" && email.trim()) {
     hashes.push(hashEmail(email));
@@ -107,21 +132,117 @@ const recordOrderVisit = async (email: unknown, phone: unknown) => {
   if (typeof phone === "string" && phone.trim()) {
     hashes.push(hashPhone(phone));
   }
-  for (const hash of await Promise.all(hashes)) {
-    await recordVisit(hash);
-  }
+  return Promise.all(hashes);
 };
+
+/** Apply a visit + source-tagged booking change to every contact on an order.
+ * Curried over the per-hash primitives so recording and its exact reverse share
+ * one implementation. */
+const applyOrderActivity =
+  (
+    visitFn: (hash: string) => Promise<void>,
+    bookingFn: (hash: string, source: BookingSource) => Promise<void>,
+  ) =>
+  async (email: unknown, phone: unknown, source: BookingSource) => {
+    for (const hash of await orderContactHashes(email, phone)) {
+      await visitFn(hash);
+      await bookingFn(hash, source);
+    }
+  };
+
+const recordOrderActivity = applyOrderActivity(recordVisit, recordBooking);
+
+/** Reverse {@link recordOrderActivity} when an order is rolled back after the
+ * greedy create already recorded it (partial booking, post-payment refund). */
+export const reverseOrderActivity = applyOrderActivity(
+  unrecordVisit,
+  unrecordBooking,
+);
+
+type Statement = { sql: string; args: InValue[] };
+
+/** Per-booking success flags and the new attendee row id (always set in
+ *  practice — an INSERT returns its rowid). */
+type WriteOutcome = { flags: boolean[]; insertId: number | bigint | undefined };
+
+/** Posts the ledger legs for a created attendee inside the same transaction, so
+ *  a booking and its legs commit or roll back together. The id is only known
+ *  after the attendee insert, so it is passed in. */
+export type LedgerPoster = (tx: TxScope, attendeeId: number) => Promise<void>;
+
+/** Thrown to roll the transaction back when no booking could be created (the
+ *  ledger-posting path has no final cleanup DELETE; it just rolls back). */
+class NoBookingsCreated extends Error {}
+
+/** Remove the just-inserted attendee when none of its capacity-checked booking
+ *  inserts landed a row (the batch path's all-failed cleanup). */
+const cleanupDeleteStatement = (ticketTokenIndex: InValue): Statement => ({
+  args: [ticketTokenIndex, ticketTokenIndex],
+  sql: `DELETE FROM attendees WHERE id = (
+          SELECT MAX(id) FROM attendees WHERE ticket_token_index = ?
+        ) AND NOT EXISTS (
+          SELECT 1 FROM listing_attendees WHERE attendee_id = (
+            SELECT MAX(id) FROM attendees WHERE ticket_token_index = ?
+          )
+        )`,
+});
+
+/** The fast path: one ACID batch (attendee, bookings, all-failed cleanup).
+ *  Returns null when no booking landed (the attendee was cleaned up). */
+const writeAsBatch = async (
+  attendeeInsert: Statement,
+  bookingStatements: Statement[],
+  ticketTokenIndex: InValue,
+): Promise<WriteOutcome | null> => {
+  const batchResults = await executeBatchWithResults([
+    attendeeInsert,
+    ...bookingStatements,
+    cleanupDeleteStatement(ticketTokenIndex),
+  ]);
+  const flags = bookingStatements.map(
+    (_, i) => batchResults[i + 1]!.rowsAffected > 0,
+  );
+  return flags.some(Boolean)
+    ? { flags, insertId: batchResults[0]!.lastInsertRowid }
+    : null;
+};
+
+/** The ledger path: an interactive transaction so the ledger legs commit
+ *  atomically with the attendee and bookings. This path is all-or-nothing —
+ *  the legs describe the whole order, so if any booking fails its capacity check
+ *  the transaction rolls back and null is returned (the caller refunds), rather
+ *  than posting legs for listings that were not booked. */
+const writeWithLedger = (
+  attendeeInsert: Statement,
+  bookingStatements: Statement[],
+  postLedger: LedgerPoster,
+): Promise<WriteOutcome | null> =>
+  withTransaction<WriteOutcome>(async (tx) => {
+    const insertId = (await tx.execute(attendeeInsert)).lastInsertRowid;
+    const flags: boolean[] = [];
+    for (const statement of bookingStatements) {
+      flags.push((await tx.execute(statement)).rowsAffected > 0);
+    }
+    if (!flags.every(Boolean)) throw new NoBookingsCreated();
+    await postLedger(tx, Number(insertId));
+    return { flags, insertId };
+  }).catch((error) => {
+    if (error instanceof NoBookingsCreated) return null;
+    throw error;
+  });
 
 /**
  * Atomically create an attendee linked to one or more listings.
- * Single ACID batch transaction:
  *   1. INSERT attendee (unconditional)
  *   2..N+1. For each booking: INSERT listing_attendees with capacity check
- *   N+2. Clean up attendee if ALL capacity checks failed
- * Returns one Attendee per successful booking.
+ *   3. Clean up / roll back the attendee if ALL capacity checks failed
+ * Returns one Attendee per successful booking. When `postLedger` is given, the
+ * write runs in one interactive transaction and the ledger legs are posted in
+ * it, so the booking and its legs are all-or-nothing.
  */
 export const createAttendeeAtomicImpl = async (
   input: AttendeeInput,
+  postLedger?: LedgerPoster,
 ): Promise<CreateAttendeeResult> => {
   const {
     name,
@@ -134,6 +255,7 @@ export const createAttendeeAtomicImpl = async (
     statusId = null,
     remainingBalance = 0,
     allowOverbook = false,
+    source = "public",
   } = input;
   const order = { remainingBalance, statusId };
   if (bookings.length === 0) {
@@ -185,59 +307,48 @@ export const createAttendeeAtomicImpl = async (
     return { args: combined, sql: insert.sql };
   });
 
-  // Single ACID transaction: attendee first, then capacity-checked listing links.
-  // If all capacity checks fail, the attendee is cleaned up in the final step.
-  const batchResults = await executeBatchWithResults([
-    // Step 1: Create attendee record (unconditional)
-    buildAttendeeInsert(enc, order),
-    // Steps 2..N+1: One capacity-checked INSERT per booking
-    ...bookingStatements,
-    // Final step: Clean up attendee if no listing links were created
-    {
-      args: [enc.ticketTokenIndex, enc.ticketTokenIndex],
-      sql: `DELETE FROM attendees WHERE id = (
-              SELECT MAX(id) FROM attendees WHERE ticket_token_index = ?
-            ) AND NOT EXISTS (
-              SELECT 1 FROM listing_attendees WHERE attendee_id = (
-                SELECT MAX(id) FROM attendees WHERE ticket_token_index = ?
-              )
-            )`,
-    },
-  ]);
-
-  // Check which bookings succeeded (steps 2..N+1 in batchResults, offset by 1)
-  const successfulBookings: Attendee[] = [];
-  for (let i = 0; i < bookings.length; i++) {
-    if (batchResults[i + 1]!.rowsAffected > 0) {
-      const booking = bookings[i]!;
-      successfulBookings.push(
-        buildAttendeeResult({
-          insertId: batchResults[0]!.lastInsertRowid,
-          listingId: booking.listingId,
-          ...contactInfo,
-          created: enc.created,
-          date: booking.date ?? null,
-          durationDays: booking.durationDays,
-          paymentId,
-          pricePaid: booking.pricePaid ?? 0,
-          quantity: booking.quantity ?? 1,
-          remainingBalance,
-          statusId,
-          ticketToken: enc.ticketToken,
-          ticketTokenIndex: enc.ticketTokenIndex,
-        }),
+  // Attendee first, then capacity-checked listing links — atomically. The
+  // ledger path runs an interactive transaction so it can also post the legs;
+  // the plain path uses one batch with an all-failed cleanup DELETE.
+  const attendeeInsert = buildAttendeeInsert(enc, order);
+  const written = postLedger
+    ? await writeWithLedger(attendeeInsert, bookingStatements, postLedger)
+    : await writeAsBatch(
+        attendeeInsert,
+        bookingStatements,
+        enc.ticketTokenIndex,
       );
-    }
-  }
 
-  if (successfulBookings.length === 0) {
+  if (!written) {
     return { reason: "capacity_exceeded", success: false };
   }
 
-  // Record one order-level visit per contact identity. Multi-listing carts
-  // still count as one customer visit, while email and phone can both recognize
-  // the customer on future checkouts.
-  await recordOrderVisit(email, phone);
+  const successfulBookings: Attendee[] = bookings.flatMap((booking, i) =>
+    written.flags[i]
+      ? [
+          buildAttendeeResult({
+            insertId: written.insertId,
+            listingId: booking.listingId,
+            ...contactInfo,
+            created: enc.created,
+            date: booking.date ?? null,
+            durationDays: booking.durationDays,
+            paymentId,
+            pricePaid: booking.pricePaid ?? 0,
+            quantity: booking.quantity ?? 1,
+            remainingBalance,
+            statusId,
+            ticketToken: enc.ticketToken,
+            ticketTokenIndex: enc.ticketTokenIndex,
+          }),
+        ]
+      : [],
+  );
+
+  // Record one order-level visit and one source-tagged booking per contact
+  // identity. Multi-listing carts still count as one customer visit/booking,
+  // while email and phone can both recognize the customer on future checkouts.
+  await recordOrderActivity(email, phone, source);
 
   return { attendees: successfulBookings, success: true };
 };

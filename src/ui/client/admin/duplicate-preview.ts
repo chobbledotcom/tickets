@@ -1,4 +1,5 @@
 /// <reference lib="dom" />
+/// <reference lib="dom.iterable" />
 /**
  * Duplicate-group preview: re-renders the preview table live as the admin
  * types into the form. Uses the same buildDuplicatePreview helper that the

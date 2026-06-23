@@ -1,53 +1,32 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { backupFilename, backupTimestamp } from "#shared/db/backup.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
   initDb,
   invalidateInitDbCache,
   MIGRATION_LOCK_TTL_MS,
+  type Migration,
   MigrationInProgressError,
   resetDatabase,
   SCHEMA_HASH,
+  VERIFY_RETRY_BACKOFF_MS,
+  verifyMigrationWithRetry,
 } from "#shared/db/migrations.ts";
 import { createSession } from "#shared/db/sessions.ts";
 import { settings } from "#shared/db/settings.ts";
-import { uploadRaw } from "#shared/storage.ts";
 import {
   createTestListing,
   describeWithEnv,
-  installUrlHandler,
   invalidateTestDbCache,
   setTestEnv,
   TEST_ADMIN_PASSWORD,
-  withFetchMock,
 } from "#test-utils";
 import { markCurrentSchemaMigrationPending } from "./migration-test-helpers.ts";
 
 describeWithEnv("db > migration runtime", { db: true }, () => {
-  describe("pre-migration backup", () => {
-    test("skips backup when only restoring stale schema markers", async () => {
-      const tmpDir = Deno.makeTempDirSync();
-      const restore = setTestEnv({ LOCAL_STORAGE_PATH: tmpDir });
-      try {
-        await getDb().execute(
-          "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
-        );
-        invalidateInitDbCache();
-        await initDb();
-
-        const files = [...Deno.readDirSync(tmpDir)]
-          .map((e) => e.name)
-          .filter((n) => n.startsWith("backup-") && n.endsWith(".zip"));
-        expect(files.length).toBe(0);
-      } finally {
-        restore();
-        Deno.removeSync(tmpDir, { recursive: true });
-      }
-    });
-
-    test("creates backup before migrating existing database when storage is enabled", async () => {
+  describe("migration behaviour", () => {
+    test("migrates an existing database without taking an inline backup", async () => {
       const tmpDir = Deno.makeTempDirSync();
       const restore = setTestEnv({ LOCAL_STORAGE_PATH: tmpDir });
       try {
@@ -57,112 +36,20 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
         await markCurrentSchemaMigrationPending();
         await initDb();
 
-        const files = [...Deno.readDirSync(tmpDir)]
-          .map((e) => e.name)
-          .filter((n) => n.startsWith("backup-") && n.endsWith(".zip"));
-        expect(files.length).toBe(1);
-      } finally {
-        restore();
-        Deno.removeSync(tmpDir, { recursive: true });
-      }
-    });
-
-    test("skips pre-migration backup when a recent backup already exists", async () => {
-      const tmpDir = Deno.makeTempDirSync();
-      const restore = setTestEnv({ LOCAL_STORAGE_PATH: tmpDir });
-      try {
-        const existing = backupFilename(backupTimestamp());
-        await uploadRaw(new Uint8Array([1]), existing);
-
-        await getDb().execute(
-          "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
-        );
-        await markCurrentSchemaMigrationPending();
-        await initDb();
-
-        const files = [...Deno.readDirSync(tmpDir)]
-          .map((e) => e.name)
-          .filter((n) => n.startsWith("backup-") && n.endsWith(".zip"));
-        expect(files).toEqual([existing]);
-      } finally {
-        restore();
-        Deno.removeSync(tmpDir, { recursive: true });
-      }
-    });
-
-    test("skips backup on brand-new database", async () => {
-      const tmpDir = Deno.makeTempDirSync();
-      const restore = setTestEnv({ LOCAL_STORAGE_PATH: tmpDir });
-      try {
-        await resetDatabase();
-        invalidateTestDbCache();
-        await initDb({ allowMissingSettings: true });
-
-        const files = [...Deno.readDirSync(tmpDir)]
-          .map((e) => e.name)
-          .filter((n) => n.startsWith("backup-") && n.endsWith(".zip"));
-        expect(files.length).toBe(0);
-      } finally {
-        restore();
-        Deno.removeSync(tmpDir, { recursive: true });
-      }
-    });
-
-    test("skips backup when storage is not enabled", async () => {
-      const restore = setTestEnv({
-        LOCAL_STORAGE_PATH: undefined,
-        STORAGE_ZONE_KEY: undefined,
-        STORAGE_ZONE_NAME: undefined,
-      });
-      try {
-        await getDb().execute(
-          "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
-        );
-        await markCurrentSchemaMigrationPending();
-        await initDb();
-
+        // The migration completed...
         const result = await getDb().execute(
           "SELECT value FROM settings WHERE key = 'db_schema_hash'",
         );
         expect(result.rows[0]?.value).toBe(SCHEMA_HASH);
+
+        // ...and no backup was written — backups are now taken out-of-band.
+        const files = [...Deno.readDirSync(tmpDir)]
+          .map((e) => e.name)
+          .filter((n) => n.startsWith("backup-"));
+        expect(files.length).toBe(0);
       } finally {
         restore();
-      }
-    });
-
-    test("blocks migration when backup fails", async () => {
-      const restore = setTestEnv({
-        LOCAL_STORAGE_PATH: undefined,
-        STORAGE_ZONE_KEY: "fake-key",
-        STORAGE_ZONE_NAME: "fake-zone",
-      });
-      try {
-        await getDb().execute(
-          "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
-        );
-        await markCurrentSchemaMigrationPending();
-        await withFetchMock(async (originalFetch) => {
-          installUrlHandler(originalFetch, (url) =>
-            url.includes("bunnycdn.com") || url.includes("b-cdn.net")
-              ? Promise.reject(new Error("forced upload failure"))
-              : null,
-          );
-          await expect(initDb()).rejects.toThrow();
-        });
-
-        const result = await getDb().execute(
-          "SELECT value FROM settings WHERE key = 'db_schema_hash'",
-        );
-        expect(result.rows[0]?.value).toBe("stale");
-        const lockResult = await getDb().execute(
-          "SELECT value FROM settings WHERE key = 'migration_lock'",
-        );
-        expect(lockResult.rows.length).toBe(0);
-      } finally {
-        restore();
-        await getDb().execute(
-          "DELETE FROM settings WHERE key = 'migration_lock'",
-        );
+        Deno.removeSync(tmpDir, { recursive: true });
       }
     });
 
@@ -292,6 +179,45 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
           sql: "UPDATE settings SET value = ? WHERE key = 'db_schema_hash'",
         });
       }
+    });
+  });
+
+  describe("verify retry on read-your-writes lag", () => {
+    const fakeMigration = (verify: () => Promise<void>): Migration => ({
+      description: "fake migration for verify-retry tests",
+      id: "fake-verify-retry",
+      up: () => Promise.resolve(),
+      verify,
+    });
+
+    test("retries a transient verify failure and then resolves", async () => {
+      let attempts = 0;
+      await verifyMigrationWithRetry(
+        fakeMigration(() => {
+          attempts++;
+          // Fail on the first two snapshots (stale schema), succeed on the third.
+          return attempts < 3
+            ? Promise.reject(
+                new Error("Migration verification failed: missing column(s)"),
+              )
+            : Promise.resolve();
+        }),
+      );
+      expect(attempts).toBe(3);
+    });
+
+    test("rethrows after exhausting every retry", async () => {
+      let attempts = 0;
+      await expect(
+        verifyMigrationWithRetry(
+          fakeMigration(() => {
+            attempts++;
+            return Promise.reject(new Error("genuine schema defect"));
+          }),
+        ),
+      ).rejects.toThrow("genuine schema defect");
+      // One initial attempt plus one per backoff entry.
+      expect(attempts).toBe(VERIFY_RETRY_BACKOFF_MS.length + 1);
     });
   });
 

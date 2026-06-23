@@ -6,15 +6,30 @@ import {
   buildRegistrationItems,
   computeSharedDates,
   createFreeReservation,
+  MODIFIER_SOLD_OUT_MESSAGE,
   resolveDayCount,
 } from "#routes/public/ticket-payment.ts";
+import {
+  attendeeAccount,
+  revenueAccount,
+} from "#shared/accounting/accounts.ts";
+import { accountBalance, allTransfers } from "#shared/accounting/queries.ts";
+import type { PricedLine, PricedOrder } from "#shared/checkout-pricing.ts";
 import { addDays } from "#shared/dates.ts";
 import {
   createAttendeeAtomic,
   ensureAllBookings,
   getAttendeesRaw,
+  reverseOrderActivity,
 } from "#shared/db/attendees.ts";
+import { getDb } from "#shared/db/client.ts";
+import {
+  getContactRecord,
+  getVisits,
+  hashEmail,
+} from "#shared/db/contact-preferences.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
+import { modifiersTable } from "#shared/db/modifiers.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import type { ContactInfo, ListingWithCount } from "#shared/types.ts";
@@ -79,10 +94,17 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
         email: contact.email,
         name: contact.name,
       });
-      const check = await ensureAllBookings(result, 2);
+      const check = await ensureAllBookings(result, 2, "public");
       expect(check.ok).toBe(true);
       expect((await getAttendeesRaw(e1.id)).length).toBe(1);
       expect((await getAttendeesRaw(e2.id)).length).toBe(1);
+      // A kept order leaves the recorded public booking in place.
+      const { getTestPrivateKey } = await import("#test-utils");
+      const record = await getContactRecord(
+        await hashEmail(contact.email),
+        await getTestPrivateKey(),
+      );
+      expect(record.publicBookingCount).toBe(1);
     });
 
     test("rolls back a partially-fulfilled cart and reports capacity_exceeded", async () => {
@@ -116,12 +138,22 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       expect(result.success).toBe(true);
       if (result.success) expect(result.attendees.length).toBe(1);
 
-      const check = await ensureAllBookings(result, 2);
+      const check = await ensureAllBookings(result, 2, "public");
       expect(check.ok).toBe(false);
       if (!check.ok) expect(check.reason).toBe("capacity_exceeded");
       // Full rollback: even the first line's row is gone.
       expect((await getAttendeesRaw(e1.id)).length).toBe(0);
       expect((await getAttendeesRaw(e2.id)).length).toBe(0);
+      // ...and the visit + booking the greedy create recorded are undone, so a
+      // rolled-back order leaves no phantom history on the contact.
+      const emailHash = await hashEmail(contact.email);
+      expect(await getVisits(emailHash)).toBe(0);
+      const { getTestPrivateKey } = await import("#test-utils");
+      const record = await getContactRecord(
+        emailHash,
+        await getTestPrivateKey(),
+      );
+      expect(record.publicBookingCount).toBe(0);
     });
 
     test("propagates the failure reason when the whole cart failed", async () => {
@@ -129,8 +161,18 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
         reason: "encryption_error" as const,
         success: false as const,
       };
-      const check = await ensureAllBookings(failure, 1);
+      const check = await ensureAllBookings(failure, 1, "public");
       expect(check).toEqual({ ok: false, reason: "encryption_error" });
+    });
+
+    test("reverseOrderActivity is a no-op for a contact with no email or phone", async () => {
+      // An order with neither identity yields no contact hashes, so the
+      // compensation loop never runs and nothing is written or thrown.
+      await reverseOrderActivity("", "", "public");
+      const { rows } = await getDb().execute(
+        "SELECT COUNT(*) AS c FROM contact_preferences",
+      );
+      expect(Number(rows[0]!.c)).toBe(0);
     });
   });
 
@@ -164,7 +206,9 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       const result = await createFreeReservation({
         contact,
         date: null,
+        ledgerOrder: null,
         listings: ticketListings,
+        modifierUsages: [],
         quantities,
       });
       expect(result.success).toBe(false);
@@ -198,7 +242,9 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       const result = await createFreeReservation({
         contact,
         date: null,
+        ledgerOrder: null,
         listings: ticketListings,
+        modifierUsages: [],
         quantities: new Map([
           [e1.id, 1],
           [e2.id, 2],
@@ -207,6 +253,82 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       expect(result.success).toBe(true);
       expect((await getAttendeesRaw(e1.id))[0]!.quantity).toBe(1);
       expect((await getAttendeesRaw(e2.id))[0]!.quantity).toBe(2);
+    });
+  });
+
+  describe("createFreeReservation (ledger)", () => {
+    /** A zero-total priced order for one listing: full list price as gross, but
+     *  nothing charged now (a fully-discounted booking or a zero-deposit hold). */
+    const zeroTotalOrder = (listingId: number, gross: number): PricedOrder => {
+      const line: PricedLine = {
+        chargedUnitAmount: 0,
+        item: {
+          listingId,
+          name: `L${listingId}`,
+          quantity: 1,
+          slug: `l${listingId}`,
+          unitPrice: gross,
+        },
+        quantity: 1,
+      };
+      return {
+        extras: [],
+        fullSubtotal: gross,
+        lines: [line],
+        modifierApplications: [],
+        total: 0,
+      };
+    };
+
+    test("records the gross sale and the balance owed for a payments-enabled zero-total reservation", async () => {
+      const listing = await createTestListing({ maxAttendees: 5 });
+      const result = await createFreeReservation({
+        contact,
+        date: null,
+        ledgerOrder: zeroTotalOrder(listing.id, 5000),
+        listings: [await ticketListingFor(listing.id)],
+        modifierUsages: [],
+        quantities: new Map([[listing.id, 1]]),
+      });
+
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      const attendeeId = result.entries[0]!.attendee.id;
+      // The zero-deposit reservation now posts the gross sale and the balance the
+      // attendee still owes, so a later balance payment settles against the
+      // ledger instead of finding no booking legs at all.
+      expect(await accountBalance(revenueAccount(listing.id))).toBe(5000);
+      expect(await accountBalance(attendeeAccount(attendeeId))).toBe(-5000);
+    });
+
+    test("rolls back and reports the add-on as sold out when its stock is gone", async () => {
+      const listing = await createTestListing({ maxAttendees: 5 });
+      const m = await modifiersTable.insert({
+        calcKind: "fixed",
+        calcValue: 5,
+        direction: "charge",
+        name: "Add-on",
+        stock: 0,
+      });
+
+      const result = await createFreeReservation({
+        contact,
+        date: null,
+        // No provider configured, but the booking still carries a stock-limited
+        // add-on: the create runs in a transaction to consume stock and rolls the
+        // whole thing back when that add-on is gone, even with no ledger to post.
+        ledgerOrder: null,
+        listings: [await ticketListingFor(listing.id)],
+        modifierUsages: [{ amountApplied: 500, modifierId: m.id, quantity: 1 }],
+        quantities: new Map([[listing.id, 1]]),
+      });
+
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(result.error).toBe(MODIFIER_SOLD_OUT_MESSAGE);
+      // Nothing persisted — no attendee, and no orphaned ledger legs.
+      expect((await getAttendeesRaw(listing.id)).length).toBe(0);
+      expect((await allTransfers()).length).toBe(0);
     });
   });
 

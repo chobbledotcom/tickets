@@ -9,13 +9,9 @@ import {
   signCsrfToken,
   verifySignedCsrfToken,
 } from "#shared/csrf.ts";
-import { type Flash, getFlash } from "#shared/flash-context.ts";
+import { type Flash, getFlash, setFlashFormId } from "#shared/flash-context.ts";
 import { FormParams } from "#shared/form-data.ts";
-import {
-  setFormError,
-  setFormSuccess,
-  setSavedFormData,
-} from "#shared/forms.tsx";
+import { setSavedFormData } from "#shared/forms.tsx";
 import { validateMessageText } from "#shared/inbound-message.ts";
 
 export { FormParams } from "#shared/form-data.ts";
@@ -102,16 +98,12 @@ export const withCsrfForm = async (
 };
 
 /**
- * Apply flash message from cookie to form stores for the current request.
- * Call before rendering any page that displays form messages.
- * Reads the flash cookie (set by a previous redirect) and populates the
- * per-request success/error stores so CsrfForm can display them.
- * Returns the flash object for callers that need additional logic.
+ * Record the form a redirect targeted (`?form=`) so a matching CsrfForm renders
+ * the flash inline, and return the flash for callers that need it. The flash
+ * itself is already in the request context (set by middleware) and is rendered
+ * by the Layout backstop or the targeted form — handlers no longer thread it.
  */
 export const applyFlash = (request: Request): Flash => {
-  const flash = getFlash();
-  const formId = getSearchParam(request, "form");
-  if (flash.success) setFormSuccess(formId, flash.success);
-  if (flash.error) setFormError(formId, flash.error);
-  return flash;
+  setFlashFormId(getSearchParam(request, "form"));
+  return getFlash();
 };

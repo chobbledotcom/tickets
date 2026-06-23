@@ -4,10 +4,16 @@
 
 import { sum } from "#fp";
 import { applyFlash, withCsrfForm } from "#routes/csrf.ts";
-import { errorRedirect, redirectResponse } from "#routes/response.ts";
+import {
+  errorRedirect,
+  htmlResponse,
+  redirectResponse,
+} from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
+import { owedOrderForLedger } from "#shared/checkout-ledger.ts";
 import {
   type ModifierApplication,
+  type PricedOrder,
   priceCheckout,
   type TicketPaymentBreakdown,
   ticketPaymentBreakdown,
@@ -15,6 +21,7 @@ import {
 import { isPaymentsEnabled } from "#shared/config.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
+import { formatCurrency } from "#shared/currency.ts";
 import { getPublicDefaultStatus } from "#shared/db/attendee-statuses.ts";
 import {
   answerModifierQuantities,
@@ -23,9 +30,8 @@ import {
   type ResolveOptions,
   resolveModifiers,
 } from "#shared/db/modifier-resolve.ts";
-import { consumeModifierStockOrRollback } from "#shared/db/modifier-usage.ts";
 import {
-  groupListingAnswers,
+  getOrCreateStringIds,
   parseQuestionAnswers,
   saveAttendeeAnswers,
 } from "#shared/db/questions.ts";
@@ -44,15 +50,19 @@ import {
   type TicketFormValues,
   tryValidateTicketFields,
 } from "#templates/fields.ts";
-import type {
-  BookingPrefill,
-  TicketListing,
-  TicketPrefill,
+import {
+  type BookingPrefill,
+  orderSummary,
+  orderSummaryMessage,
+  type TicketListing,
+  type TicketPrefill,
 } from "#templates/public.tsx";
 import {
   buildListingAnswerMap,
+  buildListingTextAnswerMap,
   extractContact,
   getTicketFieldsSetting,
+  groupListingAnswerSets,
   listingsWithQuantity,
   parseAddOnSelections,
   parseCustomPrice,
@@ -79,31 +89,26 @@ import {
   type TicketSharedContext,
 } from "./types.ts";
 
-/** Validate page-level form state before deeper parsing. */
-const validateFormState = (
-  form: FormParams,
-  ctx: TicketCtx,
-): Response | null => {
-  const errorResponse = ticketFormErrorResponse(ctx);
+/** Validate page-level form state before deeper parsing. Returns an error
+ * message, or null when the form state is acceptable. */
+const validateFormState = (form: FormParams, ctx: TicketCtx): string | null => {
   if (ctx.terms && form.get("agree_terms") !== "1") {
-    return errorResponse("You must agree to the terms and conditions");
+    return "You must agree to the terms and conditions";
   }
 
   const allUnavailable = ctx.listings.every((e) => e.isSoldOut || e.isClosed);
   if (allUnavailable) {
     const allClosed = ctx.listings.every((e) => e.isClosed);
-    return errorResponse(
-      allClosed
-        ? REGISTRATION_CLOSED_SUBMIT_MESSAGE
-        : "Sorry, not enough spots available",
-    );
+    return allClosed
+      ? REGISTRATION_CLOSED_SUBMIT_MESSAGE
+      : "Sorry, not enough spots available";
   }
 
   for (const { listing, isClosed } of ctx.listings) {
     const selectedQty =
       parseNonNegativeInt(form.get(`quantity_${listing.id}`) ?? "0") ?? 0;
     if (isClosed && selectedQty > 0) {
-      return errorResponse(REGISTRATION_CLOSED_SUBMIT_MESSAGE);
+      return REGISTRATION_CLOSED_SUBMIT_MESSAGE;
     }
   }
   return null;
@@ -122,13 +127,13 @@ const validateTicketFields = (
     requiresPayment,
   );
 
-/** Parse custom prices for pay-more listings. Returns Response on validation error. */
+/** Parse custom prices for pay-more listings. Returns an error message string
+ * on validation failure, or the custom-price map otherwise. */
 const parseCustomPrices = (
   form: FormParams,
   ctx: TicketCtx,
   quantities: Map<number, number>,
-): Response | Map<number, number> => {
-  const errorResponse = ticketFormErrorResponse(ctx);
+): string | Map<number, number> => {
   const customPrices = new Map<number, number>();
   for (const { listing } of ctx.listings) {
     if (!listing.can_pay_more) continue;
@@ -141,7 +146,7 @@ const parseCustomPrices = (
       listing.max_price,
     );
     if (!priceResult.ok) {
-      return errorResponse(`${listing.name}: ${priceResult.error}`);
+      return `${listing.name}: ${priceResult.error}`;
     }
     customPrices.set(listing.id, priceResult.price);
   }
@@ -174,10 +179,41 @@ const applyQrTokenOverride = async (
 type AnswerInfo = {
   activeQuestions: TicketCtx["questions"];
   answerIds: number[];
+  textAnswers: import("#shared/db/questions.ts").TextAnswer[];
   selectedListingIds: Set<number>;
 };
 
 /** Compute listing-answer map if answers exist */
+
+const computeListingTextAnswerIdMap = async (
+  ctx: TicketCtx,
+  info: AnswerInfo,
+): Promise<CheckoutIntent["listingTextAnswerIds"]> => {
+  if (info.textAnswers.length === 0) return undefined;
+  const stringIds = await getOrCreateStringIds(
+    info.textAnswers.map((answer) => answer.text),
+  );
+  return Object.fromEntries(
+    Object.entries(
+      buildListingTextAnswerMap(
+        info.textAnswers,
+        ctx.questionListingMap,
+        info.selectedListingIds,
+      ),
+    ).map(([listingId, answers]) => [
+      listingId,
+      // These answers are a subset of the texts handed to getOrCreateStringIds,
+      // which returns an id for every input text or throws — so `s` is always a
+      // real id here, never the undefined that JSON.stringify would silently
+      // drop from the signed metadata.
+      answers.map((answer) => ({
+        q: answer.questionId,
+        s: stringIds.get(answer.text)!,
+      })),
+    ]),
+  );
+};
+
 const computeListingAnswerMap = (
   ctx: TicketCtx,
   info: AnswerInfo,
@@ -203,7 +239,7 @@ type PathParams = {
 
 type PaymentPathParams = Pick<
   PathParams,
-  "ctx" | "date" | "dayCount" | "quantities"
+  "ctx" | "date" | "dayCount" | "quantities" | "info"
 > & { intent: CheckoutIntent };
 
 const emptyContact = {
@@ -255,12 +291,16 @@ const checkoutIntentForSubmission = (
   };
 };
 
+/** Shown when a cart's tickets sell out between page load and submission. */
+const TICKETS_UNAVAILABLE_MESSAGE =
+  "Sorry, some tickets are no longer available";
+
 /** Handle the paid registration path */
 const handlePaidPath = async (
   request: Request,
   params: PaymentPathParams,
 ): Promise<Response> => {
-  const { ctx, quantities, date, dayCount, intent } = params;
+  const { ctx, quantities, date, dayCount, info, intent } = params;
   const available = await checkAvailability(
     ctx.listings,
     quantities,
@@ -268,10 +308,11 @@ const handlePaidPath = async (
     dayCount,
   );
   if (!available) {
-    return ticketFormErrorResponse(ctx)(
-      "Sorry, some tickets are no longer available",
-    );
+    return ticketFormErrorResponse(ctx)(TICKETS_UNAVAILABLE_MESSAGE);
   }
+  // Create the encrypted free-text strings only once availability is confirmed,
+  // so a rejected over-capacity submission never leaves orphaned plaintext rows.
+  intent.listingTextAnswerIds = await computeListingTextAnswerIdMap(ctx, info);
   return handlePaymentFlow(request, intent, ctx);
 };
 
@@ -287,12 +328,6 @@ const publicReservationAmount = async (): Promise<string | undefined> => {
     ? status.reservation_amount
     : undefined;
 };
-
-/** User-facing message when a chosen add-on or discount sold out during a
- * zero-total completion (no provider in the loop, so it didn't sell out
- * "while completing payment" as the webhook path phrases it). */
-const MODIFIER_SOLD_OUT_MESSAGE =
-  "An extra you selected sold out while you were checking out. Please try again.";
 
 /**
  * Complete a reservation without a payment provider: create the attendee
@@ -311,6 +346,7 @@ const handleFreePath = async (
   params: PathParams & {
     modifierUsages: ModifierApplication[];
     paymentBreakdown?: TicketPaymentBreakdown;
+    ledgerOrder: PricedOrder | null;
   },
 ): Promise<Response> => {
   const {
@@ -322,33 +358,24 @@ const handleFreePath = async (
     info,
     modifierUsages,
     paymentBreakdown,
+    ledgerOrder,
   } = params;
   const result = await createFreeReservation({
     contact,
     date,
     dayCount,
+    // The caller decides whether this booking dual-writes the ledger: an enabled,
+    // zero-total checkout posts the same gross-sale / discount / owed legs a paid
+    // one would; a provider-less booking passes null and records nothing here
+    // (stock is consumed in the create transaction either way).
+    ledgerOrder,
     listings: ctx.listings,
+    modifierUsages,
     paidByListingId: paymentBreakdown?.paidByListingId,
     quantities,
     remainingBalance: paymentBreakdown?.remainingBalance,
   });
   if (!result.success) return ticketFormErrorResponse(ctx)(result.error);
-
-  // Persist the exact usage amounts returned by the pricing engine. A
-  // stock-limited modifier that sold out between resolution and consumption
-  // rolls the new attendee back so the buyer isn't granted a free order they
-  // shouldn't have. Answer-triggered modifiers are ordinary modifiers now, so
-  // they consume stock and record usage just like the rest.
-  if (modifierUsages.length > 0) {
-    const attendeeId = result.entries[0]!.attendee.id;
-    const consumed = await consumeModifierStockOrRollback(
-      attendeeId,
-      modifierUsages,
-    );
-    if (!consumed) {
-      return ticketFormErrorResponse(ctx)(MODIFIER_SOLD_OUT_MESSAGE);
-    }
-  }
 
   // Notify only after stock is committed; a rolled-back order should not
   // trigger a registration notification. The hash before passing on so the
@@ -359,15 +386,22 @@ const handleFreePath = async (
     : undefined;
   await logAndNotifyRegistration(result.entries, siteTokenIndex);
 
-  if (info.answerIds.length > 0) {
-    const listingAnswerMap = buildListingAnswerMap(
-      info.activeQuestions,
-      info.answerIds,
-      ctx.questionListingMap,
-      info.selectedListingIds,
-    );
+  if (info.answerIds.length > 0 || info.textAnswers.length > 0) {
     await saveAttendeeAnswers(
-      groupListingAnswers(result.entries, listingAnswerMap),
+      groupListingAnswerSets(
+        result.entries,
+        buildListingAnswerMap(
+          info.activeQuestions,
+          info.answerIds,
+          ctx.questionListingMap,
+          info.selectedListingIds,
+        ),
+        buildListingTextAnswerMap(
+          info.textAnswers,
+          ctx.questionListingMap,
+          info.selectedListingIds,
+        ),
+      ),
     );
   }
 
@@ -377,15 +411,6 @@ const handleFreePath = async (
   }
   const token = encodeURIComponent(result.token);
   return redirectResponse(`/ticket/reserved?tokens=${token}`);
-};
-
-const parseBookingDate = (
-  form: FormParams,
-  ctx: TicketCtx,
-): Response | string | null => {
-  if (ctx.dates.length === 0) return null;
-  const date = validateSubmittedDate(form, ctx.dates);
-  return date ?? ticketFormErrorResponse(ctx)("Please select a valid date");
 };
 
 type SubmissionPricingParams = Omit<CheckoutIntentParams, "modifiers"> & {
@@ -446,6 +471,29 @@ const priceSubmissionBeforeContact = async (
     await resolveSubmissionModifiers(params),
   );
 
+/** Message shown when a selected answer tier has sold out. */
+const soldOutTierMessage = (tiers: string[]): string =>
+  `Sorry, ${tiers.join(", ")} is no longer available. Please choose a different option.`;
+
+/**
+ * An answer is recorded on every ticket that picked it, so a stock-limited
+ * answer tier the buyer over-subscribed can't be partially fulfilled. Returns
+ * the user-facing rejection message, or null when nothing is sold out. Shared
+ * by the submit path (run at the buyer's real visit count) and the quote (run
+ * at zero visits, since a quote strips the PII needed to look the count up), so
+ * both reject the same selection identically.
+ */
+const checkSoldOutTiers = async (
+  pricingParams: SubmissionPricingParams,
+  visits: number,
+): Promise<string | null> => {
+  const tiers = await oversubscribedAnswerTiers(
+    pricingParams.items,
+    submissionModifierOpts(pricingParams, visits),
+  );
+  return tiers.length > 0 ? soldOutTierMessage(tiers) : null;
+};
+
 /** Price with the buyer's real visit count, returning that count so the caller
  * can run the sold-out check against the same eligibility this pricing used. */
 const priceSubmissionWithContact = async (
@@ -473,28 +521,44 @@ const validatePaymentUpgrade = (
   return validateTicketFields(form, ctx, true);
 };
 
-/** Process submitted form after CSRF and demo overrides. */
-const processSubmission = async (
-  request: Request,
+/** A parsed-and-priced submission, or the message explaining why it could not
+ * be priced. `prepareOrder` runs every step shared by the booking submit and
+ * the `/calculate` quote: page-state and field validation, item building, and
+ * the pre-contact pricing pass. */
+type PrepareResult =
+  | {
+      ok: true;
+      pricingParams: SubmissionPricingParams;
+      pricedOrder: PricedOrder;
+    }
+  | { ok: false; error: string };
+
+/**
+ * Validate and price a submitted booking form up to (but not including) contact
+ * details and any database writes. Shared by {@link processSubmission} (which
+ * continues on to charge/save) and {@link calculateTicket} (which renders the
+ * priced order as a quote). Errors surface as messages so each caller can map
+ * them to its own response shape — a flash redirect for submit, inline HTML for
+ * the running total.
+ */
+const prepareOrder = async (
   ctx: TicketCtx,
   form: FormParams,
-): Promise<Response> => {
-  const errorResponse = ticketFormErrorResponse(ctx);
-
-  const formStateError = validateFormState(form, ctx);
-  if (formStateError) return formStateError;
+): Promise<PrepareResult> => {
+  const stateError = validateFormState(form, ctx);
+  if (stateError) return { error: stateError, ok: false };
 
   const quantities = parseQuantities(form, ctx.listings);
   const totalQuantity = sum(Array.from(quantities.values()));
   if (totalQuantity === 0) {
-    return errorResponse("Please select at least one ticket");
+    return { error: "Please select at least one ticket", ok: false };
   }
 
   const selected = listingsWithQuantity(ctx.listings, quantities);
   const selectedListingIds = new Set(quantities.keys());
   const siteAssignmentCheck = await validateSiteAssignmentConfig(selected);
   if (!siteAssignmentCheck.ok) {
-    return errorResponse(siteAssignmentCheck.message);
+    return { error: siteAssignmentCheck.message, ok: false };
   }
 
   const activeQuestions = ctx.questions.filter((q) => {
@@ -505,22 +569,25 @@ const processSubmission = async (
     form,
     activeQuestions,
   );
-  if (!answersResult.ok) {
-    return errorResponse(answersResult.error);
-  }
+  if (!answersResult.ok) return { error: answersResult.error, ok: false };
 
-  const date = parseBookingDate(form, ctx);
-  if (date instanceof Response) return date;
+  let date: string | null = null;
+  if (ctx.dates.length > 0) {
+    date = validateSubmittedDate(form, ctx.dates);
+    if (!date) return { error: "Please select a valid date", ok: false };
+  }
 
   const hasCustomisable = selected.some(
     ({ listing }) => listing.customisable_days,
   );
   const dayResult = await resolveDayCount(selected, form, date);
-  if ("error" in dayResult) return errorResponse(dayResult.error);
+  if ("error" in dayResult) return { error: dayResult.error, ok: false };
   const dayCount = dayResult.dayCount;
 
   const customPricesResult = parseCustomPrices(form, ctx, quantities);
-  if (customPricesResult instanceof Response) return customPricesResult;
+  if (typeof customPricesResult === "string") {
+    return { error: customPricesResult, ok: false };
+  }
 
   await applyQrTokenOverride(form, ctx, customPricesResult);
 
@@ -535,11 +602,11 @@ const processSubmission = async (
     activeQuestions,
     answerIds: answersResult.answerIds,
     selectedListingIds,
+    textAnswers: answersResult.textAnswers,
   };
 
   const addOns = parseAddOnSelections(form, ctx.addOns);
   const promoCode = form.getString("promo_code");
-  const paymentsEnabled = isPaymentsEnabled();
   const reservationAmount = await publicReservationAmount();
 
   // Resolve the answer-triggered modifier quantities once (scope-aware); these
@@ -549,7 +616,7 @@ const processSubmission = async (
     quantities,
   );
 
-  const pricingParams = {
+  const pricingParams: SubmissionPricingParams = {
     addOns,
     answerQuantities,
     ctx,
@@ -563,8 +630,24 @@ const processSubmission = async (
     reservationAmount,
   };
   const { pricedOrder } = await priceSubmissionBeforeContact(pricingParams);
-  const pricedTotal = pricedOrder.total;
-  const requiresPaidFields = pricedTotal > 0;
+  return { ok: true, pricedOrder, pricingParams };
+};
+
+/** Process submitted form after CSRF and demo overrides. */
+const processSubmission = async (
+  request: Request,
+  ctx: TicketCtx,
+  form: FormParams,
+): Promise<Response> => {
+  const errorResponse = ticketFormErrorResponse(ctx);
+
+  const prepared = await prepareOrder(ctx, form);
+  if (!prepared.ok) return errorResponse(prepared.error);
+  const { pricingParams, pricedOrder } = prepared;
+  const { date, dayCount, hasCustomisable, info, quantities } = pricingParams;
+
+  const paymentsEnabled = isPaymentsEnabled();
+  const requiresPaidFields = pricedOrder.total > 0;
   const validated = validateTicketFields(form, ctx, requiresPaidFields);
   if (validated instanceof Response) return validated;
   let contact = extractContact(validated);
@@ -589,20 +672,11 @@ const processSubmission = async (
     } = await priceSubmissionWithContact(contact, pricingParams));
   }
 
-  // An answer is recorded on every ticket that picked it, so a stock-limited
-  // answer tier the buyer over-subscribed can't be partially fulfilled — block
-  // the submission. Run against the same eligibility the pricing resolve used
-  // (now that the buyer's visit count is known), so a tier that wouldn't apply
-  // — cart below its minimum, or too few visits — isn't reported sold out.
-  const soldOutTiers = await oversubscribedAnswerTiers(
-    items,
-    submissionModifierOpts(pricingParams, visits),
-  );
-  if (soldOutTiers.length > 0) {
-    return errorResponse(
-      `Sorry, ${soldOutTiers.join(", ")} is no longer available. Please choose a different option.`,
-    );
-  }
+  // Run the sold-out check at the buyer's real visit count (now known), so a
+  // tier that wouldn't apply — cart below its minimum, or too few visits — isn't
+  // reported sold out.
+  const soldOut = await checkSoldOutTiers(pricingParams, visits);
+  if (soldOut) return errorResponse(soldOut);
 
   const finalRequiresPaidFields = finalPricedOrder.total > 0;
   const finalRequiresPayment = paymentsEnabled && finalRequiresPaidFields;
@@ -612,10 +686,31 @@ const processSubmission = async (
       ctx,
       date,
       dayCount,
+      info,
       intent,
       quantities,
     });
   }
+  // With no payment provider configured we still accept bookings for paid items.
+  // The order is recorded exactly like a zero-deposit reservation: nothing is
+  // collected up front and the full value of the booking becomes the amount
+  // owed. Forcing reservationAmount to "0" charges every line zero while the
+  // remaining balance captures the full order value — regardless of any
+  // reservation amount the public-default status configures, since no deposit
+  // can be taken without a provider.
+  const breakdownIntent: CheckoutIntent = paymentsEnabled
+    ? intent
+    : { ...intent, reservationAmount: "0" };
+  // The ledger order for a provider-less booking is the breakdown order with the
+  // booking fee removed up front (`feeSubtotal: 0` — payments-off charges no fee)
+  // and then recast as an OWED order: nothing was collected and no fee is booked,
+  // so `owedOrderForLedger` drops every extra and zeroes the total. That posts the
+  // gross `sale`/owed legs (and any surcharge add-on as its own `modifier` leg)
+  // with NO `fee` and NO `payment` leg — the breakdown intent (kept fee-bearing)
+  // still drives the displayed remaining balance below.
+  const ledgerOrder = paymentsEnabled
+    ? finalPricedOrder
+    : owedOrderForLedger(priceCheckout({ ...breakdownIntent, feeSubtotal: 0 }));
   return handleFreePath({
     contact,
     ctx,
@@ -623,21 +718,20 @@ const processSubmission = async (
     dayCount,
     hasCustomisable,
     info,
+    // Always dual-write the ledger — outstanding balance is projected from it,
+    // so an owed booking must record its legs at creation. A paid or enabled
+    // zero-total checkout (fully discounted, zero-deposit reservation) posts
+    // `finalPricedOrder`; a provider-less booking posts the OWED order built
+    // above, whose gross sale legs leave the full value owed with no fee/payment.
+    ledgerOrder,
     // Record modifier usage (and consume stock) on every completion, including
-    // disabled-payments free bookings, so a stock-limited answer tier is capped
-    // across all bookings — not just the paid ones the webhook would have
-    // consumed. With payments disabled the booking collects nothing, so the
-    // applied amounts are zeroed: stock is still consumed (it's keyed on
-    // quantity) while the modifier revenue aggregates correctly stay at zero.
-    modifierUsages: paymentsEnabled
-      ? finalPricedOrder.modifierApplications
-      : finalPricedOrder.modifierApplications.map((m) => ({
-          ...m,
-          amountApplied: 0,
-        })),
-    paymentBreakdown: paymentsEnabled
-      ? ticketPaymentBreakdown(intent)
-      : undefined,
+    // bookings taken with no payment provider, so a stock-limited answer tier is
+    // capped across all bookings — not just the paid ones the webhook would have
+    // consumed. The applied amounts are the real per-modifier impact: a
+    // provider-less booking owes the full order value (modifiers included), so
+    // its modifiers count exactly as a zero-deposit reservation's would.
+    modifierUsages: finalPricedOrder.modifierApplications,
+    paymentBreakdown: ticketPaymentBreakdown(breakdownIntent),
     quantities,
   });
 };
@@ -658,6 +752,70 @@ const submitTicket = (request: Request, ctx: TicketCtx): Promise<Response> =>
   );
 
 /**
+ * Build the running-total fragment for a parsed-and-priced quote, matching what
+ * the submit path would actually collect:
+ * - a sold-out answer tier is rejected (as submit would), run at zero visits
+ *   since a quote strips the PII needed to look the buyer's count up;
+ * - with no payment provider configured the booking is taken without charging,
+ *   but a paid order still owes its full value (see {@link handleFreePath}), so
+ *   the quote surfaces that amount owed rather than implying the order is free.
+ *
+ * A returning buyer's `min_visits` modifiers are not reflected — that needs the
+ * stripped contact details — so the quote is a zero-visits estimate; the submit
+ * path reprices with the real count before charging.
+ */
+const renderQuote = async (
+  ctx: TicketCtx,
+  form: FormParams,
+): Promise<Response> => {
+  const prepared = await prepareOrder(ctx, form);
+  if (!prepared.ok) return htmlResponse(orderSummaryMessage(prepared.error));
+  const { pricingParams, pricedOrder } = prepared;
+  const soldOut = await checkSoldOutTiers(pricingParams, 0);
+  if (soldOut) return htmlResponse(orderSummaryMessage(soldOut));
+  // Reject a cart that has exhausted capacity (e.g. a dated daily listing whose
+  // capped group is full for the chosen day), as the booking submit would.
+  const available = await checkAvailability(
+    ctx.listings,
+    pricingParams.quantities,
+    pricingParams.date,
+    pricingParams.dayCount,
+  );
+  if (!available) {
+    return htmlResponse(orderSummaryMessage(TICKETS_UNAVAILABLE_MESSAGE));
+  }
+  if (isPaymentsEnabled()) return htmlResponse(orderSummary(pricedOrder));
+  // No payment provider: the booking is taken without charging, but a paid order
+  // still records its full value as the amount owed (see processSubmission), so
+  // surface that figure instead of implying the order is free. fullSubtotal is
+  // the order value before any deposit split or booking fee — exactly what the
+  // submit path stores as the remaining balance.
+  return htmlResponse(
+    pricedOrder.fullSubtotal > 0
+      ? orderSummaryMessage(
+          `No online payment is needed now — you'll owe ${formatCurrency(
+            pricedOrder.fullSubtotal,
+          )} for this booking.`,
+        )
+      : orderSummaryMessage("No payment required for this booking."),
+  );
+};
+
+/**
+ * Handle POST for the `/calculate` running total. Runs the same parse-and-price
+ * path as a real submission but stops before contact validation or any database
+ * write, returning the priced order as an HTML fragment. PII fields are never
+ * read here — a quote prices the cart with an empty contact — so the client
+ * strips them before sending and the server ignores any that arrive.
+ */
+const calculateTicket = (request: Request, ctx: TicketCtx): Promise<Response> =>
+  withCsrfForm(
+    request,
+    (message) => htmlResponse(orderSummaryMessage(message), 403),
+    (form) => renderQuote(ctx, form),
+  );
+
+/**
  * Inputs to the booking-page framework: the listings to offer, a context
  * provider that derives the fields/dates/questions/terms from them, the slugs
  * that form the default `/ticket/<slugs>` action, and an optional per-listing
@@ -671,6 +829,9 @@ export type BookingRequest = {
   listings: TicketListing[];
   getContext: TicketContextProvider;
   prefill?: TicketCtx["prefill"];
+  /** When "calculate", a POST returns a priced quote instead of completing the
+   * booking. GET requests still render the page regardless. */
+  mode?: "calculate";
 };
 
 /** Build the rendering context: derive the booking context from the listings
@@ -695,14 +856,17 @@ const buildTicketCtx = async ({
   };
 };
 
-/** Handle ticket GET/POST orchestrator: render on GET, submit otherwise. */
+/** Handle ticket GET/POST orchestrator: render on GET, quote when in calculate
+ * mode, otherwise submit. */
 export const handleTicket = async (args: BookingRequest): Promise<Response> => {
-  const { request, listings } = args;
+  const { request, listings, mode } = args;
   const ctx = await buildTicketCtx(args);
   const response =
     request.method === "GET"
       ? ticketResponse(ctx)(applyFlash(request).error)
-      : await submitTicket(request, ctx);
+      : mode === "calculate"
+        ? await calculateTicket(request, ctx)
+        : await submitTicket(request, ctx);
   return applyHiddenNoindex(
     response,
     listings.some((e) => e.listing.hidden),
@@ -730,15 +894,22 @@ const parseQuantityPrefill = (
   return map.size > 0 ? { listings: map } : undefined;
 };
 
-/** Handle ticket page by slugs (multi-listing) */
-export const handleTicketBySlugs = (
+/**
+ * Handle a booking page by slugs (multi-listing). `mode` selects between
+ * completing the booking (the default) and pricing it as a `/calculate`
+ * running-total quote; both load the same active listings and share one
+ * rendering/submission path.
+ */
+export const handleBySlugs = (
   request: Request,
   slugs: string[],
+  mode?: "calculate",
 ): Promise<Response> =>
   withActiveListings(slugs, (listings) =>
     handleTicket({
       getContext: getTicketContext,
       listings,
+      mode,
       prefill: parseQuantityPrefill(request, listings),
       request,
       slugs,
@@ -755,7 +926,8 @@ export const handleTicketBySlugs = (
  * Caller supplies the listings; `group` flows into getTicketContext, `overrides`
  * win over its result (e.g. renewal's actionUrl/siteToken, or the order page's
  * header + action), and `prefill` pre-selects per-listing quantities (the order
- * cart's selected products).
+ * cart's selected products). `mode` carries through to {@link handleTicket} so a
+ * group quote prices via the same flow as a group booking.
  */
 export const renderTicketFlow =
   (
@@ -765,6 +937,7 @@ export const renderTicketFlow =
       group?: Group;
       overrides?: Partial<TicketSharedContext>;
       prefill?: BookingPrefill;
+      mode?: "calculate";
     } = {},
   ) =>
   async (listings: ListingWithCount[]): Promise<Response> => {
@@ -775,6 +948,7 @@ export const renderTicketFlow =
         ...options.overrides,
       }),
       listings: activeListings,
+      mode: options.mode,
       prefill: options.prefill,
       request,
       slugs,

@@ -367,6 +367,12 @@ export interface User {
   id: number;
   invite_code_hash: string | null; // encrypted SHA-256 of invite token, null after password set
   invite_expiry: string | null; // encrypted ISO 8601, null after password set
+  // DATA_KEY wrapped under the invite code, set at invite time so the user can
+  // self-activate at /join; null once activated (see users.acceptInvite).
+  invite_wrapped_data_key: string | null;
+  // KEK scheme for wrapped_data_key: 1 = legacy (hash-derived), 2 = password-
+  // bound. Legacy rows upgrade to 2 on their owner's next login.
+  kek_version: number;
   password_hash: string; // PBKDF2 hash encrypted at rest
   username_hash: string; // encrypted at rest, decrypted to display
   username_index: string; // HMAC hash for lookups
@@ -428,7 +434,9 @@ export interface Modifier {
   total_uses: number;
   /** Trigger-maintained COUNT of this modifier's usage rows. */
   usage_count: number;
-  /** Trigger-maintained SUM(amount_applied) over this modifier's usages, in minor units. */
+  /** Projected from the transfers ledger as `balanceOf(modifier:M)` — the
+   * modifier account's net effect on revenue (surcharges in, discounts out),
+   * read directly, in minor units. */
   total_revenue: number;
 }
 

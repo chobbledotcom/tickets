@@ -38,7 +38,7 @@ export const handleAdminSumupPost = settingsHandler<SumupFormData>({
   validate: ({ apiKey, merchantCode }) => {
     if (isDemoMode()) return "Cannot configure SumUp in demo mode";
     if (!isSumupCurrency(settings.currency)) {
-      return `SumUp does not support your site currency (${settings.currency}). Choose a different payment provider or country.`;
+      return `SumUp does not support your site currency (${settings.currency}). Choose a different payment provider.`;
     }
     if (!merchantCode) return "Merchant code is required";
     if (apiKey.action === "cleared" && !settings.sumup.hasKey) {

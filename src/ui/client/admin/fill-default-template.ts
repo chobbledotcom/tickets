@@ -1,4 +1,5 @@
 /// <reference lib="dom" />
+/// <reference lib="dom.iterable" />
 /** Fill default template: clicking "Edit default template" fills the textarea
  * from its data-default-tpl attribute when the textarea is empty. */
 export const initFillDefaultTemplate = (): void => {

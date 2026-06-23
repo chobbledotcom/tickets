@@ -12,8 +12,8 @@ import {
   createTestAgentSession,
   describeWithEnv,
   expectFlash,
+  expectFlashRedirect,
   expectHtmlResponse,
-  expectRedirectWithFlash,
   extractInputValue,
   FLASH_TEST_ID,
   flashCookieHeader,
@@ -54,7 +54,7 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
       const { cookie } = await loginAsAdmin();
 
       const response = await awaitTestRequest("/admin/login", { cookie });
-      expectRedirectWithFlash("/admin", "Already logged in")(response);
+      await expectFlashRedirect("/admin", "Already logged in")(response);
     });
   });
 
@@ -91,7 +91,7 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
       const response = await handleRequest(
         await mockAdminLoginRequest({ password, username: "testadmin" }),
       );
-      expectRedirectWithFlash("/admin", "Logged in")(response);
+      await expectFlashRedirect("/admin", "Logged in")(response);
       const sessionCookie = response.headers
         .getSetCookie()
         .find((c) => c.startsWith(`${getSessionCookieName()}=`));
@@ -226,7 +226,7 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
       const response = await handleRequest(
         mockFormRequest("/admin/logout", { csrf_token: csrfToken }, cookie),
       );
-      expectRedirectWithFlash("/admin", "Logged out")(response);
+      await expectFlashRedirect("/admin", "Logged out")(response);
       const sessionCookie = response.headers
         .getSetCookie()
         .find((c) => c.startsWith(`${getSessionCookieName()}=`));
@@ -365,7 +365,7 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
       const response = await handleRequest(
         mockFormRequest("/admin/sessions", { csrf_token: csrfToken }, cookie),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/sessions",
         "Logged out of all other sessions",
       )(response);
@@ -511,7 +511,7 @@ describeWithEnv("server (admin auth)", { db: true }, () => {
         }),
       );
       const elapsed = Date.now() - start;
-      expectRedirectWithFlash("/admin", "Logged in")(response);
+      await expectFlashRedirect("/admin", "Logged in")(response);
       expect(elapsed).toBeGreaterThanOrEqual(100);
     });
   });

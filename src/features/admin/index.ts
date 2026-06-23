@@ -18,12 +18,14 @@ import { builtSitesRoutes } from "#routes/admin/built-sites.ts";
 import { bulkActionsRoutes } from "#routes/admin/bulk-actions.ts";
 import { bulkEmailRoutes } from "#routes/admin/bulk-email.ts";
 import { calendarRoutes } from "#routes/admin/calendar.ts";
+import { contactHistoryRoutes } from "#routes/admin/contact-history.ts";
 import { dashboardRoutes } from "#routes/admin/dashboard.ts";
 import { debugRoutes } from "#routes/admin/debug.ts";
 import { deliveriesRoutes } from "#routes/admin/deliveries.ts";
 import { groupsRoutes } from "#routes/admin/groups.ts";
 import { guideRoutes } from "#routes/admin/guide.ts";
 import { holidaysRoutes } from "#routes/admin/holidays.ts";
+import { ledgerRoutes } from "#routes/admin/ledger.ts";
 import { listingQrRoutes } from "#routes/admin/listing-qr.ts";
 import { listingsRoutes } from "#routes/admin/listings.ts";
 import { markdownPreviewRoutes } from "#routes/admin/markdown-preview.ts";
@@ -63,10 +65,12 @@ const adminRouteModules: Record<string, RouteHandlerFn>[] = [
   listingQrRoutes,
   markdownPreviewRoutes,
   attendeesRoutes,
+  contactHistoryRoutes,
   smsRoutes,
   attendeeRefundRoutes,
   usersRoutes,
   guideRoutes,
+  ledgerRoutes,
   groupsRoutes,
   modifiersRoutes,
   bulkActionsRoutes,

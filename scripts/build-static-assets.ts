@@ -131,95 +131,101 @@ const botpoisonResolvePlugin: Plugin = {
   },
 };
 
+/**
+ * The client JS bundles as data, so callers other than {@link buildStaticAssets}
+ * can rebuild a single bundle with its exact esbuild config — entry point,
+ * plugins, format, and all. The mutation tester (`scripts/mutation`) uses this
+ * to rebuild only the bundle(s) a mutated source feeds, per mutant, under
+ * `--harness`.
+ */
+export interface StaticBundle {
+  label: string;
+  options: esbuild.BuildOptions;
+}
+
+export const STATIC_JS_BUNDLES: StaticBundle[] = [
+  {
+    label: "Scanner",
+    options: {
+      bundle: true,
+      entryPoints: ["./src/ui/client/scanner.js"],
+      format: "iife",
+      minify: true,
+      outfile: STATIC_ASSET_OUTFILES.scanner,
+      platform: "browser",
+      plugins: [denoNpmResolvePlugin],
+    },
+  },
+  {
+    label: "Admin",
+    options: {
+      bundle: true,
+      entryPoints: ["./src/ui/client/admin.ts"],
+      format: "iife",
+      minify: true,
+      outfile: STATIC_ASSET_OUTFILES.admin,
+      platform: "browser",
+      plugins: [denoImportMapPlugin],
+    },
+  },
+  {
+    label: "Embed",
+    options: {
+      bundle: true,
+      entryPoints: ["./src/ui/client/embed.ts"],
+      format: "iife",
+      minify: true,
+      outfile: STATIC_ASSET_OUTFILES.embed,
+      platform: "browser",
+    },
+  },
+  {
+    label: "Contact",
+    options: {
+      bundle: true,
+      entryPoints: ["./src/ui/client/contact.ts"],
+      format: "iife",
+      minify: true,
+      outfile: STATIC_ASSET_OUTFILES.contact,
+      platform: "browser",
+      plugins: [botpoisonResolvePlugin],
+    },
+  },
+  {
+    label: "iframe-resizer-parent",
+    options: {
+      bundle: true,
+      entryPoints: ["./src/ui/client/iframe-resizer-parent.ts"],
+      format: "iife",
+      minify: true,
+      outfile: STATIC_ASSET_OUTFILES.iframeResizerParent,
+      platform: "browser",
+      plugins: [iframeResizerResolvePlugin],
+    },
+  },
+  {
+    label: "iframe-resizer-child",
+    options: {
+      banner: { js: "window.iframeResizer={license:'GPLv3'};" },
+      bundle: true,
+      entryPoints: ["./src/ui/client/iframe-resizer-child.ts"],
+      format: "iife",
+      minify: true,
+      outfile: STATIC_ASSET_OUTFILES.iframeResizerChild,
+      platform: "browser",
+      plugins: [iframeResizerResolvePlugin],
+    },
+  },
+];
+
 export const buildStaticAssets = async (
   options: { quiet?: boolean; stop?: boolean } = {},
 ): Promise<void> => {
   const quiet = options.quiet ?? false;
   await Promise.all([
     buildCss(quiet),
-
-    buildBundle(
-      "Scanner",
-      {
-        bundle: true,
-        entryPoints: ["./src/ui/client/scanner.js"],
-        format: "iife",
-        minify: true,
-        outfile: STATIC_ASSET_OUTFILES.scanner,
-        platform: "browser",
-        plugins: [denoNpmResolvePlugin],
-      },
-      quiet,
-    ),
-
-    buildBundle(
-      "Admin",
-      {
-        bundle: true,
-        entryPoints: ["./src/ui/client/admin.ts"],
-        format: "iife",
-        minify: true,
-        outfile: STATIC_ASSET_OUTFILES.admin,
-        platform: "browser",
-        plugins: [denoImportMapPlugin],
-      },
-      quiet,
-    ),
-
-    buildBundle(
-      "Embed",
-      {
-        bundle: true,
-        entryPoints: ["./src/ui/client/embed.ts"],
-        format: "iife",
-        minify: true,
-        outfile: STATIC_ASSET_OUTFILES.embed,
-        platform: "browser",
-      },
-      quiet,
-    ),
-
-    buildBundle(
-      "Contact",
-      {
-        bundle: true,
-        entryPoints: ["./src/ui/client/contact.ts"],
-        format: "iife",
-        minify: true,
-        outfile: STATIC_ASSET_OUTFILES.contact,
-        platform: "browser",
-        plugins: [botpoisonResolvePlugin],
-      },
-      quiet,
-    ),
-
-    buildBundle(
-      "iframe-resizer-parent",
-      {
-        bundle: true,
-        entryPoints: ["./src/ui/client/iframe-resizer-parent.ts"],
-        format: "iife",
-        minify: true,
-        outfile: STATIC_ASSET_OUTFILES.iframeResizerParent,
-        platform: "browser",
-        plugins: [iframeResizerResolvePlugin],
-      },
-      quiet,
-    ),
-
-    buildBundle(
-      "iframe-resizer-child",
-      {
-        banner: { js: "window.iframeResizer={license:'GPLv3'};" },
-        bundle: true,
-        entryPoints: ["./src/ui/client/iframe-resizer-child.ts"],
-        format: "iife",
-        minify: true,
-        outfile: STATIC_ASSET_OUTFILES.iframeResizerChild,
-        platform: "browser",
-        plugins: [iframeResizerResolvePlugin],
-      },
-      quiet,
+    ...STATIC_JS_BUNDLES.map((bundle) =>
+      buildBundle(bundle.label, bundle.options, quiet),
     ),
   ]);
 

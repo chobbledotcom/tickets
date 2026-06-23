@@ -85,6 +85,28 @@ describe("sumup-provider", () => {
       });
     });
 
+    test("normalises a non-canonical checkout date to canonical ISO", async () => {
+      await stageCheckout();
+      await withFetched(
+        checkout({ createdAt: "2026-06-20T09:00:00+00:00" }),
+        async () => {
+          const result = await sumupPaymentProvider.retrieveSession("ref");
+          expect(result!.createdAt).toBe("2026-06-20T09:00:00.000Z");
+        },
+      );
+    });
+
+    test("drops an unparseable checkout date", async () => {
+      await stageCheckout();
+      await withFetched(
+        checkout({ createdAt: "not-a-timestamp" }),
+        async () => {
+          const result = await sumupPaymentProvider.retrieveSession("ref");
+          expect(result!.createdAt).toBeUndefined();
+        },
+      );
+    });
+
     test("maps PENDING to unpaid", async () => {
       await stageCheckout();
       await withFetched(

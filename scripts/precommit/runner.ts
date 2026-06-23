@@ -125,7 +125,7 @@ export const main = async (): Promise<void> => {
   console.log(bold(ci ? "precommit (ci)" : "precommit"));
   await warnAboutMergeConflicts();
 
-  const steps = getSteps(ci);
+  const steps = getSteps();
   for (const step of steps) {
     const passed = await runStep(step);
     if (!passed) {
