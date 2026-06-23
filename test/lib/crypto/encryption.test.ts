@@ -38,16 +38,20 @@ describeWithEnv("encryption", { encryptionKey: true }, () => {
       );
     });
 
-    it("re-runs the key initializer and reads the env when the override is cleared to null", () => {
+    it("re-runs the key initializer when the override is cleared to null", () => {
       // Clearing to null (not "") resets the lazyRef holding the override, so
-      // the next read re-runs its initializer and falls through to the
-      // DB_ENCRYPTION_KEY env var — unset under test, so it reports the missing
-      // key. Exercises the env-lookup branch that otherwise only the e2e
-      // subprocess hits.
+      // the next read re-runs its initializer and falls through to
+      // DB_ENCRYPTION_KEY. That env var is set in CI but not locally, so assert
+      // against whatever it holds — either way this exercises the env-lookup
+      // branch that otherwise only the e2e subprocess covers.
       setEncryptionKeyForTest(null);
-      expect(() => validateEncryptionKey()).toThrow(
-        "DB_ENCRYPTION_KEY environment variable is required",
-      );
+      if (Deno.env.get("DB_ENCRYPTION_KEY")) {
+        expect(() => validateEncryptionKey()).not.toThrow();
+      } else {
+        expect(() => validateEncryptionKey()).toThrow(
+          "DB_ENCRYPTION_KEY environment variable is required",
+        );
+      }
       setupTestEncryptionKey(); // restore the override for sibling tests
     });
   });
