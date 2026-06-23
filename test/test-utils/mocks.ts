@@ -319,6 +319,12 @@ export const stubFetchJson = (body: unknown) =>
     Promise.resolve(new Response(JSON.stringify(body))),
   );
 
+/** Stub `fetch` to always resolve with a `Response` of the given status/body. */
+export const stubFetchStatus = (status: number, body: BodyInit | null = null) =>
+  stub(globalThis, "fetch", () =>
+    Promise.resolve(new Response(body, { status })),
+  );
+
 export const stubFetchRecorder = (responseInit?: ResponseInit) => {
   const calls: import("#test-utils/internal.ts").FetchCall[] = [];
   const fetchStub = stub(
