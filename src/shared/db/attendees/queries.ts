@@ -283,7 +283,7 @@ export const getAttendeesByTokens = async (
   const bookingRows = await queryAll<
     ListingAttendeeRow & { attendee_id: number }
   >(
-    `SELECT attendee_id, listing_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads
+    `SELECT attendee_id, listing_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads, order_token, parent_listing_id
      FROM listing_attendees WHERE attendee_id IN (${inPlaceholders(
        attendeeIds,
      )})
@@ -300,6 +300,8 @@ export const getAttendeesByTokens = async (
       checked_in: row.checked_in,
       end_at: row.end_at,
       listing_id: row.listing_id,
+      order_token: row.order_token,
+      parent_listing_id: row.parent_listing_id,
       price_paid: row.price_paid,
       quantity: row.quantity,
       refunded: row.refunded,

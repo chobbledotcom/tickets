@@ -413,6 +413,8 @@ const bookingInsertStatement = (
     checked_in: booking.checked_in,
     end_at: booking.end_at,
     listing_id: booking.listing_id,
+    order_token: booking.order_token,
+    parent_listing_id: booking.parent_listing_id,
     price_paid: booking.price_paid,
     quantity: booking.quantity,
     refunded: booking.refunded,

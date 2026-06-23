@@ -49,7 +49,7 @@ const loadRefreshContext = async (
   if (!attendeeRaw) return null;
   const attendee = (await decryptAttendeeOrNull(attendeeRaw, pk))!;
   const bookings = await queryAll<ListingAttendeeRow>(
-    "SELECT listing_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads FROM listing_attendees WHERE attendee_id = ? ORDER BY start_at, listing_id LIMIT 1",
+    "SELECT listing_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads, order_token, parent_listing_id FROM listing_attendees WHERE attendee_id = ? ORDER BY start_at, listing_id LIMIT 1",
     [attendeeId],
   );
   const firstListingId = bookings[0]?.listing_id ?? attendee.listing_id;

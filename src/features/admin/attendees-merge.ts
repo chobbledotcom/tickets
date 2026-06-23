@@ -107,7 +107,7 @@ const loadAttendeeBookings = (
   attendeeId: number,
 ): Promise<ListingAttendeeRow[]> =>
   queryAll<ListingAttendeeRow>(
-    `SELECT listing_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads
+    `SELECT listing_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads, order_token, parent_listing_id
      FROM listing_attendees WHERE attendee_id = ? ORDER BY start_at, listing_id`,
     [attendeeId],
   );

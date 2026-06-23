@@ -25,6 +25,7 @@ const booking = (
   listingActive: true,
   listingId: 1,
   listingName: "Test Listing",
+  parentListingId: 0,
   quantity: 1,
   refunded: false,
   startAt: null,
@@ -184,6 +185,36 @@ describe("AttendeeBookingsTable", () => {
     expect(renderBookings([booking({ listingActive: true })])).not.toContain(
       "(Inactive)",
     );
+  });
+
+  test("annotates a folded child row with the parent it was chosen under", () => {
+    // The child's parentListingId points at the parent, which is booked in the
+    // same order — so its name resolves from the sibling row.
+    const html = renderBookings([
+      booking({ listingId: 7, listingName: "Base unit" }),
+      booking({
+        listingId: 8,
+        listingName: "Add-on",
+        parentListingId: 7,
+      }),
+    ]);
+    expect(html).toContain("Add-on chosen under Base unit");
+  });
+
+  test("a plain booking shows no add-on annotation", () => {
+    const html = renderBookings([
+      booking({ listingId: 7, listingName: "Base unit" }),
+    ]);
+    expect(html).not.toContain("Add-on chosen under");
+  });
+
+  test("falls back to the parent id when its row is absent from the order", () => {
+    // Defensive: a child whose parent row is not in this attendee's set still
+    // labels the pairing rather than dropping it silently.
+    const html = renderBookings([
+      booking({ listingId: 8, listingName: "Add-on", parentListingId: 7 }),
+    ]);
+    expect(html).toContain("Add-on chosen under #7");
   });
 
   test("falls back to an em dash when a booking has no status", () => {

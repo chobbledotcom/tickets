@@ -55,6 +55,12 @@ export type ListingBooking = {
   date?: string | null;
   /** Booking duration in days (defaults to 1 for 1-day bookings). Only meaningful when date is set. */
   durationDays?: number;
+  /** Shared per-order token written on every row of one checkout (defaults to
+   * "" — legacy/parent-less bookings). Set once per create, not per caller. */
+  orderToken?: string;
+  /** The parent listing this row was folded under when it is a chosen child
+   * (defaults to 0 — not a folded child). */
+  parentListingId?: number;
 };
 
 /** A concrete booking line — every field resolved (unlike the optional-field
@@ -95,6 +101,11 @@ export type ListingAttendeeRow = {
   refunded: number;
   price_paid: number;
   attachment_downloads: number;
+  /** Per-order token shared by every row created in one checkout; "" for legacy
+   * rows and parent-less bookings. */
+  order_token: string;
+  /** Parent listing this row was folded under (a chosen child); 0 otherwise. */
+  parent_listing_id: number;
 };
 
 /** An attendee with all their listing bookings (for token resolution) */

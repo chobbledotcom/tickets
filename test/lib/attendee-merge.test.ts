@@ -56,10 +56,12 @@ const getBookings = (attendeeId: number) =>
     refunded: number;
     price_paid: number;
     attachment_downloads: number;
+    order_token: string;
+    parent_listing_id: number;
   }>(
     `SELECT listing_id, start_at, end_at, quantity,
             checked_in, refunded, price_paid,
-            attachment_downloads
+            attachment_downloads, order_token, parent_listing_id
      FROM listing_attendees
      WHERE attendee_id = ?
      ORDER BY start_at, listing_id`,
@@ -542,6 +544,8 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               checked_in: 0,
               end_at: null,
               listing_id: 5,
+              order_token: "",
+              parent_listing_id: 0,
               price_paid: 0,
               quantity: 1,
               refunded: 0,
@@ -553,6 +557,8 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               checked_in: 0,
               end_at: null,
               listing_id: 5,
+              order_token: "",
+              parent_listing_id: 0,
               price_paid: 0,
               quantity: 2,
               refunded: 0,
@@ -590,6 +596,8 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               checked_in: 0,
               end_at: null,
               listing_id: 7,
+              order_token: "",
+              parent_listing_id: 0,
               price_paid: 0,
               quantity: 1,
               refunded: 0,
@@ -601,6 +609,8 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               checked_in: 0,
               end_at: null,
               listing_id: 7,
+              order_token: "",
+              parent_listing_id: 0,
               price_paid: 0,
               quantity: 2,
               refunded: 0,
@@ -648,6 +658,8 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               checked_in: 0,
               end_at: null,
               listing_id: 5,
+              order_token: "",
+              parent_listing_id: 0,
               price_paid: 0,
               quantity: 1,
               refunded: 0,
@@ -659,6 +671,8 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               checked_in: 0,
               end_at: null,
               listing_id: 5,
+              order_token: "",
+              parent_listing_id: 0,
               price_paid: 0,
               quantity: 2,
               refunded: 0,

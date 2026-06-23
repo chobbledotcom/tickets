@@ -45,8 +45,9 @@ describe("db > migrations > schema change guard", () => {
         "2026-06-21_listing_parents",
         "2026-06-21_transfers",
         "2026-06-22_transfers_time_int",
+        "2026-06-23_attendee_order_parent",
       ],
-      schemaHash: "7h8vn2",
+      schemaHash: "1jnauvw",
     });
   });
 });

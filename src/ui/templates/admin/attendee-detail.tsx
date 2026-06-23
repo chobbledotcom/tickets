@@ -133,6 +133,11 @@ export const AttendeeBookingsTable = ({
 }): JSX.Element | null => {
   if (bookings.length === 0) return null;
   const totalQuantity = sumOf((b: AttendeeBooking) => b.quantity)(bookings);
+  // A folded child row carries the parent listing it was chosen under; the
+  // parent is booked in this same order, so resolve its name from the row set.
+  const nameByListingId = new Map(
+    bookings.map((b) => [b.listingId, b.listingName]),
+  );
   return (
     <>
       <h3>{t("terms.bookings")}</h3>
@@ -156,6 +161,15 @@ export const AttendeeBookingsTable = ({
                   {booking.listingActive ? null : (
                     <span class="muted small"> ({t("common.inactive")})</span>
                   )}
+                  {booking.parentListingId > 0 ? (
+                    <div class="muted small">
+                      {t("attendee_detail.addon_under", {
+                        parent:
+                          nameByListingId.get(booking.parentListingId) ??
+                          `#${booking.parentListingId}`,
+                      })}
+                    </div>
+                  ) : null}
                 </td>
                 <td>
                   {booking.startAt

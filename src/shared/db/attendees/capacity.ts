@@ -145,13 +145,15 @@ export const buildCapacityCheckedInsert = (
     pricePaid = 0,
     date = null,
     durationDays = 1,
+    orderToken = "",
+    parentListingId = 0,
   } = booking;
   const { startAt, endAt } = dateToStartEnd(date, durationDays);
   const args: InValue[] = [listingId];
   if (attendeeIdArg !== undefined) args.push(attendeeIdArg);
-  args.push(startAt, endAt, qty, pricePaid);
-  const insertSelect = `INSERT INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, price_paid)
-          SELECT ?, ${attendeeIdExpr}, ?, ?, ?, ?`;
+  args.push(startAt, endAt, qty, pricePaid, orderToken, parentListingId);
+  const insertSelect = `INSERT INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, price_paid, order_token, parent_listing_id)
+          SELECT ?, ${attendeeIdExpr}, ?, ?, ?, ?, ?, ?`;
   if (allowOverbook) return { args, sql: insertSelect };
 
   const condition = buildCapacityCondition(

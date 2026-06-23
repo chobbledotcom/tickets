@@ -56,6 +56,7 @@ import userKekV2Migration from "./migrations/2026-06-20_user_kek_v2.ts";
 import listingParentsMigration from "./migrations/2026-06-21_listing_parents.ts";
 import transfersMigration from "./migrations/2026-06-21_transfers.ts";
 import transfersTimeIntMigration from "./migrations/2026-06-22_transfers_time_int.ts";
+import attendeeOrderParentMigration from "./migrations/2026-06-23_attendee_order_parent.ts";
 import { repairLegacyRenames } from "./migrations/rename-utils.ts";
 import {
   LATEST_UPDATE,
@@ -213,6 +214,7 @@ export const MIGRATIONS: Migration[] = [
   listingParentsMigration,
   transfersMigration,
   transfersTimeIntMigration,
+  attendeeOrderParentMigration,
 ].map((build) => build(migrationContext));
 
 export const MIGRATION_IDS: string[] = MIGRATIONS.map(

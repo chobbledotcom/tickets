@@ -111,6 +111,19 @@ const postCalculate = async (
   return res.text();
 };
 
+/** The persisted order_token + parent_listing_id of every listing_attendees row
+ * for one listing, newest first — the attendee-side parent/child metadata. */
+const orderRowsFor = async (
+  listingId: number,
+): Promise<{ order_token: string; parent_listing_id: number }[]> => {
+  const { queryAll } = await import("#shared/db/client.ts");
+  return queryAll<{ order_token: string; parent_listing_id: number }>(
+    `SELECT order_token, parent_listing_id FROM listing_attendees
+     WHERE listing_id = ? ORDER BY id DESC`,
+    [listingId],
+  );
+};
+
 /** Assert the response is the public reservation success redirect. */
 const expectReserved = (response: Response): void => {
   expect(response.status).toBe(302);
@@ -358,6 +371,144 @@ describeWithEnv(
       const childBHtml = await childBPage.response.text();
       expect(childBHtml).toContain("Ada Lovelace");
       expect(childBHtml).toContain("<td>1</td>");
+    });
+
+    test("a one-of-each booking shares one order token and records each child's parent", async () => {
+      const { parent, childA, childB, date } =
+        await setupParentWithTwoChildren();
+      const res = await postBooking(parent.slug, {
+        date,
+        email: "ada@example.com",
+        name: "Ada Lovelace",
+        [`quantity_${parent.id}`]: "2",
+        [`child_qty_${parent.id}_${childA.id}`]: "1",
+        [`child_qty_${parent.id}_${childB.id}`]: "1",
+      });
+      expectReserved(res);
+
+      const parentRow = (await orderRowsFor(parent.id))[0]!;
+      const rowA = (await orderRowsFor(childA.id))[0]!;
+      const rowB = (await orderRowsFor(childB.id))[0]!;
+
+      // Every row of the booking carries the same non-empty order token.
+      expect(parentRow.order_token).not.toBe("");
+      expect(rowA.order_token).toBe(parentRow.order_token);
+      expect(rowB.order_token).toBe(parentRow.order_token);
+
+      // The parent's own row is not a folded child; each child records the parent.
+      expect(parentRow.parent_listing_id).toBe(0);
+      expect(rowA.parent_listing_id).toBe(parent.id);
+      expect(rowB.parent_listing_id).toBe(parent.id);
+    });
+
+    test("a two-of-one booking records both units of the child under the parent", async () => {
+      const { parent, childA, date } = await setupParentWithTwoChildren();
+      const res = await postBooking(parent.slug, {
+        date,
+        email: "ada@example.com",
+        name: "Ada Lovelace",
+        [`quantity_${parent.id}`]: "2",
+        [`child_qty_${parent.id}_${childA.id}`]: "2",
+      });
+      expectReserved(res);
+
+      const rowsA = await orderRowsFor(childA.id);
+      const parentRows = await orderRowsFor(parent.id);
+      // The two units fold into one line (the unique index), recorded under the
+      // parent and sharing the parent's order token.
+      expect(rowsA.length).toBe(1);
+      expect(rowsA[0]!.parent_listing_id).toBe(parent.id);
+      expect(rowsA[0]!.order_token).toBe(parentRows[0]!.order_token);
+      expect(rowsA[0]!.order_token).not.toBe("");
+    });
+
+    test("a standalone booking has an empty order token and no parent", async () => {
+      const standalone = await createDailyTestListing({
+        maxAttendees: 10,
+        maxQuantity: 3,
+        name: "Plain listing",
+        thankYouUrl: "",
+        unitPrice: 0,
+      });
+      const { getBookableStartDates } = await import("#shared/dates.ts");
+      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
+      const { getListingWithCount } = await import("#shared/db/listings.ts");
+      const row = (await getListingWithCount(standalone.id))!;
+      const date = getBookableStartDates(row, await getActiveHolidays())[0]!;
+
+      const res = await postBooking(standalone.slug, {
+        date,
+        email: "ada@example.com",
+        name: "Ada Lovelace",
+        [`quantity_${standalone.id}`]: "1",
+      });
+      expectReserved(res);
+
+      const rows = await orderRowsFor(standalone.id);
+      expect(rows.length).toBe(1);
+      expect(rows[0]!.order_token).toBe("");
+      expect(rows[0]!.parent_listing_id).toBe(0);
+    });
+
+    test("the admin attendee detail page labels each child under its parent", async () => {
+      const { parent, childA, childB, date } =
+        await setupParentWithTwoChildren();
+      const res = await postBooking(parent.slug, {
+        date,
+        email: "ada@example.com",
+        name: "Ada Lovelace",
+        [`quantity_${parent.id}`]: "2",
+        [`child_qty_${parent.id}_${childA.id}`]: "1",
+        [`child_qty_${parent.id}_${childB.id}`]: "1",
+      });
+      expectReserved(res);
+
+      const { adminGet } = await import("#test-utils");
+      const { getAttendeesRaw: rawFor } = await import(
+        "#shared/db/attendees.ts"
+      );
+      const attendeeId = (await rawFor(parent.id))[0]!.id;
+      const page = await adminGet(`/admin/attendees/${attendeeId}`);
+      expect(page.response.status).toBe(200);
+      const html = await page.response.text();
+
+      // Both children are annotated as add-ons chosen under the parent; the
+      // parent's own row carries no such annotation.
+      expect(html).toContain("Add-on chosen under Daily base unit");
+      expect(html).toContain("Add-on Alpha");
+      expect(html).toContain("Add-on Beta");
+    });
+
+    test("a standalone booking's attendee detail page shows no add-on annotation", async () => {
+      const standalone = await createDailyTestListing({
+        maxAttendees: 10,
+        maxQuantity: 3,
+        name: "Plain listing",
+        thankYouUrl: "",
+        unitPrice: 0,
+      });
+      const { getBookableStartDates } = await import("#shared/dates.ts");
+      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
+      const { getListingWithCount } = await import("#shared/db/listings.ts");
+      const row = (await getListingWithCount(standalone.id))!;
+      const date = getBookableStartDates(row, await getActiveHolidays())[0]!;
+      const res = await postBooking(standalone.slug, {
+        date,
+        email: "ada@example.com",
+        name: "Ada Lovelace",
+        [`quantity_${standalone.id}`]: "1",
+      });
+      expectReserved(res);
+
+      const { adminGet } = await import("#test-utils");
+      const { getAttendeesRaw: rawFor } = await import(
+        "#shared/db/attendees.ts"
+      );
+      const attendeeId = (await rawFor(standalone.id))[0]!.id;
+      const page = await adminGet(`/admin/attendees/${attendeeId}`);
+      expect(page.response.status).toBe(200);
+      const html = await page.response.text();
+      expect(html).not.toContain("Add-on chosen under");
     });
 
     test("the admin calendar shows the parent and inherited-date child bookings on the parent's date", async () => {
