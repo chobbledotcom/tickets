@@ -1207,8 +1207,8 @@ describeWithEnv("e2e: accounting lifecycle", { db: true }, () => {
     expect(article).toContain(signedCurrency(-5000)); // −£50 refunded
     expect(article).toContain("Net balance in ledger");
     expect(article).toContain(formatCurrency(-1000)); // −£10 net ledger balance
-    // And it links through to the full per-account ledger statement.
-    expect(article).toContain(`/admin/ledger/revenue/${listing.id}`);
+    // And it links through to the listing-scoped ledger view.
+    expect(article).toContain(`/admin/ledger?listing=${listing.id}`);
   });
 
   // 15. A bulk refund is resilient: when the provider declines ONE payment, the

@@ -1,8 +1,14 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { insertStatement } from "#shared/accounting/rows.ts";
+import {
+  fromDb,
+  insertStatement,
+  selectTransfers,
+} from "#shared/accounting/rows.ts";
+import { executeBatch } from "#shared/db/client.ts";
 import { account } from "#shared/ledger/account.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
+import { useTransactionalDb } from "#test-utils/ledger.ts";
 
 /** The value bound to `column` in a built INSERT, by pairing the SQL's leading
  *  column list with its positional args. */
@@ -42,5 +48,54 @@ describe("accounting > rows > insertStatement", () => {
     const absent = insertStatement(base, recordedAt);
     expect(boundValue(absent, "posted_by")).toBe("system");
     expect(boundValue(absent, "reverses_id")).toBe(null);
+  });
+});
+
+describe("accounting > rows > stored-row round-trip", () => {
+  useTransactionalDb();
+  const recordedAt = "2026-06-21T12:00:00.000Z";
+
+  test("selectTransfers reads every column back, reversesId present and absent", async () => {
+    const plain: TransferInput = {
+      amount: 5000,
+      destination: account("revenue", 7),
+      eventGroup: "evt-plain",
+      kind: "sale",
+      memo: "first",
+      occurredAt: "2026-06-21T00:00:00.000Z",
+      reference: "ref-plain",
+      source: account("attendee", 3),
+    };
+    // A void leg carrying a (non-FK) reverses_id, so the NULL vs real-id branch of
+    // the row→Transfer mapping is exercised both ways.
+    const voiding: TransferInput = {
+      ...plain,
+      eventGroup: "evt-void",
+      kind: "void",
+      reference: "ref-void",
+      reversesId: 999,
+    };
+    await executeBatch([
+      insertStatement(plain, recordedAt),
+      insertStatement(voiding, recordedAt),
+    ]);
+
+    const all = await selectTransfers(fromDb, " ORDER BY id", []);
+    expect(all.length).toBe(2);
+    const [first, second] = all;
+
+    // Full-fidelity round-trip — a corrupted SELECT column list loses these.
+    expect(first!.amount).toBe(5000);
+    expect(first!.source).toEqual(account("attendee", 3));
+    expect(first!.destination).toEqual(account("revenue", 7));
+    expect(first!.reference).toBe("ref-plain");
+    expect(first!.eventGroup).toBe("evt-plain");
+    expect(first!.kind).toBe("sale");
+    expect(first!.memo).toBe("first");
+    expect(first!.occurredAt).toBe("2026-06-21T00:00:00.000Z");
+
+    // NULL reverses_id maps to undefined; a real id maps to the Number.
+    expect(first!.reversesId).toBeUndefined();
+    expect(second!.reversesId).toBe(999);
   });
 });
