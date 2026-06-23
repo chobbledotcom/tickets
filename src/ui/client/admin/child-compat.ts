@@ -75,13 +75,29 @@ const managedControls = (
   );
 
 /** Disable + zero a control the selection can't serve; re-enable a compatible
- * one. Zeroing keeps the running total and the chosen-count hint honest. */
+ * one. Zeroing keeps the running total and the chosen-count hint honest, and —
+ * because zeroing happens in code, not via the buyer — dispatches a `change` so
+ * the dependent enhancement scripts (child-required, question-visibility, running
+ * total) recompute against the now-removed child (Fix 2): otherwise its required
+ * question / pay-more price input would stay visible and required and block
+ * submit. The event is only fired when the control actually changes to disabled
+ * (a still-compatible re-enable doesn't alter the chosen quantity). */
 const applyCompat = (
   control: HTMLSelectElement | HTMLInputElement,
   compatible: boolean,
 ): void => {
-  control.disabled = !compatible;
-  if (!compatible) control.value = "0";
+  if (compatible) {
+    control.disabled = false;
+    return;
+  }
+  const hadQuantity = control.value !== "0";
+  control.disabled = true;
+  control.value = "0";
+  // Notify dependents only when a chosen quantity was actually cleared, so the
+  // question/price for the dropped child re-runs its show/require logic.
+  if (hadQuantity) {
+    control.dispatchEvent(new Event("change", { bubbles: true }));
+  }
 };
 
 /** Toggle one parent's bookable child controls against the current selection. */

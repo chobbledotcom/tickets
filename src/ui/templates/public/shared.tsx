@@ -103,6 +103,17 @@ export type TicketListing = {
  * by composing the atoms it used before — no more, no less.
  */
 
+/** The composite key for a parent→child date constraint (Fix 4). The same daily
+ * child can be required by two parents whose calendars differ, so its serveable
+ * dates (`data-child-dates`) must be keyed by the (parent, child) PAIR — keying by
+ * child id alone let the later parent overwrite the earlier parent's constraint,
+ * so a child rendered under one parent could carry the other parent's dates. The
+ * single source of truth both the producer (`buildChildDatesById`,
+ * ticket-payment.ts) and the render consumer (`childCompatAttrs`,
+ * reservations.tsx) compute the lookup key through. */
+export const childDateKey = (parentId: number, childId: number): string =>
+  `${parentId}:${childId}`;
+
 /** The child's listing row is active (the fold rejects an inactive child). */
 export const childActive = (child: TicketListing): boolean =>
   child.listing.active;

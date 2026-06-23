@@ -63,6 +63,20 @@ export const chosenChildIds = (parentId: string): Set<string> =>
       .map((control) => childIdOf(parentId, control)),
   );
 
+/** The id of a parent's SOLE auto-selected child, when one is rendered. A parent
+ * with a single bookable child emits an informational `data-sole-child` element
+ * carrying that child id and NO `child_qty_*` control (the server fold auto-fills
+ * the whole parent quantity to it — see `renderSoleChildOption`). The child is
+ * therefore active whenever the parent is in the cart, even though no quantity
+ * control would report it (Fix 1). Returns null when the parent has no sole
+ * child (a multi-child parent uses the `child_qty_*` controls instead). */
+export const soleChildId = (parentId: string): string | null => {
+  const sole = document.querySelector<HTMLElement>(
+    `[data-sole-parent="${parentId}"]`,
+  );
+  return sole === null ? null : sole.getAttribute("data-sole-child");
+};
+
 /** Every parent id with a rendered child selector on the page. */
 export const childSelectorParentIds = (): string[] => {
   const ids: string[] = [];
@@ -94,6 +108,10 @@ export const selectedListingIds = (): Set<string> => {
   for (const parentId of childSelectorParentIds()) {
     if (!parentInCart(parentId)) continue;
     for (const childId of chosenChildIds(parentId)) ids.add(childId);
+    // A sole auto-selected child has no `child_qty_*` control, so it is active
+    // purely by virtue of the parent being in the cart (Fix 1).
+    const sole = soleChildId(parentId);
+    if (sole !== null) ids.add(sole);
   }
   return ids;
 };

@@ -32,6 +32,7 @@ export {
   buildTicketListing,
   childActive,
   childCalendarOrInStockForSpan,
+  childDateKey,
   childDateOk,
   childDurationMatches,
   childInStock,

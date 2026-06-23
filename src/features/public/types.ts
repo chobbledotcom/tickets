@@ -28,11 +28,12 @@ export type TicketCtx = {
   /** Parent→children relationship for the page's listings (see
    * {@link ChildrenByParentId}). */
   childrenByParentId: ChildrenByParentId;
-  /** Each DAILY child's holiday-aware serveable start dates (keyed by child id),
-   * threaded into the render so each child control carries `data-child-dates` for
-   * the client compatibility script (Codex 430). Non-daily children are omitted
-   * (no date constraint). */
-  childDatesById: Map<number, string[]>;
+  /** Each DAILY child's holiday-aware serveable start dates, keyed by the
+   * (parent, child) PAIR (`childDateKey`) so the same child required by two
+   * parents carries each parent's own dates (Fix 4). Threaded into the render so
+   * each child control carries `data-child-dates` for the client compatibility
+   * script (Codex 430). Non-daily children are omitted (no date constraint). */
+  childDatesById: Map<string, string[]>;
   /** Each listing id → its capped group's remaining spots, set on the render path
    * so a parent sharing a capped group with its child clamps its quantity by the
    * combined parent+child demand (invariant I7, Fix 3). Omitted on submit/quote
@@ -68,10 +69,12 @@ export type TicketSharedContext = {
   /** Parent→children relationship for the page's listings (see
    * {@link ChildrenByParentId}); empty map when the flag is off or none apply. */
   childrenByParentId: ChildrenByParentId;
-  /** Each DAILY child's holiday-aware serveable start dates (keyed by child id),
-   * emitted as `data-child-dates` for the client compatibility script (Codex
-   * 430); empty map when the page has no daily children. */
-  childDatesById: Map<number, string[]>;
+  /** Each DAILY child's holiday-aware serveable start dates, keyed by the
+   * (parent, child) PAIR (`childDateKey`) so a child required by two parents
+   * carries each parent's own dates (Fix 4); emitted as `data-child-dates` for
+   * the client compatibility script (Codex 430); empty map when the page has no
+   * daily children. */
+  childDatesById: Map<string, string[]>;
   groupName?: string;
   groupDescription?: string;
   actionUrl?: string;

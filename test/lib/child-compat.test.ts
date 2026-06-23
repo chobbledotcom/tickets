@@ -1,7 +1,9 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { initChildCompat } from "#src/ui/client/admin/child-compat.ts";
+import { initChildRequired } from "#src/ui/client/admin/child-required.ts";
 import {
+  childPriceSpec as childPrice,
   childQtySpec as childQty,
   childSelectorSpec as childSelector,
   dateSpec as date,
@@ -98,6 +100,54 @@ describe("child date/span compatibility", () => {
     byName(roots, "date").dispatch("change");
 
     expect(byName(roots, "child_qty_101_202").disabled).toBe(true);
+  });
+
+  test("zeroing an incompatible child notifies dependents so its price stops being required (Fix 2)", () => {
+    // A pay-more child chosen (qty 1) under an in-cart parent: child-required has
+    // marked its price input `required`. When a date change disables+zeroes the
+    // child, child-compat must fire a `change` so child-required re-runs and
+    // drops the `required` flag — otherwise the hidden child's price input would
+    // block submission.
+    const roots = installFakeDom([
+      date("2026-06-08"),
+      quantity("101", "1"),
+      childSelector("101"),
+      childQty("101", "202", "1", false, { dates: ["2026-06-01"] }),
+      childPrice("101", "202"),
+    ]);
+    const price = byName(roots, "child_price_101_202");
+
+    initChildRequired();
+    // The chosen child's price input starts out required (inline feedback).
+    expect(price.required).toBe(true);
+
+    initChildCompat();
+
+    // The selected date can't be served by the child, so it is disabled+zeroed
+    // and child-required re-runs: the dropped child's price is no longer required.
+    expect(byName(roots, "child_qty_101_202").disabled).toBe(true);
+    expect(byName(roots, "child_qty_101_202").value).toBe("0");
+    expect(price.required).toBe(false);
+  });
+
+  test("does not notify dependents when an already-zero incompatible child is disabled (Fix 2)", () => {
+    // An incompatible child whose quantity is already 0 must NOT fire a redundant
+    // `change` (nothing was cleared), so a dependent listener stays unfired.
+    const roots = installFakeDom([
+      date("2026-06-08"),
+      quantity("101", "1"),
+      childSelector("101"),
+      childQty("101", "202", "0", false, { dates: ["2026-06-01"] }),
+    ]);
+    let fired = false;
+    byName(roots, "child_qty_101_202").addEventListener("change", () => {
+      fired = true;
+    });
+
+    initChildCompat();
+
+    expect(byName(roots, "child_qty_101_202").disabled).toBe(true);
+    expect(fired).toBe(false);
   });
 
   test("a child with no date/span constraint stays enabled for any selection", () => {

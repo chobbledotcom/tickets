@@ -25,7 +25,10 @@ export type FakeElement = {
   getAttribute: (name: string) => string | null;
   querySelectorAll: (selector: string) => FakeElement[];
   addEventListener: (event: string, listener: () => void) => void;
-  /** Fire a registered listener (test-only convenience). */
+  /** Dispatch a real `Event` to the registered listeners (the production scripts
+   * call this to notify dependents — Fix 2). Returns true like the DOM API. */
+  dispatchEvent: (event: Event) => boolean;
+  /** Fire a registered listener by name (test-only convenience). */
   dispatch: (event: string) => void;
 };
 
@@ -136,6 +139,10 @@ const makeElement = (spec: ElementSpec): FakeElement => {
     dispatch: (event) => {
       for (const listener of listeners.get(event) ?? []) listener();
     },
+    dispatchEvent: (event) => {
+      for (const listener of listeners.get(event.type) ?? []) listener();
+      return true;
+    },
     getAttribute: (name) => attrs.get(name) ?? null,
     hidden: spec.hidden ?? false,
     querySelectorAll: (selector) =>
@@ -198,6 +205,19 @@ export const childQtySpec = (
   name: `child_qty_${parentId}_${childId}`,
   tag: "select",
   value,
+});
+
+/** A sole auto-selected child's informational marker (`renderSoleChildOption`):
+ * a `data-sole-parent`/`data-sole-child` element with NO `child_qty_*` control,
+ * so the active-listing set must pick it up from the parent being in the cart
+ * alone (Fix 1). */
+export const soleChildSpec = (
+  parentId: string,
+  childId: string,
+): ElementSpec => ({
+  class: "child-option child-sole",
+  data: { soleChild: childId, soleParent: parentId },
+  tag: "p",
 });
 
 /** The page-level `name="date"` daily-listing date selector. */

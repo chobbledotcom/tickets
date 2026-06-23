@@ -1312,6 +1312,51 @@ describeWithEnv(
       expect(parentRows[0]?.date).toBe(dayB);
     });
 
+    test("a daily child full on one date still renders bookable; the parent qty is not clamped to 0 (Fix 3)", async () => {
+      // Render regression for Fix 3: a 1-capacity daily child full on ANY single
+      // date reads `isSoldOut` date-lessly, but the render predicate must NOT use
+      // that aggregate for a daily child (its per-date capacity is the fold's
+      // job). Before the fix the child rendered disabled and `childCappedMax`
+      // clamped the parent's quantity to 0 on every date; after it the parent
+      // still offers a bookable quantity and the child a per-unit select.
+      const { bookAttendee } = await import("#test-utils");
+      const { getBookableStartDates } = await import("#shared/dates.ts");
+      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
+      const { getListingWithCount } = await import("#shared/db/listings.ts");
+
+      const parent = await createDailyTestListing({
+        maxQuantity: 5,
+        name: "Daily base",
+      });
+      const child = await createDailyTestListing({
+        maxAttendees: 1,
+        name: "Daily add-on",
+      });
+      await setChildIds(parent.id, [child.id]);
+
+      // Fill the child's single spot on its first bookable date.
+      const childRow = (await getListingWithCount(child.id))!;
+      const dayA = getBookableStartDates(
+        childRow,
+        await getActiveHolidays(),
+      )[0]!;
+      expect((await bookAttendee(child, { date: dayA })).success).toBe(true);
+
+      const html = await ticketPageHtml(parent.slug);
+      // The parent's quantity selector still offers a bookable quantity (the
+      // date-less sold-out child did NOT clamp it to 0).
+      const select = html.slice(html.indexOf(`name="quantity_${parent.id}"`));
+      const options = select.slice(0, select.indexOf("</select>"));
+      expect(options).toContain('value="1"');
+      // The sole daily child renders informational (auto-selected), not disabled.
+      expect(html).toContain(`data-sole-child="${child.id}"`);
+      expect(html).not.toMatch(
+        new RegExp(
+          `<select name="child_qty_${parent.id}_${child.id}"[^>]*\\sdisabled`,
+        ),
+      );
+    });
+
     // Fix 2: don't apply the date-less GROUP cap to a daily parent's children. A
     // daily parent's group is type-homogeneous (group members share listing_type),
     // so any co-grouped child is itself daily — and a daily listing is excluded
@@ -1415,6 +1460,64 @@ describeWithEnv(
       expectFlash(fullRes, undefined, false);
       expect((await getAttendeesRaw(parent.id)).length).toBe(0);
       expect((await getAttendeesRaw(child.id)).length).toBe(0);
+    });
+
+    test("a daily child required by two parents carries each parent's own data-child-dates (Fix 4)", async () => {
+      // The SAME daily child is required by two daily parents on different
+      // calendars (parent A bookable only Mondays, parent B only Tuesdays). Each
+      // parent's block must carry the child's serveable dates FOR THAT PARENT —
+      // keyed by the (parent, child) pair. Before Fix 4 the map was keyed by child
+      // id alone, so the second parent overwrote the first and both blocks showed
+      // the same (later parent's) dates.
+      const { getBookableStartDates } = await import("#shared/dates.ts");
+      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
+      const { getListingWithCount } = await import("#shared/db/listings.ts");
+
+      // Each parent gets a SECOND child so the shared child renders as a
+      // selectable `child_qty_*` option (carrying data-child-dates) rather than
+      // the informational sole-child path (which emits no compat attributes).
+      const parentA = await createDailyTestListing({
+        bookableDays: ["Monday"],
+        name: "Monday base",
+      });
+      const parentB = await createDailyTestListing({
+        bookableDays: ["Tuesday"],
+        name: "Tuesday base",
+      });
+      const shared = await createDailyTestListing({ name: "Shared add-on" });
+      const extraA = await createDailyTestListing({ name: "Extra A" });
+      const extraB = await createDailyTestListing({ name: "Extra B" });
+      await setChildIds(parentA.id, [shared.id, extraA.id]);
+      await setChildIds(parentB.id, [shared.id, extraB.id]);
+
+      const holidays = await getActiveHolidays();
+      const mondayDate = getBookableStartDates(
+        (await getListingWithCount(parentA.id))!,
+        holidays,
+      )[0]!;
+      const tuesdayDate = getBookableStartDates(
+        (await getListingWithCount(parentB.id))!,
+        holidays,
+      )[0]!;
+      expect(mondayDate).not.toBe(tuesdayDate);
+
+      const html = await ticketPageHtml(`${parentA.slug}+${parentB.slug}`);
+
+      // Isolate each parent's control for the shared child and read its dates.
+      const datesAttr = (parentId: number): string => {
+        const start = html.indexOf(`name="child_qty_${parentId}_${shared.id}"`);
+        expect(start).toBeGreaterThanOrEqual(0);
+        const select = html.slice(start, html.indexOf(">", start));
+        const match = select.match(/data-child-dates="([^"]*)"/);
+        return match?.[1] ?? "";
+      };
+
+      // Parent A's block lists the shared child as serveable on its Monday only;
+      // parent B's on its Tuesday only — each parent's own calendar, not shared.
+      expect(datesAttr(parentA.id)).toContain(mondayDate);
+      expect(datesAttr(parentA.id)).not.toContain(tuesdayDate);
+      expect(datesAttr(parentB.id)).toContain(tuesdayDate);
+      expect(datesAttr(parentB.id)).not.toContain(mondayDate);
     });
 
     test("a customisable child's option label shows the inherited day price, not its unit_price", async () => {
@@ -2157,6 +2260,10 @@ describeWithEnv(
       // isSoldOut=true, but the parent page must still render a bookable form —
       // the daily child is potentially bookable on the dates it still has room
       // for (Codex 63). The submit fold rejects only a genuinely full date.
+      // Fix 3 also keeps the daily child a BOOKABLE option (its date-less
+      // sold-out aggregate is exempt), so it auto-selects as the sole child
+      // instead of rendering a disabled control. (See the Fix-3 render test above
+      // for the parent-quantity-not-clamped-to-0 outcome.)
       const { bookAttendee } = await import("#test-utils");
       const { getBookableStartDates } = await import("#shared/dates.ts");
       const { getActiveHolidays } = await import("#shared/db/holidays.ts");
@@ -2180,7 +2287,9 @@ describeWithEnv(
       const html = await ticketPageHtml(parent.slug);
       // The parent renders a normal bookable form, not the sold-out message.
       expect(html).toContain(`name="quantity_${parent.id}"`);
-      expect(html).toContain(`name="child_qty_${parent.id}_${child.id}"`);
+      // The daily child is the sole bookable option (Fix 3), rendered
+      // informational — never as a disabled control.
+      expect(html).toContain(`data-sole-child="${child.id}"`);
       expect(html).not.toContain("Sorry, this listing is full.");
     });
 

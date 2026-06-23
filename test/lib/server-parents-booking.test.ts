@@ -174,6 +174,67 @@ describeWithEnv(
       expect(options).not.toContain('value="3"');
     });
 
+    test("a parent + child sharing a big capped group is clamped by the child's own capacity (Fix 5)", async () => {
+      // The shared group has 10 spots — `floor(10 / 2) = 5` parent+child orders
+      // would fit the pool — but the single child itself caps at 1, so only ONE
+      // order can actually be fulfilled. The parent quantity (which the sole child
+      // is auto-filled to) must be clamped to 1, never offering 2 the submit fold
+      // would reject. Before Fix 5 the shared-group cap ignored the child's own
+      // `maxPurchasable` and offered up to 5.
+      const group = await createTestGroup({ maxAttendees: 10, name: "Pool" });
+      const parent = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 50,
+        maxQuantity: 5,
+        name: "Base unit",
+      });
+      const child = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 50,
+        maxQuantity: 1,
+        name: "Add-on",
+      });
+      await setChildIds(parent.id, [child.id]);
+      const body = await (await ticketGet(parent.slug)).text();
+      const select = body.slice(body.indexOf(`name="quantity_${parent.id}"`));
+      const options = select.slice(0, select.indexOf("</select>"));
+      expect(options).toContain('value="1"');
+      expect(options).not.toContain('value="2"');
+    });
+
+    test("a shared-group child's per-unit select is clamped by its own capacity (Fix 5)", async () => {
+      // With a second (separate-pool) child the shared child renders a per-unit
+      // select. The shared group has 10 spots (floor(10/2)=5 orders), but the
+      // shared child caps at 1, so its OWN select must offer max 1 — the separate
+      // sibling absorbs the rest of the parent's quantity.
+      const group = await createTestGroup({ maxAttendees: 10, name: "Pool" });
+      const parent = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 50,
+        maxQuantity: 3,
+        name: "Base unit",
+      });
+      const shared = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 50,
+        maxQuantity: 1,
+        name: "Shared add-on",
+      });
+      const extra = await createTestListing({
+        maxAttendees: 50,
+        maxQuantity: 3,
+        name: "Separate add-on",
+      });
+      await setChildIds(parent.id, [shared.id, extra.id]);
+      const body = await (await ticketGet(parent.slug)).text();
+      const start = body.indexOf(`name="child_qty_${parent.id}_${shared.id}"`);
+      expect(start).toBeGreaterThanOrEqual(0);
+      const select = body.slice(start);
+      const options = select.slice(0, select.indexOf("</select>"));
+      expect(options).toContain('value="1"');
+      expect(options).not.toContain('value="2"');
+    });
+
     test("a group containing a child member still renders (not 404)", async () => {
       // The group page loads members indirectly, so a child member is suppressed
       // /folded — not a reason to 404 the whole group (the buyer isn't starting

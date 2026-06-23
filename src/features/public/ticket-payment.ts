@@ -58,6 +58,7 @@ import {
 } from "#shared/types.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
 import {
+  childDateKey,
   childDateOk,
   childDurationMatches,
   childPricedForSpan,
@@ -942,20 +943,27 @@ export const childListingIdsOf = (
 };
 
 /** The holiday-aware set of start dates each DAILY child can serve for the span
- * it inherits from its parent, keyed by child id for the client compatibility
- * script (Codex 430). A daily child contributes only its own bookable starts that
- * cover the inherited span — a fixed daily parent's {@link fixedParentSpan}, or a
- * single day when the parent's span isn't fixed (a customisable parent) — reusing
- * the SAME {@link childDateContribution} rule the parent's date union uses, so the
- * client never disables a date the server would accept (and never re-enables one
- * it rejects). A non-daily child imposes no date constraint and is omitted (the
- * client treats a missing entry as "always compatible"). */
+ * it inherits from its parent, keyed by the (parent, child) PAIR ({@link
+ * childDateKey}) for the client compatibility script (Codex 430). A daily child
+ * contributes only its own bookable starts that cover the inherited span — a
+ * fixed daily parent's {@link fixedParentSpan}, or a single day when the parent's
+ * span isn't fixed (a customisable parent) — reusing the SAME {@link
+ * childDateContribution} rule the parent's date union uses, so the client never
+ * disables a date the server would accept (and never re-enables one it rejects).
+ *
+ * Keying by the pair (Fix 4): the same daily child can be required by two parents
+ * whose calendars/inherited spans differ, so each parent's block needs its OWN
+ * `data-child-dates` for that child. Keying by child id alone let the later
+ * parent overwrite the earlier parent's constraint, so a child under one parent
+ * could carry the other parent's dates. A non-daily child imposes no date
+ * constraint and is omitted (the client treats a missing entry as "always
+ * compatible"). */
 export const buildChildDatesById = (
   activeListings: TicketListing[],
   childrenByParentId: ChildrenByParentId,
   holidays: Holiday[],
-): Map<number, string[]> => {
-  const result = new Map<number, string[]>();
+): Map<string, string[]> => {
+  const result = new Map<string, string[]>();
   for (const { listing: parent } of activeListings) {
     const children = childrenByParentId.get(parent.id);
     if (!children) continue;
@@ -964,7 +972,7 @@ export const buildChildDatesById = (
     for (const child of children) {
       if (child.listing.listing_type !== "daily") continue;
       result.set(
-        child.listing.id,
+        childDateKey(parent.id, child.listing.id),
         childDateContribution(child, parentDates, fixedSpan, holidays),
       );
     }
