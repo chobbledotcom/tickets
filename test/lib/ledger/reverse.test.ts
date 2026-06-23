@@ -37,6 +37,9 @@ describe("reverseOf", () => {
     });
     expect(rev.kind).toBe("correction");
     expect(rev.memo).toBe("fat-finger");
+    // An explicit empty kind is preserved, not silently replaced by the default
+    // (`?? "reversal"` keeps "", where `|| "reversal"` would override it).
+    expect(reverseOf(makeTransfer({}), { ...meta, kind: "" }).kind).toBe("");
   });
 
   it("nets the affected account back to zero once both are posted", () => {
