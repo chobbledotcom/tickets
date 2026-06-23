@@ -534,6 +534,15 @@ a {
   text-decoration: none;
 }
 
+/* "Underline links" setting (owner toggle on the Site Theme form, off by
+   default). When on, <html> carries data-underline-links and every link — nav
+   included — gets a default underline. :where() keeps this at the same
+   specificity as the base `a` rule above, so components that opt out of
+   underlines (buttons, calendar chips, the skip link) still win. */
+:where(:root[data-underline-links]) a {
+  text-decoration: underline;
+}
+
 a:hover,
 a:focus {
   text-decoration: underline;
@@ -578,6 +587,14 @@ input[type="submit"]:hover,
 .btn:hover {
   cursor: pointer;
   filter: brightness(var(--hover-brightness));
+}
+
+/* .btn is also used on <a>: keep the link hover/focus underline (and the
+   "Underline links" setting) off button text — a button is a control, not a
+   text link. */
+.btn:hover,
+.btn:focus {
+  text-decoration: none;
 }
 
 button:active,

@@ -248,7 +248,7 @@ const getPrefix = (path: string): string => {
  * - domain resolution (`loadEffectiveDomain`) reads custom_domain + bunny_subdomain
  * - routing gates on setup_complete / show_public_*
  * - the bare `Layout` (rendered by the universal `notFoundResponse` fallback
- *   and every HTML error page) reads theme + header_image_url
+ *   and every HTML error page) reads theme + underline_links + header_image_url
  * - `applySecurityHeaders` rebuilds the CSP on every routed response, reading
  *   the payment provider (and square_sandbox when the provider is Square)
  * - pruning self-guards on last_pruned_*
@@ -263,6 +263,7 @@ const INFRA_SETTINGS: readonly string[] = [
   CONFIG_KEYS.SHOW_PUBLIC_SITE,
   CONFIG_KEYS.SHOW_PUBLIC_API,
   CONFIG_KEYS.THEME,
+  CONFIG_KEYS.UNDERLINE_LINKS,
   CONFIG_KEYS.HEADER_IMAGE_URL,
   CONFIG_KEYS.PAYMENT_PROVIDER,
   CONFIG_KEYS.SQUARE_SANDBOX,
