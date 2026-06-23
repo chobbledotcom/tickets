@@ -302,7 +302,7 @@ const trackedBatch = async (
     for (const stmt of statements) addQueryLogEntry(stmt.sql, elapsed, start);
   }
   for (const stmt of statements) {
-    logCompletedSql(stmt.sql);
+    void logCompletedSql(stmt.sql);
     invalidateForSql(stmt.sql);
   }
   return results;

@@ -189,10 +189,9 @@ const notifyN1Violation = async (detail: string): Promise<void> => {
  * client, which the logger transitively depends on), mirroring
  * {@link notifyN1Violation}.
  */
-export const logCompletedSql = (sql: string): void => {
-  void import("#shared/logger.ts").then(({ logDebug }) =>
-    logDebug("SQL", sql.replace(/\s+/g, " ").trim()),
-  );
+export const logCompletedSql = async (sql: string): Promise<void> => {
+  const { logDebug } = await import("#shared/logger.ts");
+  logDebug("SQL", sql.replace(/\s+/g, " ").trim());
 };
 
 /**
@@ -233,6 +232,6 @@ export const trackQuery = async <T>(
       startedAtMs: start,
     });
   }
-  logCompletedSql(sql);
+  void logCompletedSql(sql);
   return result;
 };
