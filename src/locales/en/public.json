@@ -40,6 +40,7 @@
   "public.ticket.child_too_many": "Too many add-ons chosen for {name} — remove {count, plural, one {# add-on} other {# add-ons}}.",
   "public.ticket.child_sold_out": "{name} has no available options right now.",
   "public.ticket.child_unavailable": "{name} (unavailable)",
+  "public.ticket.child_includes": "Includes {name} — one per booking",
   "public.ticket.child_price_mismatch": "The price for {name} must match across selections.",
   "public.ticket.mixed_durations": "All multi-day items in one order must share the same number of days.",
   "public.ticket.show_total": "Show total",

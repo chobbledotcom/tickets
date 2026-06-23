@@ -114,6 +114,90 @@ describeWithEnv(
       expect(childRows[0]?.quantity).toBe(2);
     });
 
+    test("a sole child whose cap exceeds the chosen parent qty books at the parent qty (Fix 1)", async () => {
+      // Regression for Fix 1: when the sole child's cap (5) exceeds the chosen
+      // parent quantity (1), the render must NOT post a fixed child quantity — that
+      // would over-submit a total of 5 and the fold would reject it as 'too many'.
+      // The page is informational and the fold auto-fills exactly Q (= 1).
+      const parent = await createTestListing({
+        maxQuantity: 5,
+        name: "Base unit",
+        thankYouUrl: "",
+      });
+      const child = await createTestListing({
+        maxQuantity: 5,
+        name: "Add-on",
+        thankYouUrl: "",
+      });
+      await setChildIds(parent.id, [child.id]);
+
+      // The rendered page emits no quantity field for the sole child.
+      const html = await ticketPageHtml(parent.slug);
+      expect(html).not.toContain(`name="child_qty_${parent.id}_${child.id}"`);
+
+      // Booking the parent at quantity 1 succeeds (no 'too many').
+      const res = await postBooking(parent.slug, {
+        email: "a@b.com",
+        name: "Ada",
+        [`quantity_${parent.id}`]: "1",
+      });
+      expectReserved(res);
+      const childRows = await getAttendeesRaw(child.id);
+      expect(childRows.length).toBe(1);
+      // The fold auto-fills the sole child to the parent quantity (1), not the cap.
+      expect(childRows[0]?.quantity).toBe(1);
+    });
+
+    test("the /calculate quote for a sole-child parent below the child cap succeeds (Fix 1)", async () => {
+      // The live quote runs the same fold; before Fix 1 it failed identically
+      // ('too many') because the form posted the child's max as the quantity.
+      const parent = await createTestListing({
+        maxQuantity: 5,
+        name: "Base unit",
+        unitPrice: 1000,
+      });
+      const child = await createTestListing({
+        maxQuantity: 5,
+        name: "Add-on",
+        unitPrice: 500,
+      });
+      await setChildIds(parent.id, [child.id]);
+
+      const fragment = await postCalculate(parent.slug, {
+        [`quantity_${parent.id}`]: "1",
+      });
+      // The quote succeeds (parent £10 + auto-filled child £5 = £15), not a 'too
+      // many' rejection from an over-submitted child quantity.
+      expect(fragment).not.toContain("Too many add-ons");
+      expect(fragment).toContain("£15");
+    });
+
+    test("a sole pay-more child auto-fills and still collects its price without a posted qty (Fix 1)", async () => {
+      // The informational sole-child render posts NO `child_qty_*` field, yet the
+      // pay-more price input is still rendered and the fold auto-fills the child
+      // to the parent quantity and charges the submitted custom price.
+      const parent = await createTestListing({
+        maxQuantity: 5,
+        name: "Base unit",
+      });
+      const child = await createTestListing({
+        canPayMore: true,
+        maxPrice: 5000,
+        maxQuantity: 5,
+        name: "Donation add-on",
+        unitPrice: 1000,
+      });
+      await setChildIds(parent.id, [child.id]);
+
+      // The quote includes the chosen pay-more child price (30.00) even though the
+      // browser posts no quantity field for the sole child — auto-fill assigns Q.
+      const html = await postCalculate(parent.slug, {
+        [`child_price_${parent.id}_${child.id}`]: "30.00",
+        [`quantity_${parent.id}`]: "1",
+      });
+      expect(html).toContain("£30");
+    });
+
     test("a multi-child parent rejects when no child is chosen", async () => {
       // With several bookable children there is no auto-select, so submitting no
       // child units leaves the per-parent total at 0 — short of the parent's
@@ -1319,9 +1403,11 @@ describeWithEnv(
       await setChildIds(parent.id, [child.id]);
 
       const html = await ticketPageHtml(parent.slug);
-      // The option label carries the day price, not "£0".
-      expect(html).toContain("Customisable add-on (£10");
-      expect(html).not.toContain("Customisable add-on (£0");
+      // The sole child renders informationally; its label carries the day price,
+      // not "£0".
+      expect(html).toContain("Customisable add-on");
+      expect(html).toContain("(£10");
+      expect(html).not.toContain("(£0");
     });
 
     test("a customisable child under a customisable parent shows a 'from' price", async () => {
@@ -1344,7 +1430,8 @@ describeWithEnv(
       await setChildIds(parent.id, [child.id]);
 
       const html = await ticketPageHtml(parent.slug);
-      expect(html).toContain("Customisable add-on (from £15");
+      expect(html).toContain("Customisable add-on");
+      expect(html).toContain("(from £15");
     });
 
     test("a 'from' price uses the parent∩child spans, not the child's lowest", async () => {
@@ -1369,8 +1456,8 @@ describeWithEnv(
       await setChildIds(parent.id, [child.id]);
 
       const html = await ticketPageHtml(parent.slug);
-      expect(html).toContain("Customisable add-on (from £25");
-      expect(html).not.toContain("Customisable add-on (from £10");
+      expect(html).toContain("(from £25");
+      expect(html).not.toContain("(from £10");
     });
 
     test("a 'from' price is omitted when parent and child spans don't overlap", async () => {
@@ -1596,7 +1683,8 @@ describeWithEnv(
       // The render must mirror the server's active check: an inactive child is
       // rendered as a disabled (fixed-0) quantity control and never selectable,
       // leaving the lone active child as the sole bookable option — which, being
-      // the only bookable child, auto-fills via a hidden quantity field.
+      // the only bookable child, renders informational (auto-filled by the fold)
+      // and posts NO quantity field of its own (Fix 1).
       const parent = await createTestListing({ name: "Base unit" });
       const liveChild = await createTestListing({ name: "Live add-on" });
       const deadChild = await createTestListing({ name: "Dead add-on" });
@@ -1604,13 +1692,12 @@ describeWithEnv(
       await deactivateTestListing(deadChild.id);
 
       const html = await ticketPageHtml(parent.slug);
-      // The active child is the sole bookable option, so it auto-fills via a
-      // hidden per-unit quantity field (no choice required, no-JS safe).
-      expect(html).toMatch(
-        new RegExp(
-          `<input type="hidden" name="child_qty_${parent.id}_${liveChild.id}"`,
-        ),
+      // The active child is the sole bookable option, so it is informational and
+      // posts no `child_qty_*` field (the fold auto-fills it to the parent qty).
+      expect(html).not.toContain(
+        `name="child_qty_${parent.id}_${liveChild.id}"`,
       );
+      expect(html).toContain(`data-sole-child="${liveChild.id}"`);
       // The inactive child renders a disabled select fixed at 0 and is never
       // a selectable quantity control.
       expect(html).toMatch(
@@ -1657,8 +1744,9 @@ describeWithEnv(
     });
 
     test("a sole pay-more child auto-fills and still renders its price input", async () => {
-      // The single-bookable-child auto-fill path also renders a pay-more child's
-      // non-required price input (so a buyer can name a price without choosing).
+      // The single-bookable-child path is informational (no quantity field, Fix 1)
+      // but still renders a pay-more child's non-required price input so a buyer
+      // can name a price without choosing.
       const parent = await createTestListing({ name: "Base unit" });
       const child = await createTestListing({
         canPayMore: true,
@@ -1669,33 +1757,33 @@ describeWithEnv(
       await setChildIds(parent.id, [child.id]);
 
       const html = await ticketPageHtml(parent.slug);
-      expect(html).toContain(
-        `<input type="hidden" name="child_qty_${parent.id}_${child.id}"`,
-      );
+      // No `child_qty_*` is posted for the sole child (the fold auto-fills it).
+      expect(html).not.toContain(`name="child_qty_${parent.id}_${child.id}"`);
+      // The pay-more price input is still rendered.
       expect(html).toContain(`name="child_price_${parent.id}_${child.id}"`);
     });
 
-    test("a sole bookable child auto-fills via a hidden quantity field (no choice)", async () => {
-      // The single-bookable-child case forces the child quantity to the parent's,
-      // rendered as a hidden field rather than an interactive select.
+    test("a sole bookable child renders informational with no submitted quantity field (Fix 1)", async () => {
+      // A sole bookable child must NOT post a fixed quantity (it would over-submit
+      // when the parent qty is below the child's cap and the fold would reject it
+      // as 'too many'). It renders informational; the fold auto-fills Q.
       const parent = await createTestListing({
-        maxQuantity: 2,
+        maxQuantity: 5,
         name: "Base unit",
       });
       const child = await createTestListing({
-        maxQuantity: 2,
+        maxQuantity: 5,
         name: "Add-on",
       });
       await setChildIds(parent.id, [child.id]);
 
       const html = await ticketPageHtml(parent.slug);
-      expect(html).toContain(
-        `<input type="hidden" name="child_qty_${parent.id}_${child.id}"`,
-      );
-      // No interactive select is rendered for the sole child.
-      expect(html).not.toContain(
-        `<select name="child_qty_${parent.id}_${child.id}"`,
-      );
+      // No quantity field of any kind (hidden or select) is emitted for the sole
+      // child, so nothing is posted for it and the fold's auto-fill assigns Q.
+      expect(html).not.toContain(`name="child_qty_${parent.id}_${child.id}"`);
+      // It is shown informationally instead.
+      expect(html).toContain(`data-sole-child="${child.id}"`);
+      expect(html).toContain("Includes Add-on");
     });
 
     test("a daily parent offers only dates its only child can serve", async () => {
@@ -2124,7 +2212,9 @@ describeWithEnv(
 
       const html = await ticketPageHtml(parent.slug);
       expect(html).toContain(`name="quantity_${parent.id}"`);
-      expect(html).toContain(`name="child_qty_${parent.id}_${child.id}"`);
+      // The sole child is offered informationally (auto-selected), so it appears
+      // in the child block but posts no `child_qty_*` field.
+      expect(html).toContain(`data-sole-child="${child.id}"`);
     });
 
     test("a shared capped group caps the parent quantity selector by floor(remaining / units)", async () => {
@@ -2160,6 +2250,110 @@ describeWithEnv(
       );
       expect(quantityOptionsHtml).toContain(">1</option>");
       expect(quantityOptionsHtml).not.toContain(">2</option>");
+    });
+
+    test("two separate-pool children each cap 1 offer parent quantity up to 2 (Fix 2)", async () => {
+      // Under per-unit distribution separate-pool children COMBINE: two children
+      // each capped at 1 together serve a parent quantity of 2 (1 + 1). The old
+      // per-child MAX wrongly clamped the parent selector to 1; Fix 2 sums them.
+      const parent = await createTestListing({
+        maxAttendees: 100,
+        maxQuantity: 5,
+        name: "Base unit",
+      });
+      const childA = await createTestListing({
+        maxAttendees: 1,
+        name: "Add-on A",
+      });
+      const childB = await createTestListing({
+        maxAttendees: 1,
+        name: "Add-on B",
+      });
+      await setChildIds(parent.id, [childA.id, childB.id]);
+
+      const html = await ticketPageHtml(parent.slug);
+      const quantitySelect = html.slice(
+        html.indexOf(`name="quantity_${parent.id}"`),
+      );
+      const quantityOptionsHtml = quantitySelect.slice(
+        0,
+        quantitySelect.indexOf("</select>"),
+      );
+      // The combined cap (1 + 1) offers a 2 option but never a 3.
+      expect(quantityOptionsHtml).toContain(">2</option>");
+      expect(quantityOptionsHtml).not.toContain(">3</option>");
+    });
+
+    test("a 1+1 booking across two separate-pool children each cap 1 succeeds (Fix 2)", async () => {
+      // The fold accepts a parent quantity of 2 split 1 of A + 1 of B, which the
+      // selector now offers — proving the combined-cap render matches the fold.
+      const parent = await createTestListing({
+        maxAttendees: 100,
+        maxQuantity: 5,
+        name: "Base unit",
+        thankYouUrl: "",
+      });
+      const childA = await createTestListing({
+        maxAttendees: 1,
+        name: "Add-on A",
+        thankYouUrl: "",
+      });
+      const childB = await createTestListing({
+        maxAttendees: 1,
+        name: "Add-on B",
+        thankYouUrl: "",
+      });
+      await setChildIds(parent.id, [childA.id, childB.id]);
+
+      const res = await postBooking(parent.slug, {
+        email: "a@b.com",
+        name: "Ada",
+        [`child_qty_${parent.id}_${childA.id}`]: "1",
+        [`child_qty_${parent.id}_${childB.id}`]: "1",
+        [`quantity_${parent.id}`]: "2",
+      });
+      expectReserved(res);
+      expect((await getAttendeesRaw(childA.id))[0]?.quantity).toBe(1);
+      expect((await getAttendeesRaw(childB.id))[0]?.quantity).toBe(1);
+    });
+
+    test("two children sharing one capped group with the parent cap by combined demand, not naive sum (Fix 2)", async () => {
+      // Parent + both children share ONE capped group with 5 spots left. Each
+      // combined order consumes PARENT_CHILD_GROUP_UNITS (2) spots regardless of
+      // how many co-grouped children exist, so the parent ceiling is
+      // floor(5 / 2) = 2 — NOT a naive per-child sum (which would over-offer).
+      const { PARENT_CHILD_GROUP_UNITS } = await import("#shared/types.ts");
+      expect(PARENT_CHILD_GROUP_UNITS).toBe(2);
+      const group = await createTestGroup({ maxAttendees: 5, name: "Pool5" });
+      const parent = await createTestListing({
+        groupId: group.id,
+        maxQuantity: 9,
+        name: "Base unit",
+      });
+      const childA = await createTestListing({
+        groupId: group.id,
+        maxQuantity: 9,
+        name: "Add-on A",
+      });
+      const childB = await createTestListing({
+        groupId: group.id,
+        maxQuantity: 9,
+        name: "Add-on B",
+      });
+      await setChildIds(parent.id, [childA.id, childB.id]);
+
+      const html = await ticketPageHtml(parent.slug);
+      const quantitySelect = html.slice(
+        html.indexOf(`name="quantity_${parent.id}"`),
+      );
+      const quantityOptionsHtml = quantitySelect.slice(
+        0,
+        quantitySelect.indexOf("</select>"),
+      );
+      // floor(5 / 2) = 2: offers a 2 option but never a 3 (the cohort is counted
+      // once, not summed per co-grouped child).
+      expect(quantityOptionsHtml).toContain(">2</option>");
+      expect(quantityOptionsHtml).not.toContain(">3</option>");
     });
 
     test("a parent whose only child is sold out renders sold out on its own page", async () => {

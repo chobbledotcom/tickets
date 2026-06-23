@@ -456,18 +456,61 @@ const childOrderCap = (
 };
 
 /**
+ * The combined child-side capacity available to a parent across ALL its bookable
+ * children, in whole parent+child orders (Fix 2, invariant I7). Under per-unit
+ * distribution the buyer spreads Q child units across the children in any mix, so
+ * separate-pool children COMBINE: two children each capped at 1 together serve a
+ * parent quantity of 2 (1 + 1). So the contribution is the SUM of each child's
+ * order cap ({@link childOrderCap}) — NOT the max of a single child.
+ *
+ * Children that share ONE capped group with the parent must not be over-counted:
+ * a parent + every co-grouped child draw from the same pool, and each combined
+ * order consumes {@link PARENT_CHILD_GROUP_UNITS} spots regardless of how many of
+ * those children exist, so the whole shared-group cohort contributes a SINGLE
+ * `floor(sharedRemaining / units)` term (counted once), while separate/uncapped
+ * children each add their own `maxPurchasable`. {@link sharedGroupRemaining}
+ * returns the shared pool's remaining (the same value for every co-grouped child)
+ * or `undefined` for a separate pool, so co-grouped children collapse to one term.
+ */
+const childCombinedCap = (
+  parent: TicketListing,
+  bookable: TicketListing[],
+  groupRemainingByListingId: ReadonlyMap<number, number>,
+): number => {
+  let sharedCohortRemaining: number | undefined;
+  let separateSum = 0;
+  for (const child of bookable) {
+    const shared = sharedGroupRemaining(
+      parent.listing.group_id,
+      child.listing.group_id,
+      groupRemainingByListingId.get(child.listing.id),
+    );
+    if (shared === undefined) {
+      separateSum += child.maxPurchasable;
+    } else {
+      // Every child co-grouped with the parent shares ONE pool, so record its
+      // remaining once (they all report the same value); the cohort's combined
+      // order cap is added below, not per child.
+      sharedCohortRemaining = shared;
+    }
+  }
+  const sharedCohortCap =
+    sharedCohortRemaining === undefined
+      ? 0
+      : Math.floor(sharedCohortRemaining / PARENT_CHILD_GROUP_UNITS);
+  return separateSum + sharedCohortCap;
+};
+
+/**
  * The quantity cap to offer for a parent's own selector, clamped to its required
- * children's capacity (Codex 565). Child quantity is slaved to the parent's
- * (invariant I2), so a parent offering 5 with a single auto-selected child capped
- * at 1 must offer only 1 — the submit-side fold rejects (never clamps) a higher
- * quantity. Each child's contribution is its combined parent+child order capacity
- * ({@link childOrderCap}): a shared capped group consumes two spots per order, so
- * the parent qty is clamped by `floor(groupRemaining / 2)`, not the child's own
- * `maxPurchasable`. The child cap is the MAX of those across the bookable children
- * (a single auto-selected child contributes its own cap; with several, don't
- * block a high-capacity sibling — the per-child cap is enforced at submit), and
- * the effective max is `min(parentMax, childCap)`. A parent with no bookable child
- * is handled upstream (sold out, invariant I6); here that yields a 0 cap.
+ * children's COMBINED capacity (Codex 485/565, Fix 2). Under per-unit selection
+ * the buyer distributes Q child units across the children, so the ceiling is
+ * `min(parentMaxPurchasable, Σ combinable child capacities)` — the sum across
+ * separate-pool bookable children plus a single shared-group cohort term (see
+ * {@link childCombinedCap}). Two separate-pool children each capped at 1 thus
+ * offer a parent quantity of 2 (1 + 1), which the fold accepts; the old per-child
+ * MAX wrongly blocked it at 1. A parent with no bookable child is handled upstream
+ * (sold out, invariant I6); here that yields a 0 cap.
  */
 const childCappedMax = (
   info: TicketListing,
@@ -478,13 +521,10 @@ const childCappedMax = (
     return info.maxPurchasable;
   }
   const bookable = children.filter(childBookable);
-  const childCap = bookable.reduce(
-    (max, child) =>
-      Math.max(
-        max,
-        childOrderCap(info, child, childCtx.groupRemainingByListingId),
-      ),
-    0,
+  const childCap = childCombinedCap(
+    info,
+    bookable,
+    childCtx.groupRemainingByListingId,
   );
   return Math.min(info.maxPurchasable, childCap);
 };
@@ -614,16 +654,18 @@ const renderChildOption = (
   return `<label class="child-option">${select} ${label}</label>${priceHtml}`;
 };
 
-/** Render a sole bookable child's forced selection (auto-select preserved): a
- * hidden `child_qty_<parentId>_<childId>` carrying the whole parent quantity (so
- * no-JS buyers don't have to choose) plus a read-only display of the child name
- * and price. The hidden value uses the parent's render-time max as a placeholder;
- * the JS sets it to the live parent quantity, and the server fold auto-fills the
- * sole child to the parent quantity regardless. */
+/** Render a sole bookable child as INFORMATIONAL (auto-select preserved): no
+ * submitted `child_qty_<parentId>_<childId>` field at all — the server fold
+ * auto-fills the sole child to the parent's quantity Q whenever nothing was
+ * submitted, so emitting a fixed quantity (e.g. the child's effective max) would
+ * over-submit and the fold would reject it as "too many" when Q is below that cap
+ * (parents.md Fix 1). Instead show an "Includes <child> — one per booking" note
+ * plus the child's price, and — for a pay-more sole child — its (non-required)
+ * price input, which the fold reads for the auto-selected child. No-JS safe:
+ * nothing posts a quantity for it. */
 const renderSoleChildOption = (
   parent: ListingWithCount,
   child: TicketListing,
-  childCap: number,
 ): string => {
   const parentId = parent.id;
   const { listing } = child;
@@ -636,11 +678,8 @@ const renderSoleChildOption = (
       )
     : "";
   const label =
-    `${escapeHtml(listing.name)} ${childPriceLabel(listing, parent)}`.trim();
-  return (
-    `<label class="child-option">` +
-    `<input type="hidden" name="child_qty_${parentId}_${listing.id}" data-child-qty="${listing.id}" value="${childCap}" /> ${label}</label>${priceHtml}`
-  );
+    `${escapeHtml(t("public.ticket.child_includes", { name: listing.name }))} ${childPriceLabel(listing, parent)}`.trim();
+  return `<p class="child-option child-sole" data-sole-child="${listing.id}">${label}</p>${priceHtml}`;
 };
 
 /**
@@ -670,7 +709,7 @@ const renderChildBlock = (
   const options = children
     .map((child) =>
       isSole(child)
-        ? renderSoleChildOption(parent, child, total)
+        ? renderSoleChildOption(parent, child)
         : renderChildOption(
             parent,
             child,
@@ -707,10 +746,14 @@ const renderChildBlock = (
   // The "choose N in total" note + live hint guide the per-unit selection. At
   // no-JS render the parent quantity isn't chosen yet, so the note seeds with the
   // parent's effective max; the JS recomputes it live against the parent select.
+  // A SOLE bookable child is auto-selected (informational, no choice), so the
+  // note is suppressed — there is nothing for the buyer to choose (Fix 1).
   const note =
-    `<p class="child-total-note" data-child-total="${parentId}">` +
-    `${escapeHtml(t("public.ticket.choose_total", { count: total }))} ` +
-    `<span class="child-total-hint" data-child-hint="${parentId}"></span></p>`;
+    bookable.length === 1
+      ? ""
+      : `<p class="child-total-note" data-child-total="${parentId}">` +
+        `${escapeHtml(t("public.ticket.choose_total", { count: total }))} ` +
+        `<span class="child-total-hint" data-child-hint="${parentId}"></span></p>`;
   return (
     `<fieldset class="child-selector" data-parent-id="${parentId}">` +
     `<legend>${escapeHtml(t("public.ticket.choose_option", { name: parent.name }))}</legend>` +
