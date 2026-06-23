@@ -107,6 +107,12 @@ deterministic, table-driven where possible:
 - **`creating a servicing event persists name, bookings and kind` [I]** — the
   attendee row has `kind='servicing'`, the chosen name, and one
   `listing_attendees` row per booked listing/date with the right quantity.
+- **`a crafted servicing POST cannot smuggle customer-only fields` [I]** — a
+  create request that *includes* `email`, `phone`, `address`,
+  `special_instructions`, `status`, `remaining_balance`, and logistics-agent
+  fields stores them all empty/null/zero and applies no logistics plan (the
+  server normalizes by kind, not the template). The matching edit-path test
+  asserts the same on update. This is the security/contract guard, not a UI test.
 - **`a servicing event still gets a ticket token` [I]** — `ticket_token_index`
   is populated (tokens are kept), and the atomic create/cleanup still resolves
   the new attendee (guards against regressing the token-index subquery).
@@ -130,11 +136,14 @@ deterministic, table-driven where possible:
 
 ## 5. Hidden from public site
 
-- **`public ticket page 404s for a servicing token` [E]** — `GET /ticket/:token`
-  for a servicing event's token returns 404 (the token resolves internally but
-  the public path filters `kind='attendee'`).
-- **`wallet pass lookup 404s for a servicing token` [I]** — Apple/Google wallet
-  pass build returns not-found for a servicing token.
+- **`token ticket view 404s for a servicing token` [E]** — `GET /t/:token` (the
+  real token ticket route, **not** `/ticket/:slug`) returns 404 for a servicing
+  event's token, and so does the QR SVG `GET /t/:token/svg`. Must assert against
+  `/t/...` — a 404 on `/ticket/...` would be a false pass (no slug matches the
+  token). Pair with a control: a normal attendee's token returns 200 on `/t/`.
+- **`wallet and check-in routes 404 for a servicing token` [I]** — Apple/Google
+  wallet pass build and `/checkin/:tokens` return not-found for a servicing
+  token.
 - **`token bulk-email lookup skips servicing` [I]** —
   `getAttendeePiiBlobForToken` returns null for a servicing token.
 - **`servicing form shows hidden state as locked` [E]** — the servicing
@@ -193,6 +202,12 @@ deterministic, table-driven where possible:
 - **`admin balance page 404s for a servicing id` [E]** —
   `/admin/attendees/:id/balance` rejects a servicing id (guards
   `getAttendeeBalanceState`).
+- **`merge page 404s for a servicing id` [E]** —
+  `/admin/attendees/:id/merge` rejects a servicing id (guards `loadMergeTarget`,
+  which queries `attendees` directly).
+- **`refresh-payment route 404s for a servicing id` [E]** —
+  `/admin/attendees/:id/refresh-payment` rejects a servicing id (guards
+  `loadRefreshContext`).
 - **`/admin/servicing/:id 404s for a normal attendee id` [E]** — the servicing
   pages load only `kind='servicing'` rows.
 - **`merge POST is rejected when either id is servicing` [I]** —
@@ -268,10 +283,12 @@ Each `servicing.md` risk maps to at least one test above:
 | Migration `indexes` omission | §1 |
 | Migration not registered | §1 |
 | Token-index subquery on create | §3 |
-| Hidden-from-public (token paths) | §5 |
+| Hidden-from-public — real token route `/t/:token` (+ `/svg`) | §5 |
 | Aggregate triggers **and** recompute | §10 |
 | Single-record guard (`getAttendee`) | §9 |
 | Direct loaders (`getListingWithAttendeeRaw`, balance) | §9 |
+| Merge + refresh-payment loaders (`loadMergeTarget`, `loadRefreshContext`) | §9 |
+| Customer-only fields stripped server-side by kind | §3 |
 | Listing attendee loaders (`getListingWithAttendeesRaw`) | §7 |
 | Calendar/groups/feed (`getAttendeesByListingIds`) | §8 |
 | Activity-log kind-aware links | §12 |

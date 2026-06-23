@@ -37,7 +37,8 @@ The attendee record already supports a "name only, nothing else" shape:
   `src/shared/db/attendees/pii.ts`. A servicing event sets only `n` (name) and
   leaves the rest empty.
 - Servicing events **keep** a real ticket token (kept for possible future use),
-  so the token-based paths (`/ticket/:token`, wallet passes, token bulk-email
+  so the token-based paths (`/t/:tokens` ticket view + `/t/:token/svg`, wallet
+  passes, token bulk-email
   lookup via `getAttendeesByTokens` / `getAttendeePiiBlobForToken` in
   `src/shared/db/attendees/queries.ts`) would resolve them unless explicitly
   filtered. They are made "hidden from the public site" by a `kind='attendee'`
@@ -194,8 +195,12 @@ them:
 - **Public ticket page / wallet passes** — `getAttendeesByTokens`
   (`queries.ts:251`, the first query at `:269-275`) and
   `getAttendeePiiBlobForToken` (`queries.ts:172`) must filter to
-  `kind='attendee'`, so `/ticket/:token`, Apple/Google Wallet, and token
-  bulk-email lookups return 404 / no match for a servicing token. This is the
+  `kind='attendee'`, so the **token ticket view `/t/:tokens`** and its QR SVG
+  `/t/:token/svg` (`features/tickets/index.ts`), Apple/Google Wallet
+  (`/wallet`, `/gwallet`), check-in (`/checkin/:tokens`), and token bulk-email
+  lookups return 404 / no match for a servicing token. Note `/ticket/:slug` is a
+  **different** route — the public listing-by-slug booking page — so tests must
+  hit `/t/:token`, not `/ticket/...`, or a 404 proves nothing. This is the
   concrete enforcement of "hidden from public site"; it is **not** free anymore
   (the row has a valid token index), so the filter is required.
 - **Admin UI** — show the locked state for transparency (a checked, disabled
@@ -272,11 +277,20 @@ through `getAttendee`:
   actions.
 - `getAttendeeBalanceState` (`balance.ts:28`) backs the admin balance page
   (`features/admin/attendee-balance.ts`).
+- `loadMergeTarget` (`attendees-merge.ts:45`) does its own
+  `SELECT … FROM attendees … WHERE a.id = ?` and backs
+  `/admin/attendees/:id/merge`.
+- `loadRefreshContext` (`attendees-edit.ts:38`) does likewise and backs
+  `/admin/attendees/:id/refresh-payment`.
 
-A servicing id reached via an activity-log link or a copied listing-scoped URL
-could otherwise be deleted / checked-in / resend-notified / balance-edited. Apply
-the same kind predicate/guard to these direct loaders (return null/404 for
-`kind='servicing'`), not just to `getAttendee`.
+These four each query `attendees` directly, so guarding only `getAttendee` leaves
+the merge and refresh-payment routes reachable for a servicing id. Route the
+guarded read through one shared kind-checking loader (or add the predicate to
+each), so every customer-only single-record route 404s for `kind='servicing'`.
+
+A servicing id reached via an activity-log link or a copied URL could otherwise
+be deleted / checked-in / resend-notified / balance-edited / merged /
+payment-refreshed.
 
 Add a dedicated servicing reader, e.g. `getServicingEventsPage` / per-listing
 `getServicingForListing`, sharing the same SELECT via the existing
@@ -371,6 +385,19 @@ Build the servicing field list as its own `Field[]` and render with the existing
 `renderFields` — reuse the rendering, vary only the schema (per AGENTS.md
 "schema over organic structure").
 
+**Omitting the fields from the form is not the same as not storing them — strip
+them server-side for `kind='servicing'`.** If the servicing submit path reuses
+any of the shared attendee parser (`parseAttendeeForm` and the logistics/status/
+balance parsers), it reads whatever `email`, `phone`, `address`,
+`special_instructions`, `status`, `remaining_balance`, and logistics-agent fields
+are present in the POST body. A crafted servicing create/edit request could
+therefore smuggle contact/payment/logistics data onto a hold despite the
+"no contact / no payment / no logistics" contract. The plan must **normalize on
+the server**: for `kind='servicing'`, force all customer-only fields to
+empty/null/zero (and drop the logistics plan) *before* persisting — ideally in
+the shared submit core, keyed off kind, not in the template. Tests in §0/§3 must
+assert that a POST carrying those fields stores empty values.
+
 ### Navigation
 
 Add a "Servicing" entry to the admin nav (`src/ui/templates/admin/nav.tsx`),
@@ -409,7 +436,9 @@ A servicing row must never be treated as a customer. Checklist (search anchor:
 - [ ] Dashboard "newest attendees" (`features/admin/dashboard.ts`).
 - [ ] Bulk email targets (`src/shared/bulk-email-targets.ts`,
       `getAllAttendeePiiBlobs`).
-- [ ] Wallet passes / SVG ticket / `/ticket/:token` — **must** 404 for servicing
+- [ ] Token ticket view `/t/:tokens` + QR SVG `/t/:token/svg`, wallet
+      (`/wallet`, `/gwallet`), check-in (`/checkin/:tokens`) — **must** 404 for
+      servicing
       via the `kind='attendee'` filter on the token paths (the token index is
       populated, so this is not free). This is the "hidden from public site"
       enforcement.
@@ -536,7 +565,7 @@ Per AGENTS.md (100% coverage, mutation-resistant, behaviour-focused):
   This is the headline behaviour — test it directly against
   `checkListingAvailability` / the atomic insert.
 - **Hidden from public site**: a created servicing event has a real ticket token,
-  but `/ticket/:token`, wallet-pass lookup, and token bulk-email **404 / resolve
+  but `/t/:tokens` (+ `/t/:token/svg`), wallet-pass lookup, and token bulk-email **404 / resolve
   to nothing** because the token paths filter `kind='attendee'`. The "hidden"
   state is not editable — a servicing edit submission can never unhide it.
 - **No ticket/QR UI**: the servicing edit page renders no ticket/QR/wallet panel;
