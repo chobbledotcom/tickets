@@ -15,6 +15,7 @@ import {
   accountBalanceSubquery,
   attendeeOwedSubquery,
   creditsLessWriteoffDebits,
+  LEG_COLUMNS,
 } from "#shared/accounting/projection-sql.ts";
 import {
   fromDb,
@@ -29,12 +30,17 @@ import {
 } from "#shared/db/client.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
 
+/** A parameterised "this leg's <role> side IS the account" match — two bound `?`
+ *  for (type, id), built from the shared transfers column names so every balance
+ *  read filters accounts identically. */
+const legMatchesAccount = (role: "source" | "dest"): string =>
+  `${LEG_COLUMNS[role].type} = ? AND ${LEG_COLUMNS[role].id} = ?`;
+
 /** Every transfer touching `account`, as source or destination. */
 export const transfersByAccount = (acct: AccountRef): Promise<Transfer[]> =>
   selectTransfers(
     fromDb,
-    " WHERE (source_type = ? AND source_id = ?)" +
-      " OR (dest_type = ? AND dest_id = ?)",
+    ` WHERE (${legMatchesAccount("source")}) OR (${legMatchesAccount("dest")})`,
     [acct.type, acct.id, acct.type, acct.id],
   );
 
@@ -69,9 +75,9 @@ const groupedBalances = (
 ): Promise<BalanceRow[]> =>
   queryAll<BalanceRow>(
     `SELECT id, COALESCE(SUM(delta), 0) AS balance FROM (
-       SELECT dest_id AS id, amount AS delta FROM transfers WHERE ${whereDest}
+       SELECT ${LEG_COLUMNS.dest.id} AS id, amount AS delta FROM transfers WHERE ${whereDest}
        UNION ALL
-       SELECT source_id AS id, -amount AS delta FROM transfers WHERE ${whereSource}
+       SELECT ${LEG_COLUMNS.source.id} AS id, -amount AS delta FROM transfers WHERE ${whereSource}
      ) GROUP BY id`,
     args,
   );
@@ -88,7 +94,11 @@ export const accountBalancesOfType = async (
   type: string,
 ): Promise<Map<string, number>> =>
   toBalanceMap(
-    await groupedBalances("dest_type = ?", "source_type = ?", [type, type]),
+    await groupedBalances(
+      `${LEG_COLUMNS.dest.type} = ?`,
+      `${LEG_COLUMNS.source.type} = ?`,
+      [type, type],
+    ),
   );
 
 /**
@@ -104,17 +114,31 @@ export const accountBalancesForIds = async (
   const placeholders = inPlaceholders(ids);
   return toBalanceMap(
     await groupedBalances(
-      `dest_type = ? AND dest_id IN (${placeholders})`,
-      `source_type = ? AND source_id IN (${placeholders})`,
+      `${LEG_COLUMNS.dest.type} = ? AND ${LEG_COLUMNS.dest.id} IN (${placeholders})`,
+      `${LEG_COLUMNS.source.type} = ? AND ${LEG_COLUMNS.source.id} IN (${placeholders})`,
       [type, ...ids, type, ...ids],
     ),
   );
 };
 
 /** Balance of one account: money in (as destination) minus money out (as
- *  source). Zero when the account has no transfers. */
-export const accountBalance = async (acct: AccountRef): Promise<number> =>
-  (await accountBalancesForIds(acct.type, [acct.id])).get(acct.id) ?? 0;
+ *  source), summed in SQL. Zero when the account has no transfers — a direct
+ *  scalar read rather than the grouped many-account query, so it shares the same
+ *  `legMatchesAccount` filter the rest of this module uses. */
+export const accountBalance = async (acct: AccountRef): Promise<number> => {
+  const asDest = legMatchesAccount("dest");
+  const asSource = legMatchesAccount("source");
+  // Each predicate binds (type, id) and appears four times — both CASE arms and
+  // both WHERE arms — so the account's pair repeats four times, in that order.
+  const pair: InValue[] = [acct.type, acct.id];
+  const rows = await queryAll<{ balance: number | bigint }>(
+    `SELECT COALESCE(SUM(CASE WHEN ${asDest} THEN amount` +
+      ` WHEN ${asSource} THEN -amount ELSE 0 END), 0) AS balance` +
+      ` FROM transfers WHERE ${asDest} OR ${asSource}`,
+    [...pair, ...pair, ...pair, ...pair],
+  );
+  return Number(rows[0]!.balance);
+};
 
 /**
  * Read a single projected money figure (a scalar `transfers` subquery) THROUGH an
