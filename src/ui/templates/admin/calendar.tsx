@@ -156,9 +156,9 @@ export const adminCalendarPage = (
           />
         </div>
         {dateFilter && attendees.length > 0 && (
-          <p class="table-footer-actions">
+          <div class="table-actions">
             <a href={exportHref}>{t("admin.calendar.export_csv")}</a>
-          </p>
+          </div>
         )}
       </article>
     </Layout>,

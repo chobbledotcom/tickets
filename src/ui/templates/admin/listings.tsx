@@ -1123,9 +1123,9 @@ const AttendeesSection = ({
           })}
         />
       </div>
-      <p class="table-footer-actions">
+      <div class="table-actions">
         <a href={exportHref}>{t("listings_table.export_csv")}</a>
-      </p>
+      </div>
     </article>
   );
 };
