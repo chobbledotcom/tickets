@@ -1416,6 +1416,45 @@ describeWithEnv(
       ).toBe(1);
     });
 
+    test("a standard child folded under a daily parent is stored date-less", async () => {
+      // A standard (date-less) child has cumulative, date-independent capacity.
+      // When folded under a DAILY parent it must NOT inherit the parent's date —
+      // writing the date would switch its capacity guard to the date-overlap path
+      // and let the same add-on be oversold across different parent dates. The
+      // fold carries it as an ordinary line and `bookingDateFields` nulls its date
+      // by listing type, so the stored child row is date-less while the parent's
+      // row keeps the booked date (Codex "Keep dateless children date-less").
+      const parent = await createDailyTestListing({
+        name: "Daily base",
+        thankYouUrl: "",
+      });
+      const child = await createTestListing({
+        name: "Add-on",
+        thankYouUrl: "",
+      });
+      await setChildIds(parent.id, [child.id]);
+
+      const { getBookableStartDates } = await import("#shared/dates.ts");
+      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
+      const { getListingWithCount } = await import("#shared/db/listings.ts");
+      const parentRow = (await getListingWithCount(parent.id))!;
+      const dayB = getBookableStartDates(
+        parentRow,
+        await getActiveHolidays(),
+      )[0]!;
+
+      const res = await postBooking(parent.slug, {
+        date: dayB,
+        email: "a@b.com",
+        name: "Ada",
+        [`quantity_${parent.id}`]: "1",
+      });
+      expectReserved(res);
+      // Parent row keeps the booked date; the standard child row is date-less.
+      expect((await getAttendeesRaw(parent.id))[0]?.date).toBe(dayB);
+      expect((await getAttendeesRaw(child.id))[0]?.date).toBe(null);
+    });
+
     test("a daily parent + daily child are still rejected on a genuinely full date", async () => {
       // The date-aware checkBatchAvailability must still reject the parent+child
       // on a date whose shared group is full, so deferring does not oversell.
