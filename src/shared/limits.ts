@@ -245,6 +245,25 @@ export const PRUNE_CONTACTS_RETENTION_DAYS = readLimit(
 /** How often (hours) to re-run each prune task (default: 24 = daily) */
 export const PRUNE_INTERVAL_HOURS = readLimit("PRUNE_INTERVAL_HOURS", 24);
 
+/**
+ * Rows re-encrypted per activity-log backfill batch (default: 200). The whole
+ * batch is written in one `executeBatch` (a single subrequest) after one SELECT,
+ * so the per-request subrequest cost is fixed at two regardless of batch size.
+ */
+export const ACTIVITY_LOG_BACKFILL_BATCH = readLimit(
+  "ACTIVITY_LOG_BACKFILL_BATCH",
+  200,
+);
+
+/**
+ * Minimum gap (seconds) between activity-log backfill batches (default: 60).
+ * Throttles the fire-and-forget scheduler so one batch runs per minute of
+ * traffic while draining, rather than once per request — fast enough to clear a
+ * typical log within the hour, then it self-marks done and stops.
+ */
+export const ACTIVITY_LOG_BACKFILL_INTERVAL_MS =
+  readLimit("ACTIVITY_LOG_BACKFILL_INTERVAL_SECONDS", 60) * 1000;
+
 // ---------------------------------------------------------------------------
 // Email templates
 // ---------------------------------------------------------------------------

@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getAttendeeActivityLog } from "#shared/db/activityLog.ts";
 import {
   attendeeStatusesTable,
   getPaidDefaultStatus,
@@ -18,7 +17,11 @@ import {
   getQueryLog,
   runWithQueryLogContext,
 } from "#shared/db/query-log.ts";
-import { createTestListing, describeWithEnv } from "#test-utils";
+import {
+  createTestListing,
+  describeWithEnv,
+  getAttendeeActivityLog,
+} from "#test-utils";
 
 /** Create a reserved attendee with an outstanding balance. */
 const createReservedAttendee = async (remainingBalance: number) => {

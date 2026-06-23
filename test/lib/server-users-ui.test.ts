@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { encrypt } from "#shared/crypto/encryption.ts";
-import { getAllActivityLog } from "#shared/db/activityLog.ts";
 import { getDb } from "#shared/db/client.ts";
 import { invalidateUsersCache } from "#shared/db/users.ts";
 import {
@@ -10,6 +9,7 @@ import {
   awaitTestRequest,
   createTestManagerSession,
   describeWithEnv,
+  getAllActivityLog,
   testCookie,
 } from "#test-utils";
 
