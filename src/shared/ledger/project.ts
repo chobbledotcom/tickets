@@ -2,7 +2,7 @@
  * Pure projections over a slice of transfers — the unit-testable heart of the
  * ledger. A site has one currency, fixed at setup and never changed, so every
  * transfer shares it: balances sum amounts directly with no per-row currency to
- * carry or compare (see accounting-plan.md).
+ * carry or compare.
  */
 
 import { filter, sumOf } from "#fp";

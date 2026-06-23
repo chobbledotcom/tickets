@@ -1,6 +1,6 @@
 /**
  * Shared "ledger" renderer — the one read-only view of the `transfers` ledger,
- * used across three admin surfaces (decision 15 / §5.15 of accounting-plan.md):
+ * used across three admin surfaces (decision 15):
  * the historical transfer list (`/admin/ledger`), a single account's
  * running-balance statement (`/admin/ledger/:type/:id`), and the per-attendee
  * statement panel embedded on the edit-attendee page.
