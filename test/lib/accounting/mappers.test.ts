@@ -74,6 +74,27 @@ describeWithEnv("accounting > mappers", { encryptionKey: true }, () => {
       expect(balanceOf(WORLD)(legs)).toBe(-7850);
     });
 
+    test("posts a surcharge as a positive attendee→modifier leg, a discount the other way", async () => {
+      // balanceOf can't tell the two branches apart — flipping the ends and
+      // negating the amount nets the same — so assert the leg's direction and its
+      // positive amount directly.
+      const [surcharge] = (
+        await mapBooking(facts({ modifiers: [{ delta: 200, modifierId: 11 }] }))
+      ).filter((l) => l.kind === "modifier");
+      expect(surcharge!.amount).toBe(200);
+      expect(surcharge!.source).toEqual(attendeeAccount(3));
+      expect(surcharge!.destination).toEqual(modifierAccount(11));
+
+      const [discount] = (
+        await mapBooking(
+          facts({ modifiers: [{ delta: -500, modifierId: 10 }] }),
+        )
+      ).filter((l) => l.kind === "modifier");
+      expect(discount!.amount).toBe(500);
+      expect(discount!.source).toEqual(modifierAccount(10));
+      expect(discount!.destination).toEqual(attendeeAccount(3));
+    });
+
     test("leaves a deposit booking owing the remainder", async () => {
       const legs = (
         await mapBooking(
@@ -127,12 +148,16 @@ describeWithEnv("accounting > mappers", { encryptionKey: true }, () => {
       ).toContain("negative listing 1 gross");
     });
 
-    test("rejects a negative fee or payment", async () => {
+    test("rejects a negative booking fee", async () => {
       expect(
-        await rejectionMessage(
-          mapBooking(facts({ amountPaid: -50, bookingFee: -10 })),
-        ),
-      ).toContain("negative");
+        await rejectionMessage(mapBooking(facts({ bookingFee: -10 }))),
+      ).toContain("negative bookingFee");
+    });
+
+    test("rejects a negative amount paid", async () => {
+      expect(
+        await rejectionMessage(mapBooking(facts({ amountPaid: -50 }))),
+      ).toContain("negative amountPaid");
     });
 
     test("rejects a non-finite (NaN) gross", async () => {
@@ -286,6 +311,23 @@ describeWithEnv("accounting > mappers", { encryptionKey: true }, () => {
         postedBy: "admin-7",
       });
       expect(refund.every((l) => l.postedBy === "admin-7")).toBe(true);
+    });
+
+    test("defaults the actor to system only when absent, preserving an explicit one", async () => {
+      const order = await bookingOrder();
+      const defaulted = await mapRefund({
+        occurredAt: REFUND_AT,
+        orderLegs: order,
+      });
+      expect(defaulted.every((l) => l.postedBy === "system")).toBe(true);
+      // An explicit actor — even "" — is kept by `?? "system"`, where `|| "system"`
+      // would wrongly replace the empty string with the default.
+      const empty = await mapRefund({
+        occurredAt: REFUND_AT,
+        orderLegs: order,
+        postedBy: "",
+      });
+      expect(empty.every((l) => l.postedBy === "")).toBe(true);
     });
 
     test("prefixes an unrecognised kind and tolerates a missing one", async () => {

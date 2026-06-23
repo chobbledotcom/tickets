@@ -205,12 +205,20 @@ describeWithEnv("accounting > backfill", { db: true }, () => {
     await backfillTransfers();
 
     expect((await allTransfers()).length).toBe(before); // nothing re-posted
-    const groups = new Set(
-      (await transfersByAccount(attendeeAccount(attendee.id))).map(
-        (leg) => leg.eventGroup,
-      ),
-    );
+    const legs = await transfersByAccount(attendeeAccount(attendee.id));
+    const groups = new Set(legs.map((leg) => leg.eventGroup));
     expect(groups.size).toBe(1); // only the live booking group, no backfill group
+    // Deploy-order robustness: the already-ledgered branch still stamps the
+    // row→event link from the existing sale leg, so the per-row amount-paid
+    // projection resolves even though no legs were re-posted.
+    const sale = legs.find((leg) => leg.kind === "sale")!;
+    const row = (
+      await getDb().execute({
+        args: [attendee.id],
+        sql: "SELECT ledger_event_group FROM listing_attendees WHERE attendee_id = ?",
+      })
+    ).rows[0]!;
+    expect(String(row.ledger_event_group)).toBe(sale.eventGroup);
   });
 
   test("skips rows with no payment", async () => {
