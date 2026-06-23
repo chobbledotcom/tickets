@@ -2282,6 +2282,49 @@ describeWithEnv(
       expect(quantityOptionsHtml).not.toContain(">2</option>");
     });
 
+    test("a shared-group child's own qty select is capped by floor(remaining / units)", async () => {
+      // The per-CHILD quantity select must be clamped by the child's own combined
+      // order cap, not only by the parent total. Here a separate-pool sibling
+      // (cap 5) lifts the parent total well above 1, so the parent ceiling no
+      // longer masks the shared child's cap: the shared child's select must still
+      // offer floor(3 / 2) = 1 — proving childOrderCap DIVIDES the shared
+      // remaining (not remaining + units, which would offer 5).
+      const { PARENT_CHILD_GROUP_UNITS } = await import("#shared/types.ts");
+      expect(PARENT_CHILD_GROUP_UNITS).toBe(2);
+      const group = await createTestGroup({ maxAttendees: 3, name: "Pool3" });
+      const parent = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 100,
+        maxQuantity: 5,
+        name: "Base unit",
+      });
+      // A separate-pool child with plenty of capacity, so the parent total is high.
+      const sibling = await createTestListing({
+        maxAttendees: 100,
+        maxQuantity: 5,
+        name: "Add-on sibling",
+      });
+      // A child sharing the parent's 3-spot capped pool: floor(3 / 2) = 1.
+      const sharedChild = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 100,
+        maxQuantity: 5,
+        name: "Add-on shared",
+      });
+      await setChildIds(parent.id, [sibling.id, sharedChild.id]);
+
+      const html = await ticketPageHtml(parent.slug);
+      const sharedSelect = html.slice(
+        html.indexOf(`name="child_qty_${parent.id}_${sharedChild.id}"`),
+      );
+      const sharedOptions = sharedSelect.slice(
+        0,
+        sharedSelect.indexOf("</select>"),
+      );
+      expect(sharedOptions).toContain(">1</option>");
+      expect(sharedOptions).not.toContain(">2</option>");
+    });
+
     test("two separate-pool children each cap 1 offer parent quantity up to 2 (Fix 2)", async () => {
       // Under per-unit distribution separate-pool children COMBINE: two children
       // each capped at 1 together serve a parent quantity of 2 (1 + 1). The old

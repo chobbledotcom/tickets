@@ -35,6 +35,10 @@ src/features/public/ticket-payment.ts:890:61  ?? → ||   # childrenByParentId.g
 # Parent/child curried atoms (shared.tsx).
 src/ui/templates/public/shared.tsx:169:41  ?? → ||   # span: null or a duration ≥1, never falsy-non-null; null??1===null||1
 
+# Parent/child per-unit render (reservations.tsx).
+src/ui/templates/public/reservations.tsx:548:12  ! → ∅   # childQuestionsToRender: the `rendered` dedup (pre-seeded with page questions, plus each child's own) makes which child triggers a question's render unobservable — the same single identical control results; a question in ctx.questions is always owned by a page listing or a child
+src/ui/templates/public/reservations.tsx:1264:50  ?? → ||   # addOns?.some(...) is boolean|undefined; ?? and || agree on every boolean and on undefined
+
 # Invariant-based, confirmed by reading toUnits: `lineIdxs` comes from toUnits,
 # which assigns lineIdx as the flatMap array index, so the sort's input is
 # always already ascending — and `sort((a,b) => a/b)` is identity on an
