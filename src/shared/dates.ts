@@ -111,7 +111,7 @@ const isHoliday = (dateStr: string, holidays: Holiday[]): boolean =>
   holidays.some((h) => dateStr >= h.start_date && dateStr <= h.end_date);
 
 /** Generate a range of YYYY-MM-DD date strings from start to end (inclusive) */
-const dateRange = (start: string, end: string): string[] => {
+export const dateRange = (start: string, end: string): string[] => {
   const dates: string[] = [];
   let current = start;
   while (current <= end) {

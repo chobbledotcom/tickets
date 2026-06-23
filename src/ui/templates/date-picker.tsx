@@ -46,6 +46,9 @@ export type DatePickerProps = {
   monthHref: (month: string) => string;
   /** Accessible label for the dropdown. */
   ariaLabel: string;
+  /** Id for the calendar `<div>` (and the fragment month links target). Defaults
+   *  to `"calendar"`; override it so two pickers on one page stay unique. */
+  anchorId?: string;
 };
 
 /** Monday-first weekday initials for the grid header. */
@@ -135,6 +138,7 @@ export const DatePicker = ({
   clearHref,
   monthHref,
   ariaLabel,
+  anchorId = "calendar",
 }: DatePickerProps): SafeHtml => {
   const byValue = new Map(
     map((d: DatePickerDate) => [d.value, d] as const)(dates),
@@ -143,7 +147,7 @@ export const DatePicker = ({
   const day = renderDay(byValue, month, selected, today, dayHref);
   return (
     <div class="date-picker">
-      <div class="calendar" id="calendar">
+      <div class="calendar" id={anchorId}>
         <div class="calendar-nav">
           <a
             aria-label={t("datepicker.previous_month")}

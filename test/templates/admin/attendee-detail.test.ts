@@ -280,7 +280,7 @@ describe("AttendeeLogSection", () => {
 describe("AttendeeLedgerSection", () => {
   const acct = account("attendee", 7);
 
-  test("embeds the shared statement in a Ledger fieldset with the balance", () => {
+  test("embeds the shared statement in a collapsed Ledger disclosure with the balance and a full-ledger action", () => {
     // A single payment credits the attendee account, so its balance is +5000.
     const lines = statementFor(acct)([
       {
@@ -300,7 +300,14 @@ describe("AttendeeLedgerSection", () => {
         ledger: { account: acct, lines, names: emptyLedgerNames() },
       }),
     );
-    expect(html).toContain("<legend>Ledger</legend>");
+    // Collapsed in a details/summary like the activity log — no fieldset/legend.
+    expect(html).toContain("<details>");
+    expect(html).toContain("<summary>Ledger</summary>");
+    expect(html).not.toContain("<legend>Ledger</legend>");
+    // The action row reuses .table-header-actions and links to the full ledger.
+    expect(html).toContain('class="table-header-actions"');
+    expect(html).toContain('href="/admin/ledger/attendee/7"');
+    expect(html).toContain("View full ledger");
     // The counterparty singleton and the running balance both render.
     expect(html).toContain("Card / bank");
     expect(html).toContain(`Balance: ${formatCurrency(5000)}`);

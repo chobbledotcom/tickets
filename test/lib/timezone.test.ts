@@ -3,6 +3,8 @@ import { describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
 import {
   DEFAULT_TIMEZONE,
+  dayStartEpochMs,
+  epochMsToTzDate,
   formatDatetimeInTz,
   formatDatetimeShortInTz,
   isValidDatetime,
@@ -328,6 +330,35 @@ describe("timezone", () => {
       const utc = localToUtc(input, "Asia/Tokyo");
       const roundTripped = utcToLocalInput(utc, "Asia/Tokyo");
       expect(roundTripped).toBe(input);
+    });
+  });
+
+  describe("dayStartEpochMs", () => {
+    test("is local midnight, so a non-UTC zone is offset from UTC midnight", () => {
+      // Tokyo is UTC+9 with no DST: local midnight is 15:00 the previous UTC day.
+      expect(dayStartEpochMs("2026-06-15", "Asia/Tokyo")).toBe(
+        new Date("2026-06-14T15:00:00.000Z").getTime(),
+      );
+    });
+
+    test("in UTC it is exactly the day's UTC midnight", () => {
+      expect(dayStartEpochMs("2026-06-15", "UTC")).toBe(
+        new Date("2026-06-15T00:00:00.000Z").getTime(),
+      );
+    });
+  });
+
+  describe("epochMsToTzDate", () => {
+    test("is the inverse of dayStartEpochMs for that day's start", () => {
+      const ms = dayStartEpochMs("2026-06-15", "Asia/Tokyo");
+      expect(epochMsToTzDate(ms, "Asia/Tokyo")).toBe("2026-06-15");
+    });
+
+    test("buckets an instant onto its LOCAL day, not the UTC day", () => {
+      // 22:30 UTC on 14 June is already 07:30 on 15 June in Tokyo.
+      expect(
+        epochMsToTzDate(Date.parse("2026-06-14T22:30:00Z"), "Asia/Tokyo"),
+      ).toBe("2026-06-15");
     });
   });
 });

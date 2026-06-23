@@ -62,6 +62,7 @@ import {
   type TableQuestionData,
 } from "#templates/attendee-table.tsx";
 import {
+  ActionButton,
   MaybeButtonLink,
   SubmitButton,
 } from "#templates/components/actions.tsx";
@@ -417,9 +418,9 @@ const ListingIncomeLedgerSection = ({
         <small>{t("listings_table.income_ledger_recognised_note")}</small>
       </p>
       <p class="actions">
-        <a href={`/admin/ledger/revenue/${listingId}`}>
+        <ActionButton href={`/admin/ledger?listing=${listingId}`}>
           {t("listings_table.income_ledger_view_full")}
-        </a>
+        </ActionButton>
       </p>
     </fieldset>
   </article>
