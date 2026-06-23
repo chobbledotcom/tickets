@@ -28,7 +28,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       await expectHtmlResponse(response, 200, "Settings", "Change Password");
     });
 
-    test("does not display success when form param is missing", async () => {
+    test("shows a flash with no form target as a page-level banner", async () => {
       const response = await awaitTestRequest(
         `/admin/settings?flash=${FLASH_TEST_ID}`,
         {
@@ -38,33 +38,39 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         },
       );
       const html = await response.text();
-      expect(html).not.toContain('class="success"');
+      // With no ?form= target, no CsrfForm claims the flash, so the Layout
+      // backstop renders it — surfacing it rather than the old behavior of
+      // silently swallowing an unattributed flash.
+      expect(html).toContain('class="success"');
+      expect(html).toContain("Test success message");
     });
 
     test("displays success message on the matching form when form param is provided", async () => {
       const response = await awaitTestRequest(
-        `/admin/settings?form=settings-country&flash=${FLASH_TEST_ID}`,
+        `/admin/settings?form=settings-business-email&flash=${FLASH_TEST_ID}`,
         {
           cookie: `${await testCookie()}; ${flashCookieHeader(
-            "Country updated",
+            "Business email updated",
           )}`,
         },
       );
       const html = await response.text();
-      expect(html).toContain('id="settings-country"');
-      expect(html).toContain("Country updated");
+      expect(html).toContain('id="settings-business-email"');
+      expect(html).toContain("Business email updated");
       // The success message should be inside the form, not as a global banner
-      const formMatch = html.match(/id="settings-country"[\s\S]*?<\/form>/);
+      const formMatch = html.match(
+        /id="settings-business-email"[\s\S]*?<\/form>/,
+      );
       expect(formMatch).toBeDefined();
-      expect(formMatch?.[0]).toContain("Country updated");
+      expect(formMatch?.[0]).toContain("Business email updated");
     });
 
     test("does not show success on non-matching forms", async () => {
       const response = await awaitTestRequest(
-        `/admin/settings?form=settings-country&flash=${FLASH_TEST_ID}`,
+        `/admin/settings?form=settings-business-email&flash=${FLASH_TEST_ID}`,
         {
           cookie: `${await testCookie()}; ${flashCookieHeader(
-            "Country updated",
+            "Business email updated",
           )}`,
         },
       );
@@ -72,7 +78,18 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       // The theme form should not contain the success message
       const themeFormMatch = html.match(/id="settings-theme"[\s\S]*?<\/form>/);
       expect(themeFormMatch).toBeDefined();
-      expect(themeFormMatch?.[0]).not.toContain("Country updated");
+      expect(themeFormMatch?.[0]).not.toContain("Business email updated");
+    });
+
+    test("does not render the country form (locale is write-once, set at /setup)", async () => {
+      const response = await awaitTestRequest("/admin/settings", {
+        cookie: await testCookie(),
+      });
+      const html = await response.text();
+      // Country/locale can only be set during setup, then changed by an admin
+      // editing the database — there is no editor on the settings page.
+      expect(html).not.toContain('id="settings-country"');
+      expect(html).not.toContain("/admin/settings/country");
     });
 
     test("each settings form has an id attribute", async () => {
@@ -80,7 +97,6 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         cookie: await testCookie(),
       });
       const html = await response.text();
-      expect(html).toContain('id="settings-country"');
       expect(html).toContain('id="settings-business-email"');
       expect(html).toContain('id="settings-payment-provider"');
       expect(html).toContain('id="settings-embed-hosts"');

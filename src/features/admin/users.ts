@@ -206,7 +206,7 @@ const handleUserManageGet = ownerUserPage(async (user, session) => {
  * Handle GET /admin/user/new - show invite user form
  */
 const handleUserNewGet = ownerPage(async (session) =>
-  adminUserNewPage(session, await loadAssignableAgents()),
+  adminUserNewPage(session, await loadAssignableAgents(), getFlash().error),
 );
 
 /** Handle POST /admin/users - create invited user */
@@ -363,7 +363,8 @@ const userDelete = createConfirmedHandlers<DisplayUser>({
     id === session.userId
       ? usersErrorResponse(session, t("error.cannot_delete_self"), 400)
       : null,
-  render: (displayUser, session) => adminUserDeletePage(displayUser, session),
+  render: (displayUser, session, error) =>
+    adminUserDeletePage(displayUser, session, error),
   successMessage: t("success.user_deleted"),
   successRedirect: "/admin/users",
 });

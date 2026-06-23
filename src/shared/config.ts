@@ -117,6 +117,14 @@ export const getBunnyDnsSubdomainSuffix = (): string =>
 export const getBunnyScriptId = (): string => requireEnv("BUNNY_SCRIPT_ID");
 
 /**
+ * Diagnostic key gating the verbose `/health` response. Empty when unset, in
+ * which case `/health` only ever returns the plain liveness reply. Holding the
+ * key reveals non-private build/runtime diagnostics (commit, build time) that
+ * are useful for operators but needlessly helpful to an attacker.
+ */
+export const getDebugKey = (): string => getEnv("DEBUG_KEY") ?? "";
+
+/**
  * Get the Botpoison public key from environment (safe to expose to browsers).
  * Returns empty string when unset.
  */

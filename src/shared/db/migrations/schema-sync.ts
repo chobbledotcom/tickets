@@ -1,5 +1,10 @@
 import type { InValue } from "@libsql/client";
-import { executeBatch, getDb, queryBatchPrimary } from "#shared/db/client.ts";
+import {
+  executeBatch,
+  getDb,
+  queryBatchPrimary,
+  withTransaction,
+} from "#shared/db/client.ts";
 import { logDebug } from "#shared/logger.ts";
 import {
   APP_SCHEMA,
@@ -113,28 +118,6 @@ const createIndexSql = (tableName: string, idx: Index): string => {
   )})`;
 };
 
-/** Create indexes for a named table from SCHEMA */
-const createIndexesForTable = async (
-  tableName: string,
-  indexes: Index[],
-): Promise<void> => {
-  for (const idx of indexes) {
-    await runMigration(createIndexSql(tableName, idx));
-  }
-};
-
-/**
- * (Re)create every declared trigger that fires on a named table. Called after
- * {@link recreateTable} rebuilds a table, since dropping the old table also
- * drops its triggers. Statements are `CREATE TRIGGER IF NOT EXISTS`, so this is
- * idempotent.
- */
-const createTriggersForTable = async (tableName: string): Promise<void> => {
-  for (const trg of TRIGGERS) {
-    if (trg.table === tableName) await runMigration(trg.sql);
-  }
-};
-
 const currentSchemaTable = (tableName: string): Table => {
   const table = SCHEMA.find(([name]) => name === tableName)?.[1];
   if (!table) throw new Error(`Unknown schema table ${tableName}`);
@@ -154,38 +137,62 @@ const copyExpressionFor = ([column, type]: Column): string => {
   return defaultMatch ? `COALESCE(${column}, '${defaultMatch[1]}')` : column;
 };
 
-export const rebuildTableWithColumns = async ({
-  columns,
-  tableName,
-  tmpName = `${tableName}_new`,
-}: {
+type RebuildParams = {
   columns: readonly Column[];
   tableName: string;
   tmpName?: string;
-}): Promise<void> => {
-  const colNames = columns.map(([col]) => col).join(", ");
-  const colDefs = columns.map(([col, type]) => `${col} ${type}`).join(", ");
-  const selectExprs = columns.map(copyExpressionFor).join(", ");
-
-  await executeBatch([
-    { args: [], sql: `DROP TABLE IF EXISTS ${tmpName}` },
-    { args: [], sql: `CREATE TABLE ${tmpName} (${colDefs})` },
-    {
-      args: [],
-      sql:
-        `INSERT INTO ${tmpName} (${colNames}) ` +
-        `SELECT ${selectExprs} FROM ${tableName}`,
-    },
-    { args: [], sql: `DROP TABLE ${tableName}` },
-    { args: [], sql: `ALTER TABLE ${tmpName} RENAME TO ${tableName}` },
-  ]);
 };
 
 /**
- * Recreate a table from its SCHEMA definition, preserving data for matching columns.
+ * The ordered statements that rebuild a table from a column list, preserving
+ * data for the listed columns: stage a fresh table, copy the rows across, drop
+ * the original, then rename the staged table into its place. Shared by the
+ * batch rebuild ({@link rebuildTableWithColumns}) and the atomic
+ * {@link recreateTable}.
+ */
+const rebuildStatements = ({
+  columns,
+  tableName,
+  tmpName = `${tableName}_new`,
+}: RebuildParams): string[] => {
+  const colNames = columns.map(([col]) => col).join(", ");
+  const colDefs = columns.map(([col, type]) => `${col} ${type}`).join(", ");
+  const selectExprs = columns.map(copyExpressionFor).join(", ");
+  return [
+    `DROP TABLE IF EXISTS ${tmpName}`,
+    `CREATE TABLE ${tmpName} (${colDefs})`,
+    `INSERT INTO ${tmpName} (${colNames}) SELECT ${selectExprs} FROM ${tableName}`,
+    `DROP TABLE ${tableName}`,
+    `ALTER TABLE ${tmpName} RENAME TO ${tableName}`,
+  ];
+};
+
+export const rebuildTableWithColumns = async (
+  params: RebuildParams,
+): Promise<void> => {
+  await executeBatch(
+    rebuildStatements(params).map((sql) => ({ args: [], sql })),
+  );
+};
+
+/**
+ * Recreate a table from its SCHEMA definition, preserving data for matching
+ * columns.
  *
- * The new table is created WITHOUT foreign keys (only column definitions).
- * This means any FKs the original table had are removed after recreation.
+ * The rebuild (copy into a fresh table), its indexes, and its triggers all run
+ * inside ONE interactive transaction, so the table is never committed without
+ * the indexes and triggers that enforce its invariants. Any failure rolls the
+ * whole rebuild back and leaves the original table untouched, instead of
+ * leaving a live table missing (say) a UNIQUE index until the migration is
+ * retried — a window in which duplicate rows could land and then permanently
+ * break the index re-creation. An interactive transaction (rather than a batch)
+ * is what makes this possible: a compound `CREATE TRIGGER … BEGIN … END`
+ * carries internal semicolons that some batch transports mis-split, so triggers
+ * cannot ride in a batch — but each is sent through its own `tx.execute()` here
+ * and still commits atomically with the rebuild.
+ *
+ * The new table is created WITHOUT foreign keys (only column definitions), so
+ * any FKs the original table had are removed after recreation.
  *
  * IMPORTANT: If other tables have FKs referencing this table and contain data,
  * those tables must be recreated FIRST (to remove their FK constraints).
@@ -195,14 +202,16 @@ export const rebuildTableWithColumns = async ({
  */
 export const recreateTable = async (tableName: string): Promise<void> => {
   const tableSchema = currentSchemaTable(tableName);
-  await rebuildTableWithColumns({
-    columns: tableSchema.columns,
-    tableName,
+  const statements = [
+    ...rebuildStatements({ columns: tableSchema.columns, tableName }),
+    ...(tableSchema.indexes ?? []).map((idx) => createIndexSql(tableName, idx)),
+    // Triggers on this table were dropped with the old table — re-create them
+    // in the same transaction so the rebuilt table is never live without them.
+    ...TRIGGERS.filter((trg) => trg.table === tableName).map((trg) => trg.sql),
+  ];
+  await withTransaction(async (tx) => {
+    for (const sql of statements) await tx.execute(sql);
   });
-
-  await createIndexesForTable(tableName, tableSchema.indexes ?? []);
-  // Triggers on this table were dropped with the old table — re-create them.
-  await createTriggersForTable(tableName);
 };
 
 export const getAppSchemaColumns = (tableName: string): Set<string> =>
@@ -234,8 +243,6 @@ const backfillListingAttendees = async (): Promise<void> => {
     "date",
     "quantity",
     "checked_in_v2",
-    "refunded_v2",
-    "price_paid_v2",
     "attachment_downloads",
   ]);
   requireColumns(
@@ -248,18 +255,21 @@ const backfillListingAttendees = async (): Promise<void> => {
       "end_at",
       "quantity",
       "checked_in",
-      "refunded",
-      "price_paid",
       "attachment_downloads",
     ],
   );
 
+  // refunded and price_paid were both dropped from listing_attendees (refund
+  // status and per-row amount paid are now projected from the transfers ledger),
+  // so the legacy attendees.refunded_v2 / price_paid_v2 values are not restored —
+  // a historical paid or refunded booking re-surfaces via its backfilled sale /
+  // refund_cash leg, not a per-row column.
   await getDb().execute(
-    `INSERT OR IGNORE INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads)
+    `INSERT OR IGNORE INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, checked_in, attachment_downloads)
      SELECT listing_id, id,
        CASE WHEN date IS NOT NULL THEN date || 'T00:00:00Z' ELSE NULL END,
        CASE WHEN date IS NOT NULL THEN DATE(date, '+1 day') || 'T00:00:00Z' ELSE NULL END,
-       quantity, checked_in_v2, refunded_v2, price_paid_v2, attachment_downloads
+       quantity, checked_in_v2, attachment_downloads
      FROM attendees
      WHERE id NOT IN (SELECT attendee_id FROM listing_attendees)`,
   );
@@ -346,16 +356,25 @@ export const applySchemaChanges = async (): Promise<void> => {
 /** Create missing indexes and drop legacy ones */
 export const syncIndexes = async (): Promise<void> => {
   const live = await snapshotLiveSchema();
-  const declared = SCHEMA.flatMap(([name, table]) =>
+  const declared = SCHEMA.flatMap(([tableName, table]) =>
     (table.indexes ?? []).map((idx) => ({
+      columns: idx.columns,
       name: idx.name,
-      sql: createIndexSql(name, idx),
+      sql: createIndexSql(tableName, idx),
+      tableName,
     })),
   );
   const declaredNames = new Set(declared.map((d) => d.name));
 
   const creates = declared
-    .filter((d) => !live.indexes.has(d.name))
+    .filter((d) => {
+      const columns = live.tables.get(d.tableName);
+      return (
+        columns !== undefined &&
+        d.columns.every((column) => columns.has(column)) &&
+        !live.indexes.has(d.name)
+      );
+    })
     .map((d) => writeStatement(d.sql));
 
   // Drop any project-owned (idx_*) index no longer declared in SCHEMA. The
@@ -392,7 +411,8 @@ export const syncTriggers = async (): Promise<void> => {
  * Recompute the listings aggregate columns from listing_attendees in a single
  * statement. tickets_count counts only quantity > 0 rows (the no-quantity
  * sentinel is not a ticket — see {@link TICKET_COUNTS_PREDICATE}); the
- * booked_quantity/income sums stay over all rows. Exported for the
+ * booked_quantity sum stays over all rows. Income is no longer an aggregate
+ * column (projected from the transfers ledger at read time). Exported for the
  * shared-predicate guard test. One-time on migration; afterwards the triggers
  * keep them current. Idempotent (absolute recompute, not a delta), so re-runs.
  */
@@ -400,9 +420,7 @@ export const BACKFILL_LISTING_AGGREGATES_SQL = `UPDATE listings SET
        booked_quantity = COALESCE(
          (SELECT SUM(quantity) FROM listing_attendees WHERE listing_id = listings.id), 0),
        tickets_count = COALESCE(
-         (SELECT COUNT(*) FROM listing_attendees WHERE listing_id = listings.id AND ${TICKET_COUNTS_PREDICATE}), 0),
-       income = COALESCE(
-         (SELECT SUM(price_paid) FROM listing_attendees WHERE listing_id = listings.id), 0)`;
+         (SELECT COUNT(*) FROM listing_attendees WHERE listing_id = listings.id AND ${TICKET_COUNTS_PREDICATE}), 0)`;
 
 export const backfillListingAggregates = async (): Promise<void> => {
   await getDb().execute({ args: [], sql: BACKFILL_LISTING_AGGREGATES_SQL });
@@ -419,9 +437,7 @@ export const backfillModifierAggregates = async (): Promise<void> => {
        total_uses = COALESCE(
          (SELECT SUM(quantity) FROM modifier_usages WHERE modifier_id = modifiers.id), 0),
        usage_count = COALESCE(
-         (SELECT COUNT(*) FROM modifier_usages WHERE modifier_id = modifiers.id), 0),
-       total_revenue = COALESCE(
-         (SELECT SUM(amount_applied) FROM modifier_usages WHERE modifier_id = modifiers.id), 0)`,
+         (SELECT COUNT(*) FROM modifier_usages WHERE modifier_id = modifiers.id), 0)`,
   );
 };
 

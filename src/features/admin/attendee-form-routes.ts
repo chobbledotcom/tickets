@@ -29,12 +29,14 @@ import {
   resolveStatusId,
   toCreateInput,
   toDesiredLines,
+  toLedgerOrder,
   validateParsedForm,
 } from "#routes/admin/attendee-form-model.ts";
 import {
   buildAttendeeLogisticsData,
   parseLogisticsPlan,
 } from "#routes/admin/attendee-logistics.ts";
+import { loadLedgerNames } from "#routes/admin/ledger.ts";
 import {
   AUTH_FORM,
   type AuthSession,
@@ -45,8 +47,10 @@ import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
+import { attendeeAccount } from "#shared/accounting/accounts.ts";
+import { transfersByAccount } from "#shared/accounting/queries.ts";
+import { manualAddLedgerPoster } from "#shared/checkout-complete.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
-import { formatCurrency } from "#shared/currency.ts";
 import { getAttendeeActivityLog, logActivity } from "#shared/db/activityLog.ts";
 import { getAllAttendeeStatuses } from "#shared/db/attendee-statuses.ts";
 import { getAttendeeOrderSummary } from "#shared/db/attendees/balance.ts";
@@ -89,6 +93,7 @@ import {
 import { settings } from "#shared/db/settings.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { statementFor } from "#shared/ledger/project.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import {
   parseSelectedListingIds,
@@ -97,6 +102,7 @@ import {
 import { todayInTz } from "#shared/timezone.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
+import type { AttendeeLedgerData } from "#templates/admin/attendee-detail.tsx";
 import {
   type AttendeeFormTemplateData,
   attendeeFormPage,
@@ -220,6 +226,33 @@ const buildEditFormFromAttendee = (
 /** How many of an attendee's activity-log entries to show on the edit page. */
 const ATTENDEE_LOG_LIMIT = 1000;
 
+/** Load the attendee's ledger account statement for the embedded panel: its full
+ * transfer history, the running-balance lines, and the counterparties' display
+ * names (the shared ledger loader, so names resolve exactly as /admin/ledger). */
+const loadAttendeeLedger = async (
+  attendeeId: number,
+): Promise<AttendeeLedgerData> => {
+  const account = attendeeAccount(attendeeId);
+  const transfers = await transfersByAccount(account);
+  return {
+    account,
+    lines: statementFor(account)(transfers),
+    names: await loadLedgerNames(transfers),
+  };
+};
+
+/** The ledger panel exposes money movements (payment/refund/writeoff legs), so
+ * it is owner-only — matching the standalone `/admin/ledger*` routes
+ * (`requireOwnerOr`). A non-owner staff session gets `undefined`, which the
+ * template renders as no panel at all. */
+const loadAttendeeLedgerForSession = (
+  session: AuthSession,
+  attendeeId: number,
+): Promise<AttendeeLedgerData | undefined> =>
+  session.adminLevel === "owner"
+    ? loadAttendeeLedger(attendeeId)
+    : Promise.resolve(undefined);
+
 /** A booked daily listing booked for longer than its own duration allows —
  * permitted (every daily listing shares one range), so a warning not an error. */
 const overDurationWarning = (
@@ -324,6 +357,7 @@ const buildTemplateData = async (
     selectedAnswerIds?: number[];
     selectedTextAnswers?: Map<number, string>;
     contactRecords?: ContactRecordsByChannel;
+    ledger?: AttendeeLedgerData;
   } = {},
 ): Promise<AttendeeFormTemplateData> => {
   const statuses = await getAllAttendeeStatuses();
@@ -359,6 +393,7 @@ const buildTemplateData = async (
       (l) => l.listing?.listing_type === "daily",
     ),
     hasMixedTimings: opts.hasMixedTimings ?? false,
+    ledger: opts.ledger,
     lineWarnings: warnings.byListing,
     logistics,
     mode,
@@ -475,9 +510,11 @@ export const handleAttendeeEditGet: TypedRouteHandler<
     const { questions, selectedAnswerIds, selectedTextAnswers } =
       await loadQuestionsForSession(session, attendeeId, loaded.existing);
     const contactRecords = await loadContactRecords(session, loaded.attendee);
+    const ledger = await loadAttendeeLedgerForSession(session, attendeeId);
     const data = await buildTemplateData("edit", parsed, loaded.attendee, {
       contactRecords,
       hasMixedTimings,
+      ledger,
       questions,
       returnUrl: getSearchParam(request, "return_url"),
       selectedAnswerIds,
@@ -635,6 +672,11 @@ const handleSubmitInner = async (
     statusId: resolveStatusId(rawParsed.statusId, statuses),
   };
   const renderOpts = {
+    // Edit re-renders keep the embedded ledger panel (owner-only); create has no
+    // account yet.
+    ledger: attendee
+      ? await loadAttendeeLedgerForSession(session, attendee.id)
+      : undefined,
     questions,
     returnUrl: parsed.returnUrl,
     selectedAnswerIds,
@@ -770,13 +812,23 @@ const applyCreate = async (
   const hasRealLine = parsed.lines.some(isBookedLine);
   // Admin manual add may deliberately overbook (a warning is shown, not blocked)
   // and is tagged as an "admin" booking so it counts separately from online
-  // checkouts in the contact's booking history.
-  const createResult = await createAttendeeAtomic({
-    ...input,
-    allowOverbook: true,
-    remainingBalance: hasRealLine ? input.remainingBalance : 0,
-    source: "admin",
-  });
+  // checkouts in the contact's booking history. The ledger poster records the
+  // booking's gross `sale` legs and reconciles the entered outstanding balance in
+  // the SAME create transaction, so the owed amount projects from the ledger
+  // (rather than silently reading back as £0) and lands atomically with the rows.
+  // A no-quantity-only add has no real line to pay into, so reconcile the balance
+  // to 0 rather than record a receivable the public pay gate could never settle.
+  const createResult = await createAttendeeAtomic(
+    {
+      ...input,
+      allowOverbook: true,
+      source: "admin",
+    },
+    manualAddLedgerPoster(
+      toLedgerOrder(parsed),
+      hasRealLine ? input.remainingBalance : 0,
+    ),
+  );
   const check = await ensureAllBookings(
     createResult,
     input.bookings.length,
@@ -856,19 +908,11 @@ const applyEdit = async (
     return { flashError: CAPACITY_SAVE_ERROR, ok: false };
   }
 
-  // Resolve a now-unpayable balance: when the save leaves no real (quantity > 0)
-  // line, the public pay gate refuses payment, so clear the balance rather than
-  // strand it on a ghost. Record the prior value as audit metadata.
+  // When the save leaves no real (quantity > 0) line the public pay gate refuses
+  // payment, so reconcile the ledger balance to 0 rather than strand an unpayable
+  // receivable on a ghost; otherwise reconcile to the entered balance. The
+  // reconcile posts a writeoff leg, which is itself the audit record of the clear.
   const hasRealLine = desired.some((l) => l.quantity > 0);
-  if (!hasRealLine && attendee.remaining_balance > 0) {
-    await logActivity(
-      `Outstanding balance of ${formatCurrency(
-        attendee.remaining_balance,
-      )} cleared — attendee has no booked listing`,
-      desired[0]?.listingId,
-      attendeeId,
-    );
-  }
   await updateAttendeeOrder(
     attendeeId,
     parsed.statusId,

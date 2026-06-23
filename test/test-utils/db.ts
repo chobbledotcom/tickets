@@ -26,6 +26,7 @@ import {
   resetHostEmailConfig,
   setHostEmailConfigForTest,
 } from "#shared/email.ts";
+import { getEnv } from "#shared/env.ts";
 import { setTestEnv, setupTestEncryptionKey } from "#test-utils/env.ts";
 import {
   type DescribeEnvOptions,
@@ -89,12 +90,21 @@ const prepareTestClient = async (triggers = false): Promise<void> => {
   invalidateGroupsCache();
   invalidateLogisticsAgentsCache();
 
+  // A temp file, not ":memory:": interactive transactions (withTransaction) open
+  // a second connection, and each ":memory:" connection is its own *separate*
+  // empty database — a transaction would see no schema. A file is shared across
+  // connections. Durability is irrelevant in tests, so relax fsync to keep speed
+  // close to in-memory.
+  const path = await Deno.makeTempFile({ suffix: ".db" });
   setTestEnv({
-    DB_URL: ":memory:",
+    DB_URL: `file:${path}`,
     DISABLE_AGGREGATE_TRIGGERS_FOR_TEST: triggers ? undefined : "1",
   });
-  const client = createClient({ url: ":memory:" });
+  const client = createClient({ url: `file:${path}` });
   setDb(client);
+  await client.executeMultiple(
+    "PRAGMA journal_mode=MEMORY; PRAGMA synchronous=OFF;",
+  );
   await client.executeMultiple(TEST_SCHEMA_SQL);
   await ensureDefaultAttendeeStatus();
 };
@@ -102,6 +112,34 @@ const prepareTestClient = async (triggers = false): Promise<void> => {
 export const createTestDb = async (triggers = false): Promise<void> => {
   await prepareTestClient(triggers);
   resetTestSession();
+};
+
+/**
+ * Set up a temp-file database for tests that use interactive transactions
+ * (`withTransaction`). A `:memory:` URL gives each connection its own database,
+ * so a transaction opened on a fresh connection would see no schema or data; a
+ * real file is shared across connections. Returns a cleanup function that
+ * detaches the client, closes it, restores the env, and removes the file — call
+ * it from `afterEach`.
+ */
+export const setupTransactionalTestDb = async (): Promise<
+  () => Promise<void>
+> => {
+  setupTestEncryptionKey();
+  const path = await Deno.makeTempFile({ suffix: ".db" });
+  const restoreEnv = setTestEnv({
+    DB_URL: `file:${path}`,
+    DISABLE_AGGREGATE_TRIGGERS_FOR_TEST: "1",
+  });
+  const client = createClient({ url: `file:${path}` });
+  setDb(client);
+  await client.executeMultiple(TEST_SCHEMA_SQL);
+  return async () => {
+    setDb(null);
+    client.close();
+    restoreEnv();
+    await Deno.remove(path);
+  };
 };
 
 export const createTestDbWithSetup = async (
@@ -224,7 +262,25 @@ const createDirectAdminSession = async (): Promise<{
   return { cookie, csrfToken: signedCsrf };
 };
 
+/** Close the active test client and delete its temp DB file. Best-effort: the
+ *  container is ephemeral, so a missed unlink just lingers until teardown. */
+const cleanupTestDbFile = (): void => {
+  const url = getEnv("DB_URL");
+  if (!url?.startsWith("file:")) return;
+  try {
+    getDb().close();
+  } catch {
+    // client already closed or never opened
+  }
+  try {
+    Deno.removeSync(url.slice("file:".length));
+  } catch {
+    // file already removed or never created
+  }
+};
+
 export const resetDb = (): void => {
+  cleanupTestDbFile();
   setDb(null);
   settings.setup.clearCache();
   settings.invalidateCache();

@@ -153,7 +153,12 @@ describe("e2e: ticket editing flow", () => {
     // 4. Save returns to the same edit form, with the flash shown inside it.
     expect(browser.containsText("Updated Alice Johnson")).toBe(true);
     expect(browser.containsText("Alice Johnson")).toBe(true);
-    expect(browser.containsText("Alice Smith")).toBe(false);
+    // The editable name field now holds the new name. The old name lingers only
+    // in the attendee's activity log — a historical record that legitimately
+    // shows "Attendee 'Alice Smith' added manually" — so assert against the
+    // field value rather than the whole page.
+    expect(browser.currentHtml).toContain('value="Alice Johnson"');
+    expect(browser.currentHtml).not.toContain('value="Alice Smith"');
 
     // 5. The edit form shows the saved fields and the preserved booking.
     expect(browser.currentHtml).toContain("alice.johnson@example.com");
@@ -204,7 +209,10 @@ describe("e2e: ticket editing flow", () => {
     // 8. Save returns to Bob's edit form; his renamed details and intact
     //    booking are shown there directly, so we assert on the current page.
     expect(browser.containsText("Robert Jones")).toBe(true);
-    expect(browser.containsText("Bob Jones")).toBe(false);
+    // As with Alice, the old name survives only in the activity-log history, so
+    // assert the editable name field rather than the whole page.
+    expect(browser.currentHtml).toContain('value="Robert Jones"');
+    expect(browser.currentHtml).not.toContain('value="Bob Jones"');
     expect(browser.currentHtml).toContain("robert@example.com");
     expect(browser.currentHtml).toContain("+441111222333");
     expect(browser.currentHtml).toContain("7 Pine Avenue");

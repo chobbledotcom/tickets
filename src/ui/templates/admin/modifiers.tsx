@@ -7,6 +7,7 @@ import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
 import type {
   ModifierAggregateField,
   ModifierAggregateRecalculation,
+  ModifierRow,
 } from "#shared/db/modifiers.ts";
 import { isReadOnly } from "#shared/env.ts";
 import {
@@ -157,10 +158,52 @@ export const modifierToFieldValues = (
 export const modifierAggregateToFieldValues = (
   modifier: Modifier,
 ): Record<string, string | number> => ({
-  total_revenue: toMajorUnits(modifier.total_revenue),
   total_uses: modifier.total_uses,
   usage_count: modifier.usage_count,
 });
+
+/**
+ * Money-correction section for a modifier, kept separate from the counts override
+ * ("splits by kind", decision 14). Shows the current projected revenue
+ * (read-only) and an input for the corrected value; submitting posts a `writeoff`
+ * adjustment for the difference to the source-of-truth money ledger. A prominent
+ * warning states the entry is appended, not destructive. Its own CsrfForm, so it
+ * posts independently of the main edit form.
+ */
+const ModifierRevenueAdjustSection = ({
+  modifier,
+}: {
+  modifier: Modifier;
+}): JSX.Element => (
+  <CsrfForm action={`/admin/modifiers/${modifier.id}/revenue`}>
+    <h2>{t("modifiers.adjust_revenue")}</h2>
+    <div class="error" role="alert">
+      {t("modifiers.adjust_revenue_warning")}
+    </div>
+    <label>
+      {t("modifiers.adjust_revenue_current")}
+      <input
+        disabled
+        type="text"
+        value={formatCurrency(modifier.total_revenue)}
+      />
+    </label>
+    <label for="total_revenue">
+      {t("modifiers.adjust_revenue_new_label")}
+      <input
+        id="total_revenue"
+        inputmode="decimal"
+        name="total_revenue"
+        step="0.01"
+        type="number"
+        value={toMajorUnits(modifier.total_revenue)}
+      />
+    </label>
+    <SubmitButton icon="save">
+      {t("modifiers.adjust_revenue_submit")}
+    </SubmitButton>
+  </CsrfForm>
+);
 
 const ModifierRunningTotalsSection = ({
   modifier,
@@ -190,7 +233,6 @@ const modifierAggregateFormatters: Record<
   ModifierAggregateField,
   (value: number) => string
 > = {
-  total_revenue: formatCurrency,
   total_uses: String,
   usage_count: String,
 };
@@ -336,6 +378,7 @@ export const adminModifierEditPage = (
         <ModifierRunningTotalsSection modifier={modifier} />
         <SubmitButton icon="save">{t("common.save_changes")}</SubmitButton>
       </CsrfForm>
+      <ModifierRevenueAdjustSection modifier={modifier} />
       {links && <ScopeLinksForm links={links} modifier={modifier} />}
       {answerLinks && (
         <AnswerLinksForm answerLinks={answerLinks} modifier={modifier} />
@@ -348,9 +391,11 @@ export const adminModifierEditPage = (
     </Layout>,
   );
 
-/** Admin modifier delete confirmation page */
+/** Admin modifier delete confirmation page. Takes the stored {@link ModifierRow}
+ * (the projected total_revenue isn't shown here), so it pairs with the CRUD
+ * delete loader's `table.findById`. */
 export const adminModifierDeletePage = (
-  modifier: Modifier,
+  modifier: ModifierRow,
   session: AdminSession,
   error?: string,
 ): string =>

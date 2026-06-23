@@ -181,7 +181,12 @@ describeWithEnv("backup", { db: true }, () => {
 
   describe("dbName", () => {
     test("returns 'local' for in-memory databases", () => {
-      expect(dbName()).toBe("local");
+      const restore = setTestEnv({ DB_URL: ":memory:" });
+      try {
+        expect(dbName()).toBe("local");
+      } finally {
+        restore();
+      }
     });
 
     test("extracts name from libsql:// URL", () => {
@@ -235,8 +240,13 @@ describeWithEnv("backup", { db: true }, () => {
 
   describe("backupDir", () => {
     test("defaults to the current DB's folder", () => {
-      // Test env DB_URL is :memory:, so dbName() falls back to "local".
-      expect(backupDir()).toBe("local/");
+      // An in-memory DB_URL makes dbName() fall back to "local".
+      const restore = setTestEnv({ DB_URL: ":memory:" });
+      try {
+        expect(backupDir()).toBe("local/");
+      } finally {
+        restore();
+      }
     });
 
     test("scopes to a named database when given one", () => {
@@ -265,10 +275,15 @@ describeWithEnv("backup", { db: true }, () => {
     });
 
     test("backupKey nests the leaf inside the current DB's folder", () => {
-      // In test env, DB_URL is :memory: so dbName() returns "local".
-      expect(backupKey("2024-01-15T12-30-00-000Z")).toBe(
-        "local/backup-2024-01-15T12-30-00-000Z.zip",
-      );
+      // An in-memory DB_URL makes dbName() return "local".
+      const restore = setTestEnv({ DB_URL: ":memory:" });
+      try {
+        expect(backupKey("2024-01-15T12-30-00-000Z")).toBe(
+          "local/backup-2024-01-15T12-30-00-000Z.zip",
+        );
+      } finally {
+        restore();
+      }
     });
 
     test("backupKey scopes to a named database when given one", () => {

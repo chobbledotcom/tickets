@@ -15,8 +15,31 @@ import { resetDb, setupTestEncryptionKey } from "#test-utils";
  * HTTP requests).
  */
 describe("db > listing_attendees migration from legacy schema", () => {
-  afterEach(() => {
+  // recreateTable now rebuilds inside an interactive transaction, which opens a
+  // second connection — so these tests use a temp file rather than ":memory:"
+  // (each ":memory:" connection is its own empty database; see test-utils/db.ts).
+  const openFileDbs: Array<{
+    client: ReturnType<typeof createClient>;
+    path: string;
+  }> = [];
+
+  const newFileDb = async (): Promise<ReturnType<typeof createClient>> => {
+    const path = await Deno.makeTempFile({ suffix: ".db" });
+    const client = createClient({ url: `file:${path}` });
+    openFileDbs.push({ client, path });
+    return client;
+  };
+
+  afterEach(async () => {
     resetDb();
+    for (const { client, path } of openFileDbs.splice(0)) {
+      try {
+        client.close();
+      } catch {
+        // already closed
+      }
+      await Deno.remove(path).catch(() => {});
+    }
   });
 
   const LEGACY_DB_UPDATE = "legacy-update";
@@ -194,7 +217,7 @@ describe("db > listing_attendees migration from legacy schema", () => {
   /** Create the legacy schema and return the client */
   const createLegacyDb = async () => {
     setupTestEncryptionKey();
-    const client = createClient({ url: ":memory:" });
+    const client = await newFileDb();
     setDb(client);
     for (const sql of LEGACY_SCHEMA_SQL) {
       await client.execute(sql);
@@ -296,7 +319,10 @@ describe("db > listing_attendees migration from legacy schema", () => {
     expect(ea.rows[0]!.listing_id).toBe(1);
     expect(ea.rows[0]!.attendee_id).toBe(1);
     expect(ea.rows[0]!.quantity).toBe(2);
-    expect(ea.rows[0]!.price_paid).toBe(1000);
+    // price_paid is no longer a column — a booking's amount projects from the
+    // transfers ledger. Like the dropped refunded flag, the legacy price_paid_v2
+    // value isn't carried by the reconcile (no live site predates the ledger).
+    expect(ea.rows[0]!.price_paid).toBeUndefined();
     expect(ea.rows[0]!.start_at).toBe("2024-06-15T00:00:00Z");
     expect(ea.rows[0]!.end_at).toBe("2024-06-16T00:00:00Z");
 
@@ -310,6 +336,9 @@ describe("db > listing_attendees migration from legacy schema", () => {
     expect(colNames).not.toContain("phone");
     expect(colNames).not.toContain("address");
     expect(colNames).not.toContain("payment_id");
+    // price_paid is dropped — amount paid is a per-row listing_attendees figure
+    // (ledger-projected), never an attendees column.
+    expect(colNames).not.toContain("price_paid");
     expect(colNames).toContain("id");
     expect(colNames).toContain("pii_blob");
 
@@ -414,7 +443,7 @@ describe("db > listing_attendees migration from legacy schema", () => {
 
   test("drops PII columns when listing_id was dropped in a prior partial run", async () => {
     setupTestEncryptionKey();
-    const client = createClient({ url: ":memory:" });
+    const client = await newFileDb();
     setDb(client);
 
     // Simulate a DB in the intermediate state: listing_id and its relatives
@@ -470,7 +499,7 @@ describe("db > listing_attendees migration from legacy schema", () => {
 
   test("fails instead of marking progress for unknown legacy attendee shape", async () => {
     setupTestEncryptionKey();
-    const client = createClient({ url: ":memory:" });
+    const client = await newFileDb();
     setDb(client);
 
     await client.execute(
@@ -508,7 +537,7 @@ describe("db > listing_attendees migration from legacy schema", () => {
 
   test("skips table recreation when attendees already matches schema", async () => {
     setupTestEncryptionKey();
-    const client = createClient({ url: ":memory:" });
+    const client = await newFileDb();
     setDb(client);
 
     // Run initDb on a fresh DB so everything is created and up to date

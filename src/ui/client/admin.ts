@@ -27,7 +27,6 @@ import { initPaymentResultNotifier } from "./admin/payment-result.ts";
 import { initPaymentTestButtons } from "./admin/payment-test-buttons.ts";
 import { initQrRefresh } from "./admin/qr-refresh.ts";
 import { initRunningTotal } from "./admin/running-total.ts";
-import { initScrollHideNav } from "./admin/scroll-hide-nav.ts";
 import { initSelectOnClick } from "./admin/select-on-click.ts";
 import { initTicketQuantityRequired } from "./admin/ticket-quantity-required.ts";
 
@@ -40,7 +39,6 @@ initFillDefaultTemplate();
 initClosesAtAutofill();
 initIframeScrollIntoView();
 initCheckoutPopup();
-initScrollHideNav();
 initPaymentResultNotifier();
 initPaymentTestButtons();
 initQrRefresh();

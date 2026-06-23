@@ -482,7 +482,13 @@ export const createDailyTestListing = (
     ...overrides,
   });
 
-export const createPaidTestAttendee = async (
+/**
+ * Create a paid attendee (a payment_id + booking) WITHOUT posting any ledger
+ * sale — a booking that predates the transfers ledger. A refund of it finds no
+ * clean order to reverse, so `recordAttendeeRefund` reports `posted:false`; use
+ * this to drive the "provider refunded but the ledger couldn't record it" paths.
+ */
+export const createPaidAttendeeWithoutLedger = async (
   listingId: number,
   name: string,
   email: string,
@@ -500,6 +506,36 @@ export const createPaidTestAttendee = async (
   return (result as { success: true; attendees: Attendee[] }).attendees[0]!;
 };
 
+export const createPaidTestAttendee = async (
+  listingId: number,
+  name: string,
+  email: string,
+  paymentId: string,
+  pricePaid = 500,
+  quantity = 1,
+): Promise<Attendee> => {
+  const attendee = await createPaidAttendeeWithoutLedger(
+    listingId,
+    name,
+    email,
+    paymentId,
+    pricePaid,
+    quantity,
+  );
+  // A paid attendee recognises gross revenue: post the sale leg so the
+  // ledger-projected listing income reflects it (the price_paid column alone no
+  // longer feeds income). A free (pricePaid 0) attendee posts nothing.
+  if (pricePaid > 0) {
+    const { postListingSale } = await import("#test-utils/ledger.ts");
+    await postListingSale({
+      attendeeId: attendee.id,
+      gross: pricePaid,
+      listingId,
+    });
+  }
+  return attendee;
+};
+
 export const bookAttendee = async (
   listing: Pick<Listing, "id">,
   opts: BookAttendeeOpts = {},
@@ -512,7 +548,7 @@ export const bookAttendee = async (
   if (opts.quantity !== undefined) booking.quantity = opts.quantity;
   if (opts.pricePaid !== undefined) booking.pricePaid = opts.pricePaid;
   if (opts.durationDays !== undefined) booking.durationDays = opts.durationDays;
-  return createAttendeeAtomic({
+  const result = await createAttendeeAtomic({
     bookings: [booking],
     email: opts.email ?? "x@example.com",
     name: opts.name ?? "X",
@@ -523,6 +559,18 @@ export const bookAttendee = async (
     }),
     ...(opts.paymentId !== undefined && { paymentId: opts.paymentId }),
   });
+  // Mirror the live paid-checkout flow: a paid booking recognises gross revenue
+  // with a ledger sale leg (which the per-row amount-paid projection reads), so a
+  // bare price_paid no longer means anything on its own.
+  if (result.success && opts.pricePaid && opts.pricePaid > 0) {
+    const { postListingSale } = await import("#test-utils/ledger.ts");
+    await postListingSale({
+      attendeeId: result.attendees[0]!.id,
+      gross: opts.pricePaid,
+      listingId: listing.id,
+    });
+  }
+  return result;
 };
 
 export const createDailyTestAttendee = async (

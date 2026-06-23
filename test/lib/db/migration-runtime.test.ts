@@ -6,9 +6,12 @@ import {
   initDb,
   invalidateInitDbCache,
   MIGRATION_LOCK_TTL_MS,
+  type Migration,
   MigrationInProgressError,
   resetDatabase,
   SCHEMA_HASH,
+  VERIFY_RETRY_BACKOFF_MS,
+  verifyMigrationWithRetry,
 } from "#shared/db/migrations.ts";
 import { createSession } from "#shared/db/sessions.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -176,6 +179,45 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
           sql: "UPDATE settings SET value = ? WHERE key = 'db_schema_hash'",
         });
       }
+    });
+  });
+
+  describe("verify retry on read-your-writes lag", () => {
+    const fakeMigration = (verify: () => Promise<void>): Migration => ({
+      description: "fake migration for verify-retry tests",
+      id: "fake-verify-retry",
+      up: () => Promise.resolve(),
+      verify,
+    });
+
+    test("retries a transient verify failure and then resolves", async () => {
+      let attempts = 0;
+      await verifyMigrationWithRetry(
+        fakeMigration(() => {
+          attempts++;
+          // Fail on the first two snapshots (stale schema), succeed on the third.
+          return attempts < 3
+            ? Promise.reject(
+                new Error("Migration verification failed: missing column(s)"),
+              )
+            : Promise.resolve();
+        }),
+      );
+      expect(attempts).toBe(3);
+    });
+
+    test("rethrows after exhausting every retry", async () => {
+      let attempts = 0;
+      await expect(
+        verifyMigrationWithRetry(
+          fakeMigration(() => {
+            attempts++;
+            return Promise.reject(new Error("genuine schema defect"));
+          }),
+        ),
+      ).rejects.toThrow("genuine schema defect");
+      // One initial attempt plus one per backoff entry.
+      expect(attempts).toBe(VERIFY_RETRY_BACKOFF_MS.length + 1);
     });
   });
 

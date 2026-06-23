@@ -14,10 +14,14 @@ import { applyFlash } from "#routes/csrf.ts";
 import { errorRedirect, htmlResponse } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { hasActiveBookingLine, markRefunded } from "#shared/db/attendees.ts";
+import { hasActiveBookingLine } from "#shared/db/attendees.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { getActivePaymentProvider } from "#shared/payments.ts";
+import {
+  recordAttendeeRefund,
+  recordAttendeeRefundsBatch,
+} from "#shared/refund-ledger.ts";
 import { fail, ok } from "#shared/response.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
 import {
@@ -47,23 +51,25 @@ const refundError = (
     msg,
   );
 
-/** Render the single-attendee refund page: a 400 when an error message is given
- * (no payment, already refunded, or a no-quantity ghost line), else a 200. */
+/** Render the single-attendee refund page. The guard blocks (no payment, already
+ * refunded, or a no-quantity ghost line) pass a `message` and take the default
+ * 400; the clean GET passes the flashed error (if any) with an explicit 200. */
 const refundPageResponse = (
   data: AttendeeWithListing,
   session: AuthSession,
   returnUrl: string,
-  message?: string,
+  message: string | undefined,
+  status = 400,
 ): Response =>
   htmlResponse(
     adminRefundAttendeePage(data, session, message, returnUrl),
-    message === undefined ? 200 : 400,
+    status,
   );
 
 /** Handle GET /admin/listing/:listingId/attendee/:attendeeId/refund */
 const handleAdminAttendeeRefundGet = attendeeGetRoute(
   async (data, session, request) => {
-    applyFlash(request);
+    const flash = applyFlash(request);
     const returnUrl = getReturnUrl(request);
     // The no-payment branch also covers a no-quantity ghost row: it's guarded
     // against the EXACT (attendee, listing) row (not the loaded attendee's
@@ -88,7 +94,7 @@ const handleAdminAttendeeRefundGet = attendeeGetRoute(
         t("error.already_refunded"),
       );
     }
-    return refundPageResponse(data, session, returnUrl);
+    return refundPageResponse(data, session, returnUrl, flash.error, 200);
   },
 );
 
@@ -131,11 +137,18 @@ const handleAttendeeRefund = verifiedAttendeeForm(
       return refundError(listingId, attendeeId, t("error.refund_failed"));
     }
 
-    await markRefunded(data.attendee.id, listingId);
+    const { posted } = await recordAttendeeRefund(data.attendee.id);
     await logActivity(
       `Refund issued for attendee '${data.attendee.name}'`,
       listingId,
+      data.attendee.id,
     );
+    // The provider refund succeeded; if the ledger post missed (refund status is
+    // now ledger-only), surface it so the admin makes a manual adjustment rather
+    // than re-refunding an already-refunded payment.
+    if (!posted) {
+      return refundError(listingId, attendeeId, t("error.refund_not_recorded"));
+    }
     return ok(`/admin/listing/${listingId}`, t("success.refund_issued"));
   },
 );
@@ -153,7 +166,7 @@ const handleAdminRefundAllGet = (
   { id }: ListingRouteParams,
 ): Promise<Response> =>
   withListingAttendeesAuth(request, id, (listing, attendees, session) => {
-    applyFlash(request);
+    const flash = applyFlash(request);
     const count = getRefundable(attendees).length;
     return count === 0
       ? htmlResponse(
@@ -161,50 +174,67 @@ const handleAdminRefundAllGet = (
             listing,
             0,
             session,
-            t("error.no_attendees_to_refund"),
+            flash.error ?? t("error.no_attendees_to_refund"),
           ),
           400,
         )
-      : htmlResponse(adminRefundAllAttendeesPage(listing, count, session));
+      : htmlResponse(
+          adminRefundAllAttendeesPage(listing, count, session, flash.error),
+        );
   });
 
-type RefundResult = "ok" | "failed" | "errored";
+type RefundOutcome = "refunded" | "failed" | "errored";
 type RefundCounts = {
   refundedCount: number;
   failedCount: number;
   errorCount: number;
 };
 
-/** Refund a single attendee, returning a typed result. */
-const refundOneAttendee = async (
+/**
+ * Refund one attendee at the provider — the network I/O safe to run in parallel.
+ * Provider errors are caught per attendee, so one failure never aborts the
+ * batch. No DB write happens here: refund status is now projected from the
+ * `refund_cash` ledger leg, which {@link processRefundBatch} posts serially via
+ * {@link recordAttendeeRefund} to avoid concurrent write-transaction contention.
+ */
+const refundAtProvider = async (
   provider: NonNullable<Awaited<ReturnType<typeof getActivePaymentProvider>>>,
   attendee: Attendee,
   listingId: number,
-): Promise<RefundResult> => {
+): Promise<{ attendee: Attendee; outcome: RefundOutcome }> => {
   try {
     const refunded = await provider.refundPayment(attendee.payment_id);
-    if (refunded) {
-      await markRefunded(attendee.id, listingId);
-      return "ok";
+    if (!refunded) {
+      logError({
+        code: ErrorCode.PAYMENT_REFUND,
+        detail: `Admin bulk refund failed for attendee ${attendee.id}, payment ${attendee.payment_id}`,
+        listingId,
+      });
+      return { attendee, outcome: "failed" };
     }
-    logError({
-      code: ErrorCode.PAYMENT_REFUND,
-      detail: `Admin bulk refund failed for attendee ${attendee.id}, payment ${attendee.payment_id}`,
-      listingId,
-    });
-    return "failed";
+    return { attendee, outcome: "refunded" };
   } catch (err) {
-    const msg = String(err);
     logError({
       code: ErrorCode.PAYMENT_REFUND,
-      detail: `Admin bulk refund errored for attendee ${attendee.id}, payment ${attendee.payment_id}: ${msg}`,
+      detail: `Admin bulk refund errored for attendee ${attendee.id}, payment ${attendee.payment_id}: ${String(err)}`,
       listingId,
     });
-    return "errored";
+    return { attendee, outcome: "errored" };
   }
 };
 
-/** Process a batch of refundable attendees and tally results. */
+/**
+ * Process a batch of refundable attendees and tally results. Provider refunds run
+ * in parallel within each chunk; then — before issuing the next chunk's provider
+ * refunds — that chunk's successes are recorded in the ledger in one transaction
+ * (see {@link recordAttendeeRefundsBatch}), so an edge timeout mid-batch can't
+ * leave a completed provider refund without its `refund_cash` leg (a retry would
+ * see it already-refunded and never re-post). The per-attendee interactive write
+ * is avoided because it contends the single SQLite writer (SQLITE_BUSY) at scale.
+ * A missed post is tallied as errored, not refunded: refund status is ledger-only
+ * now, so it must surface rather than leave the payment silently re-refundable.
+ * Never 500s — neither helper throws.
+ */
 const processRefundBatch = async (
   provider: NonNullable<Awaited<ReturnType<typeof getActivePaymentProvider>>>,
   batch: Attendee[],
@@ -218,12 +248,21 @@ const processRefundBatch = async (
   };
   for (const group of chunk(REFUND_CHUNK_SIZE)(batch)) {
     const results = await Promise.all(
-      group.map((attendee) => refundOneAttendee(provider, attendee, listingId)),
+      group.map((attendee) => refundAtProvider(provider, attendee, listingId)),
     );
-    for (const result of results) {
-      if (result === "ok") counts.refundedCount++;
-      else if (result === "errored") counts.errorCount++;
-      else counts.failedCount++;
+    const chunkRefundedIds: number[] = [];
+    for (const { attendee, outcome } of results) {
+      if (outcome === "errored") counts.errorCount++;
+      else if (outcome === "failed") counts.failedCount++;
+      else chunkRefundedIds.push(attendee.id);
+    }
+    // Record this chunk's ledger reversals before moving on to the next chunk's
+    // provider refunds, narrowing the window where a completed provider refund
+    // has no ledger leg.
+    const posted = await recordAttendeeRefundsBatch(chunkRefundedIds);
+    for (const ok of posted.values()) {
+      if (ok) counts.refundedCount++;
+      else counts.errorCount++;
     }
   }
   return counts;

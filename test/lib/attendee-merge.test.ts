@@ -1,6 +1,16 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { createAttendeeAtomic } from "#shared/db/attendees.ts";
+import {
+  attendeeAccount,
+  revenueAccount,
+  WORLD,
+} from "#shared/accounting/accounts.ts";
+import { transfersByAccount } from "#shared/accounting/queries.ts";
+import { postTransfers } from "#shared/accounting/store.ts";
+import {
+  createAttendeeAtomic,
+  LISTING_ATTENDEE_ROW_COLS,
+} from "#shared/db/attendees.ts";
 import { getDb, queryAll } from "#shared/db/client.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import {
@@ -45,7 +55,8 @@ const createAttendee = async (
   return result.attendees[0]!;
 };
 
-/** Get bookings for an attendee */
+/** Get bookings for an attendee — `refunded` is projected from the ledger, the
+ *  same shape production's merge loader returns. */
 const getBookings = (attendeeId: number) =>
   queryAll<{
     listing_id: number;
@@ -55,11 +66,10 @@ const getBookings = (attendeeId: number) =>
     checked_in: number;
     refunded: number;
     price_paid: number;
+    ledger_event_group: string;
     attachment_downloads: number;
   }>(
-    `SELECT listing_id, start_at, end_at, quantity,
-            checked_in, refunded, price_paid,
-            attachment_downloads
+    `SELECT ${LISTING_ATTENDEE_ROW_COLS}
      FROM listing_attendees
      WHERE attendee_id = ?
      ORDER BY start_at, listing_id`,
@@ -90,6 +100,93 @@ const createQuestionWithAnswers = async (
 };
 
 describeWithEnv("attendee merge service", { db: true }, () => {
+  test("repoints the source's ledger rows onto the target", async () => {
+    const listing1 = await createTestListing({ maxAttendees: 10 });
+    const listing2 = await createTestListing({ maxAttendees: 10 });
+    const target = await createAttendee(listing1.id, "Alice", "alice@test.com");
+    const source = await createAttendee(listing2.id, "Bob", "bob@test.com");
+
+    // A paid booking on the source attendee, recorded in the ledger.
+    await postTransfers([
+      {
+        amount: 5000,
+        destination: revenueAccount(listing2.id),
+        eventGroup: "evt",
+        kind: "sale",
+        occurredAt: "2026-06-21T00:00:00.000Z",
+        reference: "sale",
+        source: attendeeAccount(source.id),
+      },
+      {
+        amount: 5000,
+        destination: attendeeAccount(source.id),
+        eventGroup: "evt",
+        kind: "payment",
+        occurredAt: "2026-06-21T00:00:00.000Z",
+        reference: "pay",
+        source: WORLD,
+      },
+    ]);
+
+    const diff = await buildAttendeeMergeDiff(
+      {
+        sourceBookings: await getBookings(source.id),
+        sourceId: source.id,
+        sourcePii: {
+          address: "",
+          email: "bob@test.com",
+          name: "Bob",
+          phone: "",
+          special_instructions: "",
+        },
+        targetBookings: await getBookings(target.id),
+        targetId: target.id,
+        targetPii: {
+          address: "",
+          email: "alice@test.com",
+          name: "Alice",
+          phone: "",
+          special_instructions: "",
+        },
+      },
+      [],
+    );
+
+    const result = await applyAttendeeMerge({
+      decision: { answers: {}, bookings: {}, pii: {}, version: diff.version },
+      diff,
+      privateKey: await getTestPrivateKey(),
+      sourceId: source.id,
+      sourcePii: {
+        address: "",
+        email: "bob@test.com",
+        name: "Bob",
+        phone: "",
+        special_instructions: "",
+      },
+      targetId: target.id,
+      targetPii: {
+        address: "",
+        email: "alice@test.com",
+        name: "Alice",
+        payment_id: target.payment_id,
+        phone: "",
+        special_instructions: "",
+        ticket_token: target.ticket_token,
+      },
+    });
+
+    expect(result.success).toBe(true);
+    // The source's legs now belong to the target; nothing strands on the
+    // deleted source attendee.
+    expect((await transfersByAccount(attendeeAccount(source.id))).length).toBe(
+      0,
+    );
+    expect((await transfersByAccount(attendeeAccount(target.id))).length).toBe(
+      2,
+    );
+  });
+
   describe("bookingKey", () => {
     test("formats key with start_at", () => {
       expect(bookingKey(1, "2026-05-01")).toBe("1:2026-05-01");
@@ -541,6 +638,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               attachment_downloads: 0,
               checked_in: 0,
               end_at: null,
+              ledger_event_group: "",
               listing_id: 5,
               price_paid: 0,
               quantity: 1,
@@ -552,6 +650,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               attachment_downloads: 0,
               checked_in: 0,
               end_at: null,
+              ledger_event_group: "",
               listing_id: 5,
               price_paid: 0,
               quantity: 2,
@@ -589,6 +688,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               attachment_downloads: 0,
               checked_in: 0,
               end_at: null,
+              ledger_event_group: "",
               listing_id: 7,
               price_paid: 0,
               quantity: 1,
@@ -600,6 +700,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               attachment_downloads: 0,
               checked_in: 0,
               end_at: null,
+              ledger_event_group: "",
               listing_id: 7,
               price_paid: 0,
               quantity: 2,
@@ -639,6 +740,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               attachment_downloads: 0,
               checked_in: 0,
               end_at: null,
+              ledger_event_group: "",
               listing_id: 5,
               price_paid: 1500,
               quantity: 0,
@@ -680,6 +782,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               attachment_downloads: 0,
               checked_in: 0,
               end_at: null,
+              ledger_event_group: "",
               listing_id: 5,
               price_paid: 0,
               quantity: 0,
@@ -691,6 +794,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               attachment_downloads: 0,
               checked_in: 0,
               end_at: null,
+              ledger_event_group: "",
               listing_id: 5,
               price_paid: 1500,
               quantity: 2,
@@ -729,6 +833,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               attachment_downloads: 0,
               checked_in: 0,
               end_at: null,
+              ledger_event_group: "",
               listing_id: 5,
               price_paid: 0,
               quantity: 0,
@@ -774,6 +879,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               attachment_downloads: 0,
               checked_in: 0,
               end_at: null,
+              ledger_event_group: "",
               listing_id: 5,
               price_paid: 0,
               quantity: 1,
@@ -785,6 +891,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
               attachment_downloads: 0,
               checked_in: 0,
               end_at: null,
+              ledger_event_group: "",
               listing_id: 5,
               price_paid: 0,
               quantity: 2,
@@ -824,7 +931,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       // Make source's line a checked-in quantity-0 sentinel (price 0).
       await getDb().execute({
         args: [source.id],
-        sql: "UPDATE listing_attendees SET quantity = 0, price_paid = 0, checked_in = 1 WHERE attendee_id = ?",
+        sql: "UPDATE listing_attendees SET quantity = 0, checked_in = 1 WHERE attendee_id = ?",
       });
 
       const diff = await buildAttendeeMergeDiff(

@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
@@ -9,15 +10,18 @@ import { buildCurlArgs, curlFailureMessage, curlJson } from "../../cli/curl.ts";
 import { clearScreen, writeErr, writeOut } from "../../cli/io.ts";
 import { parseResource, resourcePath, resources } from "../../cli/resources.ts";
 
-const withTempCwd = async <T>(fn: () => Promise<T>): Promise<T> => {
-  const original = Deno.cwd();
-  const dir = await Deno.makeTempDir();
+// Run `fn` against a throwaway directory it can populate with a `.env`. The
+// directory is passed in explicitly rather than via Deno.chdir, because the cwd
+// is process-global: changing it here would race with parallel test files that
+// spawn subprocesses inheriting that cwd (see test/e2e/cli-api.test.ts).
+const withTempEnvDir = async <T>(
+  fn: (envDir: string) => Promise<T>,
+): Promise<T> => {
+  const envDir = await Deno.makeTempDir();
   try {
-    Deno.chdir(dir);
-    return await fn();
+    return await fn(envDir);
   } finally {
-    Deno.chdir(original);
-    await Deno.remove(dir, { recursive: true });
+    await Deno.remove(envDir, { recursive: true });
   }
 };
 
@@ -28,12 +32,12 @@ describe("CLI config", () => {
       API_KEY: "env-key",
     });
     try {
-      await withTempCwd(async () => {
-        await expect(loadConfig()).resolves.toEqual({
+      await withTempEnvDir((envDir) =>
+        expect(loadConfig(envDir)).resolves.toEqual({
           apiHostname: "https://tickets.example.com",
           apiKey: "env-key",
-        });
-      });
+        }),
+      );
     } finally {
       restore();
     }
@@ -45,9 +49,9 @@ describe("CLI config", () => {
       API_KEY: undefined,
     });
     try {
-      await withTempCwd(async () => {
+      await withTempEnvDir(async (envDir) => {
         await Deno.writeTextFile(
-          ".env",
+          join(envDir, ".env"),
           [
             "# local CLI config",
             "not valid",
@@ -56,7 +60,7 @@ describe("CLI config", () => {
           ].join("\n"),
         );
 
-        await expect(loadConfig()).resolves.toEqual({
+        await expect(loadConfig(envDir)).resolves.toEqual({
           apiHostname: "http://localhost:4567",
           apiKey: "dot-key",
         });
@@ -75,12 +79,12 @@ describe("CLI config", () => {
       label === "API host" ? "prompt.test" : "prompt-key",
     );
     try {
-      await withTempCwd(async () => {
-        await expect(loadConfig()).resolves.toEqual({
+      await withTempEnvDir((envDir) =>
+        expect(loadConfig(envDir)).resolves.toEqual({
           apiHostname: "https://prompt.test",
           apiKey: "prompt-key",
-        });
-      });
+        }),
+      );
     } finally {
       prompt.restore();
       restore();
@@ -94,9 +98,9 @@ describe("CLI config", () => {
     });
     const prompt = stub(globalThis, "prompt", () => "");
     try {
-      await withTempCwd(async () => {
-        await expect(loadConfig()).rejects.toThrow("API host is required");
-      });
+      await withTempEnvDir((envDir) =>
+        expect(loadConfig(envDir)).rejects.toThrow("API host is required"),
+      );
     } finally {
       prompt.restore();
       restore();
@@ -110,9 +114,9 @@ describe("CLI config", () => {
     });
     const prompt = stub(globalThis, "prompt", () => null);
     try {
-      await withTempCwd(async () => {
-        await expect(loadConfig()).rejects.toThrow("API host is required");
-      });
+      await withTempEnvDir((envDir) =>
+        expect(loadConfig(envDir)).rejects.toThrow("API host is required"),
+      );
     } finally {
       prompt.restore();
       restore();
@@ -125,12 +129,12 @@ describe("CLI config", () => {
       API_KEY: "env-key",
     });
     try {
-      await withTempCwd(async () => {
-        await expect(loadConfig()).resolves.toEqual({
+      await withTempEnvDir((envDir) =>
+        expect(loadConfig(envDir)).resolves.toEqual({
           apiHostname: "",
           apiKey: "env-key",
-        });
-      });
+        }),
+      );
     } finally {
       restore();
     }
@@ -142,9 +146,9 @@ describe("CLI config", () => {
       API_KEY: "env-key",
     });
     try {
-      await withTempCwd(async () => {
-        await Deno.mkdir(".env");
-        await expect(loadConfig()).rejects.toThrow();
+      await withTempEnvDir(async (envDir) => {
+        await Deno.mkdir(join(envDir, ".env"));
+        await expect(loadConfig(envDir)).rejects.toThrow();
       });
     } finally {
       restore();

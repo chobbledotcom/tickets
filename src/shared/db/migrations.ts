@@ -17,6 +17,7 @@ import { ensureDefaultAttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import { getDb } from "#shared/db/client.ts";
 import { getEnv } from "#shared/env.ts";
 import { logDebug } from "#shared/logger.ts";
+import { delay, nowIso } from "#shared/now.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import { recordScriptVersion } from "#shared/update.ts";
 import currentSchemaMigration from "./migrations/2026-06-11_current_schema.ts";
@@ -53,7 +54,18 @@ import contactBookingCountsMigration from "./migrations/2026-06-20_contact_booki
 import freeTextQuestionsMigration from "./migrations/2026-06-20_free_text_questions.ts";
 import stringCreatedMigration from "./migrations/2026-06-20_string_created.ts";
 import userKekV2Migration from "./migrations/2026-06-20_user_kek_v2.ts";
-import ticketCountNoQuantityMigration from "./migrations/2026-06-21_ticket_count_no_quantity.ts";
+import transfersMigration from "./migrations/2026-06-21_transfers.ts";
+import backfillTransfersMigration from "./migrations/2026-06-22_backfill_transfers.ts";
+import dropAttendeesPricePaidMigration from "./migrations/2026-06-22_drop_attendees_price_paid.ts";
+import dropAttendeesRemainingBalanceMigration from "./migrations/2026-06-22_drop_attendees_remaining_balance.ts";
+import dropListingAttendeePricePaidMigration from "./migrations/2026-06-22_drop_listing_attendee_price_paid.ts";
+import dropListingAttendeeRefundedMigration from "./migrations/2026-06-22_drop_listing_attendee_refunded.ts";
+import dropListingIncomeMigration from "./migrations/2026-06-22_drop_listing_income.ts";
+import dropModifiersTotalRevenueMigration from "./migrations/2026-06-22_drop_modifiers_total_revenue.ts";
+import dropTransfersCurrencyMigration from "./migrations/2026-06-22_drop_transfers_currency.ts";
+import listingAttendeeLedgerEventGroupMigration from "./migrations/2026-06-22_listing_attendee_ledger_event_group.ts";
+import transfersTimeIntMigration from "./migrations/2026-06-22_transfers_time_int.ts";
+import ticketCountNoQuantityMigration from "./migrations/2026-06-23_ticket_count_no_quantity.ts";
 import { repairLegacyRenames } from "./migrations/rename-utils.ts";
 import {
   LATEST_UPDATE,
@@ -208,6 +220,19 @@ export const MIGRATIONS: Migration[] = [
   answerActiveMigration,
   contactBookingCountsMigration,
   userKekV2Migration,
+  transfersMigration,
+  transfersTimeIntMigration,
+  dropTransfersCurrencyMigration,
+  listingAttendeeLedgerEventGroupMigration,
+  backfillTransfersMigration,
+  dropListingIncomeMigration,
+  dropListingAttendeeRefundedMigration,
+  dropListingAttendeePricePaidMigration,
+  dropAttendeesPricePaidMigration,
+  dropAttendeesRemainingBalanceMigration,
+  dropModifiersTotalRevenueMigration,
+  // Runs after drop_listing_income so the trigger rebuild lands on top of the
+  // income-free bodies: re-counts tickets_count as quantity > 0 only.
   ticketCountNoQuantityMigration,
 ].map((build) => build(migrationContext));
 
@@ -230,9 +255,7 @@ const initializeFreshSchema = async (): Promise<void> => {
   await ensureDefaultAttendeeStatus();
   await syncTriggers();
   await writeSchemaMarkers();
-  for (const migration of MIGRATIONS) {
-    await markMigrationApplied(migration);
-  }
+  await markMigrationsApplied(MIGRATIONS);
 };
 
 const ensureMigrationTrackingTable = async (): Promise<void> => {
@@ -249,12 +272,37 @@ const getAppliedMigrationIds = async (): Promise<Set<string>> => {
   return new Set(result.rows.map((row) => String(row.id)));
 };
 
+/** Build the INSERT that records a migration as applied. */
+const migrationMarkerStatement = (
+  migration: Migration,
+  appliedAt: string,
+): { sql: string; args: string[] } => ({
+  args: [migration.id, migration.description, appliedAt],
+  sql: `INSERT OR REPLACE INTO ${SCHEMA_MIGRATIONS_TABLE} (id, description, applied_at) VALUES (?, ?, ?)`,
+});
+
 const markMigrationApplied = async (migration: Migration): Promise<void> => {
   await ensureMigrationTrackingTable();
-  await getDb().execute({
-    args: [migration.id, migration.description, new Date().toISOString()],
-    sql: `INSERT OR REPLACE INTO ${SCHEMA_MIGRATIONS_TABLE} (id, description, applied_at) VALUES (?, ?, ?)`,
-  });
+  await getDb().execute(migrationMarkerStatement(migration, nowIso()));
+};
+
+/**
+ * Record several migrations as applied in one batch transaction — used by the
+ * fresh-install and baseline paths, which mark every migration with no work in
+ * between, so one round-trip replaces one per migration. Both callers only pass
+ * a non-empty list (baseline returns early when nothing is missing).
+ */
+const markMigrationsApplied = async (
+  migrations: Migration[],
+): Promise<void> => {
+  await ensureMigrationTrackingTable();
+  const appliedAt = nowIso();
+  await getDb().batch(
+    migrations.map((migration) =>
+      migrationMarkerStatement(migration, appliedAt),
+    ),
+    "write",
+  );
 };
 
 const writeSchemaMarkers = async (): Promise<void> => {
@@ -278,9 +326,7 @@ const baselineCurrentSchemaIfNeeded = async (): Promise<void> => {
     "Migration",
     `Baselining ${missing.length} already-applied migration(s)`,
   );
-  for (const migration of missing) {
-    await markMigrationApplied(migration);
-  }
+  await markMigrationsApplied(missing);
 };
 
 const pendingMigrations = async (): Promise<Migration[]> => {
@@ -288,11 +334,53 @@ const pendingMigrations = async (): Promise<Migration[]> => {
   return MIGRATIONS.filter((migration) => !applied.has(migration.id));
 };
 
+/**
+ * Backoff (ms) before each re-attempt of a migration's verify(). Its length is
+ * the number of retries, so four verify attempts in total.
+ *
+ * A migration applies DDL in up() and then verify() reads the live schema back
+ * to confirm it landed. The snapshot is already pinned to the primary
+ * (queryBatchPrimary, "write" mode) to dodge replica lag, but a freshly-opened
+ * primary connection can still briefly observe the pre-DDL schema —
+ * read-your-writes propagation lag — so a column the ALTER just added reads as
+ * missing and verify() throws spuriously. (Observed in production: a column-add
+ * migration failed verification on one request and passed on the retry moments
+ * later.) verify() re-snapshots on every call, so retrying after a short backoff
+ * lets the schema settle within the same request rather than 503-ing it. A
+ * genuine schema defect stays missing across every attempt and still throws, so
+ * this never masks a real bug.
+ */
+export const VERIFY_RETRY_BACKOFF_MS = [50, 150, 350] as const;
+
+/**
+ * Run a migration's verify(), retrying a transient failure (read-your-writes
+ * lag on the just-applied DDL) on a fresh schema snapshot before giving up.
+ */
+export const verifyMigrationWithRetry = async (
+  migration: Migration,
+): Promise<void> => {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await migration.verify();
+      return;
+    } catch (error) {
+      if (attempt >= VERIFY_RETRY_BACKOFF_MS.length) throw error;
+      logDebug(
+        "Migration",
+        `verify ${migration.id} failed on attempt ${
+          attempt + 1
+        }, retrying: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      await delay(VERIFY_RETRY_BACKOFF_MS[attempt]!);
+    }
+  }
+};
+
 const runPendingMigrations = async (pending: Migration[]): Promise<void> => {
   for (const migration of pending) {
     logDebug("Migration", `Running ${migration.id}: ${migration.description}`);
     await migration.up();
-    await migration.verify();
+    await verifyMigrationWithRetry(migration);
     await markMigrationApplied(migration);
   }
 };

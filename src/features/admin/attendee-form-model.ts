@@ -13,6 +13,7 @@
 
 import { mapNotNullish } from "#fp";
 import { t } from "#i18n";
+import type { PricedLine, PricedOrder } from "#shared/checkout-pricing.ts";
 import { formatCurrency, toMinorUnits } from "#shared/currency.ts";
 import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import type {
@@ -459,6 +460,41 @@ export const toCreateInput = (
   special_instructions: parsed.special_instructions,
   statusId: parsed.statusId,
 });
+
+/**
+ * Build the gross priced order for a manual add's ledger legs: one line per
+ * booked listing at its current list price × quantity. The add form captures no
+ * amount paid and no booking fee, so this carries no extras and a zero total —
+ * `owedOrderForLedger`/`bookingFactsFromOrder` then recognise each line's gross
+ * as a `sale` leg (income) with no `payment`/`fee` leg, and the manual-add poster
+ * reconciles the owner-entered outstanding balance on top. A booked line always
+ * resolves its listing (`isBookedLine`), so `listing!` is safe.
+ */
+export const toLedgerOrder = (parsed: ParsedAttendeeForm): PricedOrder => {
+  const lines: PricedLine[] = parsed.lines
+    .filter(isBookedLine)
+    .map((line): PricedLine => {
+      const listing = line.listing!;
+      return {
+        chargedUnitAmount: listing.unit_price,
+        item: {
+          listingId: line.listingId,
+          name: listing.name,
+          quantity: line.quantity!,
+          slug: listing.slug,
+          unitPrice: listing.unit_price,
+        },
+        quantity: line.quantity!,
+      };
+    });
+  return {
+    extras: [],
+    fullSubtotal: 0,
+    lines,
+    modifierApplications: [],
+    total: 0,
+  };
+};
 
 /**
  * Desired final-state lines for the atomic edit. A line that already has a

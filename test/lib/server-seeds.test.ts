@@ -12,7 +12,7 @@ import {
   awaitTestRequest,
   createTestManagerSession,
   describeWithEnv,
-  expectRedirectWithFlash,
+  expectFlashRedirect,
   extractCsrfToken,
   mockFormRequest,
   mockRequest,
@@ -86,7 +86,7 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
         ),
       );
 
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/seeds",
         "Created 2 listing(s) with 0 attendee(s) total.",
       )(response);
@@ -108,7 +108,7 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
         ),
       );
 
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/seeds",
         expect.stringContaining("Created 2 listing"),
       )(response);
@@ -153,7 +153,7 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
         ),
       );
 
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/seeds",
         expect.stringContaining(`Created ${MAX_SEED_LISTINGS} listing`),
       )(response);
@@ -172,7 +172,7 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
         ),
       );
 
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/seeds",
         expect.stringContaining("Created 1 listing"),
       )(response);
@@ -230,7 +230,7 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
         ),
       );
 
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/seeds",
         "Failed to create seed data. Ensure setup is complete.",
         false,
@@ -250,7 +250,7 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
         ),
       );
 
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/seeds",
         expect.stringContaining("Created 1 listing"),
       )(response);
@@ -269,7 +269,7 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
         ),
       );
 
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/seeds",
         expect.stringContaining("Created 1 listing"),
       )(response);

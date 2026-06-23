@@ -66,7 +66,6 @@ describeWithEnv(
       const listing = await createTestListing({ maxAttendees: 5 });
       await updateListingAggregateValues(listing.id, {
         booked_quantity: 4,
-        income: 0,
         tickets_count: 0,
       });
       expect(await remaining(listing.id, null)).toBe(1);

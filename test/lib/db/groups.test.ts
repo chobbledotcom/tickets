@@ -10,6 +10,7 @@ import {
 } from "#shared/db/attendees.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
+  assignListingsToGroup,
   computeGroupSlugIndex,
   getActiveListingsByGroupId,
   getAllGroups,
@@ -136,6 +137,37 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
         name: "Reset Listing",
       });
       await resetGroupListings(group.id);
+      expect((await getListing(listing.id))?.group_id).toBe(0);
+    });
+
+    test("assignListingsToGroup moves every listing in one batch", async () => {
+      const group = await createTestGroup({
+        name: "Assign Group",
+        slug: "assign-group",
+      });
+      const a = await createTestListing({ maxAttendees: 10, name: "Assign A" });
+      const b = await createTestListing({ maxAttendees: 10, name: "Assign B" });
+      expect(a.group_id).toBe(0);
+      expect(b.group_id).toBe(0);
+
+      await assignListingsToGroup([a.id, b.id], group.id);
+
+      expect((await getListing(a.id))?.group_id).toBe(group.id);
+      expect((await getListing(b.id))?.group_id).toBe(group.id);
+    });
+
+    test("assignListingsToGroup is a no-op for an empty list", async () => {
+      const group = await createTestGroup({
+        name: "Empty Assign",
+        slug: "empty-assign",
+      });
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        name: "Untouched",
+      });
+
+      await assignListingsToGroup([], group.id);
+
       expect((await getListing(listing.id))?.group_id).toBe(0);
     });
   });
@@ -461,7 +493,6 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
       );
       await updateListingAggregateValues(e1.id, {
         booked_quantity: 4,
-        income: 0,
         tickets_count: 0,
       });
 

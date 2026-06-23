@@ -147,7 +147,9 @@ const saveDraft = async (
   await settings.update.bulkEmailDraft(encrypted);
 };
 
-/** Wrap an owner-only page builder: gate on owner, apply flash, then build. */
+/** Wrap an owner-only page builder: gate on owner, record the flash's target
+ * form (so a matching CsrfForm renders it inline), then build. The flash itself
+ * is rendered by the targeted form or the Layout backstop — not threaded here. */
 const ownerEmailPage =
   (build: (request: Request, session: AuthSession) => Promise<Response>) =>
   (request: Request): Promise<Response> =>

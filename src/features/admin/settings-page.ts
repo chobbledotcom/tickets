@@ -35,7 +35,6 @@ const getSettingsPageState = async () => {
     businessEmail: settings.businessEmail,
     calendarFeedsEnabled: settings.calendarFeedsEnabled,
     calendarFeedsGroupBy: settings.calendarFeedsGroupBy,
-    country: settings.country,
     embedHosts: settings.embedHosts,
     headerImageUrl: settings.headerImageUrl,
     paymentProvider: settings.paymentProvider ?? "",
@@ -51,6 +50,7 @@ const getSettingsPageState = async () => {
     superuser,
     termsAndConditions: settings.terms,
     theme: settings.theme,
+    underlineLinks: settings.underlineLinks,
     webhookUrl: getWebhookUrl(),
   };
 };

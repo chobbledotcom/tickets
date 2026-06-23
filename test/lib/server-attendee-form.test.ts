@@ -30,6 +30,7 @@ import {
   createDailyTestListing,
   createTestAttendee,
   createTestListing,
+  createTestManagerSession,
   describeWithEnv,
   expectHtmlResponse,
   expectListingRowQuantity,
@@ -43,6 +44,7 @@ import {
   testRequiresAuth,
   withMocks,
 } from "#test-utils";
+import { postListingSale } from "#test-utils/ledger.ts";
 
 describeWithEnv("server (unified attendee form)", { db: true }, () => {
   describe("GET /admin/attendees/new", () => {
@@ -522,12 +524,15 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
   });
 
   describe("no-quantity checkbox round-trip", () => {
+    // price_paid is projected from the ledger now, so read the line through
+    // loadExistingLines (the same projection the edit form uses) rather than a
+    // raw column select.
     const readLine = async (attendeeId: number, listingId: number) => {
-      const r = await getDb().execute({
-        args: [attendeeId, listingId],
-        sql: "SELECT quantity, checked_in, price_paid FROM listing_attendees WHERE attendee_id = ? AND listing_id = ?",
-      });
-      return r.rows[0] ?? null;
+      const { loadExistingLines } = await import("#shared/db/attendees.ts");
+      const entry = (await loadExistingLines(attendeeId)).find(
+        (e) => e.booking.listing_id === listingId,
+      );
+      return entry?.booking ?? null;
     };
 
     const markNoQuantity = async (
@@ -615,13 +620,16 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     test("blocks marking a paid line no-quantity (line unchanged)", async () => {
       const listing = await createTestListing({ maxAttendees: 50 });
       const created = await createAttendeeAtomic({
-        bookings: [{ listingId: listing.id, pricePaid: 1500, quantity: 2 }],
+        bookings: [{ listingId: listing.id, quantity: 2 }],
         email: "paid@example.com",
         name: "Paid",
         paymentId: "pay_block",
       });
       if (!created.success) throw new Error("setup");
       const attendeeId = created.attendees[0]!.id;
+      // Recognise the payment in the ledger: hasPaidLine (the DB guard) keys on a
+      // gross sale leg now, not a price_paid column.
+      await postListingSale({ attendeeId, gross: 1500, listingId: listing.id });
 
       const response = await markNoQuantity(attendeeId, listing.id, "Paid");
 
@@ -655,26 +663,10 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       });
     });
 
-    test("marking the last real line no-quantity clears an unpayable balance", async () => {
-      const listing = await createTestListing({ maxAttendees: 50 });
-      const created = await createAttendeeAtomic({
-        bookings: [{ listingId: listing.id, quantity: 1 }],
-        email: "owes@example.com",
-        name: "Owes",
-        remainingBalance: 2000,
-      });
-      if (!created.success) throw new Error("setup");
-      const attendeeId = created.attendees[0]!.id;
-      expect(
-        (await getAttendeeBalanceState(attendeeId))!.remainingBalance,
-      ).toBe(2000);
-
-      await markNoQuantity(attendeeId, listing.id, "Owes");
-
-      expect(
-        (await getAttendeeBalanceState(attendeeId))!.remainingBalance,
-      ).toBe(0);
-    });
+    // (No "clears an unpayable balance" test: an outstanding balance now projects
+    // from a ledger sale leg, and a line with a sale leg can't be marked
+    // no-quantity — hasPaidLine blocks it — so a real line's balance can never be
+    // stranded by the no-quantity transition in the first place.)
 
     test("blocks marking an assigned built-site line no-quantity", async () => {
       const listing = await createTestListing({ maxAttendees: 50 });
@@ -707,13 +699,14 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     test("blocks no-quantity on a paid line even with a stale (missing) line key", async () => {
       const listing = await createTestListing({ maxAttendees: 50 });
       const created = await createAttendeeAtomic({
-        bookings: [{ listingId: listing.id, pricePaid: 1500, quantity: 1 }],
+        bookings: [{ listingId: listing.id, quantity: 1 }],
         email: "stale@example.com",
         name: "Stale",
         paymentId: "pay_stale",
       });
       if (!created.success) throw new Error("setup");
       const attendeeId = created.attendees[0]!.id;
+      await postListingSale({ attendeeId, gross: 1500, listingId: listing.id });
       // Submit with an empty line key so the form's existingBooking is null and
       // the per-line model guard can't fire — the DB-based guard must still block.
       const form = await buildAttendeeEditForm(attendeeId, {
@@ -729,12 +722,10 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       const html = await expectHtmlResponse(response, 200);
       expect(html).toContain("Refund this booking's payment");
       // The paid line is untouched (not dropped/replaced by a ghost).
-      const row = await getDb().execute({
-        args: [attendeeId, listing.id],
-        sql: "SELECT quantity, price_paid FROM listing_attendees WHERE attendee_id = ? AND listing_id = ?",
+      expect(await readLine(attendeeId, listing.id)).toMatchObject({
+        price_paid: 1500,
+        quantity: 1,
       });
-      expect(Number(row.rows[0]!.quantity)).toBe(1);
-      expect(Number(row.rows[0]!.price_paid)).toBe(1500);
     });
   });
 
@@ -802,6 +793,54 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       // Assert the rendered badge markup, not just the words "Checked in",
       // so a mutant that drops the badge styling/element is still caught.
       expect(html).toContain('<span class="badge">Checked in</span>');
+    });
+  });
+
+  describe("ledger panel on the edit page", () => {
+    /** Seed an attendee with a fully-paid sale (so the embedded statement has a
+     * sale leg whose counterparty is the listing and a payment leg whose
+     * counterparty is the card/bank singleton), then GET its edit page. */
+    const seedAndGetEdit = async (cookie: string): Promise<string> => {
+      const listing = await createTestListing({
+        maxAttendees: 50,
+        name: "Pottery Class",
+      });
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Ledger Lou",
+        "lou@example.com",
+      );
+      await postListingSale({
+        attendeeId: attendee.id,
+        gross: 2500,
+        listingId: listing.id,
+      });
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendee.id}`,
+        { cookie },
+      );
+      return expectHtmlResponse(response, 200);
+    };
+
+    test("an owner sees the attendee's running-balance statement with counterparties", async () => {
+      const html = await seedAndGetEdit(await testCookie());
+      // The shared statement renders inside its own Ledger fieldset.
+      expect(html).toContain("<legend>Ledger</legend>");
+      expect(html).toContain("<th>Counterparty</th>");
+      // The sale's counterparty links to the listing; the payment's is card/bank.
+      expect(html).toContain("Pottery Class");
+      expect(html).toContain("Card / bank");
+    });
+
+    test("a manager does NOT see the ledger panel (owner-only money movements)", async () => {
+      // The panel exposes payment/refund/writeoff legs, so it is owner-only —
+      // matching the standalone /admin/ledger* routes. A manager session loads
+      // the same edit page but the panel is omitted entirely.
+      const managerCookie = await createTestManagerSession();
+      const html = await seedAndGetEdit(managerCookie);
+      expect(html).not.toContain("<legend>Ledger</legend>");
+      expect(html).not.toContain("<th>Counterparty</th>");
     });
   });
 
@@ -1536,6 +1575,18 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         statusId,
       });
       if (!created.success) throw new Error("setup failed");
+      // Both amount paid and outstanding balance project from the ledger now:
+      // post the gross sale (deposit + owed) and the deposit payment, so the
+      // attendee has paid `pricePaid` and owes `remainingBalance` in the ledger.
+      const gross = pricePaid + remainingBalance;
+      if (gross > 0) {
+        await postListingSale({
+          amountPaid: pricePaid,
+          attendeeId: created.attendees[0]!.id,
+          gross,
+          listingId: listing.id,
+        });
+      }
       return created.attendees[0]!.id;
     };
 
@@ -1629,6 +1680,14 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       expect(html).toContain('name="remaining_balance"');
       expect(html).not.toContain("still unpaid");
       expect(html).not.toContain("paid status but still owes");
+    });
+
+    test("the outstanding-balance field warns that edits post to the money ledger", async () => {
+      // Decision 14: changing the balance now posts a writeoff correction to the
+      // source-of-truth ledger, so the field carries a prominent warning.
+      const id = await seedAttendee(null, 0);
+      const html = await getEdit(id);
+      expect(html).toContain("correcting entry to the money ledger");
     });
 
     test("edit page shows the attendee's status as a heading when multiple statuses exist", async () => {

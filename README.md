@@ -135,6 +135,7 @@ For image uploads, also add `STORAGE_ZONE_NAME` and `STORAGE_ZONE_KEY` as Bunny 
 ```json
 {
   "address": "42 Oak Lane, Bristol, BS1 1AA",
+  "amount_owed": 0,
   "business_email": "hello@example.com",
   "currency": "GBP",
   "email": "alice@example.com",
@@ -273,6 +274,7 @@ Optional:
 | Variable | Description |
 |----------|-------------|
 | `ADMIN_EMAIL_ADDRESS` | Enables a superuser recovery account. The email local-part (before `@`) must be a valid username: 2–32 characters, letters, numbers, hyphens, and underscores only. Email delivery must be configured before the superuser can be enabled. |
+| `DEBUG_KEY` | Optional diagnostic key. `GET /health` returns a plain `Up :)` by default; a request carrying a matching `X-Debug-Key` header gets a small JSON payload (build commit, build timestamp, server time). Unset ⇒ the verbose response is disabled. |
 
 **Database maintenance:** pruning of expired sessions, rate-limit rows, payment idempotency records and (optionally) orphaned attendees runs automatically while serving requests, self-gated to roughly once per `PRUNE_INTERVAL_HOURS` (default 24) per table — so a site with regular traffic needs no setup. To guarantee pruning on a quiet site, point a cron at `GET /scheduled` — a dynamic route that prunes on every hit (static asset URLs such as `/favicon.ico` are served before pruning runs, so they won't do). On a builder, `POST /scheduled` additionally pokes the least-recently-pruned built site (a plain request that triggers _its_ prune), so one cron on the master keeps quiet client sites pruned too — run it often enough to cover the fleet within `PRUNE_INTERVAL_HOURS` (e.g. hourly handles ~24 clients at the default).
 
@@ -285,6 +287,8 @@ The deploy workflows back a site up (via `POST /instance/site-credentials`) befo
 - **`.github/workflows/bunny-deploy.yml`** (staging) and **`.github/workflows/production-deploy.yml`** — same flow narrowed to the single site whose script id matches `BUNNY_STAGING_SCRIPT_ID` / `BUNNY_SCRIPT_ID` (the deploy **fails unless exactly one** fleet site matches), via the shared `backup-site` action. They take `MAIN_INSTANCE_KEY` as a run input but fall back to the stored secret. **Only manual runs back up:** the staging push-to-`main` trigger (a merge) deploys without a backup, so it needs no `MAIN_INSTANCE_KEY` / `MAIN_INSTANCE` / `STORAGE_ZONE_*` secrets — just `BUNNY_STAGING_SCRIPT_ID` and `BUNNY_ACCESS_KEY`. A manual run backs up by default (needing those backup secrets, or the key pasted in) and can untick **Back up the database before deploying** to skip it — the escape hatch for when the backup itself is broken.
 
 Tune `BACKUP_PAGE_SIZE` (default 500 rows per read) via env if a single page ever approaches the payload cap.
+
+**Restoring to a point in time:** the running build records the git commit it was built from into its own `settings` table (`current_script_commit`, written on boot; cleared if a build ships without one, so it never goes stale), so every dump carries the commit the site was running when the backup was taken. Restoring a backup rolls back the **data** and surfaces that commit (the full SHA); to roll the **code** back to match, run the **`.github/workflows/restore-deploy.yml`** workflow with that commit and the target script id. It builds the edge bundle fresh from our repository at that commit (git is the per-commit source of truth) and deploys it — so a restore only ever redeploys a commit from our own history, never code carried inside an (untrusted) uploaded backup file. For safety the workflow validates the commit is a full SHA and deploys via the external Bunny action pinned to an immutable SHA, so the production API key is never handed to a deploy wrapper loaded from the checked-out (possibly old) commit. (The rebuilt old code reports the rebuild time as its build version, so the in-app updater may not surface the latest release afterwards — redeploy latest via the normal deploy workflow to return to it.)
 
 See the [CONFIG_KEYS reference](https://chobbledotcom.github.io/tickets/doc.ts/~/CONFIG_KEYS.html) for all optional variables (email providers, Apple Wallet, image uploads, and more).
 

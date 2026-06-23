@@ -1,24 +1,24 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { getAllActivityLog } from "#shared/db/activityLog.ts";
 import { getDb } from "#shared/db/client.ts";
 import { invalidateInitDbCache, resetDatabase } from "#shared/db/migrations.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
-  assertJson,
   assertPublicHtml,
   awaitTestRequest,
   createTestDb,
   describeWithEnv,
+  expectFlashRedirect,
   expectHtmlResponse,
   expectRedirect,
-  expectRedirectWithFlash,
+  getAllActivityLog,
   getSetupCsrfToken,
   invalidateTestDbCache,
   mockFormRequest,
   mockRequest,
   mockSetupFormRequest,
+  reloginAsAdmin,
   resetDb,
   withExpectedError,
   withMocks,
@@ -142,17 +142,17 @@ describeWithEnv("server (setup)", { db: true }, () => {
       });
 
       test("health check still works", async () => {
-        await assertJson(handleRequest(mockRequest("/health")), 200, (json) => {
-          expect(json).toEqual({ status: "ok" });
-        });
+        const response = await handleRequest(mockRequest("/health"));
+        expect(response.status).toBe(200);
+        expect(await response.text()).toBe("Up :)");
       });
 
       test("health check works without a settings table", async () => {
         await resetToBrandNewDatabase();
 
-        await assertJson(handleRequest(mockRequest("/health")), 200, (json) => {
-          expect(json).toEqual({ status: "ok" });
-        });
+        const response = await handleRequest(mockRequest("/health"));
+        expect(response.status).toBe(200);
+        expect(await response.text()).toBe("Up :)");
         expect(await settingsTableExists()).toBe(false);
       });
 
@@ -173,13 +173,9 @@ describeWithEnv("server (setup)", { db: true }, () => {
         );
 
         try {
-          await assertJson(
-            handleRequest(mockRequest("/health")),
-            200,
-            (json) => {
-              expect(json).toEqual({ status: "ok" });
-            },
-          );
+          const health = await handleRequest(mockRequest("/health"));
+          expect(health.status).toBe(200);
+          expect(await health.text()).toBe("Up :)");
 
           const response = await handleRequest(mockRequest("/style.css"));
           expect(response.status).toBe(200);
@@ -268,7 +264,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
             country: "US",
           }),
         );
-        expectRedirectWithFlash(
+        await expectFlashRedirect(
           "/setup/",
           expect.stringContaining("Invalid or expired form"),
           false,
@@ -286,7 +282,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
             csrf_token: "wrong-token-in-form",
           }),
         );
-        expectRedirectWithFlash(
+        await expectFlashRedirect(
           "/setup/",
           expect.stringContaining("Invalid or expired form"),
           false,
@@ -298,7 +294,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
           admin_password: "",
           admin_password_confirm: "",
         });
-        expectRedirectWithFlash(
+        await expectFlashRedirect(
           "/setup/",
           expect.stringContaining("Admin Password"),
           false,
@@ -309,7 +305,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
         const response = await submitSetupFormWithDefaults({
           admin_password_confirm: "different",
         });
-        expectRedirectWithFlash(
+        await expectFlashRedirect(
           "/setup/",
           expect.stringContaining("Passwords do not match"),
           false,
@@ -321,7 +317,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
           admin_password: "short",
           admin_password_confirm: "short",
         });
-        expectRedirectWithFlash(
+        await expectFlashRedirect(
           "/setup/",
           expect.stringContaining("at least 8 characters"),
           false,
@@ -332,7 +328,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
         const response = await submitSetupFormWithDefaults({
           country: "XX",
         });
-        expectRedirectWithFlash(
+        await expectFlashRedirect(
           "/setup/",
           expect.stringContaining("valid country"),
           false,
@@ -343,7 +339,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
         const response = await submitSetupFormWithDefaults({
           accept_agreement: "", // Explicitly not accepting
         });
-        expectRedirectWithFlash(
+        await expectFlashRedirect(
           "/setup/",
           expect.stringContaining("must accept the Data Controller Agreement"),
           false,
@@ -510,6 +506,9 @@ describeWithEnv("server (setup)", { db: true }, () => {
         ),
       );
 
+      // The setup-completion entry is owner-key encrypted, so read it back as
+      // the newly-created owner (whose password is non-default here).
+      await reloginAsAdmin("mypassword123");
       const logs = await getAllActivityLog();
       expect(
         logs.some((l) => l.message.includes("Initial setup completed")),

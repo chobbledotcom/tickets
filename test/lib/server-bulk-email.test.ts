@@ -2,10 +2,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { type BulkEmailDraft, serializeDraft } from "#shared/bulk-email.ts";
 import { encryptWithOwnerKey } from "#shared/crypto/keys.ts";
-import {
-  getAllActivityLog,
-  getListingActivityLog,
-} from "#shared/db/activityLog.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
   getContactRecord,
@@ -24,9 +20,11 @@ import {
   createTestManagerSession,
   describeWithEnv,
   expectFlash,
+  expectFlashRedirect,
   expectHtmlResponse,
   expectRedirect,
-  expectRedirectWithFlash,
+  getAllActivityLog,
+  getListingActivityLog,
   getTestPrivateKey,
   testCookie,
   testRequiresAuth,
@@ -180,7 +178,7 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
         body: "Hello everyone",
         subject: "News",
       });
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/emails/preview",
         "Review your email below before sending.",
       )(response);
@@ -211,7 +209,7 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
         listing_id: "9999",
         subject: "Subject",
       });
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/emails",
         "That listing no longer exists.",
         false,
@@ -224,7 +222,7 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
         listing_id: "0",
         subject: "Subject",
       });
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/emails",
         "That listing no longer exists.",
         false,
@@ -398,7 +396,7 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
 
     test("errors when there is no draft", async () => {
       const { response } = await adminFormPost("/admin/emails/send", {});
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/emails",
         "There's no email to send.",
         false,
@@ -413,7 +411,7 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
         subject: "Subject",
       });
       const { response } = await adminFormPost("/admin/emails/send", {});
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/emails/preview",
         "Configure your own email provider before sending bulk email.",
         false,
@@ -432,7 +430,7 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
 
       const { response } = await adminFormPost("/admin/emails/send", {});
 
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/emails",
         "Sent to 2 recipients via Resend. The email provider responded with HTTP 200.",
       )(response);
@@ -459,7 +457,7 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
 
       const { response } = await adminFormPost("/admin/emails/send", {});
 
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/emails",
         'Sent to 2 recipients via Resend. The email provider responded with HTTP 200: {"data":[{"id":"msg_1"}]}.',
       )(response);
@@ -498,7 +496,7 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
         subject: "Subject",
       });
       const { response } = await adminFormPost("/admin/emails/send", {});
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/emails/preview",
         "There are no recipients to send to.",
         false,
@@ -520,7 +518,7 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
         subject: "Sale",
       });
       const { response } = await adminFormPost("/admin/emails/send", {});
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/emails/preview",
         "Everyone in this audience has unsubscribed.",
         false,
@@ -655,7 +653,7 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
 
       const { response } = await adminFormPost("/admin/emails/send", {});
 
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/emails",
         "Sent to 1 recipient via Resend. The email provider responded with HTTP 200.",
       )(response);
@@ -967,7 +965,7 @@ describeWithEnv("server (bulk email)", { db: true }, () => {
         `/admin/emails/templates/${id}/delete`,
         { confirm_identifier: "To delete" },
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/emails?audience=active",
         "Template deleted.",
       )(response);

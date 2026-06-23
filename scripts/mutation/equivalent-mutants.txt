@@ -1,0 +1,50 @@
+# Known-equivalent mutants — suppressed from the survivor count.
+#
+# A mutant is "equivalent" when NO possible input distinguishes it from the
+# original, so no test could ever kill it. Recording it here lets the mutation
+# tester gate CI on genuinely NEW survivors instead of re-reporting these.
+#
+# Equivalent means unkillable by *any* test — not merely unkilled by the ones
+# that exist today. A survivor a stronger assertion could catch is a test gap,
+# not an equivalent: fix the test instead of listing it here. Prefer entries
+# whose equivalence is provable from types (e.g. `?? → ||` where the operand is
+# never falsy-but-non-null) over ones that lean on a domain invariant.
+#
+# Format — copy a survivor line from the report and add a reason:
+#   <path>:<line>:<col>  <from> → <to>   # why it is equivalent
+
+# `x ?? F` vs `x || F` differ only when x is falsy-but-not-null; these are all
+# cases where x can't be such a value, or F equals the only one it can be.
+src/shared/checkout-pricing.ts:84:35  ?? → ||    # Map<number,number> sum: 0 ?? 0 === 0 || 0
+src/shared/checkout-pricing.ts:332:41  ?? → ||   # intent.modifiers: an array is always truthy
+src/shared/logistics-filter.ts:22:35  ?? → ||    # raw: string|null, only falsy string "" === fallback ""
+src/shared/site-assignment.ts:192:57  ?? → ||    # parseReadOnlyFromMs(): number|null, 0 ?? 0 === 0 || 0
+src/shared/site-assignment.ts:370:34  ?? → ||    # available[idx]: object|undefined, never falsy non-null
+src/shared/site-assignment.ts:392:34  ?? → ||    # getEmailConfig(): EmailConfig|null
+src/shared/site-assignment.ts:416:53  ?? → ||    # parseEmail(): ValidEmail|null, always truthy or null
+src/shared/ledger/project.ts:18:41  ?? → ||    # allBalances: Map<string,number>.get; the only falsy-non-null number is 0, and 0 ?? 0 === 0 || 0
+src/shared/ledger/project.ts:36:49  ?? → ||    # balanceOf: same Map<string,number>.get fallback; 0 ?? 0 === 0 || 0
+src/shared/ledger/reconcile.ts:70:29  ?? → ||    # IDENTITY_FIELDS kind: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
+src/shared/ledger/reconcile.ts:112:56  ?? → ||   # multisetDiff: Map<string,number>.get count; 0 ?? 0 === 0 || 0
+src/shared/ledger/reconcile.ts:115:35  ?? → ||   # multisetDiff: Map<string,number>.get count; 0 ?? 0 === 0 || 0
+src/shared/ledger/reconcile.ts:136:46  ?? → ||   # observed.get(): LegFingerprint[]|undefined — an array is always truthy
+src/shared/ledger/reconcile.ts:143:44  ?? → ||   # expected.get(): LegFingerprint[]|undefined — an array is always truthy
+src/shared/ledger/reconcile.ts:144:43  ?? → ||   # observed.get(): LegFingerprint[]|undefined — an array is always truthy
+src/shared/ledger/reverse.ts:51:18  ?? → ||    # reverseOf memo: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
+src/shared/accounting/mappers.ts:44:20  ?? → ||    # REFUND_KIND[kind]: every value is non-empty and a miss is undefined — never "", so ?? and || coincide
+src/shared/accounting/mappers.ts:115:44  ?? → ||   # grossByListing: Map<number,number>.get; 0 ?? 0 === 0 || 0
+src/shared/accounting/mappers.ts:249:32  ?? → ||   # refundKind(leg.kind ?? ""): string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
+src/shared/accounting/store.ts:219:60  ?? → ||    # planGroup existingByGroup.get(): Transfer[]|undefined — an array is always truthy
+src/shared/accounting/store.ts:242:42  ?? → ||    # planGroup originalsById.get(): Transfer|undefined — a Transfer object is always truthy
+src/shared/accounting/store.ts:240:23  || → &&    # planGroup: for id in {undefined,null} both ternary branches yield null (Map<number,_>.get(undefined|null) === undefined, then ?? null === null), so || and && coincide
+src/shared/accounting/queries.ts:98:67  ?? → ||    # accountBalance: Map<string,number>.get; 0 ?? 0 === 0 || 0
+src/shared/accounting/rows.ts:74:17  ?? → ||    # insertStatement kind: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
+src/shared/accounting/rows.ts:75:17  ?? → ||    # insertStatement memo: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
+src/shared/accounting/rows.ts:181:58  ?? → ||   # selectById (await …)[0]: Transfer|undefined — a Transfer object is always truthy
+
+# Invariant-based, confirmed by reading toUnits: `lineIdxs` comes from toUnits,
+# which assigns lineIdx as the flatMap array index, so the sort's input is
+# always already ascending — and `sort((a,b) => a/b)` is identity on an
+# already-ascending array, so swapping the comparator changes nothing.
+src/shared/checkout-pricing.ts:176:16  - → /     # toUnits gives ascending lineIdx; a/b is identity on sorted input
+

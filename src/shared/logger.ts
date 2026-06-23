@@ -105,6 +105,7 @@ const ERROR_DEFS = {
   CONFIG_MISSING: ["E_CONFIG_MISSING", "Configuration missing"],
   DATA_INVALID: ["E_DATA_INVALID", "Invalid data"],
   // Database errors
+  DB_BUSY: ["E_DB_BUSY", "Database busy"],
   DB_CONNECTION: ["E_DB_CONNECTION", "Database connection failed"],
   DB_QUERY: ["E_DB_QUERY", "Database query failed"],
 
@@ -122,6 +123,8 @@ const ERROR_DEFS = {
   ],
   ENCRYPT_FAILED: ["E_ENCRYPT_FAILED", "Encryption failed"],
   KEY_DERIVATION: ["E_KEY_DERIVATION", "Key derivation failed"],
+  // Ledger errors
+  LEDGER_POST: ["E_LEDGER_POST", "Ledger post failed"],
   NOT_FOUND_ATTENDEE: ["E_NOT_FOUND_ATTENDEE", "Attendee not found"],
 
   // Not found
@@ -381,7 +384,8 @@ export type LogCategory =
   | "Storage"
   | "Wallet"
   | "Migration"
-  | "Prune";
+  | "Prune"
+  | "Backfill";
 
 /**
  * Log a debug message with category prefix

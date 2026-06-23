@@ -102,8 +102,8 @@ export const invalidateUsersCache = (): void => {
 // onUsersInvalidated listeners such as the superuser account-state cache also fire.
 registerTableInvalidation(["users"], invalidateUsersCache);
 
-/** Shared user creation logic */
-const insertUser = async (opts: {
+/** Fields needed to build a users row. */
+type InsertUserOpts = {
   username: string;
   adminLevel: AdminLevel;
   passwordHash: string;
@@ -112,7 +112,19 @@ const insertUser = async (opts: {
   inviteExpiry: string | null;
   kekVersion: number;
   inviteWrappedDataKey: string | null;
-}): Promise<User> => {
+};
+
+/**
+ * Encrypt a user's fields and build the users INSERT without running it,
+ * returning the statement alongside the row values so a caller that executes it
+ * can reconstruct the {@link User}.
+ */
+const buildUserInsert = async (
+  opts: InsertUserOpts,
+): Promise<{
+  statement: ReturnType<typeof insert>;
+  values: Omit<User, "id">;
+}> => {
   const usernameIndex = await hmacHash(opts.username.toLowerCase());
   const encryptedUsername = await encrypt(opts.username.toLowerCase());
   const encryptedAdminLevel = await encrypt(opts.adminLevel);
@@ -137,34 +149,84 @@ const insertUser = async (opts: {
     username_index: usernameIndex,
     wrapped_data_key: opts.wrappedDataKey,
   };
-  const { sql, args } = insert("users", values);
-  const result = await execute(sql, args);
-  const id = Number(result.lastInsertRowid);
-  return { id, ...values };
+  return { statement: insert("users", values), values };
 };
+
+/** A user INSERT statement plus the row values needed to rebuild the User. */
+type BuiltUserInsert = Awaited<ReturnType<typeof buildUserInsert>>;
+
+/** Execute a built users INSERT and reconstruct the full {@link User}. */
+const runUserInsert = async ({
+  statement,
+  values,
+}: BuiltUserInsert): Promise<User> => {
+  const result = await execute(statement.sql, statement.args);
+  return { id: Number(result.lastInsertRowid), ...values };
+};
+
+/** Shared user creation logic */
+const insertUser = async (opts: InsertUserOpts): Promise<User> =>
+  runUserInsert(await buildUserInsert(opts));
+
+/** Build the opts for an already-activated user (no invite, password-bound). */
+const activatedUserOpts = (
+  username: string,
+  passwordHash: string,
+  wrappedDataKey: string | null,
+  adminLevel: AdminLevel,
+  kekVersion: number,
+): InsertUserOpts => ({
+  adminLevel,
+  inviteCodeHash: null,
+  inviteExpiry: null,
+  inviteWrappedDataKey: null,
+  kekVersion,
+  passwordHash,
+  username,
+  wrappedDataKey,
+});
+
+/**
+ * Build an activated user's INSERT, then hand the result to `consume`. Lets the
+ * "create now" and "give me the statement for a batch" entry points share one
+ * parameter list instead of repeating the forwarding.
+ */
+const consumeActivatedUserInsert =
+  <T>(consume: (built: BuiltUserInsert) => T | Promise<T>) =>
+  async (
+    username: string,
+    passwordHash: string,
+    wrappedDataKey: string | null,
+    adminLevel: AdminLevel,
+    kekVersion = 2,
+  ): Promise<T> =>
+    consume(
+      await buildUserInsert(
+        activatedUserOpts(
+          username,
+          passwordHash,
+          wrappedDataKey,
+          adminLevel,
+          kekVersion,
+        ),
+      ),
+    );
 
 /**
  * Create a new (already-activated) user with encrypted fields. Activated users
  * are created at the password-bound KEK scheme (v2); the caller computes the
  * matching wrapped_data_key via wrapDataKeyForPassword.
  */
-export const createUser = (
-  username: string,
-  passwordHash: string,
-  wrappedDataKey: string | null,
-  adminLevel: AdminLevel,
-  kekVersion = 2,
-): Promise<User> =>
-  insertUser({
-    adminLevel,
-    inviteCodeHash: null,
-    inviteExpiry: null,
-    inviteWrappedDataKey: null,
-    kekVersion,
-    passwordHash,
-    username,
-    wrappedDataKey,
-  });
+export const createUser = consumeActivatedUserInsert(runUserInsert);
+
+/**
+ * Build the INSERT that {@link createUser} would run, without executing it, so a
+ * caller can include the user creation in a batch/transaction with other writes
+ * (e.g. initial setup creates the owner atomically alongside its config keys).
+ */
+export const buildCreateUserStatement = consumeActivatedUserInsert(
+  ({ statement }) => statement,
+);
 
 /**
  * Create an invited user (no password yet, has invite code). When the inviter

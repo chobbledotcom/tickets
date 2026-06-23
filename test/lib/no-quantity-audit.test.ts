@@ -27,7 +27,7 @@ import {
 const ghostLine = (attendeeId: number): Promise<unknown> =>
   getDb().execute({
     args: [attendeeId],
-    sql: "UPDATE listing_attendees SET quantity = 0, price_paid = 0 WHERE attendee_id = ?",
+    sql: "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ?",
   });
 
 describeWithEnv("no-quantity audit > token flows", { db: true }, () => {
@@ -170,9 +170,9 @@ describeWithEnv("no-quantity audit > logistics", { db: true }, () => {
     getDb().execute({
       args: [listingId, attendeeId, quantity],
       sql: `INSERT INTO listing_attendees
-              (listing_id, attendee_id, quantity, price_paid, start_at, end_at,
+              (listing_id, attendee_id, quantity, start_at, end_at,
                start_agent_id, end_agent_id)
-            VALUES (?, ?, ?, 0, '2026-07-01T00:00:00Z', '2026-07-02T00:00:00Z', ${AGENT}, ${AGENT})`,
+            VALUES (?, ?, ?, '2026-07-01T00:00:00Z', '2026-07-02T00:00:00Z', ${AGENT}, ${AGENT})`,
     });
 
   test("the run sheet and setLegDone exclude a quantity-0 line", async () => {

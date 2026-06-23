@@ -6,9 +6,14 @@ import {
   CONFIG_KEYS,
   settings,
 } from "#shared/db/settings.ts";
-import { getUserByUsername, verifyUserPassword } from "#shared/db/users.ts";
+import {
+  createUser,
+  getUserByUsername,
+  verifyUserPassword,
+} from "#shared/db/users.ts";
 import {
   describeWithEnv,
+  seedCountry,
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
   testWithSetting,
@@ -111,6 +116,33 @@ describeWithEnv("db > settings", { db: true }, () => {
       expect(settings.currency).toBe("USD");
     });
 
+    test("completeSetup rolls back every write when the owner insert fails", async () => {
+      await getDb().execute("DELETE FROM users");
+      await getDb().execute("DELETE FROM settings");
+      // Pre-seed a user whose username collides with the owner-to-be, so the
+      // owner INSERT violates the unique username index and aborts the batch.
+      await createUser("ownerdupe", "pbkdf2:seedhash", null, "manager");
+      settings.setup.clearCache();
+      settings.invalidateCache();
+      await settings.loadKeys(ALL_SETTINGS_KEYS);
+      expect(await settings.setup.isComplete()).toBe(false);
+
+      await expect(
+        settings.setup.complete("ownerdupe", "mypassword", "US"),
+      ).rejects.toThrow();
+
+      // The whole ceremony rolled back: no config keys, no setup flag, and the
+      // colliding owner row was never created (still just the seeded user).
+      settings.setup.clearCache();
+      settings.invalidateCache();
+      await settings.loadKeys(ALL_SETTINGS_KEYS);
+      expect(await settings.setup.isComplete()).toBe(false);
+      expect(settings.publicKey).toBe("");
+      expect(settings.wrappedPrivateKey).toBe("");
+      const count = await getDb().execute("SELECT COUNT(*) AS n FROM users");
+      expect(Number(count.rows[0]!.n)).toBe(1);
+    });
+
     test("isComplete reloads cache when it has expired", async () => {
       settings.invalidateCache();
       const result = await settings.setup.isComplete();
@@ -204,6 +236,20 @@ describeWithEnv("db > settings", { db: true }, () => {
       expect(settings.theme).toBe("dark");
     });
 
+    test("loadKeys sets underlineLinks true when stored value is true", async () => {
+      await settings.setRaw(CONFIG_KEYS.UNDERLINE_LINKS, "true");
+      settings.invalidateCache();
+      await settings.loadKeys([CONFIG_KEYS.UNDERLINE_LINKS]);
+      expect(settings.underlineLinks).toBe(true);
+    });
+
+    test("loadKeys leaves underlineLinks false when stored value is not true", async () => {
+      await settings.setRaw(CONFIG_KEYS.UNDERLINE_LINKS, "false");
+      settings.invalidateCache();
+      await settings.loadKeys([CONFIG_KEYS.UNDERLINE_LINKS]);
+      expect(settings.underlineLinks).toBe(false);
+    });
+
     test("update.bookingFee with empty string resets to 0", async () => {
       await settings.update.bookingFee("500");
       expect(settings.bookingFee).toBe("500");
@@ -288,8 +334,7 @@ describeWithEnv("db > settings", { db: true }, () => {
     });
 
     test("getTimezoneCached returns value after getTimezoneFromDb populates cache", async () => {
-      await settings.update.country("US");
-      settings.invalidateCache();
+      await seedCountry("US");
       await settings.loadKeys([CONFIG_KEYS.COUNTRY]);
       const value = settings.timezone;
       expect(value).toBe("America/New_York");
@@ -297,16 +342,10 @@ describeWithEnv("db > settings", { db: true }, () => {
     });
 
     test("getTimezoneCached reads from TTL cache when permanent cache is empty", async () => {
-      await settings.update.country("JP");
-      settings.invalidateCache();
+      await seedCountry("JP");
       await settings.loadKeys([CONFIG_KEYS.COUNTRY]);
       settings.getCachedRaw(CONFIG_KEYS.COUNTRY);
       expect(settings.timezone).toBe("Asia/Tokyo");
-    });
-
-    test("updateCountry updates the permanent cache immediately", async () => {
-      await settings.update.country("NZ");
-      expect(settings.timezone).toBe("Pacific/Auckland");
     });
 
     testWithSetting(

@@ -17,6 +17,7 @@ import {
   decryptAttendeeOrNull,
   decryptAttendees,
   getAttendeesByTokens,
+  LISTING_ATTENDEE_ROW_COLS,
   type ListingAttendeeRow,
   updateAttendeePII,
 } from "#shared/db/attendees.ts";
@@ -107,7 +108,7 @@ const loadAttendeeBookings = (
   attendeeId: number,
 ): Promise<ListingAttendeeRow[]> =>
   queryAll<ListingAttendeeRow>(
-    `SELECT listing_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads
+    `SELECT ${LISTING_ATTENDEE_ROW_COLS}
      FROM listing_attendees WHERE attendee_id = ? ORDER BY start_at, listing_id`,
     [attendeeId],
   );
@@ -314,6 +315,7 @@ const applyMergeDecisions = async (
   await logActivity(
     buildMergeLogParts(summary, source.name, mergedPiiName).join(". "),
     target.listing_id,
+    attendeeId,
   );
 
   return redirect(

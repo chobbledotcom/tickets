@@ -10,6 +10,7 @@ import {
   redirectResponse,
 } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
+import { owedOrderForLedger } from "#shared/checkout-ledger.ts";
 import {
   type ModifierApplication,
   type PricedOrder,
@@ -20,8 +21,8 @@ import {
 import { isPaymentsEnabled } from "#shared/config.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
+import { formatCurrency } from "#shared/currency.ts";
 import { getPublicDefaultStatus } from "#shared/db/attendee-statuses.ts";
-import { reverseOrderActivity } from "#shared/db/attendees.ts";
 import {
   answerModifierQuantities,
   buyerVisits,
@@ -29,7 +30,6 @@ import {
   type ResolveOptions,
   resolveModifiers,
 } from "#shared/db/modifier-resolve.ts";
-import { consumeModifierStockOrRollback } from "#shared/db/modifier-usage.ts";
 import {
   getOrCreateStringIds,
   parseQuestionAnswers,
@@ -37,7 +37,6 @@ import {
 } from "#shared/db/questions.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import { bestEffort } from "#shared/logger.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { verifyQrBookToken } from "#shared/qr-token.ts";
 import { validateSiteAssignmentConfig } from "#shared/site-assignment.ts";
@@ -203,6 +202,10 @@ const computeListingTextAnswerIdMap = async (
       ),
     ).map(([listingId, answers]) => [
       listingId,
+      // These answers are a subset of the texts handed to getOrCreateStringIds,
+      // which returns an id for every input text or throws — so `s` is always a
+      // real id here, never the undefined that JSON.stringify would silently
+      // drop from the signed metadata.
       answers.map((answer) => ({
         q: answer.questionId,
         s: stringIds.get(answer.text)!,
@@ -326,12 +329,6 @@ const publicReservationAmount = async (): Promise<string | undefined> => {
     : undefined;
 };
 
-/** User-facing message when a chosen add-on or discount sold out during a
- * zero-total completion (no provider in the loop, so it didn't sell out
- * "while completing payment" as the webhook path phrases it). */
-const MODIFIER_SOLD_OUT_MESSAGE =
-  "An extra you selected sold out while you were checking out. Please try again.";
-
 /**
  * Complete a reservation without a payment provider: create the attendee
  * atomically, consume any resolved modifier stock (rolling the order back on
@@ -349,6 +346,7 @@ const handleFreePath = async (
   params: PathParams & {
     modifierUsages: ModifierApplication[];
     paymentBreakdown?: TicketPaymentBreakdown;
+    ledgerOrder: PricedOrder | null;
   },
 ): Promise<Response> => {
   const {
@@ -360,41 +358,24 @@ const handleFreePath = async (
     info,
     modifierUsages,
     paymentBreakdown,
+    ledgerOrder,
   } = params;
   const result = await createFreeReservation({
     contact,
     date,
     dayCount,
+    // The caller decides whether this booking dual-writes the ledger: an enabled,
+    // zero-total checkout posts the same gross-sale / discount / owed legs a paid
+    // one would; a provider-less booking passes null and records nothing here
+    // (stock is consumed in the create transaction either way).
+    ledgerOrder,
     listings: ctx.listings,
+    modifierUsages,
     paidByListingId: paymentBreakdown?.paidByListingId,
     quantities,
     remainingBalance: paymentBreakdown?.remainingBalance,
   });
   if (!result.success) return ticketFormErrorResponse(ctx)(result.error);
-
-  // Persist the exact usage amounts returned by the pricing engine. A
-  // stock-limited modifier that sold out between resolution and consumption
-  // rolls the new attendee back so the buyer isn't granted a free order they
-  // shouldn't have. Answer-triggered modifiers are ordinary modifiers now, so
-  // they consume stock and record usage just like the rest.
-  if (modifierUsages.length > 0) {
-    const attendeeId = result.entries[0]!.attendee.id;
-    const consumed = await consumeModifierStockOrRollback(
-      attendeeId,
-      modifierUsages,
-    );
-    if (!consumed) {
-      // consumeModifierStockOrRollback deleted the attendee, but the greedy
-      // create already recorded a visit + public booking for this contact.
-      // Undo it so a sold-out free order leaves no contact-history trace.
-      // Best-effort, like the paid paths: a stats-write failure must not 500
-      // the buyer instead of showing the sold-out form error below.
-      await bestEffort("free-path reverseOrderActivity on rollback", () =>
-        reverseOrderActivity(contact.email, contact.phone, "public"),
-      );
-      return ticketFormErrorResponse(ctx)(MODIFIER_SOLD_OUT_MESSAGE);
-    }
-  }
 
   // Notify only after stock is committed; a rolled-back order should not
   // trigger a registration notification. The hash before passing on so the
@@ -710,6 +691,26 @@ const processSubmission = async (
       quantities,
     });
   }
+  // With no payment provider configured we still accept bookings for paid items.
+  // The order is recorded exactly like a zero-deposit reservation: nothing is
+  // collected up front and the full value of the booking becomes the amount
+  // owed. Forcing reservationAmount to "0" charges every line zero while the
+  // remaining balance captures the full order value — regardless of any
+  // reservation amount the public-default status configures, since no deposit
+  // can be taken without a provider.
+  const breakdownIntent: CheckoutIntent = paymentsEnabled
+    ? intent
+    : { ...intent, reservationAmount: "0" };
+  // The ledger order for a provider-less booking is the breakdown order with the
+  // booking fee removed up front (`feeSubtotal: 0` — payments-off charges no fee)
+  // and then recast as an OWED order: nothing was collected and no fee is booked,
+  // so `owedOrderForLedger` drops every extra and zeroes the total. That posts the
+  // gross `sale`/owed legs (and any surcharge add-on as its own `modifier` leg)
+  // with NO `fee` and NO `payment` leg — the breakdown intent (kept fee-bearing)
+  // still drives the displayed remaining balance below.
+  const ledgerOrder = paymentsEnabled
+    ? finalPricedOrder
+    : owedOrderForLedger(priceCheckout({ ...breakdownIntent, feeSubtotal: 0 }));
   return handleFreePath({
     contact,
     ctx,
@@ -717,21 +718,20 @@ const processSubmission = async (
     dayCount,
     hasCustomisable,
     info,
+    // Always dual-write the ledger — outstanding balance is projected from it,
+    // so an owed booking must record its legs at creation. A paid or enabled
+    // zero-total checkout (fully discounted, zero-deposit reservation) posts
+    // `finalPricedOrder`; a provider-less booking posts the OWED order built
+    // above, whose gross sale legs leave the full value owed with no fee/payment.
+    ledgerOrder,
     // Record modifier usage (and consume stock) on every completion, including
-    // disabled-payments free bookings, so a stock-limited answer tier is capped
-    // across all bookings — not just the paid ones the webhook would have
-    // consumed. With payments disabled the booking collects nothing, so the
-    // applied amounts are zeroed: stock is still consumed (it's keyed on
-    // quantity) while the modifier revenue aggregates correctly stay at zero.
-    modifierUsages: paymentsEnabled
-      ? finalPricedOrder.modifierApplications
-      : finalPricedOrder.modifierApplications.map((m) => ({
-          ...m,
-          amountApplied: 0,
-        })),
-    paymentBreakdown: paymentsEnabled
-      ? ticketPaymentBreakdown(intent)
-      : undefined,
+    // bookings taken with no payment provider, so a stock-limited answer tier is
+    // capped across all bookings — not just the paid ones the webhook would have
+    // consumed. The applied amounts are the real per-modifier impact: a
+    // provider-less booking owes the full order value (modifiers included), so
+    // its modifiers count exactly as a zero-deposit reservation's would.
+    modifierUsages: finalPricedOrder.modifierApplications,
+    paymentBreakdown: ticketPaymentBreakdown(breakdownIntent),
     quantities,
   });
 };
@@ -756,8 +756,9 @@ const submitTicket = (request: Request, ctx: TicketCtx): Promise<Response> =>
  * the submit path would actually collect:
  * - a sold-out answer tier is rejected (as submit would), run at zero visits
  *   since a quote strips the PII needed to look the buyer's count up;
- * - with no payment provider configured every booking completes free (see
- *   {@link handleFreePath}), so the quote shows no amount owed.
+ * - with no payment provider configured the booking is taken without charging,
+ *   but a paid order still owes its full value (see {@link handleFreePath}), so
+ *   the quote surfaces that amount owed rather than implying the order is free.
  *
  * A returning buyer's `min_visits` modifiers are not reflected — that needs the
  * stripped contact details — so the quote is a zero-visits estimate; the submit
@@ -783,9 +784,19 @@ const renderQuote = async (
   if (!available) {
     return htmlResponse(orderSummaryMessage(TICKETS_UNAVAILABLE_MESSAGE));
   }
+  if (isPaymentsEnabled()) return htmlResponse(orderSummary(pricedOrder));
+  // No payment provider: the booking is taken without charging, but a paid order
+  // still records its full value as the amount owed (see processSubmission), so
+  // surface that figure instead of implying the order is free. fullSubtotal is
+  // the order value before any deposit split or booking fee — exactly what the
+  // submit path stores as the remaining balance.
   return htmlResponse(
-    isPaymentsEnabled()
-      ? orderSummary(pricedOrder)
+    pricedOrder.fullSubtotal > 0
+      ? orderSummaryMessage(
+          `No online payment is needed now — you'll owe ${formatCurrency(
+            pricedOrder.fullSubtotal,
+          )} for this booking.`,
+        )
       : orderSummaryMessage("No payment required for this booking."),
   );
 };

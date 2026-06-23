@@ -2,6 +2,11 @@ import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
+import { attendeeAccount } from "#shared/accounting/accounts.ts";
+import {
+  accountBalance,
+  transfersByAccount,
+} from "#shared/accounting/queries.ts";
 import { signBalanceToken } from "#shared/balance-link.ts";
 import {
   attendeeStatusesTable,
@@ -25,6 +30,13 @@ import {
   testCsrfToken,
   webhookMeta,
 } from "#test-utils";
+import { postListingSale } from "#test-utils/ledger.ts";
+
+/** A settle identity (session id + business time) for settleAttendeeBalance. */
+const settle = (id = "settle-session") => ({
+  id,
+  occurredAt: "2026-06-21T00:00:00.000Z",
+});
 
 /** POST a pay form for a token as the customer. */
 const postPay = async (token: string): Promise<Response> =>
@@ -40,13 +52,24 @@ const insertBareAttendee = async (
   // A current `created` keeps this bare (booking-less) attendee out of the
   // orphaned-record auto-purge, which reaps orphans older than the retention.
   await getDb().execute({
-    args: [new Date().toISOString(), statusId, remainingBalance],
-    sql: "INSERT INTO attendees (created, pii_blob, status_id, remaining_balance) VALUES (?, '', ?, ?)",
+    args: [new Date().toISOString(), statusId],
+    sql: "INSERT INTO attendees (created, pii_blob, status_id) VALUES (?, '', ?)",
   });
   const { rows } = await getDb().execute(
     "SELECT id FROM attendees ORDER BY id DESC LIMIT 1",
   );
-  return Number(rows[0]!.id);
+  const attendeeId = Number(rows[0]!.id);
+  // Outstanding balance projects from the ledger: owe `remainingBalance` via a
+  // sale leg to a listing with no booking row, nothing paid.
+  if (remainingBalance > 0) {
+    await postListingSale({
+      amountPaid: 0,
+      attendeeId,
+      gross: remainingBalance,
+      listingId: 98765,
+    });
+  }
+  return attendeeId;
 };
 
 /** Create a reserved attendee with an outstanding balance and a paid listing. */
@@ -69,7 +92,16 @@ const createReserved = async (remainingBalance: number) => {
     statusId: reservation.id,
   });
   if (!result.success) throw new Error("setup failed");
-  return result.attendees[0]!.id;
+  const attendeeId = result.attendees[0]!.id;
+  // Owe `remainingBalance` in the ledger: gross sale (deposit + remaining) plus
+  // the £1 deposit payment, so balanceOf nets to −remainingBalance.
+  await postListingSale({
+    amountPaid: 100,
+    attendeeId,
+    gross: 100 + remainingBalance,
+    listingId: listing.id,
+  });
+  return attendeeId;
 };
 
 describeWithEnv("server (public balance page)", { db: true }, () => {
@@ -90,7 +122,7 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
 
   test("GET shows a settled message once the balance is cleared", async () => {
     const attendeeId = await createReserved(1500);
-    await settleAttendeeBalance(attendeeId, 1500);
+    await settleAttendeeBalance(attendeeId, 1500, settle());
     const token = await signBalanceToken(attendeeId);
     const response = await handleRequest(mockRequest(`/pay/${token}`));
     const html = await response.text();
@@ -101,6 +133,16 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
     const response = await handleRequest(mockRequest("/pay/bal1.bogus.bogus"));
     const html = await response.text();
     expect(html).toContain("not valid");
+  });
+
+  test("GET rejects a validly-signed token for a missing attendee", async () => {
+    // The token verifies, but no attendee row matches, so the balance state is
+    // null. The handler must short-circuit to the not-valid page rather than
+    // dereference the absent state.
+    const token = await signBalanceToken(999_999);
+    const response = await handleRequest(mockRequest(`/pay/${token}`));
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain("not valid");
   });
 
   test("GET treats a balance with no status as settled", async () => {
@@ -115,7 +157,7 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
     // Turn the only line into a no-quantity sentinel: nothing real to pay into.
     await getDb().execute({
       args: [attendeeId],
-      sql: "UPDATE listing_attendees SET quantity = 0, price_paid = 0 WHERE attendee_id = ?",
+      sql: "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ?",
     });
     const token = await signBalanceToken(attendeeId);
     const response = await handleRequest(mockRequest(`/pay/${token}`));
@@ -270,6 +312,57 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
       const state = await getAttendeeBalanceState(attendeeId);
       expect(state?.remainingBalance).toBe(0);
       expect(state?.statusId).toBe(paid!.id);
+    } finally {
+      session.restore();
+    }
+  });
+
+  test("posts a balance payment leg once the booking is in the ledger", async () => {
+    await setupStripe();
+    const attendeeId = await createReserved(1500);
+    // createReserved already dual-wrote the booking, leaving the attendee owing
+    // 1500 in the ledger (a 1600 sale funded by a 100 deposit).
+    expect(await accountBalance(attendeeAccount(attendeeId))).toBe(-1500);
+    // Stripe stamps `created` (Unix seconds) when the checkout is made; the
+    // balance-payment leg should be dated from it, not from processing time.
+    const created = Math.floor(Date.parse("2026-06-20T09:00:00.000Z") / 1000);
+    const session = stub(stripeApi, "retrieveCheckoutSession", () =>
+      Promise.resolve({
+        amount_total: 1500,
+        created,
+        id: "cs_balance_ledger",
+        metadata: signMeta(
+          webhookMeta({
+            balance_attendee_id: String(attendeeId),
+            items: JSON.stringify([{ e: 1, p: 1500, q: 1 }]),
+            name: "Balance payment",
+          }),
+          1500,
+        ),
+        payment_intent: "pi_balance_ledger",
+        payment_status: "paid",
+      } as unknown as Awaited<
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      >),
+    );
+    try {
+      const response = await handleRequest(
+        mockRequest("/payment/success?session_id=cs_balance_ledger"),
+      );
+      expect(response.status).toBe(200);
+      expect(
+        (await getAttendeeBalanceState(attendeeId))?.remainingBalance,
+      ).toBe(0);
+      // The balance payment leg cleared the ledger balance too.
+      expect(await accountBalance(attendeeAccount(attendeeId))).toBe(0);
+      // …and it carries the checkout's business time, not the processing clock.
+      const legs = await transfersByAccount(attendeeAccount(attendeeId));
+      const balancePayment = legs.find(
+        (leg) => leg.kind === "payment" && leg.amount === 1500,
+      );
+      expect(balancePayment?.occurredAt).toBe(
+        new Date(created * 1000).toISOString(),
+      );
     } finally {
       session.restore();
     }

@@ -4,6 +4,7 @@ import { zipSync } from "fflate";
 import { handleRequest } from "#routes";
 import { backupDir, createBackupZip } from "#shared/db/backup.ts";
 import { downloadRaw, uploadRaw } from "#shared/storage.ts";
+import { recordScriptVersion, setBuildCommitForTest } from "#shared/update.ts";
 import { RESTORE_CONFIRM_PHRASE } from "#templates/admin/backup.tsx";
 import {
   adminFormPost,
@@ -12,8 +13,8 @@ import {
   createTestListing,
   createTestManagerSession,
   describeWithEnv,
+  expectFlashRedirect,
   expectHtmlResponse,
-  expectRedirectWithFlash,
   getTestSession,
   testRequiresAuth,
   withLocalStorageEnabled,
@@ -78,7 +79,10 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
       await withLocalStorageEnabled(async () => {
         await createTestListing({ name: "Backup Test" });
         const { response } = await adminFormPost("/admin/backup/create");
-        expectRedirectWithFlash("/admin/backup")(response);
+        await expectFlashRedirect(
+          "/admin/backup",
+          "Database backup created",
+        )(response);
       });
     });
 
@@ -263,7 +267,11 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
           confirm_identifier: RESTORE_CONFIRM_PHRASE,
         },
       );
-      expectRedirectWithFlash("/admin/backup")(response);
+      await expectFlashRedirect(
+        "/admin/backup",
+        "Invalid backup reference",
+        false,
+      )(response);
     });
 
     test("rejects wrong confirmation phrase", async () => {
@@ -274,7 +282,11 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
           confirm_identifier: "WRONG",
         },
       );
-      expectRedirectWithFlash("/admin/backup")(response);
+      await expectFlashRedirect(
+        "/admin/backup",
+        "Confirmation phrase does not match",
+        false,
+      )(response);
     });
 
     test("rejects missing backup file", async () => {
@@ -286,7 +298,11 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
             confirm_identifier: RESTORE_CONFIRM_PHRASE,
           },
         );
-        expectRedirectWithFlash("/admin/backup")(response);
+        await expectFlashRedirect(
+          "/admin/backup",
+          "Backup file expired or not found. Please upload again.",
+          false,
+        )(response);
       });
     });
 
@@ -312,13 +328,73 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
             confirm_identifier: RESTORE_CONFIRM_PHRASE,
           },
         );
-        expectRedirectWithFlash("/admin/backup")(response);
+        await expectFlashRedirect(
+          "/admin/backup",
+          "Database restored from backup",
+        )(response);
 
         const restored = (await getAllListings()).find(
           (e) => e.id === listing.id,
         );
         expect(restored).toBeDefined();
         expect(restored!.name).toBe("Restore Me");
+      });
+    });
+
+    test("surfaces the full recorded commit so the operator can redeploy the code", async () => {
+      await withLocalStorageEnabled(async () => {
+        // The running build records its commit into settings; the dump carries
+        // it, so the restore tells the operator which commit to redeploy. The
+        // FULL SHA is shown because the restore-deploy workflow requires one.
+        const fullSha = "0123456789abcdef0123456789abcdef01234567";
+        setBuildCommitForTest(fullSha);
+        try {
+          await recordScriptVersion();
+          const zipData = await createBackupZip();
+          await uploadRaw(zipData, "restore-pending-commit.zip");
+
+          const { response } = await adminFormPost(
+            "/admin/backup/restore/confirm",
+            {
+              backup_filename: "restore-pending-commit.zip",
+              confirm_identifier: RESTORE_CONFIRM_PHRASE,
+            },
+          );
+          await expectFlashRedirect(
+            "/admin/backup",
+            `Database restored from backup. It was running commit ${fullSha} — run the restore-deploy workflow with that commit to restore the code to this point in time.`,
+          )(response);
+        } finally {
+          setBuildCommitForTest(null);
+        }
+      });
+    });
+
+    test("omits the redeploy hint when the restored commit is not a full SHA", async () => {
+      await withLocalStorageEnabled(async () => {
+        // An uploaded/old backup may hold a non-SHA commit value; it must not be
+        // echoed into the flash (it's unusable by restore-deploy and could be
+        // oversized), so the message falls back to the plain confirmation.
+        setBuildCommitForTest("not-a-real-sha");
+        try {
+          await recordScriptVersion();
+          const zipData = await createBackupZip();
+          await uploadRaw(zipData, "restore-pending-badsha.zip");
+
+          const { response } = await adminFormPost(
+            "/admin/backup/restore/confirm",
+            {
+              backup_filename: "restore-pending-badsha.zip",
+              confirm_identifier: RESTORE_CONFIRM_PHRASE,
+            },
+          );
+          await expectFlashRedirect(
+            "/admin/backup",
+            "Database restored from backup",
+          )(response);
+        } finally {
+          setBuildCommitForTest(null);
+        }
       });
     });
 
@@ -335,7 +411,7 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
             confirm_identifier: RESTORE_CONFIRM_PHRASE,
           },
         );
-        expectRedirectWithFlash(
+        await expectFlashRedirect(
           "/admin/backup",
           "Invalid backup reference",
           false,

@@ -3,7 +3,6 @@ import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
-import { getAllActivityLog } from "#shared/db/activityLog.ts";
 import { backupKey, backupTimestamp, dbName } from "#shared/db/backup.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import { uploadRaw } from "#shared/storage.ts";
@@ -11,7 +10,8 @@ import {
   adminFormPost,
   createTestBuiltSite,
   describeWithEnv,
-  expectRedirectWithFlash,
+  expectFlashRedirect,
+  getAllActivityLog,
   setTestEnv,
   testCookie,
 } from "#test-utils";
@@ -86,7 +86,7 @@ describeWithEnv("POST /admin/built-sites/:id/update", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/built-sites/${site.id}/update`,
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/built-sites/${site.id}/edit`,
         expect.stringContaining(
           "Updated 'Update Me' to 2099-01-01 - Big Update",
@@ -111,7 +111,7 @@ describeWithEnv("POST /admin/built-sites/:id/update", { db: true }, () => {
     const { response } = await adminFormPost(
       `/admin/built-sites/${site.id}/update`,
     );
-    expectRedirectWithFlash(
+    await expectFlashRedirect(
       `/admin/built-sites/${site.id}/edit`,
       expect.stringContaining("no Bunny script ID"),
       false,
@@ -133,7 +133,7 @@ describeWithEnv("POST /admin/built-sites/:id/update", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/built-sites/${site.id}/update`,
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/built-sites/${site.id}/edit`,
         expect.stringContaining("Update failed"),
         false,
@@ -159,7 +159,7 @@ describeWithEnv("POST /admin/built-sites/:id/update", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/built-sites/${site.id}/update`,
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/built-sites/${site.id}/edit`,
         expect.stringContaining("already in progress"),
         false,
@@ -180,7 +180,7 @@ describeWithEnv("POST /admin/built-sites/:id/update", { db: true }, () => {
     const { response } = await adminFormPost(
       `/admin/built-sites/${site.id}/update`,
     );
-    expectRedirectWithFlash(
+    await expectFlashRedirect(
       `/admin/built-sites/${site.id}/edit`,
       expect.stringContaining("No backup of this site in the last hour"),
       false,
@@ -226,7 +226,7 @@ describeWithEnv(
       const { response } = await adminFormPost(
         `/admin/built-sites/${site.id}/update`,
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/built-sites/${site.id}/edit`,
         expect.stringContaining("BUNNY_API_KEY is not configured"),
         false,

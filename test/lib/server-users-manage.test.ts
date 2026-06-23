@@ -5,8 +5,8 @@ import {
   adminFormPost,
   awaitTestRequest,
   describeWithEnv,
+  expectFlashRedirect,
   expectHtmlResponse,
-  expectRedirectWithFlash,
   TEST_ADMIN_USERNAME,
   testCookie,
 } from "#test-utils";
@@ -59,7 +59,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       const { response } = await adminFormPost("/admin/users/2/delete", {
         confirm_identifier: "deleteme",
       });
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/users",
         expect.stringContaining("deleted"),
       )(response);
@@ -77,7 +77,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       const { response } = await adminFormPost("/admin/users/2/delete", {
         confirm_identifier: "wrongname",
       });
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/users/2/delete",
         expect.stringContaining("Username does not match"),
         false,
@@ -94,7 +94,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       });
 
       const { response } = await adminFormPost("/admin/users/2/delete");
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/users/2/delete",
         expect.stringContaining("Username does not match"),
         false,
@@ -120,7 +120,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       const { response } = await adminFormPost("/admin/users/2/delete", {
         confirm_identifier: "otheradmin",
       });
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         "/admin/users",
         expect.stringContaining("deleted"),
       )(response);

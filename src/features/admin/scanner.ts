@@ -133,6 +133,7 @@ const performCheckIn = async (
   await logActivity(
     `Attendee checked in via scanner for '${entry.listing.name}'`,
     entry.listing.id,
+    entry.attendee.id,
   );
   return jsonResponse({
     name: attendeeName,

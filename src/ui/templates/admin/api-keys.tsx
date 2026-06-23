@@ -9,7 +9,7 @@ import type { EndpointDoc } from "#shared/admin-api-example.ts";
 import { ConfirmForm, CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#shared/types.ts";
-import { AdminNav, UsersSubNav } from "#templates/admin/nav.tsx";
+import { AdminNav } from "#templates/admin/nav.tsx";
 import { DeleteSection, SubmitButton } from "#templates/components/actions.tsx";
 import { Layout } from "#templates/layout.tsx";
 
@@ -54,8 +54,6 @@ export const adminApiKeysPage = (
   return String(
     <Layout title={t("api_keys.title")}>
       <AdminNav active="/admin/users" session={adminSession} />
-      <UsersSubNav />
-
       <Flash error={opts.error} success={opts.success} />
 
       {opts.newKey && (
@@ -115,7 +113,6 @@ export const adminApiKeyManagePage = (
   String(
     <Layout title={`${t("api_keys.title")}: ${apiKey.name}`}>
       <AdminNav active="/admin/users" session={session} />
-      <UsersSubNav />
       <h1>{apiKey.name}</h1>
       <Flash error={opts.error} success={opts.success} />
       <div class="table-scroll">
@@ -213,8 +210,6 @@ export const adminApiDocsPage = (
   String(
     <Layout title={t("api_keys.docs_title")}>
       <AdminNav active="/admin/users" session={session} />
-      <UsersSubNav />
-
       <div class="stack-md column">
         <div class="prose">
           <h3>{t("api_keys.authentication")}</h3>

@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { bracket, map } from "#fp";
-import { getAllActivityLog } from "#shared/db/activityLog.ts";
 import { flushPendingWork, runWithPendingWork } from "#shared/pending-work.ts";
 import {
   buildWebhookPayload,
@@ -17,6 +16,7 @@ import {
   createTestListing,
   describeWithEnv,
   type EmailEntry,
+  getAllActivityLog,
   makeTestAttendee as makeAttendee,
   makeTestEntry as makeEntry,
   makeTestListing as makeListing,
@@ -127,6 +127,29 @@ describe("webhook", () => {
       expect(payload.currency).toBe("USD");
       expect(payload.tickets[0]!.unit_price).toBe(500);
       expect(payload.tickets[0]!.quantity).toBe(2);
+      // Fully paid, so nothing is owed.
+      expect(payload.amount_owed).toBe(0);
+    });
+
+    test("reports the order's outstanding balance as amount_owed", async () => {
+      // A provider-less paid booking: nothing collected (price_paid 0), the full
+      // value owed. remaining_balance is order-level, so a multi-listing order
+      // reports it once — not summed across the booking lines.
+      const entries = [
+        makeEntry(
+          { id: 1, name: "Listing A", slug: "listing-a", unit_price: 1000 },
+          { price_paid: "0", remaining_balance: 3000, ticket_token: "AA00BB" },
+        ),
+        makeEntry(
+          { id: 2, name: "Listing B", slug: "listing-b", unit_price: 2000 },
+          { price_paid: "0", remaining_balance: 3000, ticket_token: "CC11DD" },
+        ),
+      ];
+
+      const payload = await buildWebhookPayload(entries, "GBP");
+
+      expect(payload.price_paid).toBe(0);
+      expect(payload.amount_owed).toBe(3000);
     });
 
     test("builds payload for multi-listing entries", async () => {
@@ -527,6 +550,22 @@ describe("webhook", () => {
       await flushAsync();
 
       expect(fetchSpy.calls.length).toBe(0);
+    });
+
+    test("records the attendee id on the registration activity log", async () => {
+      const { logAndNotifyRegistration } = await import("#shared/webhook.ts");
+      const dbListing = await createTestListing();
+      const listing = makeListing(listingFromDb(dbListing, ""));
+
+      await logAndNotifyRegistration([
+        { attendee: makeAttendee({ id: 7 }), listing },
+      ]);
+
+      const entry = (await getAllActivityLog()).find((e) =>
+        e.message.startsWith("Attendee registered for"),
+      );
+      expect(entry?.attendee_id).toBe(7);
+      expect(entry?.listing_id).toBe(listing.id);
     });
   });
 

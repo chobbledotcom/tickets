@@ -12,7 +12,6 @@ import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { generateAttendeesCsv } from "#routes/admin/attendees-csv.ts";
 import { addDays, getAvailableDates } from "#shared/dates.ts";
-import { getListingActivityLog } from "#shared/db/activityLog.ts";
 import {
   checkBatchAvailability,
   checkGroupCapAfterDurationChange,
@@ -34,7 +33,8 @@ import {
   createTestGroup,
   createTestHoliday,
   describeWithEnv,
-  expectRedirectWithFlash,
+  expectFlashRedirect,
+  getListingActivityLog,
   makeTestEntry,
   mockFormRequest,
   rawListingRange,
@@ -837,7 +837,7 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
         `/admin/listing/${listingA.id}/edit`,
         dailyEditForm(listingA, 2, group.id),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/listing/${listingA.id}`,
         "Listing updated Warning: group capacity exceeded on 2026-10-02",
       )(response);
@@ -866,7 +866,7 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
         `/admin/listing/${listing.id}/edit`,
         dailyEditForm(listing, 2),
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/listing/${listing.id}`,
         "Listing updated",
       )(response);
@@ -923,7 +923,7 @@ describeWithEnv("e2e: multi-day bookings", { db: true }, () => {
           thank_you_url: "https://example.com",
         },
       );
-      expectRedirectWithFlash(
+      await expectFlashRedirect(
         `/admin/listing/${listing.id}`,
         "Listing updated",
       )(response);

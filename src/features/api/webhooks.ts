@@ -46,6 +46,10 @@ import {
 import { getSearchParam } from "#routes/url.ts";
 import { calculateBookingFee } from "#shared/booking-fee.ts";
 import {
+  bookingLedgerPoster,
+  createOrSoldOut,
+} from "#shared/checkout-complete.ts";
+import {
   type ModifierApplication,
   type PricedOrder,
   priceCheckout,
@@ -56,14 +60,11 @@ import { logActivity } from "#shared/db/activityLog.ts";
 import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
 import {
-  createAttendeeAtomic,
-  deleteAttendee,
+  type createAttendeeAtomic,
   ensureAllBookings,
-  reverseOrderActivity,
 } from "#shared/db/attendees.ts";
 import { getListing, getListingWithCount } from "#shared/db/listings.ts";
 import { buyerVisits, specsFromRefs } from "#shared/db/modifier-resolve.ts";
-import { consumeModifierStock } from "#shared/db/modifier-usage.ts";
 import {
   balanceFinalizeStatement,
   clearSessionTokens,
@@ -79,7 +80,8 @@ import {
   groupListingAnswers,
   saveAttendeeAnswers,
 } from "#shared/db/questions.ts";
-import { bestEffort, ErrorCode, logDebug, logError } from "#shared/logger.ts";
+import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
+import { nowIso } from "#shared/now.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import { verifyPrice } from "#shared/payment-signature.ts";
 import {
@@ -104,6 +106,15 @@ const PRICE_CHANGED_MESSAGE =
 /** User-facing message when a chosen add-on/discount sold out during payment. */
 const MODIFIER_SOLD_OUT_MESSAGE =
   "An extra you selected sold out while you were completing payment.";
+
+/**
+ * The ledger occurredAt for a payment: the provider's checkout time — the
+ * customer's business time — so a late webhook (or an old redirect, or a stale
+ * retry) still books on the day they paid. Falls back to the processing clock
+ * only when the provider gave no timestamp.
+ */
+const businessTime = (session: ValidatedPaymentSession): string =>
+  session.createdAt ?? nowIso();
 
 /** Parse per-listing answer IDs from metadata JSON string.
  * Returns undefined for empty input. The JSON was serialized by our own
@@ -730,6 +741,36 @@ type CreatedAttendee = Extract<
 
 type CreatedEntry = { attendee: CreatedAttendee; listing: ListingWithCount };
 
+/**
+ * Keep only the text-answer refs that still carry a resolved string id (`s`).
+ *
+ * A ref without one is corrupt metadata: a checkout signed before string-id
+ * resolution was fixed to read its ids back from the primary could drop the `s`
+ * (a replica answered the read before the insert replicated, so the id resolved
+ * to undefined and JSON.stringify omitted the key). The referenced text is not
+ * recoverable from the metadata, so we drop that single answer and surface it
+ * loudly, rather than bind an undefined id — the payment is already captured, so
+ * the booking must still finalize instead of crash-looping the webhook.
+ */
+const textRefsWithStringId = (
+  refs: TextAnswerRef[],
+  listingId: number,
+): TextAnswerRef[] => {
+  const resolved: TextAnswerRef[] = [];
+  for (const ref of refs) {
+    if (Number.isInteger(ref.s)) {
+      resolved.push(ref);
+    } else {
+      logError({
+        code: ErrorCode.DATA_INVALID,
+        detail: `Text answer ref missing string id (question=${ref.q})`,
+        listingId,
+      });
+    }
+  }
+  return resolved;
+};
+
 const saveSessionAnswers = async (
   createdEntries: CreatedEntry[],
   intent: BookingIntent,
@@ -753,13 +794,14 @@ const saveSessionAnswers = async (
   );
   for (const { attendee, listing } of createdEntries) {
     const refs = intent.listingTextAnswerIds?.[String(listing.id)] ?? [];
-    if (refs.length === 0) continue;
+    const resolvedRefs = textRefsWithStringId(refs, listing.id);
+    if (resolvedRefs.length === 0) continue;
     const existing = grouped.get(attendee.id) ?? { answerIds: [] };
     grouped.set(attendee.id, {
       ...existing,
       textAnswerIds: [
         ...(existing.textAnswerIds ?? []),
-        ...refs.map((ref) => ({ questionId: ref.q, stringId: ref.s })),
+        ...resolvedRefs.map((ref) => ({ questionId: ref.q, stringId: ref.s })),
       ],
     });
   }
@@ -789,19 +831,47 @@ const createAttendeeForSession = async (
   const remainingBalance =
     intent.reservationAmount === undefined ? 0 : fullTotal - depositTotal;
 
-  const result = await createAttendeeAtomic({
-    address: intent.address,
-    bookings,
-    email: intent.email,
-    name: intent.name,
-    paymentId: session.paymentReference,
-    phone: intent.phone,
-    remainingBalance,
-    special_instructions: intent.special_instructions,
-    statusId: await getPublicStatusId(),
+  // Consume modifier stock and post the ledger legs in the same transaction as
+  // the attendee and bookings, so the booking, its stock, and its sale/payment
+  // legs are all-or-nothing. The usage amounts come from the same pricing pass
+  // that calculated the checkout total, so scoped bases, quantities, and clamped
+  // discounts match. A modifier that sold out during payment throws, rolling the
+  // whole order back so the caller refunds rather than leaving orphaned legs.
+  // The free checkout posts these very same facts (see bookingLedgerPoster); a
+  // paid booking just keys the event on its payment session and dates it from
+  // the provider's checkout time rather than now.
+  const postLedger = bookingLedgerPoster(pricedOrder.modifierApplications, {
+    eventId: () => session.id,
+    occurredAt: businessTime(session),
+    pricedOrder,
   });
 
-  // For paid bookings, require all-or-nothing: partial success = rollback + refund
+  const result = await createOrSoldOut(
+    {
+      address: intent.address,
+      bookings,
+      email: intent.email,
+      name: intent.name,
+      paymentId: session.paymentReference,
+      phone: intent.phone,
+      remainingBalance,
+      special_instructions: intent.special_instructions,
+      statusId: await getPublicStatusId(),
+    },
+    postLedger,
+  );
+  if (result === "sold-out") {
+    return refundAndFail(
+      session,
+      MODIFIER_SOLD_OUT_MESSAGE,
+      validatedItems[0]!.listing.id,
+      409,
+    );
+  }
+
+  // All-or-nothing: a capacity failure rolled the transaction back (no legs),
+  // so this only refunds; the partial-rollback branch never fires for the paid
+  // path.
   const bookingCheck = await ensureAllBookings(
     result,
     bookings.length,
@@ -820,39 +890,6 @@ const createAttendeeForSession = async (
     );
   }
   const created = result as Extract<typeof result, { success: true }>;
-
-  // Consume modifier stock atomically; a sold-out race rolls the order back.
-  // The usage amount comes from the same pricing pass that calculated the
-  // checkout total, so scoped bases, quantities, and clamped discounts match.
-  // Answer-triggered modifiers are ordinary modifiers, so they consume stock
-  // and record usage (and its revenue aggregates) like every other modifier.
-  if (pricedOrder.modifierApplications.length > 0) {
-    const attendeeId = created.attendees[0]!.id;
-    const consumed = await consumeModifierStock(
-      attendeeId,
-      pricedOrder.modifierApplications.map((application) => ({
-        amountApplied: application.amountApplied,
-        modifierId: application.modifierId,
-        quantity: application.quantity,
-      })),
-    );
-    if (!consumed) {
-      await deleteAttendee(attendeeId);
-      // Undo the visit + booking the greedy create recorded for this contact,
-      // since the paid order is being rolled back and refunded. Best-effort:
-      // the buyer has already been charged, so a contact-stats write failure
-      // must never block the refund below.
-      await bestEffort("reverseOrderActivity on rollback", () =>
-        reverseOrderActivity(intent.email, intent.phone, "public"),
-      );
-      return refundAndFail(
-        session,
-        MODIFIER_SOLD_OUT_MESSAGE,
-        validatedItems[0]!.listing.id,
-        409,
-      );
-    }
-  }
 
   const entries = created.attendees.map((attendee, i) => ({
     attendee,
@@ -900,9 +937,16 @@ const settleBalanceSession = async (
   const expectedAmount = intent.items[0]!.p;
   const listingId = intent.items[0]!.e;
 
-  const settled = await settleAttendeeBalance(attendeeId, expectedAmount, [
-    balanceFinalizeStatement(sessionId, attendeeId, expectedAmount),
-  ]);
+  // settleAttendeeBalance posts the balance payment itself (world funds the
+  // attendee, zeroing what they owed) guarded on the ledger balance, keyed to
+  // this session so a webhook retry is a no-op. We only finalize the payment
+  // session here, atomically with the settle.
+  const settled = await settleAttendeeBalance(
+    attendeeId,
+    expectedAmount,
+    { id: sessionId, occurredAt: businessTime(session) },
+    [balanceFinalizeStatement(sessionId, attendeeId, expectedAmount)],
+  );
   if (!settled.settled) {
     return refundAndFail(
       session,

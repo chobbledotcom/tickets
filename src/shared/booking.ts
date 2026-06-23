@@ -6,7 +6,11 @@
  * Callers handle input parsing/validation and response formatting.
  */
 
+import { mapBooking } from "#shared/accounting/mappers.ts";
+import { postBookingLegsTx } from "#shared/checkout-complete.ts";
 import { isPaymentsEnabled } from "#shared/config.ts";
+import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
+import type { LedgerPoster } from "#shared/db/attendees/create.ts";
 import {
   createAttendeeAtomic,
   hasAvailableSpots,
@@ -15,6 +19,29 @@ import { singleListingAnswerIds } from "#shared/payment-helpers.ts";
 import { getActivePaymentProvider } from "#shared/payments.ts";
 import type { Attendee, ContactInfo, ListingWithCount } from "#shared/types.ts";
 import { logAndNotifyRegistration } from "#shared/webhook.ts";
+
+/**
+ * A {@link LedgerPoster} for a provider-less owed booking: inside the create
+ * transaction, post the booking's gross `sale` leg with nothing paid, so the
+ * attendee owes exactly `gross` in the ledger, and stamp the booking row's
+ * `ledger_event_group` so its per-row amount-paid projection resolves the sale.
+ * The single-listing API booking has no priced order, so the facts are built
+ * directly — the same legs `mapBooking` would produce from one gross line.
+ */
+const owedBookingLedgerPoster =
+  (listingId: number, gross: number): LedgerPoster =>
+  async (tx, attendeeId) => {
+    const legs = await mapBooking({
+      amountPaid: 0,
+      attendeeId,
+      bookingFee: 0,
+      eventId: `booking-${attendeeId}`,
+      lines: [{ gross, listingId }],
+      modifiers: [],
+      occurredAt: new Date().toISOString(),
+    });
+    await postBookingLegsTx(tx, attendeeId, legs);
+  };
 
 /** Booking result — callers map this to their response format */
 export type BookingResult =
@@ -86,18 +113,39 @@ export const processBooking = async (
     return { checkoutUrl: result.checkoutUrl, type: "checkout" };
   }
 
-  // Free listing — create attendee atomically
-  const result = await createAttendeeAtomic({
-    ...contact,
-    bookings: [
-      {
-        date,
-        durationDays: listing.duration_days,
-        listingId: listing.id,
-        quantity,
-      },
-    ],
-  });
+  // Reached when the listing is free, or when it costs money but no payment
+  // provider is configured. In the latter case we still accept the booking and
+  // record the full value as the amount owed — exactly like a zero-deposit
+  // reservation — so nothing is collected up front but the balance is tracked.
+  // The attendee starts in the public-default status, matching the web free
+  // path so a balance-carrying booking is never left status-less.
+  const unitPrice = customUnitPrice ?? listing.unit_price;
+  const remainingBalance = paymentsEnabled
+    ? 0
+    : Math.max(0, unitPrice * quantity);
+  const result = await createAttendeeAtomic(
+    {
+      ...contact,
+      bookings: [
+        {
+          date,
+          durationDays: listing.duration_days,
+          listingId: listing.id,
+          quantity,
+        },
+      ],
+      remainingBalance,
+      statusId: await getPublicStatusId(),
+    },
+    // An owed booking must record its balance in the ledger at creation, since
+    // the outstanding balance projects from it: post the booking's gross sale
+    // leg with nothing paid, so the attendee owes the full value (mirroring the
+    // web provider-less path's ledger dual-write). A free or paid-in-full
+    // booking owes nothing, so it posts no legs and runs as a plain batch.
+    remainingBalance > 0
+      ? owedBookingLedgerPoster(listing.id, remainingBalance)
+      : undefined,
+  );
 
   if (!result.success) {
     return { reason: result.reason, type: "creation_failed" };
