@@ -62,11 +62,18 @@ const ATTENDEE = "attendee";
  * each page's legs are written in a single batch (one libsql round-trip), so the
  * backfill costs O(pages) edge subrequests instead of one per attendee — a
  * round-trip-per-attendee backfill blew the inline migration's subrequest budget
- * and got the isolate evicted mid-run (lock held → endless 503s). The page also
- * caps the batch: ~500 attendees' legs sit well under the statement count a
- * single libsql batch handles comfortably.
+ * and got the isolate evicted mid-run (lock held → endless 503s). A big page
+ * keeps that round-trip count low on large sites.
+ *
+ * The cap is libsql's 32766 bound-variable limit: {@link alreadyLedgered}'s
+ * balance query lists the page's ids twice (as source and as destination), so a
+ * page may hold at most ~16k attendees. 5000 leaves wide margin while still
+ * clearing a 100k-attendee site in ~20 round-trips. The per-page write batch
+ * (~5000 attendees × a few legs each) is well within what one libsql batch
+ * handles — the legs are PII-free, so there is none of the per-row encryption
+ * that makes the seed path chunk for memory.
  */
-const ATTENDEE_PAGE = 500;
+const ATTENDEE_PAGE = 5000;
 
 /** The next page of attendee ids holding a paid booking row, after `afterId`. */
 const nextPaidAttendeeIds = async (afterId: number): Promise<number[]> => {
