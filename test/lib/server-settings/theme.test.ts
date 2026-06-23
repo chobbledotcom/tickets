@@ -143,5 +143,56 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       expect(html).toContain('value="dark"');
       expect(html).toContain("checked");
     });
+
+    test("ticking the underline-links checkbox enables it", async () => {
+      expect(settings.underlineLinks).toBe(false);
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/theme",
+          {
+            csrf_token: await testCsrfToken(),
+            theme: "light",
+            underline_links: "true",
+          },
+          await testCookie(),
+        ),
+      );
+
+      expect(response.status).toBe(302);
+      expect(settings.underlineLinks).toBe(true);
+    });
+
+    test("omitting the underline-links checkbox disables it", async () => {
+      // Enable first so the submission has to turn it back off.
+      await settings.update.underlineLinks(true);
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/theme",
+          {
+            csrf_token: await testCsrfToken(),
+            theme: "light",
+          },
+          await testCookie(),
+        ),
+      );
+
+      expect(response.status).toBe(302);
+      expect(settings.underlineLinks).toBe(false);
+    });
+
+    test("settings page checks the underline-links box when enabled", async () => {
+      await settings.update.underlineLinks(true);
+
+      const response = await awaitTestRequest("/admin/settings", {
+        cookie: await testCookie(),
+      });
+      const html = await response.text();
+      const checkboxMatch = html.match(
+        /<input[^>]*name="underline_links"[^>]*>/,
+      );
+      expect(checkboxMatch?.[0]).toContain("checked");
+    });
   });
 });
