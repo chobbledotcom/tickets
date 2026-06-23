@@ -443,6 +443,23 @@ describeWithEnv(
         const location = await orderRedirect([parent.id]);
         expect(location).not.toContain(`q_${parent.id}=1`);
       });
+
+      test("a registration-closed listing is carried as a slug but never pre-filled", async () => {
+        // A closed selection still appears on the booking page (as a slug) so the
+        // buyer sees why it can't be booked, but it must NOT receive a `q_<id>=1`
+        // quantity pre-fill — the availability filter requires not-closed AND
+        // not-sold-out AND a purchasable spot, never just one of them.
+        const pastDate = new Date(Date.now() - 60000)
+          .toISOString()
+          .slice(0, 16);
+        const closed = await createTestListing({
+          closesAt: pastDate,
+          name: "ClosedListing",
+        });
+        const location = await orderRedirect([closed.id]);
+        expect(location).toContain(`/ticket/${closed.slug}`);
+        expect(location).not.toContain(`q_${closed.id}=1`);
+      });
     });
 
     describe("admin multi-booking link builder", () => {
