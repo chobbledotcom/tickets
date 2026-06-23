@@ -32,6 +32,7 @@ import {
 } from "#shared/crypto/keys.ts";
 import {
   execute,
+  executeBatch,
   executeWithoutCacheInvalidation,
   queryAll,
 } from "#shared/db/client.ts";
@@ -40,7 +41,10 @@ import {
   recordSettingRead,
   recordSettingsLoaded,
 } from "#shared/db/settings-audit.ts";
-import { createUser, invalidateUsersCache } from "#shared/db/users.ts";
+import {
+  buildCreateUserStatement,
+  invalidateUsersCache,
+} from "#shared/db/users.ts";
 import { nowMs } from "#shared/now.ts";
 import {
   DEFAULT_ORPHAN_RETENTION,
@@ -421,12 +425,22 @@ const syncCache = (mutate: (state: CacheState) => void): void => {
   if (isCacheFresh()) mutate(getCacheState());
 };
 
+/** Upsert a single settings key/value (latest write wins). */
+const SETTINGS_UPSERT_SQL =
+  "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)";
+
+/** Build a settings upsert as a batch statement. */
+const settingUpsert = (
+  key: string,
+  value: string,
+): { sql: string; args: string[] } => ({
+  args: [key, value],
+  sql: SETTINGS_UPSERT_SQL,
+});
+
 /** Write a setting to the DB and update the raw cache in-place. */
 const writeRaw = async (key: string, value: string): Promise<void> => {
-  await executeWithoutCacheInvalidation(
-    "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-    [key, value],
-  );
+  await executeWithoutCacheInvalidation(SETTINGS_UPSERT_SQL, [key, value]);
   // A write makes the key's value known this request, so reading it back is
   // safe in production too — record it as available for the read audit.
   recordSettingsLoaded([key]);
@@ -826,12 +840,27 @@ const completeSetup = async (
     adminPassword,
     hashedPassword,
   );
-  await createUser(username, hashedPassword, wrappedDataKey, "owner");
   const encryptedPrivateKey = await encryptWithKey(privateKey, dataKey);
-  await writeRaw(CONFIG_KEYS.WRAPPED_PRIVATE_KEY, encryptedPrivateKey);
-  await writeRaw(CONFIG_KEYS.PUBLIC_KEY, publicKey);
-  await writeRaw(CONFIG_KEYS.COUNTRY, country);
-  await writeRaw(CONFIG_KEYS.SETUP_COMPLETE, "true");
+
+  // The whole setup ceremony commits in one transaction: the owner account and
+  // every config key land together, so a mid-write failure can never leave a
+  // half-initialised site (an owner with no keypair, or setup_complete set
+  // before the owner row exists). All values are computed above, so this is a
+  // plain batch — no inter-statement logic — rather than an interactive
+  // transaction.
+  const ownerInsert = await buildCreateUserStatement(
+    username,
+    hashedPassword,
+    wrappedDataKey,
+    "owner",
+  );
+  await executeBatch([
+    ownerInsert,
+    settingUpsert(CONFIG_KEYS.WRAPPED_PRIVATE_KEY, encryptedPrivateKey),
+    settingUpsert(CONFIG_KEYS.PUBLIC_KEY, publicKey),
+    settingUpsert(CONFIG_KEYS.COUNTRY, country),
+    settingUpsert(CONFIG_KEYS.SETUP_COMPLETE, "true"),
+  ]);
 
   // Setup flips the global routing gate. Drop any partially-loaded settings
   // snapshot from pre-setup requests so the next request cannot keep serving
