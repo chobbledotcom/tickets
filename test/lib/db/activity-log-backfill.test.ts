@@ -66,13 +66,19 @@ describeWithEnv("db > activity log backfill", { db: true }, () => {
 
   test("scheduler converts a due batch and records the run timestamp", async () => {
     const id = await insertLegacyRow("convert me");
+    // A last-run a full day ago is unambiguously past the interval, so the run
+    // is due — pinning the elapsed-time subtraction in the interval check
+    // (now - last >= interval), not merely the last=0 boundary.
+    const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
+    await settings.update.lastActivityLogBackfill(String(dayAgo));
 
     await maybeBackfillActivityLog();
 
     expect((await rawMessage(id)).startsWith(HYBRID_PREFIX)).toBe(true);
     // Work may remain, so it is not marked done after a non-empty batch.
     expect(settings.activityLogBackfillDone).not.toBe("true");
-    expect(Number(settings.lastActivityLogBackfill)).toBeGreaterThan(0);
+    // The run stamped a fresh, newer timestamp over the day-old one.
+    expect(Number(settings.lastActivityLogBackfill)).toBeGreaterThan(dayAgo);
   });
 
   test("scheduler marks itself done once nothing remains", async () => {
