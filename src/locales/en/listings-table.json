@@ -60,6 +60,7 @@
   "listings_table.failed_payments": "Failed Payments",
   "listings_table.attendees_with_unresolved_payments": "{count} attendee(s) with unresolved payments",
   "listings_table.add_attendee": "Add Attendee",
+  "listings_table.add_attendee_parent_warning": "This listing requires a child listing ({children}) when booked publicly. Adding an attendee here books it alone — add the chosen child as a separate attendee too, or the booking will be incomplete.",
   "listings_table.listing_deactivated_warning": "This listing is deactivated and cannot be booked",
   "listings_table.add_listing": "Add Listing",
   "listings_table.create_listing": "Create Listing",

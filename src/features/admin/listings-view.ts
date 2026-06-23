@@ -21,6 +21,7 @@ import { getEffectiveDomain } from "#shared/config.ts";
 import { formatDateLabel } from "#shared/dates.ts";
 import { getGroupRemainingByGroupId } from "#shared/db/attendees/capacity.ts";
 import { groupsTable } from "#shared/db/groups.ts";
+import { getChildrenForParents } from "#shared/db/listing-parents.ts";
 import { getListingAggregateRecalculation } from "#shared/db/listings.ts";
 import { deleteAllStaleReservations } from "#shared/db/processed-payments.ts";
 import {
@@ -194,6 +195,7 @@ const renderListingPage = async (
             groupContext,
             recalc,
             isChild,
+            childrenByParent,
           ] = await Promise.all([
             Promise.resolve(getFlash()),
             Promise.resolve(settings.phonePrefix),
@@ -203,6 +205,9 @@ const renderListingPage = async (
             // A child has no standalone share/QR affordance (invariant I3);
             // `anyChildListing` no-ops (no query) when the feature is off.
             anyChildListing([listing.id]),
+            // A parent's required children — names the quick add-attendee warning
+            // lists. Empty map (no key) when this listing isn't a parent.
+            getChildrenForParents([listing.id]),
           ]);
           return htmlResponse(
             adminListingPage({
@@ -212,6 +217,9 @@ const renderListingPage = async (
               attendees: filteredByDate,
               availableDates,
               checkinMessage: getCheckinMessage(request),
+              childNames: (childrenByParent.get(listing.id) ?? []).map(
+                (child) => child.name,
+              ),
               dateFilter,
               errorMessage: flash.error,
               groupContext,

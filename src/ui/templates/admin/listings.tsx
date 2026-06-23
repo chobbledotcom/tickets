@@ -343,6 +343,10 @@ export type AdminListingPageOptions = {
    * generators (public URL / embed snippets / QR) are suppressed and the booking
    * QR menu action is hidden — they would only publish a dead-end link. */
   isChild?: boolean;
+  /** The names of this listing's required children when it is a parent (empty
+   * otherwise). Surfaces a warning on the quick add-attendee form: a manual add
+   * books the parent alone, where public bookings fold a chosen child. */
+  childNames?: string[];
 };
 
 /** Top action nav for the listing detail page */
@@ -1061,11 +1065,20 @@ const FailedPaymentsSection = ({
 /** Add attendee form article (only rendered in writable mode) */
 const AddAttendeeSection = ({
   listing,
+  childNames = [],
 }: {
   listing: ListingWithCount;
+  childNames?: string[];
 }): JSX.Element => (
   <article>
     <h2 id="add-attendee">{t("listings_table.add_attendee")}</h2>
+    {childNames.length > 0 && (
+      <p class="notice">
+        {t("listings_table.add_attendee_parent_warning", {
+          children: childNames.join(", "),
+        })}
+      </p>
+    )}
     <CsrfForm action={`/admin/listing/${listing.id}/attendee`}>
       <Raw
         html={renderFields(
@@ -1142,6 +1155,7 @@ export const adminListingPage = ({
   groupContext,
   hasEmailableAttendees = false,
   isChild = false,
+  childNames = [],
 }: AdminListingPageOptions): string => {
   const ticketUrl = `https://${allowedDomain}/ticket/${listing.slug}`;
   const { script: embedScriptCode, iframe: embedIframeCode } =
@@ -1238,7 +1252,9 @@ export const adminListingPage = ({
           listingId={listing.id}
         />
       )}
-      {!isReadOnly() && <AddAttendeeSection listing={listing} />}
+      {!isReadOnly() && (
+        <AddAttendeeSection childNames={childNames} listing={listing} />
+      )}
     </Layout>,
   );
 };

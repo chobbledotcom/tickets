@@ -138,6 +138,17 @@ export const AttendeeBookingsTable = ({
   const nameByListingId = new Map(
     bookings.map((b) => [b.listingId, b.listingName]),
   );
+  // The reverse link: each parent's chosen add-on children, so the parent row
+  // shows what was folded under it (usability #5).
+  const childNamesByParentId = new Map<number, string[]>();
+  for (const b of bookings) {
+    if (b.parentListingId > 0) {
+      const names =
+        childNamesByParentId.get(b.parentListingId) ??
+        childNamesByParentId.set(b.parentListingId, []).get(b.parentListingId)!;
+      names.push(b.listingName);
+    }
+  }
   return (
     <>
       <h3>{t("terms.bookings")}</h3>
@@ -167,6 +178,15 @@ export const AttendeeBookingsTable = ({
                         parent:
                           nameByListingId.get(booking.parentListingId) ??
                           `#${booking.parentListingId}`,
+                      })}
+                    </div>
+                  ) : null}
+                  {childNamesByParentId.has(booking.listingId) ? (
+                    <div class="muted small">
+                      {t("attendee_detail.includes_addon", {
+                        children: childNamesByParentId
+                          .get(booking.listingId)!
+                          .join(", "),
                       })}
                     </div>
                   ) : null}

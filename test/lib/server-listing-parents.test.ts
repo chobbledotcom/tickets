@@ -75,6 +75,12 @@ const editPageHtml = async (listingId: number): Promise<string> => {
   return response.text();
 };
 
+const detailPageHtml = async (listingId: number): Promise<string> => {
+  const { adminGet } = await import("#test-utils");
+  const { response } = await adminGet(`/admin/listing/${listingId}`);
+  return response.text();
+};
+
 /** POST a listing edit (building the full update form from the existing row with
  * overrides), returning the raw response so a *rejected* save (status 400) can be
  * asserted rather than throwing as `updateTestListing` does. */
@@ -225,6 +231,56 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     expect(html).not.toContain(
       "Inherited from the parent when this listing is chosen as a child",
     );
+  });
+
+  test("a parent's detail page warns when manually adding an attendee (usability #2b)", async () => {
+    const parent = await createTestListing({ name: "Base unit" });
+    const child = await createTestListing({ name: "Add-on" });
+    await postChildren(parent.id, [child.id]);
+    const html = await detailPageHtml(parent.id);
+    expect(html).toContain("This listing requires a child listing (Add-on)");
+  });
+
+  test("a non-parent's detail page shows no manual-add child warning", async () => {
+    const standalone = await createTestListing({ name: "Standalone" });
+    const html = await detailPageHtml(standalone.id);
+    expect(html).not.toContain("requires a child listing");
+  });
+
+  test("editing an attendee who booked only a parent warns its child is missing (usability #6)", async () => {
+    const { bookAttendee, adminGet } = await import("#test-utils");
+    const parent = await createTestListing({ name: "Base unit" });
+    const child = await createTestListing({ name: "Add-on" });
+    await postChildren(parent.id, [child.id]);
+    // bookAttendee writes through the atomic path (no gate), creating exactly the
+    // lone-parent state an admin manual add would.
+    const result = await bookAttendee(parent, { name: "Ada" });
+    const attendee = (result as { success: true; attendees: { id: number }[] })
+      .attendees[0]!;
+    const { response } = await adminGet(`/admin/attendees/${attendee.id}`);
+    const html = await response.text();
+    expect(html).toContain(
+      "requires one of its child listings to be booked too (Add-on)",
+    );
+  });
+
+  test("editing an attendee who booked both parent and child shows no missing-child warning", async () => {
+    const { adminGet } = await import("#test-utils");
+    const { createAttendeeAtomic } = await import("#shared/db/attendees.ts");
+    const parent = await createTestListing({ name: "Base unit" });
+    const child = await createTestListing({ name: "Add-on" });
+    await postChildren(parent.id, [child.id]);
+    // Both lines booked on the one attendee — the gate is satisfied.
+    const result = await createAttendeeAtomic({
+      bookings: [{ listingId: parent.id }, { listingId: child.id }],
+      email: "a@b.com",
+      name: "Ada",
+    });
+    const attendee = (result as { success: true; attendees: { id: number }[] })
+      .attendees[0]!;
+    const { response } = await adminGet(`/admin/attendees/${attendee.id}`);
+    const html = await response.text();
+    expect(html).not.toContain("requires one of its child listings");
   });
 
   test("notes when there are no other listings to choose from", async () => {
