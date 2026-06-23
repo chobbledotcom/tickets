@@ -128,6 +128,16 @@
       "linter": {
         "enabled": false
       }
+    },
+    {
+      "includes": ["test/lib/code-quality/**"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noTemplateCurlyInString": "off"
+          }
+        }
+      }
     }
   ],
   "vcs": {
