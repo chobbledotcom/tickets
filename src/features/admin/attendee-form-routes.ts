@@ -15,7 +15,6 @@
 
 /* jscpd:ignore-start */
 import { compact, filter, unique } from "#fp";
-import { requirePrivateKey } from "#routes/admin/actions.ts";
 import {
   ATTENDEE_FORM_ID,
   type AttendeeFormLine,
@@ -96,6 +95,7 @@ import {
   parseSelectedListingIds,
   START_DATE_FIELD,
 } from "#shared/order-select.ts";
+import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
@@ -404,11 +404,12 @@ const buildTemplateData = async (
 };
 
 /** Load custom questions + currently-selected answers across ALL of the
- * attendee's booked listings (edit mode only). */
+ * attendee's booked listings (edit mode only). The request's private key is
+ * only derived when there are questions whose free-text answers need
+ * decrypting, so an attendee with no questions never forces a key unwrap. */
 const loadQuestionsForExisting = async (
   attendeeId: number,
   existing: ExistingLine[],
-  privateKey: CryptoKey,
 ): Promise<{
   questions: QuestionWithAnswers[];
   selectedAnswerIds: number[];
@@ -426,19 +427,11 @@ const loadQuestionsForExisting = async (
   return {
     questions: data.questions,
     selectedAnswerIds: data.attendeeAnswerMap.get(attendeeId) ?? [],
-    selectedTextAnswers: await getAttendeeTextAnswers(attendeeId, privateKey),
+    selectedTextAnswers: await getAttendeeTextAnswers(
+      attendeeId,
+      await requireRequestPrivateKey(),
+    ),
   };
-};
-
-/** Resolve the session's private key and load the attendee's question context
- * with it — the two always pair up at the edit-form call sites. */
-const loadQuestionsForSession = async (
-  session: AuthSession,
-  attendeeId: number,
-  existing: ExistingLine[],
-) => {
-  const privateKey = await requirePrivateKey(session);
-  return loadQuestionsForExisting(attendeeId, existing, privateKey);
 };
 
 /** Render the attendee form page as an HTML response. */
@@ -493,7 +486,7 @@ export const handleAttendeeEditGet: TypedRouteHandler<
   "GET /admin/attendees/:attendeeId"
 > = (request, { attendeeId }) =>
   requireSessionOr(request, async (session) => {
-    const loaded = await loadAttendeeForEdit(session, attendeeId);
+    const loaded = await loadAttendeeForEdit(attendeeId);
     if (!loaded) return notFoundResponse();
     const renderListings = await getRenderListings(loaded.existing);
     const { parsed, hasMixedTimings } = buildEditFormFromAttendee(
@@ -502,8 +495,8 @@ export const handleAttendeeEditGet: TypedRouteHandler<
       renderListings,
     );
     const { questions, selectedAnswerIds, selectedTextAnswers } =
-      await loadQuestionsForSession(session, attendeeId, loaded.existing);
-    const contactRecords = await loadContactRecords(session, loaded.attendee);
+      await loadQuestionsForExisting(attendeeId, loaded.existing);
+    const contactRecords = await loadContactRecords(loaded.attendee);
     const ledger = await loadAttendeeLedgerForSession(session, attendeeId);
     const data = await buildTemplateData("edit", parsed, loaded.attendee, {
       contactRecords,
@@ -558,13 +551,12 @@ const loadChannelRecord = async (
  * one contact value to decrypt, so an attendee with no email/phone never forces
  * a key prompt. */
 const loadContactRecords = async (
-  session: AuthSession,
   attendee: Attendee,
 ): Promise<ContactRecordsByChannel> => {
   if (!attendee.email.trim() && !attendee.phone.trim()) {
     return EMPTY_CONTACT_RECORDS;
   }
-  const pk = await requirePrivateKey(session);
+  const pk = await requireRequestPrivateKey();
   return {
     email: await loadChannelRecord(attendee.email, hashEmail, pk),
     phone: await loadChannelRecord(attendee.phone, hashPhone, pk),
@@ -573,10 +565,9 @@ const loadContactRecords = async (
 
 /** Load an attendee + all its listing_attendees rows for the edit page. */
 const loadAttendeeForEdit = async (
-  session: AuthSession,
   attendeeId: number,
 ): Promise<{ attendee: Attendee; existing: ExistingLine[] } | null> => {
-  const pk = await requirePrivateKey(session);
+  const pk = await requireRequestPrivateKey();
   const attendee = await getAttendee(attendeeId, pk);
   if (!attendee) return null;
   const existing = await loadExistingLines(attendeeId);
@@ -604,13 +595,12 @@ const EMPTY_EDIT_CONTEXT: EditContext = {
 /** Edit mode: load the attendee, its existing lines (indexed by key), and its
  * question/answer context. Returns null when the attendee does not exist. */
 const loadEditContext = async (
-  session: AuthSession,
   attendeeId: number,
 ): Promise<EditContext | null> => {
-  const loaded = await loadAttendeeForEdit(session, attendeeId);
+  const loaded = await loadAttendeeForEdit(attendeeId);
   if (!loaded) return null;
   const { questions, selectedAnswerIds, selectedTextAnswers } =
-    await loadQuestionsForSession(session, attendeeId, loaded.existing);
+    await loadQuestionsForExisting(attendeeId, loaded.existing);
   return {
     attendee: loaded.attendee,
     existingByKey: new Map(
@@ -645,7 +635,7 @@ const handleSubmitInner = async (
 
   const edit =
     mode === "edit" && attendeeId !== null
-      ? await loadEditContext(session, attendeeId)
+      ? await loadEditContext(attendeeId)
       : EMPTY_EDIT_CONTEXT;
   if (edit === null) return notFoundResponse();
   const {
