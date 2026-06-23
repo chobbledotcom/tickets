@@ -159,7 +159,7 @@ describe("AttendeeBookingsTable", () => {
     expectListingRowQuantity(html, 8, 3);
     // ...and the footer totals them (2 + 3); only the total cell holds 5.
     expect(html).toContain("Total");
-    expect(html).toContain("<td>5</td>");
+    expect(html).toContain('<td class="col-quantity">5</td>');
   });
 
   test("formats the date range for a dated (daily) booking", () => {
@@ -304,7 +304,7 @@ describe("AttendeeLedgerSection", () => {
     // The counterparty singleton and the running balance both render.
     expect(html).toContain("Card / bank");
     expect(html).toContain(`Balance: ${formatCurrency(5000)}`);
-    expect(html).toContain("<th>Balance</th>");
+    expect(html).toContain('<th class="col-amount">Balance</th>');
   });
 
   test("shows the empty state for an attendee with no transfers", () => {

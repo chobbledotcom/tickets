@@ -24,6 +24,7 @@ import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { GuideLink } from "#templates/components/actions.tsx";
+import { colClass } from "#templates/components/table-columns.ts";
 import { Layout } from "#templates/layout.tsx";
 
 /**
@@ -139,7 +140,7 @@ const LedgerRow = ({
         {accountCell(transfer.source, names)} &rarr;{" "}
         {accountCell(transfer.destination, names)}
       </td>
-      <td>{formatCurrency(transfer.amount)}</td>
+      <td class={colClass("amount")}>{formatCurrency(transfer.amount)}</td>
     </tr>,
   );
 
@@ -171,7 +172,7 @@ export const LedgerTable = ({
           <th>{t("admin.ledger.col.time")}</th>
           <th>{t("admin.ledger.col.event")}</th>
           <th>{t("admin.ledger.col.from_to")}</th>
-          <th>{t("admin.ledger.col.amount")}</th>
+          <th class={colClass("amount")}>{t("admin.ledger.col.amount")}</th>
         </tr>
       </thead>
       <tbody>
@@ -209,8 +210,8 @@ const StatementRow = ({
       <td>{formatDatetimeShort(line.transfer.occurredAt)}</td>
       <td>{kindLabel(line.transfer)}</td>
       <td>{accountCell(counterparty(line, account), names)}</td>
-      <td>{signedAmount(line.signed)}</td>
-      <td>{formatCurrency(line.running)}</td>
+      <td class={colClass("amount")}>{signedAmount(line.signed)}</td>
+      <td class={colClass("amount")}>{formatCurrency(line.running)}</td>
     </tr>,
   );
 
@@ -249,8 +250,8 @@ export const AccountStatementTable = ({
           <th>{t("admin.ledger.col.time")}</th>
           <th>{t("admin.ledger.col.event")}</th>
           <th>{t("admin.ledger.col.counterparty")}</th>
-          <th>{t("admin.ledger.col.delta")}</th>
-          <th>{t("admin.ledger.col.balance")}</th>
+          <th class={colClass("amount")}>{t("admin.ledger.col.delta")}</th>
+          <th class={colClass("amount")}>{t("admin.ledger.col.balance")}</th>
         </tr>
       </thead>
       <tbody>

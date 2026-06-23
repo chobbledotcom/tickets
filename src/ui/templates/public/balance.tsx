@@ -9,6 +9,7 @@ import { formatCurrency } from "#shared/currency.ts";
 import type { OrderSummary } from "#shared/db/attendees/balance.ts";
 import { CsrfForm } from "#shared/forms.tsx";
 import { SubmitButton } from "#templates/components/actions.tsx";
+import { colClass } from "#templates/components/table-columns.ts";
 import { Layout } from "#templates/layout.tsx";
 
 /** Recap + pay form for an outstanding balance. */
@@ -23,22 +24,24 @@ export const balancePaymentPage = (
         <h1>{t("public_balance.pay_your_balance")}</h1>
         <p>{t("public_balance.booking_summary")}</p>
       </div>
-      <table>
-        <thead>
-          <tr>
-            <th>{t("public_balance.item")}</th>
-            <th>{t("common.qty")}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {summary.lines.map((line) => (
+      <div class="table-scroll">
+        <table>
+          <thead>
             <tr>
-              <td>{line.name}</td>
-              <td>{line.quantity}</td>
+              <th>{t("public_balance.item")}</th>
+              <th class={colClass("quantity")}>{t("common.qty")}</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {summary.lines.map((line) => (
+              <tr>
+                <td>{line.name}</td>
+                <td class={colClass("quantity")}>{line.quantity}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
       <p>
         <strong>{t("public_balance.full_order_price")}:</strong>{" "}
         {formatCurrency(summary.fullPrice)}

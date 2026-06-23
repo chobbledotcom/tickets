@@ -1380,8 +1380,8 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const { response } = await adminGet(`/admin/questions/${qId}`);
       const body = await response.text();
       // The answers table shows the stored selection total (0 with no bookings).
-      expect(body).toContain("<th>Times Selected</th>");
-      expect(body).toContain("<td>0</td>");
+      expect(body).toContain('<th class="col-quantity">Times Selected</th>');
+      expect(body).toContain('<td class="col-quantity">0</td>');
     });
   });
 

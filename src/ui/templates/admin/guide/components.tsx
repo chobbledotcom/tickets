@@ -138,9 +138,11 @@ export const columnReferenceTable = (
     )
     .join("");
   return [
+    '<div class="table-scroll">',
     "<table>",
     "<thead><tr><th>Tag</th><th>Label</th><th>Description</th></tr></thead>",
     `<tbody>${rows}</tbody>`,
     "</table>",
+    "</div>",
   ].join("");
 };
