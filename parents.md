@@ -12,11 +12,130 @@ Nothing here invents a new kind of entity. A "child" is an ordinary listing with
 its own price, capacity, dates, questions and booking row; the parent system is
 purely a **link table + a checkout-time gate + admin/edit UI + booking-page UI**.
 
-This document is a plan, not an implementation. It deliberately ends with an
-**Open questions / decisions** section because, as flagged, there are several
-behavioural choices we have to settle before writing code. Each section states a
-**recommended default** so we can converge quickly, but the defaults are not yet
-agreed.
+This document began as a plan and is now **implemented and shipped** on branch
+`claude/listing-parent-system-nphuka` (PR #1363). The design sections below still
+read as a forward-looking plan (kept as the rationale of record); the
+**Implementation status & nuances** section immediately after this summary records
+what was actually built, every behavioural decision that was settled, and the
+edge cases discovered during the build + review cycle that the original plan did
+not fully anticipate. Where the plan and the status section disagree, **the status
+section wins** — it reflects the merged code.
+
+---
+
+## Implementation status & nuances discovered
+
+**Status: complete, always-on, green.** The full feature is on
+`claude/listing-parent-system-nphuka`: schema + admin config + the booking-page
+gate/fold + discovery/share suppression + JSON API handling + progressive-
+enhancement JS + duplication, merged up to `main` (it coexists with the
+checkout-ledger/transfers feature that landed in parallel). Every commit passes
+the repo gate: 100% line+branch coverage, 0% jscpd duplication, biome, typecheck,
+edge build, full test suite.
+
+There is **no feature flag**. It was built behind `LISTING_PARENTS_ENABLED` purely
+as build-time scaffolding and then removed entirely — the feature is always on,
+and the "Required child listings" config lives in an **Advanced settings**
+`<details>` on the listing edit page.
+
+### Decisions settled (all open questions resolved)
+
+Every item in "Open questions" and "Distilled decisions" below is resolved. The
+three that were still marked open at planning time landed as:
+
+- **Edit on the parent** ("require a choice from these listings"). *(Q1)*
+- **Children may still be group members**, but a child is **suppressed from the
+  group form's selectable set** (and every discovery surface), so it can only be
+  booked through a parent. *(Q6)*
+- **No child-scoped opt-in add-ons in v1** — and this is *hard-blocked*, not just
+  unsupported: see "Add-on reachability" below. *(Q16)*
+
+### Nuances discovered during the build / review cycle
+
+These are the non-obvious things the implementation had to get right (most were
+surfaced by the automated review pass and fixed):
+
+- **Availability is evaluated, never cached.** The relationship accessors return
+  the relationship only; bookability is recomputed per date/duration at
+  render/submit (invariant I3). One curried predicate library
+  (`shared.tsx`: `selectableChild([...atoms])`) is the single source of truth,
+  composed differently per surface — date-less for discovery, date-aware for the
+  submit fold, span-aware for the render unions.
+- **Daily vs standard date-less sold-out.** A *daily* child's date-less
+  `isSoldOut` aggregate is meaningless (it reads true once full on *any* one
+  date), so only *standard* (cumulative-capacity) children are judged by it at
+  render; a daily child's per-date capacity is enforced by the date-aware fold /
+  `checkBatchAvailability`. Globalising the daily flag wrongly marked parents
+  sold out for every date.
+- **Inherited span correctness.** A fixed multi-day daily parent's customisable
+  child must be *priced for the inherited span*; discovery, the date selector and
+  the day-count selector must check that a valid **full-span** start exists (not
+  just any one-day start); a fixed daily child folds only when its own
+  `duration_days` equals the inherited span. The render selectors are constrained
+  to the **union over selectable children** so the form never offers a
+  date/day-count the fold would reject.
+- **Combined parent+child group demand.** A parent and its required child in the
+  same capped group consume **two** units per order, so the parent's
+  sold-out projection *and* its quantity ceiling use the combined demand, not each
+  row's individual remaining. (Groups are type-homogeneous, which makes a
+  daily-parent + standard-child shared-group case unreachable — documented and
+  locked with tests rather than coded around.)
+- **Discovery ⇄ slug-guard consistency.** A booking can never start from a child,
+  so *every* child is CTA-suppressed on discovery surfaces (cards, feeds, `/order`
+  gallery, admin multi-booking builder, per-listing share/QR). A child with a
+  bookable parent shows "available as an add-on"; a child whose every parent is
+  inactive/sold-out/closed has no usable path, so it renders **"Currently
+  Unavailable"** instead of a dead add-on link.
+- **Add-on reachability (the child-scoped-add-on hard block).** Since a child's
+  own page is suppressed and the parent page loads add-ons only from its own
+  direct page ids (`[parent.id]`, *not* group siblings, and only **active**
+  pages), an opt-in add-on reachable *only* through a child would be a dead end.
+  This is blocked from **both** directions — making a listing a child, and
+  re-scoping/activating a modifier — via one shared `scopeIsChildDeadEnd` core,
+  and **re-checked on a listing save that changes `group_id`** (a group-scoped
+  add-on's reach depends on group membership).
+- **Thank-you URL through the paid round-trip.** A single parent's configured
+  `thank_you_url` survives a folded child: it's carried explicitly on the
+  `CheckoutIntent`/signed `SessionMetadata`. It must be capped/omitted **before
+  signing** — against *both* the provider per-value length cap *and* the entry-
+  count cap (Square's 10) — so the signed price proof and the emitted metadata
+  stay identical (otherwise the webhook reads it as tampered). The ticket token is
+  stored on the direct-render success path so a reload keeps the ticket link.
+- **No-JS baseline + progressive enhancement.** Child radios, pay-more price and
+  child questions render **non-required** server-side (the fold is authoritative);
+  JS then reveals and re-requires *the selected child's* questions and price input
+  (the question-visibility script keys off an effective selected-listing-id set
+  that includes the chosen child, since folded children have no `quantity_<id>`
+  control). The live running-total already posts the child fields.
+- **JSON API.** Discovery omits children, and a child's detail/availability
+  returns the same not-bookable outcome as the web (404 / unavailable); a **parent
+  booking is rejected** on the API (it has no child-selection input). A malformed
+  (non-array) `child_listing_ids` on an admin API update is **rejected**, never
+  treated as "clear all edges".
+- **The fold feeds every per-listing path.** Capacity, registration-item
+  building, contact-field requirements, site-assignment, questions +
+  answer-modifiers, pricing and `dayCount` serialization all run against the
+  folded order (page listings ∪ selected children), so children behave as ordinary
+  lines downstream and the webhook needs no parent-awareness.
+- **Duplication.** Single-listing duplicate copies the parent's child edges
+  (validated); group duplication remaps intra-group edges to the cloned ids and
+  preserves edges to listings outside the group.
+
+### Code-shape notes (two unification passes)
+
+The availability/scope logic was deliberately consolidated to avoid the same idea
+being re-phrased per surface:
+
+- `src/ui/templates/public/shared.tsx` — curried child-availability **atoms**
+  (`childActive`, `childOpen`, `childStandardInStock`, `childCalendarOrInStock`,
+  `childPricedForSpan`, `childDurationMatches`, `childDateOk`,
+  `combinedGroupDemandFits`) + combinators `selectableChild`,
+  `constrainOptionsByChildUnion`, `resolveInheritedDuration`.
+- `src/shared/db/listing-parents.ts` — `groupEdges` (one batch edge loader, both
+  directions) and `firstTouchingEdgeError` (one curried traversal backing both
+  save-time edge re-checks — field compatibility and add-on reachability).
+- `src/shared/db/modifier-resolve.ts` — one `scopeIsChildDeadEnd` reachability
+  core shared by the edge-save and modifier-save guards.
 
 ---
 
@@ -1351,9 +1470,10 @@ without its required-child gate.
     the child's custom-price input (`child_price_<parentId>_<childId>`) is rendered
     and collected. When a shared child is booked under two parents (Q8), their
     pay-more prices must reconcile (require equal — same add-on).
-16. **Child-scoped add-ons** — render/parse add-ons conditionally on the selected
-    child vs **not support child-scoped add-ons** in v1 (recommended; add-ons stay
-    scoped to the page's parent listings)?
+16. **Child-scoped add-ons** — ✅ **RESOLVED:** not supported in v1, and
+    **hard-blocked**: an opt-in add-on reachable only through a (suppressed) child
+    is rejected from both the edge save and the modifier save, and re-checked when
+    a listing's `group_id` changes. Add-ons stay scoped to reachable parent pages.
 17. **Customisable-days children** — ✅ **RESOLVED:** a customisable-days child
     **inherits the parent's day-count** (it doesn't get its own selector), per the
     "inherit date and duration" decision.
@@ -1392,12 +1512,16 @@ parent, which collapsed several ambiguities at once.
 - **Discoverability/hidden:** operator-controlled `hidden` flag; hidden children
   stay pickable, with badge + info message. *(Q12.)*
 
-### ⏳ Still open (minor — default unless you say otherwise)
+### ✅ Resolved at implementation (were the last "open" items)
 
-1. **Edit on the parent** ("require a choice from these listings") rather than the
-   child — purely a UI-wording choice. *(Q1.)*
-2. **Listing a child as a group member** — since a child isn't independently
-   bookable, do we even allow adding it to a group, or hide that option? Cosmetic.
+1. **Edit on the parent** ("require a choice from these listings"), in an Advanced
+   settings section on the listing edit page. *(Q1.)*
+2. **A child may be a group member**, but it is suppressed from the group form's
+   selectable set (and all discovery surfaces) — bookable only via a parent.
    *(Q6 residual.)*
-3. **No child-scoped add-ons in v1** — a child can be a paid add-on itself, but it
-   won't carry its *own* opt-in add-on modifiers. *(Q16.)*
+3. **No child-scoped add-ons in v1**, hard-blocked from both the edge save and the
+   modifier save (and re-checked on `group_id` changes). A child can still itself
+   be a paid add-on. *(Q16.)*
+
+_Nothing remains open — see "Implementation status & nuances discovered" at the
+top for the as-built record._
