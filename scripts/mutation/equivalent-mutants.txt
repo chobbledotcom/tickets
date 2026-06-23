@@ -32,6 +32,9 @@ src/features/public/ticket-payment.ts:618:13  ??= → =   # holidays cache refet
 src/features/public/ticket-payment.ts:634:41  ?? → ||   # customisableDuration: null or a duration ≥1, never falsy-non-null
 src/features/public/ticket-payment.ts:890:61  ?? → ||   # childrenByParentId.get(): TicketListing[]|undefined, arrays always truthy
 
+# Parent/child curried atoms (shared.tsx).
+src/ui/templates/public/shared.tsx:169:41  ?? → ||   # span: null or a duration ≥1, never falsy-non-null; null??1===null||1
+
 # Invariant-based, confirmed by reading toUnits: `lineIdxs` comes from toUnits,
 # which assigns lineIdx as the flatMap array index, so the sort's input is
 # always already ascending — and `sort((a,b) => a/b)` is identity on an
