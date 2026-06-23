@@ -1080,6 +1080,24 @@ td.cell-description {
   width: 220px;
 }
 
+/* Income & ledger breakdown: a compact reconciliation table whose figures are
+   right-aligned and whose two subtotal rows (recognised income, net balance)
+   carry a top border so they read as running totals. */
+.listing-breakdown-table {
+  width: auto;
+  max-width: 100%;
+}
+
+.listing-breakdown-table .breakdown-amount {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.listing-breakdown-table .breakdown-subtotal th,
+.listing-breakdown-table .breakdown-subtotal td {
+  border-top: 1px solid var(--color-bg-secondary);
+}
+
 /* Quotes */
 blockquote {
   display: block;

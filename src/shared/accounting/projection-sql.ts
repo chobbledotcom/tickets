@@ -67,6 +67,59 @@ export const creditsLessWriteoffDebits = (
 };
 
 /**
+ * A `SUM(...) FILTER`-style conditional sum aliased `alias`: total `amount` over
+ * the rows matching `where`, zero when none. Unlike {@link sumAmountFromTransfers}
+ * this is a *bare* aggregate expression (no `SELECT … FROM transfers`), so several
+ * can share one scan of the account's own legs in a single grouped query.
+ */
+const conditionalSumColumn = (where: string, alias: string): string =>
+  `COALESCE(SUM(CASE WHEN ${where} THEN amount ELSE 0 END), 0) AS ${alias}`;
+
+/**
+ * The column list for a one-row breakdown of a revenue account's own legs, all
+ * derived from the SAME scan so the reported income and the live balance provably
+ * reconcile (see {@link revenueBreakdownScope}). Every figure is a magnitude in
+ * minor units, signed by the caller:
+ *
+ * - `gross_sales` — Σ `sale` legs credited to the account (dest = revenue:id).
+ * - `write_ups` — Σ `adjustment` legs the `writeoff` account funded INTO revenue
+ *   (`writeoff → revenue:id`, a manual write-UP credit).
+ * - `write_downs` — Σ `adjustment` legs revenue paid OUT to `writeoff`
+ *   (`revenue:id → writeoff`, a manual write-DOWN debit).
+ * - `refunds` — Σ `refund_sale` legs debited from the account (source = revenue:id).
+ *
+ * Recognised income is `gross_sales + write_ups − write_downs` (matching
+ * {@link creditsLessWriteoffDebits}); the net ledger balance is that minus
+ * `refunds`. `idExpr` is the SQL for the listing id in the surrounding query.
+ */
+export const revenueBreakdownColumns = (idExpr: string): string => {
+  const credited = accountPredicate("dest", "revenue", idExpr);
+  const debited = accountPredicate("source", "revenue", idExpr);
+  return [
+    conditionalSumColumn(`kind = 'sale' AND ${credited}`, "gross_sales"),
+    conditionalSumColumn(
+      `kind = 'adjustment' AND ${credited} AND source_type = 'writeoff'`,
+      "write_ups",
+    ),
+    conditionalSumColumn(
+      `kind = 'adjustment' AND ${debited} AND dest_type = 'writeoff'`,
+      "write_downs",
+    ),
+    conditionalSumColumn(`kind = 'refund_sale' AND ${debited}`, "refunds"),
+  ].join(", ");
+};
+
+/**
+ * The WHERE body (no leading `WHERE`) scoping a query to a revenue account's own
+ * legs — every row where the account is the source or the destination. Pairs with
+ * {@link revenueBreakdownColumns} so the grouped sums scan only this account's
+ * rows (index-backed), never the whole ledger. `idExpr` is the SQL for the
+ * listing id in the surrounding query.
+ */
+export const revenueBreakdownScope = (idExpr: string): string =>
+  `${accountPredicate("dest", "revenue", idExpr)} OR ${accountPredicate("source", "revenue", idExpr)}`;
+
+/**
  * A *bare* scalar subquery (no alias) for an account's net ledger balance: money
  * in as the destination minus money out as the source — the same signed sum the
  * TS-side `balanceOf` computes. The caller names it and chooses the sign: a

@@ -44,7 +44,7 @@ import {
   testRequiresAuth,
   updateTestListing,
 } from "#test-utils";
-import { postListingSale } from "#test-utils/ledger.ts";
+import { postAttendeeRefund, postListingSale } from "#test-utils/ledger.ts";
 
 describeWithEnv("server (admin listings)", { db: true }, () => {
   afterEach(() => {
@@ -319,6 +319,50 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       });
 
       await assertAdminHtml("/admin/listing/1", listing.name);
+    });
+
+    test("renders the income & ledger breakdown reconciling income with the balance", async () => {
+      const { listing, cookie } = await setupListingAndLogin({
+        maxAttendees: 100,
+        name: "Ledger Listing",
+        thankYouUrl: "https://example.com",
+      });
+      const buyer = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Ada",
+        "ada@example.com",
+      );
+      // A £50 sale, then a refunded £20 booking (postAttendeeRefund posts a
+      // self-contained net-zero order — a sale plus its full reversal). So gross
+      // credits total £70 and recognised income is £70 (refund-agnostic), while
+      // the net ledger balance is £50 once the £20 refund_sale debit is netted —
+      // a legitimate divergence the page must show reconciled.
+      await postListingSale({
+        attendeeId: buyer.id,
+        gross: 5000,
+        listingId: listing.id,
+      });
+      await postAttendeeRefund({
+        attendeeId: buyer.id,
+        gross: 2000,
+        listingId: listing.id,
+      });
+
+      const response = await awaitTestRequest(`/admin/listing/${listing.id}`, {
+        cookie,
+      });
+      const html = await response.text();
+      expect(html).toContain("Income &amp; ledger");
+      expect(html).toContain("Gross ticket sales");
+      expect(html).toContain("Recognised income");
+      expect(html).toContain("Net balance in ledger");
+      // Recognised income £70 differs from the net ledger balance £50 by the £20
+      // refund — both rendered, reconciled.
+      expect(html).toContain("£70");
+      expect(html).toContain("£50");
+      expect(html).toContain("−£20");
+      expect(html).toContain(`href="/admin/ledger/revenue/${listing.id}"`);
     });
 
     test("shows stored-total mismatches on listing detail and edit pages", async () => {

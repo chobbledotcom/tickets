@@ -6,7 +6,11 @@ import type { InValue, ResultSet } from "@libsql/client";
 import { mapParallel, reduce, sort, unique } from "#fp";
 import { revenueAccount } from "#shared/accounting/accounts.ts";
 import { postWriteoffAdjustment } from "#shared/accounting/adjustments.ts";
-import { creditsLessWriteoffDebits } from "#shared/accounting/projection-sql.ts";
+import {
+  creditsLessWriteoffDebits,
+  revenueBreakdownColumns,
+  revenueBreakdownScope,
+} from "#shared/accounting/projection-sql.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { addDays } from "#shared/dates.ts";
@@ -215,6 +219,69 @@ const rawListingsTable = defineIdTable<Listing, ListingInput>("listings", {
  */
 export const listingIncomeSubquery = (idExpr: string): string =>
   creditsLessWriteoffDebits("revenue", idExpr, "income");
+
+/**
+ * A transparent breakdown of a listing's `revenue:<id>` account, deriving BOTH
+ * the reported figure and the live ledger balance from the same running totals so
+ * the two never appear to disagree without the reconciliation being visible:
+ *
+ * - `grossSales` — Σ `sale` credits to the account (gross ticket sales).
+ * - `manualAdjustments` — signed Σ of `adjustment` legs vs `writeoff`:
+ *   `(writeoff → revenue write-ups) − (revenue → writeoff write-downs)`. Positive
+ *   is a net write-up, negative a net write-down (decision 14).
+ * - `recognisedIncome` = `grossSales + manualAdjustments` — the refund-agnostic
+ *   figure shown as the listing's income and used in exports. Equals the existing
+ *   {@link listingIncomeSubquery} / `creditsLessWriteoffDebits` projection.
+ * - `refunds` — Σ `refund_sale` debits from the account, as a positive magnitude
+ *   that is then subtracted.
+ * - `netBalance` = `recognisedIncome − refunds` — the raw signed account balance
+ *   a refund also reduces (can go negative). Equals
+ *   `accountBalance(revenueAccount(id))`.
+ *
+ * One grouped query of conditional SUMs over only this account's own legs (the
+ * source/destination scan stays index-backed), never loading per-transfer rows —
+ * a popular listing could have thousands.
+ */
+export type ListingRevenueBreakdown = {
+  grossSales: number;
+  manualAdjustments: number;
+  recognisedIncome: number;
+  refunds: number;
+  netBalance: number;
+};
+
+type RevenueBreakdownRow = {
+  gross_sales: number | bigint;
+  write_ups: number | bigint;
+  write_downs: number | bigint;
+  refunds: number | bigint;
+};
+
+export const listingRevenueBreakdown = async (
+  listingId: number,
+): Promise<ListingRevenueBreakdown> => {
+  // Ledger account ids are stored as TEXT; the builders compare against
+  // `CAST(<idExpr> AS TEXT)`. The id is bound as a STRING (not the number — a
+  // numeric bind would cast to "1.0" and match nothing) once per predicate the
+  // builders emit: four in the column list, two in the own-legs scope.
+  const args: InValue[] = Array(6).fill(String(listingId));
+  const row = (await queryOne<RevenueBreakdownRow>(
+    `SELECT ${revenueBreakdownColumns("?")}
+       FROM transfers WHERE ${revenueBreakdownScope("?")}`,
+    args,
+  ))!;
+  const grossSales = Number(row.gross_sales);
+  const manualAdjustments = Number(row.write_ups) - Number(row.write_downs);
+  const refunds = Number(row.refunds);
+  const recognisedIncome = grossSales + manualAdjustments;
+  return {
+    grossSales,
+    manualAdjustments,
+    netBalance: recognisedIncome - refunds,
+    recognisedIncome,
+    refunds,
+  };
+};
 
 /** SELECT projecting each listing plus its booked-quantity count. Callers
  * append their own WHERE and {@link LISTING_COUNT_GROUP_BY}. Shared by the

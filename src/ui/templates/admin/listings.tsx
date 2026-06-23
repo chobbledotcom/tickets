@@ -16,6 +16,7 @@ import {
 import type {
   ListingAggregateField,
   ListingAggregateRecalculation,
+  ListingRevenueBreakdown,
 } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
 import { buildEmbedSnippets } from "#shared/embed.ts";
@@ -322,6 +323,107 @@ const DateSelector = ({
   )}">${options}</select>`;
 };
 
+// ---------------------------------------------------------------------------
+// Income & ledger breakdown
+//
+// A listing's income now projects from the `transfers` ledger, where two
+// correct-but-different figures exist for the same `revenue:<id>` account:
+// the RECOGNISED INCOME (refund-agnostic, the reported figure) and the NET
+// LEDGER BALANCE (which a refund also reduces). After a refund they legitimately
+// differ, so this section renders both from the same running totals — gross
+// sales (+) and manual adjustments (±) make up recognised income, and refunds
+// (−) take it down to the net balance — making the difference self-evident.
+// ---------------------------------------------------------------------------
+
+/** Render a magnitude with an explicit leading sign, so a credit and a debit of
+ * the same size never read alike (mirrors the ledger statement's signed delta).
+ * A zero shows as a plain, unsigned `£0`. */
+const signedCurrency = (value: number): string =>
+  value === 0
+    ? formatCurrency(0)
+    : `${value < 0 ? "−" : "+"}${formatCurrency(Math.abs(value))}`;
+
+/** One row of the breakdown table: a label and a right-aligned figure, with an
+ * optional `subtotal` modifier that bolds the two reconciled lines (recognised
+ * income, net balance). */
+const BreakdownRow = ({
+  label,
+  amount,
+  subtotal = false,
+}: {
+  label: string;
+  amount: string;
+  subtotal?: boolean;
+}): JSX.Element => (
+  <tr class={subtotal ? "breakdown-subtotal" : undefined}>
+    <th>{subtotal ? <strong>{label}</strong> : label}</th>
+    <td class="breakdown-amount">
+      {subtotal ? <strong>{amount}</strong> : amount}
+    </td>
+  </tr>
+);
+
+/**
+ * The "Income & ledger" reconciliation table for one listing's revenue account.
+ * Renders gross sales (+), manual adjustments (± — omitted only when there have
+ * never been any, so the recognised-income subtotal still adds up on its face),
+ * the recognised-income subtotal (bold), refunds (−), and the net-balance
+ * subtotal (bold). Render-only: the feature layer supplies the projected
+ * {@link ListingRevenueBreakdown}; a plain-English line plus a link to the full
+ * per-account ledger statement explain why the two subtotals can differ.
+ */
+const ListingIncomeLedgerSection = ({
+  breakdown,
+  listingId,
+}: {
+  breakdown: ListingRevenueBreakdown;
+  listingId: number;
+}): JSX.Element => (
+  <article id="income-ledger">
+    <fieldset class="listing-section">
+      <legend>{t("listings_table.income_ledger_legend")}</legend>
+      <div class="table-scroll">
+        <table class="listing-breakdown-table">
+          <tbody>
+            <BreakdownRow
+              amount={signedCurrency(breakdown.grossSales)}
+              label={t("listings_table.income_ledger_gross_sales")}
+            />
+            {breakdown.manualAdjustments !== 0 && (
+              <BreakdownRow
+                amount={signedCurrency(breakdown.manualAdjustments)}
+                label={t("listings_table.income_ledger_manual_adjustments")}
+              />
+            )}
+            <BreakdownRow
+              amount={formatCurrency(breakdown.recognisedIncome)}
+              label={t("listings_table.income_ledger_recognised_income")}
+              subtotal
+            />
+            <BreakdownRow
+              amount={signedCurrency(-breakdown.refunds)}
+              label={t("listings_table.income_ledger_refunds")}
+            />
+            <BreakdownRow
+              amount={formatCurrency(breakdown.netBalance)}
+              label={t("listings_table.income_ledger_net_balance")}
+              subtotal
+            />
+          </tbody>
+        </table>
+      </div>
+      <p>
+        <small>{t("listings_table.income_ledger_recognised_note")}</small>
+      </p>
+      <p class="actions">
+        <a href={`/admin/ledger/revenue/${listingId}`}>
+          {t("listings_table.income_ledger_view_full")}
+        </a>
+      </p>
+    </fieldset>
+  </article>
+);
+
 /** Options for rendering the admin listing detail page */
 /** Group + current attendee count, supplied when the listing is in a capped
  * group so the detail page can show group-wide capacity beneath the
@@ -346,6 +448,11 @@ export type AdminListingPageOptions = {
   successMessage?: string;
   questionData?: TableQuestionData;
   groupContext?: GroupContext;
+  /** The listing's revenue-account breakdown (gross sales, manual adjustments,
+   * recognised income, refunds, net balance), reconciling the reported income
+   * with the live ledger balance. Omitted only by template callers that don't
+   * exercise the section. */
+  revenueBreakdown?: ListingRevenueBreakdown;
   /** Whether any of the listing's attendees (across all dates) have an email
    * address — gates the owner-only "Email" action. */
   hasEmailableAttendees?: boolean;
@@ -1127,6 +1234,7 @@ export const adminListingPage = ({
   successMessage,
   questionData,
   groupContext,
+  revenueBreakdown,
   hasEmailableAttendees = false,
 }: AdminListingPageOptions): string => {
   const ticketUrl = `https://${allowedDomain}/ticket/${listing.slug}`;
@@ -1202,6 +1310,12 @@ export const adminListingPage = ({
         sharedRowsHtml={renderDetailRows(sharedRows)}
         ticketUrl={ticketUrl}
       />
+      {revenueBreakdown && (
+        <ListingIncomeLedgerSection
+          breakdown={revenueBreakdown}
+          listingId={listing.id}
+        />
+      )}
       <AttendeesSection
         activeFilter={activeFilter}
         allowedDomain={allowedDomain}
@@ -1347,6 +1461,13 @@ const ListingIncomeAdjustSection = ({
         value={toMajorUnits(listing.income)}
       />
     </label>
+    <p>
+      <small>
+        <a href={`/admin/listing/${listing.id}#income-ledger`}>
+          {t("listings_table.income_ledger_link")}
+        </a>
+      </small>
+    </p>
     <SubmitButton icon="save">
       {t("listings_table.adjust_income_submit")}
     </SubmitButton>
