@@ -16,6 +16,11 @@ import { postTransfers } from "#shared/accounting/store.ts";
 import type { ListingBooking } from "#shared/db/attendee-types.ts";
 import { createAttendeeAtomic } from "#shared/db/attendees.ts";
 import { getDb } from "#shared/db/client.ts";
+import {
+  enableQueryLog,
+  getQueryLog,
+  runWithQueryLogContext,
+} from "#shared/db/query-log.ts";
 import type { Transfer } from "#shared/ledger/types.ts";
 import { createTestListing, describeWithEnv } from "#test-utils";
 import {
@@ -34,11 +39,15 @@ const flagRefunded = (
     sql: "UPDATE listing_attendees SET refunded = 1 WHERE attendee_id = ? AND listing_id = ?",
   });
 
-/** Create a historical paid booking with NO ledger legs (pre-dual-write). */
-const historicalBooking = async (bookings: ListingBooking[]) => {
+/** Create a historical paid booking with NO ledger legs (pre-dual-write). The
+ *  email is overridable so a test can seed many distinct historical attendees. */
+const historicalBooking = async (
+  bookings: ListingBooking[],
+  email = "a@b.c",
+) => {
   const result = await createAttendeeAtomic({
     bookings,
-    email: "a@b.c",
+    email,
     name: "Historical",
   });
   if (!result.success) throw new Error(`setup failed: ${result.reason}`);
@@ -219,6 +228,31 @@ describeWithEnv("accounting > backfill", { db: true }, () => {
       })
     ).rows[0]!;
     expect(String(row.ledger_event_group)).toBe(sale.eventGroup);
+  });
+
+  test("posts a page of attendees in a bounded number of round-trips", async () => {
+    // Regression: the backfill once issued one write batch per attendee, so a
+    // real site's booking history blew the Bunny edge isolate's subrequest budget
+    // mid-migration — the isolate was evicted with the migration lock still held,
+    // turning into endless 503s. A page must cost O(1) round-trips, not O(N).
+    const listing = await createTestListing({ maxAttendees: 50 });
+    const attendeeCount = 12;
+    for (let i = 0; i < attendeeCount; i++) {
+      await historicalBooking(
+        [{ listingId: listing.id, pricePaid: 1000 + i }],
+        `att${i}@b.c`,
+      );
+    }
+
+    await runWithQueryLogContext(async () => {
+      enableQueryLog();
+      await backfillTransfers();
+      // Every statement in one batch shares its round-trip's start timestamp, so
+      // distinct start times count round-trips. A page is a few reads plus one
+      // packed write batch — far below the 12 a per-attendee batch would cost.
+      const roundTrips = new Set(getQueryLog().map((q) => q.startedAtMs)).size;
+      expect(roundTrips).toBeLessThanOrEqual(6);
+    });
   });
 
   test("skips rows with no payment", async () => {
