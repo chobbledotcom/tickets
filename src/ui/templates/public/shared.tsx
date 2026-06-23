@@ -123,29 +123,27 @@ export const childStandardInStock = (child: TicketListing): boolean =>
  * including a daily child judged by its date-less aggregate. */
 export const childInStock = (child: TicketListing): boolean => !child.isSoldOut;
 
-/** Date-less availability with the DAILY case judged by its OWN calendar (the
- * discovery variant): a daily child counts as potentially bookable when it has
- * at least one bookable start date, a standard child when it is not sold out. */
-export const childCalendarOrInStock =
-  (holidays: Holiday[]) =>
-  (child: TicketListing): boolean =>
-    child.listing.listing_type === "daily"
-      ? getBookableStartDates(child.listing, holidays).length > 0
-      : !child.isSoldOut;
-
 /** Whether a DAILY child has at least one bookable start that COVERS `span` on
  * its own calendar (the single source of truth for "a valid start for the span
  * exists", shared by discovery's sold-out projection and the fold's date union):
  * each candidate start is validated with {@link isBookingRangeValid} over `span`,
- * the same rule the date union uses, so a child that can never fit the parent's
- * inherited fixed multi-day span counts as unbookable. */
+ * the same rule the date union uses. `parentDates`, when non-null, ALSO restricts
+ * the candidate starts to the parent's own bookable dates (Fix 5) — so a child
+ * whose only bookable weekdays are disjoint from the parent's counts as
+ * unbookable (the parent renders sold out rather than advertising a date the
+ * booking context can never serve). A `null` `parentDates` means the parent has
+ * no date calendar to intersect (a non-daily parent of a daily child), so only
+ * the child's own calendar is checked. */
 const childHasStartForSpan = (
   child: TicketListing,
   span: number,
   holidays: Holiday[],
+  parentDates: ReadonlySet<string> | null,
 ): boolean =>
-  getBookableStartDates(child.listing, holidays).some((date) =>
-    isBookingRangeValid(child.listing, date, span, holidays),
+  getBookableStartDates(child.listing, holidays).some(
+    (date) =>
+      (parentDates === null || parentDates.has(date)) &&
+      isBookingRangeValid(child.listing, date, span, holidays),
   );
 
 /** Span-AWARE variant of {@link childCalendarOrInStock} for a parent whose
@@ -154,13 +152,22 @@ const childHasStartForSpan = (
  * childHasStartForSpan}) — not merely any one-day start — so a parent whose only
  * child can never fit its fixed multi-day window reads sold out (parents.md Fix
  * 1). A `null` span (a customisable parent, whose span the buyer picks later)
- * keeps the span-agnostic {@link childCalendarOrInStock} behaviour. */
+ * checks a single-day start. `parentDates`, when non-null (a DAILY parent's own
+ * candidate dates), additionally requires the child's bookable start to OVERLAP
+ * the parent's dates (Fix 5): disjoint weekdays leave the parent sold out. A
+ * `null` `parentDates` (a non-daily parent, which has no date selector) imposes
+ * no overlap. A non-daily child has no date constraint, so it is judged by its
+ * date-less in-stock state ({@link childInStock}). */
 export const childCalendarOrInStockForSpan =
-  (holidays: Holiday[], span: number | null) =>
+  (
+    holidays: Holiday[],
+    span: number | null,
+    parentDates: ReadonlySet<string> | null,
+  ) =>
   (child: TicketListing): boolean =>
-    child.listing.listing_type === "daily" && span !== null
-      ? childHasStartForSpan(child, span, holidays)
-      : childCalendarOrInStock(holidays)(child);
+    child.listing.listing_type === "daily"
+      ? childHasStartForSpan(child, span ?? 1, holidays, parentDates)
+      : childInStock(child);
 
 /** The child can be PRICED for the inherited span: a customisable child must
  * have a day price for `duration`; any other child prices independently of it. */

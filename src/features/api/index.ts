@@ -11,6 +11,7 @@ import { classifyForDiscovery } from "#routes/public/discovery.ts";
 import { parseCustomPrice } from "#routes/public/ticket-form.ts";
 import {
   anyChildListing,
+  constrainParentDailyDates,
   parentRequiresChild,
 } from "#routes/public/ticket-payment.ts";
 import { jsonResponse } from "#routes/response.ts";
@@ -237,20 +238,25 @@ const handleListListings = async (): Promise<Response> => {
   // A child is never standalone-bookable (invariant I3), so omit children from
   // the discovery list — a client must not find one here and then hit the
   // booking 400 (Fix 2, parents.md "Discovery responses"). A parent with no
-  // bookable child reads sold out via `toPublicListing`'s combined state, but
-  // the list surface only needs to drop children; the detail/availability
-  // endpoints carry the parent-sold-out outcome.
-  const { childIds } = await classifyForDiscovery(visibleListings);
+  // bookable child is sold out (invariant I6): its OWN row capacity ignores its
+  // children, so the list must project it to sold-out / not-bookable to stay
+  // consistent with the detail/availability endpoints (Fix 3) — otherwise a
+  // client lists it as bookable then hits the parent-sold-out outcome at detail.
+  const { childIds, soldOutParentIds } =
+    await classifyForDiscovery(visibleListings);
   const bookableListings = visibleListings.filter((e) => !childIds.has(e.id));
   const groupRemaining = await getGroupRemainingByListingId(bookableListings);
-  const listings = bookableListings.map((e) =>
-    toPublicListing(
+  const listings = bookableListings.map((e) => {
+    const publicListing = toPublicListing(
       e,
       isRegistrationClosed(e),
       undefined,
       groupRemaining.get(e.id),
-    ),
-  );
+    );
+    return soldOutParentIds.has(e.id)
+      ? { ...publicListing, isSoldOut: true, maxPurchasable: 0 }
+      : publicListing;
+  });
   return apiResponse({ listings });
 };
 
@@ -264,7 +270,16 @@ const handleGetListing = withActiveListing(async (_request, listing) => {
   const closed = isRegistrationClosed(listing);
   let availableDates: string[] | undefined;
   if (listing.listing_type === "daily") {
-    availableDates = getAvailableDates(listing, await getActiveHolidays());
+    const holidays = await getActiveHolidays();
+    // A daily parent's API dates must match what the web selector offers: a date
+    // no required child can serve (for the inherited span) is removed from the
+    // parent's own calendar, so the API never advertises a date the fold rejects
+    // (Fix 4). For a non-parent daily listing this is a no-op.
+    availableDates = await constrainParentDailyDates(
+      listing,
+      getAvailableDates(listing, holidays),
+      holidays,
+    );
   }
   const publicListing = toPublicListing(
     listing,

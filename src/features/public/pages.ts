@@ -18,7 +18,8 @@ import {
   sendContactMessage,
 } from "#shared/contact-form.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
-import { getAllGroups } from "#shared/db/groups.ts";
+import { getActiveListingsByGroupId, getAllGroups } from "#shared/db/groups.ts";
+import { getChildListingIds } from "#shared/db/listing-parents.ts";
 import { settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { MESSAGE_SEND_FAILED } from "#shared/inbound-message.ts";
@@ -38,10 +39,24 @@ import { buildTicketListingsWithGroupCapacity } from "./ticket-listings.ts";
 /** Active+visible filter for public listing listings */
 const isPublicListing = (e: ListingWithCount): boolean => e.active && !e.hidden;
 
-/** Load non-hidden groups (for public listing) */
+/** Whether a group has at least one active member that is NOT a child — i.e. a
+ * standalone-bookable member. A group whose only active members are children has
+ * no valid `/ticket/<group>` entry point (every member is dropped as a child,
+ * which 404s — Fix 6), so its Book CTA on /listings must be suppressed rather
+ * than advertise a dead link. */
+const groupHasBookableMember = async (group: Group): Promise<boolean> => {
+  const members = await getActiveListingsByGroupId(group.id);
+  if (members.length === 0) return false;
+  const childIds = await getChildListingIds(members.map((m) => m.id));
+  return members.some((m) => !childIds.has(m.id));
+};
+
+/** Load non-hidden groups that have a bookable (non-child) member (for public
+ * listing). A child-only group's group page 404s, so its CTA is suppressed. */
 const loadPublicGroups = async (): Promise<Group[]> => {
-  const groups = await getAllGroups();
-  return groups.filter((g) => !g.hidden);
+  const groups = (await getAllGroups()).filter((g) => !g.hidden);
+  const bookable = await Promise.all(groups.map(groupHasBookableMember));
+  return groups.filter((_, i) => bookable[i]);
 };
 
 /** Guard: redirect to admin login if public site is disabled */

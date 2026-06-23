@@ -124,5 +124,6 @@
   "listings_table.children_err_child_addon": "'{name}' has the opt-in add-on '{addon}', which only its own booking page offers — make it reachable from the parent (or remove the add-on) before offering it as a child.",
   "listings_table.children_err_child_addon_save": "This change would leave the opt-in add-on {addon} reachable only through a child listing, which cannot offer it. Keep the add-on reachable (for example, by keeping the parent in its group) or remove the add-on before saving.",
   "listings_table.children_err_child_daily": "'{name}' is a daily listing, so it can only be a child of another daily listing.",
-  "listings_table.children_err_child_duration": "'{name}' can't be booked for the same length as its parent — adjust its duration or day prices to match."
+  "listings_table.children_err_child_duration": "'{name}' can't be booked for the same length as its parent — adjust its duration or day prices to match.",
+  "listings_table.duplicate_children_dropped": "Listing duplicated, but its required children weren't copied: {reason}"
 }

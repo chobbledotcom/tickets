@@ -7,6 +7,7 @@ import { applyFlash, withCsrfForm } from "#routes/csrf.ts";
 import {
   errorRedirect,
   htmlResponse,
+  notFoundResponse,
   redirectResponse,
 } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
@@ -1022,9 +1023,16 @@ export const renderTicketFlow =
     // DIRECT child slugs. Drop children here so they never appear as standalone
     // rows; their parents stay and re-fold them via `childrenByParentId`
     // (Fix 3, parents.md "strip child rows from indirect pages").
-    const activeListings = await buildTicketListingsWithGroupCapacity(
-      await dropChildListings(listings),
-    );
+    const withoutChildren = await dropChildListings(listings);
+    // When dropping children leaves nothing, every member was a child — a booking
+    // can never start from a child (invariant I3), so the page has nothing
+    // standalone-bookable. Render 404 rather than a 200 empty booking page (Fix 6,
+    // parents.md "indirect page with only children must 404"). Every production
+    // caller (group/order/renewal) already hands a non-empty set, so this fires
+    // exactly for the all-children case.
+    if (withoutChildren.length === 0) return notFoundResponse();
+    const activeListings =
+      await buildTicketListingsWithGroupCapacity(withoutChildren);
     return handleTicket({
       getContext: async (e) => ({
         ...(await getTicketContext(e, options.group)),

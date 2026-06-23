@@ -992,3 +992,34 @@ export const getTicketContext = async (
     }),
   };
 };
+
+/**
+ * Constrain a daily parent's own candidate dates to those at least one of its
+ * required children can actually serve for the inherited span — the SAME
+ * `parentDates ∩ (union of selectable children's bookable dates)` rule the web
+ * booking page applies via {@link constrainDatesByChildUnion} (invariant I6, Fix
+ * 4). Used by the JSON API detail endpoint so it never advertises a date the web
+ * selector removes and the fold rejects. The caller restricts this to daily
+ * listings (only daily listings have an `availableDates` list).
+ *
+ * A `parent` with no child edges is returned unchanged: the union only applies to
+ * a parent that gates a child choice. Children are loaded by relationship and
+ * built to {@link TicketListing} so the same date-/span-aware availability the
+ * gate uses is evaluated here.
+ */
+export const constrainParentDailyDates = async (
+  parent: ListingWithCount,
+  parentDates: string[],
+  holidays: Holiday[],
+): Promise<string[]> => {
+  const childrenByParent = await getChildrenForParents([parent.id]);
+  const childRows = childrenByParent.get(parent.id);
+  if (!childRows || childRows.length === 0) return parentDates;
+  const children = await buildTicketListingsWithGroupCapacity(childRows);
+  return constrainDatesByChildUnion(
+    parentDates,
+    children,
+    fixedParentSpan(parent),
+    holidays,
+  );
+};

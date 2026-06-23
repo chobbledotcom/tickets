@@ -304,6 +304,44 @@ describeWithEnv(
         expect(body).toContain(`href="/ticket/${parent.slug}"`);
       });
 
+      test("a daily parent whose only child has disjoint bookable weekdays is sold out (Fix 5)", async () => {
+        // Both are single-day daily listings, but the parent is bookable only on
+        // Mondays and its only child only on Tuesdays. The child has a bookable
+        // start on its own calendar (Tuesday), so a child-calendar-only check
+        // would still advertise the parent — yet there is NO date the parent can
+        // offer on which the child is bookable, so `getTicketContext`'s date union
+        // renders empty and the parent must read sold out (Fix 5).
+        const parent = await createDailyTestListing({
+          bookableDays: ["Monday"],
+          name: "Monday base",
+        });
+        const child = await createDailyTestListing({
+          bookableDays: ["Tuesday"],
+          name: "Tuesday add-on",
+        });
+        await setChildIds(parent.id, [child.id]);
+        const body = await publicBody("/listings");
+        expect(body).not.toContain(`href="/ticket/${parent.slug}"`);
+        expect(body).toContain("Sold Out");
+      });
+
+      test("a daily parent whose child shares a bookable weekday stays advertised (Fix 5)", async () => {
+        // The child is bookable on a weekday the parent also offers (Monday), so
+        // there is an overlapping date the gate can serve — the parent keeps its
+        // Book link (the Fix 5 overlap is satisfied, not over-eager).
+        const parent = await createDailyTestListing({
+          bookableDays: ["Monday"],
+          name: "Monday base",
+        });
+        const child = await createDailyTestListing({
+          bookableDays: ["Monday", "Tuesday"],
+          name: "Mon/Tue add-on",
+        });
+        await setChildIds(parent.id, [child.id]);
+        const body = await publicBody("/listings");
+        expect(body).toContain(`href="/ticket/${parent.slug}"`);
+      });
+
       test("a parent + child in different capped groups stays bookable", async () => {
         // When parent and child sit in different capped groups they do not share
         // a pool, so the combined-demand check does not apply and the per-row

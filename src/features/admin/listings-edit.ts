@@ -73,18 +73,29 @@ export const handleNewListingGet: TypedRouteHandler<
  * references the same existing child listings). Reads the source id from the
  * hidden `duplicated_from` field; a plain create (no source) is a no-op, as is a
  * source with no children or the flag being off ({@link copyDuplicatedChildEdges}).
+ *
+ * Returns a **warning** message when the gate could NOT be copied (the edges
+ * failed re-validation on the copy — e.g. the child carries an opt-in add-on
+ * reachable only through the source parent, so it would dead-end from the new
+ * one). Surfacing this instead of swallowing it (Fix 1) prevents a silent
+ * "success" that leaves the copy a gateless standalone bookable listing; the copy
+ * is kept but the operator is told its required children weren't carried over.
+ * Returns null when the edges copied cleanly (or there were none to copy).
  */
 const copyEdgesFromDuplicateSource = async (
   form: FormParams,
   newId: number,
-): Promise<void> => {
+): Promise<string | null> => {
   const sourceId = form.getOptionalInt("duplicated_from");
-  if (sourceId === null) return;
+  if (sourceId === null) return null;
   const childIds = await getChildIds(sourceId);
-  if (childIds.length === 0) return;
+  if (childIds.length === 0) return null;
   // The copy was just created in this request, so it always loads.
   const newListing = (await getListingWithCount(newId))!;
-  await copyDuplicatedChildEdges(newListing, childIds);
+  const error = await copyDuplicatedChildEdges(newListing, childIds);
+  return error
+    ? t("listings_table.duplicate_children_dropped", { reason: error })
+    : null;
 };
 
 /**
@@ -105,12 +116,18 @@ export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> = (
       );
     }
     await logActivity(`Listing '${result.row.name}' created`, result.row);
-    await copyEdgesFromDuplicateSource(form, result.row.id);
+    const childWarning = await copyEdgesFromDuplicateSource(
+      form,
+      result.row.id,
+    );
     return processUploadsAndRedirect(
       formData,
       result.row.id,
       "/admin",
       t("success.listing_created"),
+      undefined,
+      undefined,
+      childWarning,
     );
   });
 

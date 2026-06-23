@@ -145,33 +145,69 @@ export const validateChildEdges = async (
  * source parent's own children verbatim; for a group duplicate the source
  * parent's children remapped to the clones (intra-group) or kept (external).
  *
- * Callers only invoke this for a source that actually has children; an edge set
- * that fails validation is skipped (not written), so a copy is never left with
- * an invalid gate.
+ * Callers only invoke this for a source that actually has children. When the
+ * edge set fails validation it is **not** written (so a copy is never left with
+ * an invalid gate) and the validation error is **returned** so the caller can
+ * warn the operator (Fix 1) — a duplicate that silently drops its required-child
+ * gate would turn a gated listing into a standalone bookable copy. Returns null
+ * when the edges were copied successfully.
+ *
+ * The validation legitimately fails for a copy when an edge is reachable only
+ * through the *source* (e.g. a child carrying an opt-in add-on scoped to
+ * `{originalParent, child}` becomes a dead end from the new parent), so the
+ * silent no-op this replaces hid a real gate loss.
  */
 export const copyDuplicatedChildEdges = async (
   newParent: ListingWithCount,
   childIds: readonly number[],
-): Promise<void> => {
+): Promise<string | null> => {
   const result = await validateChildEdges(newParent, childIds);
-  if (result.ok) await setChildIds(newParent.id, result.childIds);
+  if (!result.ok) return result.error;
+  await setChildIds(newParent.id, result.childIds);
+  return null;
+};
+
+/** Write a parent's full child set (existing ∪ additions) through the validated
+ * {@link copyDuplicatedChildEdges} path. `setChildIds` REPLACES a parent's edges,
+ * so an external parent gaining a cloned child must keep its current children
+ * too — otherwise remapping would clobber the original gate it already had. The
+ * additions are freshly-cloned ids, always disjoint from the parent's existing
+ * children, so a plain concatenation can't collide on the unique edge index. */
+const addChildrenToParent = async (
+  parentId: number,
+  addChildIds: readonly number[],
+): Promise<void> => {
+  // The parent always loads (it is a real listing referenced by an existing edge).
+  const parent = (await getListingWithCount(parentId))!;
+  const existing = await getChildIds(parentId);
+  await copyDuplicatedChildEdges(parent, [...existing, ...addChildIds]);
 };
 
 /**
  * Recreate the parent/child edges of a duplicated group on its clones. `idMap`
- * maps each source member's id to its clone. For every source member that is a
- * parent, the clone requires the **remapped** child set: an intra-group child
- * (a member of the same group) points at *its* clone, while a child living
- * **outside** the group keeps referencing the original external listing so the
- * clone still has a working gate. A child member whose parent is outside the
- * group is *not* auto-attached (we only walk the cloned parents). Each remapped
- * set is written through the validated {@link copyDuplicatedChildEdges} path.
+ * maps each source member's id to its clone. Two directions are walked so a
+ * cloned child is never left standalone-bookable (the silent gate-drop Fix 2
+ * guards against):
  *
- * A no-op when no cloned member is a parent.
+ * 1. **Outgoing** — for every cloned member that is a parent, the clone requires
+ *    the **remapped** child set: an intra-group child (a member of the same
+ *    group) points at *its* clone, while a child living **outside** the group
+ *    keeps referencing the original external listing so the clone still has a
+ *    working gate.
+ * 2. **Incoming** — for every cloned member that is a child whose parent is
+ *    **outside** the group, recreate `outsideParent → clonedChild`, so the clone
+ *    is still a child (absent from no standalone surface) rather than a standalone
+ *    bookable listing. (A child whose parent is *inside* the group is already
+ *    covered by the outgoing walk, which attaches it to the cloned parent.)
+ *
+ * Each remapped/added set is written through the validated
+ * {@link copyDuplicatedChildEdges} path. A no-op when no cloned member touches an
+ * edge.
  */
 export const remapDuplicatedGroupEdges = async (
   idMap: ReadonlyMap<number, number>,
 ): Promise<void> => {
+  // Direction 1: outgoing edges of each cloned parent.
   for (const [sourceId, newId] of idMap) {
     const sourceChildIds = await getChildIds(sourceId);
     if (sourceChildIds.length === 0) continue;
@@ -181,6 +217,26 @@ export const remapDuplicatedGroupEdges = async (
     // `newId` is a clone just inserted in this request, so it always loads.
     const newParent = (await getListingWithCount(newId))!;
     await copyDuplicatedChildEdges(newParent, remapped);
+  }
+  // Direction 2: incoming edges of each cloned child whose parent is OUTSIDE the
+  // group (an inside parent is already handled above). Collect every
+  // (outsideParent, cloneId) pair, then group by parent so one external parent
+  // gaining several cloned children is written once (and its existing children
+  // preserved).
+  const outsidePairs: { parentId: number; cloneId: number }[] = [];
+  for (const [sourceId, cloneId] of idMap) {
+    const parentIds = await getParentIds(sourceId);
+    for (const parentId of parentIds) {
+      // A parent inside the group is handled by the outgoing walk above.
+      if (!idMap.has(parentId)) outsidePairs.push({ cloneId, parentId });
+    }
+  }
+  const byOutsideParent = Map.groupBy(outsidePairs, (pair) => pair.parentId);
+  for (const [parentId, pairs] of byOutsideParent) {
+    await addChildrenToParent(
+      parentId,
+      pairs.map((pair) => pair.cloneId),
+    );
   }
 };
 

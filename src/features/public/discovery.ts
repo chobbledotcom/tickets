@@ -25,6 +25,7 @@
 
 import { compact } from "#fp";
 import { isRegistrationClosed } from "#routes/format.ts";
+import { getBookableStartDates } from "#shared/dates.ts";
 import { getGroupRemainingByListingId } from "#shared/db/attendees.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {
@@ -89,11 +90,12 @@ const childBookable = (
   child: TicketListing,
   holidays: Holiday[],
   parentFixedSpan: number | null,
+  parentDates: ReadonlySet<string> | null,
 ): boolean =>
   selectableChild([
     childActive,
     childOpen,
-    childCalendarOrInStockForSpan(holidays, parentFixedSpan),
+    childCalendarOrInStockForSpan(holidays, parentFixedSpan, parentDates),
   ])(child);
 
 /** Whether a *parent* can currently offer its children as add-ons (Fix 1): its
@@ -116,10 +118,24 @@ const parentBookable = (
   return !info.isSoldOut && !info.isClosed;
 };
 
+/** A daily parent's own bookable start dates (the candidate dates its booking
+ * page can offer), against which a daily child's calendar must overlap (Fix 5);
+ * `null` for a non-daily parent, which has NO date selector — a daily child under
+ * it inherits no parent date, so no overlap constraint applies (and the child is
+ * judged by its own calendar / fixed span). */
+const parentDatesOf = (
+  parent: ListingWithCount,
+  holidays: Holiday[],
+): ReadonlySet<string> | null =>
+  parent.listing_type === "daily"
+    ? new Set(getBookableStartDates(parent, holidays))
+    : null;
+
 /** Whether a child counts as bookable *for a given parent* on a discovery
  * surface: it must be individually bookable (active, not sold out/closed at the
- * minimum single-day order) AND the combined parent+child demand must fit the
- * shared group capacity (invariant I7). */
+ * minimum single-day order), bookable on a date the PARENT can serve (Fix 5),
+ * AND the combined parent+child demand must fit the shared group capacity
+ * (invariant I7). */
 const childBookableForParent = (
   parent: ListingWithCount,
   child: ListingWithCount,
@@ -130,6 +146,12 @@ const childBookableForParent = (
     buildTicketListing(child, isRegistrationClosed(child), groupRemaining),
     holidays,
     fixedParentSpan(parent),
+    // A daily child must be bookable on a date the PARENT can actually serve, not
+    // merely on its own calendar (Fix 5): otherwise disjoint weekdays leave the
+    // parent advertised while `getTicketContext`'s date union renders no valid
+    // date. A non-daily parent has no own date calendar — an empty set, which the
+    // daily-only overlap test ignores for a (necessarily standard) child.
+    parentDatesOf(parent, holidays),
   ) && combinedGroupDemandFits(parent.group_id, child.group_id, groupRemaining);
 
 /**

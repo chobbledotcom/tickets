@@ -133,7 +133,13 @@ const processFormAttachment = (
     },
   });
 
-/** Process image + attachment uploads and redirect, reporting any upload errors */
+/** Process image + attachment uploads and redirect, reporting any upload errors.
+ *
+ * `warning`, when set, is a non-fatal caveat to surface even when the create
+ * succeeded (e.g. a duplicate that couldn't carry its required-child gate — Fix
+ * 1): the redirect becomes a warning flash (not a plain success) carrying the
+ * caveat, so the operator is never told an unqualified "success" for a partial
+ * outcome. Upload errors still take precedence and are appended too. */
 export const processUploadsAndRedirect = async (
   formData: FormData,
   listingId: number,
@@ -141,6 +147,7 @@ export const processUploadsAndRedirect = async (
   successMessage: string,
   existingImageUrl?: string,
   existingAttachmentUrl?: string,
+  warning?: string | null,
 ): Promise<Response> => {
   const imageError = await processFormImage(
     formData,
@@ -152,11 +159,11 @@ export const processUploadsAndRedirect = async (
     listingId,
     existingAttachmentUrl,
   );
-  const errors = compact([imageError, attachmentError]);
-  if (errors.length > 0) {
+  const caveats = compact([warning, ...[imageError, attachmentError]]);
+  if (caveats.length > 0) {
     return redirect(
       redirectUrl,
-      `${successMessage} but: ${errors.join("; ")}`,
+      `${successMessage} but: ${caveats.join("; ")}`,
       false,
     );
   }
