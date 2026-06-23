@@ -131,6 +131,40 @@ Some reads legitimately need the full row — these are the exceptions, not the 
 
 Even when a caller genuinely needs many columns, list them explicitly rather than `SELECT *`, so adding a column later doesn't silently widen every read.
 
+### Transactions and Batches
+
+For anything more complex than a single statement, prefer libsql's batches or
+interactive transactions over firing independent `execute` calls. Independent
+calls neither share a transaction (a later failure can't undo an earlier write)
+nor a round-trip (each one is a separate request to the primary). The helpers in
+`src/shared/db/client.ts` already wrap libsql's transaction APIs — reach for
+them rather than calling `getDb().batch`/`getDb().transaction` directly, so query
+logging and table-scoped cache invalidation stay automatic.
+
+- **Batch — multiple statements, no logic between them.** When you know all the
+  statements up front and none depends on the result of an earlier one, use a
+  batch. It runs them sequentially in one implicit transaction over a single
+  round-trip: success commits everything, any failure rolls the whole thing
+  back. Use `executeBatch` (writes, discards results),
+  `executeBatchWithResults` (writes, returns each `ResultSet` — ideal for
+  cascading deletes and multi-step writes), `queryBatch` (reads in one
+  round-trip), or `queryBatchPrimary` (reads pinned to the primary when you must
+  read your own just-committed writes). `deleteByFieldBatch` is a ready-made
+  multi-table delete.
+
+- **Interactive transaction — logic between steps.** When a later statement
+  depends on the result of an earlier one — e.g. read a balance, validate it,
+  then conditionally update; or create → check capacity → finalize, where a
+  zero-row guard must abort and undo everything — use `withTransaction`. It hands
+  your callback a `TxScope` whose `execute` runs inside one interactive write
+  transaction, committing on success and rolling back (then rethrowing) on any
+  error. The write lock is acquired with a short retry so concurrent writers
+  serialize rather than failing; a database that stays locked surfaces as
+  `DatabaseBusyError`. Note the trade-off: an interactive transaction locks the
+  database for writing until it commits or rolls back (with a timeout), so keep
+  the work inside it tight — do any expensive non-DB computation before opening
+  it, and prefer a plain batch whenever no inter-step logic is actually needed.
+
 ## Scripts
 
 - `deno task start` - Run the server
