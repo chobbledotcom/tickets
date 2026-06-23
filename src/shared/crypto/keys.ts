@@ -308,7 +308,10 @@ export const importPublicKey = (jwkString: string): Promise<CryptoKey> =>
 export const importPrivateKey = (jwkString: string): Promise<CryptoKey> =>
   importRsaKey(jwkString, "decrypt");
 
-const HYBRID_PREFIX = "hyb:1:";
+/** Prefix tagging a hybrid (RSA+AES) ciphertext, e.g. owner-key activity-log
+ * messages and attendee PII. Distinguishes them from env-key {@link
+ * ENCRYPTION_PREFIX} values so a decrypt path can route by format. */
+export const HYBRID_PREFIX = "hyb:1:";
 
 /**
  * Encrypt data using hybrid encryption (RSA + AES)

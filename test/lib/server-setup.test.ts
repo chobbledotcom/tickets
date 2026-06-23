@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { getAllActivityLog } from "#shared/db/activityLog.ts";
 import { getDb } from "#shared/db/client.ts";
 import { invalidateInitDbCache, resetDatabase } from "#shared/db/migrations.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -13,11 +12,13 @@ import {
   expectFlashRedirect,
   expectHtmlResponse,
   expectRedirect,
+  getAllActivityLog,
   getSetupCsrfToken,
   invalidateTestDbCache,
   mockFormRequest,
   mockRequest,
   mockSetupFormRequest,
+  reloginAsAdmin,
   resetDb,
   withExpectedError,
   withMocks,
@@ -505,6 +506,9 @@ describeWithEnv("server (setup)", { db: true }, () => {
         ),
       );
 
+      // The setup-completion entry is owner-key encrypted, so read it back as
+      // the newly-created owner (whose password is non-default here).
+      await reloginAsAdmin("mypassword123");
       const logs = await getAllActivityLog();
       expect(
         logs.some((l) => l.message.includes("Initial setup completed")),

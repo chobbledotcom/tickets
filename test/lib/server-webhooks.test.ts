@@ -4,7 +4,6 @@ import { spy, stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { setEffectiveDomainForTest } from "#shared/config.ts";
-import { getAllActivityLog } from "#shared/db/activityLog.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
   getAllModifiers,
@@ -39,6 +38,7 @@ import {
   describeWithEnv,
   expectHtmlResponse,
   followRedirect,
+  getAllActivityLog,
   mockRequest,
   mockWebhookRequest,
   setupStripe,
@@ -4930,9 +4930,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         expect(refundLog).toBeDefined();
 
         // Verify refund was logged to activity log tagged to listing
-        const { getListingActivityLog } = await import(
-          "#shared/db/activityLog.ts"
-        );
+        const { getListingActivityLog } = await import("#test-utils");
         const entries = await getListingActivityLog(listing.id);
         const refundEntry = entries.find((e) =>
           e.message.includes("Automatic refund"),
@@ -5002,9 +5000,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         );
         expect(response.status).toBe(200);
 
-        const { getListingActivityLog } = await import(
-          "#shared/db/activityLog.ts"
-        );
+        const { getListingActivityLog } = await import("#test-utils");
         const entries = await getListingActivityLog(listing.id);
         const refundEntry = entries.find((e) =>
           e.message.includes("Automatic refund"),

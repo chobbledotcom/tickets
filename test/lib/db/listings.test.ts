@@ -51,6 +51,7 @@ import {
   createTestListing,
   describeWithEnv,
   getTestPrivateKey,
+  withTestSession,
 } from "#test-utils";
 import {
   postAttendeeRefund,
@@ -340,7 +341,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
       const listingLog = await getListingActivityLog(listing.id);
       expect(listingLog).toEqual([]);
 
-      const allLog = await getAllActivityLog();
+      const allLog = await withTestSession(() => getAllActivityLog());
       const messages = allLog.map((e) => e.message);
       expect(messages).not.toContain("Action for listing");
       expect(messages).not.toContain("Another action");

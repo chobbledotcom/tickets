@@ -5,7 +5,6 @@ import { handleRequest } from "#routes";
 import { formatCountdown } from "#routes/format.ts";
 import { withCookie } from "#routes/response.ts";
 import { addDays } from "#shared/dates.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
 import { getDb, insert } from "#shared/db/client.ts";
 import {
   getListingWithCount,
@@ -34,6 +33,7 @@ import {
   expectHtmlResponse,
   expectStatus,
   followRedirectWithFlash,
+  logActivity,
   mockFormRequest,
   mockMultipartRequest,
   setTestEnv,
@@ -3365,9 +3365,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         ),
       );
 
-      const { getListingActivityLog } = await import(
-        "#shared/db/activityLog.ts"
-      );
+      const { getListingActivityLog } = await import("#test-utils");
       const logs = await getListingActivityLog(listing.id);
       const updateLog = logs.find((l: { message: string }) =>
         l.message.includes("updated"),

@@ -1844,9 +1844,7 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
         expect(response.status).toBe(302);
 
         // Verify activity was logged
-        const { getListingActivityLog } = await import(
-          "#shared/db/activityLog.ts"
-        );
+        const { getListingActivityLog } = await import("#test-utils");
         const logs = await getListingActivityLog(listing.id);
         const resendLog = logs.find((l: { message: string }) =>
           l.message.includes("Notification re-sent"),

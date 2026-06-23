@@ -12,7 +12,6 @@ import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { generateAttendeesCsv } from "#routes/admin/attendees-csv.ts";
 import { addDays, getAvailableDates } from "#shared/dates.ts";
-import { getListingActivityLog } from "#shared/db/activityLog.ts";
 import {
   checkBatchAvailability,
   checkGroupCapAfterDurationChange,
@@ -35,6 +34,7 @@ import {
   createTestHoliday,
   describeWithEnv,
   expectFlashRedirect,
+  getListingActivityLog,
   makeTestEntry,
   mockFormRequest,
   rawListingRange,

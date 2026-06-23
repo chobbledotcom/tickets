@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeeAccount, WRITEOFF } from "#shared/accounting/accounts.ts";
 import { accountBalance, allTransfers } from "#shared/accounting/queries.ts";
-import { getAttendeeActivityLog } from "#shared/db/activityLog.ts";
 import {
   attendeeStatusesTable,
   getPaidDefaultStatus,
@@ -24,7 +23,11 @@ import {
   runWithQueryLogContext,
 } from "#shared/db/query-log.ts";
 import { accountKey } from "#shared/ledger/account.ts";
-import { createTestListing, describeWithEnv } from "#test-utils";
+import {
+  createTestListing,
+  describeWithEnv,
+  getAttendeeActivityLog,
+} from "#test-utils";
 import { postListingSale } from "#test-utils/ledger.ts";
 
 /** Create a reserved attendee with an outstanding balance. */

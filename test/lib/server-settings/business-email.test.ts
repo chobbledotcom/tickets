@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { getAllActivityLog } from "#shared/db/activityLog.ts";
 import { settings } from "#shared/db/settings.ts";
 import { setDemoModeForTest } from "#shared/demo.ts";
 import {
@@ -9,6 +8,7 @@ import {
   describeWithEnv,
   expectFlash,
   expectHtmlResponse,
+  getAllActivityLog,
   mockFormRequest,
   testCookie,
   testRequiresAuth,

@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getAllActivityLog } from "#shared/db/activityLog.ts";
 import { FormParams } from "#shared/form-data.ts";
 import {
   createTestListing,
   describeWithEnv,
   expectFlash,
+  getAllActivityLog,
   mockFormRequest,
   mockMultipartRequest,
   mockRequest,

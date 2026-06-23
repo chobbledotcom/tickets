@@ -32,6 +32,7 @@ import {
 } from "#shared/crypto/keys.ts";
 import {
   execute,
+  executeBatch,
   executeWithoutCacheInvalidation,
   queryAll,
 } from "#shared/db/client.ts";
@@ -40,7 +41,10 @@ import {
   recordSettingRead,
   recordSettingsLoaded,
 } from "#shared/db/settings-audit.ts";
-import { createUser, invalidateUsersCache } from "#shared/db/users.ts";
+import {
+  buildCreateUserStatement,
+  invalidateUsersCache,
+} from "#shared/db/users.ts";
 import { nowMs } from "#shared/now.ts";
 import {
   DEFAULT_ORPHAN_RETENTION,
@@ -74,6 +78,7 @@ import type { EncryptedUpdateFn } from "#shared/wallets/wallet-settings-types.ts
 // ---------------------------------------------------------------------------
 
 export const CONFIG_KEYS = {
+  ACTIVITY_LOG_BACKFILL_DONE: "activity_log_backfill_done",
   APPLE_WALLET_PASS_TYPE_ID: "apple_wallet_pass_type_id",
   APPLE_WALLET_SIGNING_CERT: "apple_wallet_signing_cert",
   APPLE_WALLET_SIGNING_KEY: "apple_wallet_signing_key",
@@ -109,6 +114,7 @@ export const CONFIG_KEYS = {
   HAS_LOGISTICS: "has_logistics",
   HEADER_IMAGE_URL: "header_image_url",
   HOMEPAGE_TEXT: "homepage_text",
+  LAST_ACTIVITY_LOG_BACKFILL: "last_activity_log_backfill",
   LAST_PRUNED_CONTACTS: "last_pruned_contacts",
   LAST_PRUNED_INVITES: "last_pruned_invites",
   LAST_PRUNED_LOGINS: "last_pruned_logins",
@@ -260,6 +266,8 @@ const PLAINTEXT_KEYS = [
   CONFIG_KEYS.LAST_PRUNED_INVITES,
   CONFIG_KEYS.LAST_PRUNED_ORPHANS,
   CONFIG_KEYS.SMS_GATEWAY_BASE_URL,
+  CONFIG_KEYS.ACTIVITY_LOG_BACKFILL_DONE,
+  CONFIG_KEYS.LAST_ACTIVITY_LOG_BACKFILL,
 ] as const;
 
 /** Encrypted string config keys (decrypted during loadKeys, default ""). */
@@ -421,12 +429,22 @@ const syncCache = (mutate: (state: CacheState) => void): void => {
   if (isCacheFresh()) mutate(getCacheState());
 };
 
+/** Upsert a single settings key/value (latest write wins). */
+const SETTINGS_UPSERT_SQL =
+  "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)";
+
+/** Build a settings upsert as a batch statement. */
+const settingUpsert = (
+  key: string,
+  value: string,
+): { sql: string; args: string[] } => ({
+  args: [key, value],
+  sql: SETTINGS_UPSERT_SQL,
+});
+
 /** Write a setting to the DB and update the raw cache in-place. */
 const writeRaw = async (key: string, value: string): Promise<void> => {
-  await executeWithoutCacheInvalidation(
-    "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-    [key, value],
-  );
+  await executeWithoutCacheInvalidation(SETTINGS_UPSERT_SQL, [key, value]);
   // A write makes the key's value known this request, so reading it back is
   // safe in production too — record it as available for the read audit.
   recordSettingsLoaded([key]);
@@ -489,6 +507,7 @@ const plaintextUpdate: EncryptedUpdateFn = stringUpdate(writeOrDelete);
 type AccessorSpec = { key: StringSettingKey; readOnly?: true };
 
 const STRING_ACCESSORS = {
+  activityLogBackfillDone: { key: CONFIG_KEYS.ACTIVITY_LOG_BACKFILL_DONE },
   attendeeColumnOrder: { key: CONFIG_KEYS.ATTENDEE_COLUMN_ORDER },
   bulkEmailDraft: { key: CONFIG_KEYS.BULK_EMAIL_DRAFT },
   bunnySubdomain: { key: CONFIG_KEYS.BUNNY_SUBDOMAIN },
@@ -504,6 +523,7 @@ const STRING_ACCESSORS = {
   embedHosts: { key: CONFIG_KEYS.EMBED_HOSTS },
   headerImageUrl: { key: CONFIG_KEYS.HEADER_IMAGE_URL },
   homepageText: { key: CONFIG_KEYS.HOMEPAGE_TEXT },
+  lastActivityLogBackfill: { key: CONFIG_KEYS.LAST_ACTIVITY_LOG_BACKFILL },
   lastPrunedContacts: { key: CONFIG_KEYS.LAST_PRUNED_CONTACTS },
   lastPrunedInvites: { key: CONFIG_KEYS.LAST_PRUNED_INVITES },
   lastPrunedLogins: { key: CONFIG_KEYS.LAST_PRUNED_LOGINS },
@@ -826,12 +846,27 @@ const completeSetup = async (
     adminPassword,
     hashedPassword,
   );
-  await createUser(username, hashedPassword, wrappedDataKey, "owner");
   const encryptedPrivateKey = await encryptWithKey(privateKey, dataKey);
-  await writeRaw(CONFIG_KEYS.WRAPPED_PRIVATE_KEY, encryptedPrivateKey);
-  await writeRaw(CONFIG_KEYS.PUBLIC_KEY, publicKey);
-  await writeRaw(CONFIG_KEYS.COUNTRY, country);
-  await writeRaw(CONFIG_KEYS.SETUP_COMPLETE, "true");
+
+  // The whole setup ceremony commits in one transaction: the owner account and
+  // every config key land together, so a mid-write failure can never leave a
+  // half-initialised site (an owner with no keypair, or setup_complete set
+  // before the owner row exists). All values are computed above, so this is a
+  // plain batch — no inter-statement logic — rather than an interactive
+  // transaction.
+  const ownerInsert = await buildCreateUserStatement(
+    username,
+    hashedPassword,
+    wrappedDataKey,
+    "owner",
+  );
+  await executeBatch([
+    ownerInsert,
+    settingUpsert(CONFIG_KEYS.WRAPPED_PRIVATE_KEY, encryptedPrivateKey),
+    settingUpsert(CONFIG_KEYS.PUBLIC_KEY, publicKey),
+    settingUpsert(CONFIG_KEYS.COUNTRY, country),
+    settingUpsert(CONFIG_KEYS.SETUP_COMPLETE, "true"),
+  ]);
 
   // Setup flips the global routing gate. Drop any partially-loaded settings
   // snapshot from pre-setup requests so the next request cannot keep serving

@@ -7,10 +7,14 @@ import {
   secretFieldHandler,
 } from "#routes/admin/settings-helpers.ts";
 import type { AuthSession } from "#routes/auth.ts";
-import { getAllActivityLog } from "#shared/db/activityLog.ts";
 import { MASK_SENTINEL } from "#shared/db/settings.ts";
 import { FormParams } from "#shared/form-data.ts";
-import { describeWithEnv, expectFlash, expectRedirect } from "#test-utils";
+import {
+  describeWithEnv,
+  expectFlash,
+  expectRedirect,
+  getAllActivityLog,
+} from "#test-utils";
 
 const formFrom = (data: Record<string, string>): FormParams =>
   new FormParams(new URLSearchParams(data));

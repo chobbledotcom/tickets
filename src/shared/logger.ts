@@ -384,7 +384,8 @@ export type LogCategory =
   | "Storage"
   | "Wallet"
   | "Migration"
-  | "Prune";
+  | "Prune"
+  | "Backfill";
 
 /**
  * Log a debug message with category prefix

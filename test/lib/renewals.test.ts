@@ -4,12 +4,12 @@ import { stub } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { addMonthsIso } from "#shared/dates.ts";
-import { getAllActivityLog } from "#shared/db/activityLog.ts";
 import { getAllBuiltSites, insertBuiltSite } from "#shared/db/built-sites.ts";
 import { applyRenewalsForEntries } from "#shared/webhook.ts";
 import {
   createTestListing,
   describeWithEnv,
+  getAllActivityLog,
   makeTestEntry,
   provisionTestBuiltSite,
 } from "#test-utils";
