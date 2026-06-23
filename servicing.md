@@ -240,14 +240,16 @@ wallet 404). See the "Hidden from public site" section above; do not skip this,
 because the token index is populated and would otherwise resolve.
 
 **The broad readers in `queries.ts` are not the only attendee loaders.** The
-per-listing detail, CSV export, refund-all, and calendar flows load attendees
-through `src/shared/db/listings.ts` — notably `getListingWithAttendeesRaw`
-(`listings.ts:509`) and the calendar's attendee loaders in the same module. These
-batch reads must take the same `attendees.kind` predicate, or servicing holds
-will still appear in per-listing attendee tables, exports, refund-all counts, and
-calendar attendee views even after the `queries.ts` helpers are fixed. Audit
-every `JOIN attendees` / `FROM listing_attendees` read that surfaces *people*, not
-just capacity numbers.
+per-listing detail, CSV export, refund-all, calendar, groups, and feed flows load
+attendees through `src/shared/db/listings.ts` — `getListingWithAttendeesRaw`
+(`listings.ts:509`) and `getAttendeesByListingIds` (`listings.ts:585`). Each must
+make a *deliberate* per-surface choice (not all the same): hide servicing from
+the per-listing attendee tables / exports / refund-all counts, but **show** it on
+the calendar (operator decision). The details and the broken admin links these
+expose are covered in "Calendar, groups & feeds" and
+"`getListingWithAttendeesRaw` is a single chokepoint" below. Audit every
+`JOIN attendees` / `FROM listing_attendees` read that surfaces *people*, not just
+capacity numbers, and decide show-vs-hide for each.
 
 **Guard single-record customer routes by kind, not just list queries.** Filtering
 lists still leaves `/admin/attendees/:id` able to load a servicing row by id —
@@ -395,9 +397,15 @@ A servicing row must never be treated as a customer. Checklist (search anchor:
 - [ ] Single-record customer routes (`/admin/attendees/:id` and its POST,
       re-send/SMS/merge/delete actions) — guard by kind so a servicing id 404s
       on the attendee pages (see "Guard single-record customer routes" above).
-- [ ] Per-listing attendee loaders in `src/shared/db/listings.ts`
-      (`getListingWithAttendeesRaw` + calendar loaders) feeding listing detail,
-      CSV export, refund-all, and calendar attendee views.
+- [ ] Per-listing / multi-listing attendee loaders in `src/shared/db/listings.ts`
+      — both `getListingWithAttendeesRaw` (`listings.ts:509`, via
+      `withDecryptedAttendees` / `withListingAttendeesAuth` in
+      `features/admin/actions.ts:70-96` — the chokepoint behind the per-listing
+      attendee table, CSV export, refund-all, and check-in) **and**
+      `getAttendeesByListingIds` (`listings.ts:585`, used by the admin calendar
+      `calendar.ts:254`, the **groups** page `groups.ts:181`, and the CalDAV feed
+      `feeds.ts:240`). See "Calendar, groups & feeds" below — these are *show
+      vs hide* decisions per surface, not a blanket filter.
 - [ ] Dashboard "newest attendees" (`features/admin/dashboard.ts`).
 - [ ] Bulk email targets (`src/shared/bulk-email-targets.ts`,
       `getAllAttendeePiiBlobs`).
@@ -423,6 +431,95 @@ A servicing row must never be treated as a customer. Checklist (search anchor:
       link routing that must change.)
 - [ ] Backup/restore (`backup.ts`) round-trips the new column automatically (it
       dumps every column) — no change, but verify.
+
+---
+
+## Additional review findings (deeper self-review)
+
+A second pass over the call sites turned up these, in the same vein as the
+review feedback above:
+
+### Calendar, groups & feeds (`getAttendeesByListingIds`)
+
+**Decision: servicing events show on the calendar** (operator's call). So the
+calendar loaders must *not* filter servicing out — they render them — but:
+
+- **Links must be kind-aware.** Both the admin calendar and the CalDAV feed link
+  every attendee to the customer route. The CalDAV `eventUrl` hard-codes
+  `https://…/admin/attendees/${attendee.id}` (`feeds.ts:166`), and the admin
+  calendar's attendee cells link the same way. Once attendee pages are
+  kind-guarded these break for servicing rows — route them to
+  `/admin/servicing/:id`, the same fix as the activity-log links. This means the
+  calendar/feed attendee loaders need to **carry `kind`** on each row (add it to
+  the `Attendee` shape / SELECT — see below).
+- **Style them distinctly** so a "boiler service" hold reads as a hold, not a
+  customer, on the calendar.
+- **Groups page** (`groups.ts:181`) and the **CalDAV feed** (`feeds.ts:240`) use
+  the same `getAttendeesByListingIds`. Make a deliberate show/hide choice for
+  each (calendar = show, per decision); the feed is consumed by external calendar
+  clients, so leaking a "boiler service" VEVENT with an admin URL may be
+  undesirable — likely **hide** servicing from the syndicated feed even though
+  it shows in the in-app calendar.
+
+### `getListingWithAttendeesRaw` is a single chokepoint for many pages
+
+`withDecryptedAttendees` (`actions.ts:70`) wraps `getListingWithAttendeesRaw` and
+backs the per-listing attendee table, CSV export, refund-all, and check-in. Apply
+the kind decision once here (and decide whether refund-all / check-in **counts**
+should exclude servicing — they have `price_paid = 0` and shouldn't be "checked
+in", so excluding them keeps those operations honest).
+
+### Adding `kind` to the `Attendee` type forces every constructor to set it
+
+`Attendee` (`types.ts:286`) is built in several places that would all need the
+new field (or rely on a DB default + explicit SELECT): `buildAttendeeResult`
+(`create.ts:96`), any `buildAttendeeView`, the merge booking-insert path
+(`attendee-merge.ts`), and the demo/seed fixtures (`seeds.ts`). Add `kind` to the
+SELECT column lists (`ATTENDEE_COLS` in `queries.ts:23`, and the `listings.ts`
+selects) so the guard and the kind-aware links actually receive it — a guard that
+reads a column the query never selected silently sees `undefined`.
+
+### Merge must be guarded at the action, not just the candidate list
+
+Excluding servicing from the merge *dropdown* is not enough — `applyAttendeeMerge`
+(`attendee-merge.ts:477`) moves bookings and deletes the source attendee purely
+from ids in the submitted form, exactly the class of bypass the route-guard
+finding describes. Reject the merge in `buildAttendeeMergeDiff` /
+`validateAttendeeMergeDecision` (or the loader) when either id is
+`kind='servicing'`, so a hand-crafted POST can't fold a servicing hold into a
+customer (or vice-versa).
+
+### Demo mode rewrites the servicing name
+
+The shared submit core calls `applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS)`
+(`attendee-form-routes.ts:606`). In demo mode that map includes `name`, and
+`applyDemoOverrides` (`demo.ts:562`) overwrites any present, non-empty field — so
+a servicing event's reason ("Boiler Service") would be replaced with a random
+person name from `DEMO_NAMES`. The other PII fields aren't on the name-only
+servicing form (so they stay untouched), but `name` is. **Resolved:** the
+servicing submit path must use `SERVICING_DEMO_FIELDS` (added in `demo.ts`, backed
+by `DEMO_SERVICING_NAMES` — servicing reasons like "Deep Clean", "Gas Safety
+Check") instead of `ATTENDEE_DEMO_FIELDS`, so demo mode keeps servicing names
+looking like jobs, not people.
+
+### Orphan purge & delete parity
+
+When a listing is deleted its bookings are removed but the attendee row is kept,
+becoming an "orphan" (`orphan-attendees.ts`). A servicing event whose only
+listing is deleted therefore lingers as an orphan and is swept by the Privacy
+"purge orphaned attendees" tool — harmless and arguably correct, but note the
+tool is described to operators as purging rows "holding encrypted personal
+data," which servicing holds don't. More importantly: if servicing adds any new
+per-attendee dependent rows, both `deleteAttendee` and `ORPHAN_DEPENDENT_TABLES`
+(`orphan-attendees.ts:35`) must include them to avoid leaks.
+
+### Shared template builder pulls customer-only data
+
+`buildTemplateData` (`attendee-form-routes.ts:305`) loads order summary/balance,
+statuses, contact records, and logistics. The servicing form is a trimmed,
+separate template (per Admin UI), so make sure its template builder does **not**
+call `getAttendeeOrderSummary` / contact-record / status loaders — none of which
+apply to a hold — rather than reusing the attendee builder wholesale.
 
 ---
 
