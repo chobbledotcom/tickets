@@ -335,6 +335,50 @@ describeWithEnv(
       expect(body.available).toBe(true);
     });
 
+    test("a daily parent's availability is false for a date no child can serve (Fix 1)", async () => {
+      const { settings } = await import("#shared/db/settings.ts");
+      await settings.update.showPublicApi(true);
+      // The parent is bookable every weekday, but its only (daily) child is
+      // bookable only on Mondays. A date the child cannot serve must report
+      // `available: false` even though the parent's OWN row has capacity — the
+      // availability endpoint must honour the child-date union, matching the
+      // detail endpoint and the booking fold (Fix 1).
+      const parent = await createDailyTestListing({ name: "Daily base" });
+      const child = await createDailyTestListing({
+        bookableDays: ["Monday"],
+        name: "Monday add-on",
+      });
+      await setChildIds(parent.id, [child.id]);
+
+      const { getBookableStartDates } = await import("#shared/dates.ts");
+      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
+      const { getListingWithCount } = await import("#shared/db/listings.ts");
+      const holidays = await getActiveHolidays();
+      const parentDates = getBookableStartDates(
+        (await getListingWithCount(parent.id))!,
+        holidays,
+      );
+      const childDates = new Set(
+        getBookableStartDates((await getListingWithCount(child.id))!, holidays),
+      );
+      const servable = parentDates.find((d) => childDates.has(d))!;
+      const unservable = parentDates.find((d) => !childDates.has(d))!;
+
+      const blocked = (await (
+        await apiGet(
+          `/api/listings/${parent.slug}/availability?date=${unservable}`,
+        )
+      ).json()) as { available: boolean };
+      expect(blocked.available).toBe(false);
+
+      const open = (await (
+        await apiGet(
+          `/api/listings/${parent.slug}/availability?date=${servable}`,
+        )
+      ).json()) as { available: boolean };
+      expect(open.available).toBe(true);
+    });
+
     test("a group page renders the parent with a child selector but no standalone child quantity row", async () => {
       const group = await createTestGroup({ name: "Combo" });
       const parent = await createTestListing({
@@ -538,6 +582,43 @@ describeWithEnv(
       );
       const listingsBody = await listings.text();
       expect(listingsBody).not.toContain(`href="/ticket/${group.slug}"`);
+    });
+
+    test("a group QR 404s when its only active member is a child (Fix 3)", async () => {
+      // The group's only active member is a child of a parent outside the group,
+      // so `/ticket/<group>` drops it and 404s — its QR encodes that dead link,
+      // so the QR route must 404 too (Fix 3).
+      const outsideParent = await createTestListing({ name: "Outside base" });
+      const group = await createTestGroup({ name: "Child-only QR group" });
+      const child = await createTestListing({
+        groupId: group.id,
+        name: "Only add-on",
+      });
+      await setChildIds(outsideParent.id, [child.id]);
+      const { handleRequest } = await import("#routes");
+      const res = await handleRequest(
+        new Request(`http://localhost/ticket/${group.slug}/qr`, {
+          headers: { host: "localhost" },
+        }),
+      );
+      res.body?.cancel();
+      expect(res.status).toBe(404);
+    });
+
+    test("an ordinary group's QR still renders (Fix 3)", async () => {
+      const group = await createTestGroup({ name: "Plain QR group" });
+      await createTestListing({ groupId: group.id, name: "A" });
+      await createTestListing({ groupId: group.id, name: "B" });
+      const { handleRequest } = await import("#routes");
+      const res = await handleRequest(
+        new Request(`http://localhost/ticket/${group.slug}/qr`, {
+          headers: { host: "localhost" },
+        }),
+      );
+      expect(res.status).toBe(200);
+      expect(res.headers.get("content-type")).toBe("image/svg+xml");
+      const body = await res.text();
+      expect(body).toContain("<svg");
     });
   },
 );

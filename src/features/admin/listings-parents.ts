@@ -22,7 +22,10 @@ import {
   getListingWithCount,
 } from "#shared/db/listings.ts";
 import { childOnlyAddOnName } from "#shared/db/modifier-resolve.ts";
-import { edgeFieldError } from "#shared/listing-parents-rules.ts";
+import {
+  type EdgeListing,
+  edgeFieldError,
+} from "#shared/listing-parents-rules.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { withEntityFromParam } from "./entity-handlers.ts";
 
@@ -66,7 +69,7 @@ export const loadListingParentsSection = async (
  * form, and a stuck nested state can be cleared.
  */
 const childEdgeError = async (
-  parent: ListingWithCount,
+  parent: EdgeListing,
   parentIsChild: boolean,
   children: { listing: ListingWithCount; isParent: boolean }[],
 ): Promise<string | null> => {
@@ -113,9 +116,17 @@ export type ChildEdgeValidation =
  * `submittedChildIds`, loads the nesting state, and runs every block in
  * {@link childEdgeError} before reporting the cleaned ids the caller should
  * write with `setChildIds`.
+ *
+ * `parent` is an {@link EdgeListing} (not the full row) so the admin API can
+ * validate a listing's **would-be** edge fields BEFORE the row is written
+ * (atomicity — parents.md Fix 4): a create has no persisted row yet, and an
+ * update's rename/type change must not persist when an edge is rejected. A
+ * create passes a placeholder id (no real listing — and so no real edge — can
+ * reference it, so the self-edge / nesting / add-on-reachability checks behave
+ * exactly as for a not-yet-existing parent).
  */
 export const validateChildEdges = async (
-  parent: ListingWithCount,
+  parent: EdgeListing,
   submittedChildIds: readonly number[],
 ): Promise<ChildEdgeValidation> => {
   const byId = await getListingsById();

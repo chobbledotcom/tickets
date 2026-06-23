@@ -11,7 +11,7 @@ import { t } from "#i18n";
 import { createConfirmedHandlers } from "#routes/admin/confirmation.ts";
 import { AUTH_FORM, withAuth } from "#routes/auth.ts";
 import { authenticatedGetById } from "#routes/entity.ts";
-import { htmlResponse, redirect } from "#routes/response.ts";
+import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
 import {
@@ -19,7 +19,10 @@ import {
   logActivity,
 } from "#shared/db/activityLog.ts";
 import { getListingWithCount, listingsTable } from "#shared/db/listings.ts";
-import { performListingDelete } from "#shared/listings-actions.ts";
+import {
+  deactivationOrphanedAddOnError,
+  performListingDelete,
+} from "#shared/listings-actions.ts";
 import type { AdminSession, ListingWithCount } from "#shared/types.ts";
 import { adminListingActivityLogPage } from "#templates/admin/activityLog.tsx";
 import {
@@ -43,6 +46,7 @@ const listingConfirmBase = {
 const listingToggleHandlers = (opts: {
   active: boolean;
   action: string;
+  preValidate?: (id: number) => Promise<Response | null>;
   renderPage: (
     listing: ListingWithCount,
     session: AdminSession,
@@ -57,14 +61,27 @@ const listingToggleHandlers = (opts: {
       await logActivity(`Listing '${listing.name}' ${opts.action}d`, id);
     },
     path: `/admin/listing/:id/${opts.action}`,
+    ...(opts.preValidate && { preValidate: opts.preValidate }),
     render: opts.renderPage,
     successMessage: `Listing ${opts.action}d`,
     successRedirect: (_, id) => `/admin/listing/${id}`,
   });
 
+/** Block a deactivation that would orphan a child-scoped opt-in add-on — leaving
+ * it reachable only through a suppressed child (parents.md Fix 5). Re-uses the
+ * shared reachability check; on a dead end it redirects back to the deactivate
+ * confirmation page with the error instead of toggling the listing inactive. */
+const blockDeactivationOrphaningAddOn = async (
+  id: number,
+): Promise<Response | null> => {
+  const error = await deactivationOrphanedAddOnError(id);
+  return error ? errorRedirect(`/admin/listing/${id}/deactivate`, error) : null;
+};
+
 export const listingDeactivate = listingToggleHandlers({
   action: "deactivate",
   active: false,
+  preValidate: blockDeactivationOrphaningAddOn,
   renderPage: adminDeactivateListingPage,
 });
 

@@ -612,6 +612,50 @@ export const childUnreachableAddOnError = (
 };
 
 /**
+ * The name of the first **active opt-in add-on** that would be left a dead end
+ * (reachable only through a suppressed child) given an **in-memory** listing set,
+ * or null when every add-on still has a live page that can offer it. Used by a
+ * listing save that flips `active` to re-check reachability for the *whole* set
+ * of add-ons — not just edges touching the saved listing (parents.md Fix 5): a
+ * plain non-child page that is the only thing rescuing a child-scoped add-on has
+ * no edge of its own, so the edge-touching traversal would miss it.
+ *
+ * `allListings` carries the save's would-be state (the deactivated listing
+ * marked inactive). `childListingIds` are the suppressed children; the reachable
+ * pages are the **active, non-child** listings in `allListings` (only those
+ * serve a public booking page that loads add-ons), so deactivating the sole such
+ * page drops it from the reachable set and surfaces the dead end. Group scopes
+ * resolve against `allListings` so a group-scoped add-on reflects the same set.
+ */
+export const firstChildUnreachableAddOnForListings = async (
+  allListings: Pick<ListingWithCount, "id" | "group_id" | "active">[],
+  childListingIds: Set<number>,
+): Promise<string | null> => {
+  const { optional, scopes } = await optionalAddOnsWithScopes(
+    inMemoryGroupScopeResolver(allListings),
+  );
+  const reachablePageIds = new Set(
+    allListings
+      .filter((listing) => listing.active && !childListingIds.has(listing.id))
+      .map((listing) => listing.id),
+  );
+  for (const modifier of optional) {
+    const error = childUnreachableAddOnError(
+      {
+        active: modifier.active,
+        name: modifier.name,
+        scope: scopes.get(modifier.id)!,
+        trigger: modifier.trigger,
+      },
+      childListingIds,
+      reachablePageIds,
+    );
+    if (error) return error;
+  }
+  return null;
+};
+
+/**
  * Rebuild modifier specs from the references stored in session metadata,
  * re-fetching each modifier's current values (and scope) from the database.
  * References to modifiers that have since been removed or deactivated are

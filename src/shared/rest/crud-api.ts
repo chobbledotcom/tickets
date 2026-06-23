@@ -104,16 +104,40 @@ export const parseUpdateName = (
     : { name, ok: true };
 };
 
-/** Configuration for defineCrudApi */
-export interface CrudApiConfig<Row, Input, FullRow extends Row = Row> {
-  /** Validate + persist body-only side effects (e.g. relationship edges) after
-   * the row is written on create/update, given the written full row (the parent
-   * in its final state) and the raw body. Returns an error message — reported as
-   * a 400 with the edges left unwritten — or null on success. */
-  afterWrite?: (
-    row: FullRow,
+/**
+ * An atomic body-only side effect (e.g. relationship edges) for a create/update
+ * (parents.md Fix 4). It is split so a rejected side effect leaves NO partial row
+ * create or field change: `validate` runs BEFORE the row is written and either
+ * rejects (400, row write skipped) or yields a prepared `value`; `persist` runs
+ * AFTER the row write (so the row's real id exists) and applies that value
+ * without the chance of failure. A resource with no side effects omits it.
+ */
+export interface CrudSideEffect<Input, FullRow, Prepared> {
+  /** Validate the side effect against the would-be `input` (the post-save row
+   * fields), the raw `body`, and the `existing` full row on update (null on
+   * create). Returns `{ error }` to reject the whole write, or `{ value }` with
+   * the prepared data to persist once the row exists. */
+  validate: (
+    input: Input,
     body: Record<string, unknown>,
-  ) => Promise<string | null>;
+    existing: FullRow | null,
+  ) => Promise<{ error: string } | { value: Prepared }>;
+  /** Apply the prepared side effect to the written row. Runs only after a
+   * successful row write, so it never leaves a partial change. */
+  persist: (row: FullRow, value: Prepared) => Promise<void>;
+}
+
+/** Configuration for defineCrudApi */
+export interface CrudApiConfig<
+  Row,
+  Input,
+  FullRow extends Row = Row,
+  Prepared = void,
+> {
+  /** An atomic body-only side effect run around the row write (parents.md Fix 4
+   * atomicity). `Prepared` is the value its `validate` carries forward to its
+   * `persist`, inferred per resource. See {@link CrudSideEffect}. */
+  sideEffect?: CrudSideEffect<Input, FullRow, Prepared>;
   /** Extra route entries to merge in (can also override generated routes) */
   extraRoutes?: Record<string, RouteHandlerFn>;
   /** Fetch all rows (from cache) — may return a richer row type than the table (e.g. joined counts) */
@@ -200,8 +224,9 @@ export const defineCrudApi = <
   Row extends { id: number; name: string },
   Input,
   FullRow extends Row = Row,
+  Prepared = void,
 >(
-  config: CrudApiConfig<Row, Input, FullRow>,
+  config: CrudApiConfig<Row, Input, FullRow, Prepared>,
 ): Record<string, RouteHandlerFn> => {
   const { name, singular, table, getAll, nameField, stripKeys = [] } = config;
   const policy = config.policy ?? ADMIN_API;
@@ -235,21 +260,33 @@ export const defineCrudApi = <
       return jsonResponse({ [listKey]: rows.map(toResponse), ...extras });
     });
 
-  /** Finish a create/update: hydrate the full row, run the body-only side
-   * effects (rejecting with a 400 — edges unwritten — on their error), log, and
-   * return the row JSON. Shared so create and update apply afterWrite once. */
+  /** Finish a create/update: hydrate the full row, persist the prepared
+   * side-effect value (validated before the write), log, and return the row
+   * JSON. Shared so create and update apply the side effect once. */
   const persistAndRespond = async (
     row: Row,
-    body: Record<string, unknown>,
+    prepared: Prepared,
     action: string,
     status: number,
   ): Promise<Response> => {
     const fullRow = await toFullRow(row);
-    const writeError = await config.afterWrite?.(fullRow, body);
-    if (writeError) return apiErrorResponse(writeError);
+    if (config.sideEffect) await config.sideEffect.persist(fullRow, prepared);
     await logAction(action, row);
     return jsonResponse({ [responseKey]: toResponse(fullRow) }, status);
   };
+
+  /** Validate the body-only side effect BEFORE the row write (Fix 4 atomicity):
+   * an error short-circuits the whole write (no partial row create/change); a
+   * success yields the prepared value to persist once the row exists. Resources
+   * without a side effect yield `undefined` and never reject. */
+  const prepareSideEffect = async (
+    input: Input,
+    body: Record<string, unknown>,
+    existing: FullRow | null,
+  ): Promise<{ error: string } | { value: Prepared }> =>
+    config.sideEffect
+      ? config.sideEffect.validate(input, body, existing)
+      : { value: undefined as Prepared };
 
   /** Create */
   const handleCreate: RouteHandlerFn = (request) =>
@@ -260,8 +297,13 @@ export const defineCrudApi = <
       );
       if (!result.ok) return result.response;
 
+      // Validate body-only side effects BEFORE the row write so a rejected edge
+      // leaves no orphan listing row (Fix 4). No `existing` on create.
+      const prepared = await prepareSideEffect(result.input, body, null);
+      if ("error" in prepared) return apiErrorResponse(prepared.error);
+
       const row = await table.insert(result.input);
-      return persistAndRespond(row, body, "created", 201);
+      return persistAndRespond(row, prepared.value, "created", 201);
     });
 
   // Build the route param name from the singular (e.g. "Holiday" → "holidayId")
@@ -304,8 +346,13 @@ export const defineCrudApi = <
     );
     if (!result.ok) return result.response;
 
+    // Validate body-only side effects BEFORE the row write so a rejected edge
+    // leaves the existing row (e.g. its name) unchanged (Fix 4).
+    const prepared = await prepareSideEffect(result.input, body, existing);
+    if ("error" in prepared) return apiErrorResponse(prepared.error);
+
     const row = (await table.update(existing.id, result.input))!;
-    return persistAndRespond(row, body, "updated", 200);
+    return persistAndRespond(row, prepared.value, "updated", 200);
   });
 
   /** Delete */

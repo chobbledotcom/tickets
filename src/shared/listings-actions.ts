@@ -12,6 +12,7 @@ import { groupsTable, validateGroupListingType } from "#shared/db/groups.ts";
 import {
   edgeIncompatibilityAfterChange,
   firstTouchingEdgeError,
+  getChildListingIds,
 } from "#shared/db/listing-parents.ts";
 import {
   computeSlugIndex,
@@ -22,7 +23,10 @@ import {
   type ListingInput,
   listingsTable,
 } from "#shared/db/listings.ts";
-import { childOnlyAddOnNameForListings } from "#shared/db/modifier-resolve.ts";
+import {
+  childOnlyAddOnNameForListings,
+  firstChildUnreachableAddOnForListings,
+} from "#shared/db/modifier-resolve.ts";
 import type { EdgeListing } from "#shared/listing-parents-rules.ts";
 import { generateUniqueSlug } from "#shared/slug.ts";
 import { deleteListingStorageFiles } from "#shared/storage.ts";
@@ -154,11 +158,51 @@ const orphanedAddOnAfterChange = async (
 };
 
 /**
+ * Block a save that DEACTIVATES a listing which is the only active non-child page
+ * rescuing a child-scoped opt-in add-on from being a dead end (parents.md Fix 5).
+ *
+ * The edge-touching re-check ({@link orphanedAddOnAfterChange}) only walks edges
+ * that touch this listing, so it MISSES the case here: the deactivated listing
+ * has no parent/child edge of its own — it is just an ordinary page whose scope
+ * happens to include a child-scoped add-on, keeping that add-on reachable. So
+ * re-run the reachability for EVERY active opt-in add-on against an in-memory
+ * listing set with this listing marked inactive; if any add-on is then reachable
+ * only through a suppressed child, block the save. Contained: only opt-in add-ons
+ * are scanned (the shared {@link firstChildUnreachableAddOnForListings} core),
+ * never unrelated modifiers.
+ *
+ * Only runs when the would-be `active` is false — activating or leaving a listing
+ * active can only ADD reachable pages, never orphan an add-on.
+ */
+export const deactivationOrphanedAddOnError = async (
+  existingId: number,
+): Promise<string | null> => {
+  const allListings = await getAllListings();
+  // Apply this save's would-be inactive state to the in-memory set.
+  const wouldBe = allListings.map((listing) =>
+    listing.id === existingId ? { ...listing, active: false } : listing,
+  );
+  const childIds = await getChildListingIds(allListings.map((l) => l.id));
+  return firstChildUnreachableAddOnForListings(wouldBe, childIds);
+};
+
+const deactivationOrphanedAddOn = async (
+  input: ListingInput,
+  existingId: number,
+): Promise<string | null> => {
+  if (input.active !== false) return null;
+  return deactivationOrphanedAddOnError(existingId);
+};
+
+/**
  * On an update, re-validate every parent/child edge touching this listing
  * against its would-be field values *and* its would-be `group_id`, so a
  * type/duration/renewal change can't leave a persisted edge the booking gate
  * can't honour, and a group change can't orphan a group-scoped add-on that the
- * edge's child suppresses (Fix 4). No-op for creates (no edges yet).
+ * edge's child suppresses (Fix 4). Also re-check add-on reachability when the
+ * save DEACTIVATES this listing (Fix 5 — the edge-touching walk above misses a
+ * no-edge page that is the only one rescuing a child-scoped add-on). No-op for
+ * creates (no edges yet, and a fresh listing rescues nothing).
  */
 const validateListingEdges: ListingUpdateCheck = async (input, existingId) => {
   if (existingId === undefined) return null;
@@ -166,7 +210,12 @@ const validateListingEdges: ListingUpdateCheck = async (input, existingId) => {
     listingInputToEdge(input, existingId),
   );
   if (fieldError) return fieldError;
-  return orphanedAddOnAfterChange(existingId, input.groupId ?? 0);
+  const orphanError = await orphanedAddOnAfterChange(
+    existingId,
+    input.groupId ?? 0,
+  );
+  if (orphanError) return orphanError;
+  return deactivationOrphanedAddOn(input, existingId);
 };
 
 /** Validate listing input (slug uniqueness on update, group, max price, listing type) */

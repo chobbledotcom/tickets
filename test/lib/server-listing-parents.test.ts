@@ -723,4 +723,135 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     const error = await validateListingInput(input, parent.id);
     expect(error).toContain("Group extra");
   });
+
+  test("admin API PUT rejecting an invalid child does NOT persist the rename (Fix 4)", async () => {
+    // The child-edge validation runs BEFORE the row write, so a rejected edge
+    // leaves no partial change: the rename in the same PUT must not stick.
+    const parent = await createTestListing({ name: "Base unit" });
+    // A daily child under a standard parent is an invalid edge.
+    const child = await createTestListing({
+      listingType: "daily",
+      name: "Daily add-on",
+    });
+    await assertJson(
+      apiRequest(`/api/admin/listings/${parent.id}`, {
+        body: { child_listing_ids: [child.id], name: "Renamed base" },
+        method: "PUT",
+      }),
+      400,
+    );
+    // Neither the edge nor the rename persisted.
+    expect(await getChildIds(parent.id)).toEqual([]);
+    expect((await getListingWithCount(parent.id))?.name).toBe("Base unit");
+  });
+
+  test("admin API POST rejecting an invalid child creates NO listing row (Fix 4)", async () => {
+    // On create the child-edge validation runs before the insert, so a rejected
+    // edge must leave no orphan listing row behind.
+    const { getAllListings } = await import("#shared/db/listings.ts");
+    const child = await createTestListing({
+      listingType: "daily",
+      name: "Daily add-on",
+    });
+    const before = (await getAllListings()).length;
+    await assertJson(
+      apiRequest("/api/admin/listings", {
+        body: {
+          child_listing_ids: [child.id],
+          max_attendees: 10,
+          name: "Base unit",
+        },
+        method: "POST",
+      }),
+      400,
+    );
+    const after = await getAllListings();
+    expect(after.length).toBe(before);
+    expect(after.some((l) => l.name === "Base unit")).toBe(false);
+  });
+
+  test("deactivating the only active non-child page of a child add-on is rejected (Fix 5)", async () => {
+    // An opt-in add-on is scoped to {child, thatPage}. The child is suppressed
+    // (it has no standalone page), so the add-on is reachable only through
+    // `thatPage`. Deactivating `thatPage` — an ordinary listing with NO edges of
+    // its own — would leave the add-on reachable only via the suppressed child,
+    // a dead end. The deactivation must be rejected (Fix 5), and the listing
+    // must stay active.
+    const parent = await createTestListing({ name: "Base unit" });
+    const child = await createTestListing({ name: "Add-on" });
+    const thatPage = await createTestListing({ name: "Rescuing page" });
+    await postChildren(parent.id, [child.id]);
+    await optInAddOnForListings("Child-scoped extra", [child.id, thatPage.id]);
+
+    const { handleRequest } = await import("#routes");
+    const res = await handleRequest(
+      new Request(`http://localhost/admin/listing/${thatPage.id}/deactivate`, {
+        body: new URLSearchParams({
+          confirm_identifier: thatPage.name,
+          csrf_token: (await getTestSession()).csrfToken,
+        }),
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+          cookie: (await getTestSession()).cookie,
+          host: "localhost",
+        },
+        method: "POST",
+      }),
+    );
+    res.body?.cancel();
+    expect(res.status).toBe(302);
+    const { t } = await import("#i18n");
+    expectFlash(
+      res,
+      t("modifiers.err_child_only_addon", { name: "Child-scoped extra" }),
+      false,
+    );
+    expect((await getListingWithCount(thatPage.id))?.active).toBe(true);
+  });
+
+  test("an admin API edit-save that deactivates the rescuing page is rejected (Fix 5)", async () => {
+    // The full edit-save path (validateListingInput → validateListingEdges)
+    // must also block a deactivation that orphans a child-scoped add-on, not
+    // only the dedicated /deactivate route. Set `active: false` via PUT.
+    const parent = await createTestListing({ name: "Base unit" });
+    const child = await createTestListing({ name: "Add-on" });
+    const thatPage = await createTestListing({ name: "Rescuing page" });
+    await postChildren(parent.id, [child.id]);
+    await optInAddOnForListings("Child-scoped extra", [child.id, thatPage.id]);
+    await assertJson(
+      apiRequest(`/api/admin/listings/${thatPage.id}`, {
+        body: { active: false },
+        method: "PUT",
+      }),
+      400,
+      (json) => {
+        expect(json.error).toContain("opt-in add-on reachable only through");
+      },
+    );
+    expect((await getListingWithCount(thatPage.id))?.active).toBe(true);
+  });
+
+  test("deactivating a listing unrelated to any child add-on still succeeds (Fix 5)", async () => {
+    // A plain listing not rescuing any child-scoped add-on deactivates normally
+    // — Fix 5 must not block ordinary deactivations.
+    const plain = await createTestListing({ name: "Plain" });
+    const { handleRequest } = await import("#routes");
+    const session = await getTestSession();
+    const res = await handleRequest(
+      new Request(`http://localhost/admin/listing/${plain.id}/deactivate`, {
+        body: new URLSearchParams({
+          confirm_identifier: plain.name,
+          csrf_token: session.csrfToken,
+        }),
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+          cookie: session.cookie,
+          host: "localhost",
+        },
+        method: "POST",
+      }),
+    );
+    res.body?.cancel();
+    expect((await getListingWithCount(plain.id))?.active).toBe(false);
+  });
 });

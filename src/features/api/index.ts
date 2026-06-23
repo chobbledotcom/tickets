@@ -311,6 +311,24 @@ const handleCheckAvailability = withActiveListing(async (request, listing) => {
   const quantity =
     parseNonNegativeInt(url.searchParams.get("quantity") ?? "1") ?? 1;
   const date = url.searchParams.get("date") || undefined;
+  // A daily parent's availability must honour the child-date union (Fix 1): the
+  // route listing's own capacity ignores its children, so it could answer
+  // `available: true` for a date the (child-constrained) detail endpoint omits
+  // and the booking fold then rejects. Constrain the requested date through the
+  // same `constrainParentDailyDates` union the detail endpoint uses; a date no
+  // required child can serve for the inherited span is unavailable. For a
+  // non-parent daily listing (no child edges) this is a no-op.
+  if (listing.listing_type === "daily" && date) {
+    const holidays = await getActiveHolidays();
+    const childServableDates = await constrainParentDailyDates(
+      listing,
+      getAvailableDates(listing, holidays),
+      holidays,
+    );
+    if (!childServableDates.includes(date)) {
+      return apiResponse({ available: false });
+    }
+  }
   return apiResponse({
     available: await hasAvailableSpots(
       listing.id,

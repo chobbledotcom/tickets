@@ -22,6 +22,7 @@ import {
 } from "#shared/db/listings.ts";
 import {
   generateUniqueListingSlug,
+  listingInputToEdge,
   performListingDelete,
   toggleListingActive,
   validateListingInput,
@@ -356,58 +357,92 @@ const submittedChildIds = (
   return { childIds: raw.filter((id): id is number => typeof id === "number") };
 };
 
+/** A placeholder id for a not-yet-created parent: listing ids are positive
+ * autoincrement, so no real listing (and so no real edge) can reference this,
+ * making the pre-create child-edge validation behave exactly as for a parent
+ * that doesn't exist yet (Fix 4). */
+const UNCREATED_PARENT_ID = -1;
+
+/** The prepared child-edge side effect to persist after the row write:
+ * `null` = leave existing edges untouched (field omitted / feature off); an
+ * array = replace the parent's edges with these cleaned ids. */
+type PreparedChildEdges = number[] | null;
+
 /**
- * Apply the parsed `child_listing_ids` to a freshly written listing, using the
- * SAME diff + validation as the edit form ({@link validateChildEdges}) so the
- * API can recreate (or update) the required-child gate. Returns an error message
- * (reported as a 400, edges unwritten) on a validation failure.
+ * Validate a write's `child_listing_ids` against the would-be parent BEFORE the
+ * row is written (Fix 4 atomicity): a rejected edge returns `{ error }` (the
+ * whole write is skipped, leaving no partial row create/rename); otherwise it
+ * yields the cleaned ids to write once the row exists. The would-be
+ * {@link EdgeListing} comes from the parsed input (the *fully merged*
+ * ListingInput — `bodyToUpdateInput` folds in the existing defaults, so its
+ * fields are the authoritative post-save values) via the shared
+ * {@link listingInputToEdge}; on create there is no row yet, so a placeholder id
+ * stands in. `null` value when the field is omitted / the parents feature is off
+ * (existing edges left intact); a present-but-malformed field is rejected.
  */
-const writeChildEdges = async (
-  parent: ListingWithCount,
-  submitted: number[],
-): Promise<string | null> => {
-  const result = await validateChildEdges(parent, submitted);
-  if (!result.ok) return result.error;
-  await setChildIds(parent.id, result.childIds);
-  return null;
+const prepareChildEdges = async (
+  input: ListingInput,
+  body: Record<string, unknown>,
+  existing: ListingWithCount | null,
+): Promise<{ error: string } | { value: PreparedChildEdges }> => {
+  const submitted = submittedChildIds(body);
+  if ("skip" in submitted) return { value: null };
+  if ("error" in submitted) return submitted;
+  const result = await validateChildEdges(
+    listingInputToEdge(input, existing?.id ?? UNCREATED_PARENT_ID),
+    submitted.childIds,
+  );
+  return result.ok ? { value: result.childIds } : { error: result.error };
 };
 
-const listingApiRoutes = defineCrudApi<Listing, ListingInput, ListingWithCount>(
-  {
-    // No-op — the field is ignored — when the parents feature is off or the body
-    // omits it; reject a present-but-malformed field (so a client typo can't
-    // silently clear edges); otherwise validate + persist the required-child gate.
-    afterWrite: (listing, body) => {
-      const submitted = submittedChildIds(body);
-      if ("skip" in submitted) return Promise.resolve(null);
-      if ("error" in submitted) return Promise.resolve(submitted.error);
-      return writeChildEdges(listing, submitted.childIds);
-    },
-    extraRoutes: {
-      "DELETE /api/admin/listings/:listingId": handleDeleteListing,
-      "POST /api/admin/listings/:listingId/deactivate": (
-        request,
-        { listingId },
-      ) => handleToggleActive(request, listingId as number, false),
-      "POST /api/admin/listings/:listingId/reactivate": (
-        request,
-        { listingId },
-      ) => handleToggleActive(request, listingId as number, true),
-    },
-    getAll: getAllListings,
-    linkActivityToRow: true,
-    listExtras: (session) => ({ admin_level: session.adminLevel }),
-    lookup: getListingWithCount,
-    name: "listings",
-    nameField: "name",
-    singular: "Listing",
-    stripKeys: ["slug_index"],
-    table: listingsTable,
-    toCreateInput: bodyToCreateInput,
-    toUpdateInput: bodyToUpdateInput,
-    validate: validateListingInput,
+/** Write the prepared child edges to the now-existing row (Fix 4): a no-op when
+ * `null` (field omitted), otherwise replaces the parent's edges with the cleaned
+ * ids validated before the write. */
+const persistChildEdges = async (
+  listing: ListingWithCount,
+  value: PreparedChildEdges,
+): Promise<void> => {
+  if (value !== null) await setChildIds(listing.id, value);
+};
+
+const listingApiRoutes = defineCrudApi<
+  Listing,
+  ListingInput,
+  ListingWithCount,
+  PreparedChildEdges
+>({
+  extraRoutes: {
+    "DELETE /api/admin/listings/:listingId": handleDeleteListing,
+    "POST /api/admin/listings/:listingId/deactivate": (
+      request,
+      { listingId },
+    ) => handleToggleActive(request, listingId as number, false),
+    "POST /api/admin/listings/:listingId/reactivate": (
+      request,
+      { listingId },
+    ) => handleToggleActive(request, listingId as number, true),
   },
-);
+  getAll: getAllListings,
+  linkActivityToRow: true,
+  listExtras: (session) => ({ admin_level: session.adminLevel }),
+  lookup: getListingWithCount,
+  name: "listings",
+  nameField: "name",
+  // The required-child gate is an atomic side effect (Fix 4): validate the
+  // would-be edges BEFORE the row write (a rejected edge skips the whole write,
+  // leaving no orphan create / no persisted rename), then write them AFTER the
+  // row exists with its real id.
+  sideEffect: {
+    persist: persistChildEdges,
+    validate: prepareChildEdges,
+  },
+  singular: "Listing",
+  stripKeys: ["slug_index"],
+  table: listingsTable,
+  toCreateInput: bodyToCreateInput,
+  toUpdateInput: bodyToUpdateInput,
+  validate: validateListingInput,
+});
 
 export const adminApiRoutes = {
   ...holidayApiRoutes,

@@ -10,7 +10,10 @@
 
 import { withEntityLoader } from "#routes/admin/entity-handlers.ts";
 import { requireSessionOr } from "#routes/auth.ts";
-import { anyChildListing } from "#routes/public/ticket-payment.ts";
+import {
+  anyChildListing,
+  constrainParentDailyDates,
+} from "#routes/public/ticket-payment.ts";
 import {
   htmlResponse,
   jsonResponse,
@@ -46,13 +49,23 @@ const EMPTY_VALUES: AdminListingQrValues = {
 
 /** Load bookable dates for daily listings (empty for standard listings).
  * Customisable listings use single-day availability — the visitor chooses the
- * span on the booking form — so every individually-bookable start is offered. */
+ * span on the booking form — so every individually-bookable start is offered.
+ *
+ * When the listing is a parent, the offered dates are constrained to those at
+ * least one required child can serve for the inherited span (Fix 2,
+ * `constrainParentDailyDates`) — the same union the scanned booking form
+ * enforces — so an admin can't mint a QR for a date the child-constrained
+ * booking form would reject. A no-op for a daily listing with no child edges. */
 const loadBookableDates = async (
   listing: ListingWithCount,
 ): Promise<string[]> => {
   if (listing.listing_type !== "daily") return [];
   const holidays = await getActiveHolidays();
-  return getBookableStartDates(listing, holidays);
+  return constrainParentDailyDates(
+    listing,
+    getBookableStartDates(listing, holidays),
+    holidays,
+  );
 };
 
 const withListing = withEntityLoader(getListingWithCount);
@@ -67,6 +80,19 @@ const unlessChild = async (
   fn: () => Promise<Response>,
 ): Promise<Response> =>
   (await anyChildListing([listing.id])) ? notFoundResponse() : fn();
+
+/** A listing with its child-constrained bookable date set (Fix 2), the context
+ * the QR validator needs so a submitted date is checked against the same dates
+ * the form offers. */
+type QrContext = { listing: ListingWithCount; bookableDates: string[] };
+
+/** Load a listing and its child-constrained bookable dates, or null when the
+ * listing is missing. */
+const loadQrContext = async (id: number): Promise<QrContext | null> => {
+  const listing = await getListingWithCount(id);
+  if (!listing) return null;
+  return { bookableDates: await loadBookableDates(listing), listing };
+};
 
 /** Render the QR admin page; 404 when the listing is missing */
 const renderPage = (
@@ -117,9 +143,41 @@ const getPriceBounds = (
   minPrice: listing.can_pay_more ? listing.unit_price : 0,
 });
 
-/** Build a form validator for the QR form, using listing config for range checks */
+/**
+ * Build a form validator for the QR form, using listing config for range checks.
+ * `bookableDates` is the child-constrained date set the form offers (Fix 2): a
+ * daily listing's submitted date must be one of them, so an admin can't sign a
+ * QR for a date a required child can't serve (which the scanned booking form
+ * would then reject) by posting a raw date past the dropdown.
+ */
+/** The error for a daily listing's submitted date, or null when it is allowed:
+ * required, and one of the child-constrained `bookableDates` the form offers
+ * (Fix 2). A no-op for a non-daily listing (which has no date control). */
+const qrDateError = (
+  listing: ListingWithCount,
+  date: string,
+  bookableDates: readonly string[],
+): string | null => {
+  if (listing.listing_type !== "daily") return null;
+  if (!date) return "Date is required for daily listings";
+  return bookableDates.includes(date) ? null : "Please select a valid date";
+};
+
+/** The error for the submitted price, or null: only checked when a value is
+ * supplied, against the listing's min/max bounds. */
+const qrPriceError = (
+  listing: ListingWithCount,
+  value: string,
+): string | null => {
+  if (!value) return null;
+  const { minPrice, maxPrice } = getPriceBounds(listing);
+  const priceResult = validatePrice(value, minPrice, maxPrice);
+  return priceResult.ok ? null : priceResult.error;
+};
+
 const createQrFormValidator = (
   listing: ListingWithCount,
+  bookableDates: readonly string[],
 ): FormValidator<AdminListingQrValues> => ({
   validate: (form) => {
     const values = extractRawValues(form);
@@ -135,19 +193,10 @@ const createQrFormValidator = (
       };
     }
 
-    if (values.value) {
-      const { minPrice, maxPrice } = getPriceBounds(listing);
-      const priceResult = validatePrice(values.value, minPrice, maxPrice);
-      if (!priceResult.ok) {
-        return { error: priceResult.error, valid: false };
-      }
-    }
-
-    if (listing.listing_type === "daily" && !values.date) {
-      return { error: "Date is required for daily listings", valid: false };
-    }
-
-    return { valid: true, values };
+    const error =
+      qrPriceError(listing, values.value) ??
+      qrDateError(listing, values.date, bookableDates);
+    return error ? { error, valid: false } : { valid: true, values };
   },
 });
 
@@ -217,13 +266,14 @@ const generateAndRender = async (
 const handlePost = createAuthedFormRoute<
   AdminListingQrValues,
   { id: number },
-  ListingWithCount
+  QrContext
 >({
-  form: (listing) => createQrFormValidator(listing),
-  loadContext: ({ id }) => getListingWithCount(id),
+  form: ({ bookableDates, listing }) =>
+    createQrFormValidator(listing, bookableDates),
+  loadContext: ({ id }) => loadQrContext(id),
   onInvalid: ({ error, form, params, session }) =>
     renderPage(params.id, session, extractRawValues(form), { error }),
-  onValid: ({ context: listing, params, session, values }) =>
+  onValid: ({ context: { listing }, params, session, values }) =>
     generateAndRender(params.id, session, listing, values),
 });
 
@@ -242,7 +292,10 @@ const handleJsonGet: TypedRouteHandler<"GET /admin/listing/:id/qr.json"> = (
     withListing(id)((listing) =>
       unlessChild(listing, async () => {
         const form = new FormParams(new URL(request.url).searchParams);
-        const result = createQrFormValidator(listing).validate(form);
+        const bookableDates = await loadBookableDates(listing);
+        const result = createQrFormValidator(listing, bookableDates).validate(
+          form,
+        );
         if (!result.valid) {
           return jsonResponse({ error: result.error, ok: false }, 400);
         }
