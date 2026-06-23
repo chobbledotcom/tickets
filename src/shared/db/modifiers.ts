@@ -7,10 +7,8 @@
  * the table directly without a cache.
  */
 
-import { modifierAccount } from "#shared/accounting/accounts.ts";
-import { postWriteoffAdjustmentTx } from "#shared/accounting/adjustments.ts";
+import { inOwnTx, ledgerTx } from "#shared/accounting/ledger-tx.ts";
 import { accountBalanceSubquery } from "#shared/accounting/projection-sql.ts";
-import { modifierRevenueTx } from "#shared/accounting/queries.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import {
   execute,
@@ -19,7 +17,6 @@ import {
   queryAll,
   queryOne,
   resetAggregates,
-  withTransaction,
 } from "#shared/db/client.ts";
 import {
   defineIdTable,
@@ -186,32 +183,15 @@ export const updateModifierAggregateValues = async (
 };
 
 /**
- * Correct a modifier's projected revenue to `targetRevenue` by posting one manual
- * `writeoff` adjustment for the difference from the current projection
- * (decision 14). Revenue is `balanceOf(modifier:M)`, so raising it credits the
+ * Correct a modifier's projected revenue to `targetRevenue` in its own write
+ * transaction — the standalone form of `ledgerTx.correct.modifierRevenue` (see
+ * {@link ledgerTx}). Revenue is `balanceOf(modifier:M)`, so raising it credits the
  * modifier account (`writeoff → modifier`) and lowering it debits it
- * (`modifier → writeoff`); the signed balance moves by the delta either way.
- *
- * The delta is recomputed from `targetRevenue` against the CURRENT projection read
- * inside the write transaction, so submitting the same target twice is idempotent
- * (the second read already sees the first's adjustment and computes a zero delta)
- * and two concurrent owner submits serialise on the write lock rather than both
- * appending the delta and overshooting. A no-op (target already met) posts
- * nothing.
+ * (`modifier → writeoff`); the signed balance moves by the delta either way. The
+ * delta is recomputed from the current projection read inside the transaction, so
+ * re-submitting the same target is idempotent and a no-op when already met.
  */
-export const adjustModifierRevenue = (
-  modifierId: number,
-  targetRevenue: number,
-): Promise<void> =>
-  withTransaction(async (tx) => {
-    const current = await modifierRevenueTx(tx, modifierId);
-    await postWriteoffAdjustmentTx(
-      tx,
-      modifierAccount(modifierId),
-      targetRevenue - current,
-      ["modifier-revenue-adjust", modifierId],
-    );
-  });
+export const adjustModifierRevenue = inOwnTx(ledgerTx.correct.modifierRevenue);
 
 const aggregateResetSql: Record<ModifierAggregateField, string> = {
   total_uses:

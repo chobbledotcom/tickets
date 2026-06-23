@@ -4,14 +4,12 @@
 
 import type { InValue, ResultSet } from "@libsql/client";
 import { mapParallel, reduce, sort, unique } from "#fp";
-import { revenueAccount } from "#shared/accounting/accounts.ts";
-import { postWriteoffAdjustmentTx } from "#shared/accounting/adjustments.ts";
+import { inOwnTx, ledgerTx } from "#shared/accounting/ledger-tx.ts";
 import {
   creditsLessWriteoffDebits,
   revenueBreakdownColumns,
   revenueBreakdownScope,
 } from "#shared/accounting/projection-sql.ts";
-import { listingIncomeTx } from "#shared/accounting/queries.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { addDays } from "#shared/dates.ts";
@@ -29,7 +27,6 @@ import {
   queryOne,
   resetAggregates,
   resultRows,
-  withTransaction,
 } from "#shared/db/client.ts";
 import {
   cachedEntityTable,
@@ -572,33 +569,15 @@ export const updateListingAggregateValues = async (
 };
 
 /**
- * Correct a listing's projected income to `targetIncome` by posting one manual
- * `writeoff` adjustment for the difference from the current projection
- * (decision 14). Raising income credits `revenue:L` (`writeoff → revenue`), which
- * the gross-credits sum counts, so income rises; lowering it debits
- * `revenue:L → writeoff`, which {@link listingIncomeSubquery} subtracts, so income
- * falls.
- *
- * The delta is recomputed from `targetIncome` against the CURRENT projection read
- * inside the write transaction, so submitting the same target twice is idempotent
- * (the second read already sees the first's adjustment and computes a zero delta)
- * and two concurrent owner submits serialise on the write lock instead of both
- * appending the delta and overshooting. A no-op (target already met) posts
- * nothing.
+ * Correct a listing's projected income to `targetIncome` in its own write
+ * transaction — the standalone form of `ledgerTx.correct.income` (see
+ * {@link ledgerTx}). Raising income credits `revenue:L` (`writeoff → revenue`),
+ * which {@link listingIncomeSubquery} counts; lowering it debits
+ * `revenue:L → writeoff`, which the same projection subtracts. The delta is
+ * recomputed from the current projection read inside the transaction, so
+ * re-submitting the same target is idempotent and a no-op when already met.
  */
-export const adjustListingIncome = (
-  listingId: number,
-  targetIncome: number,
-): Promise<void> =>
-  withTransaction(async (tx) => {
-    const current = await listingIncomeTx(tx, listingId);
-    await postWriteoffAdjustmentTx(
-      tx,
-      revenueAccount(listingId),
-      targetIncome - current,
-      ["income-adjust", listingId],
-    );
-  });
+export const adjustListingIncome = inOwnTx(ledgerTx.correct.income);
 
 const aggregateResetSql: Record<ListingAggregateField, string> = {
   booked_quantity:

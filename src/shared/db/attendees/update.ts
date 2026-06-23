@@ -3,17 +3,10 @@
  */
 
 import { filter, map, pipe, reduce, sumOf, unique } from "#fp";
-import { attendeeAccount } from "#shared/accounting/accounts.ts";
-import { postWriteoffAdjustmentTx } from "#shared/accounting/adjustments.ts";
-import { attendeeOwedTx } from "#shared/accounting/queries.ts";
+import { ledgerTx } from "#shared/accounting/ledger-tx.ts";
 import type { UpdateAttendeePIIInput } from "#shared/db/attendee-types.ts";
 import { buildPiiBlob, encryptPiiBlob } from "#shared/db/attendees/pii.ts";
-import {
-  execute,
-  queryAll,
-  type TxScope,
-  withTransaction,
-} from "#shared/db/client.ts";
+import { execute, queryAll, withTransaction } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
 import { normalizeDurationDays } from "#shared/types.ts";
 
@@ -40,41 +33,19 @@ export const updateCheckedIn = (
 ): Promise<void> => setCheckedIn(attendeeId, listingId, checkedIn ? 1 : 0);
 
 /**
- * Reconcile an attendee's ledger-projected outstanding balance to `target` by
- * posting a single `adjustment` leg for the difference against the `writeoff`
- * contra-revenue account (decision 14), so the operator-set figure survives now
- * that the balance projects from the ledger (−balanceOf(attendee)) rather than a
- * stored column. A no-op (target already owed) posts nothing.
- *
- * Runs inside the caller's write transaction `tx`: the current owed figure is
- * read THROUGH `tx` (so it sees this transaction's own writes) and the
- * adjustment is posted THROUGH `tx`, so the read→delta→post is atomic and
- * recomputed from `target` under the write lock. That makes the correction
- * idempotent for a given target — a second submit of the same target reads the
- * first's committed balance and computes a zero delta — and lets it commit (or
- * roll back) together with whatever else the transaction does.
- *
- * Outstanding = −balanceOf(attendee), so `owed = -balance`. To move owed onto
- * `target` we credit the attendee account by `owed − target` in
- * {@link postWriteoffAdjustmentTx}'s terms: raising what's owed (target > owed)
- * is a negative delta ⇒ `attendee → writeoff` debit ⇒ balanceOf(attendee) drops
- * ⇒ owed = −balanceOf rises; lowering it credits the attendee from writeoff. The
- * correction never touches external cash or a listing's revenue account, so it
- * moves only what is owed — cash reports (`world→*`) stay honest.
+ * Reconcile an attendee's ledger-projected outstanding balance to `target` — the
+ * attendee-balance entry of {@link ledgerTx}'s read-then-adjust corrections
+ * (`ledgerTx.correct.owed`). Outstanding = −balanceOf(attendee), so the
+ * correction credits the attendee by `owed − target` against the `writeoff`
+ * contra account (decision 14): raising what's owed debits the attendee, lowering
+ * it credits them from writeoff, and external cash (`world→*`) is never touched.
+ * It reads the current owed figure and posts THROUGH the caller's `tx`, so the
+ * read→delta→post is atomic under the write lock and idempotent for a given
+ * target (a second submit of the same target computes a zero delta). Re-exported
+ * here under its domain name because the attendee-edit and checkout paths
+ * reconcile a balance; the shared correction logic lives in {@link ledgerTx}.
  */
-export const reconcileLedgerBalanceTx = async (
-  tx: TxScope,
-  attendeeId: number,
-  target: number,
-): Promise<void> => {
-  const owed = await attendeeOwedTx(tx, attendeeId);
-  await postWriteoffAdjustmentTx(
-    tx,
-    attendeeAccount(attendeeId),
-    owed - target,
-    ["balance-adjust", attendeeId],
-  );
-};
+export const reconcileLedgerBalanceTx = ledgerTx.correct.owed;
 
 /**
  * Set an attendee's order fields from the admin edit form: the status (a plain

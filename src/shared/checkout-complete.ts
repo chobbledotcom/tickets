@@ -10,8 +10,8 @@
  * event id come from.
  */
 
+import { ledgerTx } from "#shared/accounting/ledger-tx.ts";
 import { mapBooking } from "#shared/accounting/mappers.ts";
-import { postTransfersTx } from "#shared/accounting/store.ts";
 import {
   bookingFactsFromOrder,
   owedOrderForLedger,
@@ -92,7 +92,7 @@ export const postBookingLegsTx = async (
   attendeeId: number,
   legs: Awaited<ReturnType<typeof mapBooking>>,
 ): Promise<void> => {
-  await postTransfersTx(tx, legs);
+  await ledgerTx.post(tx, legs);
   if (legs.length > 0) {
     await tx.execute({
       args: [legs[0]!.eventGroup, attendeeId],
