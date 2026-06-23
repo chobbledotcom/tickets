@@ -12,6 +12,7 @@ import {
   createDailyTestListing,
   createTestAttendee,
   createTestGroup,
+  createTestHoliday,
   createTestListing,
   deactivateTestListing,
   describeWithEnv,
@@ -393,6 +394,35 @@ describeWithEnv(
       expect(res.status).toBe(302);
       expectFlash(res, "Choose 1 more add-on for Base unit.", false);
       expect((await getAttendeesRaw(parent.id)).length).toBe(0);
+    });
+
+    test("a negative child quantity is treated as zero, not subtracted from the total", async () => {
+      // A negative `child_qty_*` value must be clamped to 0 (only non-negative
+      // integers are accepted), NOT folded as a negative that silently lowers the
+      // running total to the parent quantity. Here childA="-1" and childB="2": if
+      // the negative were honoured the total would be 1 and the booking would slip
+      // through; clamped to 0 the total is 2, one over the parent quantity of 1.
+      const parent = await createTestListing({ name: "Base unit" });
+      const childA = await createTestListing({ name: "Add-on A" });
+      const childB = await createTestListing({ name: "Add-on B" });
+      await setChildIds(parent.id, [childA.id, childB.id]);
+
+      const res = await postBooking(parent.slug, {
+        email: "a@b.com",
+        name: "Ada",
+        [`quantity_${parent.id}`]: "1",
+        [`child_qty_${parent.id}_${childA.id}`]: "-1",
+        [`child_qty_${parent.id}_${childB.id}`]: "2",
+      });
+      expect(res.status).toBe(302);
+      expectFlash(
+        res,
+        "Too many add-ons chosen for Base unit — remove 1 add-on.",
+        false,
+      );
+      expect((await getAttendeesRaw(parent.id)).length).toBe(0);
+      expect((await getAttendeesRaw(childA.id)).length).toBe(0);
+      expect((await getAttendeesRaw(childB.id)).length).toBe(0);
     });
 
     test("a positive quantity for a listing that is not a child of the parent is rejected", async () => {
@@ -2450,7 +2480,19 @@ describeWithEnv(
       await setChildIds(parent.id, [childA.id, childB.id]);
 
       const childBRow = (await getListingWithCount(childB.id))!;
-      const childBDates = getBookableStartDates(childBRow, holidays).join(",");
+      // Mark an active holiday on one of child B's serveable starts. The server's
+      // child-date set must be HOLIDAY-AWARE: it computes the dates with the
+      // active holidays, so this date is excluded from `data-child-dates`. (If the
+      // render path dropped the holidays it would re-appear — this pins the fetch.)
+      const childBStarts = getBookableStartDates(childBRow, holidays);
+      const holidayDate = childBStarts[1]!;
+      await createTestHoliday({ endDate: holidayDate, startDate: holidayDate });
+
+      const refreshedHolidays = await getActiveHolidays();
+      const childBDates = getBookableStartDates(
+        childBRow,
+        refreshedHolidays,
+      ).join(",");
 
       const html = await ticketPageHtml(parent.slug);
       // Child B's control advertises exactly its own (single-weekday) serveable
@@ -2459,6 +2501,11 @@ describeWithEnv(
         `name="child_qty_${parent.id}_${childB.id}" data-child-qty="${childB.id}" data-child-dates="${childBDates}"`,
       );
       expect(childBDates.length).toBeGreaterThan(0);
+      // The holiday start must have been removed from the advertised set.
+      expect(childBDates).not.toContain(holidayDate);
+      expect(html).not.toContain(
+        `data-child-dates="${childBStarts.join(",")}"`,
+      );
     });
 
     test("a customisable child carries its supported spans as data-child-spans (Codex 430)", async () => {
