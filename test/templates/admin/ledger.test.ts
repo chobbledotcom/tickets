@@ -178,7 +178,7 @@ describe("AccountStatementTable", () => {
       }),
     ]);
 
-  test("shows the counterparty, signed change, and running balance per leg", () => {
+  test("reverses the attendee figures so a charge reads positive and a payment brings it down", () => {
     const refs = names({ listings: new Map([[1, "Concert"]]) });
     const html = String(
       AccountStatementTable({ account: acct, lines: lines(), names: refs }),
@@ -188,11 +188,39 @@ describe("AccountStatementTable", () => {
     expect(html).toContain('<a href="/admin/listing/1">Concert</a>');
     // Leg 2: counterparty is the card/bank singleton (this account received).
     expect(html).toContain("Card / bank");
-    // Signed deltas carry an explicit sign; the sale debits, the payment credits.
+    // The ledger stores the sale as a -5000 debit and the payment as a +5000
+    // credit against the attendee. The attendee view flips both: the sale reads
+    // as a +5000 charge and the payment as a -5000 reduction.
+    const rows = html.split("<tr>");
+    expect(rows[2]).toContain(`+${formatCurrency(5000)}`); // sale: charge owed
+    expect(rows[3]).toContain(`-${formatCurrency(5000)}`); // payment: brings it down
+    // Running balance climbs to the +5000 owed after the sale, then settles at 0.
+    expect(rows[2]).toContain(`>${formatCurrency(5000)}<`);
+    expect(rows[3]).toContain(`>${formatCurrency(0)}<`);
+  });
+
+  test("keeps native ledger signs for a non-attendee (revenue) account", () => {
+    // Reversal is attendee-only: a revenue account's statement still shows the
+    // ledger's own signs, so the convention isn't flipped for every account.
+    const revenue = account("revenue", 1);
+    const html = String(
+      AccountStatementTable({
+        account: revenue,
+        lines: statementFor(revenue)([
+          transfer({
+            amount: 5000,
+            destination: account("revenue", 1),
+            kind: "sale",
+            source: account("attendee", 1),
+          }),
+        ]),
+        names: names(),
+      }),
+    );
+    // Revenue received the sale: a +5000 credit and a +5000 running balance,
+    // unflipped.
     expect(html).toContain(`+${formatCurrency(5000)}`);
-    expect(html).toContain(`-${formatCurrency(5000)}`);
-    // Running balance reaches 5000 after the sale, 0 after the payment.
-    expect(html).toContain(formatCurrency(0));
+    expect(html).not.toContain(`-${formatCurrency(5000)}`);
   });
 
   test("renders the empty state row spanning all five columns", () => {
@@ -282,20 +310,22 @@ describe("adminLedgerPage", () => {
 describe("adminAccountStatementPage", () => {
   const acct = account("attendee", 7);
 
-  test("shows the account label, its balance, a back link, and the statement", () => {
+  test("shows the account label, its reversed balance, a back link, and the statement", () => {
     const refs = names({ attendees: new Map([[7, "Ada Lovelace"]]) });
-    // A single payment credits the attendee account, so its final balance is
-    // +5000; the heading must show the account's own label and that balance.
+    // A single sale debits the attendee account, so the ledger holds -5000; the
+    // attendee view flips it, showing the heading balance as the +5000 they owe.
     const lines = statementFor(acct)([
       transfer({
         amount: 5000,
-        destination: acct,
-        source: account("external", "world"),
+        destination: account("revenue", 1),
+        kind: "sale",
+        source: acct,
       }),
     ]);
     const html = adminAccountStatementPage(acct, lines, refs, SESSION);
     expect(html).toContain("Ada Lovelace");
     expect(html).toContain(`Balance: ${formatCurrency(5000)}`);
+    expect(html).not.toContain(`Balance: -${formatCurrency(5000)}`);
     // The nav links back to the ledger; no separate back-link arrow is shown.
     expect(html).toContain('href="/admin/ledger"');
     expect(html).not.toContain("&larr;");
