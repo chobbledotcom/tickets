@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { FakeTime } from "@std/testing/time";
 import { retryWithBackoff } from "#shared/retry.ts";
 
 describe("retryWithBackoff", () => {
@@ -67,6 +68,33 @@ describe("retryWithBackoff", () => {
       ),
     ).rejects.toThrow("non-retryable");
     expect(attempts).toBe(1);
+  });
+
+  test("waits for the backoff delay before the next attempt", async () => {
+    const time = new FakeTime();
+    try {
+      let attempts = 0;
+      const promise = retryWithBackoff(
+        () => {
+          attempts++;
+          return attempts < 2
+            ? Promise.reject(new Error("transient"))
+            : Promise.resolve("ok");
+        },
+        [1000],
+        () => {},
+      );
+      // Flush microtasks: the first attempt has failed and is now parked on the
+      // 1000ms backoff, so the retry must not have run yet.
+      await time.tickAsync(0);
+      expect(attempts).toBe(1);
+      // Only once the backoff elapses does the next attempt fire.
+      await time.tickAsync(1000);
+      expect(await promise).toBe("ok");
+      expect(attempts).toBe(2);
+    } finally {
+      time.restore();
+    }
   });
 
   test("lets onError swap in a different error on the final attempt", async () => {
