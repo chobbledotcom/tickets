@@ -1,0 +1,20 @@
+{
+  "notes.section_title": "Notes",
+  "notes.add_link": "Add a note",
+  "notes.delete": "Delete note",
+  "notes.system_label": "System",
+  "notes.add_title": "Add a note",
+  "notes.add_heading": "Add a note for {name}",
+  "notes.note_label": "Note",
+  "notes.note_hint": "Only you and other operators can read this. Markdown is supported.",
+  "notes.save": "Save note",
+  "notes.empty_error": "Enter a note before saving.",
+  "notes.added": "Note added.",
+  "notes.delete_title": "Delete note",
+  "notes.delete_confirm": "Are you sure you want to delete this note? This can't be undone.",
+  "notes.delete_submit": "Delete note",
+  "notes.cancel": "Cancel",
+  "notes.deleted": "Note deleted.",
+  "notes.not_found": "That note no longer exists.",
+  "notes.summary": "{count, plural, one {# attendee has notes} other {# attendees have notes}}"
+}

@@ -49,6 +49,7 @@ import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
 import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import type { ContactRecord } from "#shared/db/contact-preferences.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
+import type { SystemNote } from "#shared/db/system-notes.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
@@ -67,6 +68,7 @@ import {
   AttendeeLogSection,
   BookingStatusBadges,
 } from "#templates/admin/attendee-detail.tsx";
+import { AttendeeNotesSection } from "#templates/admin/attendee-notes.tsx";
 import { EditQuestions, PaymentDetails } from "#templates/admin/attendees.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import {
@@ -144,6 +146,9 @@ export type AttendeeFormTemplateData = {
   topWarnings: string[];
   /** Logistics selectors data, or undefined when logistics doesn't apply. */
   logistics?: AttendeeLogisticsData;
+  /** Operator/system notes for this attendee, oldest first (edit mode; empty in
+   * create mode). Rendered as a prominent notes block above the form. */
+  systemNotes: SystemNote[];
 };
 
 /** One row of the listing editor — a listing and its quantity box. */
@@ -861,6 +866,10 @@ export const attendeeFormPage = (
         <h1>{pageTitle(data)}</h1>
         <StatusHeading data={data} />
       </div>
+
+      {isEdit && a && (
+        <AttendeeNotesSection attendeeId={a.id} notes={data.systemNotes} />
+      )}
 
       {data.topWarnings.length > 0 && (
         <output class="warning" role="alert">

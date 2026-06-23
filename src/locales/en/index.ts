@@ -27,6 +27,7 @@ import login from "./login.json" with { type: "json" };
 import logistics from "./logistics.json" with { type: "json" };
 import modifiers from "./modifiers.json" with { type: "json" };
 import nav from "./nav.json" with { type: "json" };
+import notes from "./notes.json" with { type: "json" };
 import payment from "./payment.json" with { type: "json" };
 import privacy from "./privacy.json" with { type: "json" };
 import publicMessages from "./public.json" with { type: "json" };
@@ -68,6 +69,7 @@ const en: Record<string, string> = {
   ...logistics,
   ...modifiers,
   ...nav,
+  ...notes,
   ...payment,
   ...privacy,
   ...publicMessages,
