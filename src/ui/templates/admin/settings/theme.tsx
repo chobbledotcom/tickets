@@ -33,5 +33,15 @@ export const ThemeForm = (s: SettingsPageState): JSX.Element => (
         {t("settings.theme_dark")}
       </label>
     </fieldset>
+    <label class="checkbox">
+      <input
+        checked={s.underlineLinks}
+        name="underline_links"
+        type="checkbox"
+        value="true"
+      />{" "}
+      {t("settings.underline_links")}
+    </label>
+    <small>{t("settings.underline_links_hint")}</small>
   </SettingsSection>
 );

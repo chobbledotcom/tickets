@@ -1,13 +1,15 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { type Stub, stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import type { ListingInput } from "#shared/db/listings.ts";
+import { setN1GuardNotifyOnly } from "#shared/db/query-log.ts";
 import { paymentsApi } from "#shared/payments.ts";
 import type { Attendee, Listing } from "#shared/types.ts";
 import {
   assertAdminHtml,
   awaitTestRequest,
+  createPaidAttendeeWithoutLedger,
   createPaidTestAttendee,
   createTestAttendee,
   createTestListing,
@@ -88,9 +90,15 @@ const submitRefundAll = (
     ),
   );
 
-const markAsRefunded = async (attendeeId: number, listingId: number) => {
-  const { markRefunded } = await import("#shared/db/attendees.ts");
-  await markRefunded(attendeeId, listingId);
+/**
+ * Make a `createPaidTestAttendee` "refunded" the production way: reverse their
+ * sole paid booking order in the ledger, which posts the `refund_cash` leg the
+ * refunded-status projection reads. `listingId` is unused now that status comes
+ * from the ledger, but kept so call sites read as a per-listing refund.
+ */
+const markAsRefunded = async (attendeeId: number, _listingId: number) => {
+  const { recordAttendeeRefund } = await import("#shared/refund-ledger.ts");
+  await recordAttendeeRefund(attendeeId);
 };
 
 // -- Mock provider helper ------------------------------------------------- //
@@ -313,6 +321,34 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
       });
     });
 
+    test("surfaces a provider refund the ledger could not record", async () => {
+      // The booking predates the ledger, so the provider refund succeeds but the
+      // reversal finds no clean order to post — refund status is ledger-only now,
+      // so this must surface for a manual adjustment, not read as refunded.
+      const listing = await createPaidListing();
+      const attendee = await createPaidAttendeeWithoutLedger(
+        listing.id,
+        "John Doe",
+        "john@example.com",
+        "pi_unrecorded",
+      );
+      const ctx: RefundCtx = {
+        attendee,
+        cookie: await testCookie(),
+        csrfToken: await testCsrfToken(),
+        listing,
+      };
+      await withRefundMock(true, async (mockRefund) => {
+        const response = await submitRefund(ctx);
+        await expectFlashRedirect(
+          `/admin/listing/${listing.id}/attendee/${attendee.id}/refund`,
+          expect.stringContaining("could not be recorded"),
+          false,
+        )(response);
+        expect(mockRefund.calls.length).toBeGreaterThan(0);
+      });
+    });
+
     test("handles missing confirm_identifier field", async () => {
       const ctx = await setupRefundTest("pi_test_missing");
       const response = await handleRequest(
@@ -392,6 +428,14 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
   });
 
   describe("POST /admin/listing/:id/refund-all", () => {
+    // A bulk refund posts a ledger reversal per attendee — a known per-attendee
+    // read (an N+1 the dev guard throws on past ~25 rows). Production runs the
+    // guard in notify-only mode (src/edge.ts) so a real bulk refund of many
+    // attendees still posts every leg; match that here. Batching the bulk ledger
+    // work into one round-trip is a tracked follow-up.
+    beforeEach(() => setN1GuardNotifyOnly(true));
+    afterEach(() => setN1GuardNotifyOnly(null));
+
     testRequiresAuth("/admin/listing/1/refund-all", {
       body: {
         confirm_identifier: "Test Listing",
@@ -506,6 +550,43 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
           "All attendees refunded",
         )(response);
         expect(mockRefund.calls.length).toBe(2);
+      });
+    });
+
+    test("counts a refund the ledger could not record as errored, not refunded", async () => {
+      // One clean ledgered booking (its reversal posts) and one that predates the
+      // ledger (provider refunds, but the batch can't record it). The unrecorded
+      // one is tallied as errored so it surfaces rather than reading as refunded.
+      const listing = await createPaidListing();
+      await createPaidTestAttendee(
+        listing.id,
+        "Ledgered",
+        "ledgered@example.com",
+        "pi_mixed_ledgered",
+      );
+      await createPaidAttendeeWithoutLedger(
+        listing.id,
+        "Unledgered",
+        "unledgered@example.com",
+        "pi_mixed_unledgered",
+      );
+      await withRefundMock(true, async (mockRefund) => {
+        const response = await handleRequest(
+          mockFormRequest(
+            refundAllUrl(listing.id),
+            {
+              confirm_identifier: listing.name,
+              csrf_token: await testCsrfToken(),
+            },
+            await testCookie(),
+          ),
+        );
+        expect(mockRefund.calls.length).toBe(2);
+        await expectFlashRedirect(
+          `/admin/listing/${listing.id}/refund-all`,
+          expect.stringContaining("errored"),
+          false,
+        )(response);
       });
     });
 

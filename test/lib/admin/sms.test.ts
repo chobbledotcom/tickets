@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { it } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { getAttendeeActivityLog } from "#shared/db/activityLog.ts";
 import { getDb } from "#shared/db/client.ts";
 import { getContactRecord, hashPhone } from "#shared/db/contact-preferences.ts";
 import { settings } from "#shared/db/settings.ts";
@@ -15,6 +14,7 @@ import {
   createTestAttendeeDirect,
   createTestListing,
   describeWithEnv,
+  getAttendeeActivityLog,
   getTestPrivateKey,
 } from "#test-utils";
 

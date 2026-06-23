@@ -32,8 +32,6 @@ export type TransferInput = {
   readonly destination: AccountRef;
   /** Positive minor units; direction is encoded by source/destination. */
   readonly amount: MinorUnits;
-  /** ISO-4217 code, opaque to the ledger. */
-  readonly currency: string;
   /** ISO timestamp — the business time the money moved. */
   readonly occurredAt: string;
   /** Opaque, non-reversible, per-leg idempotency key. */
@@ -75,7 +73,6 @@ export type LedgerError =
   | { readonly code: "self_transfer" }
   | { readonly code: "empty_account" }
   | { readonly code: "reserved_char_in_account" }
-  | { readonly code: "empty_currency" }
   | { readonly code: "empty_reference" }
   | { readonly code: "empty_event_group" };
 

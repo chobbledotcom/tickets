@@ -25,6 +25,7 @@ import { deliveriesRoutes } from "#routes/admin/deliveries.ts";
 import { groupsRoutes } from "#routes/admin/groups.ts";
 import { guideRoutes } from "#routes/admin/guide.ts";
 import { holidaysRoutes } from "#routes/admin/holidays.ts";
+import { ledgerRoutes } from "#routes/admin/ledger.ts";
 import { listingQrRoutes } from "#routes/admin/listing-qr.ts";
 import { listingsRoutes } from "#routes/admin/listings.ts";
 import { markdownPreviewRoutes } from "#routes/admin/markdown-preview.ts";
@@ -69,6 +70,7 @@ const adminRouteModules: Record<string, RouteHandlerFn>[] = [
   attendeeRefundRoutes,
   usersRoutes,
   guideRoutes,
+  ledgerRoutes,
   groupsRoutes,
   modifiersRoutes,
   bulkActionsRoutes,

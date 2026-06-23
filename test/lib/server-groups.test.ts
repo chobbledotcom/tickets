@@ -594,7 +594,6 @@ describeWithEnv("server (admin groups)", { db: true }, () => {
       );
       await updateListingAggregateValues(listing.id, {
         booked_quantity: 9,
-        income: 0,
         tickets_count: 1,
       });
 

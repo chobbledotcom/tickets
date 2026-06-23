@@ -110,10 +110,17 @@ const handleAttendeeDelete = verifiedAttendeeForm(
 const handleDeleteIncomplete = attendeeFormAction(
   async (data, _session, _form, listingId, attendeeId) => {
     const hasPaidListing = isPaidListing(data.listing);
+    // An "incomplete" registration is an abandoned paid checkout: a sale was
+    // recognised (price_paid > 0) and fully covered (nothing still owed), yet no
+    // payment id was ever linked. A provider-less booking owes its full value
+    // (remaining_balance > 0) even though price_paid now projects the gross sale
+    // leg, so it is a real registration — not an abandoned checkout — and must
+    // not be swept here. A free booking (price_paid 0) likewise isn't incomplete.
     const isIncomplete =
       hasPaidListing &&
       !data.attendee.payment_id &&
-      Number.parseInt(data.attendee.price_paid, 10) > 0;
+      Number.parseInt(data.attendee.price_paid, 10) > 0 &&
+      data.attendee.remaining_balance <= 0;
 
     if (!isIncomplete) {
       return redirect(

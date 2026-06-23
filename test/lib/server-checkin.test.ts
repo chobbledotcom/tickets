@@ -332,16 +332,18 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
     });
 
     test("blocks check-in for refunded attendee", async () => {
-      const { getAttendeesByTokens, markRefunded } = await import(
-        "#shared/db/attendees.ts"
-      );
+      const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
+      const { postAttendeeRefund } = await import("#test-utils/ledger.ts");
       const { listing, token, session } = await setupCheckinTest(
         "Refund",
         "refund@test.com",
       );
 
       const attendees = await getAttendeesByTokens([token]);
-      await markRefunded(attendees[0]!.id, listing.id);
+      await postAttendeeRefund({
+        attendeeId: attendees[0]!.id,
+        listingId: listing.id,
+      });
 
       const response = await postCheckin(token, session, "true");
       expect(response.status).toBe(302);
@@ -351,16 +353,18 @@ describeWithEnv("check-in (/checkin/:tokens)", { db: true }, () => {
     });
 
     test("blocks check-out for refunded attendee", async () => {
-      const { getAttendeesByTokens, markRefunded } = await import(
-        "#shared/db/attendees.ts"
-      );
+      const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
+      const { postAttendeeRefund } = await import("#test-utils/ledger.ts");
       const { listing, token, session } = await setupCheckinTest(
         "Refund2",
         "refund2@test.com",
       );
 
       const attendees = await getAttendeesByTokens([token]);
-      await markRefunded(attendees[0]!.id, listing.id);
+      await postAttendeeRefund({
+        attendeeId: attendees[0]!.id,
+        listingId: listing.id,
+      });
 
       const response = await postCheckin(token, session, "false");
       expect(response.status).toBe(302);

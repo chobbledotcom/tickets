@@ -15,7 +15,6 @@
 
 /* jscpd:ignore-start */
 import { compact, filter, unique } from "#fp";
-import { requirePrivateKey } from "#routes/admin/actions.ts";
 import {
   ATTENDEE_FORM_ID,
   type AttendeeFormLine,
@@ -28,12 +27,14 @@ import {
   resolveStatusId,
   toCreateInput,
   toDesiredLines,
+  toLedgerOrder,
   validateParsedForm,
 } from "#routes/admin/attendee-form-model.ts";
 import {
   buildAttendeeLogisticsData,
   parseLogisticsPlan,
 } from "#routes/admin/attendee-logistics.ts";
+import { loadLedgerNames } from "#routes/admin/ledger.ts";
 import {
   AUTH_FORM,
   type AuthSession,
@@ -44,6 +45,9 @@ import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, notFoundResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
+import { attendeeAccount } from "#shared/accounting/accounts.ts";
+import { transfersByAccount } from "#shared/accounting/queries.ts";
+import { manualAddLedgerPoster } from "#shared/checkout-complete.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { getAttendeeActivityLog, logActivity } from "#shared/db/activityLog.ts";
 import { getAllAttendeeStatuses } from "#shared/db/attendee-statuses.ts";
@@ -85,14 +89,17 @@ import {
 import { settings } from "#shared/db/settings.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { statementFor } from "#shared/ledger/project.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import {
   parseSelectedListingIds,
   START_DATE_FIELD,
 } from "#shared/order-select.ts";
+import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
+import type { AttendeeLedgerData } from "#templates/admin/attendee-detail.tsx";
 import {
   type AttendeeFormTemplateData,
   attendeeFormPage,
@@ -213,6 +220,33 @@ const buildEditFormFromAttendee = (
 /** How many of an attendee's activity-log entries to show on the edit page. */
 const ATTENDEE_LOG_LIMIT = 1000;
 
+/** Load the attendee's ledger account statement for the embedded panel: its full
+ * transfer history, the running-balance lines, and the counterparties' display
+ * names (the shared ledger loader, so names resolve exactly as /admin/ledger). */
+const loadAttendeeLedger = async (
+  attendeeId: number,
+): Promise<AttendeeLedgerData> => {
+  const account = attendeeAccount(attendeeId);
+  const transfers = await transfersByAccount(account);
+  return {
+    account,
+    lines: statementFor(account)(transfers),
+    names: await loadLedgerNames(transfers),
+  };
+};
+
+/** The ledger panel exposes money movements (payment/refund/writeoff legs), so
+ * it is owner-only — matching the standalone `/admin/ledger*` routes
+ * (`requireOwnerOr`). A non-owner staff session gets `undefined`, which the
+ * template renders as no panel at all. */
+const loadAttendeeLedgerForSession = (
+  session: AuthSession,
+  attendeeId: number,
+): Promise<AttendeeLedgerData | undefined> =>
+  session.adminLevel === "owner"
+    ? loadAttendeeLedger(attendeeId)
+    : Promise.resolve(undefined);
+
 /** A booked daily listing booked for longer than its own duration allows —
  * permitted (every daily listing shares one range), so a warning not an error. */
 const overDurationWarning = (
@@ -317,6 +351,7 @@ const buildTemplateData = async (
     selectedAnswerIds?: number[];
     selectedTextAnswers?: Map<number, string>;
     contactRecords?: ContactRecordsByChannel;
+    ledger?: AttendeeLedgerData;
   } = {},
 ): Promise<AttendeeFormTemplateData> => {
   const statuses = await getAllAttendeeStatuses();
@@ -352,6 +387,7 @@ const buildTemplateData = async (
       (l) => l.listing?.listing_type === "daily",
     ),
     hasMixedTimings: opts.hasMixedTimings ?? false,
+    ledger: opts.ledger,
     lineWarnings: warnings.byListing,
     logistics,
     mode,
@@ -368,11 +404,12 @@ const buildTemplateData = async (
 };
 
 /** Load custom questions + currently-selected answers across ALL of the
- * attendee's booked listings (edit mode only). */
+ * attendee's booked listings (edit mode only). The request's private key is
+ * only derived when there are questions whose free-text answers need
+ * decrypting, so an attendee with no questions never forces a key unwrap. */
 const loadQuestionsForExisting = async (
   attendeeId: number,
   existing: ExistingLine[],
-  privateKey: CryptoKey,
 ): Promise<{
   questions: QuestionWithAnswers[];
   selectedAnswerIds: number[];
@@ -390,19 +427,11 @@ const loadQuestionsForExisting = async (
   return {
     questions: data.questions,
     selectedAnswerIds: data.attendeeAnswerMap.get(attendeeId) ?? [],
-    selectedTextAnswers: await getAttendeeTextAnswers(attendeeId, privateKey),
+    selectedTextAnswers: await getAttendeeTextAnswers(
+      attendeeId,
+      await requireRequestPrivateKey(),
+    ),
   };
-};
-
-/** Resolve the session's private key and load the attendee's question context
- * with it — the two always pair up at the edit-form call sites. */
-const loadQuestionsForSession = async (
-  session: AuthSession,
-  attendeeId: number,
-  existing: ExistingLine[],
-) => {
-  const privateKey = await requirePrivateKey(session);
-  return loadQuestionsForExisting(attendeeId, existing, privateKey);
 };
 
 /** Render the attendee form page as an HTML response. */
@@ -457,7 +486,7 @@ export const handleAttendeeEditGet: TypedRouteHandler<
   "GET /admin/attendees/:attendeeId"
 > = (request, { attendeeId }) =>
   requireSessionOr(request, async (session) => {
-    const loaded = await loadAttendeeForEdit(session, attendeeId);
+    const loaded = await loadAttendeeForEdit(attendeeId);
     if (!loaded) return notFoundResponse();
     const renderListings = await getRenderListings(loaded.existing);
     const { parsed, hasMixedTimings } = buildEditFormFromAttendee(
@@ -466,11 +495,13 @@ export const handleAttendeeEditGet: TypedRouteHandler<
       renderListings,
     );
     const { questions, selectedAnswerIds, selectedTextAnswers } =
-      await loadQuestionsForSession(session, attendeeId, loaded.existing);
-    const contactRecords = await loadContactRecords(session, loaded.attendee);
+      await loadQuestionsForExisting(attendeeId, loaded.existing);
+    const contactRecords = await loadContactRecords(loaded.attendee);
+    const ledger = await loadAttendeeLedgerForSession(session, attendeeId);
     const data = await buildTemplateData("edit", parsed, loaded.attendee, {
       contactRecords,
       hasMixedTimings,
+      ledger,
       questions,
       returnUrl: getSearchParam(request, "return_url"),
       selectedAnswerIds,
@@ -520,13 +551,12 @@ const loadChannelRecord = async (
  * one contact value to decrypt, so an attendee with no email/phone never forces
  * a key prompt. */
 const loadContactRecords = async (
-  session: AuthSession,
   attendee: Attendee,
 ): Promise<ContactRecordsByChannel> => {
   if (!attendee.email.trim() && !attendee.phone.trim()) {
     return EMPTY_CONTACT_RECORDS;
   }
-  const pk = await requirePrivateKey(session);
+  const pk = await requireRequestPrivateKey();
   return {
     email: await loadChannelRecord(attendee.email, hashEmail, pk),
     phone: await loadChannelRecord(attendee.phone, hashPhone, pk),
@@ -535,10 +565,9 @@ const loadContactRecords = async (
 
 /** Load an attendee + all its listing_attendees rows for the edit page. */
 const loadAttendeeForEdit = async (
-  session: AuthSession,
   attendeeId: number,
 ): Promise<{ attendee: Attendee; existing: ExistingLine[] } | null> => {
-  const pk = await requirePrivateKey(session);
+  const pk = await requireRequestPrivateKey();
   const attendee = await getAttendee(attendeeId, pk);
   if (!attendee) return null;
   const existing = await loadExistingLines(attendeeId);
@@ -566,13 +595,12 @@ const EMPTY_EDIT_CONTEXT: EditContext = {
 /** Edit mode: load the attendee, its existing lines (indexed by key), and its
  * question/answer context. Returns null when the attendee does not exist. */
 const loadEditContext = async (
-  session: AuthSession,
   attendeeId: number,
 ): Promise<EditContext | null> => {
-  const loaded = await loadAttendeeForEdit(session, attendeeId);
+  const loaded = await loadAttendeeForEdit(attendeeId);
   if (!loaded) return null;
   const { questions, selectedAnswerIds, selectedTextAnswers } =
-    await loadQuestionsForSession(session, attendeeId, loaded.existing);
+    await loadQuestionsForExisting(attendeeId, loaded.existing);
   return {
     attendee: loaded.attendee,
     existingByKey: new Map(
@@ -607,7 +635,7 @@ const handleSubmitInner = async (
 
   const edit =
     mode === "edit" && attendeeId !== null
-      ? await loadEditContext(session, attendeeId)
+      ? await loadEditContext(attendeeId)
       : EMPTY_EDIT_CONTEXT;
   if (edit === null) return notFoundResponse();
   const {
@@ -628,6 +656,11 @@ const handleSubmitInner = async (
     statusId: resolveStatusId(rawParsed.statusId, statuses),
   };
   const renderOpts = {
+    // Edit re-renders keep the embedded ledger panel (owner-only); create has no
+    // account yet.
+    ledger: attendee
+      ? await loadAttendeeLedgerForSession(session, attendee.id)
+      : undefined,
     questions,
     returnUrl: parsed.returnUrl,
     selectedAnswerIds,
@@ -731,12 +764,18 @@ const applyCreate = async (
   }
   // Admin manual add may deliberately overbook (a warning is shown, not blocked)
   // and is tagged as an "admin" booking so it counts separately from online
-  // checkouts in the contact's booking history.
-  const createResult = await createAttendeeAtomic({
-    ...input,
-    allowOverbook: true,
-    source: "admin",
-  });
+  // checkouts in the contact's booking history. The ledger poster records the
+  // booking's gross `sale` legs and reconciles the entered outstanding balance in
+  // the SAME create transaction, so the owed amount projects from the ledger
+  // (rather than silently reading back as £0) and lands atomically with the rows.
+  const createResult = await createAttendeeAtomic(
+    {
+      ...input,
+      allowOverbook: true,
+      source: "admin",
+    },
+    manualAddLedgerPoster(toLedgerOrder(parsed), input.remainingBalance),
+  );
   const check = await ensureAllBookings(
     createResult,
     input.bookings.length,

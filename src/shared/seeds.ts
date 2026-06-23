@@ -156,7 +156,6 @@ const prepareAttendee = async (
     insert("listing_attendees", {
       attendee_id: rawSql("last_insert_rowid()"),
       listing_id: listingId,
-      price_paid: pricePaid,
       quantity,
     }),
   ];

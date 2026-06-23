@@ -3,9 +3,10 @@
  */
 
 import { filter, map, pipe, reduce, sumOf, unique } from "#fp";
+import { ledgerTx } from "#shared/accounting/ledger-tx.ts";
 import type { UpdateAttendeePIIInput } from "#shared/db/attendee-types.ts";
 import { buildPiiBlob, encryptPiiBlob } from "#shared/db/attendees/pii.ts";
-import { execute, queryAll } from "#shared/db/client.ts";
+import { execute, queryAll, withTransaction } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
 import { normalizeDurationDays } from "#shared/types.ts";
 
@@ -23,13 +24,7 @@ const updateListingAttendeeField =
     );
   };
 
-const setRefunded = updateListingAttendeeField("refunded");
 const setCheckedIn = updateListingAttendeeField("checked_in");
-
-export const markRefunded = (
-  attendeeId: number,
-  listingId: number,
-): Promise<void> => setRefunded(attendeeId, listingId, 1);
 
 export const updateCheckedIn = (
   attendeeId: number,
@@ -38,20 +33,44 @@ export const updateCheckedIn = (
 ): Promise<void> => setCheckedIn(attendeeId, listingId, checkedIn ? 1 : 0);
 
 /**
- * Set an attendee's plaintext order fields (status + outstanding balance).
- * Used by the admin edit form, where both are operator-editable. These columns
- * live outside the encrypted pii_blob, so this is a plain column write.
+ * Reconcile an attendee's ledger-projected outstanding balance to `target` — the
+ * attendee-balance entry of {@link ledgerTx}'s read-then-adjust corrections
+ * (`ledgerTx.correct.owed`). Outstanding = −balanceOf(attendee), so the
+ * correction credits the attendee by `owed − target` against the `writeoff`
+ * contra account (decision 14): raising what's owed debits the attendee, lowering
+ * it credits them from writeoff, and external cash (`world→*`) is never touched.
+ * It reads the current owed figure and posts THROUGH the caller's `tx`, so the
+ * read→delta→post is atomic under the write lock and idempotent for a given
+ * target (a second submit of the same target computes a zero delta). Re-exported
+ * here under its domain name because the attendee-edit and checkout paths
+ * reconcile a balance; the shared correction logic lives in {@link ledgerTx}.
  */
-export const updateAttendeeOrder = async (
+export const reconcileLedgerBalanceTx = ledgerTx.correct.owed;
+
+/**
+ * Set an attendee's order fields from the admin edit form: the status (a plain
+ * column write) and the outstanding balance (reconciled in the transfers ledger,
+ * which now holds the balance — see {@link reconcileLedgerBalanceTx}). Both are
+ * operator-editable; the status lives outside the encrypted pii_blob.
+ *
+ * The two run in ONE write transaction so they are atomic: a failure posting the
+ * balance leg rolls the status change back too, never leaving the status moved
+ * but the balance unrecorded. The balance reconcile recomputes its delta from
+ * `remainingBalance` inside that transaction, so re-submitting the same form is
+ * idempotent and two concurrent submits serialise on the write lock.
+ */
+export const updateAttendeeOrder = (
   attendeeId: number,
   statusId: number | null,
   remainingBalance: number,
-): Promise<void> => {
-  await execute(
-    "UPDATE attendees SET status_id = ?, remaining_balance = ? WHERE id = ?",
-    [statusId, remainingBalance, attendeeId],
-  );
-};
+): Promise<void> =>
+  withTransaction(async (tx) => {
+    await tx.execute({
+      args: [statusId, attendeeId],
+      sql: "UPDATE attendees SET status_id = ? WHERE id = ?",
+    });
+    await reconcileLedgerBalanceTx(tx, attendeeId, remainingBalance);
+  });
 
 export const incrementAttachmentDownloads = async (
   attendeeId: number,

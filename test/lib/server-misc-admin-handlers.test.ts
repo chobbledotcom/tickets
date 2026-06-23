@@ -1,11 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getAllActivityLog } from "#shared/db/activityLog.ts";
 import { FormParams } from "#shared/form-data.ts";
 import {
   createTestListing,
   describeWithEnv,
   expectFlash,
+  getAllActivityLog,
   mockFormRequest,
   mockMultipartRequest,
   mockRequest,
@@ -14,18 +14,6 @@ import {
 } from "#test-utils";
 
 describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
-  describe("routes/admin/utils.ts (requirePrivateKey)", () => {
-    test("throws SessionKeyError when private key is unavailable", async () => {
-      const { requirePrivateKey } = await import("#routes/admin/actions.ts");
-      const { SessionKeyError } = await import("#routes/auth.ts");
-      const session = {
-        token: "any-token",
-        wrappedDataKey: null,
-      } as Parameters<typeof requirePrivateKey>[0];
-      await expect(requirePrivateKey(session)).rejects.toThrow(SessionKeyError);
-    });
-  });
-
   describe("routes/admin/utils.ts (helper factories)", () => {
     test("withEntityLoader returns handler response when entity exists", async () => {
       const { withEntityLoader } = await import(
@@ -60,17 +48,14 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       );
       const cookie = await testCookie();
 
-      const response = await withSessionAndEntity((session, id) =>
-        Promise.resolve({
-          id,
-          userId: session.userId,
-        }),
+      const response = await withSessionAndEntity((id) =>
+        Promise.resolve({ id }),
       )(
         mockRequest("/admin/attendees/1", { headers: { cookie } }),
         123,
-      )((request, _session, entity) => {
+      )((request, session, entity) => {
         const path = new URL(request.url).pathname;
-        return new Response(`${path}:${entity.id}:${entity.userId}`);
+        return new Response(`${path}:${entity.id}:${session.userId}`);
       });
 
       expect(response.status).toBe(200);
@@ -84,7 +69,7 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
 
-      const response = await withAuthAndEntity((_session, id) =>
+      const response = await withAuthAndEntity((id) =>
         Promise.resolve({
           id,
         }),
@@ -112,7 +97,7 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       const csrfToken = await testCsrfToken();
 
       const handlers = createEntityRouteHandlers(
-        (_session, id) => Promise.resolve({ id }),
+        (id) => Promise.resolve({ id }),
         (params: { attendeeId: number }) => params.attendeeId,
       );
 
@@ -144,9 +129,7 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
 
-      const handlers = withAuthEntityHandlers((_session, id) =>
-        Promise.resolve({ id }),
-      );
+      const handlers = withAuthEntityHandlers((id) => Promise.resolve({ id }));
 
       const getResponse = await handlers(
         mockRequest("/admin/attendees/33", { headers: { cookie } }),

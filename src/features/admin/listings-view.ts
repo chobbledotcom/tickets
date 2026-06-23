@@ -11,7 +11,6 @@ import { compact, filter, map, pipe, sort, unique } from "#fp";
 import {
   getDateFilter,
   listingAttendeesLoader,
-  requirePrivateKey,
 } from "#routes/admin/actions.ts";
 import type { AuthSession } from "#routes/auth.ts";
 import { htmlResponse } from "#routes/response.ts";
@@ -20,7 +19,10 @@ import { getEffectiveDomain } from "#shared/config.ts";
 import { formatDateLabel } from "#shared/dates.ts";
 import { getGroupRemainingByGroupId } from "#shared/db/attendees/capacity.ts";
 import { groupsTable } from "#shared/db/groups.ts";
-import { getListingAggregateRecalculation } from "#shared/db/listings.ts";
+import {
+  getListingAggregateRecalculation,
+  listingRevenueBreakdown,
+} from "#shared/db/listings.ts";
 import { deleteAllStaleReservations } from "#shared/db/processed-payments.ts";
 import {
   type AttendeeQuestionData,
@@ -29,6 +31,7 @@ import {
 } from "#shared/db/questions.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getFlash } from "#shared/flash-context.ts";
+import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
 import {
   type AttendeeFilter,
@@ -126,12 +129,11 @@ export const filteredAttendeesHandler =
 export const loadListingQuestionData = async (
   listingId: number,
   attendeeIds: number[],
-  session: AuthSession,
 ): Promise<AttendeeQuestionData | undefined> => {
   const [questions, answers] = await Promise.all([
     getQuestionsForListing(listingId),
     getAttendeeAnswersBatch(attendeeIds, {
-      privateKey: await requirePrivateKey(session),
+      privateKey: await requireRequestPrivateKey(),
       texts: true,
     }),
   ]);
@@ -186,14 +188,21 @@ const renderListingPage = async (
           filteredByDate,
         }) => {
           const attendeeIds = filteredByDate.map((a) => a.id);
-          const [flash, phonePrefix, questionData, groupContext, recalc] =
-            await Promise.all([
-              Promise.resolve(getFlash()),
-              Promise.resolve(settings.phonePrefix),
-              loadListingQuestionData(listing.id, attendeeIds, session),
-              loadGroupContext(listing, dateFilter),
-              getListingAggregateRecalculation(listing),
-            ]);
+          const [
+            flash,
+            phonePrefix,
+            questionData,
+            groupContext,
+            recalc,
+            revenueBreakdown,
+          ] = await Promise.all([
+            Promise.resolve(getFlash()),
+            Promise.resolve(settings.phonePrefix),
+            loadListingQuestionData(listing.id, attendeeIds),
+            loadGroupContext(listing, dateFilter),
+            getListingAggregateRecalculation(listing),
+            listingRevenueBreakdown(listing.id),
+          ]);
           return htmlResponse(
             adminListingPage({
               activeFilter,
@@ -211,6 +220,7 @@ const renderListingPage = async (
               listing,
               phonePrefix,
               questionData,
+              revenueBreakdown,
               session,
               successMessage: flash.success,
             }),

@@ -83,6 +83,42 @@ export const seedListingDomainRows = async (): Promise<number> => {
   return listing.id;
 };
 
+/**
+ * Recreate the legacy `listing_attendees.refunded` and `price_paid` columns on a
+ * test database built from the current (post-drop) SCHEMA. The
+ * `2026-06-22_backfill_transfers` migration reads both columns, and it runs
+ * BEFORE the `2026-06-22_drop_listing_attendee_refunded` /
+ * `2026-06-22_drop_listing_attendee_price_paid` migrations remove them — so
+ * production still has the columns when the backfill runs. Fixtures that build
+ * from the current schema must restore them first to reproduce the schema the
+ * backfill really runs against (the drop migrations remove them again, leaving
+ * the final schema correct).
+ */
+export const seedPreDropLedgerColumns = async (): Promise<void> => {
+  await getDb().execute(
+    "ALTER TABLE listing_attendees ADD COLUMN refunded INTEGER NOT NULL DEFAULT 0",
+  );
+  await getDb().execute(
+    "ALTER TABLE listing_attendees ADD COLUMN price_paid INTEGER NOT NULL DEFAULT 0",
+  );
+};
+
+/**
+ * Stamp a pre-ledger booking row's `price_paid` — the column the backfill reads
+ * to reconstruct a historical `sale` leg. Production's booking insert no longer
+ * writes it, so a backfill test that wants the migration to see a paid booking
+ * sets it directly (on the column restored by {@link seedPreDropLedgerColumns}).
+ */
+export const stampHistoricalPricePaid = (
+  attendeeId: number,
+  listingId: number,
+  amount: number,
+): Promise<unknown> =>
+  getDb().execute({
+    args: [amount, attendeeId, listingId],
+    sql: "UPDATE listing_attendees SET price_paid = ? WHERE attendee_id = ? AND listing_id = ?",
+  });
+
 export const columnNames = async (table: string): Promise<string[]> => {
   const result = await getDb().execute(
     `SELECT name FROM pragma_table_info('${table}')`,

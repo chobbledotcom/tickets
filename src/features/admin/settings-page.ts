@@ -50,6 +50,7 @@ const getSettingsPageState = async () => {
     superuser,
     termsAndConditions: settings.terms,
     theme: settings.theme,
+    underlineLinks: settings.underlineLinks,
     webhookUrl: getWebhookUrl(),
   };
 };

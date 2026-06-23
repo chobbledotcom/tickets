@@ -5,7 +5,6 @@ import { handleRequest } from "#routes";
 import { formatCountdown } from "#routes/format.ts";
 import { withCookie } from "#routes/response.ts";
 import { addDays } from "#shared/dates.ts";
-import { logActivity } from "#shared/db/activityLog.ts";
 import { getDb, insert } from "#shared/db/client.ts";
 import {
   getListingWithCount,
@@ -34,6 +33,7 @@ import {
   expectHtmlResponse,
   expectStatus,
   followRedirectWithFlash,
+  logActivity,
   mockFormRequest,
   mockMultipartRequest,
   setTestEnv,
@@ -44,6 +44,7 @@ import {
   testRequiresAuth,
   updateTestListing,
 } from "#test-utils";
+import { postAttendeeRefund, postListingSale } from "#test-utils/ledger.ts";
 
 describeWithEnv("server (admin listings)", { db: true }, () => {
   afterEach(() => {
@@ -320,6 +321,50 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       await assertAdminHtml("/admin/listing/1", listing.name);
     });
 
+    test("renders the income & ledger breakdown reconciling income with the balance", async () => {
+      const { listing, cookie } = await setupListingAndLogin({
+        maxAttendees: 100,
+        name: "Ledger Listing",
+        thankYouUrl: "https://example.com",
+      });
+      const buyer = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Ada",
+        "ada@example.com",
+      );
+      // A £50 sale, then a refunded £20 booking (postAttendeeRefund posts a
+      // self-contained net-zero order — a sale plus its full reversal). So gross
+      // credits total £70 and recognised income is £70 (refund-agnostic), while
+      // the net ledger balance is £50 once the £20 refund_sale debit is netted —
+      // a legitimate divergence the page must show reconciled.
+      await postListingSale({
+        attendeeId: buyer.id,
+        gross: 5000,
+        listingId: listing.id,
+      });
+      await postAttendeeRefund({
+        attendeeId: buyer.id,
+        gross: 2000,
+        listingId: listing.id,
+      });
+
+      const response = await awaitTestRequest(`/admin/listing/${listing.id}`, {
+        cookie,
+      });
+      const html = await response.text();
+      expect(html).toContain("Income &amp; ledger");
+      expect(html).toContain("Gross ticket sales");
+      expect(html).toContain("Recognised income");
+      expect(html).toContain("Net balance in ledger");
+      // Recognised income £70 differs from the net ledger balance £50 by the £20
+      // refund — both rendered, reconciled.
+      expect(html).toContain("£70");
+      expect(html).toContain("£50");
+      expect(html).toContain("−£20");
+      expect(html).toContain(`href="/admin/ledger/revenue/${listing.id}"`);
+    });
+
     test("shows stored-total mismatches on listing detail and edit pages", async () => {
       const { listing } = await setupListingAndLogin({
         maxAttendees: 100,
@@ -335,7 +380,6 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       );
       await updateListingAggregateValues(listing.id, {
         booked_quantity: 9,
-        income: 0,
         tickets_count: 1,
       });
 
@@ -827,6 +871,131 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         "Slug",
       );
     });
+
+    test("shows the income-correction form with its ledger warning", async () => {
+      await setupListingAndLogin({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      const { response } = await adminGet("/admin/listing/1/edit");
+      const html = await response.text();
+      // The dedicated money-correction section, separate from the counts override.
+      expect(html).toContain("Adjust income");
+      expect(html).toContain('action="/admin/listing/1/income"');
+      expect(html).toContain('name="income"');
+      // The prominent warning that this edits the source-of-truth money ledger.
+      expect(html).toContain("correcting entry to the money ledger");
+    });
+  });
+
+  describe("POST /admin/listing/:id/income", () => {
+    test("posts a writeoff correction that raises the projected income", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      // Seed £15 of gross income, then correct it up to £25 (major units).
+      await postListingSale({
+        attendeeId: 1,
+        gross: 1500,
+        listingId: listing.id,
+      });
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/listing/${listing.id}/income`,
+          { csrf_token: await testCsrfToken(), income: "25.00" },
+          await testCookie(),
+        ),
+      );
+      await expectFlashRedirect(
+        `/admin/listing/${listing.id}/edit`,
+        "Listing income adjusted",
+      )(response);
+
+      invalidateListingsCache();
+      const updated = await getListingWithCount(listing.id);
+      expect(updated?.income).toBe(2500);
+    });
+
+    test("posts a writeoff correction that lowers the projected income", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      await postListingSale({
+        attendeeId: 1,
+        gross: 4000,
+        listingId: listing.id,
+      });
+      const { response } = await adminFormPost(
+        `/admin/listing/${listing.id}/income`,
+        { income: "10.00" },
+      );
+      await expectFlashRedirect(
+        `/admin/listing/${listing.id}/edit`,
+        "Listing income adjusted",
+      )(response);
+
+      invalidateListingsCache();
+      const updated = await getListingWithCount(listing.id);
+      expect(updated?.income).toBe(1000);
+    });
+
+    test("logs a neutral activity message without the raw figure", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 100,
+        name: "Gala",
+        thankYouUrl: "https://example.com",
+      });
+      await adminFormPost(`/admin/listing/${listing.id}/income`, {
+        income: "12.34",
+      });
+      const { getAllActivityLog } = await import("#test-utils");
+      const log = await getAllActivityLog(10);
+      const entry = log.find((e) => e.message.includes("income adjusted"));
+      expect(entry?.message).toBe("Listing 'Gala' income adjusted");
+      // The raw corrected figure is not logged verbatim.
+      expect(entry?.message).not.toContain("12.34");
+    });
+
+    test("rejects a blank amount with an error flash", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      const { response } = await adminFormPost(
+        `/admin/listing/${listing.id}/income`,
+        { income: "" },
+      );
+      await expectFlashRedirect(
+        `/admin/listing/${listing.id}/edit`,
+        "Enter a valid amount",
+        false,
+      )(response);
+    });
+
+    test("rejects a non-numeric amount with an error flash", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      const { response } = await adminFormPost(
+        `/admin/listing/${listing.id}/income`,
+        { income: "abc" },
+      );
+      await expectFlashRedirect(
+        `/admin/listing/${listing.id}/edit`,
+        "Enter a valid amount",
+        false,
+      )(response);
+    });
+
+    test("returns 404 for a non-existent listing", async () => {
+      const { response } = await adminFormPost("/admin/listing/9999/income", {
+        income: "10",
+      });
+      expect(response.status).toBe(404);
+    });
   });
 
   describe("listing aggregate recalculation routes", () => {
@@ -853,7 +1022,6 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       );
       await updateListingAggregateValues(listing.id, {
         booked_quantity: 9,
-        income: 9000,
         tickets_count: 5,
       });
 
@@ -877,16 +1045,23 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
-      await createTestAttendee(
+      const attendee = await createTestAttendee(
         listing.id,
         listing.slug,
         "Reset User",
         "reset@example.com",
         2,
       );
+      // Income is projected from the ledger, so seed it with a real sale leg on
+      // revenue:<listingId> rather than the (count-only) aggregate override.
+      await postListingSale({
+        attendeeId: attendee.id,
+        eventId: "reset-totals",
+        gross: 9000,
+        listingId: listing.id,
+      });
       await updateListingAggregateValues(listing.id, {
         booked_quantity: 9,
-        income: 9000,
         tickets_count: 5,
       });
 
@@ -902,6 +1077,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
 
       const updated = await getListingWithCount(listing.id);
       expect(updated?.attendee_count).toBe(1);
+      // Resetting only booked_quantity leaves the ledger-projected income alone.
       expect(updated?.income).toBe(9000);
       expect(updated?.tickets_count).toBe(5);
     });
@@ -1073,7 +1249,6 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
           {
             booked_quantity: "12",
             csrf_token: csrfToken,
-            income: "123.45",
             max_attendees: "100",
             max_quantity: "1",
             name: listing.name,
@@ -1089,9 +1264,10 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         "Listing updated",
       )(response);
 
+      // income is no longer a column override — it's projected from the ledger,
+      // so the form only edits the count aggregates now.
       const updated = await getListingWithCount(listing.id);
       expect(updated?.attendee_count).toBe(12);
-      expect(updated?.income).toBe(12345);
       expect(updated?.tickets_count).toBe(4);
     });
 
@@ -1107,7 +1283,6 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
           {
             booked_quantity: "-1",
             csrf_token: csrfToken,
-            income: "10.00",
             max_attendees: "100",
             max_quantity: "1",
             name: listing.name,
@@ -3190,9 +3365,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
         ),
       );
 
-      const { getListingActivityLog } = await import(
-        "#shared/db/activityLog.ts"
-      );
+      const { getListingActivityLog } = await import("#test-utils");
       const logs = await getListingActivityLog(listing.id);
       const updateLog = logs.find((l: { message: string }) =>
         l.message.includes("updated"),

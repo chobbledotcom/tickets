@@ -47,7 +47,11 @@ export const Layout = ({
   return new SafeHtml(
     "<!DOCTYPE html>" +
     (
-      <html data-theme={resolvedTheme} lang="en">
+      <html
+        data-theme={resolvedTheme}
+        data-underline-links={settings.underlineLinks}
+        lang="en"
+      >
         <head>
           <meta charset="UTF-8" />
           <meta

@@ -44,6 +44,7 @@ import {
   clearSessionCookie,
   parseFlashValue,
 } from "#shared/cookies.ts";
+import { maybeBackfillActivityLog } from "#shared/db/activity-log-backfill.ts";
 import { DatabaseBusyError } from "#shared/db/client.ts";
 import {
   initDb,
@@ -247,10 +248,11 @@ const getPrefix = (path: string): string => {
  * - domain resolution (`loadEffectiveDomain`) reads custom_domain + bunny_subdomain
  * - routing gates on setup_complete / show_public_*
  * - the bare `Layout` (rendered by the universal `notFoundResponse` fallback
- *   and every HTML error page) reads theme + header_image_url
+ *   and every HTML error page) reads theme + underline_links + header_image_url
  * - `applySecurityHeaders` rebuilds the CSP on every routed response, reading
  *   the payment provider (and square_sandbox when the provider is Square)
  * - pruning self-guards on last_pruned_*
+ * - the activity-log backfill self-guards on its done flag + last-run stamp
  * - session auth + PII decryption read the key material
  */
 const INFRA_SETTINGS: readonly string[] = [
@@ -261,6 +263,7 @@ const INFRA_SETTINGS: readonly string[] = [
   CONFIG_KEYS.SHOW_PUBLIC_SITE,
   CONFIG_KEYS.SHOW_PUBLIC_API,
   CONFIG_KEYS.THEME,
+  CONFIG_KEYS.UNDERLINE_LINKS,
   CONFIG_KEYS.HEADER_IMAGE_URL,
   CONFIG_KEYS.PAYMENT_PROVIDER,
   CONFIG_KEYS.SQUARE_SANDBOX,
@@ -278,6 +281,10 @@ const INFRA_SETTINGS: readonly string[] = [
   CONFIG_KEYS.LAST_PRUNED_ORPHANS,
   CONFIG_KEYS.AUTO_PURGE_ORPHANS,
   CONFIG_KEYS.ORPHAN_PURGE_RETENTION,
+  // The activity-log backfill runs from the same fire-and-forget scheduler and
+  // self-guards on these every request until it has converted every legacy row.
+  CONFIG_KEYS.ACTIVITY_LOG_BACKFILL_DONE,
+  CONFIG_KEYS.LAST_ACTIVITY_LOG_BACKFILL,
   CONFIG_KEYS.PUBLIC_KEY,
   CONFIG_KEYS.WRAPPED_PRIVATE_KEY,
 ];
@@ -478,6 +485,13 @@ const READ_ONLY_POST_PATTERNS = [
   /^\/admin\/groups\/\d+\/add-listings$/,
   /^\/admin\/listing\/\d+\/attendee$/,
   /^\/admin\/attendees\/new$/,
+  // The unified attendee edit posts a writeoff balance correction to the money
+  // ledger (decision 14), so it mutates and must be blocked read-only. The `$`
+  // keeps it from matching the `/merge`, `/refresh-payment` sub-routes.
+  /^\/admin\/attendees\/\d+$/,
+  // Decision-14 income/revenue corrections post writeoff adjustment legs.
+  /^\/admin\/listing\/\d+\/income$/,
+  /^\/admin\/modifiers\/\d+\/revenue$/,
 ];
 
 /**
@@ -783,6 +797,10 @@ const prepareRequestEnvironment = async (
   if (!(method === "POST" && path === "/admin/privacy/orphans")) {
     addPendingWork(maybeRunPrunes());
   }
+
+  // Drain the legacy-format activity-log backfill a batch at a time. Like the
+  // prunes it self-gates on an interval and is a no-op once complete.
+  addPendingWork(maybeBackfillActivityLog());
 
   // Load effective domain (custom_domain from DB if set, else request hostname)
   loadEffectiveDomain(request.url);

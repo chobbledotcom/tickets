@@ -5,13 +5,7 @@
  */
 
 import { filter, map } from "#fp";
-import {
-  AUTH_FORM,
-  type AuthSession,
-  getAuthenticatedSession,
-  getPrivateKey,
-  withAuth,
-} from "#routes/auth.ts";
+import { AUTH_FORM, getAuthenticatedSession, withAuth } from "#routes/auth.ts";
 import {
   htmlResponse,
   notFoundResponse,
@@ -28,6 +22,7 @@ import { getSearchParam } from "#routes/url.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { updateCheckedIn } from "#shared/db/attendees.ts";
 import { settings } from "#shared/db/settings.ts";
+import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee } from "#shared/types.ts";
 import { checkinAdminPage, checkinPublicPage } from "#templates/checkin.tsx";
 
@@ -47,12 +42,9 @@ const sumTicketCount = (
   return total;
 };
 
-/** Decrypt entries' attendees using the session's private key */
-const decryptEntries = async (
-  entries: TokenEntry[],
-  session: AuthSession,
-): Promise<TokenEntry[]> => {
-  const privateKey = (await getPrivateKey(session))!;
+/** Decrypt entries' attendees using the current request's private key */
+const decryptEntries = async (entries: TokenEntry[]): Promise<TokenEntry[]> => {
+  const privateKey = await requireRequestPrivateKey();
   return decryptTokenEntries(entries, privateKey);
 };
 
@@ -76,7 +68,7 @@ const handleCheckinGet = (
     const session = await getAuthenticatedSession(request);
     if (!session) return htmlResponse(checkinPublicPage());
 
-    const decrypted = await decryptEntries(entries, session);
+    const decrypted = await decryptEntries(entries);
     const message = getSearchParam(request, "message");
     return htmlResponse(
       checkinAdminPage(
@@ -94,10 +86,10 @@ const handleCheckinPost = (
   request: Request,
   tokens: string[],
 ): Promise<Response> =>
-  withAuth(request, AUTH_FORM, (session, form) =>
+  withAuth(request, AUTH_FORM, (_session, form) =>
     withLookup(tokens, async (entries) => {
       const checkedIn = form.get("check_in") === "true";
-      const decrypted = await decryptEntries(entries, session);
+      const decrypted = await decryptEntries(entries);
       const eligible = filter((e: TokenEntry) => !e.attendee.refunded)(
         decrypted,
       ).map((e) => e.attendee);

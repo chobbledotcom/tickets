@@ -44,8 +44,17 @@ describe("db > migrations > schema change guard", () => {
         "2026-06-20_user_kek_v2",
         "2026-06-21_transfers",
         "2026-06-22_transfers_time_int",
+        "2026-06-22_drop_transfers_currency",
+        "2026-06-22_listing_attendee_ledger_event_group",
+        "2026-06-22_backfill_transfers",
+        "2026-06-22_drop_listing_income",
+        "2026-06-22_drop_listing_attendee_refunded",
+        "2026-06-22_drop_listing_attendee_price_paid",
+        "2026-06-22_drop_attendees_price_paid",
+        "2026-06-22_drop_attendees_remaining_balance",
+        "2026-06-22_drop_modifiers_total_revenue",
       ],
-      schemaHash: "aos567",
+      schemaHash: "1x8ybtx",
     });
   });
 });

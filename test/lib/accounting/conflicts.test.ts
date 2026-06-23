@@ -1,6 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { LedgerConflictError } from "#shared/accounting/conflicts.ts";
+import {
+  assertReversesAgainst,
+  LedgerConflictError,
+} from "#shared/accounting/conflicts.ts";
 import {
   allTransfers,
   transfersByEventGroup,
@@ -25,6 +28,7 @@ describe("db > accounting > conflicts", () => {
         postTransfers([tx({ amount: 9999, reference: "sale-1" })]),
       );
       expect(error).toBeInstanceOf(LedgerConflictError);
+      expect(error.name).toBe("LedgerConflictError");
       expect(error.message).toContain("amount");
       expect((await allTransfers()).length).toBe(1);
     });
@@ -116,6 +120,15 @@ describe("db > accounting > conflicts", () => {
         source: account("revenue", 1),
         ...overrides,
       });
+
+    test("a leg with no reverses_id passes trivially, even against a null original", () => {
+      // The absent-link short-circuit must return before the "refers to no
+      // transfer" guard, regardless of the original passed (a `||` instead of the
+      // `||`-less guard would fall through and wrongly throw here).
+      expect(() =>
+        assertReversesAgainst(tx({ reference: "plain" }), null),
+      ).not.toThrow();
+    });
 
     test("accepts a leg that is the exact inverse of the original", async () => {
       await postSale();

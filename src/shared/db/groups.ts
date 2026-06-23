@@ -4,7 +4,7 @@
 
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
-import { execute, queryAll } from "#shared/db/client.ts";
+import { execute, executeBatch, queryAll } from "#shared/db/client.ts";
 import {
   cachedEntityTable,
   defineIdTable,
@@ -168,17 +168,21 @@ export const getUngroupedListings = (): Promise<ListingWithCount[]> =>
 
 /**
  * Assign listings to a group by updating their group_id.
+ *
+ * All listings move in a single batch transaction, so the reassignment is
+ * atomic and costs one round-trip rather than one per listing.
  */
-export const assignListingsToGroup = async (
+export const assignListingsToGroup = (
   listingIds: number[],
   groupId: number,
 ): Promise<void> => {
-  for (const listingId of listingIds) {
-    await execute("UPDATE listings SET group_id = ? WHERE id = ?", [
-      groupId,
-      listingId,
-    ]);
-  }
+  if (listingIds.length === 0) return Promise.resolve();
+  return executeBatch(
+    listingIds.map((listingId) => ({
+      args: [groupId, listingId],
+      sql: "UPDATE listings SET group_id = ? WHERE id = ?",
+    })),
+  );
 };
 
 /**

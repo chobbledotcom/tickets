@@ -10,6 +10,7 @@ import {
   redirectResponse,
 } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
+import { owedOrderForLedger } from "#shared/checkout-ledger.ts";
 import {
   type ModifierApplication,
   type PricedOrder,
@@ -700,6 +701,16 @@ const processSubmission = async (
   const breakdownIntent: CheckoutIntent = paymentsEnabled
     ? intent
     : { ...intent, reservationAmount: "0" };
+  // The ledger order for a provider-less booking is the breakdown order with the
+  // booking fee removed up front (`feeSubtotal: 0` — payments-off charges no fee)
+  // and then recast as an OWED order: nothing was collected and no fee is booked,
+  // so `owedOrderForLedger` drops every extra and zeroes the total. That posts the
+  // gross `sale`/owed legs (and any surcharge add-on as its own `modifier` leg)
+  // with NO `fee` and NO `payment` leg — the breakdown intent (kept fee-bearing)
+  // still drives the displayed remaining balance below.
+  const ledgerOrder = paymentsEnabled
+    ? finalPricedOrder
+    : owedOrderForLedger(priceCheckout({ ...breakdownIntent, feeSubtotal: 0 }));
   return handleFreePath({
     contact,
     ctx,
@@ -707,12 +718,12 @@ const processSubmission = async (
     dayCount,
     hasCustomisable,
     info,
-    // Dual-write the ledger only when a payment provider is configured: an
-    // enabled but zero-total checkout — fully discounted, or a zero-deposit
-    // reservation — records the same sale/owed legs a paid booking would. With no
-    // provider the owed value lives in remaining_balance and is reconstructed by
-    // the backfill, like every other pre-ledger order, so it posts no legs here.
-    ledgerOrder: paymentsEnabled ? finalPricedOrder : null,
+    // Always dual-write the ledger — outstanding balance is projected from it,
+    // so an owed booking must record its legs at creation. A paid or enabled
+    // zero-total checkout (fully discounted, zero-deposit reservation) posts
+    // `finalPricedOrder`; a provider-less booking posts the OWED order built
+    // above, whose gross sale legs leave the full value owed with no fee/payment.
+    ledgerOrder,
     // Record modifier usage (and consume stock) on every completion, including
     // bookings taken with no payment provider, so a stock-limited answer tier is
     // capped across all bookings — not just the paid ones the webhook would have

@@ -3,14 +3,9 @@
  */
 
 import { compact, unique } from "#fp";
-import { csvResponse, requirePrivateKey } from "#routes/admin/actions.ts";
+import { csvResponse, loadAttendeeNames } from "#routes/admin/actions.ts";
 import { generateListingsCsv } from "#routes/admin/listings-csv.ts";
-import {
-  type AuthSession,
-  requireSessionOr,
-  sessionPage,
-  withSession,
-} from "#routes/auth.ts";
+import { requireSessionOr, sessionPage, withSession } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, redirectResponse } from "#routes/response.ts";
 /* jscpd:ignore-start */
@@ -24,7 +19,6 @@ import {
 import {
   decryptAttendees,
   getActiveListingStats,
-  getAttendeeNamesByIds,
   getNewestAttendeesRaw,
 } from "#shared/db/attendees.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
@@ -35,6 +29,7 @@ import {
   filterListingsByType,
   listingTypeFromRequest,
 } from "#shared/listing-filter.ts";
+import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { sortListings } from "#shared/sort-listings.ts";
 /* jscpd:ignore-end */
 import {
@@ -87,7 +82,7 @@ const handleAdminGet = (request: Request): Promise<Response> =>
         getAllListings(),
         getActiveHolidays(),
         getNewestAttendeesRaw(NEWEST_ATTENDEES_LIMIT),
-        requirePrivateKey(session),
+        requireRequestPrivateKey(),
       ]);
       const newestAttendees = await decryptAttendees(newestRaw, privateKey);
       const sortedListings = sortListings(listings, holidays);
@@ -140,37 +135,21 @@ const handleListingsCsvExport: TypedRouteHandler<"GET /admin/listings/csv"> = (
 const LOG_DISPLAY_LIMIT = 200;
 
 /**
- * Attendee id → name for the log's Attendee column. The session private key is
- * unwrapped only when an entry actually links an attendee, so a system- or
- * listing-only log still renders for a session whose key is unavailable (its
- * messages and listing names decrypt with the DB key, not the session key).
- */
-const loadAttendeeNames = async (
-  attendeeIds: number[],
-  session: AuthSession,
-): Promise<Map<number, string>> => {
-  if (attendeeIds.length === 0) return new Map();
-  const key = await requirePrivateKey(session);
-  return getAttendeeNamesByIds(attendeeIds, key);
-};
-
-/**
  * Resolve the attendee and listing display names referenced by a batch of log
  * entries, so the global log can show each entry's attendee/listing as a link.
  * Both are bounded id → name lookups over only the ids the entries reference —
- * attendee names decrypted with the session's private key, listing names from
- * the listings table — so the page never scans whole tables to label a few
+ * attendee names decrypted with the current request's private key, listing names
+ * from the listings table — so the page never scans whole tables to label a few
  * rows. An attendee that has since been deleted simply has no entry here; its
  * log rows keep the id but render without a link.
  */
 const loadActivityLogRefs = async (
   entries: ActivityLogEntry[],
-  session: AuthSession,
 ): Promise<ActivityLogRefs> => {
   const attendeeIds = unique(compact(entries.map((e) => e.attendee_id)));
   const listingIds = unique(compact(entries.map((e) => e.listing_id)));
   const [attendees, listings] = await Promise.all([
-    loadAttendeeNames(attendeeIds, session),
+    loadAttendeeNames(attendeeIds),
     getListingNamesByIds(listingIds),
   ]);
   return { attendees, listings };
@@ -186,7 +165,7 @@ const handleAdminLog: TypedRouteHandler<"GET /admin/log"> = sessionPage(
     const displayEntries = truncated
       ? entries.slice(0, LOG_DISPLAY_LIMIT)
       : entries;
-    const refs = await loadActivityLogRefs(displayEntries, session);
+    const refs = await loadActivityLogRefs(displayEntries);
     return adminGlobalActivityLogPage(displayEntries, truncated, session, refs);
   },
 );

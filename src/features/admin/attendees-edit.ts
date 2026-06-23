@@ -3,13 +3,13 @@
  *
  * The unified add/edit attendee page lives in `attendee-form-routes.ts`.
  * This module keeps the smaller refresh-payment handler that polls the
- * payment provider for an updated refund status and flips the booking's
- * `refunded` flag when the provider says it has been refunded.
+ * payment provider for an updated refund status and posts the refund to the
+ * transfers ledger when the provider says it has been refunded — the ledger's
+ * `refund_cash` leg is what the per-row `refunded` projection now reads.
  */
 
 import { t } from "#i18n";
-import { requirePrivateKey } from "#routes/admin/actions.ts";
-import { AUTH_FORM, type AuthSession, withAuth } from "#routes/auth.ts";
+import { AUTH_FORM, withAuth } from "#routes/auth.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
@@ -17,12 +17,14 @@ import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
 import {
   ATTENDEE_LEFT_JOIN_SELECT,
   decryptAttendeeOrNull,
-  markRefunded,
+  LISTING_ATTENDEE_ROW_COLS,
 } from "#shared/db/attendees.ts";
 import { queryAll, queryOne } from "#shared/db/client.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { getActivePaymentProvider } from "#shared/payments.ts";
+import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
+import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
 import { NO_PROVIDER_ERROR } from "./attendees-route-helpers.ts";
 
@@ -35,10 +37,9 @@ type RefreshPaymentContext = {
 
 /** Load the attendee + its first listing for the refresh-payment flow. */
 const loadRefreshContext = async (
-  session: AuthSession,
   attendeeId: number,
 ): Promise<RefreshPaymentContext | null> => {
-  const pk = await requirePrivateKey(session);
+  const pk = await requireRequestPrivateKey();
   const attendeeRaw = await queryOne<Attendee>(
     `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
      FROM attendees a
@@ -49,7 +50,7 @@ const loadRefreshContext = async (
   if (!attendeeRaw) return null;
   const attendee = (await decryptAttendeeOrNull(attendeeRaw, pk))!;
   const bookings = await queryAll<ListingAttendeeRow>(
-    "SELECT listing_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads FROM listing_attendees WHERE attendee_id = ? ORDER BY start_at, listing_id LIMIT 1",
+    `SELECT ${LISTING_ATTENDEE_ROW_COLS} FROM listing_attendees WHERE attendee_id = ? ORDER BY start_at, listing_id LIMIT 1`,
     [attendeeId],
   );
   const firstListingId = bookings[0]?.listing_id ?? attendee.listing_id;
@@ -62,8 +63,8 @@ const loadRefreshContext = async (
 export const handleRefreshPayment: TypedRouteHandler<
   "POST /admin/attendees/:attendeeId/refresh-payment"
 > = (request, { attendeeId }) =>
-  withAuth(request, AUTH_FORM, async (session, _form) => {
-    const ctx = await loadRefreshContext(session, attendeeId);
+  withAuth(request, AUTH_FORM, async (_session, _form) => {
+    const ctx = await loadRefreshContext(attendeeId);
     if (!ctx) return htmlResponse("", 404);
 
     const { attendee, listing } = ctx;
@@ -85,12 +86,20 @@ export const handleRefreshPayment: TypedRouteHandler<
 
     const isRefunded = await provider.isPaymentRefunded(attendee.payment_id);
     if (isRefunded && !attendee.refunded) {
-      await markRefunded(attendeeId, listing.id);
+      const { posted } = await recordAttendeeRefund(attendeeId);
       await logActivity(
         `Payment marked as refunded for attendee '${attendee.name}'`,
         listing.id,
         attendeeId,
       );
+      // Refund status is ledger-only now; if the post missed, surface it for a
+      // manual adjustment instead of leaving the payment looking un-refunded.
+      if (!posted) {
+        return errorRedirect(
+          `/admin/attendees/${attendeeId}`,
+          t("error.refund_not_recorded"),
+        );
+      }
       return redirect(
         `/admin/attendees/${attendeeId}`,
         t("success.payment_status_refunded"),

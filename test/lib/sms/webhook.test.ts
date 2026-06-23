@@ -2,10 +2,6 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import {
-  getAllActivityLog,
-  getAttendeeActivityLog,
-} from "#shared/db/activityLog.ts";
-import {
   findAttendeeIdByPhoneIndex,
   setAttendeePhoneIndexIfEmpty,
 } from "#shared/db/attendee-phone-index.ts";
@@ -23,6 +19,8 @@ import {
   createTestAttendeeDirect,
   createTestListing,
   describeWithEnv,
+  getAllActivityLog,
+  getAttendeeActivityLog,
 } from "#test-utils";
 
 const SECRET = "whsec-123";

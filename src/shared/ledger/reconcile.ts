@@ -40,7 +40,6 @@ type LegFacts = {
   readonly source: AccountRef;
   readonly destination: AccountRef;
   readonly amount: number;
-  readonly currency: string;
   readonly occurredAt: string;
   readonly reversesId?: number | null;
 };
@@ -72,7 +71,6 @@ const IDENTITY_FIELDS: ReadonlyArray<
   ["source", (leg) => accountKey(leg.source)],
   ["destination", (leg) => accountKey(leg.destination)],
   ["amount", (leg) => leg.amount],
-  ["currency", (leg) => leg.currency],
   // Compare the instant, not its string form: the store persists time as
   // epoch-millis and reads it back canonical, so a replay carrying the same
   // moment in a different ISO form (no milliseconds, or an offset) must match

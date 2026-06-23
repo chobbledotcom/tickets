@@ -52,13 +52,13 @@ const createEntityHandler =
       ...rest: unknown[]
     ) => (session: AuthSession, entity: T) => Response | Promise<Response>,
   ) =>
-  (loader: (session: AuthSession, id: number) => Promise<T | null>) =>
+  (loader: (id: number) => Promise<T | null>) =>
   (request: Request, id: number) =>
   (handler: H): Promise<Response> =>
     authWrapper(request, (session, ...rest) =>
       withEntity((entity: T) =>
         adaptHandler(handler, request, ...rest)(session, entity),
-      )(() => loader(session, id)),
+      )(() => loader(id)),
     );
 
 /* jscpd:ignore-start */
@@ -67,7 +67,7 @@ const createEntityHandler =
  * Eliminates: `requireSessionOr(request, (session) => withLoader(session, id)(handler))`
  */
 export const withSessionAndEntity = <T>(
-  loader: (session: AuthSession, id: number) => Promise<T | null>,
+  loader: (id: number) => Promise<T | null>,
 ) =>
   createEntityHandler<T, GetEntityHandler<T>>(
     (request, cb) => requireSessionOr(request, cb as SessionHandler),
@@ -80,7 +80,7 @@ export const withSessionAndEntity = <T>(
  * Eliminates: `withAuth(request, AUTH_FORM, (session, form) => withLoader(session, id)(handler))`
  */
 export const withAuthAndEntity = <T>(
-  loader: (session: AuthSession, id: number) => Promise<T | null>,
+  loader: (id: number) => Promise<T | null>,
 ) =>
   createEntityHandler<T, PostEntityHandler<T>>(
     (request, cb) =>
@@ -98,7 +98,7 @@ export const withAuthAndEntity = <T>(
  * Returns { get, post } handlers that handle auth + entity loading.
  */
 export const withAuthEntityHandlers =
-  <T>(loader: (session: AuthSession, id: number) => Promise<T | null>) =>
+  <T>(loader: (id: number) => Promise<T | null>) =>
   (request: Request, id: number) => ({
     get: (
       handler: (
@@ -129,13 +129,13 @@ export const createEntityRouteHandlers = <
   T,
   TParams extends Record<string, unknown>,
 >(
-  loader: (session: AuthSession, id: number) => Promise<T | null>,
+  loader: (id: number) => Promise<T | null>,
   getId: (params: TParams) => number,
 ) => {
   const routeHandler =
     <H>(
       wrapper: (
-        l: (s: AuthSession, i: number) => Promise<T | null>,
+        l: (i: number) => Promise<T | null>,
       ) => (r: Request, i: number) => (h: H) => Promise<Response>,
       handler: H,
     ): ((request: Request, params: TParams) => Promise<Response>) =>
