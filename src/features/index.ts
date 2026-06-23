@@ -485,6 +485,13 @@ const READ_ONLY_POST_PATTERNS = [
   /^\/admin\/groups\/\d+\/add-listings$/,
   /^\/admin\/listing\/\d+\/attendee$/,
   /^\/admin\/attendees\/new$/,
+  // The unified attendee edit posts a writeoff balance correction to the money
+  // ledger (decision 14), so it mutates and must be blocked read-only. The `$`
+  // keeps it from matching the `/merge`, `/refresh-payment` sub-routes.
+  /^\/admin\/attendees\/\d+$/,
+  // Decision-14 income/revenue corrections post writeoff adjustment legs.
+  /^\/admin\/listing\/\d+\/income$/,
+  /^\/admin\/modifiers\/\d+\/revenue$/,
 ];
 
 /**

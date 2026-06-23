@@ -11,6 +11,39 @@ import {
   setupStripe,
   testRequiresAuth,
 } from "#test-utils";
+import { postListingSale } from "#test-utils/ledger.ts";
+
+/** A settle identity (session id + business time) for settleAttendeeBalance. */
+const settle = (id = "settle-session") => ({
+  id,
+  occurredAt: "2026-06-21T00:00:00.000Z",
+});
+
+/** Create an attendee owing `remaining` on a listing booking with `deposit`
+ *  already paid, posting the gross sale + deposit legs so the balance projects. */
+const owedAttendee = async (
+  listingId: number,
+  statusId: number | null,
+  remaining: number,
+  deposit = 100,
+): Promise<number> => {
+  const result = await createAttendeeAtomic({
+    bookings: [{ listingId, pricePaid: deposit, quantity: 1 }],
+    email: "guest@example.com",
+    name: "Guest",
+    remainingBalance: remaining,
+    statusId,
+  });
+  if (!result.success) throw new Error("setup failed");
+  const attendeeId = result.attendees[0]!.id;
+  await postListingSale({
+    amountPaid: deposit,
+    attendeeId,
+    gross: deposit + remaining,
+    listingId,
+  });
+  return attendeeId;
+};
 
 const reservedAttendee = async () => {
   const listing = await createTestListing({
@@ -23,15 +56,7 @@ const reservedAttendee = async () => {
     name: "Reserved",
     reservationAmount: "10%",
   });
-  const result = await createAttendeeAtomic({
-    bookings: [{ listingId: listing.id, pricePaid: 100, quantity: 1 }],
-    email: "guest@example.com",
-    name: "Guest",
-    remainingBalance: 1500,
-    statusId: reservation.id,
-  });
-  if (!result.success) throw new Error("setup failed");
-  return result.attendees[0]!.id;
+  return owedAttendee(listing.id, reservation.id, 1500);
 };
 
 describeWithEnv("server (admin attendee balance)", { db: true }, () => {
@@ -77,7 +102,7 @@ describeWithEnv("server (admin attendee balance)", { db: true }, () => {
 
   test("shows a fully-paid state once the balance is settled", async () => {
     const attendeeId = await reservedAttendee();
-    await settleAttendeeBalance(attendeeId, 1500);
+    await settleAttendeeBalance(attendeeId, 1500, settle());
     const { response } = await adminGet(
       `/admin/attendees/${attendeeId}/balance`,
     );
@@ -92,16 +117,9 @@ describeWithEnv("server (admin attendee balance)", { db: true }, () => {
       maxAttendees: 10,
       thankYouUrl: "https://example.com",
     });
-    const result = await createAttendeeAtomic({
-      bookings: [{ listingId: listing.id, pricePaid: 100, quantity: 1 }],
-      email: "guest@example.com",
-      name: "Guest",
-      remainingBalance: 1500,
-      statusId: null,
-    });
-    if (!result.success) throw new Error("setup failed");
+    const attendeeId = await owedAttendee(listing.id, null, 1500);
     const { response } = await adminGet(
-      `/admin/attendees/${result.attendees[0]!.id}/balance`,
+      `/admin/attendees/${attendeeId}/balance`,
     );
     expect(response.status).toBe(200);
     const html = await response.text();
@@ -126,16 +144,10 @@ describeWithEnv("server (admin attendee balance)", { db: true }, () => {
       name: "Confirmed",
       reservationAmount: "0",
     });
-    const result = await createAttendeeAtomic({
-      bookings: [{ listingId: listing.id, pricePaid: 0, quantity: 1 }],
-      email: "guest@example.com",
-      name: "Guest",
-      remainingBalance: 1500,
-      statusId: confirmed.id,
-    });
-    if (!result.success) throw new Error("setup failed");
+    // A provider-less owed booking: full value owed, nothing paid up front.
+    const attendeeId = await owedAttendee(listing.id, confirmed.id, 1500, 0);
     const { response } = await adminGet(
-      `/admin/attendees/${result.attendees[0]!.id}/balance`,
+      `/admin/attendees/${attendeeId}/balance`,
     );
     const html = await response.text();
     expect(html).toContain("Balance outstanding");
@@ -153,6 +165,9 @@ describeWithEnv("server (admin attendee balance)", { db: true }, () => {
       name: "Reserved",
       reservationAmount: "10%",
     });
+    // A linked payment id makes the read-only payment-details panel (which hosts
+    // the "Balance outstanding" link) render; the deposit + sale legs leave £15
+    // owed in the ledger so the outstanding-balance block shows.
     const result = await createAttendeeAtomic({
       bookings: [{ listingId: listing.id, pricePaid: 100, quantity: 1 }],
       email: "guest@example.com",
@@ -163,6 +178,12 @@ describeWithEnv("server (admin attendee balance)", { db: true }, () => {
     });
     if (!result.success) throw new Error("setup failed");
     const attendeeId = result.attendees[0]!.id;
+    await postListingSale({
+      amountPaid: 100,
+      attendeeId,
+      gross: 1600,
+      listingId: listing.id,
+    });
     const { response } = await adminGet(`/admin/attendees/${attendeeId}`);
     const html = await response.text();
     expect(html).toContain("Balance outstanding");

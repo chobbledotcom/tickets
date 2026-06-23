@@ -125,6 +125,24 @@ export const uniqueBy =
     stdDistinctBy(array, fn);
 
 /**
+ * Group items by a key, accumulating same-key items into one array. The Map's
+ * keys appear in first-occurrence order and each array preserves input order —
+ * the ordering guarantee callers rely on (which `@std/collections` lacks).
+ */
+export const groupBy = <T, K>(
+  array: readonly T[],
+  key: (item: T) => K,
+): Map<K, T[]> => {
+  const groups = new Map<K, T[]>();
+  for (const item of array) {
+    const group = groups.get(key(item));
+    if (group) group.push(item);
+    else groups.set(key(item), [item]);
+  }
+  return groups;
+};
+
+/**
  * Remove null and undefined values from array
  */
 export const compact = <T>(array: (T | null | undefined)[]): T[] =>

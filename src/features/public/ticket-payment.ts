@@ -325,7 +325,6 @@ export const createFreeReservation = async ({
   const statusId = await getPublicStatusId();
   const ledger = ledgerOrder
     ? {
-        currency: settings.currency,
         eventId: (attendeeId: number) => String(attendeeId),
         occurredAt: nowIso(),
         pricedOrder: ledgerOrder,

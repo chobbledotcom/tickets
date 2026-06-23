@@ -6,6 +6,7 @@ import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { setEffectiveDomainForTest } from "#shared/config.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
+  getAllModifiers,
   modifiersTable,
   setModifierGroups,
   setModifierListings,
@@ -131,6 +132,10 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       return Number(result.rows[0]!.amount_applied);
     };
 
+    // total_revenue is projected from the transfers ledger as balanceOf(modifier)
+    // (read directly: a surcharge nets positive, a discount negative), so read it
+    // through getAllModifiers — the loader that selects the projection — rather
+    // than off the dropped column. The counts stay trigger-maintained.
     const modifierAggregates = async (
       modifierId: number,
     ): Promise<{
@@ -138,11 +143,11 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       totalUses: number;
       usageCount: number;
     }> => {
-      const row = await modifiersTable.findById(modifierId);
+      const row = (await getAllModifiers()).find((m) => m.id === modifierId)!;
       return {
-        totalRevenue: row!.total_revenue,
-        totalUses: row!.total_uses,
-        usageCount: row!.usage_count,
+        totalRevenue: row.total_revenue,
+        totalUses: row.total_uses,
+        usageCount: row.usage_count,
       };
     };
 
@@ -893,8 +898,11 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           },
         );
         expect(await modifierUsageAmount(modifier.id)).toBe(100);
+        // EARLYBIRD is a discount: its ledger leg funds the attendee
+        // (modifier→attendee), so balanceOf(modifier) — the projected revenue,
+        // read directly — is negative, the modifier's true net effect.
         expect(await modifierAggregates(modifier.id)).toEqual({
-          totalRevenue: 100,
+          totalRevenue: -100,
           totalUses: 1,
           usageCount: 1,
         });

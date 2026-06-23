@@ -30,6 +30,7 @@ import {
   createDailyTestListing,
   createTestAttendee,
   createTestListing,
+  createTestManagerSession,
   describeWithEnv,
   expectHtmlResponse,
   expectListingRowQuantity,
@@ -43,6 +44,7 @@ import {
   testRequiresAuth,
   withMocks,
 } from "#test-utils";
+import { postListingSale } from "#test-utils/ledger.ts";
 
 describeWithEnv("server (unified attendee form)", { db: true }, () => {
   describe("GET /admin/attendees/new", () => {
@@ -552,6 +554,54 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       // Assert the rendered badge markup, not just the words "Checked in",
       // so a mutant that drops the badge styling/element is still caught.
       expect(html).toContain('<span class="badge">Checked in</span>');
+    });
+  });
+
+  describe("ledger panel on the edit page", () => {
+    /** Seed an attendee with a fully-paid sale (so the embedded statement has a
+     * sale leg whose counterparty is the listing and a payment leg whose
+     * counterparty is the card/bank singleton), then GET its edit page. */
+    const seedAndGetEdit = async (cookie: string): Promise<string> => {
+      const listing = await createTestListing({
+        maxAttendees: 50,
+        name: "Pottery Class",
+      });
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Ledger Lou",
+        "lou@example.com",
+      );
+      await postListingSale({
+        attendeeId: attendee.id,
+        gross: 2500,
+        listingId: listing.id,
+      });
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendee.id}`,
+        { cookie },
+      );
+      return expectHtmlResponse(response, 200);
+    };
+
+    test("an owner sees the attendee's running-balance statement with counterparties", async () => {
+      const html = await seedAndGetEdit(await testCookie());
+      // The shared statement renders inside its own Ledger fieldset.
+      expect(html).toContain("<legend>Ledger</legend>");
+      expect(html).toContain("<th>Counterparty</th>");
+      // The sale's counterparty links to the listing; the payment's is card/bank.
+      expect(html).toContain("Pottery Class");
+      expect(html).toContain("Card / bank");
+    });
+
+    test("a manager does NOT see the ledger panel (owner-only money movements)", async () => {
+      // The panel exposes payment/refund/writeoff legs, so it is owner-only —
+      // matching the standalone /admin/ledger* routes. A manager session loads
+      // the same edit page but the panel is omitted entirely.
+      const managerCookie = await createTestManagerSession();
+      const html = await seedAndGetEdit(managerCookie);
+      expect(html).not.toContain("<legend>Ledger</legend>");
+      expect(html).not.toContain("<th>Counterparty</th>");
     });
   });
 
@@ -1286,6 +1336,18 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         statusId,
       });
       if (!created.success) throw new Error("setup failed");
+      // Both amount paid and outstanding balance project from the ledger now:
+      // post the gross sale (deposit + owed) and the deposit payment, so the
+      // attendee has paid `pricePaid` and owes `remainingBalance` in the ledger.
+      const gross = pricePaid + remainingBalance;
+      if (gross > 0) {
+        await postListingSale({
+          amountPaid: pricePaid,
+          attendeeId: created.attendees[0]!.id,
+          gross,
+          listingId: listing.id,
+        });
+      }
       return created.attendees[0]!.id;
     };
 
@@ -1379,6 +1441,14 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       expect(html).toContain('name="remaining_balance"');
       expect(html).not.toContain("still unpaid");
       expect(html).not.toContain("paid status but still owes");
+    });
+
+    test("the outstanding-balance field warns that edits post to the money ledger", async () => {
+      // Decision 14: changing the balance now posts a writeoff correction to the
+      // source-of-truth ledger, so the field carries a prominent warning.
+      const id = await seedAttendee(null, 0);
+      const html = await getEdit(id);
+      expect(html).toContain("correcting entry to the money ledger");
     });
 
     test("edit page shows the attendee's status as a heading when multiple statuses exist", async () => {

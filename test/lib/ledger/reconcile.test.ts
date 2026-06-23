@@ -4,6 +4,7 @@ import { account } from "#shared/ledger/account.ts";
 import {
   type LegFingerprint,
   legFingerprint,
+  legIdentityDiff,
   reconcileExternal,
   reconcileLegs,
 } from "#shared/ledger/reconcile.ts";
@@ -36,6 +37,40 @@ describe("reconcileExternal", () => {
       expected: 4925,
       ok: false,
     });
+  });
+});
+
+// A plain LegFacts (the minimal shape legFingerprint/legIdentityDiff read), not a
+// full Transfer, so spreads stay within LegFacts and don't trip excess-property
+// checks when passed as that type.
+const legFacts = {
+  amount: 5000,
+  destination: account("revenue", 1),
+  kind: "sale",
+  occurredAt: "2026-01-01T00:00:00.000Z",
+  source: account("attendee", 1),
+};
+
+describe("legIdentityDiff", () => {
+  it("is empty for two legs with identical money facts", () => {
+    expect(legIdentityDiff(legFacts, { ...legFacts })).toEqual([]);
+  });
+
+  it("names exactly the identity fields that differ, never the matching ones", () => {
+    expect(legIdentityDiff(legFacts, { ...legFacts, amount: 1 })).toEqual([
+      "amount",
+    ]);
+    expect(legIdentityDiff(legFacts, { ...legFacts, kind: "fee" })).toEqual([
+      "kind",
+    ]);
+  });
+});
+
+describe("legFingerprint", () => {
+  it("keeps a reversesId of 0 distinct from an absent link (`?? null` preserves the 0 that `|| null` would collapse)", () => {
+    expect(legFingerprint({ ...legFacts, reversesId: 0 })).not.toBe(
+      legFingerprint({ ...legFacts, reversesId: null }),
+    );
   });
 });
 
@@ -74,6 +109,20 @@ describe("reconcileLegs", () => {
 
   it("returns nothing when observed legs match, regardless of order", () => {
     expect(reconcileLegs(expectedFor(saleA, payA))([payA, saleA])).toEqual([]);
+  });
+
+  it("respects multiplicity — two identical expected legs but one observed reports one still missing", () => {
+    // saleDup fingerprints identically to saleA (id is not fingerprinted), so the
+    // expected multiset holds two copies while the ledger holds only one; the
+    // multiset diff must decrement and report exactly one copy still missing.
+    const saleDup = makeTransfer({ ...saleA, id: 7 });
+    expect(reconcileLegs(expectedFor(saleA, saleDup))([saleA])).toEqual([
+      {
+        eventGroup: "evt-a",
+        missing: [legFingerprint(saleA)],
+        unexpected: [],
+      },
+    ]);
   });
 
   it("flags a leg posted to the wrong account even when its kind matches", () => {

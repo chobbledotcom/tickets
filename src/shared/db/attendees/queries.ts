@@ -3,6 +3,11 @@
  */
 
 import { map, unique } from "#fp";
+import {
+  accountPredicate,
+  attendeeOwedSubquery,
+  sumAmountFromTransfers,
+} from "#shared/accounting/projection-sql.ts";
 import { computeTicketTokenIndex } from "#shared/crypto/hashing.ts";
 import type {
   AttendeeWithBookings,
@@ -17,15 +22,74 @@ import { nameMapByIds } from "#shared/db/query.ts";
 import type { Attendee } from "#shared/types.ts";
 
 /**
- * Attendee columns for JOIN queries — only the columns actually used at runtime.
- * All PII is read from the encrypted pii_blob; per-listing status lives on listing_attendees.
+ * Order-level refund status, projected from the transfers ledger rather than a
+ * stored column: an attendee is refunded iff a `refund_cash` leg sourced from
+ * their account exists (a refund reverses the booking's payment leg into a
+ * `refund_cash` leg whose SOURCE is the attendee — both live and backfilled
+ * historical refunds set this). Returns 0/1 aliased `refunded`, matching the
+ * `number` shape the booking row type carries. A LEFT JOIN with no matching
+ * `listing_attendees` row has `ea.attendee_id` NULL, so the EXISTS is false (0).
  */
-const ATTENDEE_COLS =
-  "a.id, a.created, a.ticket_token_index, a.pii_blob, a.status_id, a.remaining_balance, a.split_logistics_agents";
+const refundedFromLedger = (attendeeIdExpr: string): string =>
+  `(SELECT EXISTS(SELECT 1 FROM transfers WHERE kind = 'refund_cash'` +
+  ` AND ${accountPredicate("source", "attendee", attendeeIdExpr)})) AS refunded`;
+
+/**
+ * Per-row amount paid, projected from the ledger instead of a stored column: the
+ * gross `sale` leg this booking row recognised — `kind='sale'`, billed from the
+ * attendee to the listing's revenue account, within the row's stored
+ * `ledger_event_group` (so an attendee holding several orders for one listing
+ * resolves to exactly this booking's leg). A site has one currency, so amounts
+ * sum directly. Equals the dropped `price_paid` column for a fully-paid booking
+ * (every production booking) and stays put after a refund (the reversal is a
+ * separate `refund_*` leg). 0 when the row has no sale leg — a free or
+ * provider-less-owed booking, or an unmatched LEFT JOIN row (NULL ids/group match
+ * nothing). `eventGroupExpr` is the row's `ledger_event_group` column.
+ */
+export const pricePaidFromLedger = (
+  attendeeIdExpr: string,
+  listingIdExpr: string,
+  eventGroupExpr: string,
+): string =>
+  sumAmountFromTransfers(
+    `kind = 'sale'` +
+      ` AND ${accountPredicate("source", "attendee", attendeeIdExpr)}` +
+      ` AND ${accountPredicate("dest", "revenue", listingIdExpr)}` +
+      ` AND event_group = ${eventGroupExpr}`,
+    "price_paid",
+  );
+
+/**
+ * An attendee's outstanding balance, projected from the ledger instead of a
+ * stored column: the negated account balance — what they still owe is the money
+ * they were billed (sale legs sourced from them) minus the cash received (deposit
+ * and balance-payment legs into them), with a refund's reversal legs netting back
+ * out. 0 for a fully-paid booking (every production attendee) and for an attendee
+ * with no legs. `attendeeIdExpr` is the attendee id in the surrounding query.
+ */
+export const remainingBalanceFromLedger = (attendeeIdExpr: string): string =>
+  `${attendeeOwedSubquery(attendeeIdExpr)} AS remaining_balance`;
+
+/**
+ * Attendee columns for JOIN queries — only the columns actually used at runtime.
+ * All PII is read from the encrypted pii_blob; per-listing status lives on
+ * listing_attendees. `remaining_balance` projects from the ledger like the others.
+ */
+const ATTENDEE_COLS = `a.id, a.created, a.ticket_token_index, a.pii_blob, a.status_id, ${remainingBalanceFromLedger(
+  "a.id",
+)}, a.split_logistics_agents`;
+
+/** The two ledger-projected money columns (refunded flag + per-row amount paid)
+ *  for a listing_attendees row reached through the `ea` alias. Shared by the
+ *  INNER and LEFT JOIN selects so the projections never drift apart. */
+const EA_LEDGER_MONEY_COLS = `${refundedFromLedger("ea.attendee_id")}, ${pricePaidFromLedger(
+  "ea.attendee_id",
+  "ea.listing_id",
+  "ea.ledger_event_group",
+)}`;
 
 /** Columns sourced from listing_attendees (per-listing data) */
-const EA_COLS =
-  "ea.listing_id, SUBSTR(ea.start_at, 1, 10) as date, SUBSTR(ea.end_at, 1, 10) as end_date, ea.quantity, ea.checked_in, ea.refunded, ea.price_paid, ea.attachment_downloads";
+const EA_COLS = `ea.listing_id, SUBSTR(ea.start_at, 1, 10) as date, SUBSTR(ea.end_at, 1, 10) as end_date, ea.quantity, ea.checked_in, ${EA_LEDGER_MONEY_COLS}, ea.attachment_downloads`;
 
 /** SELECT clause for attendee + listing_attendees JOINs (INNER JOIN context).
  * Derives `date` from start_at for the Attendee type shape. */
@@ -34,7 +98,21 @@ export const ATTENDEE_JOIN_SELECT = `${ATTENDEE_COLS}, ${EA_COLS}`;
 /** SELECT clause for LEFT JOIN context — COALESCEs nullable join columns so
  * attendees with broken/missing listing_attendees linkage still appear in results
  * (with listing_id=0 as an obvious corruption indicator). */
-export const ATTENDEE_LEFT_JOIN_SELECT = `${ATTENDEE_COLS}, COALESCE(ea.listing_id, 0) as listing_id, SUBSTR(ea.start_at, 1, 10) as date, SUBSTR(ea.end_at, 1, 10) as end_date, COALESCE(ea.quantity, 0) as quantity, COALESCE(ea.checked_in, 0) as checked_in, COALESCE(ea.refunded, 0) as refunded, COALESCE(ea.price_paid, 0) as price_paid, COALESCE(ea.attachment_downloads, 0) as attachment_downloads`;
+export const ATTENDEE_LEFT_JOIN_SELECT = `${ATTENDEE_COLS}, COALESCE(ea.listing_id, 0) as listing_id, SUBSTR(ea.start_at, 1, 10) as date, SUBSTR(ea.end_at, 1, 10) as end_date, COALESCE(ea.quantity, 0) as quantity, COALESCE(ea.checked_in, 0) as checked_in, ${EA_LEDGER_MONEY_COLS}, COALESCE(ea.attachment_downloads, 0) as attachment_downloads`;
+
+/**
+ * Columns for a `ListingAttendeeRow` read straight from `listing_attendees`
+ * (no attendee join) — every helper that loads an attendee's own booking rows
+ * shares this list so the ledger-fed `refunded` projection is identical across
+ * them. The bare `attendee_id` column feeds the correlated refund subquery.
+ */
+export const LISTING_ATTENDEE_ROW_COLS = `listing_id, start_at, end_at, quantity, checked_in, ${refundedFromLedger(
+  "attendee_id",
+)}, ${pricePaidFromLedger(
+  "attendee_id",
+  "listing_id",
+  "ledger_event_group",
+)}, ledger_event_group, attachment_downloads`;
 
 /**
  * Get attendees for an listing without decrypting PII
@@ -267,7 +345,9 @@ export const getAttendeesByTokens = async (
     remaining_balance: number;
   };
   const attendeeRows = await queryAll<AttendeeBase>(
-    `SELECT id, created, ticket_token_index, pii_blob, status_id, remaining_balance
+    `SELECT id, created, ticket_token_index, pii_blob, status_id, ${remainingBalanceFromLedger(
+      "attendees.id",
+    )}
      FROM attendees WHERE ticket_token_index IN (${inPlaceholders(
        tokenIndexes,
      )})`,
@@ -283,7 +363,7 @@ export const getAttendeesByTokens = async (
   const bookingRows = await queryAll<
     ListingAttendeeRow & { attendee_id: number }
   >(
-    `SELECT attendee_id, listing_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads
+    `SELECT attendee_id, ${LISTING_ATTENDEE_ROW_COLS}
      FROM listing_attendees WHERE attendee_id IN (${inPlaceholders(
        attendeeIds,
      )})
@@ -299,6 +379,7 @@ export const getAttendeesByTokens = async (
       attachment_downloads: row.attachment_downloads,
       checked_in: row.checked_in,
       end_at: row.end_at,
+      ledger_event_group: row.ledger_event_group,
       listing_id: row.listing_id,
       price_paid: row.price_paid,
       quantity: row.quantity,
