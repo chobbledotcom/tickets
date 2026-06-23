@@ -49,6 +49,40 @@ describe("db > accounting > store", () => {
       expect((await allTransfers()).length).toBe(2);
     });
 
+    test("rejects replaying an event group with a changed leg", async () => {
+      const original = saleAndPayment();
+      expect(await postTransfers(original)).toEqual({
+        inserted: 2,
+        skipped: 0,
+      });
+      // Same event group and references, but one leg's amount differs — not an
+      // idempotent replay, so the single-event guard must reject it.
+      const tampered = [
+        { ...original[0]!, amount: original[0]!.amount + 1 },
+        original[1]!,
+      ];
+      const error = await rejection(postTransfers(tampered));
+      expect(error).toBeInstanceOf(LedgerConflictError);
+      expect((await allTransfers()).length).toBe(2); // the original legs, untouched
+    });
+
+    test("rejects a reversal whose original transfer is absent", async () => {
+      // A reverses_id pointing at no stored transfer must be refused before the
+      // insert, so it never uses up the unique one-void-per-original slot.
+      const error = await rejection(
+        postTransfers([
+          tx({
+            eventGroup: "orphan-void",
+            reference: "orphan-void",
+            reversesId: 999,
+          }),
+        ]),
+      );
+      expect(error).toBeInstanceOf(LedgerConflictError);
+      expect(error.message).toContain("refers to no transfer");
+      expect((await allTransfers()).length).toBe(0);
+    });
+
     test("rejects duplicate references within one post", async () => {
       const error = await rejection(
         postTransfers([
