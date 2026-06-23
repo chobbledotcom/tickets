@@ -33,14 +33,13 @@ import {
   WRITEOFF,
 } from "#shared/accounting/accounts.ts";
 import {
-  allTransfers,
+  recentTransfers,
   transfersByAccount,
 } from "#shared/accounting/queries.ts";
 import { getListingNamesByIds } from "#shared/db/listings.ts";
 import { getAllModifiers } from "#shared/db/modifiers.ts";
 import { statementFor } from "#shared/ledger/project.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
-import { instantToEpochMs } from "#shared/validation/timestamp.ts";
 import {
   adminAccountStatementPage,
   adminLedgerPage,
@@ -49,7 +48,7 @@ import {
 
 /** How many of the most recent transfers the historical list shows. Older legs
  * are dropped and a "showing recent" note surfaces, mirroring the global log. */
-const LEDGER_DISPLAY_LIMIT = 500;
+export const LEDGER_DISPLAY_LIMIT = 500;
 
 /** The distinct numeric ids of one row-backed account type referenced by a slice
  * of transfers (as either leg). A singleton like `external:world` has a
@@ -95,19 +94,20 @@ export const loadLedgerNames = async (
   };
 };
 
-/** Most recent first, by business time then id (so ties are stable). */
-const newestFirst = (a: Transfer, b: Transfer): number =>
-  instantToEpochMs(b.occurredAt) - instantToEpochMs(a.occurredAt) ||
-  b.id - a.id;
-
-/** Handle GET /admin/ledger — the recent historical transfer list. */
+/** Handle GET /admin/ledger — the recent historical transfer list. The query
+ * fetches one extra row past the display cap: getting more than the cap means
+ * older legs were dropped, so the "showing recent" note is shown and only the
+ * first {@link LEDGER_DISPLAY_LIMIT} rows are rendered. Rows arrive newest-first
+ * from SQL, so no in-memory sort is needed. */
 export const handleLedgerGet: TypedRouteHandler<"GET /admin/ledger"> = (
   request,
 ) =>
   requireOwnerOr(request, async (session) => {
-    const all = (await allTransfers()).toSorted(newestFirst);
-    const truncated = all.length > LEDGER_DISPLAY_LIMIT;
-    const transfers = truncated ? all.slice(0, LEDGER_DISPLAY_LIMIT) : all;
+    const fetched = await recentTransfers(LEDGER_DISPLAY_LIMIT + 1);
+    const truncated = fetched.length > LEDGER_DISPLAY_LIMIT;
+    const transfers = truncated
+      ? fetched.slice(0, LEDGER_DISPLAY_LIMIT)
+      : fetched;
     const names = await loadLedgerNames(transfers, session);
     return htmlResponse(adminLedgerPage(transfers, names, truncated, session));
   });

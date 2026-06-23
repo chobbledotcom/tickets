@@ -38,6 +38,15 @@ export const transfersByEventGroup = (
 export const allTransfers = (): Promise<Transfer[]> =>
   selectTransfers(fromDb, "", []);
 
+/** The most recent `limit` transfers, newest first (by business time then id, so
+ *  ties are stable). The ordering + limit run in SQL so the whole ledger is never
+ *  loaded into memory; `occurred_at` is the stored INTEGER epoch, so DESC is
+ *  newest-first. */
+export const recentTransfers = (limit: number): Promise<Transfer[]> =>
+  selectTransfers(fromDb, " ORDER BY occurred_at DESC, id DESC LIMIT ?", [
+    limit,
+  ]);
+
 type BalanceRow = { id: string; balance: number | bigint };
 
 /** Net balances grouped by account id. Each transfer counts as +amount for its

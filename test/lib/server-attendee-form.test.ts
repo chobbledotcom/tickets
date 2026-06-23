@@ -30,6 +30,7 @@ import {
   createDailyTestListing,
   createTestAttendee,
   createTestListing,
+  createTestManagerSession,
   describeWithEnv,
   expectHtmlResponse,
   expectListingRowQuantity,
@@ -557,7 +558,10 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
   });
 
   describe("ledger panel on the edit page", () => {
-    test("embeds the attendee's running-balance statement with counterparties", async () => {
+    /** Seed an attendee with a fully-paid sale (so the embedded statement has a
+     * sale leg whose counterparty is the listing and a payment leg whose
+     * counterparty is the card/bank singleton), then GET its edit page. */
+    const seedAndGetEdit = async (cookie: string): Promise<string> => {
       const listing = await createTestListing({
         maxAttendees: 50,
         name: "Pottery Class",
@@ -568,9 +572,6 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
         "Ledger Lou",
         "lou@example.com",
       );
-      // A fully-paid sale posts the attendee↔revenue and external→attendee legs,
-      // so the embedded statement has a sale leg whose counterparty is the
-      // listing and a payment leg whose counterparty is the card/bank singleton.
       await postListingSale({
         attendeeId: attendee.id,
         gross: 2500,
@@ -578,15 +579,29 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       });
       const response = await awaitTestRequest(
         `/admin/attendees/${attendee.id}`,
-        { cookie: await testCookie() },
+        { cookie },
       );
-      const html = await expectHtmlResponse(response, 200);
+      return expectHtmlResponse(response, 200);
+    };
+
+    test("an owner sees the attendee's running-balance statement with counterparties", async () => {
+      const html = await seedAndGetEdit(await testCookie());
       // The shared statement renders inside its own Ledger fieldset.
       expect(html).toContain("<legend>Ledger</legend>");
       expect(html).toContain("<th>Counterparty</th>");
       // The sale's counterparty links to the listing; the payment's is card/bank.
       expect(html).toContain("Pottery Class");
       expect(html).toContain("Card / bank");
+    });
+
+    test("a manager does NOT see the ledger panel (owner-only money movements)", async () => {
+      // The panel exposes payment/refund/writeoff legs, so it is owner-only —
+      // matching the standalone /admin/ledger* routes. A manager session loads
+      // the same edit page but the panel is omitted entirely.
+      const managerCookie = await createTestManagerSession();
+      const html = await seedAndGetEdit(managerCookie);
+      expect(html).not.toContain("<legend>Ledger</legend>");
+      expect(html).not.toContain("<th>Counterparty</th>");
     });
   });
 

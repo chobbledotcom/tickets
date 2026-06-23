@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { LEDGER_DISPLAY_LIMIT } from "#routes/admin/ledger.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
 import { adjustListingIncome } from "#shared/db/listings.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
@@ -78,27 +79,51 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
     expect(html).toContain("No transfers recorded yet");
   });
 
-  test("surfaces the 'showing recent' note past the 500-transfer display cap", async () => {
-    const { attendeeId, listingId } = await seededSale();
-    // One big event whose many legs (each a distinct reference) push the ledger
-    // past the 500-transfer recent-window cap, so the "showing recent" note must
-    // appear. 501 extra legs clears the cap regardless of the seeded sale's few.
+  /** The `kind` every bulk leg carries; each rendered transfer row prints it in
+   * its own Event cell, so counting the cell counts the rendered rows. */
+  const BULK_KIND = "sale";
+
+  /** Post exactly `count` distinct ledger legs (each a unique reference), then
+   * GET the historical ledger page. Self-contained — uses fixed account ids so
+   * the total leg count is exactly `count`, independent of any other seeding. */
+  const postBulkLegsAndGet = async (count: number): Promise<string> => {
     const extras: TransferInput[] = [];
-    for (let i = 0; i < 501; i++) {
+    for (let i = 0; i < count; i++) {
       extras.push({
         amount: 100,
-        destination: account("revenue", listingId),
+        destination: account("revenue", 1),
         eventGroup: "bulk",
-        kind: "sale",
+        kind: BULK_KIND,
         occurredAt: "2026-06-20T00:00:00.000Z",
         reference: `bulk-${i}`,
-        source: account("attendee", attendeeId),
+        source: account("attendee", 1),
       });
     }
     await postTransfers(extras);
     const { response } = await adminGet("/admin/ledger");
-    const html = await response.text();
+    return response.text();
+  };
+
+  /** Count rendered transfer rows by their Event cell — unique to a {@link
+   * LedgerRow}, so unaffected by the page's nav/heading/column labels. */
+  const renderedRowCount = (html: string): number =>
+    html.split(`<td>${BULK_KIND}</td>`).length - 1;
+
+  test("renders at most the display cap and surfaces the 'showing recent' note past it", async () => {
+    // One more leg than the cap: the SQL LIMIT (cap + 1) returns the extra row,
+    // so truncation is detected — the note shows and only the cap is rendered,
+    // never the whole ledger.
+    const html = await postBulkLegsAndGet(LEDGER_DISPLAY_LIMIT + 1);
     expect(html).toContain("Showing the most recent 500 transfers");
+    expect(renderedRowCount(html)).toBe(LEDGER_DISPLAY_LIMIT);
+  });
+
+  test("renders every row and omits the note when exactly the display cap exist", async () => {
+    // Exactly the cap: the LIMIT (cap + 1) returns no extra row, so no
+    // truncation note, and all cap rows render.
+    const html = await postBulkLegsAndGet(LEDGER_DISPLAY_LIMIT);
+    expect(html).not.toContain("Showing the most recent");
+    expect(renderedRowCount(html)).toBe(LEDGER_DISPLAY_LIMIT);
   });
 
   test("renders an account statement with a running balance", async () => {

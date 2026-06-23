@@ -234,6 +234,18 @@ const loadAttendeeLedger = async (
   };
 };
 
+/** The ledger panel exposes money movements (payment/refund/writeoff legs), so
+ * it is owner-only — matching the standalone `/admin/ledger*` routes
+ * (`requireOwnerOr`). A non-owner staff session gets `undefined`, which the
+ * template renders as no panel at all. */
+const loadAttendeeLedgerForSession = (
+  session: AuthSession,
+  attendeeId: number,
+): Promise<AttendeeLedgerData | undefined> =>
+  session.adminLevel === "owner"
+    ? loadAttendeeLedger(session, attendeeId)
+    : Promise.resolve(undefined);
+
 /** A booked daily listing booked for longer than its own duration allows —
  * permitted (every daily listing shares one range), so a warning not an error. */
 const overDurationWarning = (
@@ -491,7 +503,7 @@ export const handleAttendeeEditGet: TypedRouteHandler<
     const { questions, selectedAnswerIds, selectedTextAnswers } =
       await loadQuestionsForSession(session, attendeeId, loaded.existing);
     const contactRecords = await loadContactRecords(session, loaded.attendee);
-    const ledger = await loadAttendeeLedger(session, attendeeId);
+    const ledger = await loadAttendeeLedgerForSession(session, attendeeId);
     const data = await buildTemplateData("edit", parsed, loaded.attendee, {
       contactRecords,
       hasMixedTimings,
@@ -653,9 +665,10 @@ const handleSubmitInner = async (
     statusId: resolveStatusId(rawParsed.statusId, statuses),
   };
   const renderOpts = {
-    // Edit re-renders keep the embedded ledger panel; create has no account yet.
+    // Edit re-renders keep the embedded ledger panel (owner-only); create has no
+    // account yet.
     ledger: attendee
-      ? await loadAttendeeLedger(session, attendee.id)
+      ? await loadAttendeeLedgerForSession(session, attendee.id)
       : undefined,
     questions,
     returnUrl: parsed.returnUrl,
