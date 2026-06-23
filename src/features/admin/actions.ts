@@ -20,7 +20,10 @@ import {
   redirect,
 } from "#routes/response.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
-import { decryptAttendees } from "#shared/db/attendees.ts";
+import {
+  decryptAttendees,
+  getAttendeeNamesByIds,
+} from "#shared/db/attendees.ts";
 import { getListingWithAttendeesRaw } from "#shared/db/listings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
@@ -55,6 +58,22 @@ export const requirePrivateKey = async (
   const key = await getPrivateKey(session);
   if (!key) throw new SessionKeyError();
   return key;
+};
+
+/**
+ * Bounded attendee id → name lookup for link labels (activity log, ledger). The
+ * session private key is unwrapped only when at least one attendee is actually
+ * referenced, so a system-only page still renders for a session whose key is
+ * unavailable. A deleted attendee's id simply has no entry — it renders as plain
+ * text, no link.
+ */
+export const loadAttendeeNames = async (
+  attendeeIds: number[],
+  session: AuthSession,
+): Promise<Map<number, string>> => {
+  if (attendeeIds.length === 0) return new Map();
+  const key = await requirePrivateKey(session);
+  return getAttendeeNamesByIds(attendeeIds, key);
 };
 
 /** Handler that receives a decrypted listing with its attendees */

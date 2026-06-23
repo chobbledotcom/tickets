@@ -3,7 +3,11 @@
  */
 
 import { compact, unique } from "#fp";
-import { csvResponse, requirePrivateKey } from "#routes/admin/actions.ts";
+import {
+  csvResponse,
+  loadAttendeeNames,
+  requirePrivateKey,
+} from "#routes/admin/actions.ts";
 import { generateListingsCsv } from "#routes/admin/listings-csv.ts";
 import {
   type AuthSession,
@@ -24,7 +28,6 @@ import {
 import {
   decryptAttendees,
   getActiveListingStats,
-  getAttendeeNamesByIds,
   getNewestAttendeesRaw,
 } from "#shared/db/attendees.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
@@ -138,21 +141,6 @@ const handleListingsCsvExport: TypedRouteHandler<"GET /admin/listings/csv"> = (
 
 /** Maximum number of log entries to display */
 const LOG_DISPLAY_LIMIT = 200;
-
-/**
- * Attendee id → name for the log's Attendee column. The session private key is
- * unwrapped only when an entry actually links an attendee, so a system- or
- * listing-only log still renders for a session whose key is unavailable (its
- * messages and listing names decrypt with the DB key, not the session key).
- */
-const loadAttendeeNames = async (
-  attendeeIds: number[],
-  session: AuthSession,
-): Promise<Map<number, string>> => {
-  if (attendeeIds.length === 0) return new Map();
-  const key = await requirePrivateKey(session);
-  return getAttendeeNamesByIds(attendeeIds, key);
-};
 
 /**
  * Resolve the attendee and listing display names referenced by a batch of log

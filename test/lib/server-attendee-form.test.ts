@@ -556,6 +556,40 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
     });
   });
 
+  describe("ledger panel on the edit page", () => {
+    test("embeds the attendee's running-balance statement with counterparties", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 50,
+        name: "Pottery Class",
+      });
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Ledger Lou",
+        "lou@example.com",
+      );
+      // A fully-paid sale posts the attendee↔revenue and external→attendee legs,
+      // so the embedded statement has a sale leg whose counterparty is the
+      // listing and a payment leg whose counterparty is the card/bank singleton.
+      await postListingSale({
+        attendeeId: attendee.id,
+        gross: 2500,
+        listingId: listing.id,
+      });
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendee.id}`,
+        { cookie: await testCookie() },
+      );
+      const html = await expectHtmlResponse(response, 200);
+      // The shared statement renders inside its own Ledger fieldset.
+      expect(html).toContain("<legend>Ledger</legend>");
+      expect(html).toContain("<th>Counterparty</th>");
+      // The sale's counterparty links to the listing; the payment's is card/bank.
+      expect(html).toContain("Pottery Class");
+      expect(html).toContain("Card / bank");
+    });
+  });
+
   describe("daily defaults + mixed-timing alert on the edit page", () => {
     test("shows the mixed-timing alert when daily bookings differ in start date", async () => {
       const daily = await createTestListing({

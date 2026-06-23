@@ -1,16 +1,21 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import type { AttendeeBooking } from "#routes/admin/attendee-form-model.ts";
+import { formatCurrency } from "#shared/currency.ts";
 import { formatDateRangeLabel } from "#shared/dates.ts";
 import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
+import { account } from "#shared/ledger/account.ts";
+import { statementFor } from "#shared/ledger/project.ts";
 import {
   AttendeeAnswersTable,
   AttendeeBookingsTable,
   AttendeeDetail,
+  AttendeeLedgerSection,
   AttendeeLogSection,
   BookingStatusBadges,
 } from "#templates/admin/attendee-detail.tsx";
+import { emptyLedgerNames } from "#templates/admin/ledger.tsx";
 import {
   expectListingRowQuantity,
   setupTestEncryptionKey,
@@ -269,5 +274,46 @@ describe("AttendeeLogSection", () => {
   test("shows the empty state when the attendee has no log entries", () => {
     const html = String(AttendeeLogSection({ entries: [] }));
     expect(html).toContain("No activity recorded yet");
+  });
+});
+
+describe("AttendeeLedgerSection", () => {
+  const acct = account("attendee", 7);
+
+  test("embeds the shared statement in a Ledger fieldset with the balance", () => {
+    // A single payment credits the attendee account, so its balance is +5000.
+    const lines = statementFor(acct)([
+      {
+        amount: 5000,
+        destination: acct,
+        eventGroup: "evt",
+        id: 1,
+        kind: "payment",
+        occurredAt: "2026-06-21T10:00:00.000Z",
+        recordedAt: "2026-06-21T10:00:00.000Z",
+        reference: "pay-1",
+        source: account("external", "world"),
+      },
+    ]);
+    const html = String(
+      AttendeeLedgerSection({
+        ledger: { account: acct, lines, names: emptyLedgerNames() },
+      }),
+    );
+    expect(html).toContain("<legend>Ledger</legend>");
+    // The counterparty singleton and the running balance both render.
+    expect(html).toContain("Card / bank");
+    expect(html).toContain(`Balance: ${formatCurrency(5000)}`);
+    expect(html).toContain("<th>Balance</th>");
+  });
+
+  test("shows the empty state for an attendee with no transfers", () => {
+    const html = String(
+      AttendeeLedgerSection({
+        ledger: { account: acct, lines: [], names: emptyLedgerNames() },
+      }),
+    );
+    expect(html).toContain("No transfers recorded yet");
+    expect(html).toContain(`Balance: ${formatCurrency(0)}`);
   });
 });
