@@ -8,6 +8,7 @@
  * derived from two reference dates.
  */
 
+import { t } from "#i18n";
 import { createVerifiedFormRoute } from "#routes/admin/confirmation.ts";
 import {
   generateUniqueGroupSlug,
@@ -163,17 +164,28 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
     const created = await listingsTable.insert(input);
     idMap.set(listing.id, created.id);
   }
-  await remapDuplicatedGroupEdges(idMap);
+  // A cloned parent whose remapped edge set fails re-validation is left gateless
+  // rather than written; surface those as a warning flash (mirroring the
+  // single-listing duplicate's "but: …" behaviour) instead of silently
+  // reporting success while producing a gateless standalone clone (Fix 5).
+  const edgeErrors = await remapDuplicatedGroupEdges(idMap);
 
   await logActivity(
     `Group '${group.name}' duplicated to '${newGroup.name}' with ${listings.length} listing(s)`,
   );
 
-  return redirect(
-    `/admin/groups/${newGroup.id}`,
-    `Duplicated '${group.name}' to '${newGroup.name}' (${listings.length} listing(s))`,
-    true,
-  );
+  const success = `Duplicated '${group.name}' to '${newGroup.name}' (${listings.length} listing(s))`;
+  if (edgeErrors.length > 0) {
+    return redirect(
+      `/admin/groups/${newGroup.id}`,
+      t("listings_table.group_duplicate_children_dropped", {
+        reason: edgeErrors.join("; "),
+        success,
+      }),
+      false,
+    );
+  }
+  return redirect(`/admin/groups/${newGroup.id}`, success, true);
 });
 
 /** Bulk actions routes */

@@ -258,6 +258,26 @@ export const validateListingInput = async (
 };
 
 /**
+ * Block a DELETE that would leave a child-scoped opt-in add-on a dead end —
+ * reachable only through a suppressed child once the deleted listing stops
+ * serving a public page (parents.md Fix 2). The delete path prunes the listing's
+ * parent/child edges but otherwise bypasses the reachability guard the
+ * deactivate paths run, so deleting the only active non-child page in a
+ * child-scoped add-on's scope would orphan it.
+ *
+ * A deleted listing no longer serves a page (exactly like a deactivated one), so
+ * this reuses the same shared guard ({@link deactivationOrphanedAddOnError}) with
+ * the deleted id in the would-be-removed set — the booking-page reachability is
+ * computed against the active, non-child listings, and a deleted listing drops
+ * out of that set just as a deactivated one does. Returns the error to surface,
+ * or null when the delete is safe.
+ */
+export const deleteOrphanedAddOnError = (
+  listingId: number,
+): Promise<string | null> =>
+  deactivationOrphanedAddOnError(new Set([listingId]));
+
+/**
  * Delete an listing: clean up images/attachments, remove from DB, log activity.
  * Returns the listing that was deleted (for response formatting).
  */

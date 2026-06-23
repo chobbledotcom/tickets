@@ -244,6 +244,128 @@ describeWithEnv(
       expect(await getChildIds(childCopy.id)).toEqual([]);
     });
 
+    test("group duplicate whose cloned parent's edge copy fails surfaces a warning and leaves no gateless clone (Fix 5)", async () => {
+      // `remapDuplicatedGroupEdges` used to discard `copyDuplicatedChildEdges`'s
+      // return, so a cloned parent could be left gateless while the bulk
+      // duplicate reported success. Scenario: a group parent P requires an
+      // EXTERNAL child C; an opt-in add-on is scoped to {P, C}, so on the COPY
+      // (cloned parent P', external child C kept) the add-on is reachable only
+      // through the suppressed child C — a dead end from P' — so re-validating
+      // P'->C fails. The fix collects that error, surfaces a WARNING flash, and
+      // does NOT write the gateless P'->C edge.
+      const group = await createTestGroup({ name: "Stranded bundle" });
+      const parent = await createTestListing({
+        groupId: group.id,
+        name: "Bundle parent",
+      });
+      const externalChild = await createTestListing({
+        name: "External add-on",
+      });
+      await setChildren(parent.id, [externalChild.id]);
+      await optInAddOnScopedTo("Reachable extra", [
+        parent.id,
+        externalChild.id,
+      ]);
+
+      const { adminFormPost } = await import("#test-utils");
+      const { response } = await adminFormPost(
+        `/admin/groups/${group.id}/bulk-actions/duplicate`,
+        {
+          date_find: "",
+          date_replace: "",
+          name_find: "",
+          name_replace: "",
+          new_name: "Stranded bundle copy",
+        },
+      );
+      response.body?.cancel();
+
+      const newGroup = (await getAllGroups()).find(
+        (g) => g.name === "Stranded bundle copy",
+      )!;
+      const copies = await getListingsByGroupId(newGroup.id);
+      const parentCopy = copies.find((l) => l.name === "Bundle parent")!;
+      // The cloned parent has NO gate (the invalid edge was not written) rather
+      // than a silently-gateless standalone reported as success.
+      expect(await getChildIds(parentCopy.id)).toEqual([]);
+      // A warning flash (not a success) carries the dropped-children reason.
+      expect(response.status).toBe(302);
+      const reason = t("listings_table.children_err_child_addon", {
+        addon: "Reachable extra",
+        name: "External add-on",
+      });
+      const expected = t("listings_table.group_duplicate_children_dropped", {
+        reason,
+        success: `Duplicated 'Stranded bundle' to 'Stranded bundle copy' (1 listing(s))`,
+      });
+      await expectFlashRedirect(
+        `/admin/groups/${newGroup.id}`,
+        expected,
+        false,
+      )(response);
+    });
+
+    test("group duplicate surfaces a warning when an incoming external-parent edge fails re-validation (Fix 5)", async () => {
+      // Exercises the Direction-2 (incoming) edge-copy of a group duplicate: a
+      // group member C is a CHILD of an EXTERNAL parent P. C carries an opt-in
+      // add-on reachable only through C itself (scoped to {C}), so the P->C edge
+      // is a latent dead end (force-set, bypassing the editor). Duplicating the
+      // group recreates `P -> C'` and re-validates P's full child set, which now
+      // dead-ends on the add-on. The error must be collected and surfaced as a
+      // warning rather than silently leaving a broken edge.
+      const group = await createTestGroup({ name: "Incoming bundle" });
+      const outsideParent = await createTestListing({ name: "External base" });
+      const child = await createTestListing({
+        groupId: group.id,
+        name: "Bundled add-on",
+      });
+      await setChildren(outsideParent.id, [child.id]);
+      // Add-on reachable only through the suppressed child — a dead end from the
+      // external parent's page.
+      await optInAddOnScopedTo("Child-only extra", [child.id]);
+
+      const { adminFormPost } = await import("#test-utils");
+      const { response } = await adminFormPost(
+        `/admin/groups/${group.id}/bulk-actions/duplicate`,
+        {
+          date_find: "",
+          date_replace: "",
+          name_find: "",
+          name_replace: "",
+          new_name: "Incoming bundle copy",
+        },
+      );
+      response.body?.cancel();
+
+      const newGroup = (await getAllGroups()).find(
+        (g) => g.name === "Incoming bundle copy",
+      )!;
+      const childCopy = (await getListingsByGroupId(newGroup.id)).find(
+        (l) => l.name === "Bundled add-on",
+      )!;
+      // The incoming edge `outsideParent -> childCopy` was NOT written (the full
+      // set re-validation failed), so the external parent keeps only its
+      // original child.
+      expect(await getChildIds(outsideParent.id)).toEqual([child.id]);
+      expect((await getChildIds(outsideParent.id)).includes(childCopy.id)).toBe(
+        false,
+      );
+      // A warning flash carries the reason.
+      const reason = t("listings_table.children_err_child_addon", {
+        addon: "Child-only extra",
+        name: "Bundled add-on",
+      });
+      const expected = t("listings_table.group_duplicate_children_dropped", {
+        reason,
+        success: `Duplicated 'Incoming bundle' to 'Incoming bundle copy' (1 listing(s))`,
+      });
+      await expectFlashRedirect(
+        `/admin/groups/${newGroup.id}`,
+        expected,
+        false,
+      )(response);
+    });
+
     test("a member-only-child group's cloned child 404s on its own ticket page (Fix 2)", async () => {
       // End-to-end consequence of Fix 2: the cloned child is a child, so its
       // standalone /ticket/<clonedChild> page must 404 (a booking can never start

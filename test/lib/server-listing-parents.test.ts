@@ -895,4 +895,232 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     res.body?.cancel();
     expect((await getListingWithCount(plain.id))?.active).toBe(false);
   });
+
+  test("the deactivate confirmation GET renders the orphaned-add-on error and does NOT redirect to itself (Fix 1)", async () => {
+    // Wiring the orphan guard as a `preValidate` made the confirmation GET
+    // redirect to /deactivate (its own URL) in a loop instead of rendering. The
+    // fix renders the page (200) WITH the error, and only the POST blocks. Here
+    // `thatPage` is the sole rescuer of a {child, thatPage}-scoped add-on.
+    const parent = await createTestListing({ name: "Base unit" });
+    const child = await createTestListing({ name: "Add-on" });
+    const thatPage = await createTestListing({ name: "Rescuing page" });
+    await postChildren(parent.id, [child.id]);
+    await optInAddOnForListings("Child-scoped extra", [child.id, thatPage.id]);
+
+    const { adminGet } = await import("#test-utils");
+    const { response } = await adminGet(
+      `/admin/listing/${thatPage.id}/deactivate`,
+    );
+    const body = await response.text();
+    // Renders the confirmation page (200), not a 302 back to itself.
+    expect(response.status).toBe(200);
+    expect(response.headers.get("location")).toBe(null);
+    const { t } = await import("#i18n");
+    expect(body).toContain(
+      t("modifiers.err_child_only_addon", { name: "Child-scoped extra" }),
+    );
+    // The listing is untouched by the GET.
+    expect((await getListingWithCount(thatPage.id))?.active).toBe(true);
+  });
+
+  test("deleting the only rescuing page of a {child, thatPage}-scoped add-on is blocked (Fix 2)", async () => {
+    // The delete path prunes edges but bypassed the reachability guard the
+    // deactivate paths use: deleting `thatPage` (the sole active non-child page
+    // of a {child, thatPage}-scoped opt-in add-on) would leave the add-on
+    // reachable only via the suppressed child. The HTML delete must block and
+    // keep the listing.
+    const parent = await createTestListing({ name: "Base unit" });
+    const child = await createTestListing({ name: "Add-on" });
+    const thatPage = await createTestListing({ name: "Rescuing page" });
+    await postChildren(parent.id, [child.id]);
+    await optInAddOnForListings("Child-scoped extra", [child.id, thatPage.id]);
+
+    const { handleRequest } = await import("#routes");
+    const session = await getTestSession();
+    const res = await handleRequest(
+      new Request(`http://localhost/admin/listing/${thatPage.id}/delete`, {
+        body: new URLSearchParams({
+          confirm_identifier: thatPage.name,
+          csrf_token: session.csrfToken,
+        }),
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+          cookie: session.cookie,
+          host: "localhost",
+        },
+        method: "POST",
+      }),
+    );
+    res.body?.cancel();
+    const { t } = await import("#i18n");
+    expectFlash(
+      res,
+      t("modifiers.err_child_only_addon", { name: "Child-scoped extra" }),
+      false,
+    );
+    // The listing is NOT deleted.
+    expect(await getListingWithCount(thatPage.id)).not.toBe(null);
+  });
+
+  test("the unverified direct delete (verify_identifier=false) is also blocked by the orphan guard (Fix 2)", async () => {
+    // The direct-delete branch (no typed-identifier confirmation) must run the
+    // same guard as the confirmed path: it shares no code with the confirmed
+    // handler, so it needs its own block.
+    const parent = await createTestListing({ name: "Base unit" });
+    const child = await createTestListing({ name: "Add-on" });
+    const thatPage = await createTestListing({ name: "Rescuing page" });
+    await postChildren(parent.id, [child.id]);
+    await optInAddOnForListings("Child-scoped extra", [child.id, thatPage.id]);
+
+    const { handleRequest } = await import("#routes");
+    const session = await getTestSession();
+    const res = await handleRequest(
+      new Request(
+        `http://localhost/admin/listing/${thatPage.id}/delete?verify_identifier=false`,
+        {
+          body: new URLSearchParams({ csrf_token: session.csrfToken }),
+          headers: {
+            "content-type": "application/x-www-form-urlencoded",
+            cookie: session.cookie,
+            host: "localhost",
+          },
+          method: "POST",
+        },
+      ),
+    );
+    res.body?.cancel();
+    const { t } = await import("#i18n");
+    expectFlash(
+      res,
+      t("modifiers.err_child_only_addon", { name: "Child-scoped extra" }),
+      false,
+    );
+    expect(await getListingWithCount(thatPage.id)).not.toBe(null);
+  });
+
+  test("API delete of the only rescuing page of a child add-on is blocked, leaving it (Fix 2)", async () => {
+    // The admin JSON API delete must run the same guard as the HTML delete.
+    const parent = await createTestListing({ name: "Base unit" });
+    const child = await createTestListing({ name: "Add-on" });
+    const thatPage = await createTestListing({ name: "Rescuing page" });
+    await postChildren(parent.id, [child.id]);
+    await optInAddOnForListings("Child-scoped extra", [child.id, thatPage.id]);
+
+    await assertJson(
+      apiRequest(`/api/admin/listings/${thatPage.id}`, {
+        body: { confirm_identifier: thatPage.name },
+        method: "DELETE",
+      }),
+      400,
+      (json) => {
+        expect(json.error).toContain("opt-in add-on reachable only through");
+      },
+    );
+    expect(await getListingWithCount(thatPage.id)).not.toBe(null);
+  });
+
+  test("deleting a listing unrelated to any child add-on still works (Fix 2)", async () => {
+    // The guard must not block an ordinary delete.
+    const plain = await createTestListing({ name: "Disposable" });
+    await assertJson(
+      apiRequest(`/api/admin/listings/${plain.id}`, {
+        body: { confirm_identifier: plain.name },
+        method: "DELETE",
+      }),
+      200,
+      (json) => {
+        expect(json.status).toBe("ok");
+      },
+    );
+    expect(await getListingWithCount(plain.id)).toBe(null);
+  });
+
+  test("API create of a parent in the same group as the child's group-scoped add-on is accepted (Fix 3)", async () => {
+    // The child carries a GROUP-scoped opt-in add-on. Creating a NEW parent in
+    // that same group must be ACCEPTED: the add-on is reachable from the new
+    // parent's own page once it joins the group. The old code validated against
+    // the placeholder id (never in the group) and wrongly rejected this.
+    const group = await createTestGroup({ name: "Bundle" });
+    const child = await createTestListing({
+      groupId: group.id,
+      name: "Add-on",
+    });
+    const modifier = await insertModifier({ name: "Group extra" });
+    await patchModifier(modifier.id, { scope: "groups", trigger: "optional" });
+    await linkModifierGroup(modifier.id, group.id);
+
+    const newId = await apiCreateListing({
+      child_listing_ids: [child.id],
+      group_id: group.id,
+      listing_type: "standard",
+      max_attendees: 10,
+      name: "New base unit",
+    });
+    expect(await getChildIds(newId)).toEqual([child.id]);
+  });
+
+  test("API update moving a parent's group so the add-on becomes unreachable is rejected (Fix 3)", async () => {
+    // The add-on is group-scoped to the parent+child's group, so it's reachable
+    // from the parent's page. A single PUT that BOTH moves the parent to another
+    // group AND (re)sets the child edge must be judged against the would-be
+    // group: after the move the add-on resolves to {child} only, a dead end —
+    // so the update must be rejected and nothing persisted.
+    const group = await createTestGroup({ name: "Bundle" });
+    const otherGroup = await createTestGroup({ name: "Elsewhere" });
+    const parent = await createTestListing({
+      groupId: group.id,
+      name: "Base unit",
+    });
+    const child = await createTestListing({
+      groupId: group.id,
+      name: "Add-on",
+    });
+    const modifier = await insertModifier({ name: "Group extra" });
+    await patchModifier(modifier.id, { scope: "groups", trigger: "optional" });
+    await linkModifierGroup(modifier.id, group.id);
+    await postChildren(parent.id, [child.id]);
+
+    await assertJson(
+      apiRequest(`/api/admin/listings/${parent.id}`, {
+        body: { child_listing_ids: [child.id], group_id: otherGroup.id },
+        method: "PUT",
+      }),
+      400,
+      (json) => {
+        expect(json.error).toContain("Group extra");
+      },
+    );
+    // Neither the group move nor the edge change is partially applied; the
+    // existing edge is preserved and the parent stays in its group.
+    expect((await getListingWithCount(parent.id))?.group_id).toBe(group.id);
+    expect(await getChildIds(parent.id)).toEqual([child.id]);
+  });
+
+  test("duplicate child_listing_ids collapse to a single edge with no error (Fix 4)", async () => {
+    // `validateChildEdges` keeps duplicate ids unless deduped, so `[child,child]`
+    // would make `setChildIds` insert two `(parent, child)` rows and violate the
+    // unique index — and on the API side-effect path that happens after the row
+    // write (a partial change). The cleaned set must be unique.
+    const parent = await createTestListing({ name: "Base unit" });
+    const child = await createTestListing({ name: "Add-on" });
+    await assertJson(
+      apiRequest(`/api/admin/listings/${parent.id}`, {
+        body: { child_listing_ids: [child.id, child.id] },
+        method: "PUT",
+      }),
+      200,
+    );
+    // Exactly one edge, no error, no partial write.
+    expect(await getChildIds(parent.id)).toEqual([child.id]);
+  });
+
+  test("duplicate child_listing_ids in the HTML children form collapse to one edge (Fix 4)", async () => {
+    // The same dedupe applies to repeated form values.
+    const parent = await createTestListing({ name: "Base unit" });
+    const child = await createTestListing({ name: "Add-on" });
+    const res = await postChildren(parent.id, [child.id, child.id]);
+    res.body?.cancel();
+    expectFlash(res, "Required children updated");
+    expect(await getChildIds(parent.id)).toEqual([child.id]);
+  });
 });

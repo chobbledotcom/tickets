@@ -21,6 +21,7 @@ import {
   listingsTable,
 } from "#shared/db/listings.ts";
 import {
+  deleteOrphanedAddOnError,
   generateUniqueListingSlug,
   listingInputToEdge,
   performListingDelete,
@@ -303,6 +304,11 @@ const handleDeleteListing: RouteHandlerFn = (request, { listingId }) =>
       "Listing name",
     );
     if (error) return apiErrorResponse(error);
+    // Same orphaned-add-on guard the HTML delete uses (parents.md Fix 2): reject
+    // a delete that would leave a child-scoped add-on reachable only through a
+    // suppressed child, with the same 400 + error as the deactivate API.
+    const orphanError = await deleteOrphanedAddOnError(listing.id);
+    if (orphanError) return apiErrorResponse(orphanError);
     await performListingDelete(listing);
     return jsonResponse({ status: "ok" });
   });
@@ -391,9 +397,16 @@ const prepareChildEdges = async (
   const submitted = submittedChildIds(body);
   if ("skip" in submitted) return { value: null };
   if ("error" in submitted) return submitted;
+  // Resolve add-on reachability against the POST-SAVE listing set: apply the
+  // submitted `group_id` to the parent in an in-memory listing set so a parent
+  // created/moved into the same group as a child's group-scoped add-on is judged
+  // by its would-be group, not the live table that ignores `group_id` (Fix 4).
+  // On create the row doesn't exist yet, so the would-be group still applies to
+  // the placeholder id (no live group membership to mislead the check).
   const result = await validateChildEdges(
     listingInputToEdge(input, existing?.id ?? UNCREATED_PARENT_ID),
     submitted.childIds,
+    { wouldBeGroupId: input.groupId ?? 0 },
   );
   return result.ok ? { value: result.childIds } : { error: result.error };
 };

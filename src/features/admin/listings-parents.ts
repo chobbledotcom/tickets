@@ -3,6 +3,7 @@
  * section on the listing edit page + its save endpoint).
  */
 
+import { unique } from "#fp";
 import { t } from "#i18n";
 /* jscpd:ignore-start */
 import { AUTH_FORM, withAuth } from "#routes/auth.ts";
@@ -21,7 +22,10 @@ import {
   getListingsById,
   getListingWithCount,
 } from "#shared/db/listings.ts";
-import { childOnlyAddOnName } from "#shared/db/modifier-resolve.ts";
+import {
+  childOnlyAddOnName,
+  childOnlyAddOnNameForListings,
+} from "#shared/db/modifier-resolve.ts";
 import {
   type EdgeListing,
   edgeFieldError,
@@ -68,10 +72,21 @@ export const loadListingParentsSection = async (
  * edges, so a listing that is itself a child can still save its blank children
  * form, and a stuck nested state can be cleared.
  */
+/** Resolve the name of an opt-in add-on that `childId` would orphan from a
+ * parent page of `pageIds`, or null. The default resolves add-on scopes from the
+ * LIVE listings table (the HTML children form, where the parent row's `group_id`
+ * is already persisted); the admin API supplies a would-be variant that resolves
+ * against an in-memory listing set carrying the submitted `group_id` (Fix 4). */
+type ChildOnlyAddOnResolver = (
+  childId: number,
+  pageIds: readonly number[],
+) => Promise<string | null>;
+
 const childEdgeError = async (
   parent: EdgeListing,
   parentIsChild: boolean,
   children: { listing: ListingWithCount; isParent: boolean }[],
+  resolveChildOnlyAddOn: ChildOnlyAddOnResolver,
 ): Promise<string | null> => {
   if (children.length === 0) return null;
   if (parentIsChild) {
@@ -93,7 +108,7 @@ const childEdgeError = async (
     if (fieldError) return fieldError;
     // v1 has no child-scoped add-on render/parse path, so an add-on reachable
     // only through the suppressed child would become a dead end — hard block it.
-    const addOn = await childOnlyAddOnName(listing.id, pageIds);
+    const addOn = await resolveChildOnlyAddOn(listing.id, pageIds);
     if (addOn) {
       return t("listings_table.children_err_child_addon", {
         addon: addOn,
@@ -125,26 +140,78 @@ export type ChildEdgeValidation =
  * reference it, so the self-edge / nesting / add-on-reachability checks behave
  * exactly as for a not-yet-existing parent).
  */
+/**
+ * Optional would-be group context for the admin JSON API (Fix 4): the parent's
+ * submitted `group_id`, applied to an in-memory listing set so a group-scoped
+ * add-on's reachability is resolved against the move the save is about to make
+ * (the live `modifier_groups`→`listings` join can't yet see it). Omitted by the
+ * HTML children form, whose parent row already carries its live `group_id`.
+ */
+export type ChildEdgeOptions = { wouldBeGroupId: number };
+
+/** Build the add-on resolver for a child-edge validation: the live-table check
+ * for the HTML form, or the in-memory would-be-group check for the admin API
+ * (Fix 4), mirroring {@link orphanedAddOnAfterChange}'s would-be approach.
+ *
+ * The would-be set carries the parent at its **submitted** `group_id`: an
+ * existing parent has its group remapped in place; a not-yet-created parent
+ * (placeholder id) is **appended** so it sits in that group too — otherwise a
+ * group-scoped add-on's in-memory scope (the group's member listings) wouldn't
+ * include the new parent and the add-on would look unreachable from its page,
+ * wrongly rejecting a create into the add-on's own group. */
+const childOnlyAddOnResolver = async (
+  parent: EdgeListing,
+  options: ChildEdgeOptions | undefined,
+): Promise<ChildOnlyAddOnResolver> => {
+  if (!options) return childOnlyAddOnName;
+  const live = await getAllListings();
+  const hasParent = live.some((listing) => listing.id === parent.id);
+  const withGroup = (group_id: number) => ({ group_id, id: parent.id });
+  const allListings: Pick<ListingWithCount, "id" | "group_id">[] = hasParent
+    ? live.map((listing) =>
+        listing.id === parent.id
+          ? { ...listing, group_id: options.wouldBeGroupId }
+          : listing,
+      )
+    : [...live, withGroup(options.wouldBeGroupId)];
+  return (childId, pageIds) =>
+    childOnlyAddOnNameForListings(childId, pageIds, allListings);
+};
+
 export const validateChildEdges = async (
   parent: EdgeListing,
   submittedChildIds: readonly number[],
+  options?: ChildEdgeOptions,
 ): Promise<ChildEdgeValidation> => {
   const byId = await getListingsById();
-  // Drop self-edges and unknown ids.
-  const childIds = submittedChildIds.filter(
-    (childId) => childId !== parent.id && byId.has(childId),
+  // Drop self-edges and unknown ids, then collapse duplicates (preserving order):
+  // a repeated child id (API body `[7,7]` or repeated form values) would make
+  // `setChildIds` insert two `(parent, child)` rows and violate the unique index
+  // — and on the API side-effect path that happens AFTER the row write, a partial
+  // change (Fix 4). Dedupe once here so validation and persist agree.
+  const childIds = unique(
+    submittedChildIds.filter(
+      (childId) => childId !== parent.id && byId.has(childId),
+    ),
   );
   // Load nesting state: whether this listing is already a child, and which
   // chosen children are themselves parents.
-  const [parentIds, ...childChildIds] = await Promise.all([
-    getParentIds(parent.id),
-    ...childIds.map((childId) => getChildIds(childId)),
-  ]);
+  const [parentIds, resolveChildOnlyAddOn, ...childChildIds] =
+    await Promise.all([
+      getParentIds(parent.id),
+      childOnlyAddOnResolver(parent, options),
+      ...childIds.map((childId) => getChildIds(childId)),
+    ]);
   const children = childIds.map((childId, index) => ({
     isParent: childChildIds[index]!.length > 0,
     listing: byId.get(childId)!,
   }));
-  const error = await childEdgeError(parent, parentIds.length > 0, children);
+  const error = await childEdgeError(
+    parent,
+    parentIds.length > 0,
+    children,
+    resolveChildOnlyAddOn,
+  );
   return error ? { error, ok: false } : { childIds, ok: true };
 };
 
@@ -183,15 +250,17 @@ export const copyDuplicatedChildEdges = async (
  * so an external parent gaining a cloned child must keep its current children
  * too — otherwise remapping would clobber the original gate it already had. The
  * additions are freshly-cloned ids, always disjoint from the parent's existing
- * children, so a plain concatenation can't collide on the unique edge index. */
+ * children, so a plain concatenation can't collide on the unique edge index.
+ * Returns the validation error (propagated for the group-duplicate warning, Fix
+ * 5) or null. */
 const addChildrenToParent = async (
   parentId: number,
   addChildIds: readonly number[],
-): Promise<void> => {
+): Promise<string | null> => {
   // The parent always loads (it is a real listing referenced by an existing edge).
   const parent = (await getListingWithCount(parentId))!;
   const existing = await getChildIds(parentId);
-  await copyDuplicatedChildEdges(parent, [...existing, ...addChildIds]);
+  return copyDuplicatedChildEdges(parent, [...existing, ...addChildIds]);
 };
 
 /**
@@ -214,10 +283,18 @@ const addChildrenToParent = async (
  * Each remapped/added set is written through the validated
  * {@link copyDuplicatedChildEdges} path. A no-op when no cloned member touches an
  * edge.
+ *
+ * Returns the **distinct** edge-copy validation errors collected across both
+ * walks (Fix 5): {@link copyDuplicatedChildEdges} returns (rather than throws)
+ * when a cloned parent's edge set fails validation, so a clone can be left
+ * gateless while the bulk duplicate otherwise succeeds. Surfacing these lets the
+ * caller warn the operator instead of silently producing a gateless standalone
+ * clone. An empty array means every edge copied cleanly.
  */
 export const remapDuplicatedGroupEdges = async (
   idMap: ReadonlyMap<number, number>,
-): Promise<void> => {
+): Promise<string[]> => {
+  const errors: string[] = [];
   // Direction 1: outgoing edges of each cloned parent.
   for (const [sourceId, newId] of idMap) {
     const sourceChildIds = await getChildIds(sourceId);
@@ -227,7 +304,8 @@ export const remapDuplicatedGroupEdges = async (
     );
     // `newId` is a clone just inserted in this request, so it always loads.
     const newParent = (await getListingWithCount(newId))!;
-    await copyDuplicatedChildEdges(newParent, remapped);
+    const error = await copyDuplicatedChildEdges(newParent, remapped);
+    if (error) errors.push(error);
   }
   // Direction 2: incoming edges of each cloned child whose parent is OUTSIDE the
   // group (an inside parent is already handled above). Collect every
@@ -244,11 +322,13 @@ export const remapDuplicatedGroupEdges = async (
   }
   const byOutsideParent = Map.groupBy(outsidePairs, (pair) => pair.parentId);
   for (const [parentId, pairs] of byOutsideParent) {
-    await addChildrenToParent(
+    const error = await addChildrenToParent(
       parentId,
       pairs.map((pair) => pair.cloneId),
     );
+    if (error) errors.push(error);
   }
+  return unique(errors);
 };
 
 /** Handle POST /admin/listing/:id/children (set the required child listings). */
