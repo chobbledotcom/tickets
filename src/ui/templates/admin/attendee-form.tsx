@@ -706,6 +706,12 @@ const StatusAndBalanceFields = ({
           payment link clears it automatically when they pay.
         </small>
       </label>
+      <div class="error" role="alert">
+        Changing the outstanding balance posts a correcting entry to the money
+        ledger — the source of truth for what is owed. Corrections are appended,
+        never destructive: only the difference from the current figure is
+        recorded as a write-off adjustment.
+      </div>
     </>
   );
 };

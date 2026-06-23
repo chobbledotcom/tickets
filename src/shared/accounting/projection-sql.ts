@@ -42,6 +42,31 @@ export const sumAmountFromTransfers = (where: string, alias: string): string =>
   `(SELECT COALESCE(SUM(amount), 0) FROM transfers WHERE ${where}) AS ${alias}`;
 
 /**
+ * A scalar subquery for the GROSS credits to an account *minus* only its
+ * write-off debits, aliased `alias`. Income is the gross sum of revenue credits
+ * (deliberately NOT `balanceOf`, so an ordinary refund — `revenue:L→attendee` —
+ * does not reduce it, matching the legacy `SUM(price_paid)`), but a *manual*
+ * write-off (`revenue:L→writeoff`, decision 14) must lower it. So this sums the
+ * dest-side credits and subtracts the amounts the account paid out specifically
+ * to the `writeoff` contra account, ignoring every other source-side leg. With
+ * zero `writeoff` legs (production today) it equals the plain gross credit sum.
+ * `idExpr` is the SQL for the account id in the surrounding query.
+ */
+export const creditsLessWriteoffDebits = (
+  type: string,
+  idExpr: string,
+  alias: string,
+): string => {
+  const credited = accountPredicate("dest", type, idExpr);
+  const writtenOff = `${accountPredicate("source", type, idExpr)} AND dest_type = 'writeoff'`;
+  return (
+    "(SELECT COALESCE(SUM(" +
+    `CASE WHEN ${credited} THEN amount WHEN ${writtenOff} THEN -amount ELSE 0 END` +
+    `), 0) FROM transfers WHERE ${credited} OR ${writtenOff}) AS ${alias}`
+  );
+};
+
+/**
  * A *bare* scalar subquery (no alias) for an account's net ledger balance: money
  * in as the destination minus money out as the source — the same signed sum the
  * TS-side `balanceOf` computes. The caller names it and chooses the sign: a

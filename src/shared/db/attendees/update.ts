@@ -3,15 +3,13 @@
  */
 
 import { filter, map, pipe, reduce, sumOf, unique } from "#fp";
-import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
+import { attendeeAccount } from "#shared/accounting/accounts.ts";
+import { postWriteoffAdjustment } from "#shared/accounting/adjustments.ts";
 import { accountBalance } from "#shared/accounting/queries.ts";
-import { eventGroup, legReference } from "#shared/accounting/refs.ts";
-import { postTransfers } from "#shared/accounting/store.ts";
 import type { UpdateAttendeePIIInput } from "#shared/db/attendee-types.ts";
 import { buildPiiBlob, encryptPiiBlob } from "#shared/db/attendees/pii.ts";
 import { execute, queryAll } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
-import { nowIso } from "#shared/now.ts";
 import { normalizeDurationDays } from "#shared/types.ts";
 
 /** Update a per-listing status field on listing_attendees */
@@ -38,17 +36,22 @@ export const updateCheckedIn = (
 
 /**
  * Reconcile an attendee's ledger-projected outstanding balance to `target` by
- * posting a single adjustment leg for the difference, so the operator-set figure
- * survives now that the balance projects from the ledger (−balanceOf(attendee))
- * rather than a stored column. An increase bills the attendee (`attendee→world`),
- * a decrease credits them (`world→attendee`); a no-op (target already owed) posts
- * nothing. The legs touch only the attendee and external accounts — never a
- * listing's revenue account — so a manual correction never moves listing income
- * or a booking row's projected amount paid, only what is owed.
+ * posting a single `adjustment` leg for the difference against the `writeoff`
+ * contra-revenue account (decision 14), so the operator-set figure survives now
+ * that the balance projects from the ledger (−balanceOf(attendee)) rather than a
+ * stored column. A no-op (target already owed) posts nothing.
  *
- * Each save is its own business event (a fresh `nowIso()` group), so editing the
- * balance up, down, then back up again posts three distinct adjustments rather
- * than colliding with an earlier event's references.
+ * Outstanding = −balanceOf(attendee), so `owed = -balance`. To move owed onto
+ * `target` we credit the attendee account by `owed − target` in
+ * {@link postWriteoffAdjustment}'s terms: raising what's owed (target > owed) is a
+ * negative delta ⇒ `attendee → writeoff` debit ⇒ balanceOf(attendee) drops ⇒
+ * owed = −balanceOf rises; lowering it credits the attendee from writeoff. The
+ * correction never touches external cash or a listing's revenue account, so it
+ * moves only what is owed — cash reports (`world→*`) stay honest.
+ *
+ * Each save is its own business event (the poster mixes in a fresh `nowIso()`),
+ * so editing the balance up, down, then back up again posts three distinct
+ * adjustments rather than colliding with an earlier event's references.
  */
 const reconcileLedgerBalance = async (
   attendeeId: number,
@@ -56,22 +59,9 @@ const reconcileLedgerBalance = async (
 ): Promise<void> => {
   const attendee = attendeeAccount(attendeeId);
   const owed = -(await accountBalance(attendee));
-  const delta = target - owed;
-  if (delta === 0) return;
-  const occurredAt = nowIso();
-  const group = await eventGroup(["balance-adjust", attendeeId, occurredAt]);
-  await postTransfers([
-    {
-      amount: Math.abs(delta),
-      // Owing more bills the attendee (out to the world); owing less credits
-      // them back from the world — either way no revenue account is touched.
-      destination: delta > 0 ? WORLD : attendee,
-      eventGroup: group,
-      kind: "adjustment",
-      occurredAt,
-      reference: await legReference(["balance-adjust", attendeeId, occurredAt]),
-      source: delta > 0 ? attendee : WORLD,
-    },
+  await postWriteoffAdjustment(attendee, owed - target, [
+    "balance-adjust",
+    attendeeId,
   ]);
 };
 

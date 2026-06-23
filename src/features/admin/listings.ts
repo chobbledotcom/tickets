@@ -14,6 +14,7 @@ import {
   handleAdminListingDuplicateGet,
   handleAdminListingEditGet,
   handleAdminListingEditPost,
+  handleAdminListingIncomePost,
   handleCreateListing,
   handleNewListingGet,
 } from "./listings-edit.ts";
@@ -60,6 +61,7 @@ export const listingsRoutes = {
     "POST /admin/listing/:id/delete": handleAdminListingDelete,
     "POST /admin/listing/:id/edit": handleAdminListingEditPost,
     "POST /admin/listing/:id/image/delete": handleImageDelete,
+    "POST /admin/listing/:id/income": handleAdminListingIncomePost,
     "POST /admin/listings/recalculate/:listingId": handleListingRecalculatePost,
   }),
 };

@@ -30,6 +30,7 @@ import {
   modifierAccount,
   revenueAccount,
   WORLD,
+  WRITEOFF,
 } from "#shared/accounting/accounts.ts";
 import {
   allTransfers,
@@ -120,6 +121,7 @@ export const accountFromRoute = (
 ): AccountRef | null => {
   if (type === "external") return WORLD;
   if (type === "fee_income") return BOOKING_FEE_INCOME;
+  if (type === "writeoff") return WRITEOFF;
   const makeAccount = ROW_ACCOUNT_CONSTRUCTORS[type];
   if (!makeAccount) return null;
   const numericId = Number(ref);

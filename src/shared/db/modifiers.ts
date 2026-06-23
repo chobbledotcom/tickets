@@ -7,6 +7,8 @@
  * the table directly without a cache.
  */
 
+import { modifierAccount } from "#shared/accounting/accounts.ts";
+import { postWriteoffAdjustment } from "#shared/accounting/adjustments.ts";
 import { accountBalanceSubquery } from "#shared/accounting/projection-sql.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import {
@@ -180,6 +182,26 @@ export const updateModifierAggregateValues = async (
     [values.total_uses, values.usage_count, modifierId],
   );
 };
+
+/**
+ * Correct a modifier's projected revenue to `targetRevenue` by posting one manual
+ * `writeoff` adjustment for the difference from the current projection
+ * (decision 14). Revenue is `balanceOf(modifier:M)`, so raising it credits the
+ * modifier account (`writeoff → modifier`) and lowering it debits it
+ * (`modifier → writeoff`); the signed balance moves by the delta either way.
+ * `currentRevenue` is the figure already projected for the modifier. A no-op
+ * (target equals current) posts nothing.
+ */
+export const adjustModifierRevenue = (
+  modifierId: number,
+  currentRevenue: number,
+  targetRevenue: number,
+): Promise<void> =>
+  postWriteoffAdjustment(
+    modifierAccount(modifierId),
+    targetRevenue - currentRevenue,
+    ["modifier-revenue-adjust", modifierId],
+  );
 
 const aggregateResetSql: Record<ModifierAggregateField, string> = {
   total_uses:

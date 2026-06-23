@@ -4,10 +4,9 @@
 
 import type { InValue, ResultSet } from "@libsql/client";
 import { mapParallel, reduce, sort, unique } from "#fp";
-import {
-  accountPredicate,
-  sumAmountFromTransfers,
-} from "#shared/accounting/projection-sql.ts";
+import { revenueAccount } from "#shared/accounting/accounts.ts";
+import { postWriteoffAdjustment } from "#shared/accounting/adjustments.ts";
+import { creditsLessWriteoffDebits } from "#shared/accounting/projection-sql.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { addDays } from "#shared/dates.ts";
@@ -201,16 +200,21 @@ const rawListingsTable = defineIdTable<Listing, ListingInput>("listings", {
 });
 
 /**
- * Subquery projecting a listing's GROSS income from the ledger: the sum of every
- * revenue-recognising leg credited to the listing's `revenue` account (decision
- * matching what admins see per job). `idExpr` is the SQL for the listing's id in
- * the surrounding query (e.g. `listing.id` or `listings.id`). Shared by
+ * Subquery projecting a listing's income from the ledger: the GROSS sum of every
+ * revenue-recognising leg credited to the listing's `revenue` account, minus
+ * manual write-offs (a `revenue:L → writeoff` adjustment from decision 14). It is
+ * deliberately NOT `balanceOf(revenue:L)`, so an ordinary refund
+ * (`revenue:L → attendee`) does NOT reduce income — matching the legacy
+ * `SUM(price_paid)` admins saw — while a deliberate manual correction does. With
+ * no `writeoff` legs (production today) it equals the plain gross credit sum, so
+ * the refinement is backward-compatible. `idExpr` is the SQL for the listing's id
+ * in the surrounding query (e.g. `listing.id` or `listings.id`). Shared by
  * {@link LISTING_COUNT_SELECT} and the batch `SELECT *` loaders so income is read
  * from the ledger in exactly one place, never off the now-dropped column. The
  * trailing `AS income` names the projected column.
  */
 export const listingIncomeSubquery = (idExpr: string): string =>
-  sumAmountFromTransfers(accountPredicate("dest", "revenue", idExpr), "income");
+  creditsLessWriteoffDebits("revenue", idExpr, "income");
 
 /** SELECT projecting each listing plus its booked-quantity count. Callers
  * append their own WHERE and {@link LISTING_COUNT_GROUP_BY}. Shared by the
@@ -497,6 +501,26 @@ export const updateListingAggregateValues = async (
     [values.booked_quantity, values.tickets_count, listingId],
   );
 };
+
+/**
+ * Correct a listing's projected income to `targetIncome` by posting one manual
+ * `writeoff` adjustment for the difference from the current projection
+ * (decision 14). Raising income credits `revenue:L` (`writeoff → revenue`), which
+ * the gross-credits sum counts, so income rises; lowering it debits
+ * `revenue:L → writeoff`, which {@link listingIncomeSubquery} subtracts, so income
+ * falls. `currentIncome` is the figure already projected for the listing. A no-op
+ * (target equals current) posts nothing.
+ */
+export const adjustListingIncome = (
+  listingId: number,
+  currentIncome: number,
+  targetIncome: number,
+): Promise<void> =>
+  postWriteoffAdjustment(
+    revenueAccount(listingId),
+    targetIncome - currentIncome,
+    ["income-adjust", listingId],
+  );
 
 const aggregateResetSql: Record<ListingAggregateField, string> = {
   booked_quantity:

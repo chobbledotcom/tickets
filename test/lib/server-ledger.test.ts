@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { postTransfers } from "#shared/accounting/store.ts";
+import { adjustListingIncome } from "#shared/db/listings.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import { account } from "#shared/ledger/account.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
@@ -166,6 +167,25 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
     expect(response.status).toBe(200);
     const html = await response.text();
     expect(html).toContain("Booking fees");
+  });
+
+  test("renders the writeoff contra-revenue statement", async () => {
+    // A manual income correction posts a leg against writeoff:default, so its
+    // statement must resolve (the singleton's label is admin.ledger.account.writeoff).
+    const listing = await createTestListing({
+      maxAttendees: 10,
+      name: "Adjusted",
+      thankYouUrl: "https://example.com",
+    });
+    await adjustListingIncome(listing.id, 0, 1500);
+    const { response } = await adminGet("/admin/ledger/writeoff/default");
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(html).toContain("Account statement");
+    // The writeoff singleton renders its label, not a raw "writeoff:default".
+    expect(html).toContain("Write-off");
+    // The correction's counterparty is the listing's revenue account.
+    expect(html).toContain("Adjusted");
   });
 
   test("includes a refunded attendee's reversal legs in their statement", async () => {

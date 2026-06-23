@@ -143,10 +143,25 @@ describe("adminListingEditPage form sections", () => {
     expect(html).toContain('value="7"');
     expect(html).toContain('name="tickets_count"');
     expect(html).toContain('value="3"');
-    // Income is no longer an override-managed aggregate (it's projected from the
-    // ledger), so the running-totals form must not render an income field.
-    expect(html).not.toContain('name="income"');
+    // Income is not a count override in the running-totals form — that form keeps
+    // only the two count aggregates, which post to the recalculate route.
+    const totalsForm = html.slice(
+      html.indexOf("<legend>Running totals</legend>"),
+      html.indexOf("Adjust income"),
+    );
+    expect(totalsForm).not.toContain('name="income"');
     expect(html).toContain(`/admin/listings/recalculate/${listing.id}`);
+  });
+
+  test("renders the separate income-correction form (decision 14)", () => {
+    const listing = testListingWithCount();
+    const html = adminListingEditPage(listing, [], TEST_SESSION);
+    // Income correction is restored as a dedicated warned form that posts a
+    // writeoff adjustment to the money ledger, kept apart from the counts override.
+    expect(html).toContain("<h2>Adjust income</h2>");
+    expect(html).toContain(`action="/admin/listing/${listing.id}/income"`);
+    expect(html).toContain('name="income"');
+    expect(html).toContain("correcting entry to the money ledger");
   });
 
   test("shows a running-total mismatch on the edit page", () => {

@@ -1310,6 +1310,49 @@ export const listingAggregateToFieldValues = (
   tickets_count: listing.tickets_count,
 });
 
+/**
+ * Money-correction section, kept separate from the counts override ("splits by
+ * kind", decision 14). Shows the current projected income (read-only) and an
+ * input for the corrected value; submitting posts a `writeoff` adjustment for the
+ * difference to the source-of-truth money ledger. A prominent warning states the
+ * entry is appended, not destructive. Its own CsrfForm, so it posts independently
+ * of the main edit form.
+ */
+const ListingIncomeAdjustSection = ({
+  listing,
+}: {
+  listing: ListingWithCount;
+}): JSX.Element => (
+  <CsrfForm
+    action={`/admin/listing/${listing.id}/income`}
+    class="listing-section"
+  >
+    <h2>{t("listings_table.adjust_income")}</h2>
+    <div class="error" role="alert">
+      {t("listings_table.adjust_income_warning")}
+    </div>
+    <label>
+      {t("listings_table.adjust_income_current")}
+      <input disabled type="text" value={formatCurrency(listing.income)} />
+    </label>
+    <label for="income">
+      {t("listings_table.adjust_income_new_label")}
+      <input
+        id="income"
+        inputmode="decimal"
+        min="0"
+        name="income"
+        step="0.01"
+        type="number"
+        value={toMajorUnits(listing.income)}
+      />
+    </label>
+    <SubmitButton icon="save">
+      {t("listings_table.adjust_income_submit")}
+    </SubmitButton>
+  </CsrfForm>
+);
+
 const ListingRunningTotalsSection = ({
   aggregateRecalculation,
   listing,
@@ -1744,6 +1787,7 @@ export const adminListingEditPage = (
           {t("common.save_changes")}
         </SubmitButton>
       </CsrfForm>
+      <ListingIncomeAdjustSection listing={listing} />
       {storageEnabled && listing.image_url && (
         <CsrfForm action={`/admin/listing/${listing.id}/image/delete`}>
           <SubmitButton class="secondary" icon="trash-2">

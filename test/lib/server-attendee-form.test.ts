@@ -1428,6 +1428,14 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
       expect(html).not.toContain("paid status but still owes");
     });
 
+    test("the outstanding-balance field warns that edits post to the money ledger", async () => {
+      // Decision 14: changing the balance now posts a writeoff correction to the
+      // source-of-truth ledger, so the field carries a prominent warning.
+      const id = await seedAttendee(null, 0);
+      const html = await getEdit(id);
+      expect(html).toContain("correcting entry to the money ledger");
+    });
+
     test("edit page shows the attendee's status as a heading when multiple statuses exist", async () => {
       const reservation = await newReservation();
       const id = await seedAttendee(reservation.id, 900);

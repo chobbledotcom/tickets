@@ -12,12 +12,22 @@ const REVENUE = "revenue";
 const MODIFIER = "modifier";
 const FEE_INCOME = "fee_income";
 const EXTERNAL = "external";
+const WRITEOFF_TYPE = "writeoff";
 
 /** The outside world — cash in via cards/bank, the source of every payment. */
 export const WORLD: AccountRef = account(EXTERNAL, "world");
 
 /** The operator's booking-fee income. */
 export const BOOKING_FEE_INCOME: AccountRef = account(FEE_INCOME, "booking");
+
+/**
+ * Contra-revenue: manual corrections and comps source/sink here so cash reports
+ * — `world→*` — stay honest. A manual money correction posts an `adjustment` leg
+ * against this account (never external cash), so adjusting a listing's income, a
+ * modifier's revenue, or an attendee's balance moves the recognised figure
+ * without booking a phantom payment in or out of the world.
+ */
+export const WRITEOFF: AccountRef = account(WRITEOFF_TYPE, "default");
 
 /**
  * Build the account constructor for one type of row-backed account. The row id

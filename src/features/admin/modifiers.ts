@@ -26,6 +26,7 @@ import { logActivity } from "#shared/db/activityLog.ts";
 import { getAllGroups } from "#shared/db/groups.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import {
+  adjustModifierRevenue,
   getAllModifiers,
   getModifier,
   getModifierAggregateRecalculation,
@@ -75,6 +76,7 @@ import type {
 } from "#templates/fields.ts";
 import { modifierAggregateFields, modifierFields } from "#templates/fields.ts";
 import { withEntityLoader } from "./entity-handlers.ts";
+import { makeMoneyAdjustHandler } from "./money-adjust.ts";
 
 /* jscpd:ignore-end */
 
@@ -268,6 +270,28 @@ const handleEditPost: TypedRouteHandler<"POST /admin/modifiers/:id/edit"> = (
     return errorRedirect(`/admin/modifiers/${id}/edit`, result.error);
   });
 
+/**
+ * Handle POST /admin/modifiers/:id/revenue — post a manual `writeoff` adjustment
+ * so the modifier's projected revenue matches the owner-entered figure
+ * (decision 14). Owner-only; the delta is computed from the modifier's current
+ * projected `total_revenue` (which may be negative for a net discount).
+ */
+const adjustModifierRevenueForm = makeMoneyAdjustHandler<Modifier>({
+  adjust: (modifier, current, target) =>
+    adjustModifierRevenue(modifier.id, current, target),
+  current: (modifier) => modifier.total_revenue,
+  editPath: (id) => `/admin/modifiers/${id}/edit`,
+  field: "total_revenue",
+  load: getModifier,
+  logMessage: (modifier) => `Modifier '${modifier.name}' revenue adjusted`,
+  successMessage: t("modifiers.adjust_revenue_success"),
+});
+
+/** Handle POST /admin/modifiers/:id/revenue */
+const handleRevenueAdjust: TypedRouteHandler<
+  "POST /admin/modifiers/:id/revenue"
+> = (request, { id }) => adjustModifierRevenueForm(request, id);
+
 const renderModifierRecalculatePage = createRecalculatePageRenderer(
   getModifierAggregateRecalculation,
   adminModifierRecalculatePage,
@@ -381,6 +405,7 @@ export const modifiersRoutes = {
     "POST /admin/modifiers/:id/answers": handleAnswerLinks,
     "POST /admin/modifiers/:id/edit": handleEditPost,
     "POST /admin/modifiers/:id/links": handleScopeLinks,
+    "POST /admin/modifiers/:id/revenue": handleRevenueAdjust,
     "POST /admin/modifiers/recalculate/:modifierId":
       handleModifierRecalculatePost,
   }),

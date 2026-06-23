@@ -108,6 +108,12 @@
   "listings_table.recalculate_choose": "Choose at least one total to recalculate",
   "listings_table.recalculate_save": "Save recalculated totals",
   "listings_table.recalculate_success": "Listing totals recalculated",
+  "listings_table.adjust_income": "Adjust income",
+  "listings_table.adjust_income_current": "Current income",
+  "listings_table.adjust_income_new_label": "Corrected income",
+  "listings_table.adjust_income_warning": "This posts a correcting entry to the money ledger — the source of truth for income. Corrections are appended, never destructive: the difference from the current figure is recorded as a write-off adjustment. It does not change any booking's payment.",
+  "listings_table.adjust_income_submit": "Post income correction",
+  "listings_table.adjust_income_success": "Listing income adjusted",
   "listings_table.duration_warning_message": "Changing booking duration will update existing bookings for this listing.",
   "listings_table.i_understand": "I understand",
   "listings_table.recalculate_description": "Compare the stored listing totals with totals counted from attendee records. Select only the stored values you want to replace."

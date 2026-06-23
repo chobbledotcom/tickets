@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { getDb } from "#shared/db/client.ts";
 import { MIGRATIONS } from "#shared/db/migrations.ts";
 import {
+  adjustModifierRevenue,
   getActiveModifiers,
   getAllModifiers,
   getModifierAggregateRecalculation,
@@ -189,6 +190,35 @@ describeWithEnv(
       await postModifierLeg({ delta: 2500, modifierId: m.id });
       const active = await getActiveModifiers();
       expect(active.find((row) => row.id === m.id)?.total_revenue).toBe(2500);
+    });
+
+    test("raising revenue via the correction path moves the projection up by the delta", async () => {
+      const m = await makeModifier();
+      await postModifierLeg({ delta: 1000, modifierId: m.id });
+      expect(await projectedRevenue(m.id)).toBe(1000);
+
+      // Correcting revenue up credits the modifier account (writeoff→modifier),
+      // so balanceOf(modifier) — what the projection reads — rises by the delta.
+      await adjustModifierRevenue(m.id, 1000, 1750);
+      expect(await projectedRevenue(m.id)).toBe(1750);
+    });
+
+    test("lowering revenue via the correction path moves the projection down by the delta", async () => {
+      const m = await makeModifier();
+      await postModifierLeg({ delta: 3000, modifierId: m.id });
+      expect(await projectedRevenue(m.id)).toBe(3000);
+
+      // Correcting revenue down debits the modifier account (modifier→writeoff).
+      await adjustModifierRevenue(m.id, 3000, 1200);
+      expect(await projectedRevenue(m.id)).toBe(1200);
+    });
+
+    test("a correction can drive the modifier's net revenue negative", async () => {
+      // total_revenue is signed (a net discount is legitimately negative), so a
+      // correction below zero is allowed and the projection follows it.
+      const m = await makeModifier();
+      await adjustModifierRevenue(m.id, 0, -500);
+      expect(await projectedRevenue(m.id)).toBe(-500);
     });
 
     test("manual aggregate edits override the trigger-maintained counts", async () => {
