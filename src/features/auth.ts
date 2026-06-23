@@ -37,14 +37,12 @@ import {
 
 // SessionKeyError and the session→private-key derivation live in #shared so
 // shared-layer modules (e.g. the activity log) can reach them without importing
-// the feature layer. Re-exported here for the many route callers that import
-// them from #routes/auth.ts. getPrivateKey is the explicit-session form;
-// requireRequestPrivateKey (#shared/session-private-key.ts) is the
-// request-scoped, thread-free form that needs no session argument.
-export {
-  getSessionPrivateKey as getPrivateKey,
-  SessionKeyError,
-} from "#shared/session-private-key.ts";
+// the feature layer. Re-exported here for the central request error handler
+// (#routes/index.ts), which special-cases it into a re-authenticate response.
+// Route handlers derive the key directly via requireRequestPrivateKey /
+// getRequestPrivateKey (#shared/session-private-key.ts) — the request-scoped,
+// thread-free form that needs no session argument.
+export { SessionKeyError } from "#shared/session-private-key.ts";
 // Re-export for callers that need it
 export { generateSecureToken };
 

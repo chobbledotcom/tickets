@@ -253,9 +253,9 @@ const ListingsTableBlock = ({
     <Raw html={headerHtml} />
     <Raw html={renderListingsTableSection(listings, columnKeys, filters)} />
     {csvExport && (
-      <p class="table-footer-actions">
+      <div class="table-actions">
         <a href="/admin/listings/csv">{t("listings_table.export_csv")}</a>
-      </p>
+      </div>
     )}
   </div>
 );

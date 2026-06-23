@@ -362,7 +362,7 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       expect(html).toContain("£70");
       expect(html).toContain("£50");
       expect(html).toContain("−£20");
-      expect(html).toContain(`href="/admin/ledger/revenue/${listing.id}"`);
+      expect(html).toContain(`href="/admin/ledger?listing=${listing.id}"`);
     });
 
     test("shows stored-total mismatches on listing detail and edit pages", async () => {

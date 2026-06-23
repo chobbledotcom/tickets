@@ -10,6 +10,12 @@ import {
   revenueBreakdownColumns,
   revenueBreakdownScope,
 } from "#shared/accounting/projection-sql.ts";
+import {
+  andPrefixed,
+  emptyRange,
+  type LedgerRange,
+  occurredAtRange,
+} from "#shared/accounting/range.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { addDays } from "#shared/dates.ts";
@@ -258,15 +264,19 @@ type RevenueBreakdownRow = {
 
 export const listingRevenueBreakdown = async (
   listingId: number,
+  range: LedgerRange = emptyRange,
 ): Promise<ListingRevenueBreakdown> => {
   // Ledger account ids are stored as TEXT; the builders compare against
   // `CAST(<idExpr> AS TEXT)`. The id is bound as a STRING (not the number — a
   // numeric bind would cast to "1.0" and match nothing) once per predicate the
-  // builders emit: four in the column list, two in the own-legs scope.
-  const args: InValue[] = Array(6).fill(String(listingId));
+  // builders emit: four in the column list, two in the own-legs scope. The
+  // optional `range` appends its own `occurred_at` bounds (and their args) so a
+  // date-filtered ledger view reads the same breakdown over just that window.
+  const r = occurredAtRange(range);
+  const args: InValue[] = [...Array(6).fill(String(listingId)), ...r.args];
   const row = (await queryOne<RevenueBreakdownRow>(
     `SELECT ${revenueBreakdownColumns("?")}
-       FROM transfers WHERE ${revenueBreakdownScope("?")}`,
+       FROM transfers WHERE (${revenueBreakdownScope("?")})${andPrefixed(r.clause)}`,
     args,
   ))!;
   const grossSales = Number(row.gross_sales);

@@ -6,16 +6,24 @@
  * 2. applyAttendeeMerge: apply explicit decisions from the admin
  */
 
-import { filter, map, reduce } from "#fp";
+import type { InValue } from "@libsql/client";
+import { filter, map, mapParallel, reduce } from "#fp";
+import {
+  attendeeAccount,
+  revenueAccount,
+} from "#shared/accounting/accounts.ts";
+import { ledgerTx } from "#shared/accounting/ledger-tx.ts";
+import { transfersByEventGroup } from "#shared/accounting/queries.ts";
 import { repointAttendeeStatements } from "#shared/accounting/repoint.ts";
 import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
-import { executeBatch, insert } from "#shared/db/client.ts";
+import { insert, withTransaction } from "#shared/db/client.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import {
   getAttendeeAnswersByQuestion,
   getAttendeeTextAnswers,
   saveAttendeeAnswers,
 } from "#shared/db/questions.ts";
+import type { AccountRef } from "#shared/ledger/types.ts";
 import type {
   ApplyAttendeeMergeInput,
   AttendeeMergeApplyResult,
@@ -28,6 +36,7 @@ import type {
   AttendeeMergeValidationResult,
   BookingConflictClass,
   BuildAttendeeMergeDiffInput,
+  MergeBookingChoice,
 } from "#shared/merge/attendee-merge-types.ts";
 
 // ---------------------------------------------------------------------------
@@ -65,15 +74,26 @@ export const bookingKey = (listingId: number, startAt: string | null): string =>
 const itemBookingKey = (item: AttendeeMergeDiffBookingItem): string =>
   bookingKey(item.listingId, item.startAt);
 
+/** The NON-moveable conflict booking items paired with their decision key
+ *  ("listingId:startAt") — the rows the operator must decide on. The single place
+ *  the "skip moveable rows, key the rest" walk lives, shared by validation, the
+ *  decision-17 money legs, and the admin form parser, so they can never drift. */
+export const conflictBookingEntries = (
+  diff: AttendeeMergeDiff,
+): Array<{ item: AttendeeMergeDiffBookingItem; key: string }> =>
+  diff.bookingItems
+    .filter((item) => item.conflictClass !== "moveable")
+    .map((item) => ({ item, key: itemBookingKey(item) }));
+
 /** Determine the conflict label for a non-moveable booking item */
 export const bookingConflictLabel = (
-  item: AttendeeMergeDiffBookingItem,
+  item: Pick<AttendeeMergeDiffBookingItem, "conflictClass">,
 ): string =>
   item.conflictClass === "duplicate" ? "Duplicate" : "Conflicting metadata";
 
 /** Whether a set of booking items contains any non-moveable conflicts */
 export const hasBookingConflicts = (
-  items: AttendeeMergeDiffBookingItem[],
+  items: Pick<AttendeeMergeDiffBookingItem, "conflictClass">[],
 ): boolean => items.some((b) => b.conflictClass !== "moveable");
 
 /** Determine display label for a non-conflicting answer item */
@@ -171,7 +191,12 @@ export const buildAttendeeMergeDiff = async (
   );
 
   // --- Bookings ---
-  const bookingItems = buildBookingDiffItems(targetBookings, sourceBookings);
+  const bookingItems = await buildBookingDiffItems(
+    targetId,
+    sourceId,
+    targetBookings,
+    sourceBookings,
+  );
 
   const version = computeVersion(
     targetId,
@@ -217,12 +242,65 @@ const buildAnswerDiffItems = (
   }, [] as AttendeeMergeDiffAnswerItem[])([...relevantQuestionIds]);
 };
 
-/** Build booking diff items comparing source bookings against target */
+/**
+ * One booking's recognised `sale` amount (its gross ticket price) in the ledger:
+ * the `sale` legs of its order (`ledger_event_group`) that bill THIS attendee for
+ * THIS listing. 0 for a free or pre-ledger booking. This is the money decision 17
+ * has to resolve when the operator discards the booking — un-billing it removes
+ * the double-counted income, and the same amount is the over-collected cash to
+ * credit or write off.
+ */
+const bookingSaleAmount = async (
+  attendeeId: number,
+  listingId: number,
+  eventGroup: string,
+): Promise<number> => {
+  if (!eventGroup) return 0;
+  const account = attendeeAccount(attendeeId);
+  const revenue = revenueAccount(listingId);
+  const legs = await transfersByEventGroup(eventGroup);
+  return legs
+    .filter(
+      (leg) =>
+        leg.kind === "sale" &&
+        leg.source.type === account.type &&
+        leg.source.id === account.id &&
+        leg.destination.type === revenue.type &&
+        leg.destination.id === revenue.id,
+    )
+    .reduce((sum, leg) => sum + leg.amount, 0);
+};
+
+/** Classify a source booking against the target's bookings at the same key. */
+const classifyBooking = (
+  sb: ListingAttendeeRow,
+  tb: ListingAttendeeRow | null,
+): BookingConflictClass => {
+  if (!tb) return "moveable";
+  // `refunded` is now ledger-fed (order-level: every booking of an attendee
+  // shares it), so this compares the target attendee's refund status against the
+  // source's. Kept in the duplicate test so a row that differs only in refund
+  // status is still surfaced as conflicting metadata, not a silent duplicate.
+  if (
+    tb.quantity === sb.quantity &&
+    tb.price_paid === sb.price_paid &&
+    tb.checked_in === sb.checked_in &&
+    tb.refunded === sb.refunded
+  ) {
+    return "duplicate";
+  }
+  return "conflicting_metadata";
+};
+
+/** Build booking diff items comparing source bookings against target, loading the
+ *  ledger `sale` amount for each conflict so decision 17 can require a money
+ *  choice and the UI can show what is at stake. */
 const buildBookingDiffItems = (
+  targetId: number,
+  sourceId: number,
   targetBookings: ListingAttendeeRow[],
   sourceBookings: ListingAttendeeRow[],
-): AttendeeMergeDiffBookingItem[] => {
-  // Index target bookings by key
+): Promise<AttendeeMergeDiffBookingItem[]> => {
   const targetByKey = new Map(
     map(
       (b: ListingAttendeeRow) =>
@@ -230,37 +308,40 @@ const buildBookingDiffItems = (
     )(targetBookings),
   );
 
-  return map((sb: ListingAttendeeRow): AttendeeMergeDiffBookingItem => {
-    const key = bookingKey(sb.listing_id, sb.start_at);
-    const tb = targetByKey.get(key) ?? null;
-    let conflictClass: BookingConflictClass;
-
-    if (!tb) {
-      conflictClass = "moveable";
-    } else if (
-      tb.quantity === sb.quantity &&
-      tb.price_paid === sb.price_paid &&
-      tb.checked_in === sb.checked_in &&
-      // `refunded` is now ledger-fed (order-level: every booking of an attendee
-      // shares it), so this compares the target attendee's refund status against
-      // the source's. Kept in the duplicate test so a row that differs only in
-      // refund status is still surfaced as conflicting metadata, not a silent
-      // duplicate.
-      tb.refunded === sb.refunded
-    ) {
-      conflictClass = "duplicate";
-    } else {
-      conflictClass = "conflicting_metadata";
-    }
-
-    return {
-      conflictClass,
-      listingId: sb.listing_id,
-      sourceBooking: sb,
-      startAt: sb.start_at,
-      targetBooking: tb,
-    };
-  })(sourceBookings);
+  return mapParallel(
+    async (sb: ListingAttendeeRow): Promise<AttendeeMergeDiffBookingItem> => {
+      const tb =
+        targetByKey.get(bookingKey(sb.listing_id, sb.start_at)) ?? null;
+      const conflictClass = classifyBooking(sb, tb);
+      // A moveable booking moves with its own money (no decision, no
+      // double-count); only a conflict needs the amounts at stake.
+      const sourceSaleAmount =
+        conflictClass === "moveable"
+          ? 0
+          : await bookingSaleAmount(
+              sourceId,
+              sb.listing_id,
+              sb.ledger_event_group,
+            );
+      const targetSaleAmount =
+        tb === null
+          ? 0
+          : await bookingSaleAmount(
+              targetId,
+              tb.listing_id,
+              tb.ledger_event_group,
+            );
+      return {
+        conflictClass,
+        listingId: sb.listing_id,
+        sourceBooking: sb,
+        sourceSaleAmount,
+        startAt: sb.start_at,
+        targetBooking: tb,
+        targetSaleAmount,
+      };
+    },
+  )(sourceBookings);
 };
 
 // ---------------------------------------------------------------------------
@@ -294,21 +375,35 @@ export const validateAttendeeMergeDecision = (
     }
   }
 
-  // Check booking decisions for conflicts
-  const conflictingBookings = filter(
-    (b: AttendeeMergeDiffBookingItem) => b.conflictClass !== "moveable",
-  )(diff.bookingItems);
-  for (const item of conflictingBookings) {
-    if (!decision.bookings[itemBookingKey(item)]) {
-      errors.push(
-        `Missing decision for booking: Listing #${item.listingId}${
-          item.startAt ? ` (${item.startAt.slice(0, 10)})` : ""
-        }`,
-      );
+  // Check booking decisions for conflicts — both the row choice AND, when the
+  // booking the operator discards carries money, the decision-17 money choice
+  // (credit vs write-off). Neither is ever defaulted silently.
+  for (const { item, key } of conflictBookingEntries(diff)) {
+    const label = `Listing #${item.listingId}${
+      item.startAt ? ` (${item.startAt.slice(0, 10)})` : ""
+    }`;
+    const bookingChoice = decision.bookings[key];
+    if (!bookingChoice) {
+      errors.push(`Missing decision for booking: ${label}`);
+      continue;
+    }
+    if (discardedSaleAmount(item, bookingChoice) > 0 && !decision.money[key]) {
+      errors.push(`Missing money decision for booking: ${label}`);
     }
   }
 
   return errors.length > 0 ? { errors, valid: false } : { valid: true };
+};
+
+/** The `sale` amount the booking choice DISCARDS — the source booking for
+ *  keep_target/skip_source, the target booking for take_source — so decision 17
+ *  only demands a money choice when real money is being set aside. */
+const discardedSaleAmount = (
+  item: AttendeeMergeDiffBookingItem,
+  bookingChoice: MergeBookingChoice,
+): number => {
+  if (bookingChoice === "take_source") return item.targetSaleAmount;
+  return item.sourceSaleAmount;
 };
 
 // ---------------------------------------------------------------------------
@@ -486,6 +581,60 @@ const applyBookingDecisions = (
   };
 };
 
+/** One decision-17 reversal: a `writeoff` adjustment moving `account`'s balance
+ *  by `delta` (credit-the-account terms). */
+type MoneyReversal = {
+  account: AccountRef;
+  delta: number;
+  keyParts: (string | number)[];
+};
+
+/**
+ * Decision 17 — the `writeoff`-adjustment legs that resolve the money of each
+ * CONFLICTING booking the operator discards. Both choices UN-BILL the discarded
+ * `sale` (`revenue:L → writeoff`), so the listing's income counts the kept ticket
+ * once instead of double-counting the duplicate; `credit` then hands the
+ * over-collected cash back to the merged person (`writeoff → attendee:target`,
+ * surfacing it as a credit), while `writeoff` leaves it parked in the contra
+ * account so cash reports stay honest. Posted against the TARGET, onto which the
+ * source's legs were just repointed. A free/0-amount conflict produces no legs.
+ */
+const moneyReversalLegs = (
+  targetId: number,
+  diff: AttendeeMergeDiff,
+  decision: AttendeeMergeDecisionInput,
+): { legs: MoneyReversal[]; credited: number; writtenOff: number } => {
+  const legs: MoneyReversal[] = [];
+  let credited = 0;
+  let writtenOff = 0;
+  for (const { item, key } of conflictBookingEntries(diff)) {
+    // Every conflict carries a booking choice by the time apply runs — the form
+    // parser fills `keep_target` by default and validateAttendeeMergeDecision
+    // rejects a missing one — so this read always resolves.
+    const amount = discardedSaleAmount(item, decision.bookings[key]!);
+    if (amount <= 0) continue;
+    // Un-bill the discarded booking so the listing's income counts the kept ticket
+    // once (revenue:L → writeoff).
+    legs.push({
+      account: revenueAccount(item.listingId),
+      delta: -amount,
+      keyParts: ["merge-unbill", targetId, key],
+    });
+    if (decision.money[key] === "credit") {
+      // Hand the over-collected cash to the merged person (writeoff → attendee).
+      legs.push({
+        account: attendeeAccount(targetId),
+        delta: amount,
+        keyParts: ["merge-credit", targetId, key],
+      });
+      credited++;
+    } else {
+      writtenOff++;
+    }
+  }
+  return { credited, legs, writtenOff };
+};
+
 /** Apply a validated merge with explicit decisions */
 export const applyAttendeeMerge = async (
   input: ApplyAttendeeMergeInput,
@@ -535,8 +684,18 @@ export const applyAttendeeMerge = async (
     ...targetTextAnswers,
   ]);
 
-  // --- 4. Execute all DB changes atomically ---
-  await executeBatch([
+  // --- 4. Resolve decision-17 money for the discarded conflicting bookings ---
+  const {
+    legs: moneyLegs,
+    credited: bookingsCredited,
+    writtenOff: bookingsWrittenOff,
+  } = moneyReversalLegs(targetId, diff, decision);
+
+  // --- 5. Execute all DB changes atomically ---
+  // One interactive write transaction so the row changes, the ledger repoint, and
+  // the decision-17 reversal legs commit or roll back together — a half-merge
+  // would strand money or leave income double-counted.
+  const rowStatements: { args: InValue[]; sql: string }[] = [
     // Delete target bookings that are being replaced
     ...deleteTargetBookingStatements,
     // Insert moved/replaced source bookings
@@ -559,7 +718,15 @@ export const applyAttendeeMerge = async (
     // account-id mutation — so its financial history follows the merged person
     // rather than stranding on the deleted source (plan §5.17).
     ...repointAttendeeStatements(sourceId, targetId),
-  ]);
+  ];
+  await withTransaction(async (tx) => {
+    for (const statement of rowStatements) await tx.execute(statement);
+    // After the repoint (the discarded booking's legs now sit on the target),
+    // post the reversal legs that un-bill it and credit / write off its cash.
+    for (const leg of moneyLegs) {
+      await ledgerTx.adjust(tx, leg.account, leg.delta, leg.keyParts);
+    }
+  });
 
   // Save merged answers for target. The choice decisions reduce to one answer
   // per question; re-supplying the merged free-text plaintext lets
@@ -584,9 +751,11 @@ export const applyAttendeeMerge = async (
     answersCleared,
     answersKept,
     answersTakenFromSource,
+    bookingsCredited,
     bookingsMoved,
     bookingsReplacedTarget,
     bookingsSkipped,
+    bookingsWrittenOff,
     piiFieldsFromSource,
   };
 

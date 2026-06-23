@@ -8,14 +8,10 @@
  * the Calendar submenu and, unlike agents, keep the full staff navigation.
  */
 
+/* jscpd:ignore-start */
 import { unique } from "#fp";
 import { t } from "#i18n";
-import {
-  ANY_USER_FORM,
-  anyUserPage,
-  getPrivateKey,
-  withAuth,
-} from "#routes/auth.ts";
+import { ANY_USER_FORM, anyUserPage, withAuth } from "#routes/auth.ts";
 import { errorRedirect, redirect } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { addDays } from "#shared/dates.ts";
@@ -33,6 +29,7 @@ import {
 import { settings } from "#shared/db/settings.ts";
 import { getUserAgentIds } from "#shared/db/user-agents.ts";
 import { getFlash } from "#shared/flash-context.ts";
+import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import type { Attendee } from "#shared/types.ts";
 import {
@@ -40,6 +37,8 @@ import {
   type DeliveryBookingView,
   type DeliveryDayGroup,
 } from "#templates/admin/deliveries.tsx";
+
+/* jscpd:ignore-end */
 
 /** Lookups used to flesh out a bare run-sheet leg into a display row. */
 type LegLookups = {
@@ -155,7 +154,7 @@ const handleDeliveriesGet = anyUserPage(async (session) => {
   const tomorrow = addDays(today, 1);
   const legs = await getAgentRunSheet(agentIds, [today, tomorrow]);
 
-  const privateKey = (await getPrivateKey(session))!;
+  const privateKey = await requireRequestPrivateKey();
   const lookups = await loadLegLookups(legs, privateKey);
   const groups = buildGroups(legs, today, tomorrow, lookups);
   return agentDeliveriesPage(

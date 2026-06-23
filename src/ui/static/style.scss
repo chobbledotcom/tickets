@@ -401,6 +401,10 @@ nav ul li {
        the lower links stay reachable while the sidebar is stuck. */
     max-height: calc(100dvh - 2 * var(--space-m));
     overflow-y: auto;
+    /* Pin the sidebar visually across cross-document navigations: the browser
+       matches this name on both the old and new page and keeps the element in
+       place while only column-2 content transitions. */
+    view-transition-name: admin-sidebar;
   }
 
   /* Everything that isn't the sidebar flows down column 2... */
@@ -1059,6 +1063,7 @@ table {
   border-spacing: 0;
   padding: 0;
   white-space: nowrap;
+  width: fit-content;
 }
 
 table td,
@@ -2232,6 +2237,20 @@ button.secondary:hover,
   border-radius: var(--border-radius);
 }
 
+/* The ledger's two range pickers ("From" / "To") laid out side by side, wrapping
+   to a column on narrow screens. */
+.ledger-date-range {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-m);
+}
+
+.ledger-date-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-s);
+}
+
 .date-picker > select {
   display: block;
   width: 100%;
@@ -2375,22 +2394,10 @@ a.cal-day-selected:active {
   gap: var(--space-m);
 }
 
-/* Action rows attached to a table: filters above (left-aligned), table-wide
-   utilities (CSV export, …) below — right-aligned on desktop, left on mobile.
+/* Action rows attached to a table: filters above or below.
    No margin of their own; the surrounding flex container supplies the gap. */
-.table-header-actions,
-.table-footer-actions {
+.table-actions {
   margin: 0;
-}
-
-.table-footer-actions {
-  text-align: left;
-}
-
-@media (min-width: 769px) {
-  .table-footer-actions {
-    text-align: right;
-  }
 }
 
 /* Previous/next pagination */

@@ -4,7 +4,7 @@
  */
 
 import { map, pipe } from "#fp";
-import { getPrivateKey, withAuth } from "#routes/auth.ts";
+import { withAuth } from "#routes/auth.ts";
 import { isRegistrationClosed } from "#routes/format.ts";
 import { classifyForDiscovery } from "#routes/public/discovery.ts";
 import {
@@ -25,6 +25,7 @@ import {
 } from "#shared/db/logistics.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getUserAgentIds } from "#shared/db/user-agents.ts";
+import { getRequestPrivateKey } from "#shared/session-private-key.ts";
 import {
   type ListingWithCount,
   loadSortedListings,
@@ -240,7 +241,7 @@ const buildCalendarFeed = async (request: Request): Promise<Response> => {
     request,
     { allowApiKey: true, body: "json", roles: ["owner", "manager", "agent"] },
     async (session) => {
-      const privateKey = await getPrivateKey(session);
+      const privateKey = await getRequestPrivateKey();
       if (!privateKey) return new Response("Forbidden", { status: 403 });
       const listings = await getAllListings();
       const listingById = new Map(listings.map((l) => [l.id, l]));
