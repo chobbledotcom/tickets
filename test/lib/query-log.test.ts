@@ -187,7 +187,7 @@ describe("query-log", () => {
     // A completed query is mirrored to the system logs via console.debug; let the
     // fire-and-forget dynamic import + logDebug settle before asserting.
     const captureSqlLogs = async (
-      run: () => Promise<void>,
+      run: () => Promise<unknown>,
     ): Promise<string[]> => {
       setSuppressDebugLogs(false);
       const debugSpy = stub(console, "debug");
