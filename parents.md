@@ -1127,91 +1127,38 @@ Enumerate each and decide:
   reject. Exclude children from this builder (or mark them "available with …"), the
   same suppression as the public gallery, so the link can't be built in the first
   place.
-- **Public/JSON API booking** (`POST /api/listings/:slug/book`, `src/features/api`,
-  `src/shared/booking.ts` `processBooking`) — ✅ parents are API-bookable, but the
-  API path must be brought fully in line with the web fold; it is **not** enough to
-  add child ids:
-  - **Reject child slugs as the entry point.** The endpoint starts from whatever
-    active `:slug` is passed, so a **child** slug would create a standalone child
-    booking — violating "no booking from a child". The API must reject a child slug
-    (or require a parent context), mirroring the website rule.
-  - **Multi-item pricing/availability, not single-item.** `processBooking(listing,
-    …)` (`booking.ts:37-43`) computes `needsPayment` from the one route listing and
-    builds a one-item checkout/free booking. A free parent with a **paid** child
-    would be created without charging the child. The API must switch to the **same
-    multi-item pricing + availability flow as the web fold** (parent + folded
-    children) before deciding free-vs-paid.
-  - **Carry the child's inputs.** A single `customPrice`/`customUnitPrice` for the
-    route listing (`api/index.ts:368-392`) can't express a `can_pay_more` child's
-    price or a child's required answers — so the contract needs **per-child custom
-    prices and answer payloads** (or must reject parents whose children need them).
-  - **Day-count.** The API currently **rejects `customisable_days` listings**
-    outright (`api/index.ts:336-338`). For a customisable parent to be bookable
-    (and a customisable child to inherit a duration), the contract needs a
-    **`dayCount`** validated through the same day-count resolver.
-  - **Validate contact fields *after* child expansion.** `tryValidateTicketFields`
-    runs on the route listing today; a child requiring phone/address (or a paid
-    child adding Square's email) must be expanded **before** field validation, else
-    the order reaches creation without required child data.
-  - **Discovery responses, not just the booking POST.** `GET /api/listings` and
-    `GET /api/listings/:slug` currently expose listings with no parent/child
-    metadata, so a visible child looks like a normal bookable listing and a client
-    booking a multi-child parent has no way to learn the valid child ids / prices /
-    required inputs. The listing responses must **carry the relationship data**
-    (a parent's **configured** children + their constraints) and **suppress the
-    standalone-booking affordance for children** (mark them "available with …"),
-    mirroring the public listing-card rule. **Discovery lists the *configured*
-    children, not an availability-pre-filtered set** — it has no requested
-    date/dayCount, so filtering daily/customisable children here would test against
-    a null/wrong context (the same trap the relationship-accessor section warns
-    about). Expose the child records + constraints in discovery and let the
-    availability endpoint say which are bookable for a specific date/dayCount. **The
-    relationship payload must include *hidden* children**, explicitly bypassing the
-    top-level visibility filter:
-    `GET /api/listings` filters hidden listings out, but hidden children are a
-    supported (and common, auto-selected) booking option, so a parent's child list
-    must surface hidden child records/constraints — otherwise a parent with only
-    hidden children looks bookable in discovery but can't be booked programmatically
-    without out-of-band child ids.
-  - **The existing `availableDates` field must not stay child-blind.**
-    `GET /api/listings/:slug` already returns an `availableDates` array for daily
-    listings; for a daily *parent* this currently lists the parent's own dates, so a
-    client could offer a date on which the required child is unavailable (the booking
-    POST then rejects it). Either compute `availableDates` for a parent from the same
-    **parent ∩ child-union** availability the web form uses, or mark it explicitly
-    parent-only and direct clients to the availability endpoint for the real
-    bookable dates. **The other availability-shaped fields need the same treatment**:
-    `toPublicListing` derives `isSoldOut`, `maxPurchasable`, and customisable
-    `dayPrices` from the **route listing alone**, so a customisable parent can
-    advertise a day count no child supports, and a parent whose only child has no
-    folded capacity can still look purchasable. Compute these with the same
-    child-union / combined-demand rules as the web card, or mark them parent-only and
-    defer to the availability endpoint.
-  - **Availability endpoint.** `GET /api/listings/:slug/availability` calls
-    `hasAvailableSpots(..., date, listing.duration_days)` for the passed slug
-    (`api/index.ts:243-248`), so a **child** slug would report standalone
-    availability and a **parent** whose children are all unavailable would report
-    *available* (its own capacity ignores children). It must apply the same rules:
-    reject/!available for a child slug, and report a parent as unavailable when it
-    has **no bookable child**. It also needs a **`dayCount`** input (same resolver
-    as booking) — otherwise a customisable parent/child range is checked at the
-    default/max span and can report the wrong answer for a valid shorter span.
-    **Report availability *per child*, not just "parent is bookable if any child
-    is".** For a parent with several children on different calendars/capacities, a
-    single parent-level "available" still lets a client pick a child the booking
-    POST then rejects; the endpoint should accept the intended child selection (or
-    return per-child availability for the date/dayCount). And each per-child answer
-    must use the **combined folded demand** (requested parent quantity + that
-    child's quantity in one capacity check), not the child alone — a parent+child
-    sharing a capped group with one spot left looks individually available but
-    consumes two and must report unavailable.
-  - **Free bookings must be all-or-nothing.** The web free path calls
-    `ensureAllBookings` right after the greedy `createAttendeeAtomic`
-    (`ticket-payment.ts:299-307`) so a capacity race can't leave some lines saved.
-    The API free path must do the same for parent+child, or a race on the child can
-    persist the parent row while the required child is rolled back — violating
-    one-child-per-parent.
-  (Open Question 9.)
+- **Public/JSON API booking** (`POST /api/listings/:slug/book`, `src/features/api`)
+  — ✅ **IMPLEMENTED.** Parents are API-bookable with per-unit child selection,
+  reusing the web fold so the API and web validate/price identically (Open Question
+  9 resolved):
+  - **Child slugs rejected as the entry point** (`anyChildListing` → 400) and the
+    booking quantity + date resolved once for both the standalone and parent paths.
+  - **Per-unit child selection** via a `children: [{ slug, quantity, customPrice? }]`
+    array (an absent array auto-fills a sole child). Slugs resolve against the
+    parent's actual children and map onto `foldSelectedChildren` through
+    `child_qty_*` / `child_price_*`, so the chosen quantities must total the parent
+    quantity, and a slug that isn't a child of the parent is rejected.
+  - **Multi-item pricing/availability** from the folded order: free (or
+    provider-less paid) orders create the parent + children atomically via
+    `createFreeReservation` (`ensureAllBookings`, all-or-nothing); paid orders open a
+    **multi-item checkout** whose webhook creates and pairs every row. Either way the
+    parent/child link is recomputed at creation (`annotateOrderParents`).
+  - **Contact fields validated *after* child expansion** against the merged
+    parent+child requirements and the folded paid-ness, so a free parent with a paid
+    child still demands the inputs that child (or Square) needs.
+  - **Customisable parents stay rejected** (no `dayCount` input in the contract).
+  - **Discovery + availability carry the relationship** (see below): the parent
+    detail lists its required children (slugs/prices/inputs/dates) and the
+    availability endpoint reports per-child availability for the date/quantity.
+- **JSON API discovery + availability** — ✅ **IMPLEMENTED.** `GET /api/listings`
+  omits children and projects a no-bookable-child parent to sold-out;
+  `GET /api/listings/:slug` 404s a child, constrains a daily parent's
+  `availableDates` to the child-union, and adds a `children` array (each required
+  child's public shape — slug, price, pay-more range, customisable day prices,
+  sold-out, and a daily child's own bookable dates);
+  `GET /api/listings/:slug/availability` 404s a child, reports a no-bookable-child
+  parent as unavailable, and adds a `children: [{ slug, available }]` array
+  evaluating each child for the requested date/quantity.
 - **QR direct-checkout link** (`src/features/public/qr-book.ts`) — ✅ parents are
   QR-bookable, but **a QR link for a *child* must be rejected/redirected to a
   parent**: the QR route also starts from a plain listing slug, so a signed
