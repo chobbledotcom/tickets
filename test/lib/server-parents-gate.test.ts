@@ -115,6 +115,9 @@ describeWithEnv(
     });
 
     test("a multi-child parent rejects when no child is chosen", async () => {
+      // With several bookable children there is no auto-select, so submitting no
+      // child units leaves the per-parent total at 0 — short of the parent's
+      // quantity (1), so the per-unit "choose N more add-on(s)" rejection fires.
       const parent = await createTestListing({ name: "Base unit" });
       const childA = await createTestListing({ name: "Add-on A" });
       const childB = await createTestListing({ name: "Add-on B" });
@@ -126,7 +129,7 @@ describeWithEnv(
         [`quantity_${parent.id}`]: "1",
       });
       expect(res.status).toBe(302);
-      expectFlash(res, "Please choose an option for Base unit.", false);
+      expectFlash(res, "Choose 1 more add-on for Base unit.", false);
       expect((await getAttendeesRaw(parent.id)).length).toBe(0);
     });
 
@@ -143,7 +146,7 @@ describeWithEnv(
         email: "a@b.com",
         name: "Ada",
         [`quantity_${parent.id}`]: "1",
-        [`child_${parent.id}`]: String(childB.id),
+        [`child_qty_${parent.id}_${childB.id}`]: "1",
       });
       expectReserved(res);
       expect((await getAttendeesRaw(childB.id)).length).toBe(1);
@@ -151,17 +154,178 @@ describeWithEnv(
       expect((await getAttendeesRaw(childA.id)).length).toBe(0);
     });
 
-    test("a submitted child that is not a child of the parent is rejected", async () => {
-      const parent = await createTestListing({ name: "Base unit" });
-      const child = await createTestListing({ name: "Add-on" });
-      const stranger = await createTestListing({ name: "Stranger" });
-      await setChildIds(parent.id, [child.id]);
+    test("parent qty 1 requires exactly one child unit (a sum of 1)", async () => {
+      // With two bookable children and parent quantity 1, the buyer must choose
+      // exactly one child unit in total; choosing none rejects, choosing one folds.
+      const parent = await createTestListing({
+        name: "Base unit",
+        thankYouUrl: "",
+      });
+      const childA = await createTestListing({ name: "Add-on A" });
+      const childB = await createTestListing({ name: "Add-on B" });
+      await setChildIds(parent.id, [childA.id, childB.id]);
 
       const res = await postBooking(parent.slug, {
         email: "a@b.com",
         name: "Ada",
         [`quantity_${parent.id}`]: "1",
-        [`child_${parent.id}`]: String(stranger.id),
+        [`child_qty_${parent.id}_${childA.id}`]: "1",
+      });
+      expectReserved(res);
+      const rowsA = await getAttendeesRaw(childA.id);
+      expect(rowsA.length).toBe(1);
+      expect(rowsA[0]?.quantity).toBe(1);
+      expect((await getAttendeesRaw(childB.id)).length).toBe(0);
+    });
+
+    test("parent qty 2 accepts two units of one child", async () => {
+      // Per-unit model: 2 of one child satisfies a parent quantity of 2 (the old
+      // "one child at the parent quantity" special case).
+      const parent = await createTestListing({
+        maxQuantity: 5,
+        name: "Base unit",
+        thankYouUrl: "",
+      });
+      const childA = await createTestListing({
+        maxQuantity: 5,
+        name: "Add-on A",
+      });
+      const childB = await createTestListing({
+        maxQuantity: 5,
+        name: "Add-on B",
+      });
+      await setChildIds(parent.id, [childA.id, childB.id]);
+
+      const res = await postBooking(parent.slug, {
+        email: "a@b.com",
+        name: "Ada",
+        [`quantity_${parent.id}`]: "2",
+        [`child_qty_${parent.id}_${childA.id}`]: "2",
+      });
+      expectReserved(res);
+      const rowsA = await getAttendeesRaw(childA.id);
+      // One folded line of quantity 2, no line for the unchosen sibling.
+      expect(rowsA.length).toBe(1);
+      expect(rowsA[0]?.quantity).toBe(2);
+      expect((await getAttendeesRaw(childB.id)).length).toBe(0);
+    });
+
+    test("parent qty 2 accepts one of each child (two folded lines)", async () => {
+      // Per-unit model: a mix of 1 of child A + 1 of child B also satisfies a
+      // parent quantity of 2, folding TWO distinct attendee lines (one each).
+      const parent = await createTestListing({
+        maxQuantity: 5,
+        name: "Base unit",
+        thankYouUrl: "",
+      });
+      const childA = await createTestListing({ name: "Add-on A" });
+      const childB = await createTestListing({ name: "Add-on B" });
+      await setChildIds(parent.id, [childA.id, childB.id]);
+
+      const res = await postBooking(parent.slug, {
+        email: "a@b.com",
+        name: "Ada",
+        [`quantity_${parent.id}`]: "2",
+        [`child_qty_${parent.id}_${childA.id}`]: "1",
+        [`child_qty_${parent.id}_${childB.id}`]: "1",
+      });
+      expectReserved(res);
+      const rowsA = await getAttendeesRaw(childA.id);
+      const rowsB = await getAttendeesRaw(childB.id);
+      expect(rowsA.length).toBe(1);
+      expect(rowsA[0]?.quantity).toBe(1);
+      expect(rowsB.length).toBe(1);
+      expect(rowsB[0]?.quantity).toBe(1);
+    });
+
+    test("a child total below the parent quantity is rejected (choose more)", async () => {
+      const parent = await createTestListing({
+        maxQuantity: 5,
+        name: "Base unit",
+      });
+      const childA = await createTestListing({ name: "Add-on A" });
+      const childB = await createTestListing({ name: "Add-on B" });
+      await setChildIds(parent.id, [childA.id, childB.id]);
+
+      // Parent quantity 2 but only 1 child unit chosen → "choose 1 more add-on".
+      const res = await postBooking(parent.slug, {
+        email: "a@b.com",
+        name: "Ada",
+        [`quantity_${parent.id}`]: "2",
+        [`child_qty_${parent.id}_${childA.id}`]: "1",
+      });
+      expect(res.status).toBe(302);
+      expectFlash(res, "Choose 1 more add-on for Base unit.", false);
+      expect((await getAttendeesRaw(parent.id)).length).toBe(0);
+    });
+
+    test("a child total above the parent quantity is rejected (too many)", async () => {
+      const parent = await createTestListing({
+        maxQuantity: 5,
+        name: "Base unit",
+      });
+      const childA = await createTestListing({
+        maxQuantity: 5,
+        name: "Add-on A",
+      });
+      const childB = await createTestListing({
+        maxQuantity: 5,
+        name: "Add-on B",
+      });
+      await setChildIds(parent.id, [childA.id, childB.id]);
+
+      // Parent quantity 1 but 2 child units chosen → too many.
+      const res = await postBooking(parent.slug, {
+        email: "a@b.com",
+        name: "Ada",
+        [`quantity_${parent.id}`]: "1",
+        [`child_qty_${parent.id}_${childA.id}`]: "1",
+        [`child_qty_${parent.id}_${childB.id}`]: "1",
+      });
+      expect(res.status).toBe(302);
+      expectFlash(
+        res,
+        "Too many add-ons chosen for Base unit — remove 1 add-on.",
+        false,
+      );
+      expect((await getAttendeesRaw(parent.id)).length).toBe(0);
+    });
+
+    test("a non-numeric child quantity is treated as zero (rejected as too few)", async () => {
+      // A garbage `child_qty_*` value parses to 0, so a single-bookable-child
+      // parent does NOT auto-select (a value was submitted) and the total falls
+      // short of the parent quantity.
+      const parent = await createTestListing({ name: "Base unit" });
+      const childA = await createTestListing({ name: "Add-on A" });
+      const childB = await createTestListing({ name: "Add-on B" });
+      await setChildIds(parent.id, [childA.id, childB.id]);
+
+      const res = await postBooking(parent.slug, {
+        email: "a@b.com",
+        name: "Ada",
+        [`quantity_${parent.id}`]: "1",
+        [`child_qty_${parent.id}_${childA.id}`]: "abc",
+      });
+      expect(res.status).toBe(302);
+      expectFlash(res, "Choose 1 more add-on for Base unit.", false);
+      expect((await getAttendeesRaw(parent.id)).length).toBe(0);
+    });
+
+    test("a positive quantity for a listing that is not a child of the parent is rejected", async () => {
+      // Two bookable children, so no auto-select; a quantity submitted for a
+      // stranger listing (not a child) must be rejected, never ignored — and the
+      // valid total must not be reached by it.
+      const parent = await createTestListing({ name: "Base unit" });
+      const childA = await createTestListing({ name: "Add-on A" });
+      const childB = await createTestListing({ name: "Add-on B" });
+      const stranger = await createTestListing({ name: "Stranger" });
+      await setChildIds(parent.id, [childA.id, childB.id]);
+
+      const res = await postBooking(parent.slug, {
+        email: "a@b.com",
+        name: "Ada",
+        [`quantity_${parent.id}`]: "1",
+        [`child_qty_${parent.id}_${stranger.id}`]: "1",
       });
       expect(res.status).toBe(302);
       expectFlash(res, "Please choose an option for Base unit.", false);
@@ -201,7 +365,7 @@ describeWithEnv(
         name: "Ada",
         [`quantity_${parentA.id}`]: "0",
         [`quantity_${plain.id}`]: "1",
-        [`child_${parentA.id}`]: String(childA.id),
+        [`child_qty_${parentA.id}_${childA.id}`]: "1",
       });
       expectReserved(res);
       expect((await getAttendeesRaw(plain.id)).length).toBe(1);
@@ -281,7 +445,7 @@ describeWithEnv(
       // chosen pay-more child price (30.00), proving the child folded in.
       const html = await postCalculate(parent.slug, {
         [`quantity_${parent.id}`]: "1",
-        [`child_${parent.id}`]: String(child.id),
+        [`child_qty_${parent.id}_${child.id}`]: "1",
         [`child_price_${parent.id}_${child.id}`]: "30.00",
       });
       expect(html).toContain("£30");
@@ -378,7 +542,7 @@ describeWithEnv(
         email: "a@b.com",
         name: "Ada",
         [`quantity_${parent.id}`]: "1",
-        [`child_${parent.id}`]: String(child.id),
+        [`child_qty_${parent.id}_${child.id}`]: "1",
         [`child_price_${parent.id}_${child.id}`]: "1.00",
       });
       expect(res.status).toBe(302);
@@ -720,12 +884,15 @@ describeWithEnv(
       const childB = await createTestListing({ name: "Add-on B" });
       await setChildIds(parent.id, [childA.id, childB.id]);
 
-      // Choose childB with valid contact, but don't agree to terms → rejected
-      // with the form stashed; the follow-up GET must re-fill the chosen child.
+      // Choose 1 of childB with valid contact, but don't agree to terms →
+      // rejected with the form stashed; the follow-up GET must re-fill childB's
+      // chosen quantity (its select restores option 1 as selected). childA is
+      // submitted with a garbage value, which the re-render restores as 0.
       const posted = await submitMultiTicketForm(parent.slug, {
         email: "ada@example.com",
         name: "Ada",
-        [`child_${parent.id}`]: String(childB.id),
+        [`child_qty_${parent.id}_${childA.id}`]: "xyz",
+        [`child_qty_${parent.id}_${childB.id}`]: "1",
         [`quantity_${parent.id}`]: "1",
       });
       expect(posted.status).toBe(302);
@@ -733,7 +900,18 @@ describeWithEnv(
         handleRequest(req),
       );
       const html = await refilled.text();
-      expect(html).toContain(`value="${childB.id}" checked`);
+      // childB's per-unit select restores quantity 1; childA's garbage value
+      // restores as 0 (the parsed-fallback branch).
+      const selectB = html.slice(
+        html.indexOf(`name="child_qty_${parent.id}_${childB.id}"`),
+      );
+      const optionsB = selectB.slice(0, selectB.indexOf("</select>"));
+      expect(optionsB).toContain('value="1" selected');
+      const selectA = html.slice(
+        html.indexOf(`name="child_qty_${parent.id}_${childA.id}"`),
+      );
+      const optionsA = selectA.slice(0, selectA.indexOf("</select>"));
+      expect(optionsA).toContain('value="0" selected');
     });
 
     test("a parent's configured thank-you URL survives folding a child", async () => {
@@ -1395,12 +1573,10 @@ describeWithEnv(
       // Both pay-more child price inputs are present but neither is HTML-required.
       expect(html).toContain(`name="child_price_${parent.id}_${childA.id}"`);
       expect(html).toContain(`name="child_price_${parent.id}_${childB.id}"`);
-      // The non-pay-more bookable child renders its radio but NO price input
-      // (the pay-more input is gated on the child's own can_pay_more, not merely
-      // its bookability).
-      expect(html).toContain(
-        `name="child_${parent.id}" value="${fixedChild.id}"`,
-      );
+      // The non-pay-more bookable child renders its per-unit quantity select but
+      // NO price input (the pay-more input is gated on the child's own
+      // can_pay_more, not merely its bookability).
+      expect(html).toContain(`name="child_qty_${parent.id}_${fixedChild.id}"`);
       expect(html).not.toContain(
         `name="child_price_${parent.id}_${fixedChild.id}"`,
       );
@@ -1416,10 +1592,11 @@ describeWithEnv(
       );
     });
 
-    test("only the active child option is selectable and auto-checked", async () => {
+    test("only the active child is selectable; the inactive one renders disabled", async () => {
       // The render must mirror the server's active check: an inactive child is
-      // rendered disabled and never auto-selected, leaving the lone active child
-      // as the auto-checked option (Fix 3).
+      // rendered as a disabled (fixed-0) quantity control and never selectable,
+      // leaving the lone active child as the sole bookable option — which, being
+      // the only bookable child, auto-fills via a hidden quantity field.
       const parent = await createTestListing({ name: "Base unit" });
       const liveChild = await createTestListing({ name: "Live add-on" });
       const deadChild = await createTestListing({ name: "Dead add-on" });
@@ -1427,22 +1604,97 @@ describeWithEnv(
       await deactivateTestListing(deadChild.id);
 
       const html = await ticketPageHtml(parent.slug);
-      // The active child is the sole bookable option, so it auto-checks.
+      // The active child is the sole bookable option, so it auto-fills via a
+      // hidden per-unit quantity field (no choice required, no-JS safe).
       expect(html).toMatch(
         new RegExp(
-          `<input type="radio" name="child_${parent.id}" value="${liveChild.id}"[^>]*\\schecked`,
+          `<input type="hidden" name="child_qty_${parent.id}_${liveChild.id}"`,
         ),
       );
-      // The inactive child renders disabled and is not checked.
+      // The inactive child renders a disabled select fixed at 0 and is never
+      // a selectable quantity control.
       expect(html).toMatch(
         new RegExp(
-          `<input type="radio" name="child_${parent.id}" value="${deadChild.id}"[^>]*\\sdisabled`,
+          `<select name="child_qty_${parent.id}_${deadChild.id}"[^>]*\\sdisabled`,
         ),
       );
-      expect(html).not.toMatch(
-        new RegExp(
-          `<input type="radio" name="child_${parent.id}" value="${deadChild.id}"[^>]*\\schecked`,
-        ),
+    });
+
+    test("a multi-child parent renders a per-unit quantity select and a 'choose N in total' note", async () => {
+      // Each bookable child gets its own quantity select (0..cap), and a note
+      // tells the buyer how many add-ons to choose in total (the parent's max).
+      const parent = await createTestListing({
+        maxQuantity: 2,
+        name: "Base unit",
+      });
+      const childA = await createTestListing({
+        maxQuantity: 2,
+        name: "Add-on A",
+      });
+      const childB = await createTestListing({
+        maxQuantity: 2,
+        name: "Add-on B",
+      });
+      await setChildIds(parent.id, [childA.id, childB.id]);
+
+      const html = await ticketPageHtml(parent.slug);
+      // Both children get a per-unit quantity select; neither is forced/hidden.
+      expect(html).toContain(
+        `<select name="child_qty_${parent.id}_${childA.id}"`,
+      );
+      expect(html).toContain(
+        `<select name="child_qty_${parent.id}_${childB.id}"`,
+      );
+      // The select offers 0..2 (the parent's effective max).
+      const selectA = html.slice(
+        html.indexOf(`name="child_qty_${parent.id}_${childA.id}"`),
+      );
+      const optionsA = selectA.slice(0, selectA.indexOf("</select>"));
+      expect(optionsA).toContain('value="2"');
+      expect(optionsA).not.toContain('value="3"');
+      // The "choose N in total" note names the parent's quantity (2).
+      expect(html).toContain("Choose 2 add-ons in total");
+    });
+
+    test("a sole pay-more child auto-fills and still renders its price input", async () => {
+      // The single-bookable-child auto-fill path also renders a pay-more child's
+      // non-required price input (so a buyer can name a price without choosing).
+      const parent = await createTestListing({ name: "Base unit" });
+      const child = await createTestListing({
+        canPayMore: true,
+        maxPrice: 5000,
+        name: "Donation add-on",
+        unitPrice: 1000,
+      });
+      await setChildIds(parent.id, [child.id]);
+
+      const html = await ticketPageHtml(parent.slug);
+      expect(html).toContain(
+        `<input type="hidden" name="child_qty_${parent.id}_${child.id}"`,
+      );
+      expect(html).toContain(`name="child_price_${parent.id}_${child.id}"`);
+    });
+
+    test("a sole bookable child auto-fills via a hidden quantity field (no choice)", async () => {
+      // The single-bookable-child case forces the child quantity to the parent's,
+      // rendered as a hidden field rather than an interactive select.
+      const parent = await createTestListing({
+        maxQuantity: 2,
+        name: "Base unit",
+      });
+      const child = await createTestListing({
+        maxQuantity: 2,
+        name: "Add-on",
+      });
+      await setChildIds(parent.id, [child.id]);
+
+      const html = await ticketPageHtml(parent.slug);
+      expect(html).toContain(
+        `<input type="hidden" name="child_qty_${parent.id}_${child.id}"`,
+      );
+      // No interactive select is rendered for the sole child.
+      expect(html).not.toContain(
+        `<select name="child_qty_${parent.id}_${child.id}"`,
       );
     });
 
@@ -1810,7 +2062,7 @@ describeWithEnv(
       const html = await ticketPageHtml(parent.slug);
       // The parent renders a normal bookable form, not the sold-out message.
       expect(html).toContain(`name="quantity_${parent.id}"`);
-      expect(html).toContain(`name="child_${parent.id}"`);
+      expect(html).toContain(`name="child_qty_${parent.id}_${child.id}"`);
       expect(html).not.toContain("Sorry, this listing is full.");
     });
 
@@ -1872,7 +2124,7 @@ describeWithEnv(
 
       const html = await ticketPageHtml(parent.slug);
       expect(html).toContain(`name="quantity_${parent.id}"`);
-      expect(html).toContain(`name="child_${parent.id}"`);
+      expect(html).toContain(`name="child_qty_${parent.id}_${child.id}"`);
     });
 
     test("a shared capped group caps the parent quantity selector by floor(remaining / units)", async () => {
@@ -1926,7 +2178,7 @@ describeWithEnv(
       expect(html).toContain("Sorry, this listing is full.");
       // No quantity selector / child selector is rendered for the parent.
       expect(html).not.toContain(`name="quantity_${parent.id}"`);
-      expect(html).not.toContain(`name="child_${parent.id}"`);
+      expect(html).not.toContain(`name="child_qty_${parent.id}_`);
     });
 
     test("a Square free parent with a paid child renders a present-but-non-required email", async () => {

@@ -1,42 +1,49 @@
 /// <reference lib="dom" />
 /// <reference lib="dom.iterable" />
-/** Re-require the selected child's own inputs in the browser.
+/** Re-require the selected children's price inputs and show a live "X of Q
+ * chosen" hint in the browser (per-unit selection model).
  *
  * The no-JS baseline renders every child control non-required (the server
- * enforces requiredness for the selected child of an in-cart parent only). With
- * JS we tighten it for inline feedback: for an in-cart parent the child radio
- * group becomes required, and only the *selected* pay-more child's price input
- * carries `required`. A zero-quantity parent relaxes all of its child controls
- * so it can never block a buyer booking a different listing. */
+ * enforces the per-parent total and each chosen child's price). With JS we
+ * tighten it for inline feedback: for an in-cart parent only the price inputs of
+ * children given a positive `child_qty_*` carry `required`, and a per-parent hint
+ * shows how many add-ons have been chosen out of the parent's quantity. A
+ * zero-quantity parent relaxes all of its child controls so it can never block a
+ * buyer booking a different listing. */
 import {
+  childQtyTotal,
   childSelectorParentIds,
+  chosenChildIds,
   onSelectionChange,
   parentInCart,
+  quantityValue,
 } from "./child-selection.ts";
 
-/** The radios of a parent's `child_<parentId>` group. */
-const childRadios = (parentId: string): HTMLInputElement[] => [
-  ...document.querySelectorAll<HTMLInputElement>(
-    `input[name="child_${parentId}"]`,
-  ),
-];
+/** Update the per-parent "X of Q chosen" hint, when one is rendered. */
+const updateHint = (parentId: string, chosen: number): void => {
+  const hint = document.querySelector<HTMLElement>(
+    `[data-child-hint="${parentId}"]`,
+  );
+  if (hint === null) return;
+  hint.textContent = parentInCart(parentId)
+    ? `${chosen} / ${quantityValue(parentId)}`
+    : "";
+};
 
-/** Apply `required` to one parent's child controls for the current selection. */
+/** Apply `required` to one parent's pay-more price inputs for the current
+ * selection and refresh its hint. */
 const updateParent = (parentId: string): void => {
   const inCart = parentInCart(parentId);
-  const radios = childRadios(parentId);
-  // A child must be chosen for an in-cart parent (one is auto-checked).
-  for (const radio of radios) radio.required = inCart;
-  // The selected child's value drives which pay-more price input is required.
-  const selected = radios.find((radio) => radio.checked)?.value;
+  const chosen = chosenChildIds(parentId);
   for (const price of document.querySelectorAll<HTMLInputElement>(
     `[name^="child_price_${parentId}_"]`,
   )) {
     const childId = price
       .getAttribute("name")!
       .slice(`child_price_${parentId}_`.length);
-    price.required = inCart && childId === selected;
+    price.required = inCart && chosen.has(childId);
   }
+  updateHint(parentId, inCart ? childQtyTotal(parentId) : 0);
 };
 
 export const initChildRequired = (): void => {

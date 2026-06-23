@@ -346,10 +346,11 @@ describeWithEnv(
       });
       await setChildIds(parent.id, [child.id]);
       const body = await (await ticketGet(group.slug)).text();
-      // The parent still offers its standalone quantity selector and a child
-      // selector; the child must NOT get its own standalone quantity control.
+      // The parent still offers its standalone quantity selector and a per-unit
+      // child selector; the child must NOT get its own standalone quantity
+      // control (`quantity_<childId>`), only the namespaced `child_qty_*` one.
       expect(body).toContain(`name="quantity_${parent.id}"`);
-      expect(body).toContain(`name="child_${parent.id}"`);
+      expect(body).toContain(`name="child_qty_${parent.id}_${child.id}"`);
       expect(body).not.toContain(`name="quantity_${child.id}"`);
     });
 

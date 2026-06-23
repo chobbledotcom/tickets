@@ -378,39 +378,91 @@ export type FoldChildrenResult =
     })
   | { ok: false; error: string };
 
-/** Resolve the buyer's chosen child for one in-cart parent: the submitted
- * `child_<parentId>` when it names a current bookable child, the sole bookable
- * child when none was submitted, or an error (none bookable / not chosen /
- * not a bookable child). */
-const resolveChosenChild = (
-  parent: TicketListing,
-  bookable: TicketListing[],
+/** A bookable child paired with the per-unit quantity the buyer chose for it
+ * under one parent (always > 0 — zero-quantity children are dropped). */
+type ChildSelection = { child: TicketListing; qty: number };
+
+/** Parse one child's submitted per-unit quantity (`child_qty_<parentId>_<childId>`):
+ * a non-negative integer, or 0 when missing/blank/invalid. The selects only emit
+ * `0..min(parentQty, childMax)`, so any other value is treated as "none chosen"
+ * and the sum check (below) catches a too-low total. */
+const childQtyField = (
+  parentId: number,
+  childId: number,
   form: FormParams,
-): TicketListing | { error: string } => {
-  if (bookable.length === 0) {
-    return {
-      error: t("public.ticket.child_sold_out", { name: parent.listing.name }),
-    };
-  }
-  const submitted = parsePositiveInt(
-    form.getString(`child_${parent.listing.id}`),
-  );
-  if (submitted === null) {
-    if (bookable.length === 1) return bookable[0]!;
-    return {
-      error: t("public.ticket.child_required", { name: parent.listing.name }),
-    };
-  }
-  const chosen = bookable.find((c) => c.listing.id === submitted);
-  if (!chosen) {
-    return {
-      error: t("public.ticket.child_required", { name: parent.listing.name }),
-    };
-  }
-  return chosen;
+): number => {
+  const raw = form.getString(`child_qty_${parentId}_${childId}`).trim();
+  if (raw === "") return 0;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : 0;
 };
 
-/** Read and validate the chosen child's pay-more price (when `can_pay_more`),
+/** Resolve the buyer's per-unit child selection for one in-cart parent (the
+ * per-unit model): read each bookable child's `child_qty_<parentId>_<childId>`
+ * into the chosen subset, auto-assign the whole parent quantity to a sole
+ * bookable child when NOTHING was submitted, and require the chosen quantities to
+ * sum to exactly the parent's quantity. Returns the chosen children (each with
+ * qty > 0) or an error (none bookable / total too low / total too high / a
+ * quantity on a non-bookable child). */
+const resolveChildSelections = (
+  parent: TicketListing,
+  bookable: TicketListing[],
+  parentQty: number,
+  form: FormParams,
+): ChildSelection[] | { error: string } => {
+  const name = parent.listing.name;
+  if (bookable.length === 0) {
+    return { error: t("public.ticket.child_sold_out", { name }) };
+  }
+  const parentId = parent.listing.id;
+  const bookableIds = new Set(bookable.map((c) => c.listing.id));
+  // Reject a positive quantity submitted for a child that is not currently a
+  // bookable child of this parent (an unknown id, a stranger listing, or a
+  // sibling that sold out/closed between render and submit) — never silently swap
+  // in a still-bookable sibling (parents.md step 3).
+  const prefix = `child_qty_${parentId}_`;
+  for (const key of form.keys()) {
+    if (!key.startsWith(prefix)) continue;
+    const childId = Number.parseInt(key.slice(prefix.length), 10);
+    const qty = childQtyField(parentId, childId, form);
+    if (qty > 0 && !bookableIds.has(childId)) {
+      return { error: t("public.ticket.child_required", { name }) };
+    }
+  }
+  const selections: ChildSelection[] = [];
+  let total = 0;
+  for (const child of bookable) {
+    const qty = childQtyField(parentId, child.listing.id, form);
+    if (qty > 0) {
+      selections.push({ child, qty });
+      total += qty;
+    }
+  }
+  // Auto-select: nothing submitted for a sole bookable child fills the whole
+  // parent quantity (the previous "one child, qty = Q" special case).
+  if (total === 0 && bookable.length === 1) {
+    return [{ child: bookable[0]!, qty: parentQty }];
+  }
+  if (total < parentQty) {
+    return {
+      error: t("public.ticket.child_too_few", {
+        count: parentQty - total,
+        name,
+      }),
+    };
+  }
+  if (total > parentQty) {
+    return {
+      error: t("public.ticket.child_too_many", {
+        count: total - parentQty,
+        name,
+      }),
+    };
+  }
+  return selections;
+};
+
+/** Read and validate a chosen child's pay-more price (when `can_pay_more`),
  * namespaced by parent+child. Returns the price (or undefined when the child is
  * fixed-price), or an error message. */
 const childCustomPrice = (
@@ -445,19 +497,20 @@ const recordDuration = (state: FoldState, duration: number): string | null => {
   return null;
 };
 
-/** Fold one chosen child into the accumulator: sum its quantity across parents,
- * reconcile the customisable duration and pay-more price, and re-validate the
- * summed quantity against the child's max-purchasable cap (reject, never clamp).
- * Returns null on success or an error message. */
+/** Fold one chosen child into the accumulator at the per-unit quantity the buyer
+ * picked for it (`childQty`, not the parent quantity): sum that quantity across
+ * parents/units, reconcile the customisable duration and pay-more price, and
+ * re-validate the summed quantity against the child's max-purchasable cap (reject,
+ * never clamp). Returns null on success or an error message. */
 const foldChild = (
   state: FoldState,
   child: TicketListing,
-  parentQty: number,
+  childQty: number,
   duration: number,
   price: number | undefined,
 ): string | null => {
   const childId = child.listing.id;
-  const summed = (state.quantities.get(childId) ?? 0) + parentQty;
+  const summed = (state.quantities.get(childId) ?? 0) + childQty;
   // A DAILY child's `maxPurchasable` is the date-less aggregate cap, which reads
   // 0 once the child is full on ANY single date — so it must NOT gate a booking
   // on a different date with capacity (same date-less-aggregate trap as
@@ -488,9 +541,12 @@ const foldChild = (
   return null;
 };
 
-/** Resolve, validate and fold one in-cart parent's chosen child into `state`.
- * Returns null on success or a user-facing error (no bookable child / not
- * chosen / invalid price / over-capacity / mixed duration). */
+/** Resolve, validate and fold one in-cart parent's per-unit child selection into
+ * `state`. The buyer chooses children totalling the parent's quantity in any mix
+ * (per-unit model); each chosen child is folded at ITS own quantity, not the
+ * parent's. Returns null on success or a user-facing error (no bookable child /
+ * total below or above the parent quantity / invalid price / over-capacity /
+ * mixed duration). */
 const foldParent = (
   state: FoldState,
   parent: TicketListing,
@@ -505,23 +561,28 @@ const foldParent = (
   const bookable = children.filter((c) =>
     childIsBookable(c, { date, duration, holidays }),
   );
-  const chosen = resolveChosenChild(parent, bookable, form);
-  if ("error" in chosen) return chosen.error;
-  const price = childCustomPrice(parent.listing.id, chosen, form);
-  if (price && typeof price === "object") return price.error;
-  return foldChild(state, chosen, parentQty, duration, price);
+  const selections = resolveChildSelections(parent, bookable, parentQty, form);
+  if ("error" in selections) return selections.error;
+  for (const { child, qty } of selections) {
+    const price = childCustomPrice(parent.listing.id, child, form);
+    if (price && typeof price === "object") return price.error;
+    const error = foldChild(state, child, qty, duration, price);
+    if (error) return error;
+  }
+  return null;
 };
 
 /**
  * Fold every in-cart parent's selected child into the order (steps 4–5 core,
  * parents.md "Server-side validation"). A parent is any in-cart listing with a
  * child edge in `ctx.childrenByParentId`; its children are filtered to the
- * bookable ones for the resolved date/duration, one is chosen (auto-selected
- * when single), and folded into the listing set + quantity/custom-price maps +
- * selected ids — so every downstream per-listing path sees the child as an
- * ordinary line. A parent with no bookable child is rejected (sold out). Child
- * fields under a zero-quantity parent are ignored, not read. No-op when the
- * flag is off / no parents apply.
+ * bookable ones for the resolved date/duration, the buyer's per-unit selection
+ * (children totalling the parent's quantity, auto-filled when a sole child
+ * exists) is resolved, and each chosen child is folded at its own quantity into
+ * the listing set + quantity/custom-price maps + selected ids — so every
+ * downstream per-listing path sees the child as an ordinary line. A parent with
+ * no bookable child is rejected (sold out). Child fields under a zero-quantity
+ * parent are ignored, not read. No-op when no parents apply.
  */
 export const foldSelectedChildren = async (
   ctx: TicketCtx,

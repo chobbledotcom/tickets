@@ -101,12 +101,36 @@ surfaced by the automated review pass and fixed):
   count cap (Square's 10) — so the signed price proof and the emitted metadata
   stay identical (otherwise the webhook reads it as tampered). The ticket token is
   stored on the direct-render success path so a reload keeps the ticket link.
-- **No-JS baseline + progressive enhancement.** Child radios, pay-more price and
-  child questions render **non-required** server-side (the fold is authoritative);
-  JS then reveals and re-requires *the selected child's* questions and price input
-  (the question-visibility script keys off an effective selected-listing-id set
-  that includes the chosen child, since folded children have no `quantity_<id>`
-  control). The live running-total already posts the child fields.
+- **No-JS baseline + progressive enhancement.** Per-child quantity selects,
+  pay-more price and child questions render **non-required** server-side (the fold
+  is authoritative); JS then reveals and re-requires *the chosen children's*
+  questions and price inputs (the question-visibility script keys off an effective
+  selected-listing-id set that includes every child given a positive `child_qty_*`,
+  since folded children have no `quantity_<id>` control), and shows a live "X of Q
+  chosen" hint per parent. The live running-total already posts the child fields.
+
+- **Per-unit child selection (selection-model change, 2026-06-23).** The gate
+  moved from "one child choice per parent" to **per-unit selection**: a parent
+  booked at quantity Q requires the buyer to choose **Q child units in total**,
+  distributed across the parent's bookable children in any mix (Q of one child, or
+  1 of A + 1 of B, …). The field model is a per-child quantity
+  **`<select name="child_qty_<parentId>_<childId>">`** over `0..min(parentQty,
+  childMaxPurchasable)` (default 0); a sole bookable child renders a **hidden**
+  `child_qty_*` carrying Q (auto-select preserved); sold-out/inactive children
+  render a disabled select fixed at 0. A visible "Choose Q add-on(s) in total"
+  note plus the live hint guide the buyer. The server fold
+  (`foldParent`/`resolveChildSelections` in `ticket-payment.ts`) reads each
+  bookable child's `child_qty_*`, auto-assigns Q to a sole child when nothing was
+  submitted, **rejects a positive quantity for a non-bookable/unknown child**, and
+  requires the per-parent total to **equal Q exactly** (`child_too_few` /
+  `child_too_many` messages — distinct from the legacy `child_required`, still used
+  for the unknown-child case). Each chosen child is folded **at its own quantity**
+  (not Q); a child chosen for multiple units or under multiple parents **sums** into
+  one line, re-validated against `maxPurchasable` (reject, never clamp). Only the
+  **selection mechanism** changed — the curried availability atoms in
+  `shared.tsx` remain the single source of truth for "bookable", and every
+  downstream per-listing path (capacity, questions, pricing, dayCount, contact
+  fields, thank-you) is unchanged.
 - **JSON API.** Discovery omits children, and a child's detail/availability
   returns the same not-bookable outcome as the web (404 / unavailable); a **parent
   booking is rejected** on the API (it has no child-selection input). A malformed
@@ -147,12 +171,18 @@ be read in this light (they resolve several of the original open questions):
 - **Primary use case:** hiring a **base unit** (the parent) that requires a
   **customisable add-on** (the child). Almost always **one parent → one child**;
   multi-parent / shared-child cases are rare corners, not the main path.
-- **Cardinality:** the buyer must choose **exactly one child per parent in the
-  cart** (one-per-parent), and **child selection is always required** — there is
-  no "skip". (Resolves Open Question 2.)
+- **Cardinality (per-unit selection):** the buyer must choose children
+  **totalling the parent's quantity, in any mix** — a parent booked at quantity Q
+  requires **Q child units in total**, distributed across that parent's bookable
+  children however the buyer likes (Q of one child, or 1 of child A + 1 of child
+  B, …). The per-parent total **must equal Q exactly** (reject below or above).
+  **Child selection is always required** — there is no "skip". The earlier
+  "exactly one child per parent" rule is now the special case "one child whose
+  quantity = Q". (Resolves Open Question 2.)
 - **Single child ⇒ auto-select.** When a parent has only one (bookable) child,
-  the system **pre-selects it** rather than forcing a pointless choice. The buyer
-  can still see it; they just don't have to pick.
+  the system **assigns the whole parent quantity to it** rather than forcing a
+  pointless choice (rendered as a hidden per-child quantity field). The buyer can
+  still see it; they just don't have to pick.
 - **Child is a normal paid listing** charged at its **own price** (the add-on's
   price). (Resolves Open Question 11.)
 - **Hidden children are fully supported.** A `hidden` listing is **still pickable
@@ -168,9 +198,13 @@ be read in this light (they resolve several of the original open questions):
      tell the operator a *visible* child is undiscoverable — it still appears on
      public cards (only its standalone booking CTA is suppressed). See Admin section
      for the exact split.
-- **Child quantity follows the parent.** If the buyer hires **2 of the base unit**,
-  they get **2 of the add-on** — the child line's quantity is **slaved to the
-  parent's quantity**, not chosen independently. (Resolves Open Question 4.)
+- **Child quantities total the parent's quantity.** If the buyer hires **2 of the
+  base unit**, they choose **2 add-on units in total** — distributed across the
+  parent's children in any mix (2 of one add-on, or 1 of two different add-ons).
+  Each chosen child line's quantity is what the buyer entered for it (via a
+  per-child `child_qty_<parentId>_<childId>` select); their sum must equal the
+  parent's quantity. The previous "child quantity slaved to the parent" behaviour
+  is the single-child special case. (Resolves Open Question 4.)
 - **Child inherits the parent's date/duration — but *date* and *duration* inherit
   separately.** The add-on has no date/day-count controls of its own; it takes the
   base unit's. Two independent dimensions:
@@ -196,26 +230,28 @@ be read in this light (they resolve several of the original open questions):
   the buyer supply the child**. In practice the single-child auto-select makes the
   common base-unit-plus-one-add-on case work everywhere with no extra interaction;
   channels that can't show a chooser (QR skip-to-checkout) must **fall back to the
-  form when the parent has more than one child**, and the **API contract gains
-  child selections** so a parent can be booked programmatically. (Resolves Open
-  Questions 9 and 10.)
+  form when the parent has more than one child** (or the per-unit total can't be
+  auto-resolved), and the **API contract gains child selections** so a parent can
+  be booked programmatically. (Resolves Open Questions 9 and 10.)
 - **A booking can never *start* from a child.** A child listing is bookable **only
   through one of its parents** — it is never an independent entry point. Its own
   `/ticket/<childSlug>` page, the gallery/order page, the API, and QR must **not**
   let a buyer begin an order with a child alone (show it as "available with …"
   rather than a buy button). This is a major simplifier: children are **never
-  standalone cart lines**, so the gate's only input is the per-parent selector —
-  the "standalone child / parent+child URL" ambiguities disappear. (Resolves Open
-  Question 13; reshapes Open Question 6.)
+  standalone cart lines**, so the gate's only input is the per-parent set of
+  per-child quantity selectors — the "standalone child / parent+child URL"
+  ambiguities disappear. (Resolves Open Question 13; reshapes Open Question 6.)
 - **No nesting.** A child cannot also be a parent (and vice versa) — the graph is a
   single level. (Resolves Open Question 3.)
 - **A parent with no bookable child is treated as sold out.** If every child is
   unavailable (inactive / sold out / closed for the date), the parent itself can't
   be booked. (Resolves Open Question 5.)
-- **The same child under two parents = book two.** If a child belongs to two
-  in-cart parents, the buyer books **one per parent** — the folded line's quantity
-  is the **sum** across those parents (P1 + P2 ⇒ quantity 2 of the child). We do
-  **not** disallow this. (Resolves Open Question 8.)
+- **The same child under two parents (or chosen for multiple units) sums.** If a
+  child is chosen under two in-cart parents, or for multiple units within one
+  parent, the folded line's quantity is the **sum** of every contribution (P1's 2
+  + P2's 3 ⇒ quantity 5 of the child). We do **not** disallow this; the summed
+  quantity is re-validated against the child's `maxPurchasable` (reject, never
+  clamp). (Resolves Open Question 8.)
 - **Admin manual add/edit warns, doesn't block.** Operators can still build an
   order that doesn't satisfy the gate (with a warning). (Resolves Open Question 7.)
 - **Renewal/subscription tiers are out of scope** — they can't be parents *or*
@@ -230,9 +266,13 @@ be read in this light (they resolve several of the original open questions):
 The detail/sequence/test sections below elaborate these but **must not restate them
 divergently** — if behaviour changes, change it here and adjust references:
 
-- **I1 — Exactly one child per parent, always required.** Auto-selected when a
-  parent has a single bookable child.
-- **I2 — Child quantity = parent quantity** (derived, not entered).
+- **I1 — Per-unit child selection, always required.** The buyer chooses children
+  whose quantities **sum to exactly the parent's quantity Q**, in any mix across
+  the parent's bookable children (the old "exactly one child" rule is the special
+  case "one child, qty = Q"). Auto-filled to Q when a parent has a single bookable
+  child.
+- **I2 — Per-parent child quantities total the parent's quantity** (the buyer
+  enters each child's quantity; their sum must equal Q — reject below or above).
 - **I3 — A booking can never start from a child.** Children enter an order *only*
   via a parent's per-parent selector; child slugs in any ticket URL are **rejected**
   (not silently dropped). No standalone child cart line ever exists.
@@ -253,15 +293,17 @@ divergently** — if behaviour changes, change it here and adjust references:
   `/order`, group page, JSON API book/discovery/availability, QR, admin manual
   add, attendee merge, renewals) and every discovery/share surface suppresses
   standalone-child links.
-- **I9 — No-JS first:** all child controls render non-`required`; requiredness is
-  enforced server-side for the *selected* child only; unselected/zero-quantity
-  child fields are ignored, not rejected.
-- **I10 — Shared child under two parents books two** (summed quantity, one
-  `(listing_id, date)` line); reconcile only the fields the child carries; reject
-  (don't clamp) over-capacity.
-- **I11 — Admin/merge warn, don't block** on a per-parent "exactly one child"
-  violation; but admin **listing/edge saves hard-block** an incompatible edge
-  (date/duration, renewal tier, unreachable child-scoped add-on).
+- **I9 — No-JS first:** all child controls render non-`required` (per-child
+  quantity selects default 0); requiredness/totals are enforced server-side — only
+  the chosen children's prices/questions are validated; unselected (qty 0) /
+  zero-quantity-parent child fields are ignored, not rejected. A positive quantity
+  for a non-bookable/unknown child IS rejected.
+- **I10 — Shared/multi-unit child sums** (summed quantity across parents and
+  units, one `(listing_id, date)` line); reconcile only the fields the child
+  carries; reject (don't clamp) over-capacity.
+- **I11 — Admin/merge warn, don't block** on a per-parent child-total violation;
+  but admin **listing/edge saves hard-block** an incompatible edge (date/duration,
+  renewal tier, unreachable child-scoped add-on).
 - **I12 — Hidden children stay pickable/auto-selectable**; being a child does not
   auto-hide; renewal/subscription tiers are never parents or children; duplication
   copies/remaps edges.
@@ -1422,13 +1464,19 @@ without its required-child gate.
 1. **Edit direction & wording** — configure edges on the *parent* ("require a
    choice from these") or the *child* ("offered under these")? (Store identically;
    choose the UI.) *Recommended: edit on the parent.*
-2. **Selection cardinality** — ✅ **RESOLVED:** exactly one child per parent,
-   always required, auto-select when a parent has a single child (see Confirmed
-   behaviour). No per-parent min/max config needed for v1.
+2. **Selection cardinality** — ✅ **RESOLVED (per-unit, updated 2026-06-23):** the
+   buyer chooses children **totalling the parent's quantity Q, in any mix** (Q of
+   one child, or 1 of A + 1 of B, …); the per-parent total must equal Q exactly.
+   Always required; a sole bookable child auto-fills to Q (see Confirmed
+   behaviour). The earlier "exactly one child per parent" is the special case "one
+   child, qty = Q". No per-parent min/max config needed for v1.
 3. **Nesting / cycles** — ✅ **RESOLVED:** no nesting — a child can't also be a
    parent (single-level graph). Enforced in admin validation.
-4. **Quantity coupling** — ✅ **RESOLVED:** child quantity **follows the parent**
-   (2 base units ⇒ 2 add-ons). See Confirmed behaviour.
+4. **Quantity coupling** — ✅ **RESOLVED (per-unit, updated 2026-06-23):** the
+   chosen children's quantities **total the parent's quantity** (2 base units ⇒ 2
+   add-on units, in any mix across the children); each child is booked at the
+   quantity the buyer entered for it. The old "child quantity follows the parent"
+   is the single-child special case. See Confirmed behaviour.
 5. **No bookable children** — ✅ **RESOLVED:** treat the parent as **sold out** when
    no child is bookable.
 6. **Groups interaction** — ✅ **RESOLVED (by "no booking from a child"):** a child
@@ -1438,10 +1486,11 @@ without its required-child gate.
    cosmetic follow-on is whether to let an operator list a child as a group member
    at all.
 7. **Admin manual add / attendee edit** — ✅ **RESOLVED:** warn but don't block.
-8. **Shared child across parents** — ✅ **RESOLVED:** **allowed** — the same child
-   under two in-cart parents books **two** (one per parent), folded into a single
-   `(listing_id, date)` line with the **summed quantity**. (Pay-more prices for the
-   shared child must reconcile — simplest: require equal, same add-on.)
+8. **Shared / multi-unit child** — ✅ **RESOLVED:** **allowed** — the same child
+   chosen under two in-cart parents, or for multiple units within one parent, folds
+   into a single `(listing_id, date)` line with the **summed quantity**,
+   re-validated against `maxPurchasable` (reject, never clamp). (Pay-more prices
+   for the shared child must reconcile — require equal, same add-on.)
 9. **API bookings** — ✅ **RESOLVED:** parents are bookable via the API, so the
    API/`processBooking` contract is **extended to carry child selections** (not
    website-only). See Confirmed behaviour.
@@ -1494,10 +1543,11 @@ parent, which collapsed several ambiguities at once.
 
 ### ✅ Answered
 
-- **Cardinality:** exactly one child per parent, always required; auto-select when
-  there's a single child. *(Q2.)*
-- **Quantity:** child quantity follows the parent — 2 base units ⇒ 2 add-ons.
-  *(Q4.)*
+- **Cardinality:** per-unit — the buyer chooses children totalling the parent's
+  quantity Q, in any mix; always required; a sole bookable child auto-fills to Q.
+  *(Q2.)*
+- **Quantity:** the chosen children's quantities total the parent's — 2 base units
+  ⇒ 2 add-on units, distributed in any mix. *(Q4.)*
 - **Dates/duration:** child always inherits the base unit's. *(Q14 + Q17.)*
 - **Pricing:** child charged at its own price; add-ons can be pay-what-you-want.
   *(Q11 + Q15.)*
@@ -1505,7 +1555,8 @@ parent, which collapsed several ambiguities at once.
   booking can start from a child**. *(Q9 + Q10 + Q13.)*
 - **Nesting:** none — a child can't also be a parent. *(Q3.)*
 - **No bookable child ⇒ parent is sold out.** *(Q5.)*
-- **Shared child under two parents:** allowed — books two (summed quantity). *(Q8.)*
+- **Shared / multi-unit child:** allowed — folds one line with the summed quantity
+  (across parents and units), reject (don't clamp) over-capacity. *(Q8.)*
 - **Admin manual add:** warn, don't block. *(Q7.)*
 - **Renewal/subscription tiers:** never parents or children. *(Q18.)*
 - **Duplication:** copies the parent–child links. *(Q19.)*

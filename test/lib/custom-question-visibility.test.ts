@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { initQuestionVisibility } from "#src/ui/client/admin/custom-question-visibility.ts";
 import {
-  childRadioSpec,
+  childQtySpec,
   childSelectorSpec,
   type ElementSpec,
   type FakeElement,
@@ -26,7 +26,7 @@ const textControl = (): ElementSpec => ({
 
 const parentBlock = (parentId: string, childId: string): ElementSpec => ({
   ...childSelectorSpec(parentId),
-  children: [childRadioSpec(parentId, childId, true)],
+  children: [childQtySpec(parentId, childId, "1")],
 });
 
 const findControl = (roots: FakeElement[], type: string): FakeElement =>
@@ -63,12 +63,12 @@ describe("custom question visibility", () => {
     expect(text.required).toBe(false);
   });
 
-  test("shows and requires a question for a child selected under an in-cart parent", () => {
+  test("shows and requires a question for a child given a positive quantity under an in-cart parent", () => {
     const control = textControl();
     const roots = installFakeDom([
       question("202", control), // 202 is the child listing id
       quantity("101", "2"), // parent in cart
-      parentBlock("101", "202"), // child 202 selected
+      parentBlock("101", "202"), // child 202 chosen (qty 1)
     ]);
     const text = findControl(roots, "text");
 
@@ -78,7 +78,7 @@ describe("custom question visibility", () => {
     expect(text.required).toBe(true);
   });
 
-  test("switching to a sibling hides the first child's question and reveals the sibling's", () => {
+  test("redistributing the quantity hides the first child's question and reveals the sibling's", () => {
     const firstQ = textControl();
     const siblingQ = textControl();
     const roots = installFakeDom([
@@ -86,23 +86,41 @@ describe("custom question visibility", () => {
       question("303", siblingQ),
       quantity("101", "1"),
       childSelectorSpec("101"),
-      childRadioSpec("101", "202", true),
-      childRadioSpec("101", "303", false),
+      childQtySpec("101", "202", "1"),
+      childQtySpec("101", "303", "0"),
     ]);
 
     initQuestionVisibility();
     expect(roots[0]!.hidden).toBe(false); // 202 visible
     expect(roots[1]!.hidden).toBe(true); // 303 hidden
 
-    // Buyer switches to the sibling child.
+    // Buyer moves the unit from 202 to 303.
     const selectedA = roots[4]!;
     const selectedB = roots[5]!;
-    selectedA.checked = false;
-    selectedB.checked = true;
+    selectedA.value = "0";
+    selectedB.value = "1";
     selectedB.dispatch("change");
 
     expect(roots[0]!.hidden).toBe(true); // 202 now hidden
     expect(roots[1]!.hidden).toBe(false); // 303 now visible
+  });
+
+  test("both children's questions show when each is given a positive quantity", () => {
+    const firstQ = textControl();
+    const siblingQ = textControl();
+    const roots = installFakeDom([
+      question("202", firstQ),
+      question("303", siblingQ),
+      quantity("101", "2"),
+      childSelectorSpec("101"),
+      childQtySpec("101", "202", "1"),
+      childQtySpec("101", "303", "1"),
+    ]);
+
+    initQuestionVisibility();
+    // The per-unit model can pick one of each, so both questions are active.
+    expect(roots[0]!.hidden).toBe(false);
+    expect(roots[1]!.hidden).toBe(false);
   });
 
   test("a child-only question stays hidden when its parent is at zero quantity", () => {
@@ -110,7 +128,7 @@ describe("custom question visibility", () => {
     const roots = installFakeDom([
       question("202", control),
       quantity("101", "0"), // parent not in cart
-      parentBlock("101", "202"), // child auto-selected, but parent qty 0
+      parentBlock("101", "202"), // child chosen, but parent qty 0
     ]);
     const text = findControl(roots, "text");
 

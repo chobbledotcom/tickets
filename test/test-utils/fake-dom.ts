@@ -1,7 +1,7 @@
 /** Minimal fake DOM for the booking-page client scripts.
  *
  * The client enhancement modules query a small, fixed vocabulary of selectors
- * (`[name^="quantity_"]`, `input[name="child_<id>"]:checked`,
+ * (`[name^="quantity_"]`, `[name^="child_qty_<parentId>_"]`,
  * `fieldset.child-selector[data-parent-id]`, `.custom-question[data-listing-ids]`,
  * control-type lists inside a question, …). Rather than pull in a full DOM, this
  * builds plain element objects and a `document` whose query methods interpret
@@ -17,7 +17,9 @@ export type FakeElement = {
   value: string;
   checked: boolean;
   required: boolean;
+  disabled: boolean;
   hidden: boolean;
+  textContent: string;
   dataset: Record<string, string>;
   children: FakeElement[];
   getAttribute: (name: string) => string | null;
@@ -35,6 +37,7 @@ export type ElementSpec = {
   value?: string;
   checked?: boolean;
   required?: boolean;
+  disabled?: boolean;
   hidden?: boolean;
   data?: Record<string, string>;
   children?: ElementSpec[];
@@ -48,6 +51,7 @@ type Clause = {
   namePrefix?: string;
   nameExact?: string;
   dataKey?: string;
+  dataValue?: string;
   checked: boolean;
 };
 
@@ -70,8 +74,14 @@ const parseClause = (raw: string): Clause => {
   if (exact) clause.nameExact = exact[1];
   const typeAttr = rest.match(/\[type="([^"]+)"\]/);
   if (typeAttr) clause.type = typeAttr[1];
-  const dataAttr = rest.match(/\[data-([a-z-]+)\]/);
-  if (dataAttr) clause.dataKey = dataAttr[1];
+  const dataAttrValue = rest.match(/\[data-([a-z-]+)="([^"]+)"\]/);
+  if (dataAttrValue) {
+    clause.dataKey = dataAttrValue[1];
+    clause.dataValue = dataAttrValue[2];
+  } else {
+    const dataAttr = rest.match(/\[data-([a-z-]+)\]/);
+    if (dataAttr) clause.dataKey = dataAttr[1];
+  }
   return clause;
 };
 
@@ -83,8 +93,12 @@ const matchesClause = (el: FakeElement, clause: Clause): boolean => {
   const name = el.attrs.get("name") ?? "";
   if (clause.namePrefix && !name.startsWith(clause.namePrefix)) return false;
   if (clause.nameExact && name !== clause.nameExact) return false;
-  if (clause.dataKey && el.getAttribute(`data-${clause.dataKey}`) === null) {
-    return false;
+  if (clause.dataKey) {
+    const dataVal = el.getAttribute(`data-${clause.dataKey}`);
+    if (dataVal === null) return false;
+    if (clause.dataValue !== undefined && dataVal !== clause.dataValue) {
+      return false;
+    }
   }
   return true;
 };
@@ -118,6 +132,7 @@ const makeElement = (spec: ElementSpec): FakeElement => {
     children,
     classes: new Set(spec.class ? spec.class.split(" ") : []),
     dataset,
+    disabled: spec.disabled ?? false,
     dispatch: (event) => {
       for (const listener of listeners.get(event) ?? []) listener();
     },
@@ -127,6 +142,7 @@ const makeElement = (spec: ElementSpec): FakeElement => {
       collect(children).filter((c) => matchesSelector(c, selector)),
     required: spec.required ?? false,
     tag: spec.tag ?? "input",
+    textContent: "",
     type: spec.type,
     value: spec.value ?? "",
   };
@@ -156,16 +172,25 @@ export const childSelectorSpec = (parentId: string): ElementSpec => ({
   tag: "fieldset",
 });
 
-export const childRadioSpec = (
+/** A per-child quantity select (`child_qty_<parentId>_<childId>`), the per-unit
+ * selection control that replaced the old radio. `value` is the chosen quantity
+ * (default "0"); a disabled control models a sold-out child. */
+export const childQtySpec = (
   parentId: string,
   childId: string,
-  checked: boolean,
+  value = "0",
+  disabled = false,
 ): ElementSpec => ({
-  checked,
-  name: `child_${parentId}`,
-  tag: "input",
-  type: "radio",
-  value: childId,
+  disabled,
+  name: `child_qty_${parentId}_${childId}`,
+  tag: "select",
+  value,
+});
+
+/** The per-parent "X of Q chosen" hint span the JS updates. */
+export const childHintSpec = (parentId: string): ElementSpec => ({
+  data: { childHint: parentId },
+  tag: "span",
 });
 
 export const childPriceSpec = (

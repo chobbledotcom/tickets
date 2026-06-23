@@ -7,10 +7,10 @@ import {
   selectedListingIds,
 } from "#src/ui/client/admin/child-selection.ts";
 import {
+  childQtySpec as childQty,
   childSelectorSpec as childSelector,
   installFakeDom,
   quantitySpec as quantity,
-  childRadioSpec as radio,
   restoreDocument,
 } from "#test-utils/fake-dom.ts";
 
@@ -27,31 +27,43 @@ describe("child selection helpers", () => {
     expect([...selectedListingIds()].sort()).toEqual(["101"]);
   });
 
-  test("selectedListingIds adds the selected child of an in-cart parent only", () => {
+  test("selectedListingIds adds each positive-quantity child of an in-cart parent", () => {
+    installFakeDom([
+      quantity("101", "2"),
+      childSelector("101"),
+      childQty("101", "202", "1"),
+      childQty("101", "303", "1"),
+    ]);
+
+    expect([...selectedListingIds()].sort()).toEqual(["101", "202", "303"]);
+  });
+
+  test("selectedListingIds ignores a zero-quantity child of an in-cart parent", () => {
     installFakeDom([
       quantity("101", "1"),
       childSelector("101"),
-      radio("101", "202", true),
+      childQty("101", "202", "1"),
+      childQty("101", "303", "0"),
     ]);
 
     expect([...selectedListingIds()].sort()).toEqual(["101", "202"]);
   });
 
-  test("selectedListingIds ignores a child whose parent is not in the cart", () => {
+  test("selectedListingIds ignores children whose parent is not in the cart", () => {
     installFakeDom([
       quantity("101", "0"),
       childSelector("101"),
-      radio("101", "202", true),
+      childQty("101", "202", "1"),
     ]);
 
     expect([...selectedListingIds()]).toEqual([]);
   });
 
-  test("selectedListingIds skips an in-cart parent with no child checked", () => {
+  test("selectedListingIds ignores a disabled (sold-out) child control", () => {
     installFakeDom([
       quantity("101", "1"),
       childSelector("101"),
-      radio("101", "202", false),
+      childQty("101", "202", "1", true), // disabled -> never selectable
     ]);
 
     expect([...selectedListingIds()]).toEqual(["101"]);
@@ -64,10 +76,10 @@ describe("child selection helpers", () => {
     expect(childSelectorParentIds()).toEqual(["101"]);
   });
 
-  test("onSelectionChange fires the listener for quantity and child radio changes", () => {
+  test("onSelectionChange fires the listener for quantity and child-quantity changes", () => {
     const roots = installFakeDom([
       quantity("101", "1"),
-      radio("101", "202", true),
+      childQty("101", "202", "1"),
     ]);
     let calls = 0;
 

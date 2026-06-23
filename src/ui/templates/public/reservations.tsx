@@ -565,20 +565,34 @@ const childPriceLabel = (
   return `(${formatCurrency(price)})`;
 };
 
-/** Render one child <option> as a radio in the per-parent selector, plus — when
- * it is the (currently) chosen/auto-selected option — its non-required pay-more
- * price input. A sold-out/closed child renders disabled (invariant I6). */
+/** The per-unit quantity restored for a child select after a validation
+ * re-render: the buyer's submitted `child_qty_<parentId>_<childId>`, clamped to
+ * `0..max`, else 0. */
+const restoredChildQty = (
+  parentId: number,
+  childId: number,
+  max: number,
+): number => {
+  const saved = savedFormValue(`child_qty_${parentId}_${childId}`);
+  if (saved === "") return 0;
+  return Math.max(0, Math.min(Number.parseInt(saved, 10) || 0, max));
+};
+
+/** Render one child as a per-unit quantity row (per-unit selection model): a
+ * `child_qty_<parentId>_<childId>` quantity select over `0..childCap`, plus —
+ * for a bookable pay-more child — its non-required price input. A
+ * sold-out/closed/inactive child renders a disabled select fixed at 0 and is
+ * never selectable (invariant I6). The select is non-required in markup; the
+ * server fold validates the per-parent total (invariant I9). */
 const renderChildOption = (
   parent: ListingWithCount,
   child: TicketListing,
-  checked: boolean,
+  childCap: number,
 ): string => {
   const parentId = parent.id;
   const { listing } = child;
   const bookable = childBookable(child);
-  const saved = savedFormValue(`child_${parentId}`);
-  const isChecked =
-    saved === "" ? checked && bookable : saved === String(listing.id);
+  const selectName = `child_qty_${parentId}_${listing.id}`;
   const priceHtml =
     listing.can_pay_more && bookable
       ? renderPayMoreInput(
@@ -591,34 +605,86 @@ const renderChildOption = (
   const label = bookable
     ? `${escapeHtml(listing.name)} ${childPriceLabel(listing, parent)}`.trim()
     : escapeHtml(t("public.ticket.child_unavailable", { name: listing.name }));
+  const select = bookable
+    ? `<select name="${selectName}" data-child-qty="${listing.id}">${quantityOptions(
+        childCap,
+        restoredChildQty(parentId, listing.id, childCap),
+      )}</select>`
+    : `<select name="${selectName}" disabled><option value="0" selected>0</option></select>`;
+  return `<label class="child-option">${select} ${label}</label>${priceHtml}`;
+};
+
+/** Render a sole bookable child's forced selection (auto-select preserved): a
+ * hidden `child_qty_<parentId>_<childId>` carrying the whole parent quantity (so
+ * no-JS buyers don't have to choose) plus a read-only display of the child name
+ * and price. The hidden value uses the parent's render-time max as a placeholder;
+ * the JS sets it to the live parent quantity, and the server fold auto-fills the
+ * sole child to the parent quantity regardless. */
+const renderSoleChildOption = (
+  parent: ListingWithCount,
+  child: TicketListing,
+  childCap: number,
+): string => {
+  const parentId = parent.id;
+  const { listing } = child;
+  const priceHtml = listing.can_pay_more
+    ? renderPayMoreInput(
+        listing,
+        `child_price_${parentId}_${listing.id}`,
+        undefined,
+        false,
+      )
+    : "";
+  const label =
+    `${escapeHtml(listing.name)} ${childPriceLabel(listing, parent)}`.trim();
   return (
     `<label class="child-option">` +
-    `<input type="radio" name="child_${parentId}" value="${listing.id}"${
-      isChecked ? " checked" : ""
-    }${bookable ? "" : " disabled"} /> ${label}</label>${priceHtml}`
+    `<input type="hidden" name="child_qty_${parentId}_${listing.id}" data-child-qty="${listing.id}" value="${childCap}" /> ${label}</label>${priceHtml}`
   );
 };
 
 /**
- * Render the per-parent child block: a non-required radio group
- * `child_<parentId>` over the parent's children (auto-checked when exactly one
- * is bookable), each bookable pay-more child's price input, and the children's
- * questions (deduped, non-required). Empty string when the parent has no
- * children. Requiredness is enforced server-side only for the selected child of
- * an in-cart parent (invariant I9).
+ * Render the per-parent child block (per-unit selection model): a per-child
+ * quantity select `child_qty_<parentId>_<childId>` over the parent's children, a
+ * visible "Choose <Q> add-on(s) in total" note plus a live "X of Q chosen" hint,
+ * each bookable pay-more child's price input, and the children's questions
+ * (deduped, non-required). A SOLE bookable child renders a hidden quantity field
+ * carrying the parent quantity (auto-select preserved). Empty string when the
+ * parent has no children. Requiredness/totals are enforced server-side
+ * (invariant I9).
  */
 const renderChildBlock = (
-  parent: ListingWithCount,
+  parentInfo: TicketListing,
   ctx: ChildRenderCtx,
 ): string => {
+  const parent = parentInfo.listing;
   const parentId = parent.id;
   const children = ctx.children.get(parentId);
   if (!children || children.length === 0) return "";
   const bookable = children.filter(childBookable);
-  const autoChild = bookable.length === 1 ? bookable[0]!.listing.id : null;
+  // The parent's effective max is the per-parent total ceiling; each child select
+  // is additionally capped by its own combined parent+child order capacity.
+  const total = childCappedMax(parentInfo, ctx);
+  const isSole = (child: TicketListing): boolean =>
+    bookable.length === 1 && bookable[0]!.listing.id === child.listing.id;
   const options = children
     .map((child) =>
-      renderChildOption(parent, child, child.listing.id === autoChild),
+      isSole(child)
+        ? renderSoleChildOption(parent, child, total)
+        : renderChildOption(
+            parent,
+            child,
+            childBookable(child)
+              ? Math.min(
+                  total,
+                  childOrderCap(
+                    parentInfo,
+                    child,
+                    ctx.groupRemainingByListingId,
+                  ),
+                )
+              : 0,
+          ),
     )
     .join("");
   const questionsHtml = children
@@ -638,10 +704,17 @@ const renderChildBlock = (
         .join("");
     })
     .join("");
+  // The "choose N in total" note + live hint guide the per-unit selection. At
+  // no-JS render the parent quantity isn't chosen yet, so the note seeds with the
+  // parent's effective max; the JS recomputes it live against the parent select.
+  const note =
+    `<p class="child-total-note" data-child-total="${parentId}">` +
+    `${escapeHtml(t("public.ticket.choose_total", { count: total }))} ` +
+    `<span class="child-total-hint" data-child-hint="${parentId}"></span></p>`;
   return (
     `<fieldset class="child-selector" data-parent-id="${parentId}">` +
     `<legend>${escapeHtml(t("public.ticket.choose_option", { name: parent.name }))}</legend>` +
-    `${options}${questionsHtml}</fieldset>`
+    `${note}${options}${questionsHtml}</fieldset>`
   );
 };
 
@@ -691,7 +764,7 @@ const renderListingRow = (
   const showPayMore = listing.can_pay_more;
   const priceFieldName = `custom_price_${listing.id}`;
   const prefilledPrice = prefill ? prefill.customPriceMinor : undefined;
-  const childBlock = childCtx ? renderChildBlock(listing, childCtx) : "";
+  const childBlock = childCtx ? renderChildBlock(info, childCtx) : "";
 
   return `
     <div class="ticket-row">
@@ -730,7 +803,7 @@ const renderSingleListingControls = (
       )}</select></label>`;
   const showPayMore = listing.can_pay_more;
   const priceFieldName = `custom_price_${listing.id}`;
-  const childBlock = childCtx ? renderChildBlock(listing, childCtx) : "";
+  const childBlock = childCtx ? renderChildBlock(info, childCtx) : "";
   return `${quantityHtml}${
     showPayMore
       ? renderPayMoreInput(listing, priceFieldName, prefilledPrice)
