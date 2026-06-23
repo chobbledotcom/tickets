@@ -39,6 +39,9 @@ src/ui/templates/public/shared.tsx:169:41  ?? → ||   # span: null or a duratio
 src/ui/templates/public/reservations.tsx:548:12  ! → ∅   # childQuestionsToRender: the `rendered` dedup (pre-seeded with page questions, plus each child's own) makes which child triggers a question's render unobservable — the same single identical control results; a question in ctx.questions is always owned by a page listing or a child
 src/ui/templates/public/reservations.tsx:1264:50  ?? → ||   # addOns?.some(...) is boolean|undefined; ?? and || agree on every boolean and on undefined
 
+# Parent/child relationship DB (listing-parents.ts).
+src/shared/db/listing-parents.ts:119:21  ?? → ||   # result.get(key): ListingWithCount[]|undefined, arrays always truthy; ?? and || agree
+
 # Invariant-based, confirmed by reading toUnits: `lineIdxs` comes from toUnits,
 # which assigns lineIdx as the flatMap array index, so the sort's input is
 # always already ascending — and `sort((a,b) => a/b)` is identity on an
