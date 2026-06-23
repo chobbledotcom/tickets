@@ -401,6 +401,10 @@ nav ul li {
        the lower links stay reachable while the sidebar is stuck. */
     max-height: calc(100dvh - 2 * var(--space-m));
     overflow-y: auto;
+    /* Pin the sidebar visually across cross-document navigations: the browser
+       matches this name on both the old and new page and keeps the element in
+       place while only column-2 content transitions. */
+    view-transition-name: admin-sidebar;
   }
 
   /* Everything that isn't the sidebar flows down column 2... */
