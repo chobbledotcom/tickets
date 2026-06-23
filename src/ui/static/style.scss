@@ -2205,6 +2205,20 @@ button.secondary:hover,
   border-radius: var(--border-radius);
 }
 
+/* The ledger's two range pickers ("From" / "To") laid out side by side, wrapping
+   to a column on narrow screens. */
+.ledger-date-range {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-m);
+}
+
+.ledger-date-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-s);
+}
+
 .date-picker > select {
   display: block;
   width: 100%;

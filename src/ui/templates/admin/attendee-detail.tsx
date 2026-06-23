@@ -21,9 +21,11 @@ import type { AccountRef } from "#shared/ledger/types.ts";
 import type { Attendee } from "#shared/types.ts";
 import { ActivityLogTable } from "#templates/admin/activityLog.tsx";
 import {
-  AccountStatementSection,
+  AccountStatementHeading,
+  AccountStatementTable,
   type LedgerNames,
 } from "#templates/admin/ledger.tsx";
+import { ActionButton } from "#templates/components/actions.tsx";
 import { MapsLinks } from "#templates/components/maps-links.tsx";
 import { PhoneLinks } from "#templates/components/phone-links.tsx";
 
@@ -257,19 +259,32 @@ export type AttendeeLedgerData = {
  * The attendee's money ledger embedded on the edit page (decision 15 names the
  * edit-attendee page as a renderer surface): the same shared running-balance
  * statement the standalone /admin/ledger account page shows, scoped to this
- * attendee's account, in its own section.
+ * attendee's account. Collapsed in a details/summary like the activity log, with
+ * the balance, a "view full ledger" action row, then the scrollable statement.
  */
 export const AttendeeLedgerSection = ({
   ledger,
 }: {
   ledger: AttendeeLedgerData;
 }): JSX.Element => (
-  <fieldset>
-    <legend>{t("attendee_detail.ledger")}</legend>
-    <AccountStatementSection
+  <details>
+    <summary>{t("attendee_detail.ledger")}</summary>
+    <AccountStatementHeading
       account={ledger.account}
       lines={ledger.lines}
       names={ledger.names}
     />
-  </fieldset>
+    <p class="table-header-actions">
+      <ActionButton
+        href={`/admin/ledger/${ledger.account.type}/${ledger.account.id}`}
+      >
+        {t("attendee_detail.view_full_ledger")}
+      </ActionButton>
+    </p>
+    <AccountStatementTable
+      account={ledger.account}
+      lines={ledger.lines}
+      names={ledger.names}
+    />
+  </details>
 );

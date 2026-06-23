@@ -586,8 +586,8 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
 
     test("an owner sees the attendee's running-balance statement with counterparties", async () => {
       const html = await seedAndGetEdit(await testCookie());
-      // The shared statement renders inside its own Ledger fieldset.
-      expect(html).toContain("<legend>Ledger</legend>");
+      // The shared statement renders inside a collapsed Ledger disclosure.
+      expect(html).toContain("<summary>Ledger</summary>");
       expect(html).toContain("<th>Counterparty</th>");
       // The sale's counterparty links to the listing; the payment's is card/bank.
       expect(html).toContain("Pottery Class");

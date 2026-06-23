@@ -18,6 +18,7 @@
   "attendee_detail.answers": "Answers",
   "attendee_detail.activity_log": "Activity Log",
   "attendee_detail.ledger": "Ledger",
+  "attendee_detail.view_full_ledger": "View full ledger",
   "attendee_detail.total": "Total",
   "attendee_form.checked_in": "Checked in",
   "attendee_form.refunded": "Refunded",

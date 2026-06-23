@@ -17,6 +17,12 @@ import {
   creditsLessWriteoffDebits,
 } from "#shared/accounting/projection-sql.ts";
 import {
+  andPrefixed,
+  type LedgerRange,
+  occurredAtRange,
+  wherePrefixed,
+} from "#shared/accounting/range.ts";
+import {
   fromDb,
   selectByEventGroup,
   selectTransfers,
@@ -56,6 +62,129 @@ export const recentTransfers = (limit: number): Promise<Transfer[]> =>
   selectTransfers(fromDb, " ORDER BY occurred_at DESC, id DESC LIMIT ?", [
     limit,
   ]);
+
+/** Legs whose source AND destination are both internal — i.e. NOT the
+ *  `external:world` cash account. The operator-facing ledger list hides cash
+ *  plumbing ("Card / bank → <attendee>" and its refund mirror), so this is the
+ *  base scope of every visible row. */
+const EXCLUDE_EXTERNAL =
+  "source_type != 'external' AND dest_type != 'external'";
+
+/** A revenue-account scope (the listing's own legs, as source or destination)
+ *  for the by-listing filter, with its bound args. Empty for "all listings". */
+const revenueLegScope = (
+  listingId: number | null,
+): { clause: string; args: InValue[] } =>
+  listingId === null
+    ? { args: [], clause: "" }
+    : {
+        args: [String(listingId), String(listingId)],
+        clause:
+          " AND (dest_type = 'revenue' AND dest_id = ?" +
+          " OR source_type = 'revenue' AND source_id = ?)",
+      };
+
+/**
+ * The visible transfer list for the operator ledger: newest first, capped at
+ * `limit`, hiding every `external:world` cash leg, bounded to `range`, and
+ * optionally scoped to one listing's `revenue` account. Ordering + limit run in
+ * SQL so the whole ledger is never loaded.
+ */
+export const visibleTransfers = (
+  range: LedgerRange,
+  listingId: number | null,
+  limit: number,
+): Promise<Transfer[]> => {
+  const r = occurredAtRange(range);
+  const listing = revenueLegScope(listingId);
+  return selectTransfers(
+    fromDb,
+    ` WHERE ${EXCLUDE_EXTERNAL}${andPrefixed(r.clause)}${listing.clause}` +
+      " ORDER BY occurred_at DESC, id DESC LIMIT ?",
+    [...r.args, ...listing.args, limit],
+  );
+};
+
+/** Distinct-day bounds (earliest/latest `occurred_at`) over the whole ledger, or
+ *  null when it is empty — the span the date-range pickers offer as selectable. */
+export const transferActivityBounds = async (): Promise<{
+  minMs: number;
+  maxMs: number;
+} | null> => {
+  const rows = await queryAll<{
+    min_ms: number | bigint | null;
+    max_ms: number | bigint | null;
+  }>(
+    "SELECT MIN(occurred_at) AS min_ms, MAX(occurred_at) AS max_ms FROM transfers",
+    [],
+  );
+  const row = rows[0];
+  if (!row || row.min_ms === null || row.max_ms === null) return null;
+  return { maxMs: Number(row.max_ms), minMs: Number(row.min_ms) };
+};
+
+/** The headline figures the ledger stats table shows for a range. */
+export type LedgerTotals = {
+  /** Recognised revenue across all listings (gross sales ± write-off adjustments). */
+  income: number;
+  /** Net receivable arising in the range (Σ attendee debits − credits). */
+  due: number;
+  /** Cash handed back (`refund_cash` legs). */
+  refunded: number;
+  /** Net booking-fee income (`fee` credits − `refund_fee` debits). */
+  fees: number;
+};
+
+type LedgerTotalsRow = {
+  income: number | bigint;
+  due: number | bigint;
+  refunded: number | bigint;
+  fees: number | bigint;
+};
+
+/**
+ * The four headline ledger figures over `range`, in one grouped scan:
+ *
+ * - `income` — recognised revenue: `sale` credits to any `revenue` account, plus
+ *   write-up `adjustment`s from `writeoff`, minus write-down `adjustment`s to
+ *   `writeoff` (matching the per-listing {@link listingRevenueBreakdown}).
+ * - `due` — net receivable: a leg *out of* an attendee (a sale/fee they owe) adds,
+ *   a leg *into* an attendee (a payment) subtracts. Over "forever" this is exactly
+ *   the current total outstanding.
+ * - `refunded` — Σ `refund_cash` amounts (cash returned to the world).
+ * - `fees` — net booking-fee income: credits to `fee_income` less its refunds.
+ */
+export const ledgerTotals = async (
+  range: LedgerRange,
+): Promise<LedgerTotals> => {
+  const r = occurredAtRange(range);
+  const rows = await queryAll<LedgerTotalsRow>(
+    `SELECT
+       COALESCE(SUM(CASE
+         WHEN kind = 'sale' AND dest_type = 'revenue' THEN amount
+         WHEN kind = 'adjustment' AND dest_type = 'revenue' AND source_type = 'writeoff' THEN amount
+         WHEN kind = 'adjustment' AND source_type = 'revenue' AND dest_type = 'writeoff' THEN -amount
+         ELSE 0 END), 0) AS income,
+       COALESCE(SUM(CASE
+         WHEN source_type = 'attendee' THEN amount
+         WHEN dest_type = 'attendee' THEN -amount
+         ELSE 0 END), 0) AS due,
+       COALESCE(SUM(CASE WHEN kind = 'refund_cash' THEN amount ELSE 0 END), 0) AS refunded,
+       COALESCE(SUM(CASE
+         WHEN dest_type = 'fee_income' THEN amount
+         WHEN source_type = 'fee_income' THEN -amount
+         ELSE 0 END), 0) AS fees
+     FROM transfers${wherePrefixed(r.clause)}`,
+    r.args,
+  );
+  const row = rows[0]!;
+  return {
+    due: Number(row.due),
+    fees: Number(row.fees),
+    income: Number(row.income),
+    refunded: Number(row.refunded),
+  };
+};
 
 type BalanceRow = { id: string; balance: number | bigint };
 

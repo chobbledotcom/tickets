@@ -9,7 +9,9 @@ import {
   AccountStatementTable,
   adminAccountStatementPage,
   adminLedgerPage,
+  type LedgerFilterState,
   type LedgerNames,
+  type LedgerPageData,
   LedgerTable,
   resolveAccountLabel,
 } from "#templates/admin/ledger.tsx";
@@ -203,17 +205,76 @@ describe("AccountStatementTable", () => {
 });
 
 describe("adminLedgerPage", () => {
-  test("renders the Ledger heading, nav, and the transfer list", () => {
-    const html = adminLedgerPage([transfer()], names(), false, SESSION);
+  const NO_FILTERS: LedgerFilterState = {
+    from: null,
+    fromMonth: null,
+    listingId: null,
+    to: null,
+    toMonth: null,
+  };
+
+  const pageData = (
+    overrides: Partial<LedgerPageData> = {},
+  ): LedgerPageData => ({
+    dates: [
+      { label: "Sat 20 June 2026", selectable: true, value: "2026-06-20" },
+    ],
+    filters: NO_FILTERS,
+    listings: [{ id: 1, name: "Summer Concert" }],
+    names: names(),
+    stats: [{ key: "Total income", value: "£25.00" }],
+    statsHeading: "All listings",
+    today: "2026-06-23",
+    transfers: [transfer()],
+    truncated: false,
+    ...overrides,
+  });
+
+  test("renders the Ledger heading, nav, stats, filters, and the transfer list", () => {
+    const html = adminLedgerPage(pageData(), SESSION);
     expect(html).toContain("Ledger");
     expect(html).toContain('href="/admin/ledger"');
     expect(html).toContain("<th>From → To</th>");
+    // The stats table and its heading render.
+    expect(html).toContain("All listings");
+    expect(html).toContain("Total income");
+    expect(html).toContain("£25.00");
+    // Both range pickers render with unique anchor ids.
+    expect(html).toContain('id="ledger-from"');
+    expect(html).toContain('id="ledger-to"');
+    // The by-listing select lists every listing plus the "all" option.
+    expect(html).toContain("All listings");
+    expect(html).toContain("Summer Concert");
+  });
+
+  test("preselects the chosen listing in the by-listing select", () => {
+    const html = adminLedgerPage(
+      pageData({ filters: { ...NO_FILTERS, listingId: 1 } }),
+      SESSION,
+    );
+    // The listing option carries `selected`; its value scopes the URL to it.
+    expect(html).toContain(
+      '<option selected value="/admin/ledger?listing=1">Summer Concert</option>',
+    );
+  });
+
+  test("day links carry the from/to filters and the other side's state", () => {
+    const html = adminLedgerPage(
+      pageData({
+        filters: { ...NO_FILTERS, from: "2026-06-20", listingId: 1 },
+      }),
+      SESSION,
+    );
+    // A "to" day link keeps the existing from + listing scope.
+    expect(html).toContain("to=2026-06-20");
+    expect(html).toContain("from=2026-06-20");
+    expect(html).toContain("listing=1");
   });
 
   test("surfaces the 'showing recent' note only when truncated", () => {
-    const shown = adminLedgerPage([transfer()], names(), true, SESSION);
+    const shown = adminLedgerPage(pageData({ truncated: true }), SESSION);
     expect(shown).toContain("Showing the most recent 500 transfers");
-    const all = adminLedgerPage([transfer()], names(), false, SESSION);
+    const all = adminLedgerPage(pageData({ truncated: false }), SESSION);
     expect(all).not.toContain("Showing the most recent 500 transfers");
   });
 });
@@ -235,8 +296,9 @@ describe("adminAccountStatementPage", () => {
     const html = adminAccountStatementPage(acct, lines, refs, SESSION);
     expect(html).toContain("Ada Lovelace");
     expect(html).toContain(`Balance: ${formatCurrency(5000)}`);
-    // Back link to the historical ledger.
+    // The nav links back to the ledger; no separate back-link arrow is shown.
     expect(html).toContain('href="/admin/ledger"');
+    expect(html).not.toContain("&larr;");
     expect(html).toContain("<th>Balance</th>");
   });
 
