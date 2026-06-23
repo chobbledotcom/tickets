@@ -239,7 +239,7 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
     // The attendee's own label heads the page; a fully-paid sale nets to zero.
     expect(html).toContain("Ada Lovelace");
     expect(html).toContain("Balance:");
-    expect(html).toContain("<th>Balance</th>");
+    expect(html).toContain('<th class="col-amount">Balance</th>');
     // The sale's counterparty is the listing revenue account, linked by name.
     expect(html).toContain("Gala");
   });

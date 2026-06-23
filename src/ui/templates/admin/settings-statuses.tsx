@@ -14,6 +14,7 @@ import {
   DeleteSection,
   SubmitButton,
 } from "#templates/components/actions.tsx";
+import { colClass } from "#templates/components/table-columns.ts";
 import { Layout } from "#templates/layout.tsx";
 
 const LIST_PATH = "/admin/settings/statuses";
@@ -90,26 +91,30 @@ export const adminAttendeeStatusesPage = (
           {t("statuses.add_status_button")}
         </ActionButton>
       </p>
-      <table>
-        <thead>
-          <tr>
-            <th>{t("statuses.order_header")}</th>
-            <th>{t("common.name")}</th>
-            <th>{t("statuses.flags_header")}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {statuses.map((s, i) => (
+      <div class="table-scroll">
+        <table>
+          <thead>
             <tr>
-              <td>{moveControls(s, i, statuses.length)}</td>
-              <td>
-                <a href={`${LIST_PATH}/${s.id}/edit`}>{s.name}</a>
-              </td>
-              <td>{statusBadges(s)}</td>
+              <th class={colClass("reorder")}>{t("statuses.order_header")}</th>
+              <th>{t("common.name")}</th>
+              <th>{t("statuses.flags_header")}</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {statuses.map((s, i) => (
+              <tr>
+                <td class={colClass("reorder")}>
+                  {moveControls(s, i, statuses.length)}
+                </td>
+                <td>
+                  <a href={`${LIST_PATH}/${s.id}/edit`}>{s.name}</a>
+                </td>
+                <td>{statusBadges(s)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </Layout>,
   );
 

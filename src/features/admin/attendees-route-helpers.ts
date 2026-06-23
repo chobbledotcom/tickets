@@ -2,7 +2,7 @@
  * Shared utilities for admin attendee route handlers
  */
 
-import { requirePrivateKey } from "#routes/admin/actions.ts";
+/* jscpd:ignore-start */
 import { verifyOrRedirect } from "#routes/admin/confirmation.ts";
 import { withEntityLoader } from "#routes/admin/entity-handlers.ts";
 import {
@@ -15,7 +15,9 @@ import { getSearchParam } from "#routes/url.ts";
 import { decryptAttendeeOrNull } from "#shared/db/attendees.ts";
 import { getListingWithAttendeeRaw } from "#shared/db/listings.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
+/* jscpd:ignore-end */
 
 /** Attendee with listing data */
 export type AttendeeWithListing = {
@@ -32,11 +34,10 @@ export const NO_PROVIDER_ERROR = "No payment provider configured.";
  * Decrypts attendee PII using the admin private key.
  */
 export const loadAttendeeForListing = async (
-  session: AuthSession,
   listingId: number,
   attendeeId: number,
 ): Promise<AttendeeWithListing | null> => {
-  const pk = await requirePrivateKey(session);
+  const pk = await requireRequestPrivateKey();
   const result = await getListingWithAttendeeRaw(listingId, attendeeId);
   if (!result) return null;
 
@@ -70,7 +71,6 @@ export const attendeeGetRoute =
   ): Promise<Response> =>
     requireSessionOr(request, (session) =>
       withAttendee(
-        session,
         listingId,
         attendeeId,
       )((data) => handler(data, session, request)),
@@ -88,11 +88,7 @@ const withAttendeeForm = (
   ) => Response | Promise<Response>,
 ): Promise<Response> =>
   withAuth(request, AUTH_FORM, (session, form) =>
-    withAttendee(
-      session,
-      listingId,
-      attendeeId,
-    )((data) => handler(data, session, form)),
+    withAttendee(listingId, attendeeId)((data) => handler(data, session, form)),
   );
 
 /** Read return_url from request query params */

@@ -30,6 +30,7 @@ import {
   GuideLink,
   SubmitButton,
 } from "#templates/components/actions.tsx";
+import { colClass } from "#templates/components/table-columns.ts";
 import { modifierAggregateFields, modifierFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
@@ -302,9 +303,15 @@ export const adminModifiersPage = (
               <tr>
                 <th>{t("common.name")}</th>
                 <th>{t("modifiers.rule_column")}</th>
-                <th>{t("modifiers.uses_column")}</th>
-                <th>{t("modifiers.orders_column")}</th>
-                <th>{t("modifiers.revenue_column")}</th>
+                <th class={colClass("quantity")}>
+                  {t("modifiers.uses_column")}
+                </th>
+                <th class={colClass("quantity")}>
+                  {t("modifiers.orders_column")}
+                </th>
+                <th class={colClass("amount")}>
+                  {t("modifiers.revenue_column")}
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -314,9 +321,11 @@ export const adminModifiersPage = (
                     <a href={`/admin/modifiers/${m.id}/edit`}>{m.name}</a>
                   </td>
                   <td>{ruleSummary(m)}</td>
-                  <td>{m.total_uses}</td>
-                  <td>{m.usage_count}</td>
-                  <td>{formatCurrency(m.total_revenue)}</td>
+                  <td class={colClass("quantity")}>{m.total_uses}</td>
+                  <td class={colClass("quantity")}>{m.usage_count}</td>
+                  <td class={colClass("amount")}>
+                    {formatCurrency(m.total_revenue)}
+                  </td>
                 </tr>
               ))}
             </tbody>

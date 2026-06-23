@@ -4,7 +4,6 @@
 
 /* jscpd:ignore-start */
 import { filter, map, pipe } from "#fp";
-import { requirePrivateKey } from "#routes/admin/actions.ts";
 import { createEntityRouteHandlers } from "#routes/admin/entity-handlers.ts";
 import type { AuthSession } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
@@ -26,8 +25,8 @@ import { getQuestionsWithListingIds } from "#shared/db/questions.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import {
   applyAttendeeMerge,
-  bookingKey,
   buildAttendeeMergeDiff,
+  conflictBookingEntries,
   validateAttendeeMergeDecision,
 } from "#shared/merge/attendee-merge.ts";
 import type {
@@ -35,8 +34,10 @@ import type {
   AttendeeMergeDiff,
   MergeAnswerChoice,
   MergeBookingChoice,
+  MergeMoneyChoice,
   MergeValueChoice,
 } from "#shared/merge/attendee-merge-types.ts";
+import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee } from "#shared/types.ts";
 import { adminMergeAttendeePage } from "#templates/admin/attendees.tsx";
 
@@ -44,10 +45,9 @@ import { adminMergeAttendeePage } from "#templates/admin/attendees.tsx";
 
 /** Load and decrypt a target attendee by ID for merge operations */
 const loadMergeTarget = async (
-  session: AuthSession,
   attendeeId: number,
 ): Promise<Attendee | null> => {
-  const pk = await requirePrivateKey(session);
+  const pk = await requireRequestPrivateKey();
   const raw = await queryOne<Attendee>(
     `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
      FROM attendees a
@@ -61,7 +61,6 @@ const loadMergeTarget = async (
 /** Look up and decrypt a source attendee by ticket token */
 const loadMergeSource = async (
   token: string,
-  session: AuthSession,
 ): Promise<{
   id: number;
   name: string;
@@ -72,7 +71,7 @@ const loadMergeSource = async (
   ticket_token: string;
   bookings: ListingAttendeeRow[];
 } | null> => {
-  const pk = await requirePrivateKey(session);
+  const pk = await requireRequestPrivateKey();
   const results = await getAttendeesByTokens([token]);
   const raw = results[0];
   if (!raw) return null;
@@ -209,6 +208,13 @@ const mergeCountParts = (fields: Array<[number, string]>): string[] =>
     map(([count, label]: [number, string]) => `${count} ${label}`),
   )(fields);
 
+/** The booking-movement counts every merge message leads with, before each
+ *  surface adds its own (the log is fuller; the flash is a short confirmation). */
+const bookingMoveParts = (summary: MergeSummary): Array<[number, string]> => [
+  [summary.bookingsMoved, "booking(s) moved"],
+  [summary.bookingsSkipped, "booking(s) skipped"],
+];
+
 /** Build activity log message parts for a merge summary */
 const buildMergeLogParts = (
   summary: MergeSummary,
@@ -217,9 +223,10 @@ const buildMergeLogParts = (
 ): string[] => [
   `Attendee '${sourceName}' merged into '${mergedPiiName}'`,
   ...mergeCountParts([
-    [summary.bookingsMoved, "booking(s) moved"],
-    [summary.bookingsSkipped, "booking(s) skipped"],
+    ...bookingMoveParts(summary),
     [summary.bookingsReplacedTarget, "booking(s) replaced"],
+    [summary.bookingsCredited, "payment(s) kept as credit"],
+    [summary.bookingsWrittenOff, "payment(s) written off"],
     [summary.answersTakenFromSource, "answer(s) from source"],
     [summary.answersCleared, "answer(s) cleared"],
   ]),
@@ -233,8 +240,9 @@ const buildMergeFlashParts = (
 ): string[] => [
   `Merged ${sourceName} into ${mergedPiiName}`,
   ...mergeCountParts([
-    [summary.bookingsMoved, "booking(s) moved"],
-    [summary.bookingsSkipped, "booking(s) skipped"],
+    ...bookingMoveParts(summary),
+    [summary.bookingsCredited, "payment(s) credited"],
+    [summary.bookingsWrittenOff, "payment(s) written off"],
   ]),
 ];
 
@@ -242,7 +250,6 @@ const buildMergeFlashParts = (
 const validateMergePostInput = async (
   attendeeId: number,
   form: FormParams,
-  session: AuthSession,
 ): Promise<
   | { ok: true; source: MergeSource; sourceToken: string }
   | { ok: false; response: Response }
@@ -258,7 +265,7 @@ const validateMergePostInput = async (
     };
   }
 
-  const source = await loadMergeSource(sourceToken, session);
+  const source = await loadMergeSource(sourceToken);
   if (!source) {
     return {
       ok: false,
@@ -286,7 +293,6 @@ const validateMergePostInput = async (
 
 /** Apply merge decisions and return the success redirect response */
 const applyMergeDecisions = async (
-  session: AuthSession,
   attendeeId: number,
   target: Attendee,
   source: MergeSource,
@@ -296,7 +302,7 @@ const applyMergeDecisions = async (
   const result = await applyAttendeeMerge({
     decision,
     diff,
-    privateKey: await requirePrivateKey(session),
+    privateKey: await requireRequestPrivateKey(),
     sourceId: source.id,
     sourcePii: extractSourcePii(source),
     targetId: attendeeId,
@@ -367,21 +373,49 @@ const toBookingChoice = (raw: string): MergeBookingChoice => {
   return "keep_target";
 };
 
+/** Build a per-conflict decision Record by parsing each NON-moveable booking's
+ *  form field (keyed by "listingId:startAt"). A `parse` result of `undefined`
+ *  leaves the entry out — so a blank money choice stays absent and validation can
+ *  demand it, while `toBookingChoice` (which always resolves) fills every row. */
+const parseConflictDecisions = <T>(
+  diff: AttendeeMergeDiff,
+  parse: (key: string) => T | undefined,
+): Record<string, T> => {
+  const out: Record<string, T> = {};
+  for (const { key } of conflictBookingEntries(diff)) {
+    const value = parse(key);
+    if (value !== undefined) out[key] = value;
+  }
+  return out;
+};
+
 /** Parse booking decisions from form (only non-moveable items) */
 const parseBookingDecisions = (
   form: FormParams,
   diff: AttendeeMergeDiff,
-): Record<string, MergeBookingChoice> => {
-  const bookings: Record<string, MergeBookingChoice> = {};
-  for (const item of diff.bookingItems) {
-    if (item.conflictClass !== "moveable") {
-      const key = bookingKey(item.listingId, item.startAt);
-      const val = form.getString(`booking_${key}`);
-      bookings[key] = toBookingChoice(val);
-    }
-  }
-  return bookings;
+): Record<string, MergeBookingChoice> =>
+  parseConflictDecisions(diff, (key) =>
+    toBookingChoice(form.getString(`booking_${key}`)),
+  );
+
+/** Normalize a raw money choice; an empty/unknown value is left ABSENT so
+ *  validation can require an explicit decision (decision 17 — never defaulted). */
+const toMoneyChoice = (raw: string): MergeMoneyChoice | undefined => {
+  if (raw === "credit") return "credit";
+  if (raw === "writeoff") return "writeoff";
+  return undefined;
 };
+
+/** Parse money decisions from form (only conflicting items); a blank choice is
+ *  omitted so validateAttendeeMergeDecision rejects the merge until the operator
+ *  decides what happens to the discarded booking's money. */
+const parseMoneyDecisions = (
+  form: FormParams,
+  diff: AttendeeMergeDiff,
+): Record<string, MergeMoneyChoice> =>
+  parseConflictDecisions(diff, (key) =>
+    toMoneyChoice(form.getString(`money_${key}`)),
+  );
 
 /** Parse merge decision form data into AttendeeMergeDecisionInput */
 const parseMergeDecisionForm = (
@@ -390,6 +424,7 @@ const parseMergeDecisionForm = (
 ): AttendeeMergeDecisionInput => ({
   answers: parseAnswerDecisions(form, diff),
   bookings: parseBookingDecisions(form, diff),
+  money: parseMoneyDecisions(form, diff),
   pii: parsePiiDecisions(form, diff),
   version: form.getString("merge_version"),
 });
@@ -404,7 +439,7 @@ export const handleMergeGet = handlers.get(async (request, session, target) => {
   const token = getSearchParam(request, "token");
   const flash = applyFlash(request);
   if (!token) return mergeAttendeePage(request, session)(target);
-  const source = await loadMergeSource(token, session);
+  const source = await loadMergeSource(token);
   if (!source) {
     return htmlResponse(
       adminMergeAttendeePage(
@@ -435,7 +470,7 @@ export const handleMergeGet = handlers.get(async (request, session, target) => {
 
 /** Handle POST /admin/attendees/:attendeeId/merge — validate + apply decisions */
 export const handleMergePost = handlers.post(async (session, form, target) => {
-  const input = await validateMergePostInput(target.id, form, session);
+  const input = await validateMergePostInput(target.id, form);
   if (!input.ok) return input.response;
   const { source, sourceToken } = input;
   const diff = await buildMergeDiffFor(target, source, target.id);
@@ -453,12 +488,5 @@ export const handleMergePost = handlers.post(async (session, form, target) => {
       ),
     );
   }
-  return applyMergeDecisions(
-    session,
-    target.id,
-    target,
-    source,
-    diff,
-    decision,
-  );
+  return applyMergeDecisions(target.id, target, source, diff, decision);
 });

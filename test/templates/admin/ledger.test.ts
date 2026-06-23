@@ -299,7 +299,7 @@ describe("adminAccountStatementPage", () => {
     // The nav links back to the ledger; no separate back-link arrow is shown.
     expect(html).toContain('href="/admin/ledger"');
     expect(html).not.toContain("&larr;");
-    expect(html).toContain("<th>Balance</th>");
+    expect(html).toContain('<th class="col-amount">Balance</th>');
   });
 
   test("shows a zero balance for an account with no history", () => {

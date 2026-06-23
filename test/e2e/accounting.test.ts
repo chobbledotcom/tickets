@@ -243,6 +243,56 @@ const mergePost = async (
   );
 };
 
+/** Build a listing with two fully-PAID duplicate bookings (a target and a
+ *  token-bearing source) on it — the same-listing conflict decision 17 must
+ *  resolve. Income counts BOTH £50 tickets (£100) until the merge un-bills the
+ *  discarded one. Returns the ids plus the source's merge token. */
+const twoPaidDuplicates = async (
+  name: string,
+): Promise<{
+  listingId: number;
+  targetId: number;
+  sourceId: number;
+  sourceToken: string;
+}> => {
+  const listing = await createTestListing({
+    maxAttendees: 10,
+    name,
+    unitPrice: 5000,
+  });
+  const { attendee: target } = await createTestAttendeeDirect(
+    listing.id,
+    `${name} Target`,
+    `target-${name}@example.com`,
+  );
+  const { attendee: source, token: sourceToken } =
+    await createTestAttendeeDirect(
+      listing.id,
+      `${name} Source`,
+      `source-${name}@example.com`,
+    );
+  await postListingSale({
+    attendeeId: target.id,
+    gross: 5000,
+    listingId: listing.id,
+  });
+  await postListingSale({
+    attendeeId: source.id,
+    gross: 5000,
+    listingId: listing.id,
+  });
+  return {
+    listingId: listing.id,
+    sourceId: source.id,
+    sourceToken,
+    targetId: target.id,
+  };
+};
+
+/** The money-decision form field paired with a scraped `booking_<key>` field. */
+const moneyFieldFor = (bookingField: string): string =>
+  bookingField.replace("booking_", "money_");
+
 // -- Public-payment driver (mirrors server-payments-success.test.ts) ------ //
 
 /** A compact modifier ref as it rides the signed metadata (`{ i: id, q: qty }`). */
@@ -1283,64 +1333,149 @@ describeWithEnv("e2e: accounting lifecycle", { db: true }, () => {
     expect(await sumOfAllBalances()).toBe(0);
   });
 
-  // 17. Merging two attendees moves the money with them: the operator resolves the
-  //     conflicting same-listing booking (decision 17 — an explicit choice from the
-  //     form), then the source's ledger rows repoint onto the surviving target, so
-  //     what was owed follows the survivor and conservation holds.
-  test("a merge repoints the source's owed balance onto the surviving attendee", async () => {
-    const listing = await createTestListing({
-      maxAttendees: 10,
-      name: "Reunion",
-      unitPrice: 5000,
-    });
-    const { attendee: target } = await createTestAttendeeDirect(
-      listing.id,
-      "Jane Doe",
-      "jane@example.com",
-    );
-    const { attendee: source, token: sourceToken } =
-      await createTestAttendeeDirect(
-        listing.id,
-        "John Smith",
-        "john@example.com",
-      );
-    // Each owes £50 in the ledger (a gross sale with nothing paid).
-    await postListingSale({
-      amountPaid: 0,
-      attendeeId: target.id,
-      gross: 5000,
-      listingId: listing.id,
-    });
-    await postListingSale({
-      amountPaid: 0,
-      attendeeId: source.id,
-      gross: 5000,
-      listingId: listing.id,
-    });
-    expect(await owedBy(target.id)).toBe(5000);
-    expect(await owedBy(source.id)).toBe(5000);
+  // 17. Merging two PAID duplicate bookings, CREDIT choice (decision 17 — an
+  //     explicit operator choice, never a silent default): the survivor keeps ONE
+  //     ticket, the discarded duplicate's recognised sale is un-billed (so the
+  //     listing's income counts the kept ticket once, not twice), and the £50 the
+  //     duplicate paid is handed back as the survivor's CREDIT. The source account
+  //     empties, conservation holds, and the credit is shown on the balance page.
+  test("a merge crediting a paid duplicate shows the survivor's credit", async () => {
+    const { listingId, targetId, sourceId, sourceToken } =
+      await twoPaidDuplicates("Reunion");
+    // Both tickets recognised: income counts £100 before the merge resolves it.
+    expect(await incomeOf(listingId)).toBe(10000);
+    expect(await owedBy(targetId)).toBe(0);
+    expect(await owedBy(sourceId)).toBe(0);
 
-    // The operator resolves the conflicting same-listing booking (the decision is
-    // scraped from the rendered form), then applies the merge.
-    const { version, bookingField } = await mergePreview(
-      target.id,
-      sourceToken,
-    );
-    const merged = await mergePost(target.id, {
+    // Keep the target ticket; CREDIT the discarded source payment (both decisions
+    // are scraped from the rendered form, then applied).
+    const { version, bookingField } = await mergePreview(targetId, sourceToken);
+    const merged = await mergePost(targetId, {
       [bookingField]: "keep_target",
+      [moneyFieldFor(bookingField)]: "credit",
       merge_version: version,
       source_token: sourceToken,
     });
     expect(merged.status).toBe(302);
 
-    // The money follows the survivor: the source account is emptied (its ledger
-    // rows moved) and the target now holds both owed balances; conservation holds.
-    expect(norm(await accountBalance(attendeeAccount(source.id)))).toBe(0);
-    expect(await owedBy(target.id)).toBe(10000);
+    // Income now counts the ONE kept ticket; the survivor holds the over-paid £50
+    // as a credit (negative owed); the source account is emptied; conservation holds.
+    expect(await incomeOf(listingId)).toBe(5000);
+    expect(await owedBy(targetId)).toBe(-5000);
+    expect(norm(await accountBalance(attendeeAccount(sourceId)))).toBe(0);
+    expect(await sumOfAllBalances()).toBe(0);
+
+    // Transparency: the survivor's balance page renders the £50 credit figure.
+    const balancePage = await adminPageHtml(
+      `/admin/attendees/${targetId}/balance`,
+    );
+    expect(balancePage).toContain(formatCurrency(-5000));
+  });
+
+  // 18. The same paid duplicate, WRITE-OFF choice: income still counts the one kept
+  //     ticket, but the over-paid £50 is parked in the `writeoff` contra account
+  //     rather than credited — the survivor owes nothing and cash reports stay
+  //     honest. Conservation still holds.
+  test("a merge writing off a paid duplicate parks the cash in writeoff", async () => {
+    const { listingId, targetId, sourceId, sourceToken } =
+      await twoPaidDuplicates("Gala");
+    const writeoffBefore = norm(await accountBalance(WRITEOFF));
+
+    const { version, bookingField } = await mergePreview(targetId, sourceToken);
+    const merged = await mergePost(targetId, {
+      [bookingField]: "keep_target",
+      [moneyFieldFor(bookingField)]: "writeoff",
+      merge_version: version,
+      source_token: sourceToken,
+    });
+    expect(merged.status).toBe(302);
+
+    // One ticket's income survives; the survivor owes nothing; the un-billed £50
+    // lands in writeoff (not returned); the source empties; conservation holds.
+    expect(await incomeOf(listingId)).toBe(5000);
+    expect(await owedBy(targetId)).toBe(0);
+    expect(norm(await accountBalance(WRITEOFF))).toBe(writeoffBefore + 5000);
+    expect(norm(await accountBalance(attendeeAccount(sourceId)))).toBe(0);
     expect(await sumOfAllBalances()).toBe(0);
   });
 
-  // 18. A pay-what-you-want (can_pay_more) order recognises the FULL chosen price
+  // 19. The decision-17 GUARD: a paid duplicate may NOT be discarded without an
+  //     explicit money choice. Omitting it REFUSES the merge (the form re-renders
+  //     with the error instead of redirecting) and mutates NOTHING — income still
+  //     counts both tickets and the source still exists — so no silent double-count
+  //     or stranded money can slip through.
+  test("a merge refuses to discard a paid booking with no money decision", async () => {
+    const { listingId, sourceToken, targetId } =
+      await twoPaidDuplicates("Summit");
+
+    const { version, bookingField } = await mergePreview(targetId, sourceToken);
+    // Submit the booking choice but OMIT the money decision.
+    const refused = await mergePost(targetId, {
+      [bookingField]: "keep_target",
+      merge_version: version,
+      source_token: sourceToken,
+    });
+    // Re-rendered (200), not redirected (302); the apply never ran.
+    expect(refused.status).toBe(200);
+    expect(await refused.text()).toContain("money decision");
+
+    // Nothing changed: both tickets' income still counts and both attendees survive.
+    expect(await incomeOf(listingId)).toBe(10000);
+    expect((await getAttendeesRaw(listingId)).length).toBe(2);
+    expect(await sumOfAllBalances()).toBe(0);
+  });
+
+  // 20. A FREE duplicate (no money on either side) needs NO money decision: the
+  //     preview surfaces the conflicting booking row but hides the credit/write-off
+  //     UI, and the merge applies straight through posting no reversal legs — the
+  //     "nothing at stake" path decision 17 must keep one-click.
+  test("a free duplicate merges with no money decision and no reversal legs", async () => {
+    const listing = await createTestListing({
+      maxAttendees: 10,
+      name: "Freebie",
+      unitPrice: 0,
+    });
+    const { attendee: target } = await createTestAttendeeDirect(
+      listing.id,
+      "Free A",
+      "free-a@example.com",
+    );
+    const { attendee: source, token: sourceToken } =
+      await createTestAttendeeDirect(
+        listing.id,
+        "Free B",
+        "free-b@example.com",
+      );
+    // Nothing paid on either side — £0 at stake.
+    expect(await incomeOf(listing.id)).toBe(0);
+
+    // The preview shows the conflict row but NOT the money-decision UI.
+    const preview = await awaitTestRequest(
+      `/admin/attendees/${target.id}/merge?token=${encodeURIComponent(sourceToken)}`,
+      { cookie: await testCookie() },
+    );
+    const previewHtml = await preview.text();
+    expect(previewHtml).toContain('name="booking_');
+    expect(previewHtml).not.toContain("merge-money-decision");
+    expect(previewHtml).not.toContain("Discarded payment");
+
+    const version = extractInputValue(previewHtml, "merge_version")!;
+    const bookingField = previewHtml.match(/name="(booking_[^"]+)"/)![1]!;
+    const merged = await mergePost(target.id, {
+      [bookingField]: "keep_target",
+      merge_version: version,
+      source_token: sourceToken,
+    });
+    // No money decision required, so the merge redirects straight through.
+    expect(merged.status).toBe(302);
+
+    // The merge went through with no money moved and the source folded in.
+    expect(await incomeOf(listing.id)).toBe(0);
+    expect((await getAttendeesRaw(listing.id)).length).toBe(1);
+    expect(await sumOfAllBalances()).toBe(0);
+  });
+
+  // 21. A pay-what-you-want (can_pay_more) order recognises the FULL chosen price
   //     as income — the figure shown is exactly what the buyer paid, not the base
   //     price — and they owe nothing.
   test("a pay-what-you-want order recognises the chosen price as income", async () => {

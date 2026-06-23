@@ -28,6 +28,7 @@ import {
   GuideLink,
   SubmitButton,
 } from "#templates/components/actions.tsx";
+import { colClass } from "#templates/components/table-columns.ts";
 import { answerAggregateFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
@@ -42,7 +43,7 @@ const ReorderControls = ({
   index: number;
   count: number;
 }): JSX.Element => (
-  <>
+  <td class={colClass("reorder")}>
     {index > 0 && (
       <CsrfForm action={action("up")} class="inline">
         <button class="link-button small" type="submit">
@@ -57,7 +58,7 @@ const ReorderControls = ({
         </button>
       </CsrfForm>
     )}
-  </>
+  </td>
 );
 
 /** Listings cell for a question row: a count whose title attribute spells out
@@ -75,7 +76,11 @@ const QuestionListingsCell = ({
   const all = question.assign_all === true;
   const count = all ? totalListings : listingNames.length;
   const title = all ? t("questions.all_listings") : listingNames.join(", ");
-  return <td title={title}>{count}</td>;
+  return (
+    <td class={colClass("quantity")} title={title}>
+      {count}
+    </td>
+  );
 };
 
 /** List all questions in a reorderable table, mirroring the listings table:
@@ -110,26 +115,30 @@ export const adminQuestionsPage = (
           <table>
             <thead>
               <tr>
-                <th>{t("questions.order_column")}</th>
+                <th class={colClass("reorder")}>
+                  {t("questions.order_column")}
+                </th>
                 <th>{t("questions.question_column")}</th>
-                <th>{t("questions.answers_column")}</th>
-                <th>{t("questions.listings_column")}</th>
+                <th class={colClass("quantity")}>
+                  {t("questions.answers_column")}
+                </th>
+                <th class={colClass("quantity")}>
+                  {t("questions.listings_column")}
+                </th>
               </tr>
             </thead>
             <tbody>
               {questions.map((q, i) => (
                 <tr>
-                  <td>
-                    <ReorderControls
-                      action={(d) => `/admin/questions/${q.id}/move-${d}`}
-                      count={questions.length}
-                      index={i}
-                    />
-                  </td>
+                  <ReorderControls
+                    action={(d) => `/admin/questions/${q.id}/move-${d}`}
+                    count={questions.length}
+                    index={i}
+                  />
                   <td>
                     <a href={`/admin/questions/${q.id}`}>{q.text}</a>
                   </td>
-                  <td>{q.answers.length}</td>
+                  <td class={colClass("quantity")}>{q.answers.length}</td>
                   <QuestionListingsCell
                     listingNames={listingNames.get(q.id) ?? []}
                     question={q}
@@ -216,23 +225,25 @@ export const adminQuestionPage = (
               <table>
                 <thead>
                   <tr>
-                    <th>{t("questions.order_column")}</th>
+                    <th class={colClass("reorder")}>
+                      {t("questions.order_column")}
+                    </th>
                     <th>{t("questions.answer_column")}</th>
-                    <th>{t("questions.selected_column")}</th>
+                    <th class={colClass("quantity")}>
+                      {t("questions.selected_column")}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {question.answers.map((a, i) => (
                     <tr>
-                      <td>
-                        <ReorderControls
-                          action={(d) =>
-                            `/admin/questions/${question.id}/answers/${a.id}/move-${d}`
-                          }
-                          count={question.answers.length}
-                          index={i}
-                        />
-                      </td>
+                      <ReorderControls
+                        action={(d) =>
+                          `/admin/questions/${question.id}/answers/${a.id}/move-${d}`
+                        }
+                        count={question.answers.length}
+                        index={i}
+                      />
                       <td>
                         <a
                           href={`/admin/questions/${question.id}/answers/${a.id}/edit`}
@@ -240,7 +251,9 @@ export const adminQuestionPage = (
                           {a.text}
                         </a>
                       </td>
-                      <td>{answerCounts?.get(a.id) ?? 0}</td>
+                      <td class={colClass("quantity")}>
+                        {answerCounts?.get(a.id) ?? 0}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

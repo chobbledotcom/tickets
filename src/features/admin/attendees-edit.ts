@@ -9,8 +9,7 @@
  */
 
 import { t } from "#i18n";
-import { requirePrivateKey } from "#routes/admin/actions.ts";
-import { AUTH_FORM, type AuthSession, withAuth } from "#routes/auth.ts";
+import { AUTH_FORM, withAuth } from "#routes/auth.ts";
 import { errorRedirect, htmlResponse, redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
@@ -25,6 +24,7 @@ import { getListingWithCount } from "#shared/db/listings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { getActivePaymentProvider } from "#shared/payments.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger.ts";
+import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
 import { NO_PROVIDER_ERROR } from "./attendees-route-helpers.ts";
 
@@ -37,10 +37,9 @@ type RefreshPaymentContext = {
 
 /** Load the attendee + its first listing for the refresh-payment flow. */
 const loadRefreshContext = async (
-  session: AuthSession,
   attendeeId: number,
 ): Promise<RefreshPaymentContext | null> => {
-  const pk = await requirePrivateKey(session);
+  const pk = await requireRequestPrivateKey();
   const attendeeRaw = await queryOne<Attendee>(
     `SELECT ${ATTENDEE_LEFT_JOIN_SELECT}
      FROM attendees a
@@ -64,8 +63,8 @@ const loadRefreshContext = async (
 export const handleRefreshPayment: TypedRouteHandler<
   "POST /admin/attendees/:attendeeId/refresh-payment"
 > = (request, { attendeeId }) =>
-  withAuth(request, AUTH_FORM, async (session, _form) => {
-    const ctx = await loadRefreshContext(session, attendeeId);
+  withAuth(request, AUTH_FORM, async (_session, _form) => {
+    const ctx = await loadRefreshContext(attendeeId);
     if (!ctx) return htmlResponse("", 404);
 
     const { attendee, listing } = ctx;

@@ -28,92 +28,94 @@ export const ConfirmationEmailTemplateForm = (
   >
     <details>
       <summary>{t("settings.advanced.available_variables")}</summary>
-      <table>
-        <tr>
-          <td>
-            <code>{"{{ listing_names }}"}</code>
-          </td>
-          <td>All listing names joined with "and"</td>
-        </tr>
-        <tr>
-          <td>
-            <code>{"{{ ticket_url }}"}</code>
-          </td>
-          <td>Link to view tickets</td>
-        </tr>
-        <tr>
-          <td>
-            <code>{"{{ attendee.name }}"}</code>
-          </td>
-          <td>{t("admin.attendees.delete_label")}</td>
-        </tr>
-        <tr>
-          <td>
-            <code>{"{{ attendee.email }}"}</code>
-          </td>
-          <td>Attendee email</td>
-        </tr>
-        <tr>
-          <td>
-            <code>{"{{ attendee.phone }}"}</code>
-          </td>
-          <td>Attendee phone</td>
-        </tr>
-        <tr>
-          <td>
-            <code>{"{{ attendee.address }}"}</code>
-          </td>
-          <td>Attendee address</td>
-        </tr>
-        <tr>
-          <td>
-            <code>{"{{ attendee.special_instructions }}"}</code>
-          </td>
-          <td>Special instructions</td>
-        </tr>
-        <tr>
-          <td>
-            <code>{"{{ entries }}"}</code>
-          </td>
-          <td>Array of listing+attendee pairs</td>
-        </tr>
-        <tr>
-          <td>
-            <code>{"{{ entry.listing.name }}"}</code>
-          </td>
-          <td>Listing name (in loop)</td>
-        </tr>
-        <tr>
-          <td>
-            <code>{"{{ entry.listing.is_paid }}"}</code>
-          </td>
-          <td>Whether listing has a price</td>
-        </tr>
-        <tr>
-          <td>
-            <code>{"{{ entry.attendee.quantity }}"}</code>
-          </td>
-          <td>Ticket quantity</td>
-        </tr>
-        <tr>
-          <td>
-            <code>{"{{ entry.attendee.price_paid | currency }}"}</code>
-          </td>
-          <td>Price formatted as currency</td>
-        </tr>
-        <tr>
-          <td>
-            <code>{"{{ entry.attendee.date }}"}</code>
-          </td>
-          <td>Selected date (if any)</td>
-        </tr>
-        <tr>
-          <td>
-            <code>{`{{ 2 | pluralize: "ticket", "tickets" }}`}</code>
-          </td>
-          <td>Pluralize based on count</td>
-        </tr>
-      </table>
+      <div class="table-scroll">
+        <table>
+          <tr>
+            <td>
+              <code>{"{{ listing_names }}"}</code>
+            </td>
+            <td>All listing names joined with "and"</td>
+          </tr>
+          <tr>
+            <td>
+              <code>{"{{ ticket_url }}"}</code>
+            </td>
+            <td>Link to view tickets</td>
+          </tr>
+          <tr>
+            <td>
+              <code>{"{{ attendee.name }}"}</code>
+            </td>
+            <td>{t("admin.attendees.delete_label")}</td>
+          </tr>
+          <tr>
+            <td>
+              <code>{"{{ attendee.email }}"}</code>
+            </td>
+            <td>Attendee email</td>
+          </tr>
+          <tr>
+            <td>
+              <code>{"{{ attendee.phone }}"}</code>
+            </td>
+            <td>Attendee phone</td>
+          </tr>
+          <tr>
+            <td>
+              <code>{"{{ attendee.address }}"}</code>
+            </td>
+            <td>Attendee address</td>
+          </tr>
+          <tr>
+            <td>
+              <code>{"{{ attendee.special_instructions }}"}</code>
+            </td>
+            <td>Special instructions</td>
+          </tr>
+          <tr>
+            <td>
+              <code>{"{{ entries }}"}</code>
+            </td>
+            <td>Array of listing+attendee pairs</td>
+          </tr>
+          <tr>
+            <td>
+              <code>{"{{ entry.listing.name }}"}</code>
+            </td>
+            <td>Listing name (in loop)</td>
+          </tr>
+          <tr>
+            <td>
+              <code>{"{{ entry.listing.is_paid }}"}</code>
+            </td>
+            <td>Whether listing has a price</td>
+          </tr>
+          <tr>
+            <td>
+              <code>{"{{ entry.attendee.quantity }}"}</code>
+            </td>
+            <td>Ticket quantity</td>
+          </tr>
+          <tr>
+            <td>
+              <code>{"{{ entry.attendee.price_paid | currency }}"}</code>
+            </td>
+            <td>Price formatted as currency</td>
+          </tr>
+          <tr>
+            <td>
+              <code>{"{{ entry.attendee.date }}"}</code>
+            </td>
+            <td>Selected date (if any)</td>
+          </tr>
+          <tr>
+            <td>
+              <code>{`{{ 2 | pluralize: "ticket", "tickets" }}`}</code>
+            </td>
+            <td>Pluralize based on count</td>
+          </tr>
+        </table>
+      </div>
     </details>
     <label>
       {t("settings.advanced.subject")}

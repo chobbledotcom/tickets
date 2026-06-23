@@ -57,6 +57,7 @@
   "attendee_form.no_email_disabled_title": "This attendee has no email address on file",
   "attendee_form.merge_attendee_title": "Merge Attendee",
   "attendee_form.merge_attendee_description": "Search for another attendee by their ticket token and merge their listing registrations into this attendee.",
+  "attendee_form.merge_discarded_payment_label": "Discarded payment",
   "attendee_form.ticket_token_label": "Ticket token",
   "attendee_form.enter_ticket_token_placeholder": "Enter ticket token…",
   "attendee_form.search_button": "Search",

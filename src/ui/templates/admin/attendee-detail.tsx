@@ -28,6 +28,7 @@ import {
 import { ActionButton } from "#templates/components/actions.tsx";
 import { MapsLinks } from "#templates/components/maps-links.tsx";
 import { PhoneLinks } from "#templates/components/phone-links.tsx";
+import { colClass } from "#templates/components/table-columns.ts";
 
 /** One key/value row of a detail table. */
 const DetailTableRow = ({
@@ -150,7 +151,7 @@ export const AttendeeBookingsTable = ({
             <tr>
               <th>{t("terms.listing")}</th>
               <th>{t("common.date")}</th>
-              <th>{t("common.quantity")}</th>
+              <th class={colClass("quantity")}>{t("common.quantity")}</th>
               <th>{t("common.status")}</th>
             </tr>
           </thead>
@@ -170,7 +171,7 @@ export const AttendeeBookingsTable = ({
                     ? formatDateRangeLabel(booking.startAt, booking.endAt)
                     : "—"}
                 </td>
-                <td>{booking.quantity}</td>
+                <td class={colClass("quantity")}>{booking.quantity}</td>
                 <td>
                   {BookingStatusBadges({
                     checkedIn: booking.checkedIn,
@@ -185,7 +186,7 @@ export const AttendeeBookingsTable = ({
               <th colspan="2" scope="row">
                 {t("attendee_detail.total")}
               </th>
-              <td>{totalQuantity}</td>
+              <td class={colClass("quantity")}>{totalQuantity}</td>
               <td />
             </tr>
           </tfoot>

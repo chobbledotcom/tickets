@@ -5,7 +5,7 @@
  */
 
 import { map, unique } from "#fp";
-import { csvResponse, requirePrivateKey } from "#routes/admin/actions.ts";
+import { csvResponse } from "#routes/admin/actions.ts";
 import {
   generateCalendarCsv,
   toCalendarAttendees,
@@ -28,6 +28,7 @@ import {
   listingCategory,
   listingTypeFromRequest,
 } from "#shared/listing-filter.ts";
+import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type {
   Attendee,
   AttendeeTableRow,
@@ -120,7 +121,7 @@ export const handleAttendeesListGet: TypedRouteHandler<
     const page = parsePage(request);
     const listingIds = resolveListingIds(listingId, type, listings);
 
-    const privateKey = await requirePrivateKey(session);
+    const privateKey = await requireRequestPrivateKey();
     const { rows, hasNext } = await getAttendeesPage({
       listingIds,
       page,
@@ -175,13 +176,13 @@ const allAttendeeBookings = async (
 export const handleAttendeesCsvExport: TypedRouteHandler<
   "GET /admin/attendees/csv"
 > = (request) =>
-  withListings(request, async (session, listings) => {
+  withListings(request, async (_session, listings) => {
     const listingIds = resolveListingIds(
       parseListingId(request, listings),
       listingTypeFromRequest(request),
       listings,
     );
-    const privateKey = await requirePrivateKey(session);
+    const privateKey = await requireRequestPrivateKey();
     const raw = await allAttendeeBookings(listingIds);
     const attendees = await decryptAttendees(raw, privateKey);
     const csv = generateCalendarCsv(
