@@ -31,6 +31,25 @@ statement, edit-attendee panel) and warned money-correction forms that post
 truth for the model**; when code and prose disagree, the code wins and this doc is
 updated to match.
 
+**Operating principle — perfectness and transparency (owner's directive).** Two
+rules govern every money decision here:
+
+1. **Always surface what is owed.** If a customer owes money, it is shown — never
+   let an owed balance silently read as £0. Every path that records a booking
+   (public checkout, admin manual-add, imports) posts the legs that make the owed
+   amount project. A booking that collected no provider payment still **owes** its
+   gross — no phantom `payment`/`fee` cash is invented for money that never moved.
+2. **Every ledger write is clear, safe, and consistent.** A change to the ledger is
+   explicit to the operator (warned where it edits source-of-truth money), atomic
+   (lands fully or not at all — a status-and-balance edit shares one transaction),
+   idempotent against a double-submit (a correction recomputes its delta from the
+   submitted target inside the write transaction, so re-submitting the same target
+   is a no-op), and posted the **same way** across every path. Where two correct
+   figures can differ for a defensible reason, the page shows the reconciliation
+   rather than letting them disagree silently — see the per-listing "Income &
+   ledger" breakdown, which derives recognised income and the net account balance
+   from the same totals.
+
 ### Production data invariants
 
 The product owner has confirmed that, as of this migration, **no live site has
