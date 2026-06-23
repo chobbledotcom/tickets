@@ -1,6 +1,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { decrypt, ENCRYPTION_PREFIX } from "#shared/crypto/encryption.ts";
+import {
+  decrypt,
+  ENCRYPTION_PREFIX,
+  encrypt,
+} from "#shared/crypto/encryption.ts";
 import { HYBRID_PREFIX } from "#shared/crypto/keys.ts";
 import {
   getAllActivityLog,
@@ -9,8 +13,9 @@ import {
   getListingWithActivityLog,
   logActivity,
 } from "#shared/db/activityLog.ts";
-import { queryOne } from "#shared/db/client.ts";
+import { execute, queryOne } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
+import { nowIso } from "#shared/now.ts";
 import {
   createTestListing,
   describeWithEnv,
@@ -68,32 +73,28 @@ describeWithEnv("db > activity log", { db: true }, () => {
     );
   });
 
-  test("falls back to the env key before a key pair is configured", async () => {
-    // No public key yet (pre-setup); the error logger must still record.
-    settings.setForTest({ public_key: "" });
-    const entry = await logActivity("Pre-setup error");
-    const stored = await rawMessage(entry.id);
+  test("loads the public key on demand when the snapshot was reset", async () => {
+    // A mid-request cache reset (setup, restore, database reset) blanks the
+    // snapshot while the key is still in the DB; logActivity must reload it
+    // rather than fall back to the env key.
+    settings.invalidateCache();
+    const entry = await logActivity("after a cache reset");
 
-    expect(stored.startsWith(ENCRYPTION_PREFIX)).toBe(true);
-    expect(await decrypt(stored)).toBe("Pre-setup error");
-
-    // Legacy env-key rows decrypt without a session in scope.
-    const entries = await getAllActivityLog();
-    expect(entries).toHaveLength(1);
-    expect(entries[0]!.message).toBe("Pre-setup error");
+    // Stored owner-key (hybrid), not env-key — the reload found the DB key.
+    expect((await rawMessage(entry.id)).startsWith(HYBRID_PREFIX)).toBe(true);
   });
 
-  test("env-key fallback re-arms an already-completed backfill", async () => {
-    // A configured site whose backfill finished, then an early error logs
-    // before the public key snapshot loaded — storing an enc: row.
-    await settings.update.activityLogBackfillDone("true");
-    settings.setForTest({ public_key: "" });
+  test("reads legacy env-key rows without a session", async () => {
+    // A row written before the owner-key switch (env-key format). Such rows
+    // decrypt with the env key, so they still render with no session in scope.
+    await execute(
+      "INSERT INTO activity_log (message, created, listing_id, attendee_id) VALUES (?, ?, NULL, NULL)",
+      [await encrypt("legacy entry"), nowIso()],
+    );
 
-    await logActivity("late error on a cold request");
-
-    // The backfill must re-engage to re-encrypt that straggler, so the done
-    // flag is cleared rather than left orphaning the row forever.
-    expect(settings.activityLogBackfillDone).not.toBe("true");
+    const entries = await getAllActivityLog();
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.message).toBe("legacy entry");
   });
 
   test("logActivity records an attendee_id and getAttendeeActivityLog filters by it", async () => {

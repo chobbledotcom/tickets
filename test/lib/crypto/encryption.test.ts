@@ -37,6 +37,19 @@ describeWithEnv("encryption", { encryptionKey: true }, () => {
         "DB_ENCRYPTION_KEY must be 32 bytes",
       );
     });
+
+    it("re-runs the key initializer and reads the env when the override is cleared to null", () => {
+      // Clearing to null (not "") resets the lazyRef holding the override, so
+      // the next read re-runs its initializer and falls through to the
+      // DB_ENCRYPTION_KEY env var — unset under test, so it reports the missing
+      // key. Exercises the env-lookup branch that otherwise only the e2e
+      // subprocess hits.
+      setEncryptionKeyForTest(null);
+      expect(() => validateEncryptionKey()).toThrow(
+        "DB_ENCRYPTION_KEY environment variable is required",
+      );
+      setupTestEncryptionKey(); // restore the override for sibling tests
+    });
   });
 
   describe("encrypt and decrypt", () => {

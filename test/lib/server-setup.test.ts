@@ -18,6 +18,7 @@ import {
   mockFormRequest,
   mockRequest,
   mockSetupFormRequest,
+  reloginAsAdmin,
   resetDb,
   withExpectedError,
   withMocks,
@@ -505,6 +506,9 @@ describeWithEnv("server (setup)", { db: true }, () => {
         ),
       );
 
+      // The setup-completion entry is owner-key encrypted, so read it back as
+      // the newly-created owner (whose password is non-default here).
+      await reloginAsAdmin("mypassword123");
       const logs = await getAllActivityLog();
       expect(
         logs.some((l) => l.message.includes("Initial setup completed")),

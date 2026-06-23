@@ -4,17 +4,18 @@
  * Activity logging for admin visibility. Messages are encrypted with the site
  * owner's public key (hybrid RSA+AES), so a database dump plus DB_ENCRYPTION_KEY
  * cannot read them — only an authenticated admin, whose password unwraps the
- * private key, can. Writing needs only the always-available public key, so the
- * many unauthenticated callers (webhooks, the error logger) still log; reading
- * pulls the private key from the current request's session with no threading.
+ * private key, can. Writing needs only the public key (which a set-up site
+ * always has), so the many unauthenticated callers (webhooks, the error logger)
+ * still log; reading pulls the private key from the current request's session
+ * with no threading.
  *
- * Rows written before this change (and any written before setup configured a
- * key pair) carry the legacy DB_ENCRYPTION_KEY format and are still readable —
- * {@link decryptLogMessage} routes by prefix. The activity-log backfill job
- * re-encrypts those legacy rows to the owner key over time.
+ * Rows written before this change carry the legacy DB_ENCRYPTION_KEY format and
+ * are still readable — {@link decryptLogMessage} routes by prefix. The
+ * activity-log backfill job re-encrypts those legacy rows to the owner key over
+ * time.
  */
 
-import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
+import { decrypt } from "#shared/crypto/encryption.ts";
 import {
   decryptWithOwnerKey,
   encryptWithOwnerKey,
@@ -26,7 +27,7 @@ import {
   LISTING_COUNT_GROUP_BY,
   LISTING_COUNT_SELECT,
 } from "#shared/db/listings.ts";
-import { settings } from "#shared/db/settings.ts";
+import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
 import { col, defineTable } from "#shared/db/table.ts";
 import { nowIso } from "#shared/now.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
@@ -71,21 +72,6 @@ export const activityLogTable = defineTable<ActivityLogEntry, ActivityLogInput>(
 );
 
 /**
- * Encrypt a log message for storage with the owner's public key (hybrid), so
- * the entry is unreadable from a DB dump plus DB_ENCRYPTION_KEY. When no public
- * key is in scope it falls back to the env key, keeping logging alive — but the
- * caller must then re-arm the backfill (see {@link logActivity}), because that
- * happens not only genuinely pre-setup but also when the settings snapshot
- * simply hasn't loaded yet (e.g. an error logged early in a cold request on an
- * already-configured site).
- */
-const encryptLogMessage = (
-  message: string,
-  publicKey: string,
-): Promise<string> =>
-  publicKey ? encryptWithOwnerKey(message, publicKey) : encrypt(message);
-
-/**
  * Decrypt a stored log message, routing by format prefix: owner-key (hybrid)
  * rows need the session private key; legacy env-key rows decrypt without it.
  */
@@ -96,6 +82,19 @@ const decryptLogMessage = (
   message.startsWith(HYBRID_PREFIX)
     ? decryptWithOwnerKey(message, privateKey as CryptoKey)
     : decrypt(message);
+
+/**
+ * The owner public key, loading it into the settings snapshot on demand if a
+ * mid-request cache reset (setup, restore, database reset) blanked it. A set-up
+ * site always has one in the DB, so this trusts that rather than falling back to
+ * the env key; only genuinely pre-setup does it stay empty (and encryption then
+ * throws, which the error logger swallows).
+ */
+const ownerPublicKey = async (): Promise<string> => {
+  if (settings.publicKey) return settings.publicKey;
+  await settings.loadKeys([CONFIG_KEYS.PUBLIC_KEY]);
+  return settings.publicKey;
+};
 
 /** Accept an listing ID as a number or an object with `.id` */
 type ListingRef = number | { id: number };
@@ -113,18 +112,14 @@ export const logActivity = async (
   listing?: ListingRef | null,
   attendeeId?: number | null,
 ): Promise<ActivityLogEntry> => {
-  const publicKey = settings.publicKey;
   const row = await activityLogTable.insert({
     attendeeId: attendeeId ?? null,
     listingId: toListingId(listing),
-    message: await encryptLogMessage(message, publicKey),
+    // Encrypt with the owner's public key — a set-up site always has one, so
+    // there is no env-key fallback (ownerPublicKey loads it if the snapshot was
+    // reset earlier this request).
+    message: await encryptWithOwnerKey(message, await ownerPublicKey()),
   });
-  // No public key in scope means the row was stored in the legacy env-key
-  // format. Re-arm the backfill so it re-encrypts this row to the owner key
-  // once the key is available — clearing the done flag unconditionally, since a
-  // snapshot that hasn't loaded would wrongly read it as already cleared and a
-  // completed backfill would otherwise never revisit this straggler.
-  if (!publicKey) await settings.update.activityLogBackfillDone("");
   // insert() echoes the (encrypted) input back; restore the plaintext so the
   // returned entry stays human-readable for callers and tests.
   return { ...row, message };
