@@ -373,6 +373,7 @@ export const createRequestTimer = (): (() => number) => {
  */
 export type LogCategory =
   | "Setup"
+  | "SQL"
   | "Webhook"
   | "Payment"
   | "Auth"
