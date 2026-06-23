@@ -1059,6 +1059,7 @@ table {
   border-spacing: 0;
   padding: 0;
   white-space: nowrap;
+  width: fit-content;
 }
 
 table td,
@@ -2375,22 +2376,10 @@ a.cal-day-selected:active {
   gap: var(--space-m);
 }
 
-/* Action rows attached to a table: filters above (left-aligned), table-wide
-   utilities (CSV export, …) below — right-aligned on desktop, left on mobile.
+/* Action rows attached to a table: filters above or below.
    No margin of their own; the surrounding flex container supplies the gap. */
-.table-header-actions,
-.table-footer-actions {
+.table-actions {
   margin: 0;
-}
-
-.table-footer-actions {
-  text-align: left;
-}
-
-@media (min-width: 769px) {
-  .table-footer-actions {
-    text-align: right;
-  }
 }
 
 /* Previous/next pagination */
