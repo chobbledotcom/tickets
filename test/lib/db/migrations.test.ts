@@ -7,13 +7,14 @@ import {
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { getDb, setDb } from "#shared/db/client.ts";
+import { getDb, insert, setDb } from "#shared/db/client.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import {
   initDb,
   invalidateInitDbCache,
   LATEST_UPDATE,
   MIGRATION_IDS,
+  MIGRATIONS,
   MissingSettingsTableError,
   resetDatabase,
   SCHEMA_HASH,
@@ -23,7 +24,10 @@ import {
   invalidateTestDbCache,
   setTestEnv,
 } from "#test-utils";
-import { markCurrentSchemaMigrationPending } from "./migration-test-helpers.ts";
+import {
+  markCurrentSchemaMigrationPending,
+  markMigrationsForRerun,
+} from "./migration-test-helpers.ts";
 
 describeWithEnv("db > migrations", { db: true }, () => {
   describe("initDb version check", () => {
@@ -94,6 +98,14 @@ describeWithEnv("db > migrations", { db: true }, () => {
       return result.rows.map((row) => String(row.id));
     };
 
+    const settingValue = async (key: string): Promise<string | undefined> => {
+      const result = await getDb().execute({
+        args: [key],
+        sql: "SELECT value FROM settings WHERE key = ?",
+      });
+      return result.rows[0]?.value as string | undefined;
+    };
+
     test("initDb stores latest_db_update in settings", async () => {
       const result = await getDb().execute(
         "SELECT value FROM settings WHERE key = 'latest_db_update'",
@@ -146,6 +158,65 @@ describeWithEnv("db > migrations", { db: true }, () => {
         "SELECT 1 FROM settings WHERE key = 'migration_lock'",
       );
       expect(lock.rows.length).toBe(0);
+    });
+
+    test("recovers when the system errors partway through the pending migrations", async () => {
+      // Seed a row that must survive a crash mid-upgrade and the recovery boot.
+      const seeded = await getDb().execute(
+        insert("listings", {
+          created: "2024-01-01T00:00:00Z",
+          max_attendees: 5,
+          name: "crash-survivor",
+        }),
+      );
+      const listingId = Number(seeded.lastInsertRowid);
+
+      // Make every migration pending again, as if the DB were mid-upgrade.
+      await markMigrationsForRerun();
+
+      // Simulate a crash between migrations: a migration halfway through the
+      // sequence throws, so the ones before it are recorded but it and the ones
+      // after it never run.
+      const crashIndex = Math.floor(MIGRATIONS.length / 2);
+      const crashing = MIGRATIONS[crashIndex]!;
+      const upStub = stub(crashing, "up", () => {
+        throw new Error("simulated crash between migrations");
+      });
+
+      try {
+        await expect(initDb()).rejects.toThrow(
+          "simulated crash between migrations",
+        );
+
+        // Partial progress: some migrations recorded, the crashing one and the
+        // rest are not, and the schema markers still say "not up to date" so the
+        // next boot knows to resume.
+        const partial = await appliedMigrationIds();
+        expect(partial.length).toBeGreaterThan(0);
+        expect(partial.length).toBeLessThan(MIGRATION_IDS.length);
+        expect(partial).not.toContain(crashing.id);
+        expect(await settingValue("db_schema_hash")).toBe("stale");
+        // The advisory lock is freed on the error path, so a retry isn't blocked.
+        expect(await settingValue("migration_lock")).toBeUndefined();
+      } finally {
+        // Always un-stub: a leaked stub would break every later test's migrations.
+        upStub.restore();
+      }
+
+      // The next boot resumes: it re-runs the remaining migrations idempotently
+      // and finishes the upgrade.
+      invalidateInitDbCache();
+      await initDb();
+
+      expect(await appliedMigrationIds()).toEqual([...MIGRATION_IDS].sort());
+      expect(await settingValue("db_schema_hash")).toBe(SCHEMA_HASH);
+      expect(await settingValue("latest_db_update")).toBe(LATEST_UPDATE);
+      // The pre-crash row survived the crash and the recovery re-run intact.
+      const survived = await getDb().execute({
+        args: [listingId],
+        sql: "SELECT 1 FROM listings WHERE id = ?",
+      });
+      expect(survived.rows.length).toBe(1);
     });
 
     test("initDb fails without rewriting markers when the schema does not match and no migration is pending", async () => {
