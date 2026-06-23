@@ -46,6 +46,7 @@ import {
   parsePositiveInt,
 } from "#shared/validation/number.ts";
 import { extractContact, tryValidateTicketFields } from "#templates/fields.ts";
+import { buildTicketListing } from "#templates/public.tsx";
 
 // =============================================================================
 // CORS
@@ -102,21 +103,21 @@ export type PublicListing = {
 };
 
 /** `groupRemaining`, when defined, clamps the displayed sold-out state to
- * the group's combined cap. */
+ * the group's combined cap. The sold-out/max-purchasable core is the shared
+ * {@link buildTicketListing} (the same availability projection the web cards and
+ * the parent-sold-out discovery path use), so the API and the web never compute
+ * "is this listing bookable, and how many?" differently. */
 export const toPublicListing = (
   listing: ListingWithCount,
   closed: boolean,
   availableDates: string[] | undefined,
   groupRemaining: number | undefined,
 ): PublicListing => {
-  const listingRemaining = listing.max_attendees - listing.attendee_count;
-  const spotsRemaining =
-    groupRemaining === undefined
-      ? listingRemaining
-      : Math.min(listingRemaining, groupRemaining);
-  const isSoldOut = spotsRemaining <= 0;
-  const maxPurchasable =
-    isSoldOut || closed ? 0 : Math.min(listing.max_quantity, spotsRemaining);
+  const { isSoldOut, maxPurchasable } = buildTicketListing(
+    listing,
+    closed,
+    groupRemaining,
+  );
 
   const result: PublicListing = {
     canPayMore: listing.can_pay_more,

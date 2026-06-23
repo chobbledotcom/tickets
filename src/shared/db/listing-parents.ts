@@ -156,10 +156,9 @@ export const getParentsOf = async (
 };
 
 /** Both sides of every edge a listing participates in: its children and the
- * parents it is offered under. The shared first step of every "re-validate the
- * edges touching this listing on save" check (field compatibility and add-on
- * reachability), so they load the same way. */
-export const edgeIdsTouching = async (
+ * parents it is offered under. The shared first step of {@link
+ * firstTouchingEdgeError}, the traversal both save-time re-checks run through. */
+const edgeIdsTouching = async (
   listingId: number,
 ): Promise<{ childIds: number[]; parentIds: number[] }> => {
   const [childIds, parentIds] = await Promise.all([
@@ -167,6 +166,43 @@ export const edgeIdsTouching = async (
     getParentIds(listingId),
   ]);
   return { childIds, parentIds };
+};
+
+/** One directed edge touching the saved listing, with the saved listing's own id
+ * fixed on one side (the caller closes over it): `self: "parent"` means it is the
+ * parent of `otherId` (one of its children); `self: "child"` means it is the
+ * child under `otherId` (one of its parents). */
+export type TouchingEdge = {
+  self: "parent" | "child";
+  otherId: number;
+};
+
+/**
+ * Re-validate every parent/child edge touching a listing on save, returning the
+ * first edge's user-facing error (or null when every edge holds, including when
+ * the listing has none). The shared traversal for both save-time re-checks
+ * (field compatibility and add-on reachability): load the touching edges once,
+ * short-circuit when there are none, then run `check` over the listing as the
+ * **parent** of each of its children and as the **child** under each of its
+ * parents — stopping at the first error. `check` receives each {@link
+ * TouchingEdge} (self on the fixed side, the opposite endpoint as `otherId`) and
+ * resolves whatever rows/scopes it needs itself, so the two callers can't drift
+ * on which edges they walk or in what order.
+ */
+export const firstTouchingEdgeError = async (
+  listingId: number,
+  check: (edge: TouchingEdge) => string | null | Promise<string | null>,
+): Promise<string | null> => {
+  const { childIds, parentIds } = await edgeIdsTouching(listingId);
+  const edges: TouchingEdge[] = [
+    ...childIds.map((otherId): TouchingEdge => ({ otherId, self: "parent" })),
+    ...parentIds.map((otherId): TouchingEdge => ({ otherId, self: "child" })),
+  ];
+  for (const edge of edges) {
+    const error = await check(edge);
+    if (error) return error;
+  }
+  return null;
 };
 
 /**
@@ -182,18 +218,14 @@ export const edgeIdsTouching = async (
 export const edgeIncompatibilityAfterChange = async (
   updated: EdgeListing,
 ): Promise<string | null> => {
-  const { childIds, parentIds } = await edgeIdsTouching(updated.id);
-  if (childIds.length === 0 && parentIds.length === 0) return null;
   const byId = await getListingsById();
-  for (const childId of childIds) {
-    const child = byId.get(childId);
-    const error = child && edgeFieldError(updated, child);
-    if (error) return error;
-  }
-  for (const parentId of parentIds) {
-    const parent = byId.get(parentId);
-    const error = parent && edgeFieldError(parent, updated);
-    if (error) return error;
-  }
-  return null;
+  return firstTouchingEdgeError(updated.id, ({ self, otherId }) => {
+    const other = byId.get(otherId);
+    if (!other) return null;
+    // Self on the fixed side, the cached opposite endpoint on the other: as the
+    // parent of each child, or as the child under each parent.
+    return self === "parent"
+      ? edgeFieldError(updated, other)
+      : edgeFieldError(other, updated);
+  });
 };

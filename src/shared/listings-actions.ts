@@ -10,8 +10,8 @@ import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { groupsTable, validateGroupListingType } from "#shared/db/groups.ts";
 import {
-  edgeIdsTouching,
   edgeIncompatibilityAfterChange,
+  firstTouchingEdgeError,
 } from "#shared/db/listing-parents.ts";
 import {
   computeSlugIndex,
@@ -128,33 +128,29 @@ const orphanedAddOnAfterChange = async (
   id: number,
   wouldBeGroupId: number,
 ): Promise<string | null> => {
-  const { childIds, parentIds } = await edgeIdsTouching(id);
-  if (childIds.length === 0 && parentIds.length === 0) return null;
   // Apply this listing's would-be group_id to the in-memory listing set, so a
   // group-scoped add-on resolves against the move the save is about to make.
+  // (Built eagerly; the shared traversal short-circuits before `check` runs when
+  // the listing has no edges, so a no-edge save reads it but never queries scopes.)
   const allListings = (await getAllListings()).map((listing) =>
     listing.id === id ? { ...listing, group_id: wouldBeGroupId } : listing,
   );
-  // Each edge is checked as a (suppressed child, parent page id) pair: as a
-  // parent of each child (`[id]` is the parent page), and as a child under each
-  // parent (`[parentId]` is the parent page).
-  const edges: [childId: number, pageId: number][] = [
-    ...childIds.map((childId): [number, number] => [childId, id]),
-    ...parentIds.map((parentId): [number, number] => [id, parentId]),
-  ];
-  for (const [childId, pageId] of edges) {
+  // Each touching edge is a (suppressed child, parent page id) pair: as a parent
+  // of each child the page is self (`id`) and the suppressed child is the other
+  // endpoint; as a child under each parent the page is the parent and self is the
+  // suppressed child.
+  return firstTouchingEdgeError(id, async ({ self, otherId }) => {
+    const childId = self === "parent" ? otherId : id;
+    const pageId = self === "parent" ? id : otherId;
     const addOn = await childOnlyAddOnNameForListings(
       childId,
       [pageId],
       allListings,
     );
-    if (addOn) {
-      return t("listings_table.children_err_child_addon_save", {
-        addon: addOn,
-      });
-    }
-  }
-  return null;
+    return addOn
+      ? t("listings_table.children_err_child_addon_save", { addon: addOn })
+      : null;
+  });
 };
 
 /**
