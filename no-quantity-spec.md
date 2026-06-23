@@ -22,16 +22,22 @@ Use cases this enables: placeholder / cancelled / quoted / "interested-in" lines
 **Rule of thumb applied everywhere:** *operational, public, and capacity surfaces
 exclude `quantity = 0`; admin record/detail views keep them.*
 
-**Invariant:** a `quantity = 0` line always has `price_paid = 0`. Enforce on every
-write path that can set `quantity = 0`.
+**Invariant:** a `quantity = 0` line has **no money recognised against it** — its
+`ledger_event_group` projects £0 per-listing amount-paid (no `sale`/`revenue` legs
+reference it). `price_paid` is gone (money projects from the `transfers` ledger,
+post-main), so this is enforced by never marking a line that has a non-zero
+projected amount-paid no-quantity (§4), not by zeroing a column.
 
 ## 2. Data model
 
 - **No column change for quantity.** `listing_attendees.quantity` is
   `INTEGER NOT NULL DEFAULT 1` with **no CHECK constraint**, so `0` is already
   legal.
-- `booked_quantity` (`SUM(quantity)`) and `income` (`SUM(price_paid)`) need **no
-  change** — `SUM` already treats 0 correctly. Do not touch them.
+- `booked_quantity` (`SUM(quantity)`) needs **no change** — `SUM` already treats 0
+  correctly. `income` is **no longer an aggregate column** (it projects from the
+  `transfers` ledger as gross credits to `revenue:<listingId>`, post-main), and a
+  quantity-0 line posts no revenue legs, so income needs no change either. Do not
+  touch them.
 - The **one** aggregate that must change is `tickets_count`, currently a plain
   `COUNT(*)`. See §3.
 
@@ -49,23 +55,20 @@ fight the triggers:
    fires on `quantity` (it's in `LISTING_AGGREGATE_WRITE_COLUMNS`), so toggling a
    line 0↔n recomputes correctly via the OLD/NEW CASE deltas.
 2. **Two separate queries in `src/shared/db/listings.ts`**, each with its own
-   `tickets_count` — but they need **different** fragments, because one shares its
-   `SELECT` with `income`:
+   `tickets_count` (income is no longer an aggregate column — it projects from the
+   ledger — so neither query touches it, and `LISTING_AGGREGATE_FIELDS` is now just
+   `booked_quantity` + `tickets_count`):
    - `aggregateResetSql` (used by `resetListingAggregateFields`) builds a
      **separate** per-field subquery (`tickets_count = (SELECT COUNT(*) … WHERE
-     listing_id = ?)`), independent of the `income`/`booked_quantity` fragments —
-     so add `AND quantity > 0` to **its** `WHERE`.
-   - `getListingAggregateRecalculation` computes `booked_quantity`,
-     `tickets_count`, **and** `income` in **one** `SELECT … WHERE listing_id = ?`.
-     Do **not** add `AND quantity > 0` to that shared `WHERE` — it would also drop
-     a quantity-0 row's `price_paid` from the recalculated `income` (which must
-     stay `SUM(price_paid)`) and silently normalize an invariant violation instead
-     of surfacing it. Change only the count expression there to `COALESCE(SUM(CASE
-     WHEN quantity > 0 THEN 1 ELSE 0 END), 0) AS tickets_count` — the `COALESCE` is
-     required because `SUM` over zero rows returns `NULL` (unlike `COUNT(*)`'s
-     `0`), so an empty listing would otherwise report bogus drift against a stored
-     `0`; this matches the existing `income`/`booked_quantity` `COALESCE`. Leave
-     `income`/`booked_quantity` summed over all rows.
+     listing_id = ?)`) — add `AND quantity > 0` to **its** `WHERE`.
+   - `getListingAggregateRecalculation` computes `booked_quantity` and
+     `tickets_count` in **one** `SELECT … WHERE listing_id = ?` (no income).
+     Change only the count expression to `COALESCE(SUM(CASE WHEN quantity > 0 THEN
+     1 ELSE 0 END), 0) AS tickets_count` — the `COALESCE` is required because `SUM`
+     over zero rows returns `NULL` (unlike `COUNT(*)`'s `0`), so an empty listing
+     would otherwise report bogus drift against a stored `0`; this matches the
+     existing `booked_quantity` `COALESCE`. Leave `booked_quantity` summed over all
+     rows.
    Missing the recalculation query makes the repair page report quantity-0 lines
    as drift and push owners to "fix" aggregates back to the wrong value.
 3. **The full backfill in `src/shared/db/migrations/schema-sync.ts`**: the
@@ -79,8 +82,8 @@ fight the triggers:
    to `COALESCE(SUM(CASE WHEN quantity > 0 THEN 1 ELSE 0 END), 0) AS tickets_count`
    (the `COALESCE` matches the recalc site's empty-set rule; each per-listing group
    here always has ≥1 deleted row so it can't actually be NULL, but keep it
-   consistent). (`booked_quantity`/`income` there already use
-   `SUM(quantity)`/`SUM(price_paid)` — leave them.)
+   consistent). (`booked_quantity` there already uses `SUM(quantity)` — leave it;
+   there is no income/`price_paid` column to restore.)
 
 **Anti-drift requirement:** the predicate (`quantity > 0`) must live in **one**
 place — extract a constant (e.g. `TICKET_COUNTS_WHEN = "quantity > 0"`, or a tiny
@@ -117,14 +120,16 @@ literal `0`.
   checkbox-driven CSS.
 - **Save:** box checked → store `quantity = 0` and **keep the line**; unchecked →
   store the entered quantity (`>= 1`). Round-trips both ways.
-- **Forbid marking a paid line no-quantity.** A line with `price_paid > 0` (and
-  especially a provider `payment_id`) must be **refunded or retargeted to a real
-  line first** — do *not* silently clear `price_paid` to satisfy the §1 invariant.
-  A silent clear drops listing income **and** strands the charge: the attendee
+- **Forbid marking a paid line no-quantity.** A line with **money recognised
+  against it in the ledger** — its `ledger_event_group` projects a non-zero
+  per-listing amount-paid (`pricePaidFromLedger`), or the attendee carries a
+  provider `payment_id` — must be **refunded or retargeted to a real line first**.
+  Do *not* silently detach the line from its ledger legs to satisfy the §1
+  invariant: that drops listing income **and** strands the charge (the attendee
   keeps its `payment_id` while §6c hides/refuses the refund actions on the now
-  quantity-0 row, so the payment can never be refunded/refreshed. Only a line with
-  `price_paid = 0` may be marked no-quantity. (Enforces the §1 invariant by
-  construction.)
+  quantity-0 row, so the payment can never be refunded/refreshed). Only a line with
+  no money recognised against it may be marked no-quantity. (Enforces the §1
+  invariant by construction.)
 - **Clear `checked_in` when marking no-quantity** (same write). The §6b
   `updateCheckedIn` guard only refuses *future* check-ins; a line already
   `checked_in = 1` keeps that flag when flipped to quantity-0, and the roster
@@ -139,13 +144,16 @@ literal `0`.
   Compute the check-in stats and the in/out filters over `quantity > 0` rows (the
   ghost still shows in the unfiltered admin roster) — required here, not just a
   secondary defence.
-- **Resolve `remaining_balance` when the last real line becomes no-quantity.** The
-  public pay gate (§6a) refuses payment once an attendee has no `quantity > 0`
-  line, but `attendees.remaining_balance` survives, so the admin balance page would
-  still show an outstanding, unpayable amount/link (`remainingBalance > 0`) — a
-  dead balance. When a save would leave an attendee with zero real lines, either
-  block it or clear/zero `remaining_balance` (recording the prior value as audit
-  metadata).
+- **Reverse or block when the last real line becomes no-quantity and money is
+  owed.** The public pay gate (§6a) refuses payment once an attendee has no
+  `quantity > 0` line, but the attendee's owed legs survive in the ledger, so the
+  admin balance page would still project an outstanding, unpayable amount
+  (`−balanceOf(attendee) > 0`) — a dead balance (there is no `remaining_balance`
+  column to clear; the figure projects from the ledger). When a save would leave an
+  attendee with zero real lines while they still owe, **block it** (the cleanest
+  rule, pairing with the forbid-paid-line rule above) or post a reversal of the
+  owed legs so the projected balance returns to zero (recording the prior value as
+  audit metadata). Never leave stranded owed legs behind a hidden line.
 - **No auto-delete — and a "retained line" predicate separate from "booked
   line".** The save path must distinguish a deliberate `quantity = 0` line (box
   checked → keep) from a real removal (the line's explicit remove control →
@@ -224,10 +232,11 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
   (`totalTicketCount`) against `attendees.length`. Once `tickets_count` counts only
   `quantity > 0` (§3), the **expected** side must match: count only `quantity > 0`
   rows there (`attendees.filter(quantity > 0).length`), or every group holding a
-  no-quantity row shows a bogus tickets_count drift warning. Its
-  `booked_quantity`/`income` checks use `SUM(quantity)`/`SUM(price_paid)`, so a
-  ghost contributes 0 to both sides — leave those. The roster itself still
-  **displays** the ghost row.
+  no-quantity row shows a bogus tickets_count drift warning. Its `booked_quantity`
+  check uses `SUM(quantity)` and its `income` check compares the **ledger-projected**
+  income against `calculateTotalRevenue` — a quantity-0 ghost contributes 0 to both
+  (zero quantity, and no `revenue` legs posted) — so leave those. The roster itself
+  still **displays** the ghost row.
 - **Logistics / delivery runs** (`src/shared/db/logistics.ts`) — guard the read,
   the completion write, **and the assignment write**:
   - Read: `getAgentRunSheet` — exclude `quantity = 0` (a no-quantity line is not a
@@ -339,22 +348,19 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
     line (the public pay route already gates on `status.is_reservation`; add the
     real-line condition), so a quantity-0-only attendee can't be paid into a
     ghost.
-  - **Settlement must target a real line.** `settleAttendeeBalance` folds payment
-    into `id = (SELECT MIN(id) FROM listing_attendees WHERE attendee_id = ?)` with
-    no quantity predicate. Add `AND quantity > 0` so even a *mixed* attendee folds
-    payment onto the lowest-id **real** line, never a lower-id ghost. It then runs
-    a *separate* `SELECT listing_id … ORDER BY id LIMIT 1` to pick the listing it
-    logs the payment activity against (and returns) — add `AND quantity > 0` there
-    too, or the activity/returned listing is still the ghost. **And make the
-    finalize conditional on that fold hitting a real line.** Today the settle
-    verdict is the *last* statement — the `remaining_balance = 0` clear — which is
-    independent of the price_paid fold. If the last real line is marked no-quantity
-    after checkout but before settlement, the (now `quantity > 0`-guarded) fold
-    affects **zero** rows while the clear still finalizes, paying off the balance
-    with **no income recorded on any line**. Abort when the fold touches no row
-    (guard the clear on `EXISTS` a `quantity > 0` line, or treat the fold's
-    `rowsAffected = 0` as the mismatch verdict) — don't rely on the §4
-    balance-clear or the pay-page gate alone to close this race.
+  - **Settlement is attendee-level — no line fold to guard.**
+    `settleAttendeeBalance` no longer folds payment onto a `MIN(id)` line's
+    `price_paid` (that column is gone). It posts a real `external:world → attendee`
+    payment leg guarded on the projected owed amount (`attendeeOwedSubquery`), so
+    the payment lands on the **attendee** account, never a line — a *mixed* attendee
+    needs no lowest-id-line targeting. The only residual quantity concern is
+    cosmetic: settlement runs a `SELECT listing_id … ORDER BY id LIMIT 1` purely to
+    pick the listing it logs the payment **activity** against (and returns); add
+    `AND quantity > 0` there so the logged/returned listing is a real one, not a
+    lower-id ghost. There is no `remaining_balance` clear to race against — the
+    balance is the ledger projection, which the guarded payment leg zeroes
+    atomically; if the last real line is marked no-quantity, the §4 rule
+    (block / reverse the owed legs) already keeps the projection honest.
   - **The pay page itself must pick a real line.** `/pay/:token` renders
     `getAttendeeOrderSummary()`, which selects every `listing_attendees` row
     ordered by id, and the POST uses `summary.lines[0]?.listingId` as the checkout
@@ -367,23 +373,25 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
 
 - **`updateCheckedIn`** — add the `quantity > 0` guard (refuse), as above.
 - **`setLegDone`** — add the `quantity > 0` guard, as above.
-- The edit-form save enforces the **`price_paid = 0` when `quantity = 0`**
-  invariant (§4).
+- The edit-form save enforces the §4 invariant (a line with money recognised
+  against it in the ledger can't be made no-quantity).
 - **Merge writer.** `applyAttendeeMerge` (`src/shared/merge/attendee-merge.ts`)
-  copies a source `ListingAttendeeRow`'s `quantity` and `price_paid` **verbatim**
-  and can delete a target's real line while inserting a source `quantity = 0`
-  line, without touching `attendees.remaining_balance`. So merge can create a
-  quantity-0 line with `price_paid > 0` (violating the §1 invariant) and leave an
-  attendee with no real line but a surviving, now-unpayable `remaining_balance`
-  (the §4 dead-balance case via merge, not the checkbox). Apply the same rules in
-  the merge writer: clear `checked_in` on any line it makes quantity-0, and
-  block/clear `remaining_balance` when the merged result has no `quantity > 0`
-  line. **Do not silently zero `price_paid` on a copied quantity-0 line** — same
-  as §4, a paid quantity-0 line drops income and strands the charge behind the
-  refund guards. Treat a merge that would produce a quantity-0 line with
-  `price_paid > 0` (or leave an attendee-level `payment_id` against no real line)
-  as an invalid merge/data-repair case: block it, or require the charge
-  refunded/retargeted to a real line first — never normalize it during the copy.
+  copies a source `ListingAttendeeRow`'s `quantity` (and its `ledger_event_group`)
+  and can delete a target's real line while inserting a source `quantity = 0` line.
+  Money now follows the person through the ledger repoint
+  (`repointAttendeeStatements` re-sources the source's legs onto the target), not a
+  copied `price_paid` column. So merge can leave an attendee with no real line but
+  surviving owed/paid legs — a dead, unpayable projected balance (the §4 case via
+  merge, not the checkbox) — or carry a line whose `ledger_event_group` still
+  projects a non-zero amount-paid into a quantity-0 row (violating §1). Apply the
+  same rules in the merge writer: clear `checked_in` on any line it makes
+  quantity-0, and **block / reverse the owed legs** when the merged result has no
+  `quantity > 0` line. Treat a merge that would produce a quantity-0 line with
+  money recognised against it (or leave an attendee-level `payment_id` against no
+  real line) as an invalid merge/data-repair case: block it, or require the charge
+  refunded / retargeted to a real line first — never normalize it during the copy.
+  (Decision 17's own money reversal is `sale`-leg based; see the importer plan's
+  merge note for the imported-leg interaction.)
 - **Visit recording on create.** `createAttendeeAtomic` (`attendees/create.ts`)
   calls `recordOrderVisit` after a successful insert, bumping
   `contact_preferences.visits` for the attendee's email/phone. Once a create path
@@ -455,28 +463,25 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
     `updateCheckedIn` now refuses them.
   - **Refunds (single + bulk).** `isRefundable`
     (`src/ui/templates/admin/attendee-form.tsx`) and `getRefundable`
-    (`src/features/admin/attendee-refunds.ts`) gate only on
-    `payment_id`/`refunded`, and `markRefunded(..., listingId)` refunds against the
-    invoking listing page. A mixed attendee (real paid line + a no-quantity
-    interested/cancelled line on another listing) would expose refund / refund-all
-    from the **ghost** listing and refund the shared attendee-level payment. Add
-    the quantity guard to the single and bulk refund UI and actions: **hide/refuse
-    the refund on a no-quantity row** rather than retargeting to a real line on
-    another listing — these routes are listing-scoped (`markRefunded(...,
-    listingId)` marks the invoking listing's row), so retargeting would refund a
-    charge outside the operator's current scope. (The attendee-level
-    refresh-payment route, below, *does* pick the real line — it isn't
-    listing-scoped.)
+    (`src/features/admin/attendee-refunds.ts`) gate on `payment_id` and the
+    ledger-projected `refunded` — both **attendee-level** now. The refund itself is
+    attendee/order-level: `recordAttendeeRefund(attendeeId)` reverses the whole
+    order's ledger legs (the old listing-scoped `markRefunded(..., listingId)` is
+    gone). But the single/bulk refund UI is still reached from a **listing's
+    roster**, so a mixed attendee with a no-quantity ghost row on that listing would
+    surface the refund / refund-all control against the ghost row. Add the quantity
+    guard to the refund UI: **hide/refuse the refund control on a no-quantity row**
+    (render the indicator instead). The refund action that fires is attendee-level
+    and correct regardless; the guard is about not surfacing it from a ghost line.
   - **Refresh-payment route.** `POST /admin/attendees/:id/refresh-payment`
     (`handleRefreshPayment` → `loadRefreshContext`,
-    `src/features/admin/attendees-edit.ts`) picks the attendee's first booking
-    row via `ORDER BY start_at, listing_id LIMIT 1` (no quantity predicate) and,
-    when the provider reports the payment refunded, calls
-    `markRefunded(attendeeId, listing.id)` against it. For a mixed attendee whose
-    first row is quantity-0, this marks the **ghost** `(attendee_id, listing_id)`
-    row refunded while the real paid line stays active. Pick a `quantity > 0` row
-    as the refund target and the logged-activity listing, mirroring the
-    manual-refund guard above.
+    `src/features/admin/attendees-edit.ts`) picks the attendee's first booking row
+    via `ORDER BY start_at, listing_id LIMIT 1` (no quantity predicate) for the
+    logged-activity listing. The refund it records is attendee/order-level (a ledger
+    reversal of the whole order), so it no longer marks a per-row column — but for a
+    mixed attendee whose first row is quantity-0, the logged/returned listing is
+    still the ghost. Pick a `quantity > 0` row as the logged-activity listing,
+    mirroring the manual-refund guard above.
   - **Re-send notification.** The edit-page `AttendeeActions`
     (`src/ui/templates/admin/attendee-form.tsx`) "Re-send notification" →
     `handleResendNotification` (`src/features/admin/attendees.ts`) calls
@@ -518,7 +523,8 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
   `listings.ts` queries — reset and recalculation).
 - Checkbox round-trip: stored `0` → box checked; save checked → re-stores `0` and
   keeps the line; uncheck + quantity → stores it; explicit remove still deletes;
-  marking no-quantity clears/blocks `price_paid`.
+  marking no-quantity is **refused** on a line with money recognised against it in
+  the ledger.
 - Public path: a selected/persisted 0 is rejected, **and** a normal
   `quantity_<id>=0` ("not selected") field is still treated as not-in-cart (not
   coerced to a booking) — including a multi-listing checkout where only some
@@ -554,18 +560,21 @@ Sweep `listing_attendees` SQL across `src` and apply the rule. Verified surfaces
   visit (`contact_preferences.visits` unchanged), so `min_visits` gating via
   `buyerVisits` doesn't count a placeholder as a returning customer.
 - Balance: a quantity-0-only attendee's balance isn't publicly payable; for a
-  mixed attendee the pay-page product/checkout line, the settlement, **and the
-  logged-activity listing** all land on the real line; marking the last real line
-  no-quantity clears/blocks the now-unpayable `remaining_balance` — **via the
-  merge writer as well as the checkbox save** (a merge that removes the last real
-  line clears the balance and never copies a `price_paid > 0` quantity-0 line).
+  mixed attendee the pay-page product/checkout line and the settlement's
+  logged-activity listing land on the real line (settlement itself posts an
+  attendee-level ledger payment leg, not a line fold); marking the last real line
+  no-quantity **blocks the save or reverses the now-unpayable owed legs** so the
+  projected balance returns to zero — **via the merge writer as well as the
+  checkbox save** (a merge that removes the last real line reverses/zeroes the owed
+  legs and never carries money into a quantity-0 line).
 - Admin per-row action guards: a quantity-0 row shows no check-in button, no
   refund / refund-all control, no working re-send-notification (refused on the
   ghost row, **not** retargeted to another listing), and no live customer ticket URL on a quantity-0 row (the
   detail/table link and the CSV `ticket_url` show the indicator / blank for **any**
   quantity-0 row, including a mixed attendee whose token still renders other real
   bookings — not only all-ghost records); the
-  refresh-payment route refunds the real line, never a ghost-first row; the
+  refresh-payment route logs against a real line, never a ghost-first row (the
+  refund itself is attendee/order-level); the
   scanner manual list omits quantity-0 candidates.
 - Built-site guard: marking an assigned `assign_built_site` line no-quantity is
   **refused** (the `built_sites` assignment and `/renew/?t=…` token stay live, so
@@ -583,7 +592,7 @@ This feature stands alone — it does **not** depend on the CSV importer or on P
 #1335/#1332/#1333, and should land first. Recommended order:
 
 1. `tickets_count` shared predicate + migration + guard test.
-2. Edit-form "no quantity" checkbox + save path (incl. `price_paid`).
+2. Edit-form "no quantity" checkbox + save path (incl. the §4 paid-line guard).
 3. The reader/writer audit surfaces (§6a/§6b).
 4. Public guard (§5).
 
