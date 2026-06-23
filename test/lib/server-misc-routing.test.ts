@@ -332,10 +332,12 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
     });
   });
 
-  describe("routes/utils.ts (getPrivateKey)", () => {
+  describe("shared/session-private-key.ts (getSessionPrivateKey)", () => {
     test("returns null when wrappedDataKey is null", async () => {
-      const { getPrivateKey } = await import("#routes/auth.ts");
-      const result = await getPrivateKey({
+      const { getSessionPrivateKey } = await import(
+        "#shared/session-private-key.ts"
+      );
+      const result = await getSessionPrivateKey({
         token: "any-token",
         wrappedDataKey: null,
       });
@@ -351,8 +353,10 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
       });
       s.invalidateCache();
 
-      const { getPrivateKey } = await import("#routes/auth.ts");
-      const result = await getPrivateKey({
+      const { getSessionPrivateKey } = await import(
+        "#shared/session-private-key.ts"
+      );
+      const result = await getSessionPrivateKey({
         token: "any-token",
         wrappedDataKey: "some-wrapped-key",
       });
@@ -360,8 +364,10 @@ describeWithEnv("server (misc: security and routing)", { db: true }, () => {
     });
 
     test("returns null when crypto operation throws", async () => {
-      const { getPrivateKey } = await import("#routes/auth.ts");
-      const result = await getPrivateKey({
+      const { getSessionPrivateKey } = await import(
+        "#shared/session-private-key.ts"
+      );
+      const result = await getSessionPrivateKey({
         token: "any-token",
         wrappedDataKey: "corrupt-key-data",
       });
