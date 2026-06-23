@@ -17,6 +17,7 @@ import { ensureDefaultAttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import { getDb } from "#shared/db/client.ts";
 import { getEnv } from "#shared/env.ts";
 import { logDebug } from "#shared/logger.ts";
+import { nowIso } from "#shared/now.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import { recordScriptVersion } from "#shared/update.ts";
 import currentSchemaMigration from "./migrations/2026-06-11_current_schema.ts";
@@ -232,9 +233,7 @@ const initializeFreshSchema = async (): Promise<void> => {
   await ensureDefaultAttendeeStatus();
   await syncTriggers();
   await writeSchemaMarkers();
-  for (const migration of MIGRATIONS) {
-    await markMigrationApplied(migration);
-  }
+  await markMigrationsApplied(MIGRATIONS);
 };
 
 const ensureMigrationTrackingTable = async (): Promise<void> => {
@@ -251,12 +250,37 @@ const getAppliedMigrationIds = async (): Promise<Set<string>> => {
   return new Set(result.rows.map((row) => String(row.id)));
 };
 
+/** Build the INSERT that records a migration as applied. */
+const migrationMarkerStatement = (
+  migration: Migration,
+  appliedAt: string,
+): { sql: string; args: string[] } => ({
+  args: [migration.id, migration.description, appliedAt],
+  sql: `INSERT OR REPLACE INTO ${SCHEMA_MIGRATIONS_TABLE} (id, description, applied_at) VALUES (?, ?, ?)`,
+});
+
 const markMigrationApplied = async (migration: Migration): Promise<void> => {
   await ensureMigrationTrackingTable();
-  await getDb().execute({
-    args: [migration.id, migration.description, new Date().toISOString()],
-    sql: `INSERT OR REPLACE INTO ${SCHEMA_MIGRATIONS_TABLE} (id, description, applied_at) VALUES (?, ?, ?)`,
-  });
+  await getDb().execute(migrationMarkerStatement(migration, nowIso()));
+};
+
+/**
+ * Record several migrations as applied in one batch transaction — used by the
+ * fresh-install and baseline paths, which mark every migration with no work in
+ * between, so one round-trip replaces one per migration. Both callers only pass
+ * a non-empty list (baseline returns early when nothing is missing).
+ */
+const markMigrationsApplied = async (
+  migrations: Migration[],
+): Promise<void> => {
+  await ensureMigrationTrackingTable();
+  const appliedAt = nowIso();
+  await getDb().batch(
+    migrations.map((migration) =>
+      migrationMarkerStatement(migration, appliedAt),
+    ),
+    "write",
+  );
 };
 
 const writeSchemaMarkers = async (): Promise<void> => {
@@ -280,9 +304,7 @@ const baselineCurrentSchemaIfNeeded = async (): Promise<void> => {
     "Migration",
     `Baselining ${missing.length} already-applied migration(s)`,
   );
-  for (const migration of missing) {
-    await markMigrationApplied(migration);
-  }
+  await markMigrationsApplied(missing);
 };
 
 const pendingMigrations = async (): Promise<Migration[]> => {
