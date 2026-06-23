@@ -824,6 +824,8 @@ describeWithEnv("attendee merge service", { db: true }, () => {
         end_at: null,
         ledger_event_group: "grp",
         listing_id: 5,
+        order_token: "",
+        parent_listing_id: 0,
         price_paid: 5000,
         quantity: 1,
         refunded: 0,
