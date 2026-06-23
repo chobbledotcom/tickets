@@ -47,8 +47,8 @@ const apiListingSlugs = async (): Promise<string[]> => {
 };
 
 describeWithEnv(
-  "server > parents booking gate (flag on)",
-  { db: true, env: { LISTING_PARENTS_ENABLED: "true" }, triggers: true },
+  "server > parents booking gate",
+  { db: true, triggers: true },
   () => {
     test("a child slug cannot start a booking (404)", async () => {
       const parent = await createTestListing({ name: "Base unit" });
@@ -395,67 +395,6 @@ describeWithEnv(
       const body = await (await ticketGet(group.slug)).text();
       expect(body).toContain(`name="quantity_${a.id}"`);
       expect(body).toContain(`name="quantity_${b.id}"`);
-    });
-  },
-);
-
-describeWithEnv(
-  "server > parents booking gate (flag off)",
-  { db: true, triggers: true },
-  () => {
-    test("a child slug still books normally when the flag is off", async () => {
-      const parent = await createTestListing({ name: "Base unit" });
-      const child = await createTestListing({ name: "Add-on" });
-      await setChildIds(parent.id, [child.id]);
-      const res = await ticketGet(child.slug);
-      expect(res.status).toBe(200);
-    });
-
-    test("the JSON API still books a parent when the flag is off", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.showPublicApi(true);
-      const parent = await createTestListing({ name: "Base unit" });
-      const child = await createTestListing({ name: "Add-on" });
-      await setChildIds(parent.id, [child.id]);
-      const res = await apiBook(parent.slug);
-      expect(res.status).toBe(200);
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      expect((await getAttendeesRaw(parent.id)).length).toBe(1);
-    });
-
-    test("GET /api/listings includes a child when the flag is off", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.showPublicApi(true);
-      const parent = await createTestListing({ name: "Base unit" });
-      const child = await createTestListing({ name: "Add-on" });
-      await setChildIds(parent.id, [child.id]);
-      const slugs = await apiListingSlugs();
-      expect(slugs).toContain(child.slug);
-    });
-
-    test("a child listing detail endpoint is bookable when the flag is off", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.showPublicApi(true);
-      const parent = await createTestListing({ name: "Base unit" });
-      const child = await createTestListing({ name: "Add-on" });
-      await setChildIds(parent.id, [child.id]);
-      const res = await apiGet(`/api/listings/${child.slug}`);
-      expect(res.status).toBe(200);
-    });
-
-    test("a group page renders a child as a standalone row when the flag is off", async () => {
-      const group = await createTestGroup({ name: "Combo" });
-      const parent = await createTestListing({
-        groupId: group.id,
-        name: "Base unit",
-      });
-      const child = await createTestListing({
-        groupId: group.id,
-        name: "Add-on",
-      });
-      await setChildIds(parent.id, [child.id]);
-      const body = await (await ticketGet(group.slug)).text();
-      expect(body).toContain(`name="quantity_${child.id}"`);
     });
   },
 );

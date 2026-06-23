@@ -1,16 +1,14 @@
 /**
  * Listing parent/child relationship editing (the "required child listings"
  * section on the listing edit page + its save endpoint).
- *
- * Behind the LISTING_PARENTS_ENABLED flag — off until the booking gate that
- * enforces the relationship ships (see parents.md release gate).
  */
 
 import { t } from "#i18n";
+/* jscpd:ignore-start */
 import { AUTH_FORM, withAuth } from "#routes/auth.ts";
-import { notFoundResponse, redirect } from "#routes/response.ts";
+import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import { isListingParentsEnabled } from "#shared/config.ts";
+/* jscpd:ignore-end */
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
   getChildIds,
@@ -28,10 +26,10 @@ import { edgeFieldError } from "#shared/listing-parents-rules.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { withEntityFromParam } from "./entity-handlers.ts";
 
-/** The data the edit page's "required children" section renders, or undefined
- * when the feature is disabled. `allListings` excludes the listing itself (no
- * self-edges); `childIds` are its currently-required children; `offeredUnder`
- * are the listings it is itself a child of. */
+/** The data the edit page's "required children" section renders. `allListings`
+ * excludes the listing itself (no self-edges); `childIds` are its
+ * currently-required children; `offeredUnder` are the listings it is itself a
+ * child of. */
 export type ListingParentsSection = {
   allListings: ListingWithCount[];
   childIds: ReadonlySet<number>;
@@ -40,8 +38,7 @@ export type ListingParentsSection = {
 
 export const loadListingParentsSection = async (
   listingId: number,
-): Promise<ListingParentsSection | undefined> => {
-  if (!isListingParentsEnabled()) return undefined;
+): Promise<ListingParentsSection> => {
   const [allListings, childIds, offeredUnder] = await Promise.all([
     getAllListings(),
     getChildIds(listingId),
@@ -148,15 +145,14 @@ export const validateChildEdges = async (
  * source parent's own children verbatim; for a group duplicate the source
  * parent's children remapped to the clones (intra-group) or kept (external).
  *
- * Flag-gated: a no-op when the parents feature is off. Callers only invoke this
- * for a source that actually has children; an edge set that fails validation is
- * skipped (not written), so a copy is never left with an invalid gate.
+ * Callers only invoke this for a source that actually has children; an edge set
+ * that fails validation is skipped (not written), so a copy is never left with
+ * an invalid gate.
  */
 export const copyDuplicatedChildEdges = async (
   newParent: ListingWithCount,
   childIds: readonly number[],
 ): Promise<void> => {
-  if (!isListingParentsEnabled()) return;
   const result = await validateChildEdges(newParent, childIds);
   if (result.ok) await setChildIds(newParent.id, result.childIds);
 };
@@ -171,13 +167,11 @@ export const copyDuplicatedChildEdges = async (
  * group is *not* auto-attached (we only walk the cloned parents). Each remapped
  * set is written through the validated {@link copyDuplicatedChildEdges} path.
  *
- * Flag-gated via {@link copyDuplicatedChildEdges}; a no-op when no cloned member
- * is a parent.
+ * A no-op when no cloned member is a parent.
  */
 export const remapDuplicatedGroupEdges = async (
   idMap: ReadonlyMap<number, number>,
 ): Promise<void> => {
-  if (!isListingParentsEnabled()) return;
   for (const [sourceId, newId] of idMap) {
     const sourceChildIds = await getChildIds(sourceId);
     if (sourceChildIds.length === 0) continue;
@@ -196,7 +190,6 @@ export const handleAdminListingChildren: TypedRouteHandler<
 > = (request, { id }) =>
   withAuth(request, AUTH_FORM, (_session, form) =>
     withEntityFromParam(id, getListingWithCount, async (listing) => {
-      if (!isListingParentsEnabled()) return notFoundResponse();
       const result = await validateChildEdges(
         listing,
         form.getNumberArray("child_listing_ids"),

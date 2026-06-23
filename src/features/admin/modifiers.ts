@@ -20,7 +20,6 @@ import {
 } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import { createAuthedHandler } from "#shared/app-forms.ts";
-import { isListingParentsEnabled } from "#shared/config.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
@@ -144,15 +143,14 @@ type AddOnSaveCandidate = {
 /**
  * The error to block an opt-in add-on save (scope/trigger/active edit or scope
  * links) that would leave the add-on reachable **only** through a suppressed
- * child listing, or null when allowed or the parents feature is off. Resolves
- * the would-be scope to listing ids, then defers to the shared reachability core
+ * child listing, or null when allowed. Resolves the would-be scope to listing
+ * ids, then defers to the shared reachability core
  * ({@link childUnreachableAddOnError}) so this modifier-side block and the
  * parent-edge block can't diverge.
  */
 const childAddOnSaveError = async (
   candidate: AddOnSaveCandidate,
 ): Promise<string | null> => {
-  if (!isListingParentsEnabled()) return null;
   const allListings = await getAllListings();
   const allIds = allListings.map((listing) => listing.id);
   const childIds = await getChildListingIds(allIds);

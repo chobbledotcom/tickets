@@ -5,9 +5,6 @@
  * entry point, and a parent with no bookable child must read as sold out, on
  * every discovery surface: public cards, RSS/ICS feeds, the /order gallery, the
  * admin multi-booking link builder, and the per-listing share/QR generators.
- *
- * Each behaviour is gated behind LISTING_PARENTS_ENABLED, so the flag-off blocks
- * assert children behave like ordinary listings (existing behaviour unchanged).
  */
 
 import { expect } from "@std/expect";
@@ -52,8 +49,8 @@ const orderRedirect = async (ids: number[]): Promise<string> => {
 };
 
 describeWithEnv(
-  "server > parents discovery suppression (flag on)",
-  { db: true, env: { LISTING_PARENTS_ENABLED: "true" }, triggers: true },
+  "server > parents discovery suppression",
+  { db: true, triggers: true },
   () => {
     describe("public listing cards (/listings)", () => {
       test("a visible child card has no standalone Book link", async () => {
@@ -508,62 +505,6 @@ describeWithEnv(
         response.body?.cancel();
         expect(response.status).toBe(404);
       });
-    });
-  },
-);
-
-describeWithEnv(
-  "server > parents discovery suppression (flag off)",
-  { db: true, triggers: true },
-  () => {
-    test("a child behaves like a normal listing on the public card", async () => {
-      const parent = await createTestListing({ name: "Base unit" });
-      const child = await createTestListing({ name: "Add-on" });
-      await setChildIds(parent.id, [child.id]);
-      const body = await publicBody("/listings");
-      // Flag off: the child still advertises a standalone Book link.
-      expect(body).toContain(`href="/ticket/${child.slug}"`);
-      expect(body).not.toContain("Available as an add-on to another booking");
-    });
-
-    test("a child is syndicated in the feed", async () => {
-      const parent = await createTestListing({ name: "FeedParent" });
-      const child = await createTestListing({ name: "FeedChild" });
-      await setChildIds(parent.id, [child.id]);
-      await settings.update.showPublicSite(true);
-      const rss = await (
-        await handleRequest(mockRequest("/feeds/listings.rss"))
-      ).text();
-      expect(rss).toContain(`/ticket/${child.slug}`);
-    });
-
-    test("a child is selectable in the order gallery", async () => {
-      const parent = await createTestListing({ name: "GalParent" });
-      const child = await createTestListing({ name: "GalChild" });
-      await setChildIds(parent.id, [child.id]);
-      const body = await galleryBody();
-      expect(body).toContain(`name="select_${child.id}"`);
-    });
-
-    test("a child stays in the multi-booking builder", async () => {
-      const parent = await createTestListing({ name: "MbParent" });
-      const child = await createTestListing({ name: "MbChild" });
-      await setChildIds(parent.id, [child.id]);
-      const body = await (await adminGet("/admin/")).response.text();
-      expect(body).toContain(`data-multi-booking-slug="${child.slug}"`);
-    });
-
-    test("a child keeps its share/QR affordances", async () => {
-      const parent = await createTestListing({ name: "QrParent" });
-      const child = await createTestListing({ name: "QrChild" });
-      await setChildIds(parent.id, [child.id]);
-      const body = await (
-        await adminGet(`/admin/listing/${child.id}`)
-      ).response.text();
-      expect(body).toContain(`/admin/listing/${child.id}/qr`);
-      const get = await adminGet(`/admin/listing/${child.id}/qr`);
-      get.response.body?.cancel();
-      expect(get.response.status).toBe(200);
     });
   },
 );

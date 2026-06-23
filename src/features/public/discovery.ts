@@ -10,9 +10,7 @@
  * booking gate then rejects.
  *
  * This module is the single source of truth those surfaces share so they stay
- * consistent. Everything here is gated behind {@link isListingParentsEnabled}:
- * with the flag off it returns the empty classification (no queries), leaving
- * existing behaviour untouched until the feature ships.
+ * consistent.
  *
  * Availability note: discovery has no submitted date/duration, so child
  * bookability is evaluated at the minimum order (a single day) using the
@@ -27,7 +25,6 @@
 
 import { compact } from "#fp";
 import { isRegistrationClosed } from "#routes/format.ts";
-import { isListingParentsEnabled } from "#shared/config.ts";
 import { getGroupRemainingByListingId } from "#shared/db/attendees.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
 import {
@@ -71,12 +68,6 @@ export type DiscoveryClassification = {
   childIds: ReadonlySet<number>;
   addOnChildIds: ReadonlySet<number>;
   soldOutParentIds: ReadonlySet<number>;
-};
-
-const EMPTY_CLASSIFICATION: DiscoveryClassification = {
-  addOnChildIds: new Set(),
-  childIds: new Set(),
-  soldOutParentIds: new Set(),
 };
 
 /** Whether a built child is individually bookable at render (no submitted date):
@@ -143,9 +134,7 @@ const childBookableForParent = (
 
 /**
  * Classify the given listings for a discovery surface (see
- * {@link DiscoveryClassification}). The empty classification is returned
- * (without any query) when the parents feature is off, so existing surfaces are
- * unchanged until the feature ships.
+ * {@link DiscoveryClassification}).
  *
  * `soldOutParentIds` contains a parent only when it has at least one child edge
  * and *none* of its children are bookable for the combined parent+child demand
@@ -155,9 +144,6 @@ const childBookableForParent = (
 export const classifyForDiscovery = async (
   listings: readonly ListingWithCount[],
 ): Promise<DiscoveryClassification> => {
-  // The relationship accessors below already no-op (no query) on an empty id
-  // list, so the only short-circuit needed is the feature flag.
-  if (!isListingParentsEnabled()) return EMPTY_CLASSIFICATION;
   const ids = listings.map((l) => l.id);
   const [childIds, childrenByParent, parentsByChild] = await Promise.all([
     getChildListingIds(ids),

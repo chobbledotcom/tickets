@@ -1728,41 +1728,44 @@ const ListingChildrenSection = ({
   childIds: ReadonlySet<number>;
   offeredUnder: ListingWithCount[];
 }) => (
-  <section class="listing-children">
-    <h2>{t("listings_table.children_legend")}</h2>
-    <p>{t("listings_table.children_help")}</p>
-    {offeredUnder.length > 0 && (
-      <p>
-        {t("listings_table.children_offered_under", {
-          names: offeredUnder.map((p) => p.name).join(", "),
-        })}
-      </p>
-    )}
-    {allListings.length === 0 ? (
-      <p>
-        <em>{t("listings_table.children_none")}</em>
-      </p>
-    ) : (
-      <CsrfForm action={`/admin/listing/${listingId}/children`}>
-        <fieldset class="checkboxes">
-          {map((e: ListingWithCount) => (
-            <label>
-              <input
-                checked={childIds.has(e.id) || undefined}
-                name="child_listing_ids"
-                type="checkbox"
-                value={String(e.id)}
-              />
-              {` ${e.name}`}
-            </label>
-          ))(allListings)}
-        </fieldset>
-        <SubmitButton icon="save">
-          {t("listings_table.children_save")}
-        </SubmitButton>
-      </CsrfForm>
-    )}
-  </section>
+  <details class="listing-advanced listing-children" open>
+    <summary>{t("listings_table.advanced_settings")}</summary>
+    <div class="stack">
+      <h2>{t("listings_table.children_legend")}</h2>
+      <p>{t("listings_table.children_help")}</p>
+      {offeredUnder.length > 0 && (
+        <p>
+          {t("listings_table.children_offered_under", {
+            names: offeredUnder.map((p) => p.name).join(", "),
+          })}
+        </p>
+      )}
+      {allListings.length === 0 ? (
+        <p>
+          <em>{t("listings_table.children_none")}</em>
+        </p>
+      ) : (
+        <CsrfForm action={`/admin/listing/${listingId}/children`}>
+          <fieldset class="checkboxes">
+            {map((e: ListingWithCount) => (
+              <label>
+                <input
+                  checked={childIds.has(e.id) || undefined}
+                  name="child_listing_ids"
+                  type="checkbox"
+                  value={String(e.id)}
+                />
+                {` ${e.name}`}
+              </label>
+            ))(allListings)}
+          </fieldset>
+          <SubmitButton icon="save">
+            {t("listings_table.children_save")}
+          </SubmitButton>
+        </CsrfForm>
+      )}
+    </div>
+  </details>
 );
 
 export const adminListingEditPage = (

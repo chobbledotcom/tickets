@@ -12,7 +12,6 @@ import { holidayApiRoutes } from "#routes/admin/api-holidays.ts";
 import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
-import { isListingParentsEnabled } from "#shared/config.ts";
 import { setChildIds } from "#shared/db/listing-parents.ts";
 import {
   computeSlugIndex,
@@ -347,7 +346,7 @@ type SubmittedChildIds =
 const submittedChildIds = (
   body: Record<string, unknown>,
 ): SubmittedChildIds => {
-  if (!isListingParentsEnabled() || body.child_listing_ids === undefined) {
+  if (body.child_listing_ids === undefined) {
     return { skip: true };
   }
   const raw = body.child_listing_ids;

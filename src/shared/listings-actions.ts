@@ -6,7 +6,6 @@
  */
 
 import { t } from "#i18n";
-import { isListingParentsEnabled } from "#shared/config.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { groupsTable, validateGroupListingType } from "#shared/db/groups.ts";
@@ -159,15 +158,14 @@ const orphanedAddOnAfterChange = async (
 };
 
 /**
- * On an update (and only when the parents feature is enabled), re-validate every
- * parent/child edge touching this listing against its would-be field values *and*
- * its would-be `group_id`, so a type/duration/renewal change can't leave a
- * persisted edge the booking gate can't honour, and a group change can't orphan
- * a group-scoped add-on that the edge's child suppresses (Fix 4). No-op for
- * creates (no edges yet) and when the flag is off.
+ * On an update, re-validate every parent/child edge touching this listing
+ * against its would-be field values *and* its would-be `group_id`, so a
+ * type/duration/renewal change can't leave a persisted edge the booking gate
+ * can't honour, and a group change can't orphan a group-scoped add-on that the
+ * edge's child suppresses (Fix 4). No-op for creates (no edges yet).
  */
 const validateListingEdges: ListingUpdateCheck = async (input, existingId) => {
-  if (existingId === undefined || !isListingParentsEnabled()) return null;
+  if (existingId === undefined) return null;
   const fieldError = await edgeIncompatibilityAfterChange(
     listingInputToEdge(input, existingId),
   );

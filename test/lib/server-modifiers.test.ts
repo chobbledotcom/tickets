@@ -831,8 +831,8 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
 });
 
 describeWithEnv(
-  "server (admin modifiers) > child-only add-on guard (parents on)",
-  { db: true, env: { LISTING_PARENTS_ENABLED: "true" } },
+  "server (admin modifiers) > child-only add-on guard",
+  { db: true },
   () => {
     /** An active opt-in, listings-scoped add-on with no links yet. */
     const optInAddOn = async (name: string): Promise<Modifier> => {
@@ -1077,34 +1077,6 @@ describeWithEnv(
       expect(await getModifierListingIds(modifier.id)).toEqual(
         [child.id, reachable.id].sort((a, b) => a - b),
       );
-    });
-  },
-);
-
-describeWithEnv(
-  "server (admin modifiers) > child-only add-on guard (parents off)",
-  { db: true },
-  () => {
-    test("allows scoping an opt-in add-on to only a child when the flag is off", async () => {
-      const parent = await createTestListing({ name: "Base unit" });
-      const child = await createTestListing({ name: "Add-on" });
-      await setChildIds(parent.id, [child.id]);
-      const modifier = await insertModifier({ name: "Child-only extra" });
-      await patchModifier(modifier.id, {
-        active: 1,
-        scope: "listings",
-        trigger: "optional",
-      });
-      const { response } = await adminFormPost(
-        `/admin/modifiers/${modifier.id}/links`,
-        { listing_ids: String(child.id) },
-      );
-      await expectFlashRedirect(
-        `/admin/modifiers/${modifier.id}/edit`,
-        "Scope updated",
-        true,
-      )(response);
-      expect(await getModifierListingIds(modifier.id)).toEqual([child.id]);
     });
   },
 );

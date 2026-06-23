@@ -15,7 +15,6 @@ import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse, redirectResponse } from "#routes/response.ts";
 /* jscpd:ignore-start */
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
-import { isListingParentsEnabled } from "#shared/config.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import {
   type ActivityLogEntry,
@@ -96,10 +95,10 @@ const handleAdminGet = (request: Request): Promise<Response> =>
       const stats = await getActiveListingStats(sortedListings);
       const activeType = listingTypeFromRequest(request);
       // Children are excluded from the multi-booking link builder (no booking
-      // can start from a child); no query when the feature is off.
-      const childIds = isListingParentsEnabled()
-        ? await getChildListingIds(sortedListings.map((l) => l.id))
-        : new Set<number>();
+      // can start from a child).
+      const childIds = await getChildListingIds(
+        sortedListings.map((l) => l.id),
+      );
       return htmlResponse(
         adminDashboardPage(
           sortedListings,

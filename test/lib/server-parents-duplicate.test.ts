@@ -36,8 +36,8 @@ const duplicateGroup = async (
 };
 
 describeWithEnv(
-  "server > duplication copies parent/child edges (flag on)",
-  { db: true, env: { LISTING_PARENTS_ENABLED: "true" } },
+  "server > duplication copies parent/child edges",
+  { db: true },
   () => {
     test("duplicating a parent copies its child edges onto the copy", async () => {
       const parent = await createTestListing({ name: "Base unit" });
@@ -146,42 +146,6 @@ describeWithEnv(
       // its clone is not attached to anything.
       expect(await getChildIds(outsideParent.id)).toEqual([child.id]);
       expect(await getChildIds(childCopy.id)).toEqual([]);
-    });
-  },
-);
-
-describeWithEnv(
-  "server > duplication ignores parent/child edges (flag off)",
-  { db: true },
-  () => {
-    test("single-listing duplicate copies no edges when the flag is off", async () => {
-      const parent = await createTestListing({ name: "Off base" });
-      const child = await createTestListing({ name: "Off add-on" });
-      await setChildren(parent.id, [child.id]);
-
-      const copy = await duplicateTestListing(parent.id, {
-        name: "Off base copy",
-      });
-
-      expect(await getChildIds(copy.id)).toEqual([]);
-    });
-
-    test("group duplicate copies no edges when the flag is off", async () => {
-      const group = await createTestGroup({ name: "Off bundle" });
-      const parent = await createTestListing({
-        groupId: group.id,
-        name: "Off group parent",
-      });
-      const child = await createTestListing({
-        groupId: group.id,
-        name: "Off group child",
-      });
-      await setChildren(parent.id, [child.id]);
-
-      const copies = await duplicateGroup(group.id, "Off bundle copy");
-
-      const parentCopy = copies.find((l) => l.name === "Off group parent")!;
-      expect(await getChildIds(parentCopy.id)).toEqual([]);
     });
   },
 );

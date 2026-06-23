@@ -82,8 +82,8 @@ const expectReserved = (response: Response): void => {
 };
 
 describeWithEnv(
-  "server > parents booking fold (flag on)",
-  { db: true, env: { LISTING_PARENTS_ENABLED: "true" }, triggers: true },
+  "server > parents booking fold",
+  { db: true, triggers: true },
   () => {
     test("a single bookable child auto-selects and folds into a free booking", async () => {
       const parent = await createTestListing({

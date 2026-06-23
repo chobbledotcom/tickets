@@ -15,7 +15,6 @@ import {
   createOrSoldOut,
 } from "#shared/checkout-complete.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
-import { isListingParentsEnabled } from "#shared/config.ts";
 import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
 import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
 import type {
@@ -688,15 +687,11 @@ export const createFreeReservation = async ({
  * signed QR, the JSON API) use this to reject (not silently drop) a child they
  * were handed directly. Group/order pages, which load their listings indirectly,
  * instead suppress child rows (folded under their parents) — so the rejection is
- * deliberately *not* applied in the shared render funnel. No-op (no query) unless
- * the feature flag is on, so existing behaviour is unchanged until parents ship.
+ * deliberately *not* applied in the shared render funnel.
  */
 export const anyChildListing = async (
   ids: readonly number[],
-): Promise<boolean> => {
-  if (!isListingParentsEnabled()) return false;
-  return (await getChildListingIds(ids)).size > 0;
-};
+): Promise<boolean> => (await getChildListingIds(ids)).size > 0;
 
 /**
  * Drop child listings from an indirectly-loaded listing set (group/order pages),
@@ -708,12 +703,10 @@ export const anyChildListing = async (
  * parents stay in the set and re-load their children via the relationship
  * accessor (`childrenByParentId`), so this only removes the children's own
  * standalone rows (Fix 3, parents.md "strip child rows from indirect pages").
- * No-op (no query) unless the feature flag is on.
  */
 export const dropChildListings = async (
   listings: readonly ListingWithCount[],
 ): Promise<ListingWithCount[]> => {
-  if (!isListingParentsEnabled()) return [...listings];
   const childIds = await getChildListingIds(listings.map((e) => e.id));
   return listings.filter((e) => !childIds.has(e.id));
 };
@@ -724,15 +717,11 @@ export const dropChildListings = async (
  * The web booking page enforces that choice with a per-parent selector, but the
  * JSON API has no child-selection input, so it uses this to reject a parent
  * booking and direct the caller to the web booking page (Fix 1, parents.md
- * "Public/JSON API booking"). No-op (no query) unless the feature flag is on, so
- * existing behaviour is unchanged until parents ship.
+ * "Public/JSON API booking").
  */
 export const parentRequiresChild = async (
   listingId: number,
-): Promise<boolean> => {
-  if (!isListingParentsEnabled()) return false;
-  return (await getChildIds(listingId)).length > 0;
-};
+): Promise<boolean> => (await getChildIds(listingId)).length > 0;
 
 /** Load and validate active listings, return 404 if none — or if any resolved
  * slug is a child (a booking can't start from a child; see {@link anyChildListing}). */
@@ -870,7 +859,6 @@ const singleDailyParent = (
 export const loadChildrenByParentId = async (
   listings: TicketListing[],
 ): Promise<ChildrenByParentId> => {
-  if (!isListingParentsEnabled()) return new Map();
   const childrenByParent = await getChildrenForParents(
     listings.map((e) => e.listing.id),
   );
