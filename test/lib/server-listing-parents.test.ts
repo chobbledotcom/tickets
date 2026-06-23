@@ -180,6 +180,53 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     expect(html).toContain("This listing is itself offered under: Base unit");
   });
 
+  test("pre-disables a candidate that is itself a parent (usability #4)", async () => {
+    // `child` already has its own child `grandchild`, so it can't also be a
+    // child of `parent` — its candidate checkbox is disabled with the reason,
+    // so the operator can't tick an edge the save would reject.
+    const parent = await createTestListing({ name: "Base unit" });
+    const child = await createTestListing({ name: "Mid" });
+    const grandchild = await createTestListing({ name: "Leaf" });
+    await postChildren(child.id, [grandchild.id]);
+    const html = await editPageHtml(parent.id);
+    expect(html).toContain(
+      `<input disabled name="child_listing_ids" type="checkbox" value="${child.id}">`,
+    );
+    expect(html).toContain("already has its own child listings");
+  });
+
+  test("pre-disables a daily candidate under a non-daily parent (usability #4)", async () => {
+    const parent = await createTestListing({ name: "Base unit" });
+    const daily = await createTestListing({
+      listingType: "daily",
+      name: "Daily add-on",
+    });
+    const html = await editPageHtml(parent.id);
+    expect(html).toContain(
+      `<input disabled name="child_listing_ids" type="checkbox" value="${daily.id}">`,
+    );
+  });
+
+  test("a child listing's edit page shows the inherited-fields banner (usability #3)", async () => {
+    const parent = await createTestListing({ name: "Base unit" });
+    const child = await createTestListing({ name: "Add-on" });
+    await postChildren(parent.id, [child.id]);
+    const html = await editPageHtml(child.id);
+    expect(html).toContain("This listing is offered as a child of Base unit");
+    expect(html).toContain(
+      "Inherited from the parent when this listing is chosen as a child",
+    );
+  });
+
+  test("a non-child listing's edit page shows no inherited-fields banner", async () => {
+    const standalone = await createTestListing({ name: "Standalone" });
+    const html = await editPageHtml(standalone.id);
+    expect(html).not.toContain("This listing is offered as a child of");
+    expect(html).not.toContain(
+      "Inherited from the parent when this listing is chosen as a child",
+    );
+  });
+
   test("notes when there are no other listings to choose from", async () => {
     const only = await createTestListing({ name: "Solo" });
     const html = await editPageHtml(only.id);

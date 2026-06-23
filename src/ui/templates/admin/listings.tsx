@@ -1530,6 +1530,7 @@ const ListingFormSections = ({
   durationWarning,
   imagePreview,
   advancedOpen,
+  childOfNote = "",
 }: {
   fields: Field[];
   values: FieldValues;
@@ -1542,6 +1543,9 @@ const ListingFormSections = ({
   /** Pre-rendered edit-only current-image preview ("" otherwise). */
   imagePreview: string;
   advancedOpen: boolean;
+  /** Inline "inherited from the parent" note shown on the date/duration sections
+   * when the listing is itself a child ("" otherwise — e.g. on create). */
+  childOfNote?: string;
 }): JSX.Element => {
   const fieldMap = new Map<string, Field>(fields.map((f) => [f.name, f]));
   const sec = (names: readonly string[]): string =>
@@ -1570,6 +1574,7 @@ const ListingFormSections = ({
       <fieldset class="listing-section listing-section--daily">
         <legend>{t("listings_table.daily_scheduling")}</legend>
         <div class="stack">
+          {childOfNote && <p class="muted small">{childOfNote}</p>}
           <Raw html={sec(DAILY_FIELDS)} />
         </div>
       </fieldset>
@@ -1577,6 +1582,7 @@ const ListingFormSections = ({
       <fieldset class="listing-section">
         <legend>{t("listings_table.booking_duration_day_prices")}</legend>
         <div class="stack">
+          {childOfNote && <p class="muted small">{childOfNote}</p>}
           <Raw html={sec(["duration_days"])} />
           {durationWarning && <Raw html={durationWarning} />}
           <Raw html={sec(["customisable_days"])} />
@@ -1717,14 +1723,52 @@ export const adminDuplicateListingPage = (
 /** The "required children" editor shown on a listing's edit page when the
  * parent/child feature is enabled. Editing on the parent: tick the listings a
  * buyer must choose one of when booking this one. */
+/** One selectable child candidate: the listing and why it can't be a child of
+ * the one being edited (null when it can). Mirrors `ChildCandidate` from
+ * `listings-parents.ts`, kept decoupled from the feature layer like the rest of
+ * this template's view types. */
+type ChildCandidate = {
+  listing: ListingWithCount;
+  ineligibleReason: string | null;
+};
+
+const ChildCandidateLabel = ({
+  candidate,
+  checked,
+}: {
+  candidate: ChildCandidate;
+  checked: boolean;
+}) => {
+  // An ineligible candidate is disabled so the operator can't tick an edge the
+  // save would reject. A currently-ticked edge is always eligible — the listing
+  // save blocks any field/structure change that would break a live edge — so a
+  // disabled candidate is never also checked.
+  const disabled = candidate.ineligibleReason !== null;
+  return (
+    <label>
+      <input
+        checked={checked || undefined}
+        disabled={disabled || undefined}
+        name="child_listing_ids"
+        type="checkbox"
+        value={String(candidate.listing.id)}
+      />
+      {` ${candidate.listing.name}`}
+      {candidate.ineligibleReason !== null && (
+        <span class="muted small"> — {candidate.ineligibleReason}</span>
+      )}
+    </label>
+  );
+};
+
 const ListingChildrenSection = ({
   listingId,
-  allListings,
+  candidates,
   childIds,
   offeredUnder,
 }: {
   listingId: number;
-  allListings: ListingWithCount[];
+  candidates: ChildCandidate[];
   childIds: ReadonlySet<number>;
   offeredUnder: ListingWithCount[];
 }) => (
@@ -1740,24 +1784,19 @@ const ListingChildrenSection = ({
           })}
         </p>
       )}
-      {allListings.length === 0 ? (
+      {candidates.length === 0 ? (
         <p>
           <em>{t("listings_table.children_none")}</em>
         </p>
       ) : (
         <CsrfForm action={`/admin/listing/${listingId}/children`}>
           <fieldset class="checkboxes">
-            {map((e: ListingWithCount) => (
-              <label>
-                <input
-                  checked={childIds.has(e.id) || undefined}
-                  name="child_listing_ids"
-                  type="checkbox"
-                  value={String(e.id)}
-                />
-                {` ${e.name}`}
-              </label>
-            ))(allListings)}
+            {map((candidate: ChildCandidate) => (
+              <ChildCandidateLabel
+                candidate={candidate}
+                checked={childIds.has(candidate.listing.id)}
+              />
+            ))(candidates)}
           </fieldset>
           <SubmitButton icon="save">
             {t("listings_table.children_save")}
@@ -1776,11 +1815,17 @@ export const adminListingEditPage = (
   aggregateRecalculation?: ListingAggregateRecalculation,
   success?: string,
   parents?: {
-    allListings: ListingWithCount[];
+    candidates: ChildCandidate[];
     childIds: ReadonlySet<number>;
     offeredUnder: ListingWithCount[];
   },
 ): string => {
+  // A listing offered as a child inherits its parent's booking date/duration, so
+  // its own date/duration settings have no effect when chosen as a child. Surface
+  // that with a top banner and an inline note on the affected sections (#3).
+  const offeredUnder = parents?.offeredUnder ?? [];
+  const childOfNames =
+    offeredUnder.length > 0 ? offeredUnder.map((p) => p.name).join(", ") : null;
   const storageEnabled = isStorageEnabled();
   const builderEnabled = isBuilderEnabled();
   // Slug is editable only here (auto-generated on create), so it lives in the
@@ -1809,6 +1854,11 @@ export const adminListingEditPage = (
     >
       <AdminNav active="/admin/" session={session} />
       <Flash error={error} success={success} />
+      {childOfNames !== null && (
+        <p class="notice listing-child-banner">
+          {t("listings_table.child_banner", { names: childOfNames })}
+        </p>
+      )}
       <CsrfForm
         action={`/admin/listing/${listing.id}/edit`}
         enctype="multipart/form-data"
@@ -1817,6 +1867,11 @@ export const adminListingEditPage = (
         <ListingFormSections
           advancedOpen={
             advancedSectionHasValues(listing, builderEnabled) || !!error
+          }
+          childOfNote={
+            childOfNames !== null
+              ? t("listings_table.child_field_inherited")
+              : ""
           }
           dayPricesListing={listing}
           durationWarning={durationWarning}
@@ -1857,7 +1912,7 @@ export const adminListingEditPage = (
       )}
       {parents && (
         <ListingChildrenSection
-          allListings={parents.allListings}
+          candidates={parents.candidates}
           childIds={parents.childIds}
           listingId={listing.id}
           offeredUnder={parents.offeredUnder}

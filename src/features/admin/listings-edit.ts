@@ -196,7 +196,7 @@ export const handleAdminListingEditGet: TypedRouteHandler<
           flash.error,
           ctx.aggregateRecalculation,
           flash.success,
-          await loadListingParentsSection(ctx.listing.id),
+          await loadListingParentsSection(ctx.listing),
         ),
       );
     }),
@@ -254,7 +254,7 @@ const renderListingEditError = async (
           error,
           ctx.aggregateRecalculation,
           undefined,
-          await loadListingParentsSection(id),
+          await loadListingParentsSection(ctx.listing),
         ),
         400,
       )

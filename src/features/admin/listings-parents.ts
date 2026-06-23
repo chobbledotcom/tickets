@@ -13,6 +13,7 @@ import type { TypedRouteHandler } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import {
   getChildIds,
+  getChildrenForParents,
   getParentIds,
   getParentsOf,
   setChildIds,
@@ -33,29 +34,74 @@ import {
 import type { ListingWithCount } from "#shared/types.ts";
 import { withEntityFromParam } from "./entity-handlers.ts";
 
-/** The data the edit page's "required children" section renders. `allListings`
- * excludes the listing itself (no self-edges); `childIds` are its
- * currently-required children; `offeredUnder` are the listings it is itself a
- * child of. */
+/** One selectable child candidate on the edit page's "required children" list:
+ * the listing plus why it can't be a child of the one being edited (null when it
+ * can). An ineligible candidate is pre-disabled (unless already ticked) so the
+ * operator can't build an edge the save would only reject (usability #4). */
+export type ChildCandidate = {
+  listing: ListingWithCount;
+  ineligibleReason: string | null;
+};
+
+/** The data the edit page's "required children" section renders. `candidates`
+ * excludes the listing itself (no self-edges) and carries each one's
+ * eligibility; `childIds` are its currently-required children; `offeredUnder` are
+ * the listings it is itself a child of. */
 export type ListingParentsSection = {
-  allListings: ListingWithCount[];
+  candidates: ChildCandidate[];
   childIds: ReadonlySet<number>;
   offeredUnder: ListingWithCount[];
 };
 
+/** Why `candidate` can't be a child of `parent` for the edit-page candidate list
+ * — the synchronous structural + field blocks, mirroring {@link childEdgeError}
+ * so the pre-disable and the save agree. (The async add-on-reachability block is
+ * left to the save: it needs per-edge scope resolution and is the rare case.)
+ * Null when the edge is allowed. */
+const childEdgeIneligibility = (
+  parent: EdgeListing,
+  candidate: EdgeListing,
+  parentIsChild: boolean,
+  candidateIsParent: boolean,
+): string | null => {
+  if (parentIsChild) {
+    return t("listings_table.children_err_parent_is_child", {
+      name: parent.name,
+    });
+  }
+  if (candidateIsParent) {
+    return t("listings_table.children_err_child_is_parent", {
+      name: candidate.name,
+    });
+  }
+  return edgeFieldError(parent, candidate);
+};
+
 export const loadListingParentsSection = async (
-  listingId: number,
+  listing: ListingWithCount,
 ): Promise<ListingParentsSection> => {
   const [allListings, childIds, offeredUnder] = await Promise.all([
     getAllListings(),
-    getChildIds(listingId),
-    getParentsOf(listingId),
+    getChildIds(listing.id),
+    getParentsOf(listing.id),
   ]);
-  return {
-    allListings: allListings.filter((l) => l.id !== listingId),
-    childIds: new Set(childIds),
-    offeredUnder,
-  };
+  const others = allListings.filter((l) => l.id !== listing.id);
+  // A listing already offered as a child can't also be a parent (single-level
+  // nesting), so every candidate is ineligible in that case.
+  const parentIsChild = offeredUnder.length > 0;
+  // One query tells us which candidates are themselves parents (so can't be a
+  // child) instead of an N+1 over each candidate's children.
+  const childrenOf = await getChildrenForParents(others.map((l) => l.id));
+  const candidates = others.map((candidate) => ({
+    ineligibleReason: childEdgeIneligibility(
+      listing,
+      candidate,
+      parentIsChild,
+      (childrenOf.get(candidate.id)?.length ?? 0) > 0,
+    ),
+    listing: candidate,
+  }));
+  return { candidates, childIds: new Set(childIds), offeredUnder };
 };
 
 /**
