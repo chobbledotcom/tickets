@@ -23,10 +23,11 @@ a booking row's amount projects from its gross `sale` leg, keyed by the row's
 `ledger_event_group`), **outstanding balance** (no more
 `attendees.remaining_balance` — projects as `−balanceOf(attendee)`), and
 **modifier revenue** (no more `modifiers.total_revenue` — projects as
-`balanceOf(modifier:M)`, read directly). **Remaining work (§7):** the shared
-ledger renderer (§5.15) and the manual ledger-edit UI that
-replaces the money-aggregate overrides (decision 14, currently just removed from
-the form). **There is no dual-write phase** — see §7. **The code is the source of
+`balanceOf(modifier:M)`, read directly). The **shared ledger renderer** (§5.15,
+decision 15) and the **manual ledger-edit UI** (decision 14) are now built too:
+an owner-only read-only view of the ledger (recent transfer list, per-account
+statement, edit-attendee panel) and warned money-correction forms that post
+`writeoff` adjustment legs. **There is no dual-write phase** — see §7. **The code is the source of
 truth for the model**; when code and prose disagree, the code wins and this doc is
 updated to match.
 
@@ -262,12 +263,16 @@ hand-rolling another copy:
     current `SUM` projection and posts only the difference, and the UI **warns**
     that this edits the source-of-truth ledger. Corrections are appended, never
     destructive; sensitive-content edits **log redacted**, never the raw value.
-    **Status:** not yet built. As each money concern is swapped, its field is for
-    now **removed** from the override form (income went with concern 3;
-    `LISTING_AGGREGATE_FIELDS` is down to the two counts), leaving the form a
-    counts-only override. The ledger-edit UI that restores money correction as a
-    warned `writeoff` adjustment is tracked as remaining work (§7), to land once the
-    per-account reads exist for every money figure it touches.
+    **Status:** built. Each money figure (listing income, attendee balance,
+    modifier revenue) has its own warned correction form that posts the delta —
+    computed from the current projection — as an `adjustment` leg between the
+    figure's account and the `writeoff` contra account, so a correction never
+    books as external cash and the cash-vs-recognised report stays honest. The
+    non-money counts stay plain column overrides ("splits by kind"). One shared
+    `postWriteoffAdjustment` poster serves all three; income's projection
+    subtracts `revenue→writeoff` debits so a manual write-off lowers it while an
+    ordinary refund does not. The owner-encrypted free-text memo and its redacted
+    logging remain a deferred follow-up; activity logging is neutral for now.
 15. **One shared ledger renderer** for the historical list, the account
     statement, and the edit-attendee page.
 16. **Carts are all-or-nothing** (via `ensureAllBookings`); order legs ride the
@@ -561,8 +566,11 @@ So concern 4's read-swap + column drop is **gated on the backfill rework** writi
 `ledger_event_group`; its forward instrumentation (new bookings storing their
 order's `event_group`) is independent and can land first.
 
-A single shared ledger renderer (§5.15) follows once the per-account reads are in
-place. `booked_quantity` / `tickets_count` are counts, not money, so they stay.
+A single shared ledger renderer (§5.15) is now in place — `/admin/ledger` (the
+recent transfer list), `/admin/ledger/:type/:ref` (a per-account running-balance
+statement), and the same statement embedded on the edit-attendee page, all
+owner-only. `booked_quantity` / `tickets_count` are counts, not money, so they
+stay.
 
 ---
 
