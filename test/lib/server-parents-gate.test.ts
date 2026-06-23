@@ -1379,12 +1379,31 @@ describeWithEnv(
         name: "Donation B",
         unitPrice: 1000,
       });
-      await setChildIds(parent.id, [childA.id, childB.id]);
+      // A bookable but NON-pay-more sibling must get no price input at all.
+      const fixedChild = await createTestListing({
+        name: "Fixed add-on",
+        unitPrice: 1000,
+      });
+      await setChildIds(parent.id, [childA.id, childB.id, fixedChild.id]);
 
       const html = await ticketPageHtml(parent.slug);
-      // Both child price inputs are present but neither is HTML-required.
+      // The child block is wrapped in its labelled fieldset (a broken string
+      // concatenation would emit "NaN" in place of the opening tag).
+      expect(html).toContain(
+        `<fieldset class="child-selector" data-parent-id="${parent.id}">`,
+      );
+      // Both pay-more child price inputs are present but neither is HTML-required.
       expect(html).toContain(`name="child_price_${parent.id}_${childA.id}"`);
       expect(html).toContain(`name="child_price_${parent.id}_${childB.id}"`);
+      // The non-pay-more bookable child renders its radio but NO price input
+      // (the pay-more input is gated on the child's own can_pay_more, not merely
+      // its bookability).
+      expect(html).toContain(
+        `name="child_${parent.id}" value="${fixedChild.id}"`,
+      );
+      expect(html).not.toContain(
+        `name="child_price_${parent.id}_${fixedChild.id}"`,
+      );
       expect(html).not.toMatch(
         new RegExp(
           `name="child_price_${parent.id}_${childA.id}"[^>]*\\srequired`,
@@ -1535,6 +1554,68 @@ describeWithEnv(
       await setChildIds(parent.id, [child.id]);
 
       const html = await ticketPageHtml(parent.slug);
+      expect(html).toContain(">1 day");
+      expect(html).toContain(">2 days");
+    });
+
+    test("a customisable parent's day counts are constrained to a fixed daily child's own span", async () => {
+      // The parent offers {1,2,3} days; its only required child is a FIXED 2-day
+      // daily listing, whose supported span is exactly its duration_days (2). The
+      // day-count selector must therefore offer only the 2-day option — a daily
+      // child must NOT be treated as imposing "any" span (which would keep all of
+      // {1,2,3}), it constrains to its own fixed duration (childSupportedSpans).
+      const parent = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 1000, 2: 1800, 3: 2500 },
+        durationDays: 3,
+        name: "Customisable base",
+      });
+      const child = await createDailyTestListing({
+        durationDays: 2,
+        name: "Fixed two-day add-on",
+      });
+      await setChildIds(parent.id, [child.id]);
+
+      const html = await ticketPageHtml(parent.slug);
+      // Only the child's own 2-day span is offered; the 1- and 3-day options the
+      // child cannot serve are dropped from the union.
+      expect(html).toContain(">2 days");
+      expect(html).not.toContain(">1 day");
+      expect(html).not.toContain(">3 days");
+    });
+
+    test("a multi-listing page does NOT constrain the shared day counts by one parent's child", async () => {
+      // The day-count union constraint is SINGLE-listing only: on a multi-listing
+      // page the day-count selector is shared, so a parent's restrictive child must
+      // not remove a span a sibling page listing still needs (the per-parent
+      // constraint is deferred to JS + the submit fold). Page = a customisable
+      // parent (child supports only 2 days) PLUS a plain customisable listing
+      // offering {1,2}: the shared selector must keep BOTH the 1- and 2-day options.
+      const parent = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 1000, 2: 1800 },
+        durationDays: 2,
+        name: "Customisable base",
+      });
+      const child = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 2: 2500 },
+        durationDays: 2,
+        maxPrice: 0,
+        name: "Two-day add-on",
+        unitPrice: 0,
+      });
+      await setChildIds(parent.id, [child.id]);
+      const sibling = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 1200, 2: 2000 },
+        durationDays: 2,
+        name: "Sibling listing",
+      });
+
+      const html = await ticketPageHtml(`${parent.slug}+${sibling.slug}`);
+      // Both options survive: the multi-listing page is not constrained by the
+      // parent's 2-day-only child (which on its own page would drop the 1-day).
       expect(html).toContain(">1 day");
       expect(html).toContain(">2 days");
     });
@@ -1792,6 +1873,41 @@ describeWithEnv(
       const html = await ticketPageHtml(parent.slug);
       expect(html).toContain(`name="quantity_${parent.id}"`);
       expect(html).toContain(`name="child_${parent.id}"`);
+    });
+
+    test("a shared capped group caps the parent quantity selector by floor(remaining / units)", async () => {
+      // Parent and child share a 3-spot capped group; each combined order consumes
+      // PARENT_CHILD_GROUP_UNITS (2) spots, so only one combined order fits
+      // (floor(3 / 2) = 1). The parent's own max_quantity is high enough (5) that
+      // its standalone capacity (clamped to the 3 group spots) would otherwise show
+      // a multi-option selector, so the rendered cap proves childOrderCap divides
+      // (not the child's own maxPurchasable, and not remaining + units): the
+      // quantity selector offers a 1 option but never a 2.
+      const { PARENT_CHILD_GROUP_UNITS } = await import("#shared/types.ts");
+      expect(PARENT_CHILD_GROUP_UNITS).toBe(2);
+      const group = await createTestGroup({ maxAttendees: 3, name: "Pool3" });
+      const parent = await createTestListing({
+        groupId: group.id,
+        maxQuantity: 5,
+        name: "Base unit",
+      });
+      const child = await createTestListing({
+        groupId: group.id,
+        maxQuantity: 5,
+        name: "Add-on",
+      });
+      await setChildIds(parent.id, [child.id]);
+
+      const html = await ticketPageHtml(parent.slug);
+      const quantitySelect = html.slice(
+        html.indexOf(`name="quantity_${parent.id}"`),
+      );
+      const quantityOptionsHtml = quantitySelect.slice(
+        0,
+        quantitySelect.indexOf("</select>"),
+      );
+      expect(quantityOptionsHtml).toContain(">1</option>");
+      expect(quantityOptionsHtml).not.toContain(">2</option>");
     });
 
     test("a parent whose only child is sold out renders sold out on its own page", async () => {
