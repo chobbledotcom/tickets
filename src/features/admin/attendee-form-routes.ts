@@ -404,11 +404,12 @@ const buildTemplateData = async (
 };
 
 /** Load custom questions + currently-selected answers across ALL of the
- * attendee's booked listings (edit mode only). */
+ * attendee's booked listings (edit mode only). The request's private key is
+ * only derived when there are questions whose free-text answers need
+ * decrypting, so an attendee with no questions never forces a key unwrap. */
 const loadQuestionsForExisting = async (
   attendeeId: number,
   existing: ExistingLine[],
-  privateKey: CryptoKey,
 ): Promise<{
   questions: QuestionWithAnswers[];
   selectedAnswerIds: number[];
@@ -426,18 +427,11 @@ const loadQuestionsForExisting = async (
   return {
     questions: data.questions,
     selectedAnswerIds: data.attendeeAnswerMap.get(attendeeId) ?? [],
-    selectedTextAnswers: await getAttendeeTextAnswers(attendeeId, privateKey),
+    selectedTextAnswers: await getAttendeeTextAnswers(
+      attendeeId,
+      await requireRequestPrivateKey(),
+    ),
   };
-};
-
-/** Resolve the session's private key and load the attendee's question context
- * with it — the two always pair up at the edit-form call sites. */
-const loadQuestionsForSession = async (
-  attendeeId: number,
-  existing: ExistingLine[],
-) => {
-  const privateKey = await requireRequestPrivateKey();
-  return loadQuestionsForExisting(attendeeId, existing, privateKey);
 };
 
 /** Render the attendee form page as an HTML response. */
@@ -501,7 +495,7 @@ export const handleAttendeeEditGet: TypedRouteHandler<
       renderListings,
     );
     const { questions, selectedAnswerIds, selectedTextAnswers } =
-      await loadQuestionsForSession(attendeeId, loaded.existing);
+      await loadQuestionsForExisting(attendeeId, loaded.existing);
     const contactRecords = await loadContactRecords(loaded.attendee);
     const ledger = await loadAttendeeLedgerForSession(session, attendeeId);
     const data = await buildTemplateData("edit", parsed, loaded.attendee, {
@@ -606,7 +600,7 @@ const loadEditContext = async (
   const loaded = await loadAttendeeForEdit(attendeeId);
   if (!loaded) return null;
   const { questions, selectedAnswerIds, selectedTextAnswers } =
-    await loadQuestionsForSession(attendeeId, loaded.existing);
+    await loadQuestionsForExisting(attendeeId, loaded.existing);
   return {
     attendee: loaded.attendee,
     existingByKey: new Map(
