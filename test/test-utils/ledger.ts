@@ -1,10 +1,27 @@
 import { afterEach, beforeEach } from "@std/testing/bdd";
+import { postWriteoffAdjustmentTx } from "#shared/accounting/adjustments.ts";
 import { mapBooking, mapRefund } from "#shared/accounting/mappers.ts";
+import type { RefPart } from "#shared/accounting/refs.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
-import { getDb } from "#shared/db/client.ts";
+import { getDb, withTransaction } from "#shared/db/client.ts";
 import { account } from "#shared/ledger/account.ts";
-import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
+import type {
+  AccountRef,
+  Transfer,
+  TransferInput,
+} from "#shared/ledger/types.ts";
 import { setupTransactionalTestDb } from "#test-utils";
+
+/** Post a standalone `writeoff` adjustment in its own transaction — the test-side
+ *  convenience over `postWriteoffAdjustmentTx` (production always posts a
+ *  correction inside the wider read-then-write transaction that makes it
+ *  idempotent, so the bare poster has no production caller). */
+export const postWriteoffAdjustment = (
+  acct: AccountRef,
+  delta: number,
+  keyParts: RefPart[],
+): Promise<void> =>
+  withTransaction((tx) => postWriteoffAdjustmentTx(tx, acct, delta, keyParts));
 
 /** A {@link TransferInput} with sensible defaults; override any field. */
 export const tx = (overrides: Partial<TransferInput> = {}): TransferInput => ({

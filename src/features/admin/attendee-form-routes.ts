@@ -28,6 +28,7 @@ import {
   resolveStatusId,
   toCreateInput,
   toDesiredLines,
+  toLedgerOrder,
   validateParsedForm,
 } from "#routes/admin/attendee-form-model.ts";
 import {
@@ -47,6 +48,7 @@ import type { TypedRouteHandler } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
+import { manualAddLedgerPoster } from "#shared/checkout-complete.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { getAttendeeActivityLog, logActivity } from "#shared/db/activityLog.ts";
 import { getAllAttendeeStatuses } from "#shared/db/attendee-statuses.ts";
@@ -773,12 +775,18 @@ const applyCreate = async (
   }
   // Admin manual add may deliberately overbook (a warning is shown, not blocked)
   // and is tagged as an "admin" booking so it counts separately from online
-  // checkouts in the contact's booking history.
-  const createResult = await createAttendeeAtomic({
-    ...input,
-    allowOverbook: true,
-    source: "admin",
-  });
+  // checkouts in the contact's booking history. The ledger poster records the
+  // booking's gross `sale` legs and reconciles the entered outstanding balance in
+  // the SAME create transaction, so the owed amount projects from the ledger
+  // (rather than silently reading back as £0) and lands atomically with the rows.
+  const createResult = await createAttendeeAtomic(
+    {
+      ...input,
+      allowOverbook: true,
+      source: "admin",
+    },
+    manualAddLedgerPoster(toLedgerOrder(parsed), input.remainingBalance),
+  );
   const check = await ensureAllBookings(
     createResult,
     input.bookings.length,

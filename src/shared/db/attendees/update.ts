@@ -4,11 +4,16 @@
 
 import { filter, map, pipe, reduce, sumOf, unique } from "#fp";
 import { attendeeAccount } from "#shared/accounting/accounts.ts";
-import { postWriteoffAdjustment } from "#shared/accounting/adjustments.ts";
-import { accountBalance } from "#shared/accounting/queries.ts";
+import { postWriteoffAdjustmentTx } from "#shared/accounting/adjustments.ts";
+import { attendeeOwedTx } from "#shared/accounting/queries.ts";
 import type { UpdateAttendeePIIInput } from "#shared/db/attendee-types.ts";
 import { buildPiiBlob, encryptPiiBlob } from "#shared/db/attendees/pii.ts";
-import { execute, queryAll } from "#shared/db/client.ts";
+import {
+  execute,
+  queryAll,
+  type TxScope,
+  withTransaction,
+} from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
 import { normalizeDurationDays } from "#shared/types.ts";
 
@@ -41,47 +46,60 @@ export const updateCheckedIn = (
  * that the balance projects from the ledger (−balanceOf(attendee)) rather than a
  * stored column. A no-op (target already owed) posts nothing.
  *
+ * Runs inside the caller's write transaction `tx`: the current owed figure is
+ * read THROUGH `tx` (so it sees this transaction's own writes) and the
+ * adjustment is posted THROUGH `tx`, so the read→delta→post is atomic and
+ * recomputed from `target` under the write lock. That makes the correction
+ * idempotent for a given target — a second submit of the same target reads the
+ * first's committed balance and computes a zero delta — and lets it commit (or
+ * roll back) together with whatever else the transaction does.
+ *
  * Outstanding = −balanceOf(attendee), so `owed = -balance`. To move owed onto
  * `target` we credit the attendee account by `owed − target` in
- * {@link postWriteoffAdjustment}'s terms: raising what's owed (target > owed) is a
- * negative delta ⇒ `attendee → writeoff` debit ⇒ balanceOf(attendee) drops ⇒
- * owed = −balanceOf rises; lowering it credits the attendee from writeoff. The
+ * {@link postWriteoffAdjustmentTx}'s terms: raising what's owed (target > owed)
+ * is a negative delta ⇒ `attendee → writeoff` debit ⇒ balanceOf(attendee) drops
+ * ⇒ owed = −balanceOf rises; lowering it credits the attendee from writeoff. The
  * correction never touches external cash or a listing's revenue account, so it
  * moves only what is owed — cash reports (`world→*`) stay honest.
- *
- * Each save is its own business event (the poster mixes in a fresh `nowIso()`),
- * so editing the balance up, down, then back up again posts three distinct
- * adjustments rather than colliding with an earlier event's references.
  */
-const reconcileLedgerBalance = async (
+export const reconcileLedgerBalanceTx = async (
+  tx: TxScope,
   attendeeId: number,
   target: number,
 ): Promise<void> => {
-  const attendee = attendeeAccount(attendeeId);
-  const owed = -(await accountBalance(attendee));
-  await postWriteoffAdjustment(attendee, owed - target, [
-    "balance-adjust",
-    attendeeId,
-  ]);
+  const owed = await attendeeOwedTx(tx, attendeeId);
+  await postWriteoffAdjustmentTx(
+    tx,
+    attendeeAccount(attendeeId),
+    owed - target,
+    ["balance-adjust", attendeeId],
+  );
 };
 
 /**
  * Set an attendee's order fields from the admin edit form: the status (a plain
  * column write) and the outstanding balance (reconciled in the transfers ledger,
- * which now holds the balance — see {@link reconcileLedgerBalance}). Both are
+ * which now holds the balance — see {@link reconcileLedgerBalanceTx}). Both are
  * operator-editable; the status lives outside the encrypted pii_blob.
+ *
+ * The two run in ONE write transaction so they are atomic: a failure posting the
+ * balance leg rolls the status change back too, never leaving the status moved
+ * but the balance unrecorded. The balance reconcile recomputes its delta from
+ * `remainingBalance` inside that transaction, so re-submitting the same form is
+ * idempotent and two concurrent submits serialise on the write lock.
  */
-export const updateAttendeeOrder = async (
+export const updateAttendeeOrder = (
   attendeeId: number,
   statusId: number | null,
   remainingBalance: number,
-): Promise<void> => {
-  await execute("UPDATE attendees SET status_id = ? WHERE id = ?", [
-    statusId,
-    attendeeId,
-  ]);
-  await reconcileLedgerBalance(attendeeId, remainingBalance);
-};
+): Promise<void> =>
+  withTransaction(async (tx) => {
+    await tx.execute({
+      args: [statusId, attendeeId],
+      sql: "UPDATE attendees SET status_id = ? WHERE id = ?",
+    });
+    await reconcileLedgerBalanceTx(tx, attendeeId, remainingBalance);
+  });
 
 export const incrementAttachmentDownloads = async (
   attendeeId: number,

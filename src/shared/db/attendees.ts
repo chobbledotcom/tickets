@@ -89,6 +89,7 @@ export {
   checkGroupCapAfterDurationChange,
   incrementAttachmentDownloads,
   recomputeListingBookingRanges,
+  reconcileLedgerBalanceTx,
   updateAttendeeOrder,
   updateAttendeePII,
   updateCheckedIn,

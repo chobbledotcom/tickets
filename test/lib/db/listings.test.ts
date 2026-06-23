@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import { revenueAccount } from "#shared/accounting/accounts.ts";
-import { postWriteoffAdjustment } from "#shared/accounting/adjustments.ts";
 import { accountBalance } from "#shared/accounting/queries.ts";
 import {
   getAllActivityLog,
@@ -53,7 +52,11 @@ import {
   describeWithEnv,
   getTestPrivateKey,
 } from "#test-utils";
-import { postAttendeeRefund, postListingSale } from "#test-utils/ledger.ts";
+import {
+  postAttendeeRefund,
+  postListingSale,
+  postWriteoffAdjustment,
+} from "#test-utils/ledger.ts";
 
 describeWithEnv("db > listings", { db: true, triggers: true }, () => {
   describe("CRUD", () => {

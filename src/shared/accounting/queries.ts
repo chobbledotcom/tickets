@@ -12,11 +12,21 @@
 
 import type { InValue } from "@libsql/client";
 import {
+  accountBalanceSubquery,
+  attendeeOwedSubquery,
+  creditsLessWriteoffDebits,
+} from "#shared/accounting/projection-sql.ts";
+import {
   fromDb,
   selectByEventGroup,
   selectTransfers,
 } from "#shared/accounting/rows.ts";
-import { inPlaceholders, queryAll } from "#shared/db/client.ts";
+import {
+  inPlaceholders,
+  queryAll,
+  resultRows,
+  type TxScope,
+} from "#shared/db/client.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
 
 /** Every transfer touching `account`, as source or destination. */
@@ -105,3 +115,52 @@ export const accountBalancesForIds = async (
  *  source). Zero when the account has no transfers. */
 export const accountBalance = async (acct: AccountRef): Promise<number> =>
   (await accountBalancesForIds(acct.type, [acct.id])).get(acct.id) ?? 0;
+
+/**
+ * Read a single projected money figure (a scalar `transfers` subquery) THROUGH an
+ * open write transaction, so the figure reflects this transaction's own
+ * uncommitted legs and — crucially — is read under the write lock. A correction
+ * that recomputes its delta from a freshly-read current figure inside the same
+ * transaction it posts into is therefore idempotent: a second submit of the same
+ * target reads the first's committed adjustment and computes a zero delta. The
+ * subquery interpolates the (numeric, validated) row id as a SQL expression, the
+ * same convention the projection-sql builders use, so it carries no bound args.
+ */
+const readProjectedFigureTx = async (
+  tx: TxScope,
+  subquery: string,
+): Promise<number> => {
+  const rows = resultRows<{ figure: number | bigint }>(
+    await tx.execute({ args: [], sql: `SELECT ${subquery} AS figure` }),
+  );
+  return Number(rows[0]!.figure);
+};
+
+/** What an attendee currently owes (−balanceOf(attendee)) read in-transaction. */
+export const attendeeOwedTx = (
+  tx: TxScope,
+  attendeeId: number,
+): Promise<number> =>
+  readProjectedFigureTx(tx, attendeeOwedSubquery(String(attendeeId)));
+
+/** A listing's currently projected income (gross credits less write-off debits)
+ *  read in-transaction — the figure {@link adjustListingIncome} corrects. */
+export const listingIncomeTx = (
+  tx: TxScope,
+  listingId: number,
+): Promise<number> =>
+  readProjectedFigureTx(
+    tx,
+    creditsLessWriteoffDebits("revenue", String(listingId)),
+  );
+
+/** A modifier's currently projected net revenue (balanceOf(modifier)) read
+ *  in-transaction — the figure {@link adjustModifierRevenue} corrects. */
+export const modifierRevenueTx = (
+  tx: TxScope,
+  modifierId: number,
+): Promise<number> =>
+  readProjectedFigureTx(
+    tx,
+    accountBalanceSubquery("modifier", String(modifierId)),
+  );

@@ -273,9 +273,7 @@ export const handleAdminListingEditPost: TypedRouteHandler<
  * Owner-only; the delta is computed from the listing's current projected income.
  */
 const adjustListingIncomeForm = makeMoneyAdjustHandler<ListingWithCount>({
-  adjust: (listing, current, target) =>
-    adjustListingIncome(listing.id, current, target),
-  current: (listing) => listing.income,
+  adjust: (listing, target) => adjustListingIncome(listing.id, target),
   editPath: (id) => `/admin/listing/${id}/edit`,
   field: "income",
   load: getListingWithCount,

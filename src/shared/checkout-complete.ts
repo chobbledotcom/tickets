@@ -12,19 +12,26 @@
 
 import { mapBooking } from "#shared/accounting/mappers.ts";
 import { postTransfersTx } from "#shared/accounting/store.ts";
-import { bookingFactsFromOrder } from "#shared/checkout-ledger.ts";
+import {
+  bookingFactsFromOrder,
+  owedOrderForLedger,
+} from "#shared/checkout-ledger.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
 import type {
   AttendeeInput,
   CreateAttendeeResult,
 } from "#shared/db/attendee-types.ts";
 import type { LedgerPoster } from "#shared/db/attendees/create.ts";
-import { createAttendeeAtomic } from "#shared/db/attendees.ts";
+import {
+  createAttendeeAtomic,
+  reconcileLedgerBalanceTx,
+} from "#shared/db/attendees.ts";
 import type { TxScope } from "#shared/db/client.ts";
 import {
   consumeModifierStockTx,
   type ModifierUsage,
 } from "#shared/db/modifier-usage.ts";
+import { nowIso } from "#shared/now.ts";
 
 /** Thrown from the create transaction when a stock-limited modifier sold out
  *  between pricing and consumption, rolling the whole booking (and any ledger
@@ -93,6 +100,37 @@ export const postBookingLegsTx = async (
     });
   }
 };
+
+/**
+ * The {@link LedgerPoster} for an admin manual attendee add. The add form
+ * captures per-listing quantities (so each line's GROSS is its listing price ×
+ * quantity) and one order-level outstanding balance, but no amount-paid field —
+ * so this records the same shape of legs a real booking does with nothing
+ * collected: the gross `sale` legs (recognising income, exactly the live path's
+ * {@link owedOrderForLedger}) and NO `payment`/`fee` leg, then reconciles the
+ * attendee's owed balance to the operator-entered `remainingBalance`.
+ *
+ * Both steps run in the create transaction `tx` (the attendee, its sale legs and
+ * its balance reconcile commit or roll back together). The reconcile recomputes
+ * its delta from the freshly-read in-tx balance, so it is the difference between
+ * the gross just posted and what the operator says is still owed — modelling the
+ * already-paid portion as a `writeoff` adjustment (never phantom external cash),
+ * leaving the attendee owing exactly `remainingBalance`. A zero-gross add (free
+ * listings) still owes exactly `remainingBalance`.
+ */
+export const manualAddLedgerPoster =
+  (order: PricedOrder, remainingBalance: number): LedgerPoster =>
+  async (tx, attendeeId) => {
+    const legs = await mapBooking(
+      bookingFactsFromOrder(owedOrderForLedger(order), {
+        attendeeId,
+        eventId: String(attendeeId),
+        occurredAt: nowIso(),
+      }),
+    );
+    await postBookingLegsTx(tx, attendeeId, legs);
+    await reconcileLedgerBalanceTx(tx, attendeeId, remainingBalance);
+  };
 
 /**
  * Create an attendee whose ledger poster may throw {@link ModifierSoldOutError},

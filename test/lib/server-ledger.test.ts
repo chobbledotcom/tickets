@@ -202,7 +202,7 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
       name: "Adjusted",
       thankYouUrl: "https://example.com",
     });
-    await adjustListingIncome(listing.id, 0, 1500);
+    await adjustListingIncome(listing.id, 1500);
     const { response } = await adminGet("/admin/ledger/writeoff/default");
     expect(response.status).toBe(200);
     const html = await response.text();

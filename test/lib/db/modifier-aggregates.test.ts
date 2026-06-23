@@ -198,8 +198,9 @@ describeWithEnv(
       expect(await projectedRevenue(m.id)).toBe(1000);
 
       // Correcting revenue up credits the modifier account (writeoff→modifier),
-      // so balanceOf(modifier) — what the projection reads — rises by the delta.
-      await adjustModifierRevenue(m.id, 1000, 1750);
+      // so balanceOf(modifier) — what the projection reads — rises by the delta
+      // (recomputed from the live 1000 projection inside the write transaction).
+      await adjustModifierRevenue(m.id, 1750);
       expect(await projectedRevenue(m.id)).toBe(1750);
     });
 
@@ -209,7 +210,7 @@ describeWithEnv(
       expect(await projectedRevenue(m.id)).toBe(3000);
 
       // Correcting revenue down debits the modifier account (modifier→writeoff).
-      await adjustModifierRevenue(m.id, 3000, 1200);
+      await adjustModifierRevenue(m.id, 1200);
       expect(await projectedRevenue(m.id)).toBe(1200);
     });
 
@@ -217,7 +218,7 @@ describeWithEnv(
       // total_revenue is signed (a net discount is legitimately negative), so a
       // correction below zero is allowed and the projection follows it.
       const m = await makeModifier();
-      await adjustModifierRevenue(m.id, 0, -500);
+      await adjustModifierRevenue(m.id, -500);
       expect(await projectedRevenue(m.id)).toBe(-500);
     });
 

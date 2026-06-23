@@ -215,8 +215,9 @@ describeWithEnv(
       expect(await incomeOf(listing.id)).toBe(1500);
 
       // Correcting income up to 2000 posts a writeoff→revenue credit for the
-      // £5 difference, counted in the gross-credits sum, so income rises by it.
-      await adjustListingIncome(listing.id, 1500, 2000);
+      // £5 difference (recomputed from the live 1500 projection), counted in the
+      // gross-credits sum, so income rises by it.
+      await adjustListingIncome(listing.id, 2000);
       expect(await incomeOf(listing.id)).toBe(2000);
     });
 
@@ -231,7 +232,7 @@ describeWithEnv(
 
       // Correcting income down to 2500 posts a revenue→writeoff debit for the
       // £15 difference, which the income subquery subtracts, so income falls.
-      await adjustListingIncome(listing.id, 4000, 2500);
+      await adjustListingIncome(listing.id, 2500);
       expect(await incomeOf(listing.id)).toBe(2500);
     });
 
@@ -251,7 +252,7 @@ describeWithEnv(
       expect(await incomeOf(listing.id)).toBe(5000);
 
       // A manual write-off correction of £20 DOES reduce it.
-      await adjustListingIncome(listing.id, 5000, 3000);
+      await adjustListingIncome(listing.id, 3000);
       expect(await incomeOf(listing.id)).toBe(3000);
     });
 
@@ -264,7 +265,7 @@ describeWithEnv(
       });
       const before = (await allTransfers()).length;
 
-      await adjustListingIncome(listing.id, 1500, 1500);
+      await adjustListingIncome(listing.id, 1500);
 
       expect((await allTransfers()).length).toBe(before);
       expect(await incomeOf(listing.id)).toBe(1500);

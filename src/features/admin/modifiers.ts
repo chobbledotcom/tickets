@@ -277,9 +277,7 @@ const handleEditPost: TypedRouteHandler<"POST /admin/modifiers/:id/edit"> = (
  * projected `total_revenue` (which may be negative for a net discount).
  */
 const adjustModifierRevenueForm = makeMoneyAdjustHandler<Modifier>({
-  adjust: (modifier, current, target) =>
-    adjustModifierRevenue(modifier.id, current, target),
-  current: (modifier) => modifier.total_revenue,
+  adjust: (modifier, target) => adjustModifierRevenue(modifier.id, target),
   editPath: (id) => `/admin/modifiers/${id}/edit`,
   field: "total_revenue",
   load: getModifier,

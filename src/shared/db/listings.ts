@@ -5,12 +5,13 @@
 import type { InValue, ResultSet } from "@libsql/client";
 import { mapParallel, reduce, sort, unique } from "#fp";
 import { revenueAccount } from "#shared/accounting/accounts.ts";
-import { postWriteoffAdjustment } from "#shared/accounting/adjustments.ts";
+import { postWriteoffAdjustmentTx } from "#shared/accounting/adjustments.ts";
 import {
   creditsLessWriteoffDebits,
   revenueBreakdownColumns,
   revenueBreakdownScope,
 } from "#shared/accounting/projection-sql.ts";
+import { listingIncomeTx } from "#shared/accounting/queries.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { addDays } from "#shared/dates.ts";
@@ -28,6 +29,7 @@ import {
   queryOne,
   resetAggregates,
   resultRows,
+  withTransaction,
 } from "#shared/db/client.ts";
 import {
   cachedEntityTable,
@@ -218,7 +220,7 @@ const rawListingsTable = defineIdTable<Listing, ListingInput>("listings", {
  * trailing `AS income` names the projected column.
  */
 export const listingIncomeSubquery = (idExpr: string): string =>
-  creditsLessWriteoffDebits("revenue", idExpr, "income");
+  `${creditsLessWriteoffDebits("revenue", idExpr)} AS income`;
 
 /**
  * A transparent breakdown of a listing's `revenue:<id>` account, deriving BOTH
@@ -575,19 +577,28 @@ export const updateListingAggregateValues = async (
  * (decision 14). Raising income credits `revenue:L` (`writeoff → revenue`), which
  * the gross-credits sum counts, so income rises; lowering it debits
  * `revenue:L → writeoff`, which {@link listingIncomeSubquery} subtracts, so income
- * falls. `currentIncome` is the figure already projected for the listing. A no-op
- * (target equals current) posts nothing.
+ * falls.
+ *
+ * The delta is recomputed from `targetIncome` against the CURRENT projection read
+ * inside the write transaction, so submitting the same target twice is idempotent
+ * (the second read already sees the first's adjustment and computes a zero delta)
+ * and two concurrent owner submits serialise on the write lock instead of both
+ * appending the delta and overshooting. A no-op (target already met) posts
+ * nothing.
  */
 export const adjustListingIncome = (
   listingId: number,
-  currentIncome: number,
   targetIncome: number,
 ): Promise<void> =>
-  postWriteoffAdjustment(
-    revenueAccount(listingId),
-    targetIncome - currentIncome,
-    ["income-adjust", listingId],
-  );
+  withTransaction(async (tx) => {
+    const current = await listingIncomeTx(tx, listingId);
+    await postWriteoffAdjustmentTx(
+      tx,
+      revenueAccount(listingId),
+      targetIncome - current,
+      ["income-adjust", listingId],
+    );
+  });
 
 const aggregateResetSql: Record<ListingAggregateField, string> = {
   booked_quantity:

@@ -8,8 +8,9 @@
  */
 
 import { modifierAccount } from "#shared/accounting/accounts.ts";
-import { postWriteoffAdjustment } from "#shared/accounting/adjustments.ts";
+import { postWriteoffAdjustmentTx } from "#shared/accounting/adjustments.ts";
 import { accountBalanceSubquery } from "#shared/accounting/projection-sql.ts";
+import { modifierRevenueTx } from "#shared/accounting/queries.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import {
   execute,
@@ -18,6 +19,7 @@ import {
   queryAll,
   queryOne,
   resetAggregates,
+  withTransaction,
 } from "#shared/db/client.ts";
 import {
   defineIdTable,
@@ -189,19 +191,27 @@ export const updateModifierAggregateValues = async (
  * (decision 14). Revenue is `balanceOf(modifier:M)`, so raising it credits the
  * modifier account (`writeoff → modifier`) and lowering it debits it
  * (`modifier → writeoff`); the signed balance moves by the delta either way.
- * `currentRevenue` is the figure already projected for the modifier. A no-op
- * (target equals current) posts nothing.
+ *
+ * The delta is recomputed from `targetRevenue` against the CURRENT projection read
+ * inside the write transaction, so submitting the same target twice is idempotent
+ * (the second read already sees the first's adjustment and computes a zero delta)
+ * and two concurrent owner submits serialise on the write lock rather than both
+ * appending the delta and overshooting. A no-op (target already met) posts
+ * nothing.
  */
 export const adjustModifierRevenue = (
   modifierId: number,
-  currentRevenue: number,
   targetRevenue: number,
 ): Promise<void> =>
-  postWriteoffAdjustment(
-    modifierAccount(modifierId),
-    targetRevenue - currentRevenue,
-    ["modifier-revenue-adjust", modifierId],
-  );
+  withTransaction(async (tx) => {
+    const current = await modifierRevenueTx(tx, modifierId);
+    await postWriteoffAdjustmentTx(
+      tx,
+      modifierAccount(modifierId),
+      targetRevenue - current,
+      ["modifier-revenue-adjust", modifierId],
+    );
+  });
 
 const aggregateResetSql: Record<ModifierAggregateField, string> = {
   total_uses:

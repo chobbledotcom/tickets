@@ -1,10 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { revenueAccount, WRITEOFF } from "#shared/accounting/accounts.ts";
-import { postWriteoffAdjustment } from "#shared/accounting/adjustments.ts";
 import { accountBalance, allTransfers } from "#shared/accounting/queries.ts";
 import { accountKey } from "#shared/ledger/account.ts";
-import { useTransactionalDb } from "#test-utils/ledger.ts";
+import {
+  postWriteoffAdjustment,
+  useTransactionalDb,
+} from "#test-utils/ledger.ts";
 
 describe("db > accounting > postWriteoffAdjustment", () => {
   useTransactionalDb();
