@@ -464,6 +464,12 @@ const MergeBookingsDecisionTable = ({
               const conflictLabel = bookingConflictLabel(item);
               const targetQty = item.targetBooking!.quantity;
               const sourceQty = item.sourceBooking.quantity;
+              // The most either side's discarded ticket could be worth; >0 means
+              // a payment is at stake, so decision 17 demands a credit/write-off.
+              const moneyAtStake = Math.max(
+                item.sourceSaleAmount,
+                item.targetSaleAmount,
+              );
 
               return (
                 <tr>
@@ -495,6 +501,35 @@ const MergeBookingsDecisionTable = ({
                       <input name={name} type="radio" value="skip_source" />{" "}
                       Skip source
                     </label>
+                    {moneyAtStake > 0 && (
+                      <div class="merge-money-decision">
+                        <p class="muted">
+                          <strong>
+                            {t("attendee_form.merge_discarded_payment_label")}
+                          </strong>{" "}
+                          (source {formatCurrency(item.sourceSaleAmount)},
+                          target {formatCurrency(item.targetSaleAmount)}) — this
+                          can't be undone, so choose explicitly:
+                        </p>
+                        <label>
+                          <input
+                            name={`money_${key}`}
+                            type="radio"
+                            value="credit"
+                          />{" "}
+                          Keep as the person's credit
+                        </label>
+                        <br />
+                        <label>
+                          <input
+                            name={`money_${key}`}
+                            type="radio"
+                            value="writeoff"
+                          />{" "}
+                          Write it off
+                        </label>
+                      </div>
+                    )}
                   </td>
                 </tr>
               );

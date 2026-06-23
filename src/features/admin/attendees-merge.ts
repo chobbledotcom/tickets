@@ -26,8 +26,8 @@ import { getQuestionsWithListingIds } from "#shared/db/questions.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import {
   applyAttendeeMerge,
-  bookingKey,
   buildAttendeeMergeDiff,
+  conflictBookingEntries,
   validateAttendeeMergeDecision,
 } from "#shared/merge/attendee-merge.ts";
 import type {
@@ -35,6 +35,7 @@ import type {
   AttendeeMergeDiff,
   MergeAnswerChoice,
   MergeBookingChoice,
+  MergeMoneyChoice,
   MergeValueChoice,
 } from "#shared/merge/attendee-merge-types.ts";
 import type { Attendee } from "#shared/types.ts";
@@ -209,6 +210,13 @@ const mergeCountParts = (fields: Array<[number, string]>): string[] =>
     map(([count, label]: [number, string]) => `${count} ${label}`),
   )(fields);
 
+/** The booking-movement counts every merge message leads with, before each
+ *  surface adds its own (the log is fuller; the flash is a short confirmation). */
+const bookingMoveParts = (summary: MergeSummary): Array<[number, string]> => [
+  [summary.bookingsMoved, "booking(s) moved"],
+  [summary.bookingsSkipped, "booking(s) skipped"],
+];
+
 /** Build activity log message parts for a merge summary */
 const buildMergeLogParts = (
   summary: MergeSummary,
@@ -217,9 +225,10 @@ const buildMergeLogParts = (
 ): string[] => [
   `Attendee '${sourceName}' merged into '${mergedPiiName}'`,
   ...mergeCountParts([
-    [summary.bookingsMoved, "booking(s) moved"],
-    [summary.bookingsSkipped, "booking(s) skipped"],
+    ...bookingMoveParts(summary),
     [summary.bookingsReplacedTarget, "booking(s) replaced"],
+    [summary.bookingsCredited, "payment(s) kept as credit"],
+    [summary.bookingsWrittenOff, "payment(s) written off"],
     [summary.answersTakenFromSource, "answer(s) from source"],
     [summary.answersCleared, "answer(s) cleared"],
   ]),
@@ -233,8 +242,9 @@ const buildMergeFlashParts = (
 ): string[] => [
   `Merged ${sourceName} into ${mergedPiiName}`,
   ...mergeCountParts([
-    [summary.bookingsMoved, "booking(s) moved"],
-    [summary.bookingsSkipped, "booking(s) skipped"],
+    ...bookingMoveParts(summary),
+    [summary.bookingsCredited, "payment(s) credited"],
+    [summary.bookingsWrittenOff, "payment(s) written off"],
   ]),
 ];
 
@@ -367,21 +377,49 @@ const toBookingChoice = (raw: string): MergeBookingChoice => {
   return "keep_target";
 };
 
+/** Build a per-conflict decision Record by parsing each NON-moveable booking's
+ *  form field (keyed by "listingId:startAt"). A `parse` result of `undefined`
+ *  leaves the entry out — so a blank money choice stays absent and validation can
+ *  demand it, while `toBookingChoice` (which always resolves) fills every row. */
+const parseConflictDecisions = <T>(
+  diff: AttendeeMergeDiff,
+  parse: (key: string) => T | undefined,
+): Record<string, T> => {
+  const out: Record<string, T> = {};
+  for (const { key } of conflictBookingEntries(diff)) {
+    const value = parse(key);
+    if (value !== undefined) out[key] = value;
+  }
+  return out;
+};
+
 /** Parse booking decisions from form (only non-moveable items) */
 const parseBookingDecisions = (
   form: FormParams,
   diff: AttendeeMergeDiff,
-): Record<string, MergeBookingChoice> => {
-  const bookings: Record<string, MergeBookingChoice> = {};
-  for (const item of diff.bookingItems) {
-    if (item.conflictClass !== "moveable") {
-      const key = bookingKey(item.listingId, item.startAt);
-      const val = form.getString(`booking_${key}`);
-      bookings[key] = toBookingChoice(val);
-    }
-  }
-  return bookings;
+): Record<string, MergeBookingChoice> =>
+  parseConflictDecisions(diff, (key) =>
+    toBookingChoice(form.getString(`booking_${key}`)),
+  );
+
+/** Normalize a raw money choice; an empty/unknown value is left ABSENT so
+ *  validation can require an explicit decision (decision 17 — never defaulted). */
+const toMoneyChoice = (raw: string): MergeMoneyChoice | undefined => {
+  if (raw === "credit") return "credit";
+  if (raw === "writeoff") return "writeoff";
+  return undefined;
 };
+
+/** Parse money decisions from form (only conflicting items); a blank choice is
+ *  omitted so validateAttendeeMergeDecision rejects the merge until the operator
+ *  decides what happens to the discarded booking's money. */
+const parseMoneyDecisions = (
+  form: FormParams,
+  diff: AttendeeMergeDiff,
+): Record<string, MergeMoneyChoice> =>
+  parseConflictDecisions(diff, (key) =>
+    toMoneyChoice(form.getString(`money_${key}`)),
+  );
 
 /** Parse merge decision form data into AttendeeMergeDecisionInput */
 const parseMergeDecisionForm = (
@@ -390,6 +428,7 @@ const parseMergeDecisionForm = (
 ): AttendeeMergeDecisionInput => ({
   answers: parseAnswerDecisions(form, diff),
   bookings: parseBookingDecisions(form, diff),
+  money: parseMoneyDecisions(form, diff),
   pii: parsePiiDecisions(form, diff),
   version: form.getString("merge_version"),
 });
