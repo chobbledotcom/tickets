@@ -83,6 +83,19 @@ describeWithEnv("db > activity log", { db: true }, () => {
     expect(entries[0]!.message).toBe("Pre-setup error");
   });
 
+  test("env-key fallback re-arms an already-completed backfill", async () => {
+    // A configured site whose backfill finished, then an early error logs
+    // before the public key snapshot loaded — storing an enc: row.
+    await settings.update.activityLogBackfillDone("true");
+    settings.setForTest({ public_key: "" });
+
+    await logActivity("late error on a cold request");
+
+    // The backfill must re-engage to re-encrypt that straggler, so the done
+    // flag is cleared rather than left orphaning the row forever.
+    expect(settings.activityLogBackfillDone).not.toBe("true");
+  });
+
   test("logActivity records an attendee_id and getAttendeeActivityLog filters by it", async () => {
     await logActivity("Unrelated entry");
     await logActivity("Balance paid", null, 42);

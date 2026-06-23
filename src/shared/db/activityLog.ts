@@ -71,16 +71,19 @@ export const activityLogTable = defineTable<ActivityLogEntry, ActivityLogInput>(
 );
 
 /**
- * Encrypt a log message for storage. Prefers the site owner's public key
- * (hybrid) so the entry is unreadable from a DB dump plus DB_ENCRYPTION_KEY.
- * Before setup configures a key pair there is no public key, so it falls back
- * to the env key — keeping pre-setup error logging working; the backfill job
- * later re-encrypts any such legacy rows.
+ * Encrypt a log message for storage with the owner's public key (hybrid), so
+ * the entry is unreadable from a DB dump plus DB_ENCRYPTION_KEY. When no public
+ * key is in scope it falls back to the env key, keeping logging alive — but the
+ * caller must then re-arm the backfill (see {@link logActivity}), because that
+ * happens not only genuinely pre-setup but also when the settings snapshot
+ * simply hasn't loaded yet (e.g. an error logged early in a cold request on an
+ * already-configured site).
  */
-const encryptLogMessage = (message: string): Promise<string> => {
-  const publicKey = settings.publicKey;
-  return publicKey ? encryptWithOwnerKey(message, publicKey) : encrypt(message);
-};
+const encryptLogMessage = (
+  message: string,
+  publicKey: string,
+): Promise<string> =>
+  publicKey ? encryptWithOwnerKey(message, publicKey) : encrypt(message);
 
 /**
  * Decrypt a stored log message, routing by format prefix: owner-key (hybrid)
@@ -110,11 +113,18 @@ export const logActivity = async (
   listing?: ListingRef | null,
   attendeeId?: number | null,
 ): Promise<ActivityLogEntry> => {
+  const publicKey = settings.publicKey;
   const row = await activityLogTable.insert({
     attendeeId: attendeeId ?? null,
     listingId: toListingId(listing),
-    message: await encryptLogMessage(message),
+    message: await encryptLogMessage(message, publicKey),
   });
+  // No public key in scope means the row was stored in the legacy env-key
+  // format. Re-arm the backfill so it re-encrypts this row to the owner key
+  // once the key is available — clearing the done flag unconditionally, since a
+  // snapshot that hasn't loaded would wrongly read it as already cleared and a
+  // completed backfill would otherwise never revisit this straggler.
+  if (!publicKey) await settings.update.activityLogBackfillDone("");
   // insert() echoes the (encrypted) input back; restore the plaintext so the
   // returned entry stays human-readable for callers and tests.
   return { ...row, message };
