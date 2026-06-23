@@ -224,6 +224,15 @@ export const queryAll = async <T>(
   args?: InValue[],
 ): Promise<T[]> => resultRows<T>(await execute(sql, args));
 
+/** Run a query whose single selected column is aliased `id` and return the ids. */
+export const queryIdColumn = async (
+  sql: string,
+  args?: InValue[],
+): Promise<number[]> => {
+  const rows = await queryAll<{ id: number }>(sql, args);
+  return rows.map((r) => r.id);
+};
+
 /** Count all rows in a table. `table` must be a trusted constant, not input. */
 export const countRows = async (table: string): Promise<number> => {
   // COUNT(*) always returns exactly one row, so the result is never null.
