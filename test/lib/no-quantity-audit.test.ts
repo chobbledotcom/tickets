@@ -99,32 +99,27 @@ describeWithEnv("no-quantity audit > token flows", { db: true }, () => {
 });
 
 describeWithEnv("no-quantity audit > attachment auth", { db: true }, () => {
-  test("hasActiveBookingLine ignores quantity-0 rows", async () => {
+  /** Create a one-line attendee of the given quantity; resolve its line's active
+   * (real-booking) status against the exact listing. */
+  const lineIsActive = async (quantity: number): Promise<boolean> => {
     const listing = await createTestListing({ maxAttendees: 50 });
     const result = await createAttendeeAtomic({
       allowOverbook: true,
-      bookings: [{ listingId: listing.id, quantity: 0 }],
-      email: "ghost@test.com",
-      name: "Ghost",
+      bookings: [{ listingId: listing.id, quantity }],
+      email: `q${quantity}@test.com`,
+      name: "Q",
       source: "admin",
     });
     if (!result.success) throw new Error("setup");
-    expect(
-      await hasActiveBookingLine(result.attendees[0]!.id, listing.id),
-    ).toBe(false);
+    return hasActiveBookingLine(result.attendees[0]!.id, listing.id);
+  };
+
+  test("hasActiveBookingLine ignores quantity-0 rows", async () => {
+    expect(await lineIsActive(0)).toBe(false);
   });
 
   test("hasActiveBookingLine is true for a real line", async () => {
-    const listing = await createTestListing({ maxAttendees: 50 });
-    const result = await createAttendeeAtomic({
-      bookings: [{ listingId: listing.id, quantity: 1 }],
-      email: "real@test.com",
-      name: "Real",
-    });
-    if (!result.success) throw new Error("setup");
-    expect(
-      await hasActiveBookingLine(result.attendees[0]!.id, listing.id),
-    ).toBe(true);
+    expect(await lineIsActive(1)).toBe(true);
   });
 });
 
