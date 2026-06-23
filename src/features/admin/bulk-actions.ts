@@ -39,6 +39,7 @@ import {
   adminDuplicateGroupPage,
   adminReactivateGroupPage,
 } from "#templates/admin/bulk-actions.tsx";
+import { remapDuplicatedGroupEdges } from "./listings-parents.ts";
 
 /** Render a bulk-actions sub-page for an authenticated group detail view. */
 const groupListingsPage =
@@ -131,6 +132,7 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
     termsAndConditions: group.terms_and_conditions,
   });
 
+  const idMap = new Map<number, number>();
   for (const listing of listings) {
     const input = await buildDuplicateListingInput(listing, {
       closesAt: shiftUtcIsoByDays(listing.closes_at ?? "", dayOffset),
@@ -138,8 +140,10 @@ const handleDuplicateGroupPost = groupFormPost(async (group, form) => {
       groupId: newGroup.id,
       name: applyNameReplacement(listing.name, nameFind, nameReplace),
     });
-    await listingsTable.insert(input);
+    const created = await listingsTable.insert(input);
+    idMap.set(listing.id, created.id);
   }
+  await remapDuplicatedGroupEdges(idMap);
 
   await logActivity(
     `Group '${group.name}' duplicated to '${newGroup.name}' with ${listings.length} listing(s)`,

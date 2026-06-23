@@ -19,6 +19,7 @@ import {
   recomputeListingBookingRanges,
 } from "#shared/db/attendees.ts";
 import { getAllGroups } from "#shared/db/groups.ts";
+import { getChildIds } from "#shared/db/listing-parents.ts";
 import {
   getListingAggregateRecalculation,
   getListingWithCount,
@@ -27,6 +28,7 @@ import {
   updateListingAggregateValues,
 } from "#shared/db/listings.ts";
 import { applyDemoOverrides, LISTING_DEMO_FIELDS } from "#shared/demo.ts";
+import type { FormParams } from "#shared/form-data.ts";
 import type {
   AdminSession,
   Group,
@@ -46,7 +48,10 @@ import {
   buildUpdateListingResource,
   extractListingAggregateValues,
 } from "./listings-form.ts";
-import { loadListingParentsSection } from "./listings-parents.ts";
+import {
+  copyDuplicatedChildEdges,
+  loadListingParentsSection,
+} from "./listings-parents.ts";
 import { processUploadsAndRedirect } from "./listings-uploads.ts";
 /* jscpd:ignore-end */
 
@@ -60,6 +65,27 @@ export const handleNewListingGet: TypedRouteHandler<
     const groups = await getAllGroups();
     return htmlResponse(adminListingNewPage(groups, session));
   });
+
+/**
+ * After creating a listing from the duplicate form, copy the source parent's
+ * required-child edges onto the new copy so a duplicated parent keeps its
+ * required-child gate (the children themselves are not duplicated — the copy
+ * references the same existing child listings). Reads the source id from the
+ * hidden `duplicated_from` field; a plain create (no source) is a no-op, as is a
+ * source with no children or the flag being off ({@link copyDuplicatedChildEdges}).
+ */
+const copyEdgesFromDuplicateSource = async (
+  form: FormParams,
+  newId: number,
+): Promise<void> => {
+  const sourceId = form.getOptionalInt("duplicated_from");
+  if (sourceId === null) return;
+  const childIds = await getChildIds(sourceId);
+  if (childIds.length === 0) return;
+  // The copy was just created in this request, so it always loads.
+  const newListing = (await getListingWithCount(newId))!;
+  await copyDuplicatedChildEdges(newListing, childIds);
+};
 
 /**
  * Handle POST /admin/listing (create listing)
@@ -79,6 +105,7 @@ export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> = (
       );
     }
     await logActivity(`Listing '${result.row.name}' created`, result.row);
+    await copyEdgesFromDuplicateSource(form, result.row.id);
     return processUploadsAndRedirect(
       formData,
       result.row.id,

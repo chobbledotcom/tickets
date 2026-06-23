@@ -1688,6 +1688,11 @@ export const adminDuplicateListingPage = (
         </p>
       </div>
       <CsrfForm action="/admin/listing" enctype="multipart/form-data">
+        <input
+          name="duplicated_from"
+          type="hidden"
+          value={String(listing.id)}
+        />
         <ListingFormSections
           advancedOpen={advancedSectionHasValues(listing, builderEnabled)}
           dayPricesListing={listing}

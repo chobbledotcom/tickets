@@ -140,6 +140,56 @@ export const validateChildEdges = async (
   return error ? { error, ok: false } : { childIds, ok: true };
 };
 
+/**
+ * Copy a duplicated parent's required-child edges onto its new copy, **validated**
+ * through the same {@link validateChildEdges} path the editor uses (the source was
+ * valid, but stay consistent and never persist a rule-breaking edge). `childIds`
+ * is the child set the copy should require — for a single-listing duplicate the
+ * source parent's own children verbatim; for a group duplicate the source
+ * parent's children remapped to the clones (intra-group) or kept (external).
+ *
+ * Flag-gated: a no-op when the parents feature is off. Callers only invoke this
+ * for a source that actually has children; an edge set that fails validation is
+ * skipped (not written), so a copy is never left with an invalid gate.
+ */
+export const copyDuplicatedChildEdges = async (
+  newParent: ListingWithCount,
+  childIds: readonly number[],
+): Promise<void> => {
+  if (!isListingParentsEnabled()) return;
+  const result = await validateChildEdges(newParent, childIds);
+  if (result.ok) await setChildIds(newParent.id, result.childIds);
+};
+
+/**
+ * Recreate the parent/child edges of a duplicated group on its clones. `idMap`
+ * maps each source member's id to its clone. For every source member that is a
+ * parent, the clone requires the **remapped** child set: an intra-group child
+ * (a member of the same group) points at *its* clone, while a child living
+ * **outside** the group keeps referencing the original external listing so the
+ * clone still has a working gate. A child member whose parent is outside the
+ * group is *not* auto-attached (we only walk the cloned parents). Each remapped
+ * set is written through the validated {@link copyDuplicatedChildEdges} path.
+ *
+ * Flag-gated via {@link copyDuplicatedChildEdges}; a no-op when no cloned member
+ * is a parent.
+ */
+export const remapDuplicatedGroupEdges = async (
+  idMap: ReadonlyMap<number, number>,
+): Promise<void> => {
+  if (!isListingParentsEnabled()) return;
+  for (const [sourceId, newId] of idMap) {
+    const sourceChildIds = await getChildIds(sourceId);
+    if (sourceChildIds.length === 0) continue;
+    const remapped = sourceChildIds.map(
+      (childId) => idMap.get(childId) ?? childId,
+    );
+    // `newId` is a clone just inserted in this request, so it always loads.
+    const newParent = (await getListingWithCount(newId))!;
+    await copyDuplicatedChildEdges(newParent, remapped);
+  }
+};
+
 /** Handle POST /admin/listing/:id/children (set the required child listings). */
 export const handleAdminListingChildren: TypedRouteHandler<
   "POST /admin/listing/:id/children"
