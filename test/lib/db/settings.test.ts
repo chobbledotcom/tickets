@@ -236,6 +236,20 @@ describeWithEnv("db > settings", { db: true }, () => {
       expect(settings.theme).toBe("dark");
     });
 
+    test("loadKeys sets underlineLinks true when stored value is true", async () => {
+      await settings.setRaw(CONFIG_KEYS.UNDERLINE_LINKS, "true");
+      settings.invalidateCache();
+      await settings.loadKeys([CONFIG_KEYS.UNDERLINE_LINKS]);
+      expect(settings.underlineLinks).toBe(true);
+    });
+
+    test("loadKeys leaves underlineLinks false when stored value is not true", async () => {
+      await settings.setRaw(CONFIG_KEYS.UNDERLINE_LINKS, "false");
+      settings.invalidateCache();
+      await settings.loadKeys([CONFIG_KEYS.UNDERLINE_LINKS]);
+      expect(settings.underlineLinks).toBe(false);
+    });
+
     test("update.bookingFee with empty string resets to 0", async () => {
       await settings.update.bookingFee("500");
       expect(settings.bookingFee).toBe("500");

@@ -373,10 +373,6 @@ nav ul li {
   display: none;
 }
 
-nav a.active {
-  color: var(--color-text);
-}
-
 /* Nav for Desktop: pin the admin menu to the left as a sticky sidebar, with the
    page content flowing to its right. The sidebar is a plain vertical list of
    links — no boxes or borders — with each section's sub-nav nested and indented
@@ -448,14 +444,6 @@ nav a.active {
 
   .admin-nav--desktop .admin-subnav {
     padding-left: var(--space-m);
-  }
-
-  .admin-nav--desktop a {
-    text-decoration: none;
-  }
-
-  .admin-nav--desktop a:hover {
-    text-decoration: underline;
   }
 }
 
@@ -538,19 +526,31 @@ sup {
   top: -2px;
 }
 
-/* Links */
+/* Links: blue with no underline; underlined on hover/focus; white when active
+   (the :active state, or the .active class marking the current nav link). */
 a {
   color: var(--color-link);
   display: inline-block;
+  text-decoration: none;
+}
+
+/* "Underline links" setting (owner toggle on the Site Theme form, off by
+   default). When on, <html> carries data-underline-links and every link — nav
+   included — gets a default underline. :where() keeps this at the same
+   specificity as the base `a` rule above, so components that opt out of
+   underlines (buttons, calendar chips, the skip link) still win. */
+:where(:root[data-underline-links]) a {
   text-decoration: underline;
 }
 
-a:hover {
-  filter: brightness(var(--hover-brightness));
+a:hover,
+a:focus {
+  text-decoration: underline;
 }
 
-a:active {
-  filter: brightness(var(--active-brightness));
+a:active,
+a.active {
+  color: var(--color-text);
 }
 
 a b,
@@ -589,6 +589,14 @@ input[type="submit"]:hover,
   filter: brightness(var(--hover-brightness));
 }
 
+/* .btn is also used on <a>: keep the link hover/focus underline (and the
+   "Underline links" setting) off button text — a button is a control, not a
+   text link. */
+.btn:hover,
+.btn:focus {
+  text-decoration: none;
+}
+
 button:active,
 input[type="submit"]:active,
 .btn:active {
@@ -600,6 +608,15 @@ input[type="submit"],
 .btn {
   background-color: var(--color-link);
   border: 2px solid var(--color-link);
+  color: var(--color-bg);
+}
+
+/* A button-styled link keeps its --color-bg text when active: without this the
+   universal a:active / a.active link colour would darken the text against the
+   button's colored background. Buttons aren't links in the design sense, so the
+   "white when active" link rule shouldn't reach them. */
+.btn:active,
+.btn.active {
   color: var(--color-bg);
 }
 
@@ -2261,9 +2278,11 @@ span.cal-day {
   outline: 1px solid var(--color-link);
 }
 
-/* Currently selected date */
+/* Currently selected date. The :active selector keeps the light text when the
+   selected day is tapped (touch/keyboard have no :hover to fall back on). */
 .cal-day-selected,
-a.cal-day-selected:hover {
+a.cal-day-selected:hover,
+a.cal-day-selected:active {
   background: var(--color-link);
   color: var(--color-bg);
 }

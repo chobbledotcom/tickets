@@ -153,6 +153,7 @@ export const CONFIG_KEYS = {
   SUPPORT_FORM_LAST_SUBMITTED: "support_form_last_submitted",
   TERMS_AND_CONDITIONS: "terms_and_conditions",
   THEME: "theme",
+  UNDERLINE_LINKS: "underline_links",
   WEBSITE_TITLE: "website_title",
   WRAPPED_PRIVATE_KEY: "wrapped_private_key",
 } as const;
@@ -327,6 +328,7 @@ const stringSettingDefaults = Object.fromEntries(
 type SpecificFields = {
   country: string;
   theme: Theme;
+  underline_links: boolean;
   show_public_site: boolean;
   show_public_api: boolean;
   calendar_feeds_enabled: boolean;
@@ -369,6 +371,7 @@ const data: SettingsData = {
   square_sandbox: false,
   theme: "light",
   timezone: DEFAULT_TIMEZONE,
+  underline_links: false,
   ...stringSettingDefaults,
   superuser_choice: "",
 };
@@ -657,6 +660,9 @@ const SPECIAL_APPLIERS: Record<string, (raw: string | undefined) => void> = {
   },
   [CONFIG_KEYS.THEME]: (raw) => {
     data.theme = raw === "dark" ? "dark" : "light";
+  },
+  [CONFIG_KEYS.UNDERLINE_LINKS]: (raw) => {
+    data.underline_links = raw === "true";
   },
   [CONFIG_KEYS.SHOW_PUBLIC_SITE]: (raw) => {
     data.show_public_site = raw === "true";
@@ -1185,6 +1191,9 @@ const settingsBase = {
   get timezone(): string {
     return snap("timezone");
   },
+  get underlineLinks(): boolean {
+    return snap("underline_links");
+  },
 
   // -----------------------------------------------------------------------
   // Async writes — settings.update.*
@@ -1308,6 +1317,7 @@ const settingsBase = {
       data.support_form_last_submitted = ts;
     },
     theme: rawUpdate(CONFIG_KEYS.THEME, "theme") as (v: Theme) => Promise<void>,
+    underlineLinks: boolUpdate(CONFIG_KEYS.UNDERLINE_LINKS, "underline_links"),
   },
   updateUserPassword,
   withCurrentTask,

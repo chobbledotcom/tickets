@@ -40,6 +40,7 @@ export type SettingsPageState = {
   termsAndConditions: string;
   businessEmail: string;
   theme: Theme;
+  underlineLinks: boolean;
   showPublicSite: boolean;
   headerImageUrl: string;
   storageEnabled: boolean;
