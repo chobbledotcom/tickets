@@ -1,86 +1,37 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { setChildIds } from "#shared/db/listing-parents.ts";
 import { buildQrBookPayload, signQrBookToken } from "#shared/qr-token.ts";
 import {
+  apiBook,
+  apiGet,
+  apiListingSlugs,
   createDailyTestListing,
   createTestGroup,
   createTestListing,
   describeWithEnv,
+  makeParent,
+  ticketGet,
 } from "#test-utils";
-
-/** GET a `/ticket/<slugs>` booking page. */
-const ticketGet = async (slugs: string): Promise<Response> => {
-  const { handleRequest } = await import("#routes");
-  return handleRequest(
-    new Request(`http://localhost/ticket/${slugs}`, {
-      headers: { host: "localhost" },
-    }),
-  );
-};
-
-/** GET a JSON API path. */
-const apiGet = async (path: string): Promise<Response> => {
-  const { handleRequest } = await import("#routes");
-  return handleRequest(
-    new Request(`http://localhost${path}`, { headers: { host: "localhost" } }),
-  );
-};
-
-/** POST `/api/listings/<slug>/book` with a minimal valid contact payload, merged
- * with any extra body fields (e.g. `children`, `quantity`). */
-const apiBook = async (
-  slug: string,
-  extra: Record<string, unknown> = {},
-): Promise<Response> => {
-  const { handleRequest } = await import("#routes");
-  return handleRequest(
-    new Request(`http://localhost/api/listings/${slug}/book`, {
-      body: JSON.stringify({
-        email: "a@b.com",
-        name: "Ada",
-        quantity: 1,
-        ...extra,
-      }),
-      headers: { "content-type": "application/json", host: "localhost" },
-      method: "POST",
-    }),
-  );
-};
-
-/** The slugs returned by `GET /api/listings`. */
-const apiListingSlugs = async (): Promise<string[]> => {
-  const body = (await (await apiGet("/api/listings")).json()) as {
-    listings: { slug: string }[];
-  };
-  return body.listings.map((l) => l.slug);
-};
 
 describeWithEnv(
   "server > parents booking gate",
   { db: true, triggers: true },
   () => {
     test("a child slug cannot start a booking (404)", async () => {
-      const parent = await createTestListing({ name: "Base unit" });
-      const child = await createTestListing({ name: "Add-on" });
-      await setChildIds(parent.id, [child.id]);
+      const { child } = await makeParent();
       const res = await ticketGet(child.slug);
       expect(res.status).toBe(404);
     });
 
     test("a parent slug still renders its booking page", async () => {
-      const parent = await createTestListing({ name: "Base unit" });
-      const child = await createTestListing({ name: "Add-on" });
-      await setChildIds(parent.id, [child.id]);
+      const { parent } = await makeParent();
       const res = await ticketGet(parent.slug);
       expect(res.status).toBe(200);
     });
 
     test("a child mixed into a multi-slug URL rejects the whole request", async () => {
-      const parent = await createTestListing({ name: "Base unit" });
-      const child = await createTestListing({ name: "Add-on" });
+      const { child } = await makeParent();
       const other = await createTestListing({ name: "Unrelated" });
-      await setChildIds(parent.id, [child.id]);
       const res = await ticketGet(`${child.slug}+${other.slug}`);
       expect(res.status).toBe(404);
     });
@@ -96,17 +47,10 @@ describeWithEnv(
       // at 1, so child quantity (slaved to the parent) can only be 1 — the page
       // must offer only quantity 0–1, not 2–5 the submit fold would reject
       // (Codex 565).
-      const parent = await createTestListing({
-        maxAttendees: 50,
-        maxQuantity: 5,
-        name: "Base unit",
+      const { parent } = await makeParent({
+        children: [{ maxAttendees: 50, maxQuantity: 1 }],
+        parent: { maxAttendees: 50, maxQuantity: 5 },
       });
-      const child = await createTestListing({
-        maxAttendees: 50,
-        maxQuantity: 1,
-        name: "Add-on",
-      });
-      await setChildIds(parent.id, [child.id]);
       const body = await (await ticketGet(parent.slug)).text();
       const select = body.slice(body.indexOf(`name="quantity_${parent.id}"`));
       const options = select.slice(0, select.indexOf("</select>"));
@@ -118,17 +62,10 @@ describeWithEnv(
     test("a parent's quantity is clamped to a child capped at three", async () => {
       // With the child capped at 3, the parent offering 5 must offer up to 3 and
       // no higher (Codex 565).
-      const parent = await createTestListing({
-        maxAttendees: 50,
-        maxQuantity: 5,
-        name: "Base unit",
+      const { parent } = await makeParent({
+        children: [{ maxAttendees: 50, maxQuantity: 3 }],
+        parent: { maxAttendees: 50, maxQuantity: 5 },
       });
-      const child = await createTestListing({
-        maxAttendees: 50,
-        maxQuantity: 3,
-        name: "Add-on",
-      });
-      await setChildIds(parent.id, [child.id]);
       const body = await (await ticketGet(parent.slug)).text();
       const select = body.slice(body.indexOf(`name="quantity_${parent.id}"`));
       const options = select.slice(0, select.indexOf("</select>"));
@@ -142,18 +79,11 @@ describeWithEnv(
       // TWO group spots (parent + auto-selected child). With two spots free the
       // selector must offer quantity 1 and never 2, which the submit-side
       // combined-demand check would reject (Fix 3, invariant I7).
-      const group = await createTestGroup({ maxAttendees: 2, name: "Pool" });
-      const parent = await createTestListing({
-        groupId: group.id,
-        maxQuantity: 5,
-        name: "Base unit",
+      const { parent } = await makeParent({
+        children: [{ maxQuantity: 5 }],
+        group: { maxAttendees: 2, name: "Pool" },
+        parent: { maxQuantity: 5 },
       });
-      const child = await createTestListing({
-        groupId: group.id,
-        maxQuantity: 5,
-        name: "Add-on",
-      });
-      await setChildIds(parent.id, [child.id]);
       const body = await (await ticketGet(parent.slug)).text();
       const select = body.slice(body.indexOf(`name="quantity_${parent.id}"`));
       const options = select.slice(0, select.indexOf("</select>"));
@@ -164,18 +94,11 @@ describeWithEnv(
     test("a parent + child sharing a capped group with 4 spots offers up to qty 2", async () => {
       // With four shared spots free, two parent+child orders fit (four units), so
       // the selector offers up to quantity 2 and no higher (Fix 3).
-      const group = await createTestGroup({ maxAttendees: 4, name: "Pool" });
-      const parent = await createTestListing({
-        groupId: group.id,
-        maxQuantity: 5,
-        name: "Base unit",
+      const { parent } = await makeParent({
+        children: [{ maxQuantity: 5 }],
+        group: { maxAttendees: 4, name: "Pool" },
+        parent: { maxQuantity: 5 },
       });
-      const child = await createTestListing({
-        groupId: group.id,
-        maxQuantity: 5,
-        name: "Add-on",
-      });
-      await setChildIds(parent.id, [child.id]);
       const body = await (await ticketGet(parent.slug)).text();
       const select = body.slice(body.indexOf(`name="quantity_${parent.id}"`));
       const options = select.slice(0, select.indexOf("</select>"));
@@ -193,24 +116,13 @@ describeWithEnv(
         maxAttendees: 1,
         name: "Add-on pool",
       });
-      const parent = await createTestListing({
-        maxAttendees: 50,
-        maxQuantity: 5,
-        name: "Base unit",
+      const { parent } = await makeParent({
+        children: [
+          { groupId: childGroup.id, maxAttendees: 50, maxQuantity: 5 },
+          { groupId: childGroup.id, maxAttendees: 50, maxQuantity: 5 },
+        ],
+        parent: { maxAttendees: 50, maxQuantity: 5 },
       });
-      const childA = await createTestListing({
-        groupId: childGroup.id,
-        maxAttendees: 50,
-        maxQuantity: 5,
-        name: "Add-on A",
-      });
-      const childB = await createTestListing({
-        groupId: childGroup.id,
-        maxAttendees: 50,
-        maxQuantity: 5,
-        name: "Add-on B",
-      });
-      await setChildIds(parent.id, [childA.id, childB.id]);
       const body = await (await ticketGet(parent.slug)).text();
       const select = body.slice(body.indexOf(`name="quantity_${parent.id}"`));
       const options = select.slice(0, select.indexOf("</select>"));
@@ -227,24 +139,13 @@ describeWithEnv(
         maxAttendees: 3,
         name: "Add-on pool",
       });
-      const parent = await createTestListing({
-        maxAttendees: 50,
-        maxQuantity: 9,
-        name: "Base unit",
+      const { parent } = await makeParent({
+        children: [
+          { groupId: childGroup.id, maxAttendees: 50, maxQuantity: 5 },
+          { groupId: childGroup.id, maxAttendees: 50, maxQuantity: 5 },
+        ],
+        parent: { maxAttendees: 50, maxQuantity: 9 },
       });
-      const childA = await createTestListing({
-        groupId: childGroup.id,
-        maxAttendees: 50,
-        maxQuantity: 5,
-        name: "Add-on A",
-      });
-      const childB = await createTestListing({
-        groupId: childGroup.id,
-        maxAttendees: 50,
-        maxQuantity: 5,
-        name: "Add-on B",
-      });
-      await setChildIds(parent.id, [childA.id, childB.id]);
       const body = await (await ticketGet(parent.slug)).text();
       const select = body.slice(body.indexOf(`name="quantity_${parent.id}"`));
       const options = select.slice(0, select.indexOf("</select>"));
@@ -259,20 +160,11 @@ describeWithEnv(
       // is auto-filled to) must be clamped to 1, never offering 2 the submit fold
       // would reject. Before Fix 5 the shared-group cap ignored the child's own
       // `maxPurchasable` and offered up to 5.
-      const group = await createTestGroup({ maxAttendees: 10, name: "Pool" });
-      const parent = await createTestListing({
-        groupId: group.id,
-        maxAttendees: 50,
-        maxQuantity: 5,
-        name: "Base unit",
+      const { parent } = await makeParent({
+        children: [{ maxAttendees: 50, maxQuantity: 1 }],
+        group: { maxAttendees: 10, name: "Pool" },
+        parent: { maxAttendees: 50, maxQuantity: 5 },
       });
-      const child = await createTestListing({
-        groupId: group.id,
-        maxAttendees: 50,
-        maxQuantity: 1,
-        name: "Add-on",
-      });
-      await setChildIds(parent.id, [child.id]);
       const body = await (await ticketGet(parent.slug)).text();
       const select = body.slice(body.indexOf(`name="quantity_${parent.id}"`));
       const options = select.slice(0, select.indexOf("</select>"));
@@ -286,24 +178,14 @@ describeWithEnv(
       // shared child caps at 1, so its OWN select must offer max 1 — the separate
       // sibling absorbs the rest of the parent's quantity.
       const group = await createTestGroup({ maxAttendees: 10, name: "Pool" });
-      const parent = await createTestListing({
-        groupId: group.id,
-        maxAttendees: 50,
-        maxQuantity: 3,
-        name: "Base unit",
+      const { parent, children } = await makeParent({
+        children: [
+          { groupId: group.id, maxAttendees: 50, maxQuantity: 1 },
+          { maxAttendees: 50, maxQuantity: 3 },
+        ],
+        parent: { groupId: group.id, maxAttendees: 50, maxQuantity: 3 },
       });
-      const shared = await createTestListing({
-        groupId: group.id,
-        maxAttendees: 50,
-        maxQuantity: 1,
-        name: "Shared add-on",
-      });
-      const extra = await createTestListing({
-        maxAttendees: 50,
-        maxQuantity: 3,
-        name: "Separate add-on",
-      });
-      await setChildIds(parent.id, [shared.id, extra.id]);
+      const shared = children[0]!;
       const body = await (await ticketGet(parent.slug)).text();
       const start = body.indexOf(`name="child_qty_${parent.id}_${shared.id}"`);
       expect(start).toBeGreaterThanOrEqual(0);
@@ -317,24 +199,13 @@ describeWithEnv(
       // The group page loads members indirectly, so a child member is suppressed
       // /folded — not a reason to 404 the whole group (the buyer isn't starting
       // from the child directly).
-      const group = await createTestGroup({ name: "Combo" });
-      const parent = await createTestListing({
-        groupId: group.id,
-        name: "Base unit",
-      });
-      const child = await createTestListing({
-        groupId: group.id,
-        name: "Add-on",
-      });
-      await setChildIds(parent.id, [child.id]);
-      const res = await ticketGet(group.slug);
+      const { group } = await makeParent({ group: { name: "Combo" } });
+      const res = await ticketGet(group!.slug);
       expect(res.status).toBe(200);
     });
 
     test("a signed QR for a child is rejected", async () => {
-      const parent = await createTestListing({ name: "Base unit" });
-      const child = await createTestListing({ name: "Add-on" });
-      await setChildIds(parent.id, [child.id]);
+      const { child } = await makeParent();
       const { handleRequest } = await import("#routes");
       const token = await signQrBookToken(
         child.slug,
@@ -354,9 +225,7 @@ describeWithEnv(
     test("the JSON API rejects booking a child slug", async () => {
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.showPublicApi(true);
-      const parent = await createTestListing({ name: "Base unit" });
-      const child = await createTestListing({ name: "Add-on" });
-      await setChildIds(parent.id, [child.id]);
+      const { child } = await makeParent();
       const res = await apiBook(child.slug);
       expect(res.status).toBe(400);
     });
@@ -364,9 +233,7 @@ describeWithEnv(
     test("the JSON API books a free parent with its sole child auto-filled", async () => {
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.showPublicApi(true);
-      const parent = await createTestListing({ name: "Base unit" });
-      const child = await createTestListing({ name: "Add-on" });
-      await setChildIds(parent.id, [child.id]);
+      const { parent, child } = await makeParent();
       // No `children` array: the sole bookable child is auto-filled.
       const res = await apiBook(parent.slug);
       expect(res.status).toBe(200);
@@ -390,13 +257,12 @@ describeWithEnv(
     test("the JSON API books a parent with an explicit per-unit child mix", async () => {
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.showPublicApi(true);
-      const parent = await createTestListing({
-        maxQuantity: 5,
-        name: "Base unit",
+      const { parent, children } = await makeParent({
+        children: [{}, {}],
+        parent: { maxQuantity: 5 },
       });
-      const childA = await createTestListing({ name: "Add-on A" });
-      const childB = await createTestListing({ name: "Add-on B" });
-      await setChildIds(parent.id, [childA.id, childB.id]);
+      const childA = children[0]!;
+      const childB = children[1]!;
       const res = await apiBook(parent.slug, {
         children: [
           { quantity: 1, slug: childA.slug },
@@ -413,13 +279,11 @@ describeWithEnv(
     test("the JSON API rejects a child total below the parent quantity", async () => {
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.showPublicApi(true);
-      const parent = await createTestListing({
-        maxQuantity: 5,
-        name: "Base unit",
+      const { parent, children } = await makeParent({
+        children: [{}, {}],
+        parent: { maxQuantity: 5 },
       });
-      const childA = await createTestListing({ name: "Add-on A" });
-      const childB = await createTestListing({ name: "Add-on B" });
-      await setChildIds(parent.id, [childA.id, childB.id]);
+      const childA = children[0]!;
       // Two parent units but only one child chosen — the fold rejects it.
       const res = await apiBook(parent.slug, {
         children: [{ quantity: 1, slug: childA.slug }],
@@ -433,10 +297,8 @@ describeWithEnv(
     test("the JSON API rejects a child slug that is not a child of the parent", async () => {
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.showPublicApi(true);
-      const parent = await createTestListing({ name: "Base unit" });
-      const child = await createTestListing({ name: "Add-on" });
+      const { parent } = await makeParent();
       const stranger = await createTestListing({ name: "Stranger" });
-      await setChildIds(parent.id, [child.id]);
       const res = await apiBook(parent.slug, {
         children: [{ quantity: 1, slug: stranger.slug }],
       });
@@ -448,9 +310,7 @@ describeWithEnv(
     test("the JSON API rejects a malformed children field", async () => {
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.showPublicApi(true);
-      const parent = await createTestListing({ name: "Base unit" });
-      const child = await createTestListing({ name: "Add-on" });
-      await setChildIds(parent.id, [child.id]);
+      const { parent } = await makeParent();
       const res = await apiBook(parent.slug, { children: "nope" });
       expect(res.status).toBe(400);
     });
@@ -458,14 +318,13 @@ describeWithEnv(
     test("the JSON API rejects booking a customisable parent", async () => {
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.showPublicApi(true);
-      const parent = await createTestListing({
-        customisableDays: true,
-        dayPrices: { 1: 1000, 2: 1800 },
-        durationDays: 2,
-        name: "Customisable base",
+      const { parent, child } = await makeParent({
+        parent: {
+          customisableDays: true,
+          dayPrices: { 1: 1000, 2: 1800 },
+          durationDays: 2,
+        },
       });
-      const child = await createTestListing({ name: "Add-on" });
-      await setChildIds(parent.id, [child.id]);
       const res = await apiBook(parent.slug, {
         children: [{ quantity: 1, slug: child.slug }],
       });
@@ -475,9 +334,7 @@ describeWithEnv(
     test("the JSON API rejects a null children entry", async () => {
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.showPublicApi(true);
-      const parent = await createTestListing({ name: "Base unit" });
-      const child = await createTestListing({ name: "Add-on" });
-      await setChildIds(parent.id, [child.id]);
+      const { parent } = await makeParent();
       const res = await apiBook(parent.slug, { children: [null] });
       expect(res.status).toBe(400);
     });
@@ -485,9 +342,7 @@ describeWithEnv(
     test("the JSON API rejects a children entry missing its quantity", async () => {
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.showPublicApi(true);
-      const parent = await createTestListing({ name: "Base unit" });
-      const child = await createTestListing({ name: "Add-on" });
-      await setChildIds(parent.id, [child.id]);
+      const { parent, child } = await makeParent();
       const res = await apiBook(parent.slug, {
         children: [{ slug: child.slug }],
       });
@@ -497,12 +352,10 @@ describeWithEnv(
     test("the JSON API sums repeated child slugs to the parent quantity", async () => {
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.showPublicApi(true);
-      const parent = await createTestListing({
-        maxQuantity: 5,
-        name: "Base unit",
+      const { parent, child } = await makeParent({
+        children: [{ maxQuantity: 5 }],
+        parent: { maxQuantity: 5 },
       });
-      const child = await createTestListing({ maxQuantity: 5, name: "Add-on" });
-      await setChildIds(parent.id, [child.id]);
       // Two entries for the same child sum to 2, matching the parent quantity.
       const res = await apiBook(parent.slug, {
         children: [
@@ -519,9 +372,10 @@ describeWithEnv(
     test("the JSON API requires a date when booking a daily parent", async () => {
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.showPublicApi(true);
-      const parent = await createDailyTestListing({ name: "Daily base" });
-      const child = await createDailyTestListing({ name: "Daily add-on" });
-      await setChildIds(parent.id, [child.id]);
+      const { parent, child } = await makeParent({
+        children: [{ daily: true }],
+        parent: { daily: true },
+      });
       const res = await apiBook(parent.slug, {
         children: [{ quantity: 1, slug: child.slug }],
       });
@@ -531,14 +385,12 @@ describeWithEnv(
     test("the JSON API validates merged parent+child contact fields", async () => {
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.showPublicApi(true);
-      const parent = await createTestListing({ fields: "", name: "Base unit" });
       // The child requires a phone the parent doesn't, so a body without one is
       // rejected against the MERGED field set (contact validation after the fold).
-      const child = await createTestListing({
-        fields: "phone",
-        name: "Add-on",
+      const { parent, child } = await makeParent({
+        children: [{ fields: "phone" }],
+        parent: { fields: "" },
       });
-      await setChildIds(parent.id, [child.id]);
       const res = await apiBook(parent.slug, {
         children: [{ quantity: 1, slug: child.slug }],
       });
@@ -552,14 +404,12 @@ describeWithEnv(
       const { getBookableStartDates } = await import("#shared/dates.ts");
       const { getActiveHolidays } = await import("#shared/db/holidays.ts");
       const { getListingWithCount } = await import("#shared/db/listings.ts");
-      const parent = await createDailyTestListing({ name: "Daily base" });
       // A 1-capacity daily child passes the date-less fold but fails the atomic
       // date-specific capacity check, so the all-or-nothing save reports 409.
-      const child = await createDailyTestListing({
-        maxAttendees: 1,
-        name: "Daily add-on",
+      const { parent, child } = await makeParent({
+        children: [{ daily: true, maxAttendees: 1 }],
+        parent: { daily: true },
       });
-      await setChildIds(parent.id, [child.id]);
       const parentRow = (await getListingWithCount(parent.id))!;
       const date = getBookableStartDates(
         parentRow,
@@ -587,9 +437,7 @@ describeWithEnv(
     test("GET /api/listings omits a child listing", async () => {
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.showPublicApi(true);
-      const parent = await createTestListing({ name: "Base unit" });
-      const child = await createTestListing({ name: "Add-on" });
-      await setChildIds(parent.id, [child.id]);
+      const { parent, child } = await makeParent();
       const slugs = await apiListingSlugs();
       expect(slugs).toContain(parent.slug);
       expect(slugs).not.toContain(child.slug);
@@ -598,9 +446,7 @@ describeWithEnv(
     test("a child listing detail endpoint is not bookable (404)", async () => {
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.showPublicApi(true);
-      const parent = await createTestListing({ name: "Base unit" });
-      const child = await createTestListing({ name: "Add-on" });
-      await setChildIds(parent.id, [child.id]);
+      const { child } = await makeParent();
       const res = await apiGet(`/api/listings/${child.slug}`);
       expect(res.status).toBe(404);
     });
@@ -608,9 +454,7 @@ describeWithEnv(
     test("a child listing availability endpoint is not bookable (404)", async () => {
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.showPublicApi(true);
-      const parent = await createTestListing({ name: "Base unit" });
-      const child = await createTestListing({ name: "Add-on" });
-      await setChildIds(parent.id, [child.id]);
+      const { child } = await makeParent();
       const res = await apiGet(`/api/listings/${child.slug}/availability`);
       expect(res.status).toBe(404);
     });
@@ -631,14 +475,9 @@ describeWithEnv(
     test("a parent with no bookable child reads sold out in API detail", async () => {
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.showPublicApi(true);
-      const parent = await createTestListing({ name: "Base unit" });
       // A child with no capacity is its parent's only child, so the parent has
       // no bookable child and is sold out (invariant I6).
-      const child = await createTestListing({
-        maxAttendees: 0,
-        name: "Add-on",
-      });
-      await setChildIds(parent.id, [child.id]);
+      const { parent } = await makeParent({ children: [{ maxAttendees: 0 }] });
       const res = await apiGet(`/api/listings/${parent.slug}`);
       expect(res.status).toBe(200);
       const body = (await res.json()) as {
@@ -651,12 +490,7 @@ describeWithEnv(
     test("a parent with no bookable child reports unavailable in API availability", async () => {
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.showPublicApi(true);
-      const parent = await createTestListing({ name: "Base unit" });
-      const child = await createTestListing({
-        maxAttendees: 0,
-        name: "Add-on",
-      });
-      await setChildIds(parent.id, [child.id]);
+      const { parent } = await makeParent({ children: [{ maxAttendees: 0 }] });
       const res = await apiGet(`/api/listings/${parent.slug}/availability`);
       expect(res.status).toBe(200);
       const body = (await res.json()) as { available: boolean };
@@ -666,9 +500,7 @@ describeWithEnv(
     test("a parent with a bookable child stays available in API availability", async () => {
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.showPublicApi(true);
-      const parent = await createTestListing({ name: "Base unit" });
-      const child = await createTestListing({ name: "Add-on" });
-      await setChildIds(parent.id, [child.id]);
+      const { parent } = await makeParent();
       const res = await apiGet(`/api/listings/${parent.slug}/availability`);
       expect(res.status).toBe(200);
       const body = (await res.json()) as { available: boolean };
@@ -678,12 +510,9 @@ describeWithEnv(
     test("API detail of a parent lists its required children with prices", async () => {
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.showPublicApi(true);
-      const parent = await createTestListing({ name: "Base unit" });
-      const child = await createTestListing({
-        name: "Paid add-on",
-        unitPrice: 1500,
+      const { parent, child } = await makeParent({
+        children: [{ unitPrice: 1500 }],
       });
-      await setChildIds(parent.id, [child.id]);
       const res = await apiGet(`/api/listings/${parent.slug}`);
       const body = (await res.json()) as {
         listing: { children?: { slug: string; unitPrice: number }[] };
@@ -705,13 +534,11 @@ describeWithEnv(
     test("API availability of a parent reports per-child availability", async () => {
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.showPublicApi(true);
-      const parent = await createTestListing({ name: "Base unit" });
-      const okChild = await createTestListing({ name: "In stock" });
-      const fullChild = await createTestListing({
-        maxAttendees: 0,
-        name: "Sold out",
+      const { parent, children } = await makeParent({
+        children: [{}, { maxAttendees: 0 }],
       });
-      await setChildIds(parent.id, [okChild.id, fullChild.id]);
+      const okChild = children[0]!;
+      const fullChild = children[1]!;
       const res = await apiGet(`/api/listings/${parent.slug}/availability`);
       const body = (await res.json()) as {
         children?: { slug: string; available: boolean }[];
@@ -730,9 +557,10 @@ describeWithEnv(
       // No `date` query param: a daily child's availability is checked date-less
       // (its own cumulative capacity), so a client still sees which children
       // exist before choosing a date.
-      const parent = await createDailyTestListing({ name: "Daily base" });
-      const child = await createDailyTestListing({ name: "Daily add-on" });
-      await setChildIds(parent.id, [child.id]);
+      const { parent, child } = await makeParent({
+        children: [{ daily: true }],
+        parent: { daily: true },
+      });
       const res = await apiGet(`/api/listings/${parent.slug}/availability`);
       const body = (await res.json()) as {
         children?: { slug: string; available: boolean }[];
@@ -748,12 +576,10 @@ describeWithEnv(
       // `available: false` even though the parent's OWN row has capacity — the
       // availability endpoint must honour the child-date union, matching the
       // detail endpoint and the booking fold (Fix 1).
-      const parent = await createDailyTestListing({ name: "Daily base" });
-      const child = await createDailyTestListing({
-        bookableDays: ["Monday"],
-        name: "Monday add-on",
+      const { parent, child } = await makeParent({
+        children: [{ bookableDays: ["Monday"], daily: true }],
+        parent: { daily: true },
       });
-      await setChildIds(parent.id, [child.id]);
 
       const { getBookableStartDates } = await import("#shared/dates.ts");
       const { getActiveHolidays } = await import("#shared/db/holidays.ts");
@@ -785,17 +611,10 @@ describeWithEnv(
     });
 
     test("a group page renders the parent with a child selector but no standalone child quantity row", async () => {
-      const group = await createTestGroup({ name: "Combo" });
-      const parent = await createTestListing({
-        groupId: group.id,
-        name: "Base unit",
+      const { parent, child, group } = await makeParent({
+        group: { name: "Combo" },
       });
-      const child = await createTestListing({
-        groupId: group.id,
-        name: "Add-on",
-      });
-      await setChildIds(parent.id, [child.id]);
-      const body = await (await ticketGet(group.slug)).text();
+      const body = await (await ticketGet(group!.slug)).text();
       // The parent still offers its standalone quantity selector and the child
       // appears in the parent's child block (here a sole child, auto-selected and
       // shown informationally); the child must NOT get its own standalone
@@ -806,20 +625,11 @@ describeWithEnv(
     });
 
     test("a group page cannot book the child alone", async () => {
-      const group = await createTestGroup({ name: "Combo" });
-      const parent = await createTestListing({
-        groupId: group.id,
-        name: "Base unit",
-      });
-      const child = await createTestListing({
-        groupId: group.id,
-        name: "Add-on",
-      });
-      await setChildIds(parent.id, [child.id]);
+      const { child, group } = await makeParent({ group: { name: "Combo" } });
       const { handleRequest } = await import("#routes");
       const { signCsrfToken } = await import("#shared/csrf.ts");
       const res = await handleRequest(
-        new Request(`http://localhost/ticket/${group.slug}`, {
+        new Request(`http://localhost/ticket/${group!.slug}`, {
           body: new URLSearchParams({
             csrf_token: await signCsrfToken(),
             email: "a@b.com",
@@ -852,16 +662,11 @@ describeWithEnv(
     test("GET /api/listings reports a no-bookable-child parent as sold out (Fix 3)", async () => {
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.showPublicApi(true);
-      const parent = await createTestListing({ name: "Base unit" });
       // The parent's only child has no capacity, so the parent has no bookable
       // child and is sold out (invariant I6) — the list response must project
       // that, matching the detail/availability endpoints (Fix 3), not advertise
       // the parent's own standalone capacity as bookable.
-      const child = await createTestListing({
-        maxAttendees: 0,
-        name: "Add-on",
-      });
-      await setChildIds(parent.id, [child.id]);
+      const { parent } = await makeParent({ children: [{ maxAttendees: 0 }] });
       const body = (await (await apiGet("/api/listings")).json()) as {
         listings: {
           slug: string;
@@ -877,9 +682,7 @@ describeWithEnv(
     test("GET /api/listings keeps a parent with a bookable child bookable (Fix 3)", async () => {
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.showPublicApi(true);
-      const parent = await createTestListing({ name: "Base unit" });
-      const child = await createTestListing({ name: "Add-on" });
-      await setChildIds(parent.id, [child.id]);
+      const { parent } = await makeParent();
       const body = (await (await apiGet("/api/listings")).json()) as {
         listings: {
           slug: string;
@@ -899,12 +702,10 @@ describeWithEnv(
       // bookable only on Mondays. The API detail must advertise only the dates a
       // child can serve — the intersection — so it never offers a date the web
       // selector removes and the fold rejects (Fix 4).
-      const parent = await createDailyTestListing({ name: "Daily base" });
-      const child = await createDailyTestListing({
-        bookableDays: ["Monday"],
-        name: "Monday add-on",
+      const { parent, child } = await makeParent({
+        children: [{ bookableDays: ["Monday"], daily: true }],
+        parent: { daily: true },
       });
-      await setChildIds(parent.id, [child.id]);
 
       const { getAvailableDates, getBookableStartDates } = await import(
         "#shared/dates.ts"
@@ -955,13 +756,8 @@ describeWithEnv(
       // dropping children empties the page — there is nothing standalone-bookable
       // and a booking can never start from a child, so the group page 404s rather
       // than rendering a 200 empty booking page (Fix 6).
-      const outsideParent = await createTestListing({ name: "Outside base" });
       const group = await createTestGroup({ name: "Child-only group" });
-      const child = await createTestListing({
-        groupId: group.id,
-        name: "Only add-on",
-      });
-      await setChildIds(outsideParent.id, [child.id]);
+      await makeParent({ children: [{ groupId: group.id }] });
       const res = await ticketGet(group.slug);
       res.body?.cancel();
       expect(res.status).toBe(404);
@@ -970,13 +766,8 @@ describeWithEnv(
     test("a group with a child-only set suppresses its CTA on /listings (Fix 6)", async () => {
       const { settings } = await import("#shared/db/settings.ts");
       await settings.update.showPublicSite(true);
-      const outsideParent = await createTestListing({ name: "Outside base" });
       const group = await createTestGroup({ name: "Child-only listed group" });
-      const child = await createTestListing({
-        groupId: group.id,
-        name: "Only add-on",
-      });
-      await setChildIds(outsideParent.id, [child.id]);
+      await makeParent({ children: [{ groupId: group.id }] });
       // The group page itself 404s (asserted above); the /listings CTA pointing
       // at it must be suppressed so it never advertises a dead link.
       const { handleRequest } = await import("#routes");
@@ -993,13 +784,8 @@ describeWithEnv(
       // The group's only active member is a child of a parent outside the group,
       // so `/ticket/<group>` drops it and 404s — its QR encodes that dead link,
       // so the QR route must 404 too (Fix 3).
-      const outsideParent = await createTestListing({ name: "Outside base" });
       const group = await createTestGroup({ name: "Child-only QR group" });
-      const child = await createTestListing({
-        groupId: group.id,
-        name: "Only add-on",
-      });
-      await setChildIds(outsideParent.id, [child.id]);
+      await makeParent({ children: [{ groupId: group.id }] });
       const { handleRequest } = await import("#routes");
       const res = await handleRequest(
         new Request(`http://localhost/ticket/${group.slug}/qr`, {

@@ -11,6 +11,7 @@ export * from "./test-utils/factories.ts";
 export * from "./test-utils/internal.ts";
 export * from "./test-utils/mocks.ts";
 export * from "./test-utils/modifiers.ts";
+export * from "./test-utils/parents.ts";
 export * from "./test-utils/session.ts";
 export * from "./test-utils/settings.ts";
 export { TestBrowser } from "./test-utils/test-browser.ts";

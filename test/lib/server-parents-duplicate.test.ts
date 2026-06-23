@@ -14,6 +14,7 @@ import {
   getTestSession,
   insertModifier,
   linkModifierListing,
+  makeParent,
   mockMultipartRequest,
   patchModifier,
 } from "#test-utils";
@@ -88,9 +89,10 @@ describeWithEnv(
   { db: true },
   () => {
     test("duplicating a parent copies its child edges onto the copy", async () => {
-      const parent = await createTestListing({ name: "Base unit" });
-      const child = await createTestListing({ name: "Add-on" });
-      await setChildren(parent.id, [child.id]);
+      const { parent, child } = await makeParent({
+        children: [{ name: "Add-on" }],
+        parent: { name: "Base unit" },
+      });
 
       const copy = await duplicateTestListing(parent.id, { name: "Base copy" });
 
@@ -126,9 +128,10 @@ describeWithEnv(
       // fails. The fix surfaces a WARNING flash and does NOT write the edge,
       // instead of silently reporting success while leaving a gateless bookable
       // copy.
-      const parent = await createTestListing({ name: "Base unit" });
-      const child = await createTestListing({ name: "Add-on" });
-      await setChildren(parent.id, [child.id]);
+      const { parent, child } = await makeParent({
+        children: [{ name: "Add-on" }],
+        parent: { name: "Base unit" },
+      });
       await optInAddOnScopedTo("Reachable extra", [parent.id, child.id]);
 
       const { response, copy } = await duplicateListingResponse(
@@ -163,9 +166,10 @@ describeWithEnv(
     });
 
     test("duplicating a child yields a standalone copy with no edges", async () => {
-      const parent = await createTestListing({ name: "Parent" });
-      const child = await createTestListing({ name: "Child" });
-      await setChildren(parent.id, [child.id]);
+      const { parent, child } = await makeParent({
+        children: [{ name: "Child" }],
+        parent: { name: "Parent" },
+      });
 
       const copy = await duplicateTestListing(child.id, { name: "Child copy" });
 
@@ -176,18 +180,13 @@ describeWithEnv(
     });
 
     test("group duplicate remaps an intra-group parent/child edge to the clones", async () => {
-      const group = await createTestGroup({ name: "Bundle" });
-      const parent = await createTestListing({
-        groupId: group.id,
-        name: "Group parent",
+      const { child, group } = await makeParent({
+        children: [{ name: "Group child" }],
+        group: { name: "Bundle" },
+        parent: { name: "Group parent" },
       });
-      const child = await createTestListing({
-        groupId: group.id,
-        name: "Group child",
-      });
-      await setChildren(parent.id, [child.id]);
 
-      const copies = await duplicateGroup(group.id, "Bundle copy");
+      const copies = await duplicateGroup(group!.id, "Bundle copy");
 
       const parentCopy = copies.find((l) => l.name === "Group parent")!;
       const childCopy = copies.find((l) => l.name === "Group child")!;

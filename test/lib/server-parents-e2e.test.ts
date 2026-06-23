@@ -1,13 +1,16 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#shared/db/attendees.ts";
-import { setChildIds } from "#shared/db/listing-parents.ts";
 import type { Listing } from "#shared/types.ts";
 import {
+  bookingPageHtml,
   createDailyTestListing,
   describeWithEnv,
   expectFlash,
-  getTicketCsrfToken,
+  expectReserved,
+  makeParent,
+  postBooking,
+  postCalculate,
 } from "#test-utils";
 
 /**
@@ -29,28 +32,32 @@ const setupParentWithTwoChildren = async (): Promise<{
   childB: Listing;
   date: string;
 }> => {
-  const parent = await createDailyTestListing({
-    maxAttendees: 10,
-    maxQuantity: 3,
-    name: "Daily base unit",
-    thankYouUrl: "",
-    unitPrice: 4000,
+  const { parent, children } = await makeParent({
+    children: [
+      {
+        daily: true,
+        maxAttendees: 10,
+        maxQuantity: 3,
+        name: "Add-on Alpha",
+        unitPrice: 1500,
+      },
+      {
+        daily: true,
+        maxAttendees: 10,
+        maxQuantity: 3,
+        name: "Add-on Beta",
+        unitPrice: 2500,
+      },
+    ],
+    parent: {
+      daily: true,
+      maxAttendees: 10,
+      maxQuantity: 3,
+      name: "Daily base unit",
+      unitPrice: 4000,
+    },
   });
-  const childA = await createDailyTestListing({
-    maxAttendees: 10,
-    maxQuantity: 3,
-    name: "Add-on Alpha",
-    thankYouUrl: "",
-    unitPrice: 1500,
-  });
-  const childB = await createDailyTestListing({
-    maxAttendees: 10,
-    maxQuantity: 3,
-    name: "Add-on Beta",
-    thankYouUrl: "",
-    unitPrice: 2500,
-  });
-  await setChildIds(parent.id, [childA.id, childB.id]);
+  const [childA, childB] = children;
 
   const { getBookableStartDates } = await import("#shared/dates.ts");
   const { getActiveHolidays } = await import("#shared/db/holidays.ts");
@@ -58,57 +65,7 @@ const setupParentWithTwoChildren = async (): Promise<{
   const parentRow = (await getListingWithCount(parent.id))!;
   const date = getBookableStartDates(parentRow, await getActiveHolidays())[0]!;
 
-  return { childA, childB, date, parent };
-};
-
-/** GET the public `/ticket/<slug>` booking page HTML. */
-const ticketPageHtml = async (slug: string): Promise<string> => {
-  const { handleRequest } = await import("#routes");
-  const { mockRequest } = await import("#test-utils/mocks.ts");
-  return (await handleRequest(mockRequest(`/ticket/${slug}`))).text();
-};
-
-/** A CSRF token from the rendered booking page (fresh fallback if no form). */
-const ticketPageToken = async (slug: string): Promise<string> => {
-  const { signCsrfToken } = await import("#shared/csrf.ts");
-  return (
-    getTicketCsrfToken(await ticketPageHtml(slug)) ?? (await signCsrfToken())
-  );
-};
-
-/** POST a booking to `/ticket/<slug>` with CSRF auto-added. */
-const postBooking = async (
-  slug: string,
-  fields: Record<string, string>,
-): Promise<Response> => {
-  const { handleRequest } = await import("#routes");
-  const { mockFormRequest } = await import("#test-utils/mocks.ts");
-  const csrf = await ticketPageToken(slug);
-  return handleRequest(
-    mockFormRequest(
-      `/ticket/${slug}`,
-      { csrf_token: csrf, ...fields },
-      `csrf_token=${csrf}`,
-    ),
-  );
-};
-
-/** POST a `/calculate` quote, returning the rendered order-summary fragment. */
-const postCalculate = async (
-  slug: string,
-  fields: Record<string, string>,
-): Promise<string> => {
-  const { handleRequest } = await import("#routes");
-  const { mockFormRequest } = await import("#test-utils/mocks.ts");
-  const csrf = await ticketPageToken(slug);
-  const res = await handleRequest(
-    mockFormRequest(
-      `/calculate/${slug}`,
-      { csrf_token: csrf, ...fields },
-      `csrf_token=${csrf}`,
-    ),
-  );
-  return res.text();
+  return { childA: childA!, childB: childB!, date, parent };
 };
 
 /** The persisted order_token + parent_listing_id of every listing_attendees row
@@ -124,21 +81,13 @@ const orderRowsFor = async (
   );
 };
 
-/** Assert the response is the public reservation success redirect. */
-const expectReserved = (response: Response): void => {
-  expect(response.status).toBe(302);
-  expect(response.headers.get("location") ?? "").toMatch(
-    /^\/ticket\/reserved\?tokens=.+$/,
-  );
-};
-
 describeWithEnv(
   "server > parents end-to-end booking journey",
   { db: true, triggers: true },
   () => {
     test("the booking page renders both per-unit child selectors and the choose-N total guidance", async () => {
       const { parent, childA, childB } = await setupParentWithTwoChildren();
-      const html = await ticketPageHtml(parent.slug);
+      const html = await bookingPageHtml(parent.slug);
 
       // Per-unit selectors are namespaced per parent+child (invariant I1/I2).
       expect(html).toContain(`name="child_qty_${parent.id}_${childA.id}"`);

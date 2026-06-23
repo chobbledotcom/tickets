@@ -14,12 +14,12 @@ import { setChildIds } from "#shared/db/listing-parents.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
   adminGet,
-  createDailyTestListing,
   createTestAttendee,
   createTestGroup,
   createTestListing,
   deactivateTestListing,
   describeWithEnv,
+  makeParent,
   mockRequest,
 } from "#test-utils";
 
@@ -54,9 +54,10 @@ describeWithEnv(
   () => {
     describe("public listing cards (/listings)", () => {
       test("a visible child card has no standalone Book link", async () => {
-        const parent = await createTestListing({ name: "Base unit" });
-        const child = await createTestListing({ name: "Add-on" });
-        await setChildIds(parent.id, [child.id]);
+        const { parent, child } = await makeParent({
+          children: [{ name: "Add-on" }],
+          parent: { name: "Base unit" },
+        });
         const body = await publicBody("/listings");
         // The child's card is still shown, but with no /ticket/<child> CTA.
         expect(body).toContain("Add-on");
@@ -80,24 +81,23 @@ describeWithEnv(
       });
 
       test("a parent whose only child has closed registration is sold out", async () => {
-        const parent = await createTestListing({ name: "Base unit" });
         const pastDate = new Date(Date.now() - 60000)
           .toISOString()
           .slice(0, 16);
-        const child = await createTestListing({
-          closesAt: pastDate,
-          name: "Add-on",
+        const { parent } = await makeParent({
+          children: [{ closesAt: pastDate, name: "Add-on" }],
+          parent: { name: "Base unit" },
         });
-        await setChildIds(parent.id, [child.id]);
         const body = await publicBody("/listings");
         expect(body).not.toContain(`href="/ticket/${parent.slug}"`);
         expect(body).toContain("Sold Out");
       });
 
       test("a parent with one bookable child keeps its Book link", async () => {
-        const parent = await createTestListing({ name: "Base unit" });
-        const child = await createTestListing({ name: "Add-on" });
-        await setChildIds(parent.id, [child.id]);
+        const { parent } = await makeParent({
+          children: [{ name: "Add-on" }],
+          parent: { name: "Base unit" },
+        });
         const body = await publicBody("/listings");
         expect(body).toContain(`href="/ticket/${parent.slug}"`);
       });
@@ -108,9 +108,10 @@ describeWithEnv(
         // never standalone-bookable (the slug guard rejects all children), so
         // the card renders as currently unavailable rather than a dead-end Book
         // link or a dead-end add-on note (Fix 1).
-        const parent = await createTestListing({ name: "Base unit" });
-        const child = await createTestListing({ name: "Add-on" });
-        await setChildIds(parent.id, [child.id]);
+        const { parent, child } = await makeParent({
+          children: [{ name: "Add-on" }],
+          parent: { name: "Base unit" },
+        });
         await deactivateTestListing(parent.id);
         const body = await publicBody("/listings");
         expect(body).toContain("Add-on");
@@ -122,9 +123,10 @@ describeWithEnv(
       test("a child whose only parent is deactivated still 404s its ticket page", async () => {
         // The slug guard rejects every child regardless of parent.active, so the
         // advertised-as-unavailable child must not be standalone-bookable (Fix 1).
-        const parent = await createTestListing({ name: "Base unit" });
-        const child = await createTestListing({ name: "Add-on" });
-        await setChildIds(parent.id, [child.id]);
+        const { parent, child } = await makeParent({
+          children: [{ name: "Add-on" }],
+          parent: { name: "Base unit" },
+        });
         await deactivateTestListing(parent.id);
         await settings.update.showPublicSite(true);
         const response = await handleRequest(
@@ -139,13 +141,11 @@ describeWithEnv(
         // it cannot fold the child into a booking — the "available as an add-on"
         // note would be a dead end. The child is never standalone-bookable, so its
         // card reads as currently unavailable (Fix 1, parentBookable sold-out).
-        const parent = await createTestListing({
-          maxAttendees: 1,
-          name: "Base unit",
+        const { parent, child } = await makeParent({
+          children: [{ name: "Add-on" }],
+          parent: { maxAttendees: 1, name: "Base unit" },
         });
         await createTestAttendee(parent.id, parent.slug, "Buyer", "b@x.com");
-        const child = await createTestListing({ name: "Add-on" });
-        await setChildIds(parent.id, [child.id]);
         const body = await publicBody("/listings");
         expect(body).toContain("Add-on");
         expect(body).not.toContain("Available as an add-on to another booking");
@@ -160,12 +160,10 @@ describeWithEnv(
         const pastDate = new Date(Date.now() - 60000)
           .toISOString()
           .slice(0, 16);
-        const parent = await createTestListing({
-          closesAt: pastDate,
-          name: "Base unit",
+        const { child } = await makeParent({
+          children: [{ name: "Add-on" }],
+          parent: { closesAt: pastDate, name: "Base unit" },
         });
-        const child = await createTestListing({ name: "Add-on" });
-        await setChildIds(parent.id, [child.id]);
         const body = await publicBody("/listings");
         expect(body).toContain("Add-on");
         expect(body).not.toContain("Available as an add-on to another booking");
@@ -178,9 +176,10 @@ describeWithEnv(
         // child into a booking — the child's card shows the add-on note and the
         // child's own standalone CTA stays suppressed (Fix 1, parentBookable
         // bookable case).
-        const parent = await createTestListing({ name: "Base unit" });
-        const child = await createTestListing({ name: "Add-on" });
-        await setChildIds(parent.id, [child.id]);
+        const { child } = await makeParent({
+          children: [{ name: "Add-on" }],
+          parent: { name: "Base unit" },
+        });
         const body = await publicBody("/listings");
         expect(body).toContain("Available as an add-on to another booking");
         expect(body).not.toContain(`href="/ticket/${child.slug}"`);
@@ -221,20 +220,15 @@ describeWithEnv(
         // (one parent + one auto-selected child) consumes TWO group spots. With
         // one spot left, the parent reads sold out even though the child looks
         // individually bookable (Fix 4, combined demand).
-        const group = await createTestGroup({ maxAttendees: 2, name: "Pool" });
-        const parent = await createTestListing({
-          groupId: group.id,
-          name: "Base unit",
-        });
-        const child = await createTestListing({
-          groupId: group.id,
-          name: "Add-on",
+        const { group, parent } = await makeParent({
+          children: [{ name: "Add-on" }],
+          group: { maxAttendees: 2, name: "Pool" },
+          parent: { name: "Base unit" },
         });
         const filler = await createTestListing({
-          groupId: group.id,
+          groupId: group!.id,
           name: "Filler",
         });
-        await setChildIds(parent.id, [child.id]);
         // Consume one of the two group spots via an unrelated group member.
         await createTestAttendee(filler.id, filler.slug, "Buyer", "b@x.com");
         const body = await publicBody("/listings");
@@ -245,16 +239,11 @@ describeWithEnv(
       test("a parent + child sharing a capped group with 2 spots is bookable", async () => {
         // With two spots free, the combined parent+child demand fits, so the
         // parent keeps its Book link (Fix 4).
-        const group = await createTestGroup({ maxAttendees: 2, name: "Pool" });
-        const parent = await createTestListing({
-          groupId: group.id,
-          name: "Base unit",
+        const { parent } = await makeParent({
+          children: [{ name: "Add-on" }],
+          group: { maxAttendees: 2, name: "Pool" },
+          parent: { name: "Base unit" },
         });
-        const child = await createTestListing({
-          groupId: group.id,
-          name: "Add-on",
-        });
-        await setChildIds(parent.id, [child.id]);
         const body = await publicBody("/listings");
         expect(body).toContain(`href="/ticket/${parent.slug}"`);
       });
@@ -267,19 +256,24 @@ describeWithEnv(
         // span-blind discovery check (any one-day start exists) would advertise
         // the parent, but the gate's date union span-constrains it to empty and
         // the submit rejects — so it must read sold out (Fix 1).
-        const parent = await createDailyTestListing({
-          customisableDays: false,
-          durationDays: 3,
-          name: "3-day base",
+        const { parent } = await makeParent({
+          children: [
+            {
+              bookableDays: ["Monday"],
+              customisableDays: true,
+              daily: true,
+              dayPrices: { 1: 1000, 3: 3000 },
+              durationDays: 3,
+              name: "Span add-on",
+            },
+          ],
+          parent: {
+            customisableDays: false,
+            daily: true,
+            durationDays: 3,
+            name: "3-day base",
+          },
         });
-        const child = await createDailyTestListing({
-          bookableDays: ["Monday"],
-          customisableDays: true,
-          dayPrices: { 1: 1000, 3: 3000 },
-          durationDays: 3,
-          name: "Span add-on",
-        });
-        await setChildIds(parent.id, [child.id]);
         const body = await publicBody("/listings");
         expect(body).not.toContain(`href="/ticket/${parent.slug}"`);
         expect(body).toContain("Sold Out");
@@ -288,18 +282,23 @@ describeWithEnv(
       test("a fixed multi-day daily parent whose child can fit the span is advertised", async () => {
         // Same fixed 3-day parent, but the child can be booked any weekday, so a
         // Mon–Wed 3-day run is valid — the parent keeps its Book link (Fix 1).
-        const parent = await createDailyTestListing({
-          customisableDays: false,
-          durationDays: 3,
-          name: "3-day base",
+        const { parent } = await makeParent({
+          children: [
+            {
+              customisableDays: true,
+              daily: true,
+              dayPrices: { 1: 1000, 3: 3000 },
+              durationDays: 3,
+              name: "Span add-on",
+            },
+          ],
+          parent: {
+            customisableDays: false,
+            daily: true,
+            durationDays: 3,
+            name: "3-day base",
+          },
         });
-        const child = await createDailyTestListing({
-          customisableDays: true,
-          dayPrices: { 1: 1000, 3: 3000 },
-          durationDays: 3,
-          name: "Span add-on",
-        });
-        await setChildIds(parent.id, [child.id]);
         const body = await publicBody("/listings");
         expect(body).toContain(`href="/ticket/${parent.slug}"`);
       });
@@ -311,15 +310,20 @@ describeWithEnv(
         // would still advertise the parent — yet there is NO date the parent can
         // offer on which the child is bookable, so `getTicketContext`'s date union
         // renders empty and the parent must read sold out (Fix 5).
-        const parent = await createDailyTestListing({
-          bookableDays: ["Monday"],
-          name: "Monday base",
+        const { parent } = await makeParent({
+          children: [
+            {
+              bookableDays: ["Tuesday"],
+              daily: true,
+              name: "Tuesday add-on",
+            },
+          ],
+          parent: {
+            bookableDays: ["Monday"],
+            daily: true,
+            name: "Monday base",
+          },
         });
-        const child = await createDailyTestListing({
-          bookableDays: ["Tuesday"],
-          name: "Tuesday add-on",
-        });
-        await setChildIds(parent.id, [child.id]);
         const body = await publicBody("/listings");
         expect(body).not.toContain(`href="/ticket/${parent.slug}"`);
         expect(body).toContain("Sold Out");
@@ -329,15 +333,20 @@ describeWithEnv(
         // The child is bookable on a weekday the parent also offers (Monday), so
         // there is an overlapping date the gate can serve — the parent keeps its
         // Book link (the Fix 5 overlap is satisfied, not over-eager).
-        const parent = await createDailyTestListing({
-          bookableDays: ["Monday"],
-          name: "Monday base",
+        const { parent } = await makeParent({
+          children: [
+            {
+              bookableDays: ["Monday", "Tuesday"],
+              daily: true,
+              name: "Mon/Tue add-on",
+            },
+          ],
+          parent: {
+            bookableDays: ["Monday"],
+            daily: true,
+            name: "Monday base",
+          },
         });
-        const child = await createDailyTestListing({
-          bookableDays: ["Monday", "Tuesday"],
-          name: "Mon/Tue add-on",
-        });
-        await setChildIds(parent.id, [child.id]);
         const body = await publicBody("/listings");
         expect(body).toContain(`href="/ticket/${parent.slug}"`);
       });
@@ -374,20 +383,15 @@ describeWithEnv(
         // must read unavailable, NOT "available as an add-on" (Fix 5: addOnChildIds
         // must use the same combined-demand check as the parent sold-out
         // projection).
-        const group = await createTestGroup({ maxAttendees: 2, name: "Pool" });
-        const parent = await createTestListing({
-          groupId: group.id,
-          name: "Base unit",
-        });
-        const child = await createTestListing({
-          groupId: group.id,
-          name: "Add-on",
+        const { group } = await makeParent({
+          children: [{ name: "Add-on" }],
+          group: { maxAttendees: 2, name: "Pool" },
+          parent: { name: "Base unit" },
         });
         const filler = await createTestListing({
-          groupId: group.id,
+          groupId: group!.id,
           name: "Filler",
         });
-        await setChildIds(parent.id, [child.id]);
         await createTestAttendee(filler.id, filler.slug, "Buyer", "b@x.com");
         const body = await publicBody("/listings");
         expect(body).toContain("Add-on");
@@ -397,16 +401,11 @@ describeWithEnv(
       test("a child whose only parent shares a 2-spot capped group shows the add-on note", async () => {
         // Two spots free ⇒ the combined parent+child demand fits, so the parent
         // can offer the child and the add-on note appears (Fix 5).
-        const group = await createTestGroup({ maxAttendees: 2, name: "Pool" });
-        const parent = await createTestListing({
-          groupId: group.id,
-          name: "Base unit",
+        await makeParent({
+          children: [{ name: "Add-on" }],
+          group: { maxAttendees: 2, name: "Pool" },
+          parent: { name: "Base unit" },
         });
-        const child = await createTestListing({
-          groupId: group.id,
-          name: "Add-on",
-        });
-        await setChildIds(parent.id, [child.id]);
         const body = await publicBody("/listings");
         expect(body).toContain("Available as an add-on to another booking");
       });
@@ -414,10 +413,11 @@ describeWithEnv(
 
     describe("RSS/ICS feeds", () => {
       test("omits a child and a no-bookable-child parent, keeps a normal one", async () => {
-        const parent = await createTestListing({ name: "FeedParent" });
-        const child = await createTestListing({ name: "FeedChild" });
+        const { child } = await makeParent({
+          children: [{ name: "FeedChild" }],
+          parent: { name: "FeedParent" },
+        });
         await deactivateTestListing(child.id);
-        await setChildIds(parent.id, [child.id]);
         const plain = await createTestListing({ name: "FeedPlain" });
         await settings.update.showPublicSite(true);
         const rss = await (
@@ -432,9 +432,10 @@ describeWithEnv(
       });
 
       test("omits a visible child item from the feed", async () => {
-        const parent = await createTestListing({ name: "VisParent" });
-        const child = await createTestListing({ name: "VisChild" });
-        await setChildIds(parent.id, [child.id]);
+        const { child } = await makeParent({
+          children: [{ name: "VisChild" }],
+          parent: { name: "VisParent" },
+        });
         await settings.update.showPublicSite(true);
         const ics = await (
           await handleRequest(mockRequest("/feeds/listings.ics"))
@@ -448,9 +449,10 @@ describeWithEnv(
 
     describe("/order gallery", () => {
       test("does not offer a child as a selectable card", async () => {
-        const parent = await createTestListing({ name: "GalParent" });
-        const child = await createTestListing({ name: "GalChild" });
-        await setChildIds(parent.id, [child.id]);
+        const { parent, child } = await makeParent({
+          children: [{ name: "GalChild" }],
+          parent: { name: "GalParent" },
+        });
         const body = await galleryBody();
         expect(body).toContain(`name="select_${parent.id}"`);
         expect(body).not.toContain(`name="select_${child.id}"`);
@@ -458,9 +460,10 @@ describeWithEnv(
       });
 
       test("a selection redirect never contains a child slug", async () => {
-        const parent = await createTestListing({ name: "GalParent" });
-        const child = await createTestListing({ name: "GalChild" });
-        await setChildIds(parent.id, [child.id]);
+        const { parent, child } = await makeParent({
+          children: [{ name: "GalChild" }],
+          parent: { name: "GalParent" },
+        });
         // Even if a child id is injected into the query, it is not selectable.
         const location = await orderRedirect([parent.id, child.id]);
         expect(location).toContain(`/ticket/${parent.slug}`);
@@ -502,10 +505,11 @@ describeWithEnv(
 
     describe("admin multi-booking link builder", () => {
       test("excludes children from the selectable checkboxes", async () => {
-        const parent = await createTestListing({ name: "MbParent" });
-        const child = await createTestListing({ name: "MbChild" });
+        const { parent, child } = await makeParent({
+          children: [{ name: "MbChild" }],
+          parent: { name: "MbParent" },
+        });
         const plain = await createTestListing({ name: "MbPlain" });
-        await setChildIds(parent.id, [child.id]);
         const body = await (await adminGet("/admin/")).response.text();
         expect(body).toContain(`data-multi-booking-slug="${parent.slug}"`);
         expect(body).toContain(`data-multi-booking-slug="${plain.slug}"`);
@@ -515,9 +519,10 @@ describeWithEnv(
 
     describe("per-listing share / QR generators", () => {
       test("the child detail page suppresses the share/QR affordances", async () => {
-        const parent = await createTestListing({ name: "QrParent" });
-        const child = await createTestListing({ name: "QrChild" });
-        await setChildIds(parent.id, [child.id]);
+        const { child } = await makeParent({
+          children: [{ name: "QrChild" }],
+          parent: { name: "QrParent" },
+        });
         const body = await (
           await adminGet(`/admin/listing/${child.id}`)
         ).response.text();
@@ -535,9 +540,10 @@ describeWithEnv(
       });
 
       test("a parent detail page keeps its share/QR affordances", async () => {
-        const parent = await createTestListing({ name: "QrParent" });
-        const child = await createTestListing({ name: "QrChild" });
-        await setChildIds(parent.id, [child.id]);
+        const { parent } = await makeParent({
+          children: [{ name: "QrChild" }],
+          parent: { name: "QrParent" },
+        });
         const body = await (
           await adminGet(`/admin/listing/${parent.id}`)
         ).response.text();
@@ -550,9 +556,10 @@ describeWithEnv(
       });
 
       test("the child QR generator route 404s", async () => {
-        const parent = await createTestListing({ name: "QrParent" });
-        const child = await createTestListing({ name: "QrChild" });
-        await setChildIds(parent.id, [child.id]);
+        const { child } = await makeParent({
+          children: [{ name: "QrChild" }],
+          parent: { name: "QrParent" },
+        });
         const get = await adminGet(`/admin/listing/${child.id}/qr`);
         get.response.body?.cancel();
         expect(get.response.status).toBe(404);
@@ -562,9 +569,10 @@ describeWithEnv(
       });
 
       test("the public child QR image route 404s", async () => {
-        const parent = await createTestListing({ name: "QrParent" });
-        const child = await createTestListing({ name: "QrChild" });
-        await setChildIds(parent.id, [child.id]);
+        const { child } = await makeParent({
+          children: [{ name: "QrChild" }],
+          parent: { name: "QrParent" },
+        });
         const response = await handleRequest(
           mockRequest(`/ticket/${child.slug}/qr`),
         );

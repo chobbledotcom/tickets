@@ -14,7 +14,10 @@ import {
   insertModifier,
   linkModifierGroup,
   linkModifierListing,
+  listingDetailPageHtml,
+  listingEditPageHtml,
   patchModifier,
+  postChildren,
   updateTestListing,
 } from "#test-utils";
 
@@ -43,42 +46,6 @@ const optInAddOnForListings = async (
   for (const listingId of listingIds) {
     await linkModifierListing(modifier.id, listingId);
   }
-};
-
-/** POST the children sub-form with repeated `child_listing_ids` values
- * (mockFormRequest only supports single values per key). */
-const postChildren = async (
-  listingId: number,
-  childIds: number[],
-): Promise<Response> => {
-  const { cookie, csrfToken } = await getTestSession();
-  const { handleRequest } = await import("#routes");
-  const body = new URLSearchParams();
-  body.set("csrf_token", csrfToken);
-  for (const id of childIds) body.append("child_listing_ids", String(id));
-  return handleRequest(
-    new Request(`http://localhost/admin/listing/${listingId}/children`, {
-      body: body.toString(),
-      headers: {
-        "content-type": "application/x-www-form-urlencoded",
-        cookie,
-        host: "localhost",
-      },
-      method: "POST",
-    }),
-  );
-};
-
-const editPageHtml = async (listingId: number): Promise<string> => {
-  const { adminGet } = await import("#test-utils");
-  const { response } = await adminGet(`/admin/listing/${listingId}/edit`);
-  return response.text();
-};
-
-const detailPageHtml = async (listingId: number): Promise<string> => {
-  const { adminGet } = await import("#test-utils");
-  const { response } = await adminGet(`/admin/listing/${listingId}`);
-  return response.text();
 };
 
 /** POST a listing edit (building the full update form from the existing row with
@@ -147,7 +114,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     const parent = await createTestListing({ name: "Base unit" });
     const child = await createTestListing({ name: "Add-on" });
     await postChildren(parent.id, [child.id]);
-    const html = await editPageHtml(parent.id);
+    const html = await listingEditPageHtml(parent.id);
     expect(html).toContain("Required child listings");
     expect(html).toContain(
       `<input checked name="child_listing_ids" type="checkbox" value="${child.id}">`,
@@ -169,7 +136,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     const child = await createTestListing({ name: "Add-on" });
     const other = await createTestListing({ name: "Unrelated" });
     await postChildren(parent.id, [child.id]);
-    const html = await editPageHtml(parent.id);
+    const html = await listingEditPageHtml(parent.id);
     expect(html).toContain(
       `<input checked name="child_listing_ids" type="checkbox" value="${child.id}">`,
     );
@@ -182,7 +149,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     const parent = await createTestListing({ name: "Base unit" });
     const child = await createTestListing({ name: "Add-on" });
     await postChildren(parent.id, [child.id]);
-    const html = await editPageHtml(child.id);
+    const html = await listingEditPageHtml(child.id);
     expect(html).toContain("This listing is itself offered under: Base unit");
   });
 
@@ -194,7 +161,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     const child = await createTestListing({ name: "Mid" });
     const grandchild = await createTestListing({ name: "Leaf" });
     await postChildren(child.id, [grandchild.id]);
-    const html = await editPageHtml(parent.id);
+    const html = await listingEditPageHtml(parent.id);
     expect(html).toContain(
       `<input disabled name="child_listing_ids" type="checkbox" value="${child.id}">`,
     );
@@ -207,7 +174,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
       listingType: "daily",
       name: "Daily add-on",
     });
-    const html = await editPageHtml(parent.id);
+    const html = await listingEditPageHtml(parent.id);
     expect(html).toContain(
       `<input disabled name="child_listing_ids" type="checkbox" value="${daily.id}">`,
     );
@@ -217,7 +184,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     const parent = await createTestListing({ name: "Base unit" });
     const child = await createTestListing({ name: "Add-on" });
     await postChildren(parent.id, [child.id]);
-    const html = await editPageHtml(child.id);
+    const html = await listingEditPageHtml(child.id);
     expect(html).toContain("This listing is offered as a child of Base unit");
     expect(html).toContain(
       "Inherited from the parent when this listing is chosen as a child",
@@ -226,7 +193,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
 
   test("a non-child listing's edit page shows no inherited-fields banner", async () => {
     const standalone = await createTestListing({ name: "Standalone" });
-    const html = await editPageHtml(standalone.id);
+    const html = await listingEditPageHtml(standalone.id);
     expect(html).not.toContain("This listing is offered as a child of");
     expect(html).not.toContain(
       "Inherited from the parent when this listing is chosen as a child",
@@ -237,13 +204,13 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     const parent = await createTestListing({ name: "Base unit" });
     const child = await createTestListing({ name: "Add-on" });
     await postChildren(parent.id, [child.id]);
-    const html = await detailPageHtml(parent.id);
+    const html = await listingDetailPageHtml(parent.id);
     expect(html).toContain("This listing requires a child listing (Add-on)");
   });
 
   test("a non-parent's detail page shows no manual-add child warning", async () => {
     const standalone = await createTestListing({ name: "Standalone" });
-    const html = await detailPageHtml(standalone.id);
+    const html = await listingDetailPageHtml(standalone.id);
     expect(html).not.toContain("requires a child listing");
   });
 
@@ -285,7 +252,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
 
   test("notes when there are no other listings to choose from", async () => {
     const only = await createTestListing({ name: "Solo" });
-    const html = await editPageHtml(only.id);
+    const html = await listingEditPageHtml(only.id);
     expect(html).toContain("No other listings to choose from yet.");
   });
 
