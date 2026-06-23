@@ -298,9 +298,14 @@ hand-rolling another copy:
     create batch under one `eventGroup`, deleted as a group on rollback.
 17. **Attendee merge rewrites the source's ledger rows to the target attendee
     id** — the only sanctioned mutation of account ids, done inside the merge
-    batch and logged. Every source leg moves wholesale onto the target (both
-    records' real payments legitimately follow the person), so no money is
-    stranded on the deleted source.
+    batch and logged. With **no conflict**, every source leg moves wholesale onto
+    the target (both records' real payments legitimately follow the person), so no
+    money is stranded on the deleted source. With a **genuine conflict** — both
+    records booked the same listing, or each carries its own real payment — the
+    money is **not** moved by default: the operator must resolve it explicitly via
+    a **required** field (keep both as the person's credit, or route the losing
+    side to a manual adjustment), so an irreversible money decision is never made
+    by a silent guess (AGENTS.md, "Operator decides genuine conflicts").
 18. **A memo that could carry PII is owner-key encrypted by the host** before
     persisting; the ledger treats it as an opaque string and never logs it.
 
@@ -375,9 +380,12 @@ tests) before the corresponding path goes live.
 
 ### Merge
 
-- [ ] Re-point only the legs of orders **actually merged**; skipped/duplicate
-  source bookings keep their legs on a tombstone — don't move discarded orders'
-  money onto the target.
+- [ ] **A merge conflict requires an explicit operator decision** — a *required*
+  field resolves each conflicting booking (keep both records' payments as the
+  person's credit, or route the losing side to a manual adjustment). A clean merge
+  still moves every leg wholesale; a conflict never auto-moves a discarded order's
+  money onto the target by a silent default (decision 17; AGENTS.md "Operator
+  decides genuine conflicts").
 
 ### PSP modelling (later)
 
