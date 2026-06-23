@@ -911,6 +911,39 @@ describeWithEnv(
       );
     });
 
+    test("allows editing an active NON-opt-in child-scoped modifier (not an add-on)", async () => {
+      // The child-only-dead-end check applies only to opt-in add-ons: an active
+      // automatic modifier scoped solely to a child is never offered on a page,
+      // so a plain resource edit (here, a name change) must NOT be blocked even
+      // though its stored scope is child-only.
+      const parent = await createTestListing({ name: "Base unit" });
+      const child = await createTestListing({ name: "Add-on" });
+      await setChildIds(parent.id, [child.id]);
+      const modifier = await insertModifier({ name: "Auto child surcharge" });
+      await patchModifier(modifier.id, { active: 1, scope: "listings" });
+      await linkModifierListing(modifier.id, child.id);
+      const { response } = await adminFormPost(
+        `/admin/modifiers/${modifier.id}/edit`,
+        createData({
+          active: "1",
+          calc_kind: "fixed",
+          calc_value: "5",
+          direction: "charge",
+          name: "Auto child surcharge renamed",
+          scope: "listings",
+          trigger: "automatic",
+        }),
+      );
+      await expectFlashRedirect(
+        "/admin/modifiers",
+        "Modifier updated",
+        true,
+      )(response);
+      expect((await modifiersTable.findById(modifier.id))!.name).toBe(
+        "Auto child surcharge renamed",
+      );
+    });
+
     test("allows flipping a {child, parent}-scoped modifier to an opt-in add-on", async () => {
       const parent = await createTestListing({ name: "Base unit" });
       const child = await createTestListing({ name: "Add-on" });
