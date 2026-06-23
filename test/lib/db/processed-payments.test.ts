@@ -3,11 +3,13 @@ import { describe, it as test } from "@std/testing/bdd";
 import { getDb, insert } from "#shared/db/client.ts";
 import {
   finalizeSession as finalizePaymentSession,
+  finalizeSessionStatement,
   isSessionProcessed,
   markSessionFailed,
   parseSessionFailure,
   reserveSession,
   STALE_RESERVATION_MS,
+  setSessionTicketTokens,
 } from "#shared/db/processed-payments.ts";
 import { nowMs } from "#shared/now.ts";
 import { bookAttendee, createTestListing, describeWithEnv } from "#test-utils";
@@ -181,6 +183,89 @@ describeWithEnv("db > processed payments", { db: true }, () => {
           FOREIGN KEY (attendee_id) REFERENCES attendees(id)
         )
       `);
+    });
+  });
+
+  describe("finalizeSessionStatement", () => {
+    test("sets attendee_id and clears ticket_tokens on an unresolved reservation", async () => {
+      const listing = await createTestListing({ maxAttendees: 50 });
+      const attendeeResult = await bookAttendee(listing, {
+        email: "fss@example.com",
+        name: "Fss",
+      });
+      if (!attendeeResult.success) throw new Error("setup failed");
+      const attendeeId = attendeeResult.attendees[0]!.id;
+
+      await reserveSession("sess_fss");
+      const stmt = finalizeSessionStatement("sess_fss", attendeeId);
+      await getDb().execute(stmt);
+
+      const row = await isSessionProcessed("sess_fss");
+      expect(row!.attendee_id).toBe(attendeeId);
+      expect(row!.ticket_tokens).toBe("");
+    });
+
+    test("is a no-op when the session is already finalized", async () => {
+      const listing = await createTestListing({ maxAttendees: 50 });
+      const attendeeResult = await bookAttendee(listing, {
+        email: "fss2@example.com",
+        name: "Fss2",
+      });
+      if (!attendeeResult.success) throw new Error("setup failed");
+      const attendeeId = attendeeResult.attendees[0]!.id;
+
+      await reserveSession("sess_fss2");
+      await finalizePaymentSession("sess_fss2", attendeeId);
+
+      // A second finalize (different attendee id) must not overwrite
+      const stmt = finalizeSessionStatement("sess_fss2", attendeeId + 999);
+      await getDb().execute(stmt);
+
+      const row = await isSessionProcessed("sess_fss2");
+      expect(row!.attendee_id).toBe(attendeeId);
+    });
+  });
+
+  describe("setSessionTicketTokens", () => {
+    test("stores encrypted ticket tokens on a finalized session", async () => {
+      const listing = await createTestListing({ maxAttendees: 50 });
+      const attendeeResult = await bookAttendee(listing, {
+        email: "stt@example.com",
+        name: "Stt",
+      });
+      if (!attendeeResult.success) throw new Error("setup failed");
+      const attendeeId = attendeeResult.attendees[0]!.id;
+
+      await reserveSession("sess_stt");
+      await finalizePaymentSession("sess_stt", attendeeId);
+      await setSessionTicketTokens("sess_stt", ["tok-abc"]);
+
+      const row = await isSessionProcessed("sess_stt");
+      // ticket_tokens is stored encrypted, not as plaintext
+      expect(row!.ticket_tokens).not.toBe("");
+      expect(row!.ticket_tokens).not.toContain("tok-abc");
+    });
+
+    test("clears ticket_tokens when called with an empty list", async () => {
+      const listing = await createTestListing({ maxAttendees: 50 });
+      const attendeeResult = await bookAttendee(listing, {
+        email: "stt2@example.com",
+        name: "Stt2",
+      });
+      if (!attendeeResult.success) throw new Error("setup failed");
+      const attendeeId = attendeeResult.attendees[0]!.id;
+
+      await reserveSession("sess_stt2");
+      await finalizePaymentSession("sess_stt2", attendeeId, ["tok-xyz"]);
+      await setSessionTicketTokens("sess_stt2", []);
+
+      const row = await isSessionProcessed("sess_stt2");
+      expect(row!.ticket_tokens).toBe("");
+    });
+
+    test("is a no-op if the session was pruned", async () => {
+      // Should not throw even when the session row is absent
+      await setSessionTicketTokens("sess_nonexistent", ["tok-abc"]);
     });
   });
 });
