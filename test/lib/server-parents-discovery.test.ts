@@ -488,6 +488,12 @@ describeWithEnv(
         expect(body).toContain(
           "it has no standalone booking link, embed, or QR code",
         );
+        // The public booking URL and both embed snippets are suppressed too — a
+        // child has no standalone entry point to share or embed.
+        expect(body).not.toContain(`/ticket/${child.slug}`);
+        expect(body).not.toContain(`embed-toggle-${child.id}`);
+        expect(body).not.toContain(`embed-script-${child.id}`);
+        expect(body).not.toContain(`embed-iframe-${child.id}`);
       });
 
       test("a parent detail page keeps its share/QR affordances", async () => {
@@ -498,6 +504,11 @@ describeWithEnv(
           await adminGet(`/admin/listing/${parent.id}`)
         ).response.text();
         expect(body).toContain(`/admin/listing/${parent.id}/qr`);
+        // A non-child parent keeps its public URL and both embed snippets, so the
+        // suppression is genuinely conditional on being a child.
+        expect(body).toContain(`/ticket/${parent.slug}`);
+        expect(body).toContain(`embed-script-${parent.id}`);
+        expect(body).toContain(`embed-iframe-${parent.id}`);
       });
 
       test("the child QR generator route 404s", async () => {
