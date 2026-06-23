@@ -420,6 +420,115 @@ describeWithEnv(
       expect(html).toContain("£30");
     });
 
+    test("a customisable child under a non-customisable parent marks the order customisable (dayCount carried)", async () => {
+      // The page listing is a FIXED 3-day daily parent — NOT customisable — so the
+      // order's base `hasCustomisable` is false. Folding its customisable child
+      // (which inherits the 3-day span) must flip the order to customisable, so the
+      // checkout intent serializes dayCount=3 and the child is priced for 3 days
+      // (£30). If folding failed to mark the order customisable, the intent would
+      // drop dayCount and the webhook would reprice the child at its 1-day span
+      // (£10) — so a missing dayCount on the intent is caught.
+      const { setupStripe } = await import("#test-utils");
+      const { stub } = await import("@std/testing/mock");
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
+      await setupStripe();
+
+      const parent = await createDailyTestListing({
+        durationDays: 3,
+        name: "3-day base",
+      });
+      const child = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 1000, 3: 3000 },
+        durationDays: 3,
+        maxPrice: 0,
+        name: "Customisable add-on",
+        unitPrice: 0,
+      });
+      await setChildIds(parent.id, [child.id]);
+
+      const { getBookableStartDates } = await import("#shared/dates.ts");
+      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
+      const { getListingWithCount } = await import("#shared/db/listings.ts");
+      const parentRow = (await getListingWithCount(parent.id))!;
+      const date = getBookableStartDates(
+        parentRow,
+        await getActiveHolidays(),
+      )[0]!;
+
+      let capturedIntent:
+        | import("#shared/payments.ts").CheckoutIntent
+        | undefined;
+      const mockCreate = stub(
+        stripePaymentProvider,
+        "createCheckoutSession",
+        (intent: import("#shared/payments.ts").CheckoutIntent) => {
+          capturedIntent = intent;
+          return Promise.resolve({
+            checkoutUrl: "https://stripe.test/checkout",
+            sessionId: "cs_custom_child",
+          });
+        },
+      );
+
+      try {
+        const res = await postBooking(parent.slug, {
+          date,
+          email: "a@b.com",
+          name: "Ada",
+          [`quantity_${parent.id}`]: "1",
+        });
+        expect(res.status).toBe(302);
+        // The folded order is customisable, so the chosen span is serialized on the
+        // intent (the webhook reprices the child for the inherited 3-day span).
+        expect(capturedIntent?.dayCount).toBe(3);
+        // The child is priced for the inherited 3 days (£30), never its 1-day £10.
+        const childItem = capturedIntent?.items.find(
+          (i) => i.listingId === child.id,
+        );
+        expect(childItem?.unitPrice).toBe(3000);
+      } finally {
+        mockCreate.restore();
+      }
+    });
+
+    test("two customisable lines sharing one inherited duration price once, not doubled", async () => {
+      // A customisable PAGE listing seeds the order's single shared duration with
+      // the chosen day_count (2); its customisable child inherits the SAME 2-day
+      // duration and folds at it. The order's day count must stay 2 — the one
+      // shared value — never the sum of the two contributions. Both lines are
+      // priced only for a 2-day span, so the quote owes parent £18 + child £25 =
+      // £43. If the shared duration were accumulated (2+2=4) instead of kept, both
+      // customisable lines would reprice at a 4-day span neither offers (→ £0),
+      // changing the total — so a non-idempotent `recordDuration` is caught.
+      const parent = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 1000, 2: 1800 },
+        durationDays: 2,
+        name: "Customisable base",
+      });
+      const child = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 1500, 2: 2500 },
+        durationDays: 2,
+        maxPrice: 0,
+        name: "Customisable add-on",
+        unitPrice: 0,
+      });
+      await setChildIds(parent.id, [child.id]);
+
+      const html = await postCalculate(parent.slug, {
+        day_count: "2",
+        [`quantity_${parent.id}`]: "1",
+      });
+      // The order owes the single 2-day span (£18 + £25 = £43), not a
+      // doubled-duration reprice that prices both lines at an unpriced 4-day span.
+      expect(html).toContain("£43");
+      expect(html).not.toContain("£0");
+    });
+
     test("a customisable parent's child folds at the parent's chosen duration", async () => {
       // The parent is customisable; its standard child folds dateless and the
       // parent's resolved duration is the buyer's chosen day_count.
@@ -1505,6 +1614,60 @@ describeWithEnv(
       const html = await ticketPageHtml(parent.slug);
       // No Monday→Wednesday span is valid for the child, so Monday is not offered.
       expect(html).not.toContain(`<option value="${mondayDate}"`);
+    });
+
+    test("a customisable daily parent offers a fixed daily child's full-span starts, not single days", async () => {
+      // The parent is CUSTOMISABLE daily (no fixed span at render). For a daily
+      // child the union must use the child's OWN bookable START dates
+      // (getBookableStartDates), which for a FIXED 3-day daily child are the days a
+      // whole 3-day span fits — NOT the parent dates filtered by a single day. The
+      // child is bookable only Mon+Tue+Wed: a 3-day span fits only from Monday, but
+      // each of Mon/Tue/Wed is bookable as a single day. The correct render offers
+      // Monday only; swapping to the fixed-span branch (which, with no fixed span,
+      // degrades to a single-day validity filter) would also offer Tuesday — so the
+      // branch swap is caught by Tuesday's absence.
+      const { DAY_NAMES, getBookableStartDates } = await import(
+        "#shared/dates.ts"
+      );
+      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
+      const { getListingWithCount } = await import("#shared/db/listings.ts");
+
+      const parent = await createDailyTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 1000, 2: 1800, 3: 2500 },
+        durationDays: 3,
+        name: "Customisable daily base",
+      });
+      const parentRow = (await getListingWithCount(parent.id))!;
+      const holidays = await getActiveHolidays();
+      const parentDates = getBookableStartDates(parentRow, holidays);
+      const monIdx = DAY_NAMES.indexOf("Monday");
+      const tueIdx = DAY_NAMES.indexOf("Tuesday");
+      // A Monday in the parent's dates and the Tuesday in the parent's dates that
+      // immediately follows it (so both are genuinely offerable parent dates).
+      const mondayDate = parentDates.find(
+        (d) => new Date(`${d}T00:00:00Z`).getUTCDay() === monIdx,
+      )!;
+      const tuesdayDate = parentDates.find(
+        (d) =>
+          new Date(`${d}T00:00:00Z`).getUTCDay() === tueIdx && d > mondayDate,
+      )!;
+
+      // A FIXED 3-day daily child bookable only on Mon/Tue/Wed: only a Monday
+      // start fits a whole 3-day Mon-Tue-Wed span.
+      const child = await createDailyTestListing({
+        bookableDays: ["Monday", "Tuesday", "Wednesday"],
+        durationDays: 3,
+        name: "Mon-Wed add-on",
+      });
+      await setChildIds(parent.id, [child.id]);
+
+      const html = await ticketPageHtml(parent.slug);
+      // Monday (a valid full 3-day child start) is offered.
+      expect(html).toContain(`<option value="${mondayDate}"`);
+      // Tuesday is bookable single-day but starts no full 3-day span, so the
+      // customisable parent must NOT offer it.
+      expect(html).not.toContain(`<option value="${tuesdayDate}"`);
     });
 
     test("a customisable parent builds its day-count union from SELECTABLE children only", async () => {
