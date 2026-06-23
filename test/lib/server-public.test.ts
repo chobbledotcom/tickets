@@ -4675,8 +4675,10 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
       expectReservedRedirectWithTokens(first);
 
       // The unit was consumed. With no payment provider nothing is collected up
-      // front, but the booking owes the tier's £5.00, so its impact is recorded
-      // exactly as a zero-deposit reservation's would be.
+      // front, but the booking owes the tier's £5.00 and records it on the ledger
+      // (a surcharge leg, attendee→modifier), exactly as a zero-deposit
+      // reservation's would be. total_revenue now projects that net balance —
+      // balanceOf(modifier) = +£5.00 — read directly from the ledger.
       const afterFirst = (await getAllModifiers()).find(
         (m) => m.id === tier.id,
       );

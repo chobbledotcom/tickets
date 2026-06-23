@@ -31,7 +31,9 @@ import {
   listingIdsInGroups,
 } from "#shared/db/modifier-resolve.ts";
 import {
+  adjustModifierRevenue,
   getAllModifiers,
+  getModifier,
   getModifierAggregateRecalculation,
   getModifierAnswerIds,
   getModifierGroupIds,
@@ -39,6 +41,7 @@ import {
   MODIFIER_AGGREGATE_FIELDS,
   type ModifierAggregateValues,
   type ModifierInput,
+  type ModifierRow,
   modifiersTable,
   resetModifierAggregateFields,
   setModifierAnswers,
@@ -78,6 +81,7 @@ import type {
 } from "#templates/fields.ts";
 import { modifierAggregateFields, modifierFields } from "#templates/fields.ts";
 import { withEntityLoader } from "./entity-handlers.ts";
+import { makeMoneyAdjustHandler } from "./money-adjust.ts";
 
 /* jscpd:ignore-end */
 
@@ -108,7 +112,6 @@ const extractModifierInput = async (
 const extractModifierAggregateValues = (
   values: ModifierAggregateFormValues,
 ): ModifierAggregateValues => ({
-  total_revenue: toMinorUnits(Number.parseFloat(values.total_revenue)),
   total_uses: values.total_uses,
   usage_count: values.usage_count,
 });
@@ -247,7 +250,7 @@ const validateModifier = (
 };
 
 const modifiersResource = defineNamedResource<
-  Modifier,
+  ModifierRow,
   ModifierInput,
   number,
   ModifierFormValues
@@ -259,12 +262,15 @@ const modifiersResource = defineNamedResource<
   validate: validateModifier,
 });
 
+// The list renders the projected total_revenue (Display = Modifier from
+// getAllModifiers), while the resource and the delete page load the stored row
+// (Row = ModifierRow). The edit GET/POST are served by the projection-aware
+// handleEditGet/handleEditPost below, so this CRUD config omits renderEdit.
 const crud = createCrudHandlers({
   getAll: getAllModifiers,
-  getName: (m: Modifier) => m.name,
+  getName: (m: ModifierRow) => m.name,
   listPath: "/admin/modifiers",
   renderDelete: adminModifierDeletePage,
-  renderEdit: adminModifierEditPage,
   renderList: adminModifiersPage,
   renderNew: adminModifierNewPage,
   resource: modifiersResource,
@@ -314,7 +320,7 @@ const answerLinksFor = async (
   };
 };
 
-const withModifier = withEntityLoader(modifiersTable.findById);
+const withModifier = withEntityLoader(getModifier);
 
 /** Edit page with the scope link editor (listing/group-scoped modifiers) and
  * the answer link editor (answer-triggered modifiers). */
@@ -347,7 +353,7 @@ const handleEditPost: TypedRouteHandler<"POST /admin/modifiers/:id/edit"> = (
   { id },
 ) =>
   withAuth(request, AUTH_FORM, async (_session, form) => {
-    const modifier = await modifiersTable.findById(id);
+    const modifier = await getModifier(id);
     if (!modifier) return notFoundResponse();
     const aggregates = parseEditableAggregateForm<
       ModifierAggregateFormValues,
@@ -367,6 +373,26 @@ const handleEditPost: TypedRouteHandler<"POST /admin/modifiers/:id/edit"> = (
     if ("notFound" in result) return notFoundResponse();
     return errorRedirect(`/admin/modifiers/${id}/edit`, result.error);
   });
+
+/**
+ * Handle POST /admin/modifiers/:id/revenue — post a manual `writeoff` adjustment
+ * so the modifier's projected revenue matches the owner-entered figure
+ * (decision 14). Owner-only; the delta is computed from the modifier's current
+ * projected `total_revenue` (which may be negative for a net discount).
+ */
+const adjustModifierRevenueForm = makeMoneyAdjustHandler<Modifier>({
+  adjust: (modifier, target) => adjustModifierRevenue(modifier.id, target),
+  editPath: (id) => `/admin/modifiers/${id}/edit`,
+  field: "total_revenue",
+  load: getModifier,
+  logMessage: (modifier) => `Modifier '${modifier.name}' revenue adjusted`,
+  successMessage: t("modifiers.adjust_revenue_success"),
+});
+
+/** Handle POST /admin/modifiers/:id/revenue */
+const handleRevenueAdjust: TypedRouteHandler<
+  "POST /admin/modifiers/:id/revenue"
+> = (request, { id }) => adjustModifierRevenueForm(request, id);
 
 const renderModifierRecalculatePage = createRecalculatePageRenderer(
   getModifierAggregateRecalculation,
@@ -441,7 +467,7 @@ const saveModifierLinks = (
       await save(modifier, form);
       return redirect(`/admin/modifiers/${modifier.id}/edit`, message, true);
     },
-    loadContext: ({ id: modifierId }) => modifiersTable.findById(modifierId),
+    loadContext: ({ id: modifierId }) => getModifier(modifierId),
   })(request, { id });
 
 /** Write a scoped modifier's listing/group links from the submitted form. */
@@ -510,6 +536,7 @@ export const modifiersRoutes = {
     "POST /admin/modifiers/:id/answers": handleAnswerLinks,
     "POST /admin/modifiers/:id/edit": handleEditPost,
     "POST /admin/modifiers/:id/links": handleScopeLinks,
+    "POST /admin/modifiers/:id/revenue": handleRevenueAdjust,
     "POST /admin/modifiers/recalculate/:modifierId":
       handleModifierRecalculatePost,
   }),

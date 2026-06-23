@@ -2,16 +2,11 @@ import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
-import {
-  attendeeAccount,
-  revenueAccount,
-  WORLD,
-} from "#shared/accounting/accounts.ts";
+import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import {
   accountBalance,
   transfersByAccount,
 } from "#shared/accounting/queries.ts";
-import { postTransfers } from "#shared/accounting/store.ts";
 import { signBalanceToken } from "#shared/balance-link.ts";
 import {
   attendeeStatusesTable,
@@ -35,6 +30,13 @@ import {
   testCsrfToken,
   webhookMeta,
 } from "#test-utils";
+import { postListingSale } from "#test-utils/ledger.ts";
+
+/** A settle identity (session id + business time) for settleAttendeeBalance. */
+const settle = (id = "settle-session") => ({
+  id,
+  occurredAt: "2026-06-21T00:00:00.000Z",
+});
 
 /** POST a pay form for a token as the customer. */
 const postPay = async (token: string): Promise<Response> =>
@@ -50,13 +52,24 @@ const insertBareAttendee = async (
   // A current `created` keeps this bare (booking-less) attendee out of the
   // orphaned-record auto-purge, which reaps orphans older than the retention.
   await getDb().execute({
-    args: [new Date().toISOString(), statusId, remainingBalance],
-    sql: "INSERT INTO attendees (created, pii_blob, status_id, remaining_balance) VALUES (?, '', ?, ?)",
+    args: [new Date().toISOString(), statusId],
+    sql: "INSERT INTO attendees (created, pii_blob, status_id) VALUES (?, '', ?)",
   });
   const { rows } = await getDb().execute(
     "SELECT id FROM attendees ORDER BY id DESC LIMIT 1",
   );
-  return Number(rows[0]!.id);
+  const attendeeId = Number(rows[0]!.id);
+  // Outstanding balance projects from the ledger: owe `remainingBalance` via a
+  // sale leg to a listing with no booking row, nothing paid.
+  if (remainingBalance > 0) {
+    await postListingSale({
+      amountPaid: 0,
+      attendeeId,
+      gross: remainingBalance,
+      listingId: 98765,
+    });
+  }
+  return attendeeId;
 };
 
 /** Create a reserved attendee with an outstanding balance and a paid listing. */
@@ -79,7 +92,16 @@ const createReserved = async (remainingBalance: number) => {
     statusId: reservation.id,
   });
   if (!result.success) throw new Error("setup failed");
-  return result.attendees[0]!.id;
+  const attendeeId = result.attendees[0]!.id;
+  // Owe `remainingBalance` in the ledger: gross sale (deposit + remaining) plus
+  // the £1 deposit payment, so balanceOf nets to −remainingBalance.
+  await postListingSale({
+    amountPaid: 100,
+    attendeeId,
+    gross: 100 + remainingBalance,
+    listingId: listing.id,
+  });
+  return attendeeId;
 };
 
 describeWithEnv("server (public balance page)", { db: true }, () => {
@@ -100,7 +122,7 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
 
   test("GET shows a settled message once the balance is cleared", async () => {
     const attendeeId = await createReserved(1500);
-    await settleAttendeeBalance(attendeeId, 1500);
+    await settleAttendeeBalance(attendeeId, 1500, settle());
     const token = await signBalanceToken(attendeeId);
     const response = await handleRequest(mockRequest(`/pay/${token}`));
     const html = await response.text();
@@ -284,30 +306,8 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
   test("posts a balance payment leg once the booking is in the ledger", async () => {
     await setupStripe();
     const attendeeId = await createReserved(1500);
-    // Booking dual-write would have left the attendee owing 1500 in the ledger:
-    // a 5000 sale funded by a 3500 deposit.
-    await postTransfers([
-      {
-        amount: 5000,
-        currency: "GBP",
-        destination: revenueAccount(1),
-        eventGroup: "evt-book",
-        kind: "sale",
-        occurredAt: "2026-06-21T00:00:00.000Z",
-        reference: "book-sale",
-        source: attendeeAccount(attendeeId),
-      },
-      {
-        amount: 3500,
-        currency: "GBP",
-        destination: attendeeAccount(attendeeId),
-        eventGroup: "evt-book",
-        kind: "payment",
-        occurredAt: "2026-06-21T00:00:00.000Z",
-        reference: "book-deposit",
-        source: WORLD,
-      },
-    ]);
+    // createReserved already dual-wrote the booking, leaving the attendee owing
+    // 1500 in the ledger (a 1600 sale funded by a 100 deposit).
     expect(await accountBalance(attendeeAccount(attendeeId))).toBe(-1500);
     // Stripe stamps `created` (Unix seconds) when the checkout is made; the
     // balance-payment leg should be dated from it, not from processing time.

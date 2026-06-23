@@ -41,10 +41,6 @@ import {
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { parseTokens } from "#routes/tickets/token-utils.ts";
 import { getSearchParam } from "#routes/url.ts";
-import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
-import { transfersByAccount } from "#shared/accounting/queries.ts";
-import { eventGroup, legReference } from "#shared/accounting/refs.ts";
-import { guardedInsertStatement } from "#shared/accounting/rows.ts";
 import { calculateBookingFee } from "#shared/booking-fee.ts";
 import {
   bookingLedgerPoster,
@@ -82,7 +78,6 @@ import {
   groupListingAnswers,
   saveAttendeeAnswers,
 } from "#shared/db/questions.ts";
-import { settings } from "#shared/db/settings.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
@@ -845,7 +840,6 @@ const createAttendeeForSession = async (
   // paid booking just keys the event on its payment session and dates it from
   // the provider's checkout time rather than now.
   const postLedger = bookingLedgerPoster(pricedOrder.modifierApplications, {
-    currency: settings.currency,
     eventId: () => session.id,
     occurredAt: businessTime(session),
     pricedOrder,
@@ -942,44 +936,15 @@ const settleBalanceSession = async (
   const expectedAmount = intent.items[0]!.p;
   const listingId = intent.items[0]!.e;
 
-  // The balance payment is cash arriving for the order: world funds the
-  // attendee, clearing what they owed (the sale was recognised at booking).
-  //
-  // Only post the leg once the original booking is already in the ledger. A
-  // reservation created before booking dual-write has no sale/deposit legs, so a
-  // lone payment leg would leave cash with no matching revenue (and a later
-  // backfill from the columns would double-count it); those legacy orders are
-  // reconstructed wholesale by the backfill instead. Take the currency from the
-  // booking's own legs, not the (possibly since-changed) site currency, so the
-  // batch can't append a mixed-currency leg.
-  const bookingLegs = await transfersByAccount(attendeeAccount(attendeeId));
-  const settleStatements = [
-    balanceFinalizeStatement(sessionId, attendeeId, expectedAmount),
-  ];
-  if (bookingLegs.length > 0) {
-    settleStatements.push(
-      guardedInsertStatement(
-        {
-          amount: expectedAmount,
-          currency: bookingLegs[0]!.currency,
-          destination: attendeeAccount(attendeeId),
-          eventGroup: await eventGroup(["balance", sessionId]),
-          kind: "payment",
-          occurredAt: businessTime(session),
-          reference: await legReference(["balance", sessionId, "payment"]),
-          source: WORLD,
-        },
-        nowIso(),
-        "(SELECT remaining_balance FROM attendees WHERE id = ?) = ?",
-        [attendeeId, expectedAmount],
-      ),
-    );
-  }
-
+  // settleAttendeeBalance posts the balance payment itself (world funds the
+  // attendee, zeroing what they owed) guarded on the ledger balance, keyed to
+  // this session so a webhook retry is a no-op. We only finalize the payment
+  // session here, atomically with the settle.
   const settled = await settleAttendeeBalance(
     attendeeId,
     expectedAmount,
-    settleStatements,
+    { id: sessionId, occurredAt: businessTime(session) },
+    [balanceFinalizeStatement(sessionId, attendeeId, expectedAmount)],
   );
   if (!settled.settled) {
     return refundAndFail(

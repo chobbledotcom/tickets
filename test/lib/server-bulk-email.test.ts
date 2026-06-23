@@ -2,10 +2,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { type BulkEmailDraft, serializeDraft } from "#shared/bulk-email.ts";
 import { encryptWithOwnerKey } from "#shared/crypto/keys.ts";
-import {
-  getAllActivityLog,
-  getListingActivityLog,
-} from "#shared/db/activityLog.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
   getContactRecord,
@@ -27,6 +23,8 @@ import {
   expectFlashRedirect,
   expectHtmlResponse,
   expectRedirect,
+  getAllActivityLog,
+  getListingActivityLog,
   getTestPrivateKey,
   testCookie,
   testRequiresAuth,

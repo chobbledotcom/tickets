@@ -17,9 +17,31 @@ import {
   legReference,
   type RefPart,
 } from "#shared/accounting/refs.ts";
-import type { AccountRef, TransferInput } from "#shared/ledger/types.ts";
+import type {
+  AccountRef,
+  Transfer,
+  TransferInput,
+} from "#shared/ledger/types.ts";
 
 const BOOKING = "booking";
+const REFUND = "refund";
+
+/**
+ * The refund-side `kind` for each reversible booking leg. The cash leg is
+ * relabelled `refund_cash` so reports can sum refunded cash (decision 8) without
+ * double-counting the reversed sale/fee/modifier legs; the rest carry a
+ * `refund_` prefix so a refund's legs never share a `kind` (or reference) with
+ * the booking's.
+ */
+const REFUND_KIND: Readonly<Record<string, string>> = {
+  fee: "refund_fee",
+  modifier: "refund_modifier",
+  payment: "refund_cash",
+  sale: "refund_sale",
+};
+
+const refundKind = (kind: string): string =>
+  REFUND_KIND[kind] ?? `refund_${kind}`;
 
 /**
  * The money facts of one booking, decoupled from the checkout pricing types.
@@ -30,7 +52,6 @@ const BOOKING = "booking";
  */
 export type BookingFacts = {
   readonly attendeeId: number;
-  readonly currency: string;
   readonly occurredAt: string;
   readonly eventId: string;
   readonly lines: ReadonlyArray<{ listingId: number; gross: number }>;
@@ -176,13 +197,60 @@ export const mapBooking = async (
   return Promise.all(
     bookingLegSpecs(facts, attendee).map(async (spec) => ({
       amount: spec.amount,
-      currency: facts.currency,
       destination: spec.destination,
       eventGroup: group,
       kind: spec.kind,
       occurredAt: facts.occurredAt,
       reference: await legReference([BOOKING, facts.eventId, ...spec.refParts]),
       source: spec.source,
+    })),
+  );
+};
+
+/**
+ * The money facts of a full refund: the stored legs of the one booking order
+ * being refunded (all sharing its event group) and when the refund happened.
+ * `postedBy` is the actor (an admin id or "system").
+ */
+export type RefundFacts = {
+  readonly orderLegs: ReadonlyArray<Transfer>;
+  readonly occurredAt: string;
+  readonly postedBy?: string;
+};
+
+/**
+ * Map a full refund of one booking order to its ledger legs: the inverse of each
+ * stored leg (revenue/fee/modifier handed back to the attendee, cash returned to
+ * the world as `refund_cash`), all under one new refund event group derived from
+ * the booking's. The booking legs are read from the ledger, so the reversal
+ * matches exactly what was posted — whatever the booking's modifiers, fee, or
+ * deposit were — and `balanceOf(revenue)` returns to zero on a full refund.
+ *
+ * Refunds don't use `reverses_id`: that one-slot link is for admin voids, while
+ * a refund posts many rows and repeat/partial refunds are scoped by event group
+ * instead (decision 8). Posting is idempotent — the derived refund event group
+ * means a re-submit replays as a no-op.
+ */
+export const mapRefund = async (
+  facts: RefundFacts,
+): Promise<TransferInput[]> => {
+  const legs = facts.orderLegs;
+  if (legs.length === 0) throw new Error("mapRefund: no order legs to refund");
+  const bookingGroup = legs[0]!.eventGroup;
+  if (legs.some((leg) => leg.eventGroup !== bookingGroup)) {
+    throw new Error("mapRefund: order legs span more than one event group");
+  }
+  const group = await eventGroup([REFUND, bookingGroup]);
+  return Promise.all(
+    legs.map(async (leg) => ({
+      amount: leg.amount,
+      destination: leg.source,
+      eventGroup: group,
+      kind: refundKind(leg.kind ?? ""),
+      occurredAt: facts.occurredAt,
+      postedBy: facts.postedBy ?? "system",
+      reference: await legReference([REFUND, bookingGroup, leg.reference]),
+      source: leg.destination,
     })),
   );
 };

@@ -40,6 +40,7 @@ const defaultState = (): SettingsPageState => ({
   superuser: { available: false, reason: "missing-env" },
   termsAndConditions: "",
   theme: "light",
+  underlineLinks: false,
   webhookUrl: "https://example.com/payment/webhook",
 });
 
@@ -54,6 +55,23 @@ describe("adminSettingsPage", () => {
     expect(html).toContain("A SumUp API key is currently configured");
     expect(html).not.toContain("Test mode");
     expect(html).not.toContain("Live mode");
+  });
+
+  test("renders the underline-links checkbox, unchecked by default", () => {
+    const html = adminSettingsPage(TEST_SESSION, defaultState());
+    expect(html).toContain("Underline links");
+    const checkbox = html.match(/<input[^>]*name="underline_links"[^>]*>/);
+    expect(checkbox?.[0]).toContain('type="checkbox"');
+    expect(checkbox?.[0]).not.toContain("checked");
+  });
+
+  test("checks the underline-links checkbox when enabled", () => {
+    const html = adminSettingsPage(TEST_SESSION, {
+      ...defaultState(),
+      underlineLinks: true,
+    });
+    const checkbox = html.match(/<input[^>]*name="underline_links"[^>]*>/);
+    expect(checkbox?.[0]).toContain("checked");
   });
 
   test("shows square webhook configured message when key is set", () => {

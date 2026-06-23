@@ -1,33 +1,17 @@
 /**
  * Pure projections over a slice of transfers — the unit-testable heart of the
- * ledger. Every balance projection refuses to sum across currencies, so the
- * single-currency rule is enforced in code, not just by convention.
+ * ledger. A site has one currency, fixed at setup and never changed, so every
+ * transfer shares it: balances sum amounts directly with no per-row currency to
+ * carry or compare (see accounting-plan.md).
  */
 
-import { filter, sumOf, unique } from "#fp";
+import { filter, sumOf } from "#fp";
 import { instantToEpochMs, isInstant } from "#shared/validation/timestamp.ts";
 import { accountKey, sameAccount } from "./account.ts";
 import type { AccountRef, Transfer } from "./types.ts";
 
-/** Distinct currencies present in a slice, in first-seen order. */
-export const currenciesIn = (transfers: Transfer[]): string[] =>
-  unique(transfers.map((t) => t.currency));
-
-/**
- * Throw if a slice mixes currencies. Every balance projection calls this, so a
- * backfill, a currency change, or a mis-entered manual transfer fails loudly
- * instead of silently adding pence to cents.
- */
-export const assertSingleCurrency = (transfers: Transfer[]): void => {
-  const currencies = currenciesIn(transfers);
-  if (currencies.length > 1) {
-    throw new Error(`mixed-currency ledger slice: ${currencies.join(", ")}`);
-  }
-};
-
 /** Every account's balance, keyed by {@link accountKey}. */
 export const allBalances = (transfers: Transfer[]): Map<string, number> => {
-  assertSingleCurrency(transfers);
   const balances = new Map<string, number>();
   const add = (acct: AccountRef, delta: number): void => {
     const key = accountKey(acct);
@@ -54,10 +38,8 @@ export const balanceOf =
 /** Total amount across transfers of one kind (e.g. cash refunded). */
 export const sumOfKind =
   (kind: string) =>
-  (transfers: Transfer[]): number => {
-    assertSingleCurrency(transfers);
-    return sumOf((t: Transfer) => (t.kind === kind ? t.amount : 0))(transfers);
-  };
+  (transfers: Transfer[]): number =>
+    sumOf((t: Transfer) => (t.kind === kind ? t.amount : 0))(transfers);
 
 /**
  * Transfers whose business time falls in the half-open window [from, to).
@@ -112,7 +94,6 @@ const byOccurredThenId = (a: Transfer, b: Transfer): number =>
 export const statementFor =
   (acct: AccountRef, openingBalance = 0) =>
   (transfers: Transfer[]): StatementLine[] => {
-    assertSingleCurrency(transfers);
     const ordered = filter(
       (t: Transfer) =>
         sameAccount(t.source, acct) || sameAccount(t.destination, acct),

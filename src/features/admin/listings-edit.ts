@@ -21,6 +21,7 @@ import {
 import { getAllGroups } from "#shared/db/groups.ts";
 import { getChildIds } from "#shared/db/listing-parents.ts";
 import {
+  adjustListingIncome,
   getListingAggregateRecalculation,
   getListingWithCount,
   type ListingAggregateRecalculation,
@@ -53,6 +54,7 @@ import {
   loadListingParentsSection,
 } from "./listings-parents.ts";
 import { processUploadsAndRedirect } from "./listings-uploads.ts";
+import { makeMoneyAdjustHandler } from "./money-adjust.ts";
 /* jscpd:ignore-end */
 
 /**
@@ -318,3 +320,22 @@ export const handleAdminListingEditPost: TypedRouteHandler<
       return renderListingEditError(id, session, result.error);
     }),
   );
+
+/**
+ * Handle POST /admin/listing/:id/income — post a manual `writeoff` adjustment so
+ * the listing's projected income matches the owner-entered figure (decision 14).
+ * Owner-only; the delta is computed from the listing's current projected income.
+ */
+const adjustListingIncomeForm = makeMoneyAdjustHandler<ListingWithCount>({
+  adjust: (listing, target) => adjustListingIncome(listing.id, target),
+  editPath: (id) => `/admin/listing/${id}/edit`,
+  field: "income",
+  load: getListingWithCount,
+  logMessage: (listing) => `Listing '${listing.name}' income adjusted`,
+  successMessage: t("listings_table.adjust_income_success"),
+});
+
+/** Handle POST /admin/listing/:id/income */
+export const handleAdminListingIncomePost: TypedRouteHandler<
+  "POST /admin/listing/:id/income"
+> = (request, { id }) => adjustListingIncomeForm(request, id);

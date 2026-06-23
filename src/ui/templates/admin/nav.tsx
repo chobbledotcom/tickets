@@ -100,6 +100,9 @@ const topLevelItems = (session: AdminSession): NavItem[] =>
     { href: "/admin/groups", label: t("terms.groups") },
     { href: "/admin/modifiers", label: t("terms.modifiers") },
     session.adminLevel === "owner"
+      ? { href: "/admin/ledger", label: t("nav.ledger") }
+      : null,
+    session.adminLevel === "owner"
       ? { href: "/admin/settings", label: t("nav.settings") }
       : null,
   ]);

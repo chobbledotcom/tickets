@@ -16,10 +16,17 @@ import { formatDateRangeLabel, formatDatetimeShort } from "#shared/dates.ts";
 import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
+import type { StatementLine } from "#shared/ledger/project.ts";
+import type { AccountRef } from "#shared/ledger/types.ts";
 import type { Attendee } from "#shared/types.ts";
 import { ActivityLogTable } from "#templates/admin/activityLog.tsx";
+import {
+  AccountStatementSection,
+  type LedgerNames,
+} from "#templates/admin/ledger.tsx";
 import { MapsLinks } from "#templates/components/maps-links.tsx";
 import { PhoneLinks } from "#templates/components/phone-links.tsx";
+import { colClass } from "#templates/components/table-columns.ts";
 
 /** One key/value row of a detail table. */
 const DetailTableRow = ({
@@ -158,7 +165,7 @@ export const AttendeeBookingsTable = ({
             <tr>
               <th>{t("terms.listing")}</th>
               <th>{t("common.date")}</th>
-              <th>{t("common.quantity")}</th>
+              <th class={colClass("quantity")}>{t("common.quantity")}</th>
               <th>{t("common.status")}</th>
             </tr>
           </thead>
@@ -196,7 +203,7 @@ export const AttendeeBookingsTable = ({
                     ? formatDateRangeLabel(booking.startAt, booking.endAt)
                     : "—"}
                 </td>
-                <td>{booking.quantity}</td>
+                <td class={colClass("quantity")}>{booking.quantity}</td>
                 <td>
                   {BookingStatusBadges({
                     checkedIn: booking.checkedIn,
@@ -211,7 +218,7 @@ export const AttendeeBookingsTable = ({
               <th colspan="2" scope="row">
                 {t("attendee_detail.total")}
               </th>
-              <td>{totalQuantity}</td>
+              <td class={colClass("quantity")}>{totalQuantity}</td>
               <td />
             </tr>
           </tfoot>
@@ -270,4 +277,34 @@ export const AttendeeLogSection = ({
     <summary>{t("attendee_detail.activity_log")}</summary>
     <ActivityLogTable entries={entries} />
   </details>
+);
+
+/** The attendee's ledger account, its statement lines, and the counterparties'
+ * display names — everything the embedded statement panel needs. The feature
+ * loader builds these for the attendee's own account. */
+export type AttendeeLedgerData = {
+  account: AccountRef;
+  lines: StatementLine[];
+  names: LedgerNames;
+};
+
+/**
+ * The attendee's money ledger embedded on the edit page (decision 15 names the
+ * edit-attendee page as a renderer surface): the same shared running-balance
+ * statement the standalone /admin/ledger account page shows, scoped to this
+ * attendee's account, in its own section.
+ */
+export const AttendeeLedgerSection = ({
+  ledger,
+}: {
+  ledger: AttendeeLedgerData;
+}): JSX.Element => (
+  <fieldset>
+    <legend>{t("attendee_detail.ledger")}</legend>
+    <AccountStatementSection
+      account={ledger.account}
+      lines={ledger.lines}
+      names={ledger.names}
+    />
+  </fieldset>
 );

@@ -582,9 +582,11 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
 
       const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
       const [attendee] = await getAttendeesByTokens([token!]);
-      // Nothing collected up front, full £10.00 booking value owed.
+      // Nothing collected up front, full £10.00 booking value owed. price_paid
+      // projects the gross sale leg (£10 billed), not cash collected — the
+      // accepted gross-sale divergence; the £10 owed is exact.
       expect(attendee?.remaining_balance).toBe(1000);
-      expect(attendee?.bookings[0]?.price_paid).toBe(0);
+      expect(attendee?.bookings[0]?.price_paid).toBe(1000);
       // The booking carries the public-default status, matching the web free
       // path so a balance-carrying attendee is never left status-less.
       const { getPublicStatusId } = await import(

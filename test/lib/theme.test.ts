@@ -17,3 +17,24 @@ describeWithEnv("settings.theme from DB", { db: true }, () => {
     expect(settings.theme).toBe("dark");
   });
 });
+
+describeWithEnv("settings.underlineLinks from DB", { db: true }, () => {
+  beforeEach(() => {
+    settings.clearTestOverride("underline_links");
+  });
+
+  test("underlining links is off by default", () => {
+    expect(settings.underlineLinks).toBe(false);
+  });
+
+  test("turns underlining on after updating to true", async () => {
+    await settings.update.underlineLinks(true);
+    expect(settings.underlineLinks).toBe(true);
+  });
+
+  test("turns underlining back off after updating to false", async () => {
+    await settings.update.underlineLinks(true);
+    await settings.update.underlineLinks(false);
+    expect(settings.underlineLinks).toBe(false);
+  });
+});

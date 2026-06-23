@@ -30,7 +30,6 @@ type TransferRow = {
   dest_type: string;
   dest_id: string;
   amount: number | bigint;
-  currency: string;
   occurred_at: number | bigint;
   recorded_at: number | bigint;
   reference: string;
@@ -42,14 +41,13 @@ type TransferRow = {
 };
 
 const COLUMNS =
-  "id, source_type, source_id, dest_type, dest_id, amount, currency, " +
+  "id, source_type, source_id, dest_type, dest_id, amount, " +
   "occurred_at, recorded_at, reference, event_group, kind, memo, " +
   "reverses_id, posted_by";
 
 /** Turn a database row into the {@link Transfer} the rest of the code uses. */
 const rowToTransfer = (row: TransferRow): Transfer => ({
   amount: Number(row.amount),
-  currency: row.currency,
   destination: account(row.dest_type, row.dest_id),
   eventGroup: row.event_group,
   id: Number(row.id),
@@ -70,7 +68,6 @@ export const insertStatement = (
 ): { sql: string; args: InValue[] } =>
   insert("transfers", {
     amount: t.amount,
-    currency: t.currency,
     dest_id: t.destination.id,
     dest_type: t.destination.type,
     event_group: t.eventGroup,
@@ -84,6 +81,22 @@ export const insertStatement = (
     source_id: t.source.id,
     source_type: t.source.type,
   });
+
+/**
+ * Rewrite a built transfer INSERT as `INSERT OR IGNORE`, so a leg whose unique
+ * `reference` is already stored is dropped rather than raising a constraint
+ * error. The one-shot backfill wraps {@link insertStatement} with this for
+ * idempotency: a re-run re-derives the same references and the duplicates are
+ * skipped. Takes the built statement (not the columns) so the column list still
+ * lives only in {@link insertStatement}.
+ */
+export const orIgnore = (statement: {
+  sql: string;
+  args: InValue[];
+}): { sql: string; args: InValue[] } => ({
+  args: statement.args,
+  sql: statement.sql.replace(/^INSERT INTO/, "INSERT OR IGNORE INTO"),
+});
 
 /**
  * A guarded INSERT for one transfer: `INSERT … SELECT … WHERE <guard>`, so a leg
@@ -159,15 +172,6 @@ export const selectByReferences = (
     ` WHERE reference IN (${inPlaceholders(references)})`,
     references,
   );
-
-/** The single currency the ledger already holds, or null when it is empty. The
- *  first post sets it; later posts must match. */
-export const ledgerCurrency = async (
-  read: RowReader,
-): Promise<string | null> => {
-  const rows = await read("SELECT currency FROM transfers LIMIT 1", []);
-  return rows[0]?.currency ?? null;
-};
 
 /** The stored transfer with this id, or null when none exists. */
 export const selectById = async (

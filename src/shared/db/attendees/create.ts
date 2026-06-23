@@ -80,7 +80,10 @@ type AttendeeOrderFields = {
   remainingBalance: number;
 };
 
-/** Build an INSERT statement for the attendees table from encrypted fields. */
+/** Build an INSERT statement for the attendees table from encrypted fields.
+ *  The outstanding balance is no longer a stored column — it projects from the
+ *  transfers ledger as −balanceOf(attendee) — so the insert never writes it; a
+ *  booking that owes money records the owed amount with its sale leg instead. */
 export const buildAttendeeInsert = (
   enc: EncryptedAttendeeData,
   order: AttendeeOrderFields,
@@ -88,7 +91,6 @@ export const buildAttendeeInsert = (
   insert("attendees", {
     created: enc.created,
     pii_blob: enc.encryptedPiiBlob,
-    remaining_balance: order.remainingBalance,
     status_id: order.statusId,
     ticket_token_index: enc.ticketTokenIndex,
   });

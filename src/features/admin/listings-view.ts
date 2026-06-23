@@ -22,7 +22,10 @@ import { formatDateLabel } from "#shared/dates.ts";
 import { getGroupRemainingByGroupId } from "#shared/db/attendees/capacity.ts";
 import { groupsTable } from "#shared/db/groups.ts";
 import { getChildrenForParents } from "#shared/db/listing-parents.ts";
-import { getListingAggregateRecalculation } from "#shared/db/listings.ts";
+import {
+  getListingAggregateRecalculation,
+  listingRevenueBreakdown,
+} from "#shared/db/listings.ts";
 import { deleteAllStaleReservations } from "#shared/db/processed-payments.ts";
 import {
   type AttendeeQuestionData,
@@ -196,6 +199,7 @@ const renderListingPage = async (
             recalc,
             isChild,
             childrenByParent,
+            revenueBreakdown,
           ] = await Promise.all([
             Promise.resolve(getFlash()),
             Promise.resolve(settings.phonePrefix),
@@ -208,6 +212,7 @@ const renderListingPage = async (
             // A parent's required children — names the quick add-attendee warning
             // lists. Empty map (no key) when this listing isn't a parent.
             getChildrenForParents([listing.id]),
+            listingRevenueBreakdown(listing.id),
           ]);
           return htmlResponse(
             adminListingPage({
@@ -230,6 +235,7 @@ const renderListingPage = async (
               listing,
               phonePrefix,
               questionData,
+              revenueBreakdown,
               session,
               successMessage: flash.success,
             }),

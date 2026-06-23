@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
+import { allTransfers } from "#shared/accounting/queries.ts";
 import { readOnlyPage } from "#templates/public.tsx";
 import { describeWithEnv, mockRequest } from "#test-utils";
 
@@ -200,6 +201,39 @@ describeWithEnv(
       );
       expect(res.status).toBe(302);
       expect(res.headers.get("location")).toBe("/read-only");
+    });
+
+    /** POST a form body to `path`, asserting it is blocked (redirect to
+     * /read-only) by the read-only guard AND that it posted no ledger leg — the
+     * guard runs before the handler, so a blocked ledger-mutating correction
+     * (decision 14) must never reach the transfers table. */
+    const expectBlockedNoLedgerLeg = async (path: string): Promise<void> => {
+      const res = await handleRequest(
+        mockRequest(path, {
+          body: "income=5.00",
+          headers: { "content-type": "application/x-www-form-urlencoded" },
+          method: "POST",
+        }),
+      );
+      expect(res.status).toBe(302);
+      expect(res.headers.get("location")).toBe("/read-only");
+      // The correction was blocked before it could post a writeoff adjustment.
+      expect((await allTransfers()).length).toBe(0);
+    };
+
+    test("POST /admin/listing/42/income is blocked and posts no ledger leg", async () => {
+      await expectBlockedNoLedgerLeg("/admin/listing/42/income");
+    });
+
+    test("POST /admin/modifiers/7/revenue is blocked and posts no ledger leg", async () => {
+      await expectBlockedNoLedgerLeg("/admin/modifiers/7/revenue");
+    });
+
+    test("POST /admin/attendees/42 (balance correction) redirects to /read-only", async () => {
+      // The unified attendee edit posts a writeoff balance correction, so it
+      // must be blocked read-only. The bare-id pattern ends in `$`, so it matches
+      // only the edit endpoint, not its `/merge` or `/refresh-payment` sub-routes.
+      await expectBlockedNoLedgerLeg("/admin/attendees/42");
     });
 
     test("GET / is not blocked by read-only guard", async () => {

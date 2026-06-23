@@ -4,7 +4,6 @@ import type { Transfer } from "#shared/ledger/types.ts";
 /** Build a {@link Transfer} for tests with sensible defaults; override any field. */
 export const makeTransfer = (overrides: Partial<Transfer> = {}): Transfer => ({
   amount: 1000,
-  currency: "GBP",
   destination: account("revenue", 1),
   eventGroup: "evt",
   id: 1,

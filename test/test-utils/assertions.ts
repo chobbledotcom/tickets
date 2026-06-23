@@ -100,7 +100,7 @@ export const expectListingRowQuantity = (
 ): void => {
   expect(html).toMatch(
     new RegExp(
-      `/admin/listing/${listingId}"(?:(?!</tr>)[\\s\\S])*?<td>${quantity}</td>`,
+      `/admin/listing/${listingId}"(?:(?!</tr>)[\\s\\S])*?<td class="col-quantity">${quantity}</td>`,
     ),
   );
 };

@@ -6,7 +6,6 @@ import { validateTransfer } from "#shared/ledger/validate.ts";
 
 const base: TransferInput = {
   amount: 1000,
-  currency: "GBP",
   destination: account("revenue", 1),
   eventGroup: "evt",
   occurredAt: "2026-01-01T00:00:00.000Z",
@@ -59,7 +58,6 @@ const cases: [
     { source: account("attendee", "1\u00002") },
     "reserved_char_in_account",
   ],
-  ["empty currency", { currency: "" }, "empty_currency"],
   ["empty reference", { reference: "" }, "empty_reference"],
   ["empty event group", { eventGroup: "" }, "empty_event_group"],
 ];
@@ -96,13 +94,13 @@ describe("validateTransfer", () => {
     const result = validateTransfer({
       ...base,
       amount: 0,
-      currency: "",
       destination: account("attendee", 1),
+      reference: "",
     });
     if (result.ok) throw new Error("expected validation to fail");
     const codes = result.errors.map((e) => e.code);
     expect(codes).toContain("non_positive_amount");
     expect(codes).toContain("self_transfer");
-    expect(codes).toContain("empty_currency");
+    expect(codes).toContain("empty_reference");
   });
 });

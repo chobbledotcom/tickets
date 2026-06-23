@@ -38,6 +38,7 @@ import {
   checkLinesCapacity,
   dateToStartEnd,
 } from "#shared/db/attendees/capacity.ts";
+import { LISTING_ATTENDEE_ROW_COLS } from "#shared/db/attendees/queries.ts";
 import { buildCapacityCondition } from "#shared/db/capacity.ts";
 import { executeBatchWithResults, queryAll } from "#shared/db/client.ts";
 
@@ -97,7 +98,7 @@ export const loadExistingLines = async (
   attendeeId: number,
 ): Promise<ExistingLine[]> => {
   const rows = await queryAll<ListingAttendeeRow>(
-    `SELECT listing_id, start_at, end_at, quantity, checked_in, refunded, price_paid, attachment_downloads, order_token, parent_listing_id
+    `SELECT ${LISTING_ATTENDEE_ROW_COLS}
      FROM listing_attendees WHERE attendee_id = ?
      ORDER BY start_at, listing_id`,
     [attendeeId],

@@ -7,6 +7,8 @@
  * the table directly without a cache.
  */
 
+import { inOwnTx, ledgerTx } from "#shared/accounting/ledger-tx.ts";
+import { accountBalanceSubquery } from "#shared/accounting/projection-sql.ts";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
 import {
   execute,
@@ -31,6 +33,12 @@ import type {
 } from "#shared/price-modifier.ts";
 import type { Modifier } from "#shared/types.ts";
 
+/** The stored modifier row. `total_revenue` is NOT a column — it is projected
+ * from the transfers ledger at read time (see {@link modifierRevenueSubquery})
+ * and merged onto the read type {@link Modifier} — so it is absent here, exactly
+ * as `listings.income` is absent from the listings table row. */
+export type ModifierRow = Omit<Modifier, "total_revenue">;
+
 /** Modifier input fields for create/update (camelCase, mapped to columns). */
 export type ModifierInput = {
   name: string;
@@ -51,7 +59,7 @@ export type ModifierInput = {
  * the other owner-defined entities. Behavioural columns (active, trigger,
  * scope, min_subtotal) have sensible defaults so the base create form need
  * only supply the pricing rule; later admin fields populate the rest. */
-export const modifiersTable = defineIdTable<Modifier, ModifierInput>(
+export const modifiersTable = defineIdTable<ModifierRow, ModifierInput>(
   "modifiers",
   {
     id: col.generated<number>(),
@@ -68,32 +76,68 @@ export const modifiersTable = defineIdTable<Modifier, ModifierInput>(
     stock: col.withDefault<number | null>(() => null),
     // Trigger-maintained aggregates over modifier_usages — read-only here
     // (generated), so insert/update never write them and the DB default / the
-    // triggers keep them current.
-    total_revenue: col.generated<number>(),
+    // triggers keep them current. total_revenue is no longer a column: it is
+    // projected from the transfers ledger by {@link modifierRevenueSubquery},
+    // which every loader selects alongside `modifiers.*`.
     total_uses: col.generated<number>(),
     trigger: col.withDefault<ModifierTrigger>(() => "automatic"),
     usage_count: col.generated<number>(),
   },
 );
 
-/** Execute a query and decrypt the resulting modifier rows. */
-const queryModifiers = queryAndMap<Modifier, Modifier>((row) =>
-  modifiersTable.fromDb(row),
-);
+/**
+ * Subquery projecting a modifier's revenue from the ledger: the modifier
+ * account's NET balance (`balanceOf(modifier:M)`), read directly — never
+ * negated. A surcharge bills the attendee (attendee→modifier), a discount funds
+ * them (modifier→attendee), so the signed balance is exactly the modifier's net
+ * effect on revenue. `idExpr` is the SQL for the modifier's id in the
+ * surrounding query (always qualified — `modifiers.id` — because the correlated
+ * subquery's FROM is `transfers`, which also has an `id`). Reused by every
+ * `SELECT *` loader so revenue is read from the ledger in exactly one place,
+ * never off the now-dropped column. The trailing `AS total_revenue` names the
+ * projected column.
+ */
+export const modifierRevenueSubquery = (idExpr: string): string =>
+  `${accountBalanceSubquery("modifier", idExpr)} AS total_revenue`;
+
+/** Decrypt a modifier row and merge the ledger-projected total_revenue its
+ * loader selected alongside `modifiers.*`. The row carries `total_revenue` from
+ * {@link modifierRevenueSubquery} (the column itself is gone), so it is always a
+ * number. Mirrors `decryptListingWithCount`'s attach-the-projection step. */
+const mapModifierRow = async (row: Modifier): Promise<Modifier> => ({
+  ...(await modifiersTable.fromDb(row)),
+  total_revenue: Number(row.total_revenue),
+});
+
+/** Execute a query and decrypt the resulting modifier rows, merging the
+ * ledger-projected total_revenue every loader selects alongside `modifiers.*`. */
+const queryModifiers = queryAndMap<Modifier, Modifier>(mapModifierRow);
 
 /** Get all modifiers, decrypted, ordered by id. */
 export const getAllModifiers = (): Promise<Modifier[]> =>
-  queryModifiers("SELECT * FROM modifiers ORDER BY id ASC");
+  queryModifiers(
+    `SELECT *, ${modifierRevenueSubquery("modifiers.id")} FROM modifiers ORDER BY id ASC`,
+  );
 
 /** Get the active modifiers, decrypted, ordered by id. */
 export const getActiveModifiers = (): Promise<Modifier[]> =>
-  queryModifiers("SELECT * FROM modifiers WHERE active = 1 ORDER BY id ASC");
+  queryModifiers(
+    `SELECT *, ${modifierRevenueSubquery("modifiers.id")} FROM modifiers WHERE active = 1 ORDER BY id ASC`,
+  );
 
-export const MODIFIER_AGGREGATE_FIELDS = [
-  "total_uses",
-  "usage_count",
-  "total_revenue",
-] as const;
+/** Get a single modifier by id, decrypted, with its ledger-projected
+ * total_revenue — the single-row read the admin edit/recalculate pages use, so
+ * they see the projected figure rather than the dropped column (the bare
+ * `modifiersTable.findById` returns only the stored {@link ModifierRow}). */
+export const getModifier = async (id: number): Promise<Modifier | null> => {
+  const row = await queryOne<Modifier>(
+    `SELECT *, ${modifierRevenueSubquery("modifiers.id")} FROM modifiers WHERE id = ?`,
+    [id],
+  );
+  return row ? mapModifierRow(row) : null;
+};
+
+export const MODIFIER_AGGREGATE_FIELDS = ["total_uses", "usage_count"] as const;
 
 export type ModifierAggregateField = (typeof MODIFIER_AGGREGATE_FIELDS)[number];
 
@@ -104,24 +148,22 @@ export type ModifierAggregateRecalculation = Record<
   { current: number; recalculated: number }
 >;
 
-/** The modifier aggregate columns as they would be if rebuilt from usage rows. */
+/** The modifier count aggregates as they would be if rebuilt from usage rows.
+ * Takes the stored {@link ModifierRow} — total_revenue is no longer a
+ * recalculable aggregate (it projects from the ledger), so only the counts are
+ * compared. */
 export const getModifierAggregateRecalculation = async (
-  modifier: Modifier,
+  modifier: ModifierRow,
 ): Promise<ModifierAggregateRecalculation> => {
   const row = (await queryOne<ModifierAggregateValues>(
     `SELECT
        COALESCE(SUM(quantity), 0) AS total_uses,
-       COUNT(*) AS usage_count,
-       COALESCE(SUM(amount_applied), 0) AS total_revenue
+       COUNT(*) AS usage_count
      FROM modifier_usages
      WHERE modifier_id = ?`,
     [modifier.id],
   ))!;
   return {
-    total_revenue: {
-      current: modifier.total_revenue,
-      recalculated: row.total_revenue,
-    },
     total_uses: { current: modifier.total_uses, recalculated: row.total_uses },
     usage_count: {
       current: modifier.usage_count,
@@ -136,14 +178,23 @@ export const updateModifierAggregateValues = async (
   values: ModifierAggregateValues,
 ): Promise<void> => {
   await execute(
-    "UPDATE modifiers SET total_uses = ?, usage_count = ?, total_revenue = ? WHERE id = ?",
-    [values.total_uses, values.usage_count, values.total_revenue, modifierId],
+    "UPDATE modifiers SET total_uses = ?, usage_count = ? WHERE id = ?",
+    [values.total_uses, values.usage_count, modifierId],
   );
 };
 
+/**
+ * Correct a modifier's projected revenue to `targetRevenue` in its own write
+ * transaction — the standalone form of `ledgerTx.correct.modifierRevenue` (see
+ * {@link ledgerTx}). Revenue is `balanceOf(modifier:M)`, so raising it credits the
+ * modifier account (`writeoff → modifier`) and lowering it debits it
+ * (`modifier → writeoff`); the signed balance moves by the delta either way. The
+ * delta is recomputed from the current projection read inside the transaction, so
+ * re-submitting the same target is idempotent and a no-op when already met.
+ */
+export const adjustModifierRevenue = inOwnTx(ledgerTx.correct.modifierRevenue);
+
 const aggregateResetSql: Record<ModifierAggregateField, string> = {
-  total_revenue:
-    "total_revenue = COALESCE((SELECT SUM(amount_applied) FROM modifier_usages WHERE modifier_id = ?), 0)",
   total_uses:
     "total_uses = COALESCE((SELECT SUM(quantity) FROM modifier_usages WHERE modifier_id = ?), 0)",
   usage_count:

@@ -16,6 +16,7 @@ import {
   describeWithEnv,
   getTestPrivateKey,
 } from "#test-utils";
+import { postListingSale } from "#test-utils/ledger.ts";
 
 /** Fetch raw start_at/end_at for an listing (getAttendeesRaw drops them). */
 const getRange = async (
@@ -155,9 +156,17 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
     });
 
     expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.attendees[0]!.price_paid).toBe("2500");
-    }
+    if (!result.success) return;
+    expect(result.attendees[0]!.price_paid).toBe("2500");
+
+    // price_paid is a ledger projection now: in production checkout-complete
+    // posts the sale leg in the same transaction. Mirror that so the per-row
+    // amount-paid projection resolves this booking's sale.
+    await postListingSale({
+      attendeeId: result.attendees[0]!.id,
+      gross: 2500,
+      listingId: listing.id,
+    });
 
     const privateKey = await getTestPrivateKey();
     const raw = await getAttendeesRaw(listing.id);
@@ -271,7 +280,6 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
     const listing = await createTestListing({ maxAttendees: 1 });
     await updateListingAggregateValues(listing.id, {
       booked_quantity: 1,
-      income: 0,
       tickets_count: 0,
     });
     const result = await createAttendeeAtomic({
@@ -286,7 +294,6 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
     const listing = await createTestListing({ maxAttendees: 1 });
     await updateListingAggregateValues(listing.id, {
       booked_quantity: 1,
-      income: 0,
       tickets_count: 0,
     });
     const result = await createAttendeeAtomic({

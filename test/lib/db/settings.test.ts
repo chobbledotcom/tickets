@@ -6,7 +6,11 @@ import {
   CONFIG_KEYS,
   settings,
 } from "#shared/db/settings.ts";
-import { getUserByUsername, verifyUserPassword } from "#shared/db/users.ts";
+import {
+  createUser,
+  getUserByUsername,
+  verifyUserPassword,
+} from "#shared/db/users.ts";
 import {
   describeWithEnv,
   seedCountry,
@@ -112,6 +116,33 @@ describeWithEnv("db > settings", { db: true }, () => {
       expect(settings.currency).toBe("USD");
     });
 
+    test("completeSetup rolls back every write when the owner insert fails", async () => {
+      await getDb().execute("DELETE FROM users");
+      await getDb().execute("DELETE FROM settings");
+      // Pre-seed a user whose username collides with the owner-to-be, so the
+      // owner INSERT violates the unique username index and aborts the batch.
+      await createUser("ownerdupe", "pbkdf2:seedhash", null, "manager");
+      settings.setup.clearCache();
+      settings.invalidateCache();
+      await settings.loadKeys(ALL_SETTINGS_KEYS);
+      expect(await settings.setup.isComplete()).toBe(false);
+
+      await expect(
+        settings.setup.complete("ownerdupe", "mypassword", "US"),
+      ).rejects.toThrow();
+
+      // The whole ceremony rolled back: no config keys, no setup flag, and the
+      // colliding owner row was never created (still just the seeded user).
+      settings.setup.clearCache();
+      settings.invalidateCache();
+      await settings.loadKeys(ALL_SETTINGS_KEYS);
+      expect(await settings.setup.isComplete()).toBe(false);
+      expect(settings.publicKey).toBe("");
+      expect(settings.wrappedPrivateKey).toBe("");
+      const count = await getDb().execute("SELECT COUNT(*) AS n FROM users");
+      expect(Number(count.rows[0]!.n)).toBe(1);
+    });
+
     test("isComplete reloads cache when it has expired", async () => {
       settings.invalidateCache();
       const result = await settings.setup.isComplete();
@@ -203,6 +234,20 @@ describeWithEnv("db > settings", { db: true }, () => {
       settings.invalidateCache();
       await settings.loadKeys([CONFIG_KEYS.THEME]);
       expect(settings.theme).toBe("dark");
+    });
+
+    test("loadKeys sets underlineLinks true when stored value is true", async () => {
+      await settings.setRaw(CONFIG_KEYS.UNDERLINE_LINKS, "true");
+      settings.invalidateCache();
+      await settings.loadKeys([CONFIG_KEYS.UNDERLINE_LINKS]);
+      expect(settings.underlineLinks).toBe(true);
+    });
+
+    test("loadKeys leaves underlineLinks false when stored value is not true", async () => {
+      await settings.setRaw(CONFIG_KEYS.UNDERLINE_LINKS, "false");
+      settings.invalidateCache();
+      await settings.loadKeys([CONFIG_KEYS.UNDERLINE_LINKS]);
+      expect(settings.underlineLinks).toBe(false);
     });
 
     test("update.bookingFee with empty string resets to 0", async () => {

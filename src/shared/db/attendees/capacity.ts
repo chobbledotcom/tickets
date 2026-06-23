@@ -142,7 +142,6 @@ export const buildCapacityCheckedInsert = (
   const {
     listingId,
     quantity: qty = 1,
-    pricePaid = 0,
     date = null,
     durationDays = 1,
     orderToken = "",
@@ -151,9 +150,12 @@ export const buildCapacityCheckedInsert = (
   const { startAt, endAt } = dateToStartEnd(date, durationDays);
   const args: InValue[] = [listingId];
   if (attendeeIdArg !== undefined) args.push(attendeeIdArg);
-  args.push(startAt, endAt, qty, pricePaid, orderToken, parentListingId);
-  const insertSelect = `INSERT INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, price_paid, order_token, parent_listing_id)
-          SELECT ?, ${attendeeIdExpr}, ?, ?, ?, ?, ?, ?`;
+  args.push(startAt, endAt, qty, orderToken, parentListingId);
+  // price_paid is no longer stored — a booking row's amount paid projects from
+  // its ledger sale leg (posted by the booking poster from booking.pricePaid).
+  // The order token + parent listing still persist for the parent/child gate.
+  const insertSelect = `INSERT INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, order_token, parent_listing_id)
+          SELECT ?, ${attendeeIdExpr}, ?, ?, ?, ?, ?`;
   if (allowOverbook) return { args, sql: insertSelect };
 
   const condition = buildCapacityCondition(

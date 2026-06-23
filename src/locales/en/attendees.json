@@ -17,6 +17,7 @@
   "attendee_detail.whatsapp": "whatsapp",
   "attendee_detail.answers": "Answers",
   "attendee_detail.activity_log": "Activity Log",
+  "attendee_detail.ledger": "Ledger",
   "attendee_detail.total": "Total",
   "attendee_detail.addon_under": "Add-on chosen under {parent}",
   "attendee_detail.includes_addon": "Includes add-on: {children}",

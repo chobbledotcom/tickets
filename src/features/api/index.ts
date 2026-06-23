@@ -25,6 +25,8 @@ import { createRouter, defineRoutes } from "#routes/router.ts";
 import type { ServerContext } from "#routes/types.ts";
 import { getBaseUrl, getClientIp } from "#routes/url.ts";
 import { processBooking } from "#shared/booking.ts";
+import { owedOrderForLedger } from "#shared/checkout-ledger.ts";
+import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { isPaymentsEnabled } from "#shared/config.ts";
 import { getAvailableDates } from "#shared/dates.ts";
 import {
@@ -632,9 +634,9 @@ const completeFoldedBooking = async (
     fold.dayCount,
   );
   const total = foldedOrderTotal(items);
+  const intent: CheckoutIntent = { ...contact, date, items };
   if (isPaymentsEnabled() && total > 0) {
     const provider = (await getActivePaymentProvider())!;
-    const intent: CheckoutIntent = { ...contact, date, items };
     const baseUrl = getBaseUrl(request);
     const result = await provider.createCheckoutSession(intent, baseUrl);
     if (!result) {
@@ -644,15 +646,24 @@ const completeFoldedBooking = async (
       ? apiResponse({ error: result.error }, 400)
       : apiResponse({ booking: { checkoutUrl: result.checkoutUrl } });
   }
+  // Free, or provider-less paid (owes the full value). An owed order must record
+  // its gross sale legs in the ledger at creation — the outstanding balance
+  // projects from it — so build the zeroed-total owed order the web free path
+  // uses; a genuinely free order (payments enabled, total 0) owes nothing and
+  // posts no legs.
+  const remainingBalance = isPaymentsEnabled() ? 0 : total;
   const reservation = await createFreeReservation({
     contact,
     date,
     dayCount: fold.dayCount,
-    ledgerOrder: null,
+    ledgerOrder:
+      remainingBalance > 0
+        ? owedOrderForLedger(priceCheckout({ ...intent, feeSubtotal: 0 }))
+        : null,
     listings: fold.listings,
     modifierUsages: [],
     quantities: fold.quantities,
-    remainingBalance: isPaymentsEnabled() ? 0 : total,
+    remainingBalance,
   });
   if (!reservation.success) {
     return apiResponse({ error: "Sorry, not enough spots available" }, 409);

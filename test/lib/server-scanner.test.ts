@@ -329,15 +329,17 @@ describeWithEnv("QR Scanner", { db: true }, () => {
     });
 
     test("datalist excludes refunded attendees", async () => {
-      const { getAttendeesByTokens, markRefunded } = await import(
-        "#shared/db/attendees.ts"
-      );
+      const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
+      const { postAttendeeRefund } = await import("#test-utils/ledger.ts");
       const { listing, token } = await createTestAttendeeWithToken(
         "Carol Refunded",
         "carol-ref@test.com",
       );
       const attendees = await getAttendeesByTokens([token]);
-      await markRefunded(attendees[0]!.id, listing.id);
+      await postAttendeeRefund({
+        attendeeId: attendees[0]!.id,
+        listingId: listing.id,
+      });
       const body = await getScannerBody(listing.id);
       expect(body).not.toContain(token);
     });
@@ -392,16 +394,18 @@ describeWithEnv("QR Scanner", { db: true }, () => {
     });
 
     test("returns refunded status for refunded attendee", async () => {
-      const { getAttendeesByTokens, markRefunded } = await import(
-        "#shared/db/attendees.ts"
-      );
+      const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
+      const { postAttendeeRefund } = await import("#test-utils/ledger.ts");
       const { listing, token, session } = await setupScanTest(
         "Refund",
         "refund@test.com",
       );
 
       const attendees = await getAttendeesByTokens([token]);
-      await markRefunded(attendees[0]!.id, listing.id);
+      await postAttendeeRefund({
+        attendeeId: attendees[0]!.id,
+        listingId: listing.id,
+      });
 
       const result = await scanAndGetJson(
         listing.id,

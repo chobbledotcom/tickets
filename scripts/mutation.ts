@@ -14,7 +14,7 @@
  * Usage: deno task mutation <source-glob> <test-glob> [options]
  */
 
-import { expandGlob } from "jsr:@std/fs@^1.0.0";
+import { globToRegExp, join, normalize, SEPARATOR } from "@std/path";
 import { runMutationTesting } from "./mutation/runner.ts";
 
 const DEFAULT_TIMEOUT = 10_000;
@@ -106,11 +106,58 @@ const parseArgs = (args: string[]): ParsedArgs => {
   return parsed;
 };
 
+/** Glob metacharacters; a path segment with none is a fixed directory name. */
+const GLOB_CHARS = /[*?{}[\]]/;
+
+/** Every file under `dir`, recursively; a missing directory yields nothing. */
+async function* walkFiles(dir: string): AsyncGenerator<string> {
+  let entries: AsyncIterable<Deno.DirEntry>;
+  try {
+    entries = Deno.readDir(dir);
+  } catch {
+    return;
+  }
+  for await (const entry of entries) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory) yield* walkFiles(path);
+    else if (entry.isFile) yield path;
+  }
+}
+
+/** The leading, glob-free directory of `glob` — where a walk can start without
+ *  scanning the whole tree. An exact path (no metacharacters) returns itself. */
+const staticBase = (glob: string): string => {
+  const fixed: string[] = [];
+  for (const segment of normalize(glob).split(SEPARATOR)) {
+    if (GLOB_CHARS.test(segment)) break;
+    fixed.push(segment);
+  }
+  return fixed.length > 0 ? fixed.join(SEPARATOR) : ".";
+};
+
+/**
+ * Expand source/test globs to absolute file paths. Replaces `@std/fs`'s
+ * `expandGlob` (not in this project's lock, so unfetchable in a sandboxed run)
+ * with `@std/path`'s `globToRegExp` over a `Deno.readDir` walk — same contract:
+ * absolute paths to existing files, sorted and de-duplicated.
+ */
 const expand = async (globs: string[]): Promise<string[]> => {
+  const cwd = Deno.cwd();
   const paths = new Set<string>();
   for (const glob of globs) {
-    for await (const entry of expandGlob(glob, { root: Deno.cwd() })) {
-      if (entry.isFile) paths.add(entry.path);
+    const absGlob = join(cwd, glob);
+    const pattern = globToRegExp(absGlob, { extended: true, globstar: true });
+    const base = staticBase(absGlob);
+    try {
+      if ((await Deno.stat(base)).isFile) {
+        if (pattern.test(base)) paths.add(base);
+        continue;
+      }
+    } catch {
+      // base doesn't exist; the walk below simply yields nothing
+    }
+    for await (const path of walkFiles(base)) {
+      if (pattern.test(path)) paths.add(path);
     }
   }
   return [...paths].sort();

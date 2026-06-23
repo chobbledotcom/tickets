@@ -352,7 +352,7 @@ describeWithEnv(
       expect(parentPage.response.status).toBe(200);
       const parentHtml = await parentPage.response.text();
       expect(parentHtml).toContain("Ada Lovelace");
-      expect(parentHtml).toContain("<td>2</td>");
+      expect(parentHtml).toContain('<td class="col-quantity">2</td>');
 
       // Child Alpha's page lists the buyer with the chosen quantity 1.
       const childAPage = await adminGet(
@@ -361,7 +361,7 @@ describeWithEnv(
       expect(childAPage.response.status).toBe(200);
       const childAHtml = await childAPage.response.text();
       expect(childAHtml).toContain("Ada Lovelace");
-      expect(childAHtml).toContain("<td>1</td>");
+      expect(childAHtml).toContain('<td class="col-quantity">1</td>');
 
       // Child Beta's page lists the buyer with the chosen quantity 1.
       const childBPage = await adminGet(
@@ -370,7 +370,7 @@ describeWithEnv(
       expect(childBPage.response.status).toBe(200);
       const childBHtml = await childBPage.response.text();
       expect(childBHtml).toContain("Ada Lovelace");
-      expect(childBHtml).toContain("<td>1</td>");
+      expect(childBHtml).toContain('<td class="col-quantity">1</td>');
     });
 
     test("a one-of-each booking shares one order token and records each child's parent", async () => {

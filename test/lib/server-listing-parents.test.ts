@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getListingActivityLog } from "#shared/db/activityLog.ts";
 import { getChildIds } from "#shared/db/listing-parents.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import {
@@ -10,6 +9,7 @@ import {
   createTestListing,
   describeWithEnv,
   expectFlash,
+  getListingActivityLog,
   getTestSession,
   insertModifier,
   linkModifierGroup,

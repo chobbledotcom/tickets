@@ -26,15 +26,24 @@ import type { FormParams } from "#shared/form-data.ts";
 import type { NamedResource } from "#shared/rest/resource.ts";
 import type { AdminSession } from "#shared/types.ts";
 
-type CrudConfig<Row, Input> = {
+/**
+ * `Row` is the stored row the resource writes and the edit/delete pages load via
+ * `table.findById`; `Display` is the (optionally richer) row the list page
+ * renders. They differ only when a list column is projected at read time rather
+ * than stored — e.g. modifiers, whose `total_revenue` is a ledger projection
+ * absent from the stored {@link ModifierRow} but present on the displayed
+ * {@link Modifier}. `Display` defaults to `Row`, so the common case (groups,
+ * holidays, …) is unchanged.
+ */
+type CrudConfig<Row, Input, Display = Row> = {
   singular: string;
   listPath: string;
   /** Redirect path after create/edit. Falls back to listPath when not provided. */
   getRowPath?: (row: Row) => string;
-  getAll: () => Promise<Row[]>;
+  getAll: () => Promise<Display[]>;
   resource: NamedResource<Row, Input>;
   renderList: (
-    rows: Row[],
+    rows: Display[],
     session: AdminSession,
     successMessage?: string,
   ) => string;
@@ -44,137 +53,132 @@ type CrudConfig<Row, Input> = {
   getName: (row: Row) => string;
 };
 
-/** Create CRUD handlers that require owner role */
-export const createOwnerCrudHandlers = <Row, Input>(
-  cfg: CrudConfig<Row, Input>,
-) =>
-  createCrudHandlersWithAuth(cfg, {
-    requireSession: requireOwnerOr,
-    withForm: (r, h) => withAuth(r, OWNER_FORM, h),
-  });
-
-/** Create CRUD handlers accessible to any authenticated admin (owner or manager) */
-export const createCrudHandlers = <Row, Input>(cfg: CrudConfig<Row, Input>) =>
-  createCrudHandlersWithAuth(cfg, {
-    requireSession: requireSessionOr,
-    withForm: (r, h) => withAuth(r, AUTH_FORM, h),
-  });
-
 type AuthGuards = {
   requireSession: SessionGuard<AdminSession>;
   withForm: FormGuard<AdminSession>;
 };
 
-const createCrudHandlersWithAuth = <Row, Input>(
-  cfg: CrudConfig<Row, Input>,
-  auth: AuthGuards,
-) => {
-  type FormHandler = (
-    session: AdminSession,
-    form: FormParams,
-  ) => Response | Promise<Response>;
+/** Create CRUD handlers that require owner role */
+export const createOwnerCrudHandlers = createCrudHandlersWithAuth({
+  requireSession: requireOwnerOr,
+  withForm: (r, h) => withAuth(r, OWNER_FORM, h),
+});
 
-  const authForm =
-    (handler: FormHandler) =>
-    (request: Request): Promise<Response> =>
-      auth.withForm(request, handler);
+/** Create CRUD handlers accessible to any authenticated admin (owner or manager) */
+export const createCrudHandlers = createCrudHandlersWithAuth({
+  requireSession: requireSessionOr,
+  withForm: (r, h) => withAuth(r, AUTH_FORM, h),
+});
 
-  const authHtml = authPage(auth.requireSession);
+function createCrudHandlersWithAuth(auth: AuthGuards) {
+  return <Row, Input, Display = Row>(cfg: CrudConfig<Row, Input, Display>) => {
+    type FormHandler = (
+      session: AdminSession,
+      form: FormParams,
+    ) => Response | Promise<Response>;
 
-  const authRowHtml =
-    (
-      render: (row: Row, session: AdminSession, error?: string) => string,
-    ): IdRouteHandler =>
-    (request, { id }) =>
-      auth.requireSession(request, (session) => {
-        const flash = applyFlash(request);
-        return withEntity<Row>((row) =>
-          htmlResponse(render(row, session, flash.error)),
-        )(() => cfg.resource.table.findById(id));
-      });
+    const authForm =
+      (handler: FormHandler) =>
+      (request: Request): Promise<Response> =>
+        auth.withForm(request, handler);
 
-  const logAndRedirect = async (
-    verb: string,
-    name: string,
-    path?: string,
-  ): Promise<Response> => {
-    await logActivity(`${cfg.singular} '${name}' ${verb}`);
-    return redirect(path ?? cfg.listPath, `${cfg.singular} ${verb}`, true);
-  };
+    const authHtml = authPage(auth.requireSession);
 
-  const listGet = authHtml(async (session) => {
-    const rows = await cfg.getAll();
-    const success = getFlash().success;
-    return cfg.renderList(rows, session, success);
-  });
+    const authRowHtml =
+      (
+        render: (row: Row, session: AdminSession, error?: string) => string,
+      ): IdRouteHandler =>
+      (request, { id }) =>
+        auth.requireSession(request, (session) => {
+          const flash = applyFlash(request);
+          return withEntity<Row>((row) =>
+            htmlResponse(render(row, session, flash.error)),
+          )(() => cfg.resource.table.findById(id));
+        });
 
-  // Surface a validation error stashed by a failed create (PRG redirect),
-  // mirroring how listGet reads the success flash. Without this the create
-  // page would silently re-render blank after rejecting a submission.
-  const newGet = authHtml((session) =>
-    cfg.renderNew(session, getFlash().error),
-  );
+    const logAndRedirect = async (
+      verb: string,
+      name: string,
+      path?: string,
+    ): Promise<Response> => {
+      await logActivity(`${cfg.singular} '${name}' ${verb}`);
+      return redirect(path ?? cfg.listPath, `${cfg.singular} ${verb}`, true);
+    };
 
-  const createHandler: FormHandler = async (_session, form) => {
-    const result = await cfg.resource.create(form);
-    return result.ok
-      ? await logAndRedirect(
-          "created",
-          cfg.getName(result.row),
-          cfg.getRowPath?.(result.row),
-        )
-      : errorRedirect(`${cfg.listPath}/new`, result.error);
-  };
-
-  const createPost = authForm(createHandler);
-
-  const editGet = cfg.renderEdit ? authRowHtml(cfg.renderEdit) : undefined;
-
-  const editPost: IdRouteHandler = (request, { id }) =>
-    auth.withForm(request, async (_session, form) => {
-      const result = await cfg.resource.update(id, form);
-      if (result.ok) {
-        return logAndRedirect(
-          "updated",
-          cfg.getName(result.row),
-          cfg.getRowPath?.(result.row),
-        );
-      }
-      if ("notFound" in result) return notFoundResponse();
-      return errorRedirect(`${cfg.listPath}/${id}/edit`, result.error);
+    const listGet = authHtml(async (session) => {
+      const rows = await cfg.getAll();
+      const success = getFlash().success;
+      return cfg.renderList(rows, session, success);
     });
 
-  const confirmedDelete = createConfirmedHandlers<Row, AdminSession>({
-    auth: { requireSession: auth.requireSession, withForm: auth.withForm },
-    identifier: cfg.getName,
-    identifierLabel: `${cfg.singular} name`,
-    load: (id) => cfg.resource.table.findById(id),
-    onConfirm: async (row, id) => {
-      await cfg.resource.delete(id);
-      await logActivity(`${cfg.singular} '${cfg.getName(row)}' deleted`);
-    },
-    path: `${cfg.listPath}/:id/delete`,
-    render: cfg.renderDelete,
-    successMessage: `${cfg.singular} deleted`,
-    successRedirect: cfg.listPath,
-  });
+    // Surface a validation error stashed by a failed create (PRG redirect),
+    // mirroring how listGet reads the success flash. Without this the create
+    // page would silently re-render blank after rejecting a submission.
+    const newGet = authHtml((session) =>
+      cfg.renderNew(session, getFlash().error),
+    );
 
-  const routes = {
-    ...confirmedDelete.routes,
-    [`GET ${cfg.listPath}`]: listGet,
-    [`GET ${cfg.listPath}/new`]: newGet,
-    [`POST ${cfg.listPath}`]: createPost,
-    ...(editGet ? { [`GET ${cfg.listPath}/:id/edit`]: editGet } : {}),
-    [`POST ${cfg.listPath}/:id/edit`]: editPost,
-  } as Record<string, RouteHandlerFn>;
+    const createHandler: FormHandler = async (_session, form) => {
+      const result = await cfg.resource.create(form);
+      return result.ok
+        ? await logAndRedirect(
+            "created",
+            cfg.getName(result.row),
+            cfg.getRowPath?.(result.row),
+          )
+        : errorRedirect(`${cfg.listPath}/new`, result.error);
+    };
 
-  return {
-    createPost,
-    deleteRoutes: confirmedDelete.routes,
-    editGet,
-    editPost,
-    listGet,
-    newGet,
-    routes,
+    const createPost = authForm(createHandler);
+
+    const editGet = cfg.renderEdit ? authRowHtml(cfg.renderEdit) : undefined;
+
+    const editPost: IdRouteHandler = (request, { id }) =>
+      auth.withForm(request, async (_session, form) => {
+        const result = await cfg.resource.update(id, form);
+        if (result.ok) {
+          return logAndRedirect(
+            "updated",
+            cfg.getName(result.row),
+            cfg.getRowPath?.(result.row),
+          );
+        }
+        if ("notFound" in result) return notFoundResponse();
+        return errorRedirect(`${cfg.listPath}/${id}/edit`, result.error);
+      });
+
+    const confirmedDelete = createConfirmedHandlers<Row, AdminSession>({
+      auth: { requireSession: auth.requireSession, withForm: auth.withForm },
+      identifier: cfg.getName,
+      identifierLabel: `${cfg.singular} name`,
+      load: (id) => cfg.resource.table.findById(id),
+      onConfirm: async (row, id) => {
+        await cfg.resource.delete(id);
+        await logActivity(`${cfg.singular} '${cfg.getName(row)}' deleted`);
+      },
+      path: `${cfg.listPath}/:id/delete`,
+      render: cfg.renderDelete,
+      successMessage: `${cfg.singular} deleted`,
+      successRedirect: cfg.listPath,
+    });
+
+    const routes = {
+      ...confirmedDelete.routes,
+      [`GET ${cfg.listPath}`]: listGet,
+      [`GET ${cfg.listPath}/new`]: newGet,
+      [`POST ${cfg.listPath}`]: createPost,
+      ...(editGet ? { [`GET ${cfg.listPath}/:id/edit`]: editGet } : {}),
+      [`POST ${cfg.listPath}/:id/edit`]: editPost,
+    } as Record<string, RouteHandlerFn>;
+
+    return {
+      createPost,
+      deleteRoutes: confirmedDelete.routes,
+      editGet,
+      editPost,
+      listGet,
+      newGet,
+      routes,
+    };
   };
-};
+}

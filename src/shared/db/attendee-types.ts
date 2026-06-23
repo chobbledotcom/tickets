@@ -100,6 +100,7 @@ export type ListingAttendeeRow = {
   checked_in: number;
   refunded: number;
   price_paid: number;
+  ledger_event_group: string;
   attachment_downloads: number;
   /** Per-order token shared by every row created in one checkout; "" for legacy
    * rows and parent-less bookings. */
