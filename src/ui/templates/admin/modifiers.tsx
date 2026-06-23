@@ -7,6 +7,7 @@ import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
 import type {
   ModifierAggregateField,
   ModifierAggregateRecalculation,
+  ModifierRow,
 } from "#shared/db/modifiers.ts";
 import { isReadOnly } from "#shared/env.ts";
 import {
@@ -157,7 +158,6 @@ export const modifierToFieldValues = (
 export const modifierAggregateToFieldValues = (
   modifier: Modifier,
 ): Record<string, string | number> => ({
-  total_revenue: toMajorUnits(modifier.total_revenue),
   total_uses: modifier.total_uses,
   usage_count: modifier.usage_count,
 });
@@ -190,7 +190,6 @@ const modifierAggregateFormatters: Record<
   ModifierAggregateField,
   (value: number) => string
 > = {
-  total_revenue: formatCurrency,
   total_uses: String,
   usage_count: String,
 };
@@ -348,9 +347,11 @@ export const adminModifierEditPage = (
     </Layout>,
   );
 
-/** Admin modifier delete confirmation page */
+/** Admin modifier delete confirmation page. Takes the stored {@link ModifierRow}
+ * (the projected total_revenue isn't shown here), so it pairs with the CRUD
+ * delete loader's `table.findById`. */
 export const adminModifierDeletePage = (
-  modifier: Modifier,
+  modifier: ModifierRow,
   session: AdminSession,
   error?: string,
 ): string =>

@@ -61,3 +61,31 @@ export const columnDropMigration = (
   schemaMigration(id, description, {}, async ({ recreateTable }) => {
     await recreateTable(table); // rebuild from SCHEMA, dropping the column
   });
+
+/**
+ * A column drop whose maintaining triggers still reference the dropped column, so
+ * the bare {@link columnDropMigration} isn't enough: `CREATE TRIGGER IF NOT
+ * EXISTS` won't replace the stale triggers, so they must be dropped before the
+ * rebuild and let `syncTriggers` re-create the (now column-free) versions from
+ * SCHEMA. Owns no additive object (`{}` requires); the schema-hash guard covers
+ * the trigger-body change. Shared by the aggregate-column drops (listings.income,
+ * modifiers.total_revenue) whose `up()` is otherwise identical.
+ */
+export const triggerRewriteDropMigration = (
+  id: string,
+  table: string,
+  triggers: readonly string[],
+  description: string,
+): MigrationBuilder =>
+  schemaMigration(
+    id,
+    description,
+    {},
+    async ({ getDb, recreateTable, syncTriggers }) => {
+      for (const trigger of triggers) {
+        await getDb().execute(`DROP TRIGGER IF EXISTS ${trigger}`);
+      }
+      await recreateTable(table); // rebuild from SCHEMA, dropping the column
+      await syncTriggers(); // re-create the column-free trigger bodies
+    },
+  );

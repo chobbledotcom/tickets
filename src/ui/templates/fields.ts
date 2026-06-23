@@ -788,19 +788,7 @@ export type ModifierFormValues = {
 export type ModifierAggregateFormValues = {
   total_uses: number;
   usage_count: number;
-  total_revenue: string;
 };
-
-const aggregateMoneyField = (name: string, label: string): Field => ({
-  inputmode: "decimal",
-  label,
-  name,
-  pattern: "\\d+(\\.\\d{1,2})?",
-  required: true,
-  title: t("fields.listing.price_title"),
-  type: "text",
-  validate: validateNonNegativePrice,
-});
 
 const aggregateIntegerField = (name: string, label: string): Field => ({
   label,
@@ -820,7 +808,6 @@ export const listingAggregateFields: Field[] = [
 export const modifierAggregateFields: Field[] = [
   aggregateIntegerField("total_uses", t("fields.modifier.total_uses")),
   aggregateIntegerField("usage_count", t("fields.modifier.usage_count")),
-  aggregateMoneyField("total_revenue", t("fields.modifier.total_revenue")),
 ];
 
 export type AnswerAggregateFormValues = {

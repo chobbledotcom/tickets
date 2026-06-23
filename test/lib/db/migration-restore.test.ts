@@ -208,9 +208,13 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
     if (
       migrationIndex(baseMigrationId) >= migrationIndex("2026-06-16_modifiers")
     ) {
+      // total_revenue is no longer a stored column — a modifier's revenue
+      // projects from the transfers ledger as balanceOf(modifier:M). The
+      // fixture posts no modifier ledger legs, so only the count aggregates
+      // (trigger-maintained) survive here.
       expect(
         await scalar(
-          "SELECT COUNT(*) AS value FROM modifiers WHERE id = 907 AND total_uses = 2 AND usage_count = 1 AND total_revenue = 500",
+          "SELECT COUNT(*) AS value FROM modifiers WHERE id = 907 AND total_uses = 2 AND usage_count = 1",
         ),
       ).toBe(1);
       expect(
@@ -284,11 +288,11 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
     // Guards against a future migration slipping through with no restore test.
     // The non-additive migrations excluded here are: the baseline reconcile, the
     // events→listings rename, the transfers time-int rebuild, the transfers
-    // backfill (data-only), and the six column-drop migrations (drop_transfers_
+    // backfill (data-only), and the seven column-drop migrations (drop_transfers_
     // currency, drop_listing_income, drop_listing_attendee_refunded,
-    // drop_listing_attendee_price_paid, drop_attendees_price_paid and
-    // drop_attendees_remaining_balance).
-    expect(additiveMigrations.length).toBe(MIGRATIONS.length - 10);
+    // drop_listing_attendee_price_paid, drop_attendees_price_paid,
+    // drop_attendees_remaining_balance and drop_modifiers_total_revenue).
+    expect(additiveMigrations.length).toBe(MIGRATIONS.length - 11);
   });
 
   for (const migration of additiveMigrations) {

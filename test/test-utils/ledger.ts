@@ -94,6 +94,37 @@ export const postListingSale = async ({
 };
 
 /**
+ * Post a booking whose only money is one modifier leg, so `balanceOf(modifier:M)`
+ * — which a modifier's projected `total_revenue` reads directly — reflects that
+ * modifier's net effect. `delta` is the modifier's signed amount: positive bills
+ * the attendee (a surcharge, attendee→modifier, so the balance rises), negative
+ * funds them (a discount, modifier→attendee, so the balance falls). Mirrors
+ * production via `mapBooking`, the same path the checkout flow posts through.
+ */
+export const postModifierLeg = async ({
+  modifierId,
+  delta,
+  attendeeId = 1,
+  eventId = `mod-${modifierId}-${attendeeId}`,
+}: {
+  modifierId: number;
+  delta: number;
+  attendeeId?: number;
+  eventId?: string;
+}): Promise<void> => {
+  const legs = await mapBooking({
+    amountPaid: 0,
+    attendeeId,
+    bookingFee: 0,
+    eventId,
+    lines: [],
+    modifiers: [{ delta, modifierId }],
+    occurredAt: BOOKING_OCCURRED_AT,
+  });
+  await postTransfers(legs);
+};
+
+/**
  * Make an attendee "refunded" the way production now models it: post a complete,
  * net-zero refunded booking order for them — a `sale` + `payment`, then the full
  * reversal (`refund_sale` + a `refund_cash` leg whose SOURCE is the attendee).

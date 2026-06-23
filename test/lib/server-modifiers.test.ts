@@ -330,7 +330,6 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const { id } = await lastModifier();
       const { response } = await adminFormPost(`/admin/modifiers/${id}/edit`, {
         ...createData({ name: "Totals" }),
-        total_revenue: "123.45",
         total_uses: "12",
         usage_count: "4",
       });
@@ -340,9 +339,11 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         true,
       )(response);
       const updated = (await getAllModifiers()).find((m) => m.id === id)!;
-      expect(updated.total_revenue).toBe(12345);
       expect(updated.total_uses).toBe(12);
       expect(updated.usage_count).toBe(4);
+      // total_revenue is no longer an editable override — it projects from the
+      // ledger, which has no modifier legs here, so it stays 0.
+      expect(updated.total_revenue).toBe(0);
     });
 
     test("rejects invalid modifier running totals", async () => {
@@ -350,7 +351,6 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const { id } = await lastModifier();
       const { response } = await adminFormPost(`/admin/modifiers/${id}/edit`, {
         ...createData({ name: "Bad" }),
-        total_revenue: "10.00",
         total_uses: "-1",
         usage_count: "4",
       });
@@ -424,7 +424,6 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const { id } = await lastModifier();
       await insertUsage(id, 1, 2, 1000);
       await updateModifierAggregateValues(id, {
-        total_revenue: 9000,
         total_uses: 9,
         usage_count: 5,
       });
@@ -447,7 +446,6 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const { id } = await lastModifier();
       await insertUsage(id, 1, 2, 1000);
       await updateModifierAggregateValues(id, {
-        total_revenue: 9000,
         total_uses: 9,
         usage_count: 5,
       });
@@ -464,8 +462,10 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
 
       const updated = (await getAllModifiers()).find((m) => m.id === id)!;
       expect(updated.total_uses).toBe(2);
-      expect(updated.total_revenue).toBe(9000);
       expect(updated.usage_count).toBe(5);
+      // total_revenue is projected from the ledger (no modifier legs here), so
+      // it is 0 and unaffected by the count-only recalculation.
+      expect(updated.total_revenue).toBe(0);
     });
 
     test("shows recalculation success on the redirected edit page", async () => {

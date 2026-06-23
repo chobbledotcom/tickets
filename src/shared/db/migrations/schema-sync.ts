@@ -432,9 +432,7 @@ export const backfillModifierAggregates = async (): Promise<void> => {
        total_uses = COALESCE(
          (SELECT SUM(quantity) FROM modifier_usages WHERE modifier_id = modifiers.id), 0),
        usage_count = COALESCE(
-         (SELECT COUNT(*) FROM modifier_usages WHERE modifier_id = modifiers.id), 0),
-       total_revenue = COALESCE(
-         (SELECT SUM(amount_applied) FROM modifier_usages WHERE modifier_id = modifiers.id), 0)`,
+         (SELECT COUNT(*) FROM modifier_usages WHERE modifier_id = modifiers.id), 0)`,
   );
 };
 

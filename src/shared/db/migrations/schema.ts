@@ -32,7 +32,7 @@ export type Trigger = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add contact_preferences table for marketing opt-outs, contact history, and visit counts; add customisable_days and day_prices columns to listings for visitor-chosen multi-day bookings with per-day-count pricing; add attendee_statuses table with status_id and remaining_balance on attendees, plus attendee_id on activity_log, for the reservation and balance-payment flow; add idx_activity_log_listing_id so per-listing activity log reads are index scans instead of full-table scans; add a logistics_agents table plus a uses_logistics flag on listings, a split_logistics_agents flag on attendees, and start_agent_id/end_agent_id/start_time/end_time on listing_attendees for the logistics flow; add email_templates table for owner-keypair-encrypted reusable email subjects and bodies; add a user_logistics_agents table linking agent users to the logistics agents they drive, plus start_done/end_done flags on listing_attendees so delivery agents can mark drop-offs and collections complete; add failure_data to processed_payments so handled payment failures are recorded as a terminal outcome for idempotent redirect/webhook replay; add booked_quantity, tickets_count and income aggregate columns to listings, maintained by triggers on listing_attendees so listing reads and active-listing stats avoid scanning the attendee rows; add modifiers table for owner-defined price modifiers (surcharges, discounts, add-ons), with active/trigger/code_index/scope/stock/max_per_order/min_subtotal/min_visits columns plus modifier_listings, modifier_groups and modifier_usages tables for scoping and stock; add an encrypted code column to modifiers for promo-code modifiers; add sms_messages table mapping gateway message ids to attendees for SMS status webhooks (content lives in the encrypted activity log); add processed_sms_inbound table for inbound SMS webhook replay protection; add phone_index to attendees so inbound SMS replies can be matched to an attendee; add a modifier_id column to answers linking an answer to the price modifier it triggers (with an 'answer' modifier trigger) so an answer applies a modifier through the shared engine, replacing the per-answer pricing columns; add display_type to questions so booking questions can render as radio buttons or a select box; add assign_all to questions so booking questions can apply to every listing; add a times_selected aggregate column to answers, maintained by triggers on attendee_answers, so the question and answer admin pages report selection counts without scanning attendee_answers; add a last_pruned column to built_sites so the scheduled-tasks endpoint can forward a prune to the least-recently-pruned built site and walk every site at a steady pace; add free-text custom questions backed by an owner-key encrypted strings repository with usage counts and creation timestamps; add an active flag to answers so a choice can be deactivated (hidden on the public booking form, still shown for attendees who already selected it) rather than deleted; add public_booking_count and admin_booking_count plaintext columns to contact_preferences so booking history is split by source (online checkout vs admin manual add) and the keyless public booking paths can increment their count without the owner private key; add kek_version and invite_wrapped_data_key to users so wrapped_data_key is bound to a password-derived KEK (and invited users self-activate at /join), making attendee PII undecryptable from a database dump plus DB_ENCRYPTION_KEY alone; add transfers table — an append-only double-entry ledger of positive amounts moving between (type, id) accounts, with a unique reference for idempotency, account/event/time indexes, and a unique reverses_id for one-void-per-original; balances are derived and the table is PII- and provider-id-free; store transfers.occurred_at and recorded_at as INTEGER epoch-millis (was TEXT ISO) so the time index sorts and ranges chronologically with integer comparisons at high transfer volumes; backfill the transfers ledger from every existing paid booking (one sale per listing plus a payment, and a full reversal for refunded bookings) so the ledger holds the complete money history before reads move off the price_paid/refunded columns; add a ledger_event_group column to listing_attendees, stamped at booking creation and by the backfill with the order's ledger event group, so a per-row amount-paid projection can find exactly that booking's sale leg before reads move off price_paid; remove the currency column from transfers — a site has a single currency, fixed at setup and never changed, so the ledger neither stores nor compares a per-transfer currency (the Phase-0 table is rebuilt from this schema by 2026-06-22_transfers_time_int); drop the price_paid column from listing_attendees — a booking row's amount paid is projected from the transfers ledger (its gross sale leg, within the row's ledger_event_group) at read time, after the backfill has reconstructed those legs from the column; drop the vestigial price_paid column from attendees — it was never written by the booking insert and never read (per-row amount paid lives on listing_attendees and now projects from the ledger), so the dead column is removed; drop the remaining_balance column from attendees — an attendee's outstanding balance projects from the transfers ledger as −balanceOf(attendee), every owed booking records its balance with its sale leg, and a settlement posts a ledger-guarded payment leg, so the stored column is removed";
+  "rename the event domain to listing (tables, columns and indexes); add a global sort_order column to questions for unified ordering; add contact_preferences table for marketing opt-outs, contact history, and visit counts; add customisable_days and day_prices columns to listings for visitor-chosen multi-day bookings with per-day-count pricing; add attendee_statuses table with status_id and remaining_balance on attendees, plus attendee_id on activity_log, for the reservation and balance-payment flow; add idx_activity_log_listing_id so per-listing activity log reads are index scans instead of full-table scans; add a logistics_agents table plus a uses_logistics flag on listings, a split_logistics_agents flag on attendees, and start_agent_id/end_agent_id/start_time/end_time on listing_attendees for the logistics flow; add email_templates table for owner-keypair-encrypted reusable email subjects and bodies; add a user_logistics_agents table linking agent users to the logistics agents they drive, plus start_done/end_done flags on listing_attendees so delivery agents can mark drop-offs and collections complete; add failure_data to processed_payments so handled payment failures are recorded as a terminal outcome for idempotent redirect/webhook replay; add booked_quantity, tickets_count and income aggregate columns to listings, maintained by triggers on listing_attendees so listing reads and active-listing stats avoid scanning the attendee rows; add modifiers table for owner-defined price modifiers (surcharges, discounts, add-ons), with active/trigger/code_index/scope/stock/max_per_order/min_subtotal/min_visits columns plus modifier_listings, modifier_groups and modifier_usages tables for scoping and stock; add an encrypted code column to modifiers for promo-code modifiers; add sms_messages table mapping gateway message ids to attendees for SMS status webhooks (content lives in the encrypted activity log); add processed_sms_inbound table for inbound SMS webhook replay protection; add phone_index to attendees so inbound SMS replies can be matched to an attendee; add a modifier_id column to answers linking an answer to the price modifier it triggers (with an 'answer' modifier trigger) so an answer applies a modifier through the shared engine, replacing the per-answer pricing columns; add display_type to questions so booking questions can render as radio buttons or a select box; add assign_all to questions so booking questions can apply to every listing; add a times_selected aggregate column to answers, maintained by triggers on attendee_answers, so the question and answer admin pages report selection counts without scanning attendee_answers; add a last_pruned column to built_sites so the scheduled-tasks endpoint can forward a prune to the least-recently-pruned built site and walk every site at a steady pace; add free-text custom questions backed by an owner-key encrypted strings repository with usage counts and creation timestamps; add an active flag to answers so a choice can be deactivated (hidden on the public booking form, still shown for attendees who already selected it) rather than deleted; add public_booking_count and admin_booking_count plaintext columns to contact_preferences so booking history is split by source (online checkout vs admin manual add) and the keyless public booking paths can increment their count without the owner private key; add kek_version and invite_wrapped_data_key to users so wrapped_data_key is bound to a password-derived KEK (and invited users self-activate at /join), making attendee PII undecryptable from a database dump plus DB_ENCRYPTION_KEY alone; add transfers table — an append-only double-entry ledger of positive amounts moving between (type, id) accounts, with a unique reference for idempotency, account/event/time indexes, and a unique reverses_id for one-void-per-original; balances are derived and the table is PII- and provider-id-free; store transfers.occurred_at and recorded_at as INTEGER epoch-millis (was TEXT ISO) so the time index sorts and ranges chronologically with integer comparisons at high transfer volumes; backfill the transfers ledger from every existing paid booking (one sale per listing plus a payment, and a full reversal for refunded bookings) so the ledger holds the complete money history before reads move off the price_paid/refunded columns; add a ledger_event_group column to listing_attendees, stamped at booking creation and by the backfill with the order's ledger event group, so a per-row amount-paid projection can find exactly that booking's sale leg before reads move off price_paid; remove the currency column from transfers — a site has a single currency, fixed at setup and never changed, so the ledger neither stores nor compares a per-transfer currency (the Phase-0 table is rebuilt from this schema by 2026-06-22_transfers_time_int); drop the price_paid column from listing_attendees — a booking row's amount paid is projected from the transfers ledger (its gross sale leg, within the row's ledger_event_group) at read time, after the backfill has reconstructed those legs from the column; drop the vestigial price_paid column from attendees — it was never written by the booking insert and never read (per-row amount paid lives on listing_attendees and now projects from the ledger), so the dead column is removed; drop the remaining_balance column from attendees — an attendee's outstanding balance projects from the transfers ledger as −balanceOf(attendee), every owed booking records its balance with its sale leg, and a settlement posts a ledger-guarded payment leg, so the stored column is removed; drop the total_revenue column from modifiers — a modifier's revenue projects from the transfers ledger as balanceOf(modifier:M) (the modifier account's net effect on revenue, read directly: surcharges in as the destination, discounts out as the source), so the trigger-maintained column is removed while total_uses and usage_count stay; no modifier was ever used in production, so the projection is 0 for every existing modifier";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -463,15 +463,16 @@ export const SCHEMA: [name: string, table: Table][] = [
         ["max_per_order", "INTEGER"],
         ["min_subtotal", "INTEGER NOT NULL DEFAULT 0"],
         ["min_visits", "INTEGER NOT NULL DEFAULT 0"],
-        // Precomputed aggregates over modifier_usages, maintained by the
+        // Precomputed count aggregates over modifier_usages, maintained by the
         // MODIFIER_AGGREGATE_TRIGGERS so admin reads never SUM/COUNT the
-        // modifier_usages table. total_uses is SUM(quantity), usage_count is
-        // COUNT(*), total_revenue is SUM(amount_applied) — all scoped to this
-        // modifier. Answer-triggered modifiers record usages here too, so an
-        // answer "pricing tier" reports cumulative totals like any modifier.
+        // modifier_usages table. total_uses is SUM(quantity) and usage_count is
+        // COUNT(*), both scoped to this modifier. Answer-triggered modifiers
+        // record usages here too, so an answer "pricing tier" reports
+        // cumulative totals like any modifier. The money figure (total_revenue)
+        // is not a column: it is projected from the transfers ledger as
+        // balanceOf(modifier:M) at read time (see modifierRevenueSubquery).
         ["total_uses", "INTEGER NOT NULL DEFAULT 0"],
         ["usage_count", "INTEGER NOT NULL DEFAULT 0"],
-        ["total_revenue", "INTEGER NOT NULL DEFAULT 0"],
       ],
       indexes: [{ columns: ["code_index"], name: "idx_modifiers_code_index" }],
     },
@@ -922,16 +923,18 @@ END`,
 ];
 
 /**
- * Modifier aggregate triggers keep modifiers.total_uses, modifiers.usage_count
- * and modifiers.total_revenue in step with the modifier_usages ledger, the same
- * way the listing triggers maintain the listings aggregates. The UPDATE trigger
- * is scoped to OF quantity, amount_applied, modifier_id so the only writes that
- * affect the totals fire it, and it subtracts the OLD row's contribution from
- * its old modifier and adds the NEW row's to its new modifier so a row moving
- * between modifiers stays correct.
+ * Modifier aggregate triggers keep modifiers.total_uses and modifiers.usage_count
+ * in step with the modifier_usages ledger, the same way the listing triggers
+ * maintain the listings aggregates. The UPDATE trigger is scoped to OF quantity,
+ * modifier_id so the only writes that affect the counts fire it, and it subtracts
+ * the OLD row's contribution from its old modifier and adds the NEW row's to its
+ * new modifier so a row moving between modifiers stays correct.
  *
- * Semantics mirror the previous SUM(quantity) / COUNT(*) / SUM(amount_applied)
- * queries over modifier_usages exactly.
+ * Semantics mirror the previous SUM(quantity) / COUNT(*) queries over
+ * modifier_usages exactly. The money figure (total_revenue) is no longer a
+ * maintained column — it is projected from the transfers ledger at read time —
+ * so amount_applied no longer drives any aggregate and is out of the UPDATE OF
+ * list.
  */
 const MODIFIER_AGGREGATE_TRIGGERS: Trigger[] = [
   {
@@ -942,8 +945,7 @@ FOR EACH ROW
 BEGIN
   UPDATE modifiers SET
     total_uses = total_uses + NEW.quantity,
-    usage_count = usage_count + 1,
-    total_revenue = total_revenue + NEW.amount_applied
+    usage_count = usage_count + 1
   WHERE id = NEW.modifier_id;
 END`,
     table: "modifier_usages",
@@ -956,8 +958,7 @@ FOR EACH ROW
 BEGIN
   UPDATE modifiers SET
     total_uses = total_uses - OLD.quantity,
-    usage_count = usage_count - 1,
-    total_revenue = total_revenue - OLD.amount_applied
+    usage_count = usage_count - 1
   WHERE id = OLD.modifier_id;
 END`,
     table: "modifier_usages",
@@ -965,18 +966,16 @@ END`,
   {
     name: "trg_modifier_usages_aggregates_update",
     sql: `CREATE TRIGGER IF NOT EXISTS trg_modifier_usages_aggregates_update
-AFTER UPDATE OF quantity, amount_applied, modifier_id ON modifier_usages
+AFTER UPDATE OF quantity, modifier_id ON modifier_usages
 FOR EACH ROW
 BEGIN
   UPDATE modifiers SET
     total_uses = total_uses - OLD.quantity,
-    usage_count = usage_count - 1,
-    total_revenue = total_revenue - OLD.amount_applied
+    usage_count = usage_count - 1
   WHERE id = OLD.modifier_id;
   UPDATE modifiers SET
     total_uses = total_uses + NEW.quantity,
-    usage_count = usage_count + 1,
-    total_revenue = total_revenue + NEW.amount_applied
+    usage_count = usage_count + 1
   WHERE id = NEW.modifier_id;
 END`,
     table: "modifier_usages",
