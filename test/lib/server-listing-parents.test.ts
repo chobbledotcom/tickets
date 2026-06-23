@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { getListingActivityLog } from "#shared/db/activityLog.ts";
 import { getChildIds } from "#shared/db/listing-parents.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import {
@@ -8,6 +9,7 @@ import {
   createTestGroup,
   createTestListing,
   describeWithEnv,
+  expectFlash,
   getTestSession,
   insertModifier,
   linkModifierGroup,
@@ -114,7 +116,18 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     expect(res.headers.get("location")).toContain(
       `/admin/listing/${parent.id}/edit`,
     );
+    // A success flash, not an error one.
+    expectFlash(res, "Required children updated");
     expect(await getChildIds(parent.id)).toEqual([child.id]);
+    // The save is recorded in the listing's activity log, with the count
+    // singularised ("1 listing", not "1 listings").
+    const logs = await getListingActivityLog(parent.id);
+    const entry = logs.find((l) =>
+      l.message.includes("required children set to"),
+    );
+    expect(entry?.message).toBe(
+      "Listing 'Base unit' required children set to 1 listing",
+    );
   });
 
   test("drops self-edges and unknown ids", async () => {
@@ -179,7 +192,9 @@ describeWithEnv("server > listing parents", { db: true }, () => {
       listingType: "daily",
       name: "Daily add-on",
     });
-    await postChildren(parent.id, [child.id]);
+    const res = await postChildren(parent.id, [child.id]);
+    // A rejected save redirects back with an ERROR flash, not a success one.
+    expectFlash(res, expect.anything(), false);
     expect(await getChildIds(parent.id)).toEqual([]);
   });
 
