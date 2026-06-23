@@ -51,6 +51,7 @@ import {
   adminGet,
   createPaidTestAttendee,
   createTestAttendee,
+  createTestAttendeeDirect,
   createTestListing,
   describeWithEnv,
   expectFlashRedirect,
@@ -62,9 +63,13 @@ import {
   setupStripe,
   signMeta,
   singleItem,
+  testCookie,
+  testCsrfToken,
   withMocks,
 } from "#test-utils";
+import { extractInputValue } from "#test-utils/csrf.ts";
 import { postListingSale, postModifierLeg } from "#test-utils/ledger.ts";
+import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import { insertModifier } from "#test-utils/modifiers.ts";
 
 // -- Ledger-truth helpers ------------------------------------------------- //
@@ -197,6 +202,47 @@ const incomeLedgerArticle = (html: string): string => {
   return html.slice(start, html.indexOf("</article>", start));
 };
 
+/** GET the merge preview for `targetId` loaded with `sourceToken`, returning the
+ *  `merge_version` the apply POST must echo back AND the name of the conflicting
+ *  booking's decision field (`booking_<listingId>:<startAt>`) scraped from the
+ *  rendered form, so the test answers the exact conflict the operator is shown
+ *  rather than guessing the key. Uses the stable owner cookie — the preview
+ *  decrypts the source's PII, needing the session's private key. */
+const mergePreview = async (
+  targetId: number,
+  sourceToken: string,
+): Promise<{ version: string; bookingField: string }> => {
+  const page = await awaitTestRequest(
+    `/admin/attendees/${targetId}/merge?token=${encodeURIComponent(sourceToken)}`,
+    { cookie: await testCookie() },
+  );
+  expect(page.status).toBe(200);
+  const html = await page.text();
+  const version = extractInputValue(html, "merge_version");
+  expect(version).not.toBeNull();
+  const bookingField = html.match(/name="(booking_[^"]+)"/)?.[1];
+  expect(bookingField).toBeDefined();
+  return { bookingField: bookingField!, version: version! };
+};
+
+/** POST the merge apply form on the SAME stable owner cookie as
+ *  {@link mergePreview}, so the apply decrypts the source under the same session
+ *  that built the diff (the merge needs the owner's private key). */
+const mergePost = async (
+  targetId: number,
+  fields: Record<string, string>,
+): Promise<Response> => {
+  const csrf = await testCsrfToken();
+  const cookie = await testCookie();
+  return handleRequest(
+    mockFormRequest(
+      `/admin/attendees/${targetId}/merge`,
+      { csrf_token: csrf, ...fields },
+      cookie,
+    ),
+  );
+};
+
 // -- Public-payment driver (mirrors server-payments-success.test.ts) ------ //
 
 /** A compact modifier ref as it rides the signed metadata (`{ i: id, q: qty }`). */
@@ -298,10 +344,12 @@ const completePaidOrder = async (
 // -- Refund driver (mirrors server-refunds.test.ts withRefundMock) -------- //
 
 /** Run `body` with the payment provider resolved to a stripe provider whose
- *  `refundPayment` is stubbed, so the admin refund route reaches the ledger
- *  reversal without a real network call. */
+ *  `refundPayment` is stubbed, so the admin refund routes reach the ledger
+ *  reversal without a real network call. `refund` is either a fixed outcome or a
+ *  per-`paymentId` function — the latter lets a bulk refund decline one specific
+ *  payment while the rest succeed. */
 const withRefundMock = (
-  refundOk: boolean,
+  refund: boolean | ((paymentId: string) => Promise<boolean>),
   body: (mockRefund: Stub) => Promise<void>,
 ): Promise<void> =>
   withMocks(
@@ -310,9 +358,9 @@ const withRefundMock = (
         mockProviderType("stripe"),
       ),
     async () => {
-      const mockRefund = stub(stripePaymentProvider, "refundPayment", () =>
-        Promise.resolve(refundOk),
-      );
+      const behave =
+        typeof refund === "function" ? refund : () => Promise.resolve(refund);
+      const mockRefund = stub(stripePaymentProvider, "refundPayment", behave);
       try {
         await body(mockRefund);
       } finally {
@@ -1111,5 +1159,214 @@ describeWithEnv("e2e: accounting lifecycle", { db: true }, () => {
     expect(article).toContain(formatCurrency(-1000)); // −£10 net ledger balance
     // And it links through to the full per-account ledger statement.
     expect(article).toContain(`/admin/ledger/revenue/${listing.id}`);
+  });
+
+  // 15. A bulk refund is resilient: when the provider declines ONE payment, the
+  //     others are still refunded and recorded, the declined one is left intact,
+  //     and conservation holds across the partial batch.
+  test("a bulk refund continues past a failure and reverses only the successes", async () => {
+    await setupStripe();
+    const listing = await createTestListing({
+      maxAttendees: 50,
+      name: "Tour",
+      unitPrice: 5000,
+    });
+    const one = await createPaidTestAttendee(
+      listing.id,
+      "One",
+      "one@example.com",
+      "pi_b1",
+      5000,
+    );
+    const two = await createPaidTestAttendee(
+      listing.id,
+      "Two",
+      "two@example.com",
+      "pi_b2",
+      5000,
+    );
+    const three = await createPaidTestAttendee(
+      listing.id,
+      "Three",
+      "three@example.com",
+      "pi_b3",
+      5000,
+    );
+    expect(await incomeOf(listing.id)).toBe(15000);
+
+    // The provider declines the middle payment only.
+    await withRefundMock(
+      (paymentId: string) => Promise.resolve(paymentId !== "pi_b2"),
+      async (mockRefund) => {
+        const { response } = await adminFormPost(
+          `/admin/listing/${listing.id}/refund-all`,
+          { confirm_identifier: listing.name },
+        );
+        await expectFlashRedirect(
+          `/admin/listing/${listing.id}/refund-all`,
+          expect.stringContaining("1 failed"),
+          false,
+        )(response);
+        expect(mockRefund.calls.length).toBe(3); // all three attempted
+      },
+    );
+
+    // The two successes were reversed; the declined one keeps its sale and cash.
+    const refundCashCount = async (id: number): Promise<number> =>
+      legsOfKind(await transfersByAccount(attendeeAccount(id)), "refund_cash")
+        .length;
+    expect(await refundCashCount(one.id)).toBe(1);
+    expect(await refundCashCount(three.id)).toBe(1);
+    expect(await refundCashCount(two.id)).toBe(0);
+    // Income reflects exactly the one surviving sale; conservation still holds.
+    expect(await incomeOf(listing.id)).toBe(5000);
+    expect(await sumOfAllBalances()).toBe(0);
+  });
+
+  // 16. A refund is written to the attendee's own activity log (the audit trail
+  //     that makes a ledger change visible — transparency), and a SECOND refund is
+  //     rejected before the provider is even called, posting no duplicate leg.
+  test("a refund is logged on the attendee and a second refund is a safe no-op", async () => {
+    await setupStripe();
+    const listing = await createTestListing({
+      maxAttendees: 50,
+      name: "Logged",
+      unitPrice: 4500,
+    });
+    const attendeeId = await completePaidOrder(
+      listing.id,
+      "Logged Guest",
+      "logged@example.com",
+      4500,
+      "cs_log",
+      "pi_log",
+    );
+
+    await withRefundMock(true, async (mockRefund) => {
+      const refund = await submitRefund(listing.id, attendeeId, "Logged Guest");
+      await expectFlashRedirect(
+        `/admin/listing/${listing.id}`,
+        "Refund issued",
+      )(refund);
+      expect(mockRefund.calls.length).toBe(1);
+    });
+    expect(await owedBy(attendeeId)).toBe(0);
+    const refundCash = legsOfKind(
+      await transfersByAccount(attendeeAccount(attendeeId)),
+      "refund_cash",
+    );
+    expect(refundCash.length).toBe(1);
+
+    // Transparency: the money event shows on the attendee's balance-page history.
+    const balancePage = await adminPageHtml(
+      `/admin/attendees/${attendeeId}/balance`,
+    );
+    expect(balancePage).toContain("Refund issued for attendee 'Logged Guest'");
+
+    // Idempotency: a second refund is refused (already refunded) without calling
+    // the provider, and no second reversal is posted.
+    await withRefundMock(true, async (mockRefund) => {
+      const again = await submitRefund(listing.id, attendeeId, "Logged Guest");
+      await expectFlashRedirect(
+        `/admin/listing/${listing.id}/attendee/${attendeeId}/refund`,
+        expect.stringContaining("already been refunded"),
+        false,
+      )(again);
+      expect(mockRefund.calls.length).toBe(0);
+    });
+    expect(
+      legsOfKind(
+        await transfersByAccount(attendeeAccount(attendeeId)),
+        "refund_cash",
+      ).length,
+    ).toBe(1);
+    expect(await sumOfAllBalances()).toBe(0);
+  });
+
+  // 17. Merging two attendees moves the money with them: the operator resolves the
+  //     conflicting same-listing booking (decision 17 — an explicit choice from the
+  //     form), then the source's ledger rows repoint onto the surviving target, so
+  //     what was owed follows the survivor and conservation holds.
+  test("a merge repoints the source's owed balance onto the surviving attendee", async () => {
+    const listing = await createTestListing({
+      maxAttendees: 10,
+      name: "Reunion",
+      unitPrice: 5000,
+    });
+    const { attendee: target } = await createTestAttendeeDirect(
+      listing.id,
+      "Jane Doe",
+      "jane@example.com",
+    );
+    const { attendee: source, token: sourceToken } =
+      await createTestAttendeeDirect(
+        listing.id,
+        "John Smith",
+        "john@example.com",
+      );
+    // Each owes £50 in the ledger (a gross sale with nothing paid).
+    await postListingSale({
+      amountPaid: 0,
+      attendeeId: target.id,
+      gross: 5000,
+      listingId: listing.id,
+    });
+    await postListingSale({
+      amountPaid: 0,
+      attendeeId: source.id,
+      gross: 5000,
+      listingId: listing.id,
+    });
+    expect(await owedBy(target.id)).toBe(5000);
+    expect(await owedBy(source.id)).toBe(5000);
+
+    // The operator resolves the conflicting same-listing booking (the decision is
+    // scraped from the rendered form), then applies the merge.
+    const { version, bookingField } = await mergePreview(
+      target.id,
+      sourceToken,
+    );
+    const merged = await mergePost(target.id, {
+      [bookingField]: "keep_target",
+      merge_version: version,
+      source_token: sourceToken,
+    });
+    expect(merged.status).toBe(302);
+
+    // The money follows the survivor: the source account is emptied (its ledger
+    // rows moved) and the target now holds both owed balances; conservation holds.
+    expect(norm(await accountBalance(attendeeAccount(source.id)))).toBe(0);
+    expect(await owedBy(target.id)).toBe(10000);
+    expect(await sumOfAllBalances()).toBe(0);
+  });
+
+  // 18. A pay-what-you-want (can_pay_more) order recognises the FULL chosen price
+  //     as income — the figure shown is exactly what the buyer paid, not the base
+  //     price — and they owe nothing.
+  test("a pay-what-you-want order recognises the chosen price as income", async () => {
+    await setupStripe();
+    const listing = await createTestListing({
+      canPayMore: true,
+      maxAttendees: 50,
+      maxPrice: 10000,
+      name: "Donate",
+      unitPrice: 3000,
+    });
+    // Base £30, but the buyer chooses to pay £80 (within the £100 cap).
+    await runStripeSuccess({
+      email: "generous@example.com",
+      items: singleItem(listing.id, 1, 8000),
+      name: "Generous",
+      paymentIntent: "pi_more",
+      sessionId: "cs_more",
+      total: 8000,
+    });
+    const attendeeId = (await getAttendeesRaw(listing.id))[0]!.id;
+
+    expect(await incomeOf(listing.id)).toBe(8000);
+    expect(await owedBy(attendeeId)).toBe(0);
+    expect(await worldBalance()).toBe(-8000);
+    // Both income surfaces render the chosen £80 (no refund has touched it).
+    await assertRenderedIncome(listing.id, 8000);
   });
 });
