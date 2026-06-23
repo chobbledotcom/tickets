@@ -1049,15 +1049,14 @@ dialog::backdrop {
   overflow-y: auto;
 }
 
-/* Tables size to their content rather than always stretching to the full
-   container width — a two-column table no longer spreads its cells across the
-   whole page. `max-width: 100%` keeps wide tables inside their `.table-scroll`
-   wrapper (which scrolls horizontally) instead of overflowing the layout. */
+/* Tables size to their content rather than stretching to the full container
+   width — a two-column table no longer spreads its cells across the whole page.
+   No `max-width` cap: a table wider than its container is meant to grow past it
+   and scroll, which the `.table-scroll` wrapper (overflow-x: auto) handles. */
 table {
   border: 1px solid var(--color-bg-secondary);
   border-radius: var(--border-radius);
   border-spacing: 0;
-  max-width: 100%;
   padding: 0;
   white-space: nowrap;
 }
@@ -1148,11 +1147,6 @@ td.cell-description {
   text-overflow: ellipsis;
 }
 
-.listing-details-table {
-  width: auto;
-  max-width: 100%;
-}
-
 .listing-details-table th {
   width: 220px;
 }
@@ -1160,11 +1154,6 @@ td.cell-description {
 /* Income & ledger breakdown: a compact reconciliation table whose figures are
    right-aligned and whose two subtotal rows (recognised income, net balance)
    carry a top border so they read as running totals. */
-.listing-breakdown-table {
-  width: auto;
-  max-width: 100%;
-}
-
 .listing-breakdown-table .breakdown-subtotal th,
 .listing-breakdown-table .breakdown-subtotal td {
   border-top: 1px solid var(--color-bg-secondary);
