@@ -48,3 +48,9 @@ src/shared/accounting/rows.ts:181:58  ?? → ||   # selectById (await …)[0]: T
 # already-ascending array, so swapping the comparator changes nothing.
 src/shared/checkout-pricing.ts:176:16  - → /     # toUnits gives ascending lineIdx; a/b is identity on sorted input
 
+
+# attendee-form-model: `?? → ||` where the left operand can never be a
+# falsy-but-non-null value, so the two operators always agree.
+src/features/admin/attendee-form-model.ts:320:53  ?? → ||   # existingByKey.get(key): ListingAttendeeRow|undefined — an object is always truthy
+src/features/admin/attendee-form-model.ts:321:36  ?? → ||   # listingsById.get(id): ListingWithCount|undefined — an object is always truthy
+src/features/admin/attendee-form-model.ts:373:66  ?? → ||   # (existingBooking?.price_paid ?? 0): a number; the only falsy number is 0, and 0 ?? 0 === 0 || 0

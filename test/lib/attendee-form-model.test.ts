@@ -574,34 +574,39 @@ describe("no-quantity persistence + paid-line guard", () => {
   });
 
   test("validateParsedForm blocks marking a paid line no-quantity", () => {
-    const result = validateParsedForm(
-      parsedBase({
-        lines: [
-          line({
-            existingBooking: bookingRow({ price_paid: 1500, quantity: 2 }),
-            noQuantity: true,
-            quantity: 0,
-          }),
-        ],
-      }),
-    );
+    const parsed = parsedBase({
+      lines: [
+        line({
+          existingBooking: bookingRow({ price_paid: 1500, quantity: 2 }),
+          noQuantity: true,
+          quantity: 0,
+        }),
+      ],
+    });
+    const result = validateParsedForm(parsed);
     expect(result.valid).toBe(false);
     if (!result.valid) expect(result.lineErrors.get(0)).toContain("Refund");
+    // The per-line error field (rendered inline against the row) carries the
+    // exact message, not a concatenation onto its prior value.
+    expect(parsed.lines[0]!.error).toBe(
+      "Refund this line's payment before marking it no quantity.",
+    );
   });
 
   test("validateParsedForm allows marking an unpaid line no-quantity", () => {
-    const result = validateParsedForm(
-      parsedBase({
-        lines: [
-          line({
-            existingBooking: bookingRow({ price_paid: 0, quantity: 1 }),
-            noQuantity: true,
-            quantity: 0,
-          }),
-        ],
-      }),
-    );
+    const parsed = parsedBase({
+      lines: [
+        line({
+          existingBooking: bookingRow({ price_paid: 0, quantity: 1 }),
+          noQuantity: true,
+          quantity: 0,
+        }),
+      ],
+    });
+    const result = validateParsedForm(parsed);
     expect(result.valid).toBe(true);
+    // A valid line's per-line error is cleared to exactly null.
+    expect(parsed.lines[0]!.error).toBe(null);
   });
 
   test("validateParsedForm allows a brand-new no-quantity line (no existing booking)", () => {
