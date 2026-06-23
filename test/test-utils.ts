@@ -1,3 +1,4 @@
+export * from "./test-utils/activity-log.ts";
 export * from "./test-utils/api-schemas.ts";
 export * from "./test-utils/assertions.ts";
 export { getTestDataKey, getTestPrivateKey } from "./test-utils/crypto.ts";

@@ -3,7 +3,6 @@ import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
-import { getAllActivityLog } from "#shared/db/activityLog.ts";
 import { backupKey, backupTimestamp, dbName } from "#shared/db/backup.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
 import { uploadRaw } from "#shared/storage.ts";
@@ -12,6 +11,7 @@ import {
   createTestBuiltSite,
   describeWithEnv,
   expectFlashRedirect,
+  getAllActivityLog,
   setTestEnv,
   testCookie,
 } from "#test-utils";
