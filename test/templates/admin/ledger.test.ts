@@ -237,7 +237,7 @@ describe("adminAccountStatementPage", () => {
     expect(html).toContain(`Balance: ${formatCurrency(5000)}`);
     // Back link to the historical ledger.
     expect(html).toContain('href="/admin/ledger"');
-    expect(html).toContain("<th>Balance</th>");
+    expect(html).toContain('<th class="col-amount">Balance</th>');
   });
 
   test("shows a zero balance for an account with no history", () => {
