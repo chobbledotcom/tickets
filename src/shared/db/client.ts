@@ -26,7 +26,7 @@ import {
   trackQuery,
 } from "#shared/db/query-log.ts";
 import { getEnv } from "#shared/env.ts";
-import { delay } from "#shared/now.ts";
+import { retryWithBackoff } from "#shared/retry.ts";
 
 /**
  * Match the target table of a mutating statement (INSERT/UPDATE/DELETE/REPLACE),
@@ -150,7 +150,6 @@ export class DatabaseBusyError extends Error {
 /** Backoff before each retry of a contended database lock; its length is the
  *  number of retries, so four attempts in total. */
 const WRITE_LOCK_RETRY_BACKOFF_MS = [50, 150, 350] as const;
-const WRITE_LOCK_ATTEMPTS = WRITE_LOCK_RETRY_BACKOFF_MS.length + 1;
 
 /** SQLite has a single writer, so a contended write surfaces as SQLITE_BUSY —
  *  thrown immediately by the local driver as "database is locked" when a bare
@@ -167,17 +166,11 @@ const isDatabaseLocked = (error: unknown): boolean =>
  * loser. A lock that outlasts the retries surfaces as {@link DatabaseBusyError}
  * (the request layer's friendly busy page); every other error propagates at once.
  */
-const retryOnDatabaseLock = async <T>(run: () => Promise<T>): Promise<T> => {
-  for (let attempt = 0; attempt < WRITE_LOCK_ATTEMPTS; attempt++) {
-    if (attempt > 0) await delay(WRITE_LOCK_RETRY_BACKOFF_MS[attempt - 1]!);
-    try {
-      return await run();
-    } catch (error) {
-      if (!isDatabaseLocked(error)) throw error;
-    }
-  }
-  throw new DatabaseBusyError();
-};
+const retryOnDatabaseLock = <T>(run: () => Promise<T>): Promise<T> =>
+  retryWithBackoff(run, WRITE_LOCK_RETRY_BACKOFF_MS, (error, { willRetry }) => {
+    if (!isDatabaseLocked(error)) throw error;
+    if (!willRetry) throw new DatabaseBusyError();
+  });
 
 const executeTrackedStatement = (
   sql: string,
