@@ -409,6 +409,11 @@ const restoredQuantity = (
  */
 export type ChildRenderCtx = {
   children: Map<number, TicketListing[]>;
+  /** Each DAILY child's holiday-aware serveable start dates (keyed by child id),
+   * emitted as `data-child-dates` so the client compatibility script can disable
+   * a child the selected date can't serve (Codex 430). Non-daily children are
+   * omitted (no date constraint). */
+  childDatesById: ReadonlyMap<number, string[]>;
   /** Each listing id → its capped group's remaining spots, for the combined
    * parent+child demand clamp (invariant I7); empty when no group caps apply. */
   groupRemainingByListingId: ReadonlyMap<number, number>;
@@ -618,16 +623,42 @@ const restoredChildQty = (
   return Math.max(0, Math.min(Number.parseInt(saved, 10) || 0, max));
 };
 
+/** The date/span compatibility attributes a child qty control carries so the
+ * client compatibility script (Codex 430) can disable it when the selected
+ * date/day-count can't be served: `data-child-dates` (a DAILY child's serveable
+ * starts, from the server's holiday-aware {@link ChildRenderCtx.childDatesById})
+ * and `data-child-spans` (a CUSTOMISABLE/fixed-DAILY child's supported day
+ * counts, from {@link childSupportedSpans}). A child with no date/span constraint
+ * (e.g. a standard child) emits NOTHING — it is always compatible. */
+const childCompatAttrs = (
+  child: TicketListing,
+  childDatesById: ReadonlyMap<number, string[]>,
+): string => {
+  const attrs: string[] = [];
+  const dates = childDatesById.get(child.listing.id);
+  if (dates !== undefined) {
+    attrs.push(` data-child-dates="${escapeHtml(dates.join(","))}"`);
+  }
+  const spans = childSupportedSpans(child);
+  if (spans !== null) {
+    attrs.push(` data-child-spans="${escapeHtml(spans.join(","))}"`);
+  }
+  return attrs.join("");
+};
+
 /** Render one child as a per-unit quantity row (per-unit selection model): a
  * `child_qty_<parentId>_<childId>` quantity select over `0..childCap`, plus —
  * for a bookable pay-more child — its non-required price input. A
  * sold-out/closed/inactive child renders a disabled select fixed at 0 and is
  * never selectable (invariant I6). The select is non-required in markup; the
- * server fold validates the per-parent total (invariant I9). */
+ * server fold validates the per-parent total (invariant I9). A bookable child
+ * additionally carries its date/span compatibility attributes ({@link
+ * childCompatAttrs}) for the client compatibility script. */
 const renderChildOption = (
   parent: ListingWithCount,
   child: TicketListing,
   childCap: number,
+  childDatesById: ReadonlyMap<number, string[]>,
 ): string => {
   const parentId = parent.id;
   const { listing } = child;
@@ -646,7 +677,10 @@ const renderChildOption = (
     ? `${escapeHtml(listing.name)} ${childPriceLabel(listing, parent)}`.trim()
     : escapeHtml(t("public.ticket.child_unavailable", { name: listing.name }));
   const select = bookable
-    ? `<select name="${selectName}" data-child-qty="${listing.id}">${quantityOptions(
+    ? `<select name="${selectName}" data-child-qty="${listing.id}"${childCompatAttrs(
+        child,
+        childDatesById,
+      )}>${quantityOptions(
         childCap,
         restoredChildQty(parentId, listing.id, childCap),
       )}</select>`
@@ -723,6 +757,7 @@ const renderChildBlock = (
                   ),
                 )
               : 0,
+            ctx.childDatesById,
           ),
     )
     .join("");
@@ -944,6 +979,10 @@ export type TicketPageOptions = {
   /** Parent listing id → its children (each a TicketListing). Drives the
    * per-parent child selector rendered under each parent row. */
   childrenByParentId?: Map<number, TicketListing[]>;
+  /** Each DAILY child's holiday-aware serveable start dates (keyed by child id),
+   * emitted as `data-child-dates` on the child controls for the client
+   * compatibility script (Codex 430). Omitted/empty when no daily children. */
+  childDatesById?: ReadonlyMap<number, string[]>;
   /** Each listing id → its capped group's remaining spots, so a parent sharing a
    * capped group with its child clamps its quantity by the combined parent+child
    * demand (invariant I7, Fix 3). Empty/omitted when no group caps apply. */
@@ -1191,6 +1230,7 @@ const splitChildQuestions = (
   questionListingMap: QuestionListingMap | undefined,
   childrenByParentId: Map<number, TicketListing[]> | undefined,
   groupRemainingByListingId: ReadonlyMap<number, number>,
+  childDatesById: ReadonlyMap<number, string[]>,
 ): { pageQuestions: QuestionWithAnswers[]; childCtx?: ChildRenderCtx } => {
   if (!childrenByParentId || childrenByParentId.size === 0) {
     return { pageQuestions: questions };
@@ -1203,6 +1243,7 @@ const splitChildQuestions = (
   const pageQuestions = questions.filter(isPageQuestion);
   return {
     childCtx: {
+      childDatesById,
       children: childrenByParentId,
       groupRemainingByListingId,
       questionListingMap,
@@ -1288,6 +1329,7 @@ export const ticketPage = ({
   addOns,
   promoCodesEnabled,
   childrenByParentId,
+  childDatesById,
   groupRemainingByListingId,
 }: TicketPageOptions): string => {
   const inIframe = getIframeMode();
@@ -1319,6 +1361,7 @@ export const ticketPage = ({
     questionListingMap,
     childrenByParentId,
     groupRemainingByListingId ?? new Map(),
+    childDatesById ?? new Map(),
   );
 
   const listingRows = buildListingRows(

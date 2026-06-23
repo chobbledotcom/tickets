@@ -174,15 +174,42 @@ export const childSelectorSpec = (parentId: string): ElementSpec => ({
 
 /** A per-child quantity select (`child_qty_<parentId>_<childId>`), the per-unit
  * selection control that replaced the old radio. `value` is the chosen quantity
- * (default "0"); a disabled control models a sold-out child. */
+ * (default "0"); a disabled control models a sold-out child.
+ *
+ * `compat` adds the date/span compatibility attributes the server emits for a
+ * BOOKABLE child (Codex 430): `data-child-qty` (the JS-managed marker) plus the
+ * optional `data-child-dates` / `data-child-spans`. A server-disabled (sold-out)
+ * child renders WITHOUT `data-child-qty`, so omit `compat` to model one. */
 export const childQtySpec = (
   parentId: string,
   childId: string,
   value = "0",
   disabled = false,
+  compat?: { dates?: string[]; spans?: number[] },
 ): ElementSpec => ({
+  data: compat
+    ? {
+        childQty: childId,
+        ...(compat.dates && { childDates: compat.dates.join(",") }),
+        ...(compat.spans && { childSpans: compat.spans.join(",") }),
+      }
+    : undefined,
   disabled,
   name: `child_qty_${parentId}_${childId}`,
+  tag: "select",
+  value,
+});
+
+/** The page-level `name="date"` daily-listing date selector. */
+export const dateSpec = (value = ""): ElementSpec => ({
+  name: "date",
+  tag: "select",
+  value,
+});
+
+/** The page-level `name="day_count"` span selector. */
+export const dayCountSpec = (value = ""): ElementSpec => ({
+  name: "day_count",
   tag: "select",
   value,
 });

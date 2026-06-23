@@ -2425,5 +2425,74 @@ describeWithEnv(
       // The child-only field is present but not HTML-required.
       expect(html).not.toMatch(/name="phone"[^>]*\srequired/);
     });
+
+    test("a daily parent's daily child carries its serveable dates as data-child-dates (Codex 430)", async () => {
+      const { DAY_NAMES, getBookableStartDates } = await import(
+        "#shared/dates.ts"
+      );
+      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
+      const { getListingWithCount } = await import("#shared/db/listings.ts");
+
+      // Two daily children so the per-child selectors render (no sole-child
+      // auto-select): child A serves every day, child B only one weekday — so the
+      // client compatibility script can tell them apart by their date sets.
+      const parent = await createDailyTestListing({ name: "Daily base" });
+      const childA = await createDailyTestListing({ name: "Daily add-on A" });
+      const parentRow = (await getListingWithCount(parent.id))!;
+      const holidays = await getActiveHolidays();
+      const parentDate = getBookableStartDates(parentRow, holidays)[0]!;
+      const parentDay =
+        DAY_NAMES[new Date(`${parentDate}T00:00:00Z`).getUTCDay()]!;
+      const childB = await createDailyTestListing({
+        bookableDays: [parentDay],
+        name: "Daily add-on B",
+      });
+      await setChildIds(parent.id, [childA.id, childB.id]);
+
+      const childBRow = (await getListingWithCount(childB.id))!;
+      const childBDates = getBookableStartDates(childBRow, holidays).join(",");
+
+      const html = await ticketPageHtml(parent.slug);
+      // Child B's control advertises exactly its own (single-weekday) serveable
+      // dates — the holiday-aware set the server computed, not the parent's.
+      expect(html).toContain(
+        `name="child_qty_${parent.id}_${childB.id}" data-child-qty="${childB.id}" data-child-dates="${childBDates}"`,
+      );
+      expect(childBDates.length).toBeGreaterThan(0);
+    });
+
+    test("a customisable child carries its supported spans as data-child-spans (Codex 430)", async () => {
+      // Two children so the per-child selectors render: a customisable child
+      // (priced 1 & 3 days) advertises its supported spans; a plain standard
+      // child carries no span attribute (always compatible).
+      const parent = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 1000, 3: 3000 },
+        durationDays: 3,
+        name: "Customisable base",
+      });
+      const childA = await createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 1000, 3: 3000 },
+        durationDays: 3,
+        maxPrice: 0,
+        name: "Customisable add-on",
+        unitPrice: 0,
+      });
+      const childB = await createTestListing({ name: "Standard add-on" });
+      await setChildIds(parent.id, [childA.id, childB.id]);
+
+      const html = await ticketPageHtml(parent.slug);
+      // The customisable child advertises the spans it can serve.
+      expect(html).toContain(
+        `name="child_qty_${parent.id}_${childA.id}" data-child-qty="${childA.id}" data-child-spans="1,3"`,
+      );
+      // The standard child imposes no span constraint, so it emits neither attr.
+      const standardControl = html.slice(
+        html.indexOf(`name="child_qty_${parent.id}_${childB.id}"`),
+      );
+      expect(standardControl).not.toContain("data-child-spans");
+      expect(standardControl.slice(0, 120)).not.toContain("data-child-dates");
+    });
   },
 );

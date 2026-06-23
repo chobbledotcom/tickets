@@ -12,8 +12,8 @@
  * buyer booking a different listing. */
 import {
   childQtyTotal,
-  childSelectorParentIds,
   chosenChildIds,
+  initParentSelectors,
   onSelectionChange,
   parentInCart,
   quantityValue,
@@ -46,13 +46,5 @@ const updateParent = (parentId: string): void => {
   updateHint(parentId, inCart ? childQtyTotal(parentId) : 0);
 };
 
-export const initChildRequired = (): void => {
-  const parentIds = childSelectorParentIds();
-  if (parentIds.length === 0) return;
-
-  const update = (): void => {
-    for (const parentId of parentIds) updateParent(parentId);
-  };
-  onSelectionChange(update);
-  update();
-};
+export const initChildRequired = (): void =>
+  initParentSelectors(onSelectionChange, updateParent);

@@ -941,6 +941,37 @@ export const childListingIdsOf = (
   return [...ids];
 };
 
+/** The holiday-aware set of start dates each DAILY child can serve for the span
+ * it inherits from its parent, keyed by child id for the client compatibility
+ * script (Codex 430). A daily child contributes only its own bookable starts that
+ * cover the inherited span — a fixed daily parent's {@link fixedParentSpan}, or a
+ * single day when the parent's span isn't fixed (a customisable parent) — reusing
+ * the SAME {@link childDateContribution} rule the parent's date union uses, so the
+ * client never disables a date the server would accept (and never re-enables one
+ * it rejects). A non-daily child imposes no date constraint and is omitted (the
+ * client treats a missing entry as "always compatible"). */
+export const buildChildDatesById = (
+  activeListings: TicketListing[],
+  childrenByParentId: ChildrenByParentId,
+  holidays: Holiday[],
+): Map<number, string[]> => {
+  const result = new Map<number, string[]>();
+  for (const { listing: parent } of activeListings) {
+    const children = childrenByParentId.get(parent.id);
+    if (!children) continue;
+    const fixedSpan = fixedParentSpan(parent);
+    const parentDates = getBookableStartDates(parent, holidays);
+    for (const child of children) {
+      if (child.listing.listing_type !== "daily") continue;
+      result.set(
+        child.listing.id,
+        childDateContribution(child, parentDates, fixedSpan, holidays),
+      );
+    }
+  }
+  return result;
+};
+
 /** Fetch shared context for ticket pages: dates, terms, questions.
  * When a group is provided, its terms override global terms and its name/description are included. */
 export const getTicketContext = async (
@@ -965,22 +996,31 @@ export const getTicketContext = async (
       getOptionalAddOns(listingIds),
     ]);
   // A daily parent's offered dates must intersect the union of its children's
-  // bookable dates (Codex 758). Only the single-daily-parent page is constrained
-  // (see singleDailyParentChildren); other pages skip the holiday fetch.
+  // bookable dates (Codex 758); the client compatibility script also needs each
+  // daily child's serveable dates (Codex 430). Both are holiday-aware, so the
+  // holidays are fetched once whenever the page has any parents; pages with no
+  // parents skip the fetch entirely.
+  const holidays = childrenByParentId.size > 0 ? await getActiveHolidays() : [];
   const dailyParent = singleDailyParent(activeListings, childrenByParentId);
   const dates = dailyParent
     ? constrainDatesByChildUnion(
         sharedDates,
         dailyParent.children,
         dailyParent.fixedSpan,
-        await getActiveHolidays(),
+        holidays,
       )
     : sharedDates;
+  const childDatesById = buildChildDatesById(
+    activeListings,
+    childrenByParentId,
+    holidays,
+  );
   const terms = group
     ? group.terms_and_conditions || globalTerms || ""
     : globalTerms;
   return {
     addOns,
+    childDatesById,
     childrenByParentId,
     dates,
     promoCodesEnabled,

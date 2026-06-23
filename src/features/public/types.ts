@@ -28,6 +28,11 @@ export type TicketCtx = {
   /** Parent→children relationship for the page's listings (see
    * {@link ChildrenByParentId}). */
   childrenByParentId: ChildrenByParentId;
+  /** Each DAILY child's holiday-aware serveable start dates (keyed by child id),
+   * threaded into the render so each child control carries `data-child-dates` for
+   * the client compatibility script (Codex 430). Non-daily children are omitted
+   * (no date constraint). */
+  childDatesById: Map<number, string[]>;
   /** Each listing id → its capped group's remaining spots, set on the render path
    * so a parent sharing a capped group with its child clamps its quantity by the
    * combined parent+child demand (invariant I7, Fix 3). Omitted on submit/quote
@@ -63,6 +68,10 @@ export type TicketSharedContext = {
   /** Parent→children relationship for the page's listings (see
    * {@link ChildrenByParentId}); empty map when the flag is off or none apply. */
   childrenByParentId: ChildrenByParentId;
+  /** Each DAILY child's holiday-aware serveable start dates (keyed by child id),
+   * emitted as `data-child-dates` for the client compatibility script (Codex
+   * 430); empty map when the page has no daily children. */
+  childDatesById: Map<number, string[]>;
   groupName?: string;
   groupDescription?: string;
   actionUrl?: string;

@@ -98,12 +98,36 @@ export const selectedListingIds = (): Set<string> => {
   return ids;
 };
 
-/** Run `listener` whenever a selection that can change the active-listing set
- * changes: any quantity control, or any per-child quantity control. */
-export const onSelectionChange = (listener: () => void): void => {
+/** Add a `change` listener to every control matching `selector`. The one place
+ * the enhancement scripts wire change handlers, so the query + listener loop
+ * lives once. */
+export const onChangeOf = (selector: string, listener: () => void): void => {
   for (const control of document.querySelectorAll<
     HTMLSelectElement | HTMLInputElement
-  >('[name^="quantity_"], [name^="child_qty_"]')) {
+  >(selector)) {
     control.addEventListener("change", listener);
   }
+};
+
+/** Run `listener` whenever a selection that can change the active-listing set
+ * changes: any quantity control, or any per-child quantity control. */
+export const onSelectionChange = (listener: () => void): void =>
+  onChangeOf('[name^="quantity_"], [name^="child_qty_"]', listener);
+
+/** Shared init scaffold for the parent/child enhancement scripts: no-op when the
+ * page has no child selector, otherwise wire `perParent` to run for every parent
+ * id on each change `register` reports (and once immediately). Both
+ * `initChildRequired` and `initChildCompat` differ only in their `register`
+ * (which controls drive the update) and `perParent` (what they toggle). */
+export const initParentSelectors = (
+  register: (update: () => void) => void,
+  perParent: (parentId: string) => void,
+): void => {
+  const parentIds = childSelectorParentIds();
+  if (parentIds.length === 0) return;
+  const update = (): void => {
+    for (const parentId of parentIds) perParent(parentId);
+  };
+  register(update);
+  update();
 };
