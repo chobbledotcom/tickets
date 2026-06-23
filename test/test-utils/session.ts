@@ -42,10 +42,7 @@ export const loginAsAdmin = async (
   }
 
   const loginResponse = await handleRequest(
-    await mockAdminLoginRequest(
-      { password, username },
-      loginCsrfToken,
-    ),
+    await mockAdminLoginRequest({ password, username }, loginCsrfToken),
   );
   loginResponse.body?.cancel();
   const cookie = loginResponse.headers

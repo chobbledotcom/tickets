@@ -44,6 +44,7 @@ import {
   clearSessionCookie,
   parseFlashValue,
 } from "#shared/cookies.ts";
+import { maybeBackfillActivityLog } from "#shared/db/activity-log-backfill.ts";
 import { DatabaseBusyError } from "#shared/db/client.ts";
 import {
   initDb,
@@ -251,6 +252,7 @@ const getPrefix = (path: string): string => {
  * - `applySecurityHeaders` rebuilds the CSP on every routed response, reading
  *   the payment provider (and square_sandbox when the provider is Square)
  * - pruning self-guards on last_pruned_*
+ * - the activity-log backfill self-guards on its done flag + last-run stamp
  * - session auth + PII decryption read the key material
  */
 const INFRA_SETTINGS: readonly string[] = [
@@ -278,6 +280,10 @@ const INFRA_SETTINGS: readonly string[] = [
   CONFIG_KEYS.LAST_PRUNED_ORPHANS,
   CONFIG_KEYS.AUTO_PURGE_ORPHANS,
   CONFIG_KEYS.ORPHAN_PURGE_RETENTION,
+  // The activity-log backfill runs from the same fire-and-forget scheduler and
+  // self-guards on these every request until it has converted every legacy row.
+  CONFIG_KEYS.ACTIVITY_LOG_BACKFILL_DONE,
+  CONFIG_KEYS.LAST_ACTIVITY_LOG_BACKFILL,
   CONFIG_KEYS.PUBLIC_KEY,
   CONFIG_KEYS.WRAPPED_PRIVATE_KEY,
 ];
@@ -783,6 +789,10 @@ const prepareRequestEnvironment = async (
   if (!(method === "POST" && path === "/admin/privacy/orphans")) {
     addPendingWork(maybeRunPrunes());
   }
+
+  // Drain the legacy-format activity-log backfill a batch at a time. Like the
+  // prunes it self-gates on an interval and is a no-op once complete.
+  addPendingWork(maybeBackfillActivityLog());
 
   // Load effective domain (custom_domain from DB if set, else request hostname)
   loadEffectiveDomain(request.url);

@@ -74,6 +74,7 @@ import type { EncryptedUpdateFn } from "#shared/wallets/wallet-settings-types.ts
 // ---------------------------------------------------------------------------
 
 export const CONFIG_KEYS = {
+  ACTIVITY_LOG_BACKFILL_DONE: "activity_log_backfill_done",
   APPLE_WALLET_PASS_TYPE_ID: "apple_wallet_pass_type_id",
   APPLE_WALLET_SIGNING_CERT: "apple_wallet_signing_cert",
   APPLE_WALLET_SIGNING_KEY: "apple_wallet_signing_key",
@@ -109,6 +110,7 @@ export const CONFIG_KEYS = {
   HAS_LOGISTICS: "has_logistics",
   HEADER_IMAGE_URL: "header_image_url",
   HOMEPAGE_TEXT: "homepage_text",
+  LAST_ACTIVITY_LOG_BACKFILL: "last_activity_log_backfill",
   LAST_PRUNED_CONTACTS: "last_pruned_contacts",
   LAST_PRUNED_INVITES: "last_pruned_invites",
   LAST_PRUNED_LOGINS: "last_pruned_logins",
@@ -260,6 +262,8 @@ const PLAINTEXT_KEYS = [
   CONFIG_KEYS.LAST_PRUNED_INVITES,
   CONFIG_KEYS.LAST_PRUNED_ORPHANS,
   CONFIG_KEYS.SMS_GATEWAY_BASE_URL,
+  CONFIG_KEYS.ACTIVITY_LOG_BACKFILL_DONE,
+  CONFIG_KEYS.LAST_ACTIVITY_LOG_BACKFILL,
 ] as const;
 
 /** Encrypted string config keys (decrypted during loadKeys, default ""). */
@@ -489,6 +493,7 @@ const plaintextUpdate: EncryptedUpdateFn = stringUpdate(writeOrDelete);
 type AccessorSpec = { key: StringSettingKey; readOnly?: true };
 
 const STRING_ACCESSORS = {
+  activityLogBackfillDone: { key: CONFIG_KEYS.ACTIVITY_LOG_BACKFILL_DONE },
   attendeeColumnOrder: { key: CONFIG_KEYS.ATTENDEE_COLUMN_ORDER },
   bulkEmailDraft: { key: CONFIG_KEYS.BULK_EMAIL_DRAFT },
   bunnySubdomain: { key: CONFIG_KEYS.BUNNY_SUBDOMAIN },
@@ -504,6 +509,7 @@ const STRING_ACCESSORS = {
   embedHosts: { key: CONFIG_KEYS.EMBED_HOSTS },
   headerImageUrl: { key: CONFIG_KEYS.HEADER_IMAGE_URL },
   homepageText: { key: CONFIG_KEYS.HOMEPAGE_TEXT },
+  lastActivityLogBackfill: { key: CONFIG_KEYS.LAST_ACTIVITY_LOG_BACKFILL },
   lastPrunedContacts: { key: CONFIG_KEYS.LAST_PRUNED_CONTACTS },
   lastPrunedInvites: { key: CONFIG_KEYS.LAST_PRUNED_INVITES },
   lastPrunedLogins: { key: CONFIG_KEYS.LAST_PRUNED_LOGINS },
