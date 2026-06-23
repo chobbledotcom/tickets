@@ -85,7 +85,7 @@ describe("AttendeeTable", () => {
 
     test("renders Qty column", () => {
       const html = AttendeeTable(makeOpts());
-      expect(html).toContain("<th>Qty</th>");
+      expect(html).toContain('<th class="col-quantity">Qty</th>');
     });
 
     test("renders Ticket column with link", () => {
@@ -722,7 +722,7 @@ describe("AttendeeTable columnTemplate", () => {
     );
     // Should still render the default columns
     expect(html).toContain("<th>Name</th>");
-    expect(html).toContain("<th>Qty</th>");
+    expect(html).toContain('<th class="col-quantity">Qty</th>');
   });
 
   test("hides data-dependent column when no rows have data", () => {

@@ -53,7 +53,7 @@ describe("adminQuestionsPage", () => {
     expect(html).toContain("<table");
     expect(html).toContain("Favourite colour?");
     // Answer-count cell shows the raw number.
-    expect(html).toContain("<td>2</td>");
+    expect(html).toContain('<td class="col-quantity">2</td>');
   });
 
   test("shows a Listings count with the listing names as the cell title", () => {
@@ -64,7 +64,9 @@ describe("adminQuestionsPage", () => {
       new Map([[1, ["Spring Gig", "Summer Gig"]]]),
       5,
     );
-    expect(html).toContain('<td title="Spring Gig, Summer Gig">2</td>');
+    expect(html).toContain(
+      '<td class="col-quantity" title="Spring Gig, Summer Gig">2</td>',
+    );
   });
 
   test("shows All and the total count for assign-all questions", () => {
@@ -75,7 +77,7 @@ describe("adminQuestionsPage", () => {
       new Map(),
       5,
     );
-    expect(html).toContain('<td title="All">5</td>');
+    expect(html).toContain('<td class="col-quantity" title="All">5</td>');
   });
 
   test("renders reorder controls: down on the first, up on the last", () => {
@@ -202,8 +204,8 @@ describe("adminQuestionPage", () => {
     ]);
     const html = adminQuestionPage(question, TEST_SESSION, undefined, counts);
     expect(html).toContain("<table");
-    expect(html).toContain("<td>5</td>");
-    expect(html).toContain("<td>3</td>");
+    expect(html).toContain('<td class="col-quantity">5</td>');
+    expect(html).toContain('<td class="col-quantity">3</td>');
   });
 
   test("shows zero selections for answers with no stored total", () => {
@@ -213,7 +215,7 @@ describe("adminQuestionPage", () => {
       undefined,
       new Map(),
     );
-    expect(html).toContain("<td>0</td>");
+    expect(html).toContain('<td class="col-quantity">0</td>');
   });
 
   test("renders move-up and move-down buttons", () => {
