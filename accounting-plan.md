@@ -15,14 +15,16 @@ compatibility (§8).
 [`src/shared/ledger/`](src/shared/ledger/) (100% covered) and the `transfers`
 table; the booking and refund money events post their legs to the ledger; the
 one-shot backfill (§6) has reconstructed all history; a reusable batch-transfer
-primitive (`postTransferGroups`, §4) posts many events atomically; and the first
-three read concerns are fully swapped and their columns dropped — **refund status**
+primitive (`postTransferGroups`, §4) posts many events atomically; and **all six
+money concerns are fully swapped and their columns dropped** — **refund status**
 (no more `listing_attendees.refunded`), **listing income** (no more
-`listings.income`), and **amount paid** (no more `listing_attendees.price_paid` —
+`listings.income`), **amount paid** (no more `listing_attendees.price_paid` —
 a booking row's amount projects from its gross `sale` leg, keyed by the row's
-`ledger_event_group`). **Remaining read concerns (§7):** outstanding balance
-(`attendees.remaining_balance`) and modifier revenue (`modifiers.total_revenue`);
-then the shared ledger renderer (§5.15) and the manual ledger-edit UI that
+`ledger_event_group`), **outstanding balance** (no more
+`attendees.remaining_balance` — projects as `−balanceOf(attendee)`), and
+**modifier revenue** (no more `modifiers.total_revenue` — projects as
+`balanceOf(modifier:M)`, read directly). **Remaining work (§7):** the shared
+ledger renderer (§5.15) and the manual ledger-edit UI that
 replaces the money-aggregate overrides (decision 14, currently just removed from
 the form). **There is no dual-write phase** — see §7. **The code is the source of
 truth for the model**; when code and prose disagree, the code wins and this doc is
@@ -526,7 +528,18 @@ tests:
 6. **Modifier revenue** — `modifiers.total_revenue` (+ trigger) →
    `balanceOf(modifier:M)` (no modifier has ever been used in production). The
    shared `accountBalanceSubquery("revenue"/"modifier", idExpr)` from concern 5
-   is the projection — read directly (not negated).
+   is the projection — read directly (not negated). **Done** (the column and the
+   `amount_applied` lines of its three maintaining triggers are dropped;
+   `total_uses`/`usage_count` stay trigger-maintained). The projection is
+   **signed** — a surcharge bills the attendee (nets positive), a discount funds
+   them (nets negative) — so `modifierRevenueSubquery` reads `balanceOf(modifier:M)`
+   directly, the modifier's true net effect (the legacy `SUM(amount_applied)` showed
+   the unsigned magnitude). Every `SELECT *` loader projects it and merges it onto
+   the read type (the stored row is `ModifierRow = Omit<Modifier, "total_revenue">`,
+   mirroring `listings.income`); the drop migration shares the trigger-rewrite body
+   with `drop_listing_income` via `triggerRewriteDropMigration`. The money field
+   left the aggregate-override form (decision 14, deferred); the list/detail
+   displays read the projection.
 
 **Swap lesson (learned on concerns 2–3, applies to the rest).** Dropping a money
 column breaks **every** read of it, not just the headline query — a `SELECT *`
@@ -562,7 +575,8 @@ Removed outright — no compatibility shim — once every read is on the ledger
 - [ ] `attendees.remaining_balance`
 - [x] `listings.income` and its maintaining trigger (the three aggregate triggers
   were rebuilt to keep `booked_quantity`/`tickets_count` only)
-- [ ] `modifiers.total_revenue` and its maintaining trigger
+- [x] `modifiers.total_revenue` and its maintaining trigger (the three
+  `trg_modifier_usages_aggregates_*` triggers now maintain only the counts)
 - [x] the per-row `refunded` money flag on `listing_attendees`
 - [ ] the money columns on `modifier_usages` (the table survives as a non-money
   stock ledger)
