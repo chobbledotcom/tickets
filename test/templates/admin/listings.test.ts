@@ -1196,10 +1196,12 @@ describe("adminListingPage income & ledger breakdown", () => {
     expect(html).toContain("−£20");
     expect(html).toContain("Net balance in ledger");
     expect(html).toContain("£70");
-    // The plain-English reconciliation note and the per-account ledger link.
+    // The plain-English reconciliation note and the button to the filtered
+    // ledger, preselected to this listing (no arrow glyph, button-styled).
     expect(html).toContain("refund-agnostic");
-    expect(html).toContain('href="/admin/ledger/revenue/7"');
+    expect(html).toContain('href="/admin/ledger?listing=7"');
     expect(html).toContain("View full ledger");
+    expect(html).not.toContain("View full ledger →");
   });
 
   test("makes a refund-driven divergence between income and net balance visible", () => {

@@ -121,7 +121,7 @@
   "listings_table.income_ledger_refunds": "Refunds",
   "listings_table.income_ledger_net_balance": "Net balance in ledger",
   "listings_table.income_ledger_recognised_note": "Recognised income is the figure reported above and in exports; it is refund-agnostic. The net balance is the live balance of this listing's revenue account, which also nets refunds — so the two reconcile here.",
-  "listings_table.income_ledger_view_full": "View full ledger →",
+  "listings_table.income_ledger_view_full": "View full ledger",
   "listings_table.income_ledger_link": "Income & ledger breakdown →",
   "listings_table.duration_warning_message": "Changing booking duration will update existing bookings for this listing.",
   "listings_table.i_understand": "I understand",

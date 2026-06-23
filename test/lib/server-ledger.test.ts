@@ -1,6 +1,9 @@
 import { expect } from "@std/expect";
-import { it as test } from "@std/testing/bdd";
-import { LEDGER_DISPLAY_LIMIT } from "#routes/admin/ledger.ts";
+import { describe, it as test } from "@std/testing/bdd";
+import {
+  LEDGER_DISPLAY_LIMIT,
+  pickerDatesFromBounds,
+} from "#routes/admin/ledger.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
 import { adjustListingIncome } from "#shared/db/listings.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
@@ -77,6 +80,107 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
     const { response } = await adminGet("/admin/ledger");
     const html = await response.text();
     expect(html).toContain("No transfers recorded yet");
+  });
+
+  test("shows the headline stats, both date pickers and the listing filter", async () => {
+    await seededSale("Summer Concert", 2500);
+    const { response } = await adminGet("/admin/ledger");
+    const html = await response.text();
+    // The four business-wide totals, headed "All listings".
+    expect(html).toContain("All listings");
+    expect(html).toContain("Total income");
+    expect(html).toContain("Total due");
+    expect(html).toContain("Total refunded");
+    expect(html).toContain("Booking fees");
+    // Two range pickers with unique anchor ids, plus the by-listing select.
+    expect(html).toContain('id="ledger-from"');
+    expect(html).toContain('id="ledger-to"');
+    expect(html).toContain("Summer Concert");
+  });
+
+  test("hides the external 'Card / bank' cash legs from the transfer list", async () => {
+    // A fully-paid sale posts a payment leg (world → attendee). That cash leg is
+    // hidden, so the only place "Card / bank" could appear — an external leg row —
+    // is gone from the list page entirely.
+    await seededSale("Gala", 2500);
+    const { response } = await adminGet("/admin/ledger");
+    const html = await response.text();
+    expect(html).toContain("sale");
+    expect(html).not.toContain("Card / bank");
+  });
+
+  test("a from-date later than the only transfer empties the list and zeroes income", async () => {
+    // The seeded sale occurs on 2026-06-21; filtering from the 22nd excludes it.
+    await seededSale("Workshop", 2500);
+    const { response } = await adminGet("/admin/ledger?from=2026-06-22");
+    const html = await response.text();
+    expect(html).toContain("No transfers recorded yet");
+    // Income stat falls to zero outside the window.
+    expect(html).toContain("Total income");
+  });
+
+  test("scoping to a listing shows its revenue breakdown and preselects it", async () => {
+    const { listingId } = await seededSale("Pottery", 2500);
+    const { response } = await adminGet(`/admin/ledger?listing=${listingId}`);
+    const html = await response.text();
+    // The stats switch to the per-listing breakdown, headed by the listing name.
+    expect(html).toContain("Gross ticket sales");
+    expect(html).toContain("Recognised income");
+    expect(html).toContain("Net balance in ledger");
+    // The by-listing select is preselected to this listing.
+    expect(html).toContain(
+      `<option selected value="/admin/ledger?listing=${listingId}">`,
+    );
+  });
+
+  test("lists every listing in the by-listing select, name-sorted", async () => {
+    // Two listings exercise the sort comparator and prove both appear as options.
+    await seededSale("Zither Workshop", 2500);
+    await seededSale("Accordion Night", 2500);
+    const { response } = await adminGet("/admin/ledger");
+    const html = await response.text();
+    expect(html).toContain("Zither Workshop");
+    expect(html).toContain("Accordion Night");
+    // Sorted A→Z, so Accordion's option precedes Zither's.
+    expect(html.indexOf("Accordion Night")).toBeLessThan(
+      html.indexOf("Zither Workshop"),
+    );
+  });
+
+  test("an unknown listing id falls back to the all-listings view", async () => {
+    await seededSale("Recital", 2500);
+    const { response } = await adminGet("/admin/ledger?listing=999999");
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    // Falls back to the business-wide totals rather than a listing breakdown.
+    expect(html).toContain("Total income");
+    expect(html).not.toContain("Gross ticket sales");
+  });
+
+  test("ignores malformed from/to/listing/month params", async () => {
+    await seededSale("Matinee", 2500);
+    const { response } = await adminGet(
+      "/admin/ledger?from=garbage&to=alsobad&listing=abc&fromCal=nope",
+    );
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    // Every bad param is dropped, so the unfiltered all-listings list still shows
+    // the seeded sale.
+    expect(html).toContain("Matinee");
+    expect(html).toContain("sale");
+  });
+
+  test("honours a valid to-date bound and a paged from-month", async () => {
+    await seededSale("Concerto", 2500);
+    const { response } = await adminGet(
+      "/admin/ledger?to=2026-06-21&fromCal=2026-05",
+    );
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    // The 2026-06-21 sale falls within "up to and including the 21st".
+    expect(html).toContain("Concerto");
+    // The from picker is paged to May 2026, so its prev-month link targets April.
+    expect(html).toContain("fromCal=2026-04");
   });
 
   /** The `kind` every bulk leg carries; each rendered transfer row prints it in
@@ -246,5 +350,43 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
   test("404s on a non-positive row id", async () => {
     const { response } = await adminGet("/admin/ledger/attendee/0");
     expect(response.status).toBe(404);
+  });
+});
+
+describe("pickerDatesFromBounds", () => {
+  const ms = (iso: string): number => new Date(iso).getTime();
+
+  test("is empty when the ledger has no transfers", () => {
+    expect(pickerDatesFromBounds(null, "2026-06-21", "UTC")).toEqual([]);
+  });
+
+  test("runs from the earliest transfer to the latest when it is after today", () => {
+    const dates = pickerDatesFromBounds(
+      { maxMs: ms("2026-06-22T00:00:00Z"), minMs: ms("2026-06-20T00:00:00Z") },
+      "2026-06-21",
+      "UTC",
+    );
+    // End follows the latest transfer (the 22nd), not today (the 21st).
+    expect(dates.map((d) => d.value)).toEqual([
+      "2026-06-20",
+      "2026-06-21",
+      "2026-06-22",
+    ]);
+    expect(dates.every((d) => d.selectable)).toBe(true);
+  });
+
+  test("extends the end to today when the latest transfer is older", () => {
+    const dates = pickerDatesFromBounds(
+      { maxMs: ms("2026-06-20T00:00:00Z"), minMs: ms("2026-06-20T00:00:00Z") },
+      "2026-06-23",
+      "UTC",
+    );
+    // End follows today (the 23rd), so a future bound stays pickable.
+    expect(dates.map((d) => d.value)).toEqual([
+      "2026-06-20",
+      "2026-06-21",
+      "2026-06-22",
+      "2026-06-23",
+    ]);
   });
 });
