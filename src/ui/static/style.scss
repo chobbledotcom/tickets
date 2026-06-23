@@ -77,6 +77,16 @@ html[data-theme="dark"] {
   color-scheme: dark;
 }
 
+/* Cross-document view transitions: cross-fade between same-origin page loads so
+   moving around feels like one fluid app rather than discrete document loads.
+   Pure progressive enhancement — every page links this one stylesheet and shares
+   the single Layout, so both sides of a navigation opt in automatically; browsers
+   without support just navigate instantly as before, and external links (a
+   different origin) are left alone. Neutralised under prefers-reduced-motion below. */
+@view-transition {
+  navigation: auto;
+}
+
 /* Dark mode form enhancements */
 [data-theme="dark"] form {
   border-width: 2px;
@@ -148,6 +158,13 @@ html[data-theme="dark"] {
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
+  }
+
+  /* Skip the cross-document cross-fade too: the page still swaps, just instantly. */
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
   }
 }
 
