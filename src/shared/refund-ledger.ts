@@ -18,6 +18,7 @@
  * adjustment, or a logged write failure), which the caller surfaces.
  */
 
+import { groupBy } from "#fp";
 import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import { mapRefund } from "#shared/accounting/mappers.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
@@ -26,17 +27,6 @@ import { balanceOf } from "#shared/ledger/project.ts";
 import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
-
-/** Group an account's legs by their event group, preserving order. */
-const byEventGroup = (legs: Transfer[]): Map<string, Transfer[]> => {
-  const groups = new Map<string, Transfer[]>();
-  for (const leg of legs) {
-    const group = groups.get(leg.eventGroup);
-    if (group) group.push(leg);
-    else groups.set(leg.eventGroup, [leg]);
-  }
-  return groups;
-};
 
 /** A revenue-recognising leg marks a group as a real booking order: a free
  *  listing with a paid surcharge has a `modifier`/`fee` leg but no `sale`, while
@@ -57,7 +47,7 @@ const recognisesRevenue = (kind: string | undefined): boolean =>
  *   several orders, where one payment refund can't be attributed to one order.
  */
 export const soleBookingOrder = (legs: Transfer[]): Transfer[] | null => {
-  const groups = byEventGroup(legs);
+  const groups = groupBy(legs, (leg) => leg.eventGroup);
   if (groups.size !== 1) return null;
   const order = [...groups.values()][0]!;
   return order.some((leg) => recognisesRevenue(leg.kind)) ? order : null;
@@ -141,11 +131,12 @@ export const recordAttendeeRefundsBatch = async (
     // Fast path: compute every reversal, then post them all in one batch. A
     // compute read here can throw; the whole thing is guarded so it degrades to
     // the resilient per-attendee fallback rather than 500ing the bulk request.
-    const computed: { id: number; posted: boolean; legs: TransferInput[] }[] =
-      [];
-    for (const id of attendeeIds) {
-      computed.push({ id, ...(await computeAttendeeRefund(id)) });
-    }
+    const computed = await Promise.all(
+      attendeeIds.map(async (id) => ({
+        id,
+        ...(await computeAttendeeRefund(id)),
+      })),
+    );
     const groups = computed
       .map((entry) => entry.legs)
       .filter((legs) => legs.length > 0);

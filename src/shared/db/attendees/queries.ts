@@ -4,8 +4,8 @@
 
 import { map, unique } from "#fp";
 import {
-  accountBalanceSubquery,
   accountPredicate,
+  attendeeOwedSubquery,
   sumAmountFromTransfers,
 } from "#shared/accounting/projection-sql.ts";
 import { computeTicketTokenIndex } from "#shared/crypto/hashing.ts";
@@ -68,7 +68,7 @@ export const pricePaidFromLedger = (
  * with no legs. `attendeeIdExpr` is the attendee id in the surrounding query.
  */
 export const remainingBalanceFromLedger = (attendeeIdExpr: string): string =>
-  `-${accountBalanceSubquery("attendee", attendeeIdExpr)} AS remaining_balance`;
+  `${attendeeOwedSubquery(attendeeIdExpr)} AS remaining_balance`;
 
 /**
  * Attendee columns for JOIN queries — only the columns actually used at runtime.

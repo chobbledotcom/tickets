@@ -11,7 +11,7 @@
 import type { InValue } from "@libsql/client";
 import { compact, mapParallel, sumOf } from "#fp";
 import { attendeeAccount, WORLD } from "#shared/accounting/accounts.ts";
-import { accountBalanceSubquery } from "#shared/accounting/projection-sql.ts";
+import { attendeeOwedSubquery } from "#shared/accounting/projection-sql.ts";
 import { eventGroup, legReference } from "#shared/accounting/refs.ts";
 import { guardedInsertStatement } from "#shared/accounting/rows.ts";
 import { decrypt } from "#shared/crypto/encryption.ts";
@@ -182,7 +182,7 @@ export const settleAttendeeBalance = async (
   // atomic guard: both writes below fire only while they still owe exactly
   // `expectedAmount`. A concurrent settle whose payment leg already landed sees
   // owed = 0 and no-ops, so the balance settles exactly once — no stored column.
-  const owed = `-(${accountBalanceSubquery("attendee", String(attendeeId))})`;
+  const owed = attendeeOwedSubquery(String(attendeeId));
   const results = await executeBatchWithResults([
     {
       // Verdict (first statement): move to the paid status while they still owe

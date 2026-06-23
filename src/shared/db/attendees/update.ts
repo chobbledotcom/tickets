@@ -54,10 +54,10 @@ const reconcileLedgerBalance = async (
   attendeeId: number,
   target: number,
 ): Promise<void> => {
-  const owed = -(await accountBalance(attendeeAccount(attendeeId)));
+  const attendee = attendeeAccount(attendeeId);
+  const owed = -(await accountBalance(attendee));
   const delta = target - owed;
   if (delta === 0) return;
-  const attendee = attendeeAccount(attendeeId);
   const occurredAt = nowIso();
   const group = await eventGroup(["balance-adjust", attendeeId, occurredAt]);
   await postTransfers([

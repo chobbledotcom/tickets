@@ -18,6 +18,7 @@
  */
 
 import type { InValue } from "@libsql/client";
+import { groupBy } from "#fp";
 import {
   assertEventMatches,
   assertReverses,
@@ -51,6 +52,9 @@ export type PostResult = {
   readonly inserted: number;
   readonly skipped: number;
 };
+
+/** A {@link PostResult} for a no-op post — nothing inserted, nothing skipped. */
+const EMPTY_RESULT: PostResult = { inserted: 0, skipped: 0 };
 
 /** Every leg of one event must agree on `label`; name the offending values if not. */
 const assertShared = (label: string, values: string[]): void => {
@@ -100,7 +104,7 @@ export const postTransfersTx = async (
   tx: TxScope,
   inputs: TransferInput[],
 ): Promise<PostResult> => {
-  if (inputs.length === 0) return { inserted: 0, skipped: 0 };
+  if (inputs.length === 0) return EMPTY_RESULT;
   assertPostable(inputs);
   const eventGroup = inputs[0]!.eventGroup;
   const references = inputs.map((t) => t.reference);
@@ -138,8 +142,6 @@ export const postTransfersTx = async (
 export const postTransfers = (inputs: TransferInput[]): Promise<PostResult> =>
   withTransaction((tx) => postTransfersTx(tx, inputs));
 
-const EMPTY_RESULT: PostResult = { inserted: 0, skipped: 0 };
-
 /**
  * The slice of the ledger a whole batch validates itself against, read up front
  * in a fixed handful of bulk queries (never one-per-group), so posting many
@@ -168,20 +170,6 @@ const selectByColumnIn = (
         ` WHERE ${column} IN (${inPlaceholders(values)})`,
         [...values],
       );
-
-/** Index a flat leg list by a key, accumulating same-key legs in order. */
-const groupBy = <K>(
-  legs: Transfer[],
-  key: (leg: Transfer) => K,
-): Map<K, Transfer[]> => {
-  const map = new Map<K, Transfer[]>();
-  for (const leg of legs) {
-    const arr = map.get(key(leg));
-    if (arr) arr.push(leg);
-    else map.set(key(leg), [leg]);
-  }
-  return map;
-};
 
 /** Load everything {@link planGroup} needs to validate the batch, in three bulk
  *  selects — independent of the number of groups. */

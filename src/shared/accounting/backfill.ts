@@ -24,6 +24,7 @@
  */
 
 import type { InValue } from "@libsql/client";
+import { groupBy } from "#fp";
 import { mapBooking, mapRefund } from "#shared/accounting/mappers.ts";
 import { accountBalancesForIds } from "#shared/accounting/queries.ts";
 import { insertStatement, orIgnore } from "#shared/accounting/rows.ts";
@@ -76,18 +77,6 @@ const paidRowsForAttendees = (ids: number[]): Promise<PaidRow[]> =>
  *  repost. An account appears in the balance map iff it has at least one leg. */
 const alreadyLedgered = async (ids: number[]): Promise<Set<string>> =>
   new Set((await accountBalancesForIds(ATTENDEE, ids.map(String))).keys());
-
-/** Group a page of rows by attendee id, preserving the query's order. */
-const groupByAttendee = (rows: PaidRow[]): Map<number, PaidRow[]> => {
-  const groups = new Map<number, PaidRow[]>();
-  for (const row of rows) {
-    const id = Number(row.attendee_id);
-    const group = groups.get(id);
-    if (group) group.push(row);
-    else groups.set(id, [row]);
-  }
-  return groups;
-};
 
 /** Build the booking — and, when refunded, refund — legs for one attendee. */
 const attendeeLegs = async (
@@ -163,7 +152,9 @@ export const backfillTransfers = async (): Promise<void> => {
     const attendeeIds = await nextPaidAttendeeIds(afterId);
     if (attendeeIds.length === 0) return;
     const ledgered = await alreadyLedgered(attendeeIds);
-    const groups = groupByAttendee(await paidRowsForAttendees(attendeeIds));
+    const groups = groupBy(await paidRowsForAttendees(attendeeIds), (row) =>
+      Number(row.attendee_id),
+    );
     for (const [attendeeId, rows] of groups) {
       if (ledgered.has(String(attendeeId))) {
         // Already ledgered by the live dual-write path: don't re-post, but still

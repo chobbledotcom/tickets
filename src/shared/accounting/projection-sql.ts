@@ -61,3 +61,13 @@ export const accountBalanceSubquery = (
     `), 0) FROM transfers WHERE ${asDest} OR ${asSource})`
   );
 };
+
+/**
+ * The bare subquery for what an attendee still owes: the negation of their net
+ * account balance (outstanding = −balance). The single place the "owed equals
+ * negative balance" sign convention lives, so the read column, the settle guard,
+ * and the finalize guard can't drift apart. Callers alias it
+ * (`… AS remaining_balance`) or compare it in a guard (`… = ?`).
+ */
+export const attendeeOwedSubquery = (idExpr: string): string =>
+  `-${accountBalanceSubquery("attendee", idExpr)}`;

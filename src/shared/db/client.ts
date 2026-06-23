@@ -288,7 +288,12 @@ const trackedBatch = async (
   mode: TransactionMode,
 ): Promise<ResultSet[]> => {
   const start = performance.now();
-  const results = await getDb().batch(statements, mode);
+  // Batch writes serialize against the single SQLite writer like any other write,
+  // so a contended batch waits and retries (then surfaces DatabaseBusyError)
+  // rather than throwing raw SQLITE_BUSY — matching execute() and withTransaction.
+  const results = await retryOnDatabaseLock(() =>
+    getDb().batch(statements, mode),
+  );
   if (isQueryLogEnabled()) {
     const elapsed = performance.now() - start;
     // Every statement shares the one round-trip window [start, start+elapsed],
