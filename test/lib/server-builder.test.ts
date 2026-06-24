@@ -101,6 +101,20 @@ describeWithEnv(
       settings.clearTestOverrides();
     });
 
+    /** POST a build request and assert it redirects to /admin/builder with
+     *  an error flash containing `message`. Collapses the shared
+     *  `adminFormPost` + `expectRedirect` + `expectFlash(false)` body used by
+     *  the build-fails, task-in-progress, and db-connection-fails tests. */
+    const expectBuildFlashError = async (message: string): Promise<void> => {
+      const { response } = await adminFormPost("/admin/builder", {
+        db_token: "token",
+        db_url: "libsql://test.turso.io",
+        site_name: "Test",
+      });
+      expectRedirect(response, "/admin/builder");
+      expectFlash(response, expect.stringContaining(message), false);
+    };
+
     test("GET /admin/builder returns 404 when CAN_BUILD_SITES is not set", async () => {
       const restore = setTestEnv({ CAN_BUILD_SITES: undefined });
       try {
@@ -288,17 +302,7 @@ describeWithEnv(
           dbTestStub: stubDbOk(),
         }),
         async () => {
-          const { response } = await adminFormPost("/admin/builder", {
-            db_token: "token",
-            db_url: "libsql://test.turso.io",
-            site_name: "Test",
-          });
-          expectRedirect(response, "/admin/builder");
-          expectFlash(
-            response,
-            expect.stringContaining("Create edge script failed"),
-            false,
-          );
+          await expectBuildFlashError("Create edge script failed");
         },
       );
     });
@@ -336,17 +340,7 @@ describeWithEnv(
           dbTestStub: stubDbOk(),
         }),
         async () => {
-          const { response } = await adminFormPost("/admin/builder", {
-            db_token: "token",
-            db_url: "libsql://test.turso.io",
-            site_name: "Test",
-          });
-          expectRedirect(response, "/admin/builder");
-          expectFlash(
-            response,
-            expect.stringContaining("already in progress"),
-            false,
-          );
+          await expectBuildFlashError("already in progress");
         },
       );
 

@@ -41,6 +41,12 @@ const booking = (
 });
 
 describe("agentDeliveriesPage", () => {
+  /** Render the deliveries page for the standard "agent has groups" case:
+   *  `agentDeliveriesPage(groups, "44", { noAgents: false }, agentSession)`.
+   *  Every test in this block that passes groups uses this exact call. */
+  const renderDeliveries = (groups: DeliveryDayGroup[]): string =>
+    agentDeliveriesPage(groups, "44", { noAgents: false }, agentSession);
+
   test("shows a prompt when no agents are assigned", () => {
     const html = agentDeliveriesPage(
       [],
@@ -53,30 +59,18 @@ describe("agentDeliveriesPage", () => {
   });
 
   test("shows an empty message when every day is empty", () => {
-    const groups: DeliveryDayGroup[] = [
+    const html = renderDeliveries([
       { bookings: [], heading: "Today" },
       { bookings: [], heading: "Tomorrow" },
-    ];
-    const html = agentDeliveriesPage(
-      groups,
-      "44",
-      { noAgents: false },
-      agentSession,
-    );
+    ]);
     expect(html).toContain("No deliveries scheduled");
   });
 
   test("renders a drop-off booking with labelled details, maps, phone and a done toggle", () => {
-    const groups: DeliveryDayGroup[] = [
+    const html = renderDeliveries([
       { bookings: [booking()], heading: "Today" },
       { bookings: [], heading: "Tomorrow" },
-    ];
-    const html = agentDeliveriesPage(
-      groups,
-      "44",
-      { noAgents: false },
-      agentSession,
-    );
+    ]);
     expect(html).toContain("Drop-off");
     expect(html).toContain("09:00");
     expect(html).toContain("Van 1");
@@ -97,7 +91,7 @@ describe("agentDeliveriesPage", () => {
   });
 
   test("shows both the drop-off and collection jobs for a same-day booking", () => {
-    const groups: DeliveryDayGroup[] = [
+    const html = renderDeliveries([
       {
         bookings: [
           booking({
@@ -110,13 +104,7 @@ describe("agentDeliveriesPage", () => {
         heading: "Today",
       },
       { bookings: [], heading: "Tomorrow" },
-    ];
-    const html = agentDeliveriesPage(
-      groups,
-      "44",
-      { noAgents: false },
-      agentSession,
-    );
+    ]);
     expect(html).toContain("Drop-off");
     expect(html).toContain("Collection");
     // The shared booking details appear once, not once per leg.
@@ -124,7 +112,7 @@ describe("agentDeliveriesPage", () => {
   });
 
   test("renders a collection job, a done job, and tolerates missing fields", () => {
-    const groups: DeliveryDayGroup[] = [
+    const html = renderDeliveries([
       {
         bookings: [
           booking({
@@ -136,13 +124,7 @@ describe("agentDeliveriesPage", () => {
         heading: "Today",
       },
       { bookings: [], heading: "Tomorrow" },
-    ];
-    const html = agentDeliveriesPage(
-      groups,
-      "44",
-      { noAgents: false },
-      agentSession,
-    );
+    ]);
     expect(html).toContain("Collection");
     expect(html).toContain("Mark not done");
     expect(html).toContain("delivery-leg done");
@@ -154,16 +136,10 @@ describe("agentDeliveriesPage", () => {
   });
 
   test("omits the phone line entirely when there is no phone", () => {
-    const groups: DeliveryDayGroup[] = [
+    const html = renderDeliveries([
       { bookings: [booking({ phone: "" })], heading: "Today" },
       { bookings: [], heading: "Tomorrow" },
-    ];
-    const html = agentDeliveriesPage(
-      groups,
-      "44",
-      { noAgents: false },
-      agentSession,
-    );
+    ]);
     expect(html).not.toContain("delivery-phone");
   });
 
