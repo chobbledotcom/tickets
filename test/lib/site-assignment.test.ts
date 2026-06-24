@@ -55,6 +55,21 @@ const stubEdgeSecretSuccess = () =>
     Promise.resolve({ ok: true as const }),
   );
 
+/** Deactivate every active, hidden, purchase-only, monthly listing — the
+ *  "renewal tier" set — so tests can exercise the no-qualifying-tier path.
+ *  Both the "skips assignment" and "rejects missing renewal tier" tests
+ *  need this exact teardown. */
+const deactivateAllTierListings = async (): Promise<void> => {
+  const { getAllListings } = await import("#shared/db/listings.ts");
+  const { deactivateTestListing } = await import("#test-utils");
+  const listings = await getAllListings();
+  for (const ev of listings) {
+    if (ev.months_per_unit > 0 && ev.purchase_only && ev.hidden && ev.active) {
+      await deactivateTestListing(ev.id);
+    }
+  }
+};
+
 /** Build an entry with assign_built_site for testing */
 const siteEntry = (
   overrides: {
@@ -414,19 +429,7 @@ describeWithEnv(
       });
 
       test("skips assignment and logs CONFIG_MISSING when no qualifying tier listings exist", async () => {
-        const { getAllListings } = await import("#shared/db/listings.ts");
-        const listings = await getAllListings();
-        const { deactivateTestListing } = await import("#test-utils");
-        for (const ev of listings) {
-          if (
-            ev.months_per_unit > 0 &&
-            ev.purchase_only &&
-            ev.hidden &&
-            ev.active
-          ) {
-            await deactivateTestListing(ev.id);
-          }
-        }
+        await deactivateAllTierListings();
 
         const buildStub = stubBuildSiteSuccess();
         const restoreEnv = setTestEnv({ NTFY_URL: "https://ntfy.test/topic" });
@@ -658,19 +661,7 @@ describeWithEnv(
       });
 
       test("rejects missing renewal tier before checkout", async () => {
-        const { getAllListings } = await import("#shared/db/listings.ts");
-        const listings = await getAllListings();
-        const { deactivateTestListing } = await import("#test-utils");
-        for (const ev of listings) {
-          if (
-            ev.months_per_unit > 0 &&
-            ev.purchase_only &&
-            ev.hidden &&
-            ev.active
-          ) {
-            await deactivateTestListing(ev.id);
-          }
-        }
+        await deactivateAllTierListings();
 
         const result = await validateSiteAssignmentConfig([siteEntry()]);
         expect(result.ok).toBe(false);

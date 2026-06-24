@@ -10,6 +10,7 @@
  *       verify listing 1 is empty and listing 2 has both attendees
  */
 
+// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
@@ -20,6 +21,8 @@ import {
   setupAndLogin,
   useE2eBrowser,
 } from "#test-utils/e2e.ts";
+
+// jscpd:ignore-end
 
 describe("e2e: ticket editing flow", () => {
   const ctx = useE2eBrowser();

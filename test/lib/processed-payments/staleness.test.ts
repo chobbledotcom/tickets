@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { beforeEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { getDb, insert } from "#shared/db/client.ts";
 import {
   deleteAllStaleReservations,
@@ -10,25 +10,10 @@ import {
   reserveSession,
   STALE_RESERVATION_MS,
 } from "#shared/db/processed-payments.ts";
-import {
-  createTestAttendee,
-  createTestListing,
-  describeWithEnv,
-} from "#test-utils";
+import { describeWithEnv, useProcessedPaymentsAttendee } from "#test-utils";
 
 describeWithEnv("processed-payments / staleness", { db: true }, () => {
-  let attendeeId: number;
-
-  beforeEach(async () => {
-    const listing = await createTestListing();
-    const attendee = await createTestAttendee(
-      listing.id,
-      listing.slug,
-      "Test User",
-      "test@example.com",
-    );
-    attendeeId = attendee.id;
-  });
+  const ctx = useProcessedPaymentsAttendee();
 
   describe("isReservationStale", () => {
     test("returns false for a recent timestamp", () => {
@@ -59,11 +44,13 @@ describeWithEnv("processed-payments / staleness", { db: true }, () => {
 
     test("does not delete a finalized reservation", async () => {
       await reserveSession("cs_finalized_no_delete");
-      await finalizeSession("cs_finalized_no_delete", attendeeId, ["tok-test"]);
+      await finalizeSession("cs_finalized_no_delete", ctx.attendeeId, [
+        "tok-test",
+      ]);
       await releaseReservation("cs_finalized_no_delete");
 
       const record = await isSessionProcessed("cs_finalized_no_delete");
-      expect(record?.attendee_id).toBe(attendeeId);
+      expect(record?.attendee_id).toBe(ctx.attendeeId);
     });
 
     test("is a no-op for a non-existent session", async () => {
@@ -103,7 +90,7 @@ describeWithEnv("processed-payments / staleness", { db: true }, () => {
     test("does not delete finalized reservations regardless of age", async () => {
       await getDb().execute(
         insert("processed_payments", {
-          attendee_id: attendeeId,
+          attendee_id: ctx.attendeeId,
           payment_session_id: "cs_finalized_bulk",
           processed_at: new Date(
             Date.now() - STALE_RESERVATION_MS - 1000,
@@ -113,7 +100,7 @@ describeWithEnv("processed-payments / staleness", { db: true }, () => {
 
       expect(await deleteAllStaleReservations()).toBe(0);
       expect((await isSessionProcessed("cs_finalized_bulk"))?.attendee_id).toBe(
-        attendeeId,
+        ctx.attendeeId,
       );
     });
 

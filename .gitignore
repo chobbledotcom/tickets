@@ -28,3 +28,4 @@ misc/
 ARCHITECTURE.md
 deploy/certs/*.pem
 .i18n-work/
+.jscpd-*

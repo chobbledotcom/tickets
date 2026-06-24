@@ -18,6 +18,32 @@ const emptyRefs = (): ActivityLogRefs => ({
   listings: new Map(),
 });
 
+/** Factory for a single activity-log entry. All entries in these tests share
+ *  the same `created` timestamp and `id: 1`; only `message`, `attendee_id`,
+ *  and `listing_id` vary, so those are the override knobs. */
+const logEntry = (
+  overrides: Partial<{
+    attendee_id: number | null;
+    created: string;
+    id: number;
+    listing_id: number | null;
+    message: string;
+  }>,
+): {
+  attendee_id: number | null;
+  created: string;
+  id: number;
+  listing_id: number | null;
+  message: string;
+} => ({
+  attendee_id: null,
+  created: "2024-01-15T10:30:00Z",
+  id: 1,
+  listing_id: null,
+  message: "System started",
+  ...overrides,
+});
+
 beforeAll(async () => {
   setupTestEncryptionKey();
   await signCsrfToken();
@@ -27,20 +53,8 @@ describe("adminListingActivityLogPage", () => {
   test("renders activity log entries", () => {
     const listing = testListingWithCount();
     const entries = [
-      {
-        attendee_id: null,
-        created: "2024-01-15T10:30:00Z",
-        id: 1,
-        listing_id: 1,
-        message: "Ticket reserved",
-      },
-      {
-        attendee_id: null,
-        created: "2024-01-15T11:00:00Z",
-        id: 2,
-        listing_id: 1,
-        message: "Payment received",
-      },
+      logEntry({ listing_id: 1, message: "Ticket reserved" }),
+      logEntry({ id: 2, listing_id: 1, message: "Payment received" }),
     ];
     const html = adminListingActivityLogPage(listing, entries, TEST_SESSION);
     expect(html).toContain("Ticket reserved");
@@ -57,15 +71,7 @@ describe("adminListingActivityLogPage", () => {
 
 describe("adminGlobalActivityLogPage", () => {
   test("renders global activity log with entries", () => {
-    const entries = [
-      {
-        attendee_id: null,
-        created: "2024-01-15T10:30:00Z",
-        id: 1,
-        listing_id: null,
-        message: "System started",
-      },
-    ];
+    const entries = [logEntry({ message: "System started" })];
     const html = adminGlobalActivityLogPage(
       entries,
       false,
@@ -87,15 +93,7 @@ describe("adminGlobalActivityLogPage", () => {
   });
 
   test("shows truncation message when truncated", () => {
-    const entries = [
-      {
-        attendee_id: null,
-        created: "2024-01-15T10:30:00Z",
-        id: 1,
-        listing_id: null,
-        message: "Action",
-      },
-    ];
+    const entries = [logEntry({ message: "Action" })];
     const html = adminGlobalActivityLogPage(
       entries,
       true,
@@ -106,15 +104,7 @@ describe("adminGlobalActivityLogPage", () => {
   });
 
   test("does not show truncation message when not truncated", () => {
-    const entries = [
-      {
-        attendee_id: null,
-        created: "2024-01-15T10:30:00Z",
-        id: 1,
-        listing_id: null,
-        message: "Action",
-      },
-    ];
+    const entries = [logEntry({ message: "Action" })];
     const html = adminGlobalActivityLogPage(
       entries,
       false,
@@ -126,16 +116,12 @@ describe("adminGlobalActivityLogPage", () => {
 
   test("prefixes Square signature errors with a link to re-do settings", () => {
     const entries = [
-      {
-        attendee_id: null,
-        created: "2024-01-15T10:30:00Z",
-        id: 1,
-        listing_id: null,
+      logEntry({
         message: formatErrorMessage({
           code: ErrorCode.SQUARE_SIGNATURE,
           detail: "mismatch",
         }),
-      },
+      }),
     ];
     const html = adminGlobalActivityLogPage(
       entries,
@@ -150,15 +136,7 @@ describe("adminGlobalActivityLogPage", () => {
   });
 
   test("does not add the Square settings link to unrelated messages", () => {
-    const entries = [
-      {
-        attendee_id: null,
-        created: "2024-01-15T10:30:00Z",
-        id: 1,
-        listing_id: null,
-        message: "Payment received",
-      },
-    ];
+    const entries = [logEntry({ message: "Payment received" })];
     const html = adminGlobalActivityLogPage(
       entries,
       false,
@@ -193,13 +171,11 @@ describe("adminGlobalActivityLogPage reference columns", () => {
 
   test("links an entry to its attendee and listing by name", () => {
     const entries = [
-      {
+      logEntry({
         attendee_id: 7,
-        created: "2024-01-15T10:30:00Z",
-        id: 1,
         listing_id: 3,
         message: "Balance updated",
-      },
+      }),
     ];
     const refs = refsWith([[7, "Ada Lovelace"]], [[3, "Summer Concert"]]);
     const html = adminGlobalActivityLogPage(entries, false, TEST_SESSION, refs);
@@ -208,15 +184,7 @@ describe("adminGlobalActivityLogPage reference columns", () => {
   });
 
   test("escapes attendee names so stored PII cannot inject markup", () => {
-    const entries = [
-      {
-        attendee_id: 7,
-        created: "2024-01-15T10:30:00Z",
-        id: 1,
-        listing_id: null,
-        message: "Note added",
-      },
-    ];
+    const entries = [logEntry({ attendee_id: 7, message: "Note added" })];
     const refs = refsWith([[7, "<script>alert(1)</script>"]], []);
     const html = adminGlobalActivityLogPage(entries, false, TEST_SESSION, refs);
     expect(html).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
@@ -224,15 +192,7 @@ describe("adminGlobalActivityLogPage reference columns", () => {
   });
 
   test("leaves both link cells empty when an entry references neither", () => {
-    const entries = [
-      {
-        attendee_id: null,
-        created: "2024-01-15T10:30:00Z",
-        id: 1,
-        listing_id: null,
-        message: "System started",
-      },
-    ];
+    const entries = [logEntry({ message: "System started" })];
     const html = adminGlobalActivityLogPage(
       entries,
       false,
@@ -247,13 +207,7 @@ describe("adminGlobalActivityLogPage reference columns", () => {
 
   test("renders no link when the referenced attendee no longer exists", () => {
     const entries = [
-      {
-        attendee_id: 42,
-        created: "2024-01-15T10:30:00Z",
-        id: 1,
-        listing_id: null,
-        message: "Attendee deleted",
-      },
+      logEntry({ attendee_id: 42, message: "Attendee deleted" }),
     ];
     // Attendee 42 is absent from refs — a deleted attendee keeps its log rows.
     const html = adminGlobalActivityLogPage(
@@ -271,13 +225,11 @@ describe("activity log reference columns are global-only", () => {
   test("the per-listing log omits the Attendee and Listing columns", () => {
     const listing = testListingWithCount();
     const entries = [
-      {
+      logEntry({
         attendee_id: 7,
-        created: "2024-01-15T10:30:00Z",
-        id: 1,
         listing_id: listing.id,
         message: "Ticket reserved",
-      },
+      }),
     ];
     const html = adminListingActivityLogPage(listing, entries, TEST_SESSION);
     expect(html).not.toContain("<th>Attendee</th>");

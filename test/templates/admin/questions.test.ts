@@ -16,6 +16,7 @@ import {
 } from "#templates/admin/questions.tsx";
 import {
   setupTestEncryptionKey,
+  sizeQuestionAnswerData,
   testAnswer,
   testListingWithCount,
   testQuestion,
@@ -646,23 +647,7 @@ describe("buildAnswerSummaryRows", () => {
   });
 
   test("renders question with answer counts", () => {
-    const html = buildAnswerSummaryRows({
-      attendeeAnswerMap: new Map([
-        [1, [10]],
-        [2, [10]],
-        [3, [11]],
-      ]),
-      questions: [
-        testQuestion({
-          answers: [
-            testAnswer({ id: 10, sort_order: 0, text: "Small" }),
-            testAnswer({ id: 11, sort_order: 1, text: "Large" }),
-          ],
-          id: 1,
-          text: "Size?",
-        }),
-      ],
-    });
+    const html = buildAnswerSummaryRows(sizeQuestionAnswerData());
     expect(html).toContain("<th>Size?</th>");
     expect(html).toContain("Small (2)");
     expect(html).toContain("Large (1)");

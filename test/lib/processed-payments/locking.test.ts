@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { beforeEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { getDb, insert } from "#shared/db/client.ts";
 import {
   clearSessionTokens,
@@ -14,6 +14,7 @@ import {
   createTestAttendee,
   createTestListing,
   describeWithEnv,
+  useProcessedPaymentsAttendee,
 } from "#test-utils";
 
 /** Perform the full two-phase reserve+finalize as production code does */
@@ -28,18 +29,7 @@ const processSession = async (
 };
 
 describeWithEnv("processed-payments / locking", { db: true }, () => {
-  let attendeeId: number;
-
-  beforeEach(async () => {
-    const listing = await createTestListing();
-    const attendee = await createTestAttendee(
-      listing.id,
-      listing.slug,
-      "Test User",
-      "test@example.com",
-    );
-    attendeeId = attendee.id;
-  });
+  const ctx = useProcessedPaymentsAttendee();
 
   describe("isSessionProcessed", () => {
     test("returns null for unprocessed session", async () => {
@@ -48,11 +38,11 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
 
     test("returns record for finalized session", async () => {
       await reserveSession("cs_processed_123");
-      await finalizeSession("cs_processed_123", attendeeId, ["tok-test"]);
+      await finalizeSession("cs_processed_123", ctx.attendeeId, ["tok-test"]);
 
       const result = await isSessionProcessed("cs_processed_123");
       expect(result?.payment_session_id).toBe("cs_processed_123");
-      expect(result?.attendee_id).toBe(attendeeId);
+      expect(result?.attendee_id).toBe(ctx.attendeeId);
       expect(result?.processed_at).toBeDefined();
     });
 
@@ -82,12 +72,12 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
 
     test("returns reserved:false with attendee_id for finalized session", async () => {
       await reserveSession("cs_finalized");
-      await finalizeSession("cs_finalized", attendeeId, ["tok-test"]);
+      await finalizeSession("cs_finalized", ctx.attendeeId, ["tok-test"]);
 
       const result = await reserveSession("cs_finalized");
       expect(result.reserved).toBe(false);
       if (!result.reserved) {
-        expect(result.existing.attendee_id).toBe(attendeeId);
+        expect(result.existing.attendee_id).toBe(ctx.attendeeId);
       }
     });
 
@@ -130,15 +120,15 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
   describe("finalizeSession", () => {
     test("sets attendee_id on reserved session", async () => {
       await reserveSession("cs_to_finalize");
-      await finalizeSession("cs_to_finalize", attendeeId, ["tok-test"]);
+      await finalizeSession("cs_to_finalize", ctx.attendeeId, ["tok-test"]);
 
       const record = await isSessionProcessed("cs_to_finalize");
-      expect(record?.attendee_id).toBe(attendeeId);
+      expect(record?.attendee_id).toBe(ctx.attendeeId);
     });
 
     test("stores ticket tokens encrypted when provided", async () => {
       await reserveSession("cs_with_tokens");
-      await finalizeSession("cs_with_tokens", attendeeId, [
+      await finalizeSession("cs_with_tokens", ctx.attendeeId, [
         "tok_abc",
         "tok_def",
       ]);
@@ -154,22 +144,22 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
   describe("clearSessionTokens", () => {
     test("clears stored tokens while preserving attendee_id", async () => {
       await reserveSession("cs_clear_test");
-      await finalizeSession("cs_clear_test", attendeeId, ["tok_xyz"]);
+      await finalizeSession("cs_clear_test", ctx.attendeeId, ["tok_xyz"]);
       await clearSessionTokens("cs_clear_test");
 
       const record = await isSessionProcessed("cs_clear_test");
       expect(record?.ticket_tokens).toBe("");
-      expect(record?.attendee_id).toBe(attendeeId);
+      expect(record?.attendee_id).toBe(ctx.attendeeId);
     });
 
     test("is a no-op when tokens are already empty", async () => {
       await reserveSession("cs_clear_noop");
-      await finalizeSession("cs_clear_noop", attendeeId, ["tok-test"]);
+      await finalizeSession("cs_clear_noop", ctx.attendeeId, ["tok-test"]);
       await clearSessionTokens("cs_clear_noop");
 
       const record = await isSessionProcessed("cs_clear_noop");
       expect(record?.ticket_tokens).toBe("");
-      expect(record?.attendee_id).toBe(attendeeId);
+      expect(record?.attendee_id).toBe(ctx.attendeeId);
     });
   });
 
@@ -185,9 +175,11 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
 
     test("returns attendee ID after finalization", async () => {
       await reserveSession("cs_finalized_attendee");
-      await finalizeSession("cs_finalized_attendee", attendeeId, ["tok-test"]);
+      await finalizeSession("cs_finalized_attendee", ctx.attendeeId, [
+        "tok-test",
+      ]);
       expect(await getProcessedAttendeeId("cs_finalized_attendee")).toBe(
-        attendeeId,
+        ctx.attendeeId,
       );
     });
   });
@@ -211,7 +203,7 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
       ]);
 
       const results = await Promise.all([
-        processSession("cs_concurrent", attendeeId),
+        processSession("cs_concurrent", ctx.attendeeId),
         processSession("cs_concurrent", a2.id),
         processSession("cs_concurrent", a3.id),
       ]);
