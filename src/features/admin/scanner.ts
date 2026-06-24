@@ -47,7 +47,7 @@ const handleScannerGet: IdRouteHandler = (request, { id }) =>
         filter(
           (a: Attendee) => !a.checked_in && !a.refunded && hasTicketQuantity(a),
         ),
-        map((a: Attendee) => ({
+        map((a) => ({
           name: a.name,
           quantity: a.quantity,
           token: a.ticket_token,
