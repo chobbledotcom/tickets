@@ -681,6 +681,11 @@ export const MessageFields = ({
  *     <p><strong>Warning:</strong> This will permanently delete the listing.</p>
  *     <p>To delete this listing, type its name "{listing.name}" into the box below:</p>
  *   </ConfirmForm>
+ *
+ * Pass `confirmName={false}` for an are-you-sure page that does NOT require
+ * the operator to retype the entity's name (e.g. deleting a note whose body
+ * is shown inline on the confirmation page). The `name`/`label` props become
+ * optional in that mode; the type-the-name input is omitted entirely.
  */
 export const ConfirmForm = ({
   action,
@@ -691,16 +696,19 @@ export const ConfirmForm = ({
   returnUrl,
   id,
   hiddenFields,
+  confirmName = true,
   children,
 }: {
   action: string;
-  name: string;
-  label: string;
+  name?: string;
+  label?: string;
   buttonText: string;
   danger?: boolean;
   returnUrl?: string;
   id?: string;
   hiddenFields?: Record<string, string>;
+  /** When false, omit the type-the-name input — a plain are-you-sure page. */
+  confirmName?: boolean;
   children?: Child;
 }): JSX.Element => (
   <CsrfForm action={action} id={id}>
@@ -710,16 +718,18 @@ export const ConfirmForm = ({
       Object.entries(hiddenFields).map(([fieldName, value]) => (
         <input name={fieldName} type="hidden" value={value} />
       ))}
-    <label>
-      {label}
-      <input
-        autocomplete="off"
-        name="confirm_identifier"
-        placeholder={name}
-        required
-        type="text"
-      />
-    </label>
+    {confirmName && (
+      <label>
+        {label}
+        <input
+          autocomplete="off"
+          name="confirm_identifier"
+          placeholder={name}
+          required
+          type="text"
+        />
+      </label>
+    )}
     <button class={danger ? "danger" : undefined} type="submit">
       <Icon name={danger ? "trash-2" : "check"} />
       <span>{buttonText}</span>
