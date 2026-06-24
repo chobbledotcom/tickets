@@ -38,7 +38,6 @@ import {
   executeBatch,
   inPlaceholders,
   type TxScope,
-  withTransaction,
 } from "#shared/db/client.ts";
 import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
 import { validateTransfer } from "#shared/ledger/validate.ts";
@@ -134,13 +133,17 @@ export const postTransfersTx = async (
 };
 
 /**
- * Post the legs of one business event in its own write transaction, idempotently.
- * Every leg must share one `eventGroup` and carry a distinct `reference`. Use
- * {@link postTransfersTx} to post within a wider transaction (e.g. together with
- * a booking).
+ * Post the legs of one business event idempotently. Every leg must share one
+ * `eventGroup` and carry a distinct `reference`. Delegates to the single-group
+ * case of {@link postTransferGroups} so the conflict checks read the ledger
+ * *before* the write opens and the legs land in one batch round-trip — never an
+ * interactive transaction holding the write lock open across a read-per-leg (the
+ * "Transaction timed-out" shape for a many-leg refund). Use {@link postTransfersTx}
+ * to post within a wider transaction (e.g. together with a booking).
  */
-export const postTransfers = (inputs: TransferInput[]): Promise<PostResult> =>
-  withTransaction((tx) => postTransfersTx(tx, inputs));
+export const postTransfers = async (
+  inputs: TransferInput[],
+): Promise<PostResult> => (await postTransferGroups([inputs]))[0]!;
 
 /**
  * The slice of the ledger a whole batch validates itself against, read up front

@@ -71,8 +71,13 @@ describe("db > accounting > conflicts", () => {
     });
 
     test("preserves kind/memo/posted_by/reverses_id and replays them", async () => {
-      const legs = [
-        tx({ eventGroup: "e1", reference: "orig" }),
+      // A reversal always references an already-stored leg (the admin-void shape):
+      // post the original as its own event, read back its id, then void it in a
+      // separate event that links to that stored id — never a leg being inserted
+      // in the same call.
+      await postTransfers([tx({ eventGroup: "e0", reference: "orig" })]);
+      const origId = (await transfersByEventGroup("e0"))[0]!.id;
+      const voidLegs = [
         tx({
           destination: account("attendee", 1),
           eventGroup: "e1",
@@ -80,21 +85,26 @@ describe("db > accounting > conflicts", () => {
           memo: "owner-key-ciphertext",
           postedBy: "user:5",
           reference: "void",
-          reversesId: 1,
+          reversesId: origId,
           source: account("revenue", 1),
         }),
       ];
-      expect(await postTransfers(legs)).toEqual({ inserted: 2, skipped: 0 });
+      expect(await postTransfers(voidLegs)).toEqual({
+        inserted: 1,
+        skipped: 0,
+      });
       // Replaying exercises the reversesId/kind equality path too.
-      expect(await postTransfers(legs)).toEqual({ inserted: 0, skipped: 2 });
+      expect(await postTransfers(voidLegs)).toEqual({
+        inserted: 0,
+        skipped: 1,
+      });
 
-      const stored = await transfersByEventGroup("e1");
-      const voided = stored.find((t) => t.reference === "void")!;
+      const voided = (await transfersByEventGroup("e1"))[0]!;
       expect(voided.kind).toBe("reversal");
       expect(voided.memo).toBe("owner-key-ciphertext");
       expect(voided.postedBy).toBe("user:5");
-      expect(voided.reversesId).toBe(1);
-      const orig = stored.find((t) => t.reference === "orig")!;
+      expect(voided.reversesId).toBe(origId);
+      const orig = (await transfersByEventGroup("e0"))[0]!;
       expect(orig.reversesId).toBeUndefined();
       expect(orig.kind).toBe("");
     });

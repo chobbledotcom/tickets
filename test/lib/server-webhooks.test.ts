@@ -1230,9 +1230,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         stock: 1,
       });
       // Exhaust the single unit before the webhook arrives.
-      const { consumeModifierStock } = await import(
-        "#shared/db/modifier-usage.ts"
-      );
+      const { consumeModifierStock } = await import("#test-utils");
       await consumeModifierStock(999, [
         { amountApplied: 100, modifierId: modifier.id, quantity: 1 },
       ]);

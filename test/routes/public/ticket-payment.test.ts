@@ -30,6 +30,11 @@ import {
 } from "#shared/db/contact-preferences.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
+import {
+  enableQueryLog,
+  getQueryLog,
+  runWithQueryLogContext,
+} from "#shared/db/query-log.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import type { ContactInfo, ListingWithCount } from "#shared/types.ts";
@@ -299,6 +304,61 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       // ledger instead of finding no booking legs at all.
       expect(await accountBalance(revenueAccount(listing.id))).toBe(5000);
       expect(await accountBalance(attendeeAccount(attendeeId))).toBe(-5000);
+    });
+
+    test("commits a large free multi-listing order in a bounded number of round-trips", async () => {
+      // Regression: a free/owed multi-listing cart posts one sale leg per listing.
+      // Posting them inside an interactive transaction (a read-then-write per leg)
+      // held the write lock open and could blow the primary's transaction timeout.
+      // The whole reservation must be one batch — O(1) round-trips, not O(listings).
+      const N = 15;
+      // Sequential: each createTestListing runs an authenticated request that
+      // mints a session, so building them concurrently would collide session
+      // tokens — the round-trip count we assert on is the order, not the setup.
+      const listings: Awaited<ReturnType<typeof createTestListing>>[] = [];
+      for (let i = 0; i < N; i++) {
+        listings.push(await createTestListing({ maxAttendees: 5 }));
+      }
+      const ledgerOrder: PricedOrder = {
+        extras: [],
+        fullSubtotal: N * 1000,
+        lines: listings.map((l) => ({
+          chargedUnitAmount: 0,
+          item: {
+            listingId: l.id,
+            name: `L${l.id}`,
+            quantity: 1,
+            slug: `l${l.id}`,
+            unitPrice: 1000,
+          },
+          quantity: 1,
+        })),
+        modifierApplications: [],
+        total: 0,
+      };
+
+      const { result, roundTrips } = await runWithQueryLogContext(async () => {
+        enableQueryLog();
+        const r = await createFreeReservation({
+          contact,
+          date: null,
+          ledgerOrder,
+          listings: await Promise.all(
+            listings.map((l) => ticketListingFor(l.id)),
+          ),
+          modifierUsages: [],
+          quantities: new Map(listings.map((l) => [l.id, 1])),
+        });
+        return {
+          result: r,
+          roundTrips: new Set(getQueryLog().map((q) => q.startedAtMs)).size,
+        };
+      });
+
+      expect(result.success).toBe(true);
+      // The N sale legs ride one batch, so the reservation's round-trips don't
+      // scale with N (an interactive per-leg post would be ~2N and trip the guard).
+      expect(roundTrips).toBeLessThanOrEqual(8);
     });
 
     test("rolls back and reports the add-on as sold out when its stock is gone", async () => {
