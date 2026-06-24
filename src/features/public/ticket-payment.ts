@@ -9,10 +9,7 @@ import {
   notFoundResponse,
 } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
-import {
-  bookingBatchPlan,
-  createOrSoldOut,
-} from "#shared/checkout-complete.ts";
+import { bookingBatchPlan } from "#shared/checkout-complete.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
 import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
 import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
@@ -22,6 +19,7 @@ import type {
 } from "#shared/db/attendee-types.ts";
 import {
   checkBatchAvailability,
+  createAttendeeAtomic,
   createBookingAtomic,
   ensureAllBookings,
 } from "#shared/db/attendees.ts";
@@ -335,8 +333,9 @@ export const createFreeReservation = async ({
   // free path has no payment session, so the ledger event is keyed on a fresh
   // unique id (attendee-id-independent, so the legs are built before the attendee
   // exists) and no session is finalized; a sold-out modifier rolls the whole batch
-  // back. A plain booking with neither legs nor stock writes as a single batch with
-  // no plan, so concurrent free submissions never contend on the one connection.
+  // back. A plain booking with neither legs nor stock has no plan, so it writes as
+  // a single capacity-checked batch (createAttendeeAtomic) — concurrent free
+  // submissions never contend on the one connection.
   const statusId = await getPublicStatusId();
   const input = { ...contact, bookings, remainingBalance, statusId };
   const result =
@@ -349,7 +348,7 @@ export const createFreeReservation = async ({
             pricedOrder: ledgerOrder ?? EMPTY_PRICED_ORDER,
           }),
         )
-      : await createOrSoldOut(input);
+      : await createAttendeeAtomic(input);
   if (result === "sold-out") {
     return { error: MODIFIER_SOLD_OUT_MESSAGE, success: false };
   }

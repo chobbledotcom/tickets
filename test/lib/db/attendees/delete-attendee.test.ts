@@ -6,10 +6,7 @@ import {
   getListingWithCount,
   invalidateListingsCache,
 } from "#shared/db/listings.ts";
-import {
-  consumeModifierStock,
-  modifierUsedQuantities,
-} from "#shared/db/modifier-usage.ts";
+import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
 import { getAllModifiers, modifiersTable } from "#shared/db/modifiers.ts";
 import {
   finalizeSession as finalizePaymentSession,
@@ -18,6 +15,7 @@ import {
 } from "#shared/db/processed-payments.ts";
 import { createSystemNote, getNoteRows } from "#shared/db/system-notes.ts";
 import {
+  consumeModifierStock,
   createPaidTestAttendee,
   createTestAttendee,
   createTestListing,

@@ -553,10 +553,10 @@ const writeAsLedgerBatch = async (
  * all commit or roll back together, in a single round-trip that never holds an
  * interactive write transaction open against the primary.
  *
- * Returns `"sold-out"` when a chosen modifier had no stock left (the booking is
- * refused, same as the interactive path's ModifierSoldOutError), so the caller
- * keeps a placeholder and refunds; otherwise the usual create result (a partial
- * cart is the caller's all-or-nothing concern, via ensureAllBookings). */
+ * Returns `"sold-out"` when a chosen modifier had no stock left (the
+ * stock-guarded booking insert lands no row), so the caller keeps a placeholder
+ * and refunds; otherwise the usual create result (a partial cart is the caller's
+ * all-or-nothing concern, via ensureAllBookings). */
 export const createBookingAtomic = (
   input: AttendeeInput,
   plan: BookingBatchPlan,

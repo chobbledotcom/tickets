@@ -213,12 +213,13 @@ export const logCompletedSql = async (sql: string): Promise<void> => {
  * count crosses the threshold. Writes and queries outside a request scope (the
  * fallback state, e.g. startup migrations) are never counted.
  */
-const enforceN1Guard = (state: QueryLogState, sql: string): void => {
-  if (!isReadSql(sql)) return;
-  const count = (state.readCounts.get(sql) ?? 0) + 1;
-  state.readCounts.set(sql, count);
-  if (count !== N_PLUS_ONE_THRESHOLD + 1) return;
-  const detail = `N+1 query detected: same read ran ${count} times (limit ${N_PLUS_ONE_THRESHOLD}) in one request: ${sql}`;
+/**
+ * Surface a guard violation: throw in dev/test (the offending request fails
+ * loudly) or report via the error log in production (see
+ * {@link setN1GuardNotifyOnly}, so production never kills a real request).
+ * Shared by the N+1 read guard and the interactive-transaction round-trip guard.
+ */
+const reportGuardViolation = (detail: string): void => {
   if (getN1NotifyOnly()) {
     void notifyN1Violation(detail);
   } else {
@@ -226,14 +227,22 @@ const enforceN1Guard = (state: QueryLogState, sql: string): void => {
   }
 };
 
+const enforceN1Guard = (state: QueryLogState, sql: string): void => {
+  if (!isReadSql(sql)) return;
+  const count = (state.readCounts.get(sql) ?? 0) + 1;
+  state.readCounts.set(sql, count);
+  if (count !== N_PLUS_ONE_THRESHOLD + 1) return;
+  reportGuardViolation(
+    `N+1 query detected: same read ran ${count} times (limit ${N_PLUS_ONE_THRESHOLD}) in one request: ${sql}`,
+  );
+};
+
 /**
  * Count a statement within one interactive transaction and fire once, exactly
  * when the running count crosses the threshold. Only enforced inside a request
  * scope — startup migrations rebuild tables in one big transaction outside any
- * request, so they are never counted. Throws in dev/test (the offending request
- * fails loudly) or reports via the error log in production (see
- * {@link setN1GuardNotifyOnly}, shared with the N+1 guard so production never
- * kills a real request). `count` is the running per-transaction statement count.
+ * request, so they are never counted. `count` is the running per-transaction
+ * statement count.
  */
 export const enforceTransactionRoundTripGuard = (
   count: number,
@@ -241,16 +250,12 @@ export const enforceTransactionRoundTripGuard = (
 ): void => {
   if (!asyncLocalStorage.getStore()) return;
   if (count !== TRANSACTION_ROUNDTRIP_THRESHOLD + 1) return;
-  const detail =
+  reportGuardViolation(
     `Interactive transaction too chatty: ${count} statements ` +
-    `(limit ${TRANSACTION_ROUNDTRIP_THRESHOLD}) held the write lock open — ` +
-    "prepare reads outside the transaction and apply the writes as one batch. " +
-    `Last statement: ${sql}`;
-  if (getN1NotifyOnly()) {
-    void notifyN1Violation(detail);
-  } else {
-    throw new Error(detail);
-  }
+      `(limit ${TRANSACTION_ROUNDTRIP_THRESHOLD}) held the write lock open — ` +
+      "prepare reads outside the transaction and apply the writes as one batch. " +
+      `Last statement: ${sql}`,
+  );
 };
 
 /**

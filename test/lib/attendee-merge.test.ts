@@ -1242,7 +1242,10 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       // the primary's transaction timeout. The whole merge must commit as one batch
       // — O(1) round-trips regardless of how many bookings the person has.
       const N = 12;
-      const listings = [];
+      // Sequential: each createTestListing runs an authenticated request that
+      // mints a session, so building them concurrently would collide session
+      // tokens — the round-trip count we assert on is the merge, not the setup.
+      const listings: Awaited<ReturnType<typeof createTestListing>>[] = [];
       for (let i = 0; i < N; i++) {
         listings.push(await createTestListing({ maxAttendees: 10 }));
       }

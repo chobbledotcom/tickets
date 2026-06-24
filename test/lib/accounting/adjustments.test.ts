@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { revenueAccount, WRITEOFF } from "#shared/accounting/accounts.ts";
+import { writeoffAdjustmentInserts } from "#shared/accounting/adjustments.ts";
 import { accountBalance, allTransfers } from "#shared/accounting/queries.ts";
 import { accountKey } from "#shared/ledger/account.ts";
 import {
@@ -68,5 +69,35 @@ describe("db > accounting > postWriteoffAdjustment", () => {
     await postWriteoffAdjustment(revenue, 800, ["income-adjust", 7]);
     expect(await accountBalance(revenue)).toBe(800);
     expect(await accountBalance(WRITEOFF)).toBe(-800);
+  });
+});
+
+describe("writeoffAdjustmentInserts (folded into a wider batch)", () => {
+  const revenue = revenueAccount(7);
+
+  test("builds one INSERT OR IGNORE per non-zero adjustment, dropping zero deltas", async () => {
+    // An attendee merge passes one adjustment per discarded booking; a zero-delta
+    // one (a booking that left nothing to write off) posts nothing, so only the
+    // non-zero adjustments become statements.
+    const inserts = await writeoffAdjustmentInserts(
+      [
+        { account: revenue, delta: 1500, keyParts: ["merge", 7] },
+        { account: revenue, delta: 0, keyParts: ["merge", 8] },
+        { account: revenue, delta: -200, keyParts: ["merge", 9] },
+      ],
+      "2026-06-21T00:00:00.000Z",
+    );
+    expect(inserts.length).toBe(2);
+    for (const stmt of inserts) {
+      expect(stmt.sql).toContain("INSERT OR IGNORE");
+    }
+  });
+
+  test("an all-zero set yields no statements at all", async () => {
+    const inserts = await writeoffAdjustmentInserts(
+      [{ account: revenue, delta: 0, keyParts: ["merge", 7] }],
+      "2026-06-21T00:00:00.000Z",
+    );
+    expect(inserts).toEqual([]);
   });
 });

@@ -312,7 +312,10 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
       // held the write lock open and could blow the primary's transaction timeout.
       // The whole reservation must be one batch — O(1) round-trips, not O(listings).
       const N = 15;
-      const listings = [];
+      // Sequential: each createTestListing runs an authenticated request that
+      // mints a session, so building them concurrently would collide session
+      // tokens — the round-trip count we assert on is the order, not the setup.
+      const listings: Awaited<ReturnType<typeof createTestListing>>[] = [];
       for (let i = 0; i < N; i++) {
         listings.push(await createTestListing({ maxAttendees: 5 }));
       }
