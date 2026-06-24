@@ -1,5 +1,6 @@
 import type { BuiltSite } from "#shared/db/built-sites.ts";
 import type { ListingInput } from "#shared/db/listings.ts";
+import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import type { EmailEntry, EmailListing } from "#shared/email.ts";
 import { signPriceSync } from "#shared/payment-signature.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
@@ -95,6 +96,25 @@ export const testAttendee = (overrides: Partial<Attendee> = {}): Attendee => ({
   ticket_token: "test-token-1",
   ticket_token_index: "test-token-index-1",
   ...overrides,
+});
+
+/** Build a radio question fixture with answer options. Each `[id, text]` pair
+ * becomes an active answer whose sort_order follows the array order. */
+export const testRadioQuestion = (
+  id: number,
+  text: string,
+  answers: [number, string][],
+): QuestionWithAnswers => ({
+  answers: answers.map(([answerId, answerText], sort_order) => ({
+    active: true,
+    id: answerId,
+    question_id: id,
+    sort_order,
+    text: answerText,
+  })),
+  display_type: "radio",
+  id,
+  text,
 });
 
 export const testGroup = (overrides: Partial<Group> = {}): Group => ({

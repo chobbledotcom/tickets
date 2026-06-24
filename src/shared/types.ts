@@ -138,6 +138,14 @@ export const isPaidListing = (
   (listing.customisable_days &&
     Object.values(listing.day_prices).some((price) => price > 0));
 
+/** True when an attendee/booking row is a real ticket (quantity ≥ 1) rather than
+ * the no-quantity sentinel (quantity 0). The shared "is this a real ticket, not a
+ * ghost" test for the readers, rosters, and exports that must skip sentinel rows —
+ * one home for the rule instead of a bare `quantity > 0` plus an explanatory
+ * comment at each call site. */
+export const hasTicketQuantity = (row: { quantity: number }): boolean =>
+  row.quantity > 0;
+
 /** Upper bound on multi-day booking duration. Each day in a booking range
  * adds a per-day clause to the atomic capacity SQL, so the cap keeps that
  * statement bounded regardless of which write path set the value. */

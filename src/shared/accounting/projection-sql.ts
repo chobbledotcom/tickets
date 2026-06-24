@@ -35,6 +35,24 @@ export const accountPredicate = (
 };
 
 /**
+ * Predicate matching a booking row's gross `sale` leg: `kind='sale'`, billed from
+ * the attendee to the listing's revenue account, scoped to the row's
+ * `ledger_event_group`. The single home for "this row's sale leg" — shared by the
+ * per-row amount-paid projection ({@link sumAmountFromTransfers}) and the
+ * paid-line existence check, so the two can't drift. All three args are SQL
+ * column expressions in the surrounding query (no leading `WHERE`).
+ */
+export const saleLegPredicate = (
+  attendeeIdExpr: string,
+  listingIdExpr: string,
+  eventGroupExpr: string,
+): string =>
+  `kind = 'sale'` +
+  ` AND ${accountPredicate("source", "attendee", attendeeIdExpr)}` +
+  ` AND ${accountPredicate("dest", "revenue", listingIdExpr)}` +
+  ` AND event_group = ${eventGroupExpr}`;
+
+/**
  * Wrap a `transfers` WHERE clause as a scalar gross-sum subquery aliased
  * `alias` — the shape every "sum of amounts over the filtered legs" projection
  * shares. `where` is the predicate body (no leading `WHERE`). A site has one

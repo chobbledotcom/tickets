@@ -35,6 +35,17 @@ describe("generateAttendeesCsv", () => {
     expect(lines[1]).toContain("2024-01-15T10:30:00.000Z");
   });
 
+  test("blanks the ticket URL for a no-quantity row but keeps the token", () => {
+    const real = testAttendee({ quantity: 1, ticket_token: "real-tok" });
+    const ghost = testAttendee({ quantity: 0, ticket_token: "ghost-tok" });
+    const lines = generateAttendeesCsv([real, ghost]).split("\n");
+    // Real row carries a live /t URL; the ghost row's URL column is empty.
+    expect(lines[1]).toContain("/t/real-tok");
+    expect(lines[2]).toContain("ghost-tok");
+    expect(lines[2]).not.toContain("/t/ghost-tok");
+    expect(lines[2]!.endsWith("ghost-tok,")).toBe(true);
+  });
+
   test("escapes values with commas", () => {
     const attendees = [testAttendee({ name: "Doe, John" })];
     const csv = generateAttendeesCsv(attendees);

@@ -105,6 +105,7 @@
   "admin.attendee_table.check_out": "Check out",
   "admin.attendee_table.check_in": "Check in",
   "admin.attendee_table.refunded_badge": "Refunded",
+  "admin.attendee_table.no_quantity": "No quantity",
   "admin.checkin.title": "Check-in",
   "admin.checkin.heading": "Check-in",
   "admin.checkin.check_out_all": "Check Out All",

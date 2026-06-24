@@ -41,6 +41,7 @@ import {
   availableDayCounts,
   dayPriceFor,
   type Group,
+  hasTicketQuantity,
   isPaidListing,
   type ListingWithCount,
   normalizeDurationDays,
@@ -266,16 +267,23 @@ const FailedPaymentsTable = ({
 /** Check-in message to display after toggling */
 export type CheckinMessage = { name: string; status: string } | null;
 
-/** Filter attendees by check-in status */
+/** Filter attendees by check-in status. The in/out filters operate on real
+ * (quantity > 0) lines only — a no-quantity sentinel row isn't checkable, so it
+ * appears only in the unfiltered "all" view, never in the checked-in or
+ * not-checked-in lists. */
 export const filterAttendees = (
   attendees: Attendee[],
   activeFilter: AttendeeFilter,
 ): Attendee[] => {
   if (activeFilter === "in") {
-    return filter((a: Attendee) => a.checked_in)(attendees);
+    return filter((a: Attendee) => a.checked_in && hasTicketQuantity(a))(
+      attendees,
+    );
   }
   if (activeFilter === "out") {
-    return filter((a: Attendee) => !a.checked_in)(attendees);
+    return filter((a: Attendee) => !a.checked_in && hasTicketQuantity(a))(
+      attendees,
+    );
   }
   return attendees;
 };

@@ -4,7 +4,7 @@
  * The SVG endpoint serves individual QR codes for CDN caching.
  */
 
-import { htmlResponse } from "#routes/response.ts";
+import { htmlResponse, notFoundResponse } from "#routes/response.ts";
 import {
   createTokenRoute,
   lookupAttendees,
@@ -34,17 +34,22 @@ const buildTicketCard = async (
   };
 };
 
-/** Handle GET /t/:tokens */
-const handleTicketView = async (
-  _request: Request,
-  tokens: string[],
-): Promise<Response> => {
-  const result = await lookupAttendees(tokens);
-  if (!result.ok) return result.response;
+/** Curry a ticket handler over the shared preamble: look the tokens up, drop
+ * no-quantity ghost lines, and 404 when nothing real is left, then hand the real
+ * entries and tokens to `render`. */
+const withResolvedEntries =
+  (render: (entries: TokenEntry[], tokens: string[]) => Promise<Response>) =>
+  async (_request: Request, tokens: string[]): Promise<Response> => {
+    const result = await lookupAttendees(tokens);
+    if (!result.ok) return result.response;
+    const entries = await resolveEntries(result.attendees);
+    if (entries.length === 0) return notFoundResponse();
+    return render(entries, tokens);
+  };
 
-  const entries = await resolveEntries(result.attendees);
-  // With multi-listing, one token maps to multiple entries.
-  // Use the first URL token for all cards (it's the same attendee).
+/** Handle GET /t/:tokens. One token can map to several cards (multi-listing);
+ * they share the first URL token (same attendee). */
+const handleTicketView = withResolvedEntries(async (entries, tokens) => {
   const token = tokens[0]!;
   const cards = await Promise.all(
     entries.map((entry) => buildTicketCard(entry, token)),
@@ -56,24 +61,21 @@ const handleTicketView = async (
       settings.googleWallet.hasConfig,
     ),
   );
-};
+});
 
 /** One year in seconds — SVG tickets never change so cache aggressively */
 const ONE_YEAR = 365 * 24 * 60 * 60;
 
 /** Handle GET /t/:token/svg — serve QR code SVG for CDN caching */
-const handleTicketSvg = async (token: string): Promise<Response> => {
-  const result = await lookupAttendees([token]);
-  if (!result.ok) return result.response;
-
-  const svg = await generateQrSvg(buildCheckinUrl(token));
+const handleTicketSvg = withResolvedEntries(async (_entries, tokens) => {
+  const svg = await generateQrSvg(buildCheckinUrl(tokens[0]!));
   return new Response(svg, {
     headers: {
       "cache-control": `public, max-age=${ONE_YEAR}, immutable`,
       "content-type": "image/svg+xml",
     },
   });
-};
+});
 
 /** Match /t/:token/svg path, returning the token if matched */
 const matchSvgPath = (path: string): string | null => {
@@ -95,7 +97,7 @@ export const routeTicketView: TokenRouteFn = (
     const svgToken = matchSvgPath(path);
     if (svgToken) {
       return withTokenRateLimit(request, server, [svgToken], () =>
-        handleTicketSvg(svgToken),
+        handleTicketSvg(request, [svgToken]),
       );
     }
   }

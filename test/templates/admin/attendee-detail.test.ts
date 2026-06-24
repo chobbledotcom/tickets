@@ -41,9 +41,18 @@ const renderBookings = (bookings: AttendeeBooking[]): string =>
 
 const ALLOWED_DOMAIN = "tickets.example.com";
 
-const renderDetail = (attendee = testAttendee(), phonePrefix = "44"): string =>
+const renderDetail = (
+  attendee = testAttendee(),
+  phonePrefix = "44",
+  hasRealLine = true,
+): string =>
   String(
-    AttendeeDetail({ allowedDomain: ALLOWED_DOMAIN, attendee, phonePrefix }),
+    AttendeeDetail({
+      allowedDomain: ALLOWED_DOMAIN,
+      attendee,
+      hasRealLine,
+      phonePrefix,
+    }),
   );
 
 beforeAll(() => {
@@ -59,6 +68,18 @@ describe("AttendeeDetail", () => {
     expect(html).toContain("Jane Doe");
     expect(html).toContain(`https://${ALLOWED_DOMAIN}/t/tok-123`);
     expect(html).toContain("Registered");
+  });
+
+  test("shows the no-quantity indicator instead of a dead ticket link for a ghost-only attendee", () => {
+    // A no-quantity-only attendee's /t page 404s, so we must not render a link
+    // that fails on click — show the same "No quantity" indicator as the table.
+    const html = renderDetail(
+      testAttendee({ ticket_token: "tok-ghost" }),
+      "44",
+      false,
+    );
+    expect(html).not.toContain("/t/tok-ghost");
+    expect(html).toContain("No quantity");
   });
 
   test("renders email as a mailto link when present", () => {
