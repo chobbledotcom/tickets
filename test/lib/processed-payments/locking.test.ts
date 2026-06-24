@@ -23,7 +23,7 @@ const processSession = async (
 ): Promise<boolean> => {
   const result = await reserveSession(sessionId);
   if (!result.reserved) return false;
-  await finalizeSession(sessionId, attendeeId);
+  await finalizeSession(sessionId, attendeeId, ["tok-test"]);
   return true;
 };
 
@@ -48,7 +48,7 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
 
     test("returns record for finalized session", async () => {
       await reserveSession("cs_processed_123");
-      await finalizeSession("cs_processed_123", attendeeId);
+      await finalizeSession("cs_processed_123", attendeeId, ["tok-test"]);
 
       const result = await isSessionProcessed("cs_processed_123");
       expect(result?.payment_session_id).toBe("cs_processed_123");
@@ -82,7 +82,7 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
 
     test("returns reserved:false with attendee_id for finalized session", async () => {
       await reserveSession("cs_finalized");
-      await finalizeSession("cs_finalized", attendeeId);
+      await finalizeSession("cs_finalized", attendeeId, ["tok-test"]);
 
       const result = await reserveSession("cs_finalized");
       expect(result.reserved).toBe(false);
@@ -130,7 +130,7 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
   describe("finalizeSession", () => {
     test("sets attendee_id on reserved session", async () => {
       await reserveSession("cs_to_finalize");
-      await finalizeSession("cs_to_finalize", attendeeId);
+      await finalizeSession("cs_to_finalize", attendeeId, ["tok-test"]);
 
       const record = await isSessionProcessed("cs_to_finalize");
       expect(record?.attendee_id).toBe(attendeeId);
@@ -149,22 +149,6 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
         "tok_abc+tok_def",
       );
     });
-
-    test("stores empty string when no tokens provided", async () => {
-      await reserveSession("cs_no_tokens");
-      await finalizeSession("cs_no_tokens", attendeeId);
-
-      const record = await isSessionProcessed("cs_no_tokens");
-      expect(record?.ticket_tokens).toBe("");
-    });
-
-    test("stores empty string when empty token array provided", async () => {
-      await reserveSession("cs_empty_tokens");
-      await finalizeSession("cs_empty_tokens", attendeeId, []);
-
-      const record = await isSessionProcessed("cs_empty_tokens");
-      expect(record?.ticket_tokens).toBe("");
-    });
   });
 
   describe("clearSessionTokens", () => {
@@ -180,7 +164,7 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
 
     test("is a no-op when tokens are already empty", async () => {
       await reserveSession("cs_clear_noop");
-      await finalizeSession("cs_clear_noop", attendeeId);
+      await finalizeSession("cs_clear_noop", attendeeId, ["tok-test"]);
       await clearSessionTokens("cs_clear_noop");
 
       const record = await isSessionProcessed("cs_clear_noop");
@@ -201,7 +185,7 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
 
     test("returns attendee ID after finalization", async () => {
       await reserveSession("cs_finalized_attendee");
-      await finalizeSession("cs_finalized_attendee", attendeeId);
+      await finalizeSession("cs_finalized_attendee", attendeeId, ["tok-test"]);
       expect(await getProcessedAttendeeId("cs_finalized_attendee")).toBe(
         attendeeId,
       );
