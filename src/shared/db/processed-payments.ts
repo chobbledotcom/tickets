@@ -252,8 +252,8 @@ export const parseSessionFailure = async (
 
 /** Shared UPDATE shape for both finalize statement builders. */
 const buildFinalizeStatement = (
-  sessionId: string,
   attendeeId: number,
+  sessionId: string,
   guard: string,
   extraArgs: InValue[] = [],
 ): { sql: string; args: InValue[] } => ({
@@ -273,7 +273,7 @@ export const finalizeSessionStatement = (
   sessionId: string,
   attendeeId: number,
 ): { sql: string; args: InValue[] } =>
-  buildFinalizeStatement(sessionId, attendeeId, UNRESOLVED_RESERVATION);
+  buildFinalizeStatement(attendeeId, sessionId, UNRESOLVED_RESERVATION);
 
 /**
  * Build the finalize UPDATE for a balance-payment session, guarded so it only
@@ -292,8 +292,8 @@ export const balanceFinalizeStatement = (
   // Runs in the settle batch before the balance-payment leg, so it still sees
   // the pre-payment balance — i.e. the attendee owing exactly expectedAmount.
   buildFinalizeStatement(
-    sessionId,
     attendeeId,
+    sessionId,
     `${attendeeOwedSubquery(String(attendeeId))} = ?`,
     [expectedAmount],
   );
