@@ -6,6 +6,7 @@ import { map, unique } from "#fp";
 import {
   accountPredicate,
   attendeeOwedSubquery,
+  saleLegPredicate,
   sumAmountFromTransfers,
 } from "#shared/accounting/projection-sql.ts";
 import { computeTicketTokenIndex } from "#shared/crypto/hashing.ts";
@@ -57,10 +58,7 @@ export const pricePaidFromLedger = (
   eventGroupExpr: string,
 ): string =>
   sumAmountFromTransfers(
-    `kind = 'sale'` +
-      ` AND ${accountPredicate("source", "attendee", attendeeIdExpr)}` +
-      ` AND ${accountPredicate("dest", "revenue", listingIdExpr)}` +
-      ` AND event_group = ${eventGroupExpr}`,
+    saleLegPredicate(attendeeIdExpr, listingIdExpr, eventGroupExpr),
     "price_paid",
   );
 
@@ -317,10 +315,11 @@ export const hasPaidLine = (
      WHERE la.attendee_id = ? AND la.listing_id IN (${inPlaceholders(listingIds)})
        AND EXISTS (
          SELECT 1 FROM transfers
-         WHERE kind = 'sale'
-           AND ${accountPredicate("source", "attendee", "la.attendee_id")}
-           AND ${accountPredicate("dest", "revenue", "la.listing_id")}
-           AND event_group = la.ledger_event_group
+         WHERE ${saleLegPredicate(
+           "la.attendee_id",
+           "la.listing_id",
+           "la.ledger_event_group",
+         )}
        ) LIMIT 1`,
     [attendeeId, ...listingIds],
   );

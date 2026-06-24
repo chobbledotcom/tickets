@@ -896,11 +896,12 @@ const applyEdit = async (
     return { flashError: CAPACITY_SAVE_ERROR, ok: false };
   }
 
-  // When the save leaves no real (quantity > 0) line the public pay gate refuses
-  // payment, so reconcile the ledger balance to 0 rather than strand an unpayable
-  // receivable on a ghost; otherwise reconcile to the entered balance. The
-  // reconcile posts a writeoff leg, which is itself the audit record of the clear.
-  const hasRealLine = desired.some((l) => l.quantity > 0);
+  // When the save leaves no real line the public pay gate refuses payment, so
+  // reconcile the ledger balance to 0 rather than strand an unpayable receivable
+  // on a ghost; otherwise reconcile to the entered balance. The reconcile posts a
+  // writeoff leg, which is itself the audit record of the clear. Same predicate as
+  // applyCreate — only booked lines survive into `desired` with quantity > 0.
+  const hasRealLine = parsed.lines.some(isBookedLine);
   await updateAttendeeOrder(
     attendeeId,
     parsed.statusId,

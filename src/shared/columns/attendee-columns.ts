@@ -8,7 +8,7 @@
 import type { ColumnDef, ColumnGenerators } from "#shared/column-order.ts";
 import { formatDateLabel, formatDatetimeShort } from "#shared/dates.ts";
 import { normalizePhone } from "#shared/phone.ts";
-import type { AttendeeTableRow } from "#shared/types.ts";
+import { type AttendeeTableRow, hasTicketQuantity } from "#shared/types.ts";
 import type { AttendeeColumnOpts } from "#templates/attendee-table.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
 import { escapeHtml } from "#templates/layout.tsx";
@@ -164,7 +164,7 @@ const ticket: AttendeeCol = {
   // link here would let staff copy a customer-facing URL that doesn't match this
   // row's cancelled/interested listing. Show the indicator instead.
   cell: (row, opts) =>
-    row.attendee.quantity === 0
+    !hasTicketQuantity(row.attendee)
       ? `<span class="muted small">No quantity</span>`
       : `<a href="https://${opts.allowedDomain}/t/${row.attendee.ticket_token}">${row.attendee.ticket_token}</a>`,
   description: "Clickable ticket token link",

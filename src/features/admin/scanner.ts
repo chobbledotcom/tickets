@@ -29,7 +29,7 @@ import {
   getRequestPrivateKey,
   requireRequestPrivateKey,
 } from "#shared/session-private-key.ts";
-import type { Attendee } from "#shared/types.ts";
+import { type Attendee, hasTicketQuantity } from "#shared/types.ts";
 import { adminScannerPage } from "#templates/admin/scanner.tsx";
 
 const withListing = withEntityLoader(getListingWithCount);
@@ -42,10 +42,11 @@ const handleScannerGet: IdRouteHandler = (request, { id }) =>
       const rawAttendees = await getAttendeesRaw(listing.id);
       const attendees = await decryptAttendees(rawAttendees, privateKey);
       const uncheckedIn = pipe(
-        // quantity > 0: a no-quantity sentinel line isn't a real ticket, so it
-        // must not appear as a manual check-in candidate (updateCheckedIn would
-        // refuse it anyway).
-        filter((a: Attendee) => !a.checked_in && !a.refunded && a.quantity > 0),
+        // A no-quantity sentinel isn't a manual check-in candidate
+        // (updateCheckedIn would refuse it anyway).
+        filter(
+          (a: Attendee) => !a.checked_in && !a.refunded && hasTicketQuantity(a),
+        ),
         map((a: Attendee) => ({
           name: a.name,
           quantity: a.quantity,

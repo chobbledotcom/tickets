@@ -26,6 +26,7 @@ import {
   type AdminSession,
   type Attendee,
   type Group,
+  hasTicketQuantity,
   isPaidListing,
   type ListingWithCount,
 } from "#shared/types.ts";
@@ -216,7 +217,7 @@ const groupAggregateMismatchItems = (
   // must too — otherwise a group holding any no-quantity sentinel row would
   // report a bogus tickets_count drift. (booked_quantity/income sum quantity/
   // price_paid, to which a ghost contributes 0, so those sides stay unfiltered.)
-  const realTicketCount = attendees.filter((a) => a.quantity > 0).length;
+  const realTicketCount = attendees.filter(hasTicketQuantity).length;
   const checks: Array<ExpectedActualItem & { matches: boolean }> = [
     {
       actual: String(totalAttendeeCount(listings)),

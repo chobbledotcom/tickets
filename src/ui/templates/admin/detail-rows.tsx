@@ -5,7 +5,7 @@
 import { joinStrings, map, reduce, sumOf } from "#fp";
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
-import type { Attendee } from "#shared/types.ts";
+import { type Attendee, hasTicketQuantity } from "#shared/types.ts";
 import type { TableQuestionData } from "#templates/attendee-table.tsx";
 
 /** A key/value row for the listing-details-table */
@@ -60,7 +60,7 @@ type CheckedInStats = {
  * ghost would otherwise read as 1 ticket across 2 rows). The ghost still shows
  * in the unfiltered admin roster. */
 const getCheckedInStats = (allAttendees: Attendee[]): CheckedInStats => {
-  const attendees = allAttendees.filter((a) => a.quantity > 0);
+  const attendees = allAttendees.filter(hasTicketQuantity);
   const ticketsTotal = sumQuantity(attendees);
   return {
     hasMultiQuantity: ticketsTotal !== attendees.length,

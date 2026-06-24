@@ -23,7 +23,11 @@ import {
   recordAttendeeRefundsBatch,
 } from "#shared/refund-ledger.ts";
 import { fail, ok } from "#shared/response.ts";
-import type { Attendee, ListingWithCount } from "#shared/types.ts";
+import {
+  type Attendee,
+  hasTicketQuantity,
+  type ListingWithCount,
+} from "#shared/types.ts";
 import {
   adminRefundAllAttendeesPage,
   adminRefundAttendeePage,
@@ -153,11 +157,11 @@ const handleAttendeeRefund = verifiedAttendeeForm(
   },
 );
 
-/** Filter attendees refundable on this listing: a payment, not yet refunded,
- * and a real (quantity > 0) line — a no-quantity ghost row on this listing isn't
- * refundable (its roster row carries this listing's quantity). */
+/** Filter attendees refundable on this listing: a payment, not yet refunded, and
+ * a real ticket line — a no-quantity ghost row on this listing isn't refundable
+ * (its roster row carries this listing's quantity). */
 const getRefundable = filter(
-  (a: Attendee) => a.payment_id !== "" && !a.refunded && a.quantity > 0,
+  (a: Attendee) => a.payment_id !== "" && !a.refunded && hasTicketQuantity(a),
 );
 
 /** Handle GET /admin/listing/:id/refund-all */

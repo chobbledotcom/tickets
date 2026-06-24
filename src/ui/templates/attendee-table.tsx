@@ -30,7 +30,11 @@ import type {
 } from "#shared/db/questions.ts";
 import { settings } from "#shared/db/settings.ts";
 import { CsrfForm } from "#shared/forms.tsx";
-import type { Attendee, AttendeeTableRow } from "#shared/types.ts";
+import {
+  type Attendee,
+  type AttendeeTableRow,
+  hasTicketQuantity,
+} from "#shared/types.ts";
 import { escapeHtml } from "#templates/layout.tsx";
 
 export { formatAddressInline } from "#shared/columns/attendee-columns.ts";
@@ -222,7 +226,7 @@ const createStatusRenderer =
   (row: AttendeeTableRow): string => {
     // A no-quantity sentinel row stays visible but isn't checkable — show the
     // indicator instead of a check-in button (updateCheckedIn refuses it).
-    if (row.attendee.quantity === 0) {
+    if (!hasTicketQuantity(row.attendee)) {
       return String(
         <span class="muted small">
           {t("admin.attendee_table.no_quantity")}

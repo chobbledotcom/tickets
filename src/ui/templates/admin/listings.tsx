@@ -40,6 +40,7 @@ import {
   availableDayCounts,
   dayPriceFor,
   type Group,
+  hasTicketQuantity,
   isPaidListing,
   type ListingWithCount,
   normalizeDurationDays,
@@ -273,10 +274,14 @@ export const filterAttendees = (
   activeFilter: AttendeeFilter,
 ): Attendee[] => {
   if (activeFilter === "in") {
-    return filter((a: Attendee) => a.checked_in && a.quantity > 0)(attendees);
+    return filter((a: Attendee) => a.checked_in && hasTicketQuantity(a))(
+      attendees,
+    );
   }
   if (activeFilter === "out") {
-    return filter((a: Attendee) => !a.checked_in && a.quantity > 0)(attendees);
+    return filter((a: Attendee) => !a.checked_in && hasTicketQuantity(a))(
+      attendees,
+    );
   }
   return attendees;
 };

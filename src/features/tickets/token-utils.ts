@@ -22,7 +22,11 @@ import {
 } from "#shared/db/token-attempts.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
 import { buildCheckinUrl } from "#shared/ticket-url.ts";
-import type { Attendee, ListingWithCount } from "#shared/types.ts";
+import {
+  type Attendee,
+  hasTicketQuantity,
+  type ListingWithCount,
+} from "#shared/types.ts";
 
 /** Attendee paired with its listing */
 export type TokenEntry = {
@@ -175,7 +179,7 @@ export const resolveEntries = async (
   for (const awb of attendeesWithBookings) {
     for (const booking of awb.bookings) {
       const listing = listings.get(booking.listing_id);
-      if (listing && booking.quantity > 0) {
+      if (listing && hasTicketQuantity(booking)) {
         entries.push({
           attendee: buildAttendeeView(awb, booking),
           listing,
@@ -215,9 +219,7 @@ export const verifyTokensWithRealLine = async (
   const attendees = tokens.length > 0 ? await getAttendeesByTokens(tokens) : [];
   const verified = tokens
     .map((token, i) => ({
-      realBookings: (attendees[i]?.bookings ?? []).filter(
-        (b) => b.quantity > 0,
-      ),
+      realBookings: (attendees[i]?.bookings ?? []).filter(hasTicketQuantity),
       token,
     }))
     .filter((entry) => entry.realBookings.length > 0);
