@@ -85,8 +85,8 @@ import type {
   TicketSharedContext,
 } from "./types.ts";
 
-/** Try to redirect to checkout, or return error using provided handler.
- * When in iframe mode, returns a popup page instead of redirect since Stripe cannot run in iframes. */
+/** Redirect to checkout, or return the handler's error.
+ * In iframe mode returns a popup page instead of a redirect: Stripe cannot run in iframes. */
 export const tryCheckoutRedirect = <T>(
   sessionUrl: string | undefined | null,
   errorHandler: () => T,
@@ -107,7 +107,7 @@ export const withPaymentProvider = async (
 };
 
 /** Generic checkout flow: resolve provider, create session, redirect or show error.
- * When in iframe mode, opens checkout in a popup window instead of redirect. */
+ * In iframe mode opens checkout in a popup window instead of a redirect. */
 export const runCheckoutFlow = (
   label: string,
   request: Request,
@@ -161,7 +161,7 @@ export const runCheckoutFlow = (
   );
 };
 
-/** Check if all selected listings have available spots (single efficient query) */
+/** Whether all selected listings have available spots (one batched query). */
 export const checkAvailability = (
   listings: TicketListing[],
   quantities: Map<number, number>,
@@ -178,10 +178,9 @@ export const checkAvailability = (
   );
 
 /**
- * Shared booking-date fields (date + durationDays). Keeps the payment and
- * webhook flows aligned. For "customisable days" listings the booking span is
- * the visitor's chosen `dayCount`; otherwise daily listings use their fixed
- * `duration_days` and standard listings span a single day.
+ * Shared booking-date fields (date + durationDays), keeping the payment and
+ * webhook flows aligned. Span: customisable listings use the chosen `dayCount`;
+ * daily listings use their fixed `duration_days`; standard listings span 1 day.
  */
 export const bookingDateFields = (
   listing: Pick<
@@ -199,8 +198,8 @@ export const bookingDateFields = (
       : 1,
 });
 
-/** Resolve the per-ticket price for a selected listing: customisable listings
- * are priced by the chosen day count, others by their custom/fixed unit price. */
+/** Per-ticket price: customisable listings priced by day count, others by their
+ * custom/fixed unit price. */
 const itemUnitPrice = (
   listing: TicketListing["listing"],
   customPrices: Map<number, number>,
@@ -230,7 +229,6 @@ export const buildRegistrationItems = (
   }));
 };
 
-/** Handle payment flow for ticket purchase */
 export const handlePaymentFlow = (
   request: Request,
   intent: CheckoutIntent,
@@ -244,8 +242,6 @@ export const handlePaymentFlow = (
       errorRedirect(ctx.actionUrl ?? `/ticket/${ctx.slugs.join("+")}`, msg),
   );
 
-/** Handle free ticket registration */
-/** Build booking objects from selected listings */
 const buildBookings = (
   selected: ListingQty[],
   date: string | null,
@@ -258,10 +254,10 @@ const buildBookings = (
   }));
 
 /**
- * Parse and validate the visitor's chosen day count for "customisable days"
- * listings. Returns `{ dayCount }` (1 when no selected listing is customisable),
- * or `{ error }` when the choice is missing, unpriced, or — for daily listings
- * — would run the range into a holiday or past the booking window.
+ * Parse and validate the chosen day count for "customisable days" listings.
+ * Returns `{ dayCount }` (1 when nothing selected is customisable), or `{ error }`
+ * when the choice is missing, unpriced, or — for daily listings — runs the range
+ * into a holiday or past the booking window.
  */
 export const resolveDayCount = async (
   selected: ListingQty[],
@@ -298,35 +294,33 @@ export const resolveDayCount = async (
   return { dayCount: raw };
 };
 
-/** The parent's resolved booking duration that its customisable children
- * inherit (invariant I4): the shared `dayCount` for a customisable parent, the
- * fixed `duration_days` for a fixed daily parent, 1 for a standard parent.
- * Specialises the shared {@link resolveInheritedDuration} with `(dayCount, 1)`. */
+/** The booking duration a parent's customisable children inherit (invariant I4):
+ * the shared `dayCount` for a customisable parent, fixed `duration_days` for a
+ * fixed daily parent, 1 for a standard parent. Specialises the shared
+ * {@link resolveInheritedDuration} with `(dayCount, 1)`. */
 const parentResolvedDuration = (
   parent: TicketListing["listing"],
   dayCount: number,
 ): number => resolveInheritedDuration(parent, dayCount, 1);
 
-/** Parameters for the child-bookability test: the candidate child plus the order
- * context it must be bookable against (inherited duration, resolved date, active
- * holidays). */
+/** Order context the candidate child must be bookable against: inherited
+ * duration, resolved date, active holidays. */
 type ChildBookableCtx = {
   duration: number;
   date: string | null;
   holidays: Holiday[];
 };
 
-/** The date-INDEPENDENT disqualifiers `childIsBookable` applies, composed from
- * the shared atoms. The date- AND span-independent part (active, not closed,
- * standard child not date-less sold out) is {@link childSelectableIgnoringSpan}.
- * When the parent's inherited span is known (`duration` non-null) two span atoms
- * also apply: a customisable child must price the inherited duration
- * ({@link childPricedForSpan}), and a fixed daily child's `duration_days` must
- * equal it ({@link childDurationMatches}). A null `duration` (a CUSTOMISABLE
- * parent, whose span the buyer has not chosen at render) skips only those span
- * atoms — they are enforced per-span at submit. It deliberately omits the
- * child's own date calendar ({@link childDateOk}), which the union folds in
- * per-candidate-date instead (parents.md Fixes 2–4). */
+/** The date-INDEPENDENT disqualifiers `childIsBookable` applies. The date- and
+ * span-independent part (active, not closed, standard child not date-less sold
+ * out) is {@link childSelectableIgnoringSpan}. When the inherited span is known
+ * (`duration` non-null) two span atoms also apply: a customisable child must
+ * price it ({@link childPricedForSpan}) and a fixed daily child's `duration_days`
+ * must equal it ({@link childDurationMatches}). A null `duration` (CUSTOMISABLE
+ * parent, span not yet chosen at render) skips only those span atoms — enforced
+ * per-span at submit. Deliberately omits the child's own date calendar
+ * ({@link childDateOk}), which the union folds in per-candidate-date instead
+ * (parents.md Fixes 2–4). */
 const childSelectableForSpan = (
   child: TicketListing,
   duration: number | null,
@@ -339,11 +333,10 @@ const childSelectableForSpan = (
     ]),
   )(child);
 
-/** A child is bookable now if it is categorically selectable for the inherited
- * span ({@link childSelectableForSpan}) and — when daily — the resolved order
- * date is within its own bookable start dates for the inherited duration
- * ({@link childDateOk}). Date-capacity for a daily child is enforced later by the
- * folded `checkAvailability` (never clamped). */
+/** Bookable now = selectable for the inherited span ({@link childSelectableForSpan})
+ * and — when daily — the resolved date is within the child's own bookable start
+ * dates for the inherited duration ({@link childDateOk}). A daily child's
+ * date-capacity is enforced later by the folded `checkAvailability` (never clamped). */
 const childIsBookable = (
   child: TicketListing,
   { duration, date, holidays }: ChildBookableCtx,
@@ -351,9 +344,9 @@ const childIsBookable = (
   childSelectableForSpan(child, duration) &&
   childDateOk(date, holidays, duration)(child);
 
-/** The order's listing set, quantity map, custom-price map and selected ids,
- * expanded with the chosen children. Shared by the mutable fold accumulator and
- * the success result so the two never drift apart. */
+/** The order's listing set, quantity/custom-price maps and selected ids, expanded
+ * with the chosen children. Shared by the fold accumulator and the success result
+ * so the two never drift apart. */
 type FoldedOrder = {
   listings: TicketListing[];
   quantities: Map<number, number>;
@@ -361,9 +354,8 @@ type FoldedOrder = {
   selectedListingIds: Set<number>;
 };
 
-/** Mutable accumulator threaded through the per-parent fold: the {@link
- * FoldedOrder} plus the single customisable duration seen so far (null until a
- * customisable line appears) used to reject mixed durations. */
+/** Accumulator threaded through the per-parent fold: the {@link FoldedOrder} plus
+ * the single customisable duration seen so far, used to reject mixed durations. */
 type FoldState = FoldedOrder & {
   /** The one duration every customisable line must share, or null if none yet. */
   customisableDuration: number | null;
@@ -373,22 +365,21 @@ export type FoldChildrenResult =
   | (FoldedOrder & {
       ok: true;
       hasCustomisable: boolean;
-      /** The single customisable duration every customisable line shares, or
-       * the passed-in dayCount when no line is customisable. Drives the folded
-       * order's `dayCount` so a fixed parent's customisable child is priced for
-       * the inherited duration, not the default one day. */
+      /** The shared customisable duration, or the passed-in dayCount when no line
+       * is customisable. Drives the folded order's `dayCount` so a fixed parent's
+       * customisable child is priced for the inherited duration, not one day. */
       dayCount: number;
     })
   | { ok: false; error: string };
 
-/** A bookable child paired with the per-unit quantity the buyer chose for it
- * under one parent (always > 0 — zero-quantity children are dropped). */
+/** A bookable child paired with the per-unit quantity chosen under one parent
+ * (always > 0 — zero-quantity children are dropped). */
 type ChildSelection = { child: TicketListing; qty: number };
 
 /** Parse one child's submitted per-unit quantity (`child_qty_<parentId>_<childId>`):
- * a non-negative integer, or 0 when missing/blank/invalid. The selects only emit
- * `0..min(parentQty, childMax)`, so any other value is treated as "none chosen"
- * and the sum check (below) catches a too-low total. */
+ * a non-negative integer, else 0. The selects only emit `0..min(parentQty,
+ * childMax)`, so any other value is treated as "none chosen" and the sum check
+ * (below) catches a too-low total. */
 const childQtyField = (
   parentId: number,
   childId: number,
@@ -400,13 +391,12 @@ const childQtyField = (
   return Number.isInteger(parsed) && parsed >= 0 ? parsed : 0;
 };
 
-/** Resolve the buyer's per-unit child selection for one in-cart parent (the
- * per-unit model): read each bookable child's `child_qty_<parentId>_<childId>`
- * into the chosen subset, auto-assign the whole parent quantity to a sole
- * bookable child when NOTHING was submitted, and require the chosen quantities to
- * sum to exactly the parent's quantity. Returns the chosen children (each with
- * qty > 0) or an error (none bookable / total too low / total too high / a
- * quantity on a non-bookable child). */
+/** Resolve the per-unit child selection for one in-cart parent: read each bookable
+ * child's `child_qty_<parentId>_<childId>`, auto-assign the whole parent quantity
+ * to a sole bookable child when NOTHING was submitted, and require the chosen
+ * quantities to sum to exactly the parent's quantity. Returns the chosen children
+ * (each qty > 0) or an error (none bookable / total too low or high / a quantity
+ * on a non-bookable child). */
 const resolveChildSelections = (
   parent: TicketListing,
   bookable: TicketListing[],
@@ -419,10 +409,10 @@ const resolveChildSelections = (
   }
   const parentId = parent.listing.id;
   const bookableIds = new Set(bookable.map((c) => c.listing.id));
-  // Reject a positive quantity submitted for a child that is not currently a
-  // bookable child of this parent (an unknown id, a stranger listing, or a
-  // sibling that sold out/closed between render and submit) — never silently swap
-  // in a still-bookable sibling (parents.md step 3).
+  // Reject a positive quantity for a child not currently bookable under this
+  // parent (unknown id, stranger listing, or a sibling that sold out/closed
+  // between render and submit) — never silently swap in a still-bookable sibling
+  // (parents.md step 3).
   const prefix = `child_qty_${parentId}_`;
   for (const key of form.keys()) {
     if (!key.startsWith(prefix)) continue;
@@ -442,7 +432,7 @@ const resolveChildSelections = (
     }
   }
   // Auto-select: nothing submitted for a sole bookable child fills the whole
-  // parent quantity (the previous "one child, qty = Q" special case).
+  // parent quantity.
   if (total === 0 && bookable.length === 1) {
     return [{ child: bookable[0]!, qty: parentQty }];
   }
@@ -465,9 +455,8 @@ const resolveChildSelections = (
   return selections;
 };
 
-/** Read and validate a chosen child's pay-more price (when `can_pay_more`),
- * namespaced by parent+child. Returns the price (or undefined when the child is
- * fixed-price), or an error message. */
+/** Read and validate a chosen child's pay-more price (`can_pay_more`), namespaced
+ * by parent+child. Returns the price (undefined when fixed-price) or an error. */
 const childCustomPrice = (
   parentId: number,
   child: TicketListing,
@@ -484,11 +473,11 @@ const childCustomPrice = (
   return result.price;
 };
 
-/** Record a customisable line's duration into the order's single shared
- * duration, rejecting a second distinct value (the single CheckoutIntent
- * dayCount can't represent two — parents.md "Pricing & payment round-trip").
- * Shared by the page's own customisable lines and folded customisable children.
- * Returns null on success or the mixed-duration error. */
+/** Record a customisable line's duration into the order's single shared duration,
+ * rejecting a second distinct value (the single CheckoutIntent dayCount can't
+ * represent two — parents.md "Pricing & payment round-trip"). Shared by the page's
+ * own customisable lines and folded customisable children. Returns null on success
+ * or the mixed-duration error. */
 const recordDuration = (state: FoldState, duration: number): string | null => {
   if (
     state.customisableDuration !== null &&
@@ -500,11 +489,11 @@ const recordDuration = (state: FoldState, duration: number): string | null => {
   return null;
 };
 
-/** Fold one chosen child into the accumulator at the per-unit quantity the buyer
- * picked for it (`childQty`, not the parent quantity): sum that quantity across
- * parents/units, reconcile the customisable duration and pay-more price, and
- * re-validate the summed quantity against the child's max-purchasable cap (reject,
- * never clamp). Returns null on success or an error message. */
+/** Fold one chosen child into the accumulator at its own per-unit quantity
+ * (`childQty`, not the parent quantity): sum that quantity across parents/units,
+ * reconcile the customisable duration and pay-more price, and re-validate the
+ * summed quantity against the child's max-purchasable cap (reject, never clamp).
+ * Returns null on success or an error message. */
 const foldChild = (
   state: FoldState,
   child: TicketListing,
@@ -515,11 +504,11 @@ const foldChild = (
   const childId = child.listing.id;
   const summed = (state.quantities.get(childId) ?? 0) + childQty;
   // A DAILY child's `maxPurchasable` is the date-less aggregate cap, which reads
-  // 0 once the child is full on ANY single date — so it must NOT gate a booking
-  // on a different date with capacity (same date-less-aggregate trap as
-  // `isSoldOut`, Codex 336). Its per-date cap is enforced by the folded
-  // `checkAvailability` (rejected, never clamped). A STANDARD child's cap is
-  // cumulative and date-independent, so it stays authoritative here.
+  // 0 once the child is full on ANY single date — so it must NOT gate a booking on
+  // a different date with capacity (same date-less-aggregate trap as `isSoldOut`,
+  // Codex 336); its per-date cap is enforced by the folded `checkAvailability`
+  // (rejected, never clamped). A STANDARD child's cap is cumulative and
+  // date-independent, so it stays authoritative here.
   if (child.listing.listing_type !== "daily" && summed > child.maxPurchasable) {
     return formatAtomicError("capacity_exceeded", child.listing.name);
   }
@@ -545,11 +534,10 @@ const foldChild = (
 };
 
 /** Resolve, validate and fold one in-cart parent's per-unit child selection into
- * `state`. The buyer chooses children totalling the parent's quantity in any mix
- * (per-unit model); each chosen child is folded at ITS own quantity, not the
- * parent's. Returns null on success or a user-facing error (no bookable child /
- * total below or above the parent quantity / invalid price / over-capacity /
- * mixed duration). */
+ * `state`. Chosen children total the parent's quantity in any mix; each is folded
+ * at ITS own quantity, not the parent's. Returns null on success or a user-facing
+ * error (no bookable child / total below or above the parent quantity / invalid
+ * price / over-capacity / mixed duration). */
 const foldParent = (
   state: FoldState,
   parent: TicketListing,
@@ -578,14 +566,14 @@ const foldParent = (
 /**
  * Fold every in-cart parent's selected child into the order (steps 4–5 core,
  * parents.md "Server-side validation"). A parent is any in-cart listing with a
- * child edge in `ctx.childrenByParentId`; its children are filtered to the
- * bookable ones for the resolved date/duration, the buyer's per-unit selection
- * (children totalling the parent's quantity, auto-filled when a sole child
- * exists) is resolved, and each chosen child is folded at its own quantity into
- * the listing set + quantity/custom-price maps + selected ids — so every
- * downstream per-listing path sees the child as an ordinary line. A parent with
- * no bookable child is rejected (sold out). Child fields under a zero-quantity
- * parent are ignored, not read. No-op when no parents apply.
+ * child edge in `ctx.childrenByParentId`; its children are filtered to those
+ * bookable for the resolved date/duration, the per-unit selection (children
+ * totalling the parent's quantity, auto-filled when a sole child exists) is
+ * resolved, and each chosen child is folded at its own quantity into the listing
+ * set + quantity/custom-price maps + selected ids — so every downstream
+ * per-listing path sees the child as an ordinary line. A parent with no bookable
+ * child is rejected (sold out). Child fields under a zero-quantity parent are
+ * ignored, not read. No-op when no parents apply.
  */
 export const foldSelectedChildren = async (
   ctx: TicketCtx,
@@ -605,13 +593,13 @@ export const foldSelectedChildren = async (
     quantities: new Map(base.quantities),
     selectedListingIds: new Set(base.quantities.keys()),
   };
-  // The page's own customisable lines all share the one submitted `day_count`,
-  // so seed the shared duration with it when any such line is in the cart; a
-  // folded customisable child whose inherited duration differs is then rejected.
+  // The page's own customisable lines all share the one submitted `day_count`, so
+  // seed the shared duration with it; a folded customisable child whose inherited
+  // duration differs is then rejected.
   if (base.hasCustomisable) state.customisableDuration = base.dayCount;
 
-  // Daily children validate the resolved order date against their own calendar,
-  // so fetch the active holidays once and share them across every parent fold.
+  // Daily children validate the resolved date against their own calendar; fetch
+  // holidays once (lazily) and share them across every parent fold.
   let holidays: Holiday[] | null = null;
   for (const parent of ctx.listings) {
     const parentQty = base.quantities.get(parent.listing.id) ?? 0;
@@ -652,12 +640,12 @@ type FreeReservationParams = {
   dayCount?: number;
   paidByListingId?: Map<number, number>;
   remainingBalance?: number;
-  /** Modifier stock to consume in the create transaction. Amounts are zeroed
-   *  when payments are disabled — stock is still capped, nothing is charged. */
+  /** Modifier stock to consume in the create transaction. Amounts are zeroed when
+   *  payments are disabled — stock is still capped, nothing is charged. */
   modifierUsages: ModifierUsage[];
-  /** The priced order to post to the ledger, or null to skip it (payments
-   *  disabled — no money to record). Lets a zero-total free booking record the
-   *  same sale/discount/balance legs a paid one would. */
+  /** Priced order to post to the ledger, or null to skip it (payments disabled —
+   *  no money to record). Lets a zero-total free booking record the same
+   *  sale/discount/balance legs a paid one would. */
   ledgerOrder: PricedOrder | null;
 };
 
@@ -666,8 +654,8 @@ type FreeReservationResult =
   | { success: false; error: string };
 
 /** User-facing message when a chosen add-on or discount sold out during a
- * zero-total completion (no provider in the loop, so it didn't sell out
- * "while completing payment" as the webhook path phrases it). */
+ * zero-total completion (no provider, so the webhook path's "while completing
+ * payment" wording doesn't apply). */
 export const MODIFIER_SOLD_OUT_MESSAGE =
   "An extra you selected sold out while you were checking out. Please try again.";
 
@@ -689,11 +677,10 @@ export const createFreeReservation = async ({
       ? { pricePaid: paidByListingId.get(booking.listingId)! }
       : {}),
   }));
-  // When there are legs to post or stock to consume, do it inside the create
-  // transaction, exactly as the paid webhook does, so the booking, its stock, and
-  // its sale/payment legs are all-or-nothing. The free path has no payment
-  // session, so the ledger event is keyed on the new attendee id and dated now; a
-  // modifier sold out mid-checkout rolls the whole create back.
+  // Legs/stock are posted inside the create transaction, as the paid webhook does,
+  // so the booking, its stock, and its sale/payment legs are all-or-nothing. With
+  // no payment session, the ledger event is keyed on the new attendee id and dated
+  // now; a modifier sold out mid-checkout rolls the whole create back.
   const statusId = await getPublicStatusId();
   const ledger = ledgerOrder
     ? {
@@ -725,13 +712,12 @@ export const createFreeReservation = async ({
       success: false,
     };
   }
-  // ensureAllBookings guarantees result.success after ok check
+  // ensureAllBookings's ok check guarantees result.success here.
   const { attendees } = result as Extract<
     CreateAttendeeResult,
     { success: true }
   >;
 
-  // Build entries: pair each attendee result with its listing
   const entries: EmailEntry[] = attendees.map((attendee, i) => ({
     attendee,
     listing: selected[i]!.listing,
@@ -745,12 +731,12 @@ export const createFreeReservation = async ({
 
 /**
  * Whether any of `ids` is a child listing (invariant I3): a booking can never
- * start from a child — it is only bookable through one of its parents' per-parent
- * selectors. The explicit-slug entry points (multi-slug `/ticket/<slugs>`, the
- * signed QR, the JSON API) use this to reject (not silently drop) a child they
- * were handed directly. Group/order pages, which load their listings indirectly,
- * instead suppress child rows (folded under their parents) — so the rejection is
- * deliberately *not* applied in the shared render funnel.
+ * start from a child — only through one of its parents' per-parent selectors. The
+ * explicit-slug entry points (multi-slug `/ticket/<slugs>`, the signed QR, the
+ * JSON API) use this to reject (not silently drop) a child handed directly.
+ * Group/order pages load listings indirectly and instead suppress child rows
+ * (folded under their parents), so the rejection is deliberately *not* applied in
+ * the shared render funnel.
  */
 export const anyChildListing = async (
   ids: readonly number[],
@@ -758,14 +744,13 @@ export const anyChildListing = async (
 
 /**
  * Drop child listings from an indirectly-loaded listing set (group/order pages),
- * so a child never renders as a standalone, selectable quantity row (invariant
- * I3). Unlike the explicit-slug entry points — which *reject* a child slug they
- * were handed directly (`withActiveListings`) — an indirect page loads its
- * listings from group membership / a saved cart, where a child member is
- * expected: it is folded under its parent's selector, not booked alone. The
- * parents stay in the set and re-load their children via the relationship
- * accessor (`childrenByParentId`), so this only removes the children's own
- * standalone rows (Fix 3, parents.md "strip child rows from indirect pages").
+ * so a child never renders as a standalone selectable quantity row (invariant I3).
+ * Unlike the explicit-slug entry points — which *reject* a child slug handed
+ * directly (`withActiveListings`) — an indirect page loads from group membership /
+ * a saved cart, where a child member is expected: it is folded under its parent's
+ * selector, not booked alone. Parents stay in the set and re-load their children
+ * via `childrenByParentId`, so this only removes the children's own standalone
+ * rows (Fix 3, parents.md "strip child rows from indirect pages").
  */
 export const dropChildListings = async (
   listings: readonly ListingWithCount[],
@@ -775,19 +760,18 @@ export const dropChildListings = async (
 };
 
 /**
- * Whether `listingId` is a parent — i.e. it has at least one child edge, so a
- * booking of it requires the buyer to choose one of its children (invariant I1).
- * The web booking page enforces that choice with a per-parent selector, but the
- * JSON API has no child-selection input, so it uses this to reject a parent
- * booking and direct the caller to the web booking page (Fix 1, parents.md
- * "Public/JSON API booking").
+ * Whether `listingId` is a parent (has at least one child edge), so booking it
+ * requires choosing one of its children (invariant I1). The web page enforces
+ * that with a per-parent selector; the JSON API has no child-selection input, so
+ * it uses this to reject a parent booking and direct the caller to the web booking
+ * page (Fix 1, parents.md "Public/JSON API booking").
  */
 export const parentRequiresChild = async (
   listingId: number,
 ): Promise<boolean> => (await getChildIds(listingId)).length > 0;
 
-/** Load and validate active listings, return 404 if none — or if any resolved
- * slug is a child (a booking can't start from a child; see {@link anyChildListing}). */
+/** Load active listings, 404 if none — or if any resolved slug is a child (a
+ * booking can't start from a child; see {@link anyChildListing}). */
 export const withActiveListings = async (
   slugs: string[],
   handler: AsyncHandler<[TicketListing[]]>,
@@ -802,7 +786,7 @@ export const withActiveListings = async (
   return handler(activeListings);
 };
 
-/** Compute shared available dates across all daily listings (intersection) */
+/** Shared available dates across all daily listings (intersection). */
 export const computeSharedDates = async (
   listings: TicketListing[],
 ): Promise<string[]> => {
@@ -812,8 +796,8 @@ export const computeSharedDates = async (
   if (dailyListings.length === 0) return [];
   const holidays = await getActiveHolidays();
   // Customisable-days listings store duration_days as the *maximum*; their date
-  // list is computed for a single day (every individually-bookable start) and
-  // the chosen span is validated separately at submit time.
+  // list is computed for a single day (every individually-bookable start), and the
+  // chosen span is validated separately at submit.
   const dateSets = dailyListings.map(
     (e) => new Set(getBookableStartDates(e.listing, holidays)),
   );
@@ -821,16 +805,15 @@ export const computeSharedDates = async (
 };
 
 /** A required child's contribution to its parent's bookable-date union (Codex
- * 758/449). A STANDARD (dateless) child imposes no date constraint — it is
- * bookable on EVERY parent date (subject only to its non-date capacity), so it
- * contributes all of `parentDates`. A DAILY child contributes the parent dates it
- * can actually serve for the inherited span: when the parent's span is FIXED
- * (`fixedSpan` set, e.g. a 3-day fixed daily parent) the child must cover the
- * whole span, so each candidate start is validated with the SAME
- * {@link isBookingRangeValid} the fold uses (a customisable child priced/bookable
- * only for a single Monday must NOT be offered for a Mon–Wed parent it can't
- * cover). When the parent span is NOT fixed (customisable parent, no span chosen
- * at render) it keeps the per-start {@link getBookableStartDates} behaviour. */
+ * 758/449). A STANDARD (dateless) child imposes no date constraint — bookable on
+ * EVERY parent date (subject only to non-date capacity) — so it contributes all of
+ * `parentDates`. A DAILY child contributes the parent dates it can serve for the
+ * inherited span: when `fixedSpan` is set (e.g. a 3-day fixed daily parent) the
+ * child must cover the whole span, so each candidate start is validated with the
+ * SAME {@link isBookingRangeValid} the fold uses (a child bookable only for a
+ * single Monday must NOT be offered for a Mon–Wed parent it can't cover). A null
+ * `fixedSpan` (customisable parent, no span chosen at render) keeps the per-start
+ * {@link getBookableStartDates} behaviour. */
 const childDateContribution = (
   child: TicketListing,
   parentDates: string[],
@@ -851,13 +834,13 @@ const childDateContribution = (
  *
  * Children are first filtered by the date-INDEPENDENT disqualifiers
  * ({@link childSelectableForSpan}) so an inactive / closed / unpriced /
- * duration-incompatible child the fold would reject contributes NOTHING to the
- * union — otherwise an inactive child bookable only Tuesday would keep Tuesday
- * selectable and the submit would then fail (Codex 794). The remaining children
- * each contribute the dates they can serve for the parent's inherited span (see
- * {@link childDateContribution}). Without this, a daily parent available Mon+Tue
- * whose only ACTIVE child is bookable Mon still offers Tue and the fold rejects.
- * The caller scopes WHEN this applies (see {@link singleDailyParent}).
+ * duration-incompatible child the fold would reject contributes NOTHING — else an
+ * inactive child bookable only Tuesday would keep Tuesday selectable and submit
+ * would fail (Codex 794). Remaining children each contribute the dates they serve
+ * for the inherited span ({@link childDateContribution}). Without this, a daily
+ * parent available Mon+Tue whose only ACTIVE child is bookable Mon still offers Tue
+ * and the fold rejects. The caller scopes WHEN this applies (see
+ * {@link singleDailyParent}).
  */
 const constrainDatesByChildUnion = (
   parentDates: string[],
@@ -873,14 +856,13 @@ const constrainDatesByChildUnion = (
   );
 
 /**
- * The page's sole listing + its children when it is a daily parent, else null
- * (no date constraint applies). Scopes the child-date-union rule (Codex 758) to
- * a SINGLE-listing page that is itself a daily parent — the overwhelmingly
- * common base-unit-plus-add-on case. On a multi-listing / group page several
- * listings share one date selector, and folding one parent's child calendar into
- * the shared set could wrongly remove a date a *different* page listing needs —
- * the spec defers that to the per-selected-parent JS constraint plus the
- * authoritative submit fold, so a multi-listing page's dates are left untouched.
+ * The page's sole listing + its children when it is a daily parent, else null.
+ * Scopes the child-date-union rule (Codex 758) to a SINGLE-listing page that is
+ * itself a daily parent — the common base-unit-plus-add-on case. On a multi-listing
+ * / group page several listings share one date selector, and folding one parent's
+ * child calendar into the shared set could wrongly remove a date a *different* page
+ * listing needs — the spec defers that to the per-selected-parent JS constraint plus
+ * the authoritative submit fold, so a multi-listing page's dates are left untouched.
  */
 const singleDailyParent = (
   listings: TicketListing[],
@@ -895,29 +877,25 @@ const singleDailyParent = (
 };
 
 /**
- * The parent→children relationship for the page's listings, each child
- * hydrated to a {@link TicketListing} so its availability is resolved for the
- * gate/render. No-op (empty map, no query) when the parents flag is off, so
- * existing pages are unaffected until the feature ships. Children are loaded by
- * relationship only — bookability is evaluated at render/submit against the
- * resolved date (invariant I3).
+ * The parent→children relationship for the page's listings, each child hydrated to
+ * a {@link TicketListing} so its availability resolves for the gate/render.
+ * Children are loaded by relationship only — bookability is evaluated at
+ * render/submit against the resolved date (invariant I3).
  *
  * Fix 2 (don't apply the date-less GROUP cap to a daily parent's children) needs
  * no code here: the date-less group aggregate that {@link
  * buildTicketListingsWithGroupCapacity} applies via {@link
  * getGroupRemainingByListingId} **already excludes every daily listing** (its cap
- * is per-date, so a cumulative count is meaningless — see its doc and `capacity.ts`).
- * A daily parent's group is type-homogeneous (group members must share
- * `listing_type` — `validateGroupListingType`), so any child co-grouped with a
- * daily parent is itself daily and is therefore *never* given a date-less group
- * clamp: it carries no group-remaining entry, and the fold skips a daily child's
- * date-less `maxPurchasable` outright ({@link foldChild}), deferring its per-date
- * group capacity to the date-aware {@link checkAvailability} (which rejects, never
- * clamps). A *standard* child can never share a daily parent's group (the
- * homogeneity rule blocks it at save), so the "standard child of a daily parent
- * pre-marked sold out by the date-less group aggregate" state parents.md Fix 2
- * describes is unreachable — there is no clamp to suppress. The locking tests
- * exercise the daily-parent/daily-child date-A/date-B case end-to-end.
+ * is per-date, so a cumulative count is meaningless). A daily parent's group is
+ * type-homogeneous (`validateGroupListingType`), so any child co-grouped with it is
+ * itself daily and *never* gets a date-less group clamp: it carries no
+ * group-remaining entry, and the fold skips a daily child's date-less
+ * `maxPurchasable` outright ({@link foldChild}), deferring its per-date group
+ * capacity to the date-aware {@link checkAvailability} (rejects, never clamps). A
+ * *standard* child can never share a daily parent's group (homogeneity blocks it at
+ * save), so the "standard child of a daily parent pre-marked sold out by the
+ * date-less group aggregate" state parents.md Fix 2 describes is unreachable —
+ * there is no clamp to suppress.
  */
 export const loadChildrenByParentId = async (
   listings: TicketListing[],
@@ -944,11 +922,10 @@ export const childListingIdsOf = (
 };
 
 /** The selectable parent spans the child date sets are computed over (Fix 4): a
- * FIXED-duration parent has a single span ({@link fixedParentSpan} — 1 for a
- * standard parent, `duration_days` for a fixed daily parent); a CUSTOMISABLE
- * parent has one per offered day-count ({@link availableDayCounts}), since the
- * buyer picks the span and a daily child's serveable starts differ per span (a
- * 2-day span can't start where only a 1-day window fits). */
+ * FIXED-duration parent has a single span ({@link fixedParentSpan}); a
+ * CUSTOMISABLE parent has one per offered day-count ({@link availableDayCounts}),
+ * since the buyer picks the span and a daily child's serveable starts differ per
+ * span (a 2-day span can't start where only a 1-day window fits). */
 const parentRenderSpans = (parent: ListingWithCount): number[] => {
   const fixed = fixedParentSpan(parent);
   return fixed === null ? availableDayCounts(parent) : [fixed];
@@ -957,12 +934,12 @@ const parentRenderSpans = (parent: ListingWithCount): number[] => {
 /** A DAILY child's serveable starts PER selectable parent span ({@link
  * ChildSpanDates}, Fix 4): for each span the parent can offer, the holiday-aware
  * parent dates from which the child can serve the WHOLE span — reusing the SAME
- * {@link childDateContribution} rule (with the span as its fixed span) the
- * parent's date union uses, so the client never disables a date the server would
- * accept (and never re-enables one it rejects). A fixed parent yields one entry;
- * a customisable parent yields one per day-count, so the client picks the dates
- * matching the buyer's chosen `day_count` rather than the span-agnostic one-day
- * starts (which let a 2-day child be offered a Monday it can't cover). */
+ * {@link childDateContribution} rule (span as its fixed span) the parent's date
+ * union uses, so the client never disables a date the server would accept (or
+ * re-enables one it rejects). A fixed parent yields one entry; a customisable
+ * parent one per day-count, so the client matches the buyer's chosen `day_count`
+ * rather than span-agnostic one-day starts (which let a 2-day child be offered a
+ * Monday it can't cover). */
 const childSpanDates = (
   child: TicketListing,
   parent: ListingWithCount,
@@ -983,11 +960,10 @@ const childSpanDates = (
  *
  * Keying by the pair (Fix 4): the same daily child can be required by two parents
  * whose calendars/inherited spans differ, so each parent's block needs its OWN
- * `data-child-dates` for that child. Keying by child id alone let the later
- * parent overwrite the earlier parent's constraint, so a child under one parent
- * could carry the other parent's dates. A non-daily child imposes no date
- * constraint and is omitted (the client treats a missing entry as "always
- * compatible"). */
+ * `data-child-dates`. Keying by child id alone let the later parent overwrite the
+ * earlier's constraint, so a child under one parent could carry the other's dates.
+ * A non-daily child imposes no date constraint and is omitted (the client treats a
+ * missing entry as "always compatible"). */
 export const buildChildDatesById = (
   activeListings: TicketListing[],
   childrenByParentId: ChildrenByParentId,
@@ -1008,17 +984,17 @@ export const buildChildDatesById = (
   return result;
 };
 
-/** Fetch shared context for ticket pages: dates, terms, questions.
- * When a group is provided, its terms override global terms and its name/description are included. */
+/** Shared context for ticket pages: dates, terms, questions. A group's terms
+ * override global terms and its name/description are included. */
 export const getTicketContext = async (
   activeListings: TicketListing[],
   group?: Group,
 ): Promise<TicketSharedContext> => {
   const listingIds = activeListings.map((e) => e.listing.id);
   const childrenByParentId = await loadChildrenByParentId(activeListings);
-  // Child questions must be parseable/validatable at submit, so load questions
-  // for the children's listing ids too (keyed by question id, so a child
-  // question activates for its child line in the fold).
+  // Child questions must be parseable/validatable at submit, so load questions for
+  // the children's listing ids too (a child question activates for its child line
+  // in the fold).
   const questionListingIds = [
     ...listingIds,
     ...childListingIdsOf(childrenByParentId),
@@ -1033,9 +1009,8 @@ export const getTicketContext = async (
     ]);
   // A daily parent's offered dates must intersect the union of its children's
   // bookable dates (Codex 758); the client compatibility script also needs each
-  // daily child's serveable dates (Codex 430). Both are holiday-aware, so the
-  // holidays are fetched once whenever the page has any parents; pages with no
-  // parents skip the fetch entirely.
+  // daily child's serveable dates (Codex 430). Both are holiday-aware, so fetch
+  // holidays once when the page has any parents; pages with none skip it entirely.
   const holidays = childrenByParentId.size > 0 ? await getActiveHolidays() : [];
   const dailyParent = singleDailyParent(activeListings, childrenByParentId);
   const dates = dailyParent
@@ -1070,18 +1045,18 @@ export const getTicketContext = async (
 };
 
 /**
- * Constrain a daily parent's own candidate dates to those at least one of its
- * required children can actually serve for the inherited span — the SAME
- * `parentDates ∩ (union of selectable children's bookable dates)` rule the web
- * booking page applies via {@link constrainDatesByChildUnion} (invariant I6, Fix
- * 4). Used by the JSON API detail endpoint so it never advertises a date the web
- * selector removes and the fold rejects. The caller restricts this to daily
- * listings (only daily listings have an `availableDates` list).
+ * Constrain a daily parent's candidate dates to those at least one required child
+ * can serve for the inherited span — the SAME `parentDates ∩ (union of selectable
+ * children's bookable dates)` rule the web booking page applies via
+ * {@link constrainDatesByChildUnion} (invariant I6, Fix 4). Used by the JSON API
+ * detail endpoint so it never advertises a date the web selector removes and the
+ * fold rejects. The caller restricts this to daily listings (only they have an
+ * `availableDates` list).
  *
- * A `parent` with no child edges is returned unchanged: the union only applies to
- * a parent that gates a child choice. Children are loaded by relationship and
- * built to {@link TicketListing} so the same date-/span-aware availability the
- * gate uses is evaluated here.
+ * A `parent` with no child edges is returned unchanged (the union only applies to
+ * a parent that gates a child choice). Children are loaded by relationship and
+ * built to {@link TicketListing} so the same date-/span-aware availability the gate
+ * uses is evaluated here.
  */
 export const constrainParentDailyDates = async (
   parent: ListingWithCount,

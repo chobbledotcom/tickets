@@ -11,17 +11,17 @@
  *   - `parentListingId` — for a folded child row, which parent listing the buyer
  *     chose it under.
  *
- * The pairing is RECOMPUTED here from the persisted `listing_parents` edges and
- * the order's own booking set rather than threaded through the (cap-sensitive,
+ * The pairing is RECOMPUTED from the persisted `listing_parents` edges and the
+ * order's own booking set rather than threaded through the (cap-sensitive,
  * signed) paid round-trip: a child row's parent is the parent edge whose listing
  * is also booked in the same order. This runs identically for the free path and
  * the paid webhook path — both reach `createAttendeeAtomic` with the full folded
  * booking set (parents ∪ chosen children) — so neither needs parent-awareness.
  *
- * The unique index on `(listing_id, attendee_id, start_at)` means the fold sums
- * a child chosen under two parents into one row; that row records the first such
- * parent. The operator's main case is one parent → one child, so this is exact
- * in practice and lossy only in the documented rare multi-parent corner.
+ * The unique index on `(listing_id, attendee_id, start_at)` folds a child chosen
+ * under two parents into one row recording the first such parent. The operator's
+ * main case is one parent → one child, so this is exact in practice and lossy
+ * only in the documented rare multi-parent corner.
  */
 
 import type { ListingBooking } from "#shared/db/attendee-types.ts";
@@ -33,11 +33,13 @@ const inOrderParentByChild = async (
   listingIds: readonly number[],
 ): Promise<Map<number, number>> => {
   const parentsByChild = await getParentsForChildren(listingIds);
-  const inOrder = new Set(listingIds);
+  const bookedInOrder = new Set(listingIds);
   const result = new Map<number, number>();
   for (const [childId, parents] of parentsByChild) {
-    const parent = parents.find((p) => inOrder.has(p.id));
-    if (parent) result.set(childId, parent.id);
+    const inOrderParent = parents.find((parent) =>
+      bookedInOrder.has(parent.id),
+    );
+    if (inOrderParent) result.set(childId, inOrderParent.id);
   }
   return result;
 };

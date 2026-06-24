@@ -31,8 +31,8 @@ export type EdgeListing = {
 
 /** A fixed-duration parent's single resolved booking span (days): its own
  * `duration_days` for a daily listing, otherwise 1. Only meaningful for a
- * non-`customisable_days` parent (a customisable parent has a *range*, queried
- * via {@link availableDayCounts}). */
+ * non-`customisable_days` parent (a customisable parent has a *range*, via
+ * {@link availableDayCounts}). */
 const parentFixedDuration = (parent: EdgeListing): number =>
   parent.listing_type === "daily"
     ? normalizeDurationDays(parent.duration_days)

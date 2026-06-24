@@ -7,9 +7,9 @@
  * evaluate it at render/submit against the submitted date (see parents.md, the
  * relationship-accessor note and invariant I3).
  *
- * Only the accessors with a production consumer live here; the booking-page
- * batch loader and edit-on-child writer are added alongside the gate/booking
- * work that uses them, to keep the module free of unused exports.
+ * Only accessors with a production consumer live here; the booking-page batch
+ * loader and edit-on-child writer are added alongside the gate/booking work that
+ * uses them, to keep the module free of unused exports.
  */
 
 import { compact } from "#fp";
@@ -30,9 +30,8 @@ const INSERT_EDGE =
   "INSERT INTO listing_parents (parent_listing_id, child_listing_id) VALUES (?, ?)";
 
 /** Run a child-id-selecting query (whose SQL embeds an `IN (…)` placeholder list
- * over `ids`) and return its results as a set. Short-circuits to an empty set —
- * and no query — for an empty input, the shared shape of the child-id lookups
- * below. */
+ * over `ids`) and return its results as a set. Empty input short-circuits to an
+ * empty set with no query — the shared shape of the child-id lookups below. */
 const childIdSet = async (
   sql: string,
   ids: readonly number[],
@@ -90,13 +89,13 @@ type EdgeColumn = "child_listing_id" | "parent_listing_id";
 
 /**
  * Batch-load `listing_parents` edges filtered by one endpoint and grouped,
- * hydrated, by the opposite one. `keyColumn` is matched against `ids` and used
- * as the result-map key; `valueColumn` is the opposite endpoint hydrated to full
- * rows (preserving id order, dropping any that no longer exist). One query (no
- * N+1); only keys with at least one surviving listing appear. Shared by
- * {@link getChildrenForParents} and {@link getParentsForChildren} so the two
- * directions never drift. (Column names come from the fixed {@link EdgeColumn}
- * union, never user input, so the interpolation is safe.)
+ * hydrated, by the opposite one. `keyColumn` is matched against `ids` and keys
+ * the result map; `valueColumn` is the opposite endpoint hydrated to full rows
+ * (preserving id order, dropping any that no longer exist). One query (no N+1);
+ * only keys with at least one surviving listing appear. Shared by {@link
+ * getChildrenForParents} and {@link getParentsForChildren} so the two directions
+ * never drift. (Column names come from the fixed {@link EdgeColumn} union, never
+ * user input, so the interpolation is safe.)
  */
 const groupEdges = async (
   ids: readonly number[],
@@ -181,11 +180,10 @@ export type TouchingEdge = {
  * Re-validate every parent/child edge touching a listing on save, returning the
  * first edge's user-facing error (or null when every edge holds, including when
  * the listing has none). The shared traversal for both save-time re-checks
- * (field compatibility and add-on reachability): load the touching edges once,
- * short-circuit when there are none, then run `check` over the listing as the
- * **parent** of each of its children and as the **child** under each of its
- * parents — stopping at the first error. `check` receives each {@link
- * TouchingEdge} (self on the fixed side, the opposite endpoint as `otherId`) and
+ * (field compatibility and add-on reachability): it runs `check` over the
+ * listing as **parent** of each of its children and as **child** under each of
+ * its parents, stopping at the first error. `check` receives each {@link
+ * TouchingEdge} (self on the fixed side, opposite endpoint as `otherId`) and
  * resolves whatever rows/scopes it needs itself, so the two callers can't drift
  * on which edges they walk or in what order.
  */
@@ -209,11 +207,9 @@ export const firstTouchingEdgeError = async (
  * Re-validate every edge touching a listing against its *would-be* field values,
  * for a listing save (a type / duration / day-price / renewal-tier edit can
  * break an existing edge the booking gate then can't date or price). `updated`
- * carries the post-save fields with the listing's own id; the function checks it
- * as the parent of each of its children and as the child under each of its
- * parents, hydrating the opposite endpoints from the listings cache. Returns the
- * first incompatibility's user-facing error, or null when every edge still
- * holds (including when the listing has no edges).
+ * carries the post-save fields with the listing's own id; opposite endpoints are
+ * hydrated from the listings cache. Returns the first incompatibility's
+ * user-facing error, or null when every edge still holds (including no edges).
  */
 export const edgeIncompatibilityAfterChange = async (
   updated: EdgeListing,
@@ -222,8 +218,7 @@ export const edgeIncompatibilityAfterChange = async (
   return firstTouchingEdgeError(updated.id, ({ self, otherId }) => {
     const other = byId.get(otherId);
     if (!other) return null;
-    // Self on the fixed side, the cached opposite endpoint on the other: as the
-    // parent of each child, or as the child under each parent.
+    // `updated` stays on its fixed side: parent of each child, child under each parent.
     return self === "parent"
       ? edgeFieldError(updated, other)
       : edgeFieldError(other, updated);
