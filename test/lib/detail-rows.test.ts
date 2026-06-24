@@ -10,7 +10,7 @@ import {
   renderDetailRows,
   sumQuantity,
 } from "#templates/admin/detail-rows.tsx";
-import { testAttendee, testRadioQuestion } from "#test-utils";
+import { testAnswer, testAttendee, testQuestion } from "#test-utils";
 
 describe("detail-rows", () => {
   describe("renderDetailRows", () => {
@@ -117,10 +117,14 @@ describe("detail-rows", () => {
           [3, [11]],
         ]),
         questions: [
-          testRadioQuestion(1, "Size?", [
-            [10, "Small"],
-            [11, "Large"],
-          ]),
+          testQuestion({
+            answers: [
+              testAnswer({ id: 10, sort_order: 0, text: "Small" }),
+              testAnswer({ id: 11, sort_order: 1, text: "Large" }),
+            ],
+            id: 1,
+            text: "Size?",
+          }),
         ],
       });
       expect(rows).toEqual([{ key: "Size?", value: "Small (2), Large (1)" }]);
@@ -129,7 +133,13 @@ describe("detail-rows", () => {
     test("shows zero for answers with no selections", () => {
       const rows = buildAnswerSummaryRows({
         attendeeAnswerMap: new Map(),
-        questions: [testRadioQuestion(1, "Q?", [[10, "A"]])],
+        questions: [
+          testQuestion({
+            answers: [testAnswer({ id: 10, text: "A" })],
+            id: 1,
+            text: "Q?",
+          }),
+        ],
       });
       expect(rows).toEqual([{ key: "Q?", value: "A (0)" }]);
     });
@@ -265,20 +275,11 @@ describe("detail-rows", () => {
         questionData: {
           attendeeAnswerMap: new Map(),
           questions: [
-            {
-              answers: [
-                {
-                  active: true,
-                  id: 10,
-                  question_id: 1,
-                  sort_order: 0,
-                  text: "S",
-                },
-              ],
-              display_type: "radio" as const,
+            testQuestion({
+              answers: [testAnswer({ id: 10, text: "S" })],
               id: 1,
               text: "Size?",
-            },
+            }),
           ],
         },
       });

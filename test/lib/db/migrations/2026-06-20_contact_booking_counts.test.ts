@@ -7,38 +7,13 @@ import {
   tableExists as schemaTableExists,
   syncIndexes,
 } from "#shared/db/migrations/schema-sync.ts";
-import type {
-  AdditiveMigration,
-  Migration,
-  MigrationContext,
-  SchemaRequirement,
-} from "#shared/db/migrations/types.ts";
-import { describeWithEnv } from "#test-utils";
+import { buildMigrationContext, describeWithEnv } from "#test-utils";
 
-const unused = async (): Promise<void> => {
-  throw new Error("unused migration context member called");
-};
-
-const context: MigrationContext = {
-  additive: (migration: AdditiveMigration): Migration => ({
-    ...migration,
-    verify: async () => {},
-  }),
+const context = buildMigrationContext({
   applySchemaChanges,
-  backfillAnswerAggregates: unused,
-  backfillListingAggregates: unused,
-  backfillModifierAggregates: unused,
-  ensureDefaultAttendeeStatus: unused,
-  getDb,
-  recreateTable: unused,
-  renameEventsToListings: unused,
-  syncCurrentSchema: unused,
   syncIndexes,
-  syncTriggers: unused,
   tableExists: schemaTableExists,
-  verifyCurrentAppSchema: unused,
-  verifyRequirement: (_req: SchemaRequirement) => async () => {},
-};
+});
 
 const runMigration = () => contactBookingCountsMigration(context).up();
 

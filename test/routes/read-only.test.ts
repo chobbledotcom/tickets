@@ -3,21 +3,29 @@ import { it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { allTransfers } from "#shared/accounting/queries.ts";
 import { readOnlyPage } from "#templates/public.tsx";
-import { describeWithEnv, mockRequest } from "#test-utils";
+import { describeWithEnv, jsonRequest, mockRequest } from "#test-utils";
 
-/** Create a JSON API request */
-const apiRequest = (
-  path: string,
-  method = "GET",
-  body?: Record<string, unknown>,
-): Request => {
-  const headers: Record<string, string> = { host: "localhost" };
-  const init: RequestInit = { headers, method };
-  if (body) {
-    headers["content-type"] = "application/json";
-    init.body = JSON.stringify(body);
-  }
-  return new Request(`http://localhost${path}`, init);
+/** POST a urlencoded form body to `path` (defaults to a trivial field). */
+const postForm = (path: string, body = "name=test"): Promise<Response> =>
+  handleRequest(
+    mockRequest(path, {
+      body,
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      method: "POST",
+    }),
+  );
+
+/** Assert a response is the read-only guard's 302 → /read-only redirect. */
+const expectReadOnlyRedirect = (res: Response): void => {
+  expect(res.status).toBe(302);
+  expect(res.headers.get("location")).toBe("/read-only");
+};
+
+/** Assert a JSON API response is the read-only guard's 403 with message. */
+const expectReadOnly403 = async (res: Response): Promise<void> => {
+  expect(res.status).toBe(403);
+  const body = await res.json();
+  expect(body.error).toBe("This site is in read-only mode");
 };
 
 describeWithEnv(
@@ -53,158 +61,74 @@ describeWithEnv(
       expect(html).not.toContain("Renew now");
     });
 
-    test("POST /api/admin/listings returns 403 JSON", async () => {
-      const res = await handleRequest(
-        apiRequest("/api/admin/listings", "POST", { name: "test" }),
-      );
-      expect(res.status).toBe(403);
-      const body = await res.json();
-      expect(body.error).toBe("This site is in read-only mode");
-    });
-
-    test("PUT /api/admin/listings/1 returns 403 JSON", async () => {
-      const res = await handleRequest(
-        apiRequest("/api/admin/listings/1", "PUT", { name: "test" }),
-      );
-      expect(res.status).toBe(403);
-      const body = await res.json();
-      expect(body.error).toBe("This site is in read-only mode");
-    });
+    const api403Cases: ReadonlyArray<{
+      method: string;
+      path: string;
+      body?: Record<string, unknown>;
+    }> = [
+      { body: { name: "test" }, method: "POST", path: "/api/admin/listings" },
+      { body: { name: "test" }, method: "PUT", path: "/api/admin/listings/1" },
+      {
+        body: { name: "test" },
+        method: "POST",
+        path: "/api/listings/my-listing/book",
+      },
+    ];
+    for (const { body, method, path } of api403Cases) {
+      test(`${method} ${path} returns 403 JSON`, async () => {
+        await expectReadOnly403(
+          await handleRequest(jsonRequest(path, { body, method })),
+        );
+      });
+    }
 
     test("DELETE /api/admin/listings/1 returns 403 JSON", async () => {
       const res = await handleRequest(
-        apiRequest("/api/admin/listings/1", "DELETE"),
+        jsonRequest("/api/admin/listings/1", { method: "DELETE" }),
       );
       expect(res.status).toBe(403);
-    });
-
-    test("POST /api/listings/my-listing/book returns 403 JSON", async () => {
-      const res = await handleRequest(
-        apiRequest("/api/listings/my-listing/book", "POST", { name: "test" }),
-      );
-      expect(res.status).toBe(403);
-      const body = await res.json();
-      expect(body.error).toBe("This site is in read-only mode");
     });
 
     test("GET /api/admin/listings is allowed", async () => {
-      const res = await handleRequest(apiRequest("/api/admin/listings"));
+      const res = await handleRequest(jsonRequest("/api/admin/listings"));
       // Should not be 403 — may be 401 (no auth) but not blocked by read-only
       expect(res.status).not.toBe(403);
     });
 
-    test("GET /admin/listing/new redirects to /read-only", async () => {
-      const res = await handleRequest(mockRequest("/admin/listing/new"));
-      expect(res.status).toBe(302);
-      expect(res.headers.get("location")).toBe("/read-only");
-    });
+    const getRedirectPaths = [
+      "/admin/listing/new",
+      "/admin/listing/42/edit",
+      "/admin/listing/42/duplicate",
+      "/admin/groups/new",
+      "/admin/groups/7/edit",
+      "/admin/attendees/new",
+    ];
+    for (const path of getRedirectPaths) {
+      test(`GET ${path} redirects to /read-only`, async () => {
+        expectReadOnlyRedirect(await handleRequest(mockRequest(path)));
+      });
+    }
 
-    test("GET /admin/listing/42/edit redirects to /read-only", async () => {
-      const res = await handleRequest(mockRequest("/admin/listing/42/edit"));
-      expect(res.status).toBe(302);
-      expect(res.headers.get("location")).toBe("/read-only");
-    });
-
-    test("GET /admin/listing/42/duplicate redirects to /read-only", async () => {
-      const res = await handleRequest(
-        mockRequest("/admin/listing/42/duplicate"),
-      );
-      expect(res.status).toBe(302);
-      expect(res.headers.get("location")).toBe("/read-only");
-    });
-
-    test("GET /admin/groups/new redirects to /read-only", async () => {
-      const res = await handleRequest(mockRequest("/admin/groups/new"));
-      expect(res.status).toBe(302);
-      expect(res.headers.get("location")).toBe("/read-only");
-    });
-
-    test("GET /admin/groups/7/edit redirects to /read-only", async () => {
-      const res = await handleRequest(mockRequest("/admin/groups/7/edit"));
-      expect(res.status).toBe(302);
-      expect(res.headers.get("location")).toBe("/read-only");
-    });
-
-    test("POST /ticket/my-listing redirects to /read-only", async () => {
-      const res = await handleRequest(
-        mockRequest("/ticket/my-listing", {
-          body: "name=test",
-          headers: { "content-type": "application/x-www-form-urlencoded" },
-          method: "POST",
-        }),
-      );
-      expect(res.status).toBe(302);
-      expect(res.headers.get("location")).toBe("/read-only");
-    });
-
-    test("POST /admin/listing redirects to /read-only", async () => {
-      const res = await handleRequest(
-        mockRequest("/admin/listing", {
-          body: "name=test",
-          headers: { "content-type": "application/x-www-form-urlencoded" },
-          method: "POST",
-        }),
-      );
-      expect(res.status).toBe(302);
-      expect(res.headers.get("location")).toBe("/read-only");
-    });
-
-    test("POST /admin/groups redirects to /read-only", async () => {
-      const res = await handleRequest(
-        mockRequest("/admin/groups", {
-          body: "name=test",
-          headers: { "content-type": "application/x-www-form-urlencoded" },
-          method: "POST",
-        }),
-      );
-      expect(res.status).toBe(302);
-      expect(res.headers.get("location")).toBe("/read-only");
-    });
-
-    test("POST /admin/listing/42/attendee redirects to /read-only", async () => {
-      const res = await handleRequest(
-        mockRequest("/admin/listing/42/attendee", {
-          body: "name=test",
-          headers: { "content-type": "application/x-www-form-urlencoded" },
-          method: "POST",
-        }),
-      );
-      expect(res.status).toBe(302);
-      expect(res.headers.get("location")).toBe("/read-only");
-    });
-
-    test("GET /admin/attendees/new redirects to /read-only", async () => {
-      const res = await handleRequest(mockRequest("/admin/attendees/new"));
-      expect(res.status).toBe(302);
-      expect(res.headers.get("location")).toBe("/read-only");
-    });
-
-    test("POST /admin/attendees/new redirects to /read-only", async () => {
-      const res = await handleRequest(
-        mockRequest("/admin/attendees/new", {
-          body: "name=test",
-          headers: { "content-type": "application/x-www-form-urlencoded" },
-          method: "POST",
-        }),
-      );
-      expect(res.status).toBe(302);
-      expect(res.headers.get("location")).toBe("/read-only");
-    });
+    const postRedirectCases: ReadonlyArray<{ path: string; body?: string }> = [
+      { path: "/ticket/my-listing" },
+      { path: "/admin/listing" },
+      { path: "/admin/groups" },
+      { path: "/admin/listing/42/attendee" },
+      { path: "/admin/attendees/new" },
+      { body: "listing_ids=1", path: "/admin/groups/5/add-listings" },
+    ];
+    for (const { body, path } of postRedirectCases) {
+      test(`POST ${path} redirects to /read-only`, async () => {
+        expectReadOnlyRedirect(await postForm(path, body));
+      });
+    }
 
     /** POST a form body to `path`, asserting it is blocked (redirect to
      * /read-only) by the read-only guard AND that it posted no ledger leg — the
      * guard runs before the handler, so a blocked ledger-mutating correction
      * (decision 14) must never reach the transfers table. */
     const expectBlockedNoLedgerLeg = async (path: string): Promise<void> => {
-      const res = await handleRequest(
-        mockRequest(path, {
-          body: "income=5.00",
-          headers: { "content-type": "application/x-www-form-urlencoded" },
-          method: "POST",
-        }),
-      );
-      expect(res.status).toBe(302);
-      expect(res.headers.get("location")).toBe("/read-only");
+      expectReadOnlyRedirect(await postForm(path, "income=5.00"));
       // The correction was blocked before it could post a writeoff adjustment.
       expect((await allTransfers()).length).toBe(0);
     };
@@ -282,18 +206,6 @@ describeWithEnv(
         }),
       );
       expect(res.headers.get("location")).not.toBe("/read-only");
-    });
-
-    test("POST /admin/groups/5/add-listings redirects to /read-only", async () => {
-      const res = await handleRequest(
-        mockRequest("/admin/groups/5/add-listings", {
-          body: "listing_ids=1",
-          headers: { "content-type": "application/x-www-form-urlencoded" },
-          method: "POST",
-        }),
-      );
-      expect(res.status).toBe(302);
-      expect(res.headers.get("location")).toBe("/read-only");
     });
 
     test("POST /read-only returns 404", async () => {

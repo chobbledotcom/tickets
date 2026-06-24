@@ -15,9 +15,24 @@ import {
 import {
   describeWithEnv,
   stubFetchRecorder,
+  stubFetchStatus,
   withMockBunnyCdnApi,
   withMocks,
 } from "#test-utils";
+
+/** Register the standard test subdomain under a 204 fetch stub, asserting the
+ * canonical success result. */
+const registerMyListingOk = (): Promise<void> =>
+  withMocks(
+    () => stubFetchStatus(204),
+    async () => {
+      const result = await registerBunnySubdomain("mylisting");
+      expect(result).toEqual({
+        fullDomain: "mylisting.tickets.example.com",
+        ok: true,
+      });
+    },
+  );
 
 // ---------------------------------------------------------------------------
 // buildSubdomainRecordName
@@ -267,10 +282,7 @@ describeWithEnv(
 
     test("returns error when API fails", async () => {
       await withMocks(
-        () =>
-          stub(globalThis, "fetch", () =>
-            Promise.resolve(new Response("Not found", { status: 404 })),
-          ),
+        () => stubFetchStatus(404, "Not found"),
         async () => {
           const result = await bunnyCdnApi.getDnsZone();
           expect(result).toEqual({
@@ -404,10 +416,7 @@ describeWithEnv(
 
     test("returns error when API fails", async () => {
       await withMocks(
-        () =>
-          stub(globalThis, "fetch", () =>
-            Promise.resolve(new Response("Not found", { status: 404 })),
-          ),
+        () => stubFetchStatus(404, "Not found"),
         async () => {
           const result = await bunnyCdnApi.deleteDnsRecord("42", 999);
           expect(result).toEqual({
@@ -562,20 +571,8 @@ describeWithEnv(
           },
         },
         async () => {
-          await withMocks(
-            () =>
-              stub(globalThis, "fetch", () =>
-                Promise.resolve(new Response(null, { status: 204 })),
-              ),
-            async () => {
-              const result = await registerBunnySubdomain("mylisting");
-              expect(result).toEqual({
-                fullDomain: "mylisting.tickets.example.com",
-                ok: true,
-              });
-              expect(validateCallCount).toBe(3);
-            },
-          );
+          await registerMyListingOk();
+          expect(validateCallCount).toBe(3);
         },
       );
     });
@@ -659,20 +656,8 @@ describeWithEnv(
           },
         },
         async () => {
-          await withMocks(
-            () =>
-              stub(globalThis, "fetch", () =>
-                Promise.resolve(new Response(null, { status: 204 })),
-              ),
-            async () => {
-              const result = await registerBunnySubdomain("mylisting");
-              expect(result).toEqual({
-                fullDomain: "mylisting.tickets.example.com",
-                ok: true,
-              });
-              expect(validateCallCount).toBe(1);
-            },
-          );
+          await registerMyListingOk();
+          expect(validateCallCount).toBe(1);
         },
       );
     });

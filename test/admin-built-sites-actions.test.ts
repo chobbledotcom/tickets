@@ -32,18 +32,99 @@ const findSite = async (
 
 type SecretStub = any;
 
+/** The secret names (`args[1]`) recorded by a setEdgeScriptSecret stub. */
+const secretNamesOf = (s: { calls: any[] }): string[] =>
+  (s.calls as any[]).map((c: any) => c.args[1] as string);
+
+/** POST a built-site action form (`/admin/built-sites/:id/<action>`). */
+const siteAction = (
+  site: { id: number },
+  action: string,
+  data?: Record<string, string>,
+) => adminFormPost(`/admin/built-sites/${site.id}/${action}`, data);
+
+/** Assert bump-deadline clamps `months` to `expectedMonths` (under fake time). */
+const expectBumpClamps = async (
+  scriptId: string,
+  siteName: string,
+  months: string,
+  expectedMonths: number,
+): Promise<void> => {
+  const fakeTime = new FakeTime(NOW_MS);
+  try {
+    const site = await createTestBuiltSite({
+      bunnyScriptId: scriptId,
+      name: siteName,
+    });
+    const { response } = await siteAction(site, "bump-deadline", { months });
+    expect(response.status).toBe(302);
+    const updated = await findSite(site.id);
+    expect(updated.readOnlyFrom).toBe(
+      addMonthsIso(new Date(NOW_MS).toISOString(), expectedMonths),
+    );
+  } finally {
+    fakeTime.restore();
+  }
+};
+
 describeWithEnv("admin built-sites actions", { db: true }, () => {
   let secretStub: SecretStub;
 
-  beforeEach(() => {
-    secretStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
+  const installSecretStub = () =>
+    stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
       Promise.resolve({ ok: true as const }),
     );
+
+  /** Restore and re-install the secret stub (clears its recorded calls). */
+  const resetSecretStub = () => {
+    secretStub.restore();
+    secretStub = installSecretStub();
+  };
+
+  beforeEach(() => {
+    secretStub = installSecretStub();
   });
 
   afterEach(() => {
     if (!secretStub.restored) secretStub.restore();
   });
+
+  /** Run `body` with the secret stub swapped for one that fails every push. */
+  const withFailingSecretStub = async (body: () => Promise<void>) => {
+    secretStub.restore();
+    const failStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
+      Promise.resolve({ error: "edge push failed", ok: false as const }),
+    );
+    try {
+      await body();
+    } finally {
+      failStub.restore();
+    }
+  };
+
+  /** Assert override-deadline rejects `date` without changing state or pushing. */
+  const expectOverrideRejected = async (
+    scriptId: string,
+    siteName: string,
+    date: string,
+  ): Promise<void> => {
+    const site = await createTestBuiltSite({
+      bunnyScriptId: scriptId,
+      name: siteName,
+    });
+    await updateBuiltSiteRenewalState(site.id, {
+      readOnlyFrom: "2027-01-01T00:00:00Z",
+    });
+    const { response } = await siteAction(site, "override-deadline", { date });
+    await expectFlashRedirect(
+      `/admin/built-sites/${site.id}/edit`,
+      "Choose a valid deadline date",
+      false,
+    )(response);
+    const updated = await findSite(site.id);
+    expect(updated.readOnlyFrom).toBe("2027-01-01T00:00:00Z");
+    expect(secretStub.calls.length).toBe(0);
+  };
 
   describe("POST /admin/built-sites/:id/rotate-renewal-token", () => {
     test("rotates token on a provisioned site and pushes new RENEWAL_URL", async () => {
@@ -67,9 +148,7 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
       expect(updated.renewalTokenIndex).not.toBeNull();
 
       // Rotate only re-pushes RENEWAL_URL, not READ_ONLY_FROM.
-      const secretNames = (secretStub.calls as any[]).map(
-        (c: any) => c.args[1] as string,
-      );
+      const secretNames = secretNamesOf(secretStub);
       expect(secretNames).toContain("RENEWAL_URL");
       expect(secretNames).not.toContain("READ_ONLY_FROM");
 
@@ -167,10 +246,7 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
         bunnyScriptId: "6013",
         name: "Bump No Token",
       });
-      secretStub.restore();
-      secretStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
-        Promise.resolve({ ok: true as const }),
-      );
+      resetSecretStub();
 
       const { response } = await adminFormPost(
         `/admin/built-sites/${site.id}/bump-deadline`,
@@ -178,68 +254,22 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
       );
       expect(response.status).toBe(302);
 
-      const secretNames = (secretStub.calls as any[]).map(
-        (c: any) => c.args[1] as string,
-      );
+      const secretNames = secretNamesOf(secretStub);
       expect(secretNames).not.toContain("RENEWAL_URL");
     });
 
-    test("clamps months <= 0 to 1", async () => {
-      const fakeTime = new FakeTime(NOW_MS);
-      try {
-        const site = await createTestBuiltSite({
-          bunnyScriptId: "6014",
-          name: "Bump Zero",
-        });
+    test("clamps months <= 0 to 1", () =>
+      expectBumpClamps("6014", "Bump Zero", "0", 1));
 
-        const { response } = await adminFormPost(
-          `/admin/built-sites/${site.id}/bump-deadline`,
-          { months: "0" },
-        );
-        expect(response.status).toBe(302);
-
-        const updated = await findSite(site.id);
-        expect(updated.readOnlyFrom).toBe(
-          addMonthsIso(new Date(NOW_MS).toISOString(), 1),
-        );
-      } finally {
-        fakeTime.restore();
-      }
-    });
-
-    test("clamps months > 120 to 120", async () => {
-      const fakeTime = new FakeTime(NOW_MS);
-      try {
-        const site = await createTestBuiltSite({
-          bunnyScriptId: "6015",
-          name: "Bump Large",
-        });
-
-        const { response } = await adminFormPost(
-          `/admin/built-sites/${site.id}/bump-deadline`,
-          { months: "999" },
-        );
-        expect(response.status).toBe(302);
-
-        const updated = await findSite(site.id);
-        expect(updated.readOnlyFrom).toBe(
-          addMonthsIso(new Date(NOW_MS).toISOString(), 120),
-        );
-      } finally {
-        fakeTime.restore();
-      }
-    });
+    test("clamps months > 120 to 120", () =>
+      expectBumpClamps("6015", "Bump Large", "999", 120));
 
     test("returns error when CDN push fails", async () => {
       const site = await createTestBuiltSite({
         bunnyScriptId: "6016",
         name: "Bump CDN Fail",
       });
-      secretStub.restore();
-      const failStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
-        Promise.resolve({ error: "edge push failed", ok: false as const }),
-      );
-      try {
+      await withFailingSecretStub(async () => {
         const { response } = await adminFormPost(
           `/admin/built-sites/${site.id}/bump-deadline`,
           { months: "1" },
@@ -249,33 +279,11 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
           expect.stringContaining("could not be pushed"),
           false,
         )(response);
-      } finally {
-        failStub.restore();
-      }
+      });
     });
 
-    test("clamps non-numeric months to 1", async () => {
-      const fakeTime = new FakeTime(NOW_MS);
-      try {
-        const site = await createTestBuiltSite({
-          bunnyScriptId: "6017",
-          name: "Bump NaN",
-        });
-
-        const { response } = await adminFormPost(
-          `/admin/built-sites/${site.id}/bump-deadline`,
-          { months: "abc" },
-        );
-        expect(response.status).toBe(302);
-
-        const updated = await findSite(site.id);
-        expect(updated.readOnlyFrom).toBe(
-          addMonthsIso(new Date(NOW_MS).toISOString(), 1),
-        );
-      } finally {
-        fakeTime.restore();
-      }
-    });
+    test("clamps non-numeric months to 1", () =>
+      expectBumpClamps("6017", "Bump NaN", "abc", 1));
   });
 
   describe("POST /admin/built-sites/:id/override-deadline", () => {
@@ -307,9 +315,7 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
       );
       expect(response.status).toBe(302);
 
-      const secretNames = (secretStub.calls as any[]).map(
-        (c: any) => c.args[1] as string,
-      );
+      const secretNames = secretNamesOf(secretStub);
       expect(secretNames).not.toContain("RENEWAL_URL");
     });
 
@@ -335,53 +341,11 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
       expect(updated.readOnlyFrom).toBe("2027-01-01T00:00:00Z");
     });
 
-    test("rejects an invalid date without pushing", async () => {
-      const site = await createTestBuiltSite({
-        bunnyScriptId: "6023",
-        name: "Override Invalid",
-      });
-      await updateBuiltSiteRenewalState(site.id, {
-        readOnlyFrom: "2027-01-01T00:00:00Z",
-      });
+    test("rejects an invalid date without pushing", () =>
+      expectOverrideRejected("6023", "Override Invalid", "2027-02-31"));
 
-      const { response } = await adminFormPost(
-        `/admin/built-sites/${site.id}/override-deadline`,
-        { date: "2027-02-31" },
-      );
-      await expectFlashRedirect(
-        `/admin/built-sites/${site.id}/edit`,
-        "Choose a valid deadline date",
-        false,
-      )(response);
-
-      const updated = await findSite(site.id);
-      expect(updated.readOnlyFrom).toBe("2027-01-01T00:00:00Z");
-      expect(secretStub.calls.length).toBe(0);
-    });
-
-    test("rejects a non-date-format string without pushing", async () => {
-      const site = await createTestBuiltSite({
-        bunnyScriptId: "6024",
-        name: "Override Not Date",
-      });
-      await updateBuiltSiteRenewalState(site.id, {
-        readOnlyFrom: "2027-01-01T00:00:00Z",
-      });
-
-      const { response } = await adminFormPost(
-        `/admin/built-sites/${site.id}/override-deadline`,
-        { date: "hello" },
-      );
-      await expectFlashRedirect(
-        `/admin/built-sites/${site.id}/edit`,
-        "Choose a valid deadline date",
-        false,
-      )(response);
-
-      const updated = await findSite(site.id);
-      expect(updated.readOnlyFrom).toBe("2027-01-01T00:00:00Z");
-      expect(secretStub.calls.length).toBe(0);
-    });
+    test("rejects a non-date-format string without pushing", () =>
+      expectOverrideRejected("6024", "Override Not Date", "hello"));
   });
 
   describe("POST /admin/built-sites/:id/re-sync-deadline", () => {
@@ -395,10 +359,7 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
         readOnlyFrom: "2027-03-15T00:00:00Z",
       });
 
-      secretStub.restore();
-      secretStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
-        Promise.resolve({ ok: true as const }),
-      );
+      resetSecretStub();
 
       const { response } = await adminFormPost(
         `/admin/built-sites/${site.id}/re-sync-deadline`,
@@ -408,9 +369,7 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
         "Deadline re-synced",
       )(response);
 
-      const secretNames = (secretStub.calls as any[]).map(
-        (c: any) => c.args[1] as string,
-      );
+      const secretNames = secretNamesOf(secretStub);
       expect(secretNames).toContain("READ_ONLY_FROM");
       expect(secretNames).toContain("RENEWAL_URL");
     });
@@ -424,19 +383,14 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
         readOnlyFrom: "2027-04-01T00:00:00Z",
       });
 
-      secretStub.restore();
-      secretStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
-        Promise.resolve({ ok: true as const }),
-      );
+      resetSecretStub();
 
       const { response } = await adminFormPost(
         `/admin/built-sites/${site.id}/re-sync-deadline`,
       );
       expect(response.status).toBe(302);
 
-      const secretNames = (secretStub.calls as any[]).map(
-        (c: any) => c.args[1] as string,
-      );
+      const secretNames = secretNamesOf(secretStub);
       expect(secretNames).toContain("READ_ONLY_FROM");
       expect(secretNames).not.toContain("RENEWAL_URL");
     });
@@ -547,12 +501,7 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
         name: "Provision Fail",
       });
 
-      secretStub.restore();
-      const failStub = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
-        Promise.resolve({ error: "edge push failed", ok: false as const }),
-      );
-
-      try {
+      await withFailingSecretStub(async () => {
         const { response } = await adminFormPost(
           `/admin/built-sites/${site.id}/provision-renewal`,
           { months: "3" },
@@ -566,9 +515,7 @@ describeWithEnv("admin built-sites actions", { db: true }, () => {
         const updated = await findSite(site.id);
         expect(updated.renewalTokenIndex).toBeNull();
         expect(updated.readOnlyFrom).toBe("");
-      } finally {
-        failStub.restore();
-      }
+      });
     });
   });
 
