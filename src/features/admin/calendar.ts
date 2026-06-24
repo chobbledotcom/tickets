@@ -100,7 +100,7 @@ const compileDateOptions = (
     flatMap((listing: ListingWithCount) =>
       getAvailableDates(listing, holidays),
     ),
-    (dates: string[]) => unique(dates),
+    (dates) => unique(dates),
   )(dailyListings);
 
   const standardDates = Array.from(standardListingDateMap.keys());

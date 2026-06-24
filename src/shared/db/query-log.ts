@@ -125,7 +125,7 @@ export const sqlWallClockMs = (entries: readonly QueryLogEntry[]): number => {
         e.startedAtMs + e.durationMs,
       ],
     ),
-    sort((a: Interval, b: Interval) => a[0] - b[0]),
+    sort((a, b) => a[0] - b[0]),
   )(entries as QueryLogEntry[]);
   const [firstStart, firstEnd] = intervals[0]!;
   const merged = reduce(

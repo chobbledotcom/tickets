@@ -184,7 +184,7 @@ export const ticketViewPage = (
     map((card: TicketCard) =>
       renderTicketCard(card, appleWalletEnabled, googleWalletEnabled),
     ),
-    (c: string[]) => c.join(""),
+    (c) => c.join(""),
   )(cards);
 
   const allPurchaseOnly = cards.every((c) => c.entry.listing.purchase_only);

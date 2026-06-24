@@ -205,7 +205,7 @@ const updateTargetPiiFromDecision = (
 const mergeCountParts = (fields: Array<[number, string]>): string[] =>
   pipe(
     filter(([count]: [number, string]) => count > 0),
-    map(([count, label]: [number, string]) => `${count} ${label}`),
+    map(([count, label]) => `${count} ${label}`),
   )(fields);
 
 /** The booking-movement counts every merge message leads with, before each
