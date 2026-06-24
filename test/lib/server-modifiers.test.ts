@@ -35,6 +35,7 @@ import {
   getTestSession,
   insertModifier,
   linkModifierListing,
+  makeParent,
   patchModifier,
   testRequiresAuth,
 } from "#test-utils";
@@ -971,9 +972,7 @@ describeWithEnv(
     });
 
     test("blocks scoping an opt-in add-on to only a child via the links form", async () => {
-      const parent = await createTestListing({ name: "Base unit" });
-      const child = await createTestListing({ name: "Add-on" });
-      await setChildIds(parent.id, [child.id]);
+      const { child } = await makeParent();
       const modifier = await optInAddOn("Child-only extra");
       const { response } = await adminFormPost(
         `/admin/modifiers/${modifier.id}/links`,
@@ -988,9 +987,7 @@ describeWithEnv(
     });
 
     test("blocks flipping a child-scoped modifier to an opt-in add-on on edit", async () => {
-      const parent = await createTestListing({ name: "Base unit" });
-      const child = await createTestListing({ name: "Add-on" });
-      await setChildIds(parent.id, [child.id]);
+      const { child } = await makeParent();
       const modifier = await insertModifier({ name: "Becomes add-on" });
       await patchModifier(modifier.id, { scope: "listings" });
       await linkModifierListing(modifier.id, child.id);
@@ -1020,9 +1017,7 @@ describeWithEnv(
       // automatic modifier scoped solely to a child is never offered on a page,
       // so a plain resource edit (here, a name change) must NOT be blocked even
       // though its stored scope is child-only.
-      const parent = await createTestListing({ name: "Base unit" });
-      const child = await createTestListing({ name: "Add-on" });
-      await setChildIds(parent.id, [child.id]);
+      const { child } = await makeParent();
       const modifier = await insertModifier({ name: "Auto child surcharge" });
       await patchModifier(modifier.id, { active: 1, scope: "listings" });
       await linkModifierListing(modifier.id, child.id);
@@ -1049,9 +1044,7 @@ describeWithEnv(
     });
 
     test("allows flipping a {child, parent}-scoped modifier to an opt-in add-on", async () => {
-      const parent = await createTestListing({ name: "Base unit" });
-      const child = await createTestListing({ name: "Add-on" });
-      await setChildIds(parent.id, [child.id]);
+      const { parent, child } = await makeParent();
       const modifier = await insertModifier({ name: "Shared add-on" });
       await patchModifier(modifier.id, { scope: "listings" });
       // Scoped to both the parent (a reachable page) and the child: not a dead
@@ -1106,9 +1099,7 @@ describeWithEnv(
     });
 
     test("allows scoping a non-opt-in modifier to only a child (not an add-on)", async () => {
-      const parent = await createTestListing({ name: "Base unit" });
-      const child = await createTestListing({ name: "Add-on" });
-      await setChildIds(parent.id, [child.id]);
+      const { child } = await makeParent();
       // An automatic surcharge is never offered as an opt-in add-on, so it can
       // be scoped to a child without dead-ending.
       const modifier = await insertModifier({ name: "Auto surcharge" });
@@ -1126,9 +1117,7 @@ describeWithEnv(
     });
 
     test("allows an inactive child-scoped opt-in add-on (never loads on a page)", async () => {
-      const parent = await createTestListing({ name: "Base unit" });
-      const child = await createTestListing({ name: "Add-on" });
-      await setChildIds(parent.id, [child.id]);
+      const { child } = await makeParent();
       const modifier = await insertModifier({ name: "Inactive extra" });
       // An inactive *opt-in* add-on: the trigger would dead-end if it were
       // active, but an inactive modifier never loads, so the save is allowed.

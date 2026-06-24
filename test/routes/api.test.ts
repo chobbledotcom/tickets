@@ -3,7 +3,6 @@ import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import * as v from "valibot";
 import { handleRequest } from "#routes";
-import { setChildIds } from "#shared/db/listing-parents.ts";
 import { settings } from "#shared/db/settings.ts";
 import { MAX_BOOKING_ATTEMPTS } from "#shared/limits.ts";
 import {
@@ -14,6 +13,7 @@ import {
   createTestListing,
   deactivateTestListing,
   describeWithEnv,
+  makeParent,
   PublicListingSchema,
   setupStripe,
 } from "#test-utils";
@@ -824,15 +824,10 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
 
     /** A free parent with a paid child and its sole-child selection. */
     const parentWithPaidChild = async (): Promise<{ slug: string }> => {
-      const parent = await createTestListing({
-        maxAttendees: 10,
-        unitPrice: 0,
+      const { parent } = await makeParent({
+        children: [{ maxAttendees: 10, unitPrice: 1500 }],
+        parent: { maxAttendees: 10, unitPrice: 0 },
       });
-      const child = await createTestListing({
-        maxAttendees: 10,
-        unitPrice: 1500,
-      });
-      await setChildIds(parent.id, [child.id]);
       return { slug: parent.slug };
     };
 
@@ -878,12 +873,10 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
       // Payments enabled but the whole order is free, so it takes the no-charge
       // path and owes nothing (the provider is never invoked).
       await setupStripe();
-      const parent = await createTestListing({
-        maxAttendees: 10,
-        unitPrice: 0,
+      const { parent } = await makeParent({
+        children: [{ maxAttendees: 10, unitPrice: 0 }],
+        parent: { maxAttendees: 10, unitPrice: 0 },
       });
-      const child = await createTestListing({ maxAttendees: 10, unitPrice: 0 });
-      await setChildIds(parent.id, [child.id]);
       const { response, body } = await bookListing(parent.slug);
       expect(response.status).toBe(200);
       expect(body.booking?.ticketToken).toBeDefined();
@@ -892,17 +885,17 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
     });
 
     test("accepts a pay-more child's custom price in a parent booking", async () => {
-      const parent = await createTestListing({
-        maxAttendees: 10,
-        unitPrice: 0,
+      const { parent, child } = await makeParent({
+        children: [
+          {
+            canPayMore: true,
+            maxAttendees: 10,
+            maxPrice: 5000,
+            unitPrice: 1000,
+          },
+        ],
+        parent: { maxAttendees: 10, unitPrice: 0 },
       });
-      const child = await createTestListing({
-        canPayMore: true,
-        maxAttendees: 10,
-        maxPrice: 5000,
-        unitPrice: 1000,
-      });
-      await setChildIds(parent.id, [child.id]);
       // No provider configured, so the chosen £30 child price is recorded as owed.
       const { response, body } = await bookListing(parent.slug, {
         children: [{ customPrice: 30, quantity: 1, slug: child.slug }],

@@ -29,6 +29,7 @@ import {
   childQtyControls,
   initParentSelectors,
   onChangeOf,
+  setControlDisabled,
   soleChildId,
 } from "./child-selection.ts";
 
@@ -128,20 +129,7 @@ const managedControls = (
 const applyCompat = (
   control: HTMLSelectElement | HTMLInputElement,
   compatible: boolean,
-): void => {
-  if (compatible) {
-    control.disabled = false;
-    return;
-  }
-  const hadQuantity = control.value !== "0";
-  control.disabled = true;
-  control.value = "0";
-  // Notify dependents only when a chosen quantity was actually cleared, so the
-  // question/price for the dropped child re-runs its show/require logic.
-  if (hadQuantity) {
-    control.dispatchEvent(new Event("change", { bubbles: true }));
-  }
-};
+): void => setControlDisabled(control, !compatible);
 
 /** The sole auto-selected child's informational marker, or null when the parent
  * has multi-child `child_qty_*` controls instead. */
@@ -170,16 +158,7 @@ const applySoleCompat = (
     `[name="quantity_${parentId}"]`,
   );
   if (quantity === null) return;
-  if (compatible) {
-    quantity.disabled = false;
-    return;
-  }
-  const hadQuantity = quantity.value !== "0";
-  quantity.disabled = true;
-  quantity.value = "0";
-  if (hadQuantity) {
-    quantity.dispatchEvent(new Event("change", { bubbles: true }));
-  }
+  setControlDisabled(quantity, !compatible);
 };
 
 /** Toggle one parent's bookable child controls (or, for a sole child, the

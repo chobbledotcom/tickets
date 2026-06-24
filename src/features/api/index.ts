@@ -5,7 +5,7 @@
  * with the same data and validation as the web UI.
  */
 
-import { filter, pipe } from "#fp";
+import { filter, pipe, sumOf } from "#fp";
 import { isRegistrationClosed } from "#routes/format.ts";
 import { classifyForDiscovery } from "#routes/public/discovery.ts";
 import { parseCustomPrice } from "#routes/public/ticket-form.ts";
@@ -606,7 +606,7 @@ const buildParentFoldForm = (
 
 /** The price (minor units) of a folded multi-item order. */
 const foldedOrderTotal = (items: CheckoutItem[]): number =>
-  items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+  sumOf((item: CheckoutItem) => item.unitPrice * item.quantity)(items);
 
 /** The folded multi-item order a completed parent booking creates: the expanded
  * listing set + quantity/custom-price maps + the resolved shared day count. */

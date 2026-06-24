@@ -49,10 +49,7 @@ export const childIdOf = (
 
 /** The total per-unit quantity chosen across a parent's child controls. */
 export const childQtyTotal = (parentId: string): number =>
-  childQtyControls(parentId).reduce(
-    (sum, control) => sum + controlQty(control),
-    0,
-  );
+  childQtyControls(parentId).reduce((total, c) => total + controlQty(c), 0);
 
 /** The child ids with a positive chosen quantity under a parent (its `child_qty_*`
  * controls). Shared by the active-listing set and the required-price toggling. */
@@ -114,6 +111,29 @@ export const selectedListingIds = (): Set<string> => {
     if (sole !== null) ids.add(sole);
   }
   return ids;
+};
+
+/** Disable + zero a control, or re-enable it. When disabling, the chosen quantity
+ * is cleared and — because the zeroing happens in code, not via the buyer — a
+ * `change` event is dispatched so dependent enhancement scripts (child-required,
+ * question-visibility, running total) recompute against the now-removed selection.
+ * The event fires only when a chosen quantity was actually cleared (a re-enable,
+ * or disabling an already-zero control, doesn't alter the selection). The single
+ * place the zero/disable/notify semantics live, shared by the compat toggles. */
+export const setControlDisabled = (
+  control: HTMLSelectElement | HTMLInputElement,
+  disabled: boolean,
+): void => {
+  if (!disabled) {
+    control.disabled = false;
+    return;
+  }
+  const hadQuantity = control.value !== "0";
+  control.disabled = true;
+  control.value = "0";
+  if (hadQuantity) {
+    control.dispatchEvent(new Event("change", { bubbles: true }));
+  }
 };
 
 /** Add a `change` listener to every control matching `selector`. The one place

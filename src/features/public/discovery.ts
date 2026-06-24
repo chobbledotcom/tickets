@@ -23,7 +23,7 @@
  * "Public listing cards" and "no bookable child ⇒ sold out" sections.
  */
 
-import { compact } from "#fp";
+import { mapNotNullish } from "#fp";
 import { isRegistrationClosed } from "#routes/format.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
 import { getGroupRemainingByListingId } from "#shared/db/attendees.ts";
@@ -178,9 +178,9 @@ export const classifyForDiscovery = async (
   // (keys of parentsByChild are among the displayed `ids`), so their own
   // group-remaining must be fetched for the combined-demand check below — the
   // map is keyed by listing id, so it is unioned into the single child map.
-  const displayedChildren = compact(
-    [...parentsByChild.keys()].map((id) => byId.get(id)),
-  );
+  const displayedChildren = mapNotNullish((id: number) => byId.get(id))([
+    ...parentsByChild.keys(),
+  ]);
   const everyParent = [...parentsByChild.values()].flat();
   const [groupRemaining, parentGroupRemaining, holidays] = await Promise.all([
     getGroupRemainingByListingId([...everyChild, ...displayedChildren]),

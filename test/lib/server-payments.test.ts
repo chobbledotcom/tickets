@@ -17,6 +17,7 @@ import {
   expectHtmlResponse,
   expectRedirect,
   followRedirect,
+  makeParent,
   mockRequest,
   setupStripe,
   signMeta,
@@ -1161,16 +1162,13 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
 
       await setupStripe();
 
-      const parent = await createTestListing({
-        maxAttendees: 50,
-        name: "Base unit",
-        thankYouUrl: "https://example.com/thanks-parent",
-        unitPrice: 1000,
-      });
-      const child = await createTestListing({
-        maxAttendees: 50,
-        name: "Add-on",
-        unitPrice: 1000,
+      const { parent, child } = await makeParent({
+        children: [{ maxAttendees: 50, unitPrice: 1000 }],
+        parent: {
+          maxAttendees: 50,
+          thankYouUrl: "https://example.com/thanks-parent",
+          unitPrice: 1000,
+        },
       });
 
       const items = JSON.stringify([
@@ -1226,16 +1224,13 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
 
       await setupStripe();
 
-      const parent = await createTestListing({
-        maxAttendees: 50,
-        name: "Base unit",
-        thankYouUrl: "https://example.com/thanks-parent",
-        unitPrice: 1000,
-      });
-      const child = await createTestListing({
-        maxAttendees: 50,
-        name: "Add-on",
-        unitPrice: 1000,
+      const { parent, child } = await makeParent({
+        children: [{ maxAttendees: 50, unitPrice: 1000 }],
+        parent: {
+          maxAttendees: 50,
+          thankYouUrl: "https://example.com/thanks-parent",
+          unitPrice: 1000,
+        },
       });
 
       const items = JSON.stringify([

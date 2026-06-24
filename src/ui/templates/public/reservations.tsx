@@ -1,3 +1,4 @@
+import { filter, mapNotNullish, pipe } from "#fp";
 import { t } from "#i18n";
 import { formatCurrency, toMajorUnits } from "#shared/currency.ts";
 import {
@@ -661,10 +662,10 @@ const childFromPrice = (
   parent: ListingWithCount,
 ): number | null => {
   const childSpans = new Set(availableDayCounts(child));
-  const prices = availableDayCounts(parent)
-    .filter((n) => childSpans.has(n))
-    .map((n) => dayPriceFor(child, n))
-    .filter((p): p is number => p !== null);
+  const prices = pipe(
+    filter((n: number) => childSpans.has(n)),
+    mapNotNullish((n: number) => dayPriceFor(child, n)),
+  )(availableDayCounts(parent));
   return prices.length === 0 ? null : Math.min(...prices);
 };
 
