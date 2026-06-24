@@ -207,6 +207,25 @@ describeWithEnv("db > listing-parents", { db: true }, () => {
       expect(error).not.toBeNull();
     });
 
+    test("validates the edited listing on its own side of the edge", async () => {
+      // The two cases above break symmetrically (a renewal tier is rejected on
+      // either side), so they pass even if the parent/child arguments are
+      // swapped. This pins the *direction*: editing the child into a daily
+      // listing is invalid only as "a daily child under a (standard) parent".
+      // Were the arguments swapped, the standard parent would read as a
+      // compatible standard child and the breakage would vanish.
+      const { parent, childA } = await threeListings();
+      await setChildIds(parent.id, [childA.id]);
+      const error = await edgeIncompatibilityAfterChange(
+        edge(childA.id, { listing_type: "daily", name: "Daily add-on" }),
+      );
+      // Specifically the daily-direction error: swapping the arguments would read
+      // the standard parent as a compatible standard child and return null.
+      expect(error).toContain(
+        "can only be a child of another daily listing",
+      );
+    });
+
     test("ignores edges whose opposite endpoint no longer exists", async () => {
       const { childA } = await threeListings();
       const missing = childA.id + 100_000;

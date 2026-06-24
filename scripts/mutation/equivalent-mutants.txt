@@ -59,7 +59,7 @@ src/ui/templates/public/reservations.tsx:548:12  ! → ∅   # childQuestionsToR
 src/ui/templates/public/reservations.tsx:1264:50  ?? → ||   # addOns?.some(...) is boolean|undefined; ?? and || agree on every boolean and on undefined
 
 # Parent/child relationship DB (listing-parents.ts).
-src/shared/db/listing-parents.ts:119:21  ?? → ||   # result.get(key): ListingWithCount[]|undefined, arrays always truthy; ?? and || agree
+src/shared/db/listing-parents.ts:118:21  ?? → ||   # result.get(key): ListingWithCount[]|undefined, arrays always truthy; ?? and || agree
 
 # Invariant-based, confirmed by reading toUnits: `lineIdxs` comes from toUnits,
 # which assigns lineIdx as the flatMap array index, so the sort's input is
