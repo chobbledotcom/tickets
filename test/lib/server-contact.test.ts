@@ -12,6 +12,7 @@ import {
   FLASH_TEST_ID,
   flashCookieHeader,
   getHeader,
+  installRecordingFetch,
   mockFormRequest,
   mockRequest,
 } from "#test-utils";
@@ -26,33 +27,16 @@ const BOTPOISON_ENV = {
 const installContactFetch = (opts: {
   botpoisonOk: boolean;
   emailStatus?: number;
-}) => {
-  const original = globalThis.fetch;
-  const calls: { url: string; body: Record<string, unknown> | null }[] = [];
-  globalThis.fetch = ((input: string | URL | Request, init?: RequestInit) => {
-    const url = String(input instanceof Request ? input.url : input);
-    const raw = init?.body;
-    calls.push({ body: typeof raw === "string" ? JSON.parse(raw) : null, url });
+}) =>
+  installRecordingFetch((url) => {
     if (url.includes("api.botpoison.com")) {
-      return Promise.resolve(
-        new Response(JSON.stringify({ ok: opts.botpoisonOk })),
-      );
+      return new Response(JSON.stringify({ ok: opts.botpoisonOk }));
     }
     if (url.includes("api.resend.com")) {
-      return Promise.resolve(
-        new Response(null, { status: opts.emailStatus ?? 200 }),
-      );
+      return new Response(null, { status: opts.emailStatus ?? 200 });
     }
-    return original(input, init);
-  }) as typeof globalThis.fetch;
-  return {
-    calls,
-    emailCall: () => calls.find((c) => c.url.includes("api.resend.com")),
-    restore: () => {
-      globalThis.fetch = original;
-    },
-  };
-};
+    return null;
+  });
 
 /** Configure everything the public contact form needs to be active. */
 const activate = async (): Promise<void> => {

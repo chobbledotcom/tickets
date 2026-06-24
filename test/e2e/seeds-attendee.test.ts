@@ -8,75 +8,20 @@
  *       visit /admin (dashboard) → visit listing page → visit attendee edit page
  */
 
+// jscpd:ignore-start
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { invalidateGroupsCache } from "#shared/db/groups.ts";
-import { invalidateHolidaysCache } from "#shared/db/holidays.ts";
-import { invalidateListingsCache } from "#shared/db/listings.ts";
-import { resetSessionCache } from "#shared/db/sessions.ts";
-import { settings } from "#shared/db/settings.ts";
-import { invalidateUsersCache } from "#shared/db/users.ts";
+import { describe, it as test } from "@std/testing/bdd";
 import { DEMO_LISTING_NAMES } from "#shared/demo.ts";
+import { setupAndLogin, useE2eBrowser } from "#test-utils";
 
-import {
-  clearTestEncryptionKey,
-  createTestDb,
-  resetDb,
-  setupTestEncryptionKey,
-  TestBrowser,
-} from "#test-utils";
-
-/** Invalidate all in-process caches after a destructive DB operation */
-const invalidateAllCaches = (): void => {
-  settings.invalidateCache();
-  settings.setup.clearCache();
-  invalidateUsersCache();
-  invalidateListingsCache();
-  invalidateGroupsCache();
-  invalidateHolidaysCache();
-  resetSessionCache();
-};
+// jscpd:ignore-end
 
 describe("e2e: seeded attendee views", () => {
-  let browser: TestBrowser;
-
-  beforeEach(async () => {
-    setupTestEncryptionKey();
-    await createTestDb();
-    browser = new TestBrowser();
-  });
-
-  afterEach(() => {
-    resetDb();
-    clearTestEncryptionKey();
-  });
+  const ctx = useE2eBrowser();
 
   test("setup → seed → dashboard → listing page → attendee edit page all render", async () => {
-    // 1. Complete initial setup
-    await browser.visit("/setup/");
-    expect(browser.currentHtml).toContain("Initial Setup");
-    await browser.submitForm(
-      {
-        accept_agreement: "yes",
-        admin_password: "password",
-        admin_password_confirm: "password",
-        admin_username: "admin",
-        country: "GB",
-      },
-      "Complete Setup",
-    );
-    expect(browser.currentHtml).toContain("Setup Complete");
-    invalidateAllCaches();
-
-    // 2. Log in
-    await browser.clickLink("Go to Admin Dashboard");
-    await browser.submitForm(
-      { password: "password", username: "admin" },
-      "Login",
-    );
-    if (browser.containsText("Migration complete")) {
-      await browser.clickLink("Back to dashboard");
-    }
+    const browser = ctx.browser;
+    await setupAndLogin(browser);
     expect(browser.containsText("Add Listing")).toBe(true);
 
     // 3. Seed 2 listings with 1 attendee each via /admin/seeds.

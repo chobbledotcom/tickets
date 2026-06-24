@@ -313,6 +313,24 @@ export const matchGroup = (
   return text.match(pattern)![group]!;
 };
 
+/** Visible text labels of every `<option>` inside the `<select
+ *  aria-label="…">` dropdown, in document order. Includes disabled and prompt
+ *  options, so callers see exactly what the user sees — e.g. the "Select a
+ *  date" clear option the date picker splices in between past and future
+ *  dates. */
+export const selectOptionLabels = (
+  html: string,
+  ariaLabel: string,
+): (string | undefined)[] => {
+  const escaped = ariaLabel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const inner = html.match(
+    new RegExp(
+      `<select[^>]*aria-label="${escaped}"[^>]*>([\\s\\S]*?)<\\/select>`,
+    ),
+  )![1]!;
+  return [...inner.matchAll(/<option[^>]*>([^<]+)</g)].map((m) => m[1]);
+};
+
 interface TestRequiresAuthOptions {
   body?: Record<string, string>;
   method?: "GET" | "POST";

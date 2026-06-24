@@ -1,11 +1,11 @@
+// jscpd:ignore-start
 import { expect } from "@std/expect";
-import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
-import { setDemoModeForTest } from "#shared/demo.ts";
 import {
   awaitTestRequest,
-  describeWithEnv,
+  describeAdminSettings,
   expectFlash,
   expectHtmlResponse,
   mockFormRequest,
@@ -14,11 +14,9 @@ import {
   testRequiresAuth,
 } from "#test-utils";
 
-describeWithEnv("server (admin settings)", { db: true }, () => {
-  afterEach(() => {
-    setDemoModeForTest(false);
-  });
+// jscpd:ignore-end
 
+describeAdminSettings(() => {
   describe("POST /admin/settings/theme", () => {
     testRequiresAuth("/admin/settings/theme", {
       body: {
@@ -27,14 +25,26 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       method: "POST",
     });
 
+    /** POST a theme form with a fresh CSRF token + owner cookie. `fields` can
+     *  omit `theme` to exercise the missing-field path. */
+    const postTheme = async (
+      fields: Record<string, string>,
+    ): Promise<Response> => {
+      const csrf_token = await testCsrfToken();
+      return handleRequest(
+        mockFormRequest(
+          "/admin/settings/theme",
+          { csrf_token, ...fields },
+          await testCookie(),
+        ),
+      );
+    };
+
     test("rejects invalid CSRF token", async () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/theme",
-          {
-            csrf_token: "invalid-csrf-token",
-            theme: "dark",
-          },
+          { csrf_token: "invalid-csrf-token", theme: "dark" },
           await testCookie(),
         ),
       );
@@ -42,16 +52,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("rejects invalid theme value", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/theme",
-          {
-            csrf_token: await testCsrfToken(),
-            theme: "invalid-theme",
-          },
-          await testCookie(),
-        ),
-      );
+      const response = await postTheme({ theme: "invalid-theme" });
       expect(response.status).toBe(302);
       expectFlash(
         response,
@@ -61,15 +62,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("rejects missing theme field", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/theme",
-          {
-            csrf_token: await testCsrfToken(),
-          },
-          await testCookie(),
-        ),
-      );
+      const response = await postTheme({});
       expect(response.status).toBe(302);
       expectFlash(
         response,
@@ -79,33 +72,13 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("updates theme to dark successfully", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/theme",
-          {
-            csrf_token: await testCsrfToken(),
-            theme: "dark",
-          },
-          await testCookie(),
-        ),
-      );
-
+      const response = await postTheme({ theme: "dark" });
       expect(response.status).toBe(302);
       expectFlash(response, "Theme set to dark");
     });
 
     test("updates theme to light successfully", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/theme",
-          {
-            csrf_token: await testCsrfToken(),
-            theme: "light",
-          },
-          await testCookie(),
-        ),
-      );
-
+      const response = await postTheme({ theme: "light" });
       expect(response.status).toBe(302);
       expectFlash(response, "Theme set to light");
     });
@@ -115,16 +88,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       expect(settings.theme).toBe("light");
 
       // Update to dark
-      await handleRequest(
-        mockFormRequest(
-          "/admin/settings/theme",
-          {
-            csrf_token: await testCsrfToken(),
-            theme: "dark",
-          },
-          await testCookie(),
-        ),
-      );
+      await postTheme({ theme: "dark" });
 
       // Should now be "dark"
       expect(settings.theme).toBe("dark");
@@ -147,17 +111,10 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     test("ticking the underline-links checkbox enables it", async () => {
       expect(settings.underlineLinks).toBe(false);
 
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/theme",
-          {
-            csrf_token: await testCsrfToken(),
-            theme: "light",
-            underline_links: "true",
-          },
-          await testCookie(),
-        ),
-      );
+      const response = await postTheme({
+        theme: "light",
+        underline_links: "true",
+      });
 
       expect(response.status).toBe(302);
       expect(settings.underlineLinks).toBe(true);
@@ -167,16 +124,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       // Enable first so the submission has to turn it back off.
       await settings.update.underlineLinks(true);
 
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/theme",
-          {
-            csrf_token: await testCsrfToken(),
-            theme: "light",
-          },
-          await testCookie(),
-        ),
-      );
+      const response = await postTheme({ theme: "light" });
 
       expect(response.status).toBe(302);
       expect(settings.underlineLinks).toBe(false);

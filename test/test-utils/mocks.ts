@@ -208,6 +208,46 @@ export const installUrlHandler = (
   };
 };
 
+/** One recorded `fetch` call: the request URL and the parsed JSON body
+ *  (or `null` when the request had no string body). */
+export type RecordedFetchCall = {
+  url: string;
+  body: Record<string, unknown> | null;
+};
+
+/** Install a `fetch` stub that records every call's URL and parsed JSON body
+ *  and lets `respond` produce the Response. When `respond` returns `null` the
+ *  call falls through to the original `fetch`, so unrelated URLs keep working.
+ *  Returns the recorded calls plus an `emailCall` helper that finds the Resend
+ *  send-email request (the one assertion every email-sending test makes) and a
+ *  `restore` to put the original `fetch` back. */
+export const installRecordingFetch = (
+  respond: (
+    url: string,
+    init?: RequestInit,
+  ) => Response | Promise<Response> | null,
+): {
+  calls: RecordedFetchCall[];
+  emailCall: () => RecordedFetchCall | undefined;
+  restore: () => void;
+} => {
+  const original = globalThis.fetch;
+  const calls: RecordedFetchCall[] = [];
+  installUrlHandler(original, (url, init) => {
+    const raw = init?.body;
+    calls.push({ body: typeof raw === "string" ? JSON.parse(raw) : null, url });
+    const result = respond(url, init);
+    return result === null ? null : Promise.resolve(result);
+  });
+  return {
+    calls,
+    emailCall: () => calls.find((c) => c.url.includes("api.resend.com")),
+    restore: () => {
+      globalThis.fetch = original;
+    },
+  };
+};
+
 /** Run `body` under the standard test zone config with a fetch mock that
  * answers every Bunny storage URL via `respond` (other URLs fall through). */
 export const withBunnyStorageStub = (
