@@ -58,6 +58,7 @@ import { START_DATE_FIELD } from "#shared/order-select.ts";
 import {
   type AdminSession,
   type Attendee,
+  hasTicketQuantity,
   MAX_DURATION_DAYS,
 } from "#shared/types.ts";
 import {
@@ -898,6 +899,7 @@ export const attendeeFormPage = (
         <AttendeeDetail
           allowedDomain={data.allowedDomain}
           attendee={a}
+          hasRealLine={data.bookings.some(hasTicketQuantity)}
           phonePrefix={data.phonePrefix}
         />
       )}
