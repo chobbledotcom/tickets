@@ -32,7 +32,7 @@ export type Trigger = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "Add a system_notes table of per-attendee operator-visible notes (id, attendee_id, type, encrypted note, created) — `system` notes encrypted with the symmetric DB_ENCRYPTION_KEY, `owner` notes with the owner public key — pruned with the attendee on delete; and exclude no-quantity (quantity = 0) booking lines from listings.tickets_count by rebuilding the listing-aggregate triggers to count only quantity > 0 rows.";
+  "Add an updates column to built_sites (the release channel a site opts into — 'alpha' takes every deploy, 'beta' takes beta + release, 'release' only stable releases, default 'release') so the upgrade workflow can pass a tier and the master returns only the sites at that tier or more eager.";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -671,6 +671,16 @@ export const SCHEMA: [name: string, table: Table][] = [
         // round-robin order. Operational metadata, not PII, so it lives outside
         // the encrypted site_data blob.
         ["last_pruned", "TEXT NOT NULL DEFAULT ''"],
+        // Release channel this site opts into: 'alpha' takes every deploy,
+        // 'beta' takes beta + release, 'release' only stable releases. The
+        // upgrade workflow passes the tier it is publishing and the master
+        // returns only the sites at that tier or more eager (see UPDATE_TIERS
+        // in built-sites.ts). Operational metadata, not PII, so it lives outside
+        // the encrypted site_data blob and stays SQL-filterable.
+        [
+          "updates",
+          "TEXT NOT NULL DEFAULT 'release' CHECK (updates IN ('alpha', 'beta', 'release'))",
+        ],
       ],
       indexes: [
         {

@@ -1,11 +1,13 @@
 name: Deploy to Clients
 
-# Backs up and upgrades every built client site.
+# Backs up and upgrades the built client sites that accept the chosen tier.
 #
 # The main instance holds each site's read-only DB credentials, so this workflow
-# no longer needs BUNNY_SCRIPT_DATA: it asks the main instance for the whole
-# fleet, backs each site up to our Bunny storage, then deploys the freshly built
-# script to that site.
+# no longer needs BUNNY_SCRIPT_DATA: it asks the main instance for the sites on
+# the published tier (a `tier` run input — release, beta or alpha; the master
+# returns only the sites at that channel or more eager), backs each one up to our
+# Bunny storage, then deploys the freshly built script to it. A release deploy
+# reaches every site; beta reaches beta + alpha sites; alpha only alpha sites.
 #
 # The MAIN_INSTANCE_KEY is pasted in at run time (a workflow input), never stored
 # as a GitHub secret — so the shared secret lives only on the main app and with
@@ -23,6 +25,15 @@ on:
         description: "MAIN_INSTANCE_KEY (pasted per run; not stored)"
         required: true
         type: string
+      tier:
+        description: "Release tier to publish (only sites on this channel or more eager are upgraded)"
+        required: true
+        default: release
+        type: choice
+        options:
+          - release
+          - beta
+          - alpha
 
 permissions:
   contents: read
@@ -44,6 +55,7 @@ jobs:
         env:
           MAIN_INSTANCE: ${{ secrets.MAIN_INSTANCE }}
           MAIN_INSTANCE_KEY: ${{ inputs.main_instance_key }}
+          TIER: ${{ inputs.tier }}
           BUNNY_ACCESS_KEY: ${{ secrets.BUNNY_ACCESS_KEY }}
           STORAGE_ZONE_NAME: ${{ secrets.STORAGE_ZONE_NAME }}
           STORAGE_ZONE_KEY: ${{ secrets.STORAGE_ZONE_KEY }}
@@ -54,12 +66,17 @@ jobs:
 
           jq -Rs '{"Code": .}' bunny-script.ts > /tmp/code-payload.json
 
-          # Ask the main instance for every site's read-only DB credentials.
+          # Ask the main instance for the credentials of the sites that accept a
+          # deploy on this tier. The tier is a non-secret filter, so it rides in
+          # the query string; the master returns only the sites at that channel
+          # or more eager — a release deploy reaches every site, beta reaches
+          # beta + alpha sites, alpha only alpha sites.
+          echo "Publishing tier: ${TIER}"
           sites_json=$(curl -fsS -X POST \
-            "${MAIN_INSTANCE%/}/instance/site-credentials" \
+            "${MAIN_INSTANCE%/}/instance/site-credentials?tier=${TIER}" \
             -H "Authorization: Bearer ${MAIN_INSTANCE_KEY}")
           count=$(jq '.sites | length' <<<"$sites_json")
-          echo "Got credentials for $count site(s)"
+          echo "Got credentials for $count site(s) on tier ${TIER} or more eager"
 
           for i in $(seq 0 $((count - 1))); do
             name=$(jq -r ".sites[$i].name" <<<"$sites_json")

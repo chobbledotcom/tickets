@@ -16,6 +16,7 @@ import { logActivity } from "#shared/db/activityLog.ts";
 import { dbName, hasRecentBackup } from "#shared/db/backup.ts";
 import type { BuiltSite, BuiltSiteFormInput } from "#shared/db/built-sites.ts";
 import {
+  asUpdateTier,
   builtSitesCrudTable,
   getAllBuiltSites,
 } from "#shared/db/built-sites.ts";
@@ -58,6 +59,7 @@ const extractBuiltSiteInput = (
   dbToken: String(values.db_token),
   dbUrl: String(values.db_url),
   name: String(values.name),
+  updates: asUpdateTier(String(values.updates)),
 });
 
 /** Built sites resource for REST create/update operations */

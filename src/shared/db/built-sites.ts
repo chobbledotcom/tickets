@@ -15,6 +15,42 @@ import type { ColumnDef, Table } from "#shared/db/table.ts";
 import { cachedTable, col, defineTable } from "#shared/db/table.ts";
 import { nowIso } from "#shared/now.ts";
 
+/**
+ * The release channels a built site can opt into, ordered most- to
+ * least-eager. The array order IS the rank (its index): an alpha site takes
+ * every deploy, a beta site takes beta + release, a release site only stable
+ * releases. So a site on tier S accepts a deploy published at tier T exactly
+ * when `indexOf(S) <= indexOf(T)` — see {@link siteAcceptsDeployTier}.
+ */
+export const UPDATE_TIERS = ["alpha", "beta", "release"] as const;
+
+/** One of the {@link UPDATE_TIERS} release channels. */
+export type UpdateTier = (typeof UPDATE_TIERS)[number];
+
+/** Default channel for a new built site — the most conservative (stable only). */
+export const DEFAULT_UPDATE_TIER: UpdateTier = "release";
+
+/** Narrow an arbitrary string to an {@link UpdateTier}. */
+export const isUpdateTier = (value: string): value is UpdateTier =>
+  (UPDATE_TIERS as readonly string[]).includes(value);
+
+/** Coerce a string to an {@link UpdateTier}, falling back to the default when
+ * it isn't a known channel (so a tampered form value can never persist junk). */
+export const asUpdateTier = (value: string): UpdateTier =>
+  isUpdateTier(value) ? value : DEFAULT_UPDATE_TIER;
+
+/**
+ * True when a site on `siteTier` should receive a deploy published at
+ * `deployTier`. A release deploy reaches every site, a beta deploy reaches beta
+ * + alpha sites, an alpha deploy only alpha sites — i.e. the site's channel must
+ * be at the deploy's tier or more eager.
+ */
+export const siteAcceptsDeployTier = (
+  siteTier: UpdateTier,
+  deployTier: UpdateTier,
+): boolean =>
+  UPDATE_TIERS.indexOf(siteTier) <= UPDATE_TIERS.indexOf(deployTier);
+
 /** Encrypted site-data blob version */
 export const SITE_DATA_BLOB_VERSION = 1;
 
@@ -45,6 +81,8 @@ export interface BuiltSiteRow {
   read_only_from: string;
   renewal_token_index: string | null;
   site_data: string;
+  /** Release channel — a CHECK constraint keeps this a valid UpdateTier. */
+  updates: UpdateTier;
 }
 
 /** Built site input for creating a new row */
@@ -55,6 +93,7 @@ export type BuiltSiteInput = {
   assignedListingId?: number | null;
   renewalTokenIndex?: string | null;
   readOnlyFrom?: string;
+  updates?: UpdateTier;
 };
 
 /** Decrypted built site for display */
@@ -73,13 +112,16 @@ export interface BuiltSite {
   /** Plain renewal token from the site-data blob when renewal access exists. Null when not provisioned. */
   renewalToken: string | null;
   renewalTokenIndex: string | null;
+  /** Release channel this site opts into (see {@link UPDATE_TIERS}). */
+  updates: UpdateTier;
 }
 
-/** Form input for CRUD operations */
+/** Form input for CRUD operations. `updates` is optional — programmatic
+ * inserts (e.g. auto-assignment) omit it and fall back to DEFAULT_UPDATE_TIER. */
 export type BuiltSiteFormInput = Pick<
   BuiltSite,
   "name" | "bunnyUrl" | "dbUrl" | "dbToken" | "bunnyScriptId" | "assignable"
->;
+> & { updates?: UpdateTier };
 
 const idCol = col.generated<number>();
 const createdCol = col.withDefault(() => nowIso());
@@ -100,6 +142,7 @@ const rawBuiltSitesTable = defineTable<BuiltSiteRow, BuiltSiteInput>({
     read_only_from: col.withDefault(() => ""),
     renewal_token_index: nullStrCol,
     site_data: col.encrypted<string>(encrypt, decrypt),
+    updates: col.withDefault<UpdateTier>(() => DEFAULT_UPDATE_TIER),
   },
 });
 
@@ -130,6 +173,7 @@ const toRawInput = (
   dbToken: string,
   bunnyScriptId: string,
   assignable: boolean,
+  updates: UpdateTier,
   renewalToken?: string,
 ): BuiltSiteInput => ({
   assignable: assignable ? 1 : 0,
@@ -141,6 +185,7 @@ const toRawInput = (
     bunnyScriptId,
     renewalToken,
   ),
+  updates,
 });
 
 /** Parse a decrypted site data blob */
@@ -164,6 +209,7 @@ const rowToBuiltSite = (row: BuiltSiteRow): BuiltSite => {
     readOnlyFrom: row.read_only_from,
     renewalToken: blob.rt ?? null,
     renewalTokenIndex: row.renewal_token_index ?? null,
+    updates: row.updates,
   };
 };
 
@@ -212,6 +258,7 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
     db_token: "dbToken",
     db_url: "dbUrl",
     name: "name",
+    updates: "updates",
   },
 
   insert: async (input: BuiltSiteFormInput): Promise<BuiltSite> => {
@@ -223,6 +270,7 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
         input.dbToken,
         input.bunnyScriptId,
         input.assignable,
+        input.updates ?? DEFAULT_UPDATE_TIER,
       ),
     );
     return rowToBuiltSite(row);
@@ -242,6 +290,7 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
     dbToken: row.dbToken,
     dbUrl: row.dbUrl,
     name: row.name,
+    updates: row.updates,
   }),
   schema: {
     assignable: {} as ColumnDef<boolean>,
@@ -257,6 +306,7 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
     readOnlyFrom: {} as ColumnDef<string>,
     renewalToken: {} as ColumnDef<string | null>,
     renewalTokenIndex: {} as ColumnDef<string | null>,
+    updates: {} as ColumnDef<UpdateTier>,
   },
 
   toDbValues: (
@@ -271,6 +321,7 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
         input.dbToken ?? "",
         input.bunnyScriptId ?? "",
       ),
+      updates: input.updates ?? DEFAULT_UPDATE_TIER,
     }),
 
   update: async (
@@ -285,6 +336,7 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
     const dbToken = input.dbToken ?? existing.dbToken;
     const bunnyScriptId = input.bunnyScriptId ?? existing.bunnyScriptId;
     const assignable = input.assignable ?? existing.assignable;
+    const updates = input.updates ?? existing.updates;
     const row = (await builtSitesTable.update(
       id,
       toRawInput(
@@ -294,6 +346,7 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
         dbToken,
         bunnyScriptId,
         assignable,
+        updates,
         existing.renewalToken ?? undefined,
       ),
     )) as BuiltSiteRow;
@@ -352,9 +405,18 @@ export const insertBuiltSite = (
   dbToken = "",
   assignable = false,
   bunnyScriptId = "",
+  updates: UpdateTier = DEFAULT_UPDATE_TIER,
 ): Promise<BuiltSiteRow> =>
   builtSitesTable.insert(
-    toRawInput(name, bunnyUrl, dbUrl, dbToken, bunnyScriptId, assignable),
+    toRawInput(
+      name,
+      bunnyUrl,
+      dbUrl,
+      dbToken,
+      bunnyScriptId,
+      assignable,
+      updates,
+    ),
   );
 
 /** Get all built sites, decrypted and sorted by name */

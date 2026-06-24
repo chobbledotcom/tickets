@@ -544,6 +544,62 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
     });
   });
 
+  describe("update channel", () => {
+    test("create form offers the update-channel selector", async () => {
+      const { response } = await adminGet("/admin/built-sites/new");
+      await expectHtmlResponse(
+        response,
+        200,
+        "Update channel",
+        "Release (stable only)",
+        "Beta (beta + stable)",
+        "Alpha (every release)",
+      );
+    });
+
+    test("defaults the channel to release when the form omits it", async () => {
+      const site = await createTestBuiltSite({ name: "Defaulted" });
+      expect(site.updates).toBe("release");
+    });
+
+    test("persists a chosen channel on create", async () => {
+      const site = await createTestBuiltSite({
+        name: "Beta Channel",
+        updates: "beta",
+      });
+      expect(site.updates).toBe("beta");
+    });
+
+    test("editing changes the channel", async () => {
+      const site = await createTestBuiltSite({ name: "Channel Edit" });
+      const updated = await updateTestBuiltSite(site.id, { updates: "alpha" });
+      expect(updated.updates).toBe("alpha");
+    });
+
+    test("rejects an unknown channel value", async () => {
+      const { response } = await adminFormPost("/admin/built-sites", {
+        bunny_url: "https://chan.b-cdn.net",
+        name: "Bad Channel",
+        updates: "stable",
+      });
+      expect(response.status).toBe(302);
+      expectFlash(
+        response,
+        expect.stringContaining(
+          "Update channel must be alpha, beta or release",
+        ),
+        false,
+      );
+    });
+
+    test("the fleet list shows each site's channel", async () => {
+      await createTestBuiltSite({ name: "Listed Site", updates: "beta" });
+      const { response } = await adminGet("/admin/built-sites");
+      const html = await expectHtmlResponse(response, 200, "Updates");
+      expect(html).toContain("<td>beta</td>");
+    });
+  });
+
   describe("edit/delete error fallback", () => {
     test("returns 404 when built site not found during edit error", async () => {
       const { response } = await adminFormPost("/admin/built-sites/999/edit", {
