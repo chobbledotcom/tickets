@@ -119,6 +119,7 @@ describeWithEnv(
     env: {
       ADMIN_EMAIL_ADDRESS: "admin@example.com",
       NTFY_URL: "https://ntfy.example.com/test",
+      SENTRY_URL: "https://k@bugs.example.com/2",
     },
   },
   () => {
@@ -160,6 +161,7 @@ describeWithEnv(
 
         const secretsSet = secretsFrom(secretStub);
         expectSecret(secretsSet, "NTFY_URL", "https://ntfy.example.com/test");
+        expectSecret(secretsSet, "SENTRY_URL", "https://k@bugs.example.com/2");
         expectSecret(secretsSet, "ADMIN_EMAIL_ADDRESS", "admin@example.com");
       }));
 
