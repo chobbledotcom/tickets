@@ -20,7 +20,6 @@ import {
   checkListingAvailability,
 } from "#shared/db/attendees/capacity.ts";
 import {
-  type BookingBatchPlan,
   createAttendeeAtomicImpl,
   createBookingAtomic as createBookingAtomicImpl,
 } from "#shared/db/attendees/create.ts";

@@ -1,5 +1,5 @@
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import {
   attendeeAccount,
   modifierAccount,
@@ -44,12 +44,15 @@ const order = (overrides: Partial<PricedOrder> = {}): PricedOrder => ({
   ...overrides,
 });
 
-/** A surcharge modifier application: bills the attendee `delta` extra. */
+/** A surcharge modifier application: bills the attendee `delta` extra.
+ *  (scopedSubtotal isn't read on the booking-write path; it satisfies the
+ *  ModifierApplication shape.) */
 const surcharge = (modifierId: number, delta: number) => ({
   amountApplied: delta,
   delta,
   modifierId,
   quantity: 1,
+  scopedSubtotal: delta,
 });
 
 /** The create input for one paid booking of `listingId`. */
