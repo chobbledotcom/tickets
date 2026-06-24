@@ -50,8 +50,28 @@ jobs:
           storage_zone_name: ${{ secrets.STORAGE_ZONE_NAME }}
           storage_zone_key: ${{ secrets.STORAGE_ZONE_KEY }}
 
+      # Inject Sentry debug IDs into the bundle before deploy (no-op without a
+      # SENTRY_AUTH_TOKEN secret). Must run before the deploy below.
+      - name: Inject Sentry debug IDs
+        uses: ./.github/actions/sentry-sourcemaps
+        with:
+          command: inject
+          auth_token: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          release: chobble-tickets@${{ github.sha }}
+
       - name: Deploy to staging
         uses: ./.github/actions/deploy-bunny-script
         with:
           script_id: ${{ inputs.script_id || secrets.BUNNY_STAGING_SCRIPT_ID }}
           api_key: ${{ secrets.BUNNY_ACCESS_KEY }}
+
+      # Upload source maps for this release after deploy (no-op without secrets).
+      - name: Upload Sentry source maps
+        uses: ./.github/actions/sentry-sourcemaps
+        with:
+          command: upload
+          auth_token: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          sentry_url: ${{ secrets.SENTRY_CLI_URL }}
+          org: ${{ secrets.SENTRY_ORG }}
+          project: ${{ secrets.SENTRY_PROJECT }}
+          release: chobble-tickets@${{ github.sha }}
