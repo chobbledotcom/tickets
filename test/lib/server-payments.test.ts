@@ -6,6 +6,7 @@ import { getDb } from "#shared/db/client.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import { normalizeCode } from "#shared/price-modifier.ts";
 import { resetStripeClient } from "#shared/stripe.ts";
+import type { Listing } from "#shared/types.ts";
 import {
   assertPublicHtml,
   awaitTestRequest,
@@ -124,125 +125,105 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
       );
     });
 
-    test("rejects payment for inactive listing and refunds", async () => {
-      const { stub } = await import("@std/testing/mock");
-      const { stripeApi } = await import("#shared/stripe.ts");
-      await setupStripe();
-
-      const listing = await createTestListing({
-        maxAttendees: 50,
-        thankYouUrl: "https://example.com",
-        unitPrice: 1000,
-      });
-
-      // Deactivate the listing
-      await deactivateTestListing(listing.id);
-
-      await withMocks(
-        () => ({
-          mockRefund: stub(stripeApi, "refundPayment", () =>
-            Promise.resolve({ id: "re_test" } as unknown as Awaited<
-              ReturnType<typeof stripeApi.refundPayment>
-            >),
-          ),
-          mockRetrieve: stub(stripeApi, "retrieveCheckoutSession", () =>
-            Promise.resolve({
-              amount_total: 1000,
-              id: "cs_test",
-              metadata: signMeta(
-                {
-                  email: "john@example.com",
-                  items: singleItem(listing.id, 1, 1000),
-                  name: "John",
-                },
-                1000,
-              ),
-              payment_intent: "pi_test_123",
-              payment_status: "paid",
-            } as unknown as Awaited<
-              ReturnType<typeof stripeApi.retrieveCheckoutSession>
-            >),
-          ),
-        }),
-        async ({ mockRefund }) => {
-          const response = await handleRequest(
-            mockRequest("/payment/success?session_id=cs_test"),
-          );
-          await expectHtmlResponse(
-            response,
-            410,
-            "no longer accepting registrations",
-          );
-
-          // Verify refund was called
-          expect(mockRefund.calls[0]!.args).toEqual(["pi_test_123"]);
+    // Both confirmation-time guards (listing deactivated / sold out before the
+    // payment lands) reserve nothing, render the failure page, and refund the
+    // captured payment — they differ only in how the listing becomes unbookable
+    // and the rendered status + message.
+    const REFUND_CASES: ReadonlyArray<{
+      name: string;
+      setup: () => Promise<Listing>;
+      contact: { email: string; name: string };
+      paymentIntent: string;
+      status: number;
+      messages: string[];
+    }> = [
+      {
+        contact: { email: "john@example.com", name: "John" },
+        messages: ["no longer accepting registrations"],
+        name: "rejects payment for inactive listing and refunds",
+        paymentIntent: "pi_test_123",
+        setup: async () => {
+          const listing = await createTestListing({
+            maxAttendees: 50,
+            thankYouUrl: "https://example.com",
+            unitPrice: 1000,
+          });
+          await deactivateTestListing(listing.id);
+          return listing;
         },
-        resetStripeClient,
-      );
-    });
-
-    test("refunds payment when listing is sold out at confirmation time", async () => {
-      const { stub } = await import("@std/testing/mock");
-      const { stripeApi } = await import("#shared/stripe.ts");
-      await setupStripe();
-
-      // Create listing with only 1 spot
-      const listing = await createTestListing({
-        maxAttendees: 1,
-        thankYouUrl: "https://example.com",
-        unitPrice: 1000,
-      });
-
-      // Fill the listing with another attendee (using atomic to simulate production flow)
-      await bookAttendee(listing, {
-        email: "first@example.com",
-        name: "First",
-        paymentId: "pi_first",
-      });
-
-      await withMocks(
-        () => ({
-          mockRefund: stub(stripeApi, "refundPayment", () =>
-            Promise.resolve({ id: "re_test" } as unknown as Awaited<
-              ReturnType<typeof stripeApi.refundPayment>
-            >),
-          ),
-          mockRetrieve: stub(stripeApi, "retrieveCheckoutSession", () =>
-            Promise.resolve({
-              amount_total: 1000,
-              id: "cs_test",
-              metadata: signMeta(
-                {
-                  email: "second@example.com",
-                  items: singleItem(listing.id, 1, 1000),
-                  name: "Second",
-                },
-                1000,
-              ),
-              payment_intent: "pi_second",
-              payment_status: "paid",
-            } as unknown as Awaited<
-              ReturnType<typeof stripeApi.retrieveCheckoutSession>
-            >),
-          ),
-        }),
-        async ({ mockRefund }) => {
-          const response = await handleRequest(
-            mockRequest("/payment/success?session_id=cs_test"),
-          );
-          await expectHtmlResponse(
-            response,
-            409,
-            "sold out",
-            "automatically refunded",
-          );
-
-          // Verify refund was called
-          expect(mockRefund.calls[0]!.args).toEqual(["pi_second"]);
+        status: 410,
+      },
+      {
+        contact: { email: "second@example.com", name: "Second" },
+        messages: ["sold out", "automatically refunded"],
+        name: "refunds payment when listing is sold out at confirmation time",
+        paymentIntent: "pi_second",
+        setup: async () => {
+          // Only 1 spot, already filled by another attendee (atomic add to
+          // simulate the production flow), so this payment lands sold out.
+          const listing = await createTestListing({
+            maxAttendees: 1,
+            thankYouUrl: "https://example.com",
+            unitPrice: 1000,
+          });
+          await bookAttendee(listing, {
+            email: "first@example.com",
+            name: "First",
+            paymentId: "pi_first",
+          });
+          return listing;
         },
-        resetStripeClient,
-      );
-    });
+        status: 409,
+      },
+    ];
+
+    for (const c of REFUND_CASES) {
+      test(c.name, async () => {
+        const { stub } = await import("@std/testing/mock");
+        const { stripeApi } = await import("#shared/stripe.ts");
+        await setupStripe();
+
+        const listing = await c.setup();
+
+        await withMocks(
+          () => ({
+            mockRefund: stub(stripeApi, "refundPayment", () =>
+              Promise.resolve({ id: "re_test" } as unknown as Awaited<
+                ReturnType<typeof stripeApi.refundPayment>
+              >),
+            ),
+            mockRetrieve: stub(stripeApi, "retrieveCheckoutSession", () =>
+              Promise.resolve({
+                amount_total: 1000,
+                id: "cs_test",
+                metadata: signMeta(
+                  {
+                    email: c.contact.email,
+                    items: singleItem(listing.id, 1, 1000),
+                    name: c.contact.name,
+                  },
+                  1000,
+                ),
+                payment_intent: c.paymentIntent,
+                payment_status: "paid",
+              } as unknown as Awaited<
+                ReturnType<typeof stripeApi.retrieveCheckoutSession>
+              >),
+            ),
+          }),
+          async ({ mockRefund }) => {
+            const response = await handleRequest(
+              mockRequest("/payment/success?session_id=cs_test"),
+            );
+            await expectHtmlResponse(response, c.status, ...c.messages);
+
+            // Verify refund was called
+            expect(mockRefund.calls[0]!.args).toEqual([c.paymentIntent]);
+          },
+          resetStripeClient,
+        );
+      });
+    }
   });
 
   // A handled post-payment failure reserves the session, then refunds/returns.
