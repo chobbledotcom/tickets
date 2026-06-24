@@ -12,12 +12,14 @@
  * uses them, to keep the module free of unused exports.
  */
 
+import type { InValue } from "@libsql/client";
 import { mapNotNullish } from "#fp";
 import {
   executeBatch,
   inPlaceholders,
   queryAll,
   queryIdColumn,
+  type TxScope,
 } from "#shared/db/client.ts";
 import { getListingsById } from "#shared/db/listings.ts";
 import {
@@ -70,20 +72,41 @@ export const getParentIds = (childId: number): Promise<number[]> =>
 
 /** Replace the set of children required under `parentId` (admin edit-on-parent):
  * clear the parent's edges, then insert one per supplied child id. */
+/** The DELETE-then-INSERT statements that replace a parent's child edges.
+ * Shared by {@link setChildIds} (its own batch) and {@link setChildIdsTx} (run
+ * on a caller's transaction) so the two can't drift. */
+const childEdgeStatements = (
+  parentId: number,
+  childIds: readonly number[],
+): { args: InValue[]; sql: string }[] => [
+  {
+    args: [parentId],
+    sql: "DELETE FROM listing_parents WHERE parent_listing_id = ?",
+  },
+  ...childIds.map((childId) => ({
+    args: [parentId, childId],
+    sql: INSERT_EDGE,
+  })),
+];
+
 export const setChildIds = (
   parentId: number,
   childIds: readonly number[],
-): Promise<void> =>
-  executeBatch([
-    {
-      args: [parentId],
-      sql: "DELETE FROM listing_parents WHERE parent_listing_id = ?",
-    },
-    ...childIds.map((childId) => ({
-      args: [parentId, childId],
-      sql: INSERT_EDGE,
-    })),
-  ]);
+): Promise<void> => executeBatch(childEdgeStatements(parentId, childIds));
+
+/** Replace a parent's child edges inside an existing write transaction, so the
+ * edge replacement commits atomically with the listing row write (the admin API
+ * create/update path). Mirrors {@link setChildIds} but runs each statement on the
+ * caller's `tx` rather than its own batch. */
+export const setChildIdsTx = async (
+  tx: TxScope,
+  parentId: number,
+  childIds: readonly number[],
+): Promise<void> => {
+  for (const stmt of childEdgeStatements(parentId, childIds)) {
+    await tx.execute(stmt);
+  }
+};
 
 type EdgeColumn = "child_listing_id" | "parent_listing_id";
 

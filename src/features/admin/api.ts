@@ -12,7 +12,8 @@ import { holidayApiRoutes } from "#routes/admin/api-holidays.ts";
 import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
-import { setChildIds } from "#shared/db/listing-parents.ts";
+import type { TxScope } from "#shared/db/client.ts";
+import { setChildIdsTx } from "#shared/db/listing-parents.ts";
 import {
   computeSlugIndex,
   getAllListings,
@@ -411,14 +412,15 @@ const prepareChildEdges = async (
   return result.ok ? { value: result.childIds } : { error: result.error };
 };
 
-/** Write the prepared child edges to the now-existing row (Fix 4): a no-op when
- * `null` (field omitted), otherwise replaces the parent's edges with the cleaned
- * ids validated before the write. */
+/** Write the prepared child edges on the open write transaction (Fix 4): a no-op
+ * when `null` (field omitted), otherwise replaces the parent's edges with the
+ * cleaned ids validated before the write — atomically with the listing row. */
 const persistChildEdges = async (
-  listing: ListingWithCount,
+  tx: TxScope,
+  listingId: number,
   value: PreparedChildEdges,
 ): Promise<void> => {
-  if (value !== null) await setChildIds(listing.id, value);
+  if (value !== null) await setChildIdsTx(tx, listingId, value);
 };
 
 const listingApiRoutes = defineCrudApi<

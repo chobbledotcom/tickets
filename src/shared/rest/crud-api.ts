@@ -23,6 +23,7 @@ import { ADMIN_API, type AuthPolicy, withAuth } from "#routes/auth.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
+import { type TxScope, withTransaction } from "#shared/db/client.ts";
 import type { Table } from "#shared/db/table.ts";
 import type { AdminSession } from "#shared/types.ts";
 
@@ -106,11 +107,12 @@ export const parseUpdateName = (
 
 /**
  * An atomic body-only side effect (e.g. relationship edges) for a create/update
- * (parents.md Fix 4). It is split so a rejected side effect leaves NO partial row
- * create or field change: `validate` runs BEFORE the row is written and either
- * rejects (400, row write skipped) or yields a prepared `value`; `persist` runs
- * AFTER the row write (so the row's real id exists) and applies that value
- * without the chance of failure. A resource with no side effects omits it.
+ * (parents.md Fix 4). Two-phase so the whole write is all-or-nothing:
+ * `validate` runs BEFORE the write and either rejects (400, nothing written) or
+ * yields a prepared `value`; `persist` then runs in the SAME transaction as the
+ * row write (see `writeWithSideEffect`), so a failure rolls the row write back
+ * too — never an orphan row without its side effect. A resource with no side
+ * effects omits it and takes the plain (untransacted) single-statement path.
  */
 export interface CrudSideEffect<Input, FullRow, Prepared> {
   /** Validate the side effect against the would-be `input` (the post-save row
@@ -122,9 +124,9 @@ export interface CrudSideEffect<Input, FullRow, Prepared> {
     body: Record<string, unknown>,
     existing: FullRow | null,
   ) => Promise<{ error: string } | { value: Prepared }>;
-  /** Apply the prepared side effect to the written row. Runs only after a
-   * successful row write, so it never leaves a partial change. */
-  persist: (row: FullRow, value: Prepared) => Promise<void>;
+  /** Persist the prepared value on the open write transaction `tx`, given the
+   * written row's `id`. A throw rolls back the row write with it. */
+  persist: (tx: TxScope, id: number, value: Prepared) => Promise<void>;
 }
 
 /** Configuration for defineCrudApi */
@@ -246,12 +248,6 @@ export const defineCrudApi = <
       config.linkActivityToRow ? row : undefined,
     );
 
-  /** Re-fetch the full row when a custom lookup is configured, otherwise reuse the written row */
-  const toFullRow = async (row: Row): Promise<FullRow> =>
-    config.lookup
-      ? (await config.lookup(row.id))!
-      : (row as unknown as FullRow);
-
   /** List all */
   const handleList: RouteHandlerFn = (request) =>
     withAuth(request, policy, async (session) => {
@@ -260,19 +256,33 @@ export const defineCrudApi = <
       return jsonResponse({ [listKey]: rows.map(toResponse), ...extras });
     });
 
-  /** Finish a create/update: hydrate the full row, persist the prepared
-   * side-effect value (validated before the write), log, and return the row
-   * JSON. Shared so create and update apply the side effect once. */
-  const persistAndRespond = async (
-    row: Row,
-    prepared: Prepared,
+  /** Log a written full row and return its JSON. */
+  const respondWithRow = async (
+    fullRow: FullRow,
     action: string,
     status: number,
   ): Promise<Response> => {
-    const fullRow = await toFullRow(row);
-    if (config.sideEffect) await config.sideEffect.persist(fullRow, prepared);
-    await logAction(action, row);
+    await logAction(action, fullRow);
     return jsonResponse({ [responseKey]: toResponse(fullRow) }, status);
+  };
+
+  /** Write the row and its side effect in ONE transaction, so a failed side
+   * effect rolls the row write back (no orphan row), then read the committed row
+   * back. `existingId` is null on create (the id comes from the INSERT) and the
+   * existing id on update. Only used when `config.sideEffect` is set. */
+  const writeWithSideEffect = async (
+    statement: { args: InValue[]; sql: string },
+    existingId: number | null,
+    prepared: Prepared,
+  ): Promise<FullRow> => {
+    const sideEffect = config.sideEffect!;
+    const id = await withTransaction(async (tx) => {
+      const res = await tx.execute(statement);
+      const rowId = existingId ?? Number(res.lastInsertRowid);
+      await sideEffect.persist(tx, rowId, prepared);
+      return rowId;
+    });
+    return (await lookup(id))!;
   };
 
   /** Validate the body-only side effect BEFORE the row write (Fix 4 atomicity):
@@ -302,8 +312,21 @@ export const defineCrudApi = <
       const prepared = await prepareSideEffect(result.input, body, null);
       if ("error" in prepared) return apiErrorResponse(prepared.error);
 
+      // With a side effect, insert the row and persist it in one transaction so a
+      // failed edge write rolls the row back; otherwise the plain single insert.
+      if (config.sideEffect) {
+        // A side-effect resource is built with createTable, which provides the
+        // statement builders the transactional write needs.
+        const statement = await table.insertStatement!(result.input);
+        const fullRow = await writeWithSideEffect(
+          statement,
+          null,
+          prepared.value,
+        );
+        return respondWithRow(fullRow, "created", 201);
+      }
       const row = await table.insert(result.input);
-      return persistAndRespond(row, prepared.value, "created", 201);
+      return respondWithRow(row as unknown as FullRow, "created", 201);
     });
 
   // Build the route param name from the singular (e.g. "Holiday" → "holidayId")
@@ -351,8 +374,20 @@ export const defineCrudApi = <
     const prepared = await prepareSideEffect(result.input, body, existing);
     if ("error" in prepared) return apiErrorResponse(prepared.error);
 
+    // With a side effect, update the row and persist it in one transaction so a
+    // failed edge write rolls the field change back too; a null statement is a
+    // no-field-change update (edges still replaced). Otherwise the plain update.
+    if (config.sideEffect) {
+      const statement = await table.updateStatement!(existing.id, result.input);
+      const fullRow = await writeWithSideEffect(
+        statement,
+        existing.id,
+        prepared.value,
+      );
+      return respondWithRow(fullRow, "updated", 200);
+    }
     const row = (await table.update(existing.id, result.input))!;
-    return persistAndRespond(row, prepared.value, "updated", 200);
+    return respondWithRow(row as unknown as FullRow, "updated", 200);
   });
 
   /** Delete */
