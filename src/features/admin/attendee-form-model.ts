@@ -135,6 +135,9 @@ export type ValidationResult =
       valid: false;
       attendeeError: AttendeeFieldError | null;
       dateError: string | null;
+      /** Form-wide error surfaced at the top of the page (e.g. a paid line was
+       * marked no-quantity), as opposed to a per-line error shown in the table. */
+      formError: string | null;
       lineErrors: Map<number, string>;
       values: ParsedAttendeeForm;
     };
@@ -164,6 +167,20 @@ export const isBookedLine = (line: AttendeeFormLine): boolean =>
  * deliberate quantity-0 sentinel line to keep, not a real booking. */
 export const isNoQuantityLine = (line: AttendeeFormLine): boolean =>
   line.noQuantity && line.listing !== null;
+
+/** True when a line carries a captured payment (price_paid > 0 on its existing
+ * booking). Such a line can't be marked no-quantity until the charge is
+ * refunded — silently clearing price_paid would drop listing income and strand
+ * the charge behind the quantity-0 refund guards — so the editor disables its
+ * "no quantity" box ({@link PAID_NO_QUANTITY_MESSAGE} as the tooltip) and the
+ * validator rejects a hand-crafted tick. */
+export const isPaymentLockedLine = (line: AttendeeFormLine): boolean =>
+  (line.existingBooking?.price_paid ?? 0) > 0;
+
+/** Why a paid line can't be marked no-quantity: shown at the top of the page on
+ * a (hand-crafted) submission and as the disabled box's hover tooltip. */
+export const PAID_NO_QUANTITY_MESSAGE =
+  "Refund this line's payment before marking it no quantity.";
 
 /** True when the line should be persisted at all: a real booking OR a deliberate
  * no-quantity line. The persistence + no-lines paths use THIS (so a checked
@@ -364,15 +381,10 @@ const isBookedDaily = (line: AttendeeFormLine): boolean =>
   isBookedLine(line) && line.listing!.listing_type === "daily";
 
 /** Validate one line. Date/duration/overbooking concerns are surfaced as
- * non-blocking warnings elsewhere, not as errors. */
+ * non-blocking warnings elsewhere, not as errors. The paid-line no-quantity rule
+ * is enforced form-wide ({@link validatePaidNoQuantity}) so its message lands at
+ * the top of the page, not buried in the quantity table. */
 const validateLine = (line: AttendeeFormLine): string | null => {
-  // Forbid marking a PAID line no-quantity: the charge must be refunded or
-  // retargeted to a real line first. Silently clearing price_paid would drop
-  // listing income and strand the charge behind the (now quantity-0) refund
-  // guards, so reject rather than normalise (enforces the §1 invariant).
-  if (isNoQuantityLine(line) && (line.existingBooking?.price_paid ?? 0) > 0) {
-    return "Refund this line's payment before marking it no quantity.";
-  }
   // isBookedLine already guarantees an integer quantity ≥ 1; the only quantity
   // error left is exceeding the listing's per-booking maximum.
   if (!isBookedLine(line)) return null;
@@ -381,6 +393,15 @@ const validateLine = (line: AttendeeFormLine): string | null => {
   }
   return null;
 };
+
+/** Form-wide guard: forbid marking a PAID line no-quantity — the charge must be
+ * refunded or retargeted to a real line first (enforces the §1 invariant). The
+ * editor already disables the box for these lines, so this only fires on a
+ * hand-crafted submission; its message is shown at the top of the page. */
+const validatePaidNoQuantity = (parsed: ParsedAttendeeForm): string | null =>
+  parsed.lines.some((l) => isNoQuantityLine(l) && isPaymentLockedLine(l))
+    ? PAID_NO_QUANTITY_MESSAGE
+    : null;
 
 /**
  * Validate the attendee block, the shared date, and each booked line. A daily
@@ -396,6 +417,7 @@ export const validateParsedForm = (
     hasDailyBooking && !isIsoDate(parsed.startDate)
       ? "A start date is required for the booked daily listings"
       : null;
+  const formError = validatePaidNoQuantity(parsed);
 
   const lineErrors = new Map<number, string>();
   for (let i = 0; i < parsed.lines.length; i++) {
@@ -404,10 +426,11 @@ export const validateParsedForm = (
     if (error) lineErrors.set(i, error);
   }
 
-  if (attendeeError || dateError || lineErrors.size > 0) {
+  if (attendeeError || dateError || formError || lineErrors.size > 0) {
     return {
       attendeeError,
       dateError,
+      formError,
       lineErrors,
       valid: false,
       values: parsed,
