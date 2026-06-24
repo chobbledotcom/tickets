@@ -739,6 +739,30 @@ describe("fold selection algebra (property-based)", () => {
     );
   });
 
+  test("resolveChildSelections parses child quantities strictly, not via parseInt truncation", () => {
+    // A tampered quantity is "none chosen" (0), never a truncated/garbage-parsed
+    // number: child 1's strict "2" alone equals the parent quantity, so the order
+    // is accepted and the malformed children are absent. The old parseInt parser
+    // would read "2.9"->2 and "1abc"->1, inflating the total past 2 and wrongly
+    // rejecting (or, on a sole child, booking a phantom quantity).
+    const parent = tl(PARENT_ID);
+    const result = resolveChildSelections(
+      parent,
+      [tl(1), tl(2), tl(3)],
+      2,
+      formFrom({
+        [`child_qty_${PARENT_ID}_1`]: "2",
+        [`child_qty_${PARENT_ID}_2`]: "2.9",
+        [`child_qty_${PARENT_ID}_3`]: "1abc",
+      }),
+    );
+    expect(Array.isArray(result)).toBe(true);
+    if (Array.isArray(result)) {
+      expect(result.map((s) => s.child.listing.id)).toEqual([1]);
+      expect(result.reduce((acc, s) => acc + s.qty, 0)).toBe(2);
+    }
+  });
+
   test("foldChild sums across folds and rejects (never clamps) above max-purchasable", () => {
     fc.assert(
       fc.property(

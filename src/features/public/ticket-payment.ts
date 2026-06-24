@@ -57,7 +57,10 @@ import {
   type ListingWithCount,
   normalizeDurationDays,
 } from "#shared/types.ts";
-import { parsePositiveInt } from "#shared/validation/number.ts";
+import {
+  parseNonNegativeInt,
+  parsePositiveInt,
+} from "#shared/validation/number.ts";
 import {
   type ChildSpanDates,
   childDateKey,
@@ -384,12 +387,11 @@ const childQtyField = (
   parentId: number,
   childId: number,
   form: FormParams,
-): number => {
-  const raw = form.getString(`child_qty_${parentId}_${childId}`).trim();
-  if (raw === "") return 0;
-  const parsed = Number.parseInt(raw, 10);
-  return Number.isInteger(parsed) && parsed >= 0 ? parsed : 0;
-};
+): number =>
+  // Strict parse: only a non-negative decimal integer counts. A tampered value
+  // like "2.9", "1abc" or "01" is "none chosen" (0), never a truncated quantity
+  // — matching every other quantity field, which uses the same strict helper.
+  parseNonNegativeInt(form.getString(`child_qty_${parentId}_${childId}`)) ?? 0;
 
 /** Resolve the per-unit child selection for one in-cart parent: read each bookable
  * child's `child_qty_<parentId>_<childId>`, auto-assign the whole parent quantity

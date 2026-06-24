@@ -50,6 +50,21 @@ describe("child selection helpers", () => {
     expect([...selectedListingIds()].sort()).toEqual(["101", "202"]);
   });
 
+  test("selectedListingIds ignores a child whose quantity control holds a malformed value", () => {
+    // A tampered control value parses strictly: "2.9" / "1abc" are not
+    // quantities (0), never a truncated number, so the child stays unselected —
+    // matching the server's child_qty parsing.
+    installFakeDom([
+      quantity("101", "1"),
+      childSelector("101"),
+      childQty("101", "202", "2"), // valid -> selected
+      childQty("101", "303", "2.9"), // malformed -> ignored
+      childQty("101", "404", "1abc"), // malformed -> ignored
+    ]);
+
+    expect([...selectedListingIds()].sort()).toEqual(["101", "202"]);
+  });
+
   test("selectedListingIds ignores children whose parent is not in the cart", () => {
     installFakeDom([
       quantity("101", "0"),

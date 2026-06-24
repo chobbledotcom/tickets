@@ -17,8 +17,11 @@ export const controlQty = (
   control: HTMLSelectElement | HTMLInputElement | null,
 ): number => {
   if (control === null || control.disabled) return 0;
-  const parsed = Number.parseInt(control.value, 10);
-  return Number.isNaN(parsed) || parsed < 0 ? 0 : parsed;
+  // Strict: only a non-negative integer string is a quantity (mirrors the
+  // server's child_qty parsing), so a tampered control value such as "2.9" or
+  // "1abc" reads as 0, never a truncated quantity — no client/server drift.
+  const raw = control.value.trim();
+  return /^(0|[1-9]\d*)$/.test(raw) ? Number.parseInt(raw, 10) : 0;
 };
 
 /** The numeric quantity of a `quantity_<id>` control, or 0 when absent/blank. */
