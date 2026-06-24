@@ -4,7 +4,7 @@ import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { clearSavedFormData, setSavedFormData } from "#shared/forms.tsx";
 import { renderQuestions } from "#templates/public.tsx";
-import { testRadioQuestion } from "#test-utils";
+import { testAnswer, testQuestion, testRadioQuestion } from "#test-utils";
 
 /** Two single-answer radio questions — the shared fixture for the
  *  "multiple questions" and "data-listing-ids" tests. */
@@ -13,25 +13,30 @@ const twoRadioQuestions = (): QuestionWithAnswers[] => [
   testRadioQuestion(2, "Q2", [[20, "A2"]]),
 ];
 
+/** The "Favourite colour?" question with Red/Blue radio answers — the
+ *  canonical single-question fixture reused across radio, select, and
+ *  saved-form-data tests. Override `display_type` for the select variant. */
+const colourQuestion = (
+  displayType: "radio" | "select" = "radio",
+): QuestionWithAnswers[] => [
+  testQuestion({
+    answers: [
+      testAnswer({ id: 10, sort_order: 0, text: "Red" }),
+      testAnswer({ id: 11, sort_order: 1, text: "Blue" }),
+    ],
+    display_type: displayType,
+    id: 1,
+    text: "Favourite colour?",
+  }),
+];
+
 describe("renderQuestions", () => {
   test("returns empty string for no questions", () => {
     expect(renderQuestions([]).toString()).toBe("");
   });
 
   test("renders radio buttons for each answer", () => {
-    const questions: QuestionWithAnswers[] = [
-      {
-        answers: [
-          { active: true, id: 10, question_id: 1, sort_order: 0, text: "Red" },
-          { active: true, id: 11, question_id: 1, sort_order: 1, text: "Blue" },
-        ],
-        display_type: "radio" as const,
-        id: 1,
-        text: "Favourite colour?",
-      },
-    ];
-
-    const html = renderQuestions(questions).toString();
+    const html = renderQuestions(colourQuestion()).toString();
 
     expect(html).toContain("Favourite colour?");
     expect(html).toContain('name="question_1"');
@@ -85,19 +90,7 @@ describe("renderQuestions", () => {
   });
 
   test("renders select boxes when configured", () => {
-    const questions: QuestionWithAnswers[] = [
-      {
-        answers: [
-          { active: true, id: 10, question_id: 1, sort_order: 0, text: "Red" },
-          { active: true, id: 11, question_id: 1, sort_order: 1, text: "Blue" },
-        ],
-        display_type: "select" as const,
-        id: 1,
-        text: "Favourite colour?",
-      },
-    ];
-
-    const html = renderQuestions(questions).toString();
+    const html = renderQuestions(colourQuestion("select")).toString();
 
     // The question text labels the <select> via a wrapping <label>, so the
     // control has an accessible name without a separate screen-reader element.
@@ -151,19 +144,7 @@ describe("renderQuestions", () => {
 
   test("restores selected select answers from saved form data", () => {
     setSavedFormData(new FormParams({ question_1: "11" }));
-    const questions: QuestionWithAnswers[] = [
-      {
-        answers: [
-          { active: true, id: 10, question_id: 1, sort_order: 0, text: "Red" },
-          { active: true, id: 11, question_id: 1, sort_order: 1, text: "Blue" },
-        ],
-        display_type: "select" as const,
-        id: 1,
-        text: "Favourite colour?",
-      },
-    ];
-
-    const html = renderQuestions(questions).toString();
+    const html = renderQuestions(colourQuestion("select")).toString();
     clearSavedFormData();
 
     expect(html).toContain('<option selected value="11">Blue</option>');
