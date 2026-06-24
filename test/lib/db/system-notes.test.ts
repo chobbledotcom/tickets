@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
-import { execute, queryOne } from "#shared/db/client.ts";
+import { queryOne } from "#shared/db/client.ts";
 import {
   createOwnerNote,
   createSystemNote,
@@ -12,7 +12,6 @@ import {
   getNotesForAttendee,
   groupNotesByAttendee,
   loadNotesForAttendees,
-  UNREADABLE_NOTE,
 } from "#shared/db/system-notes.ts";
 import {
   createTestAttendee,
@@ -156,22 +155,6 @@ describeWithEnv("db > system-notes", { db: true }, () => {
     expect(await getAttendeeNote(other, row!.id, pk)).toBeNull();
     // A missing id resolves to null too.
     expect(await getAttendeeNote(owner, 9_999_999, pk)).toBeNull();
-  });
-
-  test("an undecryptable note degrades to a placeholder rather than throwing", async () => {
-    const attendeeId = await makeAttendee();
-    // A row whose ciphertext is garbage (rotated key, manual edit, restore).
-    await execute(
-      "INSERT INTO system_notes (attendee_id, type, note, created) VALUES (?, 'system', ?, ?)",
-      [attendeeId, "not-a-valid-envelope", new Date().toISOString()],
-    );
-
-    const notes = await getNotesForAttendee(
-      attendeeId,
-      await getTestPrivateKey(),
-    );
-    expect(notes).toHaveLength(1);
-    expect(notes[0]!.note).toBe(UNREADABLE_NOTE);
   });
 
   test("deleteAttendeeNote removes only the scoped note", async () => {

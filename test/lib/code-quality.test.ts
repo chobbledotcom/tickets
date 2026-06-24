@@ -209,9 +209,6 @@ const ALLOWED_TEST_HOOKS: string[] = [
   // booking warning) lands with the refund-but-store change; the notes module
   // ships the writer alongside its reader, exercised directly by tests until then.
   "shared/db/system-notes.ts:createSystemNote",
-  // Undecryptable-note placeholder: exported so the decrypt-resilience test can
-  // assert the exact fallback string rather than hardcoding it.
-  "shared/db/system-notes.ts:UNREADABLE_NOTE",
 ];
 
 const getAllTsFiles = (dir: string): Promise<string[]> =>

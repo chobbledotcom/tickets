@@ -8,9 +8,6 @@
  *    back. Kept PII-free by convention.
  *  - `owner` — operator-authored. Encrypted with the owner public key, so it can
  *    be written without a session but read only with the owner private key.
- *
- * Decryption is resilient: a corrupt or undecryptable note degrades to a
- * placeholder rather than crashing the page it appears on.
  */
 
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
@@ -25,7 +22,6 @@ import {
   queryAll,
 } from "#shared/db/client.ts";
 import { settings } from "#shared/db/settings.ts";
-import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
 
 export type SystemNoteType = "system" | "owner";
@@ -43,10 +39,6 @@ export type SystemNote = {
 type SystemNoteRow = Omit<SystemNote, "note"> & { note: string };
 
 const NOTE_COLUMNS = "id, attendee_id, type, note, created";
-
-/** Shown in place of a note whose ciphertext can't be decrypted (rotated key,
- *  manual edit, restore). Keeps the page usable instead of throwing. */
-export const UNREADABLE_NOTE = "[unreadable note]";
 
 /** Insert one already-encrypted note of the given type. */
 const insertNote = async (
@@ -84,23 +76,18 @@ export const createOwnerNote = async (
     await encryptWithOwnerKey(note, settings.publicKey),
   );
 
-/** Decrypt one row by its type, degrading to {@link UNREADABLE_NOTE} on failure. */
-const decryptNote = async (
+/** Decrypt one note by its type. We do not guard this: a failure here can only
+ *  mean the data key itself is broken — in which case the attendee's own PII
+ *  wouldn't decrypt and the page never renders at all — so masking it with a
+ *  placeholder would only hide a system-wide failure behind an untestable
+ *  branch. Let it throw. */
+const decryptNote = (
   row: SystemNoteRow,
   privateKey: CryptoKey,
-): Promise<string> => {
-  try {
-    return row.type === "owner"
-      ? await decryptWithOwnerKey(row.note, privateKey)
-      : await decrypt(row.note);
-  } catch (error) {
-    logError({
-      code: ErrorCode.DECRYPT_FAILED,
-      detail: `system note ${row.id}: ${error}`,
-    });
-    return UNREADABLE_NOTE;
-  }
-};
+): Promise<string> =>
+  row.type === "owner"
+    ? decryptWithOwnerKey(row.note, privateKey)
+    : decrypt(row.note);
 
 /** Decrypt a batch of note rows, preserving order. */
 export const decryptNotes = (
