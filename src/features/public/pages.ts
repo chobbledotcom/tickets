@@ -2,6 +2,7 @@
  * Public pages - home, listings, terms, contact
  */
 
+import { mapParallel } from "#fp";
 import { applyFlash, requireMessageField, withCsrfForm } from "#routes/csrf.ts";
 import {
   errorRedirect,
@@ -55,7 +56,7 @@ const groupHasBookableMember = async (group: Group): Promise<boolean> => {
  * listing). A child-only group's group page 404s, so its CTA is suppressed. */
 const loadPublicGroups = async (): Promise<Group[]> => {
   const groups = (await getAllGroups()).filter((g) => !g.hidden);
-  const bookable = await Promise.all(groups.map(groupHasBookableMember));
+  const bookable = await mapParallel(groupHasBookableMember)(groups);
   return groups.filter((_, i) => bookable[i]);
 };
 

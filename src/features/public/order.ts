@@ -15,6 +15,7 @@
  * validation error keeps the visitor's context instead of dropping it.
  */
 
+import { filter, map, pipe } from "#fp";
 import {
   htmlResponse,
   notFoundResponse,
@@ -58,9 +59,13 @@ const orderUnavailable = (): Response | null => {
  */
 const bookingUrlFor = (selected: TicketListing[]): string => {
   const slugs = selected.map((t) => t.listing.slug);
-  const quantities = selected
-    .filter((t) => !t.isSoldOut && !t.isClosed && t.maxPurchasable >= 1)
-    .map((t) => `q_${t.listing.id}=1`);
+  const quantities = pipe(
+    filter(
+      (t: TicketListing) =>
+        !t.isSoldOut && !t.isClosed && t.maxPurchasable >= 1,
+    ),
+    map((t: TicketListing) => `q_${t.listing.id}=1`),
+  )(selected);
   const query = quantities.length > 0 ? `?${quantities.join("&")}` : "";
   return `/ticket/${slugs.join("+")}${query}`;
 };

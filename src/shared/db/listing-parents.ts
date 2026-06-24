@@ -12,7 +12,7 @@
  * uses them, to keep the module free of unused exports.
  */
 
-import { compact } from "#fp";
+import { mapNotNullish } from "#fp";
 import {
   executeBatch,
   inPlaceholders,
@@ -151,7 +151,7 @@ export const getParentsOf = async (
   const ids = await getParentIds(childId);
   if (ids.length === 0) return [];
   const byId = await getListingsById();
-  return compact(ids.map((id) => byId.get(id)));
+  return mapNotNullish((id: number) => byId.get(id))(ids);
 };
 
 /** Both sides of every edge a listing participates in: its children and the

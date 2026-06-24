@@ -289,9 +289,9 @@ export const adminDashboardPage = (
   // The multi-booking builder offers only standalone-bookable listings; a child
   // is never an entry point (I3), so it is excluded from both the selectable set
   // and the "2+ listings" gate that decides whether to show the builder at all.
-  const multiBookingListings = activeListings.filter(
-    (e) => !childIds.has(e.id),
-  );
+  const multiBookingListings = filter(
+    (e: ListingWithCount) => !childIds.has(e.id),
+  )(activeListings);
   const categories = unique(listings.map(listingCategory));
   const shownListings = filterListingsByType(activeType)(activeListings);
   const typeFilterHtml =
