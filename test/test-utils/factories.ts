@@ -3,6 +3,7 @@ import type { BuiltSite } from "#shared/db/built-sites.ts";
 import type { ListingInput } from "#shared/db/listings.ts";
 import type {
   Answer,
+  AttendeeQuestionData,
   QuestionDisplayType,
   QuestionWithAnswers,
 } from "#shared/db/questions.ts";
@@ -349,4 +350,28 @@ export const pricedOrder = (
   modifierApplications: [],
   total: 0,
   ...overrides,
+});
+
+/** The canonical "Size?" question answer-data fixture used by both the
+ *  detail-rows unit tests and the admin questions template tests: three
+ *  attendees (ids 1, 2, 3) answering a single "Size?" question (id 1) with
+ *  answers Small (id 10, picked by attendees 1 and 2) and Large (id 11,
+ *  picked by attendee 3). Returns the {@link AttendeeQuestionData} shape
+ *  `buildAnswerSummaryRows`/`AttendeeTable` consume. */
+export const sizeQuestionAnswerData = (): AttendeeQuestionData => ({
+  attendeeAnswerMap: new Map([
+    [1, [10]],
+    [2, [10]],
+    [3, [11]],
+  ]),
+  questions: [
+    testQuestion({
+      answers: [
+        testAnswer({ id: 10, sort_order: 0, text: "Small" }),
+        testAnswer({ id: 11, sort_order: 1, text: "Large" }),
+      ],
+      id: 1,
+      text: "Size?",
+    }),
+  ],
 });

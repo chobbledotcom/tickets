@@ -13,6 +13,15 @@ const MOCK_DB_RESULT = {
   ok: true as const,
 };
 
+/** Stub `testDbConnection` to resolve `ok: true`. The build-error and
+ *  task-in-progress tests both pair a per-test `buildSite` stub with this
+ *  identical `testDbConnection` stub; hoisting it avoids restating the same
+ *  `stub(builderApi, "testDbConnection", …)` line in each. */
+const stubDbOk = () =>
+  stub(builderApi, "testDbConnection", () =>
+    Promise.resolve({ ok: true as const }),
+  );
+
 import {
   adminFormPost,
   awaitTestRequest,
@@ -41,9 +50,7 @@ const stubSuccessfulBuild = () => ({
       scriptId: 42,
     }),
   ),
-  dbTestStub: stub(builderApi, "testDbConnection", () =>
-    Promise.resolve({ ok: true as const }),
-  ),
+  dbTestStub: stubDbOk(),
   encKeyStub: stub(builderApi, "generateEncryptionKey", () => "dGVzdGtleQ=="),
   fetchStub: stub(globalThis, "fetch", (input: string | URL | Request) => {
     const url = String(input);
@@ -278,9 +285,7 @@ describeWithEnv(
               ok: false as const,
             }),
           ),
-          dbTestStub: stub(builderApi, "testDbConnection", () =>
-            Promise.resolve({ ok: true as const }),
-          ),
+          dbTestStub: stubDbOk(),
         }),
         async () => {
           const { response } = await adminFormPost("/admin/builder", {
@@ -328,9 +333,7 @@ describeWithEnv(
               scriptId: 1,
             }),
           ),
-          dbTestStub: stub(builderApi, "testDbConnection", () =>
-            Promise.resolve({ ok: true as const }),
-          ),
+          dbTestStub: stubDbOk(),
         }),
         async () => {
           const { response } = await adminFormPost("/admin/builder", {
