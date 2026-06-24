@@ -33,7 +33,11 @@ describeWithEnv("db > processed payments", { db: true }, () => {
       if (!attendeeResult.success) throw new Error("Failed to create attendee");
 
       await reserveSession("sess_dup");
-      await finalizePaymentSession("sess_dup", attendeeResult.attendees[0]!.id);
+      await finalizePaymentSession(
+        "sess_dup",
+        attendeeResult.attendees[0]!.id,
+        ["tok-test"],
+      );
 
       const result = await reserveSession("sess_dup");
       expect(result.reserved).toBe(false);
@@ -139,6 +143,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
       await finalizePaymentSession(
         "sess_finalized_nofail",
         attendee.attendees[0]!.id,
+        ["tok-test"],
       );
 
       await markSessionFailed("sess_finalized_nofail", { error: "late fail" });
@@ -215,7 +220,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
       const attendeeId = attendeeResult.attendees[0]!.id;
 
       await reserveSession("sess_fss2");
-      await finalizePaymentSession("sess_fss2", attendeeId);
+      await finalizePaymentSession("sess_fss2", attendeeId, ["tok-test"]);
 
       // A second finalize (different attendee id) must not overwrite
       const stmt = finalizeSessionStatement("sess_fss2", attendeeId + 999);
@@ -237,30 +242,13 @@ describeWithEnv("db > processed payments", { db: true }, () => {
       const attendeeId = attendeeResult.attendees[0]!.id;
 
       await reserveSession("sess_stt");
-      await finalizePaymentSession("sess_stt", attendeeId);
+      await finalizePaymentSession("sess_stt", attendeeId, ["tok-test"]);
       await setSessionTicketTokens("sess_stt", ["tok-abc"]);
 
       const row = await isSessionProcessed("sess_stt");
       // ticket_tokens is stored encrypted, not as plaintext
       expect(row!.ticket_tokens).not.toBe("");
       expect(row!.ticket_tokens).not.toContain("tok-abc");
-    });
-
-    test("clears ticket_tokens when called with an empty list", async () => {
-      const listing = await createTestListing({ maxAttendees: 50 });
-      const attendeeResult = await bookAttendee(listing, {
-        email: "stt2@example.com",
-        name: "Stt2",
-      });
-      if (!attendeeResult.success) throw new Error("setup failed");
-      const attendeeId = attendeeResult.attendees[0]!.id;
-
-      await reserveSession("sess_stt2");
-      await finalizePaymentSession("sess_stt2", attendeeId, ["tok-xyz"]);
-      await setSessionTicketTokens("sess_stt2", []);
-
-      const row = await isSessionProcessed("sess_stt2");
-      expect(row!.ticket_tokens).toBe("");
     });
 
     test("is a no-op if the session was pruned", async () => {

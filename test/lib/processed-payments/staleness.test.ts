@@ -59,7 +59,7 @@ describeWithEnv("processed-payments / staleness", { db: true }, () => {
 
     test("does not delete a finalized reservation", async () => {
       await reserveSession("cs_finalized_no_delete");
-      await finalizeSession("cs_finalized_no_delete", attendeeId);
+      await finalizeSession("cs_finalized_no_delete", attendeeId, ["tok-test"]);
       await releaseReservation("cs_finalized_no_delete");
 
       const record = await isSessionProcessed("cs_finalized_no_delete");

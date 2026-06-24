@@ -191,10 +191,8 @@ export const reserveSession = async (
 };
 
 /** Encrypt a list of ticket tokens for storage, joining with "+". */
-const encryptTicketTokens = async (ticketTokens: string[]): Promise<string> => {
-  const joined = ticketTokens.join("+");
-  return joined ? encrypt(joined) : Promise.resolve("");
-};
+const encryptTicketTokens = (ticketTokens: string[]): Promise<string> =>
+  encrypt(ticketTokens.join("+"));
 
 /**
  * Finalize a reserved session with the created attendee ID (second phase)
@@ -202,7 +200,7 @@ const encryptTicketTokens = async (ticketTokens: string[]): Promise<string> => {
 export const finalizeSession = async (
   sessionId: string,
   attendeeId: number,
-  ticketTokens: string[] = [],
+  ticketTokens: string[],
 ): Promise<void> => {
   await execute(
     "UPDATE processed_payments SET attendee_id = ?, ticket_tokens = ? WHERE payment_session_id = ?",
