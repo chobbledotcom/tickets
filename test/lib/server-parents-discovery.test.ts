@@ -102,23 +102,70 @@ describeWithEnv(
         expect(body).toContain(`href="/ticket/${parent.slug}"`);
       });
 
-      test("a child whose only parent is deactivated renders unavailable", async () => {
-        // The only parent page that could offer this child is deactivated, so
-        // the "available as an add-on" CTA would point at nothing. A child is
-        // never standalone-bookable (the slug guard rejects all children), so
-        // the card renders as currently unavailable rather than a dead-end Book
-        // link or a dead-end add-on note (Fix 1).
-        const { parent, child } = await makeParent({
-          children: [{ name: "Add-on" }],
-          parent: { name: "Base unit" },
+      // A child whose only parent cannot offer it (deactivated / sold out /
+      // closed registration) has a dead-end "available as an add-on" CTA and is
+      // never standalone-bookable (the slug guard rejects all children), so its
+      // card must read as currently unavailable rather than a dead-end Book link
+      // or add-on note (Fix 1, parentBookable). Each row disables the only parent
+      // a different way; the assertions are identical.
+      const UNAVAILABLE_CHILD_CASES: {
+        name: string;
+        // Build the parent + child for this row and disable the parent.
+        setup: () => Promise<{ child: { slug: string } }>;
+      }[] = [
+        {
+          name: "a child whose only parent is deactivated renders unavailable",
+          setup: async () => {
+            const { parent, child } = await makeParent({
+              children: [{ name: "Add-on" }],
+              parent: { name: "Base unit" },
+            });
+            await deactivateTestListing(parent.id);
+            return { child };
+          },
+        },
+        {
+          name: "a child whose only parent is sold out renders unavailable",
+          setup: async () => {
+            const { parent, child } = await makeParent({
+              children: [{ name: "Add-on" }],
+              parent: { maxAttendees: 1, name: "Base unit" },
+            });
+            await createTestAttendee(
+              parent.id,
+              parent.slug,
+              "Buyer",
+              "b@x.com",
+            );
+            return { child };
+          },
+        },
+        {
+          name: "a child whose only parent has closed registration renders unavailable",
+          setup: async () => {
+            const pastDate = new Date(Date.now() - 60000)
+              .toISOString()
+              .slice(0, 16);
+            const { child } = await makeParent({
+              children: [{ name: "Add-on" }],
+              parent: { closesAt: pastDate, name: "Base unit" },
+            });
+            return { child };
+          },
+        },
+      ];
+      for (const c of UNAVAILABLE_CHILD_CASES) {
+        test(c.name, async () => {
+          const { child } = await c.setup();
+          const body = await publicBody("/listings");
+          expect(body).toContain("Add-on");
+          expect(body).not.toContain(
+            "Available as an add-on to another booking",
+          );
+          expect(body).not.toContain(`href="/ticket/${child.slug}"`);
+          expect(body).toContain("Currently Unavailable");
         });
-        await deactivateTestListing(parent.id);
-        const body = await publicBody("/listings");
-        expect(body).toContain("Add-on");
-        expect(body).not.toContain("Available as an add-on to another booking");
-        expect(body).not.toContain(`href="/ticket/${child.slug}"`);
-        expect(body).toContain("Currently Unavailable");
-      });
+      }
 
       test("a child whose only parent is deactivated still 404s its ticket page", async () => {
         // The slug guard rejects every child regardless of parent.active, so the
@@ -134,41 +181,6 @@ describeWithEnv(
         );
         response.body?.cancel();
         expect(response.status).toBe(404);
-      });
-
-      test("a child whose only parent is sold out renders unavailable", async () => {
-        // The only parent page that could offer this child is itself sold out, so
-        // it cannot fold the child into a booking — the "available as an add-on"
-        // note would be a dead end. The child is never standalone-bookable, so its
-        // card reads as currently unavailable (Fix 1, parentBookable sold-out).
-        const { parent, child } = await makeParent({
-          children: [{ name: "Add-on" }],
-          parent: { maxAttendees: 1, name: "Base unit" },
-        });
-        await createTestAttendee(parent.id, parent.slug, "Buyer", "b@x.com");
-        const body = await publicBody("/listings");
-        expect(body).toContain("Add-on");
-        expect(body).not.toContain("Available as an add-on to another booking");
-        expect(body).not.toContain(`href="/ticket/${child.slug}"`);
-        expect(body).toContain("Currently Unavailable");
-      });
-
-      test("a child whose only parent has closed registration renders unavailable", async () => {
-        // The only parent is past its own closes_at, so it cannot offer the child
-        // — the add-on note would be a dead end and the child reads unavailable
-        // (Fix 1, parentBookable registration-closed).
-        const pastDate = new Date(Date.now() - 60000)
-          .toISOString()
-          .slice(0, 16);
-        const { child } = await makeParent({
-          children: [{ name: "Add-on" }],
-          parent: { closesAt: pastDate, name: "Base unit" },
-        });
-        const body = await publicBody("/listings");
-        expect(body).toContain("Add-on");
-        expect(body).not.toContain("Available as an add-on to another booking");
-        expect(body).not.toContain(`href="/ticket/${child.slug}"`);
-        expect(body).toContain("Currently Unavailable");
       });
 
       test("a child with a bookable parent shows the add-on note", async () => {

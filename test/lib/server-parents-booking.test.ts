@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { buildQrBookPayload, signQrBookToken } from "#shared/qr-token.ts";
+import type { Listing } from "#shared/types.ts";
 import {
   apiBook,
   apiGet,
@@ -42,135 +43,147 @@ describeWithEnv(
       expect(res.status).toBe(200);
     });
 
-    test("a parent's quantity is clamped to a single child's capacity", async () => {
-      // The parent offers up to 5, but its single auto-selected child is capped
-      // at 1, so child quantity (slaved to the parent) can only be 1 — the page
-      // must offer only quantity 0–1, not 2–5 the submit fold would reject
-      // (Codex 565).
-      const { parent } = await makeParent({
-        children: [{ maxAttendees: 50, maxQuantity: 1 }],
-        parent: { maxAttendees: 50, maxQuantity: 5 },
+    // Table-driven: the parent-quantity clamp / group-cap render cluster. Each
+    // row builds a scenario, renders the parent's booking page, isolates the
+    // `quantity_<parent.id>` <select>, and asserts which quantity options it
+    // offers (`contains`) and rejects (`notContains`). The setup varies — some
+    // rows pre-create a separate child-only group — so each row supplies its own
+    // async `setup`; the comment on each documents the invariant it protects.
+    const QUANTITY_CLAMP_CASES: {
+      name: string;
+      setup: () => Promise<{ parent: Listing }>;
+      contains: string;
+      notContains: string[];
+    }[] = [
+      {
+        contains: '"1"',
+        // The parent offers up to 5, but its single auto-selected child is capped
+        // at 1, so child quantity (slaved to the parent) can only be 1 — the page
+        // must offer only quantity 0–1, not 2–5 the submit fold would reject
+        // (Codex 565).
+        name: "a parent's quantity is clamped to a single child's capacity",
+        notContains: ['"2"', '"5"'],
+        setup: () =>
+          makeParent({
+            children: [{ maxAttendees: 50, maxQuantity: 1 }],
+            parent: { maxAttendees: 50, maxQuantity: 5 },
+          }),
+      },
+      {
+        contains: '"3"',
+        // With the child capped at 3, the parent offering 5 must offer up to 3 and
+        // no higher (Codex 565).
+        name: "a parent's quantity is clamped to a child capped at three",
+        notContains: ['"4"', '"5"'],
+        setup: () =>
+          makeParent({
+            children: [{ maxAttendees: 50, maxQuantity: 3 }],
+            parent: { maxAttendees: 50, maxQuantity: 5 },
+          }),
+      },
+      {
+        contains: '"1"',
+        // Parent and its only child share a capped group, so each order consumes
+        // TWO group spots (parent + auto-selected child). With two spots free the
+        // selector must offer quantity 1 and never 2, which the submit-side
+        // combined-demand check would reject (Fix 3, invariant I7).
+        name: "a parent + child sharing a capped group with 2 spots offers only qty 1",
+        notContains: ['"2"'],
+        setup: () =>
+          makeParent({
+            children: [{ maxQuantity: 5 }],
+            group: { maxAttendees: 2, name: "Pool" },
+            parent: { maxQuantity: 5 },
+          }),
+      },
+      {
+        contains: '"2"',
+        // With four shared spots free, two parent+child orders fit (four units), so
+        // the selector offers up to quantity 2 and no higher (Fix 3).
+        name: "a parent + child sharing a capped group with 4 spots offers up to qty 2",
+        notContains: ['"3"'],
+        setup: () =>
+          makeParent({
+            children: [{ maxQuantity: 5 }],
+            group: { maxAttendees: 4, name: "Pool" },
+            parent: { maxQuantity: 5 },
+          }),
+      },
+      {
+        contains: '"1"',
+        // The parent is ungrouped, but its two children share ONE capped child-only
+        // group with a single spot. Under per-unit selection 1-of-each consumes TWO
+        // spots from that one pool, so only one combined order fits. The parent
+        // quantity selector must offer 1 and never 2 — summing each child's own cap
+        // (1 + 1 = 2) over-offered, and `checkBatchAvailability` would reject a 2.
+        name: "an ungrouped parent + two children sharing a 1-spot capped group offers parent max 1 (Fix 3)",
+        notContains: ['"2"'],
+        setup: async () => {
+          const childGroup = await createTestGroup({
+            maxAttendees: 1,
+            name: "Add-on pool",
+          });
+          return makeParent({
+            children: [
+              { groupId: childGroup.id, maxAttendees: 50, maxQuantity: 5 },
+              { groupId: childGroup.id, maxAttendees: 50, maxQuantity: 5 },
+            ],
+            parent: { maxAttendees: 50, maxQuantity: 5 },
+          });
+        },
+      },
+      {
+        contains: '"3"',
+        // The same child-only capped group with three spots fits three child units
+        // total across the two children, so the parent offers up to 3 and no higher
+        // — proving the cohort is clamped by the pool's remaining (3), not summed
+        // per child (5 + 5) and not floor-divided (this group has no parent in it).
+        name: "an ungrouped parent + two children sharing a 3-spot capped group offers parent max 3 (Fix 3)",
+        notContains: ['"4"'],
+        setup: async () => {
+          const childGroup = await createTestGroup({
+            maxAttendees: 3,
+            name: "Add-on pool",
+          });
+          return makeParent({
+            children: [
+              { groupId: childGroup.id, maxAttendees: 50, maxQuantity: 5 },
+              { groupId: childGroup.id, maxAttendees: 50, maxQuantity: 5 },
+            ],
+            parent: { maxAttendees: 50, maxQuantity: 9 },
+          });
+        },
+      },
+      {
+        contains: '"1"',
+        // The shared group has 10 spots — `floor(10 / 2) = 5` parent+child orders
+        // would fit the pool — but the single child itself caps at 1, so only ONE
+        // order can actually be fulfilled. The parent quantity (which the sole child
+        // is auto-filled to) must be clamped to 1, never offering 2 the submit fold
+        // would reject. Before Fix 5 the shared-group cap ignored the child's own
+        // `maxPurchasable` and offered up to 5.
+        name: "a parent + child sharing a big capped group is clamped by the child's own capacity (Fix 5)",
+        notContains: ['"2"'],
+        setup: () =>
+          makeParent({
+            children: [{ maxAttendees: 50, maxQuantity: 1 }],
+            group: { maxAttendees: 10, name: "Pool" },
+            parent: { maxAttendees: 50, maxQuantity: 5 },
+          }),
+      },
+    ];
+    for (const c of QUANTITY_CLAMP_CASES) {
+      test(c.name, async () => {
+        const { parent } = await c.setup();
+        const body = await (await ticketGet(parent.slug)).text();
+        const select = body.slice(body.indexOf(`name="quantity_${parent.id}"`));
+        const options = select.slice(0, select.indexOf("</select>"));
+        expect(options).toContain(`value=${c.contains}`);
+        for (const value of c.notContains) {
+          expect(options).not.toContain(`value=${value}`);
+        }
       });
-      const body = await (await ticketGet(parent.slug)).text();
-      const select = body.slice(body.indexOf(`name="quantity_${parent.id}"`));
-      const options = select.slice(0, select.indexOf("</select>"));
-      expect(options).toContain('value="1"');
-      expect(options).not.toContain('value="2"');
-      expect(options).not.toContain('value="5"');
-    });
-
-    test("a parent's quantity is clamped to a child capped at three", async () => {
-      // With the child capped at 3, the parent offering 5 must offer up to 3 and
-      // no higher (Codex 565).
-      const { parent } = await makeParent({
-        children: [{ maxAttendees: 50, maxQuantity: 3 }],
-        parent: { maxAttendees: 50, maxQuantity: 5 },
-      });
-      const body = await (await ticketGet(parent.slug)).text();
-      const select = body.slice(body.indexOf(`name="quantity_${parent.id}"`));
-      const options = select.slice(0, select.indexOf("</select>"));
-      expect(options).toContain('value="3"');
-      expect(options).not.toContain('value="4"');
-      expect(options).not.toContain('value="5"');
-    });
-
-    test("a parent + child sharing a capped group with 2 spots offers only qty 1", async () => {
-      // Parent and its only child share a capped group, so each order consumes
-      // TWO group spots (parent + auto-selected child). With two spots free the
-      // selector must offer quantity 1 and never 2, which the submit-side
-      // combined-demand check would reject (Fix 3, invariant I7).
-      const { parent } = await makeParent({
-        children: [{ maxQuantity: 5 }],
-        group: { maxAttendees: 2, name: "Pool" },
-        parent: { maxQuantity: 5 },
-      });
-      const body = await (await ticketGet(parent.slug)).text();
-      const select = body.slice(body.indexOf(`name="quantity_${parent.id}"`));
-      const options = select.slice(0, select.indexOf("</select>"));
-      expect(options).toContain('value="1"');
-      expect(options).not.toContain('value="2"');
-    });
-
-    test("a parent + child sharing a capped group with 4 spots offers up to qty 2", async () => {
-      // With four shared spots free, two parent+child orders fit (four units), so
-      // the selector offers up to quantity 2 and no higher (Fix 3).
-      const { parent } = await makeParent({
-        children: [{ maxQuantity: 5 }],
-        group: { maxAttendees: 4, name: "Pool" },
-        parent: { maxQuantity: 5 },
-      });
-      const body = await (await ticketGet(parent.slug)).text();
-      const select = body.slice(body.indexOf(`name="quantity_${parent.id}"`));
-      const options = select.slice(0, select.indexOf("</select>"));
-      expect(options).toContain('value="2"');
-      expect(options).not.toContain('value="3"');
-    });
-
-    test("an ungrouped parent + two children sharing a 1-spot capped group offers parent max 1 (Fix 3)", async () => {
-      // The parent is ungrouped, but its two children share ONE capped child-only
-      // group with a single spot. Under per-unit selection 1-of-each consumes TWO
-      // spots from that one pool, so only one combined order fits. The parent
-      // quantity selector must offer 1 and never 2 — summing each child's own cap
-      // (1 + 1 = 2) over-offered, and `checkBatchAvailability` would reject a 2.
-      const childGroup = await createTestGroup({
-        maxAttendees: 1,
-        name: "Add-on pool",
-      });
-      const { parent } = await makeParent({
-        children: [
-          { groupId: childGroup.id, maxAttendees: 50, maxQuantity: 5 },
-          { groupId: childGroup.id, maxAttendees: 50, maxQuantity: 5 },
-        ],
-        parent: { maxAttendees: 50, maxQuantity: 5 },
-      });
-      const body = await (await ticketGet(parent.slug)).text();
-      const select = body.slice(body.indexOf(`name="quantity_${parent.id}"`));
-      const options = select.slice(0, select.indexOf("</select>"));
-      expect(options).toContain('value="1"');
-      expect(options).not.toContain('value="2"');
-    });
-
-    test("an ungrouped parent + two children sharing a 3-spot capped group offers parent max 3 (Fix 3)", async () => {
-      // The same child-only capped group with three spots fits three child units
-      // total across the two children, so the parent offers up to 3 and no higher
-      // — proving the cohort is clamped by the pool's remaining (3), not summed
-      // per child (5 + 5) and not floor-divided (this group has no parent in it).
-      const childGroup = await createTestGroup({
-        maxAttendees: 3,
-        name: "Add-on pool",
-      });
-      const { parent } = await makeParent({
-        children: [
-          { groupId: childGroup.id, maxAttendees: 50, maxQuantity: 5 },
-          { groupId: childGroup.id, maxAttendees: 50, maxQuantity: 5 },
-        ],
-        parent: { maxAttendees: 50, maxQuantity: 9 },
-      });
-      const body = await (await ticketGet(parent.slug)).text();
-      const select = body.slice(body.indexOf(`name="quantity_${parent.id}"`));
-      const options = select.slice(0, select.indexOf("</select>"));
-      expect(options).toContain('value="3"');
-      expect(options).not.toContain('value="4"');
-    });
-
-    test("a parent + child sharing a big capped group is clamped by the child's own capacity (Fix 5)", async () => {
-      // The shared group has 10 spots — `floor(10 / 2) = 5` parent+child orders
-      // would fit the pool — but the single child itself caps at 1, so only ONE
-      // order can actually be fulfilled. The parent quantity (which the sole child
-      // is auto-filled to) must be clamped to 1, never offering 2 the submit fold
-      // would reject. Before Fix 5 the shared-group cap ignored the child's own
-      // `maxPurchasable` and offered up to 5.
-      const { parent } = await makeParent({
-        children: [{ maxAttendees: 50, maxQuantity: 1 }],
-        group: { maxAttendees: 10, name: "Pool" },
-        parent: { maxAttendees: 50, maxQuantity: 5 },
-      });
-      const body = await (await ticketGet(parent.slug)).text();
-      const select = body.slice(body.indexOf(`name="quantity_${parent.id}"`));
-      const options = select.slice(0, select.indexOf("</select>"));
-      expect(options).toContain('value="1"');
-      expect(options).not.toContain('value="2"');
-    });
+    }
 
     test("a shared-group child's per-unit select is clamped by its own capacity (Fix 5)", async () => {
       // With a second (separate-pool) child the shared child renders a per-unit
@@ -276,78 +289,80 @@ describeWithEnv(
       expect((await getAttendeesRaw(childB.id))[0]?.quantity).toBe(1);
     });
 
-    test("the JSON API rejects a child total below the parent quantity", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.showPublicApi(true);
-      const { parent, children } = await makeParent({
-        children: [{}, {}],
-        parent: { maxQuantity: 5 },
-      });
-      const childA = children[0]!;
-      // Two parent units but only one child chosen — the fold rejects it.
-      const res = await apiBook(parent.slug, {
-        children: [{ quantity: 1, slug: childA.slug }],
-        quantity: 2,
-      });
-      expect(res.status).toBe(400);
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      expect((await getAttendeesRaw(parent.id)).length).toBe(0);
-    });
-
-    test("the JSON API rejects a child slug that is not a child of the parent", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.showPublicApi(true);
-      const { parent } = await makeParent();
-      const stranger = await createTestListing({ name: "Stranger" });
-      const res = await apiBook(parent.slug, {
-        children: [{ quantity: 1, slug: stranger.slug }],
-      });
-      expect(res.status).toBe(400);
-      const body = (await res.json()) as { error: string };
-      expect(body.error).toContain("is not a child of this listing");
-    });
-
-    test("the JSON API rejects a malformed children field", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.showPublicApi(true);
-      const { parent } = await makeParent();
-      const res = await apiBook(parent.slug, { children: "nope" });
-      expect(res.status).toBe(400);
-    });
-
-    test("the JSON API rejects booking a customisable parent", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.showPublicApi(true);
-      const { parent, child } = await makeParent({
-        parent: {
-          customisableDays: true,
-          dayPrices: { 1: 1000, 2: 1800 },
-          durationDays: 2,
+    // Table-driven: the JSON-API rejection cluster. Each row enables the public
+    // API, builds a parent, POSTs a body to `apiBook(parent.slug, …)`, and
+    // expects a 400. `body` may reference the created child; the two extra
+    // assertions some rows carry are optional per-row fields.
+    const API_REJECTION_CASES: {
+      name: string;
+      makeParentArgs?: Parameters<typeof makeParent>[0];
+      body: (child: Listing) => Promise<Record<string, unknown>>;
+      expectErrorContains?: string;
+      expectZeroParentAttendees?: boolean;
+    }[] = [
+      {
+        body: (child) =>
+          Promise.resolve({
+            children: [{ quantity: 1, slug: child.slug }],
+            quantity: 2,
+          }),
+        // Two parent units but only one child chosen — the fold rejects it.
+        expectZeroParentAttendees: true,
+        makeParentArgs: { children: [{}, {}], parent: { maxQuantity: 5 } },
+        name: "the JSON API rejects a child total below the parent quantity",
+      },
+      {
+        body: async () => {
+          const stranger = await createTestListing({ name: "Stranger" });
+          return { children: [{ quantity: 1, slug: stranger.slug }] };
         },
+        expectErrorContains: "is not a child of this listing",
+        name: "the JSON API rejects a child slug that is not a child of the parent",
+      },
+      {
+        body: () => Promise.resolve({ children: "nope" }),
+        name: "the JSON API rejects a malformed children field",
+      },
+      {
+        body: (child) =>
+          Promise.resolve({
+            children: [{ quantity: 1, slug: child.slug }],
+          }),
+        makeParentArgs: {
+          parent: {
+            customisableDays: true,
+            dayPrices: { 1: 1000, 2: 1800 },
+            durationDays: 2,
+          },
+        },
+        name: "the JSON API rejects booking a customisable parent",
+      },
+      {
+        body: () => Promise.resolve({ children: [null] }),
+        name: "the JSON API rejects a null children entry",
+      },
+      {
+        body: (child) => Promise.resolve({ children: [{ slug: child.slug }] }),
+        name: "the JSON API rejects a children entry missing its quantity",
+      },
+    ];
+    for (const c of API_REJECTION_CASES) {
+      test(c.name, async () => {
+        const { settings } = await import("#shared/db/settings.ts");
+        await settings.update.showPublicApi(true);
+        const { parent, child } = await makeParent(c.makeParentArgs);
+        const res = await apiBook(parent.slug, await c.body(child));
+        expect(res.status).toBe(400);
+        if (c.expectErrorContains !== undefined) {
+          const body = (await res.json()) as { error: string };
+          expect(body.error).toContain(c.expectErrorContains);
+        }
+        if (c.expectZeroParentAttendees) {
+          const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+          expect((await getAttendeesRaw(parent.id)).length).toBe(0);
+        }
       });
-      const res = await apiBook(parent.slug, {
-        children: [{ quantity: 1, slug: child.slug }],
-      });
-      expect(res.status).toBe(400);
-    });
-
-    test("the JSON API rejects a null children entry", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.showPublicApi(true);
-      const { parent } = await makeParent();
-      const res = await apiBook(parent.slug, { children: [null] });
-      expect(res.status).toBe(400);
-    });
-
-    test("the JSON API rejects a children entry missing its quantity", async () => {
-      const { settings } = await import("#shared/db/settings.ts");
-      await settings.update.showPublicApi(true);
-      const { parent, child } = await makeParent();
-      const res = await apiBook(parent.slug, {
-        children: [{ slug: child.slug }],
-      });
-      expect(res.status).toBe(400);
-    });
+    }
 
     test("the JSON API sums repeated child slugs to the parent quantity", async () => {
       const { settings } = await import("#shared/db/settings.ts");

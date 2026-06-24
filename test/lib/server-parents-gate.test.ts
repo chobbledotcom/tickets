@@ -216,120 +216,122 @@ describeWithEnv(
       expect(rowsB[0]?.quantity).toBe(1);
     });
 
-    test("a child total below the parent quantity is rejected (choose more)", async () => {
-      const { parent, children } = await makeParent({
-        children: [{}, {}],
-        parent: { maxQuantity: 5, name: "Base unit" },
-      });
-      const childA = children[0]!;
-
+    // Child-quantity validation rejections: each builds a 2-child parent named
+    // "Base unit", posts a booking whose child quantities are invalid, and
+    // asserts a 302 + flash + zero parent rows. Per-row fields cover the cases
+    // that need a stranger listing or extra child-row assertions.
+    type ParentResult = Awaited<ReturnType<typeof makeParent>>;
+    type StrangerListing = Awaited<ReturnType<typeof createTestListing>>;
+    const REJECTION_CASES: {
+      name: string;
+      children: NonNullable<Parameters<typeof makeParent>[0]>["children"];
+      parent: { maxQuantity?: number; name: string };
+      makeStranger?: boolean;
+      // Build the posted quantity_*/child_qty_* fields from the resolved parent
+      // id, its children, and an optional stranger listing (for the not-a-child
+      // case).
+      postFields: (args: {
+        parentId: number;
+        children: ParentResult["children"];
+        stranger: StrangerListing | undefined;
+      }) => Record<string, string>;
+      flash: string;
+      // The not-subtracted case also pins childA/childB to zero rows.
+      extraChildIdsZero?: boolean;
+    }[] = [
       // Parent quantity 2 but only 1 child unit chosen → "choose 1 more add-on".
-      const res = await postBooking(parent.slug, {
-        email: "a@b.com",
-        name: "Ada",
-        [`quantity_${parent.id}`]: "2",
-        [`child_qty_${parent.id}_${childA.id}`]: "1",
-      });
-      expect(res.status).toBe(302);
-      expectFlash(res, "Choose 1 more add-on for Base unit.", false);
-      expect((await getAttendeesRaw(parent.id)).length).toBe(0);
-    });
-
-    test("a child total above the parent quantity is rejected (too many)", async () => {
-      const { parent, children } = await makeParent({
-        children: [{ maxQuantity: 5 }, { maxQuantity: 5 }],
+      {
+        children: [{}, {}],
+        flash: "Choose 1 more add-on for Base unit.",
+        name: "a child total below the parent quantity is rejected (choose more)",
         parent: { maxQuantity: 5, name: "Base unit" },
-      });
-      const [childA, childB] = [children[0]!, children[1]!];
-
+        postFields: ({ children, parentId }) => ({
+          [`quantity_${parentId}`]: "2",
+          [`child_qty_${parentId}_${children[0]!.id}`]: "1",
+        }),
+      },
       // Parent quantity 1 but 2 child units chosen → too many.
-      const res = await postBooking(parent.slug, {
-        email: "a@b.com",
-        name: "Ada",
-        [`quantity_${parent.id}`]: "1",
-        [`child_qty_${parent.id}_${childA.id}`]: "1",
-        [`child_qty_${parent.id}_${childB.id}`]: "1",
-      });
-      expect(res.status).toBe(302);
-      expectFlash(
-        res,
-        "Too many add-ons chosen for Base unit — remove 1 add-on.",
-        false,
-      );
-      expect((await getAttendeesRaw(parent.id)).length).toBe(0);
-    });
-
-    test("a non-numeric child quantity is treated as zero (rejected as too few)", async () => {
+      {
+        children: [{ maxQuantity: 5 }, { maxQuantity: 5 }],
+        flash: "Too many add-ons chosen for Base unit — remove 1 add-on.",
+        name: "a child total above the parent quantity is rejected (too many)",
+        parent: { maxQuantity: 5, name: "Base unit" },
+        postFields: ({ children, parentId }) => ({
+          [`quantity_${parentId}`]: "1",
+          [`child_qty_${parentId}_${children[0]!.id}`]: "1",
+          [`child_qty_${parentId}_${children[1]!.id}`]: "1",
+        }),
+      },
       // A garbage `child_qty_*` value parses to 0, so a single-bookable-child
       // parent does NOT auto-select (a value was submitted) and the total falls
       // short of the parent quantity.
-      const { parent, children } = await makeParent({
+      {
         children: [{}, {}],
+        flash: "Choose 1 more add-on for Base unit.",
+        name: "a non-numeric child quantity is treated as zero (rejected as too few)",
         parent: { name: "Base unit" },
-      });
-      const childA = children[0]!;
-
-      const res = await postBooking(parent.slug, {
-        email: "a@b.com",
-        name: "Ada",
-        [`quantity_${parent.id}`]: "1",
-        [`child_qty_${parent.id}_${childA.id}`]: "abc",
-      });
-      expect(res.status).toBe(302);
-      expectFlash(res, "Choose 1 more add-on for Base unit.", false);
-      expect((await getAttendeesRaw(parent.id)).length).toBe(0);
-    });
-
-    test("a negative child quantity is treated as zero, not subtracted from the total", async () => {
+        postFields: ({ children, parentId }) => ({
+          [`quantity_${parentId}`]: "1",
+          [`child_qty_${parentId}_${children[0]!.id}`]: "abc",
+        }),
+      },
       // A negative `child_qty_*` value must be clamped to 0 (only non-negative
       // integers are accepted), NOT folded as a negative that silently lowers the
       // running total to the parent quantity. Here childA="-1" and childB="2": if
       // the negative were honoured the total would be 1 and the booking would slip
       // through; clamped to 0 the total is 2, one over the parent quantity of 1.
-      const { parent, children } = await makeParent({
+      {
         children: [{}, {}],
+        extraChildIdsZero: true,
+        flash: "Too many add-ons chosen for Base unit — remove 1 add-on.",
+        name: "a negative child quantity is treated as zero, not subtracted from the total",
         parent: { name: "Base unit" },
-      });
-      const [childA, childB] = [children[0]!, children[1]!];
-
-      const res = await postBooking(parent.slug, {
-        email: "a@b.com",
-        name: "Ada",
-        [`quantity_${parent.id}`]: "1",
-        [`child_qty_${parent.id}_${childA.id}`]: "-1",
-        [`child_qty_${parent.id}_${childB.id}`]: "2",
-      });
-      expect(res.status).toBe(302);
-      expectFlash(
-        res,
-        "Too many add-ons chosen for Base unit — remove 1 add-on.",
-        false,
-      );
-      expect((await getAttendeesRaw(parent.id)).length).toBe(0);
-      expect((await getAttendeesRaw(childA.id)).length).toBe(0);
-      expect((await getAttendeesRaw(childB.id)).length).toBe(0);
-    });
-
-    test("a positive quantity for a listing that is not a child of the parent is rejected", async () => {
+        postFields: ({ children, parentId }) => ({
+          [`quantity_${parentId}`]: "1",
+          [`child_qty_${parentId}_${children[0]!.id}`]: "-1",
+          [`child_qty_${parentId}_${children[1]!.id}`]: "2",
+        }),
+      },
       // Two bookable children, so no auto-select; a quantity submitted for a
       // stranger listing (not a child) must be rejected, never ignored — and the
       // valid total must not be reached by it.
-      const { parent } = await makeParent({
+      {
         children: [{}, {}],
+        flash: "Please choose an option for Base unit.",
+        makeStranger: true,
+        name: "a positive quantity for a listing that is not a child of the parent is rejected",
         parent: { name: "Base unit" },
-      });
-      const stranger = await createTestListing({ name: "Stranger" });
+        postFields: ({ parentId, stranger }) => ({
+          [`quantity_${parentId}`]: "1",
+          [`child_qty_${parentId}_${stranger!.id}`]: "1",
+        }),
+      },
+    ];
+    for (const c of REJECTION_CASES) {
+      test(c.name, async () => {
+        const { parent, children } = await makeParent({
+          children: c.children,
+          parent: c.parent,
+        });
+        const stranger = c.makeStranger
+          ? await createTestListing({ name: "Stranger" })
+          : undefined;
 
-      const res = await postBooking(parent.slug, {
-        email: "a@b.com",
-        name: "Ada",
-        [`quantity_${parent.id}`]: "1",
-        [`child_qty_${parent.id}_${stranger.id}`]: "1",
+        const res = await postBooking(parent.slug, {
+          email: "a@b.com",
+          name: "Ada",
+          ...c.postFields({ children, parentId: parent.id, stranger }),
+        });
+        expect(res.status).toBe(302);
+        expectFlash(res, c.flash, false);
+        expect((await getAttendeesRaw(parent.id)).length).toBe(0);
+        if (c.extraChildIdsZero) {
+          const [childA, childB] = [children[0]!, children[1]!];
+          expect((await getAttendeesRaw(childA.id)).length).toBe(0);
+          expect((await getAttendeesRaw(childB.id)).length).toBe(0);
+        }
       });
-      expect(res.status).toBe(302);
-      expectFlash(res, "Please choose an option for Base unit.", false);
-      expect((await getAttendeesRaw(parent.id)).length).toBe(0);
-    });
+    }
 
     test("a parent with no bookable child is rejected (sold out)", async () => {
       // A child with no capacity is not bookable, so the parent is sold out.
@@ -1351,135 +1353,146 @@ describeWithEnv(
       expect(datesAttr(parentB.id)).not.toContain(mondayDate);
     });
 
-    test("a customisable child's option label shows the inherited day price, not its unit_price", async () => {
+    // Price-label rendering: build a customisable parent+child, render the
+    // booking page, and assert the child's option label contains / omits a
+    // particular price string. Each row supplies its makeParent spec plus the
+    // contains/notContains assertions.
+    const PRICE_LABEL_CASES: {
+      name: string;
+      spec: Parameters<typeof makeParent>[0];
+      contains: string[];
+      notContains: string[];
+    }[] = [
       // A fixed-duration (standard) parent inherits duration 1; the customisable
       // child's label must show its 1-day price (10.00), never its unit_price
       // (0, which would advertise "free" while checkout charges the day price).
-      const { parent } = await makeParent({
-        children: [
-          {
-            customisableDays: true,
-            dayPrices: { 1: 1000 },
-            durationDays: 1,
-            maxPrice: 0,
-            name: "Customisable add-on",
-            unitPrice: 0,
-          },
-        ],
-      });
-
-      const html = await bookingPageHtml(parent.slug);
       // The sole child renders informationally; its label carries the day price,
       // not "£0".
-      expect(html).toContain("Customisable add-on");
-      expect(html).toContain("(£10");
-      expect(html).not.toContain("(£0");
-    });
-
-    test("a customisable child under a customisable parent shows a 'from' price", async () => {
+      {
+        contains: ["Customisable add-on", "(£10"],
+        name: "a customisable child's option label shows the inherited day price, not its unit_price",
+        notContains: ["(£0"],
+        spec: {
+          children: [
+            {
+              customisableDays: true,
+              dayPrices: { 1: 1000 },
+              durationDays: 1,
+              maxPrice: 0,
+              name: "Customisable add-on",
+              unitPrice: 0,
+            },
+          ],
+        },
+      },
       // A customisable parent has no single render-time duration, so its
       // customisable child's label shows "from <min day price>" (15.00).
-      const { parent } = await makeParent({
-        children: [
-          {
+      {
+        contains: ["Customisable add-on", "(from £15"],
+        name: "a customisable child under a customisable parent shows a 'from' price",
+        notContains: [],
+        spec: {
+          children: [
+            {
+              customisableDays: true,
+              dayPrices: { 1: 1500, 2: 2500 },
+              durationDays: 2,
+              maxPrice: 0,
+              name: "Customisable add-on",
+              unitPrice: 0,
+            },
+          ],
+          parent: {
             customisableDays: true,
-            dayPrices: { 1: 1500, 2: 2500 },
+            dayPrices: { 1: 1000, 2: 1800 },
             durationDays: 2,
-            maxPrice: 0,
-            name: "Customisable add-on",
-            unitPrice: 0,
           },
-        ],
-        parent: {
-          customisableDays: true,
-          dayPrices: { 1: 1000, 2: 1800 },
-          durationDays: 2,
         },
-      });
-
-      const html = await bookingPageHtml(parent.slug);
-      expect(html).toContain("Customisable add-on");
-      expect(html).toContain("(from £15");
-    });
-
-    test("a 'from' price uses the parent∩child spans, not the child's lowest", async () => {
+      },
       // The parent can only offer a 3-day span; the child is priced 1 day £10,
       // 3 days £25. The label must show the price for a span the parent can
       // actually book (£25), not the child's own cheapest span (£10) the parent
       // can never select (Codex 398).
-      const { parent } = await makeParent({
-        children: [
-          {
+      {
+        contains: ["(from £25"],
+        name: "a 'from' price uses the parent∩child spans, not the child's lowest",
+        notContains: ["(from £10"],
+        spec: {
+          children: [
+            {
+              customisableDays: true,
+              dayPrices: { 1: 1000, 3: 2500 },
+              durationDays: 3,
+              maxPrice: 0,
+              unitPrice: 0,
+            },
+          ],
+          parent: {
             customisableDays: true,
-            dayPrices: { 1: 1000, 3: 2500 },
+            dayPrices: { 3: 5000 },
             durationDays: 3,
-            maxPrice: 0,
-            unitPrice: 0,
           },
-        ],
-        parent: {
-          customisableDays: true,
-          dayPrices: { 3: 5000 },
-          durationDays: 3,
         },
-      });
-
-      const html = await bookingPageHtml(parent.slug);
-      expect(html).toContain("(from £25");
-      expect(html).not.toContain("(from £10");
-    });
-
-    test("a 'from' price is omitted when parent and child spans don't overlap", async () => {
+      },
       // The parent offers only a 3-day span; the child is priced only for 1 day.
       // With no overlapping span the label omits the price entirely (the edge
       // isn't bookable anyway).
-      const { parent } = await makeParent({
-        children: [
-          {
+      {
+        contains: ["One-day add-on"],
+        name: "a 'from' price is omitted when parent and child spans don't overlap",
+        notContains: ["One-day add-on (from", "One-day add-on (£"],
+        spec: {
+          children: [
+            {
+              customisableDays: true,
+              dayPrices: { 1: 1000 },
+              durationDays: 1,
+              maxPrice: 0,
+              name: "One-day add-on",
+              unitPrice: 0,
+            },
+          ],
+          parent: {
             customisableDays: true,
-            dayPrices: { 1: 1000 },
-            durationDays: 1,
-            maxPrice: 0,
-            name: "One-day add-on",
-            unitPrice: 0,
+            dayPrices: { 3: 5000 },
+            durationDays: 3,
           },
-        ],
-        parent: {
-          customisableDays: true,
-          dayPrices: { 3: 5000 },
-          durationDays: 3,
         },
-      });
-
-      const html = await bookingPageHtml(parent.slug);
-      expect(html).toContain("One-day add-on");
-      expect(html).not.toContain("One-day add-on (from");
-      expect(html).not.toContain("One-day add-on (£");
-    });
-
-    test("a customisable child unpriced for a fixed parent's duration shows no price", async () => {
+      },
       // The fixed daily parent inherits duration 3, but the child has no 3-day
       // price — the label omits the price rather than advertising a wrong one.
-      const { parent } = await makeParent({
-        children: [
-          {
-            customisableDays: true,
-            dayPrices: { 2: 2000 },
-            durationDays: 2,
-            maxPrice: 0,
-            name: "Two-day add-on",
-            unitPrice: 0,
-          },
-        ],
-        parent: { daily: true, durationDays: 3 },
-      });
-
-      const html = await bookingPageHtml(parent.slug);
       // The option appears with no price suffix (no "(£" after the name).
-      expect(html).toContain("Two-day add-on");
-      expect(html).not.toContain("Two-day add-on (£");
-      expect(html).not.toContain("Two-day add-on (from");
-    });
+      {
+        contains: ["Two-day add-on"],
+        name: "a customisable child unpriced for a fixed parent's duration shows no price",
+        notContains: ["Two-day add-on (£", "Two-day add-on (from"],
+        spec: {
+          children: [
+            {
+              customisableDays: true,
+              dayPrices: { 2: 2000 },
+              durationDays: 2,
+              maxPrice: 0,
+              name: "Two-day add-on",
+              unitPrice: 0,
+            },
+          ],
+          parent: { daily: true, durationDays: 3 },
+        },
+      },
+    ];
+    for (const c of PRICE_LABEL_CASES) {
+      test(c.name, async () => {
+        const { parent } = await makeParent(c.spec);
+        const html = await bookingPageHtml(parent.slug);
+        for (const needle of c.contains) {
+          expect(html).toContain(needle);
+        }
+        for (const needle of c.notContains) {
+          expect(html).not.toContain(needle);
+        }
+      });
+    }
 
     test("a daily child under a dateless (standard) parent is rejected", async () => {
       // The standard parent produces no date, so a daily child can never be
@@ -1788,82 +1801,97 @@ describeWithEnv(
       }
     });
 
-    test("a customisable parent offers only day counts its child can serve", async () => {
+    // Day-count-union rendering on a SINGLE-listing customisable parent page:
+    // build the parent+child, render, and assert which "<n> day(s)" labelled
+    // options the selector offers. (The labelled "<n> day(s)" string is the
+    // day-count option — the bare `<option value="1">` of the quantity selector
+    // is a different control, so the assertions key on the labelled option.)
+    const DAY_COUNT_UNION_CASES: {
+      name: string;
+      spec: Parameters<typeof makeParent>[0];
+      contains: string[];
+      notContains: string[];
+    }[] = [
       // The parent prices {1,2} days; its only child prices only 2 days. The
       // rendered day-count selector must offer only the 2-day option — the
       // 1-day option the submit fold would reject is gone (Codex 1030).
-      const { parent } = await makeParent({
-        children: [
-          {
+      {
+        contains: [">2 days"],
+        name: "a customisable parent offers only day counts its child can serve",
+        notContains: [">1 day"],
+        spec: {
+          children: [
+            {
+              customisableDays: true,
+              dayPrices: { 2: 2500 },
+              durationDays: 2,
+              maxPrice: 0,
+              unitPrice: 0,
+            },
+          ],
+          parent: {
             customisableDays: true,
-            dayPrices: { 2: 2500 },
+            dayPrices: { 1: 1000, 2: 1800 },
             durationDays: 2,
-            maxPrice: 0,
-            unitPrice: 0,
           },
-        ],
-        parent: {
-          customisableDays: true,
-          dayPrices: { 1: 1000, 2: 1800 },
-          durationDays: 2,
         },
-      });
-
-      const html = await bookingPageHtml(parent.slug);
-      // The day-count options carry a "<n> day(s)" label; only the 2-day option
-      // survives (the bare `<option value="1">` of the quantity selector is not a
-      // day-count option, so assert on the labelled day option).
-      expect(html).toContain(">2 days");
-      expect(html).not.toContain(">1 day");
-    });
-
-    test("a customisable parent keeps day counts a child supports both of", async () => {
+      },
       // The child prices both 1 and 2 days, so the parent keeps both options
       // (the union covers every parent span) — Codex 1030.
-      const { parent } = await makeParent({
-        children: [
-          {
+      {
+        contains: [">1 day", ">2 days"],
+        name: "a customisable parent keeps day counts a child supports both of",
+        notContains: [],
+        spec: {
+          children: [
+            {
+              customisableDays: true,
+              dayPrices: { 1: 1500, 2: 2500 },
+              durationDays: 2,
+              maxPrice: 0,
+              unitPrice: 0,
+            },
+          ],
+          parent: {
             customisableDays: true,
-            dayPrices: { 1: 1500, 2: 2500 },
+            dayPrices: { 1: 1000, 2: 1800 },
             durationDays: 2,
-            maxPrice: 0,
-            unitPrice: 0,
           },
-        ],
-        parent: {
-          customisableDays: true,
-          dayPrices: { 1: 1000, 2: 1800 },
-          durationDays: 2,
         },
-      });
-
-      const html = await bookingPageHtml(parent.slug);
-      expect(html).toContain(">1 day");
-      expect(html).toContain(">2 days");
-    });
-
-    test("a customisable parent's day counts are constrained to a fixed daily child's own span", async () => {
+      },
       // The parent offers {1,2,3} days; its only required child is a FIXED 2-day
       // daily listing, whose supported span is exactly its duration_days (2). The
       // day-count selector must therefore offer only the 2-day option — a daily
       // child must NOT be treated as imposing "any" span (which would keep all of
       // {1,2,3}), it constrains to its own fixed duration (childSupportedSpans).
-      const { parent } = await makeParent({
-        children: [{ daily: true, durationDays: 2 }],
-        parent: {
-          customisableDays: true,
-          dayPrices: { 1: 1000, 2: 1800, 3: 2500 },
-          durationDays: 3,
-        },
-      });
-
-      const html = await bookingPageHtml(parent.slug);
       // Only the child's own 2-day span is offered; the 1- and 3-day options the
       // child cannot serve are dropped from the union.
-      expect(html).toContain(">2 days");
-      expect(html).not.toContain(">1 day");
-      expect(html).not.toContain(">3 days");
-    });
+      {
+        contains: [">2 days"],
+        name: "a customisable parent's day counts are constrained to a fixed daily child's own span",
+        notContains: [">1 day", ">3 days"],
+        spec: {
+          children: [{ daily: true, durationDays: 2 }],
+          parent: {
+            customisableDays: true,
+            dayPrices: { 1: 1000, 2: 1800, 3: 2500 },
+            durationDays: 3,
+          },
+        },
+      },
+    ];
+    for (const c of DAY_COUNT_UNION_CASES) {
+      test(c.name, async () => {
+        const { parent } = await makeParent(c.spec);
+        const html = await bookingPageHtml(parent.slug);
+        for (const needle of c.contains) {
+          expect(html).toContain(needle);
+        }
+        for (const needle of c.notContains) {
+          expect(html).not.toContain(needle);
+        }
+      });
+    }
 
     test("a multi-listing page does NOT constrain the shared day counts by one parent's child", async () => {
       // The day-count union constraint is SINGLE-listing only: on a multi-listing
