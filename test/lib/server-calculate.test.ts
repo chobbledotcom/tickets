@@ -2,8 +2,8 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
-import { formatCurrency } from "#shared/currency.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
+import { formatCurrency } from "#shared/currency.ts";
 import { modifiersTable, setModifierAnswers } from "#shared/db/modifiers.ts";
 import {
   answersTable,
