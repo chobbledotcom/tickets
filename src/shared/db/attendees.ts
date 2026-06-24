@@ -19,7 +19,10 @@ import {
   checkBatchAvailabilityImpl,
   checkListingAvailability,
 } from "#shared/db/attendees/capacity.ts";
-import { createAttendeeAtomicImpl } from "#shared/db/attendees/create.ts";
+import {
+  createAttendeeAtomicImpl,
+  createBookingAtomic as createBookingAtomicImpl,
+} from "#shared/db/attendees/create.ts";
 
 export type {
   ActiveListingStats,
@@ -47,6 +50,7 @@ export {
   type ListingCapacityRow,
 } from "#shared/db/attendees/capacity.ts";
 export {
+  type BookingBatchPlan,
   buildAttendeeInsert,
   ensureAllBookings,
   reverseOrderActivity,
@@ -104,6 +108,7 @@ export const attendeesApi = {
   applyAttendeeAtomicEdit: applyAttendeeAtomicEditImpl,
   checkBatchAvailability: checkBatchAvailabilityImpl,
   createAttendeeAtomic: createAttendeeAtomicImpl,
+  createBookingAtomic: createBookingAtomicImpl,
   hasAvailableSpots: checkListingAvailability,
 };
 
@@ -124,6 +129,13 @@ export const hasAvailableSpots = (
 export const createAttendeeAtomic = (
   ...args: Parameters<typeof attendeesApi.createAttendeeAtomic>
 ): Promise<CreateAttendeeResult> => attendeesApi.createAttendeeAtomic(...args);
+
+/** Wrapper for test mocking - delegates to attendeesApi at runtime. Creates a
+ *  booking and posts its ledger legs as one batch (the fast checkout path). */
+export const createBookingAtomic = (
+  ...args: Parameters<typeof attendeesApi.createBookingAtomic>
+): ReturnType<typeof attendeesApi.createBookingAtomic> =>
+  attendeesApi.createBookingAtomic(...args);
 
 /** Wrapper for test mocking - delegates to attendeesApi at runtime */
 export const checkBatchAvailability = (

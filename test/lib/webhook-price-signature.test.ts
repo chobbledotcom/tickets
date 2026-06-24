@@ -417,19 +417,13 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
 
   test("an unexpected error after the charge keeps the booking at quantity 0 and refunds", async () => {
     const listing = await setupWithListing();
-    // Make the real-quantity happy-path create throw, but let the quantity-0
-    // placeholder store through — so a signed payment that hits an unexpected
-    // error after the charge is kept at quantity 0 and refunded, not crash-looped
-    // over money already taken.
+    // Make the real-quantity happy-path create (the batch booking write) throw,
+    // while the quantity-0 placeholder store (createAttendeeAtomic) keeps working
+    // — so a signed payment that hits an unexpected error after the charge is kept
+    // at quantity 0 and refunded, not crash-looped over money already taken.
     const { attendeesApi } = await import("#shared/db/attendees.ts");
-    const realCreate = attendeesApi.createAttendeeAtomic;
-    const boom = stub(
-      attendeesApi,
-      "createAttendeeAtomic",
-      (input, postLedger) =>
-        input.bookings.some((b) => (b.quantity ?? 1) > 0)
-          ? Promise.reject(new Error("synthetic create failure"))
-          : realCreate(input, postLedger),
+    const boom = stub(attendeesApi, "createBookingAtomic", () =>
+      Promise.reject(new Error("synthetic create failure")),
     );
     try {
       await runWebhook(
