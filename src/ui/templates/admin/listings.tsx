@@ -19,7 +19,7 @@ import type {
   ListingRevenueBreakdown,
 } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
-import type { SystemNote } from "#shared/db/system-notes.ts";
+import { attendeeNameMap, type SystemNote } from "#shared/db/system-notes.ts";
 import { buildEmbedSnippets } from "#shared/embed.ts";
 import { isReadOnly } from "#shared/env.ts";
 import type { Field } from "#shared/forms.tsx";
@@ -1325,7 +1325,7 @@ export const adminListingPage = ({
         />
       )}
       <AttendeeNotesSummary
-        names={new Map(attendees.map((a) => [a.id, a.name]))}
+        names={attendeeNameMap(attendees)}
         notes={systemNotes}
       />
       <AttendeesSection

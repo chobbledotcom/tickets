@@ -16,12 +16,13 @@ import {
   groupNotesByAttendee,
   type SystemNote,
 } from "#shared/db/system-notes.ts";
-import { CsrfForm, Flash, renderField } from "#shared/forms.tsx";
+import { ConfirmForm, CsrfForm, Flash, renderField } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import type { AdminSession } from "#shared/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
+import { ActionButton, SubmitButton } from "#templates/components/actions.tsx";
 import { FORMATTING_HINT } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
@@ -166,21 +167,20 @@ export const adminAddNotePage = ({
             type: "textarea",
           })}
         />
-        <p>
-          <button class="btn" type="submit">
-            {t("notes.save")}
-          </button>
-          <a class="btn btn-secondary" href={returnUrl}>
+        <p class="actions">
+          <SubmitButton icon="save">{t("notes.save")}</SubmitButton>
+          <ActionButton href={returnUrl} variant="secondary">
             {t("notes.cancel")}
-          </a>
+          </ActionButton>
         </p>
       </CsrfForm>
     </Layout>,
   );
 
 /**
- * The are-you-sure delete page. Shows the note being deleted (no copy/paste
- * confirmation) and bounces back to `returnUrl` on confirm or cancel.
+ * The are-you-sure delete page. Shows the note being deleted then a plain
+ * confirm button (no copy/paste name confirmation), bouncing back to
+ * `returnUrl` on confirm or cancel.
  */
 export const adminDeleteNotePage = ({
   note,
@@ -196,10 +196,6 @@ export const adminDeleteNotePage = ({
   String(
     <Layout title={t("notes.delete_title")}>
       <AdminNav active="/admin/attendees" session={session} />
-      <div class="prose">
-        <h1>{t("notes.delete_title")}</h1>
-        <p>{t("notes.delete_confirm")}</p>
-      </div>
       <div
         class={
           note.type === "system"
@@ -209,19 +205,20 @@ export const adminDeleteNotePage = ({
       >
         <NoteBody note={note} />
       </div>
-      <CsrfForm
+      <ConfirmForm
         action={`/admin/attendee/${note.attendee_id}/note/${note.id}/delete`}
+        buttonText={t("notes.delete_submit")}
+        confirmName={false}
+        returnUrl={returnUrl}
       >
+        <h1>{t("notes.delete_title")}</h1>
         <Flash error={error} />
-        <input name="return_url" type="hidden" value={returnUrl} />
-        <p>
-          <button class="btn btn-danger" type="submit">
-            {t("notes.delete_submit")}
-          </button>
-          <a class="btn btn-secondary" href={returnUrl}>
-            {t("notes.cancel")}
-          </a>
-        </p>
-      </CsrfForm>
+        <p>{t("notes.delete_confirm")}</p>
+      </ConfirmForm>
+      <p class="actions">
+        <ActionButton href={returnUrl} variant="secondary">
+          {t("notes.cancel")}
+        </ActionButton>
+      </p>
     </Layout>,
   );

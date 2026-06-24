@@ -1,5 +1,4 @@
 {
-  "notes.section_title": "Notes",
   "notes.add_link": "Add a note",
   "notes.delete": "Delete note",
   "notes.system_label": "System",
@@ -15,6 +14,5 @@
   "notes.delete_submit": "Delete note",
   "notes.cancel": "Cancel",
   "notes.deleted": "Note deleted.",
-  "notes.not_found": "That note no longer exists.",
   "notes.summary": "{count, plural, one {# attendee has notes} other {# attendees have notes}}"
 }

@@ -23,7 +23,10 @@ import {
 } from "#shared/db/attendees.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
-import { decryptNotes, getNoteRows } from "#shared/db/system-notes.ts";
+import {
+  attendeeNameMap,
+  loadNotesForAttendees,
+} from "#shared/db/system-notes.ts";
 import {
   type ListingFilter,
   listingCategory,
@@ -131,9 +134,8 @@ export const handleAttendeesListGet: TypedRouteHandler<
     const decrypted = await decryptAttendees(rows, privateKey);
     const built = buildRows(decrypted, listings);
     const attendeeIds = unique(decrypted.map((a) => a.id));
-    const systemNotes = await decryptNotes(
-      await getNoteRows(attendeeIds),
-      privateKey,
+    const systemNotes = await loadNotesForAttendees(attendeeIds, () =>
+      Promise.resolve(privateKey),
     );
 
     return htmlResponse(
@@ -144,7 +146,7 @@ export const handleAttendeesListGet: TypedRouteHandler<
         hasNext,
         listingId,
         listings,
-        names: new Map(decrypted.map((a) => [a.id, a.name])),
+        names: attendeeNameMap(decrypted),
         page,
         phonePrefix: settings.phonePrefix,
         rows: built,
