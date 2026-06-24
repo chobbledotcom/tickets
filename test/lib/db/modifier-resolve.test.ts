@@ -10,8 +10,10 @@ import {
 } from "#shared/db/contact-preferences.ts";
 import {
   ADDON_MAX_QUANTITY,
+  type AddOnReachabilityCheck,
   answerModifierQuantities,
   buyerVisits,
+  childUnreachableAddOnError,
   getOptionalAddOns,
   hasPromoCodeModifiers,
   oversubscribedAnswerTiers,
@@ -50,6 +52,56 @@ const createAnswers = async (count: number): Promise<number[]> => {
   }
   return ids;
 };
+
+describe("childUnreachableAddOnError", () => {
+  // scope [10] names the child (10) and reaches no parent page (20): a dead end.
+  const childOnly: AddOnReachabilityCheck = {
+    active: true,
+    name: "Child-only add-on",
+    scope: [10],
+    trigger: "optional",
+  };
+  const childIds = new Set([10]);
+  const parentPage = new Set([20]);
+
+  test("flags an active opt-in add-on reachable only through the child", () => {
+    expect(
+      childUnreachableAddOnError(childOnly, childIds, parentPage),
+    ).not.toBeNull();
+  });
+
+  test("a global (null-scope) add-on is never a child dead end", () => {
+    // A whole-order scope applies everywhere, so it always keeps a reachable
+    // page and adding a child can't orphan it.
+    expect(
+      childUnreachableAddOnError(
+        { ...childOnly, scope: null },
+        childIds,
+        parentPage,
+      ),
+    ).toBeNull();
+  });
+
+  test("only active, opt-in add-ons are gated", () => {
+    // An inactive add-on never loads on a page, and a non-opt-in (automatic)
+    // add-on isn't a buyer-chosen extra: neither can be orphaned by a new child,
+    // even with a scope that would otherwise dead-end.
+    expect(
+      childUnreachableAddOnError(
+        { ...childOnly, active: false },
+        childIds,
+        parentPage,
+      ),
+    ).toBeNull();
+    expect(
+      childUnreachableAddOnError(
+        { ...childOnly, trigger: "automatic" },
+        childIds,
+        parentPage,
+      ),
+    ).toBeNull();
+  });
+});
 
 describeWithEnv("db > modifier-resolve", { db: true }, () => {
   describe("resolveModifiers", () => {
