@@ -259,6 +259,102 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
     });
   });
 
+  describe("concurrent parent/child reservations (capacity races)", () => {
+    // A folded parent/child cart reaches the reservation layer as a multi-line
+    // order (the parent line plus its chosen children). These prove the
+    // all-or-nothing atomic reservation holds when two such carts collide on a
+    // shared bottleneck — the loser must roll back fully, never leaving a parent
+    // booked without the child it required.
+    const freeCart = async (
+      parentId: number,
+      childId: number,
+      email: string,
+    ): Promise<{ success: boolean }> => {
+      const listings = await Promise.all([
+        ticketListingFor(parentId),
+        ticketListingFor(childId),
+      ]);
+      return createFreeReservation({
+        contact: { ...contact, email },
+        date: null,
+        ledgerOrder: null,
+        listings,
+        modifierUsages: [],
+        quantities: new Map([
+          [parentId, 1],
+          [childId, 1],
+        ]),
+      });
+    };
+
+    test("two carts racing for the last shared-child spot: only one wins, the loser's parent rolls back", async () => {
+      // parentA and parentB both fold the SAME child, which has a single spot.
+      const parentA = await createTestListing({
+        maxAttendees: 10,
+        maxQuantity: 10,
+        name: "race-parent-a",
+      });
+      const parentB = await createTestListing({
+        maxAttendees: 10,
+        maxQuantity: 10,
+        name: "race-parent-b",
+      });
+      const child = await createTestListing({
+        maxAttendees: 1,
+        maxQuantity: 1,
+        name: "race-shared-child",
+      });
+
+      const [a, b] = await Promise.all([
+        freeCart(parentA.id, child.id, "racea@example.com"),
+        freeCart(parentB.id, child.id, "raceb@example.com"),
+      ]);
+
+      // Exactly one reservation wins the single child spot.
+      expect([a.success, b.success].filter(Boolean).length).toBe(1);
+      expect((await getAttendeesRaw(child.id)).length).toBe(1);
+      // The winner's parent is booked; the loser's parent is fully rolled back,
+      // so no parent is left holding a booking without its required child.
+      const winner = a.success ? parentA.id : parentB.id;
+      const loser = a.success ? parentB.id : parentA.id;
+      expect((await getAttendeesRaw(winner)).length).toBe(1);
+      expect((await getAttendeesRaw(loser)).length).toBe(0);
+    });
+
+    test("parent+child sharing a capped group consume two group spots; a concurrent second order is refused", async () => {
+      // Parent and child share a group with only two spots, so one parent+child
+      // order (one spot each, PARENT_CHILD_GROUP_UNITS) fills the group exactly.
+      const group = await createTestGroup({
+        maxAttendees: 2,
+        name: "pc-group",
+        slug: "pc-group",
+      });
+      const parent = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 10,
+        maxQuantity: 10,
+        name: "pc-parent",
+      });
+      const child = await createTestListing({
+        groupId: group.id,
+        maxAttendees: 10,
+        maxQuantity: 10,
+        name: "pc-child",
+      });
+
+      const [a, b] = await Promise.all([
+        freeCart(parent.id, child.id, "group1@example.com"),
+        freeCart(parent.id, child.id, "group2@example.com"),
+      ]);
+
+      // The group holds two spots; one parent+child order fills both, so exactly
+      // one order wins and the other is refused in full.
+      expect([a.success, b.success].filter(Boolean).length).toBe(1);
+      expect((await getAttendeesRaw(parent.id)).length).toBe(1);
+      expect((await getAttendeesRaw(child.id)).length).toBe(1);
+    });
+  });
+
   describe("createFreeReservation (ledger)", () => {
     /** A zero-total priced order for one listing: full list price as gross, but
      *  nothing charged now (a fully-discounted booking or a zero-deposit hold). */
