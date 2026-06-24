@@ -20,6 +20,7 @@ describe("bookingFactsFromOrder", () => {
             amountApplied: 500,
             delta: -500,
             modifierId: 7,
+            name: "10% off",
             quantity: 1,
             scopedSubtotal: 10000,
           },

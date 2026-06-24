@@ -7,7 +7,10 @@
 import { account } from "#shared/ledger/account.ts";
 import type { AccountRef } from "#shared/ledger/types.ts";
 
-const ATTENDEE = "attendee";
+/** The account `type` for an attendee's receivable/clearing account. Exported so
+ *  the batch booking writer can tell which side of a leg is the attendee account
+ *  and render its id as an in-batch subquery rather than a literal. */
+export const ATTENDEE = "attendee";
 const REVENUE = "revenue";
 const MODIFIER = "modifier";
 const FEE_INCOME = "fee_income";
