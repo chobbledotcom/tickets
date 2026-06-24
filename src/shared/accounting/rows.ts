@@ -135,20 +135,19 @@ export const guardedInsertStatement = (
 type LegColumn = { col: string; expr: string; args: InValue[] };
 
 /**
- * The column→value plan for one transfer leg, in a fixed order. When
- * `attendeeId` is given, whichever side (source/dest) is the attendee account
- * renders its id via that SQL expression (the in-batch `MAX(id)` subquery)
- * instead of a literal — so a leg can be written before the attendee row's id is
- * known, in the same batch that inserts it. With `attendeeId` null every id is a
- * literal. The one place a transfer's columns, ordering, and defaults live for
- * the batch writer. */
+ * The column→value plan for one transfer leg, in a fixed order. Whichever side
+ * (source/dest) is the attendee account renders its id via `attendeeId` (the
+ * in-batch `MAX(id)` subquery) instead of a literal — so a leg can be written
+ * before the attendee row's id is known, in the same batch that inserts it. The
+ * one place a transfer's columns, ordering, and defaults live for the batch
+ * writer. */
 const legColumns = (
   t: TransferInput,
   recordedAt: string,
-  attendeeId: { sql: string; args: InValue[] } | null,
+  attendeeId: { sql: string; args: InValue[] },
 ): LegColumn[] => {
   const idCol = (col: string, acct: AccountRef): LegColumn =>
-    attendeeId && acct.type === ATTENDEE
+    acct.type === ATTENDEE
       ? { args: attendeeId.args, col, expr: `CAST(${attendeeId.sql} AS TEXT)` }
       : { args: [acct.id], col, expr: "?" };
   const lit = (col: string, value: InValue): LegColumn => ({
