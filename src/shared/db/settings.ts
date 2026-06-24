@@ -45,11 +45,11 @@ import {
   buildCreateUserStatement,
   invalidateUsersCache,
 } from "#shared/db/users.ts";
-import { nowMs } from "#shared/now.ts";
 import {
   DEFAULT_ORPHAN_RETENTION,
   isOrphanRetentionValue,
 } from "#shared/orphan-retention.ts";
+import { requestCache } from "#shared/request-cache.ts";
 import { DEFAULT_TIMEZONE } from "#shared/timezone.ts";
 import type {
   PaymentProviderSetting,
@@ -132,6 +132,7 @@ export const CONFIG_KEYS = {
   ORPHAN_PURGE_RETENTION: "orphan_purge_retention",
   PAYMENT_PROVIDER: "payment_provider",
   PUBLIC_KEY: "public_key",
+  SETTINGS_VERSION: "settings_version",
   SETUP_COMPLETE: "setup_complete",
   SHOW_PUBLIC_API: "show_public_api",
   SHOW_PUBLIC_SITE: "show_public_site",
@@ -173,44 +174,93 @@ const keyModeOf = (key: string): "test" | "live" | null =>
       : null;
 
 // ---------------------------------------------------------------------------
-// Raw cache — stores DB rows in memory (60 s TTL)
+// Raw cache — stores DB rows in memory, validated by a settings version stamp
 // ---------------------------------------------------------------------------
-
-export const SETTINGS_CACHE_TTL_MS = 60_000;
 
 /**
  * Raw-row cache. `values` holds the rows loaded so far (decrypted values still
  * live in the snapshot, not here). `loaded` records which keys have been
  * resolved — present *or* absent in the DB — so a partial `loadKeys` never
- * re-queries a key it has already fetched. `time` stamps the load for TTL
- * expiry; `0` means never loaded.
+ * re-queries a key it has already fetched. `version` is the `settings_version`
+ * counter the rows were loaded at; `-1` means never loaded.
+ *
+ * Freshness is decided by the version stamp, not a wall-clock TTL. Every
+ * settings write bumps the shared `settings_version` counter in the DB
+ * (`bumpSettingsVersion`), and each request probes that counter once
+ * (`prefetchVersion` / the version probe). When the probed counter differs from
+ * the cache's stamp, some isolate changed a setting and the cache reloads;
+ * otherwise it is served as-is. This makes a change saved on one (warm) edge
+ * isolate visible to every other isolate on its very next request — rather than
+ * lingering until a TTL lapsed or the isolate restarted — while still skipping
+ * the reload (and the decryption) entirely on the common no-change path.
  */
 type CacheState = {
   values: Map<string, string>;
   loaded: Set<string>;
-  time: number;
+  version: number;
 };
 const [getCacheState, setCacheState] = lazyRef<CacheState>(() => ({
   loaded: new Set(),
-  time: 0,
   values: new Map(),
+  version: -1,
 }));
-
-const isCacheFresh = (): boolean => {
-  const s = getCacheState();
-  return s.time > 0 && nowMs() - s.time < SETTINGS_CACHE_TTL_MS;
-};
-
-/** Whether a key's value is already resolved in the current fresh cache. */
-const isKeyLoaded = (key: string): boolean => {
-  if (!isCacheFresh()) return false;
-  return getCacheState().loaded.has(key);
-};
 
 registerCache(() => ({
   entries: getCacheState().values.size,
   name: "settings",
 }));
+
+// ---------------------------------------------------------------------------
+// Settings version stamp — cross-isolate cache invalidation signal
+// ---------------------------------------------------------------------------
+
+/**
+ * Read the current `settings_version` counter straight from the DB (bypassing
+ * the snapshot and the read audit — it is cache machinery, not an app setting).
+ * The row is an integer once any write has created it; before the first write
+ * (a fresh database) it is absent, which reads as version 0.
+ */
+export const getCurrentSettingsVersion = async (): Promise<number> => {
+  const rows = await queryAll<Settings>(
+    "SELECT value FROM settings WHERE key = ?",
+    [CONFIG_KEYS.SETTINGS_VERSION],
+  );
+  return Number.parseInt(rows[0]?.value ?? "0", 10);
+};
+
+/**
+ * Per-request memoised probe of the version counter. Inside a request the first
+ * read is shared by every later `loadKeys` (one tiny query per request); outside
+ * a request (tests, boot, CLI) each call probes fresh. Kicking it off early
+ * (`prefetchVersion`) lets it overlap the rest of request setup.
+ */
+const versionProbe = requestCache<number>(async () => [
+  await getCurrentSettingsVersion(),
+]);
+
+/** The settings version this request should be validated against. */
+const currentVersion = async (): Promise<number> =>
+  (await versionProbe.getAll())[0]!;
+
+/** Start fetching the settings version as early as possible in a request, so
+ *  the tiny query overlaps the rest of request setup; loadKeys awaits it. */
+const prefetchVersion = (): void => {
+  void versionProbe.getAll();
+};
+
+/**
+ * Atomically increment the shared `settings_version` counter. Every settings
+ * write calls this so other isolates notice the change on their next request.
+ * It bypasses cache invalidation (the writer maintains its cache in-place) and,
+ * crucially, does not recurse through `writeRaw`, so a bump never bumps again.
+ */
+export const bumpSettingsVersion = async (): Promise<void> => {
+  await executeWithoutCacheInvalidation(
+    "INSERT INTO settings (key, value) VALUES (?, '1') " +
+      "ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1",
+    [CONFIG_KEYS.SETTINGS_VERSION],
+  );
+};
 
 // ---------------------------------------------------------------------------
 // Snapshot — pre-resolved settings for sync access
@@ -427,10 +477,14 @@ const getRawCached = (key: string): string | null => {
   return getCacheState().values.get(key) ?? null;
 };
 
-/** Mutate the raw cache if it's currently fresh; no-op otherwise. */
-const syncCache = (mutate: (state: CacheState) => void): void => {
-  if (isCacheFresh()) mutate(getCacheState());
-};
+/**
+ * Mutate the in-memory raw cache in place. The version stamp (not this write)
+ * decides whether the cache is reused on the next load, so applying the value
+ * we just wrote is always safe — it keeps the rest of this request's reads
+ * consistent without forcing a reload.
+ */
+const syncCache = (mutate: (state: CacheState) => void): void =>
+  mutate(getCacheState());
 
 /** Upsert a single settings key/value (latest write wins). */
 const SETTINGS_UPSERT_SQL =
@@ -445,7 +499,8 @@ const settingUpsert = (
   sql: SETTINGS_UPSERT_SQL,
 });
 
-/** Write a setting to the DB and update the raw cache in-place. */
+/** Write a setting to the DB, update the raw cache in-place, and bump the
+ *  shared version so other isolates reload on their next request. */
 const writeRaw = async (key: string, value: string): Promise<void> => {
   await executeWithoutCacheInvalidation(SETTINGS_UPSERT_SQL, [key, value]);
   // A write makes the key's value known this request, so reading it back is
@@ -455,9 +510,11 @@ const writeRaw = async (key: string, value: string): Promise<void> => {
     s.values.set(key, value);
     s.loaded.add(key);
   });
+  await bumpSettingsVersion();
 };
 
-/** Delete a setting from the DB and remove it from the raw cache. */
+/** Delete a setting from the DB, drop it from the raw cache, and bump the
+ *  shared version so other isolates reload on their next request. */
 const deleteRaw = async (key: string): Promise<void> => {
   await executeWithoutCacheInvalidation("DELETE FROM settings WHERE key = ?", [
     key,
@@ -467,6 +524,7 @@ const deleteRaw = async (key: string): Promise<void> => {
     s.values.delete(key);
     s.loaded.add(key);
   });
+  await bumpSettingsVersion();
 };
 
 /** Write a setting or delete it if value is empty. */
@@ -762,24 +820,27 @@ const applyKeys = async (
 // loadKeys / invalidateCache
 // ---------------------------------------------------------------------------
 
-/** Reset the raw cache to a fresh, empty state stamped at the current time. */
-const resetCache = (): CacheState => {
+/** Reset the raw cache to a fresh, empty state stamped at `version`. */
+const resetCache = (version: number): CacheState => {
   setCacheState(null);
   const s = getCacheState();
-  s.time = nowMs();
+  s.version = version;
   return s;
 };
 
 /**
  * Load only the given config keys, fetching just the ones not already resolved
- * in the current fresh cache (one `WHERE key IN (...)` query) and decrypting
- * only those.
+ * at the current settings version (one `WHERE key IN (...)` query) and
+ * decrypting only those. When the shared version has moved since the cache was
+ * stamped, the whole cache is discarded and the requested keys are reloaded.
  */
 const loadKeys = async (keys: readonly string[]): Promise<void> => {
   // Record everything declared this request, regardless of cache state, so the
   // read audit compares against the full declared set (not just cache misses).
   recordSettingsLoaded(keys);
-  const s = isCacheFresh() ? getCacheState() : resetCache();
+  const version = await currentVersion();
+  const cached = getCacheState();
+  const s = cached.version === version ? cached : resetCache(version);
   const missing = unique([...keys]).filter((k) => !s.loaded.has(k));
   if (missing.length === 0) return;
   const rows = await queryAll<Settings>(
@@ -816,10 +877,9 @@ const isSetupComplete = async (): Promise<boolean> => {
   const confirmed = getSetupConfirmed();
   const cached = getSetupCompleteCache();
   if (confirmed && cached) return true;
-  // Need the raw cache for this check — fetch only the one key we read.
-  if (!isKeyLoaded(CONFIG_KEYS.SETUP_COMPLETE)) {
-    await loadKeys([CONFIG_KEYS.SETUP_COMPLETE]);
-  }
+  // Fetch only the one key we read; loadKeys serves it from the cache when the
+  // version is unchanged, so this is near-free on a warm isolate.
+  await loadKeys([CONFIG_KEYS.SETUP_COMPLETE]);
   const isComplete = getRawCached(CONFIG_KEYS.SETUP_COMPLETE) === "true";
   if (isComplete) {
     setSetupCompleteCache(true);
@@ -873,6 +933,9 @@ const completeSetup = async (
     settingUpsert(CONFIG_KEYS.COUNTRY, country),
     settingUpsert(CONFIG_KEYS.SETUP_COMPLETE, "true"),
   ]);
+  // Setup's config lands via a batch (not writeRaw), so bump the version by hand
+  // to keep the cross-isolate signal consistent.
+  await bumpSettingsVersion();
 
   // Setup flips the global routing gate. Drop any partially-loaded settings
   // snapshot from pre-setup requests so the next request cannot keep serving
@@ -1088,6 +1151,8 @@ const settingsBase = {
   get phonePrefix(): string {
     return snap("phone_prefix");
   },
+  /** Begin the per-request settings-version probe as early as possible. */
+  prefetchVersion,
 
   /** Set test overrides (survive invalidateCache, cleared by clearTestOverrides). */
   setForTest(overrides: Partial<SettingsData>): void {

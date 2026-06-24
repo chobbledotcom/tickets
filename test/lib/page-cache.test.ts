@@ -1,24 +1,16 @@
 import { expect } from "@std/expect";
-import { afterEach, describe, it as test } from "@std/testing/bdd";
-import { FakeTime } from "@std/testing/time";
+import { describe, it as test } from "@std/testing/bdd";
 import { encrypt } from "#shared/crypto/encryption.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
   ALL_SETTINGS_KEYS,
+  bumpSettingsVersion,
   CONFIG_KEYS,
-  SETTINGS_CACHE_TTL_MS,
   settings,
 } from "#shared/db/settings.ts";
 import { describeWithEnv } from "#test-utils";
 
 describeWithEnv("page content cache", { db: true }, () => {
-  let fakeTime: FakeTime | null = null;
-
-  afterEach(() => {
-    fakeTime?.restore();
-    fakeTime = null;
-  });
-
   describe("getWebsiteTitleFromDb", () => {
     test("returns empty string when not set", () => {
       expect(settings.websiteTitle).toBe("");
@@ -105,57 +97,53 @@ describeWithEnv("page content cache", { db: true }, () => {
     });
   });
 
-  describe("TTL expiry", () => {
-    /** Seed cache, sneak a raw DB write, return startTime for fakeTime.now manipulation */
-    const seedAndBypassCache = async (): Promise<number> => {
-      const startTime = Date.now();
-      fakeTime = new FakeTime(startTime);
-
+  describe("version-gated freshness", () => {
+    /**
+     * Seed the cache and stamp it at the current version, then sneak a raw DB
+     * change for the same key that does NOT bump the settings version — as far
+     * as the cache's version stamp is concerned, nothing changed.
+     */
+    const seedAndBypassCache = async (newValue: string): Promise<void> => {
       await settings.update.terms("Original");
+      await settings.loadKeys(ALL_SETTINGS_KEYS); // stamp cache at current version
       expect(settings.terms).toBe("Original");
 
-      // Write directly to DB, bypassing page cache invalidation
       await getDb().execute({
-        args: [CONFIG_KEYS.TERMS_AND_CONDITIONS, "Changed"],
-        sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+        args: [newValue, CONFIG_KEYS.TERMS_AND_CONDITIONS],
+        sql: "UPDATE settings SET value = ? WHERE key = ?",
       });
-      return startTime;
     };
 
-    test("serves stale cached value when DB changes within TTL", async () => {
-      const startTime = await seedAndBypassCache();
+    test("serves the cached value while the settings version is unchanged", async () => {
+      await seedAndBypassCache("Changed");
 
-      // Advance to just before TTL boundary — cache still valid
-      fakeTime!.now = startTime + SETTINGS_CACHE_TTL_MS - 1;
+      // No version bump accompanied the raw write, so loadKeys skips the reload.
+      await settings.loadKeys(ALL_SETTINGS_KEYS);
       expect(settings.terms).toBe("Original");
     });
 
-    test("re-fetches from DB after TTL expires", async () => {
-      const startTime = await seedAndBypassCache();
+    test("re-fetches from the DB once the settings version is bumped", async () => {
+      await seedAndBypassCache("Changed");
 
-      // Advance past TTL
-      fakeTime!.now = startTime + SETTINGS_CACHE_TTL_MS + 1;
-      // Cache expired — loadAll() re-fetches from DB and picks up new value
+      // Mimic another isolate's write: it would have bumped the shared version.
+      await bumpSettingsVersion();
       await settings.loadKeys(ALL_SETTINGS_KEYS);
       expect(settings.terms).toBe("Changed");
     });
 
-    test("serves stale cached encrypted value when DB changes within TTL", async () => {
-      const startTime = Date.now();
-      fakeTime = new FakeTime(startTime);
-
+    test("serves the cached decrypted value while the version is unchanged", async () => {
       await settings.update.websiteTitle("Original Title");
+      await settings.loadKeys(ALL_SETTINGS_KEYS); // stamp cache at current version
       expect(settings.websiteTitle).toBe("Original Title");
 
-      // Write a different encrypted value directly to DB
+      // Write a different encrypted value directly to the DB, no version bump.
       const newEncrypted = await encrypt("Changed Title");
       await getDb().execute({
-        args: [CONFIG_KEYS.WEBSITE_TITLE, newEncrypted],
-        sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+        args: [newEncrypted, CONFIG_KEYS.WEBSITE_TITLE],
+        sql: "UPDATE settings SET value = ? WHERE key = ?",
       });
 
-      // Within TTL — cache still serves decrypted "Original Title"
-      fakeTime.now = startTime + SETTINGS_CACHE_TTL_MS - 1;
+      await settings.loadKeys(ALL_SETTINGS_KEYS);
       expect(settings.websiteTitle).toBe("Original Title");
     });
   });
