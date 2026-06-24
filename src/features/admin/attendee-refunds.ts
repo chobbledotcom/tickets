@@ -14,6 +14,7 @@ import { applyFlash } from "#routes/csrf.ts";
 import { errorRedirect, htmlResponse } from "#routes/response.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
+import { hasActiveBookingLine } from "#shared/db/attendees.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { getActivePaymentProvider } from "#shared/payments.ts";
@@ -22,12 +23,17 @@ import {
   recordAttendeeRefundsBatch,
 } from "#shared/refund-ledger.ts";
 import { fail, ok } from "#shared/response.ts";
-import type { Attendee, ListingWithCount } from "#shared/types.ts";
+import {
+  type Attendee,
+  hasTicketQuantity,
+  type ListingWithCount,
+} from "#shared/types.ts";
 import {
   adminRefundAllAttendeesPage,
   adminRefundAttendeePage,
 } from "#templates/admin/attendees.tsx";
 import {
+  type AttendeeWithListing,
   attendeeGetRoute,
   getReturnUrl,
   type ListingRouteParams,
@@ -49,36 +55,50 @@ const refundError = (
     msg,
   );
 
+/** Render the single-attendee refund page. The guard blocks (no payment, already
+ * refunded, or a no-quantity ghost line) pass a `message` and take the default
+ * 400; the clean GET passes the flashed error (if any) with an explicit 200. */
+const refundPageResponse = (
+  data: AttendeeWithListing,
+  session: AuthSession,
+  returnUrl: string,
+  message: string | undefined,
+  status = 400,
+): Response =>
+  htmlResponse(
+    adminRefundAttendeePage(data, session, message, returnUrl),
+    status,
+  );
+
 /** Handle GET /admin/listing/:listingId/attendee/:attendeeId/refund */
 const handleAdminAttendeeRefundGet = attendeeGetRoute(
-  (data, session, request) => {
+  async (data, session, request) => {
     const flash = applyFlash(request);
     const returnUrl = getReturnUrl(request);
-    if (!data.attendee.payment_id) {
-      return htmlResponse(
-        adminRefundAttendeePage(
-          data,
-          session,
-          t("error.no_payment_to_refund"),
-          returnUrl,
-        ),
-        400,
+    // The no-payment branch also covers a no-quantity ghost row: it's guarded
+    // against the EXACT (attendee, listing) row (not the loaded attendee's
+    // arbitrary left-joined sibling), so a listing-scoped refund can't retarget
+    // a charge to another listing. data.listing is the invoking listing.
+    if (
+      !data.attendee.payment_id ||
+      !(await hasActiveBookingLine(data.attendee.id, data.listing.id))
+    ) {
+      return refundPageResponse(
+        data,
+        session,
+        returnUrl,
+        t("error.no_payment_to_refund"),
       );
     }
     if (data.attendee.refunded) {
-      return htmlResponse(
-        adminRefundAttendeePage(
-          data,
-          session,
-          t("error.already_refunded"),
-          returnUrl,
-        ),
-        400,
+      return refundPageResponse(
+        data,
+        session,
+        returnUrl,
+        t("error.already_refunded"),
       );
     }
-    return htmlResponse(
-      adminRefundAttendeePage(data, session, flash.error, returnUrl),
-    );
+    return refundPageResponse(data, session, returnUrl, flash.error, 200);
   },
 );
 
@@ -87,6 +107,16 @@ const handleAttendeeRefund = verifiedAttendeeForm(
   "refund",
   "refund",
   async (data, _form, listingId, attendeeId) => {
+    // Refuse a refund on a no-quantity ghost row (checked against the exact
+    // (attendee, listing) pair) rather than refunding the shared payment from a
+    // listing the charge doesn't belong to.
+    if (!(await hasActiveBookingLine(attendeeId, listingId))) {
+      return refundError(
+        listingId,
+        attendeeId,
+        t("error.no_payment_to_refund"),
+      );
+    }
     if (!data.attendee.payment_id) {
       return refundError(
         listingId,
@@ -127,9 +157,11 @@ const handleAttendeeRefund = verifiedAttendeeForm(
   },
 );
 
-/** Filter attendees that have a payment_id and are not yet refunded */
+/** Filter attendees refundable on this listing: a payment, not yet refunded, and
+ * a real ticket line — a no-quantity ghost row on this listing isn't refundable
+ * (its roster row carries this listing's quantity). */
 const getRefundable = filter(
-  (a: Attendee) => a.payment_id !== "" && !a.refunded,
+  (a: Attendee) => a.payment_id !== "" && !a.refunded && hasTicketQuantity(a),
 );
 
 /** Handle GET /admin/listing/:id/refund-all */

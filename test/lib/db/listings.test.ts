@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import { revenueAccount } from "#shared/accounting/accounts.ts";
 import { accountBalance } from "#shared/accounting/queries.ts";
+import { postTransfers } from "#shared/accounting/store.ts";
 import {
   getAllActivityLog,
   getListingActivityLog,
@@ -45,6 +46,7 @@ import {
   saveAttendeeAnswers,
   setListingQuestions,
 } from "#shared/db/questions.ts";
+import { account } from "#shared/ledger/account.ts";
 import { MAX_DURATION_DAYS } from "#shared/types.ts";
 import {
   createTestAttendee,
@@ -317,7 +319,9 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
       );
 
       await reserveSession("sess_listing_delete");
-      await finalizePaymentSession("sess_listing_delete", attendee.id);
+      await finalizePaymentSession("sess_listing_delete", attendee.id, [
+        "tok-test",
+      ]);
 
       await deleteListing(listing.id);
 
@@ -440,7 +444,9 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
     test("keeps the shared attendee's processed payment when one listing is deleted", async () => {
       const { attendeeId, listing1 } = await bookAttendeeOnTwoListings();
       await reserveSession("sess_multi_listing");
-      await finalizePaymentSession("sess_multi_listing", attendeeId);
+      await finalizePaymentSession("sess_multi_listing", attendeeId, [
+        "tok-test",
+      ]);
 
       await deleteListing(listing1.id);
 
@@ -1015,6 +1021,36 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
       expect(breakdown.netBalance).toBe(
         await accountBalance(revenueAccount(listing.id)),
       );
+    });
+
+    test("an occurred-at range scopes the breakdown to that window", async () => {
+      const listing = await createTestListing({ maxAttendees: 50 });
+      const revenue = revenueAccount(listing.id);
+      const buyer = account("attendee", 1);
+      const sale = (reference: string, gross: number, occurredAt: string) =>
+        postTransfers([
+          {
+            amount: gross,
+            destination: revenue,
+            eventGroup: reference,
+            kind: "sale",
+            occurredAt,
+            reference,
+            source: buyer,
+          },
+        ]);
+      await sale("early-sale", 1000, "2026-06-20T12:00:00.000Z");
+      await sale("late-sale", 4000, "2026-06-22T12:00:00.000Z");
+
+      // Unbounded: both sales count.
+      expect((await listingRevenueBreakdown(listing.id)).grossSales).toBe(5000);
+      // Windowed to [21st, 23rd): only the 22nd sale.
+      const windowed = await listingRevenueBreakdown(listing.id, {
+        endMs: new Date("2026-06-23T00:00:00.000Z").getTime(),
+        startMs: new Date("2026-06-21T00:00:00.000Z").getTime(),
+      });
+      expect(windowed.grossSales).toBe(4000);
+      expect(windowed.recognisedIncome).toBe(4000);
     });
   });
 });

@@ -21,6 +21,7 @@ import {
   attendeeBalanceNotice,
   attendeeBookingsFromLines,
   isBookedLine,
+  isNoQuantityLine,
   type ParsedAttendeeForm,
   parseAttendeeForm,
   resolveSharedDates,
@@ -62,10 +63,12 @@ import {
   encryptPiiBlob,
   ensureAllBookings,
   getAttendee,
+  hasPaidLine,
   type ListingAttendeeRow,
   loadExistingLines,
   updateAttendeeOrder,
 } from "#shared/db/attendees.ts";
+import { hasAssignedBuiltSite } from "#shared/db/built-sites.ts";
 import {
   getContactRecord,
   getRepairFallbackRecord,
@@ -87,6 +90,7 @@ import {
   saveAttendeeAnswers,
 } from "#shared/db/questions.ts";
 import { settings } from "#shared/db/settings.ts";
+import { getNotesForAttendee } from "#shared/db/system-notes.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { statementFor } from "#shared/ledger/project.ts";
@@ -155,15 +159,18 @@ const buildFormLines = (
 ): AttendeeFormLine[] =>
   renderListings.map((listing) => {
     const existing = existingByListingId.get(listing.id);
+    const quantity = existing
+      ? existing.booking.quantity
+      : (preselectedQty.get(listing.id) ?? 0);
     return {
       error: null,
       existingBooking: existing?.booking ?? null,
       key: existing?.key ?? "",
       listing,
       listingId: listing.id,
-      quantity: existing
-        ? existing.booking.quantity
-        : (preselectedQty.get(listing.id) ?? 0),
+      // A stored quantity-0 line renders with the "no quantity" box ticked.
+      noQuantity: Boolean(existing) && quantity === 0,
+      quantity,
     };
   });
 
@@ -345,6 +352,7 @@ const buildTemplateData = async (
     dateError?: string | null;
     flashError?: string;
     flashSuccess?: string;
+    formError?: string | null;
     hasMixedTimings?: boolean;
     returnUrl?: string;
     questions?: QuestionWithAnswers[];
@@ -367,6 +375,12 @@ const buildTemplateData = async (
   const activityLog = attendee
     ? await getAttendeeActivityLog(attendee.id, ATTENDEE_LOG_LIMIT)
     : [];
+  // Owner notes are owner-key encrypted, so decrypting needs the request private
+  // key — already unwrapped on the edit path (PII/contact reads use it). Create
+  // mode has no attendee and so no notes (and never forces a key unwrap).
+  const systemNotes = attendee
+    ? await getNotesForAttendee(attendee.id, await requireRequestPrivateKey())
+    : [];
   const warnings = await computeWarnings(parsed, attendee?.id);
   const logistics = await buildAttendeeLogisticsData(parsed.lines, attendee);
   return {
@@ -380,6 +394,7 @@ const buildTemplateData = async (
     dateError: opts.dateError ?? null,
     flashError: opts.flashError,
     flashSuccess: opts.flashSuccess,
+    formError: opts.formError ?? null,
     // The shared date range only affects daily listings; the form's rendered
     // lines cover every active listing plus any inactive one this attendee
     // already books, so a daily line here is exactly when the dates matter.
@@ -398,6 +413,7 @@ const buildTemplateData = async (
     selectedAnswerIds: opts.selectedAnswerIds ?? [],
     selectedTextAnswers: opts.selectedTextAnswers ?? new Map(),
     statuses,
+    systemNotes,
     todayIso: todayInTz(settings.timezone),
     topWarnings: warnings.top,
   };
@@ -679,6 +695,7 @@ const handleSubmitInner = async (
       ...dataForRerender,
       attendeeError: result.attendeeError?.message ?? null,
       dateError: result.dateError,
+      formError: result.formError,
     });
   }
 
@@ -719,6 +736,33 @@ type SaveOutcome =
 
 /** Shown when a submission has no booked listing. */
 const NO_LINES_ERROR = "Book at least one listing before saving";
+
+/** Shown when a no-quantity tick targets a line that still holds a built site. */
+const BUILT_SITE_NO_QTY_ERROR =
+  "Unassign the built site from this booking before marking it no quantity.";
+
+/** Shown when a no-quantity tick targets a line that still has a recorded payment. */
+const PAID_NO_QTY_ERROR =
+  "Refund this booking's payment before marking it no quantity.";
+
+/**
+ * True when any no-quantity line satisfies a check, judged from the live DB (not
+ * the form's submitted key). Used by applyEdit to block marking a line
+ * no-quantity while it still holds an assigned built site (the assignment +
+ * public /renew/ path would survive behind a hidden line) or a recorded payment
+ * (a stale form key would otherwise hide the booking from the per-line model
+ * guard and let the atomic edit drop the paid row). One query over all the IDs.
+ */
+const anyNoQuantityLineMatches = (
+  attendeeId: number,
+  lines: AttendeeFormLine[],
+  check: (attendeeId: number, listingIds: number[]) => Promise<boolean>,
+): Promise<boolean> => {
+  const listingIds = lines.filter(isNoQuantityLine).map((l) => l.listingId);
+  return listingIds.length > 0
+    ? check(attendeeId, listingIds)
+    : Promise.resolve(false);
+};
 
 /** Shown when capacity can't fit the submitted lines. */
 const CAPACITY_SAVE_ERROR =
@@ -762,19 +806,27 @@ const applyCreate = async (
   if (input.bookings.length === 0) {
     return { flashError: NO_LINES_ERROR, ok: false };
   }
+  // A no-quantity-only attendee has no real line to pay into, so never give it an
+  // unpayable balance (the public pay gate refuses such attendees).
+  const hasRealLine = parsed.lines.some(isBookedLine);
   // Admin manual add may deliberately overbook (a warning is shown, not blocked)
   // and is tagged as an "admin" booking so it counts separately from online
   // checkouts in the contact's booking history. The ledger poster records the
   // booking's gross `sale` legs and reconciles the entered outstanding balance in
   // the SAME create transaction, so the owed amount projects from the ledger
   // (rather than silently reading back as £0) and lands atomically with the rows.
+  // A no-quantity-only add has no real line to pay into, so reconcile the balance
+  // to 0 rather than record a receivable the public pay gate could never settle.
   const createResult = await createAttendeeAtomic(
     {
       ...input,
       allowOverbook: true,
       source: "admin",
     },
-    manualAddLedgerPoster(toLedgerOrder(parsed), input.remainingBalance),
+    manualAddLedgerPoster(
+      toLedgerOrder(parsed),
+      hasRealLine ? input.remainingBalance : 0,
+    ),
   );
   const check = await ensureAllBookings(
     createResult,
@@ -811,6 +863,22 @@ const applyEdit = async (
   answers: import("#shared/db/questions.ts").AttendeeAnswerSet,
   logisticsPlan: LogisticsPlan,
 ): Promise<SaveOutcome> => {
+  // Block marking an assigned built-site line no-quantity (no release path here).
+  if (
+    await anyNoQuantityLineMatches(
+      attendeeId,
+      parsed.lines,
+      hasAssignedBuiltSite,
+    )
+  ) {
+    return { flashError: BUILT_SITE_NO_QTY_ERROR, ok: false };
+  }
+  // Block marking a paid line no-quantity, even when a stale form key hid the
+  // existing booking from the per-line model guard.
+  if (await anyNoQuantityLineMatches(attendeeId, parsed.lines, hasPaidLine)) {
+    return { flashError: PAID_NO_QTY_ERROR, ok: false };
+  }
+
   const encryptedPiiBlob = (await encryptPiiBlob(
     buildPiiBlob({
       address: parsed.address,
@@ -839,10 +907,16 @@ const applyEdit = async (
     return { flashError: CAPACITY_SAVE_ERROR, ok: false };
   }
 
+  // When the save leaves no real line the public pay gate refuses payment, so
+  // reconcile the ledger balance to 0 rather than strand an unpayable receivable
+  // on a ghost; otherwise reconcile to the entered balance. The reconcile posts a
+  // writeoff leg, which is itself the audit record of the clear. Same predicate as
+  // applyCreate — only booked lines survive into `desired` with quantity > 0.
+  const hasRealLine = parsed.lines.some(isBookedLine);
   await updateAttendeeOrder(
     attendeeId,
     parsed.statusId,
-    parsed.remainingBalance,
+    hasRealLine ? parsed.remainingBalance : 0,
   );
 
   await applyLogisticsPlan(attendeeId, logisticsPlan);

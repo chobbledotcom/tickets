@@ -5,7 +5,7 @@
 import { joinStrings, map, reduce, sumOf } from "#fp";
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
-import type { Attendee } from "#shared/types.ts";
+import { type Attendee, hasTicketQuantity } from "#shared/types.ts";
 import type { TableQuestionData } from "#templates/attendee-table.tsx";
 
 /** A key/value row for the listing-details-table */
@@ -54,8 +54,13 @@ type CheckedInStats = {
   hasMultiQuantity: boolean;
 };
 
-/** Compute checked-in stats from an attendee list */
-const getCheckedInStats = (attendees: Attendee[]): CheckedInStats => {
+/** Compute checked-in stats from an attendee list. Only real (quantity > 0)
+ * lines count: a no-quantity sentinel row isn't a ticket, so it must not inflate
+ * rowsTotal/remaining or force a spurious multi-quantity split (one real + one
+ * ghost would otherwise read as 1 ticket across 2 rows). The ghost still shows
+ * in the unfiltered admin roster. */
+const getCheckedInStats = (allAttendees: Attendee[]): CheckedInStats => {
+  const attendees = allAttendees.filter(hasTicketQuantity);
   const ticketsTotal = sumQuantity(attendees);
   return {
     hasMultiQuantity: ticketsTotal !== attendees.length,

@@ -24,13 +24,16 @@ import {
   ATTENDEE_TABLE_COLUMNS,
 } from "#shared/columns/attendee-columns.ts";
 import type {
-  Answer,
   AttendeeQuestionData,
   QuestionWithAnswers,
 } from "#shared/db/questions.ts";
 import { settings } from "#shared/db/settings.ts";
 import { CsrfForm } from "#shared/forms.tsx";
-import type { Attendee, AttendeeTableRow } from "#shared/types.ts";
+import {
+  type Attendee,
+  type AttendeeTableRow,
+  hasTicketQuantity,
+} from "#shared/types.ts";
 import { escapeHtml } from "#templates/layout.tsx";
 
 export { formatAddressInline } from "#shared/columns/attendee-columns.ts";
@@ -162,7 +165,7 @@ const buildAnswerTextMap = (
   new Map(
     pipe(
       flatMap((q: QuestionWithAnswers) => q.answers),
-      map((a: Answer) => [a.id, a.text] as const),
+      map((a) => [a.id, a.text] as const),
     )(questions),
   );
 
@@ -220,6 +223,15 @@ const CheckinButton = ({
 const createStatusRenderer =
   (opts: AttendeeTableOptions) =>
   (row: AttendeeTableRow): string => {
+    // A no-quantity sentinel row stays visible but isn't checkable — show the
+    // indicator instead of a check-in button (updateCheckedIn refuses it).
+    if (!hasTicketQuantity(row.attendee)) {
+      return String(
+        <span class="muted small">
+          {t("admin.attendee_table.no_quantity")}
+        </span>,
+      );
+    }
     if (row.attendee.refunded) {
       return String(
         <span class="badge-alert">

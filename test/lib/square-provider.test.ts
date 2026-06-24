@@ -7,6 +7,90 @@ import { squareApi } from "#shared/square.ts";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
 import { createTestDb, resetDb, testListing, withMocks } from "#test-utils";
 
+/** A Square Money value in the given minor units (defaults to USD). */
+const money = (amount: number, currency = "USD") => ({
+  amount: BigInt(amount),
+  currency,
+});
+
+/** The canonical order metadata for a single-ticket Square checkout. */
+const ORDER_META = {
+  email: "alice@example.com",
+  items: '[{"e":1,"q":1,"p":0}]',
+  name: "Alice",
+};
+
+/** A completed order carrying no metadata (the "ignore" fixture). */
+const NO_META_ORDER = {
+  id: "order_no_meta",
+  metadata: {},
+  state: "COMPLETED",
+  totalMoney: money(1000),
+};
+
+type SquarePayment = Awaited<ReturnType<typeof squareApi.retrievePayment>>;
+
+/** retrieveOrder + retrievePayment stubs for a paid (pay_1/COMPLETED) order. */
+const paidPay1Mocks = (id: string, createdAt?: string) => ({
+  order: stub(squareApi, "retrieveOrder", () =>
+    Promise.resolve({
+      ...(createdAt ? { createdAt } : {}),
+      id,
+      metadata: ORDER_META,
+      state: "COMPLETED",
+      tenders: [{ id: "tender_1", paymentId: "pay_1" }],
+      totalMoney: money(1000),
+    }),
+  ),
+  payment: stub(squareApi, "retrievePayment", () =>
+    Promise.resolve({ id: "pay_1", status: "COMPLETED" }),
+  ),
+});
+
+/** A single-line checkout intent for the given listing and phone value. */
+const listingIntent = (
+  listing: ReturnType<typeof testListing>,
+  phone: string,
+) => ({
+  address: "",
+  date: null,
+  email: "john@example.com",
+  items: [
+    {
+      listingId: listing.id,
+      name: listing.name,
+      quantity: 1,
+      slug: listing.slug,
+      unitPrice: listing.unit_price,
+    },
+  ],
+  name: "John",
+  phone,
+  special_instructions: "",
+});
+
+/** Assert createCheckoutSession surfaces a thrown PaymentUserError's message. */
+const expectCheckoutUserError = async (
+  intent: Parameters<typeof squarePaymentProvider.createCheckoutSession>[0],
+  message: string,
+): Promise<void> => {
+  await withMocks(
+    () =>
+      stub(squareApi, "createPaymentLink", () => {
+        throw new PaymentUserError(message);
+      }),
+    async () => {
+      const result = await squarePaymentProvider.createCheckoutSession(
+        intent,
+        "http://localhost",
+      );
+      expect(result).not.toBeNull();
+      expect(result).toHaveProperty("error");
+      expect((result as { error: string }).error).toBe(message);
+    },
+  );
+};
+
 describe("square-provider", () => {
   beforeEach(async () => {
     await createTestDb();
@@ -22,12 +106,7 @@ describe("square-provider", () => {
       await withMocks(
         () =>
           stub(squareApi, "retrieveOrder", () =>
-            Promise.resolve({
-              id: "order_no_meta",
-              metadata: {},
-              state: "COMPLETED",
-              totalMoney: { amount: BigInt(1000), currency: "USD" },
-            }),
+            Promise.resolve(NO_META_ORDER),
           ),
         async () => {
           const result =
@@ -39,27 +118,7 @@ describe("square-provider", () => {
 
     test("returns paid when payment status is COMPLETED", async () => {
       await withMocks(
-        () => ({
-          order: stub(squareApi, "retrieveOrder", () =>
-            Promise.resolve({
-              id: "order_completed",
-              metadata: {
-                email: "alice@example.com",
-                items: '[{"e":1,"q":1,"p":0}]',
-                name: "Alice",
-              },
-              state: "COMPLETED",
-              tenders: [{ id: "tender_1", paymentId: "pay_1" }],
-              totalMoney: { amount: BigInt(1000), currency: "USD" },
-            }),
-          ),
-          payment: stub(squareApi, "retrievePayment", () =>
-            Promise.resolve({
-              id: "pay_1",
-              status: "COMPLETED",
-            }),
-          ),
-        }),
+        () => paidPay1Mocks("order_completed"),
         async (mocks) => {
           const result =
             await squarePaymentProvider.retrieveSession("order_completed");
@@ -72,27 +131,9 @@ describe("square-provider", () => {
     });
 
     test("normalises a non-canonical order date to canonical ISO", async () => {
+      // Square timestamps can omit milliseconds; the ledger needs .sssZ.
       await withMocks(
-        () => ({
-          order: stub(squareApi, "retrieveOrder", () =>
-            Promise.resolve({
-              // Square timestamps can omit milliseconds; the ledger needs .sssZ.
-              createdAt: "2026-06-20T09:00:00Z",
-              id: "order_dated",
-              metadata: {
-                email: "alice@example.com",
-                items: '[{"e":1,"q":1,"p":0}]',
-                name: "Alice",
-              },
-              state: "COMPLETED",
-              tenders: [{ id: "tender_1", paymentId: "pay_1" }],
-              totalMoney: { amount: BigInt(1000), currency: "USD" },
-            }),
-          ),
-          payment: stub(squareApi, "retrievePayment", () =>
-            Promise.resolve({ id: "pay_1", status: "COMPLETED" }),
-          ),
-        }),
+        () => paidPay1Mocks("order_dated", "2026-06-20T09:00:00Z"),
         async () => {
           const result =
             await squarePaymentProvider.retrieveSession("order_dated");
@@ -193,111 +234,84 @@ describe("square-provider", () => {
   });
 
   describe("isPaymentRefunded", () => {
-    test("returns true when fully refunded", async () => {
-      await withMocks(
-        () =>
-          stub(squareApi, "retrievePayment", () =>
-            Promise.resolve({
-              amountMoney: { amount: BigInt(1000), currency: "USD" },
-              id: "pay_123",
-              refundedMoney: { amount: BigInt(1000), currency: "USD" },
-              status: "COMPLETED",
-            }),
-          ),
-        async () => {
-          const result =
-            await squarePaymentProvider.isPaymentRefunded("pay_123");
-          expect(result).toBe(true);
+    const REFUND_CASES: {
+      name: string;
+      payment: SquarePayment;
+      expected: boolean;
+      id?: string;
+    }[] = [
+      {
+        expected: true,
+        name: "returns true when fully refunded",
+        payment: {
+          amountMoney: money(1000),
+          id: "pay_123",
+          refundedMoney: money(1000),
+          status: "COMPLETED",
         },
-      );
-    });
+      },
+      {
+        expected: false,
+        name: "returns false when only partially refunded",
+        payment: {
+          amountMoney: money(1000),
+          id: "pay_123",
+          refundedMoney: money(400),
+          status: "COMPLETED",
+        },
+      },
+      {
+        // Without amountMoney we cannot confirm a full refund, so a present
+        // refundedMoney must not be treated as fully refunded.
+        expected: false,
+        name: "returns false when the charged amount is unknown",
+        payment: {
+          id: "pay_123",
+          refundedMoney: money(1000),
+          status: "COMPLETED",
+        },
+      },
+      {
+        expected: false,
+        name: "returns false when refundedMoney is zero",
+        payment: {
+          amountMoney: money(1000),
+          id: "pay_123",
+          refundedMoney: money(0),
+          status: "COMPLETED",
+        },
+      },
+      {
+        expected: false,
+        id: "pay_missing",
+        name: "returns false when payment not found",
+        payment: null,
+      },
+      {
+        expected: false,
+        name: "returns false when refundedMoney is missing",
+        payment: {
+          amountMoney: money(1000),
+          id: "pay_123",
+          status: "COMPLETED",
+        },
+      },
+    ];
 
-    test("returns false when only partially refunded", async () => {
-      await withMocks(
-        () =>
-          stub(squareApi, "retrievePayment", () =>
-            Promise.resolve({
-              amountMoney: { amount: BigInt(1000), currency: "USD" },
-              id: "pay_123",
-              refundedMoney: { amount: BigInt(400), currency: "USD" },
-              status: "COMPLETED",
-            }),
-          ),
-        async () => {
-          const result =
-            await squarePaymentProvider.isPaymentRefunded("pay_123");
-          expect(result).toBe(false);
-        },
-      );
-    });
-
-    test("returns false when the charged amount is unknown", async () => {
-      // Without amountMoney we cannot confirm a full refund, so a present
-      // refundedMoney must not be treated as fully refunded.
-      await withMocks(
-        () =>
-          stub(squareApi, "retrievePayment", () =>
-            Promise.resolve({
-              id: "pay_123",
-              refundedMoney: { amount: BigInt(1000), currency: "USD" },
-              status: "COMPLETED",
-            }),
-          ),
-        async () => {
-          const result =
-            await squarePaymentProvider.isPaymentRefunded("pay_123");
-          expect(result).toBe(false);
-        },
-      );
-    });
-
-    test("returns false when refundedMoney is zero", async () => {
-      await withMocks(
-        () =>
-          stub(squareApi, "retrievePayment", () =>
-            Promise.resolve({
-              amountMoney: { amount: BigInt(1000), currency: "USD" },
-              id: "pay_123",
-              refundedMoney: { amount: BigInt(0), currency: "USD" },
-              status: "COMPLETED",
-            }),
-          ),
-        async () => {
-          const result =
-            await squarePaymentProvider.isPaymentRefunded("pay_123");
-          expect(result).toBe(false);
-        },
-      );
-    });
-
-    test("returns false when payment not found", async () => {
-      await withMocks(
-        () => stub(squareApi, "retrievePayment", () => Promise.resolve(null)),
-        async () => {
-          const result =
-            await squarePaymentProvider.isPaymentRefunded("pay_missing");
-          expect(result).toBe(false);
-        },
-      );
-    });
-
-    test("returns false when refundedMoney is missing", async () => {
-      await withMocks(
-        () =>
-          stub(squareApi, "retrievePayment", () =>
-            Promise.resolve({
-              amountMoney: { amount: BigInt(1000), currency: "USD" },
-              id: "pay_123",
-              status: "COMPLETED",
-            }),
-          ),
-        async () => {
-          const result =
-            await squarePaymentProvider.isPaymentRefunded("pay_123");
-          expect(result).toBe(false);
-        },
-      );
-    });
+    for (const { name, payment, expected, id } of REFUND_CASES) {
+      test(name, async () => {
+        await withMocks(
+          () =>
+            stub(squareApi, "retrievePayment", () => Promise.resolve(payment)),
+          async () => {
+            const result = await squarePaymentProvider.isPaymentRefunded(
+              id ?? "pay_123",
+            );
+            expect(result).toBe(expected);
+          },
+        );
+      });
+    }
   });
 
   describe("createCheckoutSession", () => {
@@ -306,39 +320,9 @@ describe("square-provider", () => {
         fields: "email" as const,
         unit_price: 1000,
       });
-      const intent = {
-        address: "",
-        date: null,
-        email: "john@example.com",
-        items: [
-          {
-            listingId: listing.id,
-            name: listing.name,
-            quantity: 1,
-            slug: listing.slug,
-            unitPrice: listing.unit_price,
-          },
-        ],
-        name: "John",
-        phone: "bad",
-        special_instructions: "",
-      };
-      await withMocks(
-        () =>
-          stub(squareApi, "createPaymentLink", () => {
-            throw new PaymentUserError("Phone number is invalid");
-          }),
-        async () => {
-          const result = await squarePaymentProvider.createCheckoutSession(
-            intent,
-            "http://localhost",
-          );
-          expect(result).not.toBeNull();
-          expect(result).toHaveProperty("error");
-          expect((result as { error: string }).error).toBe(
-            "Phone number is invalid",
-          );
-        },
+      await expectCheckoutUserError(
+        listingIntent(listing, "bad"),
+        "Phone number is invalid",
       );
     });
 
@@ -347,23 +331,7 @@ describe("square-provider", () => {
         fields: "email" as const,
         unit_price: 1000,
       });
-      const intent = {
-        address: "",
-        date: null,
-        email: "john@example.com",
-        items: [
-          {
-            listingId: listing.id,
-            name: listing.name,
-            quantity: 1,
-            slug: listing.slug,
-            unitPrice: listing.unit_price,
-          },
-        ],
-        name: "John",
-        phone: "",
-        special_instructions: "",
-      };
+      const intent = listingIntent(listing, "");
       await withMocks(
         () =>
           stub(squareApi, "createPaymentLink", () => {
@@ -399,23 +367,7 @@ describe("square-provider", () => {
         phone: "",
         special_instructions: "",
       };
-      await withMocks(
-        () =>
-          stub(squareApi, "createPaymentLink", () => {
-            throw new PaymentUserError("Email address is invalid");
-          }),
-        async () => {
-          const result = await squarePaymentProvider.createCheckoutSession(
-            intent,
-            "http://localhost",
-          );
-          expect(result).not.toBeNull();
-          expect(result).toHaveProperty("error");
-          expect((result as { error: string }).error).toBe(
-            "Email address is invalid",
-          );
-        },
-      );
+      await expectCheckoutUserError(intent, "Email address is invalid");
     });
   });
 

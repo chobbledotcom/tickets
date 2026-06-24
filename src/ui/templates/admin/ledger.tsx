@@ -1,6 +1,6 @@
 /**
  * Shared "ledger" renderer — the one read-only view of the `transfers` ledger,
- * used across three admin surfaces (decision 15 / §5.15 of accounting-plan.md):
+ * used across three admin surfaces (decision 15):
  * the historical transfer list (`/admin/ledger`), a single account's
  * running-balance statement (`/admin/ledger/:type/:id`), and the per-attendee
  * statement panel embedded on the edit-attendee page.
@@ -17,14 +17,19 @@ import { joinStrings, map, pipe } from "#fp";
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
-import { Raw } from "#shared/jsx/jsx-runtime.ts";
+import { Raw, type SafeHtml } from "#shared/jsx/jsx-runtime.ts";
 import { sameAccount } from "#shared/ledger/account.ts";
 import type { StatementLine } from "#shared/ledger/project.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
 import type { AdminSession } from "#shared/types.ts";
+import {
+  type DetailRow,
+  renderDetailRows,
+} from "#templates/admin/detail-rows.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { GuideLink } from "#templates/components/actions.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
+import { DatePicker, type DatePickerDate } from "#templates/date-picker.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 /**
@@ -187,6 +192,24 @@ export const LedgerTable = ({
 const signedAmount = (signed: number): string =>
   `${signed < 0 ? "-" : "+"}${formatCurrency(Math.abs(signed))}`;
 
+/**
+ * Whether an account's statement figures should be shown with their sign
+ * flipped. The ledger stores an attendee's account as a liability — a booking
+ * debits it negative, a payment credits it back toward zero — which is correct
+ * double-entry but reads backwards to a non-accountant: they expect a charge to
+ * show as a positive amount owed and a payment to bring it down. So an attendee
+ * statement negates its signed deltas and running balance; every other account
+ * (revenue, modifier, the singletons) keeps its native ledger sign. */
+const isReversedAccount = (account: AccountRef): boolean =>
+  account.type === "attendee";
+
+/** A statement figure (signed delta or running balance) as shown for an account,
+ * flipping its sign for the {@link isReversedAccount reversed} attendee view. The
+ * `value !== 0` guard keeps a zero figure from becoming negative zero, which
+ * would render as a stray "-£0". */
+const shownFigure = (value: number, account: AccountRef): number =>
+  isReversedAccount(account) && value !== 0 ? -value : value;
+
 /** The counterparty on a statement line: the OTHER account on the leg (the
  * source when this account received, else the destination). */
 const counterparty = (line: StatementLine, account: AccountRef): AccountRef =>
@@ -210,8 +233,12 @@ const StatementRow = ({
       <td>{formatDatetimeShort(line.transfer.occurredAt)}</td>
       <td>{kindLabel(line.transfer)}</td>
       <td>{accountCell(counterparty(line, account), names)}</td>
-      <td class={colClass("amount")}>{signedAmount(line.signed)}</td>
-      <td class={colClass("amount")}>{formatCurrency(line.running)}</td>
+      <td class={colClass("amount")}>
+        {signedAmount(shownFigure(line.signed, account))}
+      </td>
+      <td class={colClass("amount")}>
+        {formatCurrency(shownFigure(line.running, account))}
+      </td>
     </tr>,
   );
 
@@ -286,7 +313,9 @@ export const AccountStatementHeading = ({
   return (
     <p class="ledger-balance">
       <strong>{accountLabelText(account, names)}</strong>{" "}
-      {t("admin.ledger.balance", { amount: formatCurrency(balance) })}
+      {t("admin.ledger.balance", {
+        amount: formatCurrency(shownFigure(balance, account)),
+      })}
     </p>
   );
 };
@@ -311,14 +340,161 @@ export const AccountStatementSection = ({
   </>
 );
 
+/** The whole filter state the ledger page round-trips through the query string:
+ *  a `from`/`to` day range, an optional by-listing scope, and each picker's
+ *  currently-paged month (so stepping months survives a reload). */
+export type LedgerFilterState = {
+  from: string | null;
+  to: string | null;
+  listingId: number | null;
+  fromMonth: string | null;
+  toMonth: string | null;
+};
+
+/** One option for the by-listing filter select. */
+export type LedgerListingOption = { id: number; name: string };
+
+/** Everything the (render-only) ledger page needs: the visible transfers and
+ *  their name lookup, the range-scoped stats, the current filter state, and the
+ *  data the two date pickers + listing select render from. */
+export type LedgerPageData = {
+  transfers: Transfer[];
+  names: LedgerNames;
+  truncated: boolean;
+  stats: DetailRow[];
+  statsHeading: string;
+  filters: LedgerFilterState;
+  dates: DatePickerDate[];
+  today: string;
+  listings: LedgerListingOption[];
+};
+
+/** Build a `/admin/ledger` URL from the current filters plus an override of any
+ *  subset of them. A null/absent field drops its query param, so clearing the
+ *  `from` date (override `{ from: null }`) yields a link without it. */
+const ledgerHref = (
+  filters: LedgerFilterState,
+  overrides: Partial<LedgerFilterState>,
+  fragment = "",
+): string => {
+  const merged = { ...filters, ...overrides };
+  const params = new URLSearchParams();
+  if (merged.from) params.set("from", merged.from);
+  if (merged.to) params.set("to", merged.to);
+  if (merged.listingId !== null) {
+    params.set("listing", String(merged.listingId));
+  }
+  if (merged.fromMonth) params.set("fromCal", merged.fromMonth);
+  if (merged.toMonth) params.set("toCal", merged.toMonth);
+  const qs = params.toString();
+  return `/admin/ledger${qs ? `?${qs}` : ""}${fragment}`;
+};
+
+/** One side of the date-range filter: which filter fields it reads and writes,
+ *  so the two pickers share one renderer differing only by these accessors. */
+type RangeSide = {
+  anchorId: string;
+  labelKey: string;
+  pick: (f: LedgerFilterState) => { date: string | null; month: string | null };
+  setDate: (v: string | null) => Partial<LedgerFilterState>;
+  setMonth: (m: string) => Partial<LedgerFilterState>;
+};
+
+const RANGE_SIDES: RangeSide[] = [
+  {
+    anchorId: "ledger-from",
+    labelKey: "admin.ledger.filter.from",
+    pick: (f) => ({ date: f.from, month: f.fromMonth }),
+    setDate: (v) => ({ from: v }),
+    setMonth: (m) => ({ fromMonth: m }),
+  },
+  {
+    anchorId: "ledger-to",
+    labelKey: "admin.ledger.filter.to",
+    pick: (f) => ({ date: f.to, month: f.toMonth }),
+    setDate: (v) => ({ to: v }),
+    setMonth: (m) => ({ toMonth: m }),
+  },
+];
+
+/** One labelled date picker bound to one side of the range; both reuse the same
+ *  `/admin/calendar` {@link DatePicker}, scoped to a unique anchor id. */
+const RangeField = ({
+  data,
+  side,
+}: {
+  data: LedgerPageData;
+  side: RangeSide;
+}): SafeHtml => {
+  const current = side.pick(data.filters);
+  const fragment = `#${side.anchorId}`;
+  return (
+    <div class="ledger-date-field">
+      <strong>{t(side.labelKey)}</strong>
+      {DatePicker({
+        anchorId: side.anchorId,
+        ariaLabel: t(side.labelKey),
+        clearHref: ledgerHref(data.filters, side.setDate(null), fragment),
+        dates: data.dates,
+        dayHref: (v) => ledgerHref(data.filters, side.setDate(v), fragment),
+        monthHref: (m) => ledgerHref(data.filters, side.setMonth(m), fragment),
+        selected: current.date,
+        today: data.today,
+        viewMonth: current.month,
+      })}
+    </div>
+  );
+};
+
+/** The by-listing filter: a nav-select preselected to the current scope ("All
+ *  listings" or one listing), each option navigating to the scoped ledger. */
+const ListingFilter = ({ data }: { data: LedgerPageData }): SafeHtml => (
+  <p class="table-header-actions">
+    {t("admin.ledger.filter.listing")}:{" "}
+    <select aria-label={t("admin.ledger.filter.listing")} data-nav-select>
+      <option
+        selected={data.filters.listingId === null}
+        value={ledgerHref(data.filters, { listingId: null })}
+      >
+        {t("admin.ledger.filter.all_listings")}
+      </option>
+      {map(
+        (listing: LedgerListingOption): SafeHtml => (
+          <option
+            selected={data.filters.listingId === listing.id}
+            value={ledgerHref(data.filters, { listingId: listing.id })}
+          >
+            {listing.name}
+          </option>
+        ),
+      )(data.listings)}
+    </select>
+  </p>
+);
+
+/** The range-scoped stats table: a heading naming the scope ("All listings" or
+ *  one listing) above a key/value figure table. */
+const LedgerStats = ({ data }: { data: LedgerPageData }): SafeHtml => (
+  <>
+    <h2>{data.statsHeading}</h2>
+    <div class="table-scroll">
+      <table class="listing-details-table">
+        <tbody>
+          <Raw html={renderDetailRows(data.stats)} />
+        </tbody>
+      </table>
+    </div>
+  </>
+);
+
 /**
- * The historical-ledger page: the recent transfer list. `truncated` surfaces a
- * "showing recent" note when older transfers were dropped, like the global log.
+ * The operator ledger page: range-scoped stats, a from/to date-range filter and
+ * a by-listing select, then the visible transfer list (newest first, cash legs
+ * hidden). `truncated` surfaces a "showing recent" note when older transfers
+ * were dropped, like the global log.
  */
 export const adminLedgerPage = (
-  transfers: Transfer[],
-  names: LedgerNames,
-  truncated: boolean,
+  data: LedgerPageData,
   session: AdminSession,
 ): string =>
   String(
@@ -329,14 +505,22 @@ export const adminLedgerPage = (
           {t("admin.ledger.guide")}
         </GuideLink>
       </p>
-      <LedgerTable names={names} transfers={transfers} />
-      {truncated && <p>{t("admin.ledger.recent")}</p>}
+      <LedgerStats data={data} />
+      <div class="ledger-date-range">
+        {map(
+          (side: RangeSide): SafeHtml => <RangeField data={data} side={side} />,
+        )(RANGE_SIDES)}
+      </div>
+      <ListingFilter data={data} />
+      <LedgerTable names={data.names} transfers={data.transfers} />
+      {data.truncated && <p>{t("admin.ledger.recent")}</p>}
     </Layout>,
   );
 
 /**
- * One account's statement page: a back link to the historical ledger, the
- * account heading + balance, and its full running-balance statement.
+ * One account's statement page: the account heading + balance and its full
+ * running-balance statement. The nav already links back to the ledger, so no
+ * separate back link is shown.
  */
 export const adminAccountStatementPage = (
   account: AccountRef,
@@ -347,9 +531,6 @@ export const adminAccountStatementPage = (
   String(
     <Layout title={t("admin.ledger.statement_heading")}>
       <AdminNav active="/admin/ledger" session={session} />
-      <p class="actions">
-        <a href="/admin/ledger">&larr; {t("admin.ledger.heading")}</a>
-      </p>
       <AccountStatementSection account={account} lines={lines} names={names} />
     </Layout>,
   );

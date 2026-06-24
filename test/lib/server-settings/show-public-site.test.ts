@@ -1,11 +1,11 @@
+// jscpd:ignore-start
 import { expect } from "@std/expect";
-import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
-import { setDemoModeForTest } from "#shared/demo.ts";
 import {
   awaitTestRequest,
-  describeWithEnv,
+  describeAdminSettings,
   expectFlash,
   expectHtmlResponse,
   mockFormRequest,
@@ -14,11 +14,9 @@ import {
   testRequiresAuth,
 } from "#test-utils";
 
-describeWithEnv("server (admin settings)", { db: true }, () => {
-  afterEach(() => {
-    setDemoModeForTest(false);
-  });
+// jscpd:ignore-end
 
+describeAdminSettings(() => {
   describe("POST /admin/settings/show-public-site", () => {
     testRequiresAuth("/admin/settings/show-public-site", {
       body: {
@@ -26,6 +24,18 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       },
       method: "POST",
     });
+
+    /** POST `show_public_site=value` with a fresh CSRF token + owner cookie. */
+    const postShowPublicSite = async (value: string): Promise<Response> => {
+      const csrf_token = await testCsrfToken();
+      return handleRequest(
+        mockFormRequest(
+          "/admin/settings/show-public-site",
+          { csrf_token, show_public_site: value },
+          await testCookie(),
+        ),
+      );
+    };
 
     test("rejects invalid CSRF token", async () => {
       const response = await handleRequest(
@@ -42,33 +52,13 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("enables public site", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/show-public-site",
-          {
-            csrf_token: await testCsrfToken(),
-            show_public_site: "true",
-          },
-          await testCookie(),
-        ),
-      );
-
+      const response = await postShowPublicSite("true");
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("Public site enabled"));
     });
 
     test("disables public site", async () => {
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/show-public-site",
-          {
-            csrf_token: await testCsrfToken(),
-            show_public_site: "false",
-          },
-          await testCookie(),
-        ),
-      );
-
+      const response = await postShowPublicSite("false");
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("Public site disabled"));
     });
@@ -78,16 +68,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       expect(settings.showPublicSite).toBe(false);
 
       // Enable it
-      await handleRequest(
-        mockFormRequest(
-          "/admin/settings/show-public-site",
-          {
-            csrf_token: await testCsrfToken(),
-            show_public_site: "true",
-          },
-          await testCookie(),
-        ),
-      );
+      await postShowPublicSite("true");
 
       expect(settings.showPublicSite).toBe(true);
     });

@@ -30,6 +30,7 @@ import {
   getQuestionsForListing,
 } from "#shared/db/questions.ts";
 import { settings } from "#shared/db/settings.ts";
+import { loadNotesForAttendees } from "#shared/db/system-notes.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
@@ -66,10 +67,10 @@ const getUniqueDates: (
   attendees: Attendee[],
 ) => { value: string; label: string }[] = pipe(
   map((a: Attendee) => a.date),
-  (dates: (string | null)[]) => compact(dates),
-  (dates: string[]) => unique(dates),
-  sort((a: string, b: string) => a.localeCompare(b)),
-  map((d: string) => ({ label: formatDateLabel(d), value: d })),
+  (dates) => compact(dates),
+  (dates) => unique(dates),
+  sort((a, b) => a.localeCompare(b)),
+  map((d) => ({ label: formatDateLabel(d), value: d })),
 );
 
 /** Get date filter and filtered attendees for daily listings */
@@ -195,6 +196,7 @@ const renderListingPage = async (
             groupContext,
             recalc,
             revenueBreakdown,
+            systemNotes,
           ] = await Promise.all([
             Promise.resolve(getFlash()),
             Promise.resolve(settings.phonePrefix),
@@ -202,6 +204,7 @@ const renderListingPage = async (
             loadGroupContext(listing, dateFilter),
             getListingAggregateRecalculation(listing),
             listingRevenueBreakdown(listing.id),
+            loadNotesForAttendees(attendeeIds, requireRequestPrivateKey),
           ]);
           return htmlResponse(
             adminListingPage({
@@ -223,6 +226,7 @@ const renderListingPage = async (
               revenueBreakdown,
               session,
               successMessage: flash.success,
+              systemNotes,
             }),
           );
         },

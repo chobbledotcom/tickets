@@ -75,7 +75,10 @@ export const standardAttendeeColumns = (domain: string): Column<Attendee>[] => [
   { header: t("csv.col.ticket_token"), value: (a) => a.ticket_token },
   {
     header: t("csv.col.ticket_url"),
-    value: (a) => `https://${domain}/t/${a.ticket_token}`,
+    // Blank for a no-quantity sentinel row: its /t URL renders the attendee's
+    // other real bookings (or 404s), so it isn't this row's customer ticket.
+    value: (a) =>
+      a.quantity === 0 ? "" : `https://${domain}/t/${a.ticket_token}`,
   },
 ];
 

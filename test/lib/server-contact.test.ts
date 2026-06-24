@@ -12,6 +12,7 @@ import {
   FLASH_TEST_ID,
   flashCookieHeader,
   getHeader,
+  installRecordingFetch,
   mockFormRequest,
   mockRequest,
 } from "#test-utils";
@@ -26,62 +27,72 @@ const BOTPOISON_ENV = {
 const installContactFetch = (opts: {
   botpoisonOk: boolean;
   emailStatus?: number;
-}) => {
-  const original = globalThis.fetch;
-  const calls: { url: string; body: Record<string, unknown> | null }[] = [];
-  globalThis.fetch = ((input: string | URL | Request, init?: RequestInit) => {
-    const url = String(input instanceof Request ? input.url : input);
-    const raw = init?.body;
-    calls.push({ body: typeof raw === "string" ? JSON.parse(raw) : null, url });
+}) =>
+  installRecordingFetch((url) => {
     if (url.includes("api.botpoison.com")) {
-      return Promise.resolve(
-        new Response(JSON.stringify({ ok: opts.botpoisonOk })),
-      );
+      return new Response(JSON.stringify({ ok: opts.botpoisonOk }));
     }
     if (url.includes("api.resend.com")) {
-      return Promise.resolve(
-        new Response(null, { status: opts.emailStatus ?? 200 }),
-      );
+      return new Response(null, { status: opts.emailStatus ?? 200 });
     }
-    return original(input, init);
-  }) as typeof globalThis.fetch;
-  return {
-    calls,
-    emailCall: () => calls.find((c) => c.url.includes("api.resend.com")),
-    restore: () => {
-      globalThis.fetch = original;
-    },
-  };
+    return null;
+  });
+
+/** Configure everything the public contact form needs to be active. */
+const activate = async (): Promise<void> => {
+  await settings.update.showPublicSite(true);
+  await settings.update.businessEmail("owner@example.com");
+  await settings.update.contactFormEnabled(true);
+  await settings.update.email.provider("resend");
+  await settings.update.email.apiKey("re_test_key");
+};
+
+/** Fetch /contact and pull the CSRF token out of the rendered form. */
+const contactCsrf = async (): Promise<string> => {
+  const response = await handleRequest(mockRequest("/contact"));
+  const token = extractCsrfToken(await response.text());
+  if (!token) throw new Error("No CSRF token on /contact");
+  return token;
+};
+
+/** Run `body` with the contact Botpoison/email fetch mocked, restoring after. */
+const withContactFetch = async (
+  opts: Parameters<typeof installContactFetch>[0],
+  body: (mock: ReturnType<typeof installContactFetch>) => Promise<void>,
+): Promise<void> => {
+  const mock = installContactFetch(opts);
+  try {
+    await body(mock);
+  } finally {
+    mock.restore();
+  }
+};
+
+/** POST the contact form with a fresh CSRF token plus the given fields. */
+const postContactForm = async (
+  fields: Record<string, string>,
+): Promise<Response> => {
+  const csrf_token = await contactCsrf();
+  return handleRequest(mockFormRequest("/contact", { csrf_token, ...fields }));
+};
+
+/** Activate the form, GET /contact, assert it renders, and return the HTML. */
+const renderActiveContactForm = async (): Promise<string> => {
+  await activate();
+  const response = await handleRequest(mockRequest("/contact"));
+  const html = await response.text();
+  expect(response.status).toBe(200);
+  expect(html).toContain('action="/contact"');
+  return html;
 };
 
 describeWithEnv(
   "server (public contact form, Botpoison configured)",
   { db: true, env: BOTPOISON_ENV },
   () => {
-    /** Configure everything the public contact form needs to be active. */
-    const activate = async (): Promise<void> => {
-      await settings.update.showPublicSite(true);
-      await settings.update.businessEmail("owner@example.com");
-      await settings.update.contactFormEnabled(true);
-      await settings.update.email.provider("resend");
-      await settings.update.email.apiKey("re_test_key");
-    };
-
-    /** Fetch /contact and pull the CSRF token out of the rendered form. */
-    const contactCsrf = async (): Promise<string> => {
-      const response = await handleRequest(mockRequest("/contact"));
-      const token = extractCsrfToken(await response.text());
-      if (!token) throw new Error("No CSRF token on /contact");
-      return token;
-    };
-
     describe("GET /contact", () => {
       test("renders the form with the public key when active", async () => {
-        await activate();
-        const response = await handleRequest(mockRequest("/contact"));
-        const html = await response.text();
-        expect(response.status).toBe(200);
-        expect(html).toContain('action="/contact"');
+        const html = await renderActiveContactForm();
         expect(html).toContain('data-botpoison-public-key="pk_test_public"');
         expect(html).toContain('name="email"');
         expect(html).toContain('name="message"');
@@ -175,41 +186,29 @@ describeWithEnv(
     describe("POST /contact", () => {
       test("sends the message and flashes success when verified", async () => {
         await activate();
-        const mock = installContactFetch({ botpoisonOk: true });
-        try {
-          const csrf_token = await contactCsrf();
-          const response = await handleRequest(
-            mockFormRequest("/contact", {
-              _botpoison: "solved",
-              csrf_token,
-              email: "visitor@external.test",
-              message: "Hello!",
-            }),
-          );
+        await withContactFetch({ botpoisonOk: true }, async (mock) => {
+          const response = await postContactForm({
+            _botpoison: "solved",
+            email: "visitor@external.test",
+            message: "Hello!",
+          });
           expectRedirect(response, "/contact");
           expectFlash(response, "Message sent");
           const emailCall = mock.emailCall();
           expect(emailCall).toBeDefined();
           expect(emailCall?.body?.to).toEqual(["owner@example.com"]);
           expect(emailCall?.body?.reply_to).toBe("visitor@external.test");
-        } finally {
-          mock.restore();
-        }
+        });
       });
 
       test("does not send and flashes an error when verification fails", async () => {
         await activate();
-        const mock = installContactFetch({ botpoisonOk: false });
-        try {
-          const csrf_token = await contactCsrf();
-          const response = await handleRequest(
-            mockFormRequest("/contact", {
-              _botpoison: "bad",
-              csrf_token,
-              email: "visitor@example.com",
-              message: "Hello!",
-            }),
-          );
+        await withContactFetch({ botpoisonOk: false }, async (mock) => {
+          const response = await postContactForm({
+            _botpoison: "bad",
+            email: "visitor@example.com",
+            message: "Hello!",
+          });
           expectRedirect(response, "/contact");
           expectFlash(
             response,
@@ -217,65 +216,44 @@ describeWithEnv(
             false,
           );
           expect(mock.emailCall()).toBeUndefined();
-        } finally {
-          mock.restore();
-        }
+        });
       });
 
       test("rejects an invalid email without verifying", async () => {
         await activate();
-        const mock = installContactFetch({ botpoisonOk: true });
-        try {
-          const csrf_token = await contactCsrf();
-          const response = await handleRequest(
-            mockFormRequest("/contact", {
-              _botpoison: "solved",
-              csrf_token,
-              email: "not-an-email",
-              message: "Hello!",
-            }),
-          );
+        await withContactFetch({ botpoisonOk: true }, async (mock) => {
+          const response = await postContactForm({
+            _botpoison: "solved",
+            email: "not-an-email",
+            message: "Hello!",
+          });
           expectRedirect(response, "/contact");
           expectFlash(response, "Please enter a valid email address.", false);
           expect(mock.calls.length).toBe(0);
-        } finally {
-          mock.restore();
-        }
+        });
       });
 
       test("rejects an empty message", async () => {
         await activate();
-        const mock = installContactFetch({ botpoisonOk: true });
-        try {
-          const csrf_token = await contactCsrf();
-          const response = await handleRequest(
-            mockFormRequest("/contact", {
-              _botpoison: "solved",
-              csrf_token,
-              email: "visitor@example.com",
-              message: "   ",
-            }),
-          );
+        await withContactFetch({ botpoisonOk: true }, async (mock) => {
+          const response = await postContactForm({
+            _botpoison: "solved",
+            email: "visitor@example.com",
+            message: "   ",
+          });
           expectRedirect(response, "/contact");
           expectFlash(response, "Please enter a message.", false);
-        } finally {
-          mock.restore();
-        }
+        });
       });
 
       test("rejects a message that exceeds the maximum length", async () => {
         await activate();
-        const mock = installContactFetch({ botpoisonOk: true });
-        try {
-          const csrf_token = await contactCsrf();
-          const response = await handleRequest(
-            mockFormRequest("/contact", {
-              _botpoison: "solved",
-              csrf_token,
-              email: "visitor@example.com",
-              message: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
-            }),
-          );
+        await withContactFetch({ botpoisonOk: true }, async (mock) => {
+          const response = await postContactForm({
+            _botpoison: "solved",
+            email: "visitor@example.com",
+            message: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
+          });
           expectRedirect(response, "/contact");
           expectFlash(
             response,
@@ -283,9 +261,7 @@ describeWithEnv(
             false,
           );
           expect(mock.calls.length).toBe(0);
-        } finally {
-          mock.restore();
-        }
+        });
       });
 
       test("redirects to login when the public site is disabled", async () => {
@@ -302,29 +278,22 @@ describeWithEnv(
 
       test("flashes an error when the message cannot be delivered", async () => {
         await activate();
-        const mock = installContactFetch({
-          botpoisonOk: true,
-          emailStatus: 500,
-        });
-        try {
-          const csrf_token = await contactCsrf();
-          const response = await handleRequest(
-            mockFormRequest("/contact", {
+        await withContactFetch(
+          { botpoisonOk: true, emailStatus: 500 },
+          async () => {
+            const response = await postContactForm({
               _botpoison: "solved",
-              csrf_token,
               email: "visitor@example.com",
               message: "Hello!",
-            }),
-          );
-          expectRedirect(response, "/contact");
-          expectFlash(
-            response,
-            expect.stringContaining("could not be sent"),
-            false,
-          );
-        } finally {
-          mock.restore();
-        }
+            });
+            expectRedirect(response, "/contact");
+            expectFlash(
+              response,
+              expect.stringContaining("could not be sent"),
+              false,
+            );
+          },
+        );
       });
 
       test("redirects with an error on an invalid CSRF token", async () => {
@@ -385,28 +354,8 @@ describeWithEnv(
   "server (public contact form, Botpoison not configured)",
   { db: true },
   () => {
-    /** Enable the form without Botpoison (progressive enhancement is off). */
-    const activate = async (): Promise<void> => {
-      await settings.update.showPublicSite(true);
-      await settings.update.businessEmail("owner@example.com");
-      await settings.update.contactFormEnabled(true);
-      await settings.update.email.provider("resend");
-      await settings.update.email.apiKey("re_test_key");
-    };
-
-    const contactCsrf = async (): Promise<string> => {
-      const response = await handleRequest(mockRequest("/contact"));
-      const token = extractCsrfToken(await response.text());
-      if (!token) throw new Error("No CSRF token on /contact");
-      return token;
-    };
-
     test("renders the form without the Botpoison widget", async () => {
-      await activate();
-      const response = await handleRequest(mockRequest("/contact"));
-      const html = await response.text();
-      expect(response.status).toBe(200);
-      expect(html).toContain('action="/contact"');
+      const html = await renderActiveContactForm();
       expect(html).toContain('name="email"');
       expect(html).toContain('name="message"');
       expect(html).not.toContain("data-botpoison-public-key");
@@ -415,16 +364,11 @@ describeWithEnv(
 
     test("accepts a submission without verification and emails the owner", async () => {
       await activate();
-      const mock = installContactFetch({ botpoisonOk: false });
-      try {
-        const csrf_token = await contactCsrf();
-        const response = await handleRequest(
-          mockFormRequest("/contact", {
-            csrf_token,
-            email: "visitor@example.com",
-            message: "Hello!",
-          }),
-        );
+      await withContactFetch({ botpoisonOk: false }, async (mock) => {
+        const response = await postContactForm({
+          email: "visitor@example.com",
+          message: "Hello!",
+        });
         expectRedirect(response, "/contact");
         expectFlash(response, "Message sent");
         // The Botpoison API must not be called when it is not configured.
@@ -432,29 +376,20 @@ describeWithEnv(
           mock.calls.some((c) => c.url.includes("api.botpoison.com")),
         ).toBe(false);
         expect(mock.emailCall()?.body?.to).toEqual(["owner@example.com"]);
-      } finally {
-        mock.restore();
-      }
+      });
     });
 
     test("still validates the email field", async () => {
       await activate();
-      const mock = installContactFetch({ botpoisonOk: false });
-      try {
-        const csrf_token = await contactCsrf();
-        const response = await handleRequest(
-          mockFormRequest("/contact", {
-            csrf_token,
-            email: "not-an-email",
-            message: "Hello!",
-          }),
-        );
+      await withContactFetch({ botpoisonOk: false }, async (mock) => {
+        const response = await postContactForm({
+          email: "not-an-email",
+          message: "Hello!",
+        });
         expectRedirect(response, "/contact");
         expectFlash(response, "Please enter a valid email address.", false);
         expect(mock.calls.length).toBe(0);
-      } finally {
-        mock.restore();
-      }
+      });
     });
 
     test("404s when the form is not enabled", async () => {

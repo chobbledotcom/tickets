@@ -33,6 +33,93 @@ const fail = (code: number, stdout = "", stderr = ""): CommandResult => ({
   success: false,
 });
 
+/** A 40-char SHA stdout line built from a single repeated character. */
+const sha = (c: string): CommandResult => ok(`${c.repeat(40)}\n`);
+
+/** The six git-metadata responses getMergeConflictWarning reads before
+ *  merge-tree: inside-work-tree, the remote URL, then four resolved SHAs. */
+const gitMeta = (
+  remote = "git@github.com:chobbledotcom/tickets.git",
+): CommandResult[] => [
+  ok("true\n"),
+  ok(`${remote}\n`),
+  sha("a"),
+  sha("b"),
+  sha("c"),
+  sha("d"),
+];
+
+/** A `run` that returns each queued response in turn, then fail(128). */
+const runFrom =
+  (responses: CommandResult[]) =>
+  (_cmd: string[]): Promise<CommandResult> =>
+    Promise.resolve(responses.shift() ?? fail(128));
+
+/** A merge-tree (--name-only) failure listing the given conflicted paths. */
+const mergeTreeConflict = (...paths: string[]): CommandResult =>
+  fail(
+    1,
+    [
+      "e".repeat(40),
+      ...paths,
+      "",
+      `Auto-merging ${paths[0]}`,
+      `CONFLICT (content): Merge conflict in ${paths[0]}`,
+    ].join("\n"),
+  );
+
+/** Like runFrom, but records every command for later assertion. */
+const runRecording = (
+  responses: CommandResult[],
+): { calls: string[][]; run: (cmd: string[]) => Promise<CommandResult> } => {
+  const calls: string[][] = [];
+  return {
+    calls,
+    run: (cmd: string[]) => {
+      calls.push(cmd);
+      return Promise.resolve(responses.shift() ?? fail(128));
+    },
+  };
+};
+
+/** Push context responses for a clean branch with one unpushed commit. */
+const pushReady = (): CommandResult[] => [
+  ok("true\n"),
+  ok(""),
+  ok("Ready\n"),
+  ok("origin/feature\n"),
+  ok("1\n"),
+  ok("git@github.com:chobbledotcom/tickets.git\n"),
+  ok("feature\n"),
+];
+
+/** A `push` that records its invocations (so a test can assert it ran or not). */
+const trackPush = (): {
+  calls: string[][];
+  push: (cmd: string[]) => Promise<CommandResult>;
+} => {
+  const calls: string[][] = [];
+  return {
+    calls,
+    push: (cmd: string[]) => {
+      calls.push(cmd);
+      return Promise.resolve(ok());
+    },
+  };
+};
+
+/** Invoke promptToPushCheckedInChanges with happy-path deps; override per test. */
+const runPushPrompt = (
+  overrides: Partial<Parameters<typeof promptToPushCheckedInChanges>[0]>,
+): Promise<boolean> =>
+  promptToPushCheckedInChanges({
+    confirm: () => Promise.resolve(true),
+    isInteractive: () => true,
+    push: () => Promise.resolve(ok()),
+    run: runFrom([]),
+    ...overrides,
+  });
+
 describe("precommit merge conflict warning", () => {
   test("parses conflicted paths from git merge-tree output", () => {
     const paths = parseMergeTreeConflictedPaths(
@@ -50,30 +137,10 @@ describe("precommit merge conflict warning", () => {
   });
 
   test("returns a warning when origin main has merge conflicts", async () => {
-    const responses = [
-      ok("true\n"),
-      ok("git@github.com:chobbledotcom/tickets.git\n"),
-      ok("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"),
-      ok("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n"),
-      ok("cccccccccccccccccccccccccccccccccccccccc\n"),
-      ok("dddddddddddddddddddddddddddddddddddddddd\n"),
-      fail(
-        1,
-        [
-          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-          "src/a.ts",
-          "src/b.ts",
-          "",
-          "Auto-merging src/a.ts",
-          "CONFLICT (content): Merge conflict in src/a.ts",
-        ].join("\n"),
-      ),
-    ];
-    const calls: string[][] = [];
-    const run = (cmd: string[]): Promise<CommandResult> => {
-      calls.push(cmd);
-      return Promise.resolve(responses.shift() ?? fail(128));
-    };
+    const { calls, run } = runRecording([
+      ...gitMeta(),
+      mergeTreeConflict("src/a.ts", "src/b.ts"),
+    ]);
 
     const warning = await getMergeConflictWarning(run);
 
@@ -94,109 +161,55 @@ describe("precommit merge conflict warning", () => {
 
   test("uses the requested warning wording for one conflicted path", async () => {
     const responses = [
-      ok("true\n"),
-      ok("https://github.com/chobbledotcom/tickets.git\n"),
-      ok("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"),
-      ok("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n"),
-      ok("cccccccccccccccccccccccccccccccccccccccc\n"),
-      ok("dddddddddddddddddddddddddddddddddddddddd\n"),
-      fail(
-        1,
-        [
-          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-          "src/a.ts",
-          "",
-          "Auto-merging src/a.ts",
-          "CONFLICT (content): Merge conflict in src/a.ts",
-        ].join("\n"),
-      ),
+      ...gitMeta("https://github.com/chobbledotcom/tickets.git"),
+      mergeTreeConflict("src/a.ts"),
     ];
-    const run = (_cmd: string[]): Promise<CommandResult> =>
-      Promise.resolve(responses.shift() ?? fail(128));
 
-    await expect(getMergeConflictWarning(run)).resolves.toBe(
+    await expect(getMergeConflictWarning(runFrom(responses))).resolves.toBe(
       "Heads up - this branch has 1 merge conflicts against https://github.com/chobbledotcom/tickets.git",
     );
   });
 
   test("does not warn when origin main merges cleanly", async () => {
-    const responses = [
-      ok("true\n"),
-      ok("git@github.com:chobbledotcom/tickets.git\n"),
-      ok("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"),
-      ok("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n"),
-      ok("cccccccccccccccccccccccccccccccccccccccc\n"),
-      ok("dddddddddddddddddddddddddddddddddddddddd\n"),
-      ok("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\n"),
-    ];
-    const run = (_cmd: string[]): Promise<CommandResult> =>
-      Promise.resolve(responses.shift() ?? fail(128));
-
+    const run = runFrom([...gitMeta(), sha("e")]);
     await expect(getMergeConflictWarning(run)).resolves.toBeUndefined();
   });
 
   test("does not warn when required git metadata commands fail", async () => {
-    const responses = [
+    const run = runFrom([
       ok("true\n"),
       fail(128, "", "fatal: no such remote 'origin'\n"),
-    ];
-    const run = (_cmd: string[]): Promise<CommandResult> =>
-      Promise.resolve(responses.shift() ?? fail(128));
-
+    ]);
     await expect(getMergeConflictWarning(run)).resolves.toBeUndefined();
   });
 
   test("does not warn when required git metadata is blank", async () => {
-    const responses = [
+    const run = runFrom([
       ok("true\n"),
       ok("\n"),
-      ok("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"),
-      ok("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n"),
-      ok("cccccccccccccccccccccccccccccccccccccccc\n"),
-      ok("dddddddddddddddddddddddddddddddddddddddd\n"),
-    ];
-    const run = (_cmd: string[]): Promise<CommandResult> =>
-      Promise.resolve(responses.shift() ?? fail(128));
-
+      sha("a"),
+      sha("b"),
+      sha("c"),
+      sha("d"),
+    ]);
     await expect(getMergeConflictWarning(run)).resolves.toBeUndefined();
   });
 
   test("does not warn when merge-tree cannot complete the check", async () => {
-    const responses = [
-      ok("true\n"),
-      ok("git@github.com:chobbledotcom/tickets.git\n"),
-      ok("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"),
-      ok("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n"),
-      ok("cccccccccccccccccccccccccccccccccccccccc\n"),
-      ok("dddddddddddddddddddddddddddddddddddddddd\n"),
+    const run = runFrom([
+      ...gitMeta(),
       fail(128, "", "fatal: failure to merge\n"),
-    ];
-    const run = (_cmd: string[]): Promise<CommandResult> =>
-      Promise.resolve(responses.shift() ?? fail(128));
-
+    ]);
     await expect(getMergeConflictWarning(run)).resolves.toBeUndefined();
   });
 
   test("does not warn when merge-tree reports no conflicted paths", async () => {
-    const responses = [
-      ok("true\n"),
-      ok("git@github.com:chobbledotcom/tickets.git\n"),
-      ok("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"),
-      ok("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n"),
-      ok("cccccccccccccccccccccccccccccccccccccccc\n"),
-      ok("dddddddddddddddddddddddddddddddddddddddd\n"),
-      fail(1, "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\n\n"),
-    ];
-    const run = (_cmd: string[]): Promise<CommandResult> =>
-      Promise.resolve(responses.shift() ?? fail(128));
-
+    const run = runFrom([...gitMeta(), fail(1, `${"e".repeat(40)}\n\n`)]);
     await expect(getMergeConflictWarning(run)).resolves.toBeUndefined();
   });
 
   test("does not warn outside a git work tree", async () => {
-    const run = (_cmd: string[]): Promise<CommandResult> =>
-      Promise.resolve(fail(128, "", "fatal: not a git repository\n"));
-
+    const run = runFrom([fail(128, "", "fatal: not a git repository\n")]);
     await expect(getMergeConflictWarning(run)).resolves.toBeUndefined();
   });
 
@@ -257,7 +270,7 @@ describe("precommit terminal behavior", () => {
 
 describe("precommit push prompt", () => {
   test("builds prompt context for a clean branch with unpushed commits", async () => {
-    const responses = [
+    const { calls, run } = runRecording([
       ok("true\n"),
       ok(""),
       ok("Ship the hook\n\nBody\n"),
@@ -265,12 +278,7 @@ describe("precommit push prompt", () => {
       ok("2\n"),
       ok("git@github.com:chobbledotcom/tickets.git\n"),
       ok("feature\n"),
-    ];
-    const calls: string[][] = [];
-    const run = (cmd: string[]): Promise<CommandResult> => {
-      calls.push(cmd);
-      return Promise.resolve(responses.shift() ?? fail(128));
-    };
+    ]);
 
     await expect(getPushPromptContext(run)).resolves.toEqual({
       branchName: "feature",
@@ -306,8 +314,7 @@ describe("precommit push prompt", () => {
       ok("git@github.com:chobbledotcom/tickets.git\n"),
       ok("feature\n"),
     ];
-    const run = (_cmd: string[]): Promise<CommandResult> =>
-      Promise.resolve(responses.shift() ?? fail(128));
+    const run = runFrom(responses);
 
     await expect(getPushPromptContext(run)).resolves.toEqual({
       branchName: "feature",
@@ -327,8 +334,7 @@ describe("precommit push prompt", () => {
       ok("git@github.com:chobbledotcom/tickets.git\n"),
       ok("feature\n"),
     ];
-    const run = (_cmd: string[]): Promise<CommandResult> =>
-      Promise.resolve(responses.shift() ?? fail(128));
+    const run = runFrom(responses);
 
     await expect(getPushPromptContext(run)).resolves.toEqual({
       branchName: "feature",
@@ -347,16 +353,14 @@ describe("precommit push prompt", () => {
 
   test("does not build context when the worktree is dirty", async () => {
     const responses = [ok("true\n"), ok(" M scripts/precommit.ts\n")];
-    const run = (_cmd: string[]): Promise<CommandResult> =>
-      Promise.resolve(responses.shift() ?? fail(128));
+    const run = runFrom(responses);
 
     await expect(getPushPromptContext(run)).resolves.toBeUndefined();
   });
 
   test("does not build context when there is no commit message", async () => {
     const responses = [ok("true\n"), ok(""), ok("\n")];
-    const run = (_cmd: string[]): Promise<CommandResult> =>
-      Promise.resolve(responses.shift() ?? fail(128));
+    const run = runFrom(responses);
 
     await expect(getPushPromptContext(run)).resolves.toBeUndefined();
   });
@@ -369,8 +373,7 @@ describe("precommit push prompt", () => {
       ok("origin/feature\n"),
       ok("0\n"),
     ];
-    const run = (_cmd: string[]): Promise<CommandResult> =>
-      Promise.resolve(responses.shift() ?? fail(128));
+    const run = runFrom(responses);
 
     await expect(getPushPromptContext(run)).resolves.toBeUndefined();
   });
@@ -383,8 +386,7 @@ describe("precommit push prompt", () => {
       ok("origin/feature\n"),
       ok("\n"),
     ];
-    const run = (_cmd: string[]): Promise<CommandResult> =>
-      Promise.resolve(responses.shift() ?? fail(128));
+    const run = runFrom(responses);
 
     await expect(getPushPromptContext(run)).resolves.toBeUndefined();
   });
@@ -397,8 +399,7 @@ describe("precommit push prompt", () => {
       ok("origin/feature\n"),
       ok("many\n"),
     ];
-    const run = (_cmd: string[]): Promise<CommandResult> =>
-      Promise.resolve(responses.shift() ?? fail(128));
+    const run = runFrom(responses);
 
     await expect(getPushPromptContext(run)).resolves.toBeUndefined();
   });
@@ -413,8 +414,7 @@ describe("precommit push prompt", () => {
       fail(128),
       ok("feature\n"),
     ];
-    const run = (_cmd: string[]): Promise<CommandResult> =>
-      Promise.resolve(responses.shift() ?? fail(128));
+    const run = runFrom(responses);
 
     await expect(getPushPromptContext(run)).resolves.toBeUndefined();
   });
@@ -429,8 +429,7 @@ describe("precommit push prompt", () => {
       ok("git@github.com:chobbledotcom/tickets.git\n"),
       ok("HEAD\n"),
     ];
-    const run = (_cmd: string[]): Promise<CommandResult> =>
-      Promise.resolve(responses.shift() ?? fail(128));
+    const run = runFrom(responses);
 
     await expect(getPushPromptContext(run)).resolves.toBeUndefined();
   });
@@ -466,108 +465,44 @@ describe("precommit push prompt", () => {
   });
 
   test("skips pushing when not interactive", async () => {
-    let pushed = false;
-
+    const { calls, push } = trackPush();
     await expect(
-      promptToPushCheckedInChanges({
-        confirm: () => Promise.resolve(true),
-        isInteractive: () => false,
-        push: () => {
-          pushed = true;
-          return Promise.resolve(ok());
-        },
-        run: () => Promise.resolve(fail(128)),
-      }),
+      runPushPrompt({ isInteractive: () => false, push }),
     ).resolves.toBe(true);
-    expect(pushed).toBe(false);
+    expect(calls.length).toBe(0);
   });
 
   test("skips pushing when there is no prompt context", async () => {
-    let pushed = false;
-
-    await expect(
-      promptToPushCheckedInChanges({
-        confirm: () => Promise.resolve(true),
-        isInteractive: () => true,
-        push: () => {
-          pushed = true;
-          return Promise.resolve(ok());
-        },
-        run: () => Promise.resolve(fail(128)),
-      }),
-    ).resolves.toBe(true);
-    expect(pushed).toBe(false);
+    const { calls, push } = trackPush();
+    await expect(runPushPrompt({ push })).resolves.toBe(true);
+    expect(calls.length).toBe(0);
   });
 
   test("skips pushing when the user declines", async () => {
-    const responses = [
-      ok("true\n"),
-      ok(""),
-      ok("Ready\n"),
-      ok("origin/feature\n"),
-      ok("1\n"),
-      ok("git@github.com:chobbledotcom/tickets.git\n"),
-      ok("feature\n"),
-    ];
-    let pushed = false;
-
+    const { calls, push } = trackPush();
     await expect(
-      promptToPushCheckedInChanges({
+      runPushPrompt({
         confirm: () => Promise.resolve(false),
-        isInteractive: () => true,
-        push: () => {
-          pushed = true;
-          return Promise.resolve(ok());
-        },
-        run: () => Promise.resolve(responses.shift() ?? fail(128)),
+        push,
+        run: runFrom(pushReady()),
       }),
     ).resolves.toBe(true);
-    expect(pushed).toBe(false);
+    expect(calls.length).toBe(0);
   });
 
   test("pushes when the user confirms", async () => {
-    const responses = [
-      ok("true\n"),
-      ok(""),
-      ok("Ready\n"),
-      ok("origin/feature\n"),
-      ok("1\n"),
-      ok("git@github.com:chobbledotcom/tickets.git\n"),
-      ok("feature\n"),
-    ];
-    const pushCalls: string[][] = [];
-
+    const { calls, push } = trackPush();
     await expect(
-      promptToPushCheckedInChanges({
-        confirm: () => Promise.resolve(true),
-        isInteractive: () => true,
-        push: (cmd) => {
-          pushCalls.push(cmd);
-          return Promise.resolve(ok());
-        },
-        run: () => Promise.resolve(responses.shift() ?? fail(128)),
-      }),
+      runPushPrompt({ push, run: runFrom(pushReady()) }),
     ).resolves.toBe(true);
-    expect(pushCalls).toEqual([["git", "push"]]);
+    expect(calls).toEqual([["git", "push"]]);
   });
 
   test("reports push failure", async () => {
-    const responses = [
-      ok("true\n"),
-      ok(""),
-      ok("Ready\n"),
-      ok("origin/feature\n"),
-      ok("1\n"),
-      ok("git@github.com:chobbledotcom/tickets.git\n"),
-      ok("feature\n"),
-    ];
-
     await expect(
-      promptToPushCheckedInChanges({
-        confirm: () => Promise.resolve(true),
-        isInteractive: () => true,
+      runPushPrompt({
         push: () => Promise.resolve(fail(1)),
-        run: () => Promise.resolve(responses.shift() ?? fail(128)),
+        run: runFrom(pushReady()),
       }),
     ).resolves.toBe(false);
   });

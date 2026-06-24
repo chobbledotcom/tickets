@@ -147,6 +147,12 @@ export const expectFlash = (
   return response;
 };
 
+/** Assert a 302 redirect carrying an error flash whose message contains `text`. */
+export const expectErrorFlash = (response: Response, text: string): void => {
+  expect(response.status).toBe(302);
+  expectFlash(response, expect.stringContaining(text), false);
+};
+
 export const expectRedirectWithFlash =
   // deno-lint-ignore no-explicit-any
     (location: string, message?: string | any, succeeded = true) =>
@@ -305,6 +311,24 @@ export const matchGroup = (
   group = 1,
 ): string => {
   return text.match(pattern)![group]!;
+};
+
+/** Visible text labels of every `<option>` inside the `<select
+ *  aria-label="…">` dropdown, in document order. Includes disabled and prompt
+ *  options, so callers see exactly what the user sees — e.g. the "Select a
+ *  date" clear option the date picker splices in between past and future
+ *  dates. */
+export const selectOptionLabels = (
+  html: string,
+  ariaLabel: string,
+): (string | undefined)[] => {
+  const escaped = ariaLabel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const inner = html.match(
+    new RegExp(
+      `<select[^>]*aria-label="${escaped}"[^>]*>([\\s\\S]*?)<\\/select>`,
+    ),
+  )![1]!;
+  return [...inner.matchAll(/<option[^>]*>([^<]+)</g)].map((m) => m[1]);
 };
 
 interface TestRequiresAuthOptions {

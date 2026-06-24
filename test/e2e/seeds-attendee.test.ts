@@ -8,82 +8,30 @@
  *       visit /admin (dashboard) → visit listing page → visit attendee edit page
  */
 
+// jscpd:ignore-start
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { invalidateGroupsCache } from "#shared/db/groups.ts";
-import { invalidateHolidaysCache } from "#shared/db/holidays.ts";
-import { invalidateListingsCache } from "#shared/db/listings.ts";
-import { resetSessionCache } from "#shared/db/sessions.ts";
-import { settings } from "#shared/db/settings.ts";
-import { invalidateUsersCache } from "#shared/db/users.ts";
+import { describe, it as test } from "@std/testing/bdd";
 import { DEMO_LISTING_NAMES } from "#shared/demo.ts";
-
 import {
-  clearTestEncryptionKey,
-  createTestDb,
-  resetDb,
-  setupTestEncryptionKey,
-  TestBrowser,
-} from "#test-utils";
+  openAttendeeEditor,
+  setupAndLogin,
+  useE2eBrowser,
+} from "#test-utils/e2e.ts";
 
-/** Invalidate all in-process caches after a destructive DB operation */
-const invalidateAllCaches = (): void => {
-  settings.invalidateCache();
-  settings.setup.clearCache();
-  invalidateUsersCache();
-  invalidateListingsCache();
-  invalidateGroupsCache();
-  invalidateHolidaysCache();
-  resetSessionCache();
-};
+// jscpd:ignore-end
 
 describe("e2e: seeded attendee views", () => {
-  let browser: TestBrowser;
-
-  beforeEach(async () => {
-    setupTestEncryptionKey();
-    await createTestDb();
-    browser = new TestBrowser();
-  });
-
-  afterEach(() => {
-    resetDb();
-    clearTestEncryptionKey();
-  });
+  const ctx = useE2eBrowser();
 
   test("setup → seed → dashboard → listing page → attendee edit page all render", async () => {
-    // 1. Complete initial setup
-    await browser.visit("/setup/");
-    expect(browser.currentHtml).toContain("Initial Setup");
-    await browser.submitForm(
-      {
-        accept_agreement: "yes",
-        admin_password: "password",
-        admin_password_confirm: "password",
-        admin_username: "admin",
-        country: "GB",
-      },
-      "Complete Setup",
-    );
-    expect(browser.currentHtml).toContain("Setup Complete");
-    invalidateAllCaches();
+    const browser = ctx.browser;
+    await setupAndLogin(browser);
 
-    // 2. Log in
-    await browser.clickLink("Go to Admin Dashboard");
-    await browser.submitForm(
-      { password: "password", username: "admin" },
-      "Login",
-    );
-    if (browser.containsText("Migration complete")) {
-      await browser.clickLink("Back to dashboard");
-    }
-    expect(browser.containsText("Add Listing")).toBe(true);
-
-    // 3. Seed 2 listings with 1 attendee each via /admin/seeds.
-    //    Even-indexed listings get a random unit_price, odd-indexed ones are
-    //    free. The free listing surfaces an Edit link for the attendee in the
-    //    main table; paid-listing attendees without a payment_id land in the
-    //    Failed Payments table instead (which has no Edit link).
+    // Seed 2 listings with 1 attendee each via /admin/seeds. Even-indexed
+    // listings get a random unit_price, odd-indexed ones are free. The free
+    // listing surfaces an Edit link for the attendee in the main table;
+    // paid-listing attendees without a payment_id land in the Failed Payments
+    // table instead (which has no Edit link).
     await browser.visit("/admin/seeds");
     expect(browser.containsText("Seed Data")).toBe(true);
     await browser.submitForm(
@@ -94,25 +42,21 @@ describe("e2e: seeded attendee views", () => {
       browser.containsText("Created 2 listing(s) with 2 attendee(s) total"),
     ).toBe(true);
 
-    // 4. Visit the admin dashboard — must not crash decrypting seeded attendees
+    // Visit the admin dashboard — must not crash decrypting seeded attendees.
     await browser.visit("/admin");
     const freeListingName = DEMO_LISTING_NAMES[1]!;
     expect(browser.containsText(freeListingName)).toBe(true);
 
-    // 5. Navigate to the free listing's page
+    // Navigate to the free listing's page.
     await browser.clickLink(freeListingName);
     expect(browser.currentUrl).toMatch(/^\/admin\/listing\/\d+$/);
     expect(browser.containsText(freeListingName)).toBe(true);
 
-    // 6. Navigate to the attendee's edit page via the "Edit" link in the
-    //    attendee table. The link href is /admin/attendees/:id.
-    const editLink = browser.links.find((l) =>
-      /^\/admin\/attendees\/\d+/.test(l.href),
-    );
-    expect(editLink).toBeTruthy();
-    await browser.visit(editLink!.href);
+    // Navigate to the attendee's edit page via the "Edit" link in the attendee
+    // table (href /admin/attendees/:id).
+    await openAttendeeEditor(browser);
     expect(browser.currentUrl).toMatch(/^\/admin\/attendees\/\d+$/);
-    // The edit form exposes the name field for PII editing
+    // The edit form exposes the name field for PII editing.
     expect(browser.currentHtml).toContain('name="name"');
   });
 });

@@ -35,7 +35,7 @@ const hasInvalidReversesId = (t: TransferInput): boolean =>
  * impossible date like Feb 30, normalised to canonical epoch-millis on write);
  * a reversesId, if present, is a positive safe integer; reference and eventGroup
  * are non-empty. (Currency is not a ledger concern: a site has one currency,
- * fixed at setup, so every transfer shares it — see accounting-plan.md.)
+ * fixed at setup, so every transfer shares it.)
  */
 export const validateTransfer = (t: TransferInput): Result<TransferInput> => {
   const errors: LedgerError[] = compact([

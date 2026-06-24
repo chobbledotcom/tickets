@@ -13,6 +13,15 @@ const MOCK_DB_RESULT = {
   ok: true as const,
 };
 
+/** Stub `testDbConnection` to resolve `ok: true`. The build-error and
+ *  task-in-progress tests both pair a per-test `buildSite` stub with this
+ *  identical `testDbConnection` stub; hoisting it avoids restating the same
+ *  `stub(builderApi, "testDbConnection", …)` line in each. */
+const stubDbOk = () =>
+  stub(builderApi, "testDbConnection", () =>
+    Promise.resolve({ ok: true as const }),
+  );
+
 import {
   adminFormPost,
   awaitTestRequest,
@@ -41,9 +50,7 @@ const stubSuccessfulBuild = () => ({
       scriptId: 42,
     }),
   ),
-  dbTestStub: stub(builderApi, "testDbConnection", () =>
-    Promise.resolve({ ok: true as const }),
-  ),
+  dbTestStub: stubDbOk(),
   encKeyStub: stub(builderApi, "generateEncryptionKey", () => "dGVzdGtleQ=="),
   fetchStub: stub(globalThis, "fetch", (input: string | URL | Request) => {
     const url = String(input);
@@ -93,6 +100,20 @@ describeWithEnv(
     afterEach(() => {
       settings.clearTestOverrides();
     });
+
+    /** POST a build request and assert it redirects to /admin/builder with
+     *  an error flash containing `message`. Collapses the shared
+     *  `adminFormPost` + `expectRedirect` + `expectFlash(false)` body used by
+     *  the build-fails, task-in-progress, and db-connection-fails tests. */
+    const expectBuildFlashError = async (message: string): Promise<void> => {
+      const { response } = await adminFormPost("/admin/builder", {
+        db_token: "token",
+        db_url: "libsql://test.turso.io",
+        site_name: "Test",
+      });
+      expectRedirect(response, "/admin/builder");
+      expectFlash(response, expect.stringContaining(message), false);
+    };
 
     test("GET /admin/builder returns 404 when CAN_BUILD_SITES is not set", async () => {
       const restore = setTestEnv({ CAN_BUILD_SITES: undefined });
@@ -278,22 +299,10 @@ describeWithEnv(
               ok: false as const,
             }),
           ),
-          dbTestStub: stub(builderApi, "testDbConnection", () =>
-            Promise.resolve({ ok: true as const }),
-          ),
+          dbTestStub: stubDbOk(),
         }),
         async () => {
-          const { response } = await adminFormPost("/admin/builder", {
-            db_token: "token",
-            db_url: "libsql://test.turso.io",
-            site_name: "Test",
-          });
-          expectRedirect(response, "/admin/builder");
-          expectFlash(
-            response,
-            expect.stringContaining("Create edge script failed"),
-            false,
-          );
+          await expectBuildFlashError("Create edge script failed");
         },
       );
     });
@@ -328,22 +337,10 @@ describeWithEnv(
               scriptId: 1,
             }),
           ),
-          dbTestStub: stub(builderApi, "testDbConnection", () =>
-            Promise.resolve({ ok: true as const }),
-          ),
+          dbTestStub: stubDbOk(),
         }),
         async () => {
-          const { response } = await adminFormPost("/admin/builder", {
-            db_token: "token",
-            db_url: "libsql://test.turso.io",
-            site_name: "Test",
-          });
-          expectRedirect(response, "/admin/builder");
-          expectFlash(
-            response,
-            expect.stringContaining("already in progress"),
-            false,
-          );
+          await expectBuildFlashError("already in progress");
         },
       );
 

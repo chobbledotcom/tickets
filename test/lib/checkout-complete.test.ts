@@ -14,36 +14,16 @@ import {
   createOrSoldOut,
   ModifierSoldOutError,
 } from "#shared/checkout-complete.ts";
-import type { PricedLine, PricedOrder } from "#shared/checkout-pricing.ts";
+import type { PricedOrder } from "#shared/checkout-pricing.ts";
 import { createAttendeeAtomic, getAttendeesRaw } from "#shared/db/attendees.ts";
 import { modifierUsedQuantities } from "#shared/db/modifier-usage.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
-import { createTestListing, describeWithEnv } from "#test-utils";
-
-const line = (
-  listingId: number,
-  unitPrice: number,
-  quantity: number,
-): PricedLine => ({
-  chargedUnitAmount: unitPrice,
-  item: {
-    listingId,
-    name: `L${listingId}`,
-    quantity,
-    slug: `l${listingId}`,
-    unitPrice,
-  },
-  quantity,
-});
-
-const order = (overrides: Partial<PricedOrder> = {}): PricedOrder => ({
-  extras: [],
-  fullSubtotal: 0,
-  lines: [],
-  modifierApplications: [],
-  total: 0,
-  ...overrides,
-});
+import {
+  createTestListing,
+  describeWithEnv,
+  pricedLine as line,
+  pricedOrder as order,
+} from "#test-utils";
 
 /** A free-path ledger context: keyed on the attendee id, dated at a fixed clock. */
 const ledgerFor = (pricedOrder: PricedOrder) => ({

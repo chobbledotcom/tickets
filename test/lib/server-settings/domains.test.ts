@@ -7,6 +7,7 @@ import {
   adminFormPost,
   awaitTestRequest,
   describeWithEnv,
+  expectErrorFlash,
   expectFlash,
   expectFlashRedirect,
   expectRedirectWithFlash,
@@ -18,6 +19,54 @@ import {
   testCsrfToken,
   withMockBunnyCdnApi,
 } from "#test-utils";
+
+/** Override validateCustomDomain to succeed for the duration of `body`. */
+const withValidatedDomain = (body: () => Promise<void>): Promise<void> =>
+  withMockBunnyCdnApi(
+    { validateCustomDomain: () => Promise.resolve({ ok: true as const }) },
+    body,
+  );
+
+/** Assert the activity log has an entry whose message includes `substring`. */
+const expectActivityLogged = async (substring: string): Promise<void> => {
+  const log = await getAllActivityLog();
+  expect(log.some((e) => e.message.includes(substring))).toBe(true);
+};
+
+/** POST a subdomain to the host-subdomain endpoint as the owner. */
+const postSubdomain = async (subdomain: string): Promise<Response> =>
+  handleRequest(
+    mockFormRequest(
+      "/admin/settings/host-subdomain",
+      { csrf_token: await testCsrfToken(), subdomain },
+      await testCookie(),
+    ),
+  );
+
+/** Fetch the /admin/settings-advanced page HTML as the owner. */
+const advancedPageHtml = async (): Promise<string> => {
+  const response = await awaitTestRequest("/admin/settings-advanced", {
+    cookie: await testCookie(),
+  });
+  return response.text();
+};
+
+/** A subdomain availability result for "mylisting" (available or taken). */
+const subdomainCheck = (available: boolean) => ({
+  available,
+  fullDomain: "mylisting.tickets.example.com",
+  ok: true as const,
+});
+
+/** Override checkSubdomainAvailable to return `result` for the duration of `body`. */
+const withSubdomainCheck = (
+  result: Awaited<ReturnType<typeof bunnyCdnApi.checkSubdomainAvailable>>,
+  body: () => Promise<void>,
+): Promise<void> =>
+  withMockBunnyCdnApi(
+    { checkSubdomainAvailable: () => Promise.resolve(result) },
+    body,
+  );
 
 describeWithEnv("server (admin settings: domains)", { db: true }, () => {
   describeWithEnv(
@@ -48,39 +97,27 @@ describeWithEnv("server (admin settings: domains)", { db: true }, () => {
 
       test("does not show custom domain form when Bunny CDN is not configured", async () => {
         Deno.env.delete("BUNNY_API_KEY");
-        const response = await awaitTestRequest("/admin/settings-advanced", {
-          cookie: await testCookie(),
-        });
-        const html = await response.text();
+        const html = await advancedPageHtml();
         expect(html).not.toContain('id="settings-custom-domain"');
       });
 
       test("shows custom domain form when Bunny CDN is configured", async () => {
         setBunnyEnv();
-        const response = await awaitTestRequest("/admin/settings-advanced", {
-          cookie: await testCookie(),
-        });
-        const html = await response.text();
+        const html = await advancedPageHtml();
         expect(html).toContain('id="settings-custom-domain"');
         expect(html).toContain("Custom Domain");
       });
 
       test("does not show validate form when no custom domain is saved", async () => {
         setBunnyEnv();
-        const response = await awaitTestRequest("/admin/settings-advanced", {
-          cookie: await testCookie(),
-        });
-        const html = await response.text();
+        const html = await advancedPageHtml();
         expect(html).not.toContain('id="settings-custom-domain-validate"');
       });
 
       test("shows validate form and CNAME instructions when custom domain is saved", async () => {
         setBunnyEnv();
         await settings.update.customDomain("tickets.example.com");
-        const response = await awaitTestRequest("/admin/settings-advanced", {
-          cookie: await testCookie(),
-        });
-        const html = await response.text();
+        const html = await advancedPageHtml();
         expect(html).toContain('id="settings-custom-domain-validate"');
         expect(html).toContain("CNAME");
         expect(html).toContain("tickets.example.com");
@@ -91,10 +128,7 @@ describeWithEnv("server (admin settings: domains)", { db: true }, () => {
       test("shows warning when custom domain is not validated", async () => {
         setBunnyEnv();
         await settings.update.customDomain("tickets.example.com");
-        const response = await awaitTestRequest("/admin/settings-advanced", {
-          cookie: await testCookie(),
-        });
-        const html = await response.text();
+        const html = await advancedPageHtml();
         expect(html).toContain("not yet validated");
         expect(html).toContain("will not work until validation is complete");
       });
@@ -103,10 +137,7 @@ describeWithEnv("server (admin settings: domains)", { db: true }, () => {
         setBunnyEnv();
         await settings.update.customDomain("tickets.example.com");
         await settings.update.customDomainLastValidated();
-        const response = await awaitTestRequest("/admin/settings-advanced", {
-          cookie: await testCookie(),
-        });
-        const html = await response.text();
+        const html = await advancedPageHtml();
         expect(html).not.toContain("not yet validated");
       });
 
@@ -259,40 +290,24 @@ describeWithEnv("server (admin settings: domains)", { db: true }, () => {
 
         test("logs activity when domain is set", async () => {
           setBunnyEnv();
-          const original = bunnyCdnApi.validateCustomDomain;
-          bunnyCdnApi.validateCustomDomain = () =>
-            Promise.resolve({ ok: true as const });
-          try {
+          await withValidatedDomain(async () => {
             await adminFormPost("/admin/settings/custom-domain", {
               custom_domain: "tickets.example.com",
             });
-            const log = await getAllActivityLog();
-            expect(
-              log.some((e) =>
-                e.message.includes("Custom domain set to tickets.example.com"),
-              ),
-            ).toBe(true);
-          } finally {
-            bunnyCdnApi.validateCustomDomain = original;
-          }
+            await expectActivityLogged(
+              "Custom domain set to tickets.example.com",
+            );
+          });
         });
 
         test("logs validation activity when save triggers successful validation", async () => {
           setBunnyEnv();
-          const original = bunnyCdnApi.validateCustomDomain;
-          bunnyCdnApi.validateCustomDomain = () =>
-            Promise.resolve({ ok: true as const });
-          try {
+          await withValidatedDomain(async () => {
             await adminFormPost("/admin/settings/custom-domain", {
               custom_domain: "tickets.example.com",
             });
-            const log = await getAllActivityLog();
-            expect(
-              log.some((e) => e.message.includes("Custom domain validated")),
-            ).toBe(true);
-          } finally {
-            bunnyCdnApi.validateCustomDomain = original;
-          }
+            await expectActivityLogged("Custom domain validated");
+          });
         });
       });
 
@@ -372,18 +387,10 @@ describeWithEnv("server (admin settings: domains)", { db: true }, () => {
         test("logs activity on successful validation", async () => {
           setBunnyEnv();
           await settings.update.customDomain("tickets.example.com");
-          const original = bunnyCdnApi.validateCustomDomain;
-          bunnyCdnApi.validateCustomDomain = () =>
-            Promise.resolve({ ok: true as const });
-          try {
+          await withValidatedDomain(async () => {
             await adminFormPost("/admin/settings/custom-domain/validate");
-            const log = await getAllActivityLog();
-            expect(
-              log.some((e) => e.message.includes("Custom domain validated")),
-            ).toBe(true);
-          } finally {
-            bunnyCdnApi.validateCustomDomain = original;
-          }
+            await expectActivityLogged("Custom domain validated");
+          });
         });
       });
 
@@ -426,17 +433,12 @@ describeWithEnv("server (admin settings: domains)", { db: true }, () => {
 
         test("clears current_task after successful custom-domain save", async () => {
           setBunnyEnv();
-          const original = bunnyCdnApi.validateCustomDomain;
-          bunnyCdnApi.validateCustomDomain = () =>
-            Promise.resolve({ ok: true as const });
-          try {
+          await withValidatedDomain(async () => {
             await adminFormPost("/admin/settings/custom-domain", {
               custom_domain: "tickets.example.com",
             });
             expect(settings.currentTask).toBe("");
-          } finally {
-            bunnyCdnApi.validateCustomDomain = original;
-          }
+          });
         });
 
         test("clears current_task after failed custom-domain validation", async () => {
@@ -514,19 +516,13 @@ describeWithEnv("server (admin settings: domains)", { db: true }, () => {
       });
 
       test("does not show host subdomain section when DNS not configured", async () => {
-        const response = await awaitTestRequest("/admin/settings-advanced", {
-          cookie: await testCookie(),
-        });
-        const html = await response.text();
+        const html = await advancedPageHtml();
         expect(html).not.toContain('id="settings-host-subdomain"');
       });
 
       test("shows host subdomain section when DNS is configured", async () => {
         setBunnyDnsEnv();
-        const response = await awaitTestRequest("/admin/settings-advanced", {
-          cookie: await testCookie(),
-        });
-        const html = await response.text();
+        const html = await advancedPageHtml();
         expect(html).toContain('id="settings-host-subdomain"');
         expect(html).toContain("Host Subdomain");
         expect(html).toContain(
@@ -626,95 +622,45 @@ describeWithEnv("server (admin settings: domains)", { db: true }, () => {
 
         test("previews subdomain availability without save", async () => {
           setBunnyDnsEnv();
-          await withMockBunnyCdnApi(
-            {
-              checkSubdomainAvailable: () =>
-                Promise.resolve({
-                  available: true,
-                  fullDomain: "mylisting.tickets.example.com",
-                  ok: true as const,
-                }),
-            },
-            async () => {
-              const response = await handleRequest(
-                mockFormRequest(
-                  "/admin/settings/host-subdomain",
-                  {
-                    csrf_token: await testCsrfToken(),
-                    subdomain: "mylisting",
-                  },
-                  await testCookie(),
-                ),
-              );
-              expect(response.status).toBe(302);
-              const location = response.headers.get("location")!;
-              expect(location).toContain("form=settings-host-subdomain");
-              expectFlash(response, expect.stringContaining("is available"));
-            },
-          );
+          await withSubdomainCheck(subdomainCheck(true), async () => {
+            const response = await postSubdomain("mylisting");
+            expect(response.status).toBe(302);
+            const location = response.headers.get("location")!;
+            expect(location).toContain("form=settings-host-subdomain");
+            expectFlash(response, expect.stringContaining("is available"));
+          });
         });
 
         test("renders subdomain preview on page after availability check", async () => {
           setBunnyDnsEnv();
-          await withMockBunnyCdnApi(
-            {
-              checkSubdomainAvailable: () =>
-                Promise.resolve({
-                  available: true,
-                  fullDomain: "mylisting.tickets.example.com",
-                  ok: true as const,
-                }),
-            },
-            async () => {
-              const cookie = await testCookie();
-              const postResponse = await handleRequest(
-                mockFormRequest(
-                  "/admin/settings/host-subdomain",
-                  {
-                    csrf_token: await testCsrfToken(),
-                    subdomain: "mylisting",
-                  },
-                  cookie,
-                ),
-              );
-              const page = await followRedirectWithFlash(
-                postResponse,
-                handleRequest,
+          await withSubdomainCheck(subdomainCheck(true), async () => {
+            const cookie = await testCookie();
+            const postResponse = await handleRequest(
+              mockFormRequest(
+                "/admin/settings/host-subdomain",
+                { csrf_token: await testCsrfToken(), subdomain: "mylisting" },
                 cookie,
-              );
-              const html = await page.text();
-              expect(html).toContain("mylisting.tickets.example.com");
-              expect(html).toContain("is available");
-            },
-          );
+              ),
+            );
+            const page = await followRedirectWithFlash(
+              postResponse,
+              handleRequest,
+              cookie,
+            );
+            const html = await page.text();
+            expect(html).toContain("mylisting.tickets.example.com");
+            expect(html).toContain("is available");
+          });
         });
 
         test("preview returns error when availability check fails", async () => {
           setBunnyDnsEnv();
-          await withMockBunnyCdnApi(
-            {
-              checkSubdomainAvailable: () =>
-                Promise.resolve({
-                  error: "DNS zone error",
-                  ok: false as const,
-                }),
-            },
+          await withSubdomainCheck(
+            { error: "DNS zone error", ok: false as const },
             async () => {
-              const response = await handleRequest(
-                mockFormRequest(
-                  "/admin/settings/host-subdomain",
-                  {
-                    csrf_token: await testCsrfToken(),
-                    subdomain: "mylisting",
-                  },
-                  await testCookie(),
-                ),
-              );
-              expect(response.status).toBe(302);
-              expectFlash(
-                response,
-                expect.stringContaining("DNS zone error"),
-                false,
+              expectErrorFlash(
+                await postSubdomain("mylisting"),
+                "DNS zone error",
               );
             },
           );
@@ -722,34 +668,9 @@ describeWithEnv("server (admin settings: domains)", { db: true }, () => {
 
         test("preview returns error when subdomain is taken", async () => {
           setBunnyDnsEnv();
-          await withMockBunnyCdnApi(
-            {
-              checkSubdomainAvailable: () =>
-                Promise.resolve({
-                  available: false,
-                  fullDomain: "mylisting.tickets.example.com",
-                  ok: true as const,
-                }),
-            },
-            async () => {
-              const response = await handleRequest(
-                mockFormRequest(
-                  "/admin/settings/host-subdomain",
-                  {
-                    csrf_token: await testCsrfToken(),
-                    subdomain: "mylisting",
-                  },
-                  await testCookie(),
-                ),
-              );
-              expect(response.status).toBe(302);
-              expectFlash(
-                response,
-                expect.stringContaining("already taken"),
-                false,
-              );
-            },
-          );
+          await withSubdomainCheck(subdomainCheck(false), async () => {
+            expectErrorFlash(await postSubdomain("mylisting"), "already taken");
+          });
         });
 
         test("registers subdomain with save flag, saves to DB, and logs activity", async () => {

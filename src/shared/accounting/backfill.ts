@@ -76,12 +76,15 @@ const ATTENDEE = "attendee";
 const ATTENDEE_PAGE = 5000;
 
 /** The next page of attendee ids holding a paid booking row, after `afterId`. */
-const nextPaidAttendeeIds = async (afterId: number): Promise<number[]> => {
+const nextPaidAttendeeIds = async (
+  afterId: number,
+  pageSize: number,
+): Promise<number[]> => {
   const rows = await queryAll<{ attendee_id: number | bigint }>(
     "SELECT DISTINCT attendee_id FROM listing_attendees" +
       " WHERE price_paid > 0 AND attendee_id > ?" +
       " ORDER BY attendee_id LIMIT ?",
-    [afterId, ATTENDEE_PAGE],
+    [afterId, pageSize],
   );
   return rows.map((row) => Number(row.attendee_id));
 };
@@ -188,12 +191,16 @@ const attendeeStatements = async (
 /**
  * Backfill the ledger from every existing paid booking. Idempotent:
  * already-ledgered attendees are skipped and the deterministic references plus
- * `INSERT OR IGNORE` make a re-run write nothing.
+ * `INSERT OR IGNORE` make a re-run write nothing. `pageSize` (the per-batch
+ * attendee count, defaulting to the edge-budget {@link ATTENDEE_PAGE}) is
+ * lowered in tests to exercise the multi-page cursor.
  */
-export const backfillTransfers = async (): Promise<void> => {
+export const backfillTransfers = async (
+  pageSize: number = ATTENDEE_PAGE,
+): Promise<void> => {
   let afterId = 0;
   for (;;) {
-    const attendeeIds = await nextPaidAttendeeIds(afterId);
+    const attendeeIds = await nextPaidAttendeeIds(afterId, pageSize);
     if (attendeeIds.length === 0) return;
     const ledgered = await alreadyLedgered(attendeeIds);
     const groups = groupBy(await paidRowsForAttendees(attendeeIds), (row) =>

@@ -224,6 +224,26 @@ export const queryAll = async <T>(
   args?: InValue[],
 ): Promise<T[]> => resultRows<T>(await execute(sql, args));
 
+/**
+ * True when the query returns at least one row. `sql` should be an existence
+ * probe (e.g. `SELECT 1 ... LIMIT 1`); the selected columns are ignored. Shared
+ * by the per-(attendee, listing) and built-site assignment checks so the
+ * row-presence boilerplate lives in one place.
+ */
+export const rowExists = async (
+  sql: string,
+  args: InValue[],
+): Promise<boolean> => (await queryOne<unknown>(sql, args)) !== null;
+
+/** Run a query whose single selected column is aliased `id` and return the ids. */
+export const queryIdColumn = async (
+  sql: string,
+  args?: InValue[],
+): Promise<number[]> => {
+  const rows = await queryAll<{ id: number }>(sql, args);
+  return rows.map((r) => r.id);
+};
+
 /** Count all rows in a table. `table` must be a trusted constant, not input. */
 export const countRows = async (table: string): Promise<number> => {
   // COUNT(*) always returns exactly one row, so the result is never null.

@@ -1,15 +1,8 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { type Stub, stub } from "@std/testing/mock";
-import {
-  resetEffectiveDomain,
-  setEffectiveDomainForTest,
-} from "#shared/config.ts";
+import { setEffectiveDomainForTest } from "#shared/config.ts";
 import { settings } from "#shared/db/settings.ts";
-import {
-  resetHostEmailConfig,
-  setHostEmailConfigForTest,
-} from "#shared/email.ts";
+import { setHostEmailConfigForTest } from "#shared/email.ts";
 import {
   getSupportPageText,
   isSupportEnabled,
@@ -19,78 +12,71 @@ import {
   supportNagLabel,
   supportSubject,
 } from "#shared/support.ts";
-import { setTestEnv, validEmail } from "#test-utils";
+import { emailTestSandbox, validEmail } from "#test-utils";
 
 const ADMIN_ENV = { ADMIN_EMAIL_ADDRESS: "host@support.test" };
 
 describe("support feature availability", () => {
-  let restoreEnv: (() => void) | undefined;
+  const sandbox = emailTestSandbox();
 
-  afterEach(() => {
-    restoreEnv?.();
-    restoreEnv = undefined;
-    settings.clearTestOverrides();
-  });
+  afterEach(sandbox.teardown);
 
   test("isSupportEnabled is false when ADMIN_EMAIL_ADDRESS is unset", () => {
-    restoreEnv = setTestEnv({ ADMIN_EMAIL_ADDRESS: undefined });
+    sandbox.setEnv({ ADMIN_EMAIL_ADDRESS: undefined });
     expect(isSupportEnabled()).toBe(false);
   });
 
   test("isSupportEnabled is false when ADMIN_EMAIL_ADDRESS is invalid", () => {
-    restoreEnv = setTestEnv({ ADMIN_EMAIL_ADDRESS: "not-an-email" });
+    sandbox.setEnv({ ADMIN_EMAIL_ADDRESS: "not-an-email" });
     expect(isSupportEnabled()).toBe(false);
   });
 
   test("isSupportEnabled is true when ADMIN_EMAIL_ADDRESS is valid", () => {
-    restoreEnv = setTestEnv(ADMIN_ENV);
+    sandbox.setEnv(ADMIN_ENV);
     expect(isSupportEnabled()).toBe(true);
   });
 
   test("isSupportFormActive is false when the feature is disabled", () => {
-    restoreEnv = setTestEnv({ ADMIN_EMAIL_ADDRESS: undefined });
+    sandbox.setEnv({ ADMIN_EMAIL_ADDRESS: undefined });
     settings.setForTest({ business_email: "owner@example.com" });
     expect(isSupportFormActive()).toBe(false);
   });
 
   test("isSupportFormActive is false when enabled with no business email", () => {
-    restoreEnv = setTestEnv(ADMIN_ENV);
+    sandbox.setEnv(ADMIN_ENV);
     settings.setForTest({ business_email: "" });
     expect(isSupportFormActive()).toBe(false);
   });
 
   test("isSupportFormActive is true when enabled with a business email", () => {
-    restoreEnv = setTestEnv(ADMIN_ENV);
+    sandbox.setEnv(ADMIN_ENV);
     settings.setForTest({ business_email: "owner@example.com" });
     expect(isSupportFormActive()).toBe(true);
   });
 });
 
 describe("getSupportPageText", () => {
-  let restoreEnv: (() => void) | undefined;
+  const sandbox = emailTestSandbox();
 
-  afterEach(() => {
-    restoreEnv?.();
-    restoreEnv = undefined;
-  });
+  afterEach(sandbox.teardown);
 
   test("returns null when unset", () => {
-    restoreEnv = setTestEnv({ SUPPORT_PAGE_TEXT: undefined });
+    sandbox.setEnv({ SUPPORT_PAGE_TEXT: undefined });
     expect(getSupportPageText()).toBeNull();
   });
 
   test("returns null when blank", () => {
-    restoreEnv = setTestEnv({ SUPPORT_PAGE_TEXT: "   " });
+    sandbox.setEnv({ SUPPORT_PAGE_TEXT: "   " });
     expect(getSupportPageText()).toBeNull();
   });
 
   test("returns the markdown when set", () => {
-    restoreEnv = setTestEnv({ SUPPORT_PAGE_TEXT: "# Help\n\nContact us" });
+    sandbox.setEnv({ SUPPORT_PAGE_TEXT: "# Help\n\nContact us" });
     expect(getSupportPageText()).toBe("# Help\n\nContact us");
   });
 
   test("converts literal backslash-n sequences into real newlines", () => {
-    restoreEnv = setTestEnv({ SUPPORT_PAGE_TEXT: "Line one\\nLine two" });
+    sandbox.setEnv({ SUPPORT_PAGE_TEXT: "Line one\\nLine two" });
     expect(getSupportPageText()).toBe("Line one\nLine two");
   });
 });
@@ -157,11 +143,10 @@ describe("supportNagLabel", () => {
 });
 
 describe("sendSupportMessage", () => {
-  let restoreEnv: (() => void) | undefined;
-  let fetchStub: Stub | undefined;
+  const sandbox = emailTestSandbox();
 
   beforeEach(() => {
-    restoreEnv = setTestEnv(ADMIN_ENV);
+    sandbox.setEnv(ADMIN_ENV);
     settings.setForTest({ business_email: "owner@example.com" });
     setHostEmailConfigForTest({
       apiKey: "host-key",
@@ -171,55 +156,31 @@ describe("sendSupportMessage", () => {
     setEffectiveDomainForTest("tickets.example.com");
   });
 
-  afterEach(() => {
-    fetchStub?.restore();
-    fetchStub = undefined;
-    resetHostEmailConfig();
-    resetEffectiveDomain();
-    settings.clearTestOverrides();
-    restoreEnv?.();
-    restoreEnv = undefined;
-  });
-
-  const stubFetch = (
-    impl: (url: string, init?: RequestInit) => Promise<Response>,
-  ): void => {
-    fetchStub = stub(
-      globalThis,
-      "fetch",
-      impl as unknown as typeof globalThis.fetch,
-    );
-  };
+  afterEach(sandbox.teardown);
 
   test("returns false and sends nothing when ADMIN_EMAIL_ADDRESS is unset", async () => {
-    restoreEnv?.();
-    restoreEnv = setTestEnv({ ADMIN_EMAIL_ADDRESS: undefined });
-    stubFetch(() => Promise.reject(new Error("should not be called")));
+    sandbox.setEnv({ ADMIN_EMAIL_ADDRESS: undefined });
+    sandbox.stubFetch(() => Promise.reject(new Error("should not be called")));
     expect(await sendSupportMessage("Help")).toBe(false);
-    expect(fetchStub?.calls.length).toBe(0);
+    expect(sandbox.fetchStub?.calls.length).toBe(0);
   });
 
   test("returns false and sends nothing when no business email is set", async () => {
     settings.setForTest({ business_email: "" });
-    stubFetch(() => Promise.reject(new Error("should not be called")));
+    sandbox.stubFetch(() => Promise.reject(new Error("should not be called")));
     expect(await sendSupportMessage("Help")).toBe(false);
-    expect(fetchStub?.calls.length).toBe(0);
+    expect(sandbox.fetchStub?.calls.length).toBe(0);
   });
 
   test("returns false when no email provider is configured", async () => {
     setHostEmailConfigForTest(null);
-    stubFetch(() => Promise.reject(new Error("should not be called")));
+    sandbox.stubFetch(() => Promise.reject(new Error("should not be called")));
     expect(await sendSupportMessage("Help")).toBe(false);
-    expect(fetchStub?.calls.length).toBe(0);
+    expect(sandbox.fetchStub?.calls.length).toBe(0);
   });
 
   test("delivers to the admin address, from the site's business email", async () => {
-    const captured = { body: {} as Record<string, unknown>, url: "" };
-    stubFetch((url, init) => {
-      captured.url = url;
-      captured.body = JSON.parse(String(init?.body));
-      return Promise.resolve(new Response(null, { status: 200 }));
-    });
+    const captured = sandbox.captureFetchCall();
 
     const result = await sendSupportMessage("Please help");
 
@@ -239,7 +200,9 @@ describe("sendSupportMessage", () => {
   });
 
   test("returns false when the email provider responds with an error", async () => {
-    stubFetch(() => Promise.resolve(new Response("nope", { status: 500 })));
+    sandbox.stubFetch(() =>
+      Promise.resolve(new Response("nope", { status: 500 })),
+    );
     expect(await sendSupportMessage("Help")).toBe(false);
   });
 });

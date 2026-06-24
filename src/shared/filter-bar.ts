@@ -19,8 +19,7 @@ export type FilterBarOption = {
 };
 
 /**
- * Render a labelled filter bar as the `.table-header-actions` paragraph shown
- * above a table.
+ * Render a labelled filter bar as the `.table-actions` div shown above a table.
  */
 export const renderFilterBar = (
   label: string,
@@ -33,5 +32,5 @@ export const renderFilterBar = (
         : `<a href="${o.href}">${o.label}</a>`,
     )
     .join(" / ");
-  return `<p class="table-header-actions">${label}: ${links}</p>`;
+  return `<div class="table-actions">${label}: ${links}</div>`;
 };

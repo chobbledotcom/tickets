@@ -244,6 +244,7 @@ fi
 
 # Secrets from .env
 set_from_env "NTFY_URL"
+set_from_env "SENTRY_URL"
 set_from_env "ADMIN_EMAIL_ADDRESS"
 set_from_env "WEBHOOK_URL"
 set_from_env "STORAGE_ZONE_NAME"

@@ -41,6 +41,21 @@ export const todayInTz = (tz: string): string =>
   msToZoned(Date.now(), tz).toPlainDate().toString();
 
 /**
+ * The epoch-ms instant of the START of a calendar day (00:00 local time) in the
+ * given timezone. Used to turn a `YYYY-MM-DD` filter bound into the integer
+ * `occurred_at` bound the ledger queries compare against, so a day range is
+ * interpreted in the operator's own timezone rather than UTC.
+ */
+export const dayStartEpochMs = (date: string, tz: string): number =>
+  new Date(localToUtc(`${date}T00:00:00`, tz)).getTime();
+
+/** The `YYYY-MM-DD` calendar day an epoch-ms instant falls on in `tz`. The
+ *  inverse direction of {@link dayStartEpochMs}, for labelling a stored
+ *  `occurred_at` as the local day it belongs to. */
+export const epochMsToTzDate = (ms: number, tz: string): string =>
+  msToZoned(ms, tz).toPlainDate().toString();
+
+/**
  * Strict datetime-local shape: a calendar date optionally followed by a
  * wall-clock time. Deliberately excludes any UTC designator (`Z`), numeric
  * offset, or bracketed IANA zone, since the rest of the app interprets these

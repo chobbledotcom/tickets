@@ -40,6 +40,21 @@ export const mockFormRequest = (
   });
 };
 
+/** Build a JSON API `Request` (no auth) for passing to `handleRequest`. */
+export const jsonRequest = (
+  path: string,
+  options: { method?: string; body?: Record<string, unknown> } = {},
+): Request => {
+  const { method = "GET", body } = options;
+  const headers: Record<string, string> = { host: "localhost" };
+  const init: RequestInit = { headers, method };
+  if (body) {
+    headers["content-type"] = "application/json";
+    init.body = JSON.stringify(body);
+  }
+  return new Request(`http://localhost${path}`, init);
+};
+
 export const mockAdminLoginRequest = async (
   data: Record<string, string>,
   csrfToken?: string,
@@ -193,6 +208,95 @@ export const installUrlHandler = (
   };
 };
 
+/** One recorded `fetch` call: the request URL and the parsed JSON body
+ *  (or `null` when the request had no string body). */
+export type RecordedFetchCall = {
+  url: string;
+  body: Record<string, unknown> | null;
+};
+
+/** Install a `fetch` stub that records every call's URL and parsed JSON body
+ *  and lets `respond` produce the Response. When `respond` returns `null` the
+ *  call falls through to the original `fetch`, so unrelated URLs keep working.
+ *  Returns the recorded calls plus an `emailCall` helper that finds the Resend
+ *  send-email request (the one assertion every email-sending test makes) and a
+ *  `restore` to put the original `fetch` back. */
+export const installRecordingFetch = (
+  respond: (
+    url: string,
+    init?: RequestInit,
+  ) => Response | Promise<Response> | null,
+): {
+  calls: RecordedFetchCall[];
+  emailCall: () => RecordedFetchCall | undefined;
+  restore: () => void;
+} => {
+  const original = globalThis.fetch;
+  const calls: RecordedFetchCall[] = [];
+  installUrlHandler(original, (url, init) => {
+    const raw = init?.body;
+    calls.push({ body: typeof raw === "string" ? JSON.parse(raw) : null, url });
+    const result = respond(url, init);
+    return result === null ? null : Promise.resolve(result);
+  });
+  return {
+    calls,
+    emailCall: () => calls.find((c) => c.url.includes("api.resend.com")),
+    restore: () => {
+      globalThis.fetch = original;
+    },
+  };
+};
+
+/** Run `body` under the standard test zone config with a fetch mock that
+ * answers every Bunny storage URL via `respond` (other URLs fall through). */
+export const withBunnyStorageStub = (
+  respond: (url: string, init?: RequestInit) => Promise<Response> | Response,
+  body: () => Promise<void>,
+): Promise<void> =>
+  runWithStorageConfig({ zoneKey: "testkey", zoneName: "testzone" }, () =>
+    withFetchMock(async (originalFetch) => {
+      installUrlHandler(originalFetch, (url, init) =>
+        url.includes("storage.bunnycdn.com")
+          ? Promise.resolve(respond(url, init))
+          : null,
+      );
+      await body();
+    }),
+  );
+
+/** Run `body` with a fetch mock that records and 200s every Bunny
+ * storage-delete call, exposing the captured URLs. Wraps the standard test
+ * zone config unless `withConfig: false`; `extraHandler` can intercept a URL
+ * (e.g. to simulate a CDN failure) before the capture. */
+export const withBunnyDeleteCapture = (
+  body: (deletedUrls: string[]) => Promise<void>,
+  opts: {
+    withConfig?: boolean;
+    extraHandler?: (url: string) => Promise<Response> | null;
+  } = {},
+): Promise<void> => {
+  const run = (): Promise<void> =>
+    withFetchMock(async (originalFetch) => {
+      const deletedUrls: string[] = [];
+      installUrlHandler(originalFetch, (url) => {
+        const extra = opts.extraHandler?.(url);
+        if (extra) return extra;
+        if (url.includes("storage.bunnycdn.com")) {
+          deletedUrls.push(url);
+          return Promise.resolve(
+            new Response(JSON.stringify({ HttpCode: 200 }), { status: 200 }),
+          );
+        }
+        return null;
+      });
+      await body(deletedUrls);
+    });
+  return opts.withConfig === false
+    ? run()
+    : runWithStorageConfig({ zoneKey: "testkey", zoneName: "testzone" }, run);
+};
+
 export const testRequest = (
   path: string,
   token?: string | null,
@@ -317,6 +421,12 @@ export const mockProviderType = (
 export const stubFetchJson = (body: unknown) =>
   stub(globalThis, "fetch", () =>
     Promise.resolve(new Response(JSON.stringify(body))),
+  );
+
+/** Stub `fetch` to always resolve with a `Response` of the given status/body. */
+export const stubFetchStatus = (status: number, body: BodyInit | null = null) =>
+  stub(globalThis, "fetch", () =>
+    Promise.resolve(new Response(body, { status })),
   );
 
 export const stubFetchRecorder = (responseInit?: ResponseInit) => {

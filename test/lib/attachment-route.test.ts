@@ -5,6 +5,7 @@ import { getMimeType } from "#routes/attachments.ts";
 import { signAttachmentUrl } from "#shared/attachment-url.ts";
 import { encryptBytes } from "#shared/crypto/encryption.ts";
 import { getAttendeeRaw } from "#shared/db/attendees.ts";
+import { getDb } from "#shared/db/client.ts";
 import { listingsTable } from "#shared/db/listings.ts";
 import { runWithStorageConfig } from "#shared/storage.ts";
 import {
@@ -111,6 +112,20 @@ describeWithEnv(
         }),
       );
 
+    /** Sign the attachment URL for a setup, serve "data" from the mocked CDN,
+     * and return the GET response. */
+    const fetchAttachment = async (setup: {
+      listingId: number;
+      attendeeId: number;
+    }): Promise<Response> => {
+      const path = await signUrl(setup.listingId, setup.attendeeId);
+      let response!: Response;
+      await withCdnMock(new TextEncoder().encode("data"), async () => {
+        response = await handleRequest(mockRequest(path));
+      });
+      return response;
+    };
+
     test("returns 404 when storage is not enabled", async () => {
       await withStorageDisabled(async () => {
         const { listingId, attendeeId } = await setupAttachment();
@@ -174,6 +189,21 @@ describeWithEnv(
         );
         // Sign with the first listing but the other attendee
         const path = await signUrl(listingId, otherAttendee.id);
+        const response = await handleRequest(mockRequest(path));
+        expect(response.status).toBe(403);
+      });
+    });
+
+    test("returns 403 when the booking line is marked no-quantity", async () => {
+      await withStorage(async () => {
+        const { listingId, attendeeId } = await setupAttachment();
+        // A still-valid signed URL must stop working once the line is a
+        // quantity-0 sentinel — the protected attachment is no longer theirs.
+        await getDb().execute({
+          args: [attendeeId, listingId],
+          sql: "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ? AND listing_id = ?",
+        });
+        const path = await signUrl(listingId, attendeeId);
         const response = await handleRequest(mockRequest(path));
         expect(response.status).toBe(403);
       });
@@ -261,40 +291,30 @@ describeWithEnv(
       equals,
     } of sanitizationCases) {
       test(`sanitizes attachment filename: ${label}`, async () => {
-        const { listingId, attendeeId } = await setupAttachmentWithName(name);
-        const path = await signUrl(listingId, attendeeId);
-        const fileContent = new TextEncoder().encode("data");
+        const setup = await setupAttachmentWithName(name);
+        const response = await fetchAttachment(setup);
+        expect(response.status).toBe(200);
+        const cd = response.headers.get("content-disposition")!;
+        for (const bad of notContains) expect(cd).not.toContain(bad);
+        if (contains) expect(cd).toContain(contains);
+        if (equals) expect(cd).toBe(equals);
 
-        await withCdnMock(fileContent, async () => {
-          const response = await handleRequest(mockRequest(path));
-          expect(response.status).toBe(200);
-          const cd = response.headers.get("content-disposition")!;
-          for (const bad of notContains) expect(cd).not.toContain(bad);
-          if (contains) expect(cd).toContain(contains);
-          if (equals) expect(cd).toBe(equals);
-
-          // Verify no duplicate Content-Disposition headers from injection
-          const cdHeaders = [...response.headers.entries()].filter(
-            ([k]) => k.toLowerCase() === "content-disposition",
-          );
-          if (notContains.length > 0) expect(cdHeaders.length).toBe(1);
-        });
+        // Verify no duplicate Content-Disposition headers from injection
+        const cdHeaders = [...response.headers.entries()].filter(
+          ([k]) => k.toLowerCase() === "content-disposition",
+        );
+        if (notContains.length > 0) expect(cdHeaders.length).toBe(1);
       });
     }
 
     test("increments attachment_downloads counter", async () => {
-      const { listingId, attendeeId } = await setupAttachment();
-      const path = await signUrl(listingId, attendeeId);
-      const fileContent = new TextEncoder().encode("data");
-
-      const before = await getAttendeeRaw(attendeeId);
+      const setup = await setupAttachment();
+      const before = await getAttendeeRaw(setup.attendeeId);
       expect(before!.attachment_downloads).toBe(0);
 
-      await withCdnMock(fileContent, async () => {
-        await handleRequest(mockRequest(path));
-      });
+      await fetchAttachment(setup);
 
-      const after = await getAttendeeRaw(attendeeId);
+      const after = await getAttendeeRaw(setup.attendeeId);
       expect(after!.attachment_downloads).toBe(1);
     });
 
@@ -319,16 +339,11 @@ describeWithEnv(
     });
 
     test("returns public cache control for CDN caching", async () => {
-      const { listingId, attendeeId } = await setupAttachment();
-      const path = await signUrl(listingId, attendeeId);
-      const fileContent = new TextEncoder().encode("data");
-
-      await withCdnMock(fileContent, async () => {
-        const response = await handleRequest(mockRequest(path));
-        expect(response.headers.get("cache-control")).toBe(
-          "public, max-age=3600",
-        );
-      });
+      const setup = await setupAttachment();
+      const response = await fetchAttachment(setup);
+      expect(response.headers.get("cache-control")).toBe(
+        "public, max-age=3600",
+      );
     });
   },
 );

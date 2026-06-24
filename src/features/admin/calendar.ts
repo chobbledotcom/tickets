@@ -100,7 +100,7 @@ const compileDateOptions = (
     flatMap((listing: ListingWithCount) =>
       getAvailableDates(listing, holidays),
     ),
-    (dates: string[]) => unique(dates),
+    (dates) => unique(dates),
   )(dailyListings);
 
   const standardDates = Array.from(standardListingDateMap.keys());
@@ -251,8 +251,11 @@ const loadStandardListingAttendees = async (
 ): Promise<Attendee[]> => {
   const matchingListingIds = standardListingDateMap.get(dateFilter);
   if (!matchingListingIds || matchingListingIds.length === 0) return [];
-  const rawStandardAttendees =
-    await getAttendeesByListingIds(matchingListingIds);
+  const rawStandardAttendees = await getAttendeesByListingIds(
+    matchingListingIds,
+    // Operational calendar (standard-listing rows + CSV): exclude no-quantity.
+    true,
+  );
   if (standardListings) {
     const matchingListings = standardListings.filter((e) =>
       matchingListingIds.includes(e.id),

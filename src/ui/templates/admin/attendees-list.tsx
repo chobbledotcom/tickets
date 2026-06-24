@@ -7,6 +7,7 @@
 import { sort } from "#fp";
 import { t } from "#i18n";
 import type { AttendeeSort } from "#shared/db/attendees.ts";
+import type { SystemNote } from "#shared/db/system-notes.ts";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import {
   type ListingFilter,
@@ -18,6 +19,7 @@ import type {
   AttendeeTableRow,
   ListingWithCount,
 } from "#shared/types.ts";
+import { AttendeeNotesSummary } from "#templates/admin/attendee-notes.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { AttendeeTable } from "#templates/attendee-table.tsx";
 import { ActionButton } from "#templates/components/actions.tsx";
@@ -44,6 +46,10 @@ export type AttendeesListPageProps = {
   hasNext: boolean;
   allowedDomain: string;
   phonePrefix: string;
+  /** Decrypted notes for the listed attendees (empty when none). */
+  systemNotes?: SystemNote[];
+  /** Attendee id → display name, for labelling notes in the summary. */
+  names?: Map<number, string>;
 };
 
 /** The listing + type filter query params shared by the page and CSV links. */
@@ -212,6 +218,11 @@ export const adminAttendeesListPage = (props: AttendeesListPageProps): string =>
           sortOrder={props.sort}
         />
 
+        <AttendeeNotesSummary
+          names={props.names ?? new Map()}
+          notes={props.systemNotes ?? []}
+        />
+
         <div class="table-scroll">
           <Raw
             html={AttendeeTable({
@@ -227,11 +238,11 @@ export const adminAttendeesListPage = (props: AttendeesListPageProps): string =>
           />
         </div>
 
-        <p class="table-footer-actions">
+        <div class="table-actions">
           <a href={csvHref(props.listingId, props.type)}>
             {t("listings_table.export_csv")}
           </a>
-        </p>
+        </div>
       </div>
 
       <Pagination

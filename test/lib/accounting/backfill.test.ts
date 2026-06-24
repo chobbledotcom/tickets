@@ -105,6 +105,25 @@ describeWithEnv("accounting > backfill", { db: true }, () => {
     expect(await accountBalance(WORLD)).toBe(-5000); // cash in
   });
 
+  test("walks every page when paid attendees exceed the page size", async () => {
+    const listing = await createTestListing({ maxAttendees: 10 });
+    // Five historical paid bookings; with a page size of 2 the cursor must SET to
+    // each page's last id, not accumulate — an `afterId +=` cursor over-advances
+    // past the final page and silently skips its attendees.
+    for (let i = 0; i < 5; i++) {
+      await historicalBooking(
+        [{ listingId: listing.id, pricePaid: 5000 }],
+        `paid-${i}@b.c`,
+      );
+    }
+
+    await backfillTransfers(2); // 3 pages of [2, 2, 1]
+
+    // Every £50 sale is recognised; a broken cursor leaves income short of £250.
+    expect(await accountBalance(revenueAccount(listing.id))).toBe(25000);
+    expect(await accountBalance(WORLD)).toBe(-25000);
+  });
+
   test("stamps each row's ledger_event_group with its booking event group", async () => {
     // The per-row amount-paid projection keys on ledger_event_group, so the
     // backfill must stamp it with the order's booking event group (the sale leg's).

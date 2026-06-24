@@ -36,10 +36,7 @@ import {
   isPaidListing,
   type ListingWithCount,
 } from "#shared/types.ts";
-import {
-  parseNonNegativeInt,
-  parsePositiveInt,
-} from "#shared/validation/number.ts";
+import { parseNonNegativeInt } from "#shared/validation/number.ts";
 import { extractContact, tryValidateTicketFields } from "#templates/fields.ts";
 
 // =============================================================================
@@ -202,7 +199,7 @@ const handleListListings = async (): Promise<Response> => {
   const holidays = await getActiveHolidays();
   const visibleListings = pipe(
     filter((e: ListingWithCount) => e.active && !e.hidden),
-    (active: ListingWithCount[]) => sortListings(active, holidays),
+    (active) => sortListings(active, holidays),
   )(allListings);
   const groupRemaining = await getGroupRemainingByListingId(visibleListings);
   const listings = visibleListings.map((e) =>
@@ -360,9 +357,16 @@ const handleBook = withActiveListing(async (request, listing, server) => {
   if (valResult instanceof Response) return valResult;
   const values = valResult;
 
-  // Parse quantity
-  const rawQuantity = parsePositiveInt(String(body.quantity ?? "1"));
-  const quantity = Math.min(rawQuantity ?? 1, listing.max_quantity);
+  // Parse quantity once. A submitted quantity of exactly 0 must NOT become a
+  // one-ticket booking — a quantity-0 line is the admin-only no-quantity sentinel
+  // and is never created through the public API. Malformed/absent values keep the
+  // lenient default of 1 (existing behaviour); only an explicit 0 is rejected
+  // (parseNonNegativeInt accepts 0, where parsePositiveInt would mask it as null).
+  const parsedQuantity = parseNonNegativeInt(String(body.quantity ?? "1"));
+  if (parsedQuantity === 0) {
+    return apiResponse({ error: "Quantity must be at least 1" }, 400);
+  }
+  const quantity = Math.min(parsedQuantity ?? 1, listing.max_quantity);
 
   // Validate date for daily listings
   const dateResult = await resolveBookingDate(listing, body);

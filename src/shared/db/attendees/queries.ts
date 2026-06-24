@@ -6,6 +6,7 @@ import { map, unique } from "#fp";
 import {
   accountPredicate,
   attendeeOwedSubquery,
+  saleLegPredicate,
   sumAmountFromTransfers,
 } from "#shared/accounting/projection-sql.ts";
 import { computeTicketTokenIndex } from "#shared/crypto/hashing.ts";
@@ -17,7 +18,12 @@ import {
   decryptAttendeeFields,
   decryptPiiBlob,
 } from "#shared/db/attendees/pii.ts";
-import { inPlaceholders, queryAll, queryOne } from "#shared/db/client.ts";
+import {
+  inPlaceholders,
+  queryAll,
+  queryOne,
+  rowExists,
+} from "#shared/db/client.ts";
 import { nameMapByIds } from "#shared/db/query.ts";
 import type { Attendee } from "#shared/types.ts";
 
@@ -52,10 +58,7 @@ export const pricePaidFromLedger = (
   eventGroupExpr: string,
 ): string =>
   sumAmountFromTransfers(
-    `kind = 'sale'` +
-      ` AND ${accountPredicate("source", "attendee", attendeeIdExpr)}` +
-      ` AND ${accountPredicate("dest", "revenue", listingIdExpr)}` +
-      ` AND event_group = ${eventGroupExpr}`,
+    saleLegPredicate(attendeeIdExpr, listingIdExpr, eventGroupExpr),
     "price_paid",
   );
 
@@ -214,8 +217,15 @@ export const getAttendeesPage = async ({
  * blob is needed. De-duplication of addresses happens after decryption.
  */
 export const getAllAttendeePiiBlobs = async (): Promise<string[]> => {
+  // Restrict the "all attendees" bulk-email audience to attendees with ≥1 real
+  // (quantity > 0) line, so a no-quantity-only attendee (an interested/cancelled
+  // placeholder) isn't emailed — its ticket URL would 404.
   const rows = await queryAll<{ pii_blob: string }>(
-    "SELECT pii_blob FROM attendees",
+    `SELECT pii_blob FROM attendees
+     WHERE EXISTS (
+       SELECT 1 FROM listing_attendees
+       WHERE attendee_id = attendees.id AND quantity > 0
+     )`,
   );
   return rows.map((r) => r.pii_blob);
 };
@@ -230,10 +240,12 @@ export const getAttendeePiiBlobsForListings = async (
 ): Promise<string[]> => {
   if (listingIds.length === 0) return [];
   const rows = await queryAll<{ pii_blob: string }>(
+    // quantity > 0: only attendees with a real line on these listings — a
+    // no-quantity sentinel line doesn't make someone an "attendee of X".
     `SELECT pii_blob FROM attendees
      WHERE id IN (
        SELECT DISTINCT attendee_id FROM listing_attendees
-       WHERE listing_id IN (${inPlaceholders(listingIds)})
+       WHERE listing_id IN (${inPlaceholders(listingIds)}) AND quantity > 0
      )`,
     listingIds,
   );
@@ -251,12 +263,66 @@ export const getAttendeePiiBlobForToken = async (
   token: string,
 ): Promise<string | null> => {
   const tokenIndex = await computeTicketTokenIndex(token);
+  // Apply the real-line guard: an all-ghost (no-quantity-only) attendee has no
+  // valid ticket URL, so the single-attendee bulk-email target resolves to no
+  // recipient (a genuine one-off transactional mail would be a separate path).
   const row = await queryOne<{ pii_blob: string }>(
-    "SELECT pii_blob FROM attendees WHERE ticket_token_index = ? LIMIT 1",
+    `SELECT pii_blob FROM attendees
+     WHERE ticket_token_index = ?
+       AND EXISTS (
+         SELECT 1 FROM listing_attendees
+         WHERE attendee_id = attendees.id AND quantity > 0
+       )
+     LIMIT 1`,
     [tokenIndex],
   );
   return row ? row.pii_blob : null;
 };
+
+/**
+ * True when the attendee has a real (quantity > 0) booking on the exact listing.
+ * Authorizes per-(attendee, listing) actions — e.g. the signed attachment
+ * download — against the EXACT row, not getAttendeeRaw's arbitrary left-joined
+ * sibling row (which for a mixed attendee could pass on a ghost/other-listing
+ * row, or wrongly reject a valid real-line download). A no-quantity sentinel
+ * line is excluded, so a line later marked no-quantity stops authorizing.
+ */
+export const hasActiveBookingLine = (
+  attendeeId: number,
+  listingId: number,
+): Promise<boolean> =>
+  rowExists(
+    `SELECT 1 FROM listing_attendees
+     WHERE attendee_id = ? AND listing_id = ? AND quantity > 0 LIMIT 1`,
+    [attendeeId, listingId],
+  );
+
+/**
+ * True when any of the listings has a paid line for this attendee — a gross
+ * `sale` leg in the row's ledger_event_group (a sale leg's amount is always > 0,
+ * so its existence is exactly a non-zero projected price_paid; a refund keeps the
+ * gross leg, so a refunded line still reads as paid). One query over all the IDs,
+ * read from the live ledger rather than the edit form's submitted key (a
+ * stale/missing key can leave it null), so a recorded payment is never dropped
+ * onto a fresh quantity-0 row. Callers pass a non-empty list.
+ */
+export const hasPaidLine = (
+  attendeeId: number,
+  listingIds: number[],
+): Promise<boolean> =>
+  rowExists(
+    `SELECT 1 FROM listing_attendees la
+     WHERE la.attendee_id = ? AND la.listing_id IN (${inPlaceholders(listingIds)})
+       AND EXISTS (
+         SELECT 1 FROM transfers
+         WHERE ${saleLegPredicate(
+           "la.attendee_id",
+           "la.listing_id",
+           "la.ledger_event_group",
+         )}
+       ) LIMIT 1`,
+    [attendeeId, ...listingIds],
+  );
 
 /**
  * Get an attendee by ID without decrypting PII

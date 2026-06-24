@@ -21,9 +21,11 @@ import type { AccountRef } from "#shared/ledger/types.ts";
 import type { Attendee } from "#shared/types.ts";
 import { ActivityLogTable } from "#templates/admin/activityLog.tsx";
 import {
-  AccountStatementSection,
+  AccountStatementHeading,
+  AccountStatementTable,
   type LedgerNames,
 } from "#templates/admin/ledger.tsx";
+import { ActionButton } from "#templates/components/actions.tsx";
 import { MapsLinks } from "#templates/components/maps-links.tsx";
 import { PhoneLinks } from "#templates/components/phone-links.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
@@ -55,10 +57,15 @@ export const AttendeeDetail = ({
   attendee,
   allowedDomain,
   phonePrefix,
+  hasRealLine,
 }: {
   attendee: Attendee;
   allowedDomain: string;
   phonePrefix: string;
+  /** Whether the attendee has any real (quantity > 0) booking. A no-quantity-only
+   * attendee has no live customer ticket — its /t page 404s — so we show the
+   * no-quantity indicator instead of a link that fails on click. */
+  hasRealLine: boolean;
 }): JSX.Element => {
   const rows = compact([
     <DetailTableRow label={t("common.name")}>{attendee.name}</DetailTableRow>,
@@ -84,9 +91,13 @@ export const AttendeeDetail = ({
       </DetailTableRow>
     ) : null,
     <DetailTableRow label={t("terms.ticket")}>
-      <a href={`https://${allowedDomain}/t/${attendee.ticket_token}`}>
-        {attendee.ticket_token}
-      </a>
+      {hasRealLine ? (
+        <a href={`https://${allowedDomain}/t/${attendee.ticket_token}`}>
+          {attendee.ticket_token}
+        </a>
+      ) : (
+        <span class="muted small">{t("admin.attendee_table.no_quantity")}</span>
+      )}
     </DetailTableRow>,
     <DetailTableRow label={t("common.registered")}>
       {formatDatetimeShort(attendee.created)}
@@ -258,19 +269,32 @@ export type AttendeeLedgerData = {
  * The attendee's money ledger embedded on the edit page (decision 15 names the
  * edit-attendee page as a renderer surface): the same shared running-balance
  * statement the standalone /admin/ledger account page shows, scoped to this
- * attendee's account, in its own section.
+ * attendee's account. Collapsed in a details/summary like the activity log, with
+ * the balance, a "view full ledger" action row, then the scrollable statement.
  */
 export const AttendeeLedgerSection = ({
   ledger,
 }: {
   ledger: AttendeeLedgerData;
 }): JSX.Element => (
-  <fieldset>
-    <legend>{t("attendee_detail.ledger")}</legend>
-    <AccountStatementSection
+  <details>
+    <summary>{t("attendee_detail.ledger")}</summary>
+    <AccountStatementHeading
       account={ledger.account}
       lines={ledger.lines}
       names={ledger.names}
     />
-  </fieldset>
+    <p class="table-header-actions">
+      <ActionButton
+        href={`/admin/ledger/${ledger.account.type}/${ledger.account.id}`}
+      >
+        {t("attendee_detail.view_full_ledger")}
+      </ActionButton>
+    </p>
+    <AccountStatementTable
+      account={ledger.account}
+      lines={ledger.lines}
+      names={ledger.names}
+    />
+  </details>
 );

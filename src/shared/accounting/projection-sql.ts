@@ -10,8 +10,10 @@
  * the parameterised `transfersByAccount` in `./queries.ts` instead.
  */
 
-/** Account type/id columns for one leg side of a `transfers` row. */
-const COLUMNS = {
+/** Account type/id columns for one leg side of a `transfers` row — the single
+ *  home for these names, so every projection (the interpolated subqueries here
+ *  AND the parameterised balance reads in `./queries.ts`) refers to them once. */
+export const LEG_COLUMNS = {
   dest: { id: "dest_id", type: "dest_type" },
   source: { id: "source_id", type: "source_type" },
 } as const;
@@ -28,9 +30,27 @@ export const accountPredicate = (
   type: string,
   idExpr: string,
 ): string => {
-  const col = COLUMNS[role];
+  const col = LEG_COLUMNS[role];
   return `${col.type} = '${type}' AND ${col.id} = CAST(${idExpr} AS TEXT)`;
 };
+
+/**
+ * Predicate matching a booking row's gross `sale` leg: `kind='sale'`, billed from
+ * the attendee to the listing's revenue account, scoped to the row's
+ * `ledger_event_group`. The single home for "this row's sale leg" — shared by the
+ * per-row amount-paid projection ({@link sumAmountFromTransfers}) and the
+ * paid-line existence check, so the two can't drift. All three args are SQL
+ * column expressions in the surrounding query (no leading `WHERE`).
+ */
+export const saleLegPredicate = (
+  attendeeIdExpr: string,
+  listingIdExpr: string,
+  eventGroupExpr: string,
+): string =>
+  `kind = 'sale'` +
+  ` AND ${accountPredicate("source", "attendee", attendeeIdExpr)}` +
+  ` AND ${accountPredicate("dest", "revenue", listingIdExpr)}` +
+  ` AND event_group = ${eventGroupExpr}`;
 
 /**
  * Wrap a `transfers` WHERE clause as a scalar gross-sum subquery aliased

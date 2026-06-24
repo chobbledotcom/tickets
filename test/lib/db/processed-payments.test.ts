@@ -2,12 +2,14 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb, insert } from "#shared/db/client.ts";
 import {
+  batchFinalizeStatement,
   finalizeSession as finalizePaymentSession,
   isSessionProcessed,
   markSessionFailed,
   parseSessionFailure,
   reserveSession,
   STALE_RESERVATION_MS,
+  setSessionTicketTokens,
 } from "#shared/db/processed-payments.ts";
 import { nowMs } from "#shared/now.ts";
 import { bookAttendee, createTestListing, describeWithEnv } from "#test-utils";
@@ -31,7 +33,11 @@ describeWithEnv("db > processed payments", { db: true }, () => {
       if (!attendeeResult.success) throw new Error("Failed to create attendee");
 
       await reserveSession("sess_dup");
-      await finalizePaymentSession("sess_dup", attendeeResult.attendees[0]!.id);
+      await finalizePaymentSession(
+        "sess_dup",
+        attendeeResult.attendees[0]!.id,
+        ["tok-test"],
+      );
 
       const result = await reserveSession("sess_dup");
       expect(result.reserved).toBe(false);
@@ -137,6 +143,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
       await finalizePaymentSession(
         "sess_finalized_nofail",
         attendee.attendees[0]!.id,
+        ["tok-test"],
       );
 
       await markSessionFailed("sess_finalized_nofail", { error: "late fail" });
@@ -181,6 +188,109 @@ describeWithEnv("db > processed payments", { db: true }, () => {
           FOREIGN KEY (attendee_id) REFERENCES attendees(id)
         )
       `);
+    });
+  });
+
+  describe("batchFinalizeStatement", () => {
+    // The booking batch passes the attendee id as a MAX(id) subquery; a direct
+    // unit test binds it as a literal `?` and uses a trivially-true guard, so it
+    // exercises the UNRESOLVED + guard gating without an in-batch attendee row.
+    const trueGuard = { args: [] as never[], sql: "1 = 1" };
+
+    test("sets attendee_id and clears ticket_tokens on an unresolved reservation", async () => {
+      const listing = await createTestListing({ maxAttendees: 50 });
+      const attendeeResult = await bookAttendee(listing, {
+        email: "fss@example.com",
+        name: "Fss",
+      });
+      if (!attendeeResult.success) throw new Error("setup failed");
+      const attendeeId = attendeeResult.attendees[0]!.id;
+
+      await reserveSession("sess_fss");
+      const stmt = batchFinalizeStatement(
+        "sess_fss",
+        "?",
+        attendeeId,
+        trueGuard,
+      );
+      await getDb().execute(stmt);
+
+      const row = await isSessionProcessed("sess_fss");
+      expect(row!.attendee_id).toBe(attendeeId);
+      expect(row!.ticket_tokens).toBe("");
+    });
+
+    test("is a no-op when the session is already finalized", async () => {
+      const listing = await createTestListing({ maxAttendees: 50 });
+      const attendeeResult = await bookAttendee(listing, {
+        email: "fss2@example.com",
+        name: "Fss2",
+      });
+      if (!attendeeResult.success) throw new Error("setup failed");
+      const attendeeId = attendeeResult.attendees[0]!.id;
+
+      await reserveSession("sess_fss2");
+      await finalizePaymentSession("sess_fss2", attendeeId, ["tok-test"]);
+
+      // A second finalize (different attendee id) must not overwrite
+      const stmt = batchFinalizeStatement(
+        "sess_fss2",
+        "?",
+        attendeeId + 999,
+        trueGuard,
+      );
+      await getDb().execute(stmt);
+
+      const row = await isSessionProcessed("sess_fss2");
+      expect(row!.attendee_id).toBe(attendeeId);
+    });
+
+    test("does not finalize when the all-bookings-landed guard fails", async () => {
+      const listing = await createTestListing({ maxAttendees: 50 });
+      const attendeeResult = await bookAttendee(listing, {
+        email: "fss3@example.com",
+        name: "Fss3",
+      });
+      if (!attendeeResult.success) throw new Error("setup failed");
+      const attendeeId = attendeeResult.attendees[0]!.id;
+
+      await reserveSession("sess_fss3");
+      // A guard that never holds stands in for a partial cart (not every booking
+      // landed): the session must stay unresolved so the caller can refund.
+      const stmt = batchFinalizeStatement("sess_fss3", "?", attendeeId, {
+        args: [],
+        sql: "1 = 0",
+      });
+      await getDb().execute(stmt);
+
+      const row = await isSessionProcessed("sess_fss3");
+      expect(row!.attendee_id).toBe(null);
+    });
+  });
+
+  describe("setSessionTicketTokens", () => {
+    test("stores encrypted ticket tokens on a finalized session", async () => {
+      const listing = await createTestListing({ maxAttendees: 50 });
+      const attendeeResult = await bookAttendee(listing, {
+        email: "stt@example.com",
+        name: "Stt",
+      });
+      if (!attendeeResult.success) throw new Error("setup failed");
+      const attendeeId = attendeeResult.attendees[0]!.id;
+
+      await reserveSession("sess_stt");
+      await finalizePaymentSession("sess_stt", attendeeId, ["tok-test"]);
+      await setSessionTicketTokens("sess_stt", ["tok-abc"]);
+
+      const row = await isSessionProcessed("sess_stt");
+      // ticket_tokens is stored encrypted, not as plaintext
+      expect(row!.ticket_tokens).not.toBe("");
+      expect(row!.ticket_tokens).not.toContain("tok-abc");
+    });
+
+    test("is a no-op if the session was pruned", async () => {
+      // Should not throw even when the session row is absent
+      await setSessionTicketTokens("sess_nonexistent", ["tok-abc"]);
     });
   });
 });

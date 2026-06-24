@@ -3,7 +3,7 @@
  *
  * The ledger is context-free: it knows accounts, transfers, balances, and
  * invariants — nothing about attendees, listings, or payment providers. The host
- * maps its domain onto these types (see accounting-plan.md). Time, ids, and
+ * maps its domain onto these types. Time, ids, and
  * references are inputs supplied by the caller, never effects performed here.
  */
 

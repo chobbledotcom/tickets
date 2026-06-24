@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
+import type { SystemNote } from "#shared/db/system-notes.ts";
 import type { AttendeeTableRow } from "#shared/types.ts";
 import {
   type AttendeesListPageProps,
@@ -91,9 +92,35 @@ describe("adminAttendeesListPage", () => {
     expect(html).toContain("No attendees yet");
   });
 
+  test("surfaces a red notes summary for attendees that have notes", () => {
+    const noteRow: SystemNote = {
+      attendee_id: 1,
+      created: "2026-06-23T10:00:00.000Z",
+      id: 1,
+      note: "needs a follow-up call",
+      type: "system",
+    };
+    const html = adminAttendeesListPage(
+      buildProps({
+        names: new Map([[1, "Alice"]]),
+        rows: [row(1, "Alice", 2, "Booked Listing")],
+        systemNotes: [noteRow],
+      }),
+    );
+    expect(html).toContain("1 attendee has notes");
+    expect(html).toContain("needs a follow-up call");
+  });
+
+  test("renders no notes summary when no listed attendee has notes", () => {
+    const html = adminAttendeesListPage(
+      buildProps({ rows: [row(1, "Alice", 2, "Booked Listing")] }),
+    );
+    expect(html).not.toContain("have notes");
+  });
+
   test("renders a plain CSV export link when no filters are active", () => {
     const html = adminAttendeesListPage(buildProps());
-    expect(html).toContain('class="table-footer-actions"');
+    expect(html).toContain('class="table-actions"');
     expect(html).toContain('href="/admin/attendees/csv"');
     expect(html).toContain("Export CSV");
   });
@@ -242,7 +269,7 @@ describe("adminAttendeesListPage", () => {
 
     test("renders the bar with the active type bold and the rest as links", () => {
       const html = adminAttendeesListPage(multiCategory({ type: "daily" }));
-      expect(html).toContain('class="table-header-actions"');
+      expect(html).toContain('class="table-actions"');
       expect(html).toContain("<strong><u>Daily</u></strong>");
       expect(html).toContain(">Standard</a>");
       expect(html).toContain(">All</a>");
@@ -252,7 +279,7 @@ describe("adminAttendeesListPage", () => {
       const html = adminAttendeesListPage(
         buildProps({ categories: ["standard"] }),
       );
-      expect(html).not.toContain('class="table-header-actions"');
+      expect(html).not.toContain("Showing:");
     });
 
     test("type links reset the listing and page filters but keep the sort", () => {
@@ -268,7 +295,7 @@ describe("adminAttendeesListPage", () => {
       // Scope assertions to the filter-bar fragment: the pagination links below
       // legitimately keep the listing/page, which would otherwise mask the reset.
       const bar =
-        html.match(/<p class="table-header-actions">.*?<\/p>/s)?.[0] ?? "";
+        html.match(/<div class="table-actions">.*?<\/div>/s)?.[0] ?? "";
       // The bar is injected via <Raw>, so its ampersands stay unescaped.
       expect(bar).toContain('href="/admin/attendees?type=daily&sort=oldest"');
       expect(bar).not.toContain("listing=7"); // specific-listing filter dropped

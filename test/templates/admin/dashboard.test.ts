@@ -484,7 +484,6 @@ describe("adminDashboardPage type filter", () => {
   test("does not show a CSV export footer (the dashboard table is active-only)", () => {
     const html = adminDashboardPage([standard, daily], TEST_SESSION);
     expect(html).not.toContain("/admin/listings/csv");
-    expect(html).not.toContain("table-footer-actions");
   });
 });
 
@@ -542,7 +541,7 @@ describe("adminListingsPage", () => {
       [testListingWithCount({ name: "Active Show" })],
       TEST_SESSION,
     );
-    expect(html).toContain('class="table-footer-actions"');
+    expect(html).toContain('class="table-actions"');
     expect(html).toContain('href="/admin/listings/csv"');
     expect(html).toContain("Export CSV");
   });

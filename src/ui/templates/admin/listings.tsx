@@ -19,6 +19,7 @@ import type {
   ListingRevenueBreakdown,
 } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
+import { attendeeNameMap, type SystemNote } from "#shared/db/system-notes.ts";
 import { buildEmbedSnippets } from "#shared/embed.ts";
 import { isReadOnly } from "#shared/env.ts";
 import type { Field } from "#shared/forms.tsx";
@@ -40,10 +41,12 @@ import {
   availableDayCounts,
   dayPriceFor,
   type Group,
+  hasTicketQuantity,
   isPaidListing,
   type ListingWithCount,
   normalizeDurationDays,
 } from "#shared/types.ts";
+import { AttendeeNotesSummary } from "#templates/admin/attendee-notes.tsx";
 import { buildSharedDetailRows } from "#templates/admin/detail-rows.tsx";
 import {
   type ExpectedActualItem,
@@ -62,6 +65,7 @@ import {
   type TableQuestionData,
 } from "#templates/attendee-table.tsx";
 import {
+  ActionButton,
   MaybeButtonLink,
   SubmitButton,
 } from "#templates/components/actions.tsx";
@@ -263,16 +267,23 @@ const FailedPaymentsTable = ({
 /** Check-in message to display after toggling */
 export type CheckinMessage = { name: string; status: string } | null;
 
-/** Filter attendees by check-in status */
+/** Filter attendees by check-in status. The in/out filters operate on real
+ * (quantity > 0) lines only — a no-quantity sentinel row isn't checkable, so it
+ * appears only in the unfiltered "all" view, never in the checked-in or
+ * not-checked-in lists. */
 export const filterAttendees = (
   attendees: Attendee[],
   activeFilter: AttendeeFilter,
 ): Attendee[] => {
   if (activeFilter === "in") {
-    return filter((a: Attendee) => a.checked_in)(attendees);
+    return filter((a: Attendee) => a.checked_in && hasTicketQuantity(a))(
+      attendees,
+    );
   }
   if (activeFilter === "out") {
-    return filter((a: Attendee) => !a.checked_in)(attendees);
+    return filter((a: Attendee) => !a.checked_in && hasTicketQuantity(a))(
+      attendees,
+    );
   }
   return attendees;
 };
@@ -417,9 +428,9 @@ const ListingIncomeLedgerSection = ({
         <small>{t("listings_table.income_ledger_recognised_note")}</small>
       </p>
       <p class="actions">
-        <a href={`/admin/ledger/revenue/${listingId}`}>
+        <ActionButton href={`/admin/ledger?listing=${listingId}`}>
           {t("listings_table.income_ledger_view_full")}
-        </a>
+        </ActionButton>
       </p>
     </fieldset>
   </article>
@@ -457,6 +468,9 @@ export type AdminListingPageOptions = {
   /** Whether any of the listing's attendees (across all dates) have an email
    * address — gates the owner-only "Email" action. */
   hasEmailableAttendees?: boolean;
+  /** Decrypted notes for the listed attendees (empty when none) — surfaced as a
+   * red expandable above the attendee table. */
+  systemNotes?: SystemNote[];
 };
 
 /** Top action nav for the listing detail page */
@@ -1123,9 +1137,9 @@ const AttendeesSection = ({
           })}
         />
       </div>
-      <p class="table-footer-actions">
+      <div class="table-actions">
         <a href={exportHref}>{t("listings_table.export_csv")}</a>
-      </p>
+      </div>
     </article>
   );
 };
@@ -1237,6 +1251,7 @@ export const adminListingPage = ({
   groupContext,
   revenueBreakdown,
   hasEmailableAttendees = false,
+  systemNotes = [],
 }: AdminListingPageOptions): string => {
   const ticketUrl = `https://${allowedDomain}/ticket/${listing.slug}`;
   const { script: embedScriptCode, iframe: embedIframeCode } =
@@ -1317,6 +1332,10 @@ export const adminListingPage = ({
           listingId={listing.id}
         />
       )}
+      <AttendeeNotesSummary
+        names={attendeeNameMap(attendees)}
+        notes={systemNotes}
+      />
       <AttendeesSection
         activeFilter={activeFilter}
         allowedDomain={allowedDomain}

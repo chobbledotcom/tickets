@@ -74,7 +74,7 @@ const assertShared = (label: string, values: string[]): void => {
  * group, and no reference is repeated (which would silently under-post). Currency
  * needs no check — a site has one, fixed at setup, so every leg shares it.
  */
-const assertPostable = (inputs: TransferInput[]): void => {
+export const assertPostable = (inputs: TransferInput[]): void => {
   for (const input of inputs) {
     const result = validateTransfer(input);
     if (!result.ok) {

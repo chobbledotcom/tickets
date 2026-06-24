@@ -14,10 +14,12 @@ import {
 } from "#shared/accounting/queries.ts";
 import { legReference } from "#shared/accounting/refs.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
+import { balanceOf } from "#shared/ledger/project.ts";
 import type { Transfer } from "#shared/ledger/types.ts";
 import {
   recordAttendeeRefund,
   recordAttendeeRefundsBatch,
+  recordPlaceholderRefund,
   soleBookingOrder,
 } from "#shared/refund-ledger.ts";
 import { describeWithEnv } from "#test-utils";
@@ -44,6 +46,15 @@ const postBooking = async (
 
 const refundLegsOf = (legs: Transfer[]): Transfer[] =>
   legs.filter((leg) => (leg.kind ?? "").startsWith("refund_"));
+
+const expectSingleRefundCash = async (amount: number): Promise<Transfer> => {
+  const cash = refundLegsOf(
+    await transfersByAccount(attendeeAccount(ATTENDEE)),
+  ).filter((leg) => leg.kind === "refund_cash");
+  expect(cash.length).toBe(1);
+  expect(cash[0]!.amount).toBe(amount);
+  return cash[0]!;
+};
 
 // -- soleBookingOrder (pure) --------------------------------------------- //
 
@@ -120,12 +131,8 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
 
     expect(await accountBalance(attendeeAccount(ATTENDEE))).toBe(0);
     expect(await accountBalance(revenueAccount(1))).toBe(0);
-    const cash = refundLegsOf(
-      await transfersByAccount(attendeeAccount(ATTENDEE)),
-    ).filter((l) => l.kind === "refund_cash");
-    expect(cash.length).toBe(1);
-    expect(cash[0]!.amount).toBe(5000);
-    expect(cash[0]!.destination).toEqual(WORLD);
+    const cash = await expectSingleRefundCash(5000);
+    expect(cash.destination).toEqual(WORLD);
   });
 
   test("reverses a sale-less paid order (surcharge with no sale leg)", async () => {
@@ -138,11 +145,7 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
 
     expect(await accountBalance(modifierAccount(7))).toBe(0);
     expect(await accountBalance(attendeeAccount(ATTENDEE))).toBe(0);
-    const cash = refundLegsOf(
-      await transfersByAccount(attendeeAccount(ATTENDEE)),
-    ).filter((l) => l.kind === "refund_cash");
-    expect(cash.length).toBe(1);
-    expect(cash[0]!.amount).toBe(500);
+    await expectSingleRefundCash(500);
   });
 
   test("skips a balance-settled reservation (booking plus a balance payment)", async () => {
@@ -388,3 +391,64 @@ describeWithEnv(
     });
   },
 );
+
+// -- recordPlaceholderRefund (cash round-trip, no sale leg) -------------- //
+
+describeWithEnv("refund-ledger > recordPlaceholderRefund", { db: true }, () => {
+  const PH = {
+    amount: 5000,
+    attendeeId: 7,
+    eventId: "ph-sess-1",
+    listingId: 1,
+    occurredAt: BOOKING_AT,
+  };
+
+  test("records the cash round-trip with no sale leg, netting to zero", async () => {
+    expect(await recordPlaceholderRefund(PH, "price_changed", true)).toEqual({
+      posted: true,
+    });
+    const legs = await transfersByAccount(attendeeAccount(7));
+    // No revenue recognised — just the payment we received and the refund_cash
+    // returning it (stamped with the reason), so the line's price_paid stays 0.
+    expect(legs.some((l) => l.kind === "sale")).toBe(false);
+    expect(legs.some((l) => l.kind === "payment")).toBe(true);
+    const cash = legs.filter((l) => l.kind === "refund_cash");
+    expect(cash.length).toBe(1);
+    expect(cash[0]!.amount).toBe(5000);
+    expect(cash[0]!.memo).toBe("price_changed");
+    expect(balanceOf(attendeeAccount(7))(legs)).toBe(0);
+  });
+
+  test("posts only the payment when the refund failed (we still hold the money)", async () => {
+    expect(await recordPlaceholderRefund(PH, "charge_mismatch", false)).toEqual(
+      {
+        posted: false,
+      },
+    );
+    const legs = await transfersByAccount(attendeeAccount(7));
+    expect(legs.some((l) => l.kind === "payment")).toBe(true);
+    expect(legs.some((l) => l.kind === "refund_cash")).toBe(false);
+    // The ledger shows we hold their cash until a manual refund reverses it.
+    expect(balanceOf(attendeeAccount(7))(legs)).toBe(5000);
+  });
+
+  test("logs and does not throw when the ledger post conflicts", async () => {
+    // Pre-claim the payment leg's reference under a different event so the cash-in
+    // post hits a reference collision and the catch path runs.
+    const collidingRef = await legReference(["booking", PH.eventId, "payment"]);
+    await postTransfers([
+      {
+        amount: 100,
+        destination: attendeeAccount(99),
+        eventGroup: "blocker",
+        kind: "payment",
+        occurredAt: BOOKING_AT,
+        reference: collidingRef,
+        source: WORLD,
+      },
+    ]);
+    expect(await recordPlaceholderRefund(PH, "sold_out", true)).toEqual({
+      posted: false,
+    });
+  });
+});
