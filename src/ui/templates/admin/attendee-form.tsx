@@ -20,8 +20,9 @@ import {
   type AttendeeFormLine,
   type BalanceNotice,
   DAY_COUNT_FIELD,
-  isBookedLine,
+  isRetainedLine,
   LINE_KEY_PREFIX,
+  NO_QUANTITY_PREFIX,
   type ParsedAttendeeForm,
   QTY_PREFIX,
   REMAINING_BALANCE_FIELD,
@@ -57,6 +58,7 @@ import { START_DATE_FIELD } from "#shared/order-select.ts";
 import {
   type AdminSession,
   type Attendee,
+  hasTicketQuantity,
   MAX_DURATION_DAYS,
 } from "#shared/types.ts";
 import {
@@ -160,7 +162,7 @@ const ListingRow = ({
   warnings: string[];
 }): JSX.Element => {
   const listing = line.listing!;
-  const booked = isBookedLine(line) || Boolean(line.existingBooking);
+  const booked = isRetainedLine(line) || Boolean(line.existingBooking);
   const isDaily = listing.listing_type === "daily";
   return (
     <tr class={booked ? "attendee-line" : "attendee-line attendee-line-empty"}>
@@ -179,9 +181,10 @@ const ListingRow = ({
           <span class="muted small">Fixed date</span>
         )}
       </td>
-      <td>
+      <td class="attendee-line-qty">
         <input
           aria-label={`Quantity for ${listing.name}`}
+          class="line-qty"
           max={listing.max_quantity}
           min="0"
           name={`${QTY_PREFIX}${listing.id}`}
@@ -189,6 +192,16 @@ const ListingRow = ({
           type="number"
           value={line.quantity === null ? "0" : String(line.quantity)}
         />
+        <label class="small">
+          <input
+            checked={line.noQuantity}
+            class="no-quantity-toggle"
+            name={`${NO_QUANTITY_PREFIX}${listing.id}`}
+            type="checkbox"
+            value="1"
+          />
+          No quantity
+        </label>
         <input
           name={`${LINE_KEY_PREFIX}${listing.id}`}
           type="hidden"
@@ -231,7 +244,7 @@ const ListingEditor = ({
   data: AttendeeFormTemplateData;
 }): JSX.Element => {
   const hasBookedLines = data.parsed.lines.some(
-    (line) => isBookedLine(line) || Boolean(line.existingBooking),
+    (line) => isRetainedLine(line) || Boolean(line.existingBooking),
   );
   return (
     <div
@@ -886,6 +899,7 @@ export const attendeeFormPage = (
         <AttendeeDetail
           allowedDomain={data.allowedDomain}
           attendee={a}
+          hasRealLine={data.bookings.some(hasTicketQuantity)}
           phonePrefix={data.phonePrefix}
         />
       )}

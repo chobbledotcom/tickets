@@ -102,6 +102,25 @@ export const testAttendee = (overrides: Partial<Attendee> = {}): Attendee => ({
   ...overrides,
 });
 
+/** Build a radio question fixture with answer options. Each `[id, text]` pair
+ * becomes an active answer whose sort_order follows the array order. */
+export const testRadioQuestion = (
+  id: number,
+  text: string,
+  answers: [number, string][],
+): QuestionWithAnswers => ({
+  answers: answers.map(([answerId, answerText], sort_order) => ({
+    active: true,
+    id: answerId,
+    question_id: id,
+    sort_order,
+    text: answerText,
+  })),
+  display_type: "radio",
+  id,
+  text,
+});
+
 export const testGroup = (overrides: Partial<Group> = {}): Group => ({
   description: "",
   hidden: false,

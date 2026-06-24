@@ -38,6 +38,7 @@ const bookedLine = (
   key: "",
   listing: testListingWithCount({ id, uses_logistics: delivered }),
   listingId: id,
+  noQuantity: false,
   quantity,
 });
 
@@ -165,6 +166,26 @@ describeWithEnv("attendee form logistics (HTTP)", { db: true }, () => {
     return { coll, drop, listing };
   };
 
+  /** POST the new-attendee form (session + CSRF handled), assert the redirect,
+   * and return the first attendee's logistics assignment for `listingId`. */
+  const submitNewAttendeeLogistics = async (
+    listingId: number,
+    fields: Record<string, string>,
+  ) => {
+    const { cookie, csrfToken } = await getTestSession();
+    const response = await handleRequest(
+      mockFormRequest(
+        "/admin/attendees/new",
+        { csrf_token: csrfToken, ...fields },
+        cookie,
+      ),
+    );
+    expect(response.status).toBe(302);
+    const attendees = await getAttendeesRaw(listingId);
+    const assignments = await getLogisticsAssignments(attendees[0]!.id);
+    return assignments.get(listingId);
+  };
+
   test("new form renders the logistics selectors for a delivered listing", async () => {
     const { listing } = await enableDeliveredListing();
     const { cookie } = await getTestSession();
@@ -185,26 +206,15 @@ describeWithEnv("attendee form logistics (HTTP)", { db: true }, () => {
 
   test("creating an attendee persists the chosen agents", async () => {
     const { listing, drop, coll } = await enableDeliveredListing();
-    const { cookie, csrfToken } = await getTestSession();
-    const response = await handleRequest(
-      mockFormRequest(
-        "/admin/attendees/new",
-        {
-          csrf_token: csrfToken,
-          [endAgentField()]: String(coll.id),
-          [endTimeField()]: "16:45",
-          [startAgentField()]: String(drop.id),
-          [startTimeField()]: "08:30",
-          name: "Jane",
-          [`qty_${listing.id}`]: "1",
-        },
-        cookie,
-      ),
-    );
-    expect(response.status).toBe(302);
-    const attendees = await getAttendeesRaw(listing.id);
-    const assignments = await getLogisticsAssignments(attendees[0]!.id);
-    expect(assignments.get(listing.id)).toEqual({
+    const assignment = await submitNewAttendeeLogistics(listing.id, {
+      [endAgentField()]: String(coll.id),
+      [endTimeField()]: "16:45",
+      [startAgentField()]: String(drop.id),
+      [startTimeField()]: "08:30",
+      name: "Jane",
+      [`qty_${listing.id}`]: "1",
+    });
+    expect(assignment).toEqual({
       endAgentId: coll.id,
       endTime: "16:45",
       startAgentId: drop.id,
@@ -215,22 +225,11 @@ describeWithEnv("attendee form logistics (HTTP)", { db: true }, () => {
   test("no logistics write happens when the feature is off", async () => {
     settings.setForTest({ has_logistics: false });
     const listing = await createTestListing({ maxAttendees: 100 });
-    const { cookie, csrfToken } = await getTestSession();
-    const response = await handleRequest(
-      mockFormRequest(
-        "/admin/attendees/new",
-        {
-          csrf_token: csrfToken,
-          name: "NoLogistics",
-          [`qty_${listing.id}`]: "1",
-        },
-        cookie,
-      ),
-    );
-    expect(response.status).toBe(302);
-    const attendees = await getAttendeesRaw(listing.id);
-    const assignments = await getLogisticsAssignments(attendees[0]!.id);
-    expect(assignments.get(listing.id)).toEqual({
+    const assignment = await submitNewAttendeeLogistics(listing.id, {
+      name: "NoLogistics",
+      [`qty_${listing.id}`]: "1",
+    });
+    expect(assignment).toEqual({
       endAgentId: null,
       endTime: "",
       startAgentId: null,

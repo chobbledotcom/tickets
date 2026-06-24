@@ -40,7 +40,11 @@ import {
   encryptedNameSchema,
   idAndEncryptedSlugSchema,
 } from "#shared/db/common-schema.ts";
-import { LISTING_AGGREGATE_WRITE_COLUMNS } from "#shared/db/migrations/schema.ts";
+import {
+  LISTING_AGGREGATE_WRITE_COLUMNS,
+  TICKET_COUNTS_PREDICATE,
+  ticketCountSumExpr,
+} from "#shared/db/migrations/schema.ts";
 import { nameMapByIds } from "#shared/db/query.ts";
 import { col } from "#shared/db/table.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
@@ -543,16 +547,25 @@ export type ListingAggregateRecalculation = Record<
   { current: number; recalculated: number }
 >;
 
+/**
+ * Recalculate every listing aggregate in one pass. tickets_count counts only
+ * quantity > 0 rows (see {@link TICKET_COUNTS_PREDICATE}), while booked_quantity
+ * sums over ALL rows (the no-quantity sentinel adds 0 to capacity). Income is no
+ * longer an aggregate column — it is projected from the transfers ledger at read
+ * time, not recomputed here. Exported for the shared-predicate guard test.
+ */
+export const LISTING_AGGREGATE_RECALC_SQL = `SELECT
+       COALESCE(SUM(quantity), 0) AS booked_quantity,
+       ${ticketCountSumExpr()} AS tickets_count
+     FROM listing_attendees
+     WHERE listing_id = ?`;
+
 /** The listing aggregate columns as they would be if rebuilt from attendee rows. */
 export const getListingAggregateRecalculation = async (
   listing: ListingWithCount,
 ): Promise<ListingAggregateRecalculation> => {
   const row = (await queryOne<ListingAggregateValues>(
-    `SELECT
-       COALESCE(SUM(quantity), 0) AS booked_quantity,
-       COUNT(*) AS tickets_count
-     FROM listing_attendees
-     WHERE listing_id = ?`,
+    LISTING_AGGREGATE_RECALC_SQL,
     [listing.id],
   ))!;
   return {
@@ -589,11 +602,17 @@ export const updateListingAggregateValues = async (
  */
 export const adjustListingIncome = inOwnTx(ledgerTx.correct.income);
 
-const aggregateResetSql: Record<ListingAggregateField, string> = {
+/**
+ * Per-field "rebuild this aggregate from attendee rows" fragments. Each is an
+ * independent subquery, so tickets_count adds the {@link TICKET_COUNTS_PREDICATE}
+ * to ITS OWN WHERE (excluding quantity-0 lines) without touching the
+ * booked_quantity sum. Income is not here — it projects from the transfers
+ * ledger (see {@link adjustListingIncome}). Exported for the predicate guard test.
+ */
+export const aggregateResetSql: Record<ListingAggregateField, string> = {
   booked_quantity:
     "booked_quantity = COALESCE((SELECT SUM(quantity) FROM listing_attendees WHERE listing_id = ?), 0)",
-  tickets_count:
-    "tickets_count = (SELECT COUNT(*) FROM listing_attendees WHERE listing_id = ?)",
+  tickets_count: `tickets_count = (SELECT COUNT(*) FROM listing_attendees WHERE listing_id = ? AND ${TICKET_COUNTS_PREDICATE})`,
 };
 
 /** Reset selected listing aggregate columns from actual attendee rows. */
@@ -649,10 +668,13 @@ export const getDailyListingAttendeeDates = async (): Promise<string[]> => {
   // start_at and end_at are always written together (see dateToStartEnd), so
   // filtering on both being non-null lets the row type stay honestly non-null.
   const rows = await queryAll<{ start_at: string; end_at: string }>(
+    // quantity > 0: a no-quantity sentinel line is not an operational booking, so
+    // it must not mark a calendar date as occupied.
     `SELECT DISTINCT ea.start_at, ea.end_at FROM listing_attendees ea
      INNER JOIN listings AS listing ON ea.listing_id = listing.id
      WHERE listing.listing_type = 'daily'
-       AND ea.start_at IS NOT NULL AND ea.end_at IS NOT NULL`,
+       AND ea.start_at IS NOT NULL AND ea.end_at IS NOT NULL
+       AND ea.quantity > 0`,
   );
   // Expand each booking's [start_at, end_at) span into every calendar date it
   // covers, so multi-day bookings mark every day they occupy as selectable.
@@ -680,11 +702,13 @@ export const getDailyListingAttendeesByDate = (
 ): Promise<Attendee[]> => {
   const { startAt, endAt } = dateToRange(date);
   return queryAll<Attendee>(
+    // quantity > 0: exclude no-quantity sentinel lines from the daily calendar.
     `SELECT ${ATTENDEE_JOIN_SELECT}
      FROM attendees a
      JOIN listing_attendees ea ON ea.attendee_id = a.id
      JOIN listings AS listing ON ea.listing_id = listing.id
      WHERE listing.listing_type = 'daily' AND ea.start_at < ? AND ea.end_at > ?
+       AND ea.quantity > 0
      ORDER BY a.created DESC`,
     [endAt, startAt],
   );
@@ -694,15 +718,24 @@ export const getDailyListingAttendeesByDate = (
  * Get raw attendees for a set of listing IDs.
  * Used by the calendar to load attendees for standard listings whose
  * decrypted date matches the selected calendar date.
+ *
+ * `activeOnly` is an opt-in `quantity > 0` filter: the operational callers (the
+ * ICS feed and the admin calendar's standard-listing rows + CSV) pass `true` to
+ * drop no-quantity sentinel lines, while the admin group-detail roster passes
+ * `false` (the default) so it keeps showing ghost rows. The filter is opt-in —
+ * never applied unconditionally to this shared helper — so a record/detail
+ * caller can't accidentally lose its ghost rows.
  */
 export const getAttendeesByListingIds = (
   listingIds: number[],
+  activeOnly = false,
 ): Promise<Attendee[]> =>
   queryAll<Attendee>(
     `SELECT ${ATTENDEE_JOIN_SELECT}
      FROM attendees a
      JOIN listing_attendees ea ON ea.attendee_id = a.id
      WHERE ea.listing_id IN (${inPlaceholders(listingIds)})
+       ${activeOnly ? "AND ea.quantity > 0" : ""}
      ORDER BY a.created DESC`,
     listingIds,
   );

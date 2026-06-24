@@ -16,21 +16,27 @@ import {
   getAttendeeBalanceState,
   settleAttendeeBalance,
 } from "#shared/db/attendees/balance.ts";
+import { createAttendeeAtomic } from "#shared/db/attendees.ts";
 import { getDb } from "#shared/db/client.ts";
-import type { SessionMetadata } from "#shared/payments.ts";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import {
+  createTestListing,
   describeWithEnv,
   mockFormRequest,
   mockRequest,
   setupStripe,
-  signedMeta,
+  signMeta,
   testCsrfToken,
   webhookMeta,
 } from "#test-utils";
-import { createReservedAttendee, settle } from "#test-utils/balance.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
+
+/** A settle identity (session id + business time) for settleAttendeeBalance. */
+const settle = (id = "settle-session") => ({
+  id,
+  occurredAt: "2026-06-21T00:00:00.000Z",
+});
 
 /** POST a pay form for a token as the customer. */
 const postPay = async (token: string): Promise<Response> =>
@@ -66,74 +72,102 @@ const insertBareAttendee = async (
   return attendeeId;
 };
 
-/** A reserved attendee owing `remainingBalance`, on the listing this suite asserts on. */
-const createReserved = async (remainingBalance: number): Promise<number> =>
-  (
-    await createReservedAttendee(remainingBalance, {
-      listingName: "Workshop Ticket",
-      quantity: 2,
-    })
-  ).attendeeId;
+/** Create a reserved attendee with an outstanding balance and a paid listing. */
+const createReserved = async (remainingBalance: number) => {
+  const listing = await createTestListing({
+    maxAttendees: 10,
+    name: "Workshop Ticket",
+    thankYouUrl: "https://example.com",
+  });
+  const reservation = await attendeeStatusesTable.insert({
+    isReservation: true,
+    name: "Reserved",
+    reservationAmount: "10%",
+  });
+  const result = await createAttendeeAtomic({
+    bookings: [{ listingId: listing.id, pricePaid: 100, quantity: 2 }],
+    email: "guest@example.com",
+    name: "Guest",
+    remainingBalance,
+    statusId: reservation.id,
+  });
+  if (!result.success) throw new Error("setup failed");
+  const attendeeId = result.attendees[0]!.id;
+  // Owe `remainingBalance` in the ledger: gross sale (deposit + remaining) plus
+  // the £1 deposit payment, so balanceOf nets to −remainingBalance.
+  await postListingSale({
+    amountPaid: 100,
+    attendeeId,
+    gross: 100 + remainingBalance,
+    listingId: listing.id,
+  });
+  return attendeeId;
+};
 
-type StripeSession = Awaited<
-  ReturnType<typeof stripeApi.retrieveCheckoutSession>
->;
-
-/** Signed balance-payment metadata for `attendeeId` (default 1500, one item). */
-const balanceMeta = (
+/**
+ * A signed Stripe balance-payment checkout session for `attendeeId`.
+ * `signedAmount` is the proof/items total; `chargedAmount` (defaults to it) is
+ * what the provider reports in `amount_total`. `over` merges into the session and
+ * `meta` into its metadata (e.g. a tampered price_proof); payment_intent mirrors
+ * the id with cs_→pi_.
+ */
+const balanceSession = (
   attendeeId: number,
-  { items = [{ e: 1, p: 1500, q: 1 }], signedTotal = 1500 } = {},
-): SessionMetadata =>
-  signedMeta(
-    {
-      balance_attendee_id: String(attendeeId),
-      items: JSON.stringify(items),
-      name: "Balance payment",
+  signedAmount: number,
+  id: string,
+  {
+    chargedAmount = signedAmount,
+    eventId = 1,
+    over = {},
+    meta = {},
+  }: {
+    chargedAmount?: number;
+    eventId?: number;
+    over?: Record<string, unknown>;
+    meta?: Record<string, unknown>;
+  } = {},
+) =>
+  ({
+    amount_total: chargedAmount,
+    id,
+    metadata: {
+      ...signMeta(
+        webhookMeta({
+          balance_attendee_id: String(attendeeId),
+          items: JSON.stringify([{ e: eventId, p: signedAmount, q: 1 }]),
+          name: "Balance payment",
+        }),
+        signedAmount,
+      ),
+      ...meta,
     },
-    signedTotal,
-  );
+    payment_intent: id.replace(/^cs_/, "pi_"),
+    payment_status: "paid",
+    ...over,
+  }) as unknown as Awaited<
+    ReturnType<typeof stripeApi.retrieveCheckoutSession>
+  >;
 
-/** Stub retrieveCheckoutSession to return a paid balance-payment session. */
-const stubBalanceSession = (fields: {
-  amountTotal: number;
-  id: string;
-  metadata: SessionMetadata;
-  paymentIntent: string;
-  created?: number;
-}) =>
+/** Stub retrieveCheckoutSession to return a {@link balanceSession}. */
+const stubBalanceSession = (...args: Parameters<typeof balanceSession>) =>
   stub(stripeApi, "retrieveCheckoutSession", () =>
-    Promise.resolve({
-      amount_total: fields.amountTotal,
-      created: fields.created,
-      id: fields.id,
-      metadata: fields.metadata,
-      payment_intent: fields.paymentIntent,
-      payment_status: "paid",
-    } as unknown as StripeSession),
+    Promise.resolve(balanceSession(...args)),
   );
 
-/** Stub refundPayment to resolve with a refund id. */
-const stubRefund = (id = "re_bal") =>
-  stub(stripeApi, "refundPayment", () =>
-    Promise.resolve({ id } as unknown as Awaited<
-      ReturnType<typeof stripeApi.refundPayment>
-    >),
-  );
-
-/** GET the payment-success page for a checkout session id. */
-const paymentSuccess = (sessionId: string): Promise<Response> =>
-  handleRequest(mockRequest(`/payment/success?session_id=${sessionId}`));
-
-/** Assert the response finalized and the attendee is settled onto the paid status. */
-const expectSettledToPaid = async (
-  response: Response,
+/** Drive the success webhook for `sessionId` and assert it cleared the balance
+ * and flipped the attendee onto the paid default status. */
+const expectSettled = async (
+  sessionId: string,
   attendeeId: number,
-  paidStatusId: number,
 ): Promise<void> => {
+  const paid = await getPaidDefaultStatus();
+  const response = await handleRequest(
+    mockRequest(`/payment/success?session_id=${sessionId}`),
+  );
   expect(response.status).toBe(200);
   const state = await getAttendeeBalanceState(attendeeId);
   expect(state?.remainingBalance).toBe(0);
-  expect(state?.statusId).toBe(paidStatusId);
+  expect(state?.statusId).toBe(paid!.id);
 };
 
 describeWithEnv("server (public balance page)", { db: true }, () => {
@@ -184,18 +218,32 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
     expect(await response.text()).toContain("Nothing to pay");
   });
 
-  test("POST handles a reservation with no booking lines", async () => {
+  test("GET refuses a reserved balance whose only line is no-quantity", async () => {
+    const attendeeId = await createReserved(1500);
+    // Turn the only line into a no-quantity sentinel: nothing real to pay into.
+    await getDb().execute({
+      args: [attendeeId],
+      sql: "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ?",
+    });
+    const token = await signBalanceToken(attendeeId);
+    const response = await handleRequest(mockRequest(`/pay/${token}`));
+    expect(await response.text()).toContain("not valid");
+  });
+
+  test("POST refuses a reservation with no real booking line", async () => {
     await setupStripe();
     const reservation = await attendeeStatusesTable.insert({
       isReservation: true,
       name: "Reserved",
       reservationAmount: "10%",
     });
+    // No quantity > 0 line means nothing real to pay into, so the balance is not
+    // publicly payable — checkout must not start against a phantom listing.
     const attendeeId = await insertBareAttendee(reservation.id, 1500);
     const token = await signBalanceToken(attendeeId);
     const response = await postPay(token);
-    // Checkout still starts (the line falls back to listing id 0).
-    expect([302, 303]).toContain(response.status);
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain("not valid");
   });
 
   test("POST rejects an invalid csrf token", async () => {
@@ -272,18 +320,25 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
     const attendeeId = await createReserved(1500);
     // No price proof: we cannot prove this balance session is ours, so it is
     // ignored — neither settled nor refunded.
-    const session = stubBalanceSession({
-      amountTotal: 1500,
-      id: "cs_balance_unsigned",
-      metadata: webhookMeta({
-        balance_attendee_id: String(attendeeId),
-        items: JSON.stringify([{ e: 1, p: 1500, q: 1 }]),
-        name: "Balance payment",
-      }),
-      paymentIntent: "pi_balance",
-    });
+    const session = stub(stripeApi, "retrieveCheckoutSession", () =>
+      Promise.resolve({
+        amount_total: 1500,
+        id: "cs_balance_unsigned",
+        metadata: {
+          balance_attendee_id: String(attendeeId),
+          items: JSON.stringify([{ e: 1, p: 1500, q: 1 }]),
+          name: "Balance payment",
+        },
+        payment_intent: "pi_balance",
+        payment_status: "paid",
+      } as unknown as Awaited<
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      >),
+    );
     try {
-      const response = await paymentSuccess("cs_balance_unsigned");
+      const response = await handleRequest(
+        mockRequest("/payment/success?session_id=cs_balance_unsigned"),
+      );
       expect(await response.text()).toContain("not recognized");
       // The balance is untouched — nothing was settled.
       const state = await getAttendeeBalanceState(attendeeId);
@@ -296,16 +351,9 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
   test("the webhook settles a signed balance checkout", async () => {
     await setupStripe();
     const attendeeId = await createReserved(1500);
-    const paid = await getPaidDefaultStatus();
-    const session = stubBalanceSession({
-      amountTotal: 1500,
-      id: "cs_balance_signed",
-      metadata: balanceMeta(attendeeId),
-      paymentIntent: "pi_balance_signed",
-    });
+    const session = stubBalanceSession(attendeeId, 1500, "cs_balance_signed");
     try {
-      const response = await paymentSuccess("cs_balance_signed");
-      await expectSettledToPaid(response, attendeeId, paid!.id);
+      await expectSettled("cs_balance_signed", attendeeId);
     } finally {
       session.restore();
     }
@@ -320,15 +368,13 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
     // Stripe stamps `created` (Unix seconds) when the checkout is made; the
     // balance-payment leg should be dated from it, not from processing time.
     const created = Math.floor(Date.parse("2026-06-20T09:00:00.000Z") / 1000);
-    const session = stubBalanceSession({
-      amountTotal: 1500,
-      created,
-      id: "cs_balance_ledger",
-      metadata: balanceMeta(attendeeId),
-      paymentIntent: "pi_balance_ledger",
+    const session = stubBalanceSession(attendeeId, 1500, "cs_balance_ledger", {
+      over: { created },
     });
     try {
-      const response = await paymentSuccess("cs_balance_ledger");
+      const response = await handleRequest(
+        mockRequest("/payment/success?session_id=cs_balance_ledger"),
+      );
       expect(response.status).toBe(200);
       expect(
         (await getAttendeeBalanceState(attendeeId))?.remainingBalance,
@@ -351,20 +397,25 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
   test("a balance checkout with a tampered signature is ignored, not settled", async () => {
     await setupStripe();
     const attendeeId = await createReserved(1500);
-    const refund = stubRefund();
-    const session = stubBalanceSession({
-      amountTotal: 1500,
-      id: "cs_balance_tampered",
-      metadata: {
-        ...balanceMeta(attendeeId),
-        // Valid total, wrong digest — an invalid proof, so the session is
-        // ignored: not settled, and not refunded (we can't prove it is ours).
-        price_proof: `1500.${"A".repeat(44)}`,
+    const refund = stub(stripeApi, "refundPayment", () =>
+      Promise.resolve({ id: "re_bal" } as unknown as Awaited<
+        ReturnType<typeof stripeApi.refundPayment>
+      >),
+    );
+    // Valid total, wrong digest — an invalid proof, so the session is ignored:
+    // not settled, and not refunded (we can't prove it is ours).
+    const session = stubBalanceSession(
+      attendeeId,
+      1500,
+      "cs_balance_tampered",
+      {
+        meta: { price_proof: `1500.${"A".repeat(44)}` },
       },
-      paymentIntent: "pi_balance_tampered",
-    });
+    );
     try {
-      await paymentSuccess("cs_balance_tampered");
+      await handleRequest(
+        mockRequest("/payment/success?session_id=cs_balance_tampered"),
+      );
       // Ignored: the balance is left outstanding and no refund was issued.
       expect(refund.calls.length).toBe(0);
       const state = await getAttendeeBalanceState(attendeeId);
@@ -378,21 +429,14 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
   test("settles the balance even when the booking's listing has since been deleted", async () => {
     await setupStripe();
     const attendeeId = await createReserved(1500);
-    const paid = await getPaidDefaultStatus();
-    const session = stubBalanceSession({
-      amountTotal: 1500,
-      id: "cs_bal_nolisting",
-      metadata: balanceMeta(attendeeId, {
-        items: [{ e: 98765, p: 1500, q: 1 }],
-      }),
-      paymentIntent: "pi_bal_nolisting",
+    const session = stubBalanceSession(attendeeId, 1500, "cs_bal_nolisting", {
+      eventId: 98765,
     });
     try {
       // The balance settlement is the operation that matters; a missing listing
       // only means no thank-you URL, so the session still finalizes (no stuck
       // unfinalized reservation after the customer has paid).
-      const response = await paymentSuccess("cs_bal_nolisting");
-      await expectSettledToPaid(response, attendeeId, paid!.id);
+      await expectSettled("cs_bal_nolisting", attendeeId);
     } finally {
       session.restore();
     }
@@ -404,15 +448,16 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
     // lowered the live balance to 500. The stale 1500 callback must refund and
     // leave the balance untouched rather than clear the wrong amount.
     const attendeeId = await createReserved(500);
-    const refund = stubRefund();
-    const session = stubBalanceSession({
-      amountTotal: 1500,
-      id: "cs_bal_stale",
-      metadata: balanceMeta(attendeeId),
-      paymentIntent: "pi_bal_stale",
-    });
+    const refund = stub(stripeApi, "refundPayment", () =>
+      Promise.resolve({ id: "re_bal" } as unknown as Awaited<
+        ReturnType<typeof stripeApi.refundPayment>
+      >),
+    );
+    const session = stubBalanceSession(attendeeId, 1500, "cs_bal_stale");
     try {
-      const response = await paymentSuccess("cs_bal_stale");
+      const response = await handleRequest(
+        mockRequest("/payment/success?session_id=cs_bal_stale"),
+      );
       // The stale payment is refunded, not applied.
       expect(refund.calls[0]!.args).toEqual(["pi_bal_stale"]);
       const html = await response.text();
@@ -431,15 +476,18 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
     // The checkout was signed for 1500, but the provider reports charging only
     // 1000 — a charge/signed-total mismatch, refunded before any settlement.
     const attendeeId = await createReserved(1500);
-    const refund = stubRefund("re_amt");
-    const session = stubBalanceSession({
-      amountTotal: 1000,
-      id: "cs_bal_amt",
-      metadata: balanceMeta(attendeeId),
-      paymentIntent: "pi_bal_amt",
+    const refund = stub(stripeApi, "refundPayment", () =>
+      Promise.resolve({ id: "re_amt" } as unknown as Awaited<
+        ReturnType<typeof stripeApi.refundPayment>
+      >),
+    );
+    const session = stubBalanceSession(attendeeId, 1500, "cs_bal_amt", {
+      chargedAmount: 1000,
     });
     try {
-      const response = await paymentSuccess("cs_bal_amt");
+      const response = await handleRequest(
+        mockRequest("/payment/success?session_id=cs_bal_amt"),
+      );
       expect(refund.calls[0]!.args).toEqual(["pi_bal_amt"]);
       expect(await response.text()).toContain("price for this listing changed");
       const state = await getAttendeeBalanceState(attendeeId);
