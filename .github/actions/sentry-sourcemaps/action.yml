@@ -1,0 +1,57 @@
+name: Sentry source maps
+description: >-
+  Inject debug IDs into the built edge bundle (before deploy) or upload the
+  bundle + source map to Sentry for a release (after deploy). No-op unless an
+  auth token is provided, so deploys keep working without Sentry configured.
+inputs:
+  command:
+    description: '"inject" (run before deploy) or "upload" (run after deploy).'
+    required: true
+  auth_token:
+    description: Sentry auth token. When empty the step is skipped entirely.
+    required: false
+    default: ""
+  sentry_url:
+    description: Base URL of the Sentry/Bugsink instance (e.g. https://bugs.chobble.com/).
+    required: false
+    default: ""
+  org:
+    description: Sentry organization slug.
+    required: false
+    default: ""
+  project:
+    description: Sentry project slug.
+    required: false
+    default: ""
+  release:
+    description: Release identifier (must match the SDK's release, e.g. chobble-tickets@<sha>).
+    required: true
+  file:
+    description: Built bundle to process; its `.map` sibling is processed too.
+    required: false
+    default: bunny-script.ts
+runs:
+  using: composite
+  steps:
+    # Inject debug IDs into the bundle and its map *before* deploy, so the code
+    # that actually runs in Bunny carries the IDs Sentry matches maps by. This
+    # is filename-independent, which matters because we can't predict the path
+    # the edge runtime reports in stack frames.
+    - name: Inject debug IDs
+      if: ${{ inputs.command == 'inject' && inputs.auth_token != '' }}
+      shell: bash
+      run: npx @sentry/cli@^2 sourcemaps inject "${{ inputs.file }}" "${{ inputs.file }}.map"
+
+    # Upload the bundle + map for this release *after* deploy.
+    - name: Upload source maps
+      if: ${{ inputs.command == 'upload' && inputs.auth_token != '' }}
+      shell: bash
+      env:
+        SENTRY_AUTH_TOKEN: ${{ inputs.auth_token }}
+        SENTRY_URL: ${{ inputs.sentry_url }}
+        SENTRY_ORG: ${{ inputs.org }}
+        SENTRY_PROJECT: ${{ inputs.project }}
+      run: |
+        npx @sentry/cli@^2 sourcemaps upload \
+          --release "${{ inputs.release }}" \
+          "${{ inputs.file }}" "${{ inputs.file }}.map"

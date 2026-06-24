@@ -15,9 +15,12 @@ import {
   logDebug,
   logError,
 } from "#shared/logger.ts";
+import { initSentry } from "#shared/sentry.ts";
 
 const initialize = once((): void => {
   validateEncryptionKey();
+  // Start Sentry error reporting (no-op unless SENTRY_URL is configured).
+  initSentry();
   // In production a request must never be killed by the N+1 guard: report it
   // to the error log instead of throwing (dev/test keep the default throw).
   setN1GuardNotifyOnly(true);
@@ -37,6 +40,7 @@ BunnySDK.net.http.serve(async (request: Request): Promise<Response> => {
         url.pathname,
         error,
       )}`,
+      error,
     });
     return temporaryErrorResponse();
   }

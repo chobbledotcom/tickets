@@ -162,6 +162,8 @@ const ALLOWED_TEST_HOOKS: string[] = [
   // Reset cached effective domain between tests
   "shared/config.ts:resetEffectiveDomain",
   "shared/config.ts:setEffectiveDomainForTest",
+  // Detach the global Sentry client between test files
+  "shared/sentry.ts:resetSentryForTest",
   // Reset cached demo mode between tests
   "shared/demo.ts:resetDemoMode",
   "shared/demo.ts:setDemoModeForTest",
