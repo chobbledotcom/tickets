@@ -12,92 +12,22 @@
  */
 
 import { expect } from "@std/expect";
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { invalidateGroupsCache } from "#shared/db/groups.ts";
-import { invalidateHolidaysCache } from "#shared/db/holidays.ts";
-import { invalidateListingsCache } from "#shared/db/listings.ts";
-import { resetSessionCache } from "#shared/db/sessions.ts";
-import { settings } from "#shared/db/settings.ts";
-import { invalidateUsersCache } from "#shared/db/users.ts";
+import { describe, it as test } from "@std/testing/bdd";
 import { RESTORE_CONFIRM_PHRASE } from "#templates/admin/backup.tsx";
-
+import { withLocalStorageEnabled } from "#test-utils";
 import {
-  clearTestEncryptionKey,
-  createTestDb,
-  resetDb,
-  setupTestEncryptionKey,
-  TestBrowser,
-  withLocalStorageEnabled,
-} from "#test-utils";
-
-/** Invalidate all in-process caches after a destructive DB operation */
-const invalidateAllCaches = (): void => {
-  settings.invalidateCache();
-  settings.setup.clearCache();
-  invalidateUsersCache();
-  invalidateListingsCache();
-  invalidateGroupsCache();
-  invalidateHolidaysCache();
-  resetSessionCache();
-};
+  invalidateAllCaches,
+  setupAndLogin,
+  useE2eBrowser,
+} from "#test-utils/e2e.ts";
 
 describe("e2e: full booking flow", () => {
-  let browser: TestBrowser;
-
-  beforeEach(async () => {
-    setupTestEncryptionKey();
-    await createTestDb();
-    browser = new TestBrowser();
-  });
-
-  afterEach(() => {
-    resetDb();
-    clearTestEncryptionKey();
-  });
+  const ctx = useE2eBrowser();
 
   test("setup → create listing → group → book → view ticket → admin sees attendee", async () => {
-    // 1. Visit setup directly — initial DB creation is only allowed there.
-    await browser.visit("/setup/");
-    expect(browser.currentHtml).toContain("Initial Setup");
-
-    // 2. Complete setup
-    await browser.submitForm(
-      {
-        accept_agreement: "yes",
-        admin_password: "password",
-        admin_password_confirm: "password",
-        admin_username: "admin",
-        country: "GB",
-      },
-      "Complete Setup",
-    );
-    expect(browser.currentHtml).toContain("Setup Complete");
-
-    // Invalidate settings cache so subsequent requests see the newly written keys.
-    // In production this isn't needed since each HTTP request starts fresh,
-    // but in-process tests share the settings singleton.
-    invalidateAllCaches();
-
-    // 3. Click through to admin dashboard
-    await browser.clickLink("Go to Admin Dashboard");
-    // Should redirect to login since we don't have a session yet
-    expect(browser.currentHtml).toContain("Login");
-
-    // 4. Log in with admin credentials
-    await browser.submitForm(
-      {
-        password: "password",
-        username: "admin",
-      },
-      "Login",
-    );
-
-    // First login lands on the migration page (auto-completes since DB is fresh)
-    if (browser.containsText("Migration complete")) {
-      await browser.clickLink("Back to dashboard");
-    }
-    // Should be on admin dashboard now
-    expect(browser.containsText("Add Listing")).toBe(true);
+    const browser = ctx.browser;
+    // 1-4. Set up the fresh install and log in to the admin dashboard.
+    await setupAndLogin(browser);
 
     // 5. Create an listing
     await browser.clickLink("Add Listing");
@@ -284,33 +214,9 @@ describe("e2e: full booking flow", () => {
       await reinitDb({ allowMissingSettings: true });
       invalidateAllCaches();
 
-      // 17. Verify setup is available after reset (database is empty)
-      await browser.visit("/setup/");
-      expect(browser.currentHtml).toContain("Initial Setup");
-
-      // 18. Complete setup again with same credentials
-      await browser.submitForm(
-        {
-          accept_agreement: "yes",
-          admin_password: "password",
-          admin_password_confirm: "password",
-          admin_username: "admin",
-          country: "GB",
-        },
-        "Complete Setup",
-      );
-      expect(browser.currentHtml).toContain("Setup Complete");
-      invalidateAllCaches();
-
-      // 19. Log in again
-      await browser.clickLink("Go to Admin Dashboard");
-      await browser.submitForm(
-        { password: "password", username: "admin" },
-        "Login",
-      );
-      if (browser.containsText("Migration complete")) {
-        await browser.clickLink("Back to dashboard");
-      }
+      // 17-19. Set up and log in again on the now-empty database (setupAndLogin
+      //         only succeeds if the reset really did make setup available).
+      await setupAndLogin(browser);
 
       // 20. Verify the listing and attendee are gone after reset
       expect(browser.containsText("Summer Concert")).toBe(false);
