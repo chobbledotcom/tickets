@@ -63,6 +63,10 @@ const purgeAttendee = (
       args: [attendeeId],
       sql: "DELETE FROM listing_attendees WHERE attendee_id = ?",
     },
+    {
+      args: [attendeeId],
+      sql: "DELETE FROM system_notes WHERE attendee_id = ?",
+    },
     ...restoreListingContributions(contributions),
     { args: [attendeeId], sql: "DELETE FROM attendees WHERE id = ?" },
   ]);

@@ -24,6 +24,10 @@ import {
 import { getAllListings } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
 import {
+  attendeeNameMap,
+  loadNotesForAttendees,
+} from "#shared/db/system-notes.ts";
+import {
   type ListingFilter,
   listingCategory,
   listingTypeFromRequest,
@@ -129,6 +133,10 @@ export const handleAttendeesListGet: TypedRouteHandler<
     });
     const decrypted = await decryptAttendees(rows, privateKey);
     const built = buildRows(decrypted, listings);
+    const attendeeIds = unique(decrypted.map((a) => a.id));
+    const systemNotes = await loadNotesForAttendees(attendeeIds, () =>
+      Promise.resolve(privateKey),
+    );
 
     return htmlResponse(
       adminAttendeesListPage({
@@ -138,11 +146,13 @@ export const handleAttendeesListGet: TypedRouteHandler<
         hasNext,
         listingId,
         listings,
+        names: attendeeNameMap(decrypted),
         page,
         phonePrefix: settings.phonePrefix,
         rows: built,
         session,
         sort,
+        systemNotes,
         type,
       }),
     );

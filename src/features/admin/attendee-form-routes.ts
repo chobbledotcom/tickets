@@ -90,6 +90,7 @@ import {
   saveAttendeeAnswers,
 } from "#shared/db/questions.ts";
 import { settings } from "#shared/db/settings.ts";
+import { getNotesForAttendee } from "#shared/db/system-notes.ts";
 import { ATTENDEE_DEMO_FIELDS, applyDemoOverrides } from "#shared/demo.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { statementFor } from "#shared/ledger/project.ts";
@@ -373,6 +374,12 @@ const buildTemplateData = async (
   const activityLog = attendee
     ? await getAttendeeActivityLog(attendee.id, ATTENDEE_LOG_LIMIT)
     : [];
+  // Owner notes are owner-key encrypted, so decrypting needs the request private
+  // key — already unwrapped on the edit path (PII/contact reads use it). Create
+  // mode has no attendee and so no notes (and never forces a key unwrap).
+  const systemNotes = attendee
+    ? await getNotesForAttendee(attendee.id, await requireRequestPrivateKey())
+    : [];
   const warnings = await computeWarnings(parsed, attendee?.id);
   const logistics = await buildAttendeeLogisticsData(parsed.lines, attendee);
   return {
@@ -404,6 +411,7 @@ const buildTemplateData = async (
     selectedAnswerIds: opts.selectedAnswerIds ?? [],
     selectedTextAnswers: opts.selectedTextAnswers ?? new Map(),
     statuses,
+    systemNotes,
     todayIso: todayInTz(settings.timezone),
     topWarnings: warnings.top,
   };

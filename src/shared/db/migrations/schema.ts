@@ -32,7 +32,7 @@ export type Trigger = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "Exclude no-quantity (quantity = 0) booking lines from listings.tickets_count by rebuilding the listing-aggregate triggers to count only quantity > 0 rows.";
+  "Add a system_notes table of per-attendee operator-visible notes (id, attendee_id, type, encrypted note, created) — `system` notes encrypted with the symmetric DB_ENCRYPTION_KEY, `owner` notes with the owner public key — pruned with the attendee on delete; and exclude no-quantity (quantity = 0) booking lines from listings.tickets_count by rebuilding the listing-aggregate triggers to count only quantity > 0 rows.";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -710,6 +710,32 @@ export const SCHEMA: [name: string, table: Table][] = [
           name: "idx_attendee_string_answers_unique",
           unique: true,
         },
+      ],
+    },
+  ],
+
+  [
+    // Per-attendee notes the operator sees on the attendee record. `note` is
+    // always stored encrypted — a `system` note (auto-generated, e.g. the
+    // refunded-but-stored booking warning) with the symmetric DB_ENCRYPTION_KEY
+    // so a key-less system path can both write and read it back, an `owner` note
+    // (operator-authored) with the owner public key so only the owner can read
+    // it. System notes are kept PII-free by convention. No FKs — the attendee
+    // delete path prunes these rows explicitly.
+    "system_notes",
+    {
+      columns: [
+        ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
+        ["attendee_id", "INTEGER NOT NULL"],
+        [
+          "type",
+          "TEXT NOT NULL DEFAULT 'system' CHECK (type IN ('system', 'owner'))",
+        ],
+        ["note", "TEXT NOT NULL"],
+        ["created", "TEXT NOT NULL"],
+      ],
+      indexes: [
+        { columns: ["attendee_id"], name: "idx_system_notes_attendee_id" },
       ],
     },
   ],
