@@ -11,6 +11,7 @@ import {
   enableQueryLog,
   getQueryLog,
   runWithQueryLogContext,
+  TRANSACTION_ROUNDTRIP_THRESHOLD,
 } from "#shared/db/query-log.ts";
 
 /**
@@ -62,6 +63,23 @@ describe("withTransaction", () => {
       const sqls = log.map((entry) => entry.sql);
       expect(sqls).toContain("INSERT INTO t VALUES (1)");
       expect(sqls).toContain("SELECT COUNT(*) AS n FROM t");
+    });
+  });
+
+  test("trips the round-trip guard when a transaction holds too many statements", async () => {
+    // A chatty interactive transaction (many sequential round-trips holding the
+    // write lock) is the "Transaction timed-out" shape; the guard fails it loudly
+    // in dev/test so it gets restructured into a batch.
+    await withFileDb(async () => {
+      await expect(
+        runWithQueryLogContext(async () => {
+          await withTransaction(async (tx) => {
+            for (let i = 0; i <= TRANSACTION_ROUNDTRIP_THRESHOLD; i++) {
+              await tx.execute("INSERT INTO t VALUES (1)");
+            }
+          });
+        }),
+      ).rejects.toThrow(/Interactive transaction too chatty/);
     });
   });
 
