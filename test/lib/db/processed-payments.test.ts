@@ -2,8 +2,8 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb, insert } from "#shared/db/client.ts";
 import {
+  batchFinalizeStatement,
   finalizeSession as finalizePaymentSession,
-  finalizeSessionStatement,
   isSessionProcessed,
   markSessionFailed,
   parseSessionFailure,
@@ -191,7 +191,12 @@ describeWithEnv("db > processed payments", { db: true }, () => {
     });
   });
 
-  describe("finalizeSessionStatement", () => {
+  describe("batchFinalizeStatement", () => {
+    // The booking batch passes the attendee id as a MAX(id) subquery; a direct
+    // unit test binds it as a literal `?` and uses a trivially-true guard, so it
+    // exercises the UNRESOLVED + guard gating without an in-batch attendee row.
+    const trueGuard = { args: [] as never[], sql: "1 = 1" };
+
     test("sets attendee_id and clears ticket_tokens on an unresolved reservation", async () => {
       const listing = await createTestListing({ maxAttendees: 50 });
       const attendeeResult = await bookAttendee(listing, {
@@ -202,7 +207,12 @@ describeWithEnv("db > processed payments", { db: true }, () => {
       const attendeeId = attendeeResult.attendees[0]!.id;
 
       await reserveSession("sess_fss");
-      const stmt = finalizeSessionStatement("sess_fss", attendeeId);
+      const stmt = batchFinalizeStatement(
+        "sess_fss",
+        "?",
+        attendeeId,
+        trueGuard,
+      );
       await getDb().execute(stmt);
 
       const row = await isSessionProcessed("sess_fss");
@@ -223,11 +233,38 @@ describeWithEnv("db > processed payments", { db: true }, () => {
       await finalizePaymentSession("sess_fss2", attendeeId, ["tok-test"]);
 
       // A second finalize (different attendee id) must not overwrite
-      const stmt = finalizeSessionStatement("sess_fss2", attendeeId + 999);
+      const stmt = batchFinalizeStatement(
+        "sess_fss2",
+        "?",
+        attendeeId + 999,
+        trueGuard,
+      );
       await getDb().execute(stmt);
 
       const row = await isSessionProcessed("sess_fss2");
       expect(row!.attendee_id).toBe(attendeeId);
+    });
+
+    test("does not finalize when the all-bookings-landed guard fails", async () => {
+      const listing = await createTestListing({ maxAttendees: 50 });
+      const attendeeResult = await bookAttendee(listing, {
+        email: "fss3@example.com",
+        name: "Fss3",
+      });
+      if (!attendeeResult.success) throw new Error("setup failed");
+      const attendeeId = attendeeResult.attendees[0]!.id;
+
+      await reserveSession("sess_fss3");
+      // A guard that never holds stands in for a partial cart (not every booking
+      // landed): the session must stay unresolved so the caller can refund.
+      const stmt = batchFinalizeStatement("sess_fss3", "?", attendeeId, {
+        args: [],
+        sql: "1 = 0",
+      });
+      await getDb().execute(stmt);
+
+      const row = await isSessionProcessed("sess_fss3");
+      expect(row!.attendee_id).toBe(null);
     });
   });
 

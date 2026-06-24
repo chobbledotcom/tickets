@@ -27,6 +27,9 @@ export type ModifierUsage = {
   amountApplied: number;
 };
 
+/** A built SQL fragment: the text and its positional bind args. */
+type SqlFragment = { sql: string; args: InValue[] };
+
 /** Used quantity per modifier id, for remaining-stock checks at resolve time. */
 export const modifierUsedQuantities = (
   ids: number[],
@@ -47,9 +50,7 @@ export const modifierUsedQuantities = (
  * concurrency guard) and by the booking insert that must refuse to land when a
  * chosen modifier sold out mid-payment. Wrapped in parens so several can be
  * AND-ed safely. */
-export const modifierStockCondition = (
-  usage: ModifierUsage,
-): { sql: string; args: InValue[] } => ({
+export const modifierStockCondition = (usage: ModifierUsage): SqlFragment => ({
   args: [usage.modifierId, usage.modifierId, usage.modifierId, usage.quantity],
   sql: `((SELECT stock FROM modifiers WHERE id = ?) IS NULL
            OR (SELECT stock FROM modifiers WHERE id = ?)
@@ -66,7 +67,7 @@ export const modifierStockCondition = (
  * so the booking's capacity clause stands alone. */
 export const allModifiersInStockCondition = (
   usages: ModifierUsage[],
-): { sql: string; args: InValue[] } => {
+): SqlFragment => {
   if (usages.length === 0) return { args: [], sql: "1 = 1" };
   const parts = usages.map(modifierStockCondition);
   return {
@@ -76,17 +77,21 @@ export const allModifiersInStockCondition = (
 };
 
 /**
- * One guarded `modifier_usages` insert. `attendeeIdExpr` is the SQL yielding the
- * attendee id — a literal `?` (its value in `attendeeIdArgs`) for the direct
- * insert, or a `(SELECT MAX(id) …)` subquery for the batch path where the
+ * One guarded `modifier_usages` insert — the single place the usage column list
+ * and SELECT shape live. `attendeeIdExpr` is the SQL yielding the attendee id: a
+ * literal `?` (its value in `attendeeIdArgs`) for the direct insert, or a
+ * `(SELECT MAX(id) …)` subquery for the single-batch booking path where the
  * attendee row is inserted earlier in the same batch. The row lands only while
- * `guard` holds. The single place the usage column list and SELECT shape live. */
-const usageInsert = (
+ * `guard` holds — the live stock count for a direct insert (its own concurrency
+ * guard), or the all-bookings-landed gate for the batch path (where the booking
+ * insert it accompanies already refused to land unless every modifier had
+ * stock, so no separate stock guard is needed here). */
+export const usageInsert = (
   usage: ModifierUsage,
   attendeeIdExpr: string,
   attendeeIdArgs: InValue[],
-  guard: { sql: string; args: InValue[] },
-): { sql: string; args: InValue[] } => ({
+  guard: SqlFragment,
+): SqlFragment => ({
   args: [
     usage.modifierId,
     ...attendeeIdArgs,
@@ -106,23 +111,8 @@ const usageInsert = (
 const guardedUsageInsert = (
   attendeeId: number,
   usage: ModifierUsage,
-): { sql: string; args: InValue[] } =>
+): SqlFragment =>
   usageInsert(usage, "?", [attendeeId], modifierStockCondition(usage));
-
-/**
- * A usage insert for the single-batch booking path: the attendee id comes from
- * `attendeeIdExpr` (the in-batch `MAX(id)` subquery) and the row lands only when
- * `guard` confirms the whole booking landed. No stock guard is needed here — the
- * booking insert it accompanies already refuses to land unless every modifier
- * has stock (see {@link allModifiersInStockCondition}), and within the one batch
- * transaction no other writer can consume that stock in between. */
-export const bookingLandedUsageInsert = (
-  usage: ModifierUsage,
-  attendeeIdExpr: string,
-  attendeeIdArgs: InValue[],
-  guard: { sql: string; args: InValue[] },
-): { sql: string; args: InValue[] } =>
-  usageInsert(usage, attendeeIdExpr, attendeeIdArgs, guard);
 
 /**
  * Whether any of these modifiers no longer has stock for its quantity — the
@@ -133,8 +123,8 @@ export const bookingLandedUsageInsert = (
 export const anyModifierSoldOut = async (
   usages: ModifierUsage[],
 ): Promise<boolean> => {
-  if (usages.length === 0) return false;
   const ids = usages.map((u) => u.modifierId);
+  if (ids.length === 0) return false;
   const used = await modifierUsedQuantities(ids);
   const rows = await queryAll<{ id: number; stock: number | null }>(
     `SELECT id, stock FROM modifiers WHERE id IN (${inPlaceholders(ids)})`,
