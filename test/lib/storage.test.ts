@@ -27,8 +27,8 @@ import {
 import { setDeleteOverride } from "#shared/test-overrides.ts";
 import {
   describeWithEnv,
-  installUrlHandler,
-  withFetchMock,
+  withBunnyDeleteCapture,
+  withBunnyStorageStub,
   withLocalStorageEnabled,
   withStorageDisabled,
 } from "#test-utils";
@@ -564,64 +564,28 @@ describeWithEnv(
             { attachment_url: "att3.pdf", id: 3, image_url: "" },
           ];
 
-          await runWithStorageConfig(
-            { zoneKey: "testkey", zoneName: "testzone" },
-            () =>
-              withFetchMock(async (originalFetch) => {
-                const deletedUrls: string[] = [];
-                installUrlHandler(originalFetch, (url) => {
-                  if (url.includes("storage.bunnycdn.com")) {
-                    deletedUrls.push(url);
-                    return Promise.resolve(
-                      new Response(JSON.stringify({ HttpCode: 200 }), {
-                        status: 200,
-                      }),
-                    );
-                  }
-                  return null;
-                });
+          await withBunnyDeleteCapture(async (deletedUrls) => {
+            await deleteAllListingStorageFiles(listings);
 
-                await deleteAllListingStorageFiles(listings);
-
-                expect(deletedUrls.some((u) => u.includes("img1.jpg"))).toBe(
-                  true,
-                );
-                expect(deletedUrls.some((u) => u.includes("att1.pdf"))).toBe(
-                  true,
-                );
-                expect(deletedUrls.some((u) => u.includes("img2.png"))).toBe(
-                  true,
-                );
-                expect(deletedUrls.some((u) => u.includes("att3.pdf"))).toBe(
-                  true,
-                );
-                // Empty URLs should not trigger delete calls
-                expect(deletedUrls).toHaveLength(4);
-              }),
-          );
+            expect(deletedUrls.some((u) => u.includes("img1.jpg"))).toBe(true);
+            expect(deletedUrls.some((u) => u.includes("att1.pdf"))).toBe(true);
+            expect(deletedUrls.some((u) => u.includes("img2.png"))).toBe(true);
+            expect(deletedUrls.some((u) => u.includes("att3.pdf"))).toBe(true);
+            // Empty URLs should not trigger delete calls
+            expect(deletedUrls).toHaveLength(4);
+          });
         });
 
         test("skips listings with no image or attachment", async () => {
           const listings = [{ attachment_url: "", id: 1, image_url: "" }];
 
-          await withFetchMock(async (originalFetch) => {
-            const deletedUrls: string[] = [];
-            installUrlHandler(originalFetch, (url) => {
-              if (url.includes("storage.bunnycdn.com")) {
-                deletedUrls.push(url);
-                return Promise.resolve(
-                  new Response(JSON.stringify({ HttpCode: 200 }), {
-                    status: 200,
-                  }),
-                );
-              }
-              return null;
-            });
-
-            await deleteAllListingStorageFiles(listings);
-
-            expect(deletedUrls).toHaveLength(0);
-          });
+          await withBunnyDeleteCapture(
+            async (deletedUrls) => {
+              await deleteAllListingStorageFiles(listings);
+              expect(deletedUrls).toHaveLength(0);
+            },
+            { withConfig: false },
+          );
         });
 
         test("handles empty listings array", async () => {
@@ -634,32 +598,19 @@ describeWithEnv(
             { attachment_url: "", id: 2, image_url: "succeed.jpg" },
           ];
 
-          await runWithStorageConfig(
-            { zoneKey: "testkey", zoneName: "testzone" },
-            () =>
-              withFetchMock(async (originalFetch) => {
-                const deletedUrls: string[] = [];
-                installUrlHandler(originalFetch, (url) => {
-                  if (url.includes("fail.jpg")) {
-                    return Promise.reject(new Error("CDN error"));
-                  }
-                  if (url.includes("storage.bunnycdn.com")) {
-                    deletedUrls.push(url);
-                    return Promise.resolve(
-                      new Response(JSON.stringify({ HttpCode: 200 }), {
-                        status: 200,
-                      }),
-                    );
-                  }
-                  return null;
-                });
-
-                await deleteAllListingStorageFiles(listings);
-
-                expect(deletedUrls.some((u) => u.includes("succeed.jpg"))).toBe(
-                  true,
-                );
-              }),
+          await withBunnyDeleteCapture(
+            async (deletedUrls) => {
+              await deleteAllListingStorageFiles(listings);
+              expect(deletedUrls.some((u) => u.includes("succeed.jpg"))).toBe(
+                true,
+              );
+            },
+            {
+              extraHandler: (url) =>
+                url.includes("fail.jpg")
+                  ? Promise.reject(new Error("CDN error"))
+                  : null,
+            },
           );
         });
       },
@@ -675,220 +626,147 @@ describeWithEnv(
       },
       () => {
         test("uploadRaw uploads bytes to Bunny CDN", async () => {
-          await runWithStorageConfig(
-            { zoneKey: "testkey", zoneName: "testzone" },
-            () =>
-              withFetchMock(async (originalFetch) => {
-                const uploadRequests: Array<{
-                  body: Uint8Array;
-                  contentType: string | null;
-                  method: string;
-                  url: string;
-                }> = [];
+          const uploadRequests: Array<{
+            body: Uint8Array;
+            contentType: string | null;
+            method: string;
+            url: string;
+          }> = [];
+          await withBunnyStorageStub(
+            async (url, init) => {
+              const request = new Request(url, init);
+              uploadRequests.push({
+                body: new Uint8Array(await request.arrayBuffer()),
+                contentType: request.headers.get("content-type"),
+                method: request.method,
+                url,
+              });
+              return new Response(JSON.stringify({ HttpCode: 201 }), {
+                status: 201,
+              });
+            },
+            async () => {
+              const raw = new Uint8Array([1, 2, 3, 4]);
+              const filename = await uploadRaw(raw, "raw-upload.bin");
 
-                installUrlHandler(originalFetch, (url, init) => {
-                  if (url.includes("storage.bunnycdn.com")) {
-                    return (async () => {
-                      const request = new Request(url, init);
-                      uploadRequests.push({
-                        body: new Uint8Array(await request.arrayBuffer()),
-                        contentType: request.headers.get("content-type"),
-                        method: request.method,
-                        url,
-                      });
-                      return new Response(JSON.stringify({ HttpCode: 201 }), {
-                        status: 201,
-                      });
-                    })();
-                  }
-                  return null;
-                });
-
-                const raw = new Uint8Array([1, 2, 3, 4]);
-                const filename = await uploadRaw(raw, "raw-upload.bin");
-
-                expect(filename).toBe("raw-upload.bin");
-                expect(uploadRequests).toHaveLength(1);
-                const uploadRequest = uploadRequests[0];
-                if (uploadRequest === undefined) {
-                  throw new Error("Expected upload request to be captured");
-                }
-                expect(uploadRequest.method).toBe("PUT");
-                expect(uploadRequest.url).toContain("/raw-upload.bin");
-                expect(uploadRequest.contentType).toBe(
-                  "application/octet-stream",
-                );
-                expect(uploadRequest.body).toEqual(raw);
-              }),
+              expect(filename).toBe("raw-upload.bin");
+              expect(uploadRequests).toHaveLength(1);
+              const uploadRequest = uploadRequests[0];
+              if (uploadRequest === undefined) {
+                throw new Error("Expected upload request to be captured");
+              }
+              expect(uploadRequest.method).toBe("PUT");
+              expect(uploadRequest.url).toContain("/raw-upload.bin");
+              expect(uploadRequest.contentType).toBe(
+                "application/octet-stream",
+              );
+              expect(uploadRequest.body).toEqual(raw);
+            },
           );
         });
 
         test("downloadRaw returns null when Bunny reports missing file", async () => {
-          await runWithStorageConfig(
-            { zoneKey: "testkey", zoneName: "testzone" },
-            () =>
-              withFetchMock(async (originalFetch) => {
-                installUrlHandler(originalFetch, (url) => {
-                  if (url.includes("storage.bunnycdn.com")) {
-                    return Promise.resolve(
-                      new Response("File not found", {
-                        status: 404,
-                      }),
-                    );
-                  }
-                  return null;
-                });
-
-                await expect(downloadRaw("missing.bin")).resolves.toBeNull();
-              }),
+          await withBunnyStorageStub(
+            () => new Response("File not found", { status: 404 }),
+            async () => {
+              await expect(downloadRaw("missing.bin")).resolves.toBeNull();
+            },
           );
         });
 
         test("listFiles lists files from Bunny CDN matching prefix", async () => {
-          await runWithStorageConfig(
-            { zoneKey: "testkey", zoneName: "testzone" },
+          await withBunnyStorageStub(
             () =>
-              withFetchMock(async (originalFetch) => {
-                installUrlHandler(originalFetch, (url) => {
-                  if (url.includes("storage.bunnycdn.com")) {
-                    return Promise.resolve(
-                      new Response(
-                        JSON.stringify([
-                          { ObjectName: "backup-2024.zip" },
-                          { ObjectName: "backup-2025.zip" },
-                          { ObjectName: "other-file.txt" },
-                          {},
-                        ]),
-                        { status: 200 },
-                      ),
-                    );
-                  }
-                  return null;
-                });
-
-                const files = await listFiles("backup-");
-                expect(files).toEqual(["backup-2024.zip", "backup-2025.zip"]);
-              }),
+              new Response(
+                JSON.stringify([
+                  { ObjectName: "backup-2024.zip" },
+                  { ObjectName: "backup-2025.zip" },
+                  { ObjectName: "other-file.txt" },
+                  {},
+                ]),
+                { status: 200 },
+              ),
+            async () => {
+              const files = await listFiles("backup-");
+              expect(files).toEqual(["backup-2024.zip", "backup-2025.zip"]);
+            },
           );
         });
 
         test("listFiles requests a subfolder URL and prefixes returned names", async () => {
-          await runWithStorageConfig(
-            { zoneKey: "testkey", zoneName: "testzone" },
-            () =>
-              withFetchMock(async (originalFetch) => {
-                let listedUrl = "";
-                installUrlHandler(originalFetch, (url) => {
-                  if (url.includes("storage.bunnycdn.com")) {
-                    listedUrl = url;
-                    // Bunny returns leaf names within the requested folder.
-                    return Promise.resolve(
-                      Response.json([{ ObjectName: "backup-2024.zip" }]),
-                    );
-                  }
-                  return null;
-                });
+          let listedUrl = "";
+          await withBunnyStorageStub(
+            (url) => {
+              listedUrl = url;
+              // Bunny returns leaf names within the requested folder.
+              return Response.json([{ ObjectName: "backup-2024.zip" }]);
+            },
+            async () => {
+              const files = await listFiles("acme/");
 
-                const files = await listFiles("acme/");
-
-                // The folder is part of the request path, not a name filter…
-                expect(listedUrl).toContain("/testzone/acme/");
-                // …and returned names carry the folder so callers can act on them.
-                expect(files).toEqual(["acme/backup-2024.zip"]);
-              }),
+              // The folder is part of the request path, not a name filter…
+              expect(listedUrl).toContain("/testzone/acme/");
+              // …and returned names carry the folder so callers can act on them.
+              expect(files).toEqual(["acme/backup-2024.zip"]);
+            },
           );
         });
 
         test("treats a missing folder (404) as empty", async () => {
-          await runWithStorageConfig(
-            { zoneKey: "testkey", zoneName: "testzone" },
-            () =>
-              withFetchMock(async (originalFetch) => {
-                installUrlHandler(originalFetch, (url) =>
-                  url.includes("storage.bunnycdn.com")
-                    ? Promise.resolve(
-                        new Response("Not Found", { status: 404 }),
-                      )
-                    : null,
-                );
-                // A brand-new site's backup folder doesn't exist yet, so the
-                // listing must resolve to [] rather than throwing.
-                expect(await listFiles("newsite/")).toEqual([]);
-              }),
+          await withBunnyStorageStub(
+            () => new Response("Not Found", { status: 404 }),
+            async () => {
+              // A brand-new site's backup folder doesn't exist yet, so the
+              // listing must resolve to [] rather than throwing.
+              expect(await listFiles("newsite/")).toEqual([]);
+            },
           );
         });
 
         test("surfaces a non-404 listing failure instead of reporting empty", async () => {
-          await runWithStorageConfig(
-            { zoneKey: "testkey", zoneName: "testzone" },
-            () =>
-              withFetchMock(async (originalFetch) => {
-                installUrlHandler(originalFetch, (url) =>
-                  url.includes("storage.bunnycdn.com")
-                    ? Promise.resolve(
-                        new Response("Server Error", { status: 500 }),
-                      )
-                    : null,
-                );
-                // A 5xx/auth error must not masquerade as "no files" — it would
-                // make the gate report "no backup" when backups exist.
-                await expect(listFiles("acme/")).rejects.toThrow();
-              }),
+          await withBunnyStorageStub(
+            () => new Response("Server Error", { status: 500 }),
+            async () => {
+              // A 5xx/auth error must not masquerade as "no files" — it would
+              // make the gate report "no backup" when backups exist.
+              await expect(listFiles("acme/")).rejects.toThrow();
+            },
           );
         });
 
         test("excludes directory entries from the listing", async () => {
-          await runWithStorageConfig(
-            { zoneKey: "testkey", zoneName: "testzone" },
+          await withBunnyStorageStub(
             () =>
-              withFetchMock(async (originalFetch) => {
-                installUrlHandler(originalFetch, (url) =>
-                  url.includes("storage.bunnycdn.com")
-                    ? Promise.resolve(
-                        Response.json([
-                          { IsDirectory: true, ObjectName: "tickets" },
-                          {
-                            IsDirectory: false,
-                            ObjectName: "restore-pending-x.zip",
-                          },
-                        ]),
-                      )
-                    : null,
-                );
-                // The per-site folder entry must not come back as a file.
-                expect(await listFiles("")).toEqual(["restore-pending-x.zip"]);
-              }),
+              Response.json([
+                { IsDirectory: true, ObjectName: "tickets" },
+                { IsDirectory: false, ObjectName: "restore-pending-x.zip" },
+              ]),
+            async () => {
+              // The per-site folder entry must not come back as a file.
+              expect(await listFiles("")).toEqual(["restore-pending-x.zip"]);
+            },
           );
         });
 
         test("listFilesWithMeta reads file size from the Length field, defaulting to 0", async () => {
-          await runWithStorageConfig(
-            { zoneKey: "testkey", zoneName: "testzone" },
+          await withBunnyStorageStub(
             () =>
-              withFetchMock(async (originalFetch) => {
-                installUrlHandler(originalFetch, (url) => {
-                  if (url.includes("storage.bunnycdn.com")) {
-                    return Promise.resolve(
-                      new Response(
-                        JSON.stringify([
-                          { Length: 1024, ObjectName: "backup-2024.zip" },
-                          // No Length field — should default to 0.
-                          { ObjectName: "backup-2025.zip" },
-                          { Length: 5, ObjectName: "other-file.txt" },
-                        ]),
-                        { status: 200 },
-                      ),
-                    );
-                  }
-                  return null;
-                });
-
-                const files = await listFilesWithMeta("backup-");
-                expect(files).toEqual([
-                  { name: "backup-2024.zip", size: 1024 },
-                  { name: "backup-2025.zip", size: 0 },
-                ]);
-              }),
+              new Response(
+                JSON.stringify([
+                  { Length: 1024, ObjectName: "backup-2024.zip" },
+                  // No Length field — should default to 0.
+                  { ObjectName: "backup-2025.zip" },
+                  { Length: 5, ObjectName: "other-file.txt" },
+                ]),
+                { status: 200 },
+              ),
+            async () => {
+              const files = await listFilesWithMeta("backup-");
+              expect(files).toEqual([
+                { name: "backup-2024.zip", size: 1024 },
+                { name: "backup-2025.zip", size: 0 },
+              ]);
+            },
           );
         });
       },

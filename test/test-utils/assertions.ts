@@ -147,6 +147,12 @@ export const expectFlash = (
   return response;
 };
 
+/** Assert a 302 redirect carrying an error flash whose message contains `text`. */
+export const expectErrorFlash = (response: Response, text: string): void => {
+  expect(response.status).toBe(302);
+  expectFlash(response, expect.stringContaining(text), false);
+};
+
 export const expectRedirectWithFlash =
   // deno-lint-ignore no-explicit-any
     (location: string, message?: string | any, succeeded = true) =>

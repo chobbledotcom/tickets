@@ -3,7 +3,6 @@ import { it as test } from "@std/testing/bdd";
 import { attendeeAccount, WRITEOFF } from "#shared/accounting/accounts.ts";
 import { accountBalance, allTransfers } from "#shared/accounting/queries.ts";
 import {
-  attendeeStatusesTable,
   getPaidDefaultStatus,
   invalidateAttendeeStatusesCache,
 } from "#shared/db/attendee-statuses.ts";
@@ -12,10 +11,7 @@ import {
   getAttendeeOrderSummary,
   settleAttendeeBalance,
 } from "#shared/db/attendees/balance.ts";
-import {
-  createAttendeeAtomic,
-  updateAttendeeOrder,
-} from "#shared/db/attendees.ts";
+import { updateAttendeeOrder } from "#shared/db/attendees.ts";
 import { getDb } from "#shared/db/client.ts";
 import {
   enableQueryLog,
@@ -28,45 +24,8 @@ import {
   describeWithEnv,
   getAttendeeActivityLog,
 } from "#test-utils";
+import { createReservedAttendee, settle } from "#test-utils/balance.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
-
-/** Create a reserved attendee with an outstanding balance. */
-const createReservedAttendee = async (remainingBalance: number) => {
-  const listing = await createTestListing({
-    maxAttendees: 10,
-    thankYouUrl: "https://example.com",
-  });
-  const reservation = await attendeeStatusesTable.insert({
-    isReservation: true,
-    name: "Reserved",
-    reservationAmount: "10%",
-  });
-  const result = await createAttendeeAtomic({
-    bookings: [{ listingId: listing.id, pricePaid: 100, quantity: 1 }],
-    email: "guest@example.com",
-    name: "Guest",
-    remainingBalance,
-    statusId: reservation.id,
-  });
-  if (!result.success) throw new Error("setup failed");
-  const attendeeId = result.attendees[0]!.id;
-  // Outstanding balance projects from the ledger: post the booking's gross sale
-  // (full price = deposit + remaining) and the £1 deposit payment, so the
-  // attendee owes exactly `remainingBalance` (full − deposit) in the ledger.
-  await postListingSale({
-    amountPaid: 100,
-    attendeeId,
-    gross: 100 + remainingBalance,
-    listingId: listing.id,
-  });
-  return { attendeeId, listingId: listing.id };
-};
-
-/** A settle identity (session id + business time) for settleAttendeeBalance. */
-const settle = (id = "settle-session") => ({
-  id,
-  occurredAt: "2026-06-21T00:00:00.000Z",
-});
 
 describeWithEnv("db > settle attendee balance", { db: true }, () => {
   test("clears the balance, moves to the paid status and logs it", async () => {

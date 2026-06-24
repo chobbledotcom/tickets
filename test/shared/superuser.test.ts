@@ -26,6 +26,7 @@ import {
 import {
   describeWithEnv,
   setTestEnv,
+  stubFetchStatus,
   validEmail,
   withMocks,
 } from "#test-utils";
@@ -525,304 +526,111 @@ describe("sendSuperuserCredentialsEmail", () => {
     return { calls, restore: () => fetchStub.restore() };
   };
 
-  test("calls sendEmail with the provided config and a correctly structured message", async () => {
+  const EMAIL_CONFIG = {
+    apiKey: "test",
+    fromAddress: validEmail("from@test.com"),
+    provider: "resend" as const,
+  };
+
+  const RECIPIENT = {
+    email: validEmail("admin@example.com"),
+    password: "a1b2c3d4e5f6",
+    username: "myadmin",
+  };
+
+  /** Send the credentials email, returning its captured Resend body + result. */
+  const sendAndCapture = async (
+    overrides: Partial<typeof RECIPIENT> = {},
+  ): Promise<{
+    result: boolean;
+    callCount: number;
+    body: Record<string, unknown>;
+  }> => {
     const { calls, restore } = captureEmailCall();
     try {
-      const config = {
-        apiKey: "test",
-        fromAddress: validEmail("from@test.com"),
-        provider: "resend" as const,
-      };
-      const result = await sendSuperuserCredentialsEmail(config, {
-        email: validEmail("admin@example.com"),
-        password: "a1b2c3d4e5f6",
-        username: "myadmin",
+      const result = await sendSuperuserCredentialsEmail(EMAIL_CONFIG, {
+        ...RECIPIENT,
+        ...overrides,
       });
-      expect(result).toBe(true);
-      expect(calls.length).toBe(1);
-      expect(calls[0]!.body.to).toEqual(["admin@example.com"]);
-      expect(calls[0]!.body.subject).toBe("Superuser account enabled");
+      return { body: calls[0]!.body, callCount: calls.length, result };
     } finally {
       restore();
     }
+  };
+
+  test("calls sendEmail with the provided config and a correctly structured message", async () => {
+    const { result, callCount, body } = await sendAndCapture();
+    expect(result).toBe(true);
+    expect(callCount).toBe(1);
+    expect(body.to).toEqual(["admin@example.com"]);
+    expect(body.subject).toBe("Superuser account enabled");
   });
 
   test("email text body contains the username", async () => {
-    const { calls, restore } = captureEmailCall();
-    try {
-      const config = {
-        apiKey: "test",
-        fromAddress: validEmail("from@test.com"),
-        provider: "resend" as const,
-      };
-      await sendSuperuserCredentialsEmail(config, {
-        email: validEmail("admin@example.com"),
-        password: "a1b2c3d4e5f6",
-        username: "myadmin",
-      });
-      const text = String(calls[0]!.body.text);
-      expect(text).toContain("myadmin");
-    } finally {
-      restore();
-    }
+    const { body } = await sendAndCapture();
+    expect(String(body.text)).toContain("myadmin");
   });
 
   test("email text body contains the temporary password", async () => {
-    const { calls, restore } = captureEmailCall();
-    try {
-      const config = {
-        apiKey: "test",
-        fromAddress: validEmail("from@test.com"),
-        provider: "resend" as const,
-      };
-      await sendSuperuserCredentialsEmail(config, {
-        email: validEmail("admin@example.com"),
-        password: "a1b2c3d4e5f6",
-        username: "myadmin",
-      });
-      const text = String(calls[0]!.body.text);
-      expect(text).toContain("a1b2c3d4e5f6");
-    } finally {
-      restore();
-    }
+    const { body } = await sendAndCapture();
+    expect(String(body.text)).toContain("a1b2c3d4e5f6");
   });
 
   test("email text body contains the site login URL via getEffectiveDomain", async () => {
-    const { calls, restore } = captureEmailCall();
-    try {
-      setEffectiveDomainForTest("example.com");
-      const config = {
-        apiKey: "test",
-        fromAddress: validEmail("from@test.com"),
-        provider: "resend" as const,
-      };
-      await sendSuperuserCredentialsEmail(config, {
-        email: validEmail("admin@example.com"),
-        password: "a1b2c3d4e5f6",
-        username: "myadmin",
-      });
-      const text = String(calls[0]!.body.text);
-      expect(text).toContain("https://example.com/admin/");
-    } finally {
-      restore();
-    }
+    setEffectiveDomainForTest("example.com");
+    const { body } = await sendAndCapture();
+    expect(String(body.text)).toContain("https://example.com/admin/");
   });
 
   test("email text body contains a security warning", async () => {
-    const { calls, restore } = captureEmailCall();
-    try {
-      const config = {
-        apiKey: "test",
-        fromAddress: validEmail("from@test.com"),
-        provider: "resend" as const,
-      };
-      await sendSuperuserCredentialsEmail(config, {
-        email: validEmail("admin@example.com"),
-        password: "a1b2c3d4e5f6",
-        username: "myadmin",
-      });
-      const text = String(calls[0]!.body.text);
-      expect(text).toContain("Store this password securely");
-      expect(text).toContain("decrypt attendee data");
-    } finally {
-      restore();
-    }
+    const { body } = await sendAndCapture();
+    expect(String(body.text)).toContain("Store this password securely");
+    expect(String(body.text)).toContain("decrypt attendee data");
   });
 
   test("email HTML body contains the same information with HTML-escaped values", async () => {
-    const { calls, restore } = captureEmailCall();
-    try {
-      const config = {
-        apiKey: "test",
-        fromAddress: validEmail("from@test.com"),
-        provider: "resend" as const,
-      };
-      await sendSuperuserCredentialsEmail(config, {
-        email: validEmail("admin@example.com"),
-        password: "a1b2c3d4e5f6",
-        username: "myadmin",
-      });
-      const html = String(calls[0]!.body.html);
-      expect(html).toContain("myadmin");
-      expect(html).toContain("a1b2c3d4e5f6");
-    } finally {
-      restore();
-    }
+    const { body } = await sendAndCapture();
+    expect(String(body.html)).toContain("myadmin");
+    expect(String(body.html)).toContain("a1b2c3d4e5f6");
   });
 
   test("HTML body escapes special characters in password", async () => {
-    const { calls, restore } = captureEmailCall();
-    try {
-      const config = {
-        apiKey: "test",
-        fromAddress: validEmail("from@test.com"),
-        provider: "resend" as const,
-      };
-      await sendSuperuserCredentialsEmail(config, {
-        email: validEmail("admin@example.com"),
-        password: "abc<foo>&bar",
-        username: "myadmin",
-      });
-      const html = String(calls[0]!.body.html);
-      expect(html).toContain("&lt;");
-      expect(html).toContain("&amp;");
-      expect(html).not.toContain("abc<foo>");
-    } finally {
-      restore();
-    }
+    const { body } = await sendAndCapture({ password: "abc<foo>&bar" });
+    expect(String(body.html)).toContain("&lt;");
+    expect(String(body.html)).toContain("&amp;");
+    expect(String(body.html)).not.toContain("abc<foo>");
   });
 
-  test("returns true for status 200", async () => {
-    await withMocks(
-      () =>
-        stub(globalThis, "fetch", () =>
-          Promise.resolve(new Response(null, { status: 200 })),
-        ),
-      async () => {
-        const config = {
-          apiKey: "test",
-          fromAddress: validEmail("from@test.com"),
-          provider: "resend" as const,
-        };
-        const result = await sendSuperuserCredentialsEmail(config, {
-          email: validEmail("admin@example.com"),
-          password: "password123",
-          username: "admin",
-        });
-        expect(result).toBe(true);
-      },
-    );
-  });
+  const STATUS_RESULTS: { status: number; expected: boolean }[] = [
+    { expected: true, status: 200 },
+    { expected: true, status: 201 },
+    { expected: true, status: 299 },
+    { expected: false, status: 300 },
+    { expected: false, status: 400 },
+    { expected: false, status: 500 },
+  ];
 
-  test("returns true for status 201", async () => {
-    await withMocks(
-      () =>
-        stub(globalThis, "fetch", () =>
-          Promise.resolve(new Response(null, { status: 201 })),
-        ),
-      async () => {
-        const config = {
-          apiKey: "test",
-          fromAddress: validEmail("from@test.com"),
-          provider: "resend" as const,
-        };
-        const result = await sendSuperuserCredentialsEmail(config, {
-          email: validEmail("admin@example.com"),
-          password: "password123",
-          username: "admin",
-        });
-        expect(result).toBe(true);
-      },
-    );
-  });
-
-  test("returns true for status 299", async () => {
-    await withMocks(
-      () =>
-        stub(globalThis, "fetch", () =>
-          Promise.resolve(new Response(null, { status: 299 })),
-        ),
-      async () => {
-        const config = {
-          apiKey: "test",
-          fromAddress: validEmail("from@test.com"),
-          provider: "resend" as const,
-        };
-        const result = await sendSuperuserCredentialsEmail(config, {
-          email: validEmail("admin@example.com"),
-          password: "password123",
-          username: "admin",
-        });
-        expect(result).toBe(true);
-      },
-    );
-  });
-
-  test("returns false for status 300", async () => {
-    await withMocks(
-      () =>
-        stub(globalThis, "fetch", () =>
-          Promise.resolve(new Response(null, { status: 300 })),
-        ),
-      async () => {
-        const config = {
-          apiKey: "test",
-          fromAddress: validEmail("from@test.com"),
-          provider: "resend" as const,
-        };
-        const result = await sendSuperuserCredentialsEmail(config, {
-          email: validEmail("admin@example.com"),
-          password: "password123",
-          username: "admin",
-        });
-        expect(result).toBe(false);
-      },
-    );
-  });
-
-  test("returns false for status 400", async () => {
-    await withMocks(
-      () =>
-        stub(globalThis, "fetch", () =>
-          Promise.resolve(new Response(null, { status: 400 })),
-        ),
-      async () => {
-        const config = {
-          apiKey: "test",
-          fromAddress: validEmail("from@test.com"),
-          provider: "resend" as const,
-        };
-        const result = await sendSuperuserCredentialsEmail(config, {
-          email: validEmail("admin@example.com"),
-          password: "password123",
-          username: "admin",
-        });
-        expect(result).toBe(false);
-      },
-    );
-  });
-
-  test("returns false for status 500", async () => {
-    await withMocks(
-      () =>
-        stub(globalThis, "fetch", () =>
-          Promise.resolve(new Response(null, { status: 500 })),
-        ),
-      async () => {
-        const config = {
-          apiKey: "test",
-          fromAddress: validEmail("from@test.com"),
-          provider: "resend" as const,
-        };
-        const result = await sendSuperuserCredentialsEmail(config, {
-          email: validEmail("admin@example.com"),
-          password: "password123",
-          username: "admin",
-        });
-        expect(result).toBe(false);
-      },
-    );
-  });
+  for (const { status, expected } of STATUS_RESULTS) {
+    test(`returns ${expected} for status ${status}`, () =>
+      withMocks(
+        () => stubFetchStatus(status),
+        async () => {
+          const result = await sendSuperuserCredentialsEmail(
+            EMAIL_CONFIG,
+            RECIPIENT,
+          );
+          expect(result).toBe(expected);
+        },
+      ));
+  }
 
   test("does not log the password", async () => {
     const logSpy = spy(console, "log");
     const errSpy = spy(console, "error");
     await withMocks(
-      () =>
-        stub(globalThis, "fetch", () =>
-          Promise.resolve(new Response(null, { status: 200 })),
-        ),
+      () => stubFetchStatus(200),
       async () => {
-        const config = {
-          apiKey: "test",
-          fromAddress: validEmail("from@test.com"),
-          provider: "resend" as const,
-        };
-        await sendSuperuserCredentialsEmail(config, {
-          email: validEmail("admin@example.com"),
-          password: "a1b2c3d4e5f6",
-          username: "admin",
-        });
+        await sendSuperuserCredentialsEmail(EMAIL_CONFIG, RECIPIENT);
       },
     );
     const allArgs = [...logSpy.calls, ...errSpy.calls].flatMap((c) => c.args);
