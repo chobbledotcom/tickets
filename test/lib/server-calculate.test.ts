@@ -4,6 +4,8 @@ import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { formatCurrency } from "#shared/currency.ts";
+import { invalidateAttendeeStatusesCache } from "#shared/db/attendee-statuses.ts";
+import { getDb } from "#shared/db/client.ts";
 import { modifiersTable, setModifierAnswers } from "#shared/db/modifiers.ts";
 import {
   answersTable,
@@ -290,6 +292,25 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     expect(html).toContain("order-summary-total");
   });
 
+  test("shows the listing price before modifiers, not the discounted line price", async () => {
+    const listing = await setupPromoListing();
+
+    const html = await (
+      await calculate(listing.slug, listing.slug, {
+        [`quantity_${listing.id}`]: "1",
+        promo_code: "SAVE10",
+      })
+    ).text();
+
+    // The ticket line is the full £10.00 list price, so the discount isn't
+    // baked into it — the modifier is itemised separately on its own row...
+    expect(html).toContain(formatCurrency(1000));
+    expect(html).toContain("10% off");
+    expect(html).toContain(formatCurrency(-100));
+    // ...and only the total carries the £9.00 discounted figure.
+    expect(html).toContain(formatCurrency(900));
+  });
+
   test("does not apply a promo code discount when no code is submitted", async () => {
     const listing = await setupPromoListing();
 
@@ -319,6 +340,39 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     expect(html).toContain(formatCurrency(1000));
     expect(html).not.toContain(formatCurrency(900));
     expect(html).not.toContain("10% off");
+  });
+
+  /** Turn the seeded public-default status into a reservation charging `amount`,
+   * so the quote prices each line as a deposit rather than the full price. */
+  const setPublicReservation = async (amount: string): Promise<void> => {
+    await getDb().execute({
+      args: [amount],
+      sql: "UPDATE attendee_statuses SET is_reservation = 1, reservation_amount = ? WHERE is_public_default = 1",
+    });
+    invalidateAttendeeStatusesCache();
+  };
+
+  test("shows the deposit charged now for a reservation, not the full list price", async () => {
+    await setupStripe();
+    await setPublicReservation("10%");
+    const listing = await createTestListing({
+      maxQuantity: 5,
+      name: "Weekend Pass",
+      unitPrice: 2000,
+    });
+
+    const html = await (
+      await calculate(listing.slug, listing.slug, {
+        [`quantity_${listing.id}`]: "1",
+      })
+    ).text();
+
+    // A deposit summary shows what's due now (10% of £20.00 = £2.00), not the
+    // full £20.00 list price — the deposit already reflects the reservation.
+    expect(html).toContain("Weekend Pass");
+    expect(html).toContain(formatCurrency(200));
+    expect(html).not.toContain(formatCurrency(2000));
+    expect(html).toContain("order-summary-total");
   });
 
   test("applies a promo code discount case-insensitively", async () => {

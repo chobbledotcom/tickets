@@ -784,7 +784,11 @@ const renderQuote = async (
   if (!available) {
     return htmlResponse(orderSummaryMessage(TICKETS_UNAVAILABLE_MESSAGE));
   }
-  if (isPaymentsEnabled()) return htmlResponse(orderSummary(pricedOrder));
+  if (isPaymentsEnabled()) {
+    return htmlResponse(
+      orderSummary(pricedOrder, Boolean(pricingParams.reservationAmount)),
+    );
+  }
   // No payment provider: the booking is taken without charging, but a paid order
   // still records its full value as the amount owed (see processSubmission), so
   // surface that figure instead of implying the order is free. fullSubtotal is
