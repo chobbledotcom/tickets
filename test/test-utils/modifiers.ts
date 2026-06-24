@@ -58,3 +58,17 @@ export const linkModifierAnswer = (modifierId: number, answerId: number) =>
     args: [modifierId, answerId],
     sql: "UPDATE answers SET modifier_id = ? WHERE id = ?",
   });
+
+/** Insert a `modifier_usages` row directly, bypassing the checkout flow —
+ *  used by both the modifier-aggregates and server-modifiers test suites to
+ *  set up aggregate state without going through a full booking. */
+export const insertModifierUsage = (
+  modifierId: number,
+  attendeeId: number,
+  quantity: number,
+  amountApplied: number,
+): Promise<unknown> =>
+  getDb().execute({
+    args: [modifierId, attendeeId, quantity, amountApplied, "2026-06-17"],
+    sql: "INSERT INTO modifier_usages (modifier_id, attendee_id, quantity, amount_applied, created) VALUES (?, ?, ?, ?, ?)",
+  });

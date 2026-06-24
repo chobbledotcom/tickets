@@ -176,28 +176,6 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         false,
       );
     });
-
-    test("rejects missing webhook signature key", async () => {
-      const { response } = await adminFormPost(
-        "/admin/settings/square-webhook",
-        { square_webhook_signature_key: "" },
-      );
-      expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("required"), false);
-    });
-
-    test("updates Square webhook key successfully", async () => {
-      const { response } = await adminFormPost(
-        "/admin/settings/square-webhook",
-        { square_webhook_signature_key: "sig_key_new" },
-      );
-
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining("Square webhook signature key updated"),
-      );
-    });
   });
 
   describe("POST /admin/settings/square/test", () => {

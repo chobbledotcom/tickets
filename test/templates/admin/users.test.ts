@@ -11,6 +11,17 @@ import { setupTestEncryptionKey } from "#test-utils";
 
 const TEST_SESSION = { adminLevel: "owner" as const };
 
+/** Factory for a {@link DisplayUser} with the common defaults. Only `id`,
+ *  `adminLevel`, `username`, and `inviteExpired` vary between tests. */
+const displayUser = (overrides: Partial<DisplayUser> = {}): DisplayUser => ({
+  adminLevel: "owner",
+  hasDataKey: true,
+  id: 1,
+  inviteExpired: false,
+  username: "owner",
+  ...overrides,
+});
+
 beforeAll(async () => {
   setupTestEncryptionKey();
   await signCsrfToken();
@@ -19,27 +30,19 @@ beforeAll(async () => {
 describe("adminUsersPage", () => {
   test("renders statuses and links each username to its manage page", () => {
     const users: DisplayUser[] = [
-      {
-        adminLevel: "owner",
-        hasDataKey: true,
-        id: 1,
-        inviteExpired: false,
-        username: "owner",
-      },
-      {
+      displayUser(),
+      displayUser({
         adminLevel: "manager",
         hasDataKey: false,
         id: 2,
-        inviteExpired: false,
         username: "pending",
-      },
-      {
+      }),
+      displayUser({
         adminLevel: "manager",
         hasDataKey: false,
         id: 3,
-        inviteExpired: false,
         username: "invited",
-      },
+      }),
     ];
     const html = adminUsersPage(users, TEST_SESSION, {
       currentUserId: 1,
@@ -60,20 +63,14 @@ describe("adminUsersPage", () => {
 
   test("renders Invite Expired status for expired invite", () => {
     const users: DisplayUser[] = [
-      {
-        adminLevel: "owner",
-        hasDataKey: true,
-        id: 1,
-        inviteExpired: false,
-        username: "owner",
-      },
-      {
+      displayUser(),
+      displayUser({
         adminLevel: "manager",
         hasDataKey: false,
         id: 2,
         inviteExpired: true,
         username: "expired-user",
-      },
+      }),
     ];
     const html = adminUsersPage(users, TEST_SESSION, {
       currentUserId: 1,

@@ -1,21 +1,14 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { type Stub, stub } from "@std/testing/mock";
-import {
-  resetEffectiveDomain,
-  setEffectiveDomainForTest,
-} from "#shared/config.ts";
+import { setEffectiveDomainForTest } from "#shared/config.ts";
 import {
   contactFormPublicKey,
   isContactFormActive,
   sendContactMessage,
 } from "#shared/contact-form.ts";
 import { settings } from "#shared/db/settings.ts";
-import {
-  resetHostEmailConfig,
-  setHostEmailConfigForTest,
-} from "#shared/email.ts";
-import { setTestEnv, validEmail } from "#test-utils";
+import { setHostEmailConfigForTest } from "#shared/email.ts";
+import { emailTestSandbox, validEmail } from "#test-utils";
 
 const BOTH_KEYS = {
   BOTPOISON_PUBLIC_KEY: "pk_test_public",
@@ -28,13 +21,9 @@ const NO_KEYS = {
 };
 
 describe("contact form availability", () => {
-  let restoreEnv: (() => void) | undefined;
+  const sandbox = emailTestSandbox();
 
-  afterEach(() => {
-    restoreEnv?.();
-    restoreEnv = undefined;
-    settings.clearTestOverrides();
-  });
+  afterEach(sandbox.teardown);
 
   test("isContactFormActive is true with the toggle on and a business email", () => {
     settings.setForTest({
@@ -45,7 +34,7 @@ describe("contact form availability", () => {
   });
 
   test("isContactFormActive does not require Botpoison", () => {
-    restoreEnv = setTestEnv(NO_KEYS);
+    sandbox.setEnv(NO_KEYS);
     settings.setForTest({
       business_email: "owner@example.com",
       contact_form_enabled: true,
@@ -70,45 +59,26 @@ describe("contact form availability", () => {
   });
 
   test("contactFormPublicKey returns the public env key when set", () => {
-    restoreEnv = setTestEnv(BOTH_KEYS);
+    sandbox.setEnv(BOTH_KEYS);
     expect(contactFormPublicKey()).toBe("pk_test_public");
   });
 
   test("contactFormPublicKey is empty when Botpoison is not configured", () => {
-    restoreEnv = setTestEnv(NO_KEYS);
+    sandbox.setEnv(NO_KEYS);
     expect(contactFormPublicKey()).toBe("");
   });
 });
 
 describe("sendContactMessage", () => {
-  let restoreEnv: (() => void) | undefined;
-  let fetchStub: Stub | undefined;
+  const sandbox = emailTestSandbox();
 
   beforeEach(() => {
-    restoreEnv = setTestEnv(BOTH_KEYS);
+    sandbox.setEnv(BOTH_KEYS);
     setHostEmailConfigForTest(null);
     setEffectiveDomainForTest("tickets.example.com");
   });
 
-  afterEach(() => {
-    fetchStub?.restore();
-    fetchStub = undefined;
-    resetHostEmailConfig();
-    resetEffectiveDomain();
-    settings.clearTestOverrides();
-    restoreEnv?.();
-    restoreEnv = undefined;
-  });
-
-  const stubFetch = (
-    impl: (url: string, init?: RequestInit) => Promise<Response>,
-  ): void => {
-    fetchStub = stub(
-      globalThis,
-      "fetch",
-      impl as unknown as typeof globalThis.fetch,
-    );
-  };
+  afterEach(sandbox.teardown);
 
   const configureEmail = (): void => {
     settings.setForTest({
@@ -120,11 +90,11 @@ describe("sendContactMessage", () => {
 
   test("returns false and sends nothing when no email provider is set", async () => {
     settings.setForTest({ business_email: "owner@example.com" });
-    stubFetch(() => Promise.reject(new Error("should not be called")));
+    sandbox.stubFetch(() => Promise.reject(new Error("should not be called")));
     expect(
       await sendContactMessage(validEmail("visitor@example.com"), "Hi"),
     ).toBe(false);
-    expect(fetchStub?.calls.length).toBe(0);
+    expect(sandbox.fetchStub?.calls.length).toBe(0);
   });
 
   test("returns false when no business email is set", async () => {
@@ -134,21 +104,16 @@ describe("sendContactMessage", () => {
       email_from_address: "sender@example.com",
       email_provider: "resend",
     });
-    stubFetch(() => Promise.reject(new Error("should not be called")));
+    sandbox.stubFetch(() => Promise.reject(new Error("should not be called")));
     expect(
       await sendContactMessage(validEmail("visitor@example.com"), "Hi"),
     ).toBe(false);
-    expect(fetchStub?.calls.length).toBe(0);
+    expect(sandbox.fetchStub?.calls.length).toBe(0);
   });
 
   test("delivers to the business email with the sender as Reply-To", async () => {
     configureEmail();
-    const captured = { body: {} as Record<string, unknown>, url: "" };
-    stubFetch((url, init) => {
-      captured.url = url;
-      captured.body = JSON.parse(String(init?.body));
-      return Promise.resolve(new Response(null, { status: 200 }));
-    });
+    const captured = sandbox.captureFetchCall();
 
     const result = await sendContactMessage(
       validEmail("visitor@external.test"),
@@ -172,11 +137,7 @@ describe("sendContactMessage", () => {
       email_from_address: "sender@sending.test",
       email_provider: "resend",
     });
-    const captured = { body: {} as Record<string, unknown> };
-    stubFetch((_url, init) => {
-      captured.body = JSON.parse(String(init?.body));
-      return Promise.resolve(new Response(null, { status: 200 }));
-    });
+    const captured = sandbox.captureFetchCall();
 
     const result = await sendContactMessage(
       validEmail("imposter@example.com"),
@@ -196,11 +157,7 @@ describe("sendContactMessage", () => {
       email_from_address: "sender@sending.test",
       email_provider: "resend",
     });
-    const captured = { body: {} as Record<string, unknown> };
-    stubFetch((_url, init) => {
-      captured.body = JSON.parse(String(init?.body));
-      return Promise.resolve(new Response(null, { status: 200 }));
-    });
+    const captured = sandbox.captureFetchCall();
 
     const result = await sendContactMessage(
       validEmail("imposter@sending.test"),
@@ -215,7 +172,9 @@ describe("sendContactMessage", () => {
 
   test("returns false when the email provider responds with an error", async () => {
     configureEmail();
-    stubFetch(() => Promise.resolve(new Response("nope", { status: 422 })));
+    sandbox.stubFetch(() =>
+      Promise.resolve(new Response("nope", { status: 422 })),
+    );
     expect(
       await sendContactMessage(validEmail("visitor@example.com"), "Hi"),
     ).toBe(false);
@@ -223,11 +182,7 @@ describe("sendContactMessage", () => {
 
   test("escapes HTML in the message body", async () => {
     configureEmail();
-    const captured = { body: {} as Record<string, unknown> };
-    stubFetch((_url, init) => {
-      captured.body = JSON.parse(String(init?.body));
-      return Promise.resolve(new Response(null, { status: 200 }));
-    });
+    const captured = sandbox.captureFetchCall();
 
     await sendContactMessage(
       validEmail("visitor@example.com"),

@@ -8,6 +8,7 @@ import {
   registerDependencies,
   registerTableInvalidation,
   resetCacheRegistry,
+  type WriteVerb,
 } from "#shared/cache-registry.ts";
 import { getAllHolidays, holidaysTable } from "#shared/db/holidays.ts";
 import { requestCache, runWithRequestCache } from "#shared/request-cache.ts";
@@ -133,139 +134,91 @@ describe("column-gated invalidation", () => {
     resetCacheRegistry();
   });
 
-  test("column-gated UPDATE fires when it touches a listed column", () => {
+  /** Register a column-gated (or ungated) invalidation on `table`, fire a
+   *  write, and assert the callback fires `expected` times. Colsapses the
+   *  shared `let fired = 0; registerTableInvalidation(…); invalidate(…);
+   *  expect(fired).toBe(N)` scaffold every test in this block uses. */
+  const expectGatedFire = (opts: {
+    table?: string;
+    whenColumns?: readonly string[];
+    touchedColumns?: readonly string[];
+    verb?: WriteVerb;
+    useTableInvalidation?: boolean;
+    expected: number;
+  }): void => {
+    const table = opts.table ?? "listing_attendees";
     let fired = 0;
     registerTableInvalidation(
-      ["listing_attendees"],
+      [table],
       () => {
         fired++;
       },
-      {
-        whenColumns: ["quantity", "price_paid"],
-      },
+      opts.whenColumns ? { whenColumns: opts.whenColumns } : undefined,
     );
-    invalidateCachesForWrite("listing_attendees", {
-      columns: new Set(["quantity"]),
+    if (opts.useTableInvalidation) {
+      invalidateCachesForTable(table);
+    } else {
+      invalidateCachesForWrite(table, {
+        columns: new Set(opts.touchedColumns ?? []),
+        verb: opts.verb ?? "insert",
+      });
+    }
+    expect(fired).toBe(opts.expected);
+  };
+
+  test("column-gated UPDATE fires when it touches a listed column", () => {
+    expectGatedFire({
+      expected: 1,
+      touchedColumns: ["quantity"],
       verb: "update",
+      whenColumns: ["quantity", "price_paid"],
     });
-    expect(fired).toBe(1);
   });
 
   test("column-gated UPDATE does not fire when only other columns are touched", () => {
-    let fired = 0;
-    registerTableInvalidation(
-      ["listing_attendees"],
-      () => {
-        fired++;
-      },
-      {
-        whenColumns: ["quantity", "price_paid"],
-      },
-    );
-    invalidateCachesForWrite("listing_attendees", {
-      columns: new Set(["checked_in"]),
+    expectGatedFire({
+      expected: 0,
+      touchedColumns: ["checked_in"],
       verb: "update",
+      whenColumns: ["quantity", "price_paid"],
     });
-    expect(fired).toBe(0);
   });
 
   test("column-gated dependency always fires for INSERT", () => {
-    let fired = 0;
-    registerTableInvalidation(
-      ["listing_attendees"],
-      () => {
-        fired++;
-      },
-      {
-        whenColumns: ["quantity"],
-      },
-    );
-    invalidateCachesForWrite("listing_attendees", {
-      columns: new Set(),
-      verb: "insert",
-    });
-    expect(fired).toBe(1);
+    expectGatedFire({ expected: 1, verb: "insert", whenColumns: ["quantity"] });
   });
 
   test("column-gated dependency always fires for DELETE", () => {
-    let fired = 0;
-    registerTableInvalidation(
-      ["listing_attendees"],
-      () => {
-        fired++;
-      },
-      {
-        whenColumns: ["quantity"],
-      },
-    );
-    invalidateCachesForWrite("listing_attendees", {
-      columns: new Set(),
-      verb: "delete",
-    });
-    expect(fired).toBe(1);
+    expectGatedFire({ expected: 1, verb: "delete", whenColumns: ["quantity"] });
   });
 
   test("column-gated dependency always fires for REPLACE", () => {
-    let fired = 0;
-    registerTableInvalidation(
-      ["listing_attendees"],
-      () => {
-        fired++;
-      },
-      {
-        whenColumns: ["quantity"],
-      },
-    );
-    invalidateCachesForWrite("listing_attendees", {
-      columns: new Set(),
+    expectGatedFire({
+      expected: 1,
       verb: "replace",
+      whenColumns: ["quantity"],
     });
-    expect(fired).toBe(1);
   });
 
   test("ungated dependency fires for any UPDATE regardless of columns", () => {
-    let fired = 0;
-    registerTableInvalidation(["users"], () => {
-      fired++;
-    });
-    invalidateCachesForWrite("users", {
-      columns: new Set(["some_col"]),
+    expectGatedFire({
+      expected: 1,
+      table: "users",
+      touchedColumns: ["some_col"],
       verb: "update",
     });
-    expect(fired).toBe(1);
   });
 
   test("fallback (INSERT verb) fires column-gated entries unconditionally", () => {
-    let fired = 0;
-    registerTableInvalidation(
-      ["listing_attendees"],
-      () => {
-        fired++;
-      },
-      {
-        whenColumns: ["quantity"],
-      },
-    );
-    invalidateCachesForWrite("listing_attendees", {
-      columns: new Set(),
-      verb: "insert",
-    });
-    expect(fired).toBe(1);
+    expectGatedFire({ expected: 1, verb: "insert", whenColumns: ["quantity"] });
   });
 
   test("invalidateCachesForTable fires column-gated entries unconditionally", () => {
-    let fired = 0;
-    registerTableInvalidation(
-      ["listing_attendees"],
-      () => {
-        fired++;
-      },
-      {
-        whenColumns: ["quantity"],
-      },
-    );
-    invalidateCachesForTable("listing_attendees");
-    expect(fired).toBe(1);
+    expectGatedFire({
+      expected: 1,
+      useTableInvalidation: true,
+      whenColumns: ["quantity"],
+    });
   });
 
   test("registerDependencies wires a plain-string dep unconditionally", () => {

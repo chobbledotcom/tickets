@@ -56,6 +56,20 @@ function buildTestCerts(): SigningCredentials {
 /** Return pre-built test certificates for Apple Wallet signing (built once) */
 export const generateTestCerts = once(buildTestCerts);
 
+/** Configure all Apple Wallet settings in the database using the test certs.
+ *  Shared by the apple-wallet settings tests and the wallet webservice tests. */
+export const configureAppleWallet = async (): Promise<void> => {
+  const { settings } = await import("#shared/db/settings.ts");
+  const testCerts = generateTestCerts();
+  await Promise.all([
+    settings.update.appleWallet.passTypeId("pass.com.test.tickets"),
+    settings.update.appleWallet.teamId("TESTTEAM01"),
+    settings.update.appleWallet.signingCert(testCerts.signingCert),
+    settings.update.appleWallet.signingKey(testCerts.signingKey),
+    settings.update.appleWallet.wwdrCert(testCerts.wwdrCert),
+  ]);
+};
+
 function buildGoogleTestCreds(): GoogleWalletCredentials {
   const keys = forge.pki.rsa.generateKeyPair(2048);
   const pkcs8Asn1 = forge.pki.wrapRsaPrivateKey(

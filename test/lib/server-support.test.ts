@@ -11,6 +11,7 @@ import {
   describeWithEnv,
   expectFlash,
   expectRedirect,
+  installRecordingFetch,
   mockFormRequest,
   mockRequest,
   setTestEnv,
@@ -20,27 +21,12 @@ import {
 const ADMIN_ENV = { ADMIN_EMAIL_ADDRESS: "host@support.test" };
 
 /** Stub fetch so the Resend email endpoint answers; records request bodies. */
-const installSupportFetch = (opts: { status?: number } = {}) => {
-  const original = globalThis.fetch;
-  const calls: { url: string; body: Record<string, unknown> | null }[] = [];
-  globalThis.fetch = ((input: string | URL | Request, init?: RequestInit) => {
-    const url = String(input instanceof Request ? input.url : input);
-    const raw = init?.body;
-    calls.push({ body: typeof raw === "string" ? JSON.parse(raw) : null, url });
-    if (url.includes("api.resend.com")) {
-      return Promise.resolve(
-        new Response(null, { status: opts.status ?? 200 }),
-      );
-    }
-    return original(input, init);
-  }) as typeof globalThis.fetch;
-  return {
-    emailCall: () => calls.find((c) => c.url.includes("api.resend.com")),
-    restore: () => {
-      globalThis.fetch = original;
-    },
-  };
-};
+const installSupportFetch = (opts: { status?: number } = {}) =>
+  installRecordingFetch((url) =>
+    url.includes("api.resend.com")
+      ? new Response(null, { status: opts.status ?? 200 })
+      : null,
+  );
 
 /** Configure the email provider so support messages can be delivered. */
 const configureEmail = async (): Promise<void> => {

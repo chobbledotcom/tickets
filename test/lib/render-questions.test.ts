@@ -4,6 +4,14 @@ import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { clearSavedFormData, setSavedFormData } from "#shared/forms.tsx";
 import { renderQuestions } from "#templates/public.tsx";
+import { testRadioQuestion } from "#test-utils";
+
+/** Two single-answer radio questions — the shared fixture for the
+ *  "multiple questions" and "data-listing-ids" tests. */
+const twoRadioQuestions = (): QuestionWithAnswers[] => [
+  testRadioQuestion(1, "Q1", [[10, "A1"]]),
+  testRadioQuestion(2, "Q2", [[20, "A2"]]),
+];
 
 describe("renderQuestions", () => {
   test("returns empty string for no questions", () => {
@@ -163,26 +171,7 @@ describe("renderQuestions", () => {
   });
 
   test("renders multiple questions", () => {
-    const questions: QuestionWithAnswers[] = [
-      {
-        answers: [
-          { active: true, id: 10, question_id: 1, sort_order: 0, text: "A1" },
-        ],
-        display_type: "radio" as const,
-        id: 1,
-        text: "Q1",
-      },
-      {
-        answers: [
-          { active: true, id: 20, question_id: 2, sort_order: 0, text: "A2" },
-        ],
-        display_type: "radio" as const,
-        id: 2,
-        text: "Q2",
-      },
-    ];
-
-    const html = renderQuestions(questions).toString();
+    const html = renderQuestions(twoRadioQuestions()).toString();
 
     expect(html).toContain('name="question_1"');
     expect(html).toContain('name="question_2"');
@@ -208,30 +197,12 @@ describe("renderQuestions", () => {
   });
 
   test("adds data-listing-ids when questionListingMap is provided", () => {
-    const questions: QuestionWithAnswers[] = [
-      {
-        answers: [
-          { active: true, id: 10, question_id: 1, sort_order: 0, text: "A1" },
-        ],
-        display_type: "radio" as const,
-        id: 1,
-        text: "Q1",
-      },
-      {
-        answers: [
-          { active: true, id: 20, question_id: 2, sort_order: 0, text: "A2" },
-        ],
-        display_type: "radio" as const,
-        id: 2,
-        text: "Q2",
-      },
-    ];
     const listingMap = new Map([
       [1, [100, 200]],
       [2, [200]],
     ]);
 
-    const html = renderQuestions(questions, listingMap).toString();
+    const html = renderQuestions(twoRadioQuestions(), listingMap).toString();
 
     expect(html).toContain('data-listing-ids="100 200"');
     expect(html).toContain('data-listing-ids="200"');

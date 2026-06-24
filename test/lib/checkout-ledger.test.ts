@@ -1,33 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { bookingFactsFromOrder } from "#shared/checkout-ledger.ts";
-import type { PricedLine, PricedOrder } from "#shared/checkout-pricing.ts";
-
-const line = (
-  listingId: number,
-  unitPrice: number,
-  quantity: number,
-  chargedUnitAmount = unitPrice,
-): PricedLine => ({
-  chargedUnitAmount,
-  item: {
-    listingId,
-    name: `L${listingId}`,
-    quantity,
-    slug: `l${listingId}`,
-    unitPrice,
-  },
-  quantity,
-});
-
-const order = (overrides: Partial<PricedOrder> = {}): PricedOrder => ({
-  extras: [],
-  fullSubtotal: 0,
-  lines: [],
-  modifierApplications: [],
-  total: 0,
-  ...overrides,
-});
+import { pricedLine as line, pricedOrder as order } from "#test-utils";
 
 const ctx = {
   attendeeId: 42,

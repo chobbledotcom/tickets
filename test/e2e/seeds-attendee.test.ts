@@ -8,6 +8,7 @@
  *       visit /admin (dashboard) → visit listing page → visit attendee edit page
  */
 
+// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { DEMO_LISTING_NAMES } from "#shared/demo.ts";
@@ -16,6 +17,8 @@ import {
   setupAndLogin,
   useE2eBrowser,
 } from "#test-utils/e2e.ts";
+
+// jscpd:ignore-end
 
 describe("e2e: seeded attendee views", () => {
   const ctx = useE2eBrowser();
