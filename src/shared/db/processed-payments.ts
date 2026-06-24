@@ -290,7 +290,9 @@ export const balanceFinalizeStatement = (
 ): { sql: string; args: InValue[] } =>
   // Guarded on the ledger-projected outstanding balance (no stored column).
   // Runs in the settle batch before the balance-payment leg, so it still sees
-  // the pre-payment balance — i.e. the attendee owing exactly expectedAmount.
+  // the pre-payment balance — i.e. the attendee owing exactly expectedAmount. A
+  // no-real-line attendee owes 0 ≠ expectedAmount, so the finalize is skipped and
+  // the session stays unresolved for the failure log.
   buildFinalizeStatement(
     attendeeId,
     sessionId,

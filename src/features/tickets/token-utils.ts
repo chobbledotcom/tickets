@@ -22,7 +22,11 @@ import {
 } from "#shared/db/token-attempts.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
 import { buildCheckinUrl } from "#shared/ticket-url.ts";
-import type { Attendee, ListingWithCount } from "#shared/types.ts";
+import {
+  type Attendee,
+  hasTicketQuantity,
+  type ListingWithCount,
+} from "#shared/types.ts";
 
 /** Attendee paired with its listing */
 export type TokenEntry = {
@@ -167,12 +171,15 @@ export const resolveEntries = async (
     }),
   );
 
-  // Expand each attendee × booking into a TokenEntry
+  // Expand each attendee × booking into a TokenEntry, dropping no-quantity
+  // sentinel lines (quantity 0) — they must not render, produce a wallet pass, or
+  // be checkable. Filtering here (not in the shared getAttendeesByTokens, which
+  // the webhook/merge flows also use) keeps entries[0] a real line, never a ghost.
   const entries: TokenEntry[] = [];
   for (const awb of attendeesWithBookings) {
     for (const booking of awb.bookings) {
       const listing = listings.get(booking.listing_id);
-      if (listing) {
+      if (listing && hasTicketQuantity(booking)) {
         entries.push({
           attendee: buildAttendeeView(awb, booking),
           listing,
@@ -199,6 +206,30 @@ export const decryptTokenEntries = async (
 export type TokenLookupResult =
   | { ok: true; attendees: AttendeeWithBookings[] }
   | { ok: false; response: Response };
+
+/**
+ * Keep only the tokens whose attendee has at least one real (quantity > 0) line,
+ * plus those lines' listing IDs (input order). A token resolving solely to
+ * no-quantity sentinel lines is dropped, so the success pages never build a `/t`
+ * CTA that would 404, and a ghost line never inflates the single-listing check.
+ */
+export const verifyTokensWithRealLine = async (
+  tokens: string[],
+): Promise<{ verifiedTokens: string[]; listingIds: number[] }> => {
+  const attendees = tokens.length > 0 ? await getAttendeesByTokens(tokens) : [];
+  const verified = tokens
+    .map((token, i) => ({
+      realBookings: (attendees[i]?.bookings ?? []).filter(hasTicketQuantity),
+      token,
+    }))
+    .filter((entry) => entry.realBookings.length > 0);
+  return {
+    listingIds: verified.flatMap((e) =>
+      e.realBookings.map((b) => b.listing_id),
+    ),
+    verifiedTokens: verified.map((e) => e.token),
+  };
+};
 
 /** Look up attendees by tokens, returning 404 if none found */
 export const lookupAttendees = async (
