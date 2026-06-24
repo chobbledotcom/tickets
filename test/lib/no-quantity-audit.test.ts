@@ -84,6 +84,20 @@ describeWithEnv("no-quantity audit > token flows", { db: true }, () => {
     expect(body).not.toContain(`/t/${token}`);
   });
 
+  test("the reservation success page keeps the CTA for a real-line token", async () => {
+    // Mirror of the ghost case: an attendee that keeps its real (quantity ≥ 1)
+    // line is verified, so the success page DOES link to its /t ticket URL.
+    const { token } = await createTestAttendeeWithToken(
+      "Real",
+      "real@test.com",
+    );
+
+    const body = await (
+      await awaitTestRequest(`/ticket/reserved?tokens=${token}`)
+    ).text();
+    expect(body).toContain(`/t/${token}`);
+  });
+
   test("the payment success page rejects a ghost-only token", async () => {
     const { attendee, token } = await createTestAttendeeWithToken(
       "Pay",
