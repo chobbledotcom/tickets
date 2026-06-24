@@ -10,7 +10,7 @@ import {
   renderDetailRows,
   sumQuantity,
 } from "#templates/admin/detail-rows.tsx";
-import { testAttendee } from "#test-utils";
+import { testAnswer, testAttendee, testQuestion } from "#test-utils";
 
 describe("detail-rows", () => {
   describe("renderDetailRows", () => {
@@ -117,27 +117,14 @@ describe("detail-rows", () => {
           [3, [11]],
         ]),
         questions: [
-          {
+          testQuestion({
             answers: [
-              {
-                active: true,
-                id: 10,
-                question_id: 1,
-                sort_order: 0,
-                text: "Small",
-              },
-              {
-                active: true,
-                id: 11,
-                question_id: 1,
-                sort_order: 1,
-                text: "Large",
-              },
+              testAnswer({ id: 10, sort_order: 0, text: "Small" }),
+              testAnswer({ id: 11, sort_order: 1, text: "Large" }),
             ],
-            display_type: "radio" as const,
             id: 1,
             text: "Size?",
-          },
+          }),
         ],
       });
       expect(rows).toEqual([{ key: "Size?", value: "Small (2), Large (1)" }]);
@@ -147,20 +134,11 @@ describe("detail-rows", () => {
       const rows = buildAnswerSummaryRows({
         attendeeAnswerMap: new Map(),
         questions: [
-          {
-            answers: [
-              {
-                active: true,
-                id: 10,
-                question_id: 1,
-                sort_order: 0,
-                text: "A",
-              },
-            ],
-            display_type: "radio" as const,
+          testQuestion({
+            answers: [testAnswer({ id: 10, text: "A" })],
             id: 1,
             text: "Q?",
-          },
+          }),
         ],
       });
       expect(rows).toEqual([{ key: "Q?", value: "A (0)" }]);
@@ -300,20 +278,11 @@ describe("detail-rows", () => {
         questionData: {
           attendeeAnswerMap: new Map(),
           questions: [
-            {
-              answers: [
-                {
-                  active: true,
-                  id: 10,
-                  question_id: 1,
-                  sort_order: 0,
-                  text: "S",
-                },
-              ],
-              display_type: "radio" as const,
+            testQuestion({
+              answers: [testAnswer({ id: 10, text: "S" })],
               id: 1,
               text: "Size?",
-            },
+            }),
           ],
         },
       });

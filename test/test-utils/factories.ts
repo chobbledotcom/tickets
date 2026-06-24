@@ -1,5 +1,10 @@
 import type { BuiltSite } from "#shared/db/built-sites.ts";
 import type { ListingInput } from "#shared/db/listings.ts";
+import type {
+  Answer,
+  QuestionDisplayType,
+  QuestionWithAnswers,
+} from "#shared/db/questions.ts";
 import type { EmailEntry, EmailListing } from "#shared/email.ts";
 import { signPriceSync } from "#shared/payment-signature.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
@@ -114,6 +119,35 @@ export const testHoliday = (overrides: Partial<Holiday> = {}): Holiday => ({
   id: 1,
   name: "Test Holiday",
   start_date: "2026-12-25",
+  ...overrides,
+});
+
+/** Factory for an {@link Answer}: `active` defaults to `true` and the
+ *  `question_id`/`sort_order`/`id` defaults mirror the most common test shape
+ *  (a single question with id 1 and answers 10, 11, … in sort order). Override
+ *  only the fields a given test actually varies. */
+export const testAnswer = (overrides: Partial<Answer> = {}): Answer => ({
+  active: true,
+  id: 10,
+  question_id: 1,
+  sort_order: 0,
+  text: "A",
+  ...overrides,
+});
+
+/** Factory for a {@link QuestionWithAnswers}: `display_type` defaults to
+ *  `"radio"` (the overwhelmingly common case in tests) with no answers, so a
+ *  radio/dropdown/free-text question is built by overriding `display_type` and
+ *  passing `answers`. The returned type keeps `display_type` as the literal
+ *  {@link QuestionDisplayType}, so callers no longer need `… as const` on the
+ *  field. */
+export const testQuestion = (
+  overrides: Partial<QuestionWithAnswers> = {},
+): QuestionWithAnswers => ({
+  answers: [],
+  display_type: "radio",
+  id: 1,
+  text: "Question?",
   ...overrides,
 });
 
