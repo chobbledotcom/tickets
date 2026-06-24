@@ -1853,8 +1853,11 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           mockRequest("/payment/success?session_id=cs_qty_zero"),
         );
         expect(redirectResponse.status).toBe(302);
+        // The booking is created from metadata without coercing 0→1, but the
+        // success page treats a token resolving only to quantity-0 lines as an
+        // invalid callback (a quantity-0 line has no live ticket).
         const response = await followRedirect(redirectResponse, handleRequest);
-        expect(response.status).toBe(200);
+        expect(response.status).toBe(400);
 
         // Verify attendee was created with quantity 0, not silently converted to 1
         const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
@@ -3292,7 +3295,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         finalizeSession: finalizeSessionFn,
       } = await import("#shared/db/processed-payments.ts");
       await reserveSessionFn("cs_del_listing_wh");
-      await finalizeSessionFn("cs_del_listing_wh", attResult.attendees[0]!.id);
+      await finalizeSessionFn("cs_del_listing_wh", attResult.attendees[0]!.id, [
+        "tok-test",
+      ]);
 
       const { stripePaymentProvider } = await import(
         "#shared/stripe-provider.ts"

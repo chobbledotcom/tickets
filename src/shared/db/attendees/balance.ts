@@ -87,6 +87,9 @@ type OrderRow = {
 
 const getAttendeeOrderRows = (attendeeId: number): Promise<OrderRow[]> =>
   queryAll<OrderRow>(
+    // quantity > 0: a no-quantity sentinel line is not an order line — exclude it
+    // so the pay page shows (and checks out against) a real product, never a
+    // lower-id ghost.
     `SELECT listingAttendee.listing_id,
             listingAttendee.quantity,
             ${pricePaidFromLedger(
@@ -98,7 +101,7 @@ const getAttendeeOrderRows = (attendeeId: number): Promise<OrderRow[]> =>
             listing.unit_price AS listing_unit_price
        FROM listing_attendees AS listingAttendee
        LEFT JOIN listings AS listing ON listing.id = listingAttendee.listing_id
-      WHERE listingAttendee.attendee_id = ?
+      WHERE listingAttendee.attendee_id = ? AND listingAttendee.quantity > 0
       ORDER BY listingAttendee.id`,
     [attendeeId],
   );
@@ -217,8 +220,13 @@ export const settleAttendeeBalance = async (
   if (results[0]!.rowsAffected === 0)
     return { reason: "amount_mismatch", settled: false };
 
+  // The logged-activity / returned listing is the attendee's first real line.
+  // A settle implies an owed balance, which implies a sale leg, which can only
+  // sit on a quantity > 0 line (a paid line can't be marked no-quantity), so a
+  // real line normally exists; the lookup stays nullable for a purely
+  // ledger-owed attendee with no booking row.
   const firstListing = await queryOne<{ listing_id: number }>(
-    "SELECT listing_id FROM listing_attendees WHERE attendee_id = ? ORDER BY id LIMIT 1",
+    "SELECT listing_id FROM listing_attendees WHERE attendee_id = ? AND quantity > 0 ORDER BY id LIMIT 1",
     [attendeeId],
   );
   const listingId = firstListing ? firstListing.listing_id : null;

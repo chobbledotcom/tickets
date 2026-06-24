@@ -19,6 +19,7 @@ import type {
   ListingRevenueBreakdown,
 } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
+import { attendeeNameMap, type SystemNote } from "#shared/db/system-notes.ts";
 import { buildEmbedSnippets } from "#shared/embed.ts";
 import { isReadOnly } from "#shared/env.ts";
 import type { Field } from "#shared/forms.tsx";
@@ -40,10 +41,12 @@ import {
   availableDayCounts,
   dayPriceFor,
   type Group,
+  hasTicketQuantity,
   isPaidListing,
   type ListingWithCount,
   normalizeDurationDays,
 } from "#shared/types.ts";
+import { AttendeeNotesSummary } from "#templates/admin/attendee-notes.tsx";
 import { buildSharedDetailRows } from "#templates/admin/detail-rows.tsx";
 import {
   type ExpectedActualItem,
@@ -264,16 +267,23 @@ const FailedPaymentsTable = ({
 /** Check-in message to display after toggling */
 export type CheckinMessage = { name: string; status: string } | null;
 
-/** Filter attendees by check-in status */
+/** Filter attendees by check-in status. The in/out filters operate on real
+ * (quantity > 0) lines only — a no-quantity sentinel row isn't checkable, so it
+ * appears only in the unfiltered "all" view, never in the checked-in or
+ * not-checked-in lists. */
 export const filterAttendees = (
   attendees: Attendee[],
   activeFilter: AttendeeFilter,
 ): Attendee[] => {
   if (activeFilter === "in") {
-    return filter((a: Attendee) => a.checked_in)(attendees);
+    return filter((a: Attendee) => a.checked_in && hasTicketQuantity(a))(
+      attendees,
+    );
   }
   if (activeFilter === "out") {
-    return filter((a: Attendee) => !a.checked_in)(attendees);
+    return filter((a: Attendee) => !a.checked_in && hasTicketQuantity(a))(
+      attendees,
+    );
   }
   return attendees;
 };
@@ -467,6 +477,9 @@ export type AdminListingPageOptions = {
    * otherwise). Surfaces a warning on the quick add-attendee form: a manual add
    * books the parent alone, where public bookings fold a chosen child. */
   childNames?: string[];
+  /** Decrypted notes for the listed attendees (empty when none) — surfaced as a
+   * red expandable above the attendee table. */
+  systemNotes?: SystemNote[];
 };
 
 /** Top action nav for the listing detail page */
@@ -1277,6 +1290,7 @@ export const adminListingPage = ({
   hasEmailableAttendees = false,
   isChild = false,
   childNames = [],
+  systemNotes = [],
 }: AdminListingPageOptions): string => {
   const ticketUrl = `https://${allowedDomain}/ticket/${listing.slug}`;
   const { script: embedScriptCode, iframe: embedIframeCode } =
@@ -1359,6 +1373,10 @@ export const adminListingPage = ({
           listingId={listing.id}
         />
       )}
+      <AttendeeNotesSummary
+        names={attendeeNameMap(attendees)}
+        notes={systemNotes}
+      />
       <AttendeesSection
         activeFilter={activeFilter}
         allowedDomain={allowedDomain}

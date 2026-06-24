@@ -42,9 +42,18 @@ const renderBookings = (bookings: AttendeeBooking[]): string =>
 
 const ALLOWED_DOMAIN = "tickets.example.com";
 
-const renderDetail = (attendee = testAttendee(), phonePrefix = "44"): string =>
+const renderDetail = (
+  attendee = testAttendee(),
+  phonePrefix = "44",
+  hasRealLine = true,
+): string =>
   String(
-    AttendeeDetail({ allowedDomain: ALLOWED_DOMAIN, attendee, phonePrefix }),
+    AttendeeDetail({
+      allowedDomain: ALLOWED_DOMAIN,
+      attendee,
+      hasRealLine,
+      phonePrefix,
+    }),
   );
 
 beforeAll(() => {
@@ -60,6 +69,18 @@ describe("AttendeeDetail", () => {
     expect(html).toContain("Jane Doe");
     expect(html).toContain(`https://${ALLOWED_DOMAIN}/t/tok-123`);
     expect(html).toContain("Registered");
+  });
+
+  test("shows the no-quantity indicator instead of a dead ticket link for a ghost-only attendee", () => {
+    // A no-quantity-only attendee's /t page 404s, so we must not render a link
+    // that fails on click — show the same "No quantity" indicator as the table.
+    const html = renderDetail(
+      testAttendee({ ticket_token: "tok-ghost" }),
+      "44",
+      false,
+    );
+    expect(html).not.toContain("/t/tok-ghost");
+    expect(html).toContain("No quantity");
   });
 
   test("renders email as a mailto link when present", () => {
@@ -326,18 +347,19 @@ describe("AttendeeLedgerSection", () => {
   const acct = account("attendee", 7);
 
   test("embeds the shared statement in a collapsed Ledger disclosure with the balance and a full-ledger action", () => {
-    // A single payment credits the attendee account, so its balance is +5000.
+    // A single sale debits the attendee account, so the ledger holds -5000; the
+    // attendee view flips it to show the +5000 they owe as the balance.
     const lines = statementFor(acct)([
       {
         amount: 5000,
-        destination: acct,
+        destination: account("revenue", 1),
         eventGroup: "evt",
         id: 1,
-        kind: "payment",
+        kind: "sale",
         occurredAt: "2026-06-21T10:00:00.000Z",
         recordedAt: "2026-06-21T10:00:00.000Z",
-        reference: "pay-1",
-        source: account("external", "world"),
+        reference: "sale-1",
+        source: acct,
       },
     ]);
     const html = String(
@@ -353,9 +375,11 @@ describe("AttendeeLedgerSection", () => {
     expect(html).toContain('class="table-header-actions"');
     expect(html).toContain('href="/admin/ledger/attendee/7"');
     expect(html).toContain("View full ledger");
-    // The counterparty singleton and the running balance both render.
-    expect(html).toContain("Card / bank");
+    // The counterparty (the listing, unnamed here) and the running balance both
+    // render; the reversed balance is the +5000 the attendee owes.
+    expect(html).toContain("Listing #1");
     expect(html).toContain(`Balance: ${formatCurrency(5000)}`);
+    expect(html).not.toContain(`Balance: -${formatCurrency(5000)}`);
     expect(html).toContain('<th class="col-amount">Balance</th>');
   });
 

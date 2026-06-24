@@ -288,11 +288,13 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
     // Guards against a future migration slipping through with no restore test.
     // The non-additive migrations excluded here are: the baseline reconcile, the
     // events→listings rename, the transfers time-int rebuild, the transfers
-    // backfill (data-only), and the seven column-drop migrations (drop_transfers_
+    // backfill (data-only), the seven column-drop migrations (drop_transfers_
     // currency, drop_listing_income, drop_listing_attendee_refunded,
     // drop_listing_attendee_price_paid, drop_attendees_price_paid,
-    // drop_attendees_remaining_balance and drop_modifiers_total_revenue).
-    expect(additiveMigrations.length).toBe(MIGRATIONS.length - 11);
+    // drop_attendees_remaining_balance and drop_modifiers_total_revenue), and the
+    // ticket-count-no-quantity trigger rewrite (it drops and re-syncs the
+    // aggregate triggers from SCHEMA, owning no additive objects to rebuild).
+    expect(additiveMigrations.length).toBe(MIGRATIONS.length - 12);
   });
 
   for (const migration of additiveMigrations) {

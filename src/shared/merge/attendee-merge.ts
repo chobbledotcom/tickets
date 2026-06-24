@@ -392,6 +392,8 @@ export const validateAttendeeMergeDecision = (
     }
   }
 
+  errors.push(...strandedPaymentErrors(diff, decision));
+
   return errors.length > 0 ? { errors, valid: false } : { valid: true };
 };
 
@@ -405,6 +407,48 @@ const discardedSaleAmount = (
   if (bookingChoice === "take_source") return item.targetSaleAmount;
   return item.sourceSaleAmount;
 };
+
+/** Whether a merge decision results in the source booking being copied to the
+ * target — every moveable line, plus a conflicting line the admin chose to
+ * take from source. */
+const copiesSourceBooking = (
+  item: AttendeeMergeDiffBookingItem,
+  decision: AttendeeMergeDecisionInput,
+): boolean =>
+  item.conflictClass === "moveable" ||
+  decision.bookings[itemBookingKey(item)] === "take_source";
+
+/** True when a copied booking would end up as a quantity-0 line that strands a
+ * recorded payment — either a SOURCE ghost still carrying a payment, or a
+ * `take_source` that replaces a paid TARGET line with the ghost (the latter
+ * deletes the paid target and inserts the quantity-0 source, leaving the
+ * target's payment behind a row the refund/payment flows ignore). */
+const strandsPayment = (
+  item: AttendeeMergeDiffBookingItem,
+  decision: AttendeeMergeDecisionInput,
+): boolean => {
+  if (!copiesSourceBooking(item, decision)) return false;
+  if (item.sourceBooking.quantity !== 0) return false;
+  const target = item.targetBooking;
+  return (
+    item.sourceBooking.price_paid > 0 ||
+    (target !== null && target.price_paid > 0)
+  );
+};
+
+/** Errors for any merge item that would strand a payment behind a quantity-0
+ * line (§1 invariant: a quantity-0 line must have price_paid = 0). Refund or
+ * retarget the charge first. */
+const strandedPaymentErrors = (
+  diff: AttendeeMergeDiff,
+  decision: AttendeeMergeDecisionInput,
+): string[] =>
+  diff.bookingItems
+    .filter((item) => strandsPayment(item, decision))
+    .map(
+      (item) =>
+        `Listing #${item.listingId}: a no-quantity line would strand a recorded payment — refund or retarget it before merging.`,
+    );
 
 // ---------------------------------------------------------------------------
 // applyAttendeeMerge
@@ -517,7 +561,10 @@ const bookingInsertStatement = (
   insert("listing_attendees", {
     attachment_downloads: booking.attachment_downloads,
     attendee_id: targetId,
-    checked_in: booking.checked_in,
+    // A no-quantity sentinel line (quantity 0) carries no check-in: clear it on
+    // copy so a ghost can't arrive checked-in (the roster/stats read check-in
+    // off this flag with no quantity predicate). Real lines keep their flag.
+    checked_in: booking.quantity > 0 ? booking.checked_in : 0,
     end_at: booking.end_at,
     ledger_event_group: booking.ledger_event_group,
     listing_id: booking.listing_id,

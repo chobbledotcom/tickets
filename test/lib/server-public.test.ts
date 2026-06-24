@@ -27,6 +27,7 @@ import {
   assertPublicHtml,
   awaitTestRequest,
   bookAttendee,
+  createTestAttendeeWithToken,
   createTestGroup,
   createTestHoliday,
   createTestListing,
@@ -1983,9 +1984,15 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
     });
 
     test("shows ticket link when tokens are provided", async () => {
+      // The page now resolves tokens and only shows the CTA for a real
+      // (quantity > 0) line, so use a genuine attendee token.
+      const { token } = await createTestAttendeeWithToken(
+        "Resv",
+        "resv@example.com",
+      );
       await assertPublicHtml(
-        "/ticket/reserved?tokens=abc123+def456",
-        'href="/t/abc123+def456"',
+        `/ticket/reserved?tokens=${token}`,
+        `href="/t/${token}"`,
         "Click here to view your ticket",
       );
     });
@@ -2004,6 +2011,12 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
     });
 
     test("shows email notice when email sending is configured", async () => {
+      // The email notice only appears alongside a real ticket CTA, so use a
+      // genuine attendee token.
+      const { token } = await createTestAttendeeWithToken(
+        "Resv",
+        "resv@example.com",
+      );
       const restore = setTestEnv({
         HOST_EMAIL_API_KEY: "re_test123",
         HOST_EMAIL_FROM_ADDRESS: "tickets@mysite.com",
@@ -2011,7 +2024,7 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
       });
       try {
         await assertPublicHtml(
-          "/ticket/reserved?tokens=abc123",
+          `/ticket/reserved?tokens=${token}`,
           "Junk/Spam",
           "tickets@mysite.com",
         );

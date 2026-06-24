@@ -3,8 +3,10 @@
  *
  * Uses a two-phase locking pattern to prevent duplicate attendee creation:
  * 1. reserveSession() - Claims the session with NULL attendee_id
- * 2. createAttendeeAtomic() - Creates the attendee
- * 3. finalizeSession() - Updates with the real attendee_id
+ * 2. createAttendeeAtomic() with finalizeSessionStatement() inside the
+ *    transaction - Creates the attendee and sets attendee_id atomically,
+ *    closing the crash window between creation and a separate finalize call.
+ * 3. (webhook only) setSessionTicketTokens() - Persists replay tokens.
  *
  * If reserveSession fails (session already claimed), we check if it's:
  * - Finalized (attendee_id set) → return success with existing attendee
@@ -188,19 +190,21 @@ export const reserveSession = async (
   }
 };
 
+/** Encrypt a list of ticket tokens for storage, joining with "+". */
+const encryptTicketTokens = (ticketTokens: string[]): Promise<string> =>
+  encrypt(ticketTokens.join("+"));
+
 /**
  * Finalize a reserved session with the created attendee ID (second phase)
  */
 export const finalizeSession = async (
   sessionId: string,
   attendeeId: number,
-  ticketTokens: string[] = [],
+  ticketTokens: string[],
 ): Promise<void> => {
-  const joined = ticketTokens.join("+");
-  const encryptedTokens = joined ? await encrypt(joined) : "";
   await execute(
     "UPDATE processed_payments SET attendee_id = ?, ticket_tokens = ? WHERE payment_session_id = ?",
-    [attendeeId, encryptedTokens, sessionId],
+    [attendeeId, await encryptTicketTokens(ticketTokens), sessionId],
   );
 };
 
@@ -246,6 +250,31 @@ export const parseSessionFailure = async (
   }
 };
 
+/** Shared UPDATE shape for both finalize statement builders. */
+const buildFinalizeStatement = (
+  attendeeId: number,
+  sessionId: string,
+  guard: string,
+  extraArgs: InValue[] = [],
+): { sql: string; args: InValue[] } => ({
+  args: [attendeeId, sessionId, ...extraArgs],
+  sql: `UPDATE processed_payments SET attendee_id = ?, ticket_tokens = '' WHERE payment_session_id = ? AND ${guard}`,
+});
+
+/**
+ * Build the finalize UPDATE for a ticket session, for inclusion inside the
+ * attendee-creation transaction. Setting attendee_id atomically with the
+ * INSERT closes the crash window a separate finalizeSession call would leave:
+ * if the post-transaction step failed, a stale-replay could create a duplicate
+ * attendee. ticket_tokens is set to '' here; call setSessionTicketTokens
+ * afterwards to persist replay tokens.
+ */
+export const finalizeSessionStatement = (
+  sessionId: string,
+  attendeeId: number,
+): { sql: string; args: InValue[] } =>
+  buildFinalizeStatement(attendeeId, sessionId, UNRESOLVED_RESERVATION);
+
 /**
  * Build the finalize UPDATE for a balance-payment session, guarded so it only
  * applies while the attendee's balance still equals the amount being settled.
@@ -258,15 +287,34 @@ export const balanceFinalizeStatement = (
   sessionId: string,
   attendeeId: number,
   expectedAmount: number,
-): { sql: string; args: InValue[] } => ({
-  args: [attendeeId, sessionId, expectedAmount],
+): { sql: string; args: InValue[] } =>
   // Guarded on the ledger-projected outstanding balance (no stored column).
   // Runs in the settle batch before the balance-payment leg, so it still sees
-  // the pre-payment balance — i.e. the attendee owing exactly expectedAmount.
-  sql: `UPDATE processed_payments SET attendee_id = ?, ticket_tokens = '' WHERE payment_session_id = ? AND ${attendeeOwedSubquery(
-    String(attendeeId),
-  )} = ?`,
-});
+  // the pre-payment balance — i.e. the attendee owing exactly expectedAmount. A
+  // no-real-line attendee owes 0 ≠ expectedAmount, so the finalize is skipped and
+  // the session stays unresolved for the failure log.
+  buildFinalizeStatement(
+    attendeeId,
+    sessionId,
+    `${attendeeOwedSubquery(String(attendeeId))} = ?`,
+    [expectedAmount],
+  );
+
+/**
+ * Store encrypted ticket tokens on an already-finalized session so later
+ * webhook replays can return them. Separated from finalizeSessionStatement so
+ * token encryption never holds the write lock open. No-op if the session was
+ * pruned.
+ */
+export const setSessionTicketTokens = async (
+  sessionId: string,
+  ticketTokens: string[],
+): Promise<void> => {
+  await execute(
+    "UPDATE processed_payments SET ticket_tokens = ? WHERE payment_session_id = ?",
+    [await encryptTicketTokens(ticketTokens), sessionId],
+  );
+};
 
 /**
  * Decrypt the ticket_tokens field from a processed payment record.

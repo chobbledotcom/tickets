@@ -4,7 +4,6 @@ import { handleRequest } from "#routes";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import { listingsTable } from "#shared/db/listings.ts";
 import { setDemoModeForTest } from "#shared/demo.ts";
-import { runWithStorageConfig } from "#shared/storage.ts";
 import {
   adminFormPost,
   assertFormRedirect,
@@ -14,13 +13,12 @@ import {
   expectFlash,
   expectHtmlResponse,
   expectRedirectWithFlash,
-  installUrlHandler,
   invalidateTestDbCache,
   mockFormRequest,
   setupListingAndLogin,
   testCookie,
   testRequiresAuth,
-  withFetchMock,
+  withBunnyDeleteCapture,
 } from "#test-utils";
 
 describeWithEnv("server (admin settings)", { db: true }, () => {
@@ -61,40 +59,23 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         imageUrl: "admin-reset-image.jpg",
       });
 
-      await runWithStorageConfig(
-        { zoneKey: "testkey", zoneName: "testzone" },
-        () =>
-          withFetchMock(async (originalFetch) => {
-            const deletedUrls: string[] = [];
-            installUrlHandler(originalFetch, (url) => {
-              if (url.includes("storage.bunnycdn.com")) {
-                deletedUrls.push(url);
-                return Promise.resolve(
-                  new Response(JSON.stringify({ HttpCode: 200 }), {
-                    status: 200,
-                  }),
-                );
-              }
-              return null;
-            });
-
-            await assertFormRedirect(
-              "/admin/settings/reset-database",
-              {
-                confirm_phrase:
-                  "The site will be fully reset and all data will be lost.",
-              },
-              "/setup/",
-              "Database reset",
-            );
-            expect(
-              deletedUrls.some((u) => u.includes("admin-reset-image.jpg")),
-            ).toBe(true);
-            expect(
-              deletedUrls.some((u) => u.includes("admin-reset-attachment.pdf")),
-            ).toBe(true);
-          }),
-      );
+      await withBunnyDeleteCapture(async (deletedUrls) => {
+        await assertFormRedirect(
+          "/admin/settings/reset-database",
+          {
+            confirm_phrase:
+              "The site will be fully reset and all data will be lost.",
+          },
+          "/setup/",
+          "Database reset",
+        );
+        expect(
+          deletedUrls.some((u) => u.includes("admin-reset-image.jpg")),
+        ).toBe(true);
+        expect(
+          deletedUrls.some((u) => u.includes("admin-reset-attachment.pdf")),
+        ).toBe(true);
+      });
 
       invalidateTestDbCache();
     });

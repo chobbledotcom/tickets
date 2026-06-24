@@ -523,8 +523,17 @@ const resolveQuantityAndDate = async (
   listing: ListingWithCount,
   body: Record<string, unknown>,
 ): Promise<{ quantity: number; date: string | null } | Response> => {
-  const rawQuantity = parsePositiveInt(String(body.quantity ?? "1"));
-  const quantity = Math.min(rawQuantity ?? 1, listing.max_quantity);
+  // A submitted quantity of exactly 0 must NOT become a one-ticket booking — a
+  // quantity-0 line is the admin-only no-quantity sentinel and is never created
+  // through the public API. Malformed/absent values keep the lenient default of 1;
+  // only an explicit 0 is rejected (parseNonNegativeInt accepts 0, where
+  // parsePositiveInt would mask it as null). Resolving it here applies the guard
+  // to both the standalone and parent/child booking paths.
+  const parsedQuantity = parseNonNegativeInt(String(body.quantity ?? "1"));
+  if (parsedQuantity === 0) {
+    return apiResponse({ error: "Quantity must be at least 1" }, 400);
+  }
+  const quantity = Math.min(parsedQuantity ?? 1, listing.max_quantity);
   const date = await resolveBookingDate(listing, body);
   return date instanceof Response ? date : { date, quantity };
 };

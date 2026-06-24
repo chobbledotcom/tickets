@@ -11,7 +11,7 @@ import {
   createAttendeeAtomic,
   LISTING_ATTENDEE_ROW_COLS,
 } from "#shared/db/attendees.ts";
-import { queryAll } from "#shared/db/client.ts";
+import { getDb, queryAll } from "#shared/db/client.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import {
   answersTable,
@@ -751,6 +751,158 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       }
     });
 
+    test("rejects copying a no-quantity source line that still carries a payment", () => {
+      // A quantity-0 line must have price_paid = 0; merging one that doesn't
+      // would strand the charge behind the quantity-0 refund guards.
+      const diff: AttendeeMergeDiff = {
+        answerItems: [],
+        bookingItems: [
+          {
+            conflictClass: "moveable",
+            listingId: 5,
+            sourceBooking: {
+              attachment_downloads: 0,
+              checked_in: 0,
+              end_at: null,
+              ledger_event_group: "",
+              listing_id: 5,
+              order_token: "",
+              parent_listing_id: 0,
+              price_paid: 1500,
+              quantity: 0,
+              refunded: 0,
+              start_at: null,
+            },
+            sourceSaleAmount: 1500,
+            startAt: null,
+            targetBooking: null,
+            targetSaleAmount: 0,
+          },
+        ],
+        piiFields: [],
+        sourceId: 2,
+        targetId: 1,
+        version: "v1",
+      };
+      const decision: AttendeeMergeDecisionInput = {
+        answers: {},
+        bookings: {},
+        money: {},
+        pii: {},
+        version: "v1",
+      };
+      const result = validateAttendeeMergeDecision(diff, decision);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(
+          result.errors.some((e) => e.includes("strand a recorded payment")),
+        ).toBe(true);
+      }
+    });
+
+    test("rejects replacing an active paid target line with a no-quantity source", () => {
+      // take_source would delete the paid target and insert the quantity-0
+      // source, stranding the target's payment behind a ghost row.
+      const diff: AttendeeMergeDiff = {
+        answerItems: [],
+        bookingItems: [
+          {
+            conflictClass: "conflicting_metadata",
+            listingId: 5,
+            sourceBooking: {
+              attachment_downloads: 0,
+              checked_in: 0,
+              end_at: null,
+              ledger_event_group: "",
+              listing_id: 5,
+              order_token: "",
+              parent_listing_id: 0,
+              price_paid: 0,
+              quantity: 0,
+              refunded: 0,
+              start_at: null,
+            },
+            sourceSaleAmount: 0,
+            startAt: null,
+            targetBooking: {
+              attachment_downloads: 0,
+              checked_in: 0,
+              end_at: null,
+              ledger_event_group: "",
+              listing_id: 5,
+              order_token: "",
+              parent_listing_id: 0,
+              price_paid: 1500,
+              quantity: 2,
+              refunded: 0,
+              start_at: null,
+            },
+            targetSaleAmount: 1500,
+          },
+        ],
+        piiFields: [],
+        sourceId: 2,
+        targetId: 1,
+        version: "v1",
+      };
+      const decision: AttendeeMergeDecisionInput = {
+        answers: {},
+        bookings: { "5:null": "take_source" },
+        money: {},
+        pii: {},
+        version: "v1",
+      };
+      const result = validateAttendeeMergeDecision(diff, decision);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(
+          result.errors.some((e) => e.includes("strand a recorded payment")),
+        ).toBe(true);
+      }
+    });
+
+    test("allows moving a no-quantity source line that carries no payment", () => {
+      // A clean quantity-0 sentinel (no payment, no paid target) is moveable.
+      const diff: AttendeeMergeDiff = {
+        answerItems: [],
+        bookingItems: [
+          {
+            conflictClass: "moveable",
+            listingId: 5,
+            sourceBooking: {
+              attachment_downloads: 0,
+              checked_in: 0,
+              end_at: null,
+              ledger_event_group: "",
+              listing_id: 5,
+              order_token: "",
+              parent_listing_id: 0,
+              price_paid: 0,
+              quantity: 0,
+              refunded: 0,
+              start_at: null,
+            },
+            sourceSaleAmount: 0,
+            startAt: null,
+            targetBooking: null,
+            targetSaleAmount: 0,
+          },
+        ],
+        piiFields: [],
+        sourceId: 2,
+        targetId: 1,
+        version: "v1",
+      };
+      const decision: AttendeeMergeDecisionInput = {
+        answers: {},
+        bookings: {},
+        money: {},
+        pii: {},
+        version: "v1",
+      };
+      expect(validateAttendeeMergeDecision(diff, decision).valid).toBe(true);
+    });
+
     test("accepts valid decisions", () => {
       const diff: AttendeeMergeDiff = {
         answerItems: [
@@ -912,6 +1064,85 @@ describeWithEnv("attendee merge service", { db: true }, () => {
   });
 
   describe("applyAttendeeMerge", () => {
+    test("clears check-in when copying a no-quantity source line", async () => {
+      const listing1 = await createTestListing({
+        maxAttendees: 10,
+        name: "M1",
+      });
+      const listing2 = await createTestListing({
+        maxAttendees: 10,
+        name: "M2",
+      });
+      const target = await createAttendee(listing1.id, "Alice", "a@test.com");
+      const source = await createAttendee(listing2.id, "Bob", "b@test.com");
+      // Make source's line a checked-in quantity-0 sentinel (price 0).
+      await getDb().execute({
+        args: [source.id],
+        sql: "UPDATE listing_attendees SET quantity = 0, checked_in = 1 WHERE attendee_id = ?",
+      });
+
+      const diff = await buildAttendeeMergeDiff(
+        {
+          sourceBookings: await getBookings(source.id),
+          sourceId: source.id,
+          sourcePii: {
+            address: "",
+            email: "b@test.com",
+            name: "Bob",
+            phone: "",
+            special_instructions: "",
+          },
+          targetBookings: await getBookings(target.id),
+          targetId: target.id,
+          targetPii: {
+            address: "",
+            email: "a@test.com",
+            name: "Alice",
+            phone: "",
+            special_instructions: "",
+          },
+        },
+        [],
+      );
+      const result = await applyAttendeeMerge({
+        decision: {
+          answers: {},
+          bookings: {},
+          money: {},
+          pii: {},
+          version: diff.version,
+        },
+        diff,
+        privateKey: await getTestPrivateKey(),
+        sourceId: source.id,
+        sourcePii: {
+          address: "",
+          email: "b@test.com",
+          name: "Bob",
+          phone: "",
+          special_instructions: "",
+        },
+        targetId: target.id,
+        targetPii: {
+          address: "",
+          email: "a@test.com",
+          name: "Alice",
+          payment_id: target.payment_id,
+          phone: "",
+          special_instructions: "",
+          ticket_token: target.ticket_token,
+        },
+      });
+      expect(result.success).toBe(true);
+
+      const moved = (await getBookings(target.id)).find(
+        (b) => b.listing_id === listing2.id,
+      )!;
+      expect(moved.quantity).toBe(0);
+      // The ghost line arrives with its check-in cleared.
+      expect(moved.checked_in).toBe(0);
+    });
+
     test("applies PII and answer decisions correctly", async () => {
       const listing1 = await createTestListing({
         maxAttendees: 10,

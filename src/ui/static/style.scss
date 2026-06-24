@@ -1250,6 +1250,52 @@ output.success {
   color: #8ab4ff;
 }
 
+/* Per-attendee operator/system notes */
+.attendee-notes {
+  margin-bottom: var(--space-l);
+}
+.system-note {
+  background: var(--color-surface-alt, #f4f4f4);
+  border-left: 4px solid #888;
+  margin-bottom: var(--space-s);
+  padding: var(--space-m);
+  position: relative;
+}
+.system-note-alert {
+  background: #ffeeee;
+  border-left-color: #cc0000;
+  color: #cc0000;
+}
+[data-theme="dark"] .system-note-alert {
+  background: #3c2020;
+  color: #ff5555;
+}
+.system-note-dismiss {
+  float: right;
+  font-size: 1.4em;
+  line-height: 1;
+  margin-left: var(--space-s);
+  text-decoration: none;
+}
+.system-note-tag {
+  font-size: 0.75em;
+  font-weight: bold;
+  letter-spacing: 0.05em;
+  margin-right: var(--space-s);
+  text-transform: uppercase;
+}
+.attendee-notes-summary {
+  margin-bottom: var(--space-m);
+  padding: var(--space-m);
+}
+.attendee-notes-summary summary {
+  cursor: pointer;
+  font-weight: bold;
+}
+.attendee-notes-summary-group {
+  margin-top: var(--space-s);
+}
+
 /* Danger elements */
 .danger,
 a.danger,
@@ -1638,6 +1684,14 @@ label.terms-agree {
 // keeps the single labelled field in the DOM, so its "Promo code" label stays
 // associated for screen readers.
 @include reveal-when-selected("trigger", "code", 'label:has([name="code"])');
+
+// In the attendee listing editor, ticking a row's "No quantity" box hides that
+// row's quantity input (the line is kept as a quantity-0 sentinel — owners never
+// edit a literal 0). Row-scoped via :has() so it only affects the ticked row;
+// pure CSS, no JavaScript.
+.attendee-line-qty:has(.no-quantity-toggle:checked) .line-qty {
+  display: none;
+}
 
 /* Utility classes for strict CSP (no inline styles) */
 .hidden {

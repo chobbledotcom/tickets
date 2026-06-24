@@ -1,8 +1,11 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { deleteAttendee, getAttendee } from "#shared/db/attendees.ts";
-import { queryOne } from "#shared/db/client.ts";
-import { getListingWithCount } from "#shared/db/listings.ts";
+import { getDb, queryOne } from "#shared/db/client.ts";
+import {
+  getListingWithCount,
+  invalidateListingsCache,
+} from "#shared/db/listings.ts";
 import {
   consumeModifierStock,
   modifierUsedQuantities,
@@ -13,6 +16,7 @@ import {
   isSessionProcessed,
   reserveSession,
 } from "#shared/db/processed-payments.ts";
+import { createSystemNote, getNoteRows } from "#shared/db/system-notes.ts";
 import {
   createPaidTestAttendee,
   createTestAttendee,
@@ -54,7 +58,9 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
     );
 
     await reserveSession("sess_attendee_delete");
-    await finalizePaymentSession("sess_attendee_delete", attendee.id);
+    await finalizePaymentSession("sess_attendee_delete", attendee.id, [
+      "tok-test",
+    ]);
 
     await deleteAttendee(attendee.id);
 
@@ -109,6 +115,37 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
     });
   });
 
+  test("deleting a quantity-0-only attendee without releasing does not inflate tickets_count", async () => {
+    const listing = await createTestListing({ maxAttendees: 50 });
+    const attendee = await createTestAttendee(
+      listing.id,
+      listing.slug,
+      "Ghost Line",
+      "ghost@example.com",
+    );
+    // Turn the single line into a no-quantity sentinel: the UPDATE trigger drops
+    // tickets_count to 0. The hold-delete restore must add 0 back (SUM(CASE …)),
+    // not 1 (a plain COUNT(*) would permanently inflate tickets_count).
+    await getDb().execute({
+      args: [attendee.id],
+      sql: "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ?",
+    });
+    // The raw UPDATE bypasses the wrapped client's cache invalidation.
+    invalidateListingsCache();
+    expect(await getListingWithCount(listing.id)).toMatchObject({
+      attendee_count: 0,
+      tickets_count: 0,
+    });
+
+    await deleteAttendee(attendee.id, { releaseBookings: false });
+
+    expect(await getListingWithCount(listing.id)).toMatchObject({
+      attendee_count: 0,
+      income: 0,
+      tickets_count: 0,
+    });
+  });
+
   test("keeps modifier usage rows and totals after attendee deletion", async () => {
     const listing = await createTestListing({
       maxAttendees: 50,
@@ -157,6 +194,25 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
       total_uses: 3,
       usage_count: 1,
     });
+  });
+
+  test("removes the attendee's system notes", async () => {
+    const listing = await createTestListing({
+      maxAttendees: 50,
+      thankYouUrl: "https://example.com",
+    });
+    const attendee = await createTestAttendee(
+      listing.id,
+      listing.slug,
+      "Noted Attendee",
+      "noted@example.com",
+    );
+    await createSystemNote(attendee.id, "a note that should be purged");
+    expect(await getNoteRows([attendee.id])).toHaveLength(1);
+
+    await deleteAttendee(attendee.id);
+
+    expect(await getNoteRows([attendee.id])).toEqual([]);
   });
 
   test("succeeds when the attendee has no modifier usage", async () => {

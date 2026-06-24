@@ -20,8 +20,9 @@ import {
   type AttendeeFormLine,
   type BalanceNotice,
   DAY_COUNT_FIELD,
-  isBookedLine,
+  isRetainedLine,
   LINE_KEY_PREFIX,
+  NO_QUANTITY_PREFIX,
   type ParsedAttendeeForm,
   QTY_PREFIX,
   REMAINING_BALANCE_FIELD,
@@ -49,6 +50,7 @@ import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
 import type { AttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import type { ContactRecord } from "#shared/db/contact-preferences.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
+import type { SystemNote } from "#shared/db/system-notes.ts";
 import { CsrfForm, Flash } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
@@ -56,6 +58,7 @@ import { START_DATE_FIELD } from "#shared/order-select.ts";
 import {
   type AdminSession,
   type Attendee,
+  hasTicketQuantity,
   MAX_DURATION_DAYS,
 } from "#shared/types.ts";
 import {
@@ -67,6 +70,7 @@ import {
   AttendeeLogSection,
   BookingStatusBadges,
 } from "#templates/admin/attendee-detail.tsx";
+import { AttendeeNotesSection } from "#templates/admin/attendee-notes.tsx";
 import { EditQuestions, PaymentDetails } from "#templates/admin/attendees.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import {
@@ -144,6 +148,9 @@ export type AttendeeFormTemplateData = {
   topWarnings: string[];
   /** Logistics selectors data, or undefined when logistics doesn't apply. */
   logistics?: AttendeeLogisticsData;
+  /** Operator/system notes for this attendee, oldest first (edit mode; empty in
+   * create mode). Rendered as a prominent notes block above the form. */
+  systemNotes: SystemNote[];
 };
 
 /** One row of the listing editor — a listing and its quantity box. */
@@ -155,7 +162,7 @@ const ListingRow = ({
   warnings: string[];
 }): JSX.Element => {
   const listing = line.listing!;
-  const booked = isBookedLine(line) || Boolean(line.existingBooking);
+  const booked = isRetainedLine(line) || Boolean(line.existingBooking);
   const isDaily = listing.listing_type === "daily";
   return (
     <tr class={booked ? "attendee-line" : "attendee-line attendee-line-empty"}>
@@ -174,9 +181,10 @@ const ListingRow = ({
           <span class="muted small">Fixed date</span>
         )}
       </td>
-      <td>
+      <td class="attendee-line-qty">
         <input
           aria-label={`Quantity for ${listing.name}`}
+          class="line-qty"
           max={listing.max_quantity}
           min="0"
           name={`${QTY_PREFIX}${listing.id}`}
@@ -184,6 +192,16 @@ const ListingRow = ({
           type="number"
           value={line.quantity === null ? "0" : String(line.quantity)}
         />
+        <label class="small">
+          <input
+            checked={line.noQuantity}
+            class="no-quantity-toggle"
+            name={`${NO_QUANTITY_PREFIX}${listing.id}`}
+            type="checkbox"
+            value="1"
+          />
+          No quantity
+        </label>
         <input
           name={`${LINE_KEY_PREFIX}${listing.id}`}
           type="hidden"
@@ -226,7 +244,7 @@ const ListingEditor = ({
   data: AttendeeFormTemplateData;
 }): JSX.Element => {
   const hasBookedLines = data.parsed.lines.some(
-    (line) => isBookedLine(line) || Boolean(line.existingBooking),
+    (line) => isRetainedLine(line) || Boolean(line.existingBooking),
   );
   return (
     <div
@@ -862,6 +880,10 @@ export const attendeeFormPage = (
         <StatusHeading data={data} />
       </div>
 
+      {isEdit && a && (
+        <AttendeeNotesSection attendeeId={a.id} notes={data.systemNotes} />
+      )}
+
       {data.topWarnings.length > 0 && (
         <output class="warning" role="alert">
           <strong>Please double-check:</strong>
@@ -877,6 +899,7 @@ export const attendeeFormPage = (
         <AttendeeDetail
           allowedDomain={data.allowedDomain}
           attendee={a}
+          hasRealLine={data.bookings.some(hasTicketQuantity)}
           phonePrefix={data.phonePrefix}
         />
       )}

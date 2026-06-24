@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { attendeesApi } from "#shared/db/attendees.ts";
+import { getDb } from "#shared/db/client.ts";
 import { getListingWithCount } from "#shared/db/listings.ts";
 import {
   answersTable,
@@ -707,6 +708,57 @@ describeWithEnv("server (admin attendees)", { db: true }, () => {
       const { listing } = await checkinAction({})();
 
       await assertAdminHtml(`/admin/listing/${listing.id}`, "Check out");
+    });
+  });
+
+  describe("no-quantity row action guards", () => {
+    /** Set up an admin session + attendee whose single line is a quantity-0
+     * sentinel, then POST one of its listing-scoped actions. */
+    const ghostRowAction = async (
+      action: string,
+    ): Promise<{ response: Response; listingId: number }> => {
+      const ctx = await setupAdminTest();
+      await getDb().execute({
+        args: [ctx.attendee.id, ctx.listing.id],
+        sql: "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ? AND listing_id = ?",
+      });
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/listing/${ctx.listing.id}/attendee/${ctx.attendee.id}/${action}`,
+          // setupAdminTest creates the attendee as "John Doe"; verified actions
+          // (resend/refund) require the exact name in confirm_identifier.
+          { confirm_identifier: "John Doe", csrf_token: ctx.csrfToken },
+          ctx.cookie,
+        ),
+      );
+      return { listingId: ctx.listing.id, response };
+    };
+
+    test("check-in refuses a no-quantity row and leaves it unchecked", async () => {
+      const { response, listingId } = await ghostRowAction("checkin");
+      expectFlash(response, "Cannot check in a no-quantity line", false);
+      const row = await getDb().execute({
+        args: [listingId],
+        sql: "SELECT checked_in FROM listing_attendees WHERE listing_id = ?",
+      });
+      expect(Number(row.rows[0]!.checked_in)).toBe(0);
+    });
+
+    test("re-send notification refuses a no-quantity row", async () => {
+      const { response } = await ghostRowAction("resend-notification");
+      expectFlash(
+        response,
+        "Cannot re-send a notification for a no-quantity line",
+        false,
+      );
+    });
+
+    test("refund refuses a no-quantity row (no payment to refund)", async () => {
+      const { response } = await ghostRowAction("refund");
+      // The listing-scoped refund hides on a ghost row rather than refunding a
+      // charge from a listing it doesn't belong to.
+      expectRedirect(response, "/refund");
+      expectFlash(response, expect.stringContaining("no payment"), false);
     });
   });
 

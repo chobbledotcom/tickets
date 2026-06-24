@@ -6,6 +6,7 @@ import {
   describeWithEnv,
   stubFetchJson,
   stubFetchRecorder,
+  stubFetchStatus,
   withMocks,
 } from "#test-utils";
 
@@ -23,18 +24,26 @@ const edgeScriptResponse = (
   LinkedPullZones: pullZones,
 });
 
+/** The single linked pull zone most edge-script tests exercise. */
+const SINGLE_PULL_ZONE = [
+  { DefaultHostname: "mysite.b-cdn.net", Id: 222, PullZoneName: "mysite" },
+];
+
+/** Assert a `{ ok: false; error }` result whose error contains `contains`. */
+const expectErrorResult = (
+  result: { ok: boolean; error?: string },
+  contains: string,
+): void => {
+  expect(result.ok).toBe(false);
+  if (!result.ok) expect(result.error).toContain(contains);
+};
+
 describeWithEnv(
   "getEdgeScript",
   { env: { BUNNY_API_KEY: "test-bunny-key", BUNNY_SCRIPT_ID: "99" } },
   () => {
     test("returns edge script data on success", async () => {
-      const response = edgeScriptResponse([
-        {
-          DefaultHostname: "mysite.b-cdn.net",
-          Id: 222,
-          PullZoneName: "mysite",
-        },
-      ]);
+      const response = edgeScriptResponse(SINGLE_PULL_ZONE);
       await withMocks(
         () => stubFetchJson(response),
         async () => {
@@ -46,10 +55,7 @@ describeWithEnv(
 
     test("returns error when API request fails", async () => {
       await withMocks(
-        () =>
-          stub(globalThis, "fetch", () =>
-            Promise.resolve(new Response("Unauthorized", { status: 401 })),
-          ),
+        () => stubFetchStatus(401, "Unauthorized"),
         async () => {
           const result = await bunnyCdnApi.getEdgeScript();
           expect(result).toEqual({
@@ -66,10 +72,7 @@ describeWithEnv(
         Message: "Script not found.",
       });
       await withMocks(
-        () =>
-          stub(globalThis, "fetch", () =>
-            Promise.resolve(new Response(jsonBody, { status: 404 })),
-          ),
+        () => stubFetchStatus(404, jsonBody),
         async () => {
           const result = await bunnyCdnApi.getEdgeScript();
           expect(result).toEqual({
@@ -88,13 +91,7 @@ describeWithEnv(
   { env: { BUNNY_API_KEY: "test-bunny-key", BUNNY_SCRIPT_ID: "99" } },
   () => {
     test("returns pull zone ID from first linked pull zone", async () => {
-      const response = edgeScriptResponse([
-        {
-          DefaultHostname: "mysite.b-cdn.net",
-          Id: 222,
-          PullZoneName: "mysite",
-        },
-      ]);
+      const response = edgeScriptResponse(SINGLE_PULL_ZONE);
       await withMocks(
         () => stubFetchJson(response),
         async () => {
@@ -119,10 +116,7 @@ describeWithEnv(
 
     test("returns error when edge script API fails", async () => {
       await withMocks(
-        () =>
-          stub(globalThis, "fetch", () =>
-            Promise.resolve(new Response("Unauthorized", { status: 401 })),
-          ),
+        () => stubFetchStatus(401, "Unauthorized"),
         async () => {
           const result = await bunnyCdnApi.findPullZoneId();
           expect(result).toEqual({
@@ -161,10 +155,7 @@ describeWithEnv(
 
     test("returns error when edge script API fails", async () => {
       await withMocks(
-        () =>
-          stub(globalThis, "fetch", () =>
-            Promise.resolve(new Response("Not found", { status: 404 })),
-          ),
+        () => stubFetchStatus(404, "Not found"),
         async () => {
           const result = await bunnyCdnApi.getCdnHostname();
           expect(result).toEqual({
@@ -221,20 +212,10 @@ describeWithEnv(
 
     test("returns error on API failure", async () => {
       await withMocks(
-        () =>
-          stub(globalThis, "fetch", () =>
-            Promise.resolve(
-              new Response(JSON.stringify({ Message: "Bad Request" }), {
-                status: 400,
-              }),
-            ),
-          ),
+        () => stubFetchStatus(400, JSON.stringify({ Message: "Bad Request" })),
         async () => {
           const result = await bunnyCdnApi.createEdgeScript("Test", "code");
-          expect(result.ok).toBe(false);
-          if (!result.ok) {
-            expect(result.error).toContain("Create edge script failed");
-          }
+          expectErrorResult(result, "Create edge script failed");
         },
       );
     });
@@ -278,10 +259,7 @@ describeWithEnv(
 
     test("returns error when code upload fails", async () => {
       await withMocks(
-        () =>
-          stub(globalThis, "fetch", () =>
-            Promise.resolve(new Response("Server Error", { status: 500 })),
-          ),
+        () => stubFetchStatus(500, "Server Error"),
         async () => {
           const result = await bunnyCdnApi.deployScriptCode("code");
           expect(result).toEqual({
@@ -337,16 +315,10 @@ describeWithEnv(
 
     test("returns error on API failure", async () => {
       await withMocks(
-        () =>
-          stub(globalThis, "fetch", () =>
-            Promise.resolve(new Response("Server Error", { status: 500 })),
-          ),
+        () => stubFetchStatus(500, "Server Error"),
         async () => {
           const result = await bunnyCdnApi.publishEdgeScript(42);
-          expect(result.ok).toBe(false);
-          if (!result.ok) {
-            expect(result.error).toContain("Publish edge script failed");
-          }
+          expectErrorResult(result, "Publish edge script failed");
         },
       );
     });
@@ -380,20 +352,14 @@ describeWithEnv(
 
     test("returns error on API failure", async () => {
       await withMocks(
-        () =>
-          stub(globalThis, "fetch", () =>
-            Promise.resolve(new Response("Forbidden", { status: 403 })),
-          ),
+        () => stubFetchStatus(403, "Forbidden"),
         async () => {
           const result = await bunnyCdnApi.setEdgeScriptSecret(
             42,
             "DB_URL",
             "test",
           );
-          expect(result.ok).toBe(false);
-          if (!result.ok) {
-            expect(result.error).toContain("Set secret DB_URL failed");
-          }
+          expectErrorResult(result, "Set secret DB_URL failed");
         },
       );
     });
@@ -453,16 +419,10 @@ describeWithEnv(
 
     test("returns error on API failure", async () => {
       await withMocks(
-        () =>
-          stub(globalThis, "fetch", () =>
-            Promise.resolve(new Response("Forbidden", { status: 403 })),
-          ),
+        () => stubFetchStatus(403, "Forbidden"),
         async () => {
           const result = await bunnyCdnApi.listEdgeScriptSecrets(42);
-          expect(result.ok).toBe(false);
-          if (!result.ok) {
-            expect(result.error).toContain("List secrets failed (403)");
-          }
+          expectErrorResult(result, "List secrets failed (403)");
         },
       );
     });
@@ -491,18 +451,12 @@ describeWithEnv(
 
     test("returns error on API failure", async () => {
       await withMocks(
-        () =>
-          stub(globalThis, "fetch", () =>
-            Promise.resolve(new Response("Server Error", { status: 500 })),
-          ),
+        () => stubFetchStatus(500, "Server Error"),
         async () => {
           const result = await bunnyCdnApi.updatePullZone(99, {
             DisableCookies: false,
           });
-          expect(result.ok).toBe(false);
-          if (!result.ok) {
-            expect(result.error).toContain("Update pull zone failed");
-          }
+          expectErrorResult(result, "Update pull zone failed");
         },
       );
     });

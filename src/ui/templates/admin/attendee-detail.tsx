@@ -57,10 +57,15 @@ export const AttendeeDetail = ({
   attendee,
   allowedDomain,
   phonePrefix,
+  hasRealLine,
 }: {
   attendee: Attendee;
   allowedDomain: string;
   phonePrefix: string;
+  /** Whether the attendee has any real (quantity > 0) booking. A no-quantity-only
+   * attendee has no live customer ticket — its /t page 404s — so we show the
+   * no-quantity indicator instead of a link that fails on click. */
+  hasRealLine: boolean;
 }): JSX.Element => {
   const rows = compact([
     <DetailTableRow label={t("common.name")}>{attendee.name}</DetailTableRow>,
@@ -86,9 +91,13 @@ export const AttendeeDetail = ({
       </DetailTableRow>
     ) : null,
     <DetailTableRow label={t("terms.ticket")}>
-      <a href={`https://${allowedDomain}/t/${attendee.ticket_token}`}>
-        {attendee.ticket_token}
-      </a>
+      {hasRealLine ? (
+        <a href={`https://${allowedDomain}/t/${attendee.ticket_token}`}>
+          {attendee.ticket_token}
+        </a>
+      ) : (
+        <span class="muted small">{t("admin.attendee_table.no_quantity")}</span>
+      )}
     </DetailTableRow>,
     <DetailTableRow label={t("common.registered")}>
       {formatDatetimeShort(attendee.created)}

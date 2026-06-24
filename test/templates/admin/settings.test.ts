@@ -44,6 +44,35 @@ const defaultState = (): SettingsPageState => ({
   webhookUrl: "https://example.com/payment/webhook",
 });
 
+type AvailableSuperuser = Extract<
+  SettingsPageState["superuser"],
+  { available: true }
+>;
+
+/** An available (recovery-enabled) superuser state; override per test. */
+const availableSuperuser = (
+  overrides: Partial<AvailableSuperuser> = {},
+): AvailableSuperuser => ({
+  activated: false,
+  available: true,
+  choice: "",
+  email: validEmail("admin@example.com"),
+  userExists: false,
+  username: "admin",
+  ...overrides,
+});
+
+/** Render adminSettingsPage with the given superuser state, defaults otherwise. */
+const renderSuperuser = (superuser: SettingsPageState["superuser"]): string =>
+  adminSettingsPage(TEST_SESSION, { ...defaultState(), superuser });
+
+/** The `id="settings-superuser"` form section of a rendered settings page. */
+const superuserFormHtml = (html: string): string => {
+  const start = html.indexOf('id="settings-superuser"');
+  const end = html.indexOf("</form>", start) + 7;
+  return html.slice(start, end);
+};
+
 describe("adminSettingsPage", () => {
   test("omits the key-mode notice for a configured key with an unknown mode", () => {
     const html = adminSettingsPage(TEST_SESSION, {
@@ -137,17 +166,7 @@ describe("adminSettingsPage", () => {
 
 describe("adminSettingsPage > SuperuserForm", () => {
   test("renders 'Superuser Recovery' heading when superuser.available is true", () => {
-    const html = adminSettingsPage(TEST_SESSION, {
-      ...defaultState(),
-      superuser: {
-        activated: false,
-        available: true,
-        choice: "",
-        email: validEmail("admin@example.com"),
-        userExists: false,
-        username: "admin",
-      },
-    });
+    const html = renderSuperuser(availableSuperuser());
     expect(html).toContain("Superuser Recovery");
   });
 
@@ -185,17 +204,7 @@ describe("adminSettingsPage > SuperuserForm", () => {
 
 describe("adminSettingsPage > SuperuserForm radio labels", () => {
   test("renders self-managed radio label with exact grammatically-correct text", () => {
-    const html = adminSettingsPage(TEST_SESSION, {
-      ...defaultState(),
-      superuser: {
-        activated: false,
-        available: true,
-        choice: "",
-        email: validEmail("admin@example.com"),
-        userExists: false,
-        username: "admin",
-      },
-    });
+    const html = renderSuperuser(availableSuperuser());
     expect(html).toContain(
       "I understand that my attendee information cannot be decrypted without my password, and that I am responsible for storing my password securely. If I forget it, I will be locked out of my attendee records.",
     );
@@ -342,103 +351,59 @@ describe("adminSettingsPage > SuperuserForm radio checked state", () => {
 
 describe("adminSettingsPage > SuperuserForm existing-superuser state", () => {
   test("shows already-exists message with interpolated username", () => {
-    const html = adminSettingsPage(TEST_SESSION, {
-      ...defaultState(),
-      superuser: {
+    const html = renderSuperuser(
+      availableSuperuser({
         activated: true,
-        available: true,
-        choice: "",
-        email: validEmail("admin@example.com"),
         userExists: true,
         username: "myadmin",
-      },
-    });
+      }),
+    );
     expect(html).toContain("Superuser myadmin is already activated.");
   });
 
   test("already-exists message links 'users page' to /admin/users", () => {
-    const html = adminSettingsPage(TEST_SESSION, {
-      ...defaultState(),
-      superuser: {
+    const html = renderSuperuser(
+      availableSuperuser({
         activated: true,
-        available: true,
-        choice: "",
-        email: validEmail("admin@example.com"),
         userExists: true,
         username: "myadmin",
-      },
-    });
+      }),
+    );
     expect(html).toContain('<a href="/admin/users">users page</a>');
   });
 
   test("already-exists message ends with a period after the link", () => {
-    const html = adminSettingsPage(TEST_SESSION, {
-      ...defaultState(),
-      superuser: {
+    const html = renderSuperuser(
+      availableSuperuser({
         activated: true,
-        available: true,
-        choice: "",
-        email: validEmail("admin@example.com"),
         userExists: true,
         username: "myadmin",
-      },
-    });
+      }),
+    );
     expect(html).toContain("users page</a>.");
   });
 
   test("does not render radio inputs when user exists", () => {
-    const html = adminSettingsPage(TEST_SESSION, {
-      ...defaultState(),
-      superuser: {
-        activated: true,
-        available: true,
-        choice: "",
-        email: validEmail("admin@example.com"),
-        userExists: true,
-        username: "admin",
-      },
-    });
+    const html = renderSuperuser(
+      availableSuperuser({ activated: true, userExists: true }),
+    );
     // Extract just the superuser form section
-    const superuserStart = html.indexOf('id="settings-superuser"');
-    const superuserEnd = html.indexOf("</form>", superuserStart) + 7;
-    const superuserHtml = html.slice(superuserStart, superuserEnd);
+    const superuserHtml = superuserFormHtml(html);
     expect(superuserHtml).not.toContain('type="radio"');
   });
 
   test("submit button is NOT rendered in superuser form when user exists", () => {
-    const html = adminSettingsPage(TEST_SESSION, {
-      ...defaultState(),
-      superuser: {
-        activated: true,
-        available: true,
-        choice: "",
-        email: validEmail("admin@example.com"),
-        userExists: true,
-        username: "admin",
-      },
-    });
-    const superuserStart = html.indexOf('id="settings-superuser"');
-    const superuserEnd = html.indexOf("</form>", superuserStart) + 7;
-    const superuserHtml = html.slice(superuserStart, superuserEnd);
+    const html = renderSuperuser(
+      availableSuperuser({ activated: true, userExists: true }),
+    );
+    const superuserHtml = superuserFormHtml(html);
     expect(superuserHtml).not.toContain('type="submit"');
     expect(superuserHtml).not.toContain("<button");
   });
 
   test("submit button IS rendered in superuser form when activated is false", () => {
-    const html = adminSettingsPage(TEST_SESSION, {
-      ...defaultState(),
-      superuser: {
-        activated: false,
-        available: true,
-        choice: "",
-        email: validEmail("admin@example.com"),
-        userExists: false,
-        username: "admin",
-      },
-    });
-    const superuserStart = html.indexOf('id="settings-superuser"');
-    const superuserEnd = html.indexOf("</form>", superuserStart) + 7;
-    const superuserHtml = html.slice(superuserStart, superuserEnd);
+    const html = renderSuperuser(availableSuperuser());
+    const superuserHtml = superuserFormHtml(html);
     expect(superuserHtml).toContain('type="submit"');
   });
 });
@@ -449,17 +414,7 @@ describe("adminSettingsPage > SuperuserForm existing-superuser state", () => {
 
 describe("adminSettingsPage > SuperuserForm placement", () => {
   test("SuperuserForm is placed immediately before ChangePasswordForm in DOM order", () => {
-    const html = adminSettingsPage(TEST_SESSION, {
-      ...defaultState(),
-      superuser: {
-        activated: false,
-        available: true,
-        choice: "",
-        email: validEmail("admin@example.com"),
-        userExists: false,
-        username: "admin",
-      },
-    });
+    const html = renderSuperuser(availableSuperuser());
     const superuserIndex = html.indexOf("Superuser Recovery");
     const changePasswordIndex = html.indexOf("Change Password");
     expect(superuserIndex).toBeGreaterThan(-1);

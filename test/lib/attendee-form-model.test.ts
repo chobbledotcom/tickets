@@ -6,6 +6,8 @@ import {
   attendeeBookingsFromLines,
   bookingDurationDays,
   isBookedLine,
+  isNoQuantityLine,
+  isRetainedLine,
   type ParsedAttendeeForm,
   parseAttendeeForm,
   resolveSharedDates,
@@ -28,6 +30,7 @@ const line = (overrides: Partial<AttendeeFormLine> = {}): AttendeeFormLine => ({
   key: "",
   listing: testListingWithCount({ id: 1, max_quantity: 5 }),
   listingId: 1,
+  noQuantity: false,
   quantity: 1,
   ...overrides,
 });
@@ -269,6 +272,26 @@ describe("parseAttendeeForm", () => {
     );
     expect(parsed.lines[0]!.existingBooking).toEqual(booking);
   });
+
+  test("a ticked no-quantity box forces quantity 0 and ignores the qty input", () => {
+    const parsed = parseAttendeeForm(
+      // The qty input is CSS-hidden but a stale value can still be submitted;
+      // it must be ignored in favour of the sentinel 0.
+      makeForm({ name: "X", noqty_5: "1", qty_5: "9" }),
+      new Map(),
+    );
+    expect(parsed.lines[0]!.noQuantity).toBe(true);
+    expect(parsed.lines[0]!.quantity).toBe(0);
+  });
+
+  test("an unticked no-quantity box keeps the entered quantity", () => {
+    const parsed = parseAttendeeForm(
+      makeForm({ name: "X", qty_5: "2" }),
+      new Map(),
+    );
+    expect(parsed.lines[0]!.noQuantity).toBe(false);
+    expect(parsed.lines[0]!.quantity).toBe(2);
+  });
 });
 
 describe("isBookedLine", () => {
@@ -277,6 +300,31 @@ describe("isBookedLine", () => {
     expect(isBookedLine(line({ quantity: 0 }))).toBe(false);
     expect(isBookedLine(line({ quantity: null }))).toBe(false);
     expect(isBookedLine(line({ listing: null }))).toBe(false);
+  });
+});
+
+describe("isNoQuantityLine / isRetainedLine", () => {
+  test("a no-quantity line is not booked but is retained", () => {
+    const noQty = line({ noQuantity: true, quantity: 0 });
+    expect(isBookedLine(noQty)).toBe(false);
+    expect(isNoQuantityLine(noQty)).toBe(true);
+    expect(isRetainedLine(noQty)).toBe(true);
+  });
+
+  test("an unbooked line (qty 0, box unticked) is neither retained nor no-quantity", () => {
+    const removed = line({ noQuantity: false, quantity: 0 });
+    expect(isNoQuantityLine(removed)).toBe(false);
+    expect(isRetainedLine(removed)).toBe(false);
+  });
+
+  test("a real booking is retained", () => {
+    expect(isRetainedLine(line({ quantity: 2 }))).toBe(true);
+  });
+
+  test("a no-quantity tick on an unresolved listing is ignored", () => {
+    expect(
+      isNoQuantityLine(line({ listing: null, noQuantity: true, quantity: 0 })),
+    ).toBe(false);
   });
 });
 
@@ -500,6 +548,90 @@ describe("toDesiredLines", () => {
       parsedBase({ lines: [line({ quantity: 0 })] }),
     );
     expect(desired).toHaveLength(0);
+  });
+
+  test("keeps a no-quantity line as a quantity-0 desired line", () => {
+    const desired = toDesiredLines(
+      parsedBase({
+        lines: [
+          line({
+            existingBooking: bookingRow({ listing_id: 1 }),
+            key: "1|",
+            noQuantity: true,
+            quantity: 0,
+          }),
+        ],
+      }),
+    );
+    expect(desired).toHaveLength(1);
+    expect(desired[0]).toMatchObject({ exists: true, quantity: 0 });
+  });
+});
+
+describe("no-quantity persistence + paid-line guard", () => {
+  test("toCreateInput keeps a no-quantity line at quantity 0", () => {
+    const input = toCreateInput(
+      parsedBase({
+        lines: [
+          line({
+            listing: testListingWithCount({ id: 1, listing_type: "standard" }),
+            listingId: 1,
+            noQuantity: true,
+            quantity: 0,
+          }),
+        ],
+      }),
+    );
+    expect(input.bookings).toEqual([
+      { date: null, durationDays: undefined, listingId: 1, quantity: 0 },
+    ]);
+  });
+
+  test("validateParsedForm blocks marking a paid line no-quantity", () => {
+    const parsed = parsedBase({
+      lines: [
+        line({
+          existingBooking: bookingRow({ price_paid: 1500, quantity: 2 }),
+          noQuantity: true,
+          quantity: 0,
+        }),
+      ],
+    });
+    const result = validateParsedForm(parsed);
+    expect(result.valid).toBe(false);
+    if (!result.valid) expect(result.lineErrors.get(0)).toContain("Refund");
+    // The per-line error field (rendered inline against the row) carries the
+    // exact message, not a concatenation onto its prior value.
+    expect(parsed.lines[0]!.error).toBe(
+      "Refund this line's payment before marking it no quantity.",
+    );
+  });
+
+  test("validateParsedForm allows marking an unpaid line no-quantity", () => {
+    const parsed = parsedBase({
+      lines: [
+        line({
+          existingBooking: bookingRow({ price_paid: 0, quantity: 1 }),
+          noQuantity: true,
+          quantity: 0,
+        }),
+      ],
+    });
+    const result = validateParsedForm(parsed);
+    expect(result.valid).toBe(true);
+    // A valid line's per-line error is cleared to exactly null.
+    expect(parsed.lines[0]!.error).toBe(null);
+  });
+
+  test("validateParsedForm allows a brand-new no-quantity line (no existing booking)", () => {
+    // A never-booked line ticked no-quantity has no existingBooking, so the
+    // paid-line guard reads price_paid as 0 and the line validates.
+    const result = validateParsedForm(
+      parsedBase({
+        lines: [line({ existingBooking: null, noQuantity: true, quantity: 0 })],
+      }),
+    );
+    expect(result.valid).toBe(true);
   });
 });
 

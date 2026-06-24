@@ -356,7 +356,15 @@ export const createAttendeeAtomicImpl = async (
   // Record one order-level visit and one source-tagged booking per contact
   // identity. Multi-listing carts still count as one customer visit/booking,
   // while email and phone can both recognize the customer on future checkouts.
-  await recordOrderActivity(email, phone, source);
+  // A no-quantity-only order (every line a quantity-0 sentinel — an
+  // interested/cancelled placeholder) is NOT a real visit or booking: counting
+  // it would let a ghost-only contact qualify as "returning" via min_visits
+  // gating. Gate on the order having ≥1 real line. (The only ghost-creating path
+  // is the admin manual add, which overbooks and never hits the partial-rollback
+  // reverse, so the reverse staying ungated can't double-decrement here.)
+  if (successfulBookings.some((b) => b.quantity > 0)) {
+    await recordOrderActivity(email, phone, source);
+  }
 
   return { attendees: successfulBookings, success: true };
 };

@@ -5,7 +5,12 @@
 
 import type { InValue } from "@libsql/client";
 import { decrypt, encrypt } from "#shared/crypto/encryption.ts";
-import { queryAll, queryOne } from "#shared/db/client.ts";
+import {
+  inPlaceholders,
+  queryAll,
+  queryOne,
+  rowExists,
+} from "#shared/db/client.ts";
 import type { ColumnDef, Table } from "#shared/db/table.ts";
 import { cachedTable, col, defineTable } from "#shared/db/table.ts";
 import { nowIso } from "#shared/now.ts";
@@ -361,6 +366,24 @@ export const getAssignableBuiltSites = async (): Promise<BuiltSite[]> => {
   const all = await getAllBuiltSites();
   return all.filter((s) => s.assignable);
 };
+
+/**
+ * True when a built site is assigned to this attendee on any of the listings.
+ * Used to forbid marking an assigned built-site line no-quantity: the assignment
+ * (and the live public /renew/ path that resolves the site token with no
+ * listing_attendees check) would otherwise survive behind a hidden line. One
+ * query over all the IDs; callers pass a non-empty list.
+ */
+export const hasAssignedBuiltSite = (
+  attendeeId: number,
+  listingIds: number[],
+): Promise<boolean> =>
+  rowExists(
+    `SELECT 1 FROM built_sites
+     WHERE assigned_attendee_id = ?
+       AND assigned_listing_id IN (${inPlaceholders(listingIds)}) LIMIT 1`,
+    [attendeeId, ...listingIds],
+  );
 
 const withBuiltSiteForUpdate = async <T>(
   siteId: number,

@@ -192,6 +192,24 @@ export const LedgerTable = ({
 const signedAmount = (signed: number): string =>
   `${signed < 0 ? "-" : "+"}${formatCurrency(Math.abs(signed))}`;
 
+/**
+ * Whether an account's statement figures should be shown with their sign
+ * flipped. The ledger stores an attendee's account as a liability — a booking
+ * debits it negative, a payment credits it back toward zero — which is correct
+ * double-entry but reads backwards to a non-accountant: they expect a charge to
+ * show as a positive amount owed and a payment to bring it down. So an attendee
+ * statement negates its signed deltas and running balance; every other account
+ * (revenue, modifier, the singletons) keeps its native ledger sign. */
+const isReversedAccount = (account: AccountRef): boolean =>
+  account.type === "attendee";
+
+/** A statement figure (signed delta or running balance) as shown for an account,
+ * flipping its sign for the {@link isReversedAccount reversed} attendee view. The
+ * `value !== 0` guard keeps a zero figure from becoming negative zero, which
+ * would render as a stray "-£0". */
+const shownFigure = (value: number, account: AccountRef): number =>
+  isReversedAccount(account) && value !== 0 ? -value : value;
+
 /** The counterparty on a statement line: the OTHER account on the leg (the
  * source when this account received, else the destination). */
 const counterparty = (line: StatementLine, account: AccountRef): AccountRef =>
@@ -215,8 +233,12 @@ const StatementRow = ({
       <td>{formatDatetimeShort(line.transfer.occurredAt)}</td>
       <td>{kindLabel(line.transfer)}</td>
       <td>{accountCell(counterparty(line, account), names)}</td>
-      <td class={colClass("amount")}>{signedAmount(line.signed)}</td>
-      <td class={colClass("amount")}>{formatCurrency(line.running)}</td>
+      <td class={colClass("amount")}>
+        {signedAmount(shownFigure(line.signed, account))}
+      </td>
+      <td class={colClass("amount")}>
+        {formatCurrency(shownFigure(line.running, account))}
+      </td>
     </tr>,
   );
 
@@ -291,7 +313,9 @@ export const AccountStatementHeading = ({
   return (
     <p class="ledger-balance">
       <strong>{accountLabelText(account, names)}</strong>{" "}
-      {t("admin.ledger.balance", { amount: formatCurrency(balance) })}
+      {t("admin.ledger.balance", {
+        amount: formatCurrency(shownFigure(balance, account)),
+      })}
     </p>
   );
 };

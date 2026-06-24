@@ -32,6 +32,7 @@ import {
   getQuestionsForListing,
 } from "#shared/db/questions.ts";
 import { settings } from "#shared/db/settings.ts";
+import { loadNotesForAttendees } from "#shared/db/system-notes.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { Attendee, ListingWithCount } from "#shared/types.ts";
@@ -199,6 +200,7 @@ const renderListingPage = async (
             isChild,
             childrenByParent,
             revenueBreakdown,
+            systemNotes,
           ] = await Promise.all([
             Promise.resolve(getFlash()),
             Promise.resolve(settings.phonePrefix),
@@ -212,6 +214,7 @@ const renderListingPage = async (
             // lists. Empty map (no key) when this listing isn't a parent.
             getChildrenForParents([listing.id]),
             listingRevenueBreakdown(listing.id),
+            loadNotesForAttendees(attendeeIds, requireRequestPrivateKey),
           ]);
           return htmlResponse(
             adminListingPage({
@@ -237,6 +240,7 @@ const renderListingPage = async (
               revenueBreakdown,
               session,
               successMessage: flash.success,
+              systemNotes,
             }),
           );
         },

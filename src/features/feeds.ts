@@ -247,6 +247,8 @@ const buildCalendarFeed = async (request: Request): Promise<Response> => {
       const listingById = new Map(listings.map((l) => [l.id, l]));
       const rawAttendees = await getAttendeesByListingIds(
         listings.map((l) => l.id),
+        // Operational ICS feed: exclude no-quantity sentinel lines.
+        true,
       );
       const attendees = await filterCalendarFeedAttendees(
         await decryptAttendees(

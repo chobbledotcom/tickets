@@ -16,43 +16,81 @@ import {
 } from "@std/collections";
 
 // --- Pipe type helpers ---
-
-/** A single-arg function (used as a constraint for pipe/pipeAsync generics) */
-// deno-lint-ignore no-explicit-any
-type Fn = (arg: any) => any;
-
-/** Validates that each fn's return type is assignable to the next fn's parameter */
-type ValidChain<Fns extends Fn[]> = Fns extends [Fn]
-  ? true
-  : Fns extends [
-        infer A extends Fn,
-        infer B extends Fn,
-        ...infer Rest extends Fn[],
-      ]
-    ? ReturnType<A> extends Parameters<B>[0]
-      ? ValidChain<[B, ...Rest]>
-      : false
-    : true;
-
-/** Extracts the return type of the last fn in a tuple */
-type LastReturn<Fns extends Fn[]> = Fns extends [...Fn[], infer L extends Fn]
-  ? ReturnType<L>
-  : never;
-
-/** Computes pipe's return type, returning a non-callable error type on mismatch */
-type PipeReturn<Fns extends [Fn, ...Fn[]]> =
-  ValidChain<Fns> extends true
-    ? (arg: Parameters<Fns[0]>[0]) => LastReturn<Fns>
-    : (invalid: never) => never;
+//
+// `pipe` threads intermediate types left-to-right so that an unannotated
+// callback in a later stage (e.g. `map((x) => x.id)` after a `filter(...)`)
+// infers its parameter type from the previous stage's output. This is achieved
+// with arity-numbered overloads: TS threads A→B→C… across explicit parameters
+// far more readily than across a generic tuple, and the per-stage contextual
+// type lets the curried combinators (`map`, `filter`, `flatMap`, …) resolve
+// their element type parameter from the boundary instead of collapsing to
+// `unknown`. Omitting a variadic fallback is deliberate — a mismatched chain
+// has no matching overload and fails to compile, which is the safety contract
+// callers rely on. The largest chain in the repo today is 7 stages, and the
+// overloads cover 9, so adding a stage means adding one overload line.
 
 /**
- * Compose functions left-to-right (pipe)
- * Uses recursive conditional types for arbitrary-length type safety.
+ * Compose functions left-to-right (pipe).
  */
 export function pipe<A>(): (a: A) => A;
-export function pipe<Fns extends [Fn, ...Fn[]]>(
-  ...fns: [...Fns]
-): PipeReturn<Fns>;
+export function pipe<A, B>(ab: (a: A) => B): (a: A) => B;
+export function pipe<A, B, C>(ab: (a: A) => B, bc: (b: B) => C): (a: A) => C;
+export function pipe<A, B, C, D>(
+  ab: (a: A) => B,
+  bc: (b: B) => C,
+  cd: (c: C) => D,
+): (a: A) => D;
+export function pipe<A, B, C, D, E>(
+  ab: (a: A) => B,
+  bc: (b: B) => C,
+  cd: (c: C) => D,
+  de: (d: D) => E,
+): (a: A) => E;
+export function pipe<A, B, C, D, E, F>(
+  ab: (a: A) => B,
+  bc: (b: B) => C,
+  cd: (c: C) => D,
+  de: (d: D) => E,
+  ef: (e: E) => F,
+): (a: A) => F;
+export function pipe<A, B, C, D, E, F, G>(
+  ab: (a: A) => B,
+  bc: (b: B) => C,
+  cd: (c: C) => D,
+  de: (d: D) => E,
+  ef: (e: E) => F,
+  fg: (f: F) => G,
+): (a: A) => G;
+export function pipe<A, B, C, D, E, F, G, H>(
+  ab: (a: A) => B,
+  bc: (b: B) => C,
+  cd: (c: C) => D,
+  de: (d: D) => E,
+  ef: (e: E) => F,
+  fg: (f: F) => G,
+  gh: (g: G) => H,
+): (a: A) => H;
+export function pipe<A, B, C, D, E, F, G, H, I>(
+  ab: (a: A) => B,
+  bc: (b: B) => C,
+  cd: (c: C) => D,
+  de: (d: D) => E,
+  ef: (e: E) => F,
+  fg: (f: F) => G,
+  gh: (g: G) => H,
+  hi: (h: H) => I,
+): (a: A) => I;
+export function pipe<A, B, C, D, E, F, G, H, I, J>(
+  ab: (a: A) => B,
+  bc: (b: B) => C,
+  cd: (c: C) => D,
+  de: (d: D) => E,
+  ef: (e: E) => F,
+  fg: (f: F) => G,
+  gh: (g: G) => H,
+  hi: (h: H) => I,
+  ij: (i: I) => J,
+): (a: A) => J;
 export function pipe(
   ...fns: Array<(arg: unknown) => unknown>
 ): (value: unknown) => unknown {

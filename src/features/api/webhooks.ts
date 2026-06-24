@@ -39,7 +39,10 @@ import {
   redirectResponse,
 } from "#routes/response.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
-import { parseTokens } from "#routes/tickets/token-utils.ts";
+import {
+  parseTokens,
+  verifyTokensWithRealLine,
+} from "#routes/tickets/token-utils.ts";
 import { getSearchParam } from "#routes/url.ts";
 import { calculateBookingFee } from "#shared/booking-fee.ts";
 import {
@@ -59,7 +62,6 @@ import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
 import {
   type createAttendeeAtomic,
   ensureAllBookings,
-  getAttendeesByTokens,
 } from "#shared/db/attendees.ts";
 import { getListing, getListingWithCount } from "#shared/db/listings.ts";
 import { buyerVisits, specsFromRefs } from "#shared/db/modifier-resolve.ts";
@@ -67,12 +69,13 @@ import {
   balanceFinalizeStatement,
   clearSessionTokens,
   decryptSessionTokens,
-  finalizeSession,
+  finalizeSessionStatement,
   markSessionFailed,
   type ProcessedPayment,
   parseSessionFailure,
   releaseReservation,
   reserveSession,
+  setSessionTicketTokens,
 } from "#shared/db/processed-payments.ts";
 import {
   groupListingAnswers,
@@ -839,11 +842,20 @@ const createAttendeeForSession = async (
   // The free checkout posts these very same facts (see bookingLedgerPoster); a
   // paid booking just keys the event on its payment session and dates it from
   // the provider's checkout time rather than now.
-  const postLedger = bookingLedgerPoster(pricedOrder.modifierApplications, {
+  //
+  // The processed_payments finalize UPDATE is included in the same transaction
+  // (see finalizeSessionStatement), so attendee_id is set iff the attendee row
+  // exists — closing the crash window between a separate post-transaction
+  // finalizeSession call and the attendee INSERT.
+  const rawPostLedger = bookingLedgerPoster(pricedOrder.modifierApplications, {
     eventId: () => session.id,
     occurredAt: businessTime(session),
     pricedOrder,
   });
+  const postLedger: typeof rawPostLedger = async (tx, attendeeId) => {
+    await rawPostLedger(tx, attendeeId);
+    await tx.execute(finalizeSessionStatement(session.id, attendeeId));
+  };
 
   const result = await createOrSoldOut(
     {
@@ -1067,11 +1079,11 @@ const processReservedSession = async (
   const firstAttendee = createdEntries[0]!;
   const ticketToken = firstAttendee.attendee.ticket_token;
 
-  await finalizeSession(
-    sessionId,
-    firstAttendee.attendee.id,
-    options?.storeTokens === false ? [] : [ticketToken],
-  );
+  // attendee_id was set atomically inside the creation transaction.
+  // Persist the ticket token for webhook replay when the caller needs it.
+  if (options?.storeTokens !== false) {
+    await setSessionTicketTokens(sessionId, [ticketToken]);
+  }
 
   const codeSpecs = modifierSpecs.filter((s) => s.trigger === "code");
   if (codeSpecs.length > 0) {
@@ -1238,21 +1250,10 @@ const renderSuccessFromTokens = async (
   tokensParam: string,
 ): Promise<Response> => {
   const tokens = parseTokens(tokensParam);
-  const attendeeResults =
-    tokens.length > 0 ? await getAttendeesByTokens(tokens) : [];
-  const verifiedTokens: string[] = [];
-  const listingIds: number[] = [];
-
-  for (let i = 0; i < tokens.length; i++) {
-    const awb = attendeeResults[i];
-    if (awb) {
-      verifiedTokens.push(tokens[i]!);
-      // Collect all listing IDs from all bookings
-      for (const booking of awb.bookings) {
-        listingIds.push(booking.listing_id);
-      }
-    }
-  }
+  // Only tokens with a real (quantity > 0) line are valid: an all-ghost token's
+  // /t link would 404, and a ghost line must not inflate the single-listing
+  // thank-you check.
+  const { verifiedTokens, listingIds } = await verifyTokensWithRealLine(tokens);
 
   if (verifiedTokens.length === 0) {
     return paymentErrorResponse("Invalid payment callback");
