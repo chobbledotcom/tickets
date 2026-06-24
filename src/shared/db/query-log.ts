@@ -154,6 +154,20 @@ export const sqlWallClockMs = (entries: readonly QueryLogEntry[]): number => {
 export const N_PLUS_ONE_THRESHOLD = 25;
 
 /**
+ * Max statements one interactive write transaction may issue before the
+ * round-trip guard fires. Every statement inside a `withTransaction` holds the
+ * single primary write connection open for another edge→primary round-trip, so a
+ * chatty interactive transaction is what the primary aborts as "Transaction
+ * timed-out". A plain batch (`executeBatch`) is one round-trip regardless of how
+ * many statements it carries and is never counted — the whole point is to push
+ * chatty writes onto it. Set above the largest legitimate interactive
+ * transaction; anything that grows with input size (a big attendee merge, a
+ * per-leg ledger post) must prepare its reads outside the lock and apply its
+ * writes as one batch instead.
+ */
+export const TRANSACTION_ROUNDTRIP_THRESHOLD = 20;
+
+/**
  * When true, an N+1 violation is reported via the error log instead of thrown.
  * Production (`src/edge.ts`) opts in so a real request is never killed; dev and
  * tests stay in throw mode so the offending request fails loudly. Pass `null`
@@ -205,6 +219,33 @@ const enforceN1Guard = (state: QueryLogState, sql: string): void => {
   state.readCounts.set(sql, count);
   if (count !== N_PLUS_ONE_THRESHOLD + 1) return;
   const detail = `N+1 query detected: same read ran ${count} times (limit ${N_PLUS_ONE_THRESHOLD}) in one request: ${sql}`;
+  if (getN1NotifyOnly()) {
+    void notifyN1Violation(detail);
+  } else {
+    throw new Error(detail);
+  }
+};
+
+/**
+ * Count a statement within one interactive transaction and fire once, exactly
+ * when the running count crosses the threshold. Only enforced inside a request
+ * scope — startup migrations rebuild tables in one big transaction outside any
+ * request, so they are never counted. Throws in dev/test (the offending request
+ * fails loudly) or reports via the error log in production (see
+ * {@link setN1GuardNotifyOnly}, shared with the N+1 guard so production never
+ * kills a real request). `count` is the running per-transaction statement count.
+ */
+export const enforceTransactionRoundTripGuard = (
+  count: number,
+  sql: string,
+): void => {
+  if (!asyncLocalStorage.getStore()) return;
+  if (count !== TRANSACTION_ROUNDTRIP_THRESHOLD + 1) return;
+  const detail =
+    `Interactive transaction too chatty: ${count} statements ` +
+    `(limit ${TRANSACTION_ROUNDTRIP_THRESHOLD}) held the write lock open — ` +
+    "prepare reads outside the transaction and apply the writes as one batch. " +
+    `Last statement: ${sql}`;
   if (getN1NotifyOnly()) {
     void notifyN1Violation(detail);
   } else {
