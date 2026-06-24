@@ -4,9 +4,13 @@ import {
   asString,
   bracket,
   collectionCache,
+  filter,
   firstMatch,
+  flatMap,
   lazyRef,
+  map,
   once,
+  pipe,
   ttlCache,
 } from "#fp";
 
@@ -263,6 +267,78 @@ describe("fp", () => {
       expect(cache.get("q")).toBe(2); // entries still accessible
       cache.clear();
       expect(cache.size()).toBe(0);
+    });
+  });
+
+  describe("pipe", () => {
+    type Item = { id: number; active: boolean };
+
+    test("threads intermediate callback types across 2-4 stages", () => {
+      const items: Item[] = [
+        { active: true, id: 1 },
+        { active: false, id: 2 },
+        { active: true, id: 3 },
+      ];
+
+      // 2-stage: map's callback infers Item from filter's output.
+      const ids = pipe(
+        filter((x: Item) => x.active),
+        map((x) => x.id),
+      )(items);
+      const idsTypeCheck: number[] = ids;
+
+      // 3-stage: second filter infers number from map's output.
+      const bigIds = pipe(
+        filter((x: Item) => x.active),
+        map((x) => x.id),
+        filter((x) => x > 0),
+      )(items);
+      const bigIdsTypeCheck: number[] = bigIds;
+
+      // 4-stage: final map infers number -> string.
+      const labels = pipe(
+        filter((x: Item) => x.active),
+        map((x) => x.id),
+        filter((x) => x > 0),
+        map((x) => `id-${x}`),
+      )(items);
+      const labelsTypeCheck: string[] = labels;
+
+      expect(ids).toEqual([1, 3]);
+      expect(bigIds).toEqual([1, 3]);
+      expect(labels).toEqual(["id-1", "id-3"]);
+      void idsTypeCheck;
+      void bigIdsTypeCheck;
+      void labelsTypeCheck;
+    });
+
+    test("flatMap callback infers its parameter mid-pipe", () => {
+      const items: Item[] = [{ active: true, id: 1 }];
+      const expanded = pipe(
+        filter((x: Item) => x.active),
+        flatMap((x) => [x.id, x.id + 1]),
+      )(items);
+      const typeCheck: number[] = expanded;
+      expect(expanded).toEqual([1, 2]);
+      void typeCheck;
+    });
+
+    test("identity overload returns input unchanged", () => {
+      const id = pipe<number>();
+      const out: number = id(42);
+      expect(out).toBe(42);
+    });
+
+    test("rejects a mismatched chain at compile time", () => {
+      // Produces number[] then feeds a stage expecting string -> no overload
+      // matches, so the whole call fails to compile.
+      const make = () =>
+        pipe(
+          // @ts-expect-error number[] (from x.length) is not assignable to string[]
+          map((x: string) => x.length),
+          map((x: string) => x.toUpperCase()),
+        );
+      void make;
     });
   });
 
