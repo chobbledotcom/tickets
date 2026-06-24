@@ -1115,16 +1115,34 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           200,
           (json) => {
             expect(json.processed).toBe(false);
-            expect(json.error).toContain("price");
+            // The specific reason now lives in the system note, not the
+            // customer message: the generic saved-details message is returned.
+            expect(json.error).toContain("saved your details");
           },
         );
+        // Signed by us → the booking is kept as a quantity-0 placeholder (not
+        // dropped) and refunded once, with a system note recording the reason.
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+        const attendees = await getAttendeesRaw(listing.id);
+        expect(attendees.length).toBe(1);
+        expect(mockRefund.calls.length).toBe(1);
+        const { getNoteRows } = await import("#shared/db/system-notes.ts");
+        expect((await getNoteRows([attendees[0]!.id])).length).toBe(1);
+        // The session is recorded as a terminal failure (placeholder kept, no
+        // ticket attendee): attendee_id stays null and failure_data is set.
+        const { isSessionProcessed } = await import(
+          "#shared/db/processed-payments.ts"
+        );
+        const record = await isSessionProcessed("cs_modifier_mismatch");
+        expect(record?.attendee_id).toBeNull();
+        expect(record?.failure_data).not.toBe("");
       } finally {
         mockVerify.restore();
         mockRefund.restore();
       }
     });
 
-    test("refunds when an add-on-only paid session total no longer matches", async () => {
+    test("keeps and refunds an add-on-only paid session whose total no longer matches", async () => {
       await setupStripe();
       const listing = await createTestListing({
         maxAttendees: 50,
@@ -1173,18 +1191,32 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           200,
           (json) => {
             expect(json.processed).toBe(false);
-            expect(json.error).toContain("price");
+            // The reason now lives in the note; the customer sees the generic
+            // saved-details message.
+            expect(json.error).toContain("saved your details");
           },
         );
+        // Signed by us → the booking is kept as a quantity-0 placeholder (not
+        // dropped) and refunded once, with a system note recording the reason.
         const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        expect((await getAttendeesRaw(listing.id)).length).toBe(0);
+        const attendees = await getAttendeesRaw(listing.id);
+        expect(attendees.length).toBe(1);
+        expect(mockRefund.calls.length).toBe(1);
+        const { getNoteRows } = await import("#shared/db/system-notes.ts");
+        expect((await getNoteRows([attendees[0]!.id])).length).toBe(1);
+        const { isSessionProcessed } = await import(
+          "#shared/db/processed-payments.ts"
+        );
+        const record = await isSessionProcessed("cs_addon_only_mismatch");
+        expect(record?.attendee_id).toBeNull();
+        expect(record?.failure_data).not.toBe("");
       } finally {
         mockVerify.restore();
         mockRefund.restore();
       }
     });
 
-    test("refunds when a modifier sold out before the webhook finalized", async () => {
+    test("keeps and refunds when a modifier sold out before the webhook finalized", async () => {
       await setupStripe();
       const listing = await createTestListing({
         maxAttendees: 50,
@@ -1251,13 +1283,28 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           200,
           (json) => {
             expect(json.processed).toBe(false);
-            expect(json.error).toContain("sold out");
+            // The sold-out reason now lives in the note; the customer sees the
+            // generic saved-details message.
+            expect(json.error).toContain("saved your details");
           },
         );
+        // Signed by us → the booking is kept as a quantity-0 placeholder (not
+        // dropped) and refunded once, with a system note recording the reason.
         const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        expect((await getAttendeesRaw(listing.id)).length).toBe(0);
-        // The visit + booking the greedy create recorded are reversed too, so
-        // the refunded order leaves no phantom history on the buyer's contact.
+        const attendees = await getAttendeesRaw(listing.id);
+        expect(attendees.length).toBe(1);
+        expect(mockRefund.calls.length).toBe(1);
+        const { getNoteRows } = await import("#shared/db/system-notes.ts");
+        expect((await getNoteRows([attendees[0]!.id])).length).toBe(1);
+        const { isSessionProcessed } = await import(
+          "#shared/db/processed-payments.ts"
+        );
+        const record = await isSessionProcessed("cs_modifier_soldout");
+        expect(record?.attendee_id).toBeNull();
+        expect(record?.failure_data).not.toBe("");
+        // The greedy create's visit + booking are reversed, and the quantity-0
+        // placeholder records neither, so the refunded order leaves no phantom
+        // history on the buyer's contact.
         const { getContactRecord, getVisits, hashEmail } = await import(
           "#shared/db/contact-preferences.ts"
         );
@@ -1409,7 +1456,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
-    test("refunds a customisable-days webhook whose day count has no price", async () => {
+    test("keeps and refunds a customisable-days webhook whose day count has no price", async () => {
       await setupStripe();
 
       const listing = await createTestListing({
@@ -1469,11 +1516,25 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           200,
           (json) => {
             expect(json.processed).toBe(false);
-            expect(json.error).toContain("price");
+            // The reason now lives in the note; the customer sees the generic
+            // saved-details message.
+            expect(json.error).toContain("saved your details");
           },
         );
+        // Signed by us → the booking is kept as a quantity-0 placeholder (not
+        // dropped) and refunded once, with a system note recording the reason.
         const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        expect((await getAttendeesRaw(listing.id)).length).toBe(0);
+        const attendees = await getAttendeesRaw(listing.id);
+        expect(attendees.length).toBe(1);
+        expect(mockRefund.calls.length).toBe(1);
+        const { getNoteRows } = await import("#shared/db/system-notes.ts");
+        expect((await getNoteRows([attendees[0]!.id])).length).toBe(1);
+        const { isSessionProcessed } = await import(
+          "#shared/db/processed-payments.ts"
+        );
+        const record = await isSessionProcessed("cs_bad_daycount");
+        expect(record?.attendee_id).toBeNull();
+        expect(record?.failure_data).not.toBe("");
       } finally {
         mockVerify.restore();
         mockRefund.restore();
@@ -1715,9 +1776,26 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           (json) => {
             expect(json.received).toBe(true);
             expect(json.processed).toBe(false);
-            expect(json.error).toContain("sold out");
+            // The sold-out reason now lives in the note; the customer sees the
+            // generic saved-details message.
+            expect(json.error).toContain("saved your details");
           },
         );
+        // The late buyer is not dropped: a quantity-0 placeholder is kept
+        // alongside the original sold-out attendee, refunded once, with a note.
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+        const attendees = await getAttendeesRaw(listing.id);
+        const placeholder = attendees.find((a) => a.quantity === 0);
+        expect(placeholder).toBeDefined();
+        expect(mockRefund.calls.length).toBe(1);
+        const { getNoteRows } = await import("#shared/db/system-notes.ts");
+        expect((await getNoteRows([placeholder!.id])).length).toBe(1);
+        const { isSessionProcessed } = await import(
+          "#shared/db/processed-payments.ts"
+        );
+        const record = await isSessionProcessed("cs_soldout");
+        expect(record?.attendee_id).toBeNull();
+        expect(record?.failure_data).not.toBe("");
       } finally {
         mockVerify.restore();
         mockRefund.restore();
@@ -2555,66 +2633,6 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       );
     });
 
-    test("multi-ticket failure error message for encryption_error", async () => {
-      await setupStripe();
-
-      const listing = await createTestListing({
-        maxAttendees: 50,
-        name: "Multi Enc Err",
-        unitPrice: 500,
-      });
-
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          amount_total: 500,
-          id: "cs_multi_enc_err",
-          metadata: signMeta(
-            webhookMeta({
-              email: "enc@example.com",
-              items: JSON.stringify([{ e: listing.id, p: 500, q: 1 }]),
-              name: "Enc Error",
-            }),
-            500,
-          ),
-          payment_intent: "pi_multi_enc_err",
-          payment_status: "paid",
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >),
-      );
-
-      const mockRefund = stub(stripeApi, "refundPayment", () =>
-        Promise.resolve({ id: "re_test" } as unknown as Awaited<
-          ReturnType<typeof stripeApi.refundPayment>
-        >),
-      );
-
-      // Mock atomic create to return encryption error
-      const { attendeesApi } = await import("#shared/db/attendees.ts");
-      const mockAtomic = stub(attendeesApi, "createAttendeeAtomic", () =>
-        Promise.resolve({
-          reason: "encryption_error",
-          success: false,
-        }),
-      );
-
-      try {
-        const response = await handleRequest(
-          mockRequest("/payment/success?session_id=cs_multi_enc_err"),
-        );
-        await expectHtmlResponse(
-          response,
-          500,
-          "Registration failed",
-          "refunded",
-        );
-      } finally {
-        mockRetrieve.restore();
-        mockRefund.restore();
-        mockAtomic.restore();
-      }
-    });
-
     test("a real create error propagates instead of refunding", async () => {
       await setupStripe();
       const listing = await createTestListing({
@@ -2930,13 +2948,27 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           200,
           (json) => {
             expect(json.processed).toBe(false);
-            expect(json.error).toContain("sold out");
+            // The sold-out reason now lives in the note; the customer sees the
+            // generic saved-details message.
+            expect(json.error).toContain("saved your details");
           },
         );
 
+        // Signed by us → the whole order is kept as a quantity-0 placeholder
+        // (one attendee against both listings), not dropped, and refunded once.
         const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
         const attendees1 = await getAttendeesRaw(listing1.id);
-        expect(attendees1.length).toBe(0);
+        expect(attendees1.length).toBe(1);
+        expect(attendees1[0]!.quantity).toBe(0);
+        expect(mockRefund.calls.length).toBe(1);
+        const { getNoteRows } = await import("#shared/db/system-notes.ts");
+        expect((await getNoteRows([attendees1[0]!.id])).length).toBe(1);
+        const { isSessionProcessed } = await import(
+          "#shared/db/processed-payments.ts"
+        );
+        const record = await isSessionProcessed("cs_multi_soldout_wh");
+        expect(record?.attendee_id).toBeNull();
+        expect(record?.failure_data).not.toBe("");
       } finally {
         mockVerify.restore();
         mockRefund.restore();
@@ -3191,7 +3223,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
-    test("multi-ticket webhook handles capacity exceeded with rollback", async () => {
+    test("multi-ticket webhook keeps and refunds when capacity exceeded", async () => {
       await setupStripe();
 
       const listing1 = await createTestListing({
@@ -3262,9 +3294,28 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           ),
           200,
           (json) => {
-            expect(json.error).toContain("sold out");
+            expect(json.processed).toBe(false);
+            // The capacity reason now lives in the note; the customer sees the
+            // generic saved-details message.
+            expect(json.error).toContain("saved your details");
           },
         );
+
+        // Signed by us → the order is kept as a quantity-0 placeholder (one
+        // attendee across both listings), not dropped, and refunded once.
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+        const attendees1 = await getAttendeesRaw(listing1.id);
+        expect(attendees1.length).toBe(1);
+        expect(attendees1[0]!.quantity).toBe(0);
+        expect(mockRefund.calls.length).toBe(1);
+        const { getNoteRows } = await import("#shared/db/system-notes.ts");
+        expect((await getNoteRows([attendees1[0]!.id])).length).toBe(1);
+        const { isSessionProcessed } = await import(
+          "#shared/db/processed-payments.ts"
+        );
+        const record = await isSessionProcessed("cs_multi_cap");
+        expect(record?.attendee_id).toBeNull();
+        expect(record?.failure_data).not.toBe("");
       } finally {
         mockVerify.restore();
         mockRefund.restore();
@@ -3839,116 +3890,6 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
-    test("multi-ticket with no attendees created returns refund error", async () => {
-      await setupStripe();
-
-      const listing = await createTestListing({
-        maxAttendees: 50,
-        name: "WH Multi No Att",
-        unitPrice: 500,
-      });
-
-      // Mock createAttendeeAtomic to always fail with capacity_exceeded on first try
-      // so createdAttendees stays empty and we hit lines 309-310
-      const { attendeesApi } = await import("#shared/db/attendees.ts");
-      const mockAtomic = stub(attendeesApi, "createAttendeeAtomic", () =>
-        Promise.resolve({
-          reason: "capacity_exceeded",
-          success: false,
-        }),
-      );
-
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          amount_total: 500,
-          id: "cs_multi_no_att",
-          metadata: signMeta(
-            webhookMeta({
-              email: "noatt@example.com",
-              items: JSON.stringify([{ e: listing.id, p: 500, q: 1 }]),
-              name: "No Att",
-            }),
-            500,
-          ),
-          payment_intent: "pi_multi_no_att",
-          payment_status: "paid",
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >),
-      );
-
-      const mockRefund = stub(stripeApi, "refundPayment", () =>
-        Promise.resolve({ id: "re_no_att" } as unknown as Awaited<
-          ReturnType<typeof stripeApi.refundPayment>
-        >),
-      );
-
-      try {
-        const response = await handleRequest(
-          mockRequest("/payment/success?session_id=cs_multi_no_att"),
-        );
-        await expectHtmlResponse(response, 409, "sold out");
-      } finally {
-        mockAtomic.restore();
-        mockRetrieve.restore();
-        mockRefund.restore();
-      }
-    });
-
-    test("single-ticket capacity exceeded uses metadata listing_id for refund", async () => {
-      await setupStripe();
-
-      const listing = await createTestListing({
-        maxAttendees: 50,
-        name: "WH Single Cap",
-        unitPrice: 500,
-      });
-
-      const { attendeesApi } = await import("#shared/db/attendees.ts");
-      const mockAtomic = stub(attendeesApi, "createAttendeeAtomic", () =>
-        Promise.resolve({
-          reason: "capacity_exceeded",
-          success: false,
-        }),
-      );
-
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve({
-          amount_total: 500,
-          id: "cs_single_cap",
-          metadata: signMeta(
-            webhookMeta({
-              email: "cap@example.com",
-              items: singleItem(listing.id, 1, 500),
-              name: "Cap User",
-            }),
-            500,
-          ),
-          payment_intent: "pi_single_cap",
-          payment_status: "paid",
-        } as unknown as Awaited<
-          ReturnType<typeof stripeApi.retrieveCheckoutSession>
-        >),
-      );
-
-      const mockRefund = stub(stripeApi, "refundPayment", () =>
-        Promise.resolve({ id: "re_single_cap" } as unknown as Awaited<
-          ReturnType<typeof stripeApi.refundPayment>
-        >),
-      );
-
-      try {
-        const response = await handleRequest(
-          mockRequest("/payment/success?session_id=cs_single_cap"),
-        );
-        await expectHtmlResponse(response, 409, "sold out");
-      } finally {
-        mockAtomic.restore();
-        mockRetrieve.restore();
-        mockRefund.restore();
-      }
-    });
-
     test("webhook treats invalid payment_status as unpaid", async () => {
       await setupStripe();
 
@@ -4066,7 +4007,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
-    test("single-ticket refunds and rejects when price changed since checkout", async () => {
+    test("single-ticket is kept and refunded when price changed since checkout", async () => {
       await setupStripe();
 
       const listing = await createTestListing({
@@ -4122,17 +4063,29 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           200,
           (json) => {
             expect(json.processed).toBe(false);
-            expect(json.error).toContain("price");
-            expect(json.error).toContain("changed");
+            // The price-changed reason now lives in the note; the customer sees
+            // the generic saved-details message.
+            expect(json.error).toContain("saved your details");
           },
         );
 
-        // Verify no attendee was created
+        // Signed by us, so the booking is kept as a quantity-0 placeholder (not
+        // dropped) and refunded once, with a system note recording the reason.
         const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
         const attendees = await getAttendeesRaw(listing.id);
-        expect(attendees.length).toBe(0);
+        expect(attendees.length).toBe(1);
+        expect(attendees[0]!.quantity).toBe(0);
+        const { getNoteRows } = await import("#shared/db/system-notes.ts");
+        expect((await getNoteRows([attendees[0]!.id])).length).toBe(1);
+        const { isSessionProcessed } = await import(
+          "#shared/db/processed-payments.ts"
+        );
+        const record = await isSessionProcessed("cs_mismatch");
+        expect(record?.attendee_id).toBeNull();
+        expect(record?.failure_data).not.toBe("");
 
-        // Verify refund was attempted
+        // Verify refund was attempted exactly once
+        expect(mockRefund.calls.length).toBe(1);
         expect(mockRefund.calls[0]!.args).toEqual(["pi_mismatch"]);
       } finally {
         mockVerify.restore();
@@ -4140,7 +4093,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
-    test("multi-ticket refunds and rejects when prices changed since checkout", async () => {
+    test("multi-ticket is kept and refunded when prices changed since checkout", async () => {
       await setupStripe();
 
       const listing1 = await createTestListing({
@@ -4205,19 +4158,32 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           200,
           (json) => {
             expect(json.processed).toBe(false);
-            expect(json.error).toContain("price");
-            expect(json.error).toContain("changed");
+            // The price-changed reason now lives in the note; the customer sees
+            // the generic saved-details message.
+            expect(json.error).toContain("saved your details");
           },
         );
 
-        // Verify no attendees were created
+        // The multi-listing booking is kept across both listings as one
+        // quantity-0 placeholder and refunded once, with a system note.
         const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
         const attendees1 = await getAttendeesRaw(listing1.id);
         const attendees2 = await getAttendeesRaw(listing2.id);
-        expect(attendees1.length).toBe(0);
-        expect(attendees2.length).toBe(0);
+        expect(attendees1.length).toBe(1);
+        expect(attendees2.length).toBe(1);
+        expect(attendees1[0]!.id).toBe(attendees2[0]!.id);
+        expect(attendees1[0]!.quantity).toBe(0);
+        const { getNoteRows } = await import("#shared/db/system-notes.ts");
+        expect((await getNoteRows([attendees1[0]!.id])).length).toBe(1);
+        const { isSessionProcessed } = await import(
+          "#shared/db/processed-payments.ts"
+        );
+        const record = await isSessionProcessed("cs_multi_mismatch");
+        expect(record?.attendee_id).toBeNull();
+        expect(record?.failure_data).not.toBe("");
 
-        // Verify refund was attempted
+        // Verify refund was attempted exactly once
+        expect(mockRefund.calls.length).toBe(1);
         expect(mockRefund.calls[0]!.args).toEqual(["pi_multi_mismatch"]);
       } finally {
         mockVerify.restore();
@@ -4225,7 +4191,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
-    test("single-ticket redirect refunds and shows error when price changed since checkout", async () => {
+    test("single-ticket redirect keeps the booking and shows the refund message when price changed", async () => {
       await setupStripe();
 
       const listing = await createTestListing({
@@ -4264,14 +4230,33 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_redirect_mismatch"),
         );
-        await expectHtmlResponse(response, 409, "price", "changed", "refunded");
+        // A fully-handled outcome (booking kept, money returned) renders the
+        // generic saved-details message with HTTP 200, not a retryable error
+        // status. formatPaymentError appends the automatic-refund clause.
+        await expectHtmlResponse(
+          response,
+          200,
+          "saved your details",
+          "refunded",
+        );
 
-        // Verify no attendee was created
+        // Signed by us, so the booking is kept as a quantity-0 placeholder (not
+        // dropped) and refunded once, with a system note recording the reason.
         const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
         const attendees = await getAttendeesRaw(listing.id);
-        expect(attendees.length).toBe(0);
+        expect(attendees.length).toBe(1);
+        expect(attendees[0]!.quantity).toBe(0);
+        const { getNoteRows } = await import("#shared/db/system-notes.ts");
+        expect((await getNoteRows([attendees[0]!.id])).length).toBe(1);
+        const { isSessionProcessed } = await import(
+          "#shared/db/processed-payments.ts"
+        );
+        const record = await isSessionProcessed("cs_redirect_mismatch");
+        expect(record?.attendee_id).toBeNull();
+        expect(record?.failure_data).not.toBe("");
 
-        // Verify refund was attempted
+        // Verify refund was attempted exactly once
+        expect(mockRefund.calls.length).toBe(1);
         expect(mockRefund.calls[0]!.args).toEqual(["pi_redirect_mismatch"]);
       } finally {
         mockRetrieve.restore();
@@ -5163,7 +5148,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
-    test("multi-ticket rejects amount above listing price when can_pay_more is disabled", async () => {
+    test("multi-ticket keeps and refunds amount above listing price when can_pay_more is disabled", async () => {
       await setupStripe();
 
       const listing1 = await createTestListing({
@@ -5227,16 +5212,37 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           200,
           (json) => {
             expect(json.processed).toBe(false);
-            expect(json.error).toContain("price");
+            // The price reason now lives in the note; the customer sees the
+            // generic saved-details message.
+            expect(json.error).toContain("saved your details");
           },
         );
+
+        // Signed by us → the order is kept as one quantity-0 placeholder across
+        // both listings and refunded once, with a system note.
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+        const attendees1 = await getAttendeesRaw(listing1.id);
+        const attendees2 = await getAttendeesRaw(listing2.id);
+        expect(attendees1.length).toBe(1);
+        expect(attendees2.length).toBe(1);
+        expect(attendees1[0]!.id).toBe(attendees2[0]!.id);
+        expect(attendees1[0]!.quantity).toBe(0);
+        expect(mockRefund.calls.length).toBe(1);
+        const { getNoteRows } = await import("#shared/db/system-notes.ts");
+        expect((await getNoteRows([attendees1[0]!.id])).length).toBe(1);
+        const { isSessionProcessed } = await import(
+          "#shared/db/processed-payments.ts"
+        );
+        const record = await isSessionProcessed("cs_no_pay_more");
+        expect(record?.attendee_id).toBeNull();
+        expect(record?.failure_data).not.toBe("");
       } finally {
         mockVerify.restore();
         mockRefund.restore();
       }
     });
 
-    test("single-ticket can_pay_more rejects amount below minimum price", async () => {
+    test("single-ticket can_pay_more keeps and refunds amount below minimum price", async () => {
       await setupStripe();
 
       const listing = await createTestListing({
@@ -5291,16 +5297,34 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           200,
           (json) => {
             expect(json.processed).toBe(false);
-            expect(json.error).toContain("price");
+            // The price reason now lives in the note; the customer sees the
+            // generic saved-details message.
+            expect(json.error).toContain("saved your details");
           },
         );
+
+        // Signed by us → the booking is kept as a quantity-0 placeholder and
+        // refunded once, with a system note recording the reason.
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+        const attendees = await getAttendeesRaw(listing.id);
+        expect(attendees.length).toBe(1);
+        expect(attendees[0]!.quantity).toBe(0);
+        expect(mockRefund.calls.length).toBe(1);
+        const { getNoteRows } = await import("#shared/db/system-notes.ts");
+        expect((await getNoteRows([attendees[0]!.id])).length).toBe(1);
+        const { isSessionProcessed } = await import(
+          "#shared/db/processed-payments.ts"
+        );
+        const record = await isSessionProcessed("cs_pay_less");
+        expect(record?.attendee_id).toBeNull();
+        expect(record?.failure_data).not.toBe("");
       } finally {
         mockVerify.restore();
         mockRefund.restore();
       }
     });
 
-    test("single-ticket can_pay_more rejects amount above maximum price", async () => {
+    test("single-ticket can_pay_more keeps and refunds amount above maximum price", async () => {
       await setupStripe();
 
       const listing = await createTestListing({
@@ -5355,9 +5379,27 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           200,
           (json) => {
             expect(json.processed).toBe(false);
-            expect(json.error).toContain("price");
+            // The price reason now lives in the note; the customer sees the
+            // generic saved-details message.
+            expect(json.error).toContain("saved your details");
           },
         );
+
+        // Signed by us → the booking is kept as a quantity-0 placeholder and
+        // refunded once, with a system note recording the reason.
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+        const attendees = await getAttendeesRaw(listing.id);
+        expect(attendees.length).toBe(1);
+        expect(attendees[0]!.quantity).toBe(0);
+        expect(mockRefund.calls.length).toBe(1);
+        const { getNoteRows } = await import("#shared/db/system-notes.ts");
+        expect((await getNoteRows([attendees[0]!.id])).length).toBe(1);
+        const { isSessionProcessed } = await import(
+          "#shared/db/processed-payments.ts"
+        );
+        const record = await isSessionProcessed("cs_pay_too_much");
+        expect(record?.attendee_id).toBeNull();
+        expect(record?.failure_data).not.toBe("");
       } finally {
         mockVerify.restore();
         mockRefund.restore();
@@ -5481,7 +5523,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
-    test("multi-ticket rejects when per-item p does not match unit_price * q for non-pay-more listing", async () => {
+    test("multi-ticket keeps and refunds when per-item p does not match unit_price * q for non-pay-more listing", async () => {
       await setupStripe();
 
       const listing = await createTestListing({
@@ -5536,16 +5578,34 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           200,
           (json) => {
             expect(json.processed).toBe(false);
-            expect(json.error).toContain("price");
+            // The price reason now lives in the note; the customer sees the
+            // generic saved-details message.
+            expect(json.error).toContain("saved your details");
           },
         );
+
+        // Signed by us → the booking is kept as a quantity-0 placeholder and
+        // refunded once, with a system note recording the reason.
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+        const attendees = await getAttendeesRaw(listing.id);
+        expect(attendees.length).toBe(1);
+        expect(attendees[0]!.quantity).toBe(0);
+        expect(mockRefund.calls.length).toBe(1);
+        const { getNoteRows } = await import("#shared/db/system-notes.ts");
+        expect((await getNoteRows([attendees[0]!.id])).length).toBe(1);
+        const { isSessionProcessed } = await import(
+          "#shared/db/processed-payments.ts"
+        );
+        const record = await isSessionProcessed("cs_item_mismatch");
+        expect(record?.attendee_id).toBeNull();
+        expect(record?.failure_data).not.toBe("");
       } finally {
         mockVerify.restore();
         mockRefund.restore();
       }
     });
 
-    test("multi-ticket rejects when sum(p) does not equal amountTotal", async () => {
+    test("multi-ticket keeps and refunds when sum(p) does not equal amountTotal", async () => {
       await setupStripe();
 
       const listing = await createTestListing({
@@ -5601,9 +5661,27 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           200,
           (json) => {
             expect(json.processed).toBe(false);
-            expect(json.error).toContain("price");
+            // The price reason now lives in the note; the customer sees the
+            // generic saved-details message.
+            expect(json.error).toContain("saved your details");
           },
         );
+
+        // Signed by us → the booking is kept as a quantity-0 placeholder and
+        // refunded once, with a system note recording the reason.
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+        const attendees = await getAttendeesRaw(listing.id);
+        expect(attendees.length).toBe(1);
+        expect(attendees[0]!.quantity).toBe(0);
+        expect(mockRefund.calls.length).toBe(1);
+        const { getNoteRows } = await import("#shared/db/system-notes.ts");
+        expect((await getNoteRows([attendees[0]!.id])).length).toBe(1);
+        const { isSessionProcessed } = await import(
+          "#shared/db/processed-payments.ts"
+        );
+        const record = await isSessionProcessed("cs_total_mismatch");
+        expect(record?.attendee_id).toBeNull();
+        expect(record?.failure_data).not.toBe("");
       } finally {
         mockVerify.restore();
         mockRefund.restore();
@@ -5675,7 +5753,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       }
     });
 
-    test("multi-ticket can_pay_more rejects total above max_price × quantity", async () => {
+    test("multi-ticket can_pay_more keeps and refunds total above max_price × quantity", async () => {
       await setupStripe();
 
       // unitPrice=1000, maxPrice=10000 (default), quantity=2
@@ -5733,9 +5811,27 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
           200,
           (json) => {
             expect(json.processed).toBe(false);
-            expect(json.error).toContain("price");
+            // The price reason now lives in the note; the customer sees the
+            // generic saved-details message.
+            expect(json.error).toContain("saved your details");
           },
         );
+
+        // Signed by us → the booking is kept as a quantity-0 placeholder and
+        // refunded once, with a system note recording the reason.
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+        const attendees = await getAttendeesRaw(listing.id);
+        expect(attendees.length).toBe(1);
+        expect(attendees[0]!.quantity).toBe(0);
+        expect(mockRefund.calls.length).toBe(1);
+        const { getNoteRows } = await import("#shared/db/system-notes.ts");
+        expect((await getNoteRows([attendees[0]!.id])).length).toBe(1);
+        const { isSessionProcessed } = await import(
+          "#shared/db/processed-payments.ts"
+        );
+        const record = await isSessionProcessed("cs_qty2_over_max");
+        expect(record?.attendee_id).toBeNull();
+        expect(record?.failure_data).not.toBe("");
       } finally {
         mockVerify.restore();
         mockRefund.restore();
