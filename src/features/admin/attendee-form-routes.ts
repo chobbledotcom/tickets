@@ -352,6 +352,7 @@ const buildTemplateData = async (
     dateError?: string | null;
     flashError?: string;
     flashSuccess?: string;
+    formError?: string | null;
     hasMixedTimings?: boolean;
     returnUrl?: string;
     questions?: QuestionWithAnswers[];
@@ -393,6 +394,7 @@ const buildTemplateData = async (
     dateError: opts.dateError ?? null,
     flashError: opts.flashError,
     flashSuccess: opts.flashSuccess,
+    formError: opts.formError ?? null,
     // The shared date range only affects daily listings; the form's rendered
     // lines cover every active listing plus any inactive one this attendee
     // already books, so a daily line here is exactly when the dates matter.
@@ -693,6 +695,7 @@ const handleSubmitInner = async (
       ...dataForRerender,
       attendeeError: result.attendeeError?.message ?? null,
       dateError: result.dateError,
+      formError: result.formError,
     });
   }
 
