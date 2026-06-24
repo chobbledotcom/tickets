@@ -635,7 +635,15 @@ describeWithEnv("server (unified attendee form)", { db: true }, () => {
 
       // Re-renders the form in place (200) with the line untouched.
       const html = await expectHtmlResponse(response, 200);
-      expect(html).toContain("Refund this line's payment");
+      // The block is surfaced as a top-of-page error, not buried in the table.
+      expect(html).toContain(
+        `<output class="error" role="alert">Refund this line's payment before marking it no quantity.</output>`,
+      );
+      // The paid line's "no quantity" box is disabled with an explaining tooltip
+      // so it can't be ticked in the first place.
+      expect(html).toContain(
+        `class="no-quantity-toggle" disabled name="noqty_${listing.id}" title="Refund this line's payment before marking it no quantity."`,
+      );
       expect(await readLine(attendeeId, listing.id)).toMatchObject({
         price_paid: 1500,
         quantity: 2,
