@@ -221,9 +221,7 @@ describeWithEnv("db > listing-parents", { db: true }, () => {
       );
       // Specifically the daily-direction error: swapping the arguments would read
       // the standard parent as a compatible standard child and return null.
-      expect(error).toContain(
-        "can only be a child of another daily listing",
-      );
+      expect(error).toContain("can only be a child of another daily listing");
     });
 
     test("ignores edges whose opposite endpoint no longer exists", async () => {
