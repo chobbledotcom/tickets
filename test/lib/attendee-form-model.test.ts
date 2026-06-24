@@ -585,12 +585,15 @@ describe("no-quantity persistence + paid-line guard", () => {
     });
     const result = validateParsedForm(parsed);
     expect(result.valid).toBe(false);
-    if (!result.valid) expect(result.lineErrors.get(0)).toContain("Refund");
-    // The per-line error field (rendered inline against the row) carries the
-    // exact message, not a concatenation onto its prior value.
-    expect(parsed.lines[0]!.error).toBe(
-      "Refund this line's payment before marking it no quantity.",
-    );
+    // The paid-line block is a form-wide error (shown at the top of the page),
+    // not a per-line error buried in the quantity table.
+    if (!result.valid) {
+      expect(result.formError).toBe(
+        "Refund this line's payment before marking it no quantity.",
+      );
+      expect(result.lineErrors.size).toBe(0);
+    }
+    expect(parsed.lines[0]!.error).toBe(null);
   });
 
   test("validateParsedForm allows marking an unpaid line no-quantity", () => {

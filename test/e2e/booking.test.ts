@@ -15,12 +15,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { RESTORE_CONFIRM_PHRASE } from "#templates/admin/backup.tsx";
+import { withLocalStorageEnabled } from "#test-utils";
 import {
   invalidateAllCaches,
   setupAndLogin,
   useE2eBrowser,
-  withLocalStorageEnabled,
-} from "#test-utils";
+} from "#test-utils/e2e.ts";
 
 // jscpd:ignore-end
 
@@ -29,9 +29,8 @@ describe("e2e: full booking flow", () => {
 
   test("setup → create listing → group → book → view ticket → admin sees attendee", async () => {
     const browser = ctx.browser;
+    // 1-4. Set up the fresh install and log in to the admin dashboard.
     await setupAndLogin(browser);
-    // Should be on admin dashboard now
-    expect(browser.containsText("Add Listing")).toBe(true);
 
     // 5. Create an listing
     await browser.clickLink("Add Listing");
@@ -218,33 +217,9 @@ describe("e2e: full booking flow", () => {
       await reinitDb({ allowMissingSettings: true });
       invalidateAllCaches();
 
-      // 17. Verify setup is available after reset (database is empty)
-      await browser.visit("/setup/");
-      expect(browser.currentHtml).toContain("Initial Setup");
-
-      // 18. Complete setup again with same credentials
-      await browser.submitForm(
-        {
-          accept_agreement: "yes",
-          admin_password: "password",
-          admin_password_confirm: "password",
-          admin_username: "admin",
-          country: "GB",
-        },
-        "Complete Setup",
-      );
-      expect(browser.currentHtml).toContain("Setup Complete");
-      invalidateAllCaches();
-
-      // 19. Log in again
-      await browser.clickLink("Go to Admin Dashboard");
-      await browser.submitForm(
-        { password: "password", username: "admin" },
-        "Login",
-      );
-      if (browser.containsText("Migration complete")) {
-        await browser.clickLink("Back to dashboard");
-      }
+      // 17-19. Set up and log in again on the now-empty database (setupAndLogin
+      //         only succeeds if the reset really did make setup available).
+      await setupAndLogin(browser);
 
       // 20. Verify the listing and attendee are gone after reset
       expect(browser.containsText("Summer Concert")).toBe(false);

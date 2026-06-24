@@ -67,10 +67,10 @@ const getUniqueDates: (
   attendees: Attendee[],
 ) => { value: string; label: string }[] = pipe(
   map((a: Attendee) => a.date),
-  (dates: (string | null)[]) => compact(dates),
-  (dates: string[]) => unique(dates),
-  sort((a: string, b: string) => a.localeCompare(b)),
-  map((d: string) => ({ label: formatDateLabel(d), value: d })),
+  (dates) => compact(dates),
+  (dates) => unique(dates),
+  sort((a, b) => a.localeCompare(b)),
+  map((d) => ({ label: formatDateLabel(d), value: d })),
 );
 
 /** Get date filter and filtered attendees for daily listings */

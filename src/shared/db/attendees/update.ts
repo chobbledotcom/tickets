@@ -171,7 +171,7 @@ export const checkGroupCapAfterDurationChange = async (
   });
   const base = pipe(
     filter((row: GroupRow) => row.listing_type !== "daily"),
-    sumOf((row: GroupRow) => row.quantity),
+    sumOf((row) => row.quantity),
   )(rows);
   const intervals = pipe(filter(isDailyWithRange), map(toDayInterval))(rows);
   const listingRanges = pipe(

@@ -20,9 +20,11 @@ import {
   type AttendeeFormLine,
   type BalanceNotice,
   DAY_COUNT_FIELD,
+  isPaymentLockedLine,
   isRetainedLine,
   LINE_KEY_PREFIX,
   NO_QUANTITY_PREFIX,
+  PAID_NO_QUANTITY_MESSAGE,
   type ParsedAttendeeForm,
   QTY_PREFIX,
   REMAINING_BALANCE_FIELD,
@@ -115,6 +117,9 @@ export type AttendeeFormTemplateData = {
   attendeeError: string | null;
   /** Shared-date error (e.g. missing start date for a booked daily listing). */
   dateError: string | null;
+  /** Form-wide error shown at the top of the page (e.g. a paid line was marked
+   * no-quantity), kept out of the per-line quantity table. */
+  formError: string | null;
   /** Save outcome shown inside the form. */
   flashError?: string;
   flashSuccess?: string;
@@ -164,6 +169,9 @@ const ListingRow = ({
   const listing = line.listing!;
   const booked = isRetainedLine(line) || Boolean(line.existingBooking);
   const isDaily = listing.listing_type === "daily";
+  // A paid line can't be marked no-quantity until its charge is refunded, so the
+  // box is disabled with an explaining tooltip rather than left to fail on save.
+  const paymentLocked = isPaymentLockedLine(line);
   return (
     <tr class={booked ? "attendee-line" : "attendee-line attendee-line-empty"}>
       <td>
@@ -196,7 +204,9 @@ const ListingRow = ({
           <input
             checked={line.noQuantity}
             class="no-quantity-toggle"
+            disabled={paymentLocked}
             name={`${NO_QUANTITY_PREFIX}${listing.id}`}
+            title={paymentLocked ? PAID_NO_QUANTITY_MESSAGE : undefined}
             type="checkbox"
             value="1"
           />
@@ -882,6 +892,12 @@ export const attendeeFormPage = (
 
       {isEdit && a && (
         <AttendeeNotesSection attendeeId={a.id} notes={data.systemNotes} />
+      )}
+
+      {data.formError && (
+        <output class="error" role="alert">
+          {data.formError}
+        </output>
       )}
 
       {data.topWarnings.length > 0 && (

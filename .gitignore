@@ -8,6 +8,7 @@ tickets.db
 # Generated build output
 dist/
 bunny-script.ts
+bunny-script.ts.map
 .build-tag
 src/ui/static/*.js
 src/ui/static/style.css

@@ -24,7 +24,6 @@ import {
   ATTENDEE_TABLE_COLUMNS,
 } from "#shared/columns/attendee-columns.ts";
 import type {
-  Answer,
   AttendeeQuestionData,
   QuestionWithAnswers,
 } from "#shared/db/questions.ts";
@@ -166,7 +165,7 @@ const buildAnswerTextMap = (
   new Map(
     pipe(
       flatMap((q: QuestionWithAnswers) => q.answers),
-      map((a: Answer) => [a.id, a.text] as const),
+      map((a) => [a.id, a.text] as const),
     )(questions),
   );
 

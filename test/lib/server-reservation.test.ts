@@ -305,7 +305,7 @@ describeWithEnv(
       }
     });
 
-    test("refunds when the charged total does not match deposit plus fee", async () => {
+    test("keeps and refunds when the charged total does not match deposit plus fee", async () => {
       await setupStripe();
       await settings.update.bookingFee("10");
       await setPublicReservation("10%");
@@ -333,12 +333,13 @@ describeWithEnv(
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_bad"),
         );
-        // Price mismatch → 409 and no attendee is created.
-        expect(response.status).toBe(409);
+        // Signed by us → the reservation is kept and refunded (HTTP 200), not
+        // dropped.
+        expect(response.status).toBe(200);
         const { rows } = await getDb().execute(
           "SELECT COUNT(*) AS c FROM attendees",
         );
-        expect(Number(rows[0]!.c)).toBe(0);
+        expect(Number(rows[0]!.c)).toBe(1);
       } finally {
         session.restore();
         refund.restore();
@@ -777,7 +778,7 @@ describeWithEnv(
       }
     });
 
-    test("refunds a zero-price reservation add-on when the total mismatches", async () => {
+    test("keeps and refunds a zero-price reservation add-on when the total mismatches", async () => {
       await setupStripe();
       await settings.update.bookingFee("0");
       await setPublicReservation("10%");
@@ -811,10 +812,21 @@ describeWithEnv(
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_free_addon_bad"),
         );
-        expect(response.status).toBe(409);
-        expect(await attendeeCount()).toBe(0);
+        // Signed by us → kept as a quantity-0 placeholder and refunded (HTTP 200):
+        // the reason now lives in a system note, so the customer sees the generic
+        // saved-details message rather than the specific price/total reason.
+        expect(response.status).toBe(200);
+        expect(await response.text()).toContain("saved your details");
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+        const attendees = await getAttendeesRaw(listing.id);
+        expect(attendees.length).toBe(1);
+        // The placeholder posts only payment + refund_cash (no sale leg), so it
+        // consumes no add-on stock — the old real-attendee usage of 1 is gone.
         expect(await modifierUsageCount(addOn.id)).toBe(0);
         expect(refund.calls[0]!.args).toEqual(["pi_cs_free_addon_bad"]);
+        expect(refund.calls.length).toBe(1);
+        const { getNoteRows } = await import("#shared/db/system-notes.ts");
+        expect((await getNoteRows([attendees[0]!.id])).length).toBe(1);
       } finally {
         session.restore();
         refund.restore();
@@ -882,7 +894,7 @@ describeWithEnv(
       }
     });
 
-    test("sold-out reservation add-on rolls back attendee creation", async () => {
+    test("keeps and refunds a sold-out reservation add-on as a quantity-0 placeholder", async () => {
       await setupStripe();
       await settings.update.bookingFee("0");
       await setPublicReservation("10%");
@@ -917,10 +929,29 @@ describeWithEnv(
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_addon_sold"),
         );
-        expect(response.status).toBe(409);
-        expect(await attendeeCount()).toBe(0);
+        // Signed by us → the sold-out add-on no longer drops the booking: it is
+        // kept as a quantity-0 placeholder and refunded (HTTP 200), with the
+        // reason recorded in a system note and the generic message to the buyer.
+        expect(response.status).toBe(200);
+        expect(await response.text()).toContain("saved your details");
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+        const attendees = await getAttendeesRaw(listing.id);
+        expect(attendees.length).toBe(1);
+        // The placeholder posts no sale leg, so the still-sold-out add-on is not
+        // consumed.
         expect(await modifierUsageCount(addOn.id)).toBe(0);
         expect(refund.calls[0]!.args).toEqual(["pi_cs_addon_sold"]);
+        expect(refund.calls.length).toBe(1);
+        const { getNoteRows } = await import("#shared/db/system-notes.ts");
+        expect((await getNoteRows([attendees[0]!.id])).length).toBe(1);
+        // The session is recorded as a terminal failure (placeholder kept, no
+        // ticket attendee): attendee_id stays null and failure_data is set.
+        const { isSessionProcessed } = await import(
+          "#shared/db/processed-payments.ts"
+        );
+        const record = await isSessionProcessed("cs_addon_sold");
+        expect(record?.attendee_id).toBeNull();
+        expect(record?.failure_data).not.toBe("");
       } finally {
         session.restore();
         refund.restore();

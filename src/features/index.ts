@@ -843,6 +843,7 @@ const handleRoutingError = (
     logError({
       code: ErrorCode.DB_BUSY,
       detail: formatRequestError(method, path, error),
+      error,
     });
     // Only auto-refresh idempotent requests: reloading a POST would drop the
     // submitted form body without replaying the write.
@@ -851,6 +852,7 @@ const handleRoutingError = (
   logError({
     code: ErrorCode.CDN_REQUEST,
     detail: formatRequestError(method, path, error),
+    error,
   });
   // In tests, surface the real error instead of swallowing it
   // behind a generic "Temporary Error" page

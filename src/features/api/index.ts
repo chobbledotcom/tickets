@@ -199,7 +199,7 @@ const handleListListings = async (): Promise<Response> => {
   const holidays = await getActiveHolidays();
   const visibleListings = pipe(
     filter((e: ListingWithCount) => e.active && !e.hidden),
-    (active: ListingWithCount[]) => sortListings(active, holidays),
+    (active) => sortListings(active, holidays),
   )(allListings);
   const groupRemaining = await getGroupRemainingByListingId(visibleListings);
   const listings = visibleListings.map((e) =>

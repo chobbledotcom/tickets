@@ -12,7 +12,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { DEMO_LISTING_NAMES } from "#shared/demo.ts";
-import { setupAndLogin, useE2eBrowser } from "#test-utils";
+import {
+  openAttendeeEditor,
+  setupAndLogin,
+  useE2eBrowser,
+} from "#test-utils/e2e.ts";
 
 // jscpd:ignore-end
 
@@ -22,13 +26,12 @@ describe("e2e: seeded attendee views", () => {
   test("setup → seed → dashboard → listing page → attendee edit page all render", async () => {
     const browser = ctx.browser;
     await setupAndLogin(browser);
-    expect(browser.containsText("Add Listing")).toBe(true);
 
-    // 3. Seed 2 listings with 1 attendee each via /admin/seeds.
-    //    Even-indexed listings get a random unit_price, odd-indexed ones are
-    //    free. The free listing surfaces an Edit link for the attendee in the
-    //    main table; paid-listing attendees without a payment_id land in the
-    //    Failed Payments table instead (which has no Edit link).
+    // Seed 2 listings with 1 attendee each via /admin/seeds. Even-indexed
+    // listings get a random unit_price, odd-indexed ones are free. The free
+    // listing surfaces an Edit link for the attendee in the main table;
+    // paid-listing attendees without a payment_id land in the Failed Payments
+    // table instead (which has no Edit link).
     await browser.visit("/admin/seeds");
     expect(browser.containsText("Seed Data")).toBe(true);
     await browser.submitForm(
@@ -39,25 +42,21 @@ describe("e2e: seeded attendee views", () => {
       browser.containsText("Created 2 listing(s) with 2 attendee(s) total"),
     ).toBe(true);
 
-    // 4. Visit the admin dashboard — must not crash decrypting seeded attendees
+    // Visit the admin dashboard — must not crash decrypting seeded attendees.
     await browser.visit("/admin");
     const freeListingName = DEMO_LISTING_NAMES[1]!;
     expect(browser.containsText(freeListingName)).toBe(true);
 
-    // 5. Navigate to the free listing's page
+    // Navigate to the free listing's page.
     await browser.clickLink(freeListingName);
     expect(browser.currentUrl).toMatch(/^\/admin\/listing\/\d+$/);
     expect(browser.containsText(freeListingName)).toBe(true);
 
-    // 6. Navigate to the attendee's edit page via the "Edit" link in the
-    //    attendee table. The link href is /admin/attendees/:id.
-    const editLink = browser.links.find((l) =>
-      /^\/admin\/attendees\/\d+/.test(l.href),
-    );
-    expect(editLink).toBeTruthy();
-    await browser.visit(editLink!.href);
+    // Navigate to the attendee's edit page via the "Edit" link in the attendee
+    // table (href /admin/attendees/:id).
+    await openAttendeeEditor(browser);
     expect(browser.currentUrl).toMatch(/^\/admin\/attendees\/\d+$/);
-    // The edit form exposes the name field for PII editing
+    // The edit form exposes the name field for PII editing.
     expect(browser.currentHtml).toContain('name="name"');
   });
 });

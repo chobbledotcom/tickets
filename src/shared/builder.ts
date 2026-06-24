@@ -32,6 +32,7 @@ type HostSecret = { name: string; hostInfra?: boolean };
 
 const HOST_SECRETS: readonly HostSecret[] = [
   { name: "NTFY_URL" },
+  { name: "SENTRY_URL" },
   { name: "ADMIN_EMAIL_ADDRESS" },
   { hostInfra: true, name: "STORAGE_ZONE_NAME" },
   { hostInfra: true, name: "STORAGE_ZONE_KEY" },

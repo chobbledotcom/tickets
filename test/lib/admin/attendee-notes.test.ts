@@ -1,17 +1,15 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { t } from "#i18n";
 import { getNoteRows, getNotesForAttendee } from "#shared/db/system-notes.ts";
 import {
   adminFormPost,
   adminGet,
   describeWithEnv,
+  expectRedirectWithFlash,
   getTestPrivateKey,
   setupAdminTest,
 } from "#test-utils";
-
-/** The Location header of a redirect response. */
-const location = (response: Response): string =>
-  response.headers.get("location") ?? "";
 
 describeWithEnv("admin > attendee notes routes", { db: true }, () => {
   test("GET renders the add-note form for an existing attendee", async () => {
@@ -36,8 +34,8 @@ describeWithEnv("admin > attendee notes routes", { db: true }, () => {
       `/admin/attendee/${attendee.id}/note`,
       { note: "Spoke to them on the phone", return_url: returnUrl },
     );
-    expect(response.status).toBe(302);
-    expect(location(response)).toContain(returnUrl);
+    // Redirects to the return target with a SUCCESS flash naming the action.
+    expectRedirectWithFlash(returnUrl, t("notes.added"), true)(response);
 
     const notes = await getNotesForAttendee(
       attendee.id,
@@ -107,8 +105,8 @@ describeWithEnv("admin > attendee notes routes", { db: true }, () => {
       `/admin/attendee/${attendee.id}/note/${row!.id}/delete`,
       { return_url: returnUrl },
     );
-    expect(response.status).toBe(302);
-    expect(location(response)).toContain(returnUrl);
+    // Redirects to the return target with a SUCCESS flash confirming deletion.
+    expectRedirectWithFlash(returnUrl, t("notes.deleted"), true)(response);
     expect(await getNoteRows([attendee.id])).toEqual([]);
   });
 });

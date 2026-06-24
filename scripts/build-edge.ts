@@ -220,10 +220,20 @@ await esbuild.build({
       configPath: fromFileUrl(new URL("../deno.json", import.meta.url)),
     }),
   ],
+  // Emit a linked source map so deploys can upload it to Sentry for readable
+  // (un-minified) stack traces. Harmless when no upload runs — the deployed
+  // bundle just carries a `sourceMappingURL` comment.
+  sourcemap: true,
 });
 
-// esbuild.build() throws on failure, so if we reach here the output file exists
-const content = await Deno.readTextFile("./dist/edge.js");
+// esbuild.build() throws on failure, so if we reach here the output file exists.
+// Re-point the source map link at the deployed filename (esbuild names it after
+// the bundle, `edge.js.map`) so Sentry's `sourcemaps` tooling can pair the
+// deployed `bunny-script.ts` with `bunny-script.ts.map`.
+const content = (await Deno.readTextFile("./dist/edge.js")).replace(
+  "//# sourceMappingURL=edge.js.map",
+  "//# sourceMappingURL=bunny-script.ts.map",
+);
 
 // Guard: the app renders with a custom JSX runtime (#jsx), never React. If
 // esbuild ever falls back to the classic JSX transform, the bundle references
@@ -246,6 +256,10 @@ if (content.length > BUNNY_MAX_SCRIPT_SIZE) {
 }
 
 await Deno.writeTextFile("./bunny-script.ts", content);
+
+// Ship the source map next to the deployed bundle so the deploy workflow can
+// upload it to Sentry (matched to the release baked into the build).
+await Deno.copyFile("./dist/edge.js.map", "./bunny-script.ts.map");
 
 // Write the build tag so the release workflow can use it as the git tag.
 // This ensures the release tag exactly matches the baked-in BUILD_TIMESTAMP.

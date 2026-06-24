@@ -87,11 +87,11 @@ export const homepagePage = (
     );
   }
 
-  const groupListings = pipe(map(renderGroupListing), (rows: string[]) =>
-    rows.join(""),
-  )(groups);
+  const groupListings = pipe(map(renderGroupListing), (rows) => rows.join(""))(
+    groups,
+  );
 
-  const listingListings = pipe(map(renderListingListing), (rows: string[]) =>
+  const listingListings = pipe(map(renderListingListing), (rows) =>
     rows.join(""),
   )(listings);
 
