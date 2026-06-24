@@ -6,6 +6,7 @@ import { handleRequest } from "#routes";
 import { settings } from "#shared/db/settings.ts";
 import { MAX_BOOKING_ATTEMPTS } from "#shared/limits.ts";
 import {
+  jsonRequest as apiRequest,
   assertJson,
   createDailyTestListing,
   createTestAttendeeDirect,
@@ -16,26 +17,6 @@ import {
   PublicListingSchema,
   setupStripe,
 } from "#test-utils";
-
-/** Create a JSON API request */
-const apiRequest = (
-  path: string,
-  options: {
-    method?: string;
-    body?: Record<string, unknown>;
-  } = {},
-): Request => {
-  const { method = "GET", body } = options;
-  const headers: Record<string, string> = { host: "localhost" };
-  const init: RequestInit = { headers, method };
-
-  if (body) {
-    headers["content-type"] = "application/json";
-    init.body = JSON.stringify(body);
-  }
-
-  return new Request(`http://localhost${path}`, init);
-};
 
 /** Parse JSON response */
 const jsonBody = (response: Response): Promise<Record<string, unknown>> =>

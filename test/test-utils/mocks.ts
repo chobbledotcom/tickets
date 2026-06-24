@@ -40,6 +40,21 @@ export const mockFormRequest = (
   });
 };
 
+/** Build a JSON API `Request` (no auth) for passing to `handleRequest`. */
+export const jsonRequest = (
+  path: string,
+  options: { method?: string; body?: Record<string, unknown> } = {},
+): Request => {
+  const { method = "GET", body } = options;
+  const headers: Record<string, string> = { host: "localhost" };
+  const init: RequestInit = { headers, method };
+  if (body) {
+    headers["content-type"] = "application/json";
+    init.body = JSON.stringify(body);
+  }
+  return new Request(`http://localhost${path}`, init);
+};
+
 export const mockAdminLoginRequest = async (
   data: Record<string, string>,
   csrfToken?: string,
