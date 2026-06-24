@@ -2664,6 +2664,12 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         >),
       );
       const { attendeesApi } = await import("#shared/db/attendees.ts");
+      // The booking honour path uses createBookingAtomic; the quantity-0
+      // placeholder fallback uses createAttendeeAtomic. A genuinely broken
+      // create breaks both, so the error escapes instead of becoming a refund.
+      const mockBooking = stub(attendeesApi, "createBookingAtomic", () =>
+        Promise.reject(new Error("synthetic create failure")),
+      );
       const mockAtomic = stub(attendeesApi, "createAttendeeAtomic", () =>
         Promise.reject(new Error("synthetic create failure")),
       );
@@ -2680,6 +2686,7 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
       } finally {
         mockRetrieve.restore();
         mockRefund.restore();
+        mockBooking.restore();
         mockAtomic.restore();
         if (hadExpectError) Deno.env.set("TEST_EXPECT_ERROR", hadExpectError);
       }

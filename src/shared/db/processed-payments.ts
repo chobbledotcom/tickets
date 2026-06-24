@@ -3,9 +3,9 @@
  *
  * Uses a two-phase locking pattern to prevent duplicate attendee creation:
  * 1. reserveSession() - Claims the session with NULL attendee_id
- * 2. createAttendeeAtomic() with finalizeSessionStatement() inside the
- *    transaction - Creates the attendee and sets attendee_id atomically,
- *    closing the crash window between creation and a separate finalize call.
+ * 2. createBookingAtomic() with batchFinalizeStatement() inside the same batch
+ *    - Creates the attendee and sets attendee_id atomically, closing the crash
+ *    window between creation and a separate finalize call.
  * 3. (webhook only) setSessionTicketTokens() - Persists replay tokens.
  *
  * If reserveSession fails (session already claimed), we check if it's:
@@ -250,30 +250,39 @@ export const parseSessionFailure = async (
   }
 };
 
-/** Shared UPDATE shape for both finalize statement builders. */
+/** A built SQL statement: the text and its positional bind args. */
+type SqlStatement = { sql: string; args: InValue[] };
+
+/** Shared UPDATE shape for the finalize statement builders. */
 const buildFinalizeStatement = (
   attendeeId: number,
   sessionId: string,
   guard: string,
   extraArgs: InValue[] = [],
-): { sql: string; args: InValue[] } => ({
+): SqlStatement => ({
   args: [attendeeId, sessionId, ...extraArgs],
   sql: `UPDATE processed_payments SET attendee_id = ?, ticket_tokens = '' WHERE payment_session_id = ? AND ${guard}`,
 });
 
 /**
- * Build the finalize UPDATE for a ticket session, for inclusion inside the
- * attendee-creation transaction. Setting attendee_id atomically with the
- * INSERT closes the crash window a separate finalizeSession call would leave:
- * if the post-transaction step failed, a stale-replay could create a duplicate
- * attendee. ticket_tokens is set to '' here; call setSessionTicketTokens
- * afterwards to persist replay tokens.
- */
-export const finalizeSessionStatement = (
+ * Build the finalize UPDATE for the single-batch booking path, where the
+ * attendee row is inserted earlier in the SAME batch so its id isn't a literal
+ * yet: `attendee_id` is set from `attendeeIdSql` (the in-batch `MAX(id)`
+ * subquery), and the row is finalized only while still unresolved AND `guard`
+ * confirms the whole booking landed. Keeping finalize in the booking batch
+ * preserves the invariant that `attendee_id` is set atomically with the attendee
+ * INSERT — closing the duplicate-attendee crash window a separate finalize would
+ * reopen. ticket_tokens is '' (persisted afterwards by setSessionTicketTokens). */
+export const batchFinalizeStatement = (
   sessionId: string,
-  attendeeId: number,
-): { sql: string; args: InValue[] } =>
-  buildFinalizeStatement(attendeeId, sessionId, UNRESOLVED_RESERVATION);
+  attendeeIdSql: string,
+  attendeeIdArg: InValue,
+  guard: SqlStatement,
+): SqlStatement => ({
+  args: [attendeeIdArg, sessionId, ...guard.args],
+  sql: `UPDATE processed_payments SET attendee_id = ${attendeeIdSql}, ticket_tokens = ''
+        WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION} AND ${guard.sql}`,
+});
 
 /**
  * Build the finalize UPDATE for a balance-payment session, guarded so it only
@@ -287,7 +296,7 @@ export const balanceFinalizeStatement = (
   sessionId: string,
   attendeeId: number,
   expectedAmount: number,
-): { sql: string; args: InValue[] } =>
+): SqlStatement =>
   // Guarded on the ledger-projected outstanding balance (no stored column).
   // Runs in the settle batch before the balance-payment leg, so it still sees
   // the pre-payment balance — i.e. the attendee owing exactly expectedAmount. A
@@ -302,7 +311,7 @@ export const balanceFinalizeStatement = (
 
 /**
  * Store encrypted ticket tokens on an already-finalized session so later
- * webhook replays can return them. Separated from finalizeSessionStatement so
+ * webhook replays can return them. Separated from batchFinalizeStatement so
  * token encryption never holds the write lock open. No-op if the session was
  * pruned.
  */

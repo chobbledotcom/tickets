@@ -23,6 +23,7 @@ import type {
 } from "#shared/db/attendee-types.ts";
 import type { LedgerPoster } from "#shared/db/attendees/create.ts";
 import {
+  type BookingBatchPlan,
   createAttendeeAtomic,
   reconcileLedgerBalanceTx,
 } from "#shared/db/attendees.ts";
@@ -78,6 +79,36 @@ export const bookingLedgerPoster =
       await postBookingLegsTx(tx, attendeeId, legs);
     }
   };
+
+/**
+ * The attendee id stitched into the booking facts when building legs for the
+ * single-batch path. The legs' references and event group are derived from the
+ * payment session id (see mapBooking), never the attendee id, so any valid
+ * placeholder yields the correct keys; the real id is spliced into each leg's
+ * account by an in-batch subquery at write time. */
+const BATCH_LEG_ATTENDEE_PLACEHOLDER = 1;
+
+/**
+ * Build the {@link BookingBatchPlan} for the single-batch checkout: the modifier
+ * stock to consume, the booking's ledger legs (sale/modifier/fee/payment, keyed
+ * on `eventId`), and — for a paid session — the session to finalize in the same
+ * batch. The paid path keys `eventId` on its payment session id, so the legs are
+ * attendee-id-independent and can be built before the attendee exists. */
+export const bookingBatchPlan = async (
+  usages: ModifierUsage[],
+  ledger: { pricedOrder: PricedOrder; occurredAt: string; eventId: string },
+  finalizeSessionId?: string,
+): Promise<BookingBatchPlan> => ({
+  finalizeSessionId,
+  legs: await mapBooking(
+    bookingFactsFromOrder(ledger.pricedOrder, {
+      attendeeId: BATCH_LEG_ATTENDEE_PLACEHOLDER,
+      eventId: ledger.eventId,
+      occurredAt: ledger.occurredAt,
+    }),
+  ),
+  usages,
+});
 
 /**
  * Post a booking's ledger legs inside the create transaction and stamp the
