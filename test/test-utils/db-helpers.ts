@@ -1,3 +1,4 @@
+import { beforeEach } from "@std/testing/bdd";
 import { parseFlashValue } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { toMajorUnits } from "#shared/currency.ts";
@@ -356,6 +357,27 @@ export const createTestAttendee = async (
 };
 
 export { getAttendeesRaw };
+
+/** Register the standard processed-payments attenddee fixture: one listing +
+ *  one attendee ("Test User" / "test@example.com") created in `beforeEach`,
+ *  returning a holder whose `.attendeeId` is the current test's attendee id.
+ *  Used by the locking and staleness test suites that share this exact setup. */
+export const useProcessedPaymentsAttendee = (): {
+  attendeeId: number;
+} => {
+  const holder = { attendeeId: 0 as number };
+  beforeEach(async () => {
+    const listing = await createTestListing();
+    const attendee = await createTestAttendee(
+      listing.id,
+      listing.slug,
+      "Test User",
+      "test@example.com",
+    );
+    holder.attendeeId = attendee.id;
+  });
+  return holder;
+};
 
 export const createTestAttendeeDirect = async (
   listingId: number,

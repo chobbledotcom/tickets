@@ -15,7 +15,7 @@ import {
   testCsrfToken,
   testRequiresAuth,
 } from "#test-utils";
-import { generateTestCerts } from "#test-utils/crypto.ts";
+import { configureAppleWallet, generateTestCerts } from "#test-utils/crypto.ts";
 
 /** Reuse cached certs for all wallet configuration */
 const testCerts = generateTestCerts();
@@ -72,17 +72,6 @@ const fetchValidPkpassForNewAttendee = async () => {
     "application/vnd.apple.pkpass",
   );
   return { response, token };
-};
-
-/** Configure all Apple Wallet settings in the database */
-const configureAppleWallet = async () => {
-  await Promise.all([
-    settings.update.appleWallet.passTypeId("pass.com.test.tickets"),
-    settings.update.appleWallet.teamId("TESTTEAM01"),
-    settings.update.appleWallet.signingCert(testCerts.signingCert),
-    settings.update.appleWallet.signingKey(testCerts.signingKey),
-    settings.update.appleWallet.wwdrCert(testCerts.wwdrCert),
-  ]);
 };
 
 describeWithEnv("wallet route (/wallet/:token)", { db: true }, () => {
