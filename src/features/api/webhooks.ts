@@ -46,7 +46,7 @@ import {
 import { getSearchParam } from "#routes/url.ts";
 import { calculateBookingFee } from "#shared/booking-fee.ts";
 import {
-  bookingLedgerPoster,
+  bookingBatchPlan,
   createOrSoldOut,
 } from "#shared/checkout-complete.ts";
 import {
@@ -61,6 +61,7 @@ import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
 import {
   type createAttendeeAtomic,
+  createBookingAtomic,
   ensureAllBookings,
 } from "#shared/db/attendees.ts";
 import { getListing, getListingWithCount } from "#shared/db/listings.ts";
@@ -69,7 +70,6 @@ import {
   balanceFinalizeStatement,
   clearSessionTokens,
   decryptSessionTokens,
-  finalizeSessionStatement,
   markSessionFailed,
   type ProcessedPayment,
   parseSessionFailure,
@@ -911,12 +911,12 @@ type HonourResult =
 
 /**
  * Create the attendee plus per-listing bookings atomically, finalizing the
- * payment session in the SAME transaction (see finalizeSessionStatement) so
- * attendee_id is set iff the attendee row exists — closing the crash window
- * between a separate post-transaction finalize and the attendee INSERT.
- * durationDays is listing-scoped and re-read here so the stored range always
- * matches the listing's current duration policy. Returns a structured failure
- * (never refunds) so the caller can keep the booking as a placeholder instead.
+ * payment session in the SAME batch (see batchFinalizeStatement) so attendee_id
+ * is set iff the attendee row exists — closing the crash window between a
+ * separate post-transaction finalize and the attendee INSERT. durationDays is
+ * listing-scoped and re-read here so the stored range always matches the
+ * listing's current duration policy. Returns a structured failure (never
+ * refunds) so the caller can keep the booking as a placeholder instead.
  */
 const createAttendeeForSession = async (
   session: ValidatedPaymentSession,
@@ -936,25 +936,26 @@ const createAttendeeForSession = async (
   const remainingBalance =
     intent.reservationAmount === undefined ? 0 : fullTotal - depositTotal;
 
-  // Consume modifier stock and post the ledger legs in the same transaction as
-  // the attendee, bookings, and the finalize UPDATE, so the booking, its stock,
-  // its sale/payment legs, and attendee_id are all-or-nothing. The usage amounts
-  // come from the same pricing pass that calculated the checkout total, so scoped
+  // Consume modifier stock, post the ledger legs, and finalize the session in
+  // ONE libsql batch with the attendee + booking INSERTs, so the booking, its
+  // stock, its sale/payment legs, and attendee_id are all-or-nothing in a single
+  // round-trip — never an interactive write transaction held open against the
+  // primary (which timed out under edge→primary latency). The usage amounts come
+  // from the same pricing pass that calculated the checkout total, so scoped
   // bases, quantities, and clamped discounts match. A modifier that sold out
-  // during payment throws, rolling the whole order back. The free checkout posts
-  // these very same facts (see bookingLedgerPoster); a paid booking just keys the
-  // event on its payment session and dates it from the provider's checkout time.
-  const rawPostLedger = bookingLedgerPoster(pricedOrder.modifierApplications, {
-    eventId: () => session.id,
-    occurredAt: businessTime(session),
-    pricedOrder,
-  });
-  const postLedger: typeof rawPostLedger = async (tx, attendeeId) => {
-    await rawPostLedger(tx, attendeeId);
-    await tx.execute(finalizeSessionStatement(session.id, attendeeId));
-  };
+  // during payment stops the booking landing (→ "sold-out"). The event is keyed
+  // on the payment session and dated from the provider's checkout time.
+  const plan = await bookingBatchPlan(
+    pricedOrder.modifierApplications,
+    {
+      eventId: session.id,
+      occurredAt: businessTime(session),
+      pricedOrder,
+    },
+    session.id,
+  );
 
-  const result = await createOrSoldOut(
+  const result = await createBookingAtomic(
     {
       address: intent.address,
       bookings,
@@ -966,7 +967,7 @@ const createAttendeeForSession = async (
       special_instructions: intent.special_instructions,
       statusId: await getPublicStatusId(),
     },
-    postLedger,
+    plan,
   );
   if (result === "sold-out") {
     return {

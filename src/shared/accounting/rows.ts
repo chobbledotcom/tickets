@@ -8,6 +8,7 @@
  */
 
 import type { InValue } from "@libsql/client";
+import { ATTENDEE } from "#shared/accounting/accounts.ts";
 import {
   inPlaceholders,
   insert,
@@ -16,7 +17,7 @@ import {
   type TxScope,
 } from "#shared/db/client.ts";
 import { account } from "#shared/ledger/account.ts";
-import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
+import type { AccountRef, Transfer, TransferInput } from "#shared/ledger/types.ts";
 import {
   epochMsToIso,
   instantToEpochMs,
@@ -122,6 +123,79 @@ export const guardedInsertStatement = (
       /VALUES \(([^)]*)\)/,
       (_, placeholders: string) => `SELECT ${placeholders} WHERE ${guardSql}`,
     ),
+  };
+};
+
+/** One column of a transfers INSERT: its name, the SQL placeholder/expression
+ *  for its value, and the args that expression binds. */
+type LegColumn = { col: string; expr: string; args: InValue[] };
+
+/**
+ * The column→value plan for one transfer leg, in a fixed order. When
+ * `attendeeId` is given, whichever side (source/dest) is the attendee account
+ * renders its id via that SQL expression (the in-batch `MAX(id)` subquery)
+ * instead of a literal — so a leg can be written before the attendee row's id is
+ * known, in the same batch that inserts it. With `attendeeId` null every id is a
+ * literal. The one place a transfer's columns, ordering, and defaults live for
+ * the batch writer. */
+const legColumns = (
+  t: TransferInput,
+  recordedAt: string,
+  attendeeId: { sql: string; args: InValue[] } | null,
+): LegColumn[] => {
+  const idCol = (col: string, acct: AccountRef): LegColumn =>
+    attendeeId && acct.type === ATTENDEE
+      ? { args: attendeeId.args, col, expr: `CAST(${attendeeId.sql} AS TEXT)` }
+      : { args: [acct.id], col, expr: "?" };
+  const lit = (col: string, value: InValue): LegColumn => ({
+    args: [value],
+    col,
+    expr: "?",
+  });
+  return [
+    lit("source_type", t.source.type),
+    idCol("source_id", t.source),
+    lit("dest_type", t.destination.type),
+    idCol("dest_id", t.destination),
+    lit("amount", t.amount),
+    lit("occurred_at", instantToEpochMs(t.occurredAt)),
+    lit("recorded_at", instantToEpochMs(recordedAt)),
+    lit("reference", t.reference),
+    lit("event_group", t.eventGroup),
+    lit("kind", t.kind ?? ""),
+    lit("memo", t.memo ?? ""),
+    lit("reverses_id", t.reversesId ?? null),
+    lit("posted_by", t.postedBy ?? "system"),
+  ];
+};
+
+/**
+ * Build an idempotent, guarded INSERT for one booking leg, for the single-batch
+ * booking writer. `INSERT OR IGNORE` keys idempotency on the unique `reference`
+ * (a replay re-derives identical references and is skipped), the attendee
+ * account id is resolved by `attendeeIdSql` (the `MAX(id)` subquery over the
+ * just-inserted attendee), and the row lands only while `guard` holds (the whole
+ * booking landed). No interleaved read is needed — the conflict checks the
+ * interactive path does inline are unnecessary for a fresh booking whose
+ * references are new. */
+export const bookingLegBatchInsert = (
+  t: TransferInput,
+  recordedAt: string,
+  attendeeIdSql: string,
+  attendeeIdArg: InValue,
+  guard: { sql: string; args: InValue[] },
+): { sql: string; args: InValue[] } => {
+  const columns = legColumns(t, recordedAt, {
+    args: [attendeeIdArg],
+    sql: attendeeIdSql,
+  });
+  return {
+    args: [...columns.flatMap((c) => c.args), ...guard.args],
+    sql: `INSERT OR IGNORE INTO transfers (${columns
+      .map((c) => c.col)
+      .join(", ")})
+        SELECT ${columns.map((c) => c.expr).join(", ")}
+        WHERE ${guard.sql}`,
   };
 };
 

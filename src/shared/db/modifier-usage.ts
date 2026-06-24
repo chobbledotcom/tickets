@@ -12,6 +12,8 @@ import type { InValue } from "@libsql/client";
 import {
   execute,
   executeBatchWithResults,
+  inPlaceholders,
+  queryAll,
   type TxScope,
 } from "#shared/db/client.ts";
 import { mapByIds } from "#shared/db/query.ts";
@@ -38,33 +40,113 @@ export const modifierUsedQuantities = (
     (row) => [row.modifier_id, row.used],
   );
 
+/**
+ * SQL predicate that holds while a modifier has at least `usage.quantity` units
+ * left (unlimited when its stock is null). The single source of truth for "is
+ * this modifier in stock", shared by the guarded usage insert (its own
+ * concurrency guard) and by the booking insert that must refuse to land when a
+ * chosen modifier sold out mid-payment. Wrapped in parens so several can be
+ * AND-ed safely. */
+export const modifierStockCondition = (
+  usage: ModifierUsage,
+): { sql: string; args: InValue[] } => ({
+  args: [usage.modifierId, usage.modifierId, usage.modifierId, usage.quantity],
+  sql: `((SELECT stock FROM modifiers WHERE id = ?) IS NULL
+           OR (SELECT stock FROM modifiers WHERE id = ?)
+              - COALESCE(
+                  (SELECT SUM(quantity) FROM modifier_usages WHERE modifier_id = ?),
+                  0
+                ) >= ?)`,
+});
+
+/**
+ * The AND of every chosen modifier's {@link modifierStockCondition}, for folding
+ * into a booking insert's WHERE so the booking lands only when *all* its
+ * modifiers still have stock. With no modifiers this is the always-true `1 = 1`,
+ * so the booking's capacity clause stands alone. */
+export const allModifiersInStockCondition = (
+  usages: ModifierUsage[],
+): { sql: string; args: InValue[] } => {
+  if (usages.length === 0) return { args: [], sql: "1 = 1" };
+  const parts = usages.map(modifierStockCondition);
+  return {
+    args: parts.flatMap((p) => p.args),
+    sql: parts.map((p) => p.sql).join(" AND "),
+  };
+};
+
+/**
+ * One guarded `modifier_usages` insert. `attendeeIdExpr` is the SQL yielding the
+ * attendee id — a literal `?` (its value in `attendeeIdArgs`) for the direct
+ * insert, or a `(SELECT MAX(id) …)` subquery for the batch path where the
+ * attendee row is inserted earlier in the same batch. The row lands only while
+ * `guard` holds. The single place the usage column list and SELECT shape live. */
+const usageInsert = (
+  usage: ModifierUsage,
+  attendeeIdExpr: string,
+  attendeeIdArgs: InValue[],
+  guard: { sql: string; args: InValue[] },
+): { sql: string; args: InValue[] } => ({
+  args: [
+    usage.modifierId,
+    ...attendeeIdArgs,
+    usage.quantity,
+    usage.amountApplied,
+    nowIso(),
+    ...guard.args,
+  ],
+  sql: `INSERT INTO modifier_usages
+          (modifier_id, attendee_id, quantity, amount_applied, created)
+        SELECT ?, ${attendeeIdExpr}, ?, ?, ?
+        WHERE ${guard.sql}`,
+});
+
 /** Insert a usage row only while the modifier's remaining stock allows it
  * (unlimited when stock is null). Atomic, so it is also the concurrency guard. */
 const guardedUsageInsert = (
   attendeeId: number,
   usage: ModifierUsage,
-): { sql: string; args: InValue[] } => ({
-  args: [
-    usage.modifierId,
-    attendeeId,
-    usage.quantity,
-    usage.amountApplied,
-    nowIso(),
-    usage.modifierId,
-    usage.modifierId,
-    usage.modifierId,
-    usage.quantity,
-  ],
-  sql: `INSERT INTO modifier_usages
-          (modifier_id, attendee_id, quantity, amount_applied, created)
-        SELECT ?, ?, ?, ?, ?
-        WHERE (SELECT stock FROM modifiers WHERE id = ?) IS NULL
-           OR (SELECT stock FROM modifiers WHERE id = ?)
-              - COALESCE(
-                  (SELECT SUM(quantity) FROM modifier_usages WHERE modifier_id = ?),
-                  0
-                ) >= ?`,
-});
+): { sql: string; args: InValue[] } =>
+  usageInsert(usage, "?", [attendeeId], modifierStockCondition(usage));
+
+/**
+ * A usage insert for the single-batch booking path: the attendee id comes from
+ * `attendeeIdExpr` (the in-batch `MAX(id)` subquery) and the row lands only when
+ * `guard` confirms the whole booking landed. No stock guard is needed here — the
+ * booking insert it accompanies already refuses to land unless every modifier
+ * has stock (see {@link allModifiersInStockCondition}), and within the one batch
+ * transaction no other writer can consume that stock in between. */
+export const bookingLandedUsageInsert = (
+  usage: ModifierUsage,
+  attendeeIdExpr: string,
+  attendeeIdArgs: InValue[],
+  guard: { sql: string; args: InValue[] },
+): { sql: string; args: InValue[] } =>
+  usageInsert(usage, attendeeIdExpr, attendeeIdArgs, guard);
+
+/**
+ * Whether any of these modifiers no longer has stock for its quantity — the
+ * post-failure probe that tells a booking that failed to land *why*: a sold-out
+ * add-on/discount (this returns true) versus the event itself filling up. Read
+ * only on the failure path, so it never weighs on a successful checkout. A
+ * null-stock (unlimited) or unknown modifier is never the sold-out cause. */
+export const anyModifierSoldOut = async (
+  usages: ModifierUsage[],
+): Promise<boolean> => {
+  if (usages.length === 0) return false;
+  const ids = usages.map((u) => u.modifierId);
+  const used = await modifierUsedQuantities(ids);
+  const rows = await queryAll<{ id: number; stock: number | null }>(
+    `SELECT id, stock FROM modifiers WHERE id IN (${inPlaceholders(ids)})`,
+    ids,
+  );
+  const stockById = new Map(rows.map((r) => [r.id, r.stock]));
+  return usages.some((u) => {
+    const stock = stockById.get(u.modifierId);
+    if (stock === null || stock === undefined) return false;
+    return stock - (used.get(u.modifierId) ?? 0) < u.quantity;
+  });
+};
 
 /**
  * Atomically consume stock for an attendee's modifiers. Returns true when every

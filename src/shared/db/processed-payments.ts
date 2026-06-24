@@ -276,6 +276,26 @@ export const finalizeSessionStatement = (
   buildFinalizeStatement(attendeeId, sessionId, UNRESOLVED_RESERVATION);
 
 /**
+ * Build the finalize UPDATE for the single-batch booking path, where the
+ * attendee row is inserted earlier in the SAME batch so its id isn't a literal
+ * yet: `attendee_id` is set from `attendeeIdSql` (the in-batch `MAX(id)`
+ * subquery), and the row is finalized only while still unresolved AND `guard`
+ * confirms the whole booking landed. Keeping finalize in the booking batch
+ * preserves the invariant that `attendee_id` is set atomically with the attendee
+ * INSERT — closing the duplicate-attendee crash window a separate finalize would
+ * reopen. ticket_tokens is '' (persisted afterwards by setSessionTicketTokens). */
+export const batchFinalizeStatement = (
+  sessionId: string,
+  attendeeIdSql: string,
+  attendeeIdArg: InValue,
+  guard: { sql: string; args: InValue[] },
+): { sql: string; args: InValue[] } => ({
+  args: [attendeeIdArg, sessionId, ...guard.args],
+  sql: `UPDATE processed_payments SET attendee_id = ${attendeeIdSql}, ticket_tokens = ''
+        WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION} AND ${guard.sql}`,
+});
+
+/**
  * Build the finalize UPDATE for a balance-payment session, guarded so it only
  * applies while the attendee's balance still equals the amount being settled.
  * Returned rather than executed so the caller can commit it in the SAME batch as
