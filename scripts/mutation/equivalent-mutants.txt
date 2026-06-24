@@ -43,13 +43,13 @@ src/shared/accounting/rows.ts:75:17  ?? → ||    # insertStatement memo: string
 src/shared/accounting/rows.ts:181:58  ?? → ||   # selectById (await …)[0]: Transfer|undefined — a Transfer object is always truthy
 
 # Parent/child fold (ticket-payment.ts).
-src/features/public/ticket-payment.ts:397:34  && → ||   # childQtyField: both callers gate on `qty > 0`, so a clamped-0 and a passed-through negative are indistinguishable; only `>= 0` differs and no `> 0` consumer can see it
-src/features/public/ticket-payment.ts:513:48  ?? → ||   # quantities Map<number,number>: absent→undefined or a positive sum; 0??0===0||0
-src/features/public/ticket-payment.ts:608:55  = → +=    # customisableDuration is null here (just initialised); null += n === n
-src/features/public/ticket-payment.ts:614:61  ?? → ||   # parentQty: absent or a count; next line `<= 0 continue` makes 0/undefined identical, 0??0===0||0
-src/features/public/ticket-payment.ts:618:13  ??= → =   # holidays cache refetch: getActiveHolidays is idempotent; = only repeats the same fetch
-src/features/public/ticket-payment.ts:634:41  ?? → ||   # customisableDuration: null or a duration ≥1, never falsy-non-null
-src/features/public/ticket-payment.ts:890:61  ?? → ||   # childrenByParentId.get(): TicketListing[]|undefined, arrays always truthy
+src/features/public/ticket-payment.ts:391:34  && → ||   # childQtyField: both callers gate on `qty > 0`, so a clamped-0 and a passed-through negative are indistinguishable; only `>= 0` differs and no `> 0` consumer can see it
+src/features/public/ticket-payment.ts:505:48  ?? → ||   # quantities Map<number,number>: absent→undefined or a positive sum; 0??0===0||0
+src/features/public/ticket-payment.ts:599:55  = → +=    # customisableDuration is null here (just initialised); null += n === n
+src/features/public/ticket-payment.ts:605:61  ?? → ||   # parentQty: absent or a count; next line `<= 0 continue` makes 0/undefined identical, 0??0===0||0
+src/features/public/ticket-payment.ts:609:13  ??= → =   # holidays cache refetch: getActiveHolidays is idempotent; = only repeats the same fetch
+src/features/public/ticket-payment.ts:625:41  ?? → ||   # customisableDuration: null or a duration ≥1, never falsy-non-null
+src/features/public/ticket-payment.ts:874:61  ?? → ||   # childrenByParentId.get(): TicketListing[]|undefined, arrays always truthy
 
 # Parent/child curried atoms (shared.tsx).
 src/ui/templates/public/shared.tsx:169:41  ?? → ||   # span: null or a duration ≥1, never falsy-non-null; null??1===null||1
