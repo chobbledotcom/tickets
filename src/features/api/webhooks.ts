@@ -81,7 +81,13 @@ import {
   groupListingAnswers,
   saveAttendeeAnswers,
 } from "#shared/db/questions.ts";
-import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
+import { createSystemNote } from "#shared/db/system-notes.ts";
+import {
+  ErrorCode,
+  type ErrorCodeType,
+  logDebug,
+  logError,
+} from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import { verifyPrice } from "#shared/payment-signature.ts";
@@ -96,6 +102,7 @@ import {
   type WebhookEvent,
 } from "#shared/payments.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
+import { recordPlaceholderRefund } from "#shared/refund-ledger.ts";
 import { dayPriceFor, type ListingWithCount } from "#shared/types.ts";
 import { logAndNotifyRegistration } from "#shared/webhook.ts";
 import { paymentCancelPage, successPage } from "#templates/payment.tsx";
@@ -104,9 +111,14 @@ import { paymentCancelPage, successPage } from "#templates/payment.tsx";
 const PRICE_CHANGED_MESSAGE =
   "The price for this listing changed while you were completing payment.";
 
-/** User-facing message when a chosen add-on/discount sold out during payment. */
-const MODIFIER_SOLD_OUT_MESSAGE =
-  "An extra you selected sold out while you were completing payment.";
+/**
+ * User-facing message when a signed-by-us payment can't be honoured (price
+ * changed, charge mismatch, sold out, or an unexpected error) so the booking is
+ * kept and refunded. The refund clause is appended by formatPaymentError (or the
+ * refund-pending suffix below), so this just covers "we saved your details".
+ */
+const BOOKING_SAVED_MESSAGE =
+  "We couldn't complete your booking, so we've saved your details and a member of our team can help you rebook.";
 
 /**
  * The ledger occurredAt for a payment: the provider's checkout time — the
@@ -690,49 +702,122 @@ const refuseMismatch = (
 };
 
 /**
- * Verify a trusted session's prices against the live listing data. Returns null
- * on success, or a refund result.
- *
- * `agreed` is the signed total carried by the trusted verdict. The proof already
- * pins every pricing input (items, modifier refs, answer ids, reservation
- * snapshot) and the charge already equals `agreed`, so the only thing that can
- * still differ is the *current* database price — a listing/modifier/answer price
- * edited between checkout and this webhook. Both checks below catch that
- * legitimate mid-checkout price change and refund. Pricing-code divergence on
- * identical inputs is caught at dev time by the property-based consistency test,
- * so this runtime path refunds without paging.
+ * Why a signed-by-us payment must be refunded even though we can't just drop it.
+ * `code` is a PII-free reason stamped into the ledger reversal and the system
+ * note; `reason` is the operator-facing phrase for the note; `detail` is the
+ * internal log line (ids/prices, never PII); `notify` optionally pages an alert.
  */
-const verifyPaidPricing = async (
+type RefundSpec = {
+  code: string;
+  reason: string;
+  detail: string;
+  notify?: ErrorCodeType;
+};
+
+const priceChangedSpec = (detail: string): RefundSpec => ({
+  code: "price_changed",
+  detail,
+  reason: "the listing price changed while they were paying",
+});
+
+const chargeMismatchSpec = (
   session: ValidatedPaymentSession,
+  agreed: number,
+): RefundSpec => ({
+  code: "charge_mismatch",
+  detail: `Provider charged ${session.amountTotal} but signed total was ${agreed}`,
+  notify: ErrorCode.WEBHOOK_PRICE_SIGNATURE,
+  reason: "the amount charged did not match the agreed total",
+});
+
+const soldOutSpec = (detail: string): RefundSpec => ({
+  code: "sold_out",
+  detail,
+  reason: "an add-on or extra they chose sold out while they were paying",
+});
+
+const capacitySpec = (detail: string): RefundSpec => ({
+  code: "capacity_full",
+  detail,
+  reason: "the event filled up while they were paying",
+});
+
+/** A signed booking that threw an unexpected error after the charge — kept and
+ *  refunded rather than crash-looping the webhook over a paid customer. */
+const unexpectedErrorSpec = (detail: string): RefundSpec => ({
+  code: "unexpected_error",
+  detail,
+  notify: ErrorCode.PAYMENT_SESSION,
+  reason: "an unexpected error stopped the booking being completed",
+});
+
+/** A signed booking whose listing was deleted between checkout and payment:
+ *  nothing left to honour, but we keep a quantity-0 ghost so the customer (and
+ *  their refund) is never lost. */
+const deletedListingSpec = (session: ValidatedPaymentSession): RefundSpec => ({
+  code: "listing_removed",
+  detail: `Listing not found for a signed session (session=${session.id})`,
+  notify: ErrorCode.PAYMENT_SESSION,
+  reason: "the listing was removed while they were paying",
+});
+
+/**
+ * The pricing refund reason for a trusted session, or null when its prices still
+ * match — computed WITHOUT refunding, so the booking is stored first and the
+ * refund happens together with the ledger reversal and note.
+ *
+ * `agreed` is the signed total. The proof already pins every pricing input
+ * (items, modifier refs, answer ids, reservation snapshot) and the charge equals
+ * `agreed`, so the only thing that can still differ is the *current* database
+ * price — a listing/modifier/answer price edited between checkout and now. Both
+ * checks catch that legitimate mid-checkout price change. Pricing-code divergence
+ * on identical inputs is caught at dev time by the property-based consistency
+ * test, so this path refunds without paging.
+ */
+const paidPricingRefund = (
   intent: BookingIntent,
   validatedItems: ValidatedItem[],
   pricedOrder: PricedOrder,
   agreed: number,
-): Promise<PaymentResult | null> => {
-  const listingId = validatedItems[0]!.listing.id;
+): RefundSpec | null => {
   const hasPaidItems = intent.items.some((item) => item.p > 0);
-
   // Per-item prices are ticket-only (no fee), so validate without booking fee
   if (hasPaidItems) {
     for (const { item, listing, expectedPrice } of validatedItems) {
       if (hasPriceMismatch(item.p, expectedPrice, listing, 0, item.q)) {
-        return await priceMismatchRefund(
-          session,
+        return priceChangedSpec(
           `Per-item price mismatch for listing ${listing.id}: metadata p=${item.p} but expected ${expectedPrice} (can_pay_more=${listing.can_pay_more})`,
-          listing.id,
         );
       }
     }
   }
-
   if (pricedOrder.total !== agreed) {
-    return priceMismatchRefund(
-      session,
+    return priceChangedSpec(
       `Re-derived total ${pricedOrder.total} differs from signed total ${agreed}`,
-      listingId,
     );
   }
   return null;
+};
+
+/**
+ * The PII-free system note for a stored-but-refunded booking. Explains in plain
+ * language what happened, carries the provider's payment reference and our reason
+ * code so the charge/refund can be reconciled in the provider dashboard, and
+ * links the operator to the attendee's ledger statement. No names or emails.
+ */
+const refundedNoteText = (
+  attendeeId: number,
+  spec: RefundSpec,
+  refunded: boolean,
+  paymentReference: string,
+): string => {
+  const ledger = `[ledger](/admin/ledger/attendee/${attendeeId})`;
+  // PII-free: the provider's payment reference lets the operator reconcile the
+  // charge/refund in the provider dashboard; the reason code names why.
+  const ref = ` Payment reference: ${paymentReference} (code: ${spec.code}).`;
+  return refunded
+    ? `This booking was kept at quantity 0 but its payment was refunded because ${spec.reason}.${ref} Please check the ${ledger}.`
+    : `This booking was kept at quantity 0 but its payment could NOT be refunded automatically because ${spec.reason}.${ref} Please refund it manually and check the ${ledger}.`;
 };
 
 type CreatedAttendee = Extract<
@@ -810,16 +895,35 @@ const saveSessionAnswers = async (
 };
 
 /**
- * Create the attendee plus per-listing bookings atomically.
- * durationDays is listing-scoped and re-read here at finalize time so the
- * stored range always matches the listing's current duration policy.
+ * The outcome of trying to honour a signed booking at the charged price: the
+ * created entries, or a structured reason it couldn't be created. The caller
+ * decides what to do — a success finalizes a real ticket; any failure keeps a
+ * quantity-0 placeholder and refunds. createAttendeeForSession never refunds
+ * itself.
+ */
+type HonourResult =
+  | { ok: true; entries: CreatedEntry[] }
+  | {
+      ok: false;
+      reason: "sold_out" | "capacity_exceeded" | "encryption_error";
+      detail: string;
+    };
+
+/**
+ * Create the attendee plus per-listing bookings atomically, finalizing the
+ * payment session in the SAME transaction (see finalizeSessionStatement) so
+ * attendee_id is set iff the attendee row exists — closing the crash window
+ * between a separate post-transaction finalize and the attendee INSERT.
+ * durationDays is listing-scoped and re-read here so the stored range always
+ * matches the listing's current duration policy. Returns a structured failure
+ * (never refunds) so the caller can keep the booking as a placeholder instead.
  */
 const createAttendeeForSession = async (
   session: ValidatedPaymentSession,
   intent: BookingIntent,
   validatedItems: ValidatedItem[],
   pricedOrder: PricedOrder,
-): Promise<{ ok: true; entries: CreatedEntry[] } | PaymentResult> => {
+): Promise<HonourResult> => {
   const linePaidByListing = paidByListing(pricedOrder);
   const bookings = validatedItems.map(({ item, listing }) => ({
     listingId: item.e,
@@ -833,19 +937,13 @@ const createAttendeeForSession = async (
     intent.reservationAmount === undefined ? 0 : fullTotal - depositTotal;
 
   // Consume modifier stock and post the ledger legs in the same transaction as
-  // the attendee and bookings, so the booking, its stock, and its sale/payment
-  // legs are all-or-nothing. The usage amounts come from the same pricing pass
-  // that calculated the checkout total, so scoped bases, quantities, and clamped
-  // discounts match. A modifier that sold out during payment throws, rolling the
-  // whole order back so the caller refunds rather than leaving orphaned legs.
-  // The free checkout posts these very same facts (see bookingLedgerPoster); a
-  // paid booking just keys the event on its payment session and dates it from
-  // the provider's checkout time rather than now.
-  //
-  // The processed_payments finalize UPDATE is included in the same transaction
-  // (see finalizeSessionStatement), so attendee_id is set iff the attendee row
-  // exists — closing the crash window between a separate post-transaction
-  // finalizeSession call and the attendee INSERT.
+  // the attendee, bookings, and the finalize UPDATE, so the booking, its stock,
+  // its sale/payment legs, and attendee_id are all-or-nothing. The usage amounts
+  // come from the same pricing pass that calculated the checkout total, so scoped
+  // bases, quantities, and clamped discounts match. A modifier that sold out
+  // during payment throws, rolling the whole order back. The free checkout posts
+  // these very same facts (see bookingLedgerPoster); a paid booking just keys the
+  // event on its payment session and dates it from the provider's checkout time.
   const rawPostLedger = bookingLedgerPoster(pricedOrder.modifierApplications, {
     eventId: () => session.id,
     occurredAt: businessTime(session),
@@ -871,33 +969,28 @@ const createAttendeeForSession = async (
     postLedger,
   );
   if (result === "sold-out") {
-    return refundAndFail(
-      session,
-      MODIFIER_SOLD_OUT_MESSAGE,
-      validatedItems[0]!.listing.id,
-      409,
-    );
+    return {
+      detail: "a chosen add-on or extra sold out during payment",
+      ok: false,
+      reason: "sold_out",
+    };
   }
 
-  // All-or-nothing: a capacity failure rolled the transaction back (no legs),
-  // so this only refunds; the partial-rollback branch never fires for the paid
-  // path.
+  // All-or-nothing: a capacity failure rolled the transaction back (no legs).
   const bookingCheck = await ensureAllBookings(
     result,
     bookings.length,
     "public",
   );
   if (!bookingCheck.ok) {
-    const error = formatPostPaymentError(
-      bookingCheck.reason,
-      validatedItems[0]!.listing.name,
-    );
-    return refundAndFail(
-      session,
-      error,
-      validatedItems[0]!.listing.id,
-      bookingCheck.reason === "encryption_error" ? 500 : 409,
-    );
+    return {
+      detail: formatPostPaymentError(
+        bookingCheck.reason,
+        validatedItems[0]!.listing.name,
+      ),
+      ok: false,
+      reason: bookingCheck.reason,
+    };
   }
   const created = result as Extract<typeof result, { success: true }>;
 
@@ -997,11 +1090,125 @@ const logPromoCodeModifiers = async (
   }
 };
 
+/** The quantity-0, money-free booking lines for a stored-but-refunded placeholder
+ *  — one per validated item, carrying the listing's current date range so the
+ *  ghost still sits on the right day. */
+const placeholderBookings = (
+  validatedItems: ValidatedItem[],
+  intent: BookingIntent,
+) =>
+  validatedItems.map(({ item, listing }) => ({
+    listingId: item.e,
+    pricePaid: 0,
+    quantity: 0,
+    ...bookingDateFields(listing, intent.date, intent.dayCount),
+  }));
+
+type PlaceholderBookings = Parameters<typeof createOrSoldOut>[0]["bookings"];
+
 /**
- * Process a session we have just reserved (holding the lock). Every failure
- * returned here is a handled terminal outcome; processPaymentSession records it
- * so a later redirect/webhook replays the same result instead of re-running
- * refunds or stalling behind the idempotency lock.
+ * Keep a signed-by-us booking we can't honour rather than dropping it into limbo:
+ * store it as a quantity-0 placeholder (overbook-tolerant, so capacity — or a
+ * since-deleted listing — can never downgrade the store into a drop), refund the
+ * payment, record the cash round-trip in the ledger (a `payment` + `refund_cash`
+ * with NO `sale` leg, so the placeholder recognises no revenue and its projected
+ * price_paid stays 0), and flag the attendee with a plain-language system note
+ * carrying the reason and the provider's payment reference. The customer is told
+ * their details were saved and the payment refunded; no ticket is issued.
+ *
+ * We never report `refunded: false`. The booking now exists, so a retry must NOT
+ * re-create it — an un-refunded payment is recorded as a terminal, operator-
+ * resolved outcome (the note's manual-refund instruction stands) rather than
+ * released for re-processing.
+ */
+const storeRefundedBooking = async (
+  session: ValidatedPaymentSession,
+  intent: BookingIntent,
+  bookings: PlaceholderBookings,
+  spec: RefundSpec,
+): Promise<PaymentFailureResult> => {
+  if (spec.notify) addPendingWork(sendNtfyError(spec.notify));
+  const listingId = bookings[0]!.listingId;
+  // A quantity-0 overbook insert has no capacity gate and consumes no modifier
+  // stock, so it always writes the row — trust it. (If the PII can't encrypt the
+  // whole system is broken; we don't defend against that.)
+  const stored = await createOrSoldOut({
+    address: intent.address,
+    allowOverbook: true,
+    bookings,
+    email: intent.email,
+    name: intent.name,
+    paymentId: session.paymentReference,
+    phone: intent.phone,
+    special_instructions: intent.special_instructions,
+    statusId: await getPublicStatusId(),
+  });
+  const attendeeId = (stored as Extract<typeof stored, { success: true }>)
+    .attendees[0]!.id;
+  const refunded = await tryRefund(session.paymentReference, listingId);
+  await recordPlaceholderRefund(
+    {
+      amount: session.amountTotal,
+      attendeeId,
+      eventId: session.id,
+      listingId,
+      occurredAt: businessTime(session),
+    },
+    spec.code,
+    refunded,
+  );
+  if (refunded) {
+    await logActivity(
+      `Automatic refund (${spec.code}); booking kept at quantity 0`,
+      listingId,
+      attendeeId,
+    );
+  } else {
+    logError({
+      code: ErrorCode.PAYMENT_REFUND,
+      detail: `Stored-but-unrefunded booking ${attendeeId} (${spec.code}): ${spec.detail}`,
+      listingId,
+    });
+  }
+  await createSystemNote(
+    attendeeId,
+    refundedNoteText(attendeeId, spec, refunded, session.paymentReference),
+  );
+  // Status 200: a fully-handled terminal outcome (booking kept, money returned or
+  // flagged). The webhook acks it (never the 409 transient-lock retry nor a 503
+  // refund retry — the booking exists, so a retry can't re-create it), and the
+  // customer sees an informational "saved your details" message.
+  return {
+    detail: spec.detail,
+    error: refunded
+      ? BOOKING_SAVED_MESSAGE
+      : `${BOOKING_SAVED_MESSAGE} Your refund is being arranged — please contact us if it does not arrive.`,
+    refunded: refunded ? true : undefined,
+    status: 200,
+    success: false,
+  };
+};
+
+/** The placeholder refund reason for a booking we tried but couldn't honour: a
+ *  sold-out extra reads differently from a full event, and anything else
+ *  (capacity, or the broken-system encryption_error we don't special-case) is
+ *  treated as "the event filled up". */
+const specForFailure = (
+  failure: Extract<HonourResult, { ok: false }>,
+): RefundSpec =>
+  failure.reason === "sold_out"
+    ? soldOutSpec(failure.detail)
+    : capacitySpec(failure.detail);
+
+/**
+ * Process a session we have just reserved (holding the lock). A signed session
+ * either becomes a real ticket or — for ANY reason we can't honour it (charge
+ * mismatch, a price edited mid-checkout, a sold-out extra, a full event, a
+ * since-deleted listing, or an unexpected error after the charge) — is kept as a
+ * quantity-0 placeholder and refunded, so a paid customer is never dropped. Every
+ * failure returned here is a handled terminal outcome; processPaymentSession
+ * records it so a later redirect/webhook replays the same result instead of
+ * re-running refunds or stalling behind the idempotency lock.
  */
 const processReservedSession = async (
   sessionId: string,
@@ -1011,30 +1218,30 @@ const processReservedSession = async (
   const { session, intent, verdict } = data;
   const signedListingId = intent.items[0]!.e;
 
-  // The provider charged an amount other than our signed total — refund. Inside
-  // the reservation so the refund is idempotent (a later delivery replays this
-  // outcome, never re-refunds). Covers ticket and balance sessions uniformly.
-  if (verdict.verdict === "mismatch") {
-    return refuseMismatch(session, verdict.agreed, signedListingId);
-  }
-
-  // Balance payment: settle the existing attendee rather than create one.
+  // Balance payment: settle the existing attendee rather than create one. A
+  // mismatch can't be "stored" (the attendee already exists), so it refunds-and-
+  // fails as before, idempotently inside the reservation.
   if (intent.balanceAttendeeId) {
+    if (verdict.verdict === "mismatch") {
+      return refuseMismatch(session, verdict.agreed, signedListingId);
+    }
     return settleBalanceSession(sessionId, session, intent);
   }
 
-  // Phase 2: Validate listings and create attendees atomically
+  // Phase 2: Validate listings.
   const validated = await validateAllItems(session, intent);
   if ("success" in validated) {
-    // validateAllItems leaves a 404 un-refunded (a foreign instance sharing the
-    // provider would land there). This is a trusted session we signed, so a 404
-    // is our own since-deleted listing — refund instead of stranding the paid
-    // customer behind a bare "listing not found".
+    // A trusted session (we signed it) whose listing was deleted between checkout
+    // and payment. listing_attendees has no FK to listings, so we still keep a
+    // quantity-0 ghost against its id — preserving the customer and their refund
+    // — rather than stranding them behind a bare "listing not found". A foreign
+    // instance's 404 (signed by someone else) never reaches here.
     if (validated.status === 404) {
-      return priceMismatchRefund(
+      return storeRefundedBooking(
         session,
-        `Listing not found for a signed session (session=${session.id})`,
-        signedListingId,
+        intent,
+        [{ listingId: signedListingId, pricePaid: 0, quantity: 0 }],
+        deletedListingSpec(session),
       );
     }
     return validated;
@@ -1054,31 +1261,57 @@ const processReservedSession = async (
     modifierSpecs,
   );
   const pricedOrder = priceCheckout(pricingIntent);
+  const placeholders = placeholderBookings(validatedItems, intent);
 
-  const pricingError = await verifyPaidPricing(
-    session,
-    intent,
-    validatedItems,
-    pricedOrder,
-    verdict.agreed,
-  );
-  if (pricingError) return pricingError;
+  // A signed-by-us payment we already know we can't honour at the charged amount
+  // — the provider charged a different total, or a listing/modifier/answer price
+  // was edited between checkout and now: keep it as a quantity-0 placeholder and
+  // refund, never drop it.
+  const knownRefund: RefundSpec | null =
+    verdict.verdict === "mismatch"
+      ? chargeMismatchSpec(session, verdict.agreed)
+      : paidPricingRefund(intent, validatedItems, pricedOrder, verdict.agreed);
+  if (knownRefund) {
+    return storeRefundedBooking(session, intent, placeholders, knownRefund);
+  }
 
-  const created = await createAttendeeForSession(
-    session,
-    intent,
-    validatedItems,
-    pricedOrder,
-  );
-  if ("success" in created) return created;
-  const createdEntries = created.entries;
+  // Otherwise try to honour it at the charged price. ANY failure keeps the
+  // booking at quantity 0 and refunds rather than dropping a paid customer: a
+  // structured sold-out/capacity/encryption result, OR an unexpected throw after
+  // the charge (which would otherwise crash-loop the webhook over paid money).
+  let honoured: HonourResult;
+  try {
+    honoured = await createAttendeeForSession(
+      session,
+      intent,
+      validatedItems,
+      pricedOrder,
+    );
+  } catch (error) {
+    return storeRefundedBooking(
+      session,
+      intent,
+      placeholders,
+      unexpectedErrorSpec(
+        `Unexpected error completing session ${session.id}: ${String(error)}`,
+      ),
+    );
+  }
+  if (!honoured.ok) {
+    return storeRefundedBooking(
+      session,
+      intent,
+      placeholders,
+      specForFailure(honoured),
+    );
+  }
 
+  // Success: a real ticket, finalized atomically in the creation transaction.
+  const createdEntries = honoured.entries;
   await saveSessionAnswers(createdEntries, intent);
-
   const firstAttendee = createdEntries[0]!;
   const ticketToken = firstAttendee.attendee.ticket_token;
 
-  // attendee_id was set atomically inside the creation transaction.
   // Persist the ticket token for webhook replay when the caller needs it.
   if (options?.storeTokens !== false) {
     await setSessionTicketTokens(sessionId, [ticketToken]);

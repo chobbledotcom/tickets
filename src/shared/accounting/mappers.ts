@@ -216,6 +216,9 @@ export type RefundFacts = {
   readonly orderLegs: ReadonlyArray<Transfer>;
   readonly occurredAt: string;
   readonly postedBy?: string;
+  /** Optional PII-free reason code stamped on every refund leg (e.g. why an
+   * automatic refund happened). Kept free of names/emails by convention. */
+  readonly memo?: string;
 };
 
 /**
@@ -247,6 +250,7 @@ export const mapRefund = async (
       destination: leg.source,
       eventGroup: group,
       kind: refundKind(leg.kind ?? ""),
+      memo: facts.memo,
       occurredAt: facts.occurredAt,
       postedBy: facts.postedBy ?? "system",
       reference: await legReference([REFUND, bookingGroup, leg.reference]),

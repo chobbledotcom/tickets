@@ -254,7 +254,21 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_refund_fail"),
         );
-        await expectHtmlResponse(response, 409, "sold out", "contact support");
+        // Kept as a quantity-0 placeholder; the refund FAILED, so the customer is
+        // told their details are saved and the refund is being arranged (HTTP 200).
+        await expectHtmlResponse(
+          response,
+          200,
+          "saved your details",
+          "refund is being arranged",
+        );
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+        const { getNoteRows } = await import("#shared/db/system-notes.ts");
+        const ghost = (await getAttendeesRaw(listing.id)).find(
+          (a) => a.quantity === 0,
+        );
+        expect(ghost).toBeDefined();
+        expect(await getNoteRows([ghost!.id])).toHaveLength(1);
       } finally {
         mockRetrieve.restore();
         mockRefund.restore();
@@ -262,7 +276,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
       }
     });
 
-    test("ticket payment sold out rolls back and refunds", async () => {
+    test("ticket payment capacity failure is kept as a placeholder and refunded", async () => {
       await setupStripe();
 
       const listing1 = await createTestListing({
@@ -315,12 +329,22 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_multi_rollback"),
         );
-        await expectHtmlResponse(response, 409, "sold out", "refunded");
+        // The capacity failure no longer drops the booking: it's kept as a
+        // quantity-0 placeholder across BOTH listings and refunded (HTTP 200).
+        await expectHtmlResponse(
+          response,
+          200,
+          "saved your details",
+          "refunded",
+        );
 
-        // Verify rollback: listing1 should have no attendees since they were rolled back
+        // The paid customer is never lost: a quantity-0 ghost is kept on listing1
+        // (not rolled back to nothing).
         const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-        const attendees1 = await getAttendeesRaw(listing1.id);
-        expect(attendees1.length).toBe(0);
+        const ghost1 = (await getAttendeesRaw(listing1.id)).find(
+          (a) => a.quantity === 0,
+        );
+        expect(ghost1).toBeDefined();
       } finally {
         mockRetrieve.restore();
         mockRefund.restore();
