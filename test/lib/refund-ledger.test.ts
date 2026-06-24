@@ -45,6 +45,15 @@ const postBooking = async (
 const refundLegsOf = (legs: Transfer[]): Transfer[] =>
   legs.filter((leg) => (leg.kind ?? "").startsWith("refund_"));
 
+const expectSingleRefundCash = async (amount: number): Promise<Transfer> => {
+  const cash = refundLegsOf(
+    await transfersByAccount(attendeeAccount(ATTENDEE)),
+  ).filter((leg) => leg.kind === "refund_cash");
+  expect(cash.length).toBe(1);
+  expect(cash[0]!.amount).toBe(amount);
+  return cash[0]!;
+};
+
 // -- soleBookingOrder (pure) --------------------------------------------- //
 
 const leg = (overrides: Partial<Transfer>): Transfer => ({
@@ -120,12 +129,8 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
 
     expect(await accountBalance(attendeeAccount(ATTENDEE))).toBe(0);
     expect(await accountBalance(revenueAccount(1))).toBe(0);
-    const cash = refundLegsOf(
-      await transfersByAccount(attendeeAccount(ATTENDEE)),
-    ).filter((l) => l.kind === "refund_cash");
-    expect(cash.length).toBe(1);
-    expect(cash[0]!.amount).toBe(5000);
-    expect(cash[0]!.destination).toEqual(WORLD);
+    const cash = await expectSingleRefundCash(5000);
+    expect(cash.destination).toEqual(WORLD);
   });
 
   test("reverses a sale-less paid order (surcharge with no sale leg)", async () => {
@@ -138,11 +143,7 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
 
     expect(await accountBalance(modifierAccount(7))).toBe(0);
     expect(await accountBalance(attendeeAccount(ATTENDEE))).toBe(0);
-    const cash = refundLegsOf(
-      await transfersByAccount(attendeeAccount(ATTENDEE)),
-    ).filter((l) => l.kind === "refund_cash");
-    expect(cash.length).toBe(1);
-    expect(cash[0]!.amount).toBe(500);
+    await expectSingleRefundCash(500);
   });
 
   test("skips a balance-settled reservation (booking plus a balance payment)", async () => {

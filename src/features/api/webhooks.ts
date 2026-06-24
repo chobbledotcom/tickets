@@ -69,12 +69,13 @@ import {
   balanceFinalizeStatement,
   clearSessionTokens,
   decryptSessionTokens,
-  finalizeSession,
+  finalizeSessionStatement,
   markSessionFailed,
   type ProcessedPayment,
   parseSessionFailure,
   releaseReservation,
   reserveSession,
+  setSessionTicketTokens,
 } from "#shared/db/processed-payments.ts";
 import {
   groupListingAnswers,
@@ -840,11 +841,20 @@ const createAttendeeForSession = async (
   // The free checkout posts these very same facts (see bookingLedgerPoster); a
   // paid booking just keys the event on its payment session and dates it from
   // the provider's checkout time rather than now.
-  const postLedger = bookingLedgerPoster(pricedOrder.modifierApplications, {
+  //
+  // The processed_payments finalize UPDATE is included in the same transaction
+  // (see finalizeSessionStatement), so attendee_id is set iff the attendee row
+  // exists — closing the crash window between a separate post-transaction
+  // finalizeSession call and the attendee INSERT.
+  const rawPostLedger = bookingLedgerPoster(pricedOrder.modifierApplications, {
     eventId: () => session.id,
     occurredAt: businessTime(session),
     pricedOrder,
   });
+  const postLedger: typeof rawPostLedger = async (tx, attendeeId) => {
+    await rawPostLedger(tx, attendeeId);
+    await tx.execute(finalizeSessionStatement(session.id, attendeeId));
+  };
 
   const result = await createOrSoldOut(
     {
@@ -1068,11 +1078,11 @@ const processReservedSession = async (
   const firstAttendee = createdEntries[0]!;
   const ticketToken = firstAttendee.attendee.ticket_token;
 
-  await finalizeSession(
-    sessionId,
-    firstAttendee.attendee.id,
-    options?.storeTokens === false ? [] : [ticketToken],
-  );
+  // attendee_id was set atomically inside the creation transaction.
+  // Persist the ticket token for webhook replay when the caller needs it.
+  if (options?.storeTokens !== false) {
+    await setSessionTicketTokens(sessionId, [ticketToken]);
+  }
 
   const codeSpecs = modifierSpecs.filter((s) => s.trigger === "code");
   if (codeSpecs.length > 0) {
