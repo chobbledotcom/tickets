@@ -5,10 +5,7 @@ import {
   modifierAccount,
   revenueAccount,
 } from "#shared/accounting/accounts.ts";
-import {
-  accountBalance,
-  allTransfers,
-} from "#shared/accounting/queries.ts";
+import { accountBalance, allTransfers } from "#shared/accounting/queries.ts";
 import { bookingBatchPlan } from "#shared/checkout-complete.ts";
 import type { PricedLine, PricedOrder } from "#shared/checkout-pricing.ts";
 import { createBookingAtomic, getAttendeesRaw } from "#shared/db/attendees.ts";
@@ -65,7 +62,10 @@ const paidInput = (listingId: number, pricePaid: number) => ({
 
 describeWithEnv("db > createBookingAtomic", { db: true }, () => {
   test("posts legs, consumes modifier stock, and finalizes the session in one batch", async () => {
-    const listing = await createTestListing({ maxAttendees: 5, unitPrice: 500 });
+    const listing = await createTestListing({
+      maxAttendees: 5,
+      unitPrice: 500,
+    });
     const m = await modifiersTable.insert({
       calcKind: "fixed",
       calcValue: 1,
@@ -89,7 +89,8 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
     const result = await createBookingAtomic(paidInput(listing.id, 600), plan);
 
     expect(result).not.toBe("sold-out");
-    if (result === "sold-out" || !result.success) throw new Error("expected ok");
+    if (result === "sold-out" || !result.success)
+      throw new Error("expected ok");
     const attendeeId = result.attendees[0]!.id;
     // Gross revenue recognised, surcharge billed, and the £6 paid clears the
     // balance to zero — the legs were posted with the real attendee id.
@@ -104,7 +105,10 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
   });
 
   test("returns 'sold-out' and writes nothing when a chosen modifier is sold out", async () => {
-    const listing = await createTestListing({ maxAttendees: 5, unitPrice: 500 });
+    const listing = await createTestListing({
+      maxAttendees: 5,
+      unitPrice: 500,
+    });
     const m = await modifiersTable.insert({
       calcKind: "fixed",
       calcValue: 1,
@@ -138,7 +142,10 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
   });
 
   test("returns capacity_exceeded (not sold-out) when the listing is full", async () => {
-    const listing = await createTestListing({ maxAttendees: 0, unitPrice: 500 });
+    const listing = await createTestListing({
+      maxAttendees: 0,
+      unitPrice: 500,
+    });
     const pricedOrder = order({
       fullSubtotal: 500,
       lines: [line(listing.id, 500, 1)],
@@ -168,18 +175,26 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
     expect(plan.legs.length).toBe(0);
 
     const result = await createBookingAtomic(
-      { bookings: [{ listingId: listing.id, quantity: 1 }], email: "z@z.z", name: "Z" },
+      {
+        bookings: [{ listingId: listing.id, quantity: 1 }],
+        email: "z@z.z",
+        name: "Z",
+      },
       plan,
     );
 
-    if (result === "sold-out" || !result.success) throw new Error("expected ok");
+    if (result === "sold-out" || !result.success)
+      throw new Error("expected ok");
     expect(result.attendees.length).toBe(1);
     // No money moved, no event-group stamp written.
     expect((await allTransfers()).length).toBe(0);
   });
 
   test("blames capacity, not the modifiers, when the booking fails but every modifier still has stock", async () => {
-    const listing = await createTestListing({ maxAttendees: 0, unitPrice: 500 });
+    const listing = await createTestListing({
+      maxAttendees: 0,
+      unitPrice: 500,
+    });
     const unlimited = await modifiersTable.insert({
       calcKind: "fixed",
       calcValue: 1,
@@ -247,7 +262,8 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
     );
 
     // Greedy create: the open listing's booking landed, the full one didn't.
-    if (result === "sold-out" || !result.success) throw new Error("expected ok");
+    if (result === "sold-out" || !result.success)
+      throw new Error("expected ok");
     expect(result.attendees.length).toBe(1);
     // The all-bookings-landed guard held back every leg and the finalize, so the
     // caller's ensureAllBookings can roll the partial booking back cleanly.

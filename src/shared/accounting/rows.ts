@@ -165,7 +165,11 @@ const legColumns = (
     lit("recorded_at", instantToEpochMs(recordedAt)),
     lit("reference", t.reference),
     lit("event_group", t.eventGroup),
-    lit("kind", t.kind ?? ""),
+    // Booking legs always carry a kind (mapBooking sets one per leg), so it is
+    // asserted present rather than defaulted — there is no kindless booking leg
+    // to guard against. The memo/posted_by/reverses_id a booking never sets do
+    // fall back below.
+    lit("kind", t.kind!),
     lit("memo", t.memo ?? ""),
     lit("reverses_id", t.reversesId ?? null),
     lit("posted_by", t.postedBy ?? "system"),
