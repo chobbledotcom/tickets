@@ -51,6 +51,7 @@ const surcharge = (modifierId: number, delta: number) => ({
   amountApplied: delta,
   delta,
   modifierId,
+  name: "Add-on",
   quantity: 1,
   scopedSubtotal: delta,
 });
