@@ -208,6 +208,10 @@ const ALLOWED_TEST_HOOKS: string[] = [
   "shared/cache-registry.ts:invalidateCachesForTable",
   // SET-clause column extractor: internal parser exposed for unit testing only
   "shared/db/client.ts:extractUpdateColumns",
+  // System-note creator: its first production caller (the refunded-but-stored
+  // booking warning) lands with the refund-but-store change; the notes module
+  // ships the writer alongside its reader, exercised directly by tests until then.
+  "shared/db/system-notes.ts:createSystemNote",
 ];
 
 const getAllTsFiles = (dir: string): Promise<string[]> =>

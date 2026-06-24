@@ -19,6 +19,7 @@ import type {
   ListingRevenueBreakdown,
 } from "#shared/db/listings.ts";
 import { settings } from "#shared/db/settings.ts";
+import { attendeeNameMap, type SystemNote } from "#shared/db/system-notes.ts";
 import { buildEmbedSnippets } from "#shared/embed.ts";
 import { isReadOnly } from "#shared/env.ts";
 import type { Field } from "#shared/forms.tsx";
@@ -44,6 +45,7 @@ import {
   type ListingWithCount,
   normalizeDurationDays,
 } from "#shared/types.ts";
+import { AttendeeNotesSummary } from "#templates/admin/attendee-notes.tsx";
 import { buildSharedDetailRows } from "#templates/admin/detail-rows.tsx";
 import {
   type ExpectedActualItem,
@@ -458,6 +460,9 @@ export type AdminListingPageOptions = {
   /** Whether any of the listing's attendees (across all dates) have an email
    * address — gates the owner-only "Email" action. */
   hasEmailableAttendees?: boolean;
+  /** Decrypted notes for the listed attendees (empty when none) — surfaced as a
+   * red expandable above the attendee table. */
+  systemNotes?: SystemNote[];
 };
 
 /** Top action nav for the listing detail page */
@@ -1238,6 +1243,7 @@ export const adminListingPage = ({
   groupContext,
   revenueBreakdown,
   hasEmailableAttendees = false,
+  systemNotes = [],
 }: AdminListingPageOptions): string => {
   const ticketUrl = `https://${allowedDomain}/ticket/${listing.slug}`;
   const { script: embedScriptCode, iframe: embedIframeCode } =
@@ -1318,6 +1324,10 @@ export const adminListingPage = ({
           listingId={listing.id}
         />
       )}
+      <AttendeeNotesSummary
+        names={attendeeNameMap(attendees)}
+        notes={systemNotes}
+      />
       <AttendeesSection
         activeFilter={activeFilter}
         allowedDomain={allowedDomain}
