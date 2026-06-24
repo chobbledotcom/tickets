@@ -14,6 +14,11 @@ import {
 } from "#shared/accounting/queries.ts";
 import { legReference } from "#shared/accounting/refs.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
+import {
+  enableQueryLog,
+  getQueryLog,
+  runWithQueryLogContext,
+} from "#shared/db/query-log.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
 import type { Transfer } from "#shared/ledger/types.ts";
 import {
@@ -133,6 +138,31 @@ describeWithEnv("refund-ledger > recordAttendeeRefund", { db: true }, () => {
     expect(await accountBalance(revenueAccount(1))).toBe(0);
     const cash = await expectSingleRefundCash(5000);
     expect(cash.destination).toEqual(WORLD);
+  });
+
+  test("reverses a many-listing booking in a bounded number of round-trips", async () => {
+    // Regression: a booking spanning many listings has one sale leg per listing,
+    // so reversing it once issued a read-per-leg interactive transaction that held
+    // the write lock open long enough for the primary to abort it
+    // ("Transaction timed-out"). The reversal must cost O(1) round-trips — prepared
+    // reads then one batch — not O(legs).
+    const listingCount = 25;
+    const lines = Array.from({ length: listingCount }, (_, i) => ({
+      gross: 200,
+      listingId: i + 1,
+    }));
+    await postBooking({ amountPaid: listingCount * 200, lines });
+
+    await runWithQueryLogContext(async () => {
+      enableQueryLog();
+      const result = await recordAttendeeRefund(ATTENDEE);
+      expect(result).toEqual({ posted: true });
+      // Distinct round-trip start times: a prepared batch shares one window, while
+      // a per-leg interactive transaction would show ~legs distinct round-trips
+      // (and trip the transaction guard well before reaching them).
+      const roundTrips = new Set(getQueryLog().map((q) => q.startedAtMs)).size;
+      expect(roundTrips).toBeLessThanOrEqual(6);
+    });
   });
 
   test("reverses a sale-less paid order (surcharge with no sale leg)", async () => {
