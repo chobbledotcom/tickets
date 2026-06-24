@@ -9,13 +9,7 @@
  */
 
 import type { InValue } from "@libsql/client";
-import {
-  execute,
-  executeBatchWithResults,
-  inPlaceholders,
-  queryAll,
-  type TxScope,
-} from "#shared/db/client.ts";
+import { inPlaceholders, queryAll } from "#shared/db/client.ts";
 import { mapByIds } from "#shared/db/query.ts";
 import { nowIso } from "#shared/now.ts";
 
@@ -106,14 +100,6 @@ export const usageInsert = (
         WHERE ${guard.sql}`,
 });
 
-/** Insert a usage row only while the modifier's remaining stock allows it
- * (unlimited when stock is null). Atomic, so it is also the concurrency guard. */
-const guardedUsageInsert = (
-  attendeeId: number,
-  usage: ModifierUsage,
-): SqlFragment =>
-  usageInsert(usage, "?", [attendeeId], modifierStockCondition(usage));
-
 /**
  * Whether any of these modifiers no longer has stock for its quantity — the
  * post-failure probe that tells a booking that failed to land *why*: a sold-out
@@ -136,43 +122,4 @@ export const anyModifierSoldOut = async (
     if (stock === null || stock === undefined) return false;
     return stock - (used.get(u.modifierId) ?? 0) < u.quantity;
   });
-};
-
-/**
- * Atomically consume stock for an attendee's modifiers. Returns true when every
- * usage was recorded; when any modifier had insufficient stock, the partial
- * rows recorded for this attendee are removed and false is returned (the caller
- * rolls the order back).
- */
-export const consumeModifierStock = async (
-  attendeeId: number,
-  usages: ModifierUsage[],
-): Promise<boolean> => {
-  if (usages.length === 0) return true;
-  const results = await executeBatchWithResults(
-    usages.map((u) => guardedUsageInsert(attendeeId, u)),
-  );
-  if (results.every((r) => r.rowsAffected > 0)) return true;
-  await execute("DELETE FROM modifier_usages WHERE attendee_id = ?", [
-    attendeeId,
-  ]);
-  return false;
-};
-
-/**
- * Consume modifier stock inside an open transaction. Returns false as soon as a
- * modifier is sold out (a guarded insert affects no row); the caller rolls the
- * transaction back, so — unlike {@link consumeModifierStock} — no cleanup DELETE
- * is needed here. With no usages this is a no-op.
- */
-export const consumeModifierStockTx = async (
-  tx: TxScope,
-  attendeeId: number,
-  usages: ModifierUsage[],
-): Promise<boolean> => {
-  for (const usage of usages) {
-    const result = await tx.execute(guardedUsageInsert(attendeeId, usage));
-    if (result.rowsAffected === 0) return false;
-  }
-  return true;
 };
