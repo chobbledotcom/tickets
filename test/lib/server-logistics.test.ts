@@ -1,9 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  getLogisticsAssignments,
-  setLogisticsAssignments,
-} from "#shared/db/logistics.ts";
+import { getLogisticsAssignments } from "#shared/db/logistics.ts";
 import {
   getAllLogisticsAgents,
   logisticsAgentsTable,
@@ -14,8 +11,7 @@ import { getAllUsers } from "#shared/db/users.ts";
 import {
   adminFormPost,
   adminGet,
-  createTestAttendee,
-  createTestListing,
+  createListingWithAttendeeAndLogistics,
   describeWithEnv,
   expectFlash,
   expectFlashRedirect,
@@ -30,6 +26,27 @@ const createAgent = async (name: string): Promise<number> => {
   const agents = await getAllLogisticsAgents();
   return agents.find((a) => a.name === name)!.id;
 };
+
+/** Create a listing + attendee pair and assign logistics agents to the
+ *  booking line. Delegates to the shared `createListingWithAttendeeAndLogistics`
+ *  so both the runsheet and server-logistics tests build the same fixture. */
+const createBookingWithAgent = async (
+  agentId: number,
+): Promise<{ attendeeId: number; listingId: number }> =>
+  createListingWithAttendeeAndLogistics(
+    (id) =>
+      new Map([
+        [
+          id,
+          {
+            endAgentId: agentId,
+            endTime: "",
+            startAgentId: agentId,
+            startTime: "",
+          },
+        ],
+      ]),
+  );
 
 describeWithEnv("server (admin logistics)", { db: true }, () => {
   describe("GET /admin/logistics", () => {
@@ -195,30 +212,14 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
 
     test("deleting an agent clears its booking references", async () => {
       const id = await createAgent("Assigned Van");
-      const listing = await createTestListing({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "Cust",
-        "c@example.com",
-      );
-      await setLogisticsAssignments(
-        attendee.id,
-        false,
-        new Map([
-          [
-            listing.id,
-            { endAgentId: id, endTime: "", startAgentId: id, startTime: "" },
-          ],
-        ]),
-      );
+      const { attendeeId, listingId } = await createBookingWithAgent(id);
 
       await adminFormPost(`/admin/logistics/${id}/delete`, {
         confirm_identifier: "Assigned Van",
       });
 
-      const got = await getLogisticsAssignments(attendee.id);
-      expect(got.get(listing.id)).toEqual({
+      const got = await getLogisticsAssignments(attendeeId);
+      expect(got.get(listingId)).toEqual({
         endAgentId: null,
         endTime: "",
         startAgentId: null,
