@@ -198,6 +198,7 @@ describe("priceCheckout", () => {
           amountApplied: 1500,
           delta: 1500,
           modifierId: 1,
+          name: "Add-on",
           quantity: 3,
           scopedSubtotal: 1000,
         },

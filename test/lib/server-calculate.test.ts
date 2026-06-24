@@ -282,7 +282,10 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
       })
     ).text();
 
-    // 10% off £10.00 = £9.00
+    // Discount line shown with modifier name and negative amount.
+    expect(html).toContain("10% off");
+    expect(html).toContain(formatCurrency(-100));
+    // Total reflects the discounted price (10% off £10.00 = £9.00).
     expect(html).toContain(formatCurrency(900));
     expect(html).toContain("order-summary-total");
   });
@@ -296,9 +299,10 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
       })
     ).text();
 
-    // Full price — no promo code entered
+    // Full price — no promo code entered, no discount line.
     expect(html).toContain(formatCurrency(1000));
     expect(html).not.toContain(formatCurrency(900));
+    expect(html).not.toContain("10% off");
   });
 
   test("does not apply a promo code discount when a wrong code is submitted", async () => {
@@ -311,9 +315,10 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
       })
     ).text();
 
-    // Full price — wrong promo code
+    // Full price — wrong promo code, no discount line.
     expect(html).toContain(formatCurrency(1000));
     expect(html).not.toContain(formatCurrency(900));
+    expect(html).not.toContain("10% off");
   });
 
   test("applies a promo code discount case-insensitively", async () => {
@@ -326,7 +331,9 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
       })
     ).text();
 
-    // Lowercase variant of the code should still match
+    // Lowercase variant of the code should still match.
+    expect(html).toContain("10% off");
+    expect(html).toContain(formatCurrency(-100));
     expect(html).toContain(formatCurrency(900));
   });
 });

@@ -44,6 +44,11 @@ export const orderSummary = (order: PricedOrder): string =>
               label={quantityLabel(extra.quantity, extra.name)}
             />
           ))}
+          {order.modifierApplications
+            .filter((app) => app.delta < 0)
+            .map((app) => (
+              <SummaryRow amount={app.delta} label={app.name} />
+            ))}
         </tbody>
         <tfoot>
           <SummaryRow
