@@ -162,6 +162,71 @@ describe("db > accounting > store", () => {
       expect(error.message).toContain("surrounding work failed");
       expect((await allTransfers()).length).toBe(0);
     });
+
+    test("skips an already-posted event as an idempotent replay", async () => {
+      // The in-transaction poster the booking path uses must be idempotent too:
+      // re-posting an event whose legs already match writes nothing rather than
+      // doubling the ledger.
+      await withTransaction((t) => postTransfersTx(t, saleAndPayment()));
+      const replay = await withTransaction((t) =>
+        postTransfersTx(t, saleAndPayment()),
+      );
+      expect(replay).toEqual({ inserted: 0, skipped: 2 });
+      expect((await allTransfers()).length).toBe(2);
+    });
+
+    test("rejects a reference already owned by a different event", async () => {
+      // A reference is globally unique to one event; reusing it under a new event
+      // group is a conflict, caught before the write opens.
+      await withTransaction((t) =>
+        postTransfersTx(t, [tx({ eventGroup: "e1", reference: "shared" })]),
+      );
+      const error = await rejection(
+        withTransaction((t) =>
+          postTransfersTx(t, [tx({ eventGroup: "e2", reference: "shared" })]),
+        ),
+      );
+      expect(error).toBeInstanceOf(LedgerConflictError);
+      expect(error.message).toContain("already belongs to a different event");
+      expect((await allTransfers()).length).toBe(1);
+    });
+
+    test("validates a reversal against the stored original it reads in-tx", async () => {
+      // The in-transaction poster checks a reversing leg against the original it
+      // links to, read through its own transaction — the admin-void path. Post the
+      // original, then void it by the stored id in a separate event.
+      await withTransaction((t) =>
+        postTransfersTx(t, [tx({ eventGroup: "orig", reference: "sale" })]),
+      );
+      const origId = (await transfersByEventGroup("orig"))[0]!.id;
+      const result = await withTransaction((t) =>
+        postTransfersTx(t, [
+          tx({
+            destination: account("attendee", 1),
+            eventGroup: "void",
+            reference: "void",
+            reversesId: origId,
+            source: account("revenue", 1),
+          }),
+        ]),
+      );
+      expect(result).toEqual({ inserted: 1, skipped: 0 });
+    });
+
+    test("rejects an in-tx reversal whose original does not exist", async () => {
+      // selectById returns null for an unknown id; the void then refers to no
+      // transfer and is refused before any write.
+      const error = await rejection(
+        withTransaction((t) =>
+          postTransfersTx(t, [
+            tx({ eventGroup: "void", reference: "void", reversesId: 9999 }),
+          ]),
+        ),
+      );
+      expect(error).toBeInstanceOf(LedgerConflictError);
+      expect(error.message).toContain("refers to no transfer");
+      expect((await allTransfers()).length).toBe(0);
+    });
   });
 
   describe("postTransferGroups (one atomic batch of many events)", () => {

@@ -48,10 +48,7 @@ import {
 import { bookingDateFields } from "#routes/public/ticket-payment.ts";
 import { htmlResponse, paymentErrorResponse } from "#routes/response.ts";
 import { calculateBookingFee } from "#shared/booking-fee.ts";
-import {
-  bookingBatchPlan,
-  createOrSoldOut,
-} from "#shared/checkout-complete.ts";
+import { bookingBatchPlan } from "#shared/checkout-complete.ts";
 import {
   type ModifierApplication,
   type PricedOrder,
@@ -62,7 +59,7 @@ import { logActivity } from "#shared/db/activityLog.ts";
 import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
 import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
 import {
-  type createAttendeeAtomic,
+  createAttendeeAtomic,
   createBookingAtomic,
   ensureAllBookings,
 } from "#shared/db/attendees.ts";
@@ -1089,7 +1086,9 @@ const placeholderBookings = (
     ...bookingDateFields(listing, intent.date, intent.dayCount),
   }));
 
-type PlaceholderBookings = Parameters<typeof createOrSoldOut>[0]["bookings"];
+type PlaceholderBookings = Parameters<
+  typeof createAttendeeAtomic
+>[0]["bookings"];
 
 /**
  * Keep a signed-by-us booking we can't honour rather than dropping it into limbo:
@@ -1117,7 +1116,7 @@ const storeRefundedBooking = async (
   // A quantity-0 overbook insert has no capacity gate and consumes no modifier
   // stock, so it always writes the row — trust it. (If the PII can't encrypt the
   // whole system is broken; we don't defend against that.)
-  const stored = await createOrSoldOut({
+  const stored = await createAttendeeAtomic({
     address: intent.address,
     allowOverbook: true,
     bookings,

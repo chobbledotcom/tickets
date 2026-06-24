@@ -21,6 +21,7 @@ import {
 } from "#shared/cache-registry.ts";
 import {
   addQueryLogEntry,
+  enforceTransactionRoundTripGuard,
   isQueryLogEnabled,
   logCompletedSql,
   trackQuery,
@@ -377,10 +378,16 @@ const runWriteTransactionOnce = async <T>(
 ): Promise<T> => {
   const tx = await getDb().transaction("write");
   const writtenSql: string[] = [];
+  let statementCount = 0;
   const scope: TxScope = {
     execute: (stmt) => {
       const sql = typeof stmt === "string" ? stmt : stmt.sql;
       writtenSql.push(sql);
+      // Guard against a transaction that holds the write lock open for too many
+      // sequential round-trips (the "Transaction timed-out" shape); chatty writes
+      // belong in a batch, not an interactive transaction.
+      statementCount += 1;
+      enforceTransactionRoundTripGuard(statementCount, sql);
       // Track transactional statements too, so reads inside the callback still
       // show in the debug footer and count toward the N+1 guard.
       return trackQuery(sql, () => tx.execute(stmt));
