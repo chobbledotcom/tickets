@@ -13,6 +13,7 @@ import {
   isSessionProcessed,
   reserveSession,
 } from "#shared/db/processed-payments.ts";
+import { createSystemNote, getNoteRows } from "#shared/db/system-notes.ts";
 import {
   createPaidTestAttendee,
   createTestAttendee,
@@ -54,7 +55,9 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
     );
 
     await reserveSession("sess_attendee_delete");
-    await finalizePaymentSession("sess_attendee_delete", attendee.id);
+    await finalizePaymentSession("sess_attendee_delete", attendee.id, [
+      "tok-test",
+    ]);
 
     await deleteAttendee(attendee.id);
 
@@ -157,6 +160,25 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
       total_uses: 3,
       usage_count: 1,
     });
+  });
+
+  test("removes the attendee's system notes", async () => {
+    const listing = await createTestListing({
+      maxAttendees: 50,
+      thankYouUrl: "https://example.com",
+    });
+    const attendee = await createTestAttendee(
+      listing.id,
+      listing.slug,
+      "Noted Attendee",
+      "noted@example.com",
+    );
+    await createSystemNote(attendee.id, "a note that should be purged");
+    expect(await getNoteRows([attendee.id])).toHaveLength(1);
+
+    await deleteAttendee(attendee.id);
+
+    expect(await getNoteRows([attendee.id])).toEqual([]);
   });
 
   test("succeeds when the attendee has no modifier usage", async () => {

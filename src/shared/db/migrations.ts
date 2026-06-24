@@ -66,6 +66,7 @@ import dropModifiersTotalRevenueMigration from "./migrations/2026-06-22_drop_mod
 import dropTransfersCurrencyMigration from "./migrations/2026-06-22_drop_transfers_currency.ts";
 import listingAttendeeLedgerEventGroupMigration from "./migrations/2026-06-22_listing_attendee_ledger_event_group.ts";
 import transfersTimeIntMigration from "./migrations/2026-06-22_transfers_time_int.ts";
+import systemNotesMigration from "./migrations/2026-06-23_system_notes.ts";
 import { repairLegacyRenames } from "./migrations/rename-utils.ts";
 import {
   LATEST_UPDATE,
@@ -231,6 +232,7 @@ export const MIGRATIONS: Migration[] = [
   dropAttendeesPricePaidMigration,
   dropAttendeesRemainingBalanceMigration,
   dropModifiersTotalRevenueMigration,
+  systemNotesMigration,
 ].map((build) => build(migrationContext));
 
 export const MIGRATION_IDS: string[] = MIGRATIONS.map(

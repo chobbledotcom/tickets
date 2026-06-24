@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { ATTENDEES_PAGE_SIZE } from "#shared/db/attendees.ts";
+import { createSystemNote } from "#shared/db/system-notes.ts";
 import {
   adminGet,
   assertAdminHtml,
@@ -263,6 +264,25 @@ describeWithEnv("server (admin attendees list)", { db: true }, () => {
       const html = await response.text();
       expect(html).toContain("No attendees yet");
       expect(html).not.toContain("Lonely");
+    });
+
+    test("surfaces an expandable notes summary when a listed attendee has a note", async () => {
+      const listing = await makeListing("Gala Night");
+      const { attendee } = await createTestAttendeeDirect(
+        listing.id,
+        "Alice",
+        "alice@example.com",
+      );
+      await createSystemNote(attendee.id, "Refunded — follow up tomorrow.");
+
+      const { response } = await adminGet("/admin/attendees");
+      const html = await response.text();
+      // The decrypted system-note text renders inside the summary, and the
+      // attendee's name links to their edit page — proving the notes-loading
+      // path (which derives the owner private key only once notes exist) ran.
+      expect(html).toContain("1 attendee has notes");
+      expect(html).toContain("Refunded — follow up tomorrow.");
+      expect(html).toContain('href="/admin/attendees/');
     });
   });
 });

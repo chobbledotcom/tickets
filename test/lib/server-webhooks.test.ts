@@ -3291,7 +3291,9 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         finalizeSession: finalizeSessionFn,
       } = await import("#shared/db/processed-payments.ts");
       await reserveSessionFn("cs_del_listing_wh");
-      await finalizeSessionFn("cs_del_listing_wh", attResult.attendees[0]!.id);
+      await finalizeSessionFn("cs_del_listing_wh", attResult.attendees[0]!.id, [
+        "tok-test",
+      ]);
 
       const { stripePaymentProvider } = await import(
         "#shared/stripe-provider.ts"
