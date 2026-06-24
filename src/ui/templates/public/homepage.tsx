@@ -128,13 +128,13 @@ export const homepagePage = (
     );
   }
 
-  const groupListings = pipe(map(renderGroupListing), (rows: string[]) =>
-    rows.join(""),
-  )(groups);
+  const groupListings = pipe(map(renderGroupListing), (rows) => rows.join(""))(
+    groups,
+  );
 
   const listingListings = pipe(
     map(renderListingListing(childStateOf)),
-    (rows: string[]) => rows.join(""),
+    (rows) => rows.join(""),
   )(listings);
 
   return String(

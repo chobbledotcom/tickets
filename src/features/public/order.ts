@@ -64,7 +64,7 @@ const bookingUrlFor = (selected: TicketListing[]): string => {
       (t: TicketListing) =>
         !t.isSoldOut && !t.isClosed && t.maxPurchasable >= 1,
     ),
-    map((t: TicketListing) => `q_${t.listing.id}=1`),
+    map((t) => `q_${t.listing.id}=1`),
   )(selected);
   const query = quantities.length > 0 ? `?${quantities.join("&")}` : "";
   return `/ticket/${slugs.join("+")}${query}`;

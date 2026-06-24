@@ -652,7 +652,7 @@ const childFromPrice = (
   const childSpans = new Set(availableDayCounts(child));
   const prices = pipe(
     filter((n: number) => childSpans.has(n)),
-    mapNotNullish((n: number) => dayPriceFor(child, n)),
+    mapNotNullish((n) => dayPriceFor(child, n)),
   )(availableDayCounts(parent));
   return prices.length === 0 ? null : Math.min(...prices);
 };
