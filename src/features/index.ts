@@ -784,8 +784,13 @@ const prepareRequestEnvironment = async (
   // (enableFooterDebug, after auth). Non-admin requests skip the overhead.
   if (method === "GET" && getPrefix(path) === "admin") enableQueryLog();
 
+  // Kick off the settings-version probe immediately so the tiny query overlaps
+  // the rest of request setup; loadKeys below awaits its result.
+  settings.prefetchVersion();
+
   // Load only the settings this route needs (infra ∪ prefix bundle) in one
-  // targeted query. The cache is a no-op when still valid (60 s TTL).
+  // targeted query. When the settings version is unchanged since this isolate
+  // last loaded, the cached snapshot is reused with no reload or decryption.
   await settings.loadKeys(settingsForPath(path));
 
   // Schedule DB pruning as fire-and-forget pending work. Each prune task
@@ -844,6 +849,7 @@ const handleRoutingError = (
     logError({
       code: ErrorCode.DB_BUSY,
       detail: formatRequestError(method, path, error),
+      error,
     });
     // Only auto-refresh idempotent requests: reloading a POST would drop the
     // submitted form body without replaying the write.
@@ -852,6 +858,7 @@ const handleRoutingError = (
   logError({
     code: ErrorCode.CDN_REQUEST,
     detail: formatRequestError(method, path, error),
+    error,
   });
   // In tests, surface the real error instead of swallowing it
   // behind a generic "Temporary Error" page

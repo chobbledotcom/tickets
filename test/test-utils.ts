@@ -5,6 +5,7 @@ export { getTestDataKey, getTestPrivateKey } from "./test-utils/crypto.ts";
 export * from "./test-utils/csrf.ts";
 export * from "./test-utils/db.ts";
 export * from "./test-utils/db-helpers.ts";
+export * from "./test-utils/e2e.ts";
 export * from "./test-utils/email.ts";
 export * from "./test-utils/env.ts";
 export * from "./test-utils/factories.ts";

@@ -11,7 +11,7 @@ import {
   resetModifierAggregateFields,
   updateModifierAggregateValues,
 } from "#shared/db/modifiers.ts";
-import { describeWithEnv } from "#test-utils";
+import { describeWithEnv, insertModifierUsage } from "#test-utils";
 import { postModifierLeg } from "#test-utils/ledger.ts";
 
 /**
@@ -59,17 +59,6 @@ describeWithEnv(
       };
     };
 
-    const insertUsage = (
-      modifierId: number,
-      attendeeId: number,
-      quantity: number,
-      amountApplied: number,
-    ): Promise<unknown> =>
-      getDb().execute({
-        args: [modifierId, attendeeId, quantity, amountApplied, "2026-06-17"],
-        sql: "INSERT INTO modifier_usages (modifier_id, attendee_id, quantity, amount_applied, created) VALUES (?, ?, ?, ?, ?)",
-      });
-
     /** total_revenue as the table read projects it (from the ledger). */
     const projectedRevenue = async (modifierId: number): Promise<number> =>
       (await getAllModifiers()).find((m) => m.id === modifierId)!.total_revenue;
@@ -84,7 +73,7 @@ describeWithEnv(
 
     test("modifiersTable read exposes the trigger-maintained counts", async () => {
       const m = await makeModifier();
-      await insertUsage(m.id, 1, 3, 1500);
+      await insertModifierUsage(m.id, 1, 3, 1500);
       const reread = await modifiersTable.findById(m.id);
       expect(reread).toMatchObject({
         total_uses: 3,
@@ -94,8 +83,8 @@ describeWithEnv(
 
     test("insert increments uses and usage count", async () => {
       const m = await makeModifier();
-      await insertUsage(m.id, 1, 3, 1500);
-      await insertUsage(m.id, 2, 2, 1000);
+      await insertModifierUsage(m.id, 1, 3, 1500);
+      await insertModifierUsage(m.id, 2, 2, 1000);
       expect(await aggregates(m.id)).toEqual({
         total_uses: 5,
         usage_count: 2,
@@ -104,8 +93,8 @@ describeWithEnv(
 
     test("delete decrements the row's contribution", async () => {
       const m = await makeModifier();
-      await insertUsage(m.id, 1, 3, 1500);
-      await insertUsage(m.id, 2, 2, 1000);
+      await insertModifierUsage(m.id, 1, 3, 1500);
+      await insertModifierUsage(m.id, 2, 2, 1000);
       await getDb().execute({
         args: [m.id, 1],
         sql: "DELETE FROM modifier_usages WHERE modifier_id = ? AND attendee_id = ?",
@@ -118,7 +107,7 @@ describeWithEnv(
 
     test("updating quantity applies the delta", async () => {
       const m = await makeModifier();
-      await insertUsage(m.id, 1, 3, 1500);
+      await insertModifierUsage(m.id, 1, 3, 1500);
       await getDb().execute({
         args: [m.id, 1],
         sql: "UPDATE modifier_usages SET quantity = 5 WHERE modifier_id = ? AND attendee_id = ?",
@@ -132,7 +121,7 @@ describeWithEnv(
     test("moving a row to another modifier shifts its aggregates", async () => {
       const from = await makeModifier();
       const to = await makeModifier();
-      await insertUsage(from.id, 1, 4, 2000);
+      await insertModifierUsage(from.id, 1, 4, 2000);
 
       await getDb().execute({
         args: [to.id, from.id, 1],
@@ -151,7 +140,7 @@ describeWithEnv(
 
     test("updating an unrelated column leaves aggregates unchanged", async () => {
       const m = await makeModifier();
-      await insertUsage(m.id, 1, 3, 1500);
+      await insertModifierUsage(m.id, 1, 3, 1500);
       const before = await aggregates(m.id);
 
       // amount_applied is no longer in the trigger's UPDATE OF list (it drives
@@ -167,7 +156,7 @@ describeWithEnv(
     test("total_revenue is projected from the modifier's net ledger balance", async () => {
       const m = await makeModifier();
       // A usage row with no posted modifier legs contributes nothing to revenue.
-      await insertUsage(m.id, 1, 1, 1500);
+      await insertModifierUsage(m.id, 1, 1, 1500);
       expect(await projectedRevenue(m.id)).toBe(0);
 
       // A surcharge bills the attendee (attendee→modifier), so balanceOf(modifier)
@@ -224,7 +213,7 @@ describeWithEnv(
 
     test("manual aggregate edits override the trigger-maintained counts", async () => {
       const m = await makeModifier();
-      await insertUsage(m.id, 1, 3, 1500);
+      await insertModifierUsage(m.id, 1, 3, 1500);
 
       await updateModifierAggregateValues(m.id, {
         total_uses: 8,
@@ -239,8 +228,8 @@ describeWithEnv(
 
     test("selected aggregate reset fields are rebuilt from usage rows", async () => {
       const m = await makeModifier();
-      await insertUsage(m.id, 1, 3, 1500);
-      await insertUsage(m.id, 2, 2, 1000);
+      await insertModifierUsage(m.id, 1, 3, 1500);
+      await insertModifierUsage(m.id, 2, 2, 1000);
       await updateModifierAggregateValues(m.id, {
         total_uses: 8,
         usage_count: 4,
@@ -262,8 +251,8 @@ describeWithEnv(
 
     test("the migration's backfill recomputes stale aggregates from scratch", async () => {
       const m = await makeModifier();
-      await insertUsage(m.id, 1, 3, 1500);
-      await insertUsage(m.id, 2, 2, 1000);
+      await insertModifierUsage(m.id, 1, 3, 1500);
+      await insertModifierUsage(m.id, 2, 2, 1000);
 
       // Reproduce a pre-trigger state: drop the triggers, then corrupt the
       // columns directly (no trigger fires to correct them).

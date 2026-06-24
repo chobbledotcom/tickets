@@ -47,6 +47,7 @@ export type ExtraLine = {
  * the signed net checkout change. */
 export type ModifierApplication = {
   modifierId: number;
+  name: string;
   quantity: number;
   amountApplied: number;
   delta: number;
@@ -255,6 +256,7 @@ const applyOne = (pass: ModifierPass, spec: ModifierSpec): ModifierPass => {
         amountApplied,
         delta: signedDelta,
         modifierId: spec.id,
+        name: spec.name,
         quantity: spec.quantity,
         scopedSubtotal,
       },

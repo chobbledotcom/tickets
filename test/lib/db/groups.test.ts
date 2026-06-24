@@ -31,6 +31,42 @@ import {
 } from "#test-utils";
 
 describeWithEnv("db > groups", { db: true, triggers: true }, () => {
+  /** Create a capped group with two listings (each with listing-level max of 10). */
+  const createCappedGroupWithListings = async (
+    groupMax: number,
+    slug: string,
+    overrides?: { listingType?: "standard" | "daily" },
+  ) => {
+    const group = await createTestGroup({
+      maxAttendees: groupMax,
+      name: slug,
+      slug,
+    });
+    const e1 = await createTestListing({
+      groupId: group.id,
+      listingType: overrides?.listingType,
+      maxAttendees: 10,
+      name: `${slug}-a`,
+    });
+    const e2 = await createTestListing({
+      groupId: group.id,
+      listingType: overrides?.listingType,
+      maxAttendees: 10,
+      name: `${slug}-b`,
+    });
+    return { e1, e2, group };
+  };
+
+  /** Book attendees atomically with minimal boilerplate. The generated
+   *  email/name is keyed by `listingId`+`quantity` so distinct bookings
+   *  within a test never collide. */
+  const book = (listingId: number, quantity: number, date?: string) =>
+    createAttendeeAtomic({
+      bookings: [{ date, listingId, quantity }],
+      email: `g${listingId}q${quantity}@example.com`,
+      name: `g-${listingId}-${quantity}`,
+    });
+
   describe("CRUD", () => {
     test("groupsTable create, update, findById, deleteById", async () => {
       const created = await createTestGroup({
@@ -173,40 +209,6 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
   });
 
   describe("capacity", () => {
-    /** Create a capped group with two listings (each with listing-level max of 10) */
-    const createCappedGroupWithListings = async (
-      groupMax: number,
-      slug: string,
-      overrides?: { listingType?: "standard" | "daily" },
-    ) => {
-      const group = await createTestGroup({
-        maxAttendees: groupMax,
-        name: slug,
-        slug,
-      });
-      const e1 = await createTestListing({
-        groupId: group.id,
-        listingType: overrides?.listingType,
-        maxAttendees: 10,
-        name: `${slug}-a`,
-      });
-      const e2 = await createTestListing({
-        groupId: group.id,
-        listingType: overrides?.listingType,
-        maxAttendees: 10,
-        name: `${slug}-b`,
-      });
-      return { e1, e2, group };
-    };
-
-    /** Book attendees atomically with minimal boilerplate */
-    const book = (listingId: number, quantity: number, date?: string) =>
-      createAttendeeAtomic({
-        bookings: [{ date, listingId, quantity }],
-        email: `a${listingId}q${quantity}@example.com`,
-        name: `attendee-${listingId}-${quantity}`,
-      });
-
     test("createAttendeeAtomic enforces group max_attendees across listings", async () => {
       const { e1, e2 } = await createCappedGroupWithListings(5, "capped");
 
@@ -446,38 +448,6 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
   });
 
   describe("group remaining helpers", () => {
-    const createCappedGroupWithListings = async (
-      groupMax: number,
-      slug: string,
-      overrides?: { listingType?: "standard" | "daily" },
-    ) => {
-      const group = await createTestGroup({
-        maxAttendees: groupMax,
-        name: slug,
-        slug,
-      });
-      const e1 = await createTestListing({
-        groupId: group.id,
-        listingType: overrides?.listingType,
-        maxAttendees: 10,
-        name: `${slug}-a`,
-      });
-      const e2 = await createTestListing({
-        groupId: group.id,
-        listingType: overrides?.listingType,
-        maxAttendees: 10,
-        name: `${slug}-b`,
-      });
-      return { e1, e2, group };
-    };
-
-    const book = (listingId: number, quantity: number, date?: string) =>
-      createAttendeeAtomic({
-        bookings: [{ date, listingId, quantity }],
-        email: `g${listingId}q${quantity}@example.com`,
-        name: `g-${listingId}-${quantity}`,
-      });
-
     test("getGroupRemainingByGroupId returns spots remaining for capped groups", async () => {
       const { e1, group } = await createCappedGroupWithListings(5, "remaining");
       await book(e1.id, 2);

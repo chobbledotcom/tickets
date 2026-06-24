@@ -71,9 +71,7 @@ export const orderGalleryPage = (
 ): string => {
   const orderTitle = t("nav.public.order");
   const title = websiteTitle ? `${orderTitle} - ${websiteTitle}` : orderTitle;
-  const cards = pipe(map(renderOrderCard), (rows: string[]) => rows.join(""))(
-    listings,
-  );
+  const cards = pipe(map(renderOrderCard), (rows) => rows.join(""))(listings);
 
   return String(
     <Layout headExtra={FEED_DISCOVERY_TAGS} title={title}>

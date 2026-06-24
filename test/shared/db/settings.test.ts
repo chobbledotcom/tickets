@@ -4,7 +4,9 @@ import { encrypt } from "#shared/crypto/encryption.ts";
 import { execute, getDb } from "#shared/db/client.ts";
 import {
   ALL_SETTINGS_KEYS,
+  bumpSettingsVersion,
   CONFIG_KEYS,
+  getCurrentSettingsVersion,
   settings,
 } from "#shared/db/settings.ts";
 import {
@@ -56,6 +58,57 @@ describeWithEnv("db > settings", { db: true }, () => {
       await settings.loadKeys([CONFIG_KEYS.PAYMENT_PROVIDER]);
 
       expect(settings.paymentProvider).toBe("square");
+    });
+
+    test("a change that bumps the settings version is picked up on the next load", async () => {
+      // This process caches the current (unset) provider at the current version.
+      await settings.loadKeys([CONFIG_KEYS.PAYMENT_PROVIDER]);
+      expect(settings.paymentProvider).toBeNull();
+
+      // Simulate another isolate switching to Stripe: it changes the value in
+      // the DB and bumps the shared settings version, exactly as its write
+      // would leave the database.
+      await getDb().execute({
+        args: [CONFIG_KEYS.PAYMENT_PROVIDER, "stripe"],
+        sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+      });
+      await bumpSettingsVersion();
+
+      // The bumped version invalidates this process's cache on the next load.
+      await settings.loadKeys([CONFIG_KEYS.PAYMENT_PROVIDER]);
+      expect(settings.paymentProvider).toBe("stripe");
+    });
+
+    test("a raw DB change with no version bump is not picked up (cache stays authoritative)", async () => {
+      await settings.update.paymentProvider("stripe");
+      await settings.loadKeys([CONFIG_KEYS.PAYMENT_PROVIDER]);
+      expect(settings.paymentProvider).toBe("stripe");
+
+      // Sneak a value change straight into the DB without bumping the version.
+      await getDb().execute({
+        args: ["square", CONFIG_KEYS.PAYMENT_PROVIDER],
+        sql: "UPDATE settings SET value = ? WHERE key = ?",
+      });
+      await settings.loadKeys([CONFIG_KEYS.PAYMENT_PROVIDER]);
+
+      // Version unchanged → no reload → the cached value is served.
+      expect(settings.paymentProvider).toBe("stripe");
+    });
+  });
+
+  describe("settings version probe", () => {
+    test("treats a missing settings_version row as version 0", async () => {
+      await getDb().execute({
+        args: [CONFIG_KEYS.SETTINGS_VERSION],
+        sql: "DELETE FROM settings WHERE key = ?",
+      });
+      expect(await getCurrentSettingsVersion()).toBe(0);
+    });
+
+    test("increments the version on each settings write", async () => {
+      const before = await getCurrentSettingsVersion();
+      await settings.update.theme("dark");
+      expect(await getCurrentSettingsVersion()).toBe(before + 1);
     });
   });
 
@@ -131,9 +184,10 @@ describeWithEnv("db > settings", { db: true }, () => {
     });
 
     test("re-reads an already-loaded key without re-querying", async () => {
-      // isSetupComplete uses isKeyLoaded to skip loadKeys when the key is
-      // already resolved in a fresh partial cache (no full load). Setup must
-      // be incomplete so the permanent-cache short-circuit doesn't fire first.
+      // isSetupComplete calls loadKeys, which serves the already-resolved key
+      // from the cache while the settings version is unchanged (no full reload).
+      // Setup must be incomplete so the permanent-cache short-circuit doesn't
+      // fire first.
       settings.setup.clearCache();
       await getDb().execute({
         args: [CONFIG_KEYS.SETUP_COMPLETE],

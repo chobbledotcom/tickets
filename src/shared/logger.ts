@@ -16,6 +16,7 @@ import {
   hasPendingWorkScope,
   runWithPendingWork,
 } from "#shared/pending-work.ts";
+import { captureServerError } from "#shared/sentry.ts";
 
 /** Request-scoped random ID for correlating log entries */
 const requestIdStorage = new AsyncLocalStorage<string>();
@@ -274,6 +275,13 @@ export type ErrorContext = {
   attendeeId?: number;
   /** Optional: additional safe context */
   detail?: string;
+  /**
+   * Optional original thrown error. Forwarded to Sentry (never to the console
+   * line, ntfy, or the activity log) so server-side reports carry a real stack
+   * trace. Attach it wherever a `catch` would otherwise stringify the error
+   * into `detail`.
+   */
+  error?: unknown;
 };
 
 /** Format an error detail string with request context and error message */
@@ -338,6 +346,7 @@ export const logError = (context: ErrorContext): void => {
   if (hasPendingWorkScope()) {
     addPendingWork(sendNtfyError(context.code));
     addPendingWork(persistErrorToActivityLog(context));
+    addPendingWork(captureServerError(context));
   }
 };
 
@@ -356,7 +365,11 @@ export const bestEffort = async (
   try {
     await op();
   } catch (error) {
-    logError({ code: ErrorCode.DB_QUERY, detail: `${detail}: ${error}` });
+    logError({
+      code: ErrorCode.DB_QUERY,
+      detail: `${detail}: ${error}`,
+      error,
+    });
   }
 };
 

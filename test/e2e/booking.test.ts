@@ -11,6 +11,7 @@
  *       admin verifies attendee → download CSV and verify answer
  */
 
+// jscpd:ignore-start
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { RESTORE_CONFIRM_PHRASE } from "#templates/admin/backup.tsx";
@@ -20,6 +21,8 @@ import {
   setupAndLogin,
   useE2eBrowser,
 } from "#test-utils/e2e.ts";
+
+// jscpd:ignore-end
 
 describe("e2e: full booking flow", () => {
   const ctx = useE2eBrowser();

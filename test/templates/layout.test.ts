@@ -14,6 +14,20 @@ import {
 
 const TEST_SESSION = { adminLevel: "owner" as const };
 
+/** Set `RENEWAL_URL`, render `AdminNav`, assert the renewal link is present,
+ *  and clean up the env var. Both the read-only and warning-banner describe
+ *  blocks repeat this exact sequence. */
+const expectRenewalLink = async (): Promise<void> => {
+  Deno.env.set("RENEWAL_URL", "https://example.com/renew");
+  try {
+    const html = String(AdminNav({ active: "/admin/", session: TEST_SESSION }));
+    expect(html).toContain("Renew now");
+    expect(html).toContain("https://example.com/renew");
+  } finally {
+    Deno.env.delete("RENEWAL_URL");
+  }
+};
+
 beforeAll(async () => {
   setupTestEncryptionKey();
   await signCsrfToken();
@@ -77,17 +91,8 @@ describeWithEnv(
       expect(html).toContain("This site is in read-only mode");
     });
 
-    test("AdminNav read-only banner includes renewal link when RENEWAL_URL is set", () => {
-      Deno.env.set("RENEWAL_URL", "https://example.com/renew");
-      try {
-        const html = String(
-          AdminNav({ active: "/admin/", session: TEST_SESSION }),
-        );
-        expect(html).toContain("Renew now");
-        expect(html).toContain("https://example.com/renew");
-      } finally {
-        Deno.env.delete("RENEWAL_URL");
-      }
+    test("AdminNav read-only banner includes renewal link when RENEWAL_URL is set", async () => {
+      await expectRenewalLink();
     });
 
     test("ticketPage hides booking form in read-only mode", () => {
@@ -119,17 +124,8 @@ describeWithEnv(
       expect(html).toContain("expires on");
     });
 
-    test("AdminNav warning banner includes renewal link when RENEWAL_URL is set", () => {
-      Deno.env.set("RENEWAL_URL", "https://example.com/renew");
-      try {
-        const html = String(
-          AdminNav({ active: "/admin/", session: TEST_SESSION }),
-        );
-        expect(html).toContain("Renew now");
-        expect(html).toContain("https://example.com/renew");
-      } finally {
-        Deno.env.delete("RENEWAL_URL");
-      }
+    test("AdminNav warning banner includes renewal link when RENEWAL_URL is set", async () => {
+      await expectRenewalLink();
     });
 
     test("AdminNav warning banner falls back when the cutoff date cannot be displayed", () => {

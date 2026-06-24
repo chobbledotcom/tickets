@@ -109,8 +109,13 @@ const ALLOWED_TEST_HOOKS: string[] = [
   "shared/crypto/keys.ts:setRsaKeySizeForTest",
   // Reset cached Stripe client between tests
   "shared/stripe.ts:resetStripeClient",
-  // TTL constant used by page-cache tests to verify caching behaviour
-  "shared/db/settings.ts:SETTINGS_CACHE_TTL_MS",
+  // Settings version bump: used in production by every settings write (same
+  // file, which the export scan doesn't credit) and by tests to simulate
+  // another isolate's write.
+  "shared/db/settings.ts:bumpSettingsVersion",
+  // Settings version probe: used in production within settings.ts (same file);
+  // exported so tests can assert its missing/unparseable/DB-error branches.
+  "shared/db/settings.ts:getCurrentSettingsVersion",
   // Dev/test-only switch for the settings read audit (no-op in production)
   "shared/db/settings-audit.ts:setSettingsAuditEnabled",
   // (settings.ts functions now accessed via settings namespace, not individual exports)
@@ -162,6 +167,8 @@ const ALLOWED_TEST_HOOKS: string[] = [
   // Reset cached effective domain between tests
   "shared/config.ts:resetEffectiveDomain",
   "shared/config.ts:setEffectiveDomainForTest",
+  // Detach the global Sentry client between test files
+  "shared/sentry.ts:resetSentryForTest",
   // Reset cached demo mode between tests
   "shared/demo.ts:resetDemoMode",
   "shared/demo.ts:setDemoModeForTest",
@@ -180,8 +187,6 @@ const ALLOWED_TEST_HOOKS: string[] = [
   "shared/storage.ts:runWithStorageConfig",
   // readLimit used in production (module-level constants) but test pattern doesn't detect same-file usage
   "shared/limits.ts:readLimit",
-  // Settings cache TTL constant used by tests to verify caching behavior
-  "shared/db/settings.ts:SETTINGS_CACHE_TTL_MS",
   // Set log suppression directly to avoid env var races between parallel tests
   "shared/logger.ts:setSuppressRequestLogs",
   "shared/logger.ts:setSuppressDebugLogs",
@@ -208,10 +213,6 @@ const ALLOWED_TEST_HOOKS: string[] = [
   "shared/cache-registry.ts:invalidateCachesForTable",
   // SET-clause column extractor: internal parser exposed for unit testing only
   "shared/db/client.ts:extractUpdateColumns",
-  // System-note creator: its first production caller (the refunded-but-stored
-  // booking warning) lands with the refund-but-store change; the notes module
-  // ships the writer alongside its reader, exercised directly by tests until then.
-  "shared/db/system-notes.ts:createSystemNote",
 ];
 
 const getAllTsFiles = (dir: string): Promise<string[]> =>

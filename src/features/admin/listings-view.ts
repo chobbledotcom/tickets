@@ -69,9 +69,9 @@ const getUniqueDates: (
   attendees: Attendee[],
 ) => { value: string; label: string }[] = pipe(
   map((a: Attendee) => a.date),
-  compact,
-  unique,
-  sort((a: string, b: string) => a.localeCompare(b)),
+  (dates) => compact(dates),
+  (dates) => unique(dates),
+  sort((a, b) => a.localeCompare(b)),
   map((d) => ({ label: formatDateLabel(d), value: d })),
 );
 

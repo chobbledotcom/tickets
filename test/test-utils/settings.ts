@@ -2,6 +2,22 @@ import { afterEach, beforeEach, it } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import type { SettingsData } from "#shared/db/settings.ts";
 import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
+import { setDemoModeForTest } from "#shared/demo.ts";
+import { describeWithEnv } from "./db.ts";
+
+/** The standard outer describe for admin-settings tests: scoped to
+ *  `"server (admin settings)"` with a fresh test DB per spec and an
+ *  `afterEach` that reverts any in-test demo-mode toggle. The
+ *  `test/lib/server-settings/*.test.ts` files all live under this umbrella —
+ *  hoisting the wrapper here keeps the per-setting files focused on the
+ *  behaviour they exercise instead of re-stating the same scaffold. */
+export const describeAdminSettings = (body: () => void): void =>
+  describeWithEnv("server (admin settings)", { db: true }, () => {
+    afterEach(() => {
+      setDemoModeForTest(false);
+    });
+    body();
+  });
 
 /**
  * Seed the site country directly in the database for a test.

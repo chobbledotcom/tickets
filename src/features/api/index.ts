@@ -302,7 +302,7 @@ const handleListListings = async (): Promise<Response> => {
   const holidays = await getActiveHolidays();
   const visibleListings = pipe(
     filter((e: ListingWithCount) => e.active && !e.hidden),
-    (active: ListingWithCount[]) => sortListings(active, holidays),
+    (active) => sortListings(active, holidays),
   )(allListings);
   // A child is never standalone-bookable (invariant I3), so omit children from
   // the discovery list — a client must not find one here and then hit the

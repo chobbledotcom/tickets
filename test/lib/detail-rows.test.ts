@@ -10,7 +10,12 @@ import {
   renderDetailRows,
   sumQuantity,
 } from "#templates/admin/detail-rows.tsx";
-import { testAnswer, testAttendee, testQuestion } from "#test-utils";
+import {
+  sizeQuestionAnswerData,
+  testAnswer,
+  testAttendee,
+  testQuestion,
+} from "#test-utils";
 
 describe("detail-rows", () => {
   describe("renderDetailRows", () => {
@@ -110,23 +115,7 @@ describe("detail-rows", () => {
     });
 
     test("returns DetailRows with answer counts", () => {
-      const rows = buildAnswerSummaryRows({
-        attendeeAnswerMap: new Map([
-          [1, [10]],
-          [2, [10]],
-          [3, [11]],
-        ]),
-        questions: [
-          testQuestion({
-            answers: [
-              testAnswer({ id: 10, sort_order: 0, text: "Small" }),
-              testAnswer({ id: 11, sort_order: 1, text: "Large" }),
-            ],
-            id: 1,
-            text: "Size?",
-          }),
-        ],
-      });
+      const rows = buildAnswerSummaryRows(sizeQuestionAnswerData());
       expect(rows).toEqual([{ key: "Size?", value: "Small (2), Large (1)" }]);
     });
 

@@ -5,7 +5,6 @@ import { t } from "#i18n";
 import { handleRequest } from "#routes";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { toMinorUnits } from "#shared/currency.ts";
-import { getDb } from "#shared/db/client.ts";
 import { setChildIds } from "#shared/db/listing-parents.ts";
 import {
   getAllModifiers,
@@ -34,6 +33,7 @@ import {
   followRedirectWithFlash,
   getTestSession,
   insertModifier,
+  insertModifierUsage,
   linkModifierListing,
   makeParent,
   patchModifier,
@@ -55,17 +55,6 @@ const lastModifier = async (): Promise<Modifier> => {
   const all = await getAllModifiers();
   return all[all.length - 1]!;
 };
-
-const insertUsage = (
-  modifierId: number,
-  attendeeId: number,
-  quantity: number,
-  amountApplied: number,
-): Promise<unknown> =>
-  getDb().execute({
-    args: [modifierId, attendeeId, quantity, amountApplied, "2026-06-17"],
-    sql: "INSERT INTO modifier_usages (modifier_id, attendee_id, quantity, amount_applied, created) VALUES (?, ?, ?, ?, ?)",
-  });
 
 describeWithEnv("server (admin modifiers)", { db: true }, () => {
   describe("GET /admin/modifiers", () => {
@@ -534,7 +523,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
     test("shows current and usage-derived modifier totals", async () => {
       await adminFormPost("/admin/modifiers", createData({ name: "Usage" }));
       const { id } = await lastModifier();
-      await insertUsage(id, 1, 2, 1000);
+      await insertModifierUsage(id, 1, 2, 1000);
       await updateModifierAggregateValues(id, {
         total_uses: 9,
         usage_count: 5,
@@ -556,7 +545,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
     test("resets selected modifier totals", async () => {
       await adminFormPost("/admin/modifiers", createData({ name: "Reset" }));
       const { id } = await lastModifier();
-      await insertUsage(id, 1, 2, 1000);
+      await insertModifierUsage(id, 1, 2, 1000);
       await updateModifierAggregateValues(id, {
         total_uses: 9,
         usage_count: 5,
