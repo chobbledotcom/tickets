@@ -396,8 +396,10 @@ const childQtyField = (
  * to a sole bookable child when NOTHING was submitted, and require the chosen
  * quantities to sum to exactly the parent's quantity. Returns the chosen children
  * (each qty > 0) or an error (none bookable / total too low or high / a quantity
- * on a non-bookable child). */
-const resolveChildSelections = (
+ * on a non-bookable child).
+ *
+ * Exported for direct unit/property testing of the per-parent selection algebra. */
+export const resolveChildSelections = (
   parent: TicketListing,
   bookable: TicketListing[],
   parentQty: number,
@@ -493,8 +495,10 @@ const recordDuration = (state: FoldState, duration: number): string | null => {
  * (`childQty`, not the parent quantity): sum that quantity across parents/units,
  * reconcile the customisable duration and pay-more price, and re-validate the
  * summed quantity against the child's max-purchasable cap (reject, never clamp).
- * Returns null on success or an error message. */
-const foldChild = (
+ * Returns null on success or an error message.
+ *
+ * Exported for direct unit/property testing of the summing/capacity rule. */
+export const foldChild = (
   state: FoldState,
   child: TicketListing,
   childQty: number,
