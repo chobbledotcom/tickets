@@ -1152,14 +1152,17 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
       );
     });
 
-    test("a parent's thank-you URL survives a folded paid child (multi-listing)", async () => {
-      // A single parent with a configured thank_you_url folds a required paid
-      // child, so the completed booking has TWO unique listing ids. The default
-      // success rule drops thank_you_url for multi-listing orders; the explicit
-      // intent value (carried in the signed metadata) must still win (Codex 742).
+    /** A parent with a configured thank-you URL folding one required paid child,
+     * whose signed checkout metadata carries that explicit thank_you_url and two
+     * listing ids. Returns the `withMocks` stub factory for the given provider
+     * session id + payment intent — the scaffolding both thank-you-URL tests
+     * share (they differ only in what they assert about the rendered page). */
+    const parentThanksStub = async (
+      sessionId: string,
+      paymentIntent: string,
+    ) => {
       const { stub } = await import("@std/testing/mock");
       const { stripeApi } = await import("#shared/stripe.ts");
-
       await setupStripe();
 
       const { parent, child } = await makeParent({
@@ -1176,27 +1179,35 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
         { e: child.id, p: 1000, q: 1 },
       ]);
 
+      return () =>
+        stub(stripeApi, "retrieveCheckoutSession", () =>
+          Promise.resolve({
+            amount_total: 2000,
+            id: sessionId,
+            metadata: signMeta(
+              {
+                email: "john@example.com",
+                items,
+                name: "John",
+                thank_you_url: "https://example.com/thanks-parent",
+              },
+              2000,
+            ),
+            payment_intent: paymentIntent,
+            payment_status: "paid",
+          } as unknown as Awaited<
+            ReturnType<typeof stripeApi.retrieveCheckoutSession>
+          >),
+        );
+    };
+
+    test("a parent's thank-you URL survives a folded paid child (multi-listing)", async () => {
+      // A single parent with a configured thank_you_url folds a required paid
+      // child, so the completed booking has TWO unique listing ids. The default
+      // success rule drops thank_you_url for multi-listing orders; the explicit
+      // intent value (carried in the signed metadata) must still win (Codex 742).
       await withMocks(
-        () =>
-          stub(stripeApi, "retrieveCheckoutSession", () =>
-            Promise.resolve({
-              amount_total: 2000,
-              id: "cs_parent_thanks",
-              metadata: signMeta(
-                {
-                  email: "john@example.com",
-                  items,
-                  name: "John",
-                  thank_you_url: "https://example.com/thanks-parent",
-                },
-                2000,
-              ),
-              payment_intent: "pi_parent_thanks",
-              payment_status: "paid",
-            } as unknown as Awaited<
-              ReturnType<typeof stripeApi.retrieveCheckoutSession>
-            >),
-          ),
+        await parentThanksStub("cs_parent_thanks", "pi_parent_thanks"),
         async () => {
           const response = await handleRequest(
             mockRequest("/payment/success?session_id=cs_parent_thanks"),
@@ -1219,46 +1230,8 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
       // callback lands on the already-processed branch; the ticket token must be
       // persisted so that reload still renders a non-null ticket URL (and the
       // parent's thank-you URL), instead of losing the buyer's ticket link.
-      const { stub } = await import("@std/testing/mock");
-      const { stripeApi } = await import("#shared/stripe.ts");
-
-      await setupStripe();
-
-      const { parent, child } = await makeParent({
-        children: [{ maxAttendees: 50, unitPrice: 1000 }],
-        parent: {
-          maxAttendees: 50,
-          thankYouUrl: "https://example.com/thanks-parent",
-          unitPrice: 1000,
-        },
-      });
-
-      const items = JSON.stringify([
-        { e: parent.id, p: 1000, q: 1 },
-        { e: child.id, p: 1000, q: 1 },
-      ]);
-
       await withMocks(
-        () =>
-          stub(stripeApi, "retrieveCheckoutSession", () =>
-            Promise.resolve({
-              amount_total: 2000,
-              id: "cs_parent_reload",
-              metadata: signMeta(
-                {
-                  email: "john@example.com",
-                  items,
-                  name: "John",
-                  thank_you_url: "https://example.com/thanks-parent",
-                },
-                2000,
-              ),
-              payment_intent: "pi_parent_reload",
-              payment_status: "paid",
-            } as unknown as Awaited<
-              ReturnType<typeof stripeApi.retrieveCheckoutSession>
-            >),
-          ),
+        await parentThanksStub("cs_parent_reload", "pi_parent_reload"),
         async () => {
           // First hit finalizes and renders directly with the ticket URL.
           const first = await handleRequest(
