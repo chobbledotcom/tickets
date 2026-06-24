@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
+import { hmacHash } from "#shared/crypto/hashing.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { modifiersTable, setModifierAnswers } from "#shared/db/modifiers.ts";
 import {
@@ -10,6 +11,7 @@ import {
   setListingQuestions,
 } from "#shared/db/questions.ts";
 import { settings } from "#shared/db/settings.ts";
+import { normalizeCode } from "#shared/price-modifier.ts";
 import {
   createTestGroup,
   createTestListing,
@@ -248,5 +250,90 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
       mockFormRequest("/calculate/missing-a+missing-b", {}),
     );
     expect(response.status).toBe(404);
+  });
+
+  /** Set up a listing at £10.00 with a 10%-off promo code modifier ("SAVE10").
+   * Returns the listing so tests can build their /calculate POST body. */
+  const setupPromoListing = async () => {
+    await setupStripe();
+    const listing = await createTestListing({
+      maxQuantity: 5,
+      name: "Workshop",
+      unitPrice: 1000,
+    });
+    await modifiersTable.insert({
+      calcKind: "percent",
+      calcValue: 10,
+      codeIndex: await hmacHash(normalizeCode("SAVE10")),
+      direction: "discount",
+      name: "10% off",
+      trigger: "code",
+    });
+    return listing;
+  };
+
+  test("applies a promo code discount when the correct code is submitted", async () => {
+    const listing = await setupPromoListing();
+
+    const html = await (
+      await calculate(listing.slug, listing.slug, {
+        [`quantity_${listing.id}`]: "1",
+        promo_code: "SAVE10",
+      })
+    ).text();
+
+    // Discount line shown with modifier name and negative amount.
+    expect(html).toContain("10% off");
+    expect(html).toContain(formatCurrency(-100));
+    // Total reflects the discounted price (10% off £10.00 = £9.00).
+    expect(html).toContain(formatCurrency(900));
+    expect(html).toContain("order-summary-total");
+  });
+
+  test("does not apply a promo code discount when no code is submitted", async () => {
+    const listing = await setupPromoListing();
+
+    const html = await (
+      await calculate(listing.slug, listing.slug, {
+        [`quantity_${listing.id}`]: "1",
+      })
+    ).text();
+
+    // Full price — no promo code entered, no discount line.
+    expect(html).toContain(formatCurrency(1000));
+    expect(html).not.toContain(formatCurrency(900));
+    expect(html).not.toContain("10% off");
+  });
+
+  test("does not apply a promo code discount when a wrong code is submitted", async () => {
+    const listing = await setupPromoListing();
+
+    const html = await (
+      await calculate(listing.slug, listing.slug, {
+        [`quantity_${listing.id}`]: "1",
+        promo_code: "WRONGCODE",
+      })
+    ).text();
+
+    // Full price — wrong promo code, no discount line.
+    expect(html).toContain(formatCurrency(1000));
+    expect(html).not.toContain(formatCurrency(900));
+    expect(html).not.toContain("10% off");
+  });
+
+  test("applies a promo code discount case-insensitively", async () => {
+    const listing = await setupPromoListing();
+
+    const html = await (
+      await calculate(listing.slug, listing.slug, {
+        [`quantity_${listing.id}`]: "1",
+        promo_code: "save10",
+      })
+    ).text();
+
+    // Lowercase variant of the code should still match.
+    expect(html).toContain("10% off");
+    expect(html).toContain(formatCurrency(-100));
+    expect(html).toContain(formatCurrency(900));
   });
 });
