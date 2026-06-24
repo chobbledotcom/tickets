@@ -74,3 +74,14 @@ src/features/admin/attendee-form-model.ts:320:53  ?? → ||   # existingByKey.ge
 src/features/admin/attendee-form-model.ts:321:36  ?? → ||   # listingsById.get(id): ListingWithCount|undefined — an object is always truthy
 src/features/admin/attendee-form-model.ts:373:66  ?? → ||   # (existingBooking?.price_paid ?? 0): a number; the only falsy number is 0, and 0 ?? 0 === 0 || 0
 src/features/tickets/token-utils.ts:222:44  ?? → ||   # (attendees[i]?.bookings ?? []): ListingAttendeeRow[]|undefined — an array is always truthy, undefined→[] either way
+
+# Ticket form parsing (ticket-form.ts): `?? → ||` where the operand is an array,
+# an object, a Map.get number (only falsy-non-null is 0, 0??0===0||0), or a
+# string that is never the empty string — so the two operators always agree.
+src/features/public/ticket-form.ts:57:50  ?? → ||   # questionListingMap.get(): number[]|undefined — arrays always truthy
+src/features/public/ticket-form.ts:128:14  ?? → ||   # (existing ?? []).map: TextAnswer[]|undefined — arrays always truthy
+src/features/public/ticket-form.ts:142:44  ?? → ||   # listingAnswerIds[key]: number[]|undefined — arrays always truthy
+src/features/public/ticket-form.ts:143:48  ?? → ||   # listingTextAnswers[key]: TextAnswer[]|undefined — arrays always truthy
+src/features/public/ticket-form.ts:145:56  ?? → ||   # answersByAttendee.get(): AttendeeAnswerSet|undefined — objects always truthy
+src/features/public/ticket-form.ts:182:28  ?? → ||   # ctx.actionUrl: string|undefined, only ever a real URL or undefined (never ""), so ?? and || agree
+src/features/public/ticket-form.ts:213:36  ?? → ||   # quantities.get(): number|undefined; the only falsy number is 0, 0??0===0||0
