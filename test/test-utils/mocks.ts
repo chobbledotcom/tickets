@@ -208,6 +208,55 @@ export const installUrlHandler = (
   };
 };
 
+/** Run `body` under the standard test zone config with a fetch mock that
+ * answers every Bunny storage URL via `respond` (other URLs fall through). */
+export const withBunnyStorageStub = (
+  respond: (url: string, init?: RequestInit) => Promise<Response> | Response,
+  body: () => Promise<void>,
+): Promise<void> =>
+  runWithStorageConfig({ zoneKey: "testkey", zoneName: "testzone" }, () =>
+    withFetchMock(async (originalFetch) => {
+      installUrlHandler(originalFetch, (url, init) =>
+        url.includes("storage.bunnycdn.com")
+          ? Promise.resolve(respond(url, init))
+          : null,
+      );
+      await body();
+    }),
+  );
+
+/** Run `body` with a fetch mock that records and 200s every Bunny
+ * storage-delete call, exposing the captured URLs. Wraps the standard test
+ * zone config unless `withConfig: false`; `extraHandler` can intercept a URL
+ * (e.g. to simulate a CDN failure) before the capture. */
+export const withBunnyDeleteCapture = (
+  body: (deletedUrls: string[]) => Promise<void>,
+  opts: {
+    withConfig?: boolean;
+    extraHandler?: (url: string) => Promise<Response> | null;
+  } = {},
+): Promise<void> => {
+  const run = (): Promise<void> =>
+    withFetchMock(async (originalFetch) => {
+      const deletedUrls: string[] = [];
+      installUrlHandler(originalFetch, (url) => {
+        const extra = opts.extraHandler?.(url);
+        if (extra) return extra;
+        if (url.includes("storage.bunnycdn.com")) {
+          deletedUrls.push(url);
+          return Promise.resolve(
+            new Response(JSON.stringify({ HttpCode: 200 }), { status: 200 }),
+          );
+        }
+        return null;
+      });
+      await body(deletedUrls);
+    });
+  return opts.withConfig === false
+    ? run()
+    : runWithStorageConfig({ zoneKey: "testkey", zoneName: "testzone" }, run);
+};
+
 export const testRequest = (
   path: string,
   token?: string | null,
