@@ -15,8 +15,8 @@
 
 # `x ?? F` vs `x || F` differ only when x is falsy-but-not-null; these are all
 # cases where x can't be such a value, or F equals the only one it can be.
-src/shared/checkout-pricing.ts:84:35  ?? → ||    # Map<number,number> sum: 0 ?? 0 === 0 || 0
-src/shared/checkout-pricing.ts:332:41  ?? → ||   # intent.modifiers: an array is always truthy
+src/shared/checkout-pricing.ts:85:35  ?? → ||    # Map<number,number> sum: 0 ?? 0 === 0 || 0
+src/shared/checkout-pricing.ts:334:41  ?? → ||   # intent.modifiers: an array is always truthy
 src/shared/logistics-filter.ts:22:35  ?? → ||    # raw: string|null, only falsy string "" === fallback ""
 src/shared/site-assignment.ts:192:57  ?? → ||    # parseReadOnlyFromMs(): number|null, 0 ?? 0 === 0 || 0
 src/shared/site-assignment.ts:370:34  ?? → ||    # available[idx]: object|undefined, never falsy non-null
@@ -65,7 +65,7 @@ src/shared/db/listing-parents.ts:118:21  ?? → ||   # result.get(key): ListingW
 # which assigns lineIdx as the flatMap array index, so the sort's input is
 # always already ascending — and `sort((a,b) => a/b)` is identity on an
 # already-ascending array, so swapping the comparator changes nothing.
-src/shared/checkout-pricing.ts:176:16  - → /     # toUnits gives ascending lineIdx; a/b is identity on sorted input
+src/shared/checkout-pricing.ts:177:16  - → /     # toUnits gives ascending lineIdx; a/b is identity on sorted input
 
 
 # attendee-form-model: `?? → ||` where the left operand can never be a
