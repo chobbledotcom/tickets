@@ -112,6 +112,20 @@ describeWithEnv(
         }),
       );
 
+    /** Sign the attachment URL for a setup, serve "data" from the mocked CDN,
+     * and return the GET response. */
+    const fetchAttachment = async (setup: {
+      listingId: number;
+      attendeeId: number;
+    }): Promise<Response> => {
+      const path = await signUrl(setup.listingId, setup.attendeeId);
+      let response!: Response;
+      await withCdnMock(new TextEncoder().encode("data"), async () => {
+        response = await handleRequest(mockRequest(path));
+      });
+      return response;
+    };
+
     test("returns 404 when storage is not enabled", async () => {
       await withStorageDisabled(async () => {
         const { listingId, attendeeId } = await setupAttachment();
@@ -277,40 +291,30 @@ describeWithEnv(
       equals,
     } of sanitizationCases) {
       test(`sanitizes attachment filename: ${label}`, async () => {
-        const { listingId, attendeeId } = await setupAttachmentWithName(name);
-        const path = await signUrl(listingId, attendeeId);
-        const fileContent = new TextEncoder().encode("data");
+        const setup = await setupAttachmentWithName(name);
+        const response = await fetchAttachment(setup);
+        expect(response.status).toBe(200);
+        const cd = response.headers.get("content-disposition")!;
+        for (const bad of notContains) expect(cd).not.toContain(bad);
+        if (contains) expect(cd).toContain(contains);
+        if (equals) expect(cd).toBe(equals);
 
-        await withCdnMock(fileContent, async () => {
-          const response = await handleRequest(mockRequest(path));
-          expect(response.status).toBe(200);
-          const cd = response.headers.get("content-disposition")!;
-          for (const bad of notContains) expect(cd).not.toContain(bad);
-          if (contains) expect(cd).toContain(contains);
-          if (equals) expect(cd).toBe(equals);
-
-          // Verify no duplicate Content-Disposition headers from injection
-          const cdHeaders = [...response.headers.entries()].filter(
-            ([k]) => k.toLowerCase() === "content-disposition",
-          );
-          if (notContains.length > 0) expect(cdHeaders.length).toBe(1);
-        });
+        // Verify no duplicate Content-Disposition headers from injection
+        const cdHeaders = [...response.headers.entries()].filter(
+          ([k]) => k.toLowerCase() === "content-disposition",
+        );
+        if (notContains.length > 0) expect(cdHeaders.length).toBe(1);
       });
     }
 
     test("increments attachment_downloads counter", async () => {
-      const { listingId, attendeeId } = await setupAttachment();
-      const path = await signUrl(listingId, attendeeId);
-      const fileContent = new TextEncoder().encode("data");
-
-      const before = await getAttendeeRaw(attendeeId);
+      const setup = await setupAttachment();
+      const before = await getAttendeeRaw(setup.attendeeId);
       expect(before!.attachment_downloads).toBe(0);
 
-      await withCdnMock(fileContent, async () => {
-        await handleRequest(mockRequest(path));
-      });
+      await fetchAttachment(setup);
 
-      const after = await getAttendeeRaw(attendeeId);
+      const after = await getAttendeeRaw(setup.attendeeId);
       expect(after!.attachment_downloads).toBe(1);
     });
 
@@ -335,16 +339,11 @@ describeWithEnv(
     });
 
     test("returns public cache control for CDN caching", async () => {
-      const { listingId, attendeeId } = await setupAttachment();
-      const path = await signUrl(listingId, attendeeId);
-      const fileContent = new TextEncoder().encode("data");
-
-      await withCdnMock(fileContent, async () => {
-        const response = await handleRequest(mockRequest(path));
-        expect(response.headers.get("cache-control")).toBe(
-          "public, max-age=3600",
-        );
-      });
+      const setup = await setupAttachment();
+      const response = await fetchAttachment(setup);
+      expect(response.headers.get("cache-control")).toBe(
+        "public, max-age=3600",
+      );
     });
   },
 );

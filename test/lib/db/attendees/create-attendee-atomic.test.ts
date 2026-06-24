@@ -29,6 +29,19 @@ const getRange = async (
   return res.rows[0] as unknown as { start_at: string; end_at: string };
 };
 
+/** Assert the cart succeeded with one attendee per `[listingId, quantity]` pair,
+ * each listing's first row holding that quantity. */
+const expectCartRows = async (
+  result: Awaited<ReturnType<typeof createAttendeeAtomic>>,
+  rows: [number, number][],
+): Promise<void> => {
+  expect(result.success).toBe(true);
+  if (result.success) expect(result.attendees.length).toBe(rows.length);
+  for (const [listingId, quantity] of rows) {
+    expect((await getAttendeesRaw(listingId))[0]!.quantity).toBe(quantity);
+  }
+};
+
 describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
   test("succeeds when capacity available", async () => {
     const listing = await createTestListing({
@@ -453,10 +466,10 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
       email: "fill@example.com",
       name: "Fill",
     });
-    expect(result.success).toBe(true);
-    if (result.success) expect(result.attendees.length).toBe(2);
-    expect((await getAttendeesRaw(e1.id))[0]!.quantity).toBe(1);
-    expect((await getAttendeesRaw(e2.id))[0]!.quantity).toBe(2);
+    await expectCartRows(result, [
+      [e1.id, 1],
+      [e2.id, 2],
+    ]);
   });
 
   test("intra-cart group cap is per-date for daily listings booked on the same day", async () => {
@@ -515,10 +528,10 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
       email: "spread@example.com",
       name: "Spread",
     });
-    expect(result.success).toBe(true);
-    if (result.success) expect(result.attendees.length).toBe(2);
-    expect((await getAttendeesRaw(e1.id))[0]!.quantity).toBe(3);
-    expect((await getAttendeesRaw(e2.id))[0]!.quantity).toBe(3);
+    await expectCartRows(result, [
+      [e1.id, 3],
+      [e2.id, 3],
+    ]);
   });
 
   test("dateToRange produces half-open [start, end) with 1-day default", () => {

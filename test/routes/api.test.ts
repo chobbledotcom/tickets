@@ -81,6 +81,14 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
     return { body, response };
   };
 
+  /** Fetch a listing by slug, assert 200, and return the response + parsed
+   * public listing. */
+  const fetchPublicListing = async (slug: string) => {
+    const { response, body } = await fetchListingBySlug(slug);
+    expect(response.status).toBe(200);
+    return { apiListing: v.parse(PublicListingSchema, body.listing), response };
+  };
+
   /** Book an listing by slug with given body fields */
   const bookListing = async (
     slug: string,
@@ -97,6 +105,25 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
     );
     const body = (await jsonBody(response)) as BookResponseBody;
     return { body, response };
+  };
+
+  /** Book a listing by slug, assert 200 with a ticket token issued, and return
+   * the booking body for further assertions. */
+  const bookForToken = async (slug: string): Promise<BookResponseBody> => {
+    const { response, body } = await bookListing(slug);
+    expect(response.status).toBe(200);
+    expect(body.booking?.ticketToken).toBeDefined();
+    return body;
+  };
+
+  /** Assert exactly one attendee landed on `targetId` and none on `otherId`. */
+  const expectBookedTo = async (
+    targetId: number,
+    otherId: number,
+  ): Promise<void> => {
+    const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+    expect((await getAttendeesRaw(targetId)).length).toBe(1);
+    expect((await getAttendeesRaw(otherId)).length).toBe(0);
   };
 
   /** Fetch availability for an listing by slug, with optional query string */
@@ -261,9 +288,7 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
         description: "Hello",
         name: "My Listing",
       });
-      const { response, body } = await fetchListingBySlug(listing.slug);
-      expect(response.status).toBe(200);
-      const apiListing = v.parse(PublicListingSchema, body.listing);
+      const { apiListing, response } = await fetchPublicListing(listing.slug);
       expect(apiListing.name).toBe("My Listing");
       expect(apiListing.description).toBe("Hello");
       expectCorsHeaders(response);
@@ -307,9 +332,7 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
         hidden: true,
         name: "Hidden Listing",
       });
-      const { response, body } = await fetchListingBySlug(listing.slug);
-      expect(response.status).toBe(200);
-      const apiListing = v.parse(PublicListingSchema, body.listing);
+      const { apiListing } = await fetchPublicListing(listing.slug);
       expect(apiListing.name).toBe("Hidden Listing");
     });
 
@@ -587,10 +610,8 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
         maxAttendees: 10,
         unitPrice: 1000,
       });
-      const { response, body } = await bookListing(listing.slug);
-      expect(response.status).toBe(200);
+      const body = await bookForToken(listing.slug);
       const token = body.booking?.ticketToken;
-      expect(token).toBeDefined();
       // The response surfaces the owed amount so integrations can collect it.
       expect(body.booking?.amountOwed).toBe(1000);
 
@@ -617,10 +638,8 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
         maxAttendees: 10,
         unitPrice: 0,
       });
-      const { response, body } = await bookListing(listing.slug);
-      expect(response.status).toBe(200);
+      const body = await bookForToken(listing.slug);
       const token = body.booking?.ticketToken;
-      expect(token).toBeDefined();
       expect(body.booking?.checkoutUrl).toBeUndefined();
 
       const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
@@ -900,11 +919,7 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
       expect(response.status).toBe(200);
 
       // Verify booking went to target (URL slug), not other (injected id)
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      const targetAttendees = await getAttendeesRaw(target.id);
-      const otherAttendees = await getAttendeesRaw(other.id);
-      expect(targetAttendees.length).toBe(1);
-      expect(otherAttendees.length).toBe(0);
+      await expectBookedTo(target.id, other.id);
     });
 
     test("returns 404 for non-existent slug even with valid listing_id in body", async () => {
@@ -935,11 +950,7 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
       expect(response.status).toBe(200);
 
       // Booking goes to URL slug, body slug is ignored
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      const targetAttendees = await getAttendeesRaw(target.id);
-      const otherAttendees = await getAttendeesRaw(other.id);
-      expect(targetAttendees.length).toBe(1);
-      expect(otherAttendees.length).toBe(0);
+      await expectBookedTo(target.id, other.id);
     });
   });
 });

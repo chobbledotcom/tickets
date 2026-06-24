@@ -10,7 +10,7 @@ import {
   renderDetailRows,
   sumQuantity,
 } from "#templates/admin/detail-rows.tsx";
-import { testAttendee } from "#test-utils";
+import { testAttendee, testRadioQuestion } from "#test-utils";
 
 describe("detail-rows", () => {
   describe("renderDetailRows", () => {
@@ -117,27 +117,10 @@ describe("detail-rows", () => {
           [3, [11]],
         ]),
         questions: [
-          {
-            answers: [
-              {
-                active: true,
-                id: 10,
-                question_id: 1,
-                sort_order: 0,
-                text: "Small",
-              },
-              {
-                active: true,
-                id: 11,
-                question_id: 1,
-                sort_order: 1,
-                text: "Large",
-              },
-            ],
-            display_type: "radio" as const,
-            id: 1,
-            text: "Size?",
-          },
+          testRadioQuestion(1, "Size?", [
+            [10, "Small"],
+            [11, "Large"],
+          ]),
         ],
       });
       expect(rows).toEqual([{ key: "Size?", value: "Small (2), Large (1)" }]);
@@ -146,83 +129,46 @@ describe("detail-rows", () => {
     test("shows zero for answers with no selections", () => {
       const rows = buildAnswerSummaryRows({
         attendeeAnswerMap: new Map(),
-        questions: [
-          {
-            answers: [
-              {
-                active: true,
-                id: 10,
-                question_id: 1,
-                sort_order: 0,
-                text: "A",
-              },
-            ],
-            display_type: "radio" as const,
-            id: 1,
-            text: "Q?",
-          },
-        ],
+        questions: [testRadioQuestion(1, "Q?", [[10, "A"]])],
       });
       expect(rows).toEqual([{ key: "Q?", value: "A (0)" }]);
     });
   });
 
   describe("buildSharedDetailRows", () => {
-    test("includes attendees row with count only when no capacity", () => {
-      const rows = buildSharedDetailRows({
-        attendeeCount: 5,
+    /** Build the unpaid-listing detail rows for a count/capacity and return the
+     * rendered "Attendees" row value. */
+    const attendeesRowValue = (
+      attendeeCount: number,
+      maxCapacity: number,
+    ): DetailRow["value"] =>
+      buildSharedDetailRows({
+        attendeeCount,
         attendees: [],
         hasPaidListing: false,
-        maxCapacity: 0,
-      });
-      const attendeeRow = rows.find((r) => r.key === "Attendees");
-      expect(attendeeRow).toBeDefined();
-      expect(attendeeRow!.value).toBe("5");
+        maxCapacity,
+      }).find((r) => r.key === "Attendees")!.value;
+
+    test("includes attendees row with count only when no capacity", () => {
+      expect(attendeesRowValue(5, 0)).toBe("5");
     });
 
     test("includes attendees row with count, capacity, and remain", () => {
-      const rows = buildSharedDetailRows({
-        attendeeCount: 5,
-        attendees: [],
-        hasPaidListing: false,
-        maxCapacity: 20,
-      });
-      const attendeeRow = rows.find((r) => r.key === "Attendees");
-      expect(attendeeRow!.value).toContain("5 / 20");
-      expect(attendeeRow!.value).toContain("15 remain");
+      const value = attendeesRowValue(5, 20);
+      expect(value).toContain("5 / 20");
+      expect(value).toContain("15 remain");
     });
 
     test("shows danger-text when near capacity", () => {
-      const rows = buildSharedDetailRows({
-        attendeeCount: 19,
-        attendees: [],
-        hasPaidListing: false,
-        maxCapacity: 20,
-      });
-      const attendeeRow = rows.find((r) => r.key === "Attendees");
-      expect(attendeeRow!.value).toContain("danger-text");
+      expect(attendeesRowValue(19, 20)).toContain("danger-text");
     });
 
     test("does not show danger-text when well below capacity", () => {
-      const rows = buildSharedDetailRows({
-        attendeeCount: 5,
-        attendees: [],
-        hasPaidListing: false,
-        maxCapacity: 20,
-      });
-      const attendeeRow = rows.find((r) => r.key === "Attendees");
-      expect(attendeeRow!.value).not.toContain("danger-text");
+      expect(attendeesRowValue(5, 20)).not.toContain("danger-text");
     });
 
     test("does not show danger-text when no capacity set", () => {
-      const rows = buildSharedDetailRows({
-        attendeeCount: 100,
-        attendees: [],
-        hasPaidListing: false,
-        maxCapacity: 0,
-      });
-      const attendeeRow = rows.find((r) => r.key === "Attendees");
-      expect(attendeeRow!.value).not.toContain("danger-text");
+      expect(attendeesRowValue(100, 0)).not.toContain("danger-text");
     });
 
     test("skips attendees row when skipAttendees is true", () => {

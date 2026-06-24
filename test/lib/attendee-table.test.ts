@@ -13,6 +13,7 @@ import {
   hasInputWithValue,
   setupTestEncryptionKey,
   testAttendee,
+  testRadioQuestion,
 } from "#test-utils";
 
 const ALLOWED_DOMAIN = "example.com";
@@ -607,36 +608,14 @@ describe("AttendeeTable with questionData", () => {
       [2, [11]],
     ]),
     questions: [
-      {
-        answers: [
-          {
-            active: true,
-            id: 10,
-            question_id: 1,
-            sort_order: 0,
-            text: "Small",
-          },
-          {
-            active: true,
-            id: 11,
-            question_id: 1,
-            sort_order: 1,
-            text: "Large",
-          },
-        ],
-        display_type: "radio" as const,
-        id: 1,
-        text: "Size?",
-      },
-      {
-        answers: [
-          { active: true, id: 20, question_id: 2, sort_order: 0, text: "Red" },
-          { active: true, id: 21, question_id: 2, sort_order: 1, text: "Blue" },
-        ],
-        display_type: "radio" as const,
-        id: 2,
-        text: "Color?",
-      },
+      testRadioQuestion(1, "Size?", [
+        [10, "Small"],
+        [11, "Large"],
+      ]),
+      testRadioQuestion(2, "Color?", [
+        [20, "Red"],
+        [21, "Blue"],
+      ]),
     ],
   };
 
