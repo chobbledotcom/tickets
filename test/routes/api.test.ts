@@ -138,6 +138,41 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
     }
   };
 
+  /** Create a listing, fetch it by slug, and assert a 200 with a parsed body. */
+  const createAndFetchListing = async (
+    overrides: Parameters<typeof createTestListing>[0],
+  ): Promise<{
+    response: Response;
+    apiListing: v.InferOutput<typeof PublicListingSchema>;
+  }> => {
+    const listing = await createTestListing(overrides);
+    const { response, body } = await fetchListingBySlug(listing.slug);
+    expect(response.status).toBe(200);
+    return { apiListing: v.parse(PublicListingSchema, body.listing), response };
+  };
+
+  /** Book a freshly-created listing and assert a 200 with a defined token. */
+  const bookCreatedListing = async (
+    overrides: Parameters<typeof createTestListing>[0],
+  ): Promise<{ response: Response; body: BookResponseBody; token: string }> => {
+    const listing = await createTestListing({ maxAttendees: 10, ...overrides });
+    const { response, body } = await bookListing(listing.slug);
+    expect(response.status).toBe(200);
+    const token = body.booking?.ticketToken;
+    expect(token).toBeDefined();
+    return { body, response, token: token! };
+  };
+
+  /** Assert the booking landed on `target` and never reached `other`. */
+  const expectBookingOnTarget = async (
+    target: { id: number },
+    other: { id: number },
+  ): Promise<void> => {
+    const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+    expect((await getAttendeesRaw(target.id)).length).toBe(1);
+    expect((await getAttendeesRaw(other.id)).length).toBe(0);
+  };
+
   describe("GET /api/listings", () => {
     test("returns empty array when no listings exist", async () => {
       const { response, listings } = await fetchListingsList();
@@ -238,13 +273,10 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
 
   describe("GET /api/listings/:slug", () => {
     test("returns listing details by slug", async () => {
-      const listing = await createTestListing({
+      const { response, apiListing } = await createAndFetchListing({
         description: "Hello",
         name: "My Listing",
       });
-      const { response, body } = await fetchListingBySlug(listing.slug);
-      expect(response.status).toBe(200);
-      const apiListing = v.parse(PublicListingSchema, body.listing);
       expect(apiListing.name).toBe("My Listing");
       expect(apiListing.description).toBe("Hello");
       expectCorsHeaders(response);
@@ -284,13 +316,10 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
     });
 
     test("allows hidden listings to be accessed by slug", async () => {
-      const listing = await createTestListing({
+      const { apiListing } = await createAndFetchListing({
         hidden: true,
         name: "Hidden Listing",
       });
-      const { response, body } = await fetchListingBySlug(listing.slug);
-      expect(response.status).toBe(200);
-      const apiListing = v.parse(PublicListingSchema, body.listing);
       expect(apiListing.name).toBe("Hidden Listing");
     });
 
@@ -549,19 +578,12 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
       // Don't call setupStripe — unit_price > 0 but payments are disabled, so
       // the booking is taken without checkout and the full value is recorded as
       // the amount owed (like a zero-deposit reservation), issuing a ticket.
-      const listing = await createTestListing({
-        maxAttendees: 10,
-        unitPrice: 1000,
-      });
-      const { response, body } = await bookListing(listing.slug);
-      expect(response.status).toBe(200);
-      const token = body.booking?.ticketToken;
-      expect(token).toBeDefined();
+      const { body, token } = await bookCreatedListing({ unitPrice: 1000 });
       // The response surfaces the owed amount so integrations can collect it.
       expect(body.booking?.amountOwed).toBe(1000);
 
       const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
-      const [attendee] = await getAttendeesByTokens([token!]);
+      const [attendee] = await getAttendeesByTokens([token]);
       // Nothing collected up front, full £10.00 booking value owed. price_paid
       // projects the gross sale leg (£10 billed), not cash collected — the
       // accepted gross-sale divergence; the £10 owed is exact.
@@ -579,18 +601,11 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
       // Payments are enabled but the listing is free, so it takes the no-charge
       // path and owes nothing — the provider is never invoked for checkout.
       await setupStripe();
-      const listing = await createTestListing({
-        maxAttendees: 10,
-        unitPrice: 0,
-      });
-      const { response, body } = await bookListing(listing.slug);
-      expect(response.status).toBe(200);
-      const token = body.booking?.ticketToken;
-      expect(token).toBeDefined();
+      const { body, token } = await bookCreatedListing({ unitPrice: 0 });
       expect(body.booking?.checkoutUrl).toBeUndefined();
 
       const { getAttendeesByTokens } = await import("#shared/db/attendees.ts");
-      const [attendee] = await getAttendeesByTokens([token!]);
+      const [attendee] = await getAttendeesByTokens([token]);
       expect(attendee?.remaining_balance).toBe(0);
     });
 
@@ -866,11 +881,7 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
       expect(response.status).toBe(200);
 
       // Verify booking went to target (URL slug), not other (injected id)
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      const targetAttendees = await getAttendeesRaw(target.id);
-      const otherAttendees = await getAttendeesRaw(other.id);
-      expect(targetAttendees.length).toBe(1);
-      expect(otherAttendees.length).toBe(0);
+      await expectBookingOnTarget(target, other);
     });
 
     test("returns 404 for non-existent slug even with valid listing_id in body", async () => {
@@ -901,11 +912,7 @@ describeWithEnv("Public API", { db: true, triggers: true }, () => {
       expect(response.status).toBe(200);
 
       // Booking goes to URL slug, body slug is ignored
-      const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
-      const targetAttendees = await getAttendeesRaw(target.id);
-      const otherAttendees = await getAttendeesRaw(other.id);
-      expect(targetAttendees.length).toBe(1);
-      expect(otherAttendees.length).toBe(0);
+      await expectBookingOnTarget(target, other);
     });
   });
 });
