@@ -2,19 +2,28 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   assignBuiltSite,
-  buildSiteDataBlob,
   builtSitesCrudTable,
   claimNextBuiltSiteForPrune,
+  DEFAULT_UPDATE_TIER,
   getAllBuiltSites,
   getAssignableBuiltSites,
   getBuiltSiteByRenewalTokenIndex,
   insertBuiltSite,
+  isUpdateTier,
   parseSiteDataBlob,
-  SITE_DATA_BLOB_VERSION,
+  siteAcceptsDeployTier,
   siteBaseUrl,
+  UPDATE_TIERS,
   updateBuiltSiteRenewalState,
 } from "#shared/db/built-sites.ts";
 import { describeWithEnv } from "#test-utils";
+
+const formBlob = async (
+  input: Parameters<typeof builtSitesCrudTable.toDbValues>[0],
+) => {
+  const values = await builtSitesCrudTable.toDbValues(input);
+  return parseSiteDataBlob(values.site_data as string);
+};
 
 describe("siteBaseUrl", () => {
   test("prepends https:// to a bare hostname", () => {
@@ -40,6 +49,41 @@ describe("siteBaseUrl", () => {
   });
 });
 
+describe("update tiers", () => {
+  test("UPDATE_TIERS is ordered most- to least-eager", () => {
+    expect(UPDATE_TIERS).toEqual(["alpha", "beta", "release"]);
+  });
+
+  test("DEFAULT_UPDATE_TIER is the most conservative channel", () => {
+    expect(DEFAULT_UPDATE_TIER).toBe("release");
+  });
+
+  test("isUpdateTier accepts known channels and rejects anything else", () => {
+    for (const tier of UPDATE_TIERS) expect(isUpdateTier(tier)).toBe(true);
+    for (const bad of ["", "ALPHA", "stable", "rel", "release "]) {
+      expect(isUpdateTier(bad)).toBe(false);
+    }
+  });
+
+  test("a release deploy reaches every channel", () => {
+    for (const siteTier of UPDATE_TIERS) {
+      expect(siteAcceptsDeployTier(siteTier, "release")).toBe(true);
+    }
+  });
+
+  test("a beta deploy reaches beta + alpha sites but not release-only", () => {
+    expect(siteAcceptsDeployTier("alpha", "beta")).toBe(true);
+    expect(siteAcceptsDeployTier("beta", "beta")).toBe(true);
+    expect(siteAcceptsDeployTier("release", "beta")).toBe(false);
+  });
+
+  test("an alpha deploy reaches only alpha sites", () => {
+    expect(siteAcceptsDeployTier("alpha", "alpha")).toBe(true);
+    expect(siteAcceptsDeployTier("beta", "alpha")).toBe(false);
+    expect(siteAcceptsDeployTier("release", "alpha")).toBe(false);
+  });
+});
+
 describeWithEnv("claimNextBuiltSiteForPrune", { db: true }, () => {
   test("returns null when there are no built sites", async () => {
     expect(await claimNextBuiltSiteForPrune()).toBe(null);
@@ -62,64 +106,68 @@ describeWithEnv("claimNextBuiltSiteForPrune", { db: true }, () => {
 });
 
 describeWithEnv("built-sites", { db: true }, () => {
-  test("buildSiteDataBlob creates valid JSON", () => {
-    const blob = buildSiteDataBlob("Test Site", "test.b-cdn.net");
-    const parsed = JSON.parse(blob);
+  test("toDbValues creates valid site-data JSON", async () => {
+    const parsed = await formBlob({
+      bunnyUrl: "test.b-cdn.net",
+      name: "Test Site",
+    });
     expect(parsed.n).toBe("Test Site");
     expect(parsed.u).toBe("test.b-cdn.net");
-    expect(parsed.v).toBe(SITE_DATA_BLOB_VERSION);
+    expect(parsed.v).toBe(1);
   });
 
-  test("buildSiteDataBlob includes db credentials when provided", () => {
-    const blob = buildSiteDataBlob(
-      "Test Site",
-      "test.b-cdn.net",
-      "libsql://db.turso.io",
-      "secret-token",
-    );
-    const parsed = JSON.parse(blob);
+  test("toDbValues includes db credentials when provided", async () => {
+    const parsed = await formBlob({
+      bunnyUrl: "test.b-cdn.net",
+      dbToken: "secret-token",
+      dbUrl: "libsql://db.turso.io",
+      name: "Test Site",
+    });
     expect(parsed.d).toBe("libsql://db.turso.io");
     expect(parsed.t).toBe("secret-token");
   });
 
-  test("buildSiteDataBlob omits db keys when empty", () => {
-    const blob = buildSiteDataBlob("Test Site", "test.b-cdn.net");
-    const parsed = JSON.parse(blob);
+  test("toDbValues omits db keys when empty", async () => {
+    const parsed = await formBlob({
+      bunnyUrl: "test.b-cdn.net",
+      name: "Test Site",
+    });
     expect(parsed.d).toBeUndefined();
     expect(parsed.t).toBeUndefined();
   });
 
-  test("buildSiteDataBlob includes bunny script id when provided", () => {
-    const blob = buildSiteDataBlob(
-      "Test Site",
-      "test.b-cdn.net",
-      "",
-      "",
-      "98765",
-    );
-    const parsed = JSON.parse(blob);
+  test("toDbValues includes bunny script id when provided", async () => {
+    const parsed = await formBlob({
+      bunnyScriptId: "98765",
+      bunnyUrl: "test.b-cdn.net",
+      name: "Test Site",
+    });
     expect(parsed.s).toBe("98765");
   });
 
-  test("buildSiteDataBlob omits bunny script id when empty", () => {
-    const blob = buildSiteDataBlob("Test Site", "test.b-cdn.net");
-    const parsed = JSON.parse(blob);
+  test("toDbValues omits bunny script id when empty", async () => {
+    const parsed = await formBlob({
+      bunnyUrl: "test.b-cdn.net",
+      name: "Test Site",
+    });
     expect(parsed.s).toBeUndefined();
   });
 
-  test("parseSiteDataBlob roundtrips with buildSiteDataBlob", () => {
-    const blob = buildSiteDataBlob("My Site", "my.b-cdn.net");
-    const parsed = parseSiteDataBlob(blob);
+  test("parseSiteDataBlob decodes stored site-data JSON", async () => {
+    const parsed = await formBlob({
+      bunnyUrl: "my.b-cdn.net",
+      name: "My Site",
+    });
     expect(parsed.n).toBe("My Site");
     expect(parsed.u).toBe("my.b-cdn.net");
-    expect(parsed.v).toBe(SITE_DATA_BLOB_VERSION);
+    expect(parsed.v).toBe(1);
   });
 
   test("parseSiteDataBlob handles legacy blobs without db keys", () => {
     const legacyBlob = JSON.stringify({
       n: "Old Site",
       u: "old.b-cdn.net",
-      v: SITE_DATA_BLOB_VERSION,
+      v: 1,
     });
     const parsed = parseSiteDataBlob(legacyBlob);
     expect(parsed.d).toBeUndefined();
@@ -217,9 +265,22 @@ describeWithEnv("built-sites", { db: true }, () => {
         readOnlyFrom: "",
         renewalToken: null,
         renewalTokenIndex: null,
+        updates: "release" as const,
       };
       const result = await builtSitesCrudTable.fromDb(site);
       expect(result).toEqual(site);
+    });
+
+    test("inputKeyMap exposes form-facing fields", () => {
+      expect(builtSitesCrudTable.inputKeyMap).toEqual({
+        assignable: "assignable",
+        bunny_script_id: "bunnyScriptId",
+        bunny_url: "bunnyUrl",
+        db_token: "dbToken",
+        db_url: "dbUrl",
+        name: "name",
+        updates: "updates",
+      });
     });
 
     test("rowToInput exposes form-input fields for reuse", () => {
@@ -237,6 +298,7 @@ describeWithEnv("built-sites", { db: true }, () => {
         readOnlyFrom: "",
         renewalToken: null,
         renewalTokenIndex: null,
+        updates: "beta" as const,
       };
       expect(builtSitesCrudTable.rowToInput(site)).toEqual({
         assignable: true,
@@ -245,6 +307,7 @@ describeWithEnv("built-sites", { db: true }, () => {
         dbToken: "token",
         dbUrl: "libsql://db",
         name: "Mirror",
+        updates: "beta",
       });
     });
 
@@ -474,20 +537,6 @@ describeWithEnv("built-sites", { db: true }, () => {
       expect(parsed.n).toBe("Old Site");
     });
 
-    test("blob with renewal token includes rt field", () => {
-      const blob = buildSiteDataBlob(
-        "New Site",
-        "new.b-cdn.net",
-        "",
-        "",
-        "",
-        "my-renewal-token",
-      );
-      const parsed = parseSiteDataBlob(blob);
-      expect(parsed.v).toBe(SITE_DATA_BLOB_VERSION);
-      expect(parsed.rt).toBe("my-renewal-token");
-    });
-
     test("CRUD update preserves existing renewal token", async () => {
       const site = await builtSitesCrudTable.insert({
         assignable: false,
@@ -534,7 +583,124 @@ describeWithEnv("built-sites", { db: true }, () => {
       const afterSecond = await getBuiltSiteByRenewalTokenIndex("idx-456");
       expect(afterSecond).not.toBeNull();
       expect(afterSecond!.renewalTokenIndex).toBe("idx-456");
+      expect(afterSecond!.renewalToken).toBe("tok-456");
       expect(afterSecond!.readOnlyFrom).toBe("2027-01-01T00:00:00Z");
+    });
+  });
+
+  describe("update channel", () => {
+    const crudInput = (
+      overrides: Partial<Parameters<typeof builtSitesCrudTable.insert>[0]> = {},
+    ): Parameters<typeof builtSitesCrudTable.insert>[0] => ({
+      assignable: false,
+      bunnyScriptId: "",
+      bunnyUrl: "chan.b-cdn.net",
+      dbToken: "",
+      dbUrl: "",
+      name: "Channel Site",
+      ...overrides,
+    });
+
+    test("insertBuiltSite defaults the channel to release", async () => {
+      await insertBuiltSite("Defaulted", "defaulted.b-cdn.net");
+      const site = (await getAllBuiltSites()).find(
+        (s) => s.name === "Defaulted",
+      )!;
+      expect(site.updates).toBe("release");
+    });
+
+    test("insertBuiltSite stores an explicit channel that round-trips", async () => {
+      await insertBuiltSite(
+        "Alpha Chan",
+        "ac.b-cdn.net",
+        "",
+        "",
+        false,
+        "",
+        "alpha",
+      );
+      const site = (await getAllBuiltSites()).find(
+        (s) => s.name === "Alpha Chan",
+      )!;
+      expect(site.updates).toBe("alpha");
+    });
+
+    test("CRUD insert defaults the channel to release when omitted", async () => {
+      const site = await builtSitesCrudTable.insert(
+        crudInput({ name: "Crud Default" }),
+      );
+      expect(site.updates).toBe("release");
+    });
+
+    test("CRUD insert persists an explicit channel through the DB", async () => {
+      const site = await builtSitesCrudTable.insert(
+        crudInput({ name: "Crud Beta", updates: "beta" }),
+      );
+      expect(site.updates).toBe("beta");
+      const reloaded = (await getAllBuiltSites()).find(
+        (s) => s.id === site.id,
+      )!;
+      expect(reloaded.updates).toBe("beta");
+    });
+
+    test("CRUD update changes the channel", async () => {
+      const site = await builtSitesCrudTable.insert(
+        crudInput({ name: "Chan Change" }),
+      );
+      const updated = await builtSitesCrudTable.update(site.id, {
+        updates: "alpha",
+      });
+      expect(updated!.updates).toBe("alpha");
+    });
+
+    test("CRUD update preserves the channel when other fields change", async () => {
+      const site = await builtSitesCrudTable.insert(
+        crudInput({ name: "Keep Chan", updates: "beta" }),
+      );
+      const updated = await builtSitesCrudTable.update(site.id, {
+        name: "Keep Chan Renamed",
+      });
+      expect(updated!.name).toBe("Keep Chan Renamed");
+      expect(updated!.updates).toBe("beta");
+    });
+
+    test("assigning a site preserves its update channel", async () => {
+      await insertBuiltSite(
+        "Assign Chan",
+        "ach.b-cdn.net",
+        "",
+        "",
+        true,
+        "",
+        "beta",
+      );
+      const site = (await getAllBuiltSites()).find(
+        (s) => s.name === "Assign Chan",
+      )!;
+      const updated = await assignBuiltSite(site.id, 1, 2);
+      expect(updated!.updates).toBe("beta");
+    });
+
+    test("updating renewal state preserves the update channel", async () => {
+      await insertBuiltSite(
+        "Renew Chan",
+        "rch.b-cdn.net",
+        "",
+        "",
+        false,
+        "",
+        "alpha",
+      );
+      const site = (await getAllBuiltSites()).find(
+        (s) => s.name === "Renew Chan",
+      )!;
+      await updateBuiltSiteRenewalState(site.id, {
+        readOnlyFrom: "2027-01-01T00:00:00Z",
+      });
+      const reloaded = (await getAllBuiltSites()).find(
+        (s) => s.id === site.id,
+      )!;
+      expect(reloaded.updates).toBe("alpha");
     });
   });
 });

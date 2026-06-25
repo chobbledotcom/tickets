@@ -5,11 +5,12 @@ import {
   type DeliveryLegKind,
   getAgentRunSheet,
   setLegDone,
-  setLogisticsAssignments,
 } from "#shared/db/logistics.ts";
 import { logisticsAgentsTable } from "#shared/db/logistics-agents.ts";
-import { createTestAttendee, createTestListing } from "#test-utils";
-import { describeWithEnv } from "#test-utils/db.ts";
+import {
+  createListingWithAttendeeAndLogistics,
+  describeWithEnv,
+} from "#test-utils";
 
 const D1 = "2026-06-16";
 const D2 = "2026-06-17";
@@ -31,27 +32,19 @@ const makeBooking = async (opts: {
   startDone?: boolean;
   endDone?: boolean;
 }): Promise<{ attendeeId: number; listingId: number }> => {
-  const listing = await createTestListing({ maxAttendees: 100 });
-  const attendee = await createTestAttendee(
-    listing.id,
-    listing.slug,
-    "Cust",
-    "c@example.com",
-  );
-  await setLogisticsAssignments(
-    attendee.id,
-    false,
-    new Map([
-      [
-        listing.id,
-        {
-          endAgentId: opts.endAgentId,
-          endTime: opts.endTime ?? "",
-          startAgentId: opts.startAgentId,
-          startTime: opts.startTime ?? "",
-        },
-      ],
-    ]),
+  const { attendeeId, listingId } = await createListingWithAttendeeAndLogistics(
+    (id) =>
+      new Map([
+        [
+          id,
+          {
+            endAgentId: opts.endAgentId,
+            endTime: opts.endTime ?? "",
+            startAgentId: opts.startAgentId,
+            startTime: opts.startTime ?? "",
+          },
+        ],
+      ]),
   );
   await getDb().execute({
     args: [
@@ -59,12 +52,12 @@ const makeBooking = async (opts: {
       `${opts.endDate}T00:00:00Z`,
       opts.startDone ? 1 : 0,
       opts.endDone ? 1 : 0,
-      attendee.id,
-      listing.id,
+      attendeeId,
+      listingId,
     ],
     sql: "UPDATE listing_attendees SET start_at = ?, end_at = ?, start_done = ?, end_done = ? WHERE attendee_id = ? AND listing_id = ?",
   });
-  return { attendeeId: attendee.id, listingId: listing.id };
+  return { attendeeId, listingId };
 };
 
 describeWithEnv("db getAgentRunSheet", { db: true }, () => {

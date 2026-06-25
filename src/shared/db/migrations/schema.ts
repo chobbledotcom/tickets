@@ -679,6 +679,16 @@ export const SCHEMA: [name: string, table: Table][] = [
         // round-robin order. Operational metadata, not PII, so it lives outside
         // the encrypted site_data blob.
         ["last_pruned", "TEXT NOT NULL DEFAULT ''"],
+        // Release channel this site opts into: 'alpha' takes every deploy,
+        // 'beta' takes beta + release, 'release' only stable releases. The
+        // upgrade workflow passes the tier it is publishing and the master
+        // returns only the sites at that tier or more eager (see UPDATE_TIERS
+        // in built-sites.ts). Operational metadata, not PII, so it lives outside
+        // the encrypted site_data blob and stays SQL-filterable.
+        [
+          "updates",
+          "TEXT NOT NULL DEFAULT 'release' CHECK (updates IN ('alpha', 'beta', 'release'))",
+        ],
       ],
       indexes: [
         {

@@ -10,12 +10,14 @@
  * (`world→*`) stay honest — see {@link WRITEOFF}.
  */
 
+import type { InValue } from "@libsql/client";
 import { WRITEOFF } from "#shared/accounting/accounts.ts";
 import {
   eventGroup,
   legReference,
   type RefPart,
 } from "#shared/accounting/refs.ts";
+import { insertStatement, orIgnore } from "#shared/accounting/rows.ts";
 import { postTransfersTx } from "#shared/accounting/store.ts";
 import type { TxScope } from "#shared/db/client.ts";
 import type { AccountRef, TransferInput } from "#shared/ledger/types.ts";
@@ -75,4 +77,34 @@ export const postWriteoffAdjustmentTx = async (
 ): Promise<void> => {
   const leg = await writeoffAdjustmentLeg(account, delta, keyParts);
   if (leg) await postTransfersTx(tx, [leg]);
+};
+
+/** One writeoff adjustment to post: which account, by how much, keyed by parts. */
+export type WriteoffAdjustment = {
+  account: AccountRef;
+  delta: number;
+  keyParts: RefPart[];
+};
+
+/**
+ * Build the `INSERT OR IGNORE` statements for a set of writeoff adjustments, so a
+ * caller can fold them into a wider batch — an attendee merge posts a reversal per
+ * discarded booking — instead of posting each through its own in-transaction
+ * read-then-write (which held the write lock open per leg, the "Transaction
+ * timed-out" shape). Each adjustment is its own event (a fresh `nowIso`
+ * `eventGroup`/`reference`), so idempotency rides the unique `reference` and no
+ * pre-write conflict read is needed; a zero delta posts nothing.
+ */
+export const writeoffAdjustmentInserts = async (
+  adjustments: WriteoffAdjustment[],
+  recordedAt: string,
+): Promise<{ sql: string; args: InValue[] }[]> => {
+  const legs = await Promise.all(
+    adjustments.map((a) =>
+      writeoffAdjustmentLeg(a.account, a.delta, a.keyParts),
+    ),
+  );
+  return legs.flatMap((leg) =>
+    leg === null ? [] : [orIgnore(insertStatement(leg, recordedAt))],
+  );
 };

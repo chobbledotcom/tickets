@@ -8,6 +8,10 @@ import type { BuiltSiteFormInput } from "#shared/db/built-sites.ts";
 import type { GroupInput } from "#shared/db/groups.ts";
 import type { HolidayInput } from "#shared/db/holidays.ts";
 import { getListingWithCount, type ListingInput } from "#shared/db/listings.ts";
+import {
+  type LogisticsAssignment,
+  setLogisticsAssignments,
+} from "#shared/db/logistics.ts";
 import type {
   Attendee,
   DayPrices,
@@ -357,6 +361,25 @@ export const createTestAttendee = async (
 };
 
 export { getAttendeesRaw };
+
+/** Create a listing (maxAttendees 100) + attendee ("Cust" / "c@example.com")
+ *  and assign logistics agents to its single booking line. The `assignments`
+ *  callback receives the listing ID so the caller can key the map correctly
+ *  without having to create the listing itself first. Shared by the
+ *  logistics-runsheet and server-logistics test suites. */
+export const createListingWithAttendeeAndLogistics = async (
+  assignments: (listingId: number) => Map<number, LogisticsAssignment>,
+): Promise<{ attendeeId: number; listingId: number }> => {
+  const listing = await createTestListing({ maxAttendees: 100 });
+  const attendee = await createTestAttendee(
+    listing.id,
+    listing.slug,
+    "Cust",
+    "c@example.com",
+  );
+  await setLogisticsAssignments(attendee.id, false, assignments(listing.id));
+  return { attendeeId: attendee.id, listingId: listing.id };
+};
 
 /** Register the standard processed-payments attenddee fixture: one listing +
  *  one attendee ("Test User" / "test@example.com") created in `beforeEach`,
@@ -787,6 +810,7 @@ export const createTestBuiltSite = (
     dbToken: overrides.dbToken ?? "",
     dbUrl: overrides.dbUrl ?? "",
     name: overrides.name ?? "Test Site",
+    ...(overrides.updates ? { updates: overrides.updates } : {}),
   };
 
   return doAuthenticatedFormRequest(
@@ -798,6 +822,7 @@ export const createTestBuiltSite = (
       db_url: input.dbUrl,
       name: input.name,
       ...(input.assignable ? { assignable: "1" } : {}),
+      ...(input.updates ? { updates: input.updates } : {}),
     },
     async () => {
       const { getAllBuiltSites } = await import("#shared/db/built-sites.ts");
@@ -828,6 +853,7 @@ export const updateTestBuiltSite = async (
       db_token: updates.dbToken ?? existing.dbToken,
       db_url: updates.dbUrl ?? existing.dbUrl,
       name: updates.name ?? existing.name,
+      updates: updates.updates ?? existing.updates,
       ...(assignable ? { assignable: "1" } : {}),
     },
     async () => {

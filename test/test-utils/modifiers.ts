@@ -1,4 +1,9 @@
-import { getDb } from "#shared/db/client.ts";
+import { execute, executeBatchWithResults, getDb } from "#shared/db/client.ts";
+import {
+  type ModifierUsage,
+  modifierStockCondition,
+  usageInsert,
+} from "#shared/db/modifier-usage.ts";
 import { type ModifierInput, modifiersTable } from "#shared/db/modifiers.ts";
 import type { CheckoutItem } from "#shared/payments.ts";
 
@@ -58,6 +63,33 @@ export const linkModifierAnswer = (modifierId: number, answerId: number) =>
     args: [modifierId, answerId],
     sql: "UPDATE answers SET modifier_id = ? WHERE id = ?",
   });
+
+/**
+ * Atomically consume modifier stock for an attendee, the way the live checkout's
+ * per-leg stock guard does: each usage row lands only while its modifier still
+ * has stock (unlimited when stock is null), so this both records the consumption
+ * and reports whether it fit. Returns true when every usage landed; when any
+ * modifier was short, the attendee's partial rows are removed and false returned.
+ * Rebuilt here from the exported `usageInsert` + `modifierStockCondition` (the
+ * production checkout consumes stock inside its one booking batch, so this
+ * stand-alone consumer is only needed to set up / probe stock state in tests).
+ */
+export const consumeModifierStock = async (
+  attendeeId: number,
+  usages: ModifierUsage[],
+): Promise<boolean> => {
+  if (usages.length === 0) return true;
+  const results = await executeBatchWithResults(
+    usages.map((u) =>
+      usageInsert(u, "?", [attendeeId], modifierStockCondition(u)),
+    ),
+  );
+  if (results.every((r) => r.rowsAffected > 0)) return true;
+  await execute("DELETE FROM modifier_usages WHERE attendee_id = ?", [
+    attendeeId,
+  ]);
+  return false;
+};
 
 /** Insert a `modifier_usages` row directly, bypassing the checkout flow —
  *  used by both the modifier-aggregates and server-modifiers test suites to

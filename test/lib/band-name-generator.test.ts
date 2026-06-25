@@ -5,6 +5,7 @@ import {
   BAND_NOUNS,
   BAND_PERSON_NAMES,
   BAND_SUFFIXES,
+  createRand,
   DEFAULT_BAND_SEED,
   DEFAULT_DESCRIPTION_SEED,
   DEFAULT_VENUE_SEED,
@@ -12,8 +13,32 @@ import {
   generateBandNames,
   generateDescriptions,
   generateVenueNames,
+  pickFrom,
   VENUE_TYPES,
 } from "#shared/band-name-generator.ts";
+
+describe("createRand", () => {
+  test("produces the expected Mulberry32 sequence for a fixed seed", () => {
+    const rand = createRand(0x12345678);
+
+    expect([rand(), rand(), rand(), rand()]).toEqual([
+      0.10615200875326991, 0.941276284167543, 0.9398706152569503,
+      0.2338848018553108,
+    ]);
+  });
+
+  test("pickFrom maps seeded random values to stable array indexes", () => {
+    const rand = createRand(0x12345678);
+    const pool = ["alpha", "beta", "gamma", "delta"];
+
+    expect([
+      pickFrom(rand, pool),
+      pickFrom(rand, pool),
+      pickFrom(rand, pool),
+      pickFrom(rand, pool),
+    ]).toEqual(["alpha", "delta", "delta", "alpha"]);
+  });
+});
 
 describe("generateBandNames", () => {
   test("returns exactly `count` names", () => {

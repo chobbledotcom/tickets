@@ -82,7 +82,11 @@ const latestAttendee = async (): Promise<{
   // the accepted gross-sale divergence (deposit accuracy returns in concern 5).
   const paid = await getDb().execute({
     args: [id],
-    sql: `SELECT ${pricePaidFromLedger("attendee_id", "listing_id", "ledger_event_group")} FROM listing_attendees WHERE attendee_id = ?`,
+    sql: `SELECT ${pricePaidFromLedger(
+      "attendee_id",
+      "listing_id",
+      "ledger_event_group",
+    )} FROM listing_attendees WHERE attendee_id = ?`,
   });
   return {
     id,
@@ -126,13 +130,20 @@ const setupSoldOutModifierRace = async (
     name: "Comp",
     stock: 1,
   });
+  // Simulate the race: a *different*, concurrent order consumes the modifier's
+  // last unit between pricing and our commit. Its usage lands on that other
+  // order's attendee (a sentinel id, never ours), so it stands after our order
+  // rolls back — exactly as a real competing booking's stock would. Firing on our
+  // attendee INSERT (just before the booking insert in the batch) is only the
+  // hook for "stock gone by commit time"; it must not attach to NEW.id, or it
+  // would look like our own consumption.
   await getDb().execute(
     `CREATE TRIGGER test_consume_modifier_before_order
      AFTER INSERT ON attendees
      BEGIN
        INSERT INTO modifier_usages
          (modifier_id, attendee_id, quantity, amount_applied, created)
-       VALUES (${modifier.id}, NEW.id, 1, 1000, '2024-01-01T00:00:00Z');
+       VALUES (${modifier.id}, 999999, 1, 1000, '2024-01-01T00:00:00Z');
      END`,
   );
   return { listing, modifier };
@@ -254,7 +265,11 @@ describeWithEnv(
         // £27 owed stays accurate; concern 5 restores the deposit distribution.
         const paidRows = await getDb().execute({
           args: [attendee.id],
-          sql: `SELECT listing_id, ${pricePaidFromLedger("attendee_id", "listing_id", "ledger_event_group")} FROM listing_attendees WHERE attendee_id = ?`,
+          sql: `SELECT listing_id, ${pricePaidFromLedger(
+            "attendee_id",
+            "listing_id",
+            "ledger_event_group",
+          )} FROM listing_attendees WHERE attendee_id = ?`,
         });
         const paidByListing = new Map(
           paidRows.rows.map((row) => [
@@ -543,11 +558,16 @@ describeWithEnv(
         "An extra you selected sold out while you were checking out. Please try again.",
         false,
       );
-      expect(await modifierUsedQuantities([modifier.id])).toEqual(new Map());
+      // The racing order's single consumption stands (it really got the stock);
+      // our rejected order added none of its own — the batch's stock-guarded
+      // booking insert never landed, so its gated usage insert never fired.
+      expect(await modifierUsedQuantities([modifier.id])).toEqual(
+        new Map([[modifier.id, 1]]),
+      );
       expect(await attendeeCount()).toBe(0);
-      // The greedy create recorded a visit + public booking for this contact;
-      // the stock rollback must undo both so a sold-out free order leaves no
-      // phantom contact history (matching the paid SumUp-webhook path).
+      // A sold-out free order leaves no phantom contact history: the batch never
+      // reaches the success path that records a visit + public booking, so there
+      // is nothing to compensate (matching the paid SumUp-webhook path).
       expect(await totalContactActivity()).toEqual({ bookings: 0, visits: 0 });
     });
 
