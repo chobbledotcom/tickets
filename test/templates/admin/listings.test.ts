@@ -2,7 +2,9 @@ import { expect } from "@std/expect";
 import { afterEach, beforeAll, describe, it as test } from "@std/testing/bdd";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { detectIframeMode } from "#shared/iframe.ts";
+import { account } from "#shared/ledger/account.ts";
 import { runWithStorageConfig } from "#shared/storage.ts";
+import { emptyLedgerNames } from "#templates/admin/ledger.tsx";
 import {
   adminDuplicateListingPage,
   adminListingEditPage,
@@ -1176,6 +1178,8 @@ describe("adminListingPage income & ledger breakdown", () => {
       attendees: [],
       listing,
       revenueBreakdown: {
+        externalCosts: 0,
+        externalIncome: 0,
         grossSales: 10000,
         manualAdjustments: -1000,
         netBalance: 7000,
@@ -1212,6 +1216,8 @@ describe("adminListingPage income & ledger breakdown", () => {
       attendees: [],
       listing,
       revenueBreakdown: {
+        externalCosts: 0,
+        externalIncome: 0,
         grossSales: 9000,
         manualAdjustments: 0,
         netBalance: 7000,
@@ -1236,6 +1242,8 @@ describe("adminListingPage income & ledger breakdown", () => {
       attendees: [],
       listing,
       revenueBreakdown: {
+        externalCosts: 0,
+        externalIncome: 0,
         grossSales: 5000,
         manualAdjustments: 0,
         netBalance: 5000,
@@ -1258,6 +1266,8 @@ describe("adminListingPage income & ledger breakdown", () => {
       attendees: [],
       listing,
       revenueBreakdown: {
+        externalCosts: 0,
+        externalIncome: 0,
         grossSales: 4000,
         manualAdjustments: 1500,
         netBalance: 5500,
@@ -1268,6 +1278,50 @@ describe("adminListingPage income & ledger breakdown", () => {
     });
     expect(html).toContain("Manual adjustments");
     expect(html).toContain("+£15");
+  });
+
+  test("shows outside income and listing-specific costs when present", () => {
+    const html = adminListingPage({
+      allowedDomain: "localhost",
+      attendees: [],
+      listing,
+      revenueBreakdown: {
+        externalCosts: 300,
+        externalIncome: 1200,
+        grossSales: 4000,
+        manualAdjustments: 0,
+        netBalance: 4900,
+        recognisedIncome: 5200,
+        refunds: 0,
+      },
+      session: TEST_SESSION,
+    });
+    expect(html).toContain("Income received outside checkout");
+    expect(html).toContain("+£12");
+    expect(html).toContain("Costs paid outside checkout");
+    expect(html).toContain("−£3");
+  });
+
+  test("shows a listing ledger add-entry action when the account exists", () => {
+    const html = adminListingPage({
+      allowedDomain: "localhost",
+      attendees: [],
+      ledger: {
+        account: account("revenue", 7),
+        lines: [],
+        names: {
+          ...emptyLedgerNames(),
+          listings: new Map([[7, listing.name]]),
+        },
+      },
+      listing,
+      session: TEST_SESSION,
+    });
+    expect(html).toContain('<section id="ledger">');
+    expect(html).toContain("Add entry");
+    expect(html).toContain(
+      'href="/admin/ledger/revenue/7/add?return_url=%2Fadmin%2Flisting%2F7"',
+    );
   });
 });
 

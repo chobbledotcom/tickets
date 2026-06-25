@@ -1,8 +1,14 @@
 /**
- * Admin "ledger" routes — the read-only view of the `transfers` ledger.
+ * Admin ledger routes: owner-only ledger views plus the narrow maintenance
+ * forms for owner-entered corrections.
  *
- *   GET /admin/ledger             — the recent historical transfer list
- *   GET /admin/ledger/:type/:ref  — one account's running-balance statement
+ *   GET  /admin/ledger                    — the recent transfer list
+ *   GET  /admin/ledger/:type/:ref         — one account's statement
+ *   GET  /admin/ledger/:type/:ref/add     — add an owner-entered entry
+ *   GET  /admin/ledger/entries/:id/edit   — edit or delete one entry
+ *   POST /admin/ledger/:type/:ref/add     — post an owner-entered entry
+ *   POST /admin/ledger/entries/:id/edit   — update amount/time
+ *   POST /admin/ledger/entries/:id/delete — delete an entry
  *
  * The account segment is named `:ref`, not `:id`, on purpose: the router parses
  * an `id`/`*Id` param as digits-only, but a singleton account's id is a word
@@ -10,8 +16,9 @@
  * 404 those statements before the handler ran. `:ref` matches any non-slash
  * segment, and {@link accountFromRoute} validates it per account type.
  *
- * Both are owner-only (the ledger exposes every account's money movements). The
- * feature layer loads the transfers, builds the {@link LedgerNames} id→name
+ * All routes are owner-only (the ledger exposes every account's money
+ * movements). The feature layer loads the transfers, builds the
+ * {@link LedgerNames} id→name
  * lookup for the accounts those transfers reference (decrypting attendee names
  * with the session key, exactly as the activity log does, and reading
  * listing/modifier names from their loaders), and hands them to the shared
@@ -22,8 +29,22 @@
 import { mapNotNullish, sort, unique } from "#fp";
 import { t } from "#i18n";
 import { loadAttendeeNames } from "#routes/admin/actions.ts";
-import { requireOwnerOr } from "#routes/auth.ts";
-import { htmlResponse, notFoundResponse } from "#routes/response.ts";
+/* jscpd:ignore-start */
+import { verifyOrRedirect } from "#routes/admin/confirmation.ts";
+import {
+  type AuthSession,
+  OWNER_FORM,
+  requireOwnerOr,
+  withAuth,
+} from "#routes/auth.ts";
+import { applyFlash } from "#routes/csrf.ts";
+import {
+  errorRedirect,
+  htmlResponse,
+  notFoundResponse,
+  redirect,
+} from "#routes/response.ts";
+/* jscpd:ignore-end */
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
   attendeeAccount,
@@ -34,14 +55,27 @@ import {
   WRITEOFF,
 } from "#shared/accounting/accounts.ts";
 import {
+  deleteTransferById,
+  getTransferById,
+  isManualLedgerEntryType,
+  manualLedgerEntryOptionsFor,
+  postManualLedgerEntry,
+  updateTransferAmountAndTime,
+} from "#shared/accounting/manual-entries.ts";
+import {
   ledgerTotals,
   transferActivityBounds,
   transfersByAccount,
   visibleTransfers,
 } from "#shared/accounting/queries.ts";
 import type { LedgerRange } from "#shared/accounting/range.ts";
-import { formatCurrency } from "#shared/currency.ts";
+import {
+  formatCurrency,
+  toMajorUnits,
+  toMinorUnits,
+} from "#shared/currency.ts";
 import { addDays, dateRange, formatDateLabel } from "#shared/dates.ts";
+import { logActivity } from "#shared/db/activityLog.ts";
 import {
   getAllListings,
   getListingNamesByIds,
@@ -49,22 +83,32 @@ import {
 } from "#shared/db/listings.ts";
 import { getAllModifiers } from "#shared/db/modifiers.ts";
 import { settings } from "#shared/db/settings.ts";
+import type { FormParams } from "#shared/form-data.ts";
 import { statementFor } from "#shared/ledger/project.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
+import { nowIso } from "#shared/now.ts";
 import {
   dayStartEpochMs,
   epochMsToTzDate,
+  localToUtc,
   todayInTz,
+  utcToLocalInput,
 } from "#shared/timezone.ts";
 import type { ListingWithCount } from "#shared/types.ts";
 import { isIsoDate } from "#shared/validation/date.ts";
 import type { DetailRow } from "#templates/admin/detail-rows.tsx";
 import {
+  type AccountLedgerData,
   adminAccountStatementPage,
+  adminLedgerEntryAddPage,
+  adminLedgerEntryEditPage,
   adminLedgerPage,
+  type LedgerEntryAddOption,
+  type LedgerEntryFormValues,
   type LedgerFilterState,
   type LedgerListingOption,
   type LedgerNames,
+  type LedgerViewMode,
 } from "#templates/admin/ledger.tsx";
 import type { DatePickerDate } from "#templates/date-picker.tsx";
 
@@ -72,17 +116,14 @@ import type { DatePickerDate } from "#templates/date-picker.tsx";
  * are dropped and a "showing recent" note surfaces, mirroring the global log. */
 export const LEDGER_DISPLAY_LIMIT = 500;
 
-/** The distinct numeric ids of one row-backed account type referenced by a slice
- * of transfers (as either leg). A singleton like `external:world` has a
- * non-numeric id, so it never contributes. */
-const referencedIds = (transfers: Transfer[], type: string): number[] =>
+/** The distinct numeric ids of one row-backed account type referenced by a set
+ * of accounts. A singleton like `external:world` has a non-numeric id, so it
+ * never contributes. */
+const referencedAccountIds = (accounts: AccountRef[], type: string): number[] =>
   unique(
     mapNotNullish((account: AccountRef) =>
       account.type === type ? Number(account.id) : null,
-    )([
-      ...transfers.map((tx) => tx.source),
-      ...transfers.map((tx) => tx.destination),
-    ]),
+    )(accounts),
   );
 
 /**
@@ -93,12 +134,12 @@ const referencedIds = (transfers: Transfer[], type: string): number[] =>
  * An entity that has since been deleted simply has no entry — its legs render as
  * plain text, no link.
  */
-export const loadLedgerNames = async (
-  transfers: Transfer[],
+export const loadLedgerNamesForAccounts = async (
+  accounts: AccountRef[],
 ): Promise<LedgerNames> => {
-  const attendeeIds = referencedIds(transfers, "attendee");
-  const listingIds = referencedIds(transfers, "revenue");
-  const modifierIds = new Set(referencedIds(transfers, "modifier"));
+  const attendeeIds = referencedAccountIds(accounts, "attendee");
+  const listingIds = referencedAccountIds(accounts, "revenue");
+  const modifierIds = new Set(referencedAccountIds(accounts, "modifier"));
   const [attendees, listings, modifiers] = await Promise.all([
     loadAttendeeNames(attendeeIds),
     getListingNamesByIds(listingIds),
@@ -114,6 +155,12 @@ export const loadLedgerNames = async (
     ),
   };
 };
+
+export const loadLedgerNames = (transfers: Transfer[]): Promise<LedgerNames> =>
+  loadLedgerNamesForAccounts([
+    ...transfers.map((tx) => tx.source),
+    ...transfers.map((tx) => tx.destination),
+  ]);
 
 /** A query-param reader that yields the value only when it passes `valid`, else
  *  null — the shared shape of the date and paged-month param parsers. */
@@ -137,6 +184,9 @@ const listingParam = (params: URLSearchParams): number | null => {
   const id = Number(value);
   return Number.isSafeInteger(id) && id > 0 ? id : null;
 };
+
+const viewParam = (params: URLSearchParams): LedgerViewMode =>
+  params.get("view") === "dual" ? "dual" : "human";
 
 /** Turn a `from`/`to` day filter into the epoch-ms range the ledger queries
  *  bound against: `from` at the start of its day, `to` exclusive at the start of
@@ -233,7 +283,8 @@ export const handleLedgerGet: TypedRouteHandler<"GET /admin/ledger"> = (
   request,
 ) =>
   requireOwnerOr(request, async (session) => {
-    const params = new URL(request.url).searchParams;
+    const url = new URL(request.url);
+    const params = url.searchParams;
     const from = dateParam(params, "from");
     const to = dateParam(params, "to");
     const tz = settings.timezone;
@@ -274,6 +325,7 @@ export const handleLedgerGet: TypedRouteHandler<"GET /admin/ledger"> = (
       listingId,
       to,
       toMonth: monthParam(params, "toCal"),
+      view: viewParam(params),
     };
 
     return htmlResponse(
@@ -283,6 +335,7 @@ export const handleLedgerGet: TypedRouteHandler<"GET /admin/ledger"> = (
           filters,
           listings: listingOptions,
           names,
+          returnUrl: url.pathname + url.search,
           stats: stats.rows,
           statsHeading: stats.heading,
           today,
@@ -318,28 +371,334 @@ const ROW_ACCOUNT_CONSTRUCTORS: Record<string, (id: number) => AccountRef> = {
   revenue: revenueAccount,
 };
 
+/** Load one account's full statement and the labels for both that account and
+ * every counterparty it touches. Shared by standalone statements and the
+ * attendee/listing/modifier embedded panels. */
+export const loadAccountLedger = async (
+  account: AccountRef,
+): Promise<AccountLedgerData> => {
+  const transfers = await transfersByAccount(account);
+  return {
+    account,
+    lines: statementFor(account)(transfers),
+    names: await loadLedgerNamesForAccounts([
+      account,
+      ...transfers.map((transfer) => transfer.source),
+      ...transfers.map((transfer) => transfer.destination),
+    ]),
+  };
+};
+
+const ownerHtml = (
+  request: Request,
+  render: (session: AuthSession) => string | null | Promise<string | null>,
+): Promise<Response> =>
+  requireOwnerOr(request, async (session) => {
+    const html = await render(session);
+    return html === null ? notFoundResponse() : htmlResponse(html);
+  });
+
+type TypeRefParams = { ref: string; type: string };
+
+const ownerTypeRefHtml =
+  (
+    render: (
+      request: Request,
+      session: AuthSession,
+      params: TypeRefParams,
+    ) => string | null | Promise<string | null>,
+  ) =>
+  (request: Request, params: TypeRefParams): Promise<Response> =>
+    ownerHtml(request, (session) => render(request, session, params));
+
 /**
  * Handle GET /admin/ledger/:type/:id — one account's full running-balance
  * statement. 404s on an unknown account type or a bad row id. No opening
  * balance: this is the account's whole history, so the running total starts at
  * zero by construction.
  */
-export const handleAccountStatementGet: TypedRouteHandler<
-  "GET /admin/ledger/:type/:ref"
-> = (request, { type, ref }) =>
-  requireOwnerOr(request, async (session) => {
+export const handleAccountStatementGet: TypedRouteHandler<"GET /admin/ledger/:type/:ref"> =
+  ownerTypeRefHtml(async (_request, session, { type, ref }) => {
     const account = accountFromRoute(type, ref);
-    if (!account) return notFoundResponse();
-    const transfers = await transfersByAccount(account);
-    const lines = statementFor(account)(transfers);
-    const names = await loadLedgerNames(transfers);
-    return htmlResponse(
-      adminAccountStatementPage(account, lines, names, session),
-    );
+    if (!account) return null;
+    const { lines, names } = await loadAccountLedger(account);
+    return adminAccountStatementPage(account, lines, names, session);
   });
+
+const pathFromUrlValue = (value: string | null, fallback: string): string => {
+  if (!value || !URL.canParse(value, "http://localhost")) return fallback;
+  const url = new URL(value, "http://localhost");
+  return `${url.pathname}${url.search}${url.hash}`;
+};
+
+const returnUrlFromRequest = (request: Request, fallback: string): string =>
+  pathFromUrlValue(
+    new URL(request.url).searchParams.get("return_url"),
+    fallback,
+  );
+
+const returnUrlFromForm = (form: FormParams, fallback: string): string =>
+  pathFromUrlValue(form.getString("return_url"), fallback);
+
+const editEntryPath = (id: number, returnUrl: string): string =>
+  `/admin/ledger/entries/${id}/edit?return_url=${encodeURIComponent(returnUrl)}`;
+
+const addEntryPath = (account: AccountRef, returnUrl: string): string =>
+  `/admin/ledger/${account.type}/${account.id}/add?return_url=${encodeURIComponent(
+    returnUrl,
+  )}`;
+
+const parseAmount = (form: FormParams): number | null => {
+  const raw = form.getString("amount").trim();
+  if (!raw) return null;
+  const parsed = Number.parseFloat(raw);
+  if (!Number.isFinite(parsed)) return null;
+  const amount = toMinorUnits(parsed);
+  return Number.isSafeInteger(amount) && amount > 0 ? amount : null;
+};
+
+const parseOccurredAt = (form: FormParams): string | null => {
+  const raw = form.getString("occurred_at").trim();
+  if (!raw) return null;
+  try {
+    return localToUtc(raw, settings.timezone);
+  } catch {
+    return null;
+  }
+};
+
+type ParsedEntryFields = { amount: number; occurredAt: string };
+
+const parseLedgerEntryFields = (
+  form: FormParams,
+  redirectUrl: string,
+): ParsedEntryFields | Response => {
+  const amount = parseAmount(form);
+  if (amount === null)
+    return errorRedirect(redirectUrl, "Enter a valid amount");
+  const occurredAt = parseOccurredAt(form);
+  if (occurredAt === null) {
+    return errorRedirect(redirectUrl, "Enter a valid timestamp");
+  }
+  return { amount, occurredAt };
+};
+
+const transferFormValues = (transfer: Transfer): LedgerEntryFormValues => ({
+  amount: toMajorUnits(transfer.amount),
+  occurredAt: utcToLocalInput(transfer.occurredAt, settings.timezone),
+});
+
+const blankEntryValues = (
+  options: LedgerEntryAddOption[],
+): LedgerEntryFormValues => ({
+  amount: "",
+  entryType: options[0]?.type,
+  occurredAt: utcToLocalInput(nowIso(), settings.timezone),
+});
+
+const addOptions = (account: AccountRef): LedgerEntryAddOption[] =>
+  manualLedgerEntryOptionsFor(account).map((option) => ({
+    ...option,
+    hint: t(option.hintKey),
+    label: t(option.labelKey),
+  }));
+
+const addableAccountNames = {
+  attendee: (names: LedgerNames) => names.attendees,
+  modifier: (names: LedgerNames) => names.modifiers,
+  revenue: (names: LedgerNames) => names.listings,
+};
+
+type AddableAccountType = keyof typeof addableAccountNames;
+type AddableAccountRef = AccountRef & { type: AddableAccountType };
+
+const isAddableAccount = (account: AccountRef): account is AddableAccountRef =>
+  Object.hasOwn(addableAccountNames, account.type);
+
+const accountExistsInNames = (
+  account: AddableAccountRef,
+  names: LedgerNames,
+): boolean => addableAccountNames[account.type](names).has(Number(account.id));
+
+const loadAddableAccount = async (
+  type: string,
+  ref: string,
+): Promise<{
+  account: AccountRef;
+  names: LedgerNames;
+  options: LedgerEntryAddOption[];
+} | null> => {
+  const account = accountFromRoute(type, ref);
+  if (!account) return null;
+  if (!isAddableAccount(account)) return null;
+  const options = addOptions(account);
+  const names = await loadLedgerNamesForAccounts([account]);
+  return accountExistsInNames(account, names)
+    ? { account, names, options }
+    : null;
+};
+
+type OwnerLedgerFormHandler = (
+  session: AuthSession,
+  form: FormParams,
+) => Response | Promise<Response>;
+
+const ownerLedgerForm = (
+  request: Request,
+  handler: OwnerLedgerFormHandler,
+): Promise<Response> => withAuth(request, OWNER_FORM, handler);
+
+const accountStatementPath = (account: AccountRef): string =>
+  `/admin/ledger/${account.type}/${account.id}`;
+
+const editPostedTransfer = async (
+  id: number,
+  form: FormParams,
+): Promise<{
+  transfer: Transfer;
+  returnUrl: string;
+  redirectUrl: string;
+} | null> => {
+  const transfer = await getTransferById(id);
+  if (!transfer) return null;
+  const returnUrl = returnUrlFromForm(form, "/admin/ledger");
+  return { redirectUrl: editEntryPath(id, returnUrl), returnUrl, transfer };
+};
+
+type PostedTransfer = {
+  transfer: Transfer;
+  returnUrl: string;
+  redirectUrl: string;
+};
+
+const ownerPostedTransferForm = (
+  request: Request,
+  id: number,
+  handler: (
+    posted: PostedTransfer,
+    form: FormParams,
+  ) => Response | Promise<Response>,
+): Promise<Response> =>
+  ownerLedgerForm(request, async (_session, form) => {
+    const posted = await editPostedTransfer(id, form);
+    return posted ? handler(posted, form) : notFoundResponse();
+  });
+
+type PostedTransferHandler = (
+  posted: PostedTransfer,
+  form: FormParams,
+) => Response | Promise<Response>;
+
+const postedTransferRoute = (handler: PostedTransferHandler) => {
+  return (request: Request, params: { id: number }): Promise<Response> =>
+    ownerPostedTransferForm(request, params.id, handler);
+};
+
+export const handleLedgerEntryAddGet: TypedRouteHandler<"GET /admin/ledger/:type/:ref/add"> =
+  ownerTypeRefHtml(async (request, session, { type, ref }) => {
+    const loaded = await loadAddableAccount(type, ref);
+    if (!loaded) return null;
+    const flash = applyFlash(request);
+    return adminLedgerEntryAddPage({
+      ...loaded,
+      error: flash.error,
+      returnUrl: returnUrlFromRequest(
+        request,
+        accountStatementPath(loaded.account),
+      ),
+      session,
+      values: blankEntryValues(loaded.options),
+    });
+  });
+
+export const handleLedgerEntryAddPost: TypedRouteHandler<
+  "POST /admin/ledger/:type/:ref/add"
+> = (request, { type, ref }) =>
+  ownerLedgerForm(request, async (session, form) => {
+    const loaded = await loadAddableAccount(type, ref);
+    if (!loaded) return notFoundResponse();
+    const returnUrl = returnUrlFromForm(
+      form,
+      accountStatementPath(loaded.account),
+    );
+    const redirectUrl = addEntryPath(loaded.account, returnUrl);
+    const entryType = form.getString("entry_type");
+    if (
+      !isManualLedgerEntryType(entryType) ||
+      !loaded.options.some((option) => option.type === entryType)
+    ) {
+      return errorRedirect(redirectUrl, "Choose what happened");
+    }
+    const parsed = parseLedgerEntryFields(form, redirectUrl);
+    if (parsed instanceof Response) return parsed;
+    await postManualLedgerEntry({
+      account: loaded.account,
+      amount: parsed.amount,
+      occurredAt: parsed.occurredAt,
+      postedBy: String(session.userId),
+      type: entryType,
+    });
+    await logActivity("Manual ledger entry added");
+    return redirect(returnUrl, "Ledger entry added", true);
+  });
+
+export const handleLedgerEntryEditGet: TypedRouteHandler<
+  "GET /admin/ledger/entries/:id/edit"
+> = (request, { id }) =>
+  ownerHtml(request, async (session) => {
+    const transfer = await getTransferById(id);
+    if (!transfer) return null;
+    const flash = applyFlash(request);
+    const returnUrl = returnUrlFromRequest(request, "/admin/ledger");
+    return adminLedgerEntryEditPage({
+      error: flash.error,
+      names: await loadLedgerNames([transfer]),
+      returnUrl,
+      session,
+      transfer,
+      values: transferFormValues(transfer),
+    });
+  });
+
+const updatePostedTransfer: PostedTransferHandler = async (posted, form) => {
+  const parsed = parseLedgerEntryFields(form, posted.redirectUrl);
+  if (parsed instanceof Response) return parsed;
+  await updateTransferAmountAndTime(
+    posted.transfer,
+    parsed.amount,
+    parsed.occurredAt,
+  );
+  await logActivity(`Ledger entry #${posted.transfer.id} updated`);
+  return redirect(posted.returnUrl, "Ledger entry updated", true);
+};
+
+const deletePostedTransfer: PostedTransferHandler = async (posted, form) => {
+  const error = verifyOrRedirect(
+    form,
+    formatCurrency(posted.transfer.amount),
+    posted.redirectUrl,
+    "Amount",
+    "deletion",
+  );
+  if (error) return error;
+  await deleteTransferById(posted.transfer.id);
+  await logActivity(`Ledger entry #${posted.transfer.id} deleted`);
+  return redirect(posted.returnUrl, "Ledger entry deleted", true);
+};
+
+export const handleLedgerEntryEditPost: TypedRouteHandler<"POST /admin/ledger/entries/:id/edit"> =
+  postedTransferRoute(updatePostedTransfer);
+
+export const handleLedgerEntryDeletePost: TypedRouteHandler<"POST /admin/ledger/entries/:id/delete"> =
+  postedTransferRoute(deletePostedTransfer);
 
 /** Ledger routes (owner-only). */
 export const ledgerRoutes = defineRoutes({
   "GET /admin/ledger": handleLedgerGet,
   "GET /admin/ledger/:type/:ref": handleAccountStatementGet,
+  "GET /admin/ledger/:type/:ref/add": handleLedgerEntryAddGet,
+  "GET /admin/ledger/entries/:id/edit": handleLedgerEntryEditGet,
+  "POST /admin/ledger/:type/:ref/add": handleLedgerEntryAddPost,
+  "POST /admin/ledger/entries/:id/delete": handleLedgerEntryDeletePost,
+  "POST /admin/ledger/entries/:id/edit": handleLedgerEntryEditPost,
 });

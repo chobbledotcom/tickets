@@ -12,9 +12,11 @@ import {
   getDateFilter,
   listingAttendeesLoader,
 } from "#routes/admin/actions.ts";
+import { loadAccountLedger } from "#routes/admin/ledger.ts";
 import type { AuthSession } from "#routes/auth.ts";
 import { htmlResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
+import { revenueAccount } from "#shared/accounting/accounts.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { formatDateLabel } from "#shared/dates.ts";
 import { getGroupRemainingByGroupId } from "#shared/db/attendees/capacity.ts";
@@ -196,6 +198,7 @@ const renderListingPage = async (
             groupContext,
             recalc,
             revenueBreakdown,
+            ledger,
             systemNotes,
           ] = await Promise.all([
             Promise.resolve(getFlash()),
@@ -204,6 +207,9 @@ const renderListingPage = async (
             loadGroupContext(listing, dateFilter),
             getListingAggregateRecalculation(listing),
             listingRevenueBreakdown(listing.id),
+            session.adminLevel === "owner"
+              ? loadAccountLedger(revenueAccount(listing.id))
+              : Promise.resolve(undefined),
             loadNotesForAttendees(attendeeIds, requireRequestPrivateKey),
           ]);
           return htmlResponse(
@@ -220,6 +226,7 @@ const renderListingPage = async (
               // Emailing a listing targets every attendee across all dates, so
               // gate the action on the full set, not the date-filtered view.
               hasEmailableAttendees: attendees.some((a) => a.email !== ""),
+              ledger,
               listing,
               phonePrefix,
               questionData,

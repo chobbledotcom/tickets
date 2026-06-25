@@ -16,16 +16,12 @@ import { formatDateRangeLabel, formatDatetimeShort } from "#shared/dates.ts";
 import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import { type Child, Raw } from "#shared/jsx/jsx-runtime.ts";
-import type { StatementLine } from "#shared/ledger/project.ts";
-import type { AccountRef } from "#shared/ledger/types.ts";
 import type { Attendee } from "#shared/types.ts";
 import { ActivityLogTable } from "#templates/admin/activityLog.tsx";
 import {
-  AccountStatementHeading,
-  AccountStatementTable,
-  type LedgerNames,
+  type AccountLedgerData,
+  AccountStatementSection,
 } from "#templates/admin/ledger.tsx";
-import { ActionButton } from "#templates/components/actions.tsx";
 import { MapsLinks } from "#templates/components/maps-links.tsx";
 import { PhoneLinks } from "#templates/components/phone-links.tsx";
 import { colClass } from "#templates/components/table-columns.ts";
@@ -259,11 +255,7 @@ export const AttendeeLogSection = ({
 /** The attendee's ledger account, its statement lines, and the counterparties'
  * display names — everything the embedded statement panel needs. The feature
  * loader builds these for the attendee's own account. */
-export type AttendeeLedgerData = {
-  account: AccountRef;
-  lines: StatementLine[];
-  names: LedgerNames;
-};
+export type AttendeeLedgerData = AccountLedgerData;
 
 /**
  * The attendee's money ledger embedded on the edit page (decision 15 names the
@@ -279,22 +271,12 @@ export const AttendeeLedgerSection = ({
 }): JSX.Element => (
   <details>
     <summary>{t("attendee_detail.ledger")}</summary>
-    <AccountStatementHeading
+    <AccountStatementSection
       account={ledger.account}
+      fullLedgerHref={`/admin/ledger/${ledger.account.type}/${ledger.account.id}`}
       lines={ledger.lines}
       names={ledger.names}
-    />
-    <p class="table-header-actions">
-      <ActionButton
-        href={`/admin/ledger/${ledger.account.type}/${ledger.account.id}`}
-      >
-        {t("attendee_detail.view_full_ledger")}
-      </ActionButton>
-    </p>
-    <AccountStatementTable
-      account={ledger.account}
-      lines={ledger.lines}
-      names={ledger.names}
+      returnUrl={`/admin/attendees/${ledger.account.id}`}
     />
   </details>
 );

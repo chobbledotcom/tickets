@@ -69,12 +69,12 @@ export const recentTransfers = (limit: number): Promise<Transfer[]> =>
     limit,
   ]);
 
-/** Legs whose source AND destination are both internal — i.e. NOT the
- *  `external:world` cash account. The operator-facing ledger list hides cash
- *  plumbing ("Card / bank → <attendee>" and its refund mirror), so this is the
- *  base scope of every visible row. */
-const EXCLUDE_EXTERNAL =
-  "source_type != 'external' AND dest_type != 'external'";
+/** Legs shown on the operator-facing ledger list. Routine checkout cash
+ * plumbing ("Card / bank → <attendee>" and its refund mirror) stays hidden, but
+ * owner-entered manual rows remain visible even when they record an external
+ * payment or cost. */
+const VISIBLE_TRANSFER_SCOPE =
+  "(source_type != 'external' AND dest_type != 'external' OR kind LIKE 'manual_%')";
 
 /** A revenue-account scope (the listing's own legs, as source or destination)
  *  for the by-listing filter, with its bound args. Empty for "all listings". */
@@ -92,9 +92,10 @@ const revenueLegScope = (
 
 /**
  * The visible transfer list for the operator ledger: newest first, capped at
- * `limit`, hiding every `external:world` cash leg, bounded to `range`, and
- * optionally scoped to one listing's `revenue` account. Ordering + limit run in
- * SQL so the whole ledger is never loaded.
+ * `limit`, hiding routine `external:world` cash legs, bounded to `range`, and
+ * optionally scoped to one listing's `revenue` account. Owner-entered manual
+ * external rows stay visible. Ordering + limit run in SQL so the whole ledger is
+ * never loaded.
  */
 export const visibleTransfers = (
   range: LedgerRange,
@@ -105,7 +106,7 @@ export const visibleTransfers = (
   const listing = revenueLegScope(listingId);
   return selectTransfers(
     fromDb,
-    ` WHERE ${EXCLUDE_EXTERNAL}${andPrefixed(r.clause)}${listing.clause}` +
+    ` WHERE ${VISIBLE_TRANSFER_SCOPE}${andPrefixed(r.clause)}${listing.clause}` +
       " ORDER BY occurred_at DESC, id DESC LIMIT ?",
     [...r.args, ...listing.args, limit],
   );
@@ -151,9 +152,10 @@ type LedgerTotalsRow = {
 /**
  * The four headline ledger figures over `range`, in one grouped scan:
  *
- * - `income` — recognised revenue: `sale` credits to any `revenue` account, plus
- *   write-up `adjustment`s from `writeoff`, minus write-down `adjustment`s to
- *   `writeoff` (matching the per-listing {@link listingRevenueBreakdown}).
+ * - `income` — recognised revenue: `sale` and owner-entered external-income
+ *   credits to any `revenue` account, plus write-up `adjustment`s from
+ *   `writeoff`, minus write-down `adjustment`s to `writeoff` (matching the
+ *   per-listing {@link listingRevenueBreakdown}).
  * - `due` — net receivable: a leg *out of* an attendee (a sale/fee they owe) adds,
  *   a leg *into* an attendee (a payment) subtracts. Over "forever" this is exactly
  *   the current total outstanding.
@@ -168,6 +170,7 @@ export const ledgerTotals = async (
     `SELECT
        COALESCE(SUM(CASE
          WHEN kind = 'sale' AND dest_type = 'revenue' THEN amount
+         WHEN kind = 'manual_listing_income' AND dest_type = 'revenue' THEN amount
          WHEN kind = 'adjustment' AND dest_type = 'revenue' AND source_type = 'writeoff' THEN amount
          WHEN kind = 'adjustment' AND source_type = 'revenue' AND dest_type = 'writeoff' THEN -amount
          ELSE 0 END), 0) AS income,

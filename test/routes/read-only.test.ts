@@ -102,6 +102,8 @@ describeWithEnv(
       "/admin/groups/new",
       "/admin/groups/7/edit",
       "/admin/attendees/new",
+      "/admin/ledger/attendee/42/add",
+      "/admin/ledger/entries/9/edit",
     ];
     for (const path of getRedirectPaths) {
       test(`GET ${path} redirects to /read-only`, async () => {
@@ -147,6 +149,17 @@ describeWithEnv(
       // only the edit endpoint, not its `/merge` or `/refresh-payment` sub-routes.
       await expectBlockedNoLedgerLeg("/admin/attendees/42");
     });
+
+    const ledgerMutationPaths = [
+      "/admin/ledger/attendee/42/add",
+      "/admin/ledger/entries/9/edit",
+      "/admin/ledger/entries/9/delete",
+    ];
+    for (const path of ledgerMutationPaths) {
+      test(`POST ${path} is blocked and posts no ledger leg`, async () => {
+        await expectBlockedNoLedgerLeg(path);
+      });
+    }
 
     test("GET / is not blocked by read-only guard", async () => {
       const res = await handleRequest(mockRequest("/"));

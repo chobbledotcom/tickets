@@ -1,6 +1,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  MANUAL_LISTING_COST,
+  MANUAL_LISTING_INCOME,
+} from "#shared/accounting/manual-entries.ts";
+import {
   accountBalance,
   accountBalancesForIds,
   accountBalancesOfType,
@@ -207,6 +211,31 @@ describe("db > accounting > queries", () => {
       });
     });
 
+    test("ledgerTotals counts owner-entered outside listing income", async () => {
+      await postTransfers([
+        tx({
+          amount: 700,
+          destination: account("revenue", 1),
+          kind: MANUAL_LISTING_INCOME,
+          reference: "manual-income",
+          source: world,
+        }),
+        tx({
+          amount: 200,
+          destination: world,
+          kind: MANUAL_LISTING_COST,
+          reference: "manual-cost",
+          source: account("revenue", 1),
+        }),
+      ]);
+      expect(await ledgerTotals(emptyRange)).toEqual({
+        due: 0,
+        fees: 0,
+        income: 700,
+        refunded: 0,
+      });
+    });
+
     test("ledgerTotals is empty (all zero) for a ledger with no rows", async () => {
       expect(await ledgerTotals(emptyRange)).toEqual({
         due: 0,
@@ -228,6 +257,26 @@ describe("db > accounting > queries", () => {
       ]);
       expect(rows.every((r) => r.source.type !== "external")).toBe(true);
       expect(rows.every((r) => r.destination.type !== "external")).toBe(true);
+    });
+
+    test("visibleTransfers keeps owner-entered manual rows with external accounts", async () => {
+      await postTransfers([
+        tx({
+          destination: account("attendee", 1),
+          kind: "payment",
+          reference: "ordinary-payment",
+          source: world,
+        }),
+        tx({
+          destination: account("revenue", 1),
+          kind: MANUAL_LISTING_INCOME,
+          reference: "manual-income",
+          source: world,
+        }),
+      ]);
+      const rows = await visibleTransfers(emptyRange, null, 100);
+      expect(rows.map((r) => r.reference)).toEqual(["manual-income"]);
+      expect(rows[0]?.source).toEqual(world);
     });
 
     test("visibleTransfers scoped to a listing keeps only that revenue account's legs", async () => {

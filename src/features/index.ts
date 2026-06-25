@@ -473,6 +473,8 @@ const READ_ONLY_GET_PATTERNS = [
   /^\/admin\/groups\/new$/,
   /^\/admin\/groups\/\d+\/edit$/,
   /^\/admin\/attendees\/new$/,
+  /^\/admin\/ledger\/[^/]+\/[^/]+\/add$/,
+  /^\/admin\/ledger\/entries\/\d+\/edit$/,
 ];
 
 /** Paths that should be blocked when POSTed in read-only mode */
@@ -492,6 +494,9 @@ const READ_ONLY_POST_PATTERNS = [
   // Decision-14 income/revenue corrections post writeoff adjustment legs.
   /^\/admin\/listing\/\d+\/income$/,
   /^\/admin\/modifiers\/\d+\/revenue$/,
+  /^\/admin\/ledger\/[^/]+\/[^/]+\/add$/,
+  /^\/admin\/ledger\/entries\/\d+\/edit$/,
+  /^\/admin\/ledger\/entries\/\d+\/delete$/,
 ];
 
 /**

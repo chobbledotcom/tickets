@@ -9,6 +9,7 @@ import {
   AccountStatementTable,
   adminAccountStatementPage,
   adminLedgerPage,
+  HumanLedgerTable,
   type LedgerFilterState,
   type LedgerNames,
   type LedgerPageData,
@@ -153,6 +154,162 @@ describe("LedgerTable", () => {
     expect(html).toContain("&lt;script&gt;x&lt;/script&gt;");
     expect(html).not.toContain("<script>x</script>");
   });
+
+  test("links amounts to the edit page when a return URL is supplied", () => {
+    const html = String(
+      LedgerTable({
+        names: names(),
+        returnUrl: "/admin/ledger?listing=1",
+        transfers: [transfer({ id: 77 })],
+      }),
+    );
+    expect(html).toContain(
+      'href="/admin/ledger/entries/77/edit?return_url=%2Fadmin%2Fledger%3Flisting%3D1"',
+    );
+    expect(html).toContain(formatCurrency(5000));
+  });
+});
+
+describe("HumanLedgerTable", () => {
+  test("renders plain-language descriptions for every known ledger event family", () => {
+    const refs = names({
+      attendees: new Map([[1, "Ada"]]),
+      listings: new Map([[1, "Concert"]]),
+      modifiers: new Map([[1, "Helmet hire"]]),
+    });
+    const html = String(
+      HumanLedgerTable({
+        names: refs,
+        transfers: [
+          transfer({
+            destination: account("attendee", 1),
+            id: 1,
+            kind: "payment",
+            source: account("external", "world"),
+          }),
+          transfer({
+            destination: account("revenue", 1),
+            id: 2,
+            kind: "payment",
+            source: account("external", "world"),
+          }),
+          transfer({
+            destination: account("external", "world"),
+            id: 3,
+            kind: "refund_cash",
+            source: account("attendee", 1),
+          }),
+          transfer({
+            destination: account("attendee", 1),
+            id: 4,
+            kind: "refund_sale",
+            source: account("revenue", 1),
+          }),
+          transfer({
+            destination: account("fee_income", "booking"),
+            id: 5,
+            kind: "fee",
+            source: account("attendee", 1),
+          }),
+          transfer({
+            destination: account("attendee", 1),
+            id: 6,
+            kind: "refund_fee",
+            source: account("fee_income", "booking"),
+          }),
+          transfer({
+            destination: account("revenue", 1),
+            id: 7,
+            kind: "adjustment",
+            source: account("writeoff", "default"),
+          }),
+          transfer({
+            destination: account("writeoff", "default"),
+            id: 8,
+            kind: "adjustment",
+            source: account("revenue", 1),
+          }),
+          transfer({
+            destination: account("revenue", 1),
+            id: 9,
+            kind: "adjustment",
+            source: account("attendee", 1),
+          }),
+          transfer({
+            destination: account("attendee", 1),
+            id: 10,
+            kind: "manual_attendee_payment",
+            source: account("external", "world"),
+          }),
+          transfer({
+            destination: account("writeoff", "default"),
+            id: 11,
+            kind: "manual_attendee_charge",
+            source: account("attendee", 1),
+          }),
+          transfer({
+            destination: account("attendee", 1),
+            id: 12,
+            kind: "manual_attendee_writeoff",
+            source: account("writeoff", "default"),
+          }),
+          transfer({
+            destination: account("revenue", 1),
+            id: 13,
+            kind: "manual_listing_income",
+            source: account("external", "world"),
+          }),
+          transfer({
+            destination: account("external", "world"),
+            id: 14,
+            kind: "manual_listing_cost",
+            source: account("revenue", 1),
+          }),
+          transfer({
+            destination: account("modifier", 1),
+            id: 15,
+            kind: "manual_modifier_income",
+            source: account("writeoff", "default"),
+          }),
+          transfer({
+            destination: account("writeoff", "default"),
+            id: 16,
+            kind: "manual_modifier_reduction",
+            source: account("modifier", 1),
+          }),
+          transfer({
+            destination: account("revenue", 1),
+            id: 17,
+            kind: "future_kind",
+            source: account("attendee", 1),
+          }),
+        ],
+      }),
+    );
+
+    for (const phrase of [
+      "Payment received for",
+      "Refund paid to",
+      "Refund removed income from",
+      "Booking fee recorded",
+      "Booking fee refunded",
+      "Manual correction increased",
+      "Manual correction reduced",
+      "Transfer from",
+      "Payment received outside checkout for",
+      "Extra amount now owed by",
+      "Amount waived from the balance for",
+      "Income received outside checkout for",
+      "Cost paid outside checkout for",
+      "Modifier income added for",
+      "Modifier income reduced for",
+    ]) {
+      expect(html).toContain(phrase);
+    }
+    expect(html).toContain("Ada");
+    expect(html).toContain("Concert");
+    expect(html).toContain("Helmet hire");
+  });
 });
 
 describe("AccountStatementTable", () => {
@@ -230,6 +387,20 @@ describe("AccountStatementTable", () => {
     expect(html).toContain('colspan="5"');
     expect(html).toContain("No transfers recorded yet");
   });
+
+  test("links statement deltas to the edit page when a return URL is supplied", () => {
+    const html = String(
+      AccountStatementTable({
+        account: acct,
+        lines: lines(),
+        names: names(),
+        returnUrl: "/admin/attendees/1",
+      }),
+    );
+    expect(html).toContain(
+      'href="/admin/ledger/entries/1/edit?return_url=%2Fadmin%2Fattendees%2F1"',
+    );
+  });
 });
 
 describe("adminLedgerPage", () => {
@@ -239,6 +410,7 @@ describe("adminLedgerPage", () => {
     listingId: null,
     to: null,
     toMonth: null,
+    view: "human",
   };
 
   const pageData = (
@@ -250,6 +422,7 @@ describe("adminLedgerPage", () => {
     filters: NO_FILTERS,
     listings: [{ id: 1, name: "Summer Concert" }],
     names: names(),
+    returnUrl: "/admin/ledger",
     stats: [{ key: "Total income", value: "£25.00" }],
     statsHeading: "All listings",
     today: "2026-06-23",
@@ -258,11 +431,14 @@ describe("adminLedgerPage", () => {
     ...overrides,
   });
 
-  test("renders the Ledger heading, nav, stats, filters, and the transfer list", () => {
+  test("renders the Ledger heading, nav, stats, filters, and the plain-language transfer list", () => {
     const html = adminLedgerPage(pageData(), SESSION);
     expect(html).toContain("Ledger");
     expect(html).toContain('href="/admin/ledger"');
-    expect(html).toContain("<th>From → To</th>");
+    expect(html).toContain("<th>Activity</th>");
+    expect(html).toContain("Plain-language log");
+    expect(html).toContain("Double-entry view");
+    expect(html).toContain("Transfer from");
     // The stats table and its heading render.
     expect(html).toContain("All listings");
     expect(html).toContain("Total income");
@@ -273,6 +449,16 @@ describe("adminLedgerPage", () => {
     // The by-listing select lists every listing plus the "all" option.
     expect(html).toContain("All listings");
     expect(html).toContain("Summer Concert");
+  });
+
+  test("can switch to the double-entry transfer list", () => {
+    const html = adminLedgerPage(
+      pageData({ filters: { ...NO_FILTERS, view: "dual" } }),
+      SESSION,
+    );
+    expect(html).toContain("<th>From → To</th>");
+    expect(html).toContain('href="/admin/ledger">Plain-language log</a>');
+    expect(html).toContain("<strong>Double-entry view</strong>");
   });
 
   test("preselects the chosen listing in the by-listing select", () => {

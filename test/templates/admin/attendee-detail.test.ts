@@ -347,4 +347,23 @@ describe("AttendeeLedgerSection", () => {
     expect(html).toContain("No transfers recorded yet");
     expect(html).toContain(`Balance: ${formatCurrency(0)}`);
   });
+
+  test("shows an add-entry action when the attendee account exists", () => {
+    const html = String(
+      AttendeeLedgerSection({
+        ledger: {
+          account: acct,
+          lines: [],
+          names: {
+            ...emptyLedgerNames(),
+            attendees: new Map([[7, "Ada Lovelace"]]),
+          },
+        },
+      }),
+    );
+    expect(html).toContain("Add entry");
+    expect(html).toContain(
+      'href="/admin/ledger/attendee/7/add?return_url=%2Fadmin%2Fattendees%2F7"',
+    );
+  });
 });
