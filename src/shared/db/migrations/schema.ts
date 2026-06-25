@@ -34,7 +34,7 @@ export type Trigger = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "Add a service_costs table backing first-class, per-event service-cost records on /admin/servicing/:id (the append-only ledger carries no servicing-event id on its legs, so this table scopes a service event's cost list); tighten attendees.kind to NOT NULL.";
+  "Add built_sites.updates for tiered client deploys, tighten attendees.kind to a strict attendee/servicing invariant, and add service_costs for per-event servicing cost records.";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -681,6 +681,16 @@ export const SCHEMA: [name: string, table: Table][] = [
         // round-robin order. Operational metadata, not PII, so it lives outside
         // the encrypted site_data blob.
         ["last_pruned", "TEXT NOT NULL DEFAULT ''"],
+        // Release channel this site opts into: 'alpha' takes every deploy,
+        // 'beta' takes beta + release, 'release' only stable releases. The
+        // upgrade workflow passes the tier it is publishing and the master
+        // returns only the sites at that tier or more eager (see UPDATE_TIERS
+        // in built-sites.ts). Operational metadata, not PII, so it lives outside
+        // the encrypted site_data blob and stays SQL-filterable.
+        [
+          "updates",
+          "TEXT NOT NULL DEFAULT 'release' CHECK (updates IN ('alpha', 'beta', 'release'))",
+        ],
       ],
       indexes: [
         {

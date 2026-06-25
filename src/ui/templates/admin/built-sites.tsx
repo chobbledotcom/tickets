@@ -4,7 +4,7 @@
 
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
-import type { BuiltSite } from "#shared/db/built-sites.ts";
+import { type BuiltSite, DEFAULT_UPDATE_TIER } from "#shared/db/built-sites.ts";
 import {
   booleanToCheckbox,
   ConfirmForm,
@@ -123,6 +123,7 @@ export const adminBuiltSitesPage = (
                   <th>{t("common.name")}</th>
                   <th>{t("built_sites.table_bunny_url")}</th>
                   <th>{t("common.status")}</th>
+                  <th>{t("built_sites.table_updates")}</th>
                   <th>{t("built_sites.table_read_only")}</th>
                 </tr>
               </thead>
@@ -148,6 +149,7 @@ export const adminBuiltSitesPage = (
                           ? t("built_sites.status_available")
                           : t("built_sites.status_not_assignable")}
                     </td>
+                    <td>{site.updates}</td>
                     <td>{formatDeadlineLabel(site.readOnlyFrom)}</td>
                   </tr>
                 ))}
@@ -174,6 +176,7 @@ export const builtSiteToFieldValues = (
   db_token: site?.dbToken ?? "",
   db_url: site?.dbUrl ?? "",
   name: site?.name ?? "",
+  updates: site?.updates ?? DEFAULT_UPDATE_TIER,
 });
 
 /**

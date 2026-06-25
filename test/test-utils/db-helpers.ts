@@ -814,6 +814,7 @@ export const createTestBuiltSite = (
     dbToken: overrides.dbToken ?? "",
     dbUrl: overrides.dbUrl ?? "",
     name: overrides.name ?? "Test Site",
+    ...(overrides.updates ? { updates: overrides.updates } : {}),
   };
 
   return doAuthenticatedFormRequest(
@@ -825,6 +826,7 @@ export const createTestBuiltSite = (
       db_url: input.dbUrl,
       name: input.name,
       ...(input.assignable ? { assignable: "1" } : {}),
+      ...(input.updates ? { updates: input.updates } : {}),
     },
     async () => {
       const { getAllBuiltSites } = await import("#shared/db/built-sites.ts");
@@ -855,6 +857,7 @@ export const updateTestBuiltSite = async (
       db_token: updates.dbToken ?? existing.dbToken,
       db_url: updates.dbUrl ?? existing.dbUrl,
       name: updates.name ?? existing.name,
+      updates: updates.updates ?? existing.updates,
       ...(assignable ? { assignable: "1" } : {}),
     },
     async () => {
