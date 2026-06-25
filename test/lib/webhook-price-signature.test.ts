@@ -5,7 +5,10 @@ import { handleRequest } from "#routes";
 import { attendeeAccount } from "#shared/accounting/accounts.ts";
 import { transfersByAccount } from "#shared/accounting/queries.ts";
 import { getAttendeesRaw } from "#shared/db/attendees.ts";
+import { execute } from "#shared/db/client.ts";
+import { deleteListing, listingsTable } from "#shared/db/listings.ts";
 import { isSessionProcessed } from "#shared/db/processed-payments.ts";
+import { prunePayments } from "#shared/db/prune.ts";
 import { getNoteRows, getNotesForAttendee } from "#shared/db/system-notes.ts";
 import { balanceOf } from "#shared/ledger/project.ts";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
@@ -236,6 +239,120 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
     await runWebhook({ id: "cs_origin_stripped", metadata }, () =>
       expectProcessed(listing.id),
     );
+  });
+
+  test("a replay whose idempotency row was pruned recovers the booking instead of refunding the live ticket", async () => {
+    const listing = await setupWithListing();
+    const session = {
+      id: "cs_replay_after_prune",
+      metadata: signedMeta(1000, { items: singleItem(listing.id, 1, 1000) }),
+    };
+
+    // First delivery: a clean processed booking with its sale/payment legs.
+    await runWebhook(session, async (refund) => {
+      await expectProcessed(listing.id);
+      expect(refund.calls.length).toBe(0);
+    });
+    const [original] = await getAttendeesRaw(listing.id);
+    const legsBefore = await transfersByAccount(attendeeAccount(original!.id));
+
+    // The ledger legs are permanent, but the processed_payments idempotency row
+    // is reaped once past the retention window (prunePayments removes resolved
+    // rows — see prune.ts). Back-date the row so the real pruner deletes it,
+    // reproducing the reachable "legs exist, no idempotency row" replay state.
+    await execute(
+      "UPDATE processed_payments SET processed_at = ? WHERE payment_session_id = ?",
+      ["2000-01-01T00:00:00.000Z", session.id],
+    );
+    await prunePayments();
+    expect(await isSessionProcessed(session.id)).toBe(null);
+
+    // Second delivery (the replay): the booking + ticket still exist, and there
+    // are still 49 free seats, so capacity is not the blocker — only the existing
+    // ledger legs are. It must recover the booking, never refund the live ticket
+    // nor keep a quantity-0 ghost.
+    await runWebhook(session, async (refund) => {
+      await assertJson(webhookRequest(), 200, (json) => {
+        expect(json.processed).toBe(true);
+      });
+      expect(refund.calls.length).toBe(0);
+    });
+
+    // The original booking is intact: one attendee at full quantity, no new or
+    // reversing ledger legs, and the idempotency row re-finalized back to it.
+    const attendees = await getAttendeesRaw(listing.id);
+    expect(attendees.length).toBe(1);
+    expect(attendees[0]!.id).toBe(original!.id);
+    expect(attendees[0]!.quantity).toBe(1);
+    const legsAfter = await transfersByAccount(attendeeAccount(original!.id));
+    expect(legsAfter.length).toBe(legsBefore.length);
+    expect(legsAfter.some((leg) => leg.kind === "refund_cash")).toBe(false);
+    expect((await isSessionProcessed(session.id))!.attendee_id).toBe(
+      original!.id,
+    );
+  });
+
+  test("a pruned replay whose listing price changed is recovered, not refunded", async () => {
+    const listing = await setupWithListing();
+    const session = {
+      id: "cs_replay_price_changed",
+      metadata: signedMeta(1000, { items: singleItem(listing.id, 1, 1000) }),
+    };
+    await runWebhook(session, () => expectProcessed(listing.id));
+    const [original] = await getAttendeesRaw(listing.id);
+
+    // Prune the idempotency row; the permanent ledger legs remain.
+    await execute(
+      "UPDATE processed_payments SET processed_at = ? WHERE payment_session_id = ?",
+      ["2000-01-01T00:00:00.000Z", session.id],
+    );
+    await prunePayments();
+    // The listing price is edited after the booking — exactly the mid-checkout
+    // change that makes a late replay re-price differently. Without the ledger
+    // preflight this hit paidPricingRefund and refunded the live ticket (P1).
+    await listingsTable.update(listing.id, { unitPrice: 1500 });
+
+    await runWebhook(session, async (refund) => {
+      await assertJson(webhookRequest(), 200, (json) => {
+        expect(json.processed).toBe(true);
+      });
+      expect(refund.calls.length).toBe(0);
+    });
+    // The original booking is recovered — no refund, no duplicate.
+    expect((await getAttendeesRaw(listing.id)).map((a) => a.id)).toEqual([
+      original!.id,
+    ]);
+  });
+
+  test("a pruned replay whose listing was deleted is acknowledged, not refunded", async () => {
+    const listing = await setupWithListing();
+    const session = {
+      id: "cs_replay_listing_deleted",
+      metadata: signedMeta(1000, { items: singleItem(listing.id, 1, 1000) }),
+    };
+    await runWebhook(session, () => expectProcessed(listing.id));
+
+    await execute(
+      "UPDATE processed_payments SET processed_at = ? WHERE payment_session_id = ?",
+      ["2000-01-01T00:00:00.000Z", session.id],
+    );
+    await prunePayments();
+    // Deleting the listing removes the booking's listing_attendees row (and its
+    // ledger_event_group stamp) but leaves the transfers: the event group is now
+    // orphaned. Without the preflight this 404'd into a placeholder refund (P1);
+    // now the ledger is recognised as already accounting for the money, so we
+    // acknowledge without refunding or recreating a ghost.
+    await deleteListing(listing.id);
+
+    await runWebhook(session, async (refund) => {
+      await assertJson(webhookRequest(), 200, (json) => {
+        expect(json.processed).toBe(false);
+        expect(json.error).toContain("already been processed");
+      });
+      expect(refund.calls.length).toBe(0);
+    });
+    // No placeholder ghost was created for the orphaned replay.
+    expect((await getAttendeesRaw(listing.id)).length).toBe(0);
   });
 
   // ---- mismatch / divergence: store a quantity-0 placeholder, refund, flag ---

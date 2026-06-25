@@ -29,6 +29,15 @@ import {
 } from "#shared/db/client.ts";
 import { nowIso } from "#shared/now.ts";
 
+/**
+ * The event group a balance settlement's payment leg posts under, keyed on the
+ * paying checkout's session id. The single place this key is built, so a ledger
+ * preflight can ask whether a balance session was already settled (its leg is
+ * stored) and replay rather than re-settle or refund an already-paid balance.
+ */
+export const balanceEventGroup = (sessionId: string): Promise<string> =>
+  eventGroup(["balance", sessionId]);
+
 /** Plaintext reservation state for an attendee. */
 export type AttendeeBalanceState = {
   statusId: number | null;
@@ -203,7 +212,7 @@ export const settleAttendeeBalance = async (
       {
         amount: expectedAmount,
         destination: attendeeAccount(attendeeId),
-        eventGroup: await eventGroup(["balance", settle.id]),
+        eventGroup: await balanceEventGroup(settle.id),
         kind: "payment",
         occurredAt: settle.occurredAt,
         reference: await legReference(["balance", settle.id, "payment"]),
