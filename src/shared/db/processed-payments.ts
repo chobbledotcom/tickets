@@ -209,6 +209,26 @@ export const finalizeSession = async (
 };
 
 /**
+ * Heal a still-unresolved reservation by stamping `attendee_id`, leaving
+ * `ticket_tokens` untouched. The ledger-replay path uses this: when a late
+ * delivery finds the booking already recorded in the ledger, it points its fresh
+ * reservation row at the existing attendee so the next delivery takes the fast
+ * already-processed path — but ONLY while the row is unresolved, so it never
+ * overwrites the `attendee_id` or blanks the `ticket_tokens` a racing delivery
+ * may have just finalized and stored. Guarded on {@link UNRESOLVED_RESERVATION}
+ * (the first outcome wins), and a no-op if the row was pruned away.
+ */
+export const finalizeSessionIfUnresolved = async (
+  sessionId: string,
+  attendeeId: number,
+): Promise<void> => {
+  await execute(
+    `UPDATE processed_payments SET attendee_id = ? WHERE payment_session_id = ? AND ${UNRESOLVED_RESERVATION}`,
+    [attendeeId, sessionId],
+  );
+};
+
+/**
  * Record a handled terminal failure on a still-unresolved session. A later
  * redirect/webhook for the same session reads this back via
  * {@link parseSessionFailure} and returns the same outcome, so refunds and
