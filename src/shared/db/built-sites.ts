@@ -15,6 +15,37 @@ import type { ColumnDef, Table, TableSchema } from "#shared/db/table.ts";
 import { cachedTable, col, defineTable } from "#shared/db/table.ts";
 import { nowIso } from "#shared/now.ts";
 
+/**
+ * The release channels a built site can opt into, ordered most- to
+ * least-eager. The array order IS the rank (its index): an alpha site takes
+ * every deploy, a beta site takes beta + release, a release site only stable
+ * releases. So a site on tier S accepts a deploy published at tier T exactly
+ * when `indexOf(S) <= indexOf(T)` — see {@link siteAcceptsDeployTier}.
+ */
+export const UPDATE_TIERS = ["alpha", "beta", "release"] as const;
+
+/** One of the {@link UPDATE_TIERS} release channels. */
+export type UpdateTier = (typeof UPDATE_TIERS)[number];
+
+/** Default channel for a new built site — the most conservative (stable only). */
+export const DEFAULT_UPDATE_TIER: UpdateTier = "release";
+
+/** Narrow an arbitrary string to an {@link UpdateTier}. */
+export const isUpdateTier = (value: string): value is UpdateTier =>
+  (UPDATE_TIERS as readonly string[]).includes(value);
+
+/**
+ * True when a site on `siteTier` should receive a deploy published at
+ * `deployTier`. A release deploy reaches every site, a beta deploy reaches beta
+ * + alpha sites, an alpha deploy only alpha sites — i.e. the site's channel must
+ * be at the deploy's tier or more eager.
+ */
+export const siteAcceptsDeployTier = (
+  siteTier: UpdateTier,
+  deployTier: UpdateTier,
+): boolean =>
+  UPDATE_TIERS.indexOf(siteTier) <= UPDATE_TIERS.indexOf(deployTier);
+
 /** Encrypted site-data blob version */
 const SITE_DATA_BLOB_VERSION = 1;
 
@@ -45,6 +76,8 @@ export interface BuiltSiteRow {
   read_only_from: string;
   renewal_token_index: string | null;
   site_data: string;
+  /** Release channel — a CHECK constraint keeps this a valid UpdateTier. */
+  updates: UpdateTier;
 }
 
 type BuiltSitePlainInput = {
@@ -53,6 +86,7 @@ type BuiltSitePlainInput = {
   assignedListingId?: number | null;
   renewalTokenIndex?: string | null;
   readOnlyFrom?: string;
+  updates?: UpdateTier;
 };
 
 /** Built site input for creating a new row */
@@ -76,13 +110,16 @@ export interface BuiltSite {
   /** Plain renewal token from the site-data blob when renewal access exists. Null when not provisioned. */
   renewalToken: string | null;
   renewalTokenIndex: string | null;
+  /** Release channel this site opts into (see {@link UPDATE_TIERS}). */
+  updates: UpdateTier;
 }
 
-/** Form input for CRUD operations */
+/** Form input for CRUD operations. `updates` is optional — programmatic
+ * inserts (e.g. auto-assignment) omit it and fall back to DEFAULT_UPDATE_TIER. */
 export type BuiltSiteFormInput = Pick<
   BuiltSite,
   "name" | "bunnyUrl" | "dbUrl" | "dbToken" | "bunnyScriptId" | "assignable"
->;
+> & { updates?: UpdateTier };
 
 const idCol = col.generated<number>();
 const createdCol = col.withDefault(() => nowIso());
@@ -98,6 +135,7 @@ type BuiltSitePlainFields = Pick<
   | "assignedListingId"
   | "readOnlyFrom"
   | "renewalTokenIndex"
+  | "updates"
 >;
 
 const passthrough = <T>(value: T): T => value;
@@ -144,6 +182,15 @@ const builtSitePlainColumns = [
     schema: nullStrCol,
     siteKey: "renewalTokenIndex",
     toInput: nullable<string>,
+  },
+  {
+    dbKey: "updates",
+    formDefault: DEFAULT_UPDATE_TIER,
+    fromRow: passthrough<UpdateTier>,
+    inputKey: "updates",
+    schema: col.withDefault<UpdateTier>(() => DEFAULT_UPDATE_TIER),
+    siteKey: "updates",
+    toInput: passthrough<UpdateTier>,
   },
 ] as const;
 
@@ -487,9 +534,18 @@ export const insertBuiltSite = (
   dbToken = "",
   assignable = false,
   bunnyScriptId = "",
+  updates: UpdateTier = DEFAULT_UPDATE_TIER,
 ): Promise<BuiltSiteRow> =>
   builtSitesTable.insert(
-    toRawInput({ assignable, bunnyScriptId, bunnyUrl, dbToken, dbUrl, name }),
+    toRawInput({
+      assignable,
+      bunnyScriptId,
+      bunnyUrl,
+      dbToken,
+      dbUrl,
+      name,
+      updates,
+    }),
   );
 
 /** Get all built sites, decrypted and sorted by name */

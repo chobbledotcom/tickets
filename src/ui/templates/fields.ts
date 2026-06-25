@@ -6,6 +6,7 @@ import * as v from "valibot";
 import { t } from "#i18n";
 import { formatCurrency } from "#shared/currency.ts";
 import { DAY_NAMES } from "#shared/dates.ts";
+import { isUpdateTier } from "#shared/db/built-sites.ts";
 import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { type Field, validateForm } from "#shared/forms.tsx";
@@ -260,6 +261,10 @@ const validateListingType = (value: string): string | null => {
   }
   return null;
 };
+
+/** Validate a built site's update channel (alpha/beta/release) */
+const validateUpdateTier = (value: string): string | null =>
+  isUpdateTier(value) ? null : t("fields.validation.update_tier");
 
 /** Valid day names for bookable_days (Monday-first for display) */
 export const VALID_DAY_NAMES = [...DAY_NAMES.slice(1), DAY_NAMES[0]!];
@@ -658,6 +663,23 @@ export const getBuiltSiteFields = (): Field[] => [
     name: "assignable",
     options: [{ label: t("fields.built_site.assignable_label"), value: "1" }],
     type: "checkbox-group",
+  },
+  {
+    hint: t("fields.built_site.updates_hint"),
+    label: t("fields.built_site.updates"),
+    name: "updates",
+    // Ordered safest-first so release heads the dropdown (the create form
+    // pre-selects it and the table layer defaults to it). No `defaultValue`: it
+    // would make validation fill an OMITTED field with the default, which on an
+    // edit silently overwrites an existing channel — the route only carries a
+    // recognised value so an absent field preserves the stored channel instead.
+    options: [
+      { label: t("fields.built_site.updates_release"), value: "release" },
+      { label: t("fields.built_site.updates_beta"), value: "beta" },
+      { label: t("fields.built_site.updates_alpha"), value: "alpha" },
+    ],
+    type: "select",
+    validate: validateUpdateTier,
   },
 ];
 
