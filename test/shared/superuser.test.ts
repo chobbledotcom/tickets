@@ -2,7 +2,8 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { setEffectiveDomainForTest } from "#shared/config.ts";
-import { hashPassword } from "#shared/crypto/hashing.ts";
+import { getPbkdf2Iterations, hashPassword } from "#shared/crypto/hashing.ts";
+import { generateDataKey } from "#shared/crypto/keys.ts";
 import {
   enableQueryLog,
   getQueryLog,
@@ -11,10 +12,13 @@ import {
 import { settings } from "#shared/db/settings.ts";
 import {
   createUser,
+  decryptAdminLevel,
+  decryptUsername,
   getUserByUsername,
   invalidateUsersCache,
   verifyUserPassword,
 } from "#shared/db/users.ts";
+import { ErrorCode } from "#shared/logger.ts";
 import {
   createActivatedSuperuser,
   generateSuperuserPassword,
@@ -30,6 +34,39 @@ import {
   validEmail,
   withMocks,
 } from "#test-utils";
+
+const captureConsoleErrors = <T>(
+  body: () => T,
+): { messages: string[]; result: T } => {
+  const errorStub = stub(console, "error", () => {});
+  try {
+    const result = body();
+    return {
+      messages: errorStub.calls.map((call) => String(call.args[0])),
+      result,
+    };
+  } finally {
+    errorStub.restore();
+  }
+};
+
+const withRandomBytes = <T>(bytes: number[], body: () => T): T => {
+  const randomStub = stub(
+    crypto,
+    "getRandomValues",
+    <A extends ArrayBufferView | null>(array: A): A => {
+      if (array instanceof Uint8Array) {
+        for (let i = 0; i < array.length; i++) array[i] = bytes[i] ?? 0;
+      }
+      return array;
+    },
+  );
+  try {
+    return body();
+  } finally {
+    randomStub.restore();
+  }
+};
 
 // ---------------------------------------------------------------------------
 // getAdminEmailAddress()
@@ -74,7 +111,11 @@ describe("getAdminEmailAddress", () => {
 
   test("returns null and logs error when value lacks an @ sign", () => {
     restoreEnv = setTestEnv({ ADMIN_EMAIL_ADDRESS: "not-an-email" });
-    expect(getAdminEmailAddress()).toBeNull();
+    const { messages, result } = captureConsoleErrors(getAdminEmailAddress);
+    expect(result).toBeNull();
+    expect(messages).toEqual([
+      `[Error] ${ErrorCode.DATA_INVALID} detail="ADMIN_EMAIL_ADDRESS is not a valid email: not-an-email"`,
+    ]);
   });
 
   test("returns null and logs error when value has multiple @ signs", () => {
@@ -116,7 +157,13 @@ describe("getSuperuserUsername", () => {
   });
 
   test("returns null and logs when local part is too short (1 character)", () => {
-    expect(getSuperuserUsername(validEmail("a@example.com"))).toBeNull();
+    const { messages, result } = captureConsoleErrors(() =>
+      getSuperuserUsername(validEmail("a@example.com")),
+    );
+    expect(result).toBeNull();
+    expect(messages).toEqual([
+      `[Error] ${ErrorCode.DATA_INVALID} detail="Derived superuser username "a" is invalid: Username must be at least 2 characters"`,
+    ]);
   });
 
   test("returns the minimum valid 2-character local part", () => {
@@ -224,7 +271,14 @@ describeWithEnv("getSuperuserState", { db: true }, () => {
     // We can't spy on imported top-level functions, but we verify the outcome:
     // getSuperuserState should return the lowercased username.
     const state = await getSuperuserState();
-    expect(state.available && state.username === "admin").toBe(true);
+    expect(state).toEqual({
+      activated: false,
+      available: true,
+      choice: "",
+      email: validEmail("admin@example.com"),
+      userExists: false,
+      username: "admin",
+    });
   });
 
   test("returns userExists:true, activated:true, choice:'enabled' when user has wrapped_data_key and choice persisted", async () => {
@@ -328,7 +382,14 @@ describeWithEnv("getSuperuserState account lookup", { db: true }, () => {
     await createUser("admin", await hashPassword("pw"), "wrapped", "owner");
 
     const state = await getSuperuserState();
-    expect(state.available && state.userExists && state.activated).toBe(true);
+    expect(state).toEqual({
+      activated: true,
+      available: true,
+      choice: "",
+      email: validEmail("admin@example.com"),
+      userExists: true,
+      username: "admin",
+    });
   });
 
   test("a manual users-cache invalidation also clears the cached account state", async () => {
@@ -410,6 +471,16 @@ describe("generateSuperuserPassword", () => {
     }
   });
 
+  test("accepts the highest byte below the unbiased rejection threshold", () =>
+    withRandomBytes([227, 0], () => {
+      expect(generateSuperuserPassword(1)).toBe(ALPHABET[ALPHABET.length - 1]);
+    }));
+
+  test("rejects bytes at and above the unbiased rejection threshold", () =>
+    withRandomBytes([229, 0], () => {
+      expect(generateSuperuserPassword(1)).toBe(ALPHABET[0]);
+    }));
+
   test("handles length 0 gracefully (empty string)", () => {
     expect(generateSuperuserPassword(0)).toBe("");
   });
@@ -437,58 +508,47 @@ describe("generateSuperuserPassword", () => {
 
 describeWithEnv("createActivatedSuperuser", { db: true }, () => {
   test("creates a user with the provided username, hashed password, wrapped data key, and owner role", async () => {
-    const dataKey = await crypto.subtle.generateKey(
-      { length: 256, name: "AES-GCM" },
-      true,
-      ["encrypt", "decrypt"],
-    );
+    const dataKey = await generateDataKey();
     const user = await createActivatedSuperuser({
       dataKey,
       password: "pass1234abcd",
       username: "admin",
     });
-    expect(user.wrapped_data_key).not.toBeNull();
-    expect(user.wrapped_data_key).not.toBe("");
+    expect(await decryptUsername(user)).toBe("admin");
+    expect(await decryptAdminLevel(user)).toBe("owner");
+    expect(user.kek_version).toBe(2);
+    expect(user.invite_code_hash).toBeNull();
+    expect(user.invite_expiry).toBeNull();
+    expect(user.invite_wrapped_data_key).toBeNull();
+    expect(user.wrapped_data_key).toMatch(/^wk:1:[^:]+:[^:]+$/);
   });
 
   test("created user's password can be verified with the raw password", async () => {
-    const dataKey = await crypto.subtle.generateKey(
-      { length: 256, name: "AES-GCM" },
-      true,
-      ["encrypt", "decrypt"],
-    );
+    const dataKey = await generateDataKey();
     const password = "mysecretpw";
     await createActivatedSuperuser({ dataKey, password, username: "admin" });
     const fetchedUser = await getUserByUsername("admin");
-    expect(fetchedUser).not.toBeNull();
-    const hash = await verifyUserPassword(fetchedUser!, password);
-    expect(hash).toBeTruthy();
+    expect(fetchedUser?.kek_version).toBe(2);
+    expect(await verifyUserPassword(fetchedUser!, password)).toMatch(
+      new RegExp(`^pbkdf2:${getPbkdf2Iterations()}:[^:]+:[^:]+$`),
+    );
+    expect(await verifyUserPassword(fetchedUser!, "wrong-password")).toBeNull();
   });
 
   test("created user has admin level 'owner'", async () => {
-    const dataKey = await crypto.subtle.generateKey(
-      { length: 256, name: "AES-GCM" },
-      true,
-      ["encrypt", "decrypt"],
-    );
+    const dataKey = await generateDataKey();
     await createActivatedSuperuser({
       dataKey,
       password: "pw",
       username: "admin",
     });
     const fetchedUser = await getUserByUsername("admin");
-    expect(fetchedUser).not.toBeNull();
-    const { decryptAdminLevel } = await import("#shared/db/users.ts");
     const level = await decryptAdminLevel(fetchedUser!);
     expect(level).toBe("owner");
   });
 
   test("fails when username is already taken", async () => {
-    const dataKey = await crypto.subtle.generateKey(
-      { length: 256, name: "AES-GCM" },
-      true,
-      ["encrypt", "decrypt"],
-    );
+    const dataKey = await generateDataKey();
     await createActivatedSuperuser({
       dataKey,
       password: "pw1",

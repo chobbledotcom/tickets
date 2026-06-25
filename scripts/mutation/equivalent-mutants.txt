@@ -55,3 +55,8 @@ src/features/admin/attendee-form-model.ts:320:53  ?? → ||   # existingByKey.ge
 src/features/admin/attendee-form-model.ts:321:36  ?? → ||   # listingsById.get(id): ListingWithCount|undefined — an object is always truthy
 src/features/admin/attendee-form-model.ts:373:66  ?? → ||   # (existingBooking?.price_paid ?? 0): a number; the only falsy number is 0, and 0 ?? 0 === 0 || 0
 src/features/tickets/token-utils.ts:222:44  ?? → ||   # (attendees[i]?.bookings ?? []): ListingAttendeeRow[]|undefined — an array is always truthy, undefined→[] either way
+
+# crypto/utils: Uint8Array indexing yields number|undefined; fallback is 0, and
+# the only falsy non-null byte is 0, so `byte ?? 0` and `byte || 0` agree.
+src/shared/crypto/utils.ts:18:23  ?? → ||   # bufA[i]: number|undefined, 0 ?? 0 === 0 || 0
+src/shared/crypto/utils.ts:18:40  ?? → ||   # bufB[i]: number|undefined, 0 ?? 0 === 0 || 0
