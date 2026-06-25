@@ -8,7 +8,7 @@
  */
 // jscpd:ignore-start
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { it as test } from "@std/testing/bdd";
 import { ATTENDEE_KIND, SERVICING_KIND } from "#shared/db/attendees/kind.ts";
 import { getDb } from "#shared/db/client.ts";
 import { SCHEMA } from "#shared/db/migrations/schema.ts";
@@ -32,24 +32,28 @@ const indexExists = async (name: string): Promise<boolean> => {
   return result.rows.length > 0;
 };
 
-describe("servicing edge cases — migration idempotency", () => {
-  test("running the kind migration twice is a no-op the second time", async () => {
-    const migration = MIGRATIONS.find((m) => m.id === MIGRATION_ID)!;
-    await migration.up();
-    // Capture the state after the first run.
-    const firstRun = await getDb().execute(
-      "SELECT COUNT(*) AS c FROM attendees",
-    );
-    const firstCount = Number(firstRun.rows[0]?.c ?? 0);
-    // Re-run: must not duplicate columns, error, or shift row count.
-    await migration.up();
-    const secondRun = await getDb().execute(
-      "SELECT COUNT(*) AS c FROM attendees",
-    );
-    expect(Number(secondRun.rows[0]?.c ?? 0)).toBe(firstCount);
-    expect(await indexExists("idx_attendees_kind")).toBe(true);
-  });
-});
+describeWithEnv(
+  "servicing edge cases — migration idempotency",
+  { db: true },
+  () => {
+    test("running the kind migration twice is a no-op the second time", async () => {
+      const migration = MIGRATIONS.find((m) => m.id === MIGRATION_ID)!;
+      await migration.up();
+      // Capture the state after the first run.
+      const firstRun = await getDb().execute(
+        "SELECT COUNT(*) AS c FROM attendees",
+      );
+      const firstCount = Number(firstRun.rows[0]?.c ?? 0);
+      // Re-run: must not duplicate columns, error, or shift row count.
+      await migration.up();
+      const secondRun = await getDb().execute(
+        "SELECT COUNT(*) AS c FROM attendees",
+      );
+      expect(Number(secondRun.rows[0]?.c ?? 0)).toBe(firstCount);
+      expect(await indexExists("idx_attendees_kind")).toBe(true);
+    });
+  },
+);
 
 describeWithEnv(
   "servicing edge cases — migration partial state",
