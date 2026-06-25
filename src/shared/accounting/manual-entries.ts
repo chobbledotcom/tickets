@@ -119,6 +119,11 @@ export const isManualLedgerEntryType = (
   value: string,
 ): value is ManualLedgerEntryType => Object.hasOwn(specByType, value);
 
+export const isManualLedgerTransfer = (
+  transfer: Pick<Transfer, "kind">,
+): boolean =>
+  transfer.kind !== undefined && isManualLedgerEntryType(transfer.kind);
+
 type ManualLedgerEntryInput = {
   account: AccountRef;
   amount: number;

@@ -58,6 +58,7 @@ import {
   deleteTransferById,
   getTransferById,
   isManualLedgerEntryType,
+  isManualLedgerTransfer,
   manualLedgerEntryOptionsFor,
   postManualLedgerEntry,
   updateTransferAmountAndTime,
@@ -551,6 +552,13 @@ const ownerLedgerForm = (
 const accountStatementPath = (account: AccountRef): string =>
   `/admin/ledger/${account.type}/${account.id}`;
 
+const getEditableTransferById = async (
+  id: number,
+): Promise<Transfer | null> => {
+  const transfer = await getTransferById(id);
+  return transfer && isManualLedgerTransfer(transfer) ? transfer : null;
+};
+
 const editPostedTransfer = async (
   id: number,
   form: FormParams,
@@ -559,7 +567,7 @@ const editPostedTransfer = async (
   returnUrl: string;
   redirectUrl: string;
 } | null> => {
-  const transfer = await getTransferById(id);
+  const transfer = await getEditableTransferById(id);
   if (!transfer) return null;
   const returnUrl = returnUrlFromForm(form, "/admin/ledger");
   return { redirectUrl: editEntryPath(id, returnUrl), returnUrl, transfer };
@@ -646,7 +654,7 @@ export const handleLedgerEntryEditGet: TypedRouteHandler<
   "GET /admin/ledger/entries/:id/edit"
 > = (request, { id }) =>
   ownerHtml(request, async (session) => {
-    const transfer = await getTransferById(id);
+    const transfer = await getEditableTransferById(id);
     if (!transfer) return null;
     const flash = applyFlash(request);
     const returnUrl = returnUrlFromRequest(request, "/admin/ledger");

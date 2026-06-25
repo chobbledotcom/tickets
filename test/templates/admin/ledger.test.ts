@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
+import { MANUAL_ATTENDEE_PAYMENT } from "#shared/accounting/manual-entries.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { account } from "#shared/ledger/account.ts";
@@ -155,18 +156,30 @@ describe("LedgerTable", () => {
     expect(html).not.toContain("<script>x</script>");
   });
 
-  test("links amounts to the edit page when a return URL is supplied", () => {
+  test("links manual-entry amounts to the edit page when a return URL is supplied", () => {
     const html = String(
       LedgerTable({
         names: names(),
         returnUrl: "/admin/ledger?listing=1",
-        transfers: [transfer({ id: 77 })],
+        transfers: [transfer({ id: 77, kind: MANUAL_ATTENDEE_PAYMENT })],
       }),
     );
     expect(html).toContain(
       'href="/admin/ledger/entries/77/edit?return_url=%2Fadmin%2Fledger%3Flisting%3D1"',
     );
     expect(html).toContain(formatCurrency(5000));
+  });
+
+  test("does not link checkout-event amounts to the maintenance edit route", () => {
+    const html = String(
+      LedgerTable({
+        names: names(),
+        returnUrl: "/admin/ledger?listing=1",
+        transfers: [transfer({ id: 77, kind: "sale" })],
+      }),
+    );
+    expect(html).not.toContain("/admin/ledger/entries/77/edit");
+    expect(html).toContain(`>${formatCurrency(5000)}<`);
   });
 });
 
@@ -310,6 +323,34 @@ describe("HumanLedgerTable", () => {
     expect(html).toContain("Concert");
     expect(html).toContain("Helmet hire");
   });
+
+  test("uses attendee-balance wording for adjustment legs against writeoff", () => {
+    const refs = names({ attendees: new Map([[1, "Ada"]]) });
+    const html = String(
+      HumanLedgerTable({
+        names: refs,
+        transfers: [
+          transfer({
+            destination: account("writeoff", "default"),
+            id: 1,
+            kind: "adjustment",
+            source: account("attendee", 1),
+          }),
+          transfer({
+            destination: account("attendee", 1),
+            id: 2,
+            kind: "adjustment",
+            source: account("writeoff", "default"),
+          }),
+        ],
+      }),
+    );
+    expect(html).toContain("Extra amount now owed by");
+    expect(html).toContain("Amount waived from the balance for");
+    expect(html).toContain("Ada");
+    expect(html).not.toContain("Manual correction reduced");
+    expect(html).not.toContain("Manual correction increased");
+  });
 });
 
 describe("AccountStatementTable", () => {
@@ -388,7 +429,28 @@ describe("AccountStatementTable", () => {
     expect(html).toContain("No transfers recorded yet");
   });
 
-  test("links statement deltas to the edit page when a return URL is supplied", () => {
+  test("links manual statement deltas to the edit page when a return URL is supplied", () => {
+    const html = String(
+      AccountStatementTable({
+        account: acct,
+        lines: statementFor(acct)([
+          transfer({
+            destination: account("attendee", 1),
+            id: 1,
+            kind: MANUAL_ATTENDEE_PAYMENT,
+            source: account("external", "world"),
+          }),
+        ]),
+        names: names(),
+        returnUrl: "/admin/attendees/1",
+      }),
+    );
+    expect(html).toContain(
+      'href="/admin/ledger/entries/1/edit?return_url=%2Fadmin%2Fattendees%2F1"',
+    );
+  });
+
+  test("does not link checkout-event statement deltas to the maintenance route", () => {
     const html = String(
       AccountStatementTable({
         account: acct,
@@ -397,9 +459,9 @@ describe("AccountStatementTable", () => {
         returnUrl: "/admin/attendees/1",
       }),
     );
-    expect(html).toContain(
-      'href="/admin/ledger/entries/1/edit?return_url=%2Fadmin%2Fattendees%2F1"',
-    );
+    expect(html).not.toContain("/admin/ledger/entries/1/edit");
+    expect(html).not.toContain("/admin/ledger/entries/2/edit");
+    expect(html).toContain(`+${formatCurrency(5000)}`);
   });
 });
 

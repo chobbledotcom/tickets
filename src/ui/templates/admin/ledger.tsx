@@ -16,7 +16,10 @@
 import { joinStrings, map, pipe } from "#fp";
 import { t } from "#i18n";
 import type { ManualLedgerEntryOption } from "#shared/accounting/manual-entries.ts";
-import { manualLedgerEntryOptionsFor } from "#shared/accounting/manual-entries.ts";
+import {
+  isManualLedgerTransfer,
+  manualLedgerEntryOptionsFor,
+} from "#shared/accounting/manual-entries.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import { isReadOnly } from "#shared/env.ts";
@@ -161,7 +164,7 @@ const amountCell = (
   label: string,
   returnUrl?: string,
 ): JSX.Element | string =>
-  !returnUrl || isReadOnly() ? (
+  !returnUrl || isReadOnly() || !isManualLedgerTransfer(transfer) ? (
     label
   ) : (
     <a href={ledgerEntryEditHref(transfer.id, returnUrl)}>{label}</a>
@@ -282,6 +285,26 @@ const adjustmentDescription = (
   transfer: Transfer,
   names: LedgerNames,
 ): JSX.Element => {
+  if (
+    transfer.source.type === "attendee" &&
+    transfer.destination.type === "writeoff"
+  ) {
+    return sentenceWithAccount(
+      "admin.ledger.human.manual_attendee_charge",
+      transfer.source,
+      names,
+    );
+  }
+  if (
+    transfer.source.type === "writeoff" &&
+    transfer.destination.type === "attendee"
+  ) {
+    return sentenceWithAccount(
+      "admin.ledger.human.manual_attendee_writeoff",
+      transfer.destination,
+      names,
+    );
+  }
   if (transfer.source.type === "writeoff") {
     return sentenceWithAccount(
       "admin.ledger.human.adjustment_increase",

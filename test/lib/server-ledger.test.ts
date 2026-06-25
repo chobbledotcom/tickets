@@ -408,6 +408,42 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
     expect(html).toContain('name="confirm_identifier"');
   });
 
+  test("404s edit and delete maintenance routes for checkout-event transfers", async () => {
+    await seededSale("Immutable sale", 2500);
+    const sale = (await allTransfers()).find(
+      (transfer) => transfer.kind === "sale",
+    );
+    expect(sale).toBeDefined();
+
+    const edit = await adminGet(`/admin/ledger/entries/${sale!.id}/edit`);
+    expect(edit.response.status).toBe(404);
+
+    const postEdit = await adminFormPost(
+      `/admin/ledger/entries/${sale!.id}/edit`,
+      {
+        amount: "99.99",
+        occurred_at: "2026-06-23T10:15",
+        return_url: "/admin/ledger?view=dual",
+      },
+    );
+    expect(postEdit.response.status).toBe(404);
+
+    const postDelete = await adminFormPost(
+      `/admin/ledger/entries/${sale!.id}/delete`,
+      {
+        confirm_identifier: formatCurrency(sale!.amount),
+        return_url: "/admin/ledger?view=dual",
+      },
+    );
+    expect(postDelete.response.status).toBe(404);
+
+    const unchanged = (await allTransfers()).find(
+      (transfer) => transfer.id === sale!.id,
+    );
+    expect(unchanged?.amount).toBe(sale!.amount);
+    expect(unchanged?.occurredAt).toBe(sale!.occurredAt);
+  });
+
   test("updates a ledger entry amount and business timestamp", async () => {
     const { attendeeId } = await seededAttendee();
     await postAttendeePayment(attendeeId);
@@ -517,10 +553,22 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
     // hidden, so the only place "Card / bank" could appear — an external leg row —
     // is gone from the list page entirely.
     await seededSale("Gala", 2500);
+    const { response } = await adminGet("/admin/ledger?view=dual");
+    const html = await response.text();
+    expect(html).toContain("<td>sale</td>");
+    expect(html).not.toContain("Card / bank");
+  });
+
+  test("defaults the bare ledger page to the human view", async () => {
+    await seededSale("Gala", 2500);
     const { response } = await adminGet("/admin/ledger");
     const html = await response.text();
-    expect(html).toContain("sale");
-    expect(html).not.toContain("Card / bank");
+    expect(html).toContain("<th>Activity</th>");
+    expect(html).toContain("<strong>Plain-language log</strong>");
+    expect(html).toContain("booked");
+    expect(html).toContain("Gala");
+    expect(html).not.toContain("<th>Event</th>");
+    expect(html).not.toContain("<td>sale</td>");
   });
 
   test("a from-date later than the only transfer empties the list and zeroes income", async () => {
@@ -579,9 +627,10 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
     expect(response.status).toBe(200);
     const html = await response.text();
     // Every bad param is dropped, so the unfiltered all-listings list still shows
-    // the seeded sale.
+    // the seeded sale in the default human view.
     expect(html).toContain("Matinee");
-    expect(html).toContain("sale");
+    expect(html).toContain("booked");
+    expect(html).not.toContain("<td>sale</td>");
   });
 
   test("honours a valid to-date bound and a paged from-month", async () => {

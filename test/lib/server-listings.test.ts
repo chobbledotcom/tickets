@@ -365,6 +365,35 @@ describeWithEnv("server (admin listings)", { db: true }, () => {
       expect(html).toContain(`href="/admin/ledger?listing=${listing.id}"`);
     });
 
+    test("does not eagerly render the full revenue statement on listing detail pages", async () => {
+      const { listing, cookie } = await setupListingAndLogin({
+        maxAttendees: 100,
+        name: "Busy Listing",
+        thankYouUrl: "https://example.com",
+      });
+      const buyer = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Ada",
+        "ada@example.com",
+      );
+      await postListingSale({
+        attendeeId: buyer.id,
+        gross: 5000,
+        listingId: listing.id,
+      });
+
+      const response = await awaitTestRequest(`/admin/listing/${listing.id}`, {
+        cookie,
+      });
+      const html = await response.text();
+      expect(html).toContain("Income &amp; ledger");
+      expect(html).toContain(`href="/admin/ledger?listing=${listing.id}"`);
+      expect(html).not.toContain('<section id="ledger">');
+      expect(html).not.toContain("Account statement");
+      expect(html).not.toContain("<th>Counterparty</th>");
+    });
+
     test("shows stored-total mismatches on listing detail and edit pages", async () => {
       const { listing } = await setupListingAndLogin({
         maxAttendees: 100,
