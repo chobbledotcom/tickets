@@ -6,7 +6,7 @@ import {
 } from "@libsql/client";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
+import { type Stub, stub } from "@std/testing/mock";
 import { getDb, insert, setDb } from "#shared/db/client.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import {
@@ -56,6 +56,27 @@ describeWithEnv("db > migrations", { db: true }, () => {
         sync: () => Promise.resolve(),
         transaction: () => Promise.reject(new Error("unexpected transaction")),
       }) as unknown as Client;
+
+    /** Set up NTFY env + fetch stub, run `body`, then assert ntfy was NOT
+     *  called and restore everything. Both "transient failure" tests share
+     *  this exact assert-ntfy-was-silent + cleanup scaffold. */
+    const expectNtfySilent = async (
+      fetchStub: Stub,
+      restore: () => void,
+      body: () => Promise<void>,
+    ): Promise<void> => {
+      try {
+        await body();
+        const ntfyCall = fetchStub.calls.find(
+          (c) => c.args[0] === "https://ntfy.sh/test-topic",
+        );
+        expect(ntfyCall).toBeUndefined();
+      } finally {
+        fetchStub.restore();
+        restore();
+        setDb(null);
+      }
+    };
 
     const settingsTableExists = async (): Promise<boolean> => {
       const result = await getDb().execute(
@@ -273,17 +294,9 @@ describeWithEnv("db > migrations", { db: true }, () => {
           );
         }),
       );
-      try {
+      await expectNtfySilent(fetchStub, restore, async () => {
         await expect(initDb()).rejects.toThrow("temporary libsql read failure");
-        const ntfyCall = fetchStub.calls.find(
-          (c) => c.args[0] === "https://ntfy.sh/test-topic",
-        );
-        expect(ntfyCall).toBeUndefined();
-      } finally {
-        fetchStub.restore();
-        restore();
-        setDb(null);
-      }
+      });
     });
 
     test("initDb does not treat transient lock write failures as an acquired lock", async () => {
@@ -310,19 +323,11 @@ describeWithEnv("db > migrations", { db: true }, () => {
           );
         }),
       );
-      try {
+      await expectNtfySilent(fetchStub, restore, async () => {
         await expect(initDb()).rejects.toThrow(
           "temporary libsql write failure",
         );
-        const ntfyCall = fetchStub.calls.find(
-          (c) => c.args[0] === "https://ntfy.sh/test-topic",
-        );
-        expect(ntfyCall).toBeUndefined();
-      } finally {
-        fetchStub.restore();
-        restore();
-        setDb(null);
-      }
+      });
     });
 
     test("initDb does not mistake another missing table for a missing settings table", async () => {

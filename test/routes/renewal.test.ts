@@ -41,6 +41,27 @@ describeWithEnv("routes > renewal", { db: true }, () => {
     resetStripeClient();
   });
 
+  /** Create a single qualifying renewal tier listing + provisioned renewal
+   *  site, then GET `/renew/?t=…`. Collapses the repeated fixture (hidden,
+   *  monthly, purchase-only, £5 listing) + `setupRenewalSite` + `mockRequest`
+   *  scaffold shared by the noindex, terms, and deadline tests. */
+  const visitRenewalPicker = async (): Promise<{
+    response: Response;
+    token: string;
+  }> => {
+    await createTestListing({
+      hidden: true,
+      monthsPerUnit: 1,
+      purchaseOnly: true,
+      unitPrice: 500,
+    });
+    const { token } = await setupRenewalSite();
+    const response = await handleRequest(
+      mockRequest(`/renew/?t=${encodeURIComponent(token)}`),
+    );
+    return { response, token };
+  };
+
   describe("GET /renew/", () => {
     test("renders renewal picker with every qualifying tier listing", async () => {
       const monthly = await createTestListing({
@@ -80,49 +101,20 @@ describeWithEnv("routes > renewal", { db: true }, () => {
     });
 
     test("does not show terms and conditions or agreement checkbox", async () => {
-      await createTestListing({
-        hidden: true,
-        monthsPerUnit: 1,
-        purchaseOnly: true,
-        unitPrice: 500,
-      });
-      const { token } = await setupRenewalSite();
-
-      const response = await handleRequest(
-        mockRequest(`/renew/?t=${encodeURIComponent(token)}`),
-      );
+      const { response } = await visitRenewalPicker();
       const html = await response.text();
       expect(html).not.toContain("agree_terms");
       expect(html).not.toContain("terms-agree");
     });
 
     test("marks renewal picker as noindex", async () => {
-      await createTestListing({
-        hidden: true,
-        monthsPerUnit: 1,
-        purchaseOnly: true,
-        unitPrice: 500,
-      });
-      const { token } = await setupRenewalSite();
-
-      const response = await handleRequest(
-        mockRequest(`/renew/?t=${encodeURIComponent(token)}`),
-      );
+      const { response } = await visitRenewalPicker();
       expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
       expect(response.headers.has("x-robots-noindex")).toBe(false);
     });
 
     test("shows the current deadline in the page", async () => {
-      await createTestListing({
-        hidden: true,
-        monthsPerUnit: 1,
-        purchaseOnly: true,
-        unitPrice: 500,
-      });
-      const { token } = await setupRenewalSite();
-      const response = await handleRequest(
-        mockRequest(`/renew/?t=${encodeURIComponent(token)}`),
-      );
+      const { response } = await visitRenewalPicker();
       const html = await response.text();
       expect(html).toContain("Tuesday 1 September 2026");
     });

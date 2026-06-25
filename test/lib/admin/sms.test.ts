@@ -56,6 +56,25 @@ const queuedLog = async (attendeeId: number) =>
   );
 
 describeWithEnv("admin sms", { db: true }, () => {
+  /** Stub the SMS gateway fetch, POST the form with `message`, assert 302,
+   *  and restore the stub. Collapses the shared `okFetch` + `adminFormPost`
+   *  + `expect(302)` + `finally restore` scaffold. */
+  const postSmsAndAssertRedirect = async (
+    form: Record<string, string>,
+    message: string,
+  ): Promise<void> => {
+    const fetchStub = okFetch();
+    try {
+      const { response } = await adminFormPost("/admin/sms", {
+        ...form,
+        message,
+      });
+      expect(response.status).toBe(302);
+    } finally {
+      fetchStub.restore();
+    }
+  };
+
   it("GET without a target shows the queue count", async () => {
     await recordSmsMessage({ attendeeId: 1, listingId: 1, providerId: "a" });
     await recordSmsMessage({ attendeeId: 1, listingId: 1, providerId: "b" });
@@ -117,16 +136,7 @@ describeWithEnv("admin sms", { db: true }, () => {
   it("POST queues a text: records the id→attendee map and logs it", async () => {
     await configureGateway();
     const { attendee, form } = await setup();
-    const fetchStub = okFetch();
-    try {
-      const { response } = await adminFormPost("/admin/sms", {
-        ...form,
-        message: "Hello Jane",
-      });
-      expect(response.status).toBe(302);
-    } finally {
-      fetchStub.restore();
-    }
+    await postSmsAndAssertRedirect(form, "Hello Jane");
 
     const row = await getSmsMessageByProviderId("msg-9");
     expect(row).not.toBeNull();
@@ -158,16 +168,7 @@ describeWithEnv("admin sms", { db: true }, () => {
       sql: `INSERT INTO contact_preferences (contact_hash, stats_blob) VALUES (?, 'corrupt-blob')
             ON CONFLICT(contact_hash) DO UPDATE SET stats_blob = 'corrupt-blob'`,
     });
-    const fetchStub = okFetch();
-    try {
-      const { response } = await adminFormPost("/admin/sms", {
-        ...form,
-        message: "Hello Jane",
-      });
-      expect(response.status).toBe(302);
-    } finally {
-      fetchStub.restore();
-    }
+    await postSmsAndAssertRedirect(form, "Hello Jane");
 
     // The gateway accepted the text, so the id→attendee map is recorded and the
     // send is logged as queued; the stats failure must not surface as a "could

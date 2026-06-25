@@ -6,7 +6,10 @@ import {
 } from "#shared/db/migrations/schema-sync.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import { buildMigrationContext, describeWithEnv } from "#test-utils";
-import { runAggregateColumnDropTests } from "../migration-test-helpers.ts";
+import {
+  readModifierAggregates as modifierAggregates,
+  runAggregateColumnDropTests,
+} from "../migration-test-helpers.ts";
 
 // This migration's up() touches only the three below — recreateTable and
 // syncTriggers do the trigger/structure rebuild; getDb is real by default.
@@ -23,20 +26,6 @@ const contribution = (sign: "+" | "-", row: "NEW" | "OLD"): string =>
      usage_count = usage_count ${sign} 1,
      total_revenue = total_revenue ${sign} ${row}.amount_applied
    WHERE id = ${row}.modifier_id;`;
-
-const modifierAggregates = async (
-  modifierId: number,
-): Promise<Record<string, number>> => {
-  const result = await getDb().execute({
-    args: [modifierId],
-    sql: "SELECT total_uses, usage_count FROM modifiers WHERE id = ?",
-  });
-  const row = result.rows[0]!;
-  return {
-    total_uses: Number(row.total_uses),
-    usage_count: Number(row.usage_count),
-  };
-};
 
 const makeModifier = () =>
   modifiersTable.insert({

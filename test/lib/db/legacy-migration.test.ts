@@ -226,6 +226,23 @@ describe("db > listing_attendees migration from legacy schema", () => {
     return client;
   };
 
+  /** Create a legacy DB with FK enforcement on and one listing row — the
+   *  shared setup for the "adds display type" and "deletes under FK"
+   *  migration tests. */
+  const createLegacyDbWithListing = async () => {
+    const client = await createLegacyDb();
+    await client.execute("PRAGMA foreign_keys = ON");
+    await client.execute(
+      insert("listings", {
+        created: "2024-01-01T00:00:00Z",
+        id: 1,
+        max_attendees: 100,
+        name: "Test Listing",
+      }),
+    );
+    return client;
+  };
+
   const seedLegacySchemaMarkers = async (
     client: ReturnType<typeof createClient>,
   ) => {
@@ -348,17 +365,7 @@ describe("db > listing_attendees migration from legacy schema", () => {
   });
 
   test("adds question display type when legacy question tables have foreign keys", async () => {
-    const client = await createLegacyDb();
-    await client.execute("PRAGMA foreign_keys = ON");
-
-    await client.execute(
-      insert("listings", {
-        created: "2024-01-01T00:00:00Z",
-        id: 1,
-        max_attendees: 100,
-        name: "Test Listing",
-      }),
-    );
+    const client = await createLegacyDbWithListing();
     await client.execute(
       insert("questions", {
         id: 1,
@@ -404,17 +411,7 @@ describe("db > listing_attendees migration from legacy schema", () => {
   });
 
   test("deletes a migrated listing and its question links under FK enforcement", async () => {
-    const client = await createLegacyDb();
-    await client.execute("PRAGMA foreign_keys = ON");
-
-    await client.execute(
-      insert("listings", {
-        created: "2024-01-01T00:00:00Z",
-        id: 1,
-        max_attendees: 100,
-        name: "Test Listing",
-      }),
-    );
+    const client = await createLegacyDbWithListing();
     await client.execute(insert("questions", { id: 1, text: "Encrypted" }));
     await client.execute(
       insert("listing_questions", { id: 1, listing_id: 1, question_id: 1 }),

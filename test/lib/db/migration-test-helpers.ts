@@ -148,6 +148,40 @@ export const tableRowCount = async (table: string): Promise<number> => {
   return Number(result.rows[0]!.n);
 };
 
+/** Read `total_uses` and `usage_count` for a modifier — the two columns the
+ *  modifier_usages triggers maintain. Shared by the modifier-aggregates test
+ *  suite and the drop_modifiers_total_revenue migration test. */
+export const readModifierAggregates = async (
+  modifierId: number,
+): Promise<Record<string, number>> => {
+  const result = await getDb().execute({
+    args: [modifierId],
+    sql: "SELECT total_uses, usage_count FROM modifiers WHERE id = ?",
+  });
+  const row = result.rows[0]!;
+  return {
+    total_uses: Number(row.total_uses),
+    usage_count: Number(row.usage_count),
+  };
+};
+
+/** Read `booked_quantity` and `tickets_count` for a listing — the two columns
+ *  the listing_attendees triggers maintain. Shared by the listing-aggregates
+ *  test suite and the drop_listing_income migration test. */
+export const readListingAggregates = async (
+  listingId: number,
+): Promise<Record<string, number>> => {
+  const result = await getDb().execute({
+    args: [listingId],
+    sql: "SELECT booked_quantity, tickets_count FROM listings WHERE id = ?",
+  });
+  const row = result.rows[0]!;
+  return {
+    booked_quantity: Number(row.booked_quantity),
+    tickets_count: Number(row.tickets_count),
+  };
+};
+
 export const triggerNames = async (): Promise<Set<string>> => {
   const result = await getDb().execute(
     "SELECT name FROM sqlite_master WHERE type = 'trigger'",

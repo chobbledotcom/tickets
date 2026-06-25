@@ -25,6 +25,32 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     setDemoModeForTest(false);
   });
 
+  /** Stub `setupWebhookEndpoint` to succeed, then POST the given Stripe key
+   *  to the settings form. Returns a promise so the caller can assert on the
+   *  effects inside the `withMocks` body. Collapses the repeated webhook-stub
+   *  + `adminFormPost` scaffold shared by the test-mode, live-mode, and
+   *  activity-log tests. */
+  const stubWebhookAndPostStripe = async (
+    secretKey: string,
+    body: () => Promise<void>,
+  ): Promise<void> =>
+    withMocks(
+      () =>
+        stub(stripeApi, "setupWebhookEndpoint", () =>
+          Promise.resolve({
+            endpointId: "we_test_123",
+            secret: "whsec_test_secret",
+            success: true,
+          }),
+        ),
+      async () => {
+        await adminFormPost("/admin/settings/stripe", {
+          stripe_secret_key: secretKey,
+        });
+        await body();
+      },
+    );
+
   describe("POST /admin/settings/stripe", () => {
     testRequiresAuth("/admin/settings/stripe", {
       body: {
@@ -148,28 +174,14 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("settings page shows test mode badge for sk_test_ key", async () => {
-      await withMocks(
-        () =>
-          stub(stripeApi, "setupWebhookEndpoint", () =>
-            Promise.resolve({
-              endpointId: "we_test_123",
-              secret: "whsec_test_secret",
-              success: true,
-            }),
-          ),
-        async () => {
-          await adminFormPost("/admin/settings/stripe", {
-            stripe_secret_key: "sk_test_mode_check",
-          });
-
-          const response = await awaitTestRequest("/admin/settings", {
-            cookie: await testCookie(),
-          });
-          const html = await response.text();
-          expect(html).toContain("Test mode:");
-          expect(html).toContain("No real charges will be made");
-        },
-      );
+      await stubWebhookAndPostStripe("sk_test_mode_check", async () => {
+        const response = await awaitTestRequest("/admin/settings", {
+          cookie: await testCookie(),
+        });
+        const html = await response.text();
+        expect(html).toContain("Test mode:");
+        expect(html).toContain("No real charges will be made");
+      });
     });
 
     test("settings page shows live mode badge for sk_live_ key", async () => {
@@ -350,25 +362,11 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
   });
 
   test("logs activity when Stripe key is configured", async () => {
-    await withMocks(
-      () =>
-        stub(stripeApi, "setupWebhookEndpoint", () =>
-          Promise.resolve({
-            endpointId: "we_test_123",
-            secret: "whsec_test_secret",
-            success: true,
-          }),
-        ),
-      async () => {
-        await adminFormPost("/admin/settings/stripe", {
-          stripe_secret_key: "sk_test_log_key",
-        });
-
-        const logs = await getAllActivityLog();
-        expect(
-          logs.some((l) => l.message.includes("Stripe key configured")),
-        ).toBe(true);
-      },
-    );
+    await stubWebhookAndPostStripe("sk_test_log_key", async () => {
+      const logs = await getAllActivityLog();
+      expect(
+        logs.some((l) => l.message.includes("Stripe key configured")),
+      ).toBe(true);
+    });
   });
 });
