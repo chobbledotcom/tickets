@@ -56,6 +56,11 @@ src/features/admin/attendee-form-model.ts:321:36  ?? → ||   # listingsById.get
 src/features/admin/attendee-form-model.ts:373:66  ?? → ||   # (existingBooking?.price_paid ?? 0): a number; the only falsy number is 0, and 0 ?? 0 === 0 || 0
 src/features/tickets/token-utils.ts:222:44  ?? → ||   # (attendees[i]?.bookings ?? []): ListingAttendeeRow[]|undefined — an array is always truthy, undefined→[] either way
 
+# largest-remainder: option hooks are functions when present, so they are
+# truthy; undefined falls through to the same default under `??` and `||`.
+src/shared/largest-remainder.ts:19:40  ?? → ||   # canReceive?: function|undefined — functions are truthy, undefined→default
+src/shared/largest-remainder.ts:20:40  ?? → ||   # tieBreaker?: function|undefined — functions are truthy, undefined→default
+
 # crypto/utils: Uint8Array indexing yields number|undefined; fallback is 0, and
 # the only falsy non-null byte is 0, so `byte ?? 0` and `byte || 0` agree.
 src/shared/crypto/utils.ts:18:23  ?? → ||   # bufA[i]: number|undefined, 0 ?? 0 === 0 || 0
