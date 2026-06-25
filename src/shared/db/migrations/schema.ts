@@ -32,7 +32,7 @@ export type Trigger = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "Add a system_notes table of per-attendee operator-visible notes (id, attendee_id, type, encrypted note, created) — `system` notes encrypted with the symmetric DB_ENCRYPTION_KEY, `owner` notes with the owner public key — pruned with the attendee on delete; and exclude no-quantity (quantity = 0) booking lines from listings.tickets_count by rebuilding the listing-aggregate triggers to count only quantity > 0 rows.";
+  "Add idx_listing_attendees_ledger_event_group so the ledger-replay owner lookup (attendeeIdByLedgerEventGroup: SELECT attendee_id FROM listing_attendees WHERE ledger_event_group = ?) resolves via an index seek instead of a full-table scan of every booking ever made.";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -344,6 +344,14 @@ export const SCHEMA: [name: string, table: Table][] = [
         {
           columns: ["listing_id", "end_at", "start_at"],
           name: "idx_listing_attendees_listing_end_start",
+        },
+        // The ledger-replay owner lookup (attendeeIdByLedgerEventGroup) seeks a
+        // booking by its event group: WHERE ledger_event_group = ?. Without this
+        // it full-scans every row ever booked; the '' default rows (no ledger
+        // legs) collapse to one key, so a real group still seeks straight to it.
+        {
+          columns: ["ledger_event_group"],
+          name: "idx_listing_attendees_ledger_event_group",
         },
       ],
     },
