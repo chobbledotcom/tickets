@@ -15,8 +15,12 @@
 
 import { joinStrings, map, pipe } from "#fp";
 import { t } from "#i18n";
-import type { ManualLedgerEntryOption } from "#shared/accounting/manual-entries.ts";
-import { manualLedgerEntryOptionsFor } from "#shared/accounting/manual-entries.ts";
+import {
+  type ManualLedgerEntryOption,
+  type ManualLedgerEntryType,
+  manualEntrySpecByType,
+  manualLedgerEntryOptionsFor,
+} from "#shared/accounting/manual-entries.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import { isReadOnly } from "#shared/env.ts";
@@ -330,50 +334,16 @@ const humanDescription = (
       return <>{t("admin.ledger.human.refund_fee")}</>;
     case "adjustment":
       return adjustmentDescription(transfer, names);
-    case "manual_attendee_payment":
+    default: {
+      const spec =
+        manualEntrySpecByType[transfer.kind as ManualLedgerEntryType];
+      if (!spec) return fallbackHumanDescription(transfer, names);
       return sentenceWithAccount(
-        "admin.ledger.human.manual_attendee_payment",
-        humanAccount(transfer, "attendee"),
+        spec.descriptionKey,
+        humanAccount(transfer, spec.accountType),
         names,
       );
-    case "manual_attendee_charge":
-      return sentenceWithAccount(
-        "admin.ledger.human.manual_attendee_charge",
-        humanAccount(transfer, "attendee"),
-        names,
-      );
-    case "manual_attendee_writeoff":
-      return sentenceWithAccount(
-        "admin.ledger.human.manual_attendee_writeoff",
-        humanAccount(transfer, "attendee"),
-        names,
-      );
-    case "manual_listing_income":
-      return sentenceWithAccount(
-        "admin.ledger.human.manual_listing_income",
-        humanAccount(transfer, "revenue"),
-        names,
-      );
-    case "manual_listing_cost":
-      return sentenceWithAccount(
-        "admin.ledger.human.manual_listing_cost",
-        humanAccount(transfer, "revenue"),
-        names,
-      );
-    case "manual_modifier_income":
-      return sentenceWithAccount(
-        "admin.ledger.human.manual_modifier_income",
-        humanAccount(transfer, "modifier"),
-        names,
-      );
-    case "manual_modifier_reduction":
-      return sentenceWithAccount(
-        "admin.ledger.human.manual_modifier_reduction",
-        humanAccount(transfer, "modifier"),
-        names,
-      );
-    default:
-      return fallbackHumanDescription(transfer, names);
+    }
   }
 };
 

@@ -26,6 +26,7 @@
  * owner-encrypted free text, and rendering it is out of scope.
  */
 
+import * as v from "valibot";
 import { mapNotNullish, sort, unique } from "#fp";
 import { t } from "#i18n";
 import { loadAttendeeNames } from "#routes/admin/actions.ts";
@@ -448,13 +449,20 @@ const addEntryPath = (account: AccountRef, returnUrl: string): string =>
     returnUrl,
   )}`;
 
+const ledgerAmountSchema = v.pipe(
+  v.string(),
+  v.trim(),
+  v.nonEmpty(),
+  v.transform(Number.parseFloat),
+  v.finite(),
+  v.transform(toMinorUnits),
+  v.safeInteger(),
+  v.minValue(1),
+);
+
 const parseAmount = (form: FormParams): number | null => {
-  const raw = form.getString("amount").trim();
-  if (!raw) return null;
-  const parsed = Number.parseFloat(raw);
-  if (!Number.isFinite(parsed)) return null;
-  const amount = toMinorUnits(parsed);
-  return Number.isSafeInteger(amount) && amount > 0 ? amount : null;
+  const result = v.safeParse(ledgerAmountSchema, form.getString("amount"));
+  return result.success ? result.output : null;
 };
 
 const parseOccurredAt = (form: FormParams): string | null => {
