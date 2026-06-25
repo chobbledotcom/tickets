@@ -160,23 +160,34 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
       method: "POST",
     });
 
+    /** POST a restore upload with `csrfToken` + optional file fields, returning
+     *  the response. Collapses the repeated FormData + Request scaffold. */
+    const postRestore = async (
+      cookie: string,
+      csrfToken: string,
+      files: Record<string, File> = {},
+    ): Promise<Response> => {
+      const formData = new FormData();
+      formData.append("csrf_token", csrfToken);
+      for (const [name, file] of Object.entries(files)) {
+        formData.append(name, file);
+      }
+      return handleRequest(
+        new Request("http://localhost/admin/backup/restore", {
+          body: formData,
+          headers: { cookie, host: "localhost" },
+          method: "POST",
+        }),
+      );
+    };
+
     test("shows confirm page after uploading valid zip", async () => {
       await withLocalStorageEnabled(async () => {
         const zipData = await createBackupZip();
         const { cookie, csrfToken } = await getTestSession();
-        const formData = new FormData();
-        formData.append("csrf_token", csrfToken);
-        formData.append(
-          "backup_file",
-          new File([zipData.buffer as ArrayBuffer], "backup.zip"),
-        );
-        const response = await handleRequest(
-          new Request("http://localhost/admin/backup/restore", {
-            body: formData,
-            headers: { cookie, host: "localhost" },
-            method: "POST",
-          }),
-        );
+        const response = await postRestore(cookie, csrfToken, {
+          backup_file: new File([zipData.buffer as ArrayBuffer], "backup.zip"),
+        });
         expect(response.status).toBe(200);
         const html = await response.text();
         expect(html).toContain("Confirm Database Restore");
@@ -198,19 +209,9 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
           "settings.sql": new Uint8Array(0),
         });
         const { cookie, csrfToken } = await getTestSession();
-        const formData = new FormData();
-        formData.append("csrf_token", csrfToken);
-        formData.append(
-          "backup_file",
-          new File([fakeZip.buffer as ArrayBuffer], "backup.zip"),
-        );
-        const response = await handleRequest(
-          new Request("http://localhost/admin/backup/restore", {
-            body: formData,
-            headers: { cookie, host: "localhost" },
-            method: "POST",
-          }),
-        );
+        const response = await postRestore(cookie, csrfToken, {
+          backup_file: new File([fakeZip.buffer as ArrayBuffer], "backup.zip"),
+        });
         const html = await response.text();
         expect(html).toContain("Schema mismatch");
       });
@@ -219,15 +220,7 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
     test("rejects missing file field", async () => {
       await withLocalStorageEnabled(async () => {
         const { cookie, csrfToken } = await getTestSession();
-        const formData = new FormData();
-        formData.append("csrf_token", csrfToken);
-        const response = await handleRequest(
-          new Request("http://localhost/admin/backup/restore", {
-            body: formData,
-            headers: { cookie, host: "localhost" },
-            method: "POST",
-          }),
-        );
+        const response = await postRestore(cookie, csrfToken);
         expect(response.status).toBe(302);
       });
     });
@@ -235,19 +228,9 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
     test("rejects invalid zip file", async () => {
       await withLocalStorageEnabled(async () => {
         const { cookie, csrfToken } = await getTestSession();
-        const formData = new FormData();
-        formData.append("csrf_token", csrfToken);
-        formData.append(
-          "backup_file",
-          new File([new ArrayBuffer(100)], "bad.zip"),
-        );
-        const response = await handleRequest(
-          new Request("http://localhost/admin/backup/restore", {
-            body: formData,
-            headers: { cookie, host: "localhost" },
-            method: "POST",
-          }),
-        );
+        const response = await postRestore(cookie, csrfToken, {
+          backup_file: new File([new ArrayBuffer(100)], "bad.zip"),
+        });
         expect(response.status).toBe(302);
       });
     });

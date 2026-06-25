@@ -385,9 +385,7 @@ export const createListingWithAttendeeAndLogistics = async (
  *  one attendee ("Test User" / "test@example.com") created in `beforeEach`,
  *  returning a holder whose `.attendeeId` is the current test's attendee id.
  *  Used by the locking and staleness test suites that share this exact setup. */
-export const useProcessedPaymentsAttendee = (): {
-  attendeeId: number;
-} => {
+export const useProcessedPaymentsAttendee = (): { attendeeId: number } => {
   const holder = { attendeeId: 0 as number };
   beforeEach(async () => {
     const listing = await createTestListing();
@@ -400,6 +398,41 @@ export const useProcessedPaymentsAttendee = (): {
     holder.attendeeId = attendee.id;
   });
   return holder;
+};
+
+/** Insert an attendee with no listing booking (an orphan) created `daysAgo`
+ *  ago. Returns its numeric id. The `tokenPrefix` distinguishes orphans from
+ *  different test suites — `priv-orphan-…` for privacy, `sched-orphan-…` for
+ *  scheduled, `prune-orphan-…` for prune — so the ticket_token_index is
+ *  unique even when two suites insert orphans against the same test DB. */
+export const insertOrphanAttendee = async (
+  daysAgo: number,
+  tokenPrefix: string,
+): Promise<number> => {
+  const { getDb, insert } = await import("#shared/db/client.ts");
+  const { nowMs } = await import("#shared/now.ts");
+  const dayMs = 24 * 60 * 60 * 1000;
+  const created = new Date(nowMs() - daysAgo * dayMs).toISOString();
+  const result = await getDb().execute(
+    insert("attendees", {
+      created,
+      pii_blob: "",
+      ticket_token_index: `${tokenPrefix}-${crypto.randomUUID()}`,
+    }) as never,
+  );
+  return Number(result.lastInsertRowid);
+};
+
+/** Check whether an attendee row exists by id. Returns true when the row is
+ *  present, false when it has been purged. */
+export const attendeeExists = async (id: number): Promise<boolean> => {
+  const { queryOne } = await import("#shared/db/client.ts");
+  return (
+    (await queryOne<{ one: number }>(
+      "SELECT 1 AS one FROM attendees WHERE id = ?",
+      [id],
+    )) !== null
+  );
 };
 
 export const createTestAttendeeDirect = async (

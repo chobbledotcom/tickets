@@ -13,32 +13,21 @@ import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import { insertBuiltSite } from "#shared/db/built-sites.ts";
-import { getDb, insert, queryOne } from "#shared/db/client.ts";
-import { nowMs } from "#shared/now.ts";
-import { describeWithEnv, mockRequest } from "#test-utils";
+import { queryOne } from "#shared/db/client.ts";
+import {
+  attendeeExists,
+  describeWithEnv,
+  insertOrphanAttendee,
+  mockRequest,
+} from "#test-utils";
 
 /** GET or POST /scheduled. */
 const scheduled = (method: "GET" | "POST"): Promise<Response> =>
   handleRequest(mockRequest("/scheduled", { method }));
 
 /** Insert an orphaned attendee created `days` ago (no listing booking). */
-const insertOldOrphan = async (days: number): Promise<number> => {
-  const created = new Date(nowMs() - days * 24 * 60 * 60 * 1000).toISOString();
-  const result = await getDb().execute(
-    insert("attendees", {
-      created,
-      pii_blob: "",
-      ticket_token_index: `sched-orphan-${crypto.randomUUID()}`,
-    }),
-  );
-  return Number(result.lastInsertRowid);
-};
-
-const attendeeExists = async (id: number): Promise<boolean> =>
-  (await queryOne<{ one: number }>(
-    "SELECT 1 AS one FROM attendees WHERE id = ?",
-    [id],
-  )) !== null;
+const insertOldOrphan = (days: number): Promise<number> =>
+  insertOrphanAttendee(days, "sched-orphan");
 
 const lastPrunedOf = async (siteId: number): Promise<string> =>
   (
