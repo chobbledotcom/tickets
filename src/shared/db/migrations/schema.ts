@@ -336,7 +336,16 @@ export const SCHEMA: [name: string, table: Table][] = [
       // logic and the indexes below.
       indexes: [
         {
-          columns: ["listing_id", "attendee_id", "start_at"],
+          // Includes parent_listing_id so the SAME child chosen under two
+          // parents is two distinct booking rows (one per parent, faithful
+          // provenance) rather than colliding into one folded row. A non-child
+          // line has parent_listing_id 0, so its slot is unchanged.
+          columns: [
+            "listing_id",
+            "attendee_id",
+            "start_at",
+            "parent_listing_id",
+          ],
           name: "idx_listing_attendees_listing_attendee_start",
           unique: true,
         },
