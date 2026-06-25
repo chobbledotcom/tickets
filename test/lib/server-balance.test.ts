@@ -17,7 +17,8 @@ import {
   settleAttendeeBalance,
 } from "#shared/db/attendees/balance.ts";
 import { createAttendeeAtomic } from "#shared/db/attendees.ts";
-import { getDb } from "#shared/db/client.ts";
+import { execute, getDb } from "#shared/db/client.ts";
+import { prunePayments } from "#shared/db/prune.ts";
 import { resetStripeClient, stripeApi } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import {
@@ -356,6 +357,49 @@ describeWithEnv("server (public balance page)", { db: true }, () => {
       await expectSettled("cs_balance_signed", attendeeId);
     } finally {
       session.restore();
+    }
+  });
+
+  test("a pruned balance replay is recovered, not refunded", async () => {
+    await setupStripe();
+    const attendeeId = await createReserved(1500);
+    // First delivery settles the balance and posts its payment leg.
+    const first = stubBalanceSession(attendeeId, 1500, "cs_balance_replay");
+    try {
+      await expectSettled("cs_balance_replay", attendeeId);
+    } finally {
+      first.restore();
+    }
+
+    // Prune the idempotency row; the balance payment leg stays in the ledger.
+    await execute(
+      "UPDATE processed_payments SET processed_at = ? WHERE payment_session_id = ?",
+      ["2000-01-01T00:00:00.000Z", "cs_balance_replay"],
+    );
+    await prunePayments();
+
+    // The replay: the balance is already paid (owed 0), so without the ledger
+    // preflight settleAttendeeBalance reports nothing_owed and refunds the
+    // already-paid customer. The preflight replays success instead.
+    const refund = stub(stripeApi, "refundPayment", () =>
+      Promise.resolve({ id: "re_x" } as unknown as Awaited<
+        ReturnType<typeof stripeApi.refundPayment>
+      >),
+    );
+    const second = stubBalanceSession(attendeeId, 1500, "cs_balance_replay");
+    try {
+      const response = await handleRequest(
+        mockRequest("/payment/success?session_id=cs_balance_replay"),
+      );
+      expect(response.status).toBe(200);
+      expect(refund.calls.length).toBe(0);
+      // Balance stays cleared; nothing re-settled or refunded.
+      expect(
+        (await getAttendeeBalanceState(attendeeId))?.remainingBalance,
+      ).toBe(0);
+    } finally {
+      second.restore();
+      refund.restore();
     }
   });
 

@@ -34,7 +34,7 @@ export type Trigger = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "Add built_sites.updates for tiered client deploys, tighten attendees.kind to a strict attendee/servicing invariant, and add service_costs for per-event servicing cost records.";
+  "Add built_sites.updates for tiered client deploys, index listing_attendees.ledger_event_group for ledger owner lookups, tighten attendees.kind to a strict attendee/servicing invariant, and add service_costs for per-event servicing cost records.";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -354,6 +354,14 @@ export const SCHEMA: [name: string, table: Table][] = [
         {
           columns: ["listing_id", "end_at", "start_at"],
           name: "idx_listing_attendees_listing_end_start",
+        },
+        // The ledger-replay owner lookup (attendeeIdByLedgerEventGroup) seeks a
+        // booking by its event group: WHERE ledger_event_group = ?. Without this
+        // it full-scans every row ever booked; the '' default rows (no ledger
+        // legs) collapse to one key, so a real group still seeks straight to it.
+        {
+          columns: ["ledger_event_group"],
+          name: "idx_listing_attendees_ledger_event_group",
         },
       ],
     },

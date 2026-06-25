@@ -70,6 +70,7 @@ import systemNotesMigration from "./migrations/2026-06-23_system_notes.ts";
 import ticketCountNoQuantityMigration from "./migrations/2026-06-23_ticket_count_no_quantity.ts";
 import builtSitesUpdatesMigration from "./migrations/2026-06-24_built_sites_updates.ts";
 import attendeesKindMigration from "./migrations/2026-06-24_attendees_kind.ts";
+import listingAttendeeLedgerEventGroupIndexMigration from "./migrations/2026-06-25_listing_attendee_ledger_event_group_index.ts";
 import attendeesKindNotNullMigration from "./migrations/2026-06-26_attendees_kind_not_null.ts";
 import serviceCostsMigration from "./migrations/2026-06-27_service_costs.ts";
 import { repairLegacyRenames } from "./migrations/rename-utils.ts";
@@ -243,6 +244,9 @@ export const MIGRATIONS: Migration[] = [
   ticketCountNoQuantityMigration,
   builtSitesUpdatesMigration,
   attendeesKindMigration,
+  // Pure index add (idempotent CREATE INDEX IF NOT EXISTS via syncIndexes);
+  // order-independent, appended last.
+  listingAttendeeLedgerEventGroupIndexMigration,
   attendeesKindNotNullMigration,
   serviceCostsMigration,
 ].map((build) => build(migrationContext));

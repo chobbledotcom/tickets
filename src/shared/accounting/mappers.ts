@@ -27,6 +27,15 @@ const BOOKING = "booking";
 const REFUND = "refund";
 
 /**
+ * The shared event group for a booking's legs, derived from its stable event id
+ * (the payment session id on the paid path, the attendee id on the free/owed
+ * path). The single place the booking event key is built, so a ledger preflight
+ * resolves exactly the group {@link mapBooking} posts under.
+ */
+export const bookingEventGroup = (eventId: string): Promise<string> =>
+  eventGroup([BOOKING, eventId]);
+
+/**
  * The refund-side `kind` for each reversible booking leg. The cash leg is
  * relabelled `refund_cash` so reports can sum refunded cash (decision 8) without
  * double-counting the reversed sale/fee/modifier legs; the rest carry a
@@ -192,7 +201,7 @@ export const mapBooking = async (
   facts: BookingFacts,
 ): Promise<TransferInput[]> => {
   assertValidFacts(facts);
-  const group = await eventGroup([BOOKING, facts.eventId]);
+  const group = await bookingEventGroup(facts.eventId);
   const attendee = attendeeAccount(facts.attendeeId);
   return Promise.all(
     bookingLegSpecs(facts, attendee).map(async (spec) => ({

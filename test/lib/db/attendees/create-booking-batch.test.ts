@@ -6,6 +6,7 @@ import {
   revenueAccount,
 } from "#shared/accounting/accounts.ts";
 import { accountBalance, allTransfers } from "#shared/accounting/queries.ts";
+import { postTransfers } from "#shared/accounting/store.ts";
 import { bookingBatchPlan } from "#shared/checkout-complete.ts";
 import type { PricedLine, PricedOrder } from "#shared/checkout-pricing.ts";
 import { createBookingAtomic, getAttendeesRaw } from "#shared/db/attendees.ts";
@@ -236,6 +237,38 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
 
     // The event is full, but no modifier sold out, so it's a capacity failure.
     expect(result).toEqual({ reason: "capacity_exceeded", success: false });
+  });
+
+  test("refuses to create a booking when the payment event already has ledger legs", async () => {
+    const listing = await createTestListing({
+      maxAttendees: 5,
+      unitPrice: 500,
+    });
+    await reserveSession("sess_batch_existing_ledger");
+    const pricedOrder = order({
+      fullSubtotal: 500,
+      lines: [line(listing.id, 500, 1)],
+      total: 500,
+    });
+    const plan = await bookingBatchPlan(
+      [],
+      {
+        eventId: "sess_batch_existing_ledger",
+        occurredAt: OCCURRED_AT,
+        pricedOrder,
+      },
+      "sess_batch_existing_ledger",
+    );
+    await postTransfers(plan.legs);
+
+    const result = await createBookingAtomic(paidInput(listing.id, 500), plan);
+
+    expect(result).toEqual({ reason: "capacity_exceeded", success: false });
+    expect((await getAttendeesRaw(listing.id)).length).toBe(0);
+    expect((await allTransfers()).length).toBe(plan.legs.length);
+    expect(
+      (await isSessionProcessed("sess_batch_existing_ledger"))!.attendee_id,
+    ).toBe(null);
   });
 
   test("posts no legs and does not finalize when a multi-listing cart only partly lands", async () => {

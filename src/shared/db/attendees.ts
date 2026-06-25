@@ -76,6 +76,7 @@ export {
   ATTENDEE_JOIN_SELECT,
   ATTENDEE_LEFT_JOIN_SELECT,
   ATTENDEES_PAGE_SIZE,
+  attendeeIdByLedgerEventGroup,
   getAllAttendeePiiBlobs,
   getAttendee,
   getAttendeeKindsByIds,

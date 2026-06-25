@@ -3,7 +3,9 @@ import { describe, it as test } from "@std/testing/bdd";
 import { getDb, insert } from "#shared/db/client.ts";
 import {
   batchFinalizeStatement,
+  decryptSessionTokens,
   finalizeSession as finalizePaymentSession,
+  finalizeSessionIfUnresolved,
   isSessionProcessed,
   markSessionFailed,
   parseSessionFailure,
@@ -291,6 +293,38 @@ describeWithEnv("db > processed payments", { db: true }, () => {
     test("is a no-op if the session was pruned", async () => {
       // Should not throw even when the session row is absent
       await setSessionTicketTokens("sess_nonexistent", ["tok-abc"]);
+    });
+  });
+
+  describe("finalizeSessionIfUnresolved", () => {
+    test("stamps attendee_id on an unresolved reservation, leaving tokens untouched", async () => {
+      await reserveSession("sess_heal");
+
+      await finalizeSessionIfUnresolved("sess_heal", 42);
+
+      const row = (await isSessionProcessed("sess_heal"))!;
+      expect(row.attendee_id).toBe(42);
+      // The ledger-replay heal never writes ticket_tokens.
+      expect(row.ticket_tokens).toBe("");
+    });
+
+    test("is a no-op once resolved — preserves a racing delivery's attendee and tokens", async () => {
+      await reserveSession("sess_raced");
+      // A racing delivery finalizes the row with its own attendee and real tokens.
+      await finalizePaymentSession("sess_raced", 7, ["tok-real"]);
+
+      // The replaying delivery tries to heal it to a different attendee; the
+      // unresolved guard must make it a no-op so it never clobbers the winner's
+      // ticket_tokens (which would render the success page without the ticket).
+      await finalizeSessionIfUnresolved("sess_raced", 99);
+
+      const row = (await isSessionProcessed("sess_raced"))!;
+      expect(row.attendee_id).toBe(7);
+      expect(await decryptSessionTokens(row.ticket_tokens)).toBe("tok-real");
+    });
+
+    test("is a no-op if the session was pruned", async () => {
+      await finalizeSessionIfUnresolved("sess_gone", 1);
     });
   });
 });
