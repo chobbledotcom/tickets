@@ -1,23 +1,30 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import { MANUAL_ATTENDEE_PAYMENT } from "#shared/accounting/manual-entries.ts";
+import {
+  MANUAL_ATTENDEE_CHARGE,
+  MANUAL_ATTENDEE_PAYMENT,
+  MANUAL_ATTENDEE_WRITEOFF,
+} from "#shared/accounting/manual-entries.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { account } from "#shared/ledger/account.ts";
 import { statementFor } from "#shared/ledger/project.ts";
 import type { Transfer } from "#shared/ledger/types.ts";
 import {
+  AccountStatementSection,
   AccountStatementTable,
   adminAccountStatementPage,
+  adminLedgerEntryAddPage,
   adminLedgerPage,
   HumanLedgerTable,
+  type LedgerEntryAddOption,
   type LedgerFilterState,
   type LedgerNames,
   type LedgerPageData,
   LedgerTable,
   resolveAccountLabel,
 } from "#templates/admin/ledger.tsx";
-import { setupTestEncryptionKey } from "#test-utils";
+import { setTestEnv, setupTestEncryptionKey } from "#test-utils";
 
 const SESSION = { adminLevel: "owner" as const };
 
@@ -143,6 +150,17 @@ describe("LedgerTable", () => {
     expect(html).toContain("<td>—</td>");
   });
 
+  test("renders an empty kind as an empty cell, not the no-kind placeholder", () => {
+    const html = String(
+      LedgerTable({
+        names: names(),
+        transfers: [transfer({ kind: "" })],
+      }),
+    );
+    expect(html).toContain("<td></td>");
+    expect(html).not.toContain("<td>—</td>");
+  });
+
   test("renders the empty state row spanning all four columns", () => {
     const html = String(LedgerTable({ names: names(), transfers: [] }));
     expect(html).toContain('colspan="4"');
@@ -168,6 +186,17 @@ describe("LedgerTable", () => {
       'href="/admin/ledger/entries/77/edit?return_url=%2Fadmin%2Fledger%3Flisting%3D1"',
     );
     expect(html).toContain(formatCurrency(5000));
+  });
+
+  test("does not link manual-entry amounts without a return URL", () => {
+    const html = String(
+      LedgerTable({
+        names: names(),
+        transfers: [transfer({ id: 77, kind: MANUAL_ATTENDEE_PAYMENT })],
+      }),
+    );
+    expect(html).not.toContain("/admin/ledger/entries/77/edit");
+    expect(html).toContain(`>${formatCurrency(5000)}<`);
   });
 
   test("does not link checkout-event amounts to the maintenance edit route", () => {
@@ -322,6 +351,12 @@ describe("HumanLedgerTable", () => {
     expect(html).toContain("Ada");
     expect(html).toContain("Concert");
     expect(html).toContain("Helmet hire");
+    expect(html).toContain(
+      'Payment received for <a href="/admin/attendees/1">Ada</a>',
+    );
+    expect(html).toContain(
+      'Manual correction reduced <a href="/admin/listing/1">Concert</a>',
+    );
   });
 
   test("uses attendee-balance wording for adjustment legs against writeoff", () => {
@@ -450,6 +485,25 @@ describe("AccountStatementTable", () => {
     );
   });
 
+  test("does not link manual statement deltas without a return URL", () => {
+    const html = String(
+      AccountStatementTable({
+        account: acct,
+        lines: statementFor(acct)([
+          transfer({
+            destination: account("attendee", 1),
+            id: 1,
+            kind: MANUAL_ATTENDEE_PAYMENT,
+            source: account("external", "world"),
+          }),
+        ]),
+        names: names(),
+      }),
+    );
+    expect(html).not.toContain("/admin/ledger/entries/1/edit");
+    expect(html).toContain(`-${formatCurrency(5000)}`);
+  });
+
   test("does not link checkout-event statement deltas to the maintenance route", () => {
     const html = String(
       AccountStatementTable({
@@ -511,6 +565,9 @@ describe("adminLedgerPage", () => {
     // The by-listing select lists every listing plus the "all" option.
     expect(html).toContain("All listings");
     expect(html).toContain("Summer Concert");
+    expect(html).toContain(
+      '<option selected value="/admin/ledger">All listings</option>',
+    );
   });
 
   test("can switch to the double-entry transfer list", () => {
@@ -547,6 +604,28 @@ describe("adminLedgerPage", () => {
     expect(html).toContain("listing=1");
   });
 
+  test("filter links preserve dual view and paged calendar state", () => {
+    const html = adminLedgerPage(
+      pageData({
+        filters: {
+          ...NO_FILTERS,
+          from: "2026-06-20",
+          fromMonth: "2026-05",
+          listingId: 1,
+          to: "2026-06-22",
+          toMonth: "2026-07",
+          view: "dual",
+        },
+      }),
+      SESSION,
+    );
+    expect(html).toContain(
+      'value="/admin/ledger?from=2026-06-20&amp;to=2026-06-22&amp;view=dual&amp;fromCal=2026-05&amp;toCal=2026-07"',
+    );
+    expect(html).toContain("view=dual");
+    expect(html).toContain("toCal=2026-07");
+  });
+
   test("surfaces the 'showing recent' note only when truncated", () => {
     const shown = adminLedgerPage(pageData({ truncated: true }), SESSION);
     expect(shown).toContain("Showing the most recent 500 transfers");
@@ -578,11 +657,105 @@ describe("adminAccountStatementPage", () => {
     expect(html).toContain('href="/admin/ledger"');
     expect(html).not.toContain("&larr;");
     expect(html).toContain('<th class="col-amount">Balance</th>');
+    expect(html).toContain(
+      'href="/admin/ledger/attendee/7/add?return_url=%2Fadmin%2Fledger%2Fattendee%2F7"',
+    );
+    expect(html).not.toContain("View full ledger");
   });
 
   test("shows a zero balance for an account with no history", () => {
     const html = adminAccountStatementPage(acct, [], names(), SESSION);
     expect(html).toContain(`Balance: ${formatCurrency(0)}`);
     expect(html).toContain("No transfers recorded yet");
+    expect(html).not.toContain("/admin/ledger/attendee/7/add");
+  });
+
+  test("suppresses add and edit actions in read-only mode", () => {
+    const restore = setTestEnv({
+      READ_ONLY_FROM: "2020-01-01T00:00:00.000Z",
+    });
+    try {
+      const refs = names({ attendees: new Map([[7, "Ada Lovelace"]]) });
+      const html = adminAccountStatementPage(
+        acct,
+        statementFor(acct)([
+          transfer({
+            destination: account("attendee", 7),
+            id: 77,
+            kind: MANUAL_ATTENDEE_PAYMENT,
+            source: account("external", "world"),
+          }),
+        ]),
+        refs,
+        SESSION,
+      );
+      expect(html).not.toContain("/admin/ledger/attendee/7/add");
+      expect(html).not.toContain("/admin/ledger/entries/77/edit");
+    } finally {
+      restore();
+    }
+  });
+
+  test("keeps the full-ledger action for accounts that cannot add entries", () => {
+    const html = String(
+      AccountStatementSection({
+        account: account("writeoff", "default"),
+        fullLedgerHref: "/admin/ledger/writeoff/default",
+        lines: [],
+        names: names(),
+        returnUrl: "/admin/listing/7",
+      }),
+    );
+    expect(html).toContain(
+      'href="/admin/ledger/writeoff/default"><span>View full ledger</span></a>',
+    );
+    expect(html).not.toContain("/admin/ledger/writeoff/default/add");
+  });
+});
+
+describe("adminLedgerEntryAddPage", () => {
+  test("preselects the posted entry type when redisplaying the add form", () => {
+    const refs = names({ attendees: new Map([[7, "Ada Lovelace"]]) });
+    const options: LedgerEntryAddOption[] = [
+      {
+        hint: "Money received",
+        hintKey: "admin.ledger.add.option.attendee_payment.hint",
+        label: "Payment",
+        labelKey: "admin.ledger.add.option.attendee_payment.label",
+        type: MANUAL_ATTENDEE_PAYMENT,
+      },
+      {
+        hint: "New charge",
+        hintKey: "admin.ledger.add.option.attendee_charge.hint",
+        label: "Charge",
+        labelKey: "admin.ledger.add.option.attendee_charge.label",
+        type: MANUAL_ATTENDEE_CHARGE,
+      },
+      {
+        hint: "Waive charge",
+        hintKey: "admin.ledger.add.option.attendee_writeoff.hint",
+        label: "Write-off",
+        labelKey: "admin.ledger.add.option.attendee_writeoff.label",
+        type: MANUAL_ATTENDEE_WRITEOFF,
+      },
+    ];
+    const html = adminLedgerEntryAddPage({
+      account: account("attendee", 7),
+      names: refs,
+      options,
+      returnUrl: "/admin/attendees/7",
+      session: SESSION,
+      values: {
+        amount: "5.00",
+        entryType: MANUAL_ATTENDEE_CHARGE,
+        occurredAt: "2026-06-22T09:30",
+      },
+    });
+    expect(html).toContain(
+      '<option selected value="manual_attendee_charge">Charge</option>',
+    );
+    expect(html).toContain(
+      '<option value="manual_attendee_payment">Payment</option>',
+    );
   });
 });

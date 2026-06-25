@@ -28,6 +28,8 @@ import {
   createTestListing,
   createTestManagerSession,
   describeWithEnv,
+  expectFlashRedirect,
+  getAllActivityLog,
   testRequiresAuth,
 } from "#test-utils";
 import {
@@ -102,8 +104,9 @@ const postAttendeePayment = async (
       return_url: returnUrl,
     },
   );
-  expect(response.status).toBe(302);
-  expect(redirectTargetWithoutFlash(response)).toBe(returnUrl);
+  await expectFlashRedirect(returnUrl, "Ledger entry added")(response);
+  const [entry] = await getAllActivityLog(1);
+  expect(entry?.message).toBe("Manual ledger entry added");
 };
 
 describeWithEnv("server (admin ledger)", { db: true }, () => {
@@ -408,6 +411,21 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
     expect(html).toContain('name="confirm_identifier"');
   });
 
+  test("edit pages without a return_url fall back to the ledger", async () => {
+    const { attendeeId } = await seededAttendee();
+    await postAttendeePayment(attendeeId);
+    const [entry] = await allTransfers();
+    const { response } = await adminGet(
+      `/admin/ledger/entries/${entry!.id}/edit`,
+    );
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(html).toContain(
+      'name="return_url" type="hidden" value="/admin/ledger"',
+    );
+    expect(html).not.toContain('value="/null"');
+  });
+
   test("404s edit and delete maintenance routes for checkout-event transfers", async () => {
     await seededSale("Immutable sale", 2500);
     const sale = (await allTransfers()).find(
@@ -456,14 +474,17 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
         return_url: "/admin/ledger?view=dual",
       },
     );
-    expect(redirectTargetWithoutFlash(response)).toBe(
+    await expectFlashRedirect(
       "/admin/ledger?view=dual",
-    );
+      "Ledger entry updated",
+    )(response);
     const [updated] = await allTransfers();
     expect(updated?.amount).toBe(789);
     expect(updated?.occurredAt).toBe("2026-06-23T10:15:00.000Z");
     expect(updated?.source).toEqual(entry?.source);
     expect(updated?.destination).toEqual(entry?.destination);
+    const [log] = await getAllActivityLog(1);
+    expect(log?.message).toBe(`Ledger entry #${entry!.id} updated`);
   });
 
   test("rejects invalid edit-entry forms without changing the transfer", async () => {
@@ -526,10 +547,42 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
       confirm_identifier: formatCurrency(entry!.amount),
       return_url: `/admin/attendees/${attendeeId}`,
     });
-    expect(redirectTargetWithoutFlash(correct.response)).toBe(
+    await expectFlashRedirect(
       `/admin/attendees/${attendeeId}`,
-    );
+      "Ledger entry deleted",
+    )(correct.response);
     expect(await allTransfers()).toEqual([]);
+    const [log] = await getAllActivityLog(1);
+    expect(log?.message).toBe(`Ledger entry #${entry!.id} deleted`);
+  });
+
+  test("ledger row edit links preserve the full filtered return URL", async () => {
+    const { attendeeId } = await seededAttendee();
+    const { response: postResponse } = await adminFormPost(
+      `/admin/ledger/attendee/${attendeeId}/add`,
+      {
+        amount: "5.00",
+        entry_type: MANUAL_ATTENDEE_CHARGE,
+        occurred_at: "2026-06-22T09:30",
+        return_url: "/admin/ledger",
+      },
+    );
+    await expectFlashRedirect(
+      "/admin/ledger",
+      "Ledger entry added",
+    )(postResponse);
+    const [entry] = await allTransfers();
+    const filteredPath =
+      "/admin/ledger?view=dual&from=2026-06-01&fromCal=2026-05";
+    const { response } = await adminGet(filteredPath);
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(html).toContain(
+      `/admin/ledger/entries/${entry!.id}/edit?return_url=${encodeURIComponent(
+        filteredPath,
+      )}`,
+    );
+    expect(html).not.toContain("return_url=NaN");
   });
 
   test("shows the headline stats, both date pickers and the listing filter", async () => {
