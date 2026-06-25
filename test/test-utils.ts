@@ -1,5 +1,6 @@
 export * from "./test-utils/activity-log.ts";
 export * from "./test-utils/api-schemas.ts";
+export * from "./test-utils/arrays.ts";
 export * from "./test-utils/assertions.ts";
 export { getTestDataKey, getTestPrivateKey } from "./test-utils/crypto.ts";
 export * from "./test-utils/csrf.ts";
@@ -13,6 +14,7 @@ export * from "./test-utils/internal.ts";
 export * from "./test-utils/migrations.ts";
 export * from "./test-utils/mocks.ts";
 export * from "./test-utils/modifiers.ts";
+export * from "./test-utils/random.ts";
 export * from "./test-utils/session.ts";
 export * from "./test-utils/settings.ts";
 export { TestBrowser } from "./test-utils/test-browser.ts";
