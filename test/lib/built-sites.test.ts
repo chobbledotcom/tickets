@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   assignBuiltSite,
-  buildSiteDataBlob,
   builtSitesCrudTable,
   claimNextBuiltSiteForPrune,
   DEFAULT_UPDATE_TIER,
@@ -12,13 +11,19 @@ import {
   insertBuiltSite,
   isUpdateTier,
   parseSiteDataBlob,
-  SITE_DATA_BLOB_VERSION,
   siteAcceptsDeployTier,
   siteBaseUrl,
   UPDATE_TIERS,
   updateBuiltSiteRenewalState,
 } from "#shared/db/built-sites.ts";
 import { describeWithEnv } from "#test-utils";
+
+const formBlob = async (
+  input: Parameters<typeof builtSitesCrudTable.toDbValues>[0],
+) => {
+  const values = await builtSitesCrudTable.toDbValues(input);
+  return parseSiteDataBlob(values.site_data as string);
+};
 
 describe("siteBaseUrl", () => {
   test("prepends https:// to a bare hostname", () => {
@@ -101,64 +106,68 @@ describeWithEnv("claimNextBuiltSiteForPrune", { db: true }, () => {
 });
 
 describeWithEnv("built-sites", { db: true }, () => {
-  test("buildSiteDataBlob creates valid JSON", () => {
-    const blob = buildSiteDataBlob("Test Site", "test.b-cdn.net");
-    const parsed = JSON.parse(blob);
+  test("toDbValues creates valid site-data JSON", async () => {
+    const parsed = await formBlob({
+      bunnyUrl: "test.b-cdn.net",
+      name: "Test Site",
+    });
     expect(parsed.n).toBe("Test Site");
     expect(parsed.u).toBe("test.b-cdn.net");
-    expect(parsed.v).toBe(SITE_DATA_BLOB_VERSION);
+    expect(parsed.v).toBe(1);
   });
 
-  test("buildSiteDataBlob includes db credentials when provided", () => {
-    const blob = buildSiteDataBlob(
-      "Test Site",
-      "test.b-cdn.net",
-      "libsql://db.turso.io",
-      "secret-token",
-    );
-    const parsed = JSON.parse(blob);
+  test("toDbValues includes db credentials when provided", async () => {
+    const parsed = await formBlob({
+      bunnyUrl: "test.b-cdn.net",
+      dbToken: "secret-token",
+      dbUrl: "libsql://db.turso.io",
+      name: "Test Site",
+    });
     expect(parsed.d).toBe("libsql://db.turso.io");
     expect(parsed.t).toBe("secret-token");
   });
 
-  test("buildSiteDataBlob omits db keys when empty", () => {
-    const blob = buildSiteDataBlob("Test Site", "test.b-cdn.net");
-    const parsed = JSON.parse(blob);
+  test("toDbValues omits db keys when empty", async () => {
+    const parsed = await formBlob({
+      bunnyUrl: "test.b-cdn.net",
+      name: "Test Site",
+    });
     expect(parsed.d).toBeUndefined();
     expect(parsed.t).toBeUndefined();
   });
 
-  test("buildSiteDataBlob includes bunny script id when provided", () => {
-    const blob = buildSiteDataBlob(
-      "Test Site",
-      "test.b-cdn.net",
-      "",
-      "",
-      "98765",
-    );
-    const parsed = JSON.parse(blob);
+  test("toDbValues includes bunny script id when provided", async () => {
+    const parsed = await formBlob({
+      bunnyScriptId: "98765",
+      bunnyUrl: "test.b-cdn.net",
+      name: "Test Site",
+    });
     expect(parsed.s).toBe("98765");
   });
 
-  test("buildSiteDataBlob omits bunny script id when empty", () => {
-    const blob = buildSiteDataBlob("Test Site", "test.b-cdn.net");
-    const parsed = JSON.parse(blob);
+  test("toDbValues omits bunny script id when empty", async () => {
+    const parsed = await formBlob({
+      bunnyUrl: "test.b-cdn.net",
+      name: "Test Site",
+    });
     expect(parsed.s).toBeUndefined();
   });
 
-  test("parseSiteDataBlob roundtrips with buildSiteDataBlob", () => {
-    const blob = buildSiteDataBlob("My Site", "my.b-cdn.net");
-    const parsed = parseSiteDataBlob(blob);
+  test("parseSiteDataBlob decodes stored site-data JSON", async () => {
+    const parsed = await formBlob({
+      bunnyUrl: "my.b-cdn.net",
+      name: "My Site",
+    });
     expect(parsed.n).toBe("My Site");
     expect(parsed.u).toBe("my.b-cdn.net");
-    expect(parsed.v).toBe(SITE_DATA_BLOB_VERSION);
+    expect(parsed.v).toBe(1);
   });
 
   test("parseSiteDataBlob handles legacy blobs without db keys", () => {
     const legacyBlob = JSON.stringify({
       n: "Old Site",
       u: "old.b-cdn.net",
-      v: SITE_DATA_BLOB_VERSION,
+      v: 1,
     });
     const parsed = parseSiteDataBlob(legacyBlob);
     expect(parsed.d).toBeUndefined();
@@ -260,6 +269,18 @@ describeWithEnv("built-sites", { db: true }, () => {
       };
       const result = await builtSitesCrudTable.fromDb(site);
       expect(result).toEqual(site);
+    });
+
+    test("inputKeyMap exposes form-facing fields", () => {
+      expect(builtSitesCrudTable.inputKeyMap).toEqual({
+        assignable: "assignable",
+        bunny_script_id: "bunnyScriptId",
+        bunny_url: "bunnyUrl",
+        db_token: "dbToken",
+        db_url: "dbUrl",
+        name: "name",
+        updates: "updates",
+      });
     });
 
     test("rowToInput exposes form-input fields for reuse", () => {
@@ -516,20 +537,6 @@ describeWithEnv("built-sites", { db: true }, () => {
       expect(parsed.n).toBe("Old Site");
     });
 
-    test("blob with renewal token includes rt field", () => {
-      const blob = buildSiteDataBlob(
-        "New Site",
-        "new.b-cdn.net",
-        "",
-        "",
-        "",
-        "my-renewal-token",
-      );
-      const parsed = parseSiteDataBlob(blob);
-      expect(parsed.v).toBe(SITE_DATA_BLOB_VERSION);
-      expect(parsed.rt).toBe("my-renewal-token");
-    });
-
     test("CRUD update preserves existing renewal token", async () => {
       const site = await builtSitesCrudTable.insert({
         assignable: false,
@@ -576,6 +583,7 @@ describeWithEnv("built-sites", { db: true }, () => {
       const afterSecond = await getBuiltSiteByRenewalTokenIndex("idx-456");
       expect(afterSecond).not.toBeNull();
       expect(afterSecond!.renewalTokenIndex).toBe("idx-456");
+      expect(afterSecond!.renewalToken).toBe("tok-456");
       expect(afterSecond!.readOnlyFrom).toBe("2027-01-01T00:00:00Z");
     });
   });

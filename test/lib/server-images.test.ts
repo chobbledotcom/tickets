@@ -864,12 +864,16 @@ describeWithEnv(
     });
 
     describe("listing deletion cleans up storage files", () => {
-      test("deletes image from storage when listing is deleted", async () => {
-        const { listing, cookie, csrfToken } = await setupListingAndLogin();
-        await listingsTable.update(listing.id, {
-          imageUrl: "listing-image.jpg",
-        });
-
+      /** Delete the listing and return the storage-delete fetch calls made
+       *  during the request. Collapses the shared `withStorageMock` +
+       *  `submitListingDelete` + `expect(302)` + `fetchCalls.find` scaffold
+       *  every test in this block spells out. */
+      const deleteListingAndCaptureCalls = async (
+        listing: { id: number; name: string },
+        cookie: string,
+        csrfToken: string,
+      ): Promise<string[]> => {
+        const calls: string[] = [];
         await withStorageMock(async (fetchCalls) => {
           const response = await submitListingDelete(
             listing.id,
@@ -878,15 +882,28 @@ describeWithEnv(
             csrfToken,
           );
           expect(response.status).toBe(302);
-
-          const deleteCall = fetchCalls.find((url) =>
-            url.includes("listing-image.jpg"),
-          );
-          expect(deleteCall).not.toBeUndefined();
-
-          const deleted = await getListing(listing.id);
-          expect(deleted).toBeNull();
+          calls.push(...fetchCalls);
         });
+        return calls;
+      };
+
+      test("deletes image from storage when listing is deleted", async () => {
+        const { listing, cookie, csrfToken } = await setupListingAndLogin();
+        await listingsTable.update(listing.id, {
+          imageUrl: "listing-image.jpg",
+        });
+
+        const fetchCalls = await deleteListingAndCaptureCalls(
+          listing,
+          cookie,
+          csrfToken,
+        );
+        expect(
+          fetchCalls.find((url) => url.includes("listing-image.jpg")),
+        ).not.toBeUndefined();
+
+        const deleted = await getListing(listing.id);
+        expect(deleted).toBeNull();
       });
 
       test("deletes attachment from storage when listing is deleted", async () => {
@@ -896,20 +913,14 @@ describeWithEnv(
           attachmentUrl: "listing-attachment.pdf",
         });
 
-        await withStorageMock(async (fetchCalls) => {
-          const response = await submitListingDelete(
-            listing.id,
-            listing.name,
-            cookie,
-            csrfToken,
-          );
-          expect(response.status).toBe(302);
-
-          const deleteCall = fetchCalls.find((url) =>
-            url.includes("listing-attachment.pdf"),
-          );
-          expect(deleteCall).not.toBeUndefined();
-        });
+        const fetchCalls = await deleteListingAndCaptureCalls(
+          listing,
+          cookie,
+          csrfToken,
+        );
+        expect(
+          fetchCalls.find((url) => url.includes("listing-attachment.pdf")),
+        ).not.toBeUndefined();
       });
 
       test("deletes both image and attachment from storage when listing is deleted", async () => {
@@ -920,24 +931,17 @@ describeWithEnv(
           imageUrl: "both-image.jpg",
         });
 
-        await withStorageMock(async (fetchCalls) => {
-          const response = await submitListingDelete(
-            listing.id,
-            listing.name,
-            cookie,
-            csrfToken,
-          );
-          expect(response.status).toBe(302);
-
-          const imageCall = fetchCalls.find((url) =>
-            url.includes("both-image.jpg"),
-          );
-          const attachmentCall = fetchCalls.find((url) =>
-            url.includes("both-attachment.pdf"),
-          );
-          expect(imageCall).not.toBeUndefined();
-          expect(attachmentCall).not.toBeUndefined();
-        });
+        const fetchCalls = await deleteListingAndCaptureCalls(
+          listing,
+          cookie,
+          csrfToken,
+        );
+        expect(
+          fetchCalls.find((url) => url.includes("both-image.jpg")),
+        ).not.toBeUndefined();
+        expect(
+          fetchCalls.find((url) => url.includes("both-attachment.pdf")),
+        ).not.toBeUndefined();
       });
 
       test("succeeds even when storage delete fails during listing deletion", async () => {
