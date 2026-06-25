@@ -58,7 +58,9 @@ import { getBuiltSiteFields } from "#templates/fields.ts";
 const extractBuiltSiteInput = (
   values: Record<string, string | number | null>,
 ): BuiltSiteFormInput => {
-  const updates = String(values.updates ?? "");
+  // validateForm always sets the select's value (a string, "" when omitted), so
+  // no nullish fallback is needed — a non-tier string just isn't carried below.
+  const updates = String(values.updates);
   return {
     assignable: values.assignable === "1",
     bunnyScriptId: String(values.bunny_script_id),
