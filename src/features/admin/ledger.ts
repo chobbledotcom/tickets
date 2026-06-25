@@ -73,6 +73,7 @@ import {
 import type { LedgerRange } from "#shared/accounting/range.ts";
 import {
   formatCurrency,
+  getDecimalPlaces,
   toMajorUnits,
   toMinorUnits,
 } from "#shared/currency.ts";
@@ -450,11 +451,17 @@ const addEntryPath = (account: AccountRef, returnUrl: string): string =>
     returnUrl,
   )}`;
 
+const ledgerAmountPattern = (): RegExp => {
+  const places = getDecimalPlaces(settings.currency);
+  return places === 0 ? /^\d+$/ : new RegExp(`^\\d+(?:\\.\\d{1,${places}})?$`);
+};
+
 const ledgerAmountSchema = v.pipe(
   v.string(),
   v.trim(),
   v.nonEmpty(),
-  v.transform(Number.parseFloat),
+  v.check((amount) => ledgerAmountPattern().test(amount)),
+  v.transform(Number),
   v.finite(),
   v.transform(toMinorUnits),
   v.safeInteger(),

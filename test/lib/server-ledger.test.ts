@@ -31,6 +31,7 @@ import {
   expectFlashRedirect,
   getAllActivityLog,
   testRequiresAuth,
+  withSetting,
 } from "#test-utils";
 import {
   postAttendeeRefund,
@@ -357,6 +358,10 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
       { amount: "" },
       { amount: "not-money" },
       { amount: "0" },
+      { amount: "12abc" },
+      { amount: "1,000" },
+      { amount: "1e2" },
+      { amount: "12.345" },
       { occurred_at: "" },
       { occurred_at: "not-a-date" },
     ];
@@ -370,6 +375,37 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
       expect(response.headers.get("location")).toContain(path);
     }
     expect(await allTransfers()).toEqual([]);
+  });
+
+  test("validates add-entry amounts with the configured currency precision", async () => {
+    const { attendeeId } = await seededAttendee();
+    const path = `/admin/ledger/attendee/${attendeeId}/add`;
+    const valid = {
+      amount: "1234",
+      entry_type: MANUAL_ATTENDEE_PAYMENT,
+      occurred_at: "2026-06-22T09:30",
+      return_url: "/admin/ledger",
+    };
+
+    await withSetting({ currency: "JPY" }, async () => {
+      const decimal = await adminFormPost(path, {
+        ...valid,
+        amount: "12.34",
+      });
+      expect(decimal.response.status).toBe(302);
+      expect(decimal.response.headers.get("location")).toContain(path);
+      expect(await allTransfers()).toEqual([]);
+
+      const whole = await adminFormPost(path, valid);
+      await expectFlashRedirect(
+        "/admin/ledger",
+        "Ledger entry added",
+      )(whole.response);
+    });
+
+    const [entry] = await allTransfers();
+    expect(entry?.amount).toBe(1234);
+    expect(entry?.kind).toBe(MANUAL_ATTENDEE_PAYMENT);
   });
 
   test("404s add-entry routes for non-addable or missing accounts", async () => {
@@ -491,21 +527,23 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
     const { attendeeId } = await seededAttendee();
     await postAttendeePayment(attendeeId);
     const [entry] = await allTransfers();
-    const { response } = await adminFormPost(
-      `/admin/ledger/entries/${entry!.id}/edit`,
-      {
-        amount: "0",
-        occurred_at: "2026-06-23T10:15",
-        return_url: "/admin/ledger",
-      },
-    );
-    expect(response.status).toBe(302);
-    expect(response.headers.get("location")).toContain(
-      `/admin/ledger/entries/${entry!.id}/edit`,
-    );
-    const [unchanged] = await allTransfers();
-    expect(unchanged?.amount).toBe(entry?.amount);
-    expect(unchanged?.occurredAt).toBe(entry?.occurredAt);
+    for (const amount of ["0", "12abc", "1,000", "1e2", "12.345"]) {
+      const { response } = await adminFormPost(
+        `/admin/ledger/entries/${entry!.id}/edit`,
+        {
+          amount,
+          occurred_at: "2026-06-23T10:15",
+          return_url: "/admin/ledger",
+        },
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toContain(
+        `/admin/ledger/entries/${entry!.id}/edit`,
+      );
+      const [unchanged] = await allTransfers();
+      expect(unchanged?.amount).toBe(entry?.amount);
+      expect(unchanged?.occurredAt).toBe(entry?.occurredAt);
+    }
   });
 
   test("404s edit and delete routes for a missing transfer", async () => {

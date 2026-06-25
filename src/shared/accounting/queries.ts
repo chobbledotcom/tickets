@@ -74,7 +74,7 @@ export const recentTransfers = (limit: number): Promise<Transfer[]> =>
  * owner-entered manual rows remain visible even when they record an external
  * payment or cost. */
 const VISIBLE_TRANSFER_SCOPE =
-  "(source_type != 'external' AND dest_type != 'external' OR kind LIKE 'manual_%')";
+  "(source_type != 'external' AND dest_type != 'external' OR kind LIKE 'manual\\_%' ESCAPE '\\')";
 
 /** A revenue-account scope (the listing's own legs, as source or destination)
  *  for the by-listing filter, with its bound args. Empty for "all listings". */

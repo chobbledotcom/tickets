@@ -279,6 +279,18 @@ describe("db > accounting > queries", () => {
       expect(rows[0]?.source).toEqual(world);
     });
 
+    test("visibleTransfers does not treat manual wildcard prefixes as manual rows", async () => {
+      await postTransfers([
+        tx({
+          destination: account("attendee", 1),
+          kind: "manualXpayment",
+          reference: "manual-wildcard",
+          source: world,
+        }),
+      ]);
+      expect(await visibleTransfers(emptyRange, null, 100)).toEqual([]);
+    });
+
     test("visibleTransfers scoped to a listing keeps only that revenue account's legs", async () => {
       await seedLedger();
       const rows = await visibleTransfers(emptyRange, 1, 100);
