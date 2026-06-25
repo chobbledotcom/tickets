@@ -325,6 +325,27 @@ export const hasPaidLine = (
   );
 
 /**
+ * The id of the attendee whose booking owns this ledger event group, or null
+ * when none does. The single-batch booking write stamps every one of an
+ * attendee's `listing_attendees` rows with the booking's `ledger_event_group`
+ * (in the same batch that posts the legs), so a paid session's event group
+ * resolves back to exactly the attendee it created. This lets an idempotent
+ * replay recover the existing booking from the durable ledger after the
+ * (prunable) processed_payments idempotency row has gone — without it, a replay
+ * whose legs already exist would be mistaken for a capacity failure and refund a
+ * live ticket.
+ */
+export const attendeeIdByLedgerEventGroup = async (
+  eventGroup: string,
+): Promise<number | null> => {
+  const row = await queryOne<{ attendee_id: number }>(
+    "SELECT attendee_id FROM listing_attendees WHERE ledger_event_group = ? LIMIT 1",
+    [eventGroup],
+  );
+  return row?.attendee_id ?? null;
+};
+
+/**
  * Get an attendee by ID without decrypting PII
  * Used for payment callbacks and webhooks where decryption is not needed
  * Returns the attendee with encrypted fields (id, listing_id, quantity are plaintext)
