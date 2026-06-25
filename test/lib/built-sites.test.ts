@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   assignBuiltSite,
-  asUpdateTier,
   buildSiteDataBlob,
   builtSitesCrudTable,
   claimNextBuiltSiteForPrune,
@@ -59,14 +58,6 @@ describe("update tiers", () => {
     for (const bad of ["", "ALPHA", "stable", "rel", "release "]) {
       expect(isUpdateTier(bad)).toBe(false);
     }
-  });
-
-  test("asUpdateTier passes known channels through and defaults the rest", () => {
-    expect(asUpdateTier("alpha")).toBe("alpha");
-    expect(asUpdateTier("beta")).toBe("beta");
-    expect(asUpdateTier("release")).toBe("release");
-    expect(asUpdateTier("garbage")).toBe(DEFAULT_UPDATE_TIER);
-    expect(asUpdateTier("")).toBe(DEFAULT_UPDATE_TIER);
   });
 
   test("a release deploy reaches every channel", () => {

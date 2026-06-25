@@ -576,6 +576,24 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
       expect(updated.updates).toBe("alpha");
     });
 
+    test("an edit that omits the updates field preserves the channel", async () => {
+      const site = await createTestBuiltSite({
+        name: "Keep Beta",
+        updates: "beta",
+      });
+      // A POST with the older field set (no `updates`) must not silently reset
+      // the channel to the default — the route only carries a recognised value.
+      const { response } = await adminFormPost(
+        `/admin/built-sites/${site.id}/edit`,
+        { bunny_url: site.bunnyUrl, name: "Keep Beta Renamed" },
+      );
+      expect(response.status).toBe(302);
+      const { builtSitesCrudTable } = await import("#shared/db/built-sites.ts");
+      const updated = await builtSitesCrudTable.findById(site.id);
+      expect(updated!.name).toBe("Keep Beta Renamed");
+      expect(updated!.updates).toBe("beta");
+    });
+
     test("rejects an unknown channel value", async () => {
       const { response } = await adminFormPost("/admin/built-sites", {
         bunny_url: "https://chan.b-cdn.net",

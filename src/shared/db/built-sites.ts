@@ -34,11 +34,6 @@ export const DEFAULT_UPDATE_TIER: UpdateTier = "release";
 export const isUpdateTier = (value: string): value is UpdateTier =>
   (UPDATE_TIERS as readonly string[]).includes(value);
 
-/** Coerce a string to an {@link UpdateTier}, falling back to the default when
- * it isn't a known channel (so a tampered form value can never persist junk). */
-export const asUpdateTier = (value: string): UpdateTier =>
-  isUpdateTier(value) ? value : DEFAULT_UPDATE_TIER;
-
 /**
  * True when a site on `siteTier` should receive a deploy published at
  * `deployTier`. A release deploy reaches every site, a beta deploy reaches beta
@@ -165,27 +160,47 @@ export const buildSiteDataBlob = (
     ...(renewalToken ? { rt: renewalToken } : {}),
   } satisfies SiteDataBlob);
 
-/** Build raw table input from individual fields */
-const toRawInput = (
-  name: string,
-  bunnyUrl: string,
-  dbUrl: string,
-  dbToken: string,
-  bunnyScriptId: string,
-  assignable: boolean,
-  updates: UpdateTier,
-  renewalToken?: string,
-): BuiltSiteInput => ({
-  assignable: assignable ? 1 : 0,
+/**
+ * Every writable built-site field in one object: the form-editable fields plus
+ * the preserved renewal token. {@link toRawInput} consumes this so each
+ * insert/update path composes a single object — adding a future column is one
+ * key here instead of another positional argument threaded through every call.
+ */
+type BuiltSiteWritable = Pick<
+  BuiltSite,
+  | "name"
+  | "bunnyUrl"
+  | "dbUrl"
+  | "dbToken"
+  | "bunnyScriptId"
+  | "assignable"
+  | "updates"
+> & { renewalToken?: string | null };
+
+/** Build raw table input from the writable field set. */
+const toRawInput = (fields: BuiltSiteWritable): BuiltSiteInput => ({
+  assignable: fields.assignable ? 1 : 0,
   siteData: buildSiteDataBlob(
-    name,
-    bunnyUrl,
-    dbUrl,
-    dbToken,
-    bunnyScriptId,
-    renewalToken,
+    fields.name,
+    fields.bunnyUrl,
+    fields.dbUrl,
+    fields.dbToken,
+    fields.bunnyScriptId,
+    fields.renewalToken ?? undefined,
   ),
-  updates,
+  updates: fields.updates,
+});
+
+/** The writable fields of an existing site, for merging a partial edit over. */
+const builtSiteToWritable = (site: BuiltSite): BuiltSiteWritable => ({
+  assignable: site.assignable,
+  bunnyScriptId: site.bunnyScriptId,
+  bunnyUrl: site.bunnyUrl,
+  dbToken: site.dbToken,
+  dbUrl: site.dbUrl,
+  name: site.name,
+  renewalToken: site.renewalToken,
+  updates: site.updates,
 });
 
 /** Parse a decrypted site data blob */
@@ -263,15 +278,7 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
 
   insert: async (input: BuiltSiteFormInput): Promise<BuiltSite> => {
     const row = await builtSitesTable.insert(
-      toRawInput(
-        input.name,
-        input.bunnyUrl,
-        input.dbUrl,
-        input.dbToken,
-        input.bunnyScriptId,
-        input.assignable,
-        input.updates ?? DEFAULT_UPDATE_TIER,
-      ),
+      toRawInput({ ...input, updates: input.updates ?? DEFAULT_UPDATE_TIER }),
     );
     return rowToBuiltSite(row);
   },
@@ -330,25 +337,11 @@ export const builtSitesCrudTable: Table<BuiltSite, BuiltSiteFormInput> = {
   ): Promise<BuiltSite | null> => {
     const existing = await builtSitesCrudTable.findById(id);
     if (!existing) return null;
-    const name = input.name ?? existing.name;
-    const bunnyUrl = input.bunnyUrl ?? existing.bunnyUrl;
-    const dbUrl = input.dbUrl ?? existing.dbUrl;
-    const dbToken = input.dbToken ?? existing.dbToken;
-    const bunnyScriptId = input.bunnyScriptId ?? existing.bunnyScriptId;
-    const assignable = input.assignable ?? existing.assignable;
-    const updates = input.updates ?? existing.updates;
+    // Overlay only the provided fields onto the existing writable set, so an
+    // edit that omits a field (e.g. updates) preserves the stored value.
     const row = (await builtSitesTable.update(
       id,
-      toRawInput(
-        name,
-        bunnyUrl,
-        dbUrl,
-        dbToken,
-        bunnyScriptId,
-        assignable,
-        updates,
-        existing.renewalToken ?? undefined,
-      ),
+      toRawInput({ ...builtSiteToWritable(existing), ...input }),
     )) as BuiltSiteRow;
     return rowToBuiltSite(row);
   },
@@ -408,15 +401,15 @@ export const insertBuiltSite = (
   updates: UpdateTier = DEFAULT_UPDATE_TIER,
 ): Promise<BuiltSiteRow> =>
   builtSitesTable.insert(
-    toRawInput(
-      name,
-      bunnyUrl,
-      dbUrl,
-      dbToken,
-      bunnyScriptId,
+    toRawInput({
       assignable,
+      bunnyScriptId,
+      bunnyUrl,
+      dbToken,
+      dbUrl,
+      name,
       updates,
-    ),
+    }),
   );
 
 /** Get all built sites, decrypted and sorted by name */

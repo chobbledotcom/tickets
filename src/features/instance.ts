@@ -80,7 +80,10 @@ const handleSiteCredentials = async (request: Request): Promise<Response> => {
       scriptId: site.bunnyScriptId,
     }));
 
-  return jsonResponse({ sites: credentials });
+  // Echo the applied tier so a caller can confirm the server actually filtered:
+  // a pre-tier build ignores ?tier= and omits this, letting the canary workflow
+  // fail closed rather than fan a non-release deploy out to the whole fleet.
+  return jsonResponse({ sites: credentials, tier: deployTier });
 };
 
 export const instanceRoutes = defineRoutes({

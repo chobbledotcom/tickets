@@ -665,12 +665,14 @@ export const getBuiltSiteFields = (): Field[] => [
     type: "checkbox-group",
   },
   {
-    defaultValue: "release",
     hint: t("fields.built_site.updates_hint"),
     label: t("fields.built_site.updates"),
     name: "updates",
-    // Ordered safest-first so the default (release) heads the dropdown; the
-    // value strings are the UpdateTier channels filtered server-side.
+    // Ordered safest-first so release heads the dropdown (the create form
+    // pre-selects it and the table layer defaults to it). No `defaultValue`: it
+    // would make validation fill an OMITTED field with the default, which on an
+    // edit silently overwrites an existing channel — the route only carries a
+    // recognised value so an absent field preserves the stored channel instead.
     options: [
       { label: t("fields.built_site.updates_release"), value: "release" },
       { label: t("fields.built_site.updates_beta"), value: "beta" },

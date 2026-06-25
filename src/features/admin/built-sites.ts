@@ -16,9 +16,9 @@ import { logActivity } from "#shared/db/activityLog.ts";
 import { dbName, hasRecentBackup } from "#shared/db/backup.ts";
 import type { BuiltSite, BuiltSiteFormInput } from "#shared/db/built-sites.ts";
 import {
-  asUpdateTier,
   builtSitesCrudTable,
   getAllBuiltSites,
+  isUpdateTier,
 } from "#shared/db/built-sites.ts";
 import { settings } from "#shared/db/settings.ts";
 import { getEnv } from "#shared/env.ts";
@@ -49,18 +49,26 @@ import {
 } from "#templates/admin/built-sites.tsx";
 import { getBuiltSiteFields } from "#templates/fields.ts";
 
-/** Extract built site input from validated form values */
+/** Extract built site input from validated form values.
+ *
+ * `updates` is carried only when the form submitted a recognised channel, so an
+ * edit that omits the field (a stale form, or an automation posting the older
+ * field set) leaves the stored channel untouched rather than silently resetting
+ * it. On create, the table layer applies DEFAULT_UPDATE_TIER for the absent key. */
 const extractBuiltSiteInput = (
   values: Record<string, string | number | null>,
-): BuiltSiteFormInput => ({
-  assignable: values.assignable === "1",
-  bunnyScriptId: String(values.bunny_script_id),
-  bunnyUrl: String(values.bunny_url),
-  dbToken: String(values.db_token),
-  dbUrl: String(values.db_url),
-  name: String(values.name),
-  updates: asUpdateTier(String(values.updates)),
-});
+): BuiltSiteFormInput => {
+  const updates = String(values.updates ?? "");
+  return {
+    assignable: values.assignable === "1",
+    bunnyScriptId: String(values.bunny_script_id),
+    bunnyUrl: String(values.bunny_url),
+    dbToken: String(values.db_token),
+    dbUrl: String(values.db_url),
+    name: String(values.name),
+    ...(isUpdateTier(updates) ? { updates } : {}),
+  };
+};
 
 /** Built sites resource for REST create/update operations */
 const builtSitesResource = defineNamedResource({

@@ -119,6 +119,7 @@ describeWithEnv("server (instance site-credentials)", { db: true }, () => {
             scriptId: "script-acme",
           },
         ],
+        tier: "release",
       });
     } finally {
       restore();
@@ -178,6 +179,17 @@ describeWithEnv("server (instance site-credentials)", { db: true }, () => {
         const response = await post(auth, "stable");
         expect(response.status).toBe(400);
         expect(await response.json()).toEqual({ error: "invalid_tier" });
+      }));
+
+    test("echoes the applied tier so the caller can confirm filtering", () =>
+      withTieredFleet(async () => {
+        const beta = (await (await post(auth, "beta")).json()) as {
+          tier: string;
+        };
+        expect(beta.tier).toBe("beta");
+        // A tier-less call resolves to the release default and says so.
+        const fallback = (await (await post(auth)).json()) as { tier: string };
+        expect(fallback.tier).toBe("release");
       }));
   });
 });
