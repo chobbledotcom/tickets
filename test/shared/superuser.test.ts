@@ -516,6 +516,11 @@ describe("generateSuperuserPassword", () => {
       expect(generateSuperuserPassword(1)).toBe(ALPHABET[0]);
     }));
 
+  test("rejects the boundary byte at the unbiased rejection threshold", () =>
+    withRandomBytes([228, 1])(() => {
+      expect(generateSuperuserPassword(1)).toBe(ALPHABET[1]);
+    }));
+
   test("handles length 0 gracefully (empty string)", () => {
     expect(generateSuperuserPassword(0)).toBe("");
   });
