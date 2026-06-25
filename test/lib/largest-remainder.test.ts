@@ -17,6 +17,10 @@ describe("largestRemainderAllocation", () => {
     ]);
   });
 
+  test("awards leftovers to the largest fractional remainders", () => {
+    expect(largestRemainderAllocation([1, 1, 5], 2)).toEqual([0, 0, 2]);
+  });
+
   test("respects allocation caps and custom tie-breaks", () => {
     expect(
       largestRemainderAllocation([2, 2], 1, {
