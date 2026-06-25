@@ -47,6 +47,7 @@ export type ManualLedgerEntryOption = {
 
 type ManualEntrySpec = ManualLedgerEntryOption & {
   readonly accountType: string;
+  readonly descriptionKey: string;
   readonly legs: (
     account: AccountRef,
   ) => Pick<TransferInput, "source" | "destination">;
@@ -55,6 +56,7 @@ type ManualEntrySpec = ManualLedgerEntryOption & {
 const manualSpecs: readonly ManualEntrySpec[] = [
   {
     accountType: "attendee",
+    descriptionKey: "admin.ledger.human.manual_attendee_payment",
     hintKey: "admin.ledger.add.option.attendee_payment.hint",
     labelKey: "admin.ledger.add.option.attendee_payment.label",
     legs: (account) => ({ destination: account, source: WORLD }),
@@ -62,6 +64,7 @@ const manualSpecs: readonly ManualEntrySpec[] = [
   },
   {
     accountType: "attendee",
+    descriptionKey: "admin.ledger.human.manual_attendee_charge",
     hintKey: "admin.ledger.add.option.attendee_charge.hint",
     labelKey: "admin.ledger.add.option.attendee_charge.label",
     legs: (account) => ({ destination: WRITEOFF, source: account }),
@@ -69,6 +72,7 @@ const manualSpecs: readonly ManualEntrySpec[] = [
   },
   {
     accountType: "attendee",
+    descriptionKey: "admin.ledger.human.manual_attendee_writeoff",
     hintKey: "admin.ledger.add.option.attendee_writeoff.hint",
     labelKey: "admin.ledger.add.option.attendee_writeoff.label",
     legs: (account) => ({ destination: account, source: WRITEOFF }),
@@ -76,6 +80,7 @@ const manualSpecs: readonly ManualEntrySpec[] = [
   },
   {
     accountType: "revenue",
+    descriptionKey: "admin.ledger.human.manual_listing_income",
     hintKey: "admin.ledger.add.option.listing_income.hint",
     labelKey: "admin.ledger.add.option.listing_income.label",
     legs: (account) => ({ destination: account, source: WORLD }),
@@ -83,6 +88,7 @@ const manualSpecs: readonly ManualEntrySpec[] = [
   },
   {
     accountType: "revenue",
+    descriptionKey: "admin.ledger.human.manual_listing_cost",
     hintKey: "admin.ledger.add.option.listing_cost.hint",
     labelKey: "admin.ledger.add.option.listing_cost.label",
     legs: (account) => ({ destination: WORLD, source: account }),
@@ -90,6 +96,7 @@ const manualSpecs: readonly ManualEntrySpec[] = [
   },
   {
     accountType: "modifier",
+    descriptionKey: "admin.ledger.human.manual_modifier_income",
     hintKey: "admin.ledger.add.option.modifier_income.hint",
     labelKey: "admin.ledger.add.option.modifier_income.label",
     legs: (account) => ({ destination: account, source: WRITEOFF }),
@@ -97,6 +104,7 @@ const manualSpecs: readonly ManualEntrySpec[] = [
   },
   {
     accountType: "modifier",
+    descriptionKey: "admin.ledger.human.manual_modifier_reduction",
     hintKey: "admin.ledger.add.option.modifier_reduction.hint",
     labelKey: "admin.ledger.add.option.modifier_reduction.label",
     legs: (account) => ({ destination: WRITEOFF, source: account }),
@@ -107,6 +115,8 @@ const manualSpecs: readonly ManualEntrySpec[] = [
 const specByType = Object.fromEntries(
   manualSpecs.map((spec) => [spec.type, spec]),
 ) as Record<ManualLedgerEntryType, ManualEntrySpec>;
+
+export { specByType as manualEntrySpecByType };
 
 export const manualLedgerEntryOptionsFor = (
   account: AccountRef,
