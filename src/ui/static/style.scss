@@ -2440,12 +2440,27 @@ a.cal-day-selected:active {
   max-width: 15rem;
 }
 
-/* Stack a table with its header/footer action rows, evenly spaced. */
-.attendees-table-controls,
+/* Stack a table with its controls/action rows, evenly spaced. */
+.table-controls,
 .table-block {
   display: flex;
   flex-direction: column;
   gap: var(--space-m);
+}
+
+/* Link/button rows attached to a table.
+   No margin or padding; the surrounding flex container supplies vertical gap. */
+.table-action-btns {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-s);
+  margin: 0;
+  padding: 0;
+}
+
+.ledger-balance {
+  margin: 0;
 }
 
 /* Action rows attached to a table: filters above or below.

@@ -326,8 +326,9 @@ describe("AttendeeLedgerSection", () => {
     expect(html).toContain("<details>");
     expect(html).toContain("<summary>Ledger</summary>");
     expect(html).not.toContain("<legend>Ledger</legend>");
-    // The action row reuses .table-header-actions and links to the full ledger.
-    expect(html).toContain('class="table-header-actions"');
+    // The statement controls group the balance, action row, and ledger table.
+    expect(html).toContain('class="table-controls"');
+    expect(html).toContain('class="table-action-btns"');
     expect(html).toContain('href="/admin/ledger/attendee/7"');
     expect(html).toContain("View full ledger");
     // The counterparty (the listing, unnamed here) and the running balance both

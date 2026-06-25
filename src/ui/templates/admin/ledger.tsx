@@ -596,7 +596,7 @@ const AccountStatementActions = ({
   const showAdd = canAddLedgerEntry(account, names);
   if (!showAdd && !fullLedgerHref) return null;
   return (
-    <p class="table-header-actions">
+    <p class="table-action-btns">
       {showAdd && (
         <ActionButton href={ledgerEntryAddHref(account, returnUrl)} icon="plus">
           {t("admin.ledger.add.link")}
@@ -629,7 +629,7 @@ export const AccountStatementSection = ({
   returnUrl: string;
   fullLedgerHref?: string;
 }): JSX.Element => (
-  <>
+  <div class="table-controls">
     <AccountStatementHeading account={account} lines={lines} names={names} />
     <AccountStatementActions
       account={account}
@@ -643,7 +643,7 @@ export const AccountStatementSection = ({
       names={names}
       returnUrl={returnUrl}
     />
-  </>
+  </div>
 );
 
 /** The whole filter state the ledger page round-trips through the query string:
@@ -760,8 +760,8 @@ const RangeField = ({
 /** The by-listing filter: a nav-select preselected to the current scope ("All
  *  listings" or one listing), each option navigating to the scoped ledger. */
 const ListingFilter = ({ data }: { data: LedgerPageData }): SafeHtml => (
-  <p class="table-header-actions">
-    {t("admin.ledger.filter.listing")}:{" "}
+  <p class="table-action-btns">
+    {t("admin.ledger.filter.listing")}:
     <select aria-label={t("admin.ledger.filter.listing")} data-nav-select>
       <option
         selected={data.filters.listingId === null}
@@ -784,10 +784,10 @@ const ListingFilter = ({ data }: { data: LedgerPageData }): SafeHtml => (
 );
 
 const LedgerViewToggle = ({ data }: { data: LedgerPageData }): SafeHtml => (
-  <p class="table-header-actions">
+  <p class="table-action-btns">
     {data.filters.view === "human" ? (
       <>
-        <strong>{t("admin.ledger.view.human")}</strong>{" "}
+        <strong>{t("admin.ledger.view.human")}</strong>
         <a href={ledgerHref(data.filters, { view: "dual" })}>
           {t("admin.ledger.view.dual")}
         </a>
@@ -796,7 +796,7 @@ const LedgerViewToggle = ({ data }: { data: LedgerPageData }): SafeHtml => (
       <>
         <a href={ledgerHref(data.filters, { view: "human" })}>
           {t("admin.ledger.view.human")}
-        </a>{" "}
+        </a>
         <strong>{t("admin.ledger.view.dual")}</strong>
       </>
     )}
@@ -837,27 +837,31 @@ export const adminLedgerPage = (
         </GuideLink>
       </p>
       <LedgerStats data={data} />
-      <div class="ledger-date-range">
-        {map(
-          (side: RangeSide): SafeHtml => <RangeField data={data} side={side} />,
-        )(RANGE_SIDES)}
+      <div class="table-controls">
+        <div class="ledger-date-range">
+          {map(
+            (side: RangeSide): SafeHtml => (
+              <RangeField data={data} side={side} />
+            ),
+          )(RANGE_SIDES)}
+        </div>
+        <ListingFilter data={data} />
+        <LedgerViewToggle data={data} />
+        {data.filters.view === "dual" ? (
+          <LedgerTable
+            names={data.names}
+            returnUrl={data.returnUrl}
+            transfers={data.transfers}
+          />
+        ) : (
+          <HumanLedgerTable
+            names={data.names}
+            returnUrl={data.returnUrl}
+            transfers={data.transfers}
+          />
+        )}
+        {data.truncated && <p>{t("admin.ledger.recent")}</p>}
       </div>
-      <ListingFilter data={data} />
-      <LedgerViewToggle data={data} />
-      {data.filters.view === "dual" ? (
-        <LedgerTable
-          names={data.names}
-          returnUrl={data.returnUrl}
-          transfers={data.transfers}
-        />
-      ) : (
-        <HumanLedgerTable
-          names={data.names}
-          returnUrl={data.returnUrl}
-          transfers={data.transfers}
-        />
-      )}
-      {data.truncated && <p>{t("admin.ledger.recent")}</p>}
     </Layout>,
   );
 
