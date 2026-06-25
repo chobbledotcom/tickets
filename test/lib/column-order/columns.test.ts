@@ -123,6 +123,39 @@ describe("LISTING_TABLE_COLUMNS cell renderers", () => {
     ).toBe(7500);
   });
 
+  test("cost cell formats servicing cost as currency", () => {
+    expect(
+      LISTING_TABLE_COLUMNS.cost!.cell(testListingWithCount({ cost: 2500 }), u),
+    ).toContain("25");
+  });
+
+  test("cost rawValue returns cost", () => {
+    expect(
+      LISTING_TABLE_COLUMNS.cost!.rawValue!(
+        testListingWithCount({ cost: 2500 }),
+        u,
+      ),
+    ).toBe(2500);
+  });
+
+  test("profit cell formats income less cost as currency", () => {
+    expect(
+      LISTING_TABLE_COLUMNS.profit!.cell(
+        testListingWithCount({ profit: 5000 }),
+        u,
+      ),
+    ).toContain("50");
+  });
+
+  test("profit rawValue returns profit", () => {
+    expect(
+      LISTING_TABLE_COLUMNS.profit!.rawValue!(
+        testListingWithCount({ profit: 5000 }),
+        u,
+      ),
+    ).toBe(5000);
+  });
+
   test("renewal cell renders label with months when months_per_unit > 0", () => {
     expect(
       LISTING_TABLE_COLUMNS.renewal!.cell(

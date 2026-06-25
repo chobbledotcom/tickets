@@ -13,6 +13,57 @@ We want this to be **generic and flexible** — one mechanism that covers many
 "hold some capacity for a reason" situations, not a one-off "boiler service"
 feature.
 
+## Implementation status (checked 2026-06-25)
+
+This status is based on the current working tree, not on main.
+
+- [x] Attendee discriminator migration objects are implemented and registered:
+      `attendees.kind`, `idx_attendees_kind`, trigger rebuild, and aggregate
+      backfill are present.
+- [x] Migration/restore verification is green for the focused migration suite:
+      table rebuilds now drop dependent triggers first, restore them only when
+      their table/column dependencies exist, and copy only live columns into the
+      rebuilt table while defaults fill newly-added columns.
+- [x] Servicing can be created, edited, duplicated, and deleted through
+      dedicated `/admin/servicing/...` routes. The save path normalises contact,
+      status, balance, and payment fields away server-side and keeps the
+      internal token.
+- [x] Public token lookup surfaces are filtered to `kind='attendee'`, so
+      servicing tokens do not resolve through `/t`, QR SVG, wallet, check-in, or
+      token bulk-email lookup.
+- [x] Listing aggregates use a shared attendee-kind predicate:
+      `booked_quantity` still counts servicing quantity, while `tickets_count`
+      excludes servicing rows. The implementation chose correlated kind checks
+      instead of the planned `listing_attendees.is_hold` mirror column.
+- [x] Activity-log and generic attendee-table name links are kind-aware when the
+      loaded row carries `kind`.
+- [x] Query/list exclusion is implemented for customer surfaces:
+      `getAttendeesRaw()`, per-listing tables/CSV/refund/check-in, dashboard
+      recents, bulk-email targets, merge candidates, token lookups, and public
+      routes all filter to `kind='attendee'`.
+- [x] Single-record customer-route guarding is implemented: attendee edit/POST,
+      refresh-payment, merge, balance, and listing-attendee loaders reject
+      servicing ids; `/admin/servicing/:id` rejects normal attendees.
+- [x] Admin servicing navigation/listing is implemented: `/admin/servicing`
+      lists service events, `/admin/servicing/new` creates them, and the
+      top-level admin nav has a Servicing entry.
+- [x] "No ticket UI" is implemented: servicing edit/create surfaces omit
+      ticket/QR/wallet controls, public token routes 404, and generic attendee
+      ticket cells render a servicing marker instead of a token link.
+- [x] Calendar/groups/feeds policy is implemented and tested: in-app admin
+      calendar shows servicing with servicing links/markers; groups and CalDAV
+      feed hide servicing.
+- [x] SMS/phone-index hard exclusion is implemented:
+      `findAttendeeIdByPhoneIndex()` filters to attendees even if a corrupted
+      servicing row has a phone index.
+- [x] Ledger integration is implemented as append-only history: service costs
+      post `service_cost` legs against `cost:<listingId>`, edits post
+      adjustments, deletes/purges leave cost history intact, listing
+      cost/profit projections render in listing tables/details, and ledger
+      account labels link cost accounts to listings.
+- [x] Final verification is done for this pass: `deno task precommit` is green
+      after the servicing implementation and checklist updates.
+
 ## Core idea
 
 A servicing event is just an `attendees` row + its `listing_attendees`
@@ -513,12 +564,15 @@ in one click. Reuse `parseSelectedListingIds` / `START_DATE_FIELD`
 A servicing row must never be treated as a customer. Checklist (search anchor:
 `FROM attendees`, `JOIN attendees`, `listing_attendees`):
 
-- [ ] Admin attendees browser (`attendees-list.ts`) — show attendees only;
-      add a separate servicing list.
-- [ ] Single-record customer routes (`/admin/attendees/:id` and its POST,
+- [x] Admin attendees browser (`attendees-list.ts`) — show attendees only;
+      add a separate servicing list. **Status:** attendee browser filtering is
+      done through `getAttendeesPage`; `/admin/servicing` is the separate list.
+- [x] Single-record customer routes (`/admin/attendees/:id` and its POST,
       re-send/SMS/merge/delete actions) — guard by kind so a servicing id 404s
       on the attendee pages (see "Guard single-record customer routes" above).
-- [ ] Per-listing / multi-listing attendee loaders in `src/shared/db/listings.ts`
+      **Status:** customer routes and action loaders are guarded, including
+      refresh-payment and merge POST.
+- [x] Per-listing / multi-listing attendee loaders in `src/shared/db/listings.ts`
       — both `getListingWithAttendeesRaw` (`listings.ts:509`, via
       `withDecryptedAttendees` / `withListingAttendeesAuth` in
       `features/admin/actions.ts:70-96` — the chokepoint behind the per-listing
@@ -526,25 +580,31 @@ A servicing row must never be treated as a customer. Checklist (search anchor:
       `getAttendeesByListingIds` (`listings.ts:585`, used by the admin calendar
       `calendar.ts:254`, the **groups** page `groups.ts:181`, and the CalDAV feed
       `feeds.ts:240`). See "Calendar, groups & feeds" below — these are *show
-      vs hide* decisions per surface, not a blanket filter.
-- [ ] Dashboard "newest attendees" (`features/admin/dashboard.ts`).
-- [ ] Bulk email targets (`src/shared/bulk-email-targets.ts`,
+      vs hide* decisions per surface, not a blanket filter. **Status:** the
+      listing attendee table/CSV/refund/check-in readers hide servicing;
+      `getAttendeesByListingIds` defaults to attendees only, while the in-app
+      calendar opts into `attendees-and-servicing`.
+- [x] Dashboard "newest attendees" (`features/admin/dashboard.ts`).
+- [x] Bulk email targets (`src/shared/bulk-email-targets.ts`,
       `getAllAttendeePiiBlobs`).
-- [ ] Token ticket view `/t/:tokens` + QR SVG `/t/:token/svg`, wallet
+- [x] Token ticket view `/t/:tokens` + QR SVG `/t/:token/svg`, wallet
       (`/wallet`, `/gwallet`), check-in (`/checkin/:tokens`) — **must** 404 for
       servicing
       via the `kind='attendee'` filter on the token paths (the token index is
       populated, so this is not free). This is the "hidden from public site"
       enforcement.
-- [ ] Attendee merge (`attendees-merge.ts`).
-- [ ] SMS / phone-index (`attendee-phone-index.ts`, webhooks).
-- [ ] Contact preferences / history (`contact-preferences.ts`) — not written for
-      servicing (we skip `recordOrderActivity`).
-- [ ] Listing `tickets_count` aggregate — triggers **and** the recompute paths
+- [x] Attendee merge (`attendees-merge.ts`).
+- [x] SMS / phone-index (`attendee-phone-index.ts`, webhooks). **Status:**
+      servicing saves empty phone fields and `findAttendeeIdByPhoneIndex()` is
+      kind-filtered to attendees.
+- [x] Contact preferences / history (`contact-preferences.ts`) — not written for
+      servicing because servicing persists empty contact fields, so
+      `recordOrderActivity` has no contact hashes to record.
+- [x] Listing `tickets_count` aggregate — triggers **and** the recompute paths
       (`getListingAggregateRecalculation`, `resetListingAggregateFields`,
       schema-sync backfill) must share the kind predicate; `booked_quantity`
       keeps counting servicing. See the aggregates decision above.
-- [ ] Activity log links must be kind-aware. `refLink` in
+- [x] Activity log links must be kind-aware. `refLink` in
       `activityLog.tsx:80` hard-codes `/admin/attendees` for `entry.attendee_id`,
       and `refs.attendees` is a `Map<number,string>` of labels with no kind. Once
       the attendee pages are kind-guarded, a logged servicing id would point at
@@ -552,8 +612,9 @@ A servicing row must never be treated as a customer. Checklist (search anchor:
       ref map to carry kind, or look it up) and link servicing rows to
       `/admin/servicing/:id`. (`getAttendeeNamesByIds` itself can stay; it's the
       link routing that must change.)
-- [ ] Backup/restore (`backup.ts`) round-trips the new column automatically (it
-      dumps every column) — no change, but verify.
+- [x] Backup/restore (`backup.ts`) round-trips the new column automatically (it
+      dumps every column) — no change, but verify. **Status:** verified by the
+      servicing backup/restore and migration-restore tests.
 
 ---
 
@@ -680,31 +741,43 @@ consider `deno task mutation` on the capacity predicate and the kind filter.
 
 ## Suggested implementation order
 
-1. Migration (with `indexes` + **`MIGRATIONS` registration**) + `schema.ts`
+- [x] Migration (with `indexes` + **`MIGRATIONS` registration**) + `schema.ts`
    column/index + sync assertions.
-2. Thread `kind` through types + `createAttendeeAtomic` (keep token; skip
+- [x] Thread `kind` through types + `createAttendeeAtomic` (keep token; skip
    contact activity) with unit tests. The atomic write is unchanged because the
-   token (and its index) is still minted.
-3. Query-layer `kind` filters (including the token paths, for "hidden from public
+   token (and its index) is still minted. **Status note:** contact activity is
+   skipped operationally because servicing contact fields are empty, not by an
+   explicit `kind === 'attendee'` guard.
+- [x] Query-layer `kind` filters (including the token paths, for "hidden from public
    site") + kind-guarded single reads — `getAttendee`/`getAttendeeRaw` **and** the
    direct loaders `getListingWithAttendeeRaw` (via `loadAttendeeForListing`) and
    `getAttendeeBalanceState` — + new servicing readers (including the
-   `listings.ts` loaders).
-4. Aggregates decision + implementation (triggers **and** recompute paths;
-   recommended `is_hold` mirror column).
-5. Extract the shared create/edit core from the attendee form routes; build the
+   `listings.ts` loaders). **Status:** done, including `getAttendeesRaw()`,
+   refresh-payment, phone-index, and per-surface calendar/groups/feed policy.
+- [x] Aggregates decision + implementation (triggers **and** recompute paths;
+   recommended `is_hold` mirror column). **Status note:** implemented via a
+   correlated attendee-kind predicate rather than `is_hold`.
+- [ ] Extract the shared create/edit core from the attendee form routes; build the
    servicing routes (kind-guarded edit, no ticket/QR UI, locked "hidden") +
    name-only field schema. If questions are collected at creation, add the
    create-mode question loader + post-insert `saveAttendeeAnswers` (the existing
-   `applyCreate` does not save answers).
-6. Nav entry + calendar deep-link + kind-aware activity-log links
-   (`/admin/servicing/:id` for servicing rows).
-7. Audit and exclude across all customer surfaces (checklist above).
-8. Ledger integration: add the `cost` account type + `costAccount`, post cost
-   legs via the `LedgerPoster` path (and reverse on delete), add the
-   `cost`/`profit` projections, and surface Costs/Profit in the listings table +
-   ledger UI. Ensure servicing posts **no** sale/payment/fee legs.
-9. Full test pass + precommit.
+   `applyCreate` does not save answers). **Status:** routes/form/questions are
+   implemented and reuse the attendee booking parser, atomic create/edit lower
+   layers, and shared calendar selection helpers, but full attendee-route
+   shared-core extraction is not.
+- [x] Nav entry + calendar deep-link + kind-aware activity-log links
+   (`/admin/servicing/:id` for servicing rows). **Status:** nav and activity-log
+   links are done; the calendar availability checker now reuses the shared
+   `select_<id>&start_date=...` format for both attendee creation and servicing
+   hold creation.
+- [x] Audit and exclude across all customer surfaces (checklist above).
+- [x] Ledger integration: add the `cost` account type + `costAccount`, post cost
+   legs via the ledger path, add the `cost`/`profit` projections, and surface
+   Costs/Profit in the listings table + ledger UI. Ensure servicing posts **no**
+   sale/payment/fee legs. **Status:** implemented as append-only accounting:
+   cost edits post adjustment legs and deleting/purging a servicing event leaves
+   cost history intact rather than reversing it.
+- [x] Full test pass + precommit.
 
 ---
 

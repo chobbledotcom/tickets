@@ -212,7 +212,7 @@ export const executeWithoutCacheInvalidation = async (
 /** Query single row, returning null if not found */
 export const queryOne = async <T>(
   sql: string,
-  args: InValue[],
+  args?: InValue[],
 ): Promise<T | null> => {
   const rows = resultRows<T>(await execute(sql, args));
   return rows.length === 0 ? null : rows[0]!;

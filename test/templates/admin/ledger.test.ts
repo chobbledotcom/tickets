@@ -71,14 +71,23 @@ describe("resolveAccountLabel", () => {
     });
   });
 
-  test("links a revenue leg to its listing and a modifier leg to its edit page", () => {
+  test("links listing-backed revenue and cost legs to the listing", () => {
     const refs = names({
       listings: new Map([[3, "Summer Concert"]]),
-      modifiers: new Map([[5, "Early bird"]]),
     });
     expect(resolveAccountLabel(account("revenue", 3), refs)).toEqual({
       href: "/admin/listing/3",
       text: "Summer Concert",
+    });
+    expect(resolveAccountLabel(account("cost", 3), refs)).toEqual({
+      href: "/admin/listing/3",
+      text: "Summer Concert",
+    });
+  });
+
+  test("links modifier legs to their edit page", () => {
+    const refs = names({
+      modifiers: new Map([[5, "Early bird"]]),
     });
     expect(resolveAccountLabel(account("modifier", 5), refs)).toEqual({
       href: "/admin/modifiers/5/edit",
@@ -101,6 +110,9 @@ describe("resolveAccountLabel", () => {
       text: "Attendee #42",
     });
     expect(resolveAccountLabel(account("revenue", 9), names())).toEqual({
+      text: "Listing #9",
+    });
+    expect(resolveAccountLabel(account("cost", 9), names())).toEqual({
       text: "Listing #9",
     });
     expect(resolveAccountLabel(account("modifier", 8), names())).toEqual({

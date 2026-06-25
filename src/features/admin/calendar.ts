@@ -254,7 +254,7 @@ const loadStandardListingAttendees = async (
   const rawStandardAttendees = await getAttendeesByListingIds(
     matchingListingIds,
     // Operational calendar (standard-listing rows + CSV): exclude no-quantity.
-    true,
+    { activeOnly: true, kindScope: "attendees-and-servicing" },
   );
   if (standardListings) {
     const matchingListings = standardListings.filter((e) =>

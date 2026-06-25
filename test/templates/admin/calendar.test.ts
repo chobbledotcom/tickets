@@ -399,6 +399,8 @@ describe("adminCalendarPage availability checker", () => {
     expect(html).toContain("3/5");
     expect(html).toContain('name="select_7"');
     expect(html).toContain('action="/admin/attendees/new"');
+    expect(html).toContain('formaction="/admin/servicing/new"');
+    expect(html).toContain("Create Service Event");
   });
 
   test("marks a sold-out row as danger", () => {

@@ -4,6 +4,7 @@
 
 import { joinStrings, map, pipe } from "#fp";
 import { t } from "#i18n";
+import { attendeeAdminPath } from "#shared/attendee-links.ts";
 import { formatDatetimeShort } from "#shared/dates.ts";
 import type { ActivityLogEntry } from "#shared/db/activityLog.ts";
 import type { SafeHtml } from "#shared/jsx/jsx-runtime.ts";
@@ -38,7 +39,10 @@ const SquareSignatureHint = (): SafeHtml => (
  * and reading listing names from cache — so the template stays render-only.
  */
 export interface ActivityLogRefs {
-  attendees: Map<number, string>;
+  attendees: {
+    kinds: Map<number, string>;
+    names: Map<number, string>;
+  };
   listings: Map<number, string>;
 }
 
@@ -56,6 +60,18 @@ const refLink = (
   if (id === null) return null;
   const name = names.get(id);
   return name === undefined ? null : <a href={`${base}/${id}`}>{name}</a>;
+};
+
+const attendeeRefLink = (
+  id: number | null,
+  refs: ActivityLogRefs["attendees"],
+): JSX.Element | null => {
+  if (id === null) return null;
+  const name = refs.names.get(id);
+  const kind = refs.kinds.get(id);
+  return name === undefined || kind === undefined ? null : (
+    <a href={attendeeAdminPath({ id, kind })}>{name}</a>
+  );
 };
 
 const ActivityLogRow = ({
@@ -76,9 +92,7 @@ const ActivityLogRow = ({
       </td>
       {refs ? (
         <>
-          <td>
-            {refLink(entry.attendee_id, refs.attendees, "/admin/attendees")}
-          </td>
+          <td>{attendeeRefLink(entry.attendee_id, refs.attendees)}</td>
           <td>{refLink(entry.listing_id, refs.listings, "/admin/listing")}</td>
         </>
       ) : null}

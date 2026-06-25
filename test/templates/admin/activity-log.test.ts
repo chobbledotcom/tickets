@@ -14,7 +14,7 @@ const TEST_SESSION = { adminLevel: "owner" as const };
 /** Empty reference lookups — the global log always takes refs, even when no
  * entry links to an attendee or listing. */
 const emptyRefs = (): ActivityLogRefs => ({
-  attendees: new Map(),
+  attendees: { kinds: new Map(), names: new Map() },
   listings: new Map(),
 });
 
@@ -152,7 +152,10 @@ describe("adminGlobalActivityLogPage reference columns", () => {
     attendees: [number, string][],
     listings: [number, string][],
   ): ActivityLogRefs => ({
-    attendees: new Map(attendees),
+    attendees: {
+      kinds: new Map(attendees.map(([id]) => [id, "attendee"])),
+      names: new Map(attendees),
+    },
     listings: new Map(listings),
   });
 
@@ -218,6 +221,18 @@ describe("adminGlobalActivityLogPage reference columns", () => {
     );
     expect(html).not.toContain('href="/admin/attendees/42"');
     expect(html).toContain("Attendee deleted");
+  });
+
+  test("renders no link when the referenced listing no longer exists", () => {
+    const entries = [logEntry({ listing_id: 99, message: "Listing deleted" })];
+    const html = adminGlobalActivityLogPage(
+      entries,
+      false,
+      TEST_SESSION,
+      emptyRefs(),
+    );
+    expect(html).not.toContain('href="/admin/listing/99"');
+    expect(html).toContain("Listing deleted");
   });
 });
 

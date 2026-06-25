@@ -15,6 +15,7 @@ import type {
 import { hasDuplicateBookingSlot } from "#shared/db/attendees/booking-slot.ts";
 import { buildCapacityCheckedInsert } from "#shared/db/attendees/capacity.ts";
 import { deleteAttendee } from "#shared/db/attendees/delete.ts";
+import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
 import {
   contactFields,
   encryptAttendeeFields,
@@ -86,6 +87,7 @@ export const ensureAllBookings = async (
 
 /** Order-level fields shared by every booking in one atomic create. */
 type AttendeeOrderFields = {
+  kind?: string;
   statusId: number | null;
   remainingBalance: number;
 };
@@ -100,6 +102,7 @@ export const buildAttendeeInsert = (
 ) =>
   insert("attendees", {
     created: enc.created,
+    kind: order.kind ?? ATTENDEE_KIND,
     pii_blob: enc.encryptedPiiBlob,
     status_id: order.statusId,
     ticket_token_index: enc.ticketTokenIndex,
@@ -119,6 +122,7 @@ const buildAttendeeResult = (input: BuildAttendeeInput): Attendee => ({
   end_date: input.date
     ? addDays(input.date, normalizeDurationDays(input.durationDays ?? 1))
     : null,
+  kind: input.kind,
   payment_id: input.paymentId,
   pii_blob: "",
   price_paid: String(input.pricePaid),
@@ -362,7 +366,11 @@ const prepareAttendeeWrite = async (
   return {
     ok: true,
     prepared: {
-      attendeeInsert: buildAttendeeInsert(enc, { remainingBalance, statusId }),
+      attendeeInsert: buildAttendeeInsert(enc, {
+        kind: input.kind,
+        remainingBalance,
+        statusId,
+      }),
       bookingStatements,
       enc,
     },
@@ -397,6 +405,7 @@ const finishAttendeeWrite = async (
             created: enc.created,
             date: booking.date ?? null,
             durationDays: booking.durationDays,
+            kind: input.kind ?? ATTENDEE_KIND,
             paymentId: input.paymentId ?? "",
             pricePaid: booking.pricePaid ?? 0,
             quantity: booking.quantity ?? 1,

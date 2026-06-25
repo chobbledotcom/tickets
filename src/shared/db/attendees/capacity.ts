@@ -116,15 +116,32 @@ export const getGroupRemainingByListingId = async (
   return result;
 };
 
+const listingForCapacity = async (
+  listingOrId: ListingForGroupLookup | number,
+): Promise<ListingForGroupLookup | null> =>
+  typeof listingOrId === "number"
+    ? await getListingWithCount(listingOrId)
+    : listingOrId;
+
 /** Returns `undefined` when no group cap applies: ungrouped, uncapped
  * group, or daily listing without a `date`. */
-export const getGroupRemainingForListing = async (
+export function getGroupRemainingForListing(
   listing: ListingForGroupLookup,
+  date?: string | null,
+): Promise<number | undefined>;
+export function getGroupRemainingForListing(
+  listingId: number,
+  date?: string | null,
+): Promise<number | undefined>;
+export async function getGroupRemainingForListing(
+  listingOrId: ListingForGroupLookup | number,
   date: string | null = null,
-): Promise<number | undefined> => {
+): Promise<number | undefined> {
+  const listing = await listingForCapacity(listingOrId);
+  if (!listing) return undefined;
   const map = await getGroupRemainingByListingId([listing], date);
   return map.get(listing.id);
-};
+}
 
 /**
  * Build an INSERT into listing_attendees, capacity-checked by default.
@@ -176,7 +193,10 @@ export const buildCapacityCheckedInsert = (
 // ---------------------------------------------------------------------------
 
 /** Expand a daily-listing range into individual day strings. */
-const expandDailyRange = (date: string, durationDays: number): string[] => {
+export const expandDailyRange = (
+  date: string,
+  durationDays: number,
+): string[] => {
   const duration = normalizeDurationDays(durationDays);
   return Array.from({ length: duration }, (_, i) => addDays(date, i));
 };
@@ -201,7 +221,7 @@ const sumQuantity = sumOf((row: { quantity: number }) => row.quantity);
 /** Curried day-overlap predicate. String comparison mirrors SQLite TEXT
  * comparison byte-for-byte, so this reproduces the SQL overlap predicate
  * `start_at < dayEnd AND end_at > dayStart` exactly. */
-const overlapsDay = (day: string) => {
+export const overlapsDay = (day: string) => {
   const { startAt, endAt } = dateToRange(day);
   return (row: IntervalRow): boolean =>
     row.start_at < endAt && row.end_at > startAt;
@@ -433,10 +453,6 @@ export const checkBatchAvailabilityImpl = async (
  * the same shape the batch check uses. `ListingWithCount` satisfies it. */
 export type ListingCapacityRow = ListingRow;
 
-/** Clamp a possibly-negative remaining figure to zero — a listing is never
- * "negatively available" even when it has been overbooked. */
-const atLeastZero = (n: number): number => Math.max(0, n);
-
 /** All overlapping interval rows for several listings in one query, grouped by
  * listing id — so per-day loads come from one round trip, not one per listing. */
 const overlappingRowsByListing = async (
@@ -510,12 +526,7 @@ const groupPerDayRemainingByGroup = async (
     const loads = perDayLoads(groupRows, days);
     result.set(
       id,
-      new Map(
-        days.map((day) => [
-          day,
-          atLeastZero(max_attendees - base - loads.get(day)!),
-        ]),
-      ),
+      new Map(days.map((day) => [day, max_attendees - base - loads.get(day)!])),
     );
   }
   return result;
@@ -534,7 +545,7 @@ const groupPerDayRemainingByGroup = async (
  * Batched into a constant ≤4 queries regardless of how many listings are passed,
  * so a large catalogue can't blow the per-request query budget.
  */
-export const getListingRemainingForRange = async (
+const getListingRemainingMapForRange = async (
   listings: ListingCapacityRow[],
   date: string | null,
   durationDays = 1,
@@ -566,10 +577,7 @@ export const getListingRemainingForRange = async (
     const base = l.max_attendees - l.attendee_count;
     const group =
       l.group_id > 0 ? totalGroupRemaining.get(l.group_id) : undefined;
-    result.set(
-      l.id,
-      atLeastZero(group === undefined ? base : Math.min(base, group)),
-    );
+    result.set(l.id, group === undefined ? base : Math.min(base, group));
   }
   for (const l of daily) {
     const loads = perDayLoads(overlapByListing.get(l.id) ?? [], days);
@@ -583,10 +591,38 @@ export const getListingRemainingForRange = async (
           Math.min(...days.map((day) => groupPerDay.get(day)!)),
         )
       : listingRemaining;
-    result.set(l.id, atLeastZero(remaining));
+    result.set(l.id, remaining);
   }
   return result;
 };
+
+export function getListingRemainingForRange(
+  listings: ListingCapacityRow[],
+  date: string | null,
+  durationDays?: number,
+): Promise<Map<number, number>>;
+export function getListingRemainingForRange(
+  listingId: number,
+  date: string | null,
+  durationDays?: number,
+): Promise<number | undefined>;
+export async function getListingRemainingForRange(
+  listingsOrId: ListingCapacityRow[] | number,
+  date: string | null,
+  durationDays = 1,
+): Promise<Map<number, number> | number | undefined> {
+  if (typeof listingsOrId !== "number") {
+    return getListingRemainingMapForRange(listingsOrId, date, durationDays);
+  }
+  const listing = await getListingWithCount(listingsOrId);
+  if (!listing) return undefined;
+  const remaining = await getListingRemainingMapForRange(
+    [listing],
+    date,
+    durationDays,
+  );
+  return remaining.get(listingsOrId);
+}
 
 /**
  * Batched capacity check: whether each booking fits, in a single query. The

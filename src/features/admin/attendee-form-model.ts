@@ -58,6 +58,7 @@ export const LINE_KEY_PREFIX = "line_key_";
 export const SHOW_ALL_FIELD = "show_all";
 export const STATUS_FIELD = "status_id";
 export const REMAINING_BALANCE_FIELD = "remaining_balance";
+export { START_DATE_FIELD };
 
 /** DOM id of the add/edit form, also the post-save scroll anchor. */
 export const ATTENDEE_FORM_ID = "attendee-form";
@@ -351,7 +352,7 @@ export const parseAttendeeForm = (
 // Validation
 // ---------------------------------------------------------------------------
 
-const validateAttendeeBlock = (
+export const validateAttendeeBlock = (
   parsed: ParsedAttendeeForm,
 ): AttendeeFieldError | null => {
   if (!parsed.name.trim()) {

@@ -489,6 +489,8 @@ describeWithEnv(
         expect(html).toContain("Avail Listing");
         expect(html).toContain("5/5");
         expect(html).toContain('action="/admin/attendees/new"');
+        expect(html).toContain('formaction="/admin/servicing/new"');
+        expect(html).toContain("Create Service Event");
         expect(html).toContain(`name="select_${listing.id}"`);
       });
 

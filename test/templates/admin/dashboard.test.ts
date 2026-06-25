@@ -1,16 +1,28 @@
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
+import {
+  NO_QUANTITY_PREFIX,
+  QTY_PREFIX,
+} from "#routes/admin/attendee-form-model.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
+import { getDb } from "#shared/db/client.ts";
 import {
   activeListingStatsSection,
   adminDashboardPage,
   adminListingsPage,
 } from "#templates/admin/dashboard.tsx";
 import {
+  adminPost,
+  createDailyTestListing,
+  createServicingHold,
+  createTestListing,
+  createTestServicingEvent,
   describeWithEnv,
+  renderAdminPage,
   setupTestEncryptionKey,
   testAttendee,
   testListingWithCount,
+  updateServicingEvent,
 } from "#test-utils";
 
 const TEST_SESSION = { adminLevel: "owner" as const };
@@ -100,6 +112,45 @@ describe("adminDashboardPage", () => {
     expect(html).toContain("Winter Break");
     expect(html).toContain("2026-12-24");
     expect(html).toContain("2026-12-26");
+  });
+
+  test("renders upcoming service events with listing details and edit links", () => {
+    const listings = [testListingWithCount({ id: 7, name: "Room A" })];
+    const html = adminDashboardPage(
+      listings,
+      TEST_SESSION,
+      undefined,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      "all",
+      [],
+      [
+        {
+          date: "2099-07-01",
+          id: 42,
+          listingId: 7,
+          name: "Boiler Service",
+          quantity: 2,
+        },
+        {
+          date: null,
+          id: 43,
+          listingId: 999,
+          name: "Unassigned Service",
+          quantity: 1,
+        },
+      ],
+    );
+    expect(html).toContain("Upcoming service events</summary>");
+    expect(html).toContain('href="/admin/servicing/42"');
+    expect(html).toContain("Boiler Service");
+    expect(html).toContain("Room A");
+    expect(html).toContain("2099");
+    expect(html).toContain("Room A · 2");
+    expect(html).toContain('href="/admin/servicing/43"');
+    expect(html).toContain("Unassigned Service");
   });
 
   test("newest attendees shows singular for single attendee", () => {
@@ -484,6 +535,132 @@ describe("adminDashboardPage type filter", () => {
   test("does not show a CSV export footer (the dashboard table is active-only)", () => {
     const html = adminDashboardPage([standard, daily], TEST_SESSION);
     expect(html).not.toContain("/admin/listings/csv");
+  });
+});
+
+describeWithEnv("admin servicing routes", { db: true }, () => {
+  test("the servicing list route renders service-event row details", async () => {
+    const listing = await createDailyTestListing({
+      maxAttendees: 5,
+      name: "Route Room",
+    });
+    const event = await createTestServicingEvent({
+      bookings: [{ date: "2099-07-01", listingId: listing.id, quantity: 2 }],
+      name: "Route Service",
+    });
+    const deletedListing = await createTestListing({
+      maxAttendees: 5,
+      name: "Deleted Route Listing",
+    });
+    await createTestServicingEvent({
+      bookings: [{ listingId: deletedListing.id, quantity: 1 }],
+      name: "Undated Route Service",
+    });
+    await getDb().execute({
+      args: [deletedListing.id],
+      sql: "DELETE FROM listings WHERE id = ?",
+    });
+
+    const html = await renderAdminPage("/admin/servicing");
+
+    expect(html).toContain('class="servicing-event"');
+    expect(html).toContain(`/admin/servicing/${event.id}`);
+    expect(html).toContain("Route Service");
+    expect(html).toContain("Route Room");
+    expect(html).toContain("<td>2</td>");
+    expect(html).toContain("Undated Route Service");
+    expect(html).not.toContain("Deleted Route Listing");
+  });
+
+  test("the servicing update route updates name and default booking quantity", async () => {
+    const { id, listing } = await createServicingHold({
+      name: "Before Route Update",
+    });
+
+    const response = await adminPost(`/admin/servicing/${id}`, {
+      name: "After Route Update",
+      [`${QTY_PREFIX}${listing.id}`]: "1",
+    });
+
+    expect(response.headers.get("location")).toContain(
+      `/admin/servicing/${id}`,
+    );
+    const updated = await updateServicingEvent(id, {
+      bookings: [{ listingId: listing.id }],
+      name: "Default Quantity Update",
+    });
+    expect(updated.bookings[0]!.quantity).toBe(1);
+  });
+
+  test("the servicing update route records costs when amount is present", async () => {
+    const { id, listing } = await createServicingHold({
+      name: "Route Cost",
+    });
+
+    const response = await adminPost(`/admin/servicing/${id}`, {
+      amount: "12.34",
+      memo: "Route cost",
+      target_listing_id: String(listing.id),
+    });
+
+    expect(response.headers.get("location")).toContain(
+      `/admin/servicing/${id}`,
+    );
+  });
+
+  test("servicing mutation routes return not found for missing events", async () => {
+    const editResponse = await adminPost("/admin/servicing/999999", {
+      name: "Missing",
+      [`${QTY_PREFIX}1`]: "1",
+    });
+    expect(editResponse.status).toBe(404);
+
+    const costResponse = await adminPost("/admin/servicing/999999/cost/1", {
+      amount: "1.00",
+    });
+    expect(costResponse.status).toBe(404);
+  });
+
+  test("servicing create rejects retained zero-quantity and over-capacity holds", async () => {
+    const listing = await createDailyTestListing({
+      maxAttendees: 1,
+      name: "Validation Room",
+    });
+
+    await expect(
+      adminPost("/admin/servicing/new", {
+        name: "No Quantity Service",
+        [`${NO_QUANTITY_PREFIX}${listing.id}`]: "1",
+        [`${QTY_PREFIX}${listing.id}`]: "9",
+      }),
+    ).rejects.toThrow("capacity slot");
+
+    await expect(
+      createTestServicingEvent({
+        bookings: [{ date: "2099-07-01", listingId: listing.id, quantity: 0 }],
+        name: "Zero Quantity Service",
+      }),
+    ).rejects.toThrow("capacity slot");
+
+    await expect(
+      createTestServicingEvent({
+        bookings: [],
+        name: "Empty Service",
+      }),
+    ).rejects.toThrow("capacity slot");
+
+    const defaultQuantity = await createTestServicingEvent({
+      bookings: [{ date: "2099-07-02", listingId: listing.id }],
+      name: "Default Quantity Service",
+    });
+    expect(defaultQuantity.bookings[0]!.quantity).toBe(1);
+
+    await expect(
+      createTestServicingEvent({
+        bookings: [{ date: "2099-07-01", listingId: listing.id, quantity: 2 }],
+        name: "Over Capacity Service",
+      }),
+    ).rejects.toThrow();
   });
 });
 

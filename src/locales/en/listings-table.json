@@ -118,6 +118,8 @@
   "listings_table.income_ledger_gross_sales": "Gross ticket sales",
   "listings_table.income_ledger_manual_adjustments": "Manual adjustments",
   "listings_table.income_ledger_recognised_income": "Recognised income",
+  "listings_table.income_ledger_costs": "Costs",
+  "listings_table.income_ledger_profit": "Profit",
   "listings_table.income_ledger_refunds": "Refunds",
   "listings_table.income_ledger_net_balance": "Net balance in ledger",
   "listings_table.income_ledger_recognised_note": "Recognised income is the figure reported above and in exports; it is refund-agnostic. The net balance is the live balance of this listing's revenue account, which also nets refunds — so the two reconcile here.",

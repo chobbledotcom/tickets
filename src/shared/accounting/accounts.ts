@@ -11,6 +11,7 @@ import type { AccountRef } from "#shared/ledger/types.ts";
  *  the batch booking writer can tell which side of a leg is the attendee account
  *  and render its id as an in-batch subquery rather than a literal. */
 export const ATTENDEE = "attendee";
+export const COST = "cost";
 const REVENUE = "revenue";
 const MODIFIER = "modifier";
 const FEE_INCOME = "fee_income";
@@ -56,6 +57,9 @@ export const attendeeAccount = rowAccount(ATTENDEE);
 
 /** Gross ticket revenue for one listing. */
 export const revenueAccount = rowAccount(REVENUE);
+
+/** Operator-recorded servicing costs for one listing. */
+export const costAccount = rowAccount(COST);
 
 /** One discount/surcharge modifier's net effect. */
 export const modifierAccount = rowAccount(MODIFIER);

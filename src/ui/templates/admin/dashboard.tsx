@@ -15,6 +15,7 @@ import {
 } from "#shared/columns/listing-columns.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { formatCurrency } from "#shared/currency.ts";
+import type { UpcomingServicingEvent } from "#shared/db/attendees/servicing.ts";
 import type { ActiveListingStats } from "#shared/db/attendees.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { Flash } from "#shared/forms.tsx";
@@ -193,32 +194,71 @@ const upcomingHolidaysSection = (holidays: Holiday[]): string =>
     </details>,
   );
 
+const upcomingServicingSection = (
+  events: UpcomingServicingEvent[],
+  listings: ListingWithCount[],
+): string => {
+  const listingNames = new Map(
+    listings.map((listing) => [listing.id, listing.name]),
+  );
+  const rows = pipe(
+    map((event: UpcomingServicingEvent) => {
+      const listing = listingNames.get(event.listingId);
+      const details = [
+        event.date ? new Date(event.date).toLocaleDateString() : "",
+        listing ?? "",
+        `${event.quantity}`,
+      ].filter(Boolean);
+      return `<li><a href="/admin/servicing/${event.id}">${escapeHtml(
+        event.name,
+      )}</a> <span class="muted">${escapeHtml(details.join(" · "))}</span></li>`;
+    }),
+    joinStrings,
+  )(events);
+  return String(
+    <details open>
+      <summary>{t("admin.dashboard.upcoming_service_events")}</summary>
+      <ul>
+        <Raw html={rows} />
+      </ul>
+    </details>,
+  );
+};
+
 /** Render the listing table with dynamic column keys */
 export const renderListingTable = (
   columnKeys: string[],
   rows: string,
 ): string => {
+  const validColumnKeys = columnKeys.filter(
+    (key) => LISTING_TABLE_COLUMNS[key],
+  );
   const headers = pipe(
     map(
       (key: string) => `<th>${getHeaderText(LISTING_TABLE_COLUMNS[key]!)}</th>`,
     ),
     joinStrings,
-  )(columnKeys);
+  )(validColumnKeys);
   return `<table><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
 };
 
-const renderListingsTableSection = (
+export const renderListingsTableSection = (
   listings: ListingWithCount[],
   columnKeys: string[],
   filters: Map<string, string>,
 ): string => {
+  const validColumnKeys = columnKeys.filter(
+    (key) => LISTING_TABLE_COLUMNS[key],
+  );
   const listingRows =
     listings.length > 0
       ? pipe(
-          map((e: ListingWithCount) => ListingRow({ columnKeys, e, filters })),
+          map((e: ListingWithCount) =>
+            ListingRow({ columnKeys: validColumnKeys, e, filters }),
+          ),
           joinStrings,
         )(listings)
-      : `<tr><td colspan="${columnKeys.length}">${t("admin.dashboard.no_listings")}</td></tr>`;
+      : `<tr><td colspan="${validColumnKeys.length}">${t("admin.dashboard.no_listings")}</td></tr>`;
 
   return String(
     <div class="table-scroll">
@@ -268,6 +308,7 @@ export const adminDashboardPage = (
   listingColumnTemplate?: string,
   activeType: ListingFilter = "all",
   upcomingHolidays: Holiday[] = [],
+  upcomingServicingEvents: UpcomingServicingEvent[] = [],
 ): string => {
   const { columnKeys, filters } = resolveColumnLayout(
     listingColumnTemplate ?? "",
@@ -314,6 +355,12 @@ export const adminDashboardPage = (
 
       {upcomingHolidays.length > 0 && (
         <Raw html={upcomingHolidaysSection(upcomingHolidays)} />
+      )}
+
+      {upcomingServicingEvents.length > 0 && (
+        <Raw
+          html={upcomingServicingSection(upcomingServicingEvents, listings)}
+        />
       )}
 
       {activeListings.length >= 2 && (

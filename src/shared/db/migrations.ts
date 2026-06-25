@@ -68,6 +68,7 @@ import listingAttendeeLedgerEventGroupMigration from "./migrations/2026-06-22_li
 import transfersTimeIntMigration from "./migrations/2026-06-22_transfers_time_int.ts";
 import systemNotesMigration from "./migrations/2026-06-23_system_notes.ts";
 import ticketCountNoQuantityMigration from "./migrations/2026-06-23_ticket_count_no_quantity.ts";
+import attendeesKindMigration from "./migrations/2026-06-24_attendees_kind.ts";
 import { repairLegacyRenames } from "./migrations/rename-utils.ts";
 import {
   LATEST_UPDATE,
@@ -237,6 +238,7 @@ export const MIGRATIONS: Migration[] = [
   // Runs after drop_listing_income so the trigger rebuild lands on top of the
   // income-free bodies: re-counts tickets_count as quantity > 0 only.
   ticketCountNoQuantityMigration,
+  attendeesKindMigration,
 ].map((build) => build(migrationContext));
 
 export const MIGRATION_IDS: string[] = MIGRATIONS.map(

@@ -148,6 +148,7 @@ export const DEMO_SERVICING_NAMES = [
   "Window Replacement",
   "Asbestos Survey",
   "Insurance Inspection",
+  "Stage Lighting Focus",
 ] as const;
 
 /** Demo first names for seed data (combined with surnames for more variety) */

@@ -83,6 +83,7 @@ const LIBRARY_PATHS = [
   "shared/checkout-ledger.ts",
   "shared/accounting/store.ts",
   "shared/accounting/queries.ts",
+  "shared/accounting/projection.ts",
   "shared/accounting/mappers.ts",
 ];
 

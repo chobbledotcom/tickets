@@ -23,6 +23,7 @@ import {
   ATTENDEE_DEFAULT_ORDER,
   ATTENDEE_TABLE_COLUMNS,
 } from "#shared/columns/attendee-columns.ts";
+import { isServicing } from "#shared/db/attendees/kind.ts";
 import type {
   AttendeeQuestionData,
   QuestionWithAnswers,
@@ -223,6 +224,13 @@ const CheckinButton = ({
 const createStatusRenderer =
   (opts: AttendeeTableOptions) =>
   (row: AttendeeTableRow): string => {
+    if (isServicing(row.attendee.kind)) {
+      return String(
+        <span class="servicing-event" data-servicing="true">
+          {t("admin.attendee_table.servicing")}
+        </span>,
+      );
+    }
     // A no-quantity sentinel row stays visible but isn't checkable — show the
     // indicator instead of a check-in button (updateCheckedIn refuses it).
     if (!hasTicketQuantity(row.attendee)) {
@@ -258,7 +266,11 @@ const AttendeeRow = (
   colOpts: AttendeeColumnOpts,
   filters: Map<string, string>,
 ): string =>
-  `<tr>${renderCells(
+  `<tr${
+    isServicing(row.attendee.kind)
+      ? ' class="servicing-event" data-servicing="true"'
+      : ""
+  }>${renderCells(
     row,
     visibleColumns,
     ATTENDEE_TABLE_COLUMNS,

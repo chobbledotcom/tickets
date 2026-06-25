@@ -18,6 +18,7 @@ import { decrypt } from "#shared/crypto/encryption.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getPaidDefaultStatus } from "#shared/db/attendee-statuses.ts";
+import { ATTENDEE_KIND } from "#shared/db/attendees/kind.ts";
 import {
   pricePaidFromLedger,
   remainingBalanceFromLedger,
@@ -43,8 +44,8 @@ export const getAttendeeBalanceState = async (
     status_id: number | null;
     remaining_balance: number;
   }>(
-    `SELECT status_id, ${remainingBalanceFromLedger("attendees.id")} FROM attendees WHERE id = ?`,
-    [attendeeId],
+    `SELECT status_id, ${remainingBalanceFromLedger("attendees.id")} FROM attendees WHERE id = ? AND kind = ?`,
+    [attendeeId, ATTENDEE_KIND],
   );
   return row
     ? {

@@ -72,6 +72,11 @@ const ROW_ACCOUNT_KINDS: Record<string, RowAccountKind> = {
     href: (id) => `/admin/attendees/${id}`,
     names: (refs) => refs.attendees,
   },
+  cost: {
+    fallbackKey: "admin.ledger.fallback.revenue",
+    href: (id) => `/admin/listing/${id}`,
+    names: (refs) => refs.listings,
+  },
   modifier: {
     fallbackKey: "admin.ledger.fallback.modifier",
     href: (id) => `/admin/modifiers/${id}/edit`,

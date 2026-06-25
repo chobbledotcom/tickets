@@ -441,7 +441,11 @@ export const stubFetchRecorder = (responseInit?: ResponseInit) => {
       );
     },
   );
-  return { calls, restore: () => fetchStub.restore() };
+  return {
+    callCount: () => calls.length,
+    calls,
+    restore: () => fetchStub.restore(),
+  };
 };
 
 export const useFetchStub = () => {

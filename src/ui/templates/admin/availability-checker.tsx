@@ -122,13 +122,26 @@ export const AvailabilityChecker = ({
               </tbody>
             </table>
           </div>
-          <button class="order-cart" type="submit">
-            <Icon name="user-plus" />
-            <span aria-hidden="true" class="order-cart-count"></span>
-            <span class="order-cart-label">
-              {t("availability.create_attendee")}
-            </span>
-          </button>
+          <div class="order-actions">
+            <button class="order-cart" type="submit">
+              <Icon name="user-plus" />
+              <span aria-hidden="true" class="order-cart-count"></span>
+              <span class="order-cart-label">
+                {t("availability.create_attendee")}
+              </span>
+            </button>
+            <button
+              class="order-cart"
+              formaction="/admin/servicing/new"
+              type="submit"
+            >
+              <Icon name="hammer" />
+              <span aria-hidden="true" class="order-cart-count"></span>
+              <span class="order-cart-label">
+                {t("availability.create_service_event")}
+              </span>
+            </button>
+          </div>
         </form>
       )}
     </div>

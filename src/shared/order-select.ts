@@ -4,10 +4,11 @@
  * Used by the public `/order` gallery and the admin calendar availability
  * checker so both speak the same wire format: a checked box submits
  * `select_<listingId>=1`, and an optional `start_date` carries the anchor date
- * the selection was made for. `parseSelectedListingIds` reads the listing ids
- * back out — the create-attendee form uses it to pre-fill the chosen listings.
+ * the selection was made for. The admin attendee and servicing create forms use
+ * the shared readers here to pre-fill the chosen listings.
  */
 
+import { isIsoDate } from "#shared/validation/date.ts";
 import { parsePositiveIntId } from "#shared/validation/number.ts";
 
 export const SELECT_PREFIX = "select_";
@@ -26,4 +27,14 @@ export const parseSelectedListingIds = (params: URLSearchParams): number[] => {
     if (id !== null) ids.add(id);
   }
   return [...ids].sort((a, b) => a - b);
+};
+
+export const selectedListingQuantities = (
+  params: URLSearchParams,
+): Map<number, number> =>
+  new Map(parseSelectedListingIds(params).map((id) => [id, 1]));
+
+export const selectedStartDate = (params: URLSearchParams): string => {
+  const start = params.get(START_DATE_FIELD) ?? "";
+  return isIsoDate(start) ? start : "";
 };

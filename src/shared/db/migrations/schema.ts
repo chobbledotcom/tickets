@@ -1,5 +1,7 @@
 /** Declarative database schema and schema hash. */
 
+import { ATTENDEE_KIND, SERVICING_KIND } from "#shared/db/attendees/kind.ts";
+
 // ─── Types ──────────────────────────────────────────────────────
 
 export type Column = [name: string, type: string];
@@ -32,7 +34,7 @@ export type Trigger = {
 // ─── Version — update LATEST_UPDATE to describe each change ─────
 
 export const LATEST_UPDATE =
-  "Add a system_notes table of per-attendee operator-visible notes (id, attendee_id, type, encrypted note, created) — `system` notes encrypted with the symmetric DB_ENCRYPTION_KEY, `owner` notes with the owner public key — pruned with the attendee on delete; and exclude no-quantity (quantity = 0) booking lines from listings.tickets_count by rebuilding the listing-aggregate triggers to count only quantity > 0 rows.";
+  "Add an attendees.kind discriminator for customer attendees vs servicing holds, indexed for kind-filtered readers; servicing rows consume capacity but are excluded from tickets_count and customer-facing attendee surfaces.";
 
 // ─── Schema (ordered: tables with no FK deps first) ─────────────
 
@@ -271,6 +273,10 @@ export const SCHEMA: [name: string, table: Table][] = [
       columns: [
         ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
         ["created", "TEXT NOT NULL"],
+        [
+          "kind",
+          `TEXT DEFAULT '${ATTENDEE_KIND}' CHECK (kind IS NULL OR kind IN ('${ATTENDEE_KIND}', '${SERVICING_KIND}')) /* NOT NULL */`,
+        ],
         ["checked_in", "TEXT NOT NULL DEFAULT ''"],
         ["ticket_token_index", "TEXT"],
         ["pii_blob", "TEXT NOT NULL DEFAULT ''"],
@@ -282,6 +288,10 @@ export const SCHEMA: [name: string, table: Table][] = [
         ["phone_index", "TEXT NOT NULL DEFAULT ''"],
       ],
       indexes: [
+        {
+          columns: ["kind"],
+          name: "idx_attendees_kind",
+        },
         {
           columns: ["ticket_token_index"],
           name: "idx_attendees_ticket_token_index",
@@ -901,7 +911,20 @@ export const LISTING_AGGREGATE_WRITE_COLUMNS = [
  * the schema-sync backfill, and the hold-delete restore in attendees/delete.ts.
  * A guard test asserts the predicate appears at every one of those sites.
  */
-export const TICKET_COUNTS_PREDICATE = "quantity > 0";
+export const TICKET_COUNTS_PREDICATE = `quantity > 0 AND kind = '${ATTENDEE_KIND}'`;
+
+/** Predicate wrapper for contexts that have a listing_attendees row but need
+ * the attendee kind. Missing attendee rows are treated as legacy attendee rows
+ * so raw trigger tests and old FK-less data keep their historical ticket count. */
+export const ticketCountPredicateFor = (
+  quantityExpr: string,
+  attendeeIdExpr: string,
+): string =>
+  `EXISTS (SELECT 1 FROM (SELECT ${quantityExpr} AS quantity, ` +
+  `CASE WHEN EXISTS (SELECT 1 FROM attendees AS attendee WHERE attendee.id = ${attendeeIdExpr}) ` +
+  `THEN (SELECT attendee.kind FROM attendees AS attendee WHERE attendee.id = ${attendeeIdExpr}) ` +
+  `ELSE '${ATTENDEE_KIND}' END AS kind) ` +
+  `WHERE ${TICKET_COUNTS_PREDICATE})`;
 
 /**
  * tickets_count as a COALESCE(SUM(CASE …)) over {@link TICKET_COUNTS_PREDICATE},
@@ -910,7 +933,10 @@ export const TICKET_COUNTS_PREDICATE = "quantity > 0";
  * 0), so an empty listing would otherwise report bogus drift against a stored 0.
  */
 export const ticketCountSumExpr = (): string =>
-  `COALESCE(SUM(CASE WHEN ${TICKET_COUNTS_PREDICATE} THEN 1 ELSE 0 END), 0)`;
+  `COALESCE(SUM(CASE WHEN ${ticketCountPredicateFor(
+    "quantity",
+    "attendee_id",
+  )} THEN 1 ELSE 0 END), 0)`;
 
 /**
  * The per-row delta a listing-aggregate trigger adds to / subtracts from
@@ -918,7 +944,10 @@ export const ticketCountSumExpr = (): string =>
  * toggling a line 0↔n nets out correctly via the OLD/NEW deltas.
  */
 const ticketCountTriggerDelta = (row: "NEW" | "OLD"): string =>
-  `CASE WHEN ${row}.${TICKET_COUNTS_PREDICATE} THEN 1 ELSE 0 END`;
+  `CASE WHEN ${ticketCountPredicateFor(
+    `${row}.quantity`,
+    `${row}.attendee_id`,
+  )} THEN 1 ELSE 0 END`;
 
 /**
  * Triggers that keep the listing count aggregates (booked_quantity,

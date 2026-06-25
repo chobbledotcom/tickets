@@ -2,6 +2,7 @@
  * Types for attendee operations
  */
 
+import type { AttendeeKind } from "#shared/db/attendees/kind.ts";
 import type { BookingSource } from "#shared/db/contact-preferences.ts";
 import type { Attendee, ContactFields, ContactInfo } from "#shared/types.ts";
 
@@ -31,6 +32,7 @@ export type BuildAttendeeInput = ContactInfo & {
   insertId: number | bigint | undefined;
   listingId: number;
   created: string;
+  kind: string;
   paymentId: string;
   quantity: number;
   pricePaid: number;
@@ -68,6 +70,8 @@ export type LineBooking = {
 
 /** Input for creating an attendee atomically (one or more listings) */
 export type AttendeeInput = ContactFields & {
+  /** Discriminator for attendee-like rows. Defaults to the customer attendee kind. */
+  kind?: AttendeeKind;
   paymentId?: string;
   bookings: ListingBooking[];
   /** Order-level remaining balance in minor units (plaintext). Defaults to 0. */
@@ -103,6 +107,7 @@ export type AttendeeWithBookings = {
   /** Base attendee fields (PII, token, created — shared across listings) */
   id: number;
   created: string;
+  kind: string;
   ticket_token: string;
   ticket_token_index: string;
   pii_blob: string;

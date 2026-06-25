@@ -71,13 +71,13 @@ describeWithEnv(
       expect(await remaining(listing.id, null)).toBe(1);
     });
 
-    test("standard listing: overbooked remaining clamps to zero", async () => {
+    test("standard listing: overbooked remaining exposes the negative overage", async () => {
       const listing = await createTestListing({ maxAttendees: 5 });
       await createTestAttendee(listing.id, listing.slug, "A", "a@example.com");
       await createTestAttendee(listing.id, listing.slug, "B", "b@example.com");
       await createTestAttendee(listing.id, listing.slug, "C", "c@example.com");
       await lowerMaxAttendees(listing.id, 2);
-      expect(await remaining(listing.id, null)).toBe(0);
+      expect(await remaining(listing.id, null)).toBe(-1);
     });
 
     test("standard listing: a capped group can shrink remaining", async () => {
@@ -126,11 +126,11 @@ describeWithEnv(
       expect(await remaining(listing.id, "2026-05-01", 3)).toBe(1);
     });
 
-    test("daily listing: overbooked day clamps to zero", async () => {
+    test("daily listing: overbooked day exposes the negative overage", async () => {
       const listing = await createDailyTestListing({ maxAttendees: 3 });
       await bookAttendee(listing, { date: "2026-02-10", quantity: 2 });
       await lowerMaxAttendees(listing.id, 1);
-      expect(await remaining(listing.id, "2026-02-10")).toBe(0);
+      expect(await remaining(listing.id, "2026-02-10")).toBe(-1);
     });
 
     test("daily listing: a capped group shrinks the day it is full", async () => {

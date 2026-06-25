@@ -12,6 +12,12 @@
  * `deleteAttendee` does, so "purge orphans" is exactly "deleteAttendee applied
  * to every orphan", just set-based in one batch. No listing aggregates need
  * restoring: an orphan has no bookings contributing to any listing's totals.
+ *
+ * The `transfers` ledger is append-only history and is never touched by the
+ * purge — a cost-bearing servicing event's `service_cost` legs remain in the
+ * table as orphaned history, the same way sale legs for a deleted listing
+ * remain. The ledger UI resolves the listing/account labels to "Deleted
+ * listing" when the underlying row is gone.
  */
 
 import { executeBatchWithResults, queryOne } from "#shared/db/client.ts";
@@ -36,6 +42,7 @@ const ORPHAN_DEPENDENT_TABLES = [
   "processed_payments",
   "attendee_answers",
   "listing_attendees",
+  "system_notes",
 ] as const;
 
 /** Count orphaned attendees whose `created` is before `cutoffIso`. */
