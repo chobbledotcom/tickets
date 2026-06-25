@@ -8,6 +8,7 @@ import {
   FORM_STASH_MAX_ENTRIES,
   FORM_STASH_TTL_MS,
 } from "#shared/limits.ts";
+import { times } from "#test-utils";
 
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 
@@ -23,6 +24,31 @@ const formStashStat = () => {
   if (stat === undefined)
     throw new Error("form-stash stats are not registered");
   return stat;
+};
+
+const withTimedStash =
+  (data: string) =>
+  (elapsedMs: number) =>
+  <T>(body: (token: string) => T): T => {
+    const time = new FakeTime();
+    try {
+      const token = stashRequired(data);
+      time.tick(elapsedMs);
+      return body(token);
+    } finally {
+      time.restore();
+    }
+  };
+
+const stashIndexedBodies =
+  (field: string) =>
+  (count: number): string[] =>
+    times(count)((i) => stashRequired(`${field}=${i}`));
+
+const fillToCountCap = (): string[] => {
+  const tokens = stashIndexedBodies("fill")(FORM_STASH_MAX_ENTRIES);
+  expect(formStashStat().entries).toBe(FORM_STASH_MAX_ENTRIES);
+  return tokens;
 };
 
 describe("form stash", () => {
@@ -66,69 +92,44 @@ describe("form stash", () => {
   });
 
   test("redeems a body any time before the TTL elapses", () => {
-    const time = new FakeTime();
-    try {
-      const token = stashRequired("name=Carol");
-      time.tick(FORM_STASH_TTL_MS - 1);
+    withTimedStash("name=Carol")(FORM_STASH_TTL_MS - 1)((token) => {
       expect(takeForm(token)).toBe("name=Carol");
-    } finally {
-      time.restore();
-    }
+    });
   });
 
   test("drops a body once the TTL elapses", () => {
-    const time = new FakeTime();
-    try {
-      const token = stashRequired("name=Dave");
-      time.tick(FORM_STASH_TTL_MS + 1);
+    withTimedStash("name=Dave")(FORM_STASH_TTL_MS + 1)((token) => {
       expect(takeForm(token)).toBeNull();
-    } finally {
-      time.restore();
-    }
+    });
   });
 
   test("sweeps expired entries when stashing a new one", () => {
-    const time = new FakeTime();
-    try {
-      const stale = stashRequired("name=Old");
-      time.tick(FORM_STASH_TTL_MS + 1);
+    withTimedStash("name=Old")(FORM_STASH_TTL_MS + 1)((stale) => {
       // A fresh stash triggers the eviction sweep that removes the stale entry.
       const fresh = stashRequired("name=New");
       expect(formStashStat().entries).toBe(1);
       expect(takeForm(stale)).toBeNull();
       expect(takeForm(fresh)).toBe("name=New");
-    } finally {
-      time.restore();
-    }
+    });
   });
 
   test("preserves unexpired entries when sweeping before a new stash", () => {
-    const time = new FakeTime();
-    try {
-      const existing = stashRequired("name=Warm");
-      time.tick(FORM_STASH_TTL_MS - 1);
+    withTimedStash("name=Warm")(FORM_STASH_TTL_MS - 1)((existing) => {
       const fresh = stashRequired("name=Fresh");
       expect(formStashStat().entries).toBe(2);
       expect(takeForm(existing)).toBe("name=Warm");
       expect(takeForm(fresh)).toBe("name=Fresh");
-    } finally {
-      time.restore();
-    }
+    });
   });
 
   test("does not evict entries while filling exactly to the count cap", () => {
-    const tokens = Array.from({ length: FORM_STASH_MAX_ENTRIES }, (_, i) =>
-      stashRequired(`fill=${i}`),
-    );
-    expect(formStashStat().entries).toBe(FORM_STASH_MAX_ENTRIES);
+    const tokens = fillToCountCap();
     expect(takeForm(tokens[0]!)).toBe("fill=0");
     expect(takeForm(tokens.at(-1)!)).toBe(`fill=${FORM_STASH_MAX_ENTRIES - 1}`);
   });
 
   test("evicts exactly the oldest entry once the count cap is exceeded", () => {
-    const tokens = Array.from({ length: FORM_STASH_MAX_ENTRIES }, (_, i) =>
-      stashRequired(`fill=${i}`),
-    );
+    const tokens = fillToCountCap();
     const overflow = stashRequired("overflow=1");
     expect(formStashStat().entries).toBe(FORM_STASH_MAX_ENTRIES);
     expect(takeForm(tokens[0]!)).toBeNull();

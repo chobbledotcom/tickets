@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import {
   base64ToBase64Url,
   constantTimeEqual,
@@ -12,24 +11,14 @@ import {
   toBase64,
   toBase64Url,
 } from "#shared/crypto/utils.ts";
+import { times, withRandomBytes } from "#test-utils";
 
-const withRandomBytes = <T>(bytes: number[], body: () => T): T => {
-  const randomStub = stub(
-    crypto,
-    "getRandomValues",
-    <A extends ArrayBufferView | null>(array: A): A => {
-      if (array instanceof Uint8Array) {
-        for (let i = 0; i < array.length; i++) array[i] = bytes[i] ?? 0;
-      }
-      return array;
-    },
-  );
-  try {
-    return body();
-  } finally {
-    randomStub.restore();
-  }
-};
+const expectUniqueGeneratedValues =
+  (generate: () => string) =>
+  (count: number): void => {
+    const values = new Set(times(count)(generate));
+    expect(values.size).toBe(count);
+  };
 
 describe("constantTimeEqual", () => {
   it("returns true for equal strings", () => {
@@ -85,7 +74,7 @@ describe("encoding helpers", () => {
 
 describe("getRandomBytes", () => {
   it("fills a Uint8Array of the requested length with Web Crypto bytes", () =>
-    withRandomBytes([1, 2, 3, 4], () => {
+    withRandomBytes([1, 2, 3, 4])(() => {
       expect(getRandomBytes(4)).toEqual(new Uint8Array([1, 2, 3, 4]));
     }));
 
@@ -101,23 +90,15 @@ describe("generateSecureToken", () => {
   });
 
   it("generates unique tokens", () => {
-    const tokens = new Set<string>();
-    for (let i = 0; i < 100; i++) {
-      tokens.add(generateSecureToken());
-    }
-    // All 100 tokens should be unique
-    expect(tokens.size).toBe(100);
+    expectUniqueGeneratedValues(generateSecureToken)(100);
   });
 
   it("encodes exactly the bytes returned by Web Crypto", () =>
-    withRandomBytes(
-      Array.from({ length: 32 }, (_, i) => i),
-      () => {
-        expect(generateSecureToken()).toBe(
-          "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
-        );
-      },
-    ));
+    withRandomBytes(times(32)((i) => i))(() => {
+      expect(generateSecureToken()).toBe(
+        "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+      );
+    }));
 });
 
 describe("generateTicketToken", () => {
@@ -135,15 +116,11 @@ describe("generateTicketToken", () => {
   });
 
   it("generates unique tokens", () => {
-    const tokens = new Set<string>();
-    for (let i = 0; i < 100; i++) {
-      tokens.add(generateTicketToken());
-    }
-    expect(tokens.size).toBe(100);
+    expectUniqueGeneratedValues(generateTicketToken)(100);
   });
 
   it("encodes exactly five random bytes as uppercase hex", () =>
-    withRandomBytes([0, 1, 10, 254, 255], () => {
+    withRandomBytes([0, 1, 10, 254, 255])(() => {
       expect(generateTicketToken()).toBe("00010AFEFF");
     }));
 });
