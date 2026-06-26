@@ -226,6 +226,8 @@ export const createTestDbWithSetup = async (
   setTestSession(session);
 };
 
+const ignoreCleanupError = (): void => {};
+
 const createDirectAdminSession = async (): Promise<{
   cookie: string;
   csrfToken: string;
@@ -243,13 +245,10 @@ const createDirectAdminSession = async (): Promise<{
   );
   const { nowMs } = await import("#shared/now.ts");
 
-  const user = await getUserByUsername(TEST_ADMIN_USERNAME);
-  if (!user?.wrapped_data_key) {
-    throw new Error("Admin user not found after setup");
-  }
+  const user = (await getUserByUsername(TEST_ADMIN_USERNAME))!;
   const ownerHash = (await verifyUserPassword(user, TEST_ADMIN_PASSWORD))!;
   const kek = await deriveKEKFromPassword(TEST_ADMIN_PASSWORD, ownerHash);
-  const dataKey = await unwrapKey(user.wrapped_data_key, kek);
+  const dataKey = await unwrapKey(user.wrapped_data_key!, kek);
 
   const token = generateSecureToken();
   const csrfToken = generateSecureToken();
@@ -271,6 +270,7 @@ const cleanupTestDbFile = (): void => {
     getDb().close();
   } catch {
     // client already closed or never opened
+    ignoreCleanupError();
   }
   try {
     Deno.removeSync(url.slice("file:".length));
