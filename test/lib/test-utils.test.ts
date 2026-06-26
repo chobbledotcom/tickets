@@ -1,58 +1,100 @@
+import type { Client } from "@libsql/client";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { getSessionCookieName } from "#shared/cookies.ts";
-import { settings } from "#shared/db/settings.ts";
+import { CONFIG_KEYS, settings } from "#shared/db/settings.ts";
+import type { Field } from "#shared/forms.tsx";
 import {
   awaitTestRequest,
+  buildAttendeeEditForm,
+  buildMigrationContext,
+  createTestAgentSession,
   createTestAttendee,
+  createTestBuiltSite,
   createTestDb,
   createTestDbWithSetup,
   createTestInvite,
   createTestListing,
+  createTestManagerSession,
   csrfTokenOrSignedFallback,
   deactivateTestListing,
+  emailTestSandbox,
   errorResponse,
   expectCheckoutRedirect,
+  expectInvalidForm,
   expectRedirectWithFlash,
   expectStatus,
   extractInputValue,
   generateTestListingName,
   getAdminLoginCsrfToken,
+  getCachedSetupUsers,
   getCsrfTokenFromCookie,
   getJoinCsrfToken,
+  getListingWithActivityLog,
   getPageCsrfToken,
   getSetupCsrfToken,
+  getTestDataKey,
+  getTestPrivateKey,
   getTicketCsrfToken,
   hasCheckedInput,
   hasInputWithValue,
   hasSelectedOption,
+  installRecordingFetch,
   invalidateTestDbCache,
   loginAsAdmin,
   mockFormRequest,
   mockRequest,
   mockWebhookRequest,
   normalizeSingleListingFields,
+  openAttendeeEditor,
+  priceFormValue,
   randomString,
   rawListingRange,
   requireJoinCsrfToken,
   resetDb,
   resetTestSession,
   resetTestSlugCounter,
+  setTestEnv,
+  setTestSession,
+  setupAndLogin,
   setupStripe,
   submitJoinForm,
   submitMultiTicketForm,
   submitTicketForm,
+  TEST_ADMIN_PASSWORD,
+  TEST_ADMIN_USERNAME,
   testRequest,
   testWithSetting,
+  ticketTokenOnPage,
+  unusedMigrationMember,
+  updateTestBuiltSite,
   updateTestListing,
   useSetting,
+  validEmail,
   wait,
+  withBunnyDeleteCapture,
+  withBunnyStorageStub,
+  withCdnProxy,
+  withCdnRejecting,
+  withRandomBytes,
   withSetting,
+  withStorageMock,
+  withTestSession,
 } from "#test-utils";
+import { createReservedAttendee } from "#test-utils/balance.ts";
+import { rejection } from "#test-utils/ledger.ts";
+import { lastLogMessage } from "#test-utils/settings-handlers.ts";
 
 describe("test-utils", () => {
   afterEach(() => {
     resetDb();
+  });
+
+  describe("internal caches", () => {
+    test("start with no cached setup users", () => {
+      invalidateTestDbCache();
+      expect(getCachedSetupUsers()).toBe(null);
+    });
   });
 
   describe("createTestDb", () => {
@@ -85,6 +127,43 @@ describe("test-utils", () => {
       // Data from previous test should be gone
       const result = await getDb().execute("SELECT * FROM listings");
       expect(result.rows.length).toBe(0);
+    });
+
+    test("can be called after the active temp database was already removed", async () => {
+      await createTestDb();
+      resetDb();
+
+      expect(() => resetDb()).not.toThrow();
+    });
+
+    test("removes the temp database even when closing the client throws", async () => {
+      const path = await Deno.makeTempFile({ suffix: ".db" });
+      const restoreEnv = setTestEnv({ DB_URL: `file:${path}` });
+      const { setDb } = await import("#shared/db/client.ts");
+      setDb({
+        close: () => {
+          throw new Error("already closed");
+        },
+      } as unknown as Client);
+      let cleanupError: unknown;
+
+      try {
+        expect(() => resetDb()).not.toThrow();
+        try {
+          await Deno.stat(path);
+          throw new Error("temp database still exists");
+        } catch (error) {
+          expect(error).toBeInstanceOf(Deno.errors.NotFound);
+        }
+      } finally {
+        restoreEnv();
+        try {
+          await Deno.remove(path);
+        } catch (error) {
+          if (!(error instanceof Deno.errors.NotFound)) cleanupError = error;
+        }
+      }
+      if (cleanupError) throw cleanupError;
     });
   });
 
@@ -360,12 +439,14 @@ describe("test-utils", () => {
       expect(hasCheckedInput(html, "features", "sms")).toBe(false);
       expect(hasCheckedInput(html, "other", "email")).toBe(true);
       expect(hasCheckedInput(html, "missing", "email")).toBe(false);
+      expect(hasCheckedInput("", "features", "email")).toBe(false);
     });
 
     test("hasSelectedOption requires matching value and selected state", () => {
       expect(hasSelectedOption(html, "published")).toBe(true);
       expect(hasSelectedOption(html, "draft")).toBe(false);
       expect(hasSelectedOption(html, "missing")).toBe(false);
+      expect(hasSelectedOption("", "published")).toBe(false);
     });
 
     test("normalizeSingleListingFields maps generic ticket fields to the listing id", () => {
@@ -673,6 +754,15 @@ describe("test-utils", () => {
       await createTestInvite("duplicate-user");
       await expect(createTestInvite("duplicate-user")).rejects.toThrow(
         "Failed to create invite",
+      );
+    });
+
+    test("throws when invite creation fails without a redirect location", async () => {
+      const { cookie } = await loginAsAdmin();
+      setTestSession({ cookie, csrfToken: "not-a-signed-csrf-token" });
+
+      await expect(createTestInvite("csrf-failure")).rejects.toThrow(
+        "Failed to create invite for csrf-failure: 403 ",
       );
     });
   });
@@ -1093,6 +1183,388 @@ describe("test-utils", () => {
       await expect(
         updateTestListing(99999, { maxAttendees: 50 }),
       ).rejects.toThrow("Listing not found: 99999");
+    });
+  });
+
+  describe("strictly covered utility contracts", () => {
+    test("priceFormValue formats minor units for form submission", () => {
+      expect(priceFormValue(1234)).toBe("12.34");
+      expect(priceFormValue(0)).toBe("0.00");
+    });
+
+    test("withRandomBytes pads missing deterministic bytes with zero", () => {
+      withRandomBytes([7])(() => {
+        const bytes = new Uint8Array(3);
+        crypto.getRandomValues(bytes);
+        expect([...bytes]).toEqual([7, 0, 0]);
+      });
+    });
+
+    test("validEmail rejects invalid fixture addresses", () => {
+      expect(validEmail("person@example.com")).toBe("person@example.com");
+      expect(() => validEmail("not an address")).toThrow(
+        "Test fixture is not a valid email",
+      );
+    });
+
+    test("expectInvalidForm only accepts invalid form data", () => {
+      const fields: Field[] = [
+        { label: "Name", name: "name", required: true, type: "text" },
+      ];
+
+      expectInvalidForm(fields, { name: "" });
+      expect(() => expectInvalidForm(fields, { name: "Alice" })).toThrow();
+    });
+
+    test("rejection returns the thrown error and fails on resolved promises", async () => {
+      const thrown = await rejection(Promise.reject(new Error("boom")));
+
+      expect(thrown.message).toBe("boom");
+      await expect(rejection(Promise.resolve("ok"))).rejects.toThrow(
+        "expected the promise to reject",
+      );
+    });
+
+    test("migration helpers fail closed for unused members and no-op verifiers", async () => {
+      await expect(unusedMigrationMember()).rejects.toThrow(
+        "unused migration context member called",
+      );
+
+      const context = buildMigrationContext();
+      const migration = context.additive({
+        description: "test additive migration",
+        id: "test-additive",
+        requires: { newTables: ["example"] },
+        up: async () => {},
+      });
+
+      expect(migration.id).toBe("test-additive");
+      await migration.verify();
+      await context.verifyRequirement({ columns: { example: ["id"] } })();
+    });
+
+    test("recording fetch records calls and falls through when respond returns null", async () => {
+      const fetchMock = installRecordingFetch(() => null);
+      try {
+        const response = await fetch("data:text/plain,fallback");
+
+        expect(await response.text()).toBe("fallback");
+        expect(fetchMock.calls).toEqual([
+          { body: null, url: "data:text/plain,fallback" },
+        ]);
+        expect(fetchMock.emailCall()).toBeUndefined();
+      } finally {
+        fetchMock.restore();
+      }
+    });
+
+    test("Bunny storage stub intercepts storage URLs and leaves unrelated URLs alone", async () => {
+      const seen: string[] = [];
+
+      await withBunnyStorageStub(
+        (url) => {
+          seen.push(url);
+          return new Response("stored");
+        },
+        async () => {
+          const stored = await fetch(
+            "https://storage.bunnycdn.com/testzone/file.txt",
+          );
+          const fallback = await fetch("data:text/plain,plain");
+
+          expect(await stored.text()).toBe("stored");
+          expect(await fallback.text()).toBe("plain");
+        },
+      );
+
+      expect(seen).toEqual(["https://storage.bunnycdn.com/testzone/file.txt"]);
+    });
+
+    test("Bunny delete capture records storage deletes and permits custom intercepts", async () => {
+      await withBunnyDeleteCapture(
+        async (deletedUrls) => {
+          const storageResponse = await fetch(
+            "https://storage.bunnycdn.com/testzone/delete-me.txt",
+          );
+          const customResponse = await fetch("https://example.test/custom");
+          const fallbackResponse = await fetch("data:text/plain,untouched");
+
+          expect(storageResponse.status).toBe(200);
+          expect(await customResponse.text()).toBe("custom");
+          expect(await fallbackResponse.text()).toBe("untouched");
+          expect(deletedUrls).toEqual([
+            "https://storage.bunnycdn.com/testzone/delete-me.txt",
+          ]);
+        },
+        {
+          extraHandler: (url) =>
+            url === "https://example.test/custom"
+              ? Promise.resolve(new Response("custom"))
+              : null,
+        },
+      );
+    });
+
+    test("storage mock covers storage, CDN, and fallback fetches", async () => {
+      await withStorageMock(async (fetchCalls) => {
+        const storage = await fetch(
+          "https://storage.bunnycdn.com/testzone/upload.txt",
+        );
+        const cdn = await fetch("https://testzone.b-cdn.net/upload.txt");
+        const fallback = await fetch("data:text/plain,local");
+
+        expect(storage.status).toBe(201);
+        expect(cdn.status).toBe(201);
+        expect(await fallback.text()).toBe("local");
+        expect(fetchCalls).toEqual([
+          "https://storage.bunnycdn.com/testzone/upload.txt",
+          "https://testzone.b-cdn.net/upload.txt",
+          "data:text/plain,local",
+        ]);
+      });
+    });
+
+    test("CDN proxy helpers intercept storage URLs and restore fetch", async () => {
+      await withCdnProxy(
+        () => new Response("proxied", { status: 202 }),
+        async () => {
+          const proxied = await fetch(
+            "https://storage.bunnycdn.com/testzone/proxied.txt",
+          );
+          const fallback = await fetch("data:text/plain,local");
+
+          expect(proxied.status).toBe(202);
+          expect(await proxied.text()).toBe("proxied");
+          expect(await fallback.text()).toBe("local");
+        },
+      );
+
+      await withCdnRejecting(new Error("cdn down"), async () => {
+        await expect(
+          fetch("https://storage.bunnycdn.com/testzone/fail.txt"),
+        ).rejects.toThrow("cdn down");
+
+        const fallback = await fetch("data:text/plain,still-local");
+        expect(await fallback.text()).toBe("still-local");
+      });
+    });
+
+    test("email sandbox replaces an existing fetch stub and restores all state", () => {
+      const sandbox = emailTestSandbox();
+
+      sandbox.stubFetch(() => Promise.resolve(new Response("first")));
+      sandbox.stubFetch(() => Promise.resolve(new Response("second")));
+      expect(sandbox.fetchStub).toBeDefined();
+
+      sandbox.teardown();
+      expect(sandbox.fetchStub).toBeUndefined();
+    });
+  });
+
+  describe("strict DB-backed utility contracts", () => {
+    beforeEach(async () => {
+      await createTestDbWithSetup();
+    });
+
+    test("getListingWithActivityLog reads through the test admin session", async () => {
+      const listing = await createTestListing({ name: "Logged Listing" });
+      const result = await getListingWithActivityLog(listing.id);
+
+      expect(result).not.toBeNull();
+      expect(result!.listing.id).toBe(listing.id);
+      expect(result!.entries).toHaveLength(1);
+      expect(result!.entries[0]!.message).toBe(
+        "Listing 'Logged Listing' created",
+      );
+    });
+
+    test("createReservedAttendee applies listing names and fails closed on setup failure", async () => {
+      const { listingId } = await createReservedAttendee(1500, {
+        listingName: "Reserved Helper Listing",
+      });
+      const { getListingWithCount } = await import("#shared/db/listings.ts");
+      const listing = await getListingWithCount(listingId);
+
+      expect(listing!.name).toBe("Reserved Helper Listing");
+      await expect(
+        createReservedAttendee(1500, { quantity: 11 }),
+      ).rejects.toThrow("setup failed");
+    });
+
+    test("test crypto helpers expose real data keys and fail on missing setup material", async () => {
+      const dataKey = await getTestDataKey();
+      const privateKey = await getTestPrivateKey();
+
+      expect(dataKey.type).toBe("secret");
+      expect(privateKey.type).toBe("private");
+
+      resetDb();
+      await createTestDb();
+      await expect(getTestPrivateKey()).rejects.toThrow(
+        "Test setup failed: no wrapped data key",
+      );
+
+      resetDb();
+      await createTestDbWithSetup();
+      const { getDb } = await import("#shared/db/client.ts");
+      await getDb().execute("DELETE FROM settings WHERE key = ?", [
+        CONFIG_KEYS.WRAPPED_PRIVATE_KEY,
+      ]);
+      settings.invalidateCache();
+      await settings.loadKeys([CONFIG_KEYS.WRAPPED_PRIVATE_KEY]);
+
+      await expect(getTestPrivateKey()).rejects.toThrow(
+        "Test setup failed: no wrapped private key",
+      );
+    });
+
+    test("login and session helpers report missing cookies and sessions", async () => {
+      await expect(
+        loginAsAdmin(TEST_ADMIN_USERNAME, `${TEST_ADMIN_PASSWORD}-wrong`),
+      ).rejects.toThrow("No session cookie in login response");
+
+      setTestSession({
+        cookie: `${getSessionCookieName()}=missing-session-token`,
+        csrfToken: "csrf",
+      });
+      await expect(withTestSession(async () => undefined)).rejects.toThrow(
+        "Test admin session row not found",
+      );
+    });
+
+    test("manager and agent helpers require the setup admin key", async () => {
+      resetDb();
+      await createTestDb();
+
+      await expect(createTestManagerSession()).rejects.toThrow(
+        "Admin user has no wrapped data key",
+      );
+      await expect(createTestAgentSession()).rejects.toThrow(
+        "Admin user not set up",
+      );
+    });
+
+    test("createTestAttendee surfaces flashed validation errors", async () => {
+      await settings.update.terms("Read these terms first.");
+      settings.invalidateCache();
+      await settings.loadKeys([CONFIG_KEYS.TERMS_AND_CONDITIONS]);
+      const listing = await createTestListing();
+
+      await expect(
+        createTestAttendee(listing.id, listing.slug, "Invalid", "not-email"),
+      ).rejects.toThrow(
+        "Failed to create attendee: You must agree to the terms and conditions",
+      );
+    });
+
+    test("lastLogMessage returns an empty string when no activity exists", async () => {
+      expect(await lastLogMessage()).toBe("");
+    });
+
+    test("buildAttendeeEditForm preserves existing booking lines by default", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        maxQuantity: 5,
+      });
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Default Form",
+        "default-form@example.com",
+        2,
+      );
+
+      const form = await buildAttendeeEditForm(attendee.id);
+
+      expect(form.name).toBe("");
+      expect(form[`qty_${listing.id}`]).toBe("2");
+      expect(form[`line_key_${listing.id}`]).not.toBe("");
+    });
+
+    test("buildAttendeeEditForm defaults new override lines to one ticket with no key", async () => {
+      const listing = await createTestListing({
+        maxAttendees: 10,
+        maxQuantity: 5,
+      });
+      const attendee = await createTestAttendee(
+        listing.id,
+        listing.slug,
+        "Override Form",
+        "override-form@example.com",
+        2,
+      );
+
+      const form = await buildAttendeeEditForm(attendee.id, {
+        lines: [{ eventId: listing.id }],
+      });
+
+      expect(form[`qty_${listing.id}`]).toBe("1");
+      expect(form[`line_key_${listing.id}`]).toBe("");
+    });
+
+    test("updateTestBuiltSite handles assignable and validation failure paths", async () => {
+      const site = await createTestBuiltSite({
+        name: "Assignable Site",
+      });
+      const assignable = await updateTestBuiltSite(site.id, {
+        assignable: true,
+      });
+      const updated = await updateTestBuiltSite(site.id, { assignable: false });
+
+      expect(assignable.assignable).toBe(true);
+      expect(updated.assignable).toBe(false);
+
+      const { cookie } = await loginAsAdmin();
+      setTestSession({ cookie, csrfToken: "not-a-signed-csrf-token" });
+      await expect(
+        createTestBuiltSite({ name: "Forbidden Site" }),
+      ).rejects.toThrow("Failed to create built site: 403");
+    });
+  });
+
+  describe("e2e helper contracts", () => {
+    test("setupAndLogin follows the migration-complete interstitial", async () => {
+      const actions: string[] = [];
+      const browser = {
+        clickLink: (text: string) => {
+          actions.push(`click:${text}`);
+          return Promise.resolve();
+        },
+        containsText: (text: string) => text === "Migration complete",
+        submitForm: (_data: Record<string, string>, buttonText: string) => {
+          actions.push(`submit:${buttonText}`);
+          return Promise.resolve();
+        },
+        visit: (path: string) => {
+          actions.push(`visit:${path}`);
+          return Promise.resolve();
+        },
+      } as unknown as import("#test-utils/test-browser.ts").TestBrowser;
+
+      await setupAndLogin(browser);
+
+      expect(actions).toEqual([
+        "visit:/setup/",
+        "submit:Complete Setup",
+        "click:Go to Admin Dashboard",
+        "submit:Login",
+        "click:Back to dashboard",
+      ]);
+    });
+
+    test("attendee navigation helpers fail clearly when required links are absent", async () => {
+      const browser = {
+        currentHtml: "<main>No attendees yet</main>",
+        links: [],
+        visit: (_path: string) => Promise.resolve(),
+      } as unknown as import("#test-utils/test-browser.ts").TestBrowser;
+
+      await expect(openAttendeeEditor(browser)).rejects.toThrow(
+        "no attendee edit link on the current page",
+      );
+      expect(() => ticketTokenOnPage(browser)).toThrow(
+        "no customer /t ticket link on the current page",
+      );
     });
   });
 

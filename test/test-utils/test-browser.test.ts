@@ -124,6 +124,21 @@ describe("TestBrowser navigation", () => {
     expect([...browser.debugCookies().entries()]).toEqual([["a", "1"]]);
   });
 
+  it("ignores malformed Set-Cookie headers without an equals sign", async () => {
+    const browser = new TestBrowser();
+    useHandler(
+      browser,
+      () =>
+        new Response("ok", {
+          headers: new Headers([["set-cookie", "flagonly"]]),
+        }),
+    );
+
+    await browser.visit("/bad-cookie");
+
+    expect([...browser.debugCookies().entries()]).toEqual([]);
+  });
+
   it("follows redirects, stores cookies, sends them back, and clears expired cookies", async () => {
     const browser = new TestBrowser();
     const seen: string[] = [];
@@ -192,6 +207,16 @@ describe("TestBrowser navigation", () => {
 
     expect(seen).toEqual(["/old", "/new"]);
     expect(browser.currentUrl).toBe("/new");
+  });
+
+  it("keeps the redirecting URL when a redirect response has no Location", async () => {
+    const browser = new TestBrowser();
+    useHandler(browser, () => new Response("missing", { status: 302 }));
+
+    await browser.visit("/missing-location");
+
+    expect(browser.currentUrl).toBe("/missing-location");
+    expect(browser.currentHtml).toBe("missing");
   });
 
   it("ignores Location headers on non-redirect responses", async () => {
@@ -320,6 +345,24 @@ describe("TestBrowser forms", () => {
     ]);
   });
 
+  it("logs without a cookie suffix when no cookies are set", async () => {
+    const browser = new TestBrowser();
+    browser.debug = true;
+    const messages: string[] = [];
+    const originalLog = console.log;
+    console.log = (...args: unknown[]) => {
+      messages.push(args.join(" "));
+    };
+    try {
+      useHandler(browser, () => new Response("ok"));
+      await browser.visit("/debug-empty");
+    } finally {
+      console.log = originalLog;
+    }
+
+    expect(messages).toEqual(["[browser] GET /debug-empty -> 200"]);
+  });
+
   it("does not log request details by default", async () => {
     const browser = new TestBrowser();
     const messages: string[] = [];
@@ -411,6 +454,61 @@ describe("TestBrowser forms", () => {
 
     expect(postedPath).toBe("/first");
     expect(browser.currentHtml).toBe("first=1");
+  });
+
+  it("throws clearly when submitting without button text and the page has no forms", async () => {
+    const browser = new TestBrowser();
+    browser.currentHtml = "<main>No forms here</main>";
+
+    await expect(browser.submitForm({})).rejects.toThrow(
+      "No forms found on the current page",
+    );
+  });
+
+  it("skips disabled matching buttons and submits the form without button data", async () => {
+    const browser = new TestBrowser();
+    let posted = "";
+    useHandler(browser, async (request) => {
+      posted = await request.text();
+      return new Response("saved");
+    });
+    browser.currentHtml = `
+      <form action="/disabled-button">
+        <input name="title" value="Draft">
+        <button name="action" value="publish" disabled>Publish</button>
+      </form>
+    `;
+
+    await browser.submitForm({}, "Publish");
+
+    const params = new URLSearchParams(posted);
+    expect(params.get("title")).toBe("Draft");
+    expect(params.has("action")).toBe(false);
+  });
+
+  it("selects a form by body text even when no button text matches", async () => {
+    const browser = new TestBrowser();
+    let postedPath = "";
+    let posted = "";
+    useHandler(browser, async (request) => {
+      postedPath = new URL(request.url).pathname;
+      posted = await request.text();
+      return new Response("saved");
+    });
+    browser.currentHtml = `
+      <form action="/body-text">
+        <p>Publish this draft</p>
+        <input name="title" value="Draft">
+        <button name="action" value="save">Save</button>
+      </form>
+    `;
+
+    await browser.submitForm({}, "Publish");
+
+    const params = new URLSearchParams(posted);
+    expect(postedPath).toBe("/body-text");
+    expect(params.get("title")).toBe("Draft");
+    expect(params.has("action")).toBe(false);
   });
 
   it("does not submit nameless button values", async () => {
