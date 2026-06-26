@@ -888,6 +888,55 @@ describeWithEnv(
       expect(open.available).toBe(true);
     });
 
+    test("API availability reports a daily child unavailable when it can't serve the date (Fix B)", async () => {
+      const { settings } = await import("#shared/db/settings.ts");
+      await settings.update.showPublicApi(true);
+      // Parent has two daily children: A serves all days, B serves only Monday.
+      // When the buyer picks a non-Monday date, childA is available but childB
+      // is not — even though the parent-level constrainParentDailyDates check
+      // passes (childA covers the date). Fix B ensures buildChildAvailability
+      // checks each child's own calendar, not just capacity.
+      const { parent, children } = await makeParent({
+        children: [{ daily: true }, { bookableDays: ["Monday"], daily: true }],
+        parent: { daily: true },
+      });
+      const [childA, childB] = children;
+
+      const { getBookableStartDates } = await import("#shared/dates.ts");
+      const { getActiveHolidays } = await import("#shared/db/holidays.ts");
+      const { getListingWithCount } = await import("#shared/db/listings.ts");
+      const holidays = await getActiveHolidays();
+      const parentDates = getBookableStartDates(
+        (await getListingWithCount(parent.id))!,
+        holidays,
+      );
+      const childBDates = new Set(
+        getBookableStartDates(
+          (await getListingWithCount(childB!.id))!,
+          holidays,
+        ),
+      );
+      // A date the parent and childA serve but childB does not (non-Monday).
+      const nonMondayDate = parentDates.find((d) => !childBDates.has(d))!;
+
+      const res = await apiGet(
+        `/api/listings/${parent.slug}/availability?date=${nonMondayDate}`,
+      );
+      const body = (await res.json()) as {
+        available: boolean;
+        children?: { slug: string; available: boolean }[];
+      };
+      // Parent is available (childA covers the date).
+      expect(body.available).toBe(true);
+      // ChildA reports available; childB does not.
+      expect(body.children).toEqual(
+        expect.arrayContaining([
+          { available: true, slug: childA!.slug },
+          { available: false, slug: childB!.slug },
+        ]),
+      );
+    });
+
     test("a group page renders the parent with a child selector but no standalone child quantity row", async () => {
       const { parent, child, group } = await makeParent({
         group: { name: "Combo" },

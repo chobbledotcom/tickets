@@ -29,7 +29,7 @@ import { processBooking } from "#shared/booking.ts";
 import { owedOrderForLedger } from "#shared/checkout-ledger.ts";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import { isPaymentsEnabled } from "#shared/config.ts";
-import { getAvailableDates } from "#shared/dates.ts";
+import { getAvailableDates, getBookableStartDates } from "#shared/dates.ts";
 import {
   getGroupRemainingByListingId,
   getGroupRemainingForListing,
@@ -56,6 +56,7 @@ import {
   availableDayCounts,
   type ContactInfo,
   dayPriceFor,
+  type Holiday,
   isPaidListing,
   type ListingWithCount,
 } from "#shared/types.ts";
@@ -391,19 +392,30 @@ const buildChildAvailability = (
   parent: ListingWithCount,
   date: string | undefined,
   quantity: number,
+  holidays?: Holiday[],
 ): Promise<{ slug: string; available: boolean }[] | null> =>
-  mapParentChildren(parent, async (child) => ({
-    available:
-      child.active &&
-      !isRegistrationClosed(child) &&
-      (await hasAvailableSpots(
-        child.id,
-        quantity,
-        child.listing_type === "daily" ? (date ?? null) : null,
-        child.duration_days,
-      )),
-    slug: child.slug,
-  }));
+  mapParentChildren(parent, async (child) => {
+    const childDateAvail =
+      child.listing_type !== "daily" ||
+      !date ||
+      getBookableStartDates(
+        child,
+        holidays ?? (await getActiveHolidays()),
+      ).includes(date);
+    return {
+      available:
+        child.active &&
+        !isRegistrationClosed(child) &&
+        childDateAvail &&
+        (await hasAvailableSpots(
+          child.id,
+          quantity,
+          child.listing_type === "daily" ? (date ?? null) : null,
+          child.duration_days,
+        )),
+      slug: child.slug,
+    };
+  });
 
 /** GET /api/listings/:slug/availability — check if spots are available */
 const handleCheckAvailability = withActiveListing(async (request, listing) => {
@@ -426,8 +438,9 @@ const handleCheckAvailability = withActiveListing(async (request, listing) => {
   // same `constrainParentDailyDates` union the detail endpoint uses; a date no
   // required child can serve for the inherited span is unavailable. For a
   // non-parent daily listing (no child edges) this is a no-op.
+  let holidays: Holiday[] | undefined;
   if (listing.listing_type === "daily" && date) {
-    const holidays = await getActiveHolidays();
+    holidays = await getActiveHolidays();
     const childServableDates = await constrainParentDailyDates(
       listing,
       getAvailableDates(listing, holidays),
@@ -451,6 +464,7 @@ const handleCheckAvailability = withActiveListing(async (request, listing) => {
     listing,
     date,
     quantity,
+    holidays,
   );
   return apiResponse(
     childAvailability === null

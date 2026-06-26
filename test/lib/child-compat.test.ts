@@ -262,6 +262,33 @@ describe("child date/span compatibility", () => {
     expect(byName(roots, "quantity_101").value).toBe("1");
   });
 
+  test("dispatches a change event after restoring the auto-hidden parent quantity", () => {
+    // Dependent scripts (child-required, question visibility) listen to change
+    // on the quantity input — without the dispatch they do not re-run when
+    // switching back to a compatible selection, leaving required price or
+    // custom questions hidden/non-required until the server rejects the submit.
+    const roots = installFakeDom([
+      date("2026-06-08"),
+      hiddenQuantity("101"),
+      childSelector("101"),
+      soleChild("101", "202", { dates: ["2026-06-01"] }),
+    ]);
+
+    initChildCompat();
+
+    let changeCount = 0;
+    byName(roots, "quantity_101").addEventListener("change", () => {
+      changeCount++;
+    });
+
+    // Switch to the compatible date — should restore value AND fire change.
+    byName(roots, "date").value = "2026-06-01";
+    byName(roots, "date").dispatch("change");
+
+    expect(byName(roots, "quantity_101").value).toBe("1");
+    expect(changeCount).toBe(1);
+  });
+
   test("does not clobber a visible sole-child parent quantity when the selection becomes compatible (Fix 5)", () => {
     // A visible quantity select that was zeroed when incompatible stays at the
     // buyer's re-pickable "0" on re-enable (only the hidden auto-quantity, which

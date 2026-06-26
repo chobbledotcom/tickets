@@ -153,7 +153,10 @@ const applySoleCompat = (
   // submits no parent ticket and fails "select at least one ticket". Restore the
   // hidden auto-quantity to 1 so a compatible selection books the parent again
   // (a visible select instead keeps the buyer's choice, which they can re-pick).
-  if (compatible && quantity.type === "hidden") quantity.value = "1";
+  if (compatible && quantity.type === "hidden") {
+    quantity.value = "1";
+    quantity.dispatchEvent(new Event("change", { bubbles: true }));
+  }
 };
 
 /** Toggle one parent's bookable child controls (or, for a sole child, the parent

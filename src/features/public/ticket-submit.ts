@@ -959,7 +959,8 @@ export const handleTicket = async (args: BookingRequest): Promise<Response> => {
         : await submitTicket(request, ctx);
   return applyHiddenNoindex(
     response,
-    listings.some((e) => e.listing.hidden),
+    listings.some((e) => e.listing.hidden) ||
+      [...ctx.childrenByParentId.values()].flat().some((c) => c.listing.hidden),
   );
 };
 
