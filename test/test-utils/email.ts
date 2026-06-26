@@ -96,11 +96,15 @@ export const emailTestSandbox = () => {
 /** Stub fetch to reject, call `sendFn`, and assert it returned `false` with
  *  zero fetch calls. Used by contact-form and support-message tests that
  *  verify a noop path (no provider configured, no business email, etc.). */
+export function rejectedFetch(): Promise<Response> {
+  return Promise.reject(new Error("should not be called"));
+}
+
 export const expectSendNoop = async (
   sandbox: ReturnType<typeof emailTestSandbox>,
   sendFn: () => Promise<boolean>,
 ): Promise<void> => {
-  sandbox.stubFetch(() => Promise.reject(new Error("should not be called")));
+  sandbox.stubFetch(rejectedFetch);
   expect(await sendFn()).toBe(false);
   expect(sandbox.fetchStub?.calls.length).toBe(0);
 };

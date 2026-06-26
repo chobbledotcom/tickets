@@ -61,6 +61,7 @@
     "npm:temporal-polyfill@0.3": "0.3.2",
     "npm:uqr@~0.1.3": "0.1.3",
     "npm:valibot@*": "1.4.1",
+    "npm:valibot@1.4.1": "1.4.1",
     "npm:valibot@^1.4.1": "1.4.1"
   },
   "jsr": {

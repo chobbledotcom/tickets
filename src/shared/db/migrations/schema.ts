@@ -840,12 +840,14 @@ export const SCHEMA: [name: string, table: Table][] = [
   ],
 
   [
-    // Append-only double-entry ledger: each row moves a positive `amount` from a
+    // Double-entry ledger: each row moves a positive `amount` from a
     // (source_type, source_id) account to a (dest_type, dest_id) account at
-    // occurred_at (business time). Balances are derived — nothing here is ever
-    // mutated. PII- and provider-id-free: `reference` is an opaque HMAC, and any
-    // memo that could carry PII is owner-key encrypted by the host before it
-    // reaches the column. No FKs, so erasing an attendee never cascades here.
+    // occurred_at (business time). Normal checkout/refund flows post immutable
+    // rows; owner-only maintenance can edit/delete rows explicitly. Balances are
+    // always derived. PII- and provider-id-free: `reference` is an opaque HMAC,
+    // and any memo that could carry PII is owner-key encrypted by the host
+    // before it reaches the column. No FKs, so erasing an attendee never
+    // cascades here.
     "transfers",
     {
       columns: [

@@ -2,6 +2,10 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import { revenueAccount } from "#shared/accounting/accounts.ts";
+import {
+  MANUAL_LISTING_COST,
+  MANUAL_LISTING_INCOME,
+} from "#shared/accounting/manual-entries.ts";
 import { accountBalance } from "#shared/accounting/queries.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
 import {
@@ -950,9 +954,11 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
       const breakdown = await listingRevenueBreakdown(listing.id);
       // The refund also posts its own net-zero sale leg first, so gross is 10000.
       expect(breakdown.grossSales).toBe(10000);
+      expect(breakdown.externalIncome).toBe(0);
       expect(breakdown.manualAdjustments).toBe(-1000);
       expect(breakdown.recognisedIncome).toBe(9000);
       expect(breakdown.refunds).toBe(2000);
+      expect(breakdown.externalCosts).toBe(0);
       expect(breakdown.netBalance).toBe(7000);
 
       // Reconciliation invariants: recognised income equals the existing income
@@ -965,10 +971,14 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
       );
       // The breakdown reconciles on its own face, too.
       expect(breakdown.recognisedIncome).toBe(
-        breakdown.grossSales + breakdown.manualAdjustments,
+        breakdown.grossSales +
+          breakdown.externalIncome +
+          breakdown.manualAdjustments,
       );
       expect(breakdown.netBalance).toBe(
-        breakdown.recognisedIncome - breakdown.refunds,
+        breakdown.recognisedIncome -
+          breakdown.refunds -
+          breakdown.externalCosts,
       );
     });
 
@@ -1005,10 +1015,52 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
       );
     });
 
+    test("includes owner-entered outside income and listing costs in the reconciliation", async () => {
+      const listing = await createTestListing({ maxAttendees: 50 });
+      const revenue = revenueAccount(listing.id);
+      await postTransfers([
+        {
+          amount: 600,
+          destination: revenue,
+          eventGroup: "manual-income",
+          kind: MANUAL_LISTING_INCOME,
+          occurredAt: "2026-06-21T09:00:00.000Z",
+          reference: "manual-income",
+          source: account("external", "world"),
+        },
+      ]);
+      await postTransfers([
+        {
+          amount: 250,
+          destination: account("external", "world"),
+          eventGroup: "manual-cost",
+          kind: MANUAL_LISTING_COST,
+          occurredAt: "2026-06-21T10:00:00.000Z",
+          reference: "manual-cost",
+          source: revenue,
+        },
+      ]);
+
+      const breakdown = await listingRevenueBreakdown(listing.id);
+      expect(breakdown.grossSales).toBe(0);
+      expect(breakdown.externalIncome).toBe(600);
+      expect(breakdown.manualAdjustments).toBe(0);
+      expect(breakdown.recognisedIncome).toBe(600);
+      expect(breakdown.refunds).toBe(0);
+      expect(breakdown.externalCosts).toBe(250);
+      expect(breakdown.netBalance).toBe(350);
+      expect(breakdown.recognisedIncome).toBe(
+        await projectedIncome(listing.id),
+      );
+      expect(breakdown.netBalance).toBe(await accountBalance(revenue));
+    });
+
     test("is all-zero for a listing with no ledger activity", async () => {
       const listing = await createTestListing({ maxAttendees: 50 });
       const breakdown = await listingRevenueBreakdown(listing.id);
       expect(breakdown).toEqual({
+        externalCosts: 0,
+        externalIncome: 0,
         grossSales: 0,
         manualAdjustments: 0,
         netBalance: 0,

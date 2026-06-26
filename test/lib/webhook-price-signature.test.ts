@@ -180,14 +180,18 @@ const runFailedRefund = async (
 
 /** Assert the webhook kept the booking as a quantity-0 placeholder (with a system
  *  note) and refused with the generic "saved your details" message. */
+const expectStoredRefundRecord = async (listingId: number): Promise<void> => {
+  const [attendee] = await getAttendeesRaw(listingId);
+  expect(attendee?.quantity).toBe(0);
+  expect(await getNoteRows([attendee!.id])).toHaveLength(1);
+};
+
 const expectStoredRefund = async (listingId: number): Promise<void> => {
   await assertJson(webhookRequest(), 200, (json) => {
     expect(json.processed).toBe(false);
     expect(json.error).toContain("saved your details");
   });
-  const [attendee] = await getAttendeesRaw(listingId);
-  expect(attendee?.quantity).toBe(0);
-  expect(await getNoteRows([attendee!.id])).toHaveLength(1);
+  await expectStoredRefundRecord(listingId);
 };
 
 /** Assert the webhook acknowledges (200) and silently ignores the session. */
@@ -371,6 +375,7 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
       },
       { processed: false, refundCalls: 1 },
     );
+    await expectStoredRefundRecord(listing.id);
   });
 
   test("a re-derivation that diverges from the signed total is stored and refunded", async () => {
@@ -385,6 +390,7 @@ describeWithEnv("webhook signed price oracle", { db: true }, () => {
       },
       { processed: false, refundCalls: 1 },
     );
+    await expectStoredRefundRecord(listing.id);
   });
 
   test("a divergence from a dropped modifier ref is stored and refunded", async () => {

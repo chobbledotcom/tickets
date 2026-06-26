@@ -218,7 +218,6 @@ async function doAuthenticatedRequest<T>(
       session.cookie,
     ),
   );
-  response.body?.cancel();
   if (response.status !== 302) {
     throw new Error(`Failed to ${errorContext}: ${response.status}`);
   }
@@ -359,16 +358,13 @@ export const createTestAttendee = async (
     .getSetCookie()
     .find((c) => c.startsWith("flash_"));
   if (flashCookie) {
-    const cookiePart = flashCookie.split(";")[0] ?? "";
+    const cookiePart = flashCookie.split(";")[0]!;
     const value = cookiePart.split("=").slice(1).join("=");
     const parsed = parseFlashValue(value);
     if (parsed.error) {
-      response.body?.cancel();
       throw new Error(`Failed to create attendee: ${parsed.error}`);
     }
   }
-
-  response.body?.cancel();
 
   const afterAttendees = await getAttendeesRaw(listingId);
   return afterAttendees[0] as Attendee;
@@ -445,21 +441,6 @@ export const attendeeExists = async (id: number): Promise<boolean> => {
     (await queryOne<{ one: number }>(
       "SELECT 1 AS one FROM attendees WHERE id = ?",
       [id],
-    )) !== null
-  );
-};
-
-/** Check whether a row exists in `table` where `column` = `value`. */
-export const rowExists = async (
-  table: string,
-  column: string,
-  value: string | number,
-): Promise<boolean> => {
-  const { queryOne } = await import("#shared/db/client.ts");
-  return (
-    (await queryOne<{ one: number }>(
-      `SELECT 1 AS one FROM ${table} WHERE ${column} = ?`,
-      [value],
     )) !== null
   );
 };
@@ -955,7 +936,6 @@ export const createTestInvite = async (
       cookie,
     ),
   );
-  inviteResponse.body?.cancel();
   const location = inviteResponse.headers.get("location") ?? "";
   const url = new URL(location, "http://localhost");
   const inviteLink = url.searchParams.get("invite") ?? "";

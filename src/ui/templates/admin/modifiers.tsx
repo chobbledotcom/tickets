@@ -20,6 +20,10 @@ import {
 } from "#shared/forms.tsx";
 import { Raw } from "#shared/jsx/jsx-runtime.ts";
 import type { AdminSession, Modifier } from "#shared/types.ts";
+import {
+  type AccountLedgerData,
+  AccountStatementSection,
+} from "#templates/admin/ledger.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import {
   adminRecalculatePage,
@@ -206,6 +210,23 @@ const ModifierRevenueAdjustSection = ({
   </CsrfForm>
 );
 
+const ModifierLedgerSection = ({
+  ledger,
+}: {
+  ledger: AccountLedgerData;
+}): JSX.Element => (
+  <section>
+    <h2>{t("admin.ledger.statement_heading")}</h2>
+    <AccountStatementSection
+      account={ledger.account}
+      fullLedgerHref={`/admin/ledger/${ledger.account.type}/${ledger.account.id}`}
+      lines={ledger.lines}
+      names={ledger.names}
+      returnUrl={`/admin/modifiers/${ledger.account.id}/edit`}
+    />
+  </section>
+);
+
 const ModifierRunningTotalsSection = ({
   modifier,
 }: {
@@ -369,6 +390,7 @@ export const adminModifierEditPage = (
   links?: ScopeLinks | null,
   success?: string,
   answerLinks?: AnswerLinks | null,
+  ledger?: AccountLedgerData,
 ): string =>
   String(
     <Layout title={t("modifiers.edit.heading")}>
@@ -388,6 +410,7 @@ export const adminModifierEditPage = (
         <SubmitButton icon="save">{t("common.save_changes")}</SubmitButton>
       </CsrfForm>
       <ModifierRevenueAdjustSection modifier={modifier} />
+      {ledger && <ModifierLedgerSection ledger={ledger} />}
       {links && <ScopeLinksForm links={links} modifier={modifier} />}
       {answerLinks && (
         <AnswerLinksForm answerLinks={answerLinks} modifier={modifier} />

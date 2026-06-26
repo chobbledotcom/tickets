@@ -3,7 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { addDays, formatDateLabel } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import {
-  awaitTestRequest,
+  adminGet,
   bookAttendee,
   createDailyTestListing,
   createTestListing,
@@ -11,21 +11,18 @@ import {
   expectHtmlResponse,
   expectRedirectWithFlash,
   submitTicketForm,
-  testCookie,
   testRequiresAuth,
 } from "#test-utils";
 
 const tomorrow = () => addDays(todayInTz("UTC"), 1);
 
 async function fetchCalendarHtml(path = "/admin/calendar") {
-  const response = await awaitTestRequest(path, {
-    cookie: await testCookie(),
-  });
+  const response = await adminGet(path);
   return response.text();
 }
 
 async function fetchCalendarResponse(path = "/admin/calendar") {
-  return awaitTestRequest(path, { cookie: await testCookie() });
+  return adminGet(path);
 }
 
 async function bookDailyTicket(

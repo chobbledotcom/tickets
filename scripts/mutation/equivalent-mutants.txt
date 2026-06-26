@@ -48,6 +48,12 @@ src/shared/accounting/rows.ts:181:58  ?? → ||   # selectById (await …)[0]: T
 # already-ascending array, so swapping the comparator changes nothing.
 src/shared/checkout-pricing.ts:176:16  - → /     # toUnits gives ascending lineIdx; a/b is identity on sorted input
 
+# The ledger listing filter only becomes visible after it is matched against the
+# cached positive listing ids loaded from the DB. Returning a non-positive safe
+# integer here instead of null still falls back to the all-listings view at the
+# later `listings.some((listing) => listing.id === requested)` gate.
+src/features/admin/ledger.ts:187:34  && → ||    # non-positive ids cannot match persisted listing ids, so the route output is unchanged
+
 
 # attendee-form-model: `?? → ||` where the left operand can never be a
 # falsy-but-non-null value, so the two operators always agree.
@@ -65,3 +71,25 @@ src/shared/largest-remainder.ts:20:40  ?? → ||   # tieBreaker?: function|undef
 # the only falsy non-null byte is 0, so `byte ?? 0` and `byte || 0` agree.
 src/shared/crypto/utils.ts:18:23  ?? → ||   # bufA[i]: number|undefined, 0 ?? 0 === 0 || 0
 src/shared/crypto/utils.ts:18:40  ?? → ||   # bufB[i]: number|undefined, 0 ?? 0 === 0 || 0
+
+# test-utils/csrf: regex `match` results are either null/undefined or truthy
+# values; the quantity capture is `\d+`, so it can never be an empty string.
+test/test-utils/csrf.ts:13:46  ?? → ||   # input tag match: RegExpMatchArray|null; a non-null array is truthy
+test/test-utils/csrf.ts:30:46  ?? → ||   # input tag match: RegExpMatchArray|null; a non-null array is truthy
+test/test-utils/csrf.ts:41:47  ?? → ||   # option tag match: RegExpMatchArray|null; a non-null array is truthy
+test/test-utils/csrf.ts:146:20  ?? → ||  # quantity id capture: string|undefined, but `\d+` makes every present value truthy
+
+# test-utils/test-browser: remaining nullish fallbacks either receive truthy
+# objects/non-empty regex matches, or fall back to the same empty string for the
+# only falsy non-null string value.
+test/test-utils/test-browser.ts:79:73  ?? → ||   # find(): LinkMatch|undefined; a found object is truthy
+test/test-utils/test-browser.ts:99:26  ?? → ||   # missing input type defaults to text; empty/invalid type follows the same successful-input path as text
+test/test-utils/test-browser.ts:121:56  ?? → ||  # textarea open-tag match is a non-empty string when present, otherwise undefined
+test/test-utils/test-browser.ts:125:65  ?? → ||  # textarea content fallback is "", so empty content and missing content both agree
+test/test-utils/test-browser.ts:135:73  ?? → ||  # option text fallback is "", so empty text and missing text both agree
+test/test-utils/test-browser.ts:140:54  ?? → ||  # select open-tag match is a non-empty string when present, otherwise undefined
+test/test-utils/test-browser.ts:150:19  ?? → ||  # submitted option tags are non-empty strings when present, otherwise undefined
+test/test-utils/test-browser.ts:249:27  ?? → ||  # button attribute capture falls back to "", so empty attrs and absent attrs agree
+test/test-utils/test-browser.ts:256:49  ?? → ||  # button value fallback is "", so empty value and absent value agree
+test/test-utils/test-browser.ts:351:58  ?? → ||  # RequestInit.method is omitted or a non-empty method string in every caller
+test/test-utils/test-browser.ts:414:28  ?? → ||  # forms[0] is a FormInfo object when present, otherwise undefined

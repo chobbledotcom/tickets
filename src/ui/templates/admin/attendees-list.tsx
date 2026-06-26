@@ -196,7 +196,7 @@ export const adminAttendeesListPage = (props: AttendeesListPageProps): string =>
         </ActionButton>
       </p>
 
-      <div class="attendees-table-controls">
+      <div class="table-controls">
         {props.categories.length > 1 && (
           <Raw
             html={renderTypeFilter(props.type, props.categories, (f) =>

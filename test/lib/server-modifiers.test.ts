@@ -310,6 +310,37 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       expect(html).toContain('name="total_revenue"');
       expect(html).toContain("correcting entry to the money ledger");
     });
+
+    test("shows the owner-only modifier ledger section", async () => {
+      await adminFormPost(
+        "/admin/modifiers",
+        createData({ name: "Helmet hire" }),
+      );
+      const { id } = await lastModifier();
+      const response = await adminGet(`/admin/modifiers/${id}/edit`);
+      const html = await response.text();
+      expect(html).toContain("Account statement");
+      expect(html).toContain("Add entry");
+      expect(html).toContain(
+        `/admin/ledger/modifier/${id}/add?return_url=%2Fadmin%2Fmodifiers%2F${id}%2Fedit`,
+      );
+    });
+
+    test("omits the ledger section for managers", async () => {
+      await adminFormPost(
+        "/admin/modifiers",
+        createData({ name: "Manager visible" }),
+      );
+      const { id } = await lastModifier();
+      const response = await awaitTestRequest(`/admin/modifiers/${id}/edit`, {
+        cookie: await createTestManagerSession("mgr-modifier-edit"),
+      });
+      const html = await response.text();
+      expect(response.status).toBe(200);
+      expect(html).toContain("Manager visible");
+      expect(html).not.toContain("Account statement");
+      expect(html).not.toContain(`/admin/ledger/modifier/${id}/add`);
+    });
   });
 
   describe("POST /admin/modifiers/:id/revenue", () => {

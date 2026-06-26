@@ -254,13 +254,15 @@ export const installRecordingFetch = (
  *  recorded calls (default: zero calls were made). Returns the stub's calls
  *  for custom assertions. Unifies the "stub fetch then assert it wasn't
  *  called" scaffold from the scheduled-tasks and migration-error tests. */
+export function okResponse(): Promise<Response> {
+  return Promise.resolve(new Response("ok"));
+}
+
 export const expectFetchSilent = async (
   body: () => Promise<void>,
   assert?: (calls: ReturnType<typeof stub>["calls"]) => void,
 ): Promise<void> => {
-  const fetchStub = stub(globalThis, "fetch", () =>
-    Promise.resolve(new Response("ok")),
-  );
+  const fetchStub = stub(globalThis, "fetch", okResponse);
   try {
     await body();
     (
@@ -572,13 +574,15 @@ export const randomString = (length: number): string => {
 
 const NTFY_TEST_TOPIC = "https://ntfy.sh/test-topic";
 
+export function okEmptyResponse(): Promise<Response> {
+  return Promise.resolve(new Response());
+}
+
 export const stubNtfyFetch = (
   env: Record<string, string | undefined> = {},
 ): { fetchStub: Stub; restore: () => void } => {
   const restore = setTestEnv({ NTFY_URL: NTFY_TEST_TOPIC, ...env });
-  const fetchStub = stub(globalThis, "fetch", () =>
-    Promise.resolve(new Response()),
-  );
+  const fetchStub = stub(globalThis, "fetch", okEmptyResponse);
   return { fetchStub, restore };
 };
 
