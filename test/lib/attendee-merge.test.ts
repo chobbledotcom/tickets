@@ -12,6 +12,11 @@ import {
   LISTING_ATTENDEE_ROW_COLS,
 } from "#shared/db/attendees.ts";
 import { getDb, queryAll } from "#shared/db/client.ts";
+import {
+  enableQueryLog,
+  getQueryLog,
+  runWithQueryLogContext,
+} from "#shared/db/query-log.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import {
   answersTable,
@@ -1252,6 +1257,125 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       expect(listingLinks.map((r) => r.listing_id).sort()).toEqual(
         [listing1.id, listing2.id].sort(),
       );
+    });
+
+    test("merges many paid duplicate bookings in a bounded number of round-trips", async () => {
+      // Regression: each discarded paid booking posts a decision-17 reversal leg.
+      // Posting them one-leg-at-a-time inside an interactive transaction held the
+      // write lock open for several round-trips PER leg, so a big merge could blow
+      // the primary's transaction timeout. The whole merge must commit as one batch
+      // — O(1) round-trips regardless of how many bookings the person has.
+      const N = 12;
+      // Sequential: each createTestListing runs an authenticated request that
+      // mints a session, so building them concurrently would collide session
+      // tokens — the round-trip count we assert on is the merge, not the setup.
+      const listings: Awaited<ReturnType<typeof createTestListing>>[] = [];
+      for (let i = 0; i < N; i++) {
+        listings.push(await createTestListing({ maxAttendees: 10 }));
+      }
+      const at = "2026-06-21T00:00:00.000Z";
+      const piiOf = (name: string, email: string) => ({
+        address: "",
+        email,
+        name,
+        phone: "",
+        special_instructions: "",
+      });
+      const book = async (name: string, email: string) => {
+        const r = await createAttendeeAtomic({
+          bookings: listings.map((l) => ({ listingId: l.id })),
+          email,
+          name,
+        });
+        if (!r.success) throw new Error("setup failed");
+        return r.attendees[0]!;
+      };
+      const target = await book("Alice", "alice@test.com");
+      const source = await book("Bob", "bob@test.com");
+
+      // Give every source booking a paid sale leg, so each same-listing duplicate
+      // is a paid conflict that needs a money decision (a reversal leg on merge).
+      for (let i = 0; i < N; i++) {
+        await postTransfers([
+          {
+            amount: 5000,
+            destination: revenueAccount(listings[i]!.id),
+            eventGroup: `evt${i}`,
+            kind: "sale",
+            occurredAt: at,
+            reference: `sale${i}`,
+            source: attendeeAccount(source.id),
+          },
+          {
+            amount: 5000,
+            destination: attendeeAccount(source.id),
+            eventGroup: `evt${i}`,
+            kind: "payment",
+            occurredAt: at,
+            reference: `pay${i}`,
+            source: WORLD,
+          },
+        ]);
+        // Link the booking row to its ledger event so the merge sees it as paid.
+        await getDb().execute({
+          args: [`evt${i}`, source.id, listings[i]!.id],
+          sql: "UPDATE listing_attendees SET ledger_event_group = ? WHERE attendee_id = ? AND listing_id = ?",
+        });
+      }
+
+      const diff = await buildAttendeeMergeDiff(
+        {
+          sourceBookings: await getBookings(source.id),
+          sourceId: source.id,
+          sourcePii: piiOf("Bob", "bob@test.com"),
+          targetBookings: await getBookings(target.id),
+          targetId: target.id,
+          targetPii: piiOf("Alice", "alice@test.com"),
+        },
+        [],
+      );
+
+      // Every listing is a duplicate conflict: keep the target row and write off
+      // the discarded source booking's cash.
+      const bookings: Record<string, "keep_target"> = {};
+      const money: Record<string, "writeoff"> = {};
+      for (const l of listings) {
+        bookings[`${l.id}:null`] = "keep_target";
+        money[`${l.id}:null`] = "writeoff";
+      }
+
+      const { result, roundTrips } = await runWithQueryLogContext(async () => {
+        enableQueryLog();
+        const r = await applyAttendeeMerge({
+          decision: {
+            answers: {},
+            bookings,
+            money,
+            pii: {},
+            version: diff.version,
+          },
+          diff,
+          privateKey: await getTestPrivateKey(),
+          sourceId: source.id,
+          sourcePii: piiOf("Bob", "bob@test.com"),
+          targetId: target.id,
+          targetPii: {
+            ...piiOf("Alice", "alice@test.com"),
+            payment_id: target.payment_id,
+            ticket_token: target.ticket_token,
+          },
+        });
+        return {
+          result: r,
+          roundTrips: new Set(getQueryLog().map((q) => q.startedAtMs)).size,
+        };
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.summary.bookingsWrittenOff).toBe(N);
+      // The N reversal legs land in one batch, so the merge's round-trips don't
+      // scale with N (an interactive per-leg post would be ~3N and trip the guard).
+      expect(roundTrips).toBeLessThanOrEqual(10);
     });
 
     test("preserves the target's free-text answers through a merge", async () => {

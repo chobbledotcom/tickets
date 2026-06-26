@@ -47,11 +47,9 @@ import {
 } from "#routes/format.ts";
 import { bookingDateFields } from "#routes/public/ticket-payment.ts";
 import { htmlResponse, paymentErrorResponse } from "#routes/response.ts";
+import { eventGroupHasLegs } from "#shared/accounting/queries.ts";
 import { calculateBookingFee } from "#shared/booking-fee.ts";
-import {
-  bookingBatchPlan,
-  createOrSoldOut,
-} from "#shared/checkout-complete.ts";
+import { bookingBatchPlan } from "#shared/checkout-complete.ts";
 import {
   type ModifierApplication,
   type PricedOrder,
@@ -60,9 +58,12 @@ import {
 import { formatCurrency } from "#shared/currency.ts";
 import { logActivity } from "#shared/db/activityLog.ts";
 import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
-import { settleAttendeeBalance } from "#shared/db/attendees/balance.ts";
 import {
-  type createAttendeeAtomic,
+  balanceEventGroup,
+  settleAttendeeBalance,
+} from "#shared/db/attendees/balance.ts";
+import {
+  createAttendeeAtomic,
   createBookingAtomic,
   ensureAllBookings,
 } from "#shared/db/attendees.ts";
@@ -71,6 +72,7 @@ import { buyerVisits, specsFromRefs } from "#shared/db/modifier-resolve.ts";
 import {
   balanceFinalizeStatement,
   decryptSessionTokens,
+  finalizeSessionIfUnresolved,
   markSessionFailed,
   type ProcessedPayment,
   parseSessionFailure,
@@ -103,6 +105,7 @@ import {
 } from "#shared/payments.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
 import { recordPlaceholderRefund } from "#shared/refund-ledger.ts";
+import { bookingLedgerDisposition } from "#shared/session-ledger.ts";
 import { dayPriceFor, type ListingWithCount } from "#shared/types.ts";
 import { logAndNotifyRegistration } from "#shared/webhook.ts";
 import { paymentCancelPage } from "#templates/payment.tsx";
@@ -420,6 +423,23 @@ const formatPostPaymentError = capacityErrorFormatter({
     `Sorry, ${name} sold out while you were completing payment.`,
 });
 
+/** The one success shape every resolved payment session returns: the created or
+ *  already-existing attendee (only its id is carried — see PaymentSuccess), the
+ *  listing id the redirect resolves lazily, and any ticket tokens (a fresh
+ *  booking carries its token; a replay/settle carries none). Centralised so the
+ *  resolve paths — fresh booking, balance settle, processed-payments replay, and
+ *  ledger replay — can't drift apart. */
+const sessionSuccess = (
+  attendeeId: number,
+  listingId: number,
+  ticketTokens: string[] = [],
+): PaymentResult => ({
+  attendee: { id: attendeeId },
+  listingId,
+  success: true,
+  ticketTokens,
+});
+
 /** Return success result for an already-processed session.
  * Accepts a finalized payment record where attendee_id is guaranteed non-null.
  * Carries the listing id (not the loaded listing): the redirect resolves it
@@ -430,13 +450,11 @@ const alreadyProcessedResult = async (
   existing: ProcessedPayment & { attendee_id: number },
 ): Promise<PaymentResult> => {
   const decrypted = await decryptSessionTokens(existing.ticket_tokens);
-  const ticketTokens = decrypted ? decrypted.split("+") : [];
-  return {
-    attendee: { id: existing.attendee_id },
+  return sessionSuccess(
+    existing.attendee_id,
     listingId,
-    success: true,
-    ticketTokens,
-  };
+    decrypted ? decrypted.split("+") : [],
+  );
 };
 
 /**
@@ -1049,12 +1067,7 @@ const settleBalanceSession = async (
   // Settle + finalize already committed atomically above. The listing (which
   // may since be deleted) is resolved lazily by the redirect for its thank-you
   // link, so we carry only its id here.
-  return {
-    attendee: { id: attendeeId },
-    listingId,
-    success: true,
-    ticketTokens: [],
-  };
+  return sessionSuccess(attendeeId, listingId);
 };
 
 const logPromoCodeModifiers = async (
@@ -1090,7 +1103,9 @@ const placeholderBookings = (
     ...bookingDateFields(listing, intent.date, intent.dayCount),
   }));
 
-type PlaceholderBookings = Parameters<typeof createOrSoldOut>[0]["bookings"];
+type PlaceholderBookings = Parameters<
+  typeof createAttendeeAtomic
+>[0]["bookings"];
 
 /**
  * Keep a signed-by-us booking we can't honour rather than dropping it into limbo:
@@ -1118,7 +1133,7 @@ const storeRefundedBooking = async (
   // A quantity-0 overbook insert has no capacity gate and consumes no modifier
   // stock, so it always writes the row — trust it. (If the PII can't encrypt the
   // whole system is broken; we don't defend against that.)
-  const stored = await createOrSoldOut({
+  const stored = await createAttendeeAtomic({
     address: intent.address,
     allowOverbook: true,
     bookings,
@@ -1187,6 +1202,85 @@ const specForFailure = (
     : capacitySpec(failure.detail);
 
 /**
+ * Replay a payment session the ledger already records as resolved to
+ * `attendeeId`: heal the fresh reservation at that attendee — token-safely, so a
+ * racing delivery's finalized tokens survive (see {@link
+ * finalizeSessionIfUnresolved}) — and return success. NEVER refunds: the money is
+ * already in the ledger against this attendee. Tokens come back empty, so the
+ * redirect renders directly from the attendee. Shared by the booking-replay and
+ * balance-replay preflights.
+ */
+const replaySuccess = async (
+  sessionId: string,
+  attendeeId: number,
+  listingId: number,
+): Promise<PaymentResult> => {
+  await finalizeSessionIfUnresolved(sessionId, attendeeId);
+  logDebug("Payment", `Replayed already-ledgered session ${sessionId}`);
+  return sessionSuccess(attendeeId, listingId);
+};
+
+/**
+ * Acknowledge a session the ledger already accounts for but whose booking is
+ * gone — an operator deleted the attendee (its sale/payment legs remain) or it
+ * was a refunded quantity-0 placeholder. The money is already recorded, so we
+ * neither refund again nor recreate the booking: return a terminal handled
+ * outcome (200 — the webhook acks it, the redirect shows it as processed) and
+ * leave the orphaned ledger rows for the operator to reconcile.
+ */
+const alreadyHandledSession = (
+  sessionId: string,
+  listingId: number,
+): PaymentFailureResult => ({
+  detail: `Ledger already records session ${sessionId} with no live booking (listing ${listingId})`,
+  error: "This payment has already been processed.",
+  status: 200,
+  success: false,
+});
+
+/**
+ * The booking-session ledger preflight: the durable ledger — not the prunable
+ * processed_payments row — is the source of truth for "already honoured", so
+ * before validating, pricing, or refunding, resolve what it already records.
+ * Returns the replay outcome for a session it has seen (a live booking replays as
+ * success; an orphaned one is acknowledged), or null for a session it has never
+ * recorded (process it fresh). The single guard that stops a late replay — after
+ * the idempotency row is pruned or lost to a stale-reservation cleanup — from
+ * refunding a live ticket via the deleted-listing, price-change, inactive-listing,
+ * or capacity refund paths below.
+ */
+const replaySessionFromLedger = async (
+  sessionId: string,
+  listingId: number,
+): Promise<PaymentResult | null> => {
+  const disposition = await bookingLedgerDisposition(sessionId);
+  switch (disposition.status) {
+    case "unrecorded":
+      return null;
+    case "booked":
+      return replaySuccess(sessionId, disposition.attendeeId, listingId);
+    case "orphaned":
+      return alreadyHandledSession(sessionId, listingId);
+  }
+};
+
+/**
+ * The balance-settlement counterpart of {@link replaySessionFromLedger}: replay a
+ * balance session whose payment leg the ledger already records (its idempotency
+ * row was pruned or lost), or null to settle it fresh. The attendee is known from
+ * the proof-bound intent, so — unlike the booking path — there is no orphaned
+ * case to resolve.
+ */
+const replayBalanceFromLedger = async (
+  sessionId: string,
+  attendeeId: number,
+  listingId: number,
+): Promise<PaymentResult | null> =>
+  (await eventGroupHasLegs(await balanceEventGroup(sessionId)))
+    ? replaySuccess(sessionId, attendeeId, listingId)
+    : null;
+
+/**
  * Process a session we have just reserved (holding the lock). A signed session
  * either becomes a real ticket or — for ANY reason we can't honour it (charge
  * mismatch, a price edited mid-checkout, a sold-out extra, a full event, a
@@ -1208,11 +1302,29 @@ const processReservedSession = async (
   // mismatch can't be "stored" (the attendee already exists), so it refunds-and-
   // fails as before, idempotently inside the reservation.
   if (intent.balanceAttendeeId) {
+    // Preflight: a balance session whose payment leg is already in the ledger is
+    // a replay (its idempotency row was pruned or lost). Replay success rather
+    // than re-settling — settleAttendeeBalance would find nothing owed and refund
+    // a balance that's already paid.
+    const replay = await replayBalanceFromLedger(
+      sessionId,
+      intent.balanceAttendeeId,
+      signedListingId,
+    );
+    if (replay) return replay;
     if (verdict.verdict === "mismatch") {
       return refuseMismatch(session, verdict.agreed, signedListingId);
     }
     return settleBalanceSession(sessionId, session, intent);
   }
+
+  // Preflight: the durable ledger is the source of truth for "already honoured".
+  // Replay a session the ledger already records BEFORE any validation, pricing,
+  // or refund path runs below — so a late delivery (after the prunable idempotency
+  // row is gone) never refunds a live ticket via the deleted-listing, price-change,
+  // inactive-listing, or capacity paths, nor double-books it.
+  const replay = await replaySessionFromLedger(sessionId, signedListingId);
+  if (replay) return replay;
 
   // Phase 2: Validate listings.
   const validated = await validateAllItems(session, intent);
@@ -1315,12 +1427,9 @@ const processReservedSession = async (
 
   await logAndNotifyRegistration(createdEntries, intent.siteTokenIndex);
 
-  return {
-    attendee: firstAttendee.attendee,
-    listingId: firstAttendee.listing.id,
-    success: true,
-    ticketTokens: [ticketToken],
-  };
+  return sessionSuccess(firstAttendee.attendee.id, firstAttendee.listing.id, [
+    ticketToken,
+  ]);
 };
 
 export const processPaymentSession = async (

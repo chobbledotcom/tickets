@@ -56,6 +56,10 @@ export const requireJoinCsrfToken = (html: string | null): string => {
   return token;
 };
 
+export const csrfTokenOrSignedFallback = async (
+  html: string,
+): Promise<string> => extractCsrfToken(html) ?? (await signCsrfToken());
+
 export const getSetupCsrfToken = (html: string | null): string | null =>
   extractCsrfToken(html);
 
@@ -113,7 +117,7 @@ export const submitTicketForm = async (
   );
   const getResponse = await handleRequest(mockRequest(`/ticket/${slug}`));
   const html = await getResponse.text();
-  const csrfToken = extractCsrfToken(html) ?? (await signCsrfToken());
+  const csrfToken = await csrfTokenOrSignedFallback(html);
   const normalizedData = normalizeSingleListingFields(data, html);
   return handleRequest(mockTicketFormRequest(slug, normalizedData, csrfToken));
 };
@@ -126,7 +130,7 @@ export const submitMultiTicketForm = async (
   const { mockFormRequest, mockRequest } = await import("#test-utils/mocks.ts");
   const path = `/ticket/${slug}`;
   const getResponse = await handleRequest(mockRequest(path));
-  const csrfToken = extractCsrfToken(await getResponse.text()) ?? "";
+  const csrfToken = extractCsrfToken(await getResponse.text());
   if (!csrfToken) throw new Error("No CSRF token found on ticket page");
   return handleRequest(
     mockFormRequest(
@@ -142,7 +146,7 @@ const extractQuantityListingId = (html: string): string | null => {
   return match?.[1] ?? null;
 };
 
-const normalizeSingleListingFields = (
+export const normalizeSingleListingFields = (
   data: Record<string, string>,
   html: string,
 ): Record<string, string> => {

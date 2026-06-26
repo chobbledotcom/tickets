@@ -69,7 +69,7 @@ type LinkMatch = { href: string; text: string };
 const findAllLinks = (html: string): LinkMatch[] =>
   regexCollect(/<a\s[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, html, (m) => ({
     href: decodeEntities(m[1]!),
-    text: stripTags(m[2]!),
+    text: decodeEntities(stripTags(m[2]!)),
   }));
 
 /** Find a link whose visible text contains the search string (case-insensitive) */
@@ -118,11 +118,10 @@ const formInputEntry = (tag: string): FormEntry | undefined => {
 };
 
 const formTextareaEntry = (tag: string): FormEntry | undefined => {
-  const openTag = tag.match(/^<textarea\b[^>]*>/i)?.[0] ?? "";
+  const openTag = tag.match(/^<textarea\b[^>]*>/i)![0];
   const name = controlName(openTag);
   if (!name || isDisabled(openTag)) return undefined;
-  const value =
-    tag.match(/^<textarea\b[^>]*>([\s\S]*?)<\/textarea>$/i)?.[1] ?? "";
+  const value = tag.match(/^<textarea\b[^>]*>([\s\S]*?)<\/textarea>$/i)![1]!;
   return [decodeEntities(name), decodeEntities(value)];
 };
 
@@ -132,12 +131,12 @@ const optionEntry = (
 ): FormEntry | undefined => {
   const name = controlName(selectTag);
   if (!name || isDisabled(optionTag)) return undefined;
-  const text = stripTags(optionTag.match(/>([\s\S]*?)<\/option>$/i)?.[1] ?? "");
+  const text = stripTags(optionTag.match(/>([\s\S]*?)<\/option>$/i)![1]!);
   return [decodeEntities(name), controlValue(optionTag, decodeEntities(text))];
 };
 
 const formSelectEntries = (tag: string): FormEntry[] => {
-  const openTag = tag.match(/^<select\b[^>]*>/i)?.[0] ?? "";
+  const openTag = tag.match(/^<select\b[^>]*>/i)![0];
   if (!controlName(openTag) || isDisabled(openTag)) return [];
   const options = regexCollect(
     /<option\b[^>]*>[\s\S]*?<\/option>/gi,
@@ -246,7 +245,7 @@ const findFormByButton = (
     for (const m of regexCollect(buttonRe, f.body, (x) => x)) {
       const btnText = stripTags(m[2]!).toLowerCase().trim();
       if (btnText.includes(lower)) {
-        const attrs = m[1] ?? "";
+        const attrs = m[1]!;
         if (isDisabled(attrs)) continue;
         const nameMatch = attrs.match(/name="([^"]+)"/);
         return {
@@ -346,7 +345,8 @@ export class TestBrowser {
     path: string,
     options: RequestInit = {},
   ): Promise<Response> {
-    const req = this.buildRequest(toPath(path), options);
+    let currentPath = toPath(path);
+    const req = this.buildRequest(currentPath, options);
     let response = await this.send(req, `${options.method ?? "GET"} ${path}`);
 
     // Follow redirects (max 10 hops)
@@ -356,15 +356,14 @@ export class TestBrowser {
       const location = response.headers.get("location");
       if (!location) break;
       const nextPath = toPath(location);
+      currentPath = nextPath;
       response = await this.send(
         this.buildRequest(nextPath),
         `  -> redirect ${nextPath}`,
       );
     }
 
-    this.currentUrl = new URL(
-      response.url || `http://localhost${path}`,
-    ).pathname;
+    this.currentUrl = currentPath.split("?")[0]!;
     const finalLocation = response.headers.get("location");
     if (finalLocation && isRedirect(response.status)) {
       this.currentUrl = toPath(finalLocation).split("?")[0]!;
@@ -530,6 +529,7 @@ export class TestBrowser {
       formData.append(key, value);
     }
     for (const [key, value] of Object.entries(data)) {
+      formData.delete(key);
       formData.append(key, value);
     }
     formData.append(

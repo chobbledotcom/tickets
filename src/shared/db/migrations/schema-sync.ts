@@ -366,6 +366,15 @@ export const syncIndexes = async (): Promise<void> => {
   );
   const declaredNames = new Set(declared.map((d) => d.name));
 
+  // Only create an index whose table+columns the snapshot already shows. This
+  // gate is load-bearing during an incremental migration: syncIndexes runs over
+  // the WHOLE SCHEMA's declared indexes while only some tables exist yet (a
+  // later migration creates the rest), so an index on a not-yet-created table
+  // must be skipped now and created when that table's migration runs. A table
+  // present on the primary but briefly missing from this snapshot (read-your-
+  // writes lag) is indistinguishable here from one not yet created, so the
+  // lag-induced skip is repaired one layer up — verifyMigrationWithRetry re-runs
+  // the migration, which scopes verify() to its own objects (see migrations.ts).
   const creates = declared
     .filter((d) => {
       const columns = live.tables.get(d.tableName);

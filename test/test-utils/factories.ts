@@ -188,6 +188,7 @@ export const testBuiltSite = (
   readOnlyFrom: "",
   renewalToken: null,
   renewalTokenIndex: null,
+  updates: "release",
   ...overrides,
 });
 

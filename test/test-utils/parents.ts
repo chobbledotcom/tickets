@@ -116,7 +116,7 @@ export const apiBook = async (
 /** Assert a response is the public reservation success redirect. */
 export const expectReserved = (response: Response): void => {
   expect(response.status).toBe(302);
-  expect(response.headers.get("location") ?? "").toMatch(
+  expect(response.headers.get("location")!).toMatch(
     /^\/ticket\/reserved\?tokens=.+$/,
   );
 };

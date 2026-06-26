@@ -20,7 +20,6 @@ import {
   resolveModifiers,
   specsFromRefs,
 } from "#shared/db/modifier-resolve.ts";
-import { consumeModifierStock } from "#shared/db/modifier-usage.ts";
 import {
   getModifierAnswerIds,
   setModifierAnswers,
@@ -29,6 +28,7 @@ import { answersTable, questionsTable } from "#shared/db/questions.ts";
 import { normalizeCode } from "#shared/price-modifier.ts";
 import {
   checkoutItem,
+  consumeModifierStock,
   createTestListing,
   describeWithEnv,
   insertModifier,

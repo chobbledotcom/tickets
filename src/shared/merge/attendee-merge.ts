@@ -12,11 +12,11 @@ import {
   attendeeAccount,
   revenueAccount,
 } from "#shared/accounting/accounts.ts";
-import { ledgerTx } from "#shared/accounting/ledger-tx.ts";
+import { writeoffAdjustmentInserts } from "#shared/accounting/adjustments.ts";
 import { transfersByEventGroup } from "#shared/accounting/queries.ts";
 import { repointAttendeeStatements } from "#shared/accounting/repoint.ts";
 import type { ListingAttendeeRow } from "#shared/db/attendee-types.ts";
-import { insert, withTransaction } from "#shared/db/client.ts";
+import { executeBatch, insert } from "#shared/db/client.ts";
 import type { QuestionWithAnswers } from "#shared/db/questions.ts";
 import {
   getAttendeeAnswersByQuestion,
@@ -38,6 +38,7 @@ import type {
   BuildAttendeeMergeDiffInput,
   MergeBookingChoice,
 } from "#shared/merge/attendee-merge-types.ts";
+import { nowIso } from "#shared/now.ts";
 
 // ---------------------------------------------------------------------------
 // PII field definitions
@@ -739,9 +740,12 @@ export const applyAttendeeMerge = async (
   } = moneyReversalLegs(targetId, diff, decision);
 
   // --- 5. Execute all DB changes atomically ---
-  // One interactive write transaction so the row changes, the ledger repoint, and
-  // the decision-17 reversal legs commit or roll back together — a half-merge
-  // would strand money or leave income double-counted.
+  // One ACID batch so the row changes, the ledger repoint, and the decision-17
+  // reversal legs commit or roll back together — a half-merge would strand money
+  // or leave income double-counted. Building the whole merge as a single batch
+  // (rather than an interactive transaction that posted each reversal leg with its
+  // own read-then-write) keeps the write lock held for one round-trip regardless
+  // of how many bookings the merged person has.
   const rowStatements: { args: InValue[]; sql: string }[] = [
     // Delete target bookings that are being replaced
     ...deleteTargetBookingStatements,
@@ -766,14 +770,14 @@ export const applyAttendeeMerge = async (
     // rather than stranding on the deleted source (plan §5.17).
     ...repointAttendeeStatements(sourceId, targetId),
   ];
-  await withTransaction(async (tx) => {
-    for (const statement of rowStatements) await tx.execute(statement);
-    // After the repoint (the discarded booking's legs now sit on the target),
-    // post the reversal legs that un-bill it and credit / write off its cash.
-    for (const leg of moneyLegs) {
-      await ledgerTx.adjust(tx, leg.account, leg.delta, leg.keyParts);
-    }
-  });
+  // The reversal legs un-bill each discarded booking and credit / write off its
+  // cash; built as INSERT OR IGNORE statements so they ride the same batch as the
+  // repoint that just moved those legs onto the target.
+  const adjustmentInserts = await writeoffAdjustmentInserts(
+    moneyLegs,
+    nowIso(),
+  );
+  await executeBatch([...rowStatements, ...adjustmentInserts]);
 
   // Save merged answers for target. The choice decisions reduce to one answer
   // per question; re-supplying the merged free-text plaintext lets

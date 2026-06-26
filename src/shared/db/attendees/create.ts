@@ -22,6 +22,7 @@ import {
 } from "#shared/db/attendees/pii.ts";
 import {
   executeBatchWithResults,
+  inPlaceholders,
   insert,
   type TxScope,
   withTransaction,
@@ -285,6 +286,24 @@ type PreparedWrite = {
   enc: EncryptedAttendeeData;
   attendeeInsert: Statement;
   bookingStatements: Statement[];
+};
+
+const andConditions = (conditions: Statement[]): Statement => ({
+  args: conditions.flatMap((condition) => condition.args),
+  sql: conditions.map((condition) => `(${condition.sql})`).join(" AND "),
+});
+
+const noExistingLedgerCondition = (legs: TransferInput[]): Statement => {
+  if (legs.length === 0) return { args: [], sql: "1 = 1" };
+  const eventGroup = legs[0]!.eventGroup;
+  const references = legs.map((leg) => leg.reference);
+  return {
+    args: [eventGroup, ...references],
+    sql: `NOT EXISTS (SELECT 1 FROM transfers WHERE event_group = ?)
+          AND NOT EXISTS (SELECT 1 FROM transfers WHERE reference IN (${inPlaceholders(
+            references,
+          )}))`,
+  };
 };
 
 /**
@@ -561,16 +580,19 @@ const writeAsLedgerBatch = async (
  * all commit or roll back together, in a single round-trip that never holds an
  * interactive write transaction open against the primary.
  *
- * Returns `"sold-out"` when a chosen modifier had no stock left (the booking is
- * refused, same as the interactive path's ModifierSoldOutError), so the caller
- * keeps a placeholder and refunds; otherwise the usual create result (a partial
- * cart is the caller's all-or-nothing concern, via ensureAllBookings). */
+ * Returns `"sold-out"` when a chosen modifier had no stock left (the
+ * stock-guarded booking insert lands no row), so the caller keeps a placeholder
+ * and refunds; otherwise the usual create result (a partial cart is the caller's
+ * all-or-nothing concern, via ensureAllBookings). */
 export const createBookingAtomic = (
   input: AttendeeInput,
   plan: BookingBatchPlan,
 ): Promise<CreateAttendeeResult | "sold-out"> =>
   createWith<CreateAttendeeResult | "sold-out">({
-    condition: allModifiersInStockCondition(plan.usages),
+    condition: andConditions([
+      allModifiersInStockCondition(plan.usages),
+      noExistingLedgerCondition(plan.legs),
+    ]),
     // No booking landed: tell capacity-full from a sold-out modifier so the
     // caller shows the right reason (and keeps the right placeholder).
     noBooking: async () =>

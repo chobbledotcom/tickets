@@ -2196,12 +2196,16 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
 
       // Mock atomic create to fail (simulates race condition / capacity exceeded)
       const { attendeesApi } = await import("#shared/db/attendees.ts");
-      const mockCreate = stub(attendeesApi, "createAttendeeAtomic", () =>
+      // A free order with a ledger order goes through createBookingAtomic; a plain
+      // one through createAttendeeAtomic. Fail both so the create-fails path is
+      // exercised regardless of which the free reservation picks.
+      const failure = () =>
         Promise.resolve({
           reason: "capacity_exceeded" as const,
           success: false as const,
-        }),
-      );
+        });
+      const mockCreate = stub(attendeesApi, "createAttendeeAtomic", failure);
+      const mockBooking = stub(attendeesApi, "createBookingAtomic", failure);
 
       try {
         const response = await handleRequest(
@@ -2226,6 +2230,7 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
         );
       } finally {
         mockCreate.restore();
+        mockBooking.restore();
       }
     });
 
@@ -2678,14 +2683,18 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
       const csrfToken = getTicketCsrfToken(await getResponse.text());
       if (!csrfToken) throw new Error("Failed to get CSRF token");
 
-      // Mock attendeesApi to fail (capacity exceeded)
+      // Mock attendeesApi to fail (capacity exceeded). A free order with a ledger
+      // order uses createBookingAtomic; fail both so the path is covered either way.
       const { attendeesApi } = await import("#shared/db/attendees.ts");
       const originalFn = attendeesApi.createAttendeeAtomic;
-      attendeesApi.createAttendeeAtomic = () =>
+      const originalBooking = attendeesApi.createBookingAtomic;
+      const failure = () =>
         Promise.resolve({
           reason: "capacity_exceeded" as const,
           success: false as const,
         });
+      attendeesApi.createAttendeeAtomic = failure;
+      attendeesApi.createBookingAtomic = failure;
 
       try {
         const response = await handleRequest(
@@ -2709,6 +2718,7 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
         );
       } finally {
         attendeesApi.createAttendeeAtomic = originalFn;
+        attendeesApi.createBookingAtomic = originalBooking;
       }
     });
   });
@@ -2911,12 +2921,13 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
       });
 
       const { attendeesApi } = await import("#shared/db/attendees.ts");
-      const mockAtomic = stub(attendeesApi, "createAttendeeAtomic", () =>
+      const failure = () =>
         Promise.resolve({
-          reason: "encryption_error",
-          success: false,
-        }),
-      );
+          reason: "encryption_error" as const,
+          success: false as const,
+        });
+      const mockAtomic = stub(attendeesApi, "createAttendeeAtomic", failure);
+      const mockBooking = stub(attendeesApi, "createBookingAtomic", failure);
 
       try {
         const response = await submitTicketForm(listing.slug, {
@@ -2931,6 +2942,7 @@ describeWithEnv("server (public routes)", { db: true, triggers: true }, () => {
         );
       } finally {
         mockAtomic.restore();
+        mockBooking.restore();
       }
     });
   });

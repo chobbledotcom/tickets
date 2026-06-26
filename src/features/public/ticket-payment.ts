@@ -10,10 +10,7 @@ import {
   notFoundResponse,
 } from "#routes/response.ts";
 import { getBaseUrl } from "#routes/url.ts";
-import {
-  bookingLedgerPoster,
-  createOrSoldOut,
-} from "#shared/checkout-complete.ts";
+import { bookingBatchPlan } from "#shared/checkout-complete.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
 import { getBookableStartDates, isBookingRangeValid } from "#shared/dates.ts";
 import { getPublicStatusId } from "#shared/db/attendee-statuses.ts";
@@ -23,6 +20,8 @@ import type {
 } from "#shared/db/attendee-types.ts";
 import {
   checkBatchAvailability,
+  createAttendeeAtomic,
+  createBookingAtomic,
   ensureAllBookings,
 } from "#shared/db/attendees.ts";
 import { getActiveHolidays } from "#shared/db/holidays.ts";
@@ -665,6 +664,17 @@ type FreeReservationResult =
 export const MODIFIER_SOLD_OUT_MESSAGE =
   "An extra you selected sold out while you were checking out. Please try again.";
 
+/** A zero priced order: a free booking that consumes modifier stock but posts no
+ *  legs (payments disabled) builds its batch plan from this — no lines, so
+ *  mapBooking yields no legs while the modifier stock is still consumed. */
+const EMPTY_PRICED_ORDER: PricedOrder = {
+  extras: [],
+  fullSubtotal: 0,
+  lines: [],
+  modifierApplications: [],
+  total: 0,
+};
+
 export const createFreeReservation = async ({
   listings,
   quantities,
@@ -683,30 +693,28 @@ export const createFreeReservation = async ({
       ? { pricePaid: paidByListingId.get(booking.listingId)! }
       : {}),
   }));
-  // Legs/stock are posted inside the create transaction, as the paid webhook does,
-  // so the booking, its stock, and its sale/payment legs are all-or-nothing. With
-  // no payment session, the ledger event is keyed on the new attendee id and dated
-  // now; a modifier sold out mid-checkout rolls the whole create back.
+  // When there are legs to post or stock to consume, commit the booking, its
+  // modifier stock, and its sale legs as ONE batch (exactly as the paid webhook
+  // does) — never an interactive transaction held open across a read-per-leg. The
+  // free path has no payment session, so the ledger event is keyed on a fresh
+  // unique id (attendee-id-independent, so the legs are built before the attendee
+  // exists) and no session is finalized; a sold-out modifier rolls the whole batch
+  // back. A plain booking with neither legs nor stock has no plan, so it writes as
+  // a single capacity-checked batch (createAttendeeAtomic) — concurrent free
+  // submissions never contend on the one connection.
   const statusId = await getPublicStatusId();
-  const ledger = ledgerOrder
-    ? {
-        eventId: (attendeeId: number) => String(attendeeId),
-        occurredAt: nowIso(),
-        pricedOrder: ledgerOrder,
-      }
-    : null;
-  // A plain provider-less booking has neither legs nor stock, so it skips the
-  // interactive transaction and writes as a single batch — that keeps concurrent
-  // free submissions from contending on the one connection (an empty interactive
-  // transaction would still serialise them and can fail to commit mid-flight).
-  const postLedger =
-    ledger !== null || modifierUsages.length > 0
-      ? bookingLedgerPoster(modifierUsages, ledger)
-      : undefined;
-  const result = await createOrSoldOut(
-    { ...contact, bookings, remainingBalance, statusId },
-    postLedger,
-  );
+  const input = { ...contact, bookings, remainingBalance, statusId };
+  const result =
+    ledgerOrder !== null || modifierUsages.length > 0
+      ? await createBookingAtomic(
+          input,
+          await bookingBatchPlan(modifierUsages, {
+            eventId: crypto.randomUUID(),
+            occurredAt: nowIso(),
+            pricedOrder: ledgerOrder ?? EMPTY_PRICED_ORDER,
+          }),
+        )
+      : await createAttendeeAtomic(input);
   if (result === "sold-out") {
     return { error: MODIFIER_SOLD_OUT_MESSAGE, success: false };
   }

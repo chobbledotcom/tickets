@@ -70,6 +70,8 @@ import transfersTimeIntMigration from "./migrations/2026-06-22_transfers_time_in
 import attendeeOrderParentMigration from "./migrations/2026-06-23_attendee_order_parent.ts";
 import systemNotesMigration from "./migrations/2026-06-23_system_notes.ts";
 import ticketCountNoQuantityMigration from "./migrations/2026-06-23_ticket_count_no_quantity.ts";
+import builtSitesUpdatesMigration from "./migrations/2026-06-24_built_sites_updates.ts";
+import listingAttendeeLedgerEventGroupIndexMigration from "./migrations/2026-06-25_listing_attendee_ledger_event_group_index.ts";
 import { repairLegacyRenames } from "./migrations/rename-utils.ts";
 import {
   LATEST_UPDATE,
@@ -244,6 +246,10 @@ export const MIGRATIONS: Migration[] = [
   // Runs after drop_listing_income so the trigger rebuild lands on top of the
   // income-free bodies: re-counts tickets_count as quantity > 0 only.
   ticketCountNoQuantityMigration,
+  builtSitesUpdatesMigration,
+  // Pure index add (idempotent CREATE INDEX IF NOT EXISTS via syncIndexes);
+  // order-independent, appended last.
+  listingAttendeeLedgerEventGroupIndexMigration,
 ].map((build) => build(migrationContext));
 
 export const MIGRATION_IDS: string[] = MIGRATIONS.map(
@@ -359,6 +365,17 @@ const pendingMigrations = async (): Promise<Migration[]> => {
  * lets the schema settle within the same request rather than 503-ing it. A
  * genuine schema defect stays missing across every attempt and still throws, so
  * this never masks a real bug.
+ *
+ * Retrying verify() alone is not always enough, though: up() can itself skip a
+ * write when its own snapshot lagged. syncIndexes() reads the live schema to
+ * decide which indexes to create and skips any whose table the snapshot doesn't
+ * show — correct for an index on a table a later migration creates, but it also
+ * skips an index whose table THIS migration just created when the read lags
+ * behind that write. The index is then never created, so verify() fails on every
+ * attempt until up() runs again — the observed "missing index
+ * idx_system_notes_attendee_id, passed on the next request" failure. So once
+ * verify()'s own retries are exhausted, {@link applyMigrationWithRetry} re-runs
+ * up() once and verifies again.
  */
 export const VERIFY_RETRY_BACKOFF_MS = [50, 150, 350] as const;
 
@@ -381,11 +398,46 @@ export const verifyMigrationWithRetry = (migration: Migration): Promise<void> =>
     },
   );
 
+/**
+ * Apply a migration: run up(), then verify() with retries. If verify() never
+ * passes across a full round of retries, re-run up() once and verify again.
+ *
+ * Re-running up() repairs the case where up() itself skipped a write because its
+ * own schema snapshot lagged (see VERIFY_RETRY_BACKOFF_MS) — the missing-index
+ * failure. up() is idempotent by construction (the runner already re-runs it on
+ * a later request whenever a prior run died before recording its marker), so the
+ * second pass — now reading a settled snapshot — completes the skipped write.
+ *
+ * The re-run is deferred until verify()'s own retries are exhausted, not fired
+ * on the first verify miss, so a migration whose up() is NOT a cheap no-op after
+ * success — e.g. 2026-06-20_free_text_questions, which recopies attendee_answers
+ * / listing_questions / questions via recreateTable — is not re-run on a pure
+ * verify-lag (up() did its work; only verify()'s snapshot lagged), which would
+ * recopy large tables and risk the edge request budget. up() therefore runs at
+ * most twice, never once per retry.
+ */
+export const applyMigrationWithRetry = async (
+  migration: Migration,
+): Promise<void> => {
+  await migration.up();
+  try {
+    await verifyMigrationWithRetry(migration);
+  } catch (error) {
+    logDebug(
+      "Migration",
+      `verify ${migration.id} still failing after retries, re-running up(): ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+    await migration.up();
+    await verifyMigrationWithRetry(migration);
+  }
+};
+
 const runPendingMigrations = async (pending: Migration[]): Promise<void> => {
   for (const migration of pending) {
     logDebug("Migration", `Running ${migration.id}: ${migration.description}`);
-    await migration.up();
-    await verifyMigrationWithRetry(migration);
+    await applyMigrationWithRetry(migration);
     await markMigrationApplied(migration);
   }
 };

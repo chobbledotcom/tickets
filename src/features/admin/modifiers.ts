@@ -9,6 +9,7 @@ import {
   parseEditableAggregateForm,
   selectedRecalculationFields,
 } from "#routes/admin/aggregate-recalculation.ts";
+import { loadAccountLedger } from "#routes/admin/ledger.ts";
 import { createCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { AUTH_FORM, requireSessionOr, withAuth } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
@@ -19,6 +20,7 @@ import {
   redirect,
 } from "#routes/response.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
+import { modifierAccount } from "#shared/accounting/accounts.ts";
 import { createAuthedHandler } from "#shared/app-forms.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { toMinorUnits } from "#shared/currency.ts";
@@ -322,6 +324,14 @@ const answerLinksFor = async (
 
 const withModifier = withEntityLoader(getModifier);
 
+const loadModifierLedgerForSession = (
+  session: { adminLevel: string },
+  modifier: Modifier,
+) => {
+  if (session.adminLevel !== "owner") return Promise.resolve(undefined);
+  return loadAccountLedger(modifierAccount(modifier.id));
+};
+
 /** Edit page with the scope link editor (listing/group-scoped modifiers) and
  * the answer link editor (answer-triggered modifiers). */
 const handleEditGet: TypedRouteHandler<"GET /admin/modifiers/:id/edit"> = (
@@ -331,9 +341,10 @@ const handleEditGet: TypedRouteHandler<"GET /admin/modifiers/:id/edit"> = (
   requireSessionOr(request, (session) =>
     withModifier(id)(async (modifier) => {
       const flash = applyFlash(request);
-      const [links, answerLinks] = await Promise.all([
+      const [links, answerLinks, ledger] = await Promise.all([
         scopeLinksFor(modifier),
         answerLinksFor(modifier),
+        loadModifierLedgerForSession(session, modifier),
       ]);
       return htmlResponse(
         adminModifierEditPage(
@@ -343,6 +354,7 @@ const handleEditGet: TypedRouteHandler<"GET /admin/modifiers/:id/edit"> = (
           links,
           flash.success,
           answerLinks,
+          ledger,
         ),
       );
     }),

@@ -102,21 +102,28 @@ const conditionalSumColumn = (where: string, alias: string): string =>
  * minor units, signed by the caller:
  *
  * - `gross_sales` — Σ `sale` legs credited to the account (dest = revenue:id).
+ * - `external_income` — Σ owner-entered income received outside checkout.
  * - `write_ups` — Σ `adjustment` legs the `writeoff` account funded INTO revenue
  *   (`writeoff → revenue:id`, a manual write-UP credit).
  * - `write_downs` — Σ `adjustment` legs revenue paid OUT to `writeoff`
  *   (`revenue:id → writeoff`, a manual write-DOWN debit).
  * - `refunds` — Σ `refund_sale` legs debited from the account (source = revenue:id).
+ * - `external_costs` — Σ owner-entered listing costs paid outside checkout.
  *
- * Recognised income is `gross_sales + write_ups − write_downs` (matching
- * {@link creditsLessWriteoffDebits}); the net ledger balance is that minus
- * `refunds`. `idExpr` is the SQL for the listing id in the surrounding query.
+ * Recognised income is `gross_sales + external_income + write_ups −
+ * write_downs` (matching {@link creditsLessWriteoffDebits}); the net ledger
+ * balance is that minus `refunds` and `external_costs`. `idExpr` is the SQL for
+ * the listing id in the surrounding query.
  */
 export const revenueBreakdownColumns = (idExpr: string): string => {
   const credited = accountPredicate("dest", "revenue", idExpr);
   const debited = accountPredicate("source", "revenue", idExpr);
   return [
     conditionalSumColumn(`kind = 'sale' AND ${credited}`, "gross_sales"),
+    conditionalSumColumn(
+      `kind = 'manual_listing_income' AND ${credited}`,
+      "external_income",
+    ),
     conditionalSumColumn(
       `kind = 'adjustment' AND ${credited} AND source_type = 'writeoff'`,
       "write_ups",
@@ -126,6 +133,10 @@ export const revenueBreakdownColumns = (idExpr: string): string => {
       "write_downs",
     ),
     conditionalSumColumn(`kind = 'refund_sale' AND ${debited}`, "refunds"),
+    conditionalSumColumn(
+      `kind = 'manual_listing_cost' AND ${debited}`,
+      "external_costs",
+    ),
   ].join(", ");
 };
 

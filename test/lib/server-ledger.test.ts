@@ -4,19 +4,34 @@ import {
   LEDGER_DISPLAY_LIMIT,
   pickerDatesFromBounds,
 } from "#routes/admin/ledger.ts";
+import {
+  MANUAL_ATTENDEE_CHARGE,
+  MANUAL_ATTENDEE_PAYMENT,
+  MANUAL_ATTENDEE_WRITEOFF,
+  MANUAL_LISTING_COST,
+  MANUAL_LISTING_INCOME,
+  MANUAL_MODIFIER_INCOME,
+  MANUAL_MODIFIER_REDUCTION,
+} from "#shared/accounting/manual-entries.ts";
+import { allTransfers } from "#shared/accounting/queries.ts";
 import { postTransfers } from "#shared/accounting/store.ts";
+import { formatCurrency } from "#shared/currency.ts";
 import { adjustListingIncome } from "#shared/db/listings.ts";
 import { modifiersTable } from "#shared/db/modifiers.ts";
 import { account } from "#shared/ledger/account.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import {
+  adminFormPost,
   adminGet,
   awaitTestRequest,
   createTestAttendee,
   createTestListing,
   createTestManagerSession,
   describeWithEnv,
+  expectFlashRedirect,
+  getAllActivityLog,
   testRequiresAuth,
+  withSetting,
 } from "#test-utils";
 import {
   postAttendeeRefund,
@@ -49,6 +64,52 @@ const seededSale = async (
   return { attendeeId: attendee.id, listingId: listing.id };
 };
 
+const seededAttendee = async (): Promise<{
+  attendeeId: number;
+  listingId: number;
+}> => {
+  const listing = await createTestListing({
+    maxAttendees: 10,
+    name: "Manual listing",
+    thankYouUrl: "https://example.com",
+  });
+  const attendee = await createTestAttendee(
+    listing.id,
+    listing.slug,
+    "Ada Lovelace",
+    "ada@example.com",
+  );
+  return { attendeeId: attendee.id, listingId: listing.id };
+};
+
+const redirectTargetWithoutFlash = (response: Response): string => {
+  const location = response.headers.get("location");
+  if (!location) return "";
+  const url = new URL(location, "http://localhost");
+  url.searchParams.delete("flash");
+  const query = url.searchParams.toString();
+  return `${url.pathname}${query ? `?${query}` : ""}${url.hash}`;
+};
+
+const postAttendeePayment = async (
+  attendeeId: number,
+  amount = "12.34",
+): Promise<void> => {
+  const returnUrl = `/admin/attendees/${attendeeId}`;
+  const { response } = await adminFormPost(
+    `/admin/ledger/attendee/${attendeeId}/add`,
+    {
+      amount,
+      entry_type: MANUAL_ATTENDEE_PAYMENT,
+      occurred_at: "2026-06-22T09:30",
+      return_url: returnUrl,
+    },
+  );
+  await expectFlashRedirect(returnUrl, "Ledger entry added")(response);
+  const [entry] = await getAllActivityLog(1);
+  expect(entry?.message).toBe("Manual ledger entry added");
+};
+
 describeWithEnv("server (admin ledger)", { db: true }, () => {
   testRequiresAuth("/admin/ledger");
   testRequiresAuth("/admin/ledger/attendee/1");
@@ -62,7 +123,7 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
 
   test("renders recent transfers with the listing name resolved as a link", async () => {
     await seededSale("Summer Concert", 2500);
-    const { response } = await adminGet("/admin/ledger");
+    const { response } = await adminGet("/admin/ledger?view=dual");
     expect(response.status).toBe(200);
     const html = await response.text();
     expect(html).toContain("Ledger");
@@ -77,14 +138,494 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
   });
 
   test("shows the empty state when no transfers exist", async () => {
-    const { response } = await adminGet("/admin/ledger");
+    const { response } = await adminGet("/admin/ledger?view=dual");
     const html = await response.text();
     expect(html).toContain("No transfers recorded yet");
   });
 
+  test("account statements link to the add-entry page with the current statement as return URL", async () => {
+    const { attendeeId } = await seededAttendee();
+    const { response } = await adminGet(`/admin/ledger/attendee/${attendeeId}`);
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(html).toContain("Add entry");
+    expect(html).toContain(
+      `/admin/ledger/attendee/${attendeeId}/add?return_url=%2Fadmin%2Fledger%2Fattendee%2F${attendeeId}`,
+    );
+  });
+
+  test("renders attendee add choices in plain language", async () => {
+    const { attendeeId } = await seededAttendee();
+    const { response } = await adminGet(
+      `/admin/ledger/attendee/${attendeeId}/add?return_url=%2Fadmin%2Fattendees%2F${attendeeId}`,
+    );
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(html).toContain("Add ledger entry");
+    expect(html).toContain("Payment received outside checkout");
+    expect(html).toContain("Extra amount this attendee needs to pay");
+    expect(html).toContain("Waive or reduce what this attendee owes");
+    expect(html).toContain(`/admin/attendees/${attendeeId}`);
+  });
+
+  test("renders listing add choices for outside income and listing costs", async () => {
+    const listing = await createTestListing({
+      maxAttendees: 10,
+      name: "Village Hall",
+      thankYouUrl: "https://example.com",
+    });
+    const { response } = await adminGet(
+      `/admin/ledger/revenue/${listing.id}/add`,
+    );
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(html).toContain("Village Hall");
+    expect(html).toContain("Income received outside checkout");
+    expect(html).toContain("Cost paid for this listing");
+    expect(html).not.toContain("Extra amount this attendee needs to pay");
+  });
+
+  test("renders modifier add choices for modifier-specific changes", async () => {
+    const modifier = await modifiersTable.insert({
+      calcKind: "fixed",
+      calcValue: 500,
+      direction: "charge",
+      name: "Helmet hire",
+    });
+    const { response } = await adminGet(
+      `/admin/ledger/modifier/${modifier.id}/add`,
+    );
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(html).toContain("Helmet hire");
+    expect(html).toContain("Extra modifier income");
+    expect(html).toContain("Reduce modifier income");
+    expect(html).not.toContain("Cost paid for this listing");
+  });
+
+  test("posts an attendee payment received outside checkout", async () => {
+    const { attendeeId } = await seededAttendee();
+    await postAttendeePayment(attendeeId);
+    const [entry] = await allTransfers();
+    expect(entry?.amount).toBe(1234);
+    expect(entry?.kind).toBe(MANUAL_ATTENDEE_PAYMENT);
+    expect(entry?.occurredAt).toBe("2026-06-22T09:30:00.000Z");
+    expect(entry?.source).toEqual(account("external", "world"));
+    expect(entry?.destination).toEqual(account("attendee", attendeeId));
+  });
+
+  test("posts a listing cost against the listing revenue account", async () => {
+    const listing = await createTestListing({
+      maxAttendees: 10,
+      name: "Repairs",
+      thankYouUrl: "https://example.com",
+    });
+    const { response } = await adminFormPost(
+      `/admin/ledger/revenue/${listing.id}/add`,
+      {
+        amount: "45.00",
+        entry_type: MANUAL_LISTING_COST,
+        occurred_at: "2026-06-22T11:00",
+        return_url: `/admin/listing/${listing.id}`,
+      },
+    );
+    expect(redirectTargetWithoutFlash(response)).toBe(
+      `/admin/listing/${listing.id}`,
+    );
+    const [entry] = await allTransfers();
+    expect(entry?.amount).toBe(4500);
+    expect(entry?.kind).toBe(MANUAL_LISTING_COST);
+    expect(entry?.source).toEqual(account("revenue", listing.id));
+    expect(entry?.destination).toEqual(account("external", "world"));
+  });
+
+  test("posts every account-local manual entry shape", async () => {
+    const { attendeeId } = await seededAttendee();
+    const listing = await createTestListing({
+      maxAttendees: 10,
+      name: "Door sales",
+      thankYouUrl: "https://example.com",
+    });
+    const modifier = await modifiersTable.insert({
+      calcKind: "fixed",
+      calcValue: 500,
+      direction: "charge",
+      name: "Damage cover",
+    });
+    const cases = [
+      {
+        expectedDestination: account("writeoff", "default"),
+        expectedSource: account("attendee", attendeeId),
+        path: `/admin/ledger/attendee/${attendeeId}/add`,
+        type: MANUAL_ATTENDEE_CHARGE,
+      },
+      {
+        expectedDestination: account("attendee", attendeeId),
+        expectedSource: account("writeoff", "default"),
+        path: `/admin/ledger/attendee/${attendeeId}/add`,
+        type: MANUAL_ATTENDEE_WRITEOFF,
+      },
+      {
+        expectedDestination: account("revenue", listing.id),
+        expectedSource: account("external", "world"),
+        path: `/admin/ledger/revenue/${listing.id}/add`,
+        type: MANUAL_LISTING_INCOME,
+      },
+      {
+        expectedDestination: account("writeoff", "default"),
+        expectedSource: account("modifier", modifier.id),
+        path: `/admin/ledger/modifier/${modifier.id}/add`,
+        type: MANUAL_MODIFIER_REDUCTION,
+      },
+    ];
+
+    for (const entry of cases) {
+      const { response } = await adminFormPost(entry.path, {
+        amount: "3.21",
+        entry_type: entry.type,
+        occurred_at: "2026-06-22T12:00",
+        return_url: "/admin/ledger",
+      });
+      expect(response.status).toBe(302);
+    }
+
+    const rowsByKind = Object.fromEntries(
+      (await allTransfers()).map((transfer) => [transfer.kind, transfer]),
+    );
+    for (const entry of cases) {
+      expect(rowsByKind[entry.type]?.amount).toBe(321);
+      expect(rowsByKind[entry.type]?.source).toEqual(entry.expectedSource);
+      expect(rowsByKind[entry.type]?.destination).toEqual(
+        entry.expectedDestination,
+      );
+    }
+  });
+
+  test("posts modifier income without moving money between item types", async () => {
+    const modifier = await modifiersTable.insert({
+      calcKind: "fixed",
+      calcValue: 500,
+      direction: "charge",
+      name: "Insurance",
+    });
+    const { response } = await adminFormPost(
+      `/admin/ledger/modifier/${modifier.id}/add`,
+      {
+        amount: "8.00",
+        entry_type: MANUAL_MODIFIER_INCOME,
+        occurred_at: "2026-06-22T11:30",
+        return_url: `/admin/modifiers/${modifier.id}/edit`,
+      },
+    );
+    expect(redirectTargetWithoutFlash(response)).toBe(
+      `/admin/modifiers/${modifier.id}/edit`,
+    );
+    const [entry] = await allTransfers();
+    expect(entry?.amount).toBe(800);
+    expect(entry?.kind).toBe(MANUAL_MODIFIER_INCOME);
+    expect(entry?.source).toEqual(account("writeoff", "default"));
+    expect(entry?.destination).toEqual(account("modifier", modifier.id));
+  });
+
+  test("rejects a manual entry type that does not belong to the account", async () => {
+    const { attendeeId } = await seededAttendee();
+    const { response } = await adminFormPost(
+      `/admin/ledger/attendee/${attendeeId}/add`,
+      {
+        amount: "12.34",
+        entry_type: MANUAL_LISTING_COST,
+        occurred_at: "2026-06-22T09:30",
+        return_url: `/admin/attendees/${attendeeId}`,
+      },
+    );
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toContain(
+      `/admin/ledger/attendee/${attendeeId}/add`,
+    );
+    expect(await allTransfers()).toEqual([]);
+  });
+
+  test("rejects invalid add-entry forms without posting a transfer", async () => {
+    const { attendeeId } = await seededAttendee();
+    const path = `/admin/ledger/attendee/${attendeeId}/add`;
+    const valid = {
+      amount: "12.34",
+      entry_type: MANUAL_ATTENDEE_PAYMENT,
+      occurred_at: "2026-06-22T09:30",
+      return_url: `/admin/attendees/${attendeeId}`,
+    };
+    const invalidCases = [
+      { amount: "" },
+      { amount: "not-money" },
+      { amount: "0" },
+      { amount: "12abc" },
+      { amount: "1,000" },
+      { amount: "1e2" },
+      { amount: "12.345" },
+      { occurred_at: "" },
+      { occurred_at: "not-a-date" },
+    ];
+
+    for (const override of invalidCases) {
+      const { response } = await adminFormPost(path, {
+        ...valid,
+        ...override,
+      });
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toContain(path);
+    }
+    expect(await allTransfers()).toEqual([]);
+  });
+
+  test("validates add-entry amounts with the configured currency precision", async () => {
+    const { attendeeId } = await seededAttendee();
+    const path = `/admin/ledger/attendee/${attendeeId}/add`;
+    const valid = {
+      amount: "1234",
+      entry_type: MANUAL_ATTENDEE_PAYMENT,
+      occurred_at: "2026-06-22T09:30",
+      return_url: "/admin/ledger",
+    };
+
+    await withSetting({ currency: "JPY" }, async () => {
+      const decimal = await adminFormPost(path, {
+        ...valid,
+        amount: "12.34",
+      });
+      expect(decimal.response.status).toBe(302);
+      expect(decimal.response.headers.get("location")).toContain(path);
+      expect(await allTransfers()).toEqual([]);
+
+      const whole = await adminFormPost(path, valid);
+      await expectFlashRedirect(
+        "/admin/ledger",
+        "Ledger entry added",
+      )(whole.response);
+    });
+
+    const [entry] = await allTransfers();
+    expect(entry?.amount).toBe(1234);
+    expect(entry?.kind).toBe(MANUAL_ATTENDEE_PAYMENT);
+  });
+
+  test("404s add-entry routes for non-addable or missing accounts", async () => {
+    const getCases = [
+      "/admin/ledger/nonsense/1/add",
+      "/admin/ledger/external/world/add",
+      "/admin/ledger/attendee/999999/add",
+    ];
+    for (const path of getCases) {
+      const { response } = await adminGet(path);
+      expect(response.status).toBe(404);
+    }
+
+    const { response } = await adminFormPost("/admin/ledger/nonsense/1/add", {
+      amount: "1.00",
+      entry_type: MANUAL_ATTENDEE_PAYMENT,
+      occurred_at: "2026-06-22T09:30",
+      return_url: "/admin/ledger",
+    });
+    expect(response.status).toBe(404);
+  });
+
+  test("renders the edit page with the editable amount, timestamp, and delete confirmation", async () => {
+    const { attendeeId } = await seededAttendee();
+    await postAttendeePayment(attendeeId);
+    const [entry] = await allTransfers();
+    const { response } = await adminGet(
+      `/admin/ledger/entries/${entry!.id}/edit?return_url=%2Fadmin%2Fattendees%2F${attendeeId}`,
+    );
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(html).toContain("Edit ledger entry");
+    expect(html).toContain('name="amount"');
+    expect(html).toContain('value="12.34"');
+    expect(html).toContain('name="occurred_at"');
+    expect(html).toContain('value="2026-06-22T09:30"');
+    expect(html).toContain("Delete ledger entry");
+    expect(html).toContain(formatCurrency(1234));
+    expect(html).toContain('name="confirm_identifier"');
+  });
+
+  test("edit pages without a return_url fall back to the ledger", async () => {
+    const { attendeeId } = await seededAttendee();
+    await postAttendeePayment(attendeeId);
+    const [entry] = await allTransfers();
+    const { response } = await adminGet(
+      `/admin/ledger/entries/${entry!.id}/edit`,
+    );
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(html).toContain(
+      'name="return_url" type="hidden" value="/admin/ledger"',
+    );
+    expect(html).not.toContain('value="/null"');
+  });
+
+  test("404s edit and delete maintenance routes for checkout-event transfers", async () => {
+    await seededSale("Immutable sale", 2500);
+    const sale = (await allTransfers()).find(
+      (transfer) => transfer.kind === "sale",
+    );
+    expect(sale).toBeDefined();
+
+    const edit = await adminGet(`/admin/ledger/entries/${sale!.id}/edit`);
+    expect(edit.response.status).toBe(404);
+
+    const postEdit = await adminFormPost(
+      `/admin/ledger/entries/${sale!.id}/edit`,
+      {
+        amount: "99.99",
+        occurred_at: "2026-06-23T10:15",
+        return_url: "/admin/ledger?view=dual",
+      },
+    );
+    expect(postEdit.response.status).toBe(404);
+
+    const postDelete = await adminFormPost(
+      `/admin/ledger/entries/${sale!.id}/delete`,
+      {
+        confirm_identifier: formatCurrency(sale!.amount),
+        return_url: "/admin/ledger?view=dual",
+      },
+    );
+    expect(postDelete.response.status).toBe(404);
+
+    const unchanged = (await allTransfers()).find(
+      (transfer) => transfer.id === sale!.id,
+    );
+    expect(unchanged?.amount).toBe(sale!.amount);
+    expect(unchanged?.occurredAt).toBe(sale!.occurredAt);
+  });
+
+  test("updates a ledger entry amount and business timestamp", async () => {
+    const { attendeeId } = await seededAttendee();
+    await postAttendeePayment(attendeeId);
+    const [entry] = await allTransfers();
+    const { response } = await adminFormPost(
+      `/admin/ledger/entries/${entry!.id}/edit`,
+      {
+        amount: "7.89",
+        occurred_at: "2026-06-23T10:15",
+        return_url: "/admin/ledger?view=dual",
+      },
+    );
+    await expectFlashRedirect(
+      "/admin/ledger?view=dual",
+      "Ledger entry updated",
+    )(response);
+    const [updated] = await allTransfers();
+    expect(updated?.amount).toBe(789);
+    expect(updated?.occurredAt).toBe("2026-06-23T10:15:00.000Z");
+    expect(updated?.source).toEqual(entry?.source);
+    expect(updated?.destination).toEqual(entry?.destination);
+    const [log] = await getAllActivityLog(1);
+    expect(log?.message).toBe(`Ledger entry #${entry!.id} updated`);
+  });
+
+  test("rejects invalid edit-entry forms without changing the transfer", async () => {
+    const { attendeeId } = await seededAttendee();
+    await postAttendeePayment(attendeeId);
+    const [entry] = await allTransfers();
+    for (const amount of ["0", "12abc", "1,000", "1e2", "12.345"]) {
+      const { response } = await adminFormPost(
+        `/admin/ledger/entries/${entry!.id}/edit`,
+        {
+          amount,
+          occurred_at: "2026-06-23T10:15",
+          return_url: "/admin/ledger",
+        },
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toContain(
+        `/admin/ledger/entries/${entry!.id}/edit`,
+      );
+      const [unchanged] = await allTransfers();
+      expect(unchanged?.amount).toBe(entry?.amount);
+      expect(unchanged?.occurredAt).toBe(entry?.occurredAt);
+    }
+  });
+
+  test("404s edit and delete routes for a missing transfer", async () => {
+    const edit = await adminGet("/admin/ledger/entries/999999/edit");
+    expect(edit.response.status).toBe(404);
+
+    const postEdit = await adminFormPost("/admin/ledger/entries/999999/edit", {
+      amount: "1.00",
+      occurred_at: "2026-06-23T10:15",
+      return_url: "/admin/ledger",
+    });
+    expect(postEdit.response.status).toBe(404);
+
+    const postDelete = await adminFormPost(
+      "/admin/ledger/entries/999999/delete",
+      {
+        confirm_identifier: "£1.00",
+        return_url: "/admin/ledger",
+      },
+    );
+    expect(postDelete.response.status).toBe(404);
+  });
+
+  test("deletes a ledger entry only after the exact formatted amount is confirmed", async () => {
+    const { attendeeId } = await seededAttendee();
+    await postAttendeePayment(attendeeId);
+    const [entry] = await allTransfers();
+    const deletePath = `/admin/ledger/entries/${entry!.id}/delete`;
+    const wrong = await adminFormPost(deletePath, {
+      confirm_identifier: "£0.01",
+      return_url: `/admin/attendees/${attendeeId}`,
+    });
+    expect(wrong.response.headers.get("location")).toContain(
+      `/admin/ledger/entries/${entry!.id}/edit`,
+    );
+    expect(await allTransfers()).toHaveLength(1);
+
+    const correct = await adminFormPost(deletePath, {
+      confirm_identifier: formatCurrency(entry!.amount),
+      return_url: `/admin/attendees/${attendeeId}`,
+    });
+    await expectFlashRedirect(
+      `/admin/attendees/${attendeeId}`,
+      "Ledger entry deleted",
+    )(correct.response);
+    expect(await allTransfers()).toEqual([]);
+    const [log] = await getAllActivityLog(1);
+    expect(log?.message).toBe(`Ledger entry #${entry!.id} deleted`);
+  });
+
+  test("ledger row edit links preserve the full filtered return URL", async () => {
+    const { attendeeId } = await seededAttendee();
+    const { response: postResponse } = await adminFormPost(
+      `/admin/ledger/attendee/${attendeeId}/add`,
+      {
+        amount: "5.00",
+        entry_type: MANUAL_ATTENDEE_CHARGE,
+        occurred_at: "2026-06-22T09:30",
+        return_url: "/admin/ledger",
+      },
+    );
+    await expectFlashRedirect(
+      "/admin/ledger",
+      "Ledger entry added",
+    )(postResponse);
+    const [entry] = await allTransfers();
+    const filteredPath =
+      "/admin/ledger?view=dual&from=2026-06-01&fromCal=2026-05";
+    const { response } = await adminGet(filteredPath);
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(html).toContain(
+      `/admin/ledger/entries/${entry!.id}/edit?return_url=${encodeURIComponent(
+        filteredPath,
+      )}`,
+    );
+    expect(html).not.toContain("return_url=NaN");
+  });
+
   test("shows the headline stats, both date pickers and the listing filter", async () => {
     await seededSale("Summer Concert", 2500);
-    const { response } = await adminGet("/admin/ledger");
+    const { response } = await adminGet("/admin/ledger?view=dual");
     const html = await response.text();
     // The four business-wide totals, headed "All listings".
     expect(html).toContain("All listings");
@@ -103,10 +644,22 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
     // hidden, so the only place "Card / bank" could appear — an external leg row —
     // is gone from the list page entirely.
     await seededSale("Gala", 2500);
+    const { response } = await adminGet("/admin/ledger?view=dual");
+    const html = await response.text();
+    expect(html).toContain("<td>sale</td>");
+    expect(html).not.toContain("Card / bank");
+  });
+
+  test("defaults the bare ledger page to the human view", async () => {
+    await seededSale("Gala", 2500);
     const { response } = await adminGet("/admin/ledger");
     const html = await response.text();
-    expect(html).toContain("sale");
-    expect(html).not.toContain("Card / bank");
+    expect(html).toContain("<th>Activity</th>");
+    expect(html).toContain("<strong>Plain-language log</strong>");
+    expect(html).toContain("booked");
+    expect(html).toContain("Gala");
+    expect(html).not.toContain("<th>Event</th>");
+    expect(html).not.toContain("<td>sale</td>");
   });
 
   test("a from-date later than the only transfer empties the list and zeroes income", async () => {
@@ -165,9 +718,10 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
     expect(response.status).toBe(200);
     const html = await response.text();
     // Every bad param is dropped, so the unfiltered all-listings list still shows
-    // the seeded sale.
+    // the seeded sale in the default human view.
     expect(html).toContain("Matinee");
-    expect(html).toContain("sale");
+    expect(html).toContain("booked");
+    expect(html).not.toContain("<td>sale</td>");
   });
 
   test("honours a valid to-date bound and a paged from-month", async () => {
@@ -204,7 +758,7 @@ describeWithEnv("server (admin ledger)", { db: true }, () => {
       });
     }
     await postTransfers(extras);
-    const { response } = await adminGet("/admin/ledger");
+    const { response } = await adminGet("/admin/ledger?view=dual");
     return response.text();
   };
 

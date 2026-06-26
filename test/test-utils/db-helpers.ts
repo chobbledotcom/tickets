@@ -8,6 +8,10 @@ import type { BuiltSiteFormInput } from "#shared/db/built-sites.ts";
 import type { GroupInput } from "#shared/db/groups.ts";
 import type { HolidayInput } from "#shared/db/holidays.ts";
 import { getListingWithCount, type ListingInput } from "#shared/db/listings.ts";
+import {
+  type LogisticsAssignment,
+  setLogisticsAssignments,
+} from "#shared/db/logistics.ts";
 import type {
   Attendee,
   DayPrices,
@@ -208,7 +212,6 @@ async function doAuthenticatedFormRequest<T>(
       session.cookie,
     ),
   );
-  response.body?.cancel();
   if (response.status !== 302) {
     throw new Error(`Failed to ${errorContext}: ${response.status}`);
   }
@@ -232,7 +235,6 @@ async function doAuthenticatedMultipartFormRequest<T>(
       session.cookie,
     ),
   );
-  response.body?.cancel();
   if (response.status !== 302) {
     throw new Error(`Failed to ${errorContext}: ${response.status}`);
   }
@@ -364,22 +366,38 @@ export const createTestAttendee = async (
     .getSetCookie()
     .find((c) => c.startsWith("flash_"));
   if (flashCookie) {
-    const cookiePart = flashCookie.split(";")[0] ?? "";
+    const cookiePart = flashCookie.split(";")[0]!;
     const value = cookiePart.split("=").slice(1).join("=");
     const parsed = parseFlashValue(value);
     if (parsed.error) {
-      response.body?.cancel();
       throw new Error(`Failed to create attendee: ${parsed.error}`);
     }
   }
-
-  response.body?.cancel();
 
   const afterAttendees = await getAttendeesRaw(listingId);
   return afterAttendees[0] as Attendee;
 };
 
 export { getAttendeesRaw };
+
+/** Create a listing (maxAttendees 100) + attendee ("Cust" / "c@example.com")
+ *  and assign logistics agents to its single booking line. The `assignments`
+ *  callback receives the listing ID so the caller can key the map correctly
+ *  without having to create the listing itself first. Shared by the
+ *  logistics-runsheet and server-logistics test suites. */
+export const createListingWithAttendeeAndLogistics = async (
+  assignments: (listingId: number) => Map<number, LogisticsAssignment>,
+): Promise<{ attendeeId: number; listingId: number }> => {
+  const listing = await createTestListing({ maxAttendees: 100 });
+  const attendee = await createTestAttendee(
+    listing.id,
+    listing.slug,
+    "Cust",
+    "c@example.com",
+  );
+  await setLogisticsAssignments(attendee.id, false, assignments(listing.id));
+  return { attendeeId: attendee.id, listingId: listing.id };
+};
 
 /** Register the standard processed-payments attenddee fixture: one listing +
  *  one attendee ("Test User" / "test@example.com") created in `beforeEach`,
@@ -810,6 +828,7 @@ export const createTestBuiltSite = (
     dbToken: overrides.dbToken ?? "",
     dbUrl: overrides.dbUrl ?? "",
     name: overrides.name ?? "Test Site",
+    ...(overrides.updates ? { updates: overrides.updates } : {}),
   };
 
   return doAuthenticatedFormRequest(
@@ -821,6 +840,7 @@ export const createTestBuiltSite = (
       db_url: input.dbUrl,
       name: input.name,
       ...(input.assignable ? { assignable: "1" } : {}),
+      ...(input.updates ? { updates: input.updates } : {}),
     },
     async () => {
       const { getAllBuiltSites } = await import("#shared/db/built-sites.ts");
@@ -851,6 +871,7 @@ export const updateTestBuiltSite = async (
       db_token: updates.dbToken ?? existing.dbToken,
       db_url: updates.dbUrl ?? existing.dbUrl,
       name: updates.name ?? existing.name,
+      updates: updates.updates ?? existing.updates,
       ...(assignable ? { assignable: "1" } : {}),
     },
     async () => {
@@ -890,7 +911,6 @@ export const createTestInvite = async (
       cookie,
     ),
   );
-  inviteResponse.body?.cancel();
   const location = inviteResponse.headers.get("location") ?? "";
   const url = new URL(location, "http://localhost");
   const inviteLink = url.searchParams.get("invite") ?? "";

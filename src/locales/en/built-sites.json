@@ -4,6 +4,7 @@
   "built_sites.build_new_site": "Build New Site",
   "built_sites.no_built_sites": "No built sites recorded.",
   "built_sites.table_bunny_url": "Bunny URL",
+  "built_sites.table_updates": "Updates",
   "built_sites.table_read_only": "Read-only from",
   "built_sites.status_assigned": "Assigned (attendee #{id, number})",
   "built_sites.status_available": "Available",

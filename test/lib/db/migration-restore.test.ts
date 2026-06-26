@@ -58,6 +58,29 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
     return result.rows.length > 0;
   };
 
+  // Explicitly-created indexes (sql IS NOT NULL excludes the auto-indexes backing
+  // UNIQUE/PK constraints) on `table` that include `column` — possibly declared
+  // by a LATER migration than the one that added the column. SQLite refuses
+  // DROP COLUMN while any index references it, so the restore drops these first.
+  const indexesReferencingColumn = async (
+    table: string,
+    column: string,
+  ): Promise<string[]> => {
+    const indexes = await getDb().execute({
+      args: [table],
+      sql: "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = ? AND sql IS NOT NULL",
+    });
+    const names: string[] = [];
+    for (const row of indexes.rows) {
+      const name = String(row.name);
+      const cols = await getDb().execute(
+        `SELECT name FROM pragma_index_info('${name}')`,
+      );
+      if (cols.rows.some((c) => String(c.name) === column)) names.push(name);
+    }
+    return names;
+  };
+
   // Drop a migration's owned objects in an order SQLite accepts: triggers and
   // indexes first (a column can't be dropped while a trigger or index
   // references it), then the columns added to existing tables, then the tables
@@ -71,6 +94,12 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
     }
     for (const [table, cols] of Object.entries(req.columns ?? {})) {
       for (const col of cols) {
+        // A later migration may index this column (e.g.
+        // idx_listing_attendees_ledger_event_group on ledger_event_group); drop
+        // any such index before the column, or SQLite refuses the DROP COLUMN.
+        for (const index of await indexesReferencingColumn(table, col)) {
+          await getDb().execute(`DROP INDEX IF EXISTS ${index}`);
+        }
         await getDb().execute(`ALTER TABLE ${table} DROP COLUMN ${col}`);
       }
     }
