@@ -345,27 +345,38 @@ const pendingMigrations = async (): Promise<Migration[]> => {
 
 /**
  * Backoff (ms) before each re-attempt of a migration's verify(). Its length is
- * the number of retries, so four verify attempts per round.
+ * the number of retries, so four verify attempts in total.
  *
  * A migration applies DDL in up() and then verify() reads the live schema back
- * to confirm it landed. Reads are pinned to the primary (queryBatchPrimary,
- * "write" mode) to dodge replica lag, but a freshly-opened primary connection
- * can still briefly observe the pre-DDL schema — read-your-writes propagation
- * lag — so an object the migration just created reads as missing. verify()
- * re-snapshots on every call, so retrying after a short backoff lets the schema
- * settle within the same request rather than 503-ing it. (Observed in
- * production: a column-add migration failed verification on one request and
- * passed on the retry moments later.) A genuine schema defect stays missing
- * across every attempt and still throws, so this never masks a real bug.
+ * to confirm it landed. The snapshot is already pinned to the primary
+ * (queryBatchPrimary, "write" mode) to dodge replica lag, but a freshly-opened
+ * primary connection can still briefly observe the pre-DDL schema —
+ * read-your-writes propagation lag — so a column the ALTER just added reads as
+ * missing and verify() throws spuriously. (Observed in production: a column-add
+ * migration failed verification on one request and passed on the retry moments
+ * later.) verify() re-snapshots on every call, so retrying after a short backoff
+ * lets the schema settle within the same request rather than 503-ing it. A
+ * genuine schema defect stays missing across every attempt and still throws, so
+ * this never masks a real bug.
+ *
+ * Retrying verify() alone is not always enough, though: up() can itself skip a
+ * write when its own snapshot lagged. syncIndexes() reads the live schema to
+ * decide which indexes to create and skips any whose table the snapshot doesn't
+ * show — correct for an index on a table a later migration creates, but it also
+ * skips an index whose table THIS migration just created when the read lags
+ * behind that write. The index is then never created, so verify() fails on every
+ * attempt until up() runs again — the observed "missing index
+ * idx_system_notes_attendee_id, passed on the next request" failure. So once
+ * verify()'s own retries are exhausted, {@link applyMigrationWithRetry} re-runs
+ * up() once and verifies again.
  */
 export const VERIFY_RETRY_BACKOFF_MS = [50, 150, 350] as const;
 
 /**
- * Run a migration's verify(), retrying a transient failure (read-your-writes lag
- * on the just-applied DDL) on a fresh schema snapshot before giving up. Cheap:
- * every attempt only re-snapshots the live schema, never re-applies DDL.
+ * Run a migration's verify(), retrying a transient failure (read-your-writes
+ * lag on the just-applied DDL) on a fresh schema snapshot before giving up.
  */
-const verifyWithRetry = (migration: Migration): Promise<void> =>
+export const verifyMigrationWithRetry = (migration: Migration): Promise<void> =>
   retryWithBackoff(
     () => migration.verify(),
     VERIFY_RETRY_BACKOFF_MS,
@@ -382,44 +393,37 @@ const verifyWithRetry = (migration: Migration): Promise<void> =>
 
 /**
  * Apply a migration: run up(), then verify() with retries. If verify() never
- * passes across a full round of (cheap, re-snapshot-only) retries, re-apply
- * up() ONCE and verify again.
+ * passes across a full round of retries, re-run up() once and verify again.
  *
- * The re-apply repairs the failure mode where up() itself silently skipped an
- * object. up() syncs schema in phases — applySchemaChanges() creates a new
- * table, then syncIndexes()/syncTriggers() read a FRESH snapshot to decide which
- * of that table's indexes/triggers to create. When that snapshot lags the
- * table-create from the earlier phase (the same read-your-writes lag above),
- * syncIndexes() does not yet see the table and SKIPS its index, so verify() can
- * never pass until up() runs again — the "missing index
- * idx_system_notes_attendee_id, passed on the next request" failure, where a
- * whole new request re-ran up().
+ * Re-running up() repairs the case where up() itself skipped a write because its
+ * own schema snapshot lagged (see VERIFY_RETRY_BACKOFF_MS) — the missing-index
+ * failure. up() is idempotent by construction (the runner already re-runs it on
+ * a later request whenever a prior run died before recording its marker), so the
+ * second pass — now reading a settled snapshot — completes the skipped write.
  *
- * Deferring the re-apply until a full round of verify retries has failed is
- * deliberate: a migration whose up() is NOT a cheap no-op after success — e.g.
- * 2026-06-20_free_text_questions, which recopies attendee_answers /
- * listing_questions / questions via recreateTable — must not be re-run on a pure
- * verify-lag (where up() already did its work and only verify()'s snapshot
- * lagged), which would recopy large tables and risk the edge request budget. So
- * up() runs at most twice, never once per retry. up() is idempotent by
- * construction — the runner already re-runs it on a later request whenever a
- * prior run died before recording its marker.
+ * The re-run is deferred until verify()'s own retries are exhausted, not fired
+ * on the first verify miss, so a migration whose up() is NOT a cheap no-op after
+ * success — e.g. 2026-06-20_free_text_questions, which recopies attendee_answers
+ * / listing_questions / questions via recreateTable — is not re-run on a pure
+ * verify-lag (up() did its work; only verify()'s snapshot lagged), which would
+ * recopy large tables and risk the edge request budget. up() therefore runs at
+ * most twice, never once per retry.
  */
 export const applyMigrationWithRetry = async (
   migration: Migration,
 ): Promise<void> => {
   await migration.up();
   try {
-    await verifyWithRetry(migration);
+    await verifyMigrationWithRetry(migration);
   } catch (error) {
     logDebug(
       "Migration",
-      `verify ${migration.id} still failing after retries, re-applying up(): ${
+      `verify ${migration.id} still failing after retries, re-running up(): ${
         error instanceof Error ? error.message : String(error)
       }`,
     );
     await migration.up();
-    await verifyWithRetry(migration);
+    await verifyMigrationWithRetry(migration);
   }
 };
 
