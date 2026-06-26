@@ -214,6 +214,7 @@ export const webhookMeta = (
 ): SessionMetadata => ({
   _origin: "localhost",
   address: "",
+  allocations: "",
   answer_ids: "",
   balance_attendee_id: "",
   date: "",
