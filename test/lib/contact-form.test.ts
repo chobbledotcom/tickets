@@ -88,13 +88,17 @@ describe("sendContactMessage", () => {
     });
   };
 
-  test("returns false and sends nothing when no email provider is set", async () => {
-    settings.setForTest({ business_email: "owner@example.com" });
+  const expectSendBlockedAndFetchUntouched = async (): Promise<void> => {
     sandbox.stubFetch(() => Promise.reject(new Error("should not be called")));
     expect(
       await sendContactMessage(validEmail("visitor@example.com"), "Hi"),
     ).toBe(false);
     expect(sandbox.fetchStub?.calls.length).toBe(0);
+  };
+
+  test("returns false and sends nothing when no email provider is set", async () => {
+    settings.setForTest({ business_email: "owner@example.com" });
+    await expectSendBlockedAndFetchUntouched();
   });
 
   test("returns false when no business email is set", async () => {
@@ -104,11 +108,7 @@ describe("sendContactMessage", () => {
       email_from_address: "sender@example.com",
       email_provider: "resend",
     });
-    sandbox.stubFetch(() => Promise.reject(new Error("should not be called")));
-    expect(
-      await sendContactMessage(validEmail("visitor@example.com"), "Hi"),
-    ).toBe(false);
-    expect(sandbox.fetchStub?.calls.length).toBe(0);
+    await expectSendBlockedAndFetchUntouched();
   });
 
   test("delivers to the business email with the sender as Reply-To", async () => {

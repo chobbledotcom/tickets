@@ -3,6 +3,12 @@ import { describe, it as test } from "@std/testing/bdd";
 import { buildSvgTicketData, buildTicketAttachments } from "#shared/email.ts";
 import { describeWithEnv, makeTestEntry as makeEntry } from "#test-utils";
 
+const decodeAttachmentContent = (attachment: { content: string }): string => {
+  const binary = atob(attachment.content);
+  const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+};
+
 describeWithEnv("buildSvgTicketData", { db: true }, () => {
   test("maps entry fields to SvgTicketData", () => {
     const data = buildSvgTicketData(
@@ -70,9 +76,7 @@ describe("buildTicketAttachments", () => {
   test("attachment content is base64-encoded UTF-8 SVG", async () => {
     const attachments = await buildTicketAttachments([makeEntry()], "GBP");
 
-    const binary = atob(attachments[0]!.content);
-    const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
-    const decoded = new TextDecoder().decode(bytes);
+    const decoded = decodeAttachmentContent(attachments[0]!);
     expect(decoded).toContain("<?xml");
     expect(decoded).toContain("<svg");
     expect(decoded).toContain("</svg>");
@@ -84,9 +88,7 @@ describe("buildTicketAttachments", () => {
       "GBP",
     );
 
-    const binary = atob(attachments[0]!.content);
-    const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
-    const decoded = new TextDecoder().decode(bytes);
+    const decoded = decodeAttachmentContent(attachments[0]!);
     expect(decoded).toContain("Cafe Musik");
     expect(decoded).toContain("Zurich");
   });

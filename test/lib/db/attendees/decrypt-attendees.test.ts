@@ -11,6 +11,14 @@ import {
 } from "#test-utils";
 
 describeWithEnv("db > attendees > decryptAttendees", { db: true }, () => {
+  const decryptFirstAttendee = async (listingId: number) => {
+    const privateKey = await getTestPrivateKey();
+    const raw = await getAttendeesRaw(listingId);
+    const attendees = await decryptAttendees(raw, privateKey);
+    expect(attendees.length).toBe(1);
+    return attendees[0]!;
+  };
+
   test("returns empty array when no attendees", async () => {
     const listing = await createTestListing({
       maxAttendees: 50,
@@ -66,12 +74,9 @@ describeWithEnv("db > attendees > decryptAttendees", { db: true }, () => {
       expect(result.attendees[0]!.phone).toBe("+44 7700 900000");
     }
 
-    const privateKey = await getTestPrivateKey();
-    const raw = await getAttendeesRaw(listing.id);
-    const attendees = await decryptAttendees(raw, privateKey);
-    expect(attendees.length).toBe(1);
-    expect(attendees[0]?.phone).toBe("+44 7700 900000");
-    expect(attendees[0]?.name).toBe("Phone Person");
+    const attendee = await decryptFirstAttendee(listing.id);
+    expect(attendee.phone).toBe("+44 7700 900000");
+    expect(attendee.name).toBe("Phone Person");
   });
 
   test("handles empty email, phone, address, and special_instructions strings", async () => {
@@ -97,14 +102,11 @@ describeWithEnv("db > attendees > decryptAttendees", { db: true }, () => {
       expect(result.attendees[0]!.special_instructions).toBe("");
     }
 
-    const privateKey = await getTestPrivateKey();
-    const raw = await getAttendeesRaw(listing.id);
-    const attendees = await decryptAttendees(raw, privateKey);
-    expect(attendees.length).toBe(1);
-    expect(attendees[0]?.email).toBe("");
-    expect(attendees[0]?.phone).toBe("");
-    expect(attendees[0]?.address).toBe("");
-    expect(attendees[0]?.special_instructions).toBe("");
+    const attendee = await decryptFirstAttendee(listing.id);
+    expect(attendee.email).toBe("");
+    expect(attendee.phone).toBe("");
+    expect(attendee.address).toBe("");
+    expect(attendee.special_instructions).toBe("");
   });
 
   test("encrypts and decrypts non-empty special_instructions", async () => {
@@ -121,11 +123,8 @@ describeWithEnv("db > attendees > decryptAttendees", { db: true }, () => {
     });
 
     expect(result.success).toBe(true);
-    const privateKey = await getTestPrivateKey();
-    const raw = await getAttendeesRaw(listing.id);
-    const attendees = await decryptAttendees(raw, privateKey);
-    expect(attendees.length).toBe(1);
-    expect(attendees[0]?.special_instructions).toBe(
+    const attendee = await decryptFirstAttendee(listing.id);
+    expect(attendee.special_instructions).toBe(
       "No nuts please\nAllergic to dairy",
     );
   });
@@ -144,11 +143,8 @@ describeWithEnv("db > attendees > decryptAttendees", { db: true }, () => {
     });
 
     expect(result.success).toBe(true);
-    const privateKey = await getTestPrivateKey();
-    const raw = await getAttendeesRaw(listing.id);
-    const attendees = await decryptAttendees(raw, privateKey);
-    expect(attendees.length).toBe(1);
-    expect(attendees[0]?.address).toBe("123 Main St\nSpringfield\nIL 62701");
+    const attendee = await decryptFirstAttendee(listing.id);
+    expect(attendee.address).toBe("123 Main St\nSpringfield\nIL 62701");
   });
 
   test("treats empty checked_in as false for pre-migration attendees", async () => {

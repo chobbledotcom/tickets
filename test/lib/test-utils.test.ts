@@ -47,6 +47,20 @@ describe("test-utils", () => {
     resetDb();
   });
 
+  const expectFormPostWithBody = async (
+    request: Request,
+    ...bodyContains: string[]
+  ): Promise<void> => {
+    expect(request.method).toBe("POST");
+    expect(request.headers.get("content-type")).toBe(
+      "application/x-www-form-urlencoded",
+    );
+    const body = await request.text();
+    for (const expected of bodyContains) {
+      expect(body).toContain(expected);
+    }
+  };
+
   describe("createTestDb", () => {
     test("creates an in-memory database that can execute queries", async () => {
       await createTestDb();
@@ -99,14 +113,11 @@ describe("test-utils", () => {
         email: "john@example.com",
         name: "John",
       });
-      expect(request.method).toBe("POST");
-      expect(request.headers.get("content-type")).toBe(
-        "application/x-www-form-urlencoded",
+      await expectFormPostWithBody(
+        request,
+        "name=John",
+        "email=john%40example.com",
       );
-
-      const body = await request.text();
-      expect(body).toContain("name=John");
-      expect(body).toContain("email=john%40example.com");
     });
 
     test("includes cookie when provided", () => {
@@ -158,13 +169,11 @@ describe("test-utils", () => {
       const request = testRequest("/admin/login", null, {
         data: { password: "secret", username: "admin" },
       });
-      expect(request.method).toBe("POST");
-      expect(request.headers.get("content-type")).toBe(
-        "application/x-www-form-urlencoded",
+      await expectFormPostWithBody(
+        request,
+        "username=admin",
+        "password=secret",
       );
-      const body = await request.text();
-      expect(body).toContain("username=admin");
-      expect(body).toContain("password=secret");
     });
 
     test("combines token with form data", async () => {

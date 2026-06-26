@@ -6,7 +6,7 @@ import {
 } from "@libsql/client";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { type Stub, stub } from "@std/testing/mock";
+import { stub } from "@std/testing/mock";
 import { getDb, insert, setDb } from "#shared/db/client.ts";
 import { getAllListings } from "#shared/db/listings.ts";
 import {
@@ -57,14 +57,33 @@ describeWithEnv("db > migrations", { db: true }, () => {
         transaction: () => Promise.reject(new Error("unexpected transaction")),
       }) as unknown as Client;
 
-    /** Set up NTFY env + fetch stub, run `body`, then assert ntfy was NOT
-     *  called and restore everything. Both "transient failure" tests share
-     *  this exact assert-ntfy-was-silent + cleanup scaffold. */
+    const mockMigrationClient = (
+      route: (sql: string) => Promise<ResultSet> | undefined,
+    ): Client =>
+      mockClient((statement) => {
+        const sql = typeof statement === "string" ? statement : statement.sql;
+        return (
+          route(sql) ??
+          Promise.reject(new Error(`unexpected migration query: ${sql}`))
+        );
+      });
+
+    const rejectSettingsRead =
+      (message: string): ((sql: string) => Promise<ResultSet> | undefined) =>
+      (sql) =>
+        sql.includes("FROM settings")
+          ? Promise.reject(new Error(message))
+          : undefined;
+
     const expectNtfySilent = async (
-      fetchStub: Stub,
-      restore: () => void,
+      client: Client,
       body: () => Promise<void>,
     ): Promise<void> => {
+      const restore = setTestEnv({ NTFY_URL: "https://ntfy.sh/test-topic" });
+      const fetchStub = stub(globalThis, "fetch", () =>
+        Promise.resolve(new Response()),
+      );
+      setDb(client);
       try {
         await body();
         const ntfyCall = fetchStub.calls.find(
@@ -125,6 +144,22 @@ describeWithEnv("db > migrations", { db: true }, () => {
         sql: "SELECT value FROM settings WHERE key = ?",
       });
       return result.rows[0]?.value as string | undefined;
+    };
+
+    const bootstrapSettingsTable = async (
+      preInit?: () => Promise<unknown>,
+    ): Promise<void> => {
+      await resetDatabase();
+      invalidateTestDbCache();
+      await preInit?.();
+      await initDb({ allowMissingSettings: true });
+
+      expect(await settingsTableExists()).toBe(true);
+      expect(await schemaMarkerKeys()).toEqual([
+        "db_schema_hash",
+        "latest_db_update",
+      ]);
+      expect(await appliedMigrationIds()).toEqual([...MIGRATION_IDS].sort());
     };
 
     test("initDb stores latest_db_update in settings", async () => {
@@ -279,34 +314,21 @@ describeWithEnv("db > migrations", { db: true }, () => {
     });
 
     test("initDb does not treat transient settings read failures as a new database", async () => {
-      const restore = setTestEnv({ NTFY_URL: "https://ntfy.sh/test-topic" });
-      const fetchStub = stub(globalThis, "fetch", () =>
-        Promise.resolve(new Response()),
-      );
-      setDb(
-        mockClient((statement) => {
-          const sql = typeof statement === "string" ? statement : statement.sql;
-          if (sql.includes("FROM settings")) {
-            return Promise.reject(new Error("temporary libsql read failure"));
-          }
-          return Promise.reject(
-            new Error(`unexpected migration query: ${sql}`),
+      await expectNtfySilent(
+        mockMigrationClient(
+          rejectSettingsRead("temporary libsql read failure"),
+        ),
+        async () => {
+          await expect(initDb()).rejects.toThrow(
+            "temporary libsql read failure",
           );
-        }),
+        },
       );
-      await expectNtfySilent(fetchStub, restore, async () => {
-        await expect(initDb()).rejects.toThrow("temporary libsql read failure");
-      });
     });
 
     test("initDb does not treat transient lock write failures as an acquired lock", async () => {
-      const restore = setTestEnv({ NTFY_URL: "https://ntfy.sh/test-topic" });
-      const fetchStub = stub(globalThis, "fetch", () =>
-        Promise.resolve(new Response()),
-      );
-      setDb(
-        mockClient((statement) => {
-          const sql = typeof statement === "string" ? statement : statement.sql;
+      await expectNtfySilent(
+        mockMigrationClient((sql) => {
           if (sql.includes("FROM settings")) {
             return Promise.resolve(
               resultSet([
@@ -318,29 +340,19 @@ describeWithEnv("db > migrations", { db: true }, () => {
           if (sql.includes("INSERT INTO settings")) {
             return Promise.reject(new Error("temporary libsql write failure"));
           }
-          return Promise.reject(
-            new Error(`unexpected migration query: ${sql}`),
-          );
+          return undefined;
         }),
+        async () => {
+          await expect(initDb()).rejects.toThrow(
+            "temporary libsql write failure",
+          );
+        },
       );
-      await expectNtfySilent(fetchStub, restore, async () => {
-        await expect(initDb()).rejects.toThrow(
-          "temporary libsql write failure",
-        );
-      });
     });
 
     test("initDb does not mistake another missing table for a missing settings table", async () => {
       setDb(
-        mockClient((statement) => {
-          const sql = typeof statement === "string" ? statement : statement.sql;
-          if (sql.includes("FROM settings")) {
-            return Promise.reject(new Error("no such table: user_settings"));
-          }
-          return Promise.reject(
-            new Error(`unexpected migration query: ${sql}`),
-          );
-        }),
+        mockMigrationClient(rejectSettingsRead("no such table: user_settings")),
       );
       try {
         const error = await initDb().catch((e: unknown) => e);
@@ -353,15 +365,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
 
     test("initDb recognizes a schema-qualified missing settings table error", async () => {
       setDb(
-        mockClient((statement) => {
-          const sql = typeof statement === "string" ? statement : statement.sql;
-          if (sql.includes("FROM settings")) {
-            return Promise.reject(new Error("no such table: main.settings"));
-          }
-          return Promise.reject(
-            new Error(`unexpected migration query: ${sql}`),
-          );
-        }),
+        mockMigrationClient(rejectSettingsRead("no such table: main.settings")),
       );
       try {
         await expect(initDb()).rejects.toBeInstanceOf(
@@ -394,33 +398,12 @@ describeWithEnv("db > migrations", { db: true }, () => {
     });
 
     test("initDb bootstraps a missing settings table when explicitly allowed", async () => {
-      await resetDatabase();
-      invalidateTestDbCache();
-
-      await initDb({ allowMissingSettings: true });
-
-      expect(await settingsTableExists()).toBe(true);
-      expect(await schemaMarkerKeys()).toEqual([
-        "db_schema_hash",
-        "latest_db_update",
-      ]);
-      expect(await appliedMigrationIds()).toEqual([...MIGRATION_IDS].sort());
+      await bootstrapSettingsTable();
     });
 
     test("initDb bootstraps an empty settings table when explicitly allowed", async () => {
-      await resetDatabase();
-      invalidateTestDbCache();
-      await createEmptySettingsTable();
-
-      await initDb({ allowMissingSettings: true });
-
-      expect(await settingsTableExists()).toBe(true);
+      await bootstrapSettingsTable(() => createEmptySettingsTable());
       expect(await tableExists("listings")).toBe(true);
-      expect(await schemaMarkerKeys()).toEqual([
-        "db_schema_hash",
-        "latest_db_update",
-      ]);
-      expect(await appliedMigrationIds()).toEqual([...MIGRATION_IDS].sort());
     });
 
     test("named legacy migration drops legacy indexes not in declarative schema", async () => {

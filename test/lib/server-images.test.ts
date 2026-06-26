@@ -126,6 +126,22 @@ const expectImageErrorRedirect = (
   expect(decoded).toContain(errorSubstring);
 };
 
+const expectEditJpegErrorRedirect = async (
+  listingId: number,
+  cookie: string,
+  csrfToken: string,
+  file: { data: Uint8Array; name: string },
+  expectedError: string,
+): Promise<void> => {
+  await withStorageMock(async () => {
+    const response = await submitEditImage(listingId, cookie, csrfToken, {
+      contentType: "image/jpeg",
+      ...file,
+    });
+    await expectImageErrorRedirect(response, expectedError);
+  });
+};
+
 /** Shared form fields for creating a new listing via POST /admin/listing */
 const newListingFormFields = (
   csrfToken: string,
@@ -212,6 +228,17 @@ const submitEditAttachment = async (
   );
 };
 
+const submitEditGuidePdf = (
+  listingId: number,
+  cookie: string,
+  csrfToken: string,
+): Promise<Response> =>
+  submitEditAttachment(listingId, cookie, csrfToken, {
+    contentType: "application/pdf",
+    data: PDF_BYTES,
+    name: "guide.pdf",
+  });
+
 /** Request the image proxy route */
 const proxyRequest = (ext = "jpg"): Promise<Response> =>
   handleRequest(mockRequest(`${PROXY_PATH}.${ext}`));
@@ -286,37 +313,25 @@ describeWithEnv(
         oversized[1] = 0xd8;
         oversized[2] = 0xff;
 
-        await withStorageMock(async () => {
-          const response = await submitEditImage(
-            listing.id,
-            cookie,
-            csrfToken,
-            {
-              contentType: "image/jpeg",
-              data: oversized,
-              name: "big.jpg",
-            },
-          );
-          await expectImageErrorRedirect(response, "256KB");
-        });
+        await expectEditJpegErrorRedirect(
+          listing.id,
+          cookie,
+          csrfToken,
+          { data: oversized, name: "big.jpg" },
+          "256KB",
+        );
       });
 
       test("redirects with image error for mismatched magic bytes", async () => {
         const { listing, cookie, csrfToken } = await setupListingAndLogin();
 
-        await withStorageMock(async () => {
-          const response = await submitEditImage(
-            listing.id,
-            cookie,
-            csrfToken,
-            {
-              contentType: "image/jpeg",
-              data: new Uint8Array([0x00, 0x00, 0x00, 0x00]),
-              name: "fake.jpg",
-            },
-          );
-          await expectImageErrorRedirect(response, "valid image");
-        });
+        await expectEditJpegErrorRedirect(
+          listing.id,
+          cookie,
+          csrfToken,
+          { data: new Uint8Array([0x00, 0x00, 0x00, 0x00]), name: "fake.jpg" },
+          "valid image",
+        );
       });
 
       test("uploads image and updates listing via edit form", async () => {
@@ -667,15 +682,10 @@ describeWithEnv(
               const { listing, cookie, csrfToken } =
                 await setupListingAndLogin();
 
-              const response = await submitEditAttachment(
+              const response = await submitEditGuidePdf(
                 listing.id,
                 cookie,
                 csrfToken,
-                {
-                  contentType: "application/pdf",
-                  data: PDF_BYTES,
-                  name: "guide.pdf",
-                },
               );
               expect(response.status).toBe(302);
               const updated = await getListingWithCount(listing.id);
@@ -689,15 +699,10 @@ describeWithEnv(
         const { listing, cookie, csrfToken } = await setupListingAndLogin();
 
         await withStorageMock(async () => {
-          const response = await submitEditAttachment(
+          const response = await submitEditGuidePdf(
             listing.id,
             cookie,
             csrfToken,
-            {
-              contentType: "application/pdf",
-              data: PDF_BYTES,
-              name: "guide.pdf",
-            },
           );
           await expectFlashRedirect(
             `/admin/listing/${listing.id}`,
@@ -769,15 +774,10 @@ describeWithEnv(
                 Promise.reject(new Error("CDN unreachable")),
               );
 
-              const response = await submitEditAttachment(
+              const response = await submitEditGuidePdf(
                 listing.id,
                 cookie,
                 csrfToken,
-                {
-                  contentType: "application/pdf",
-                  data: PDF_BYTES,
-                  name: "guide.pdf",
-                },
               );
               expectImageErrorRedirect(response, "upload failed");
             }),

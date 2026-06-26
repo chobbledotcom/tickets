@@ -13,7 +13,7 @@ import {
 } from "#test-utils";
 
 describeWithEnv("db > attendees > updateCheckedIn", { db: true }, () => {
-  test("updates checked_in to true for existing attendee", async () => {
+  const createAttendeeWithUpdates = async (updates: boolean[]) => {
     const listing = await createTestListing({ maxAttendees: 100 });
     const attendee = await createTestAttendee(
       listing.id,
@@ -21,30 +21,35 @@ describeWithEnv("db > attendees > updateCheckedIn", { db: true }, () => {
       "Check User",
       "check@example.com",
     );
+    for (const checked of updates) {
+      await updateCheckedIn(attendee.id, listing.id, checked);
+    }
+    return listing;
+  };
 
-    await updateCheckedIn(attendee.id, listing.id, true);
-
+  const decryptFirstAttendee = async (listingId: number) => {
     const privateKey = await getTestPrivateKey();
-    const rows = await getAttendeesRaw(listing.id);
-    const decrypted = await decryptAttendees(rows, privateKey);
-    expect(decrypted[0]?.checked_in).toBe(true);
+    const raw = await getAttendeesRaw(listingId);
+    const attendees = await decryptAttendees(raw, privateKey);
+    expect(attendees.length).toBe(1);
+    return attendees[0]!;
+  };
+
+  const expectFirstAttendeeCheckedIn = async (
+    listingId: number,
+    expected: boolean,
+  ) => {
+    const attendee = await decryptFirstAttendee(listingId);
+    expect(attendee.checked_in).toBe(expected);
+  };
+
+  test("updates checked_in to true for existing attendee", async () => {
+    const listing = await createAttendeeWithUpdates([true]);
+    await expectFirstAttendeeCheckedIn(listing.id, true);
   });
 
   test("updates checked_in back to false", async () => {
-    const listing = await createTestListing({ maxAttendees: 100 });
-    const attendee = await createTestAttendee(
-      listing.id,
-      listing.slug,
-      "Check User",
-      "check@example.com",
-    );
-
-    await updateCheckedIn(attendee.id, listing.id, true);
-    await updateCheckedIn(attendee.id, listing.id, false);
-
-    const privateKey = await getTestPrivateKey();
-    const rows = await getAttendeesRaw(listing.id);
-    const decrypted = await decryptAttendees(rows, privateKey);
-    expect(decrypted[0]?.checked_in).toBe(false);
+    const listing = await createAttendeeWithUpdates([true, false]);
+    await expectFirstAttendeeCheckedIn(listing.id, false);
   });
 });

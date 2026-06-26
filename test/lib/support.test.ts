@@ -158,25 +158,29 @@ describe("sendSupportMessage", () => {
 
   afterEach(sandbox.teardown);
 
-  test("returns false and sends nothing when ADMIN_EMAIL_ADDRESS is unset", async () => {
-    sandbox.setEnv({ ADMIN_EMAIL_ADDRESS: undefined });
-    sandbox.stubFetch(() => Promise.reject(new Error("should not be called")));
+  const expectSendNoop = async (reason: string): Promise<void> => {
+    sandbox.stubFetch(() =>
+      Promise.reject(
+        new Error(`sendSupportMessage should be a noop when ${reason}`),
+      ),
+    );
     expect(await sendSupportMessage("Help")).toBe(false);
     expect(sandbox.fetchStub?.calls.length).toBe(0);
+  };
+
+  test("returns false and sends nothing when ADMIN_EMAIL_ADDRESS is unset", async () => {
+    sandbox.setEnv({ ADMIN_EMAIL_ADDRESS: undefined });
+    await expectSendNoop("ADMIN_EMAIL_ADDRESS is unset");
   });
 
   test("returns false and sends nothing when no business email is set", async () => {
     settings.setForTest({ business_email: "" });
-    sandbox.stubFetch(() => Promise.reject(new Error("should not be called")));
-    expect(await sendSupportMessage("Help")).toBe(false);
-    expect(sandbox.fetchStub?.calls.length).toBe(0);
+    await expectSendNoop("no business email is set");
   });
 
   test("returns false when no email provider is configured", async () => {
     setHostEmailConfigForTest(null);
-    sandbox.stubFetch(() => Promise.reject(new Error("should not be called")));
-    expect(await sendSupportMessage("Help")).toBe(false);
-    expect(sandbox.fetchStub?.calls.length).toBe(0);
+    await expectSendNoop("no email provider is configured");
   });
 
   test("delivers to the admin address, from the site's business email", async () => {

@@ -4,6 +4,7 @@ import { spy } from "@std/testing/mock";
 import {
   BULK_UNSUBSCRIBE_PLACEHOLDER,
   type BulkEmailPayload,
+  type BulkSendResult,
   type EmailConfig,
   sendBulkEmails,
 } from "#shared/email.ts";
@@ -43,6 +44,17 @@ const twoRecipientUnsubPayload = (): BulkEmailPayload => ({
 
 describe("sendBulkEmails", () => {
   const fetch = useFetchStub();
+
+  const expectPostedBatch = (result: BulkSendResult, expectedUrl: string) => {
+    expect(result).toEqual({
+      attempted: 2,
+      batches: 1,
+      failed: 0,
+      responses: [okBatch],
+    });
+    const [url] = fetch.getFetchArgs();
+    expect(url).toBe(expectedUrl);
+  };
 
   test("Resend posts one batch request with all recipients", async () => {
     const result = await sendBulkEmails(config, payload(3));
@@ -102,14 +114,7 @@ describe("sendBulkEmails", () => {
       payload(2),
     );
 
-    expect(result).toEqual({
-      attempted: 2,
-      batches: 1,
-      failed: 0,
-      responses: [okBatch],
-    });
-    const [url] = fetch.getFetchArgs();
-    expect(url).toBe("https://api.postmarkapp.com/email/batch");
+    expectPostedBatch(result, "https://api.postmarkapp.com/email/batch");
     expect(fetch.getFetchHeaders()["X-Postmark-Server-Token"]).toBe("re_key");
     const body = fetch.getFetchJsonBody();
     expect(body[0]).toEqual({
@@ -164,14 +169,10 @@ describe("sendBulkEmails", () => {
       twoRecipientUnsubPayload(),
     );
 
-    expect(result).toEqual({
-      attempted: 2,
-      batches: 1,
-      failed: 0,
-      responses: [okBatch],
-    });
-    const [url] = fetch.getFetchArgs();
-    expect(url).toBe("https://api.mailgun.net/v3/mg.example.com/messages");
+    expectPostedBatch(
+      result,
+      "https://api.mailgun.net/v3/mg.example.com/messages",
+    );
     expect(fetch.getFetchHeaders().Authorization).toBe(
       `Basic ${btoa("api:re_key")}`,
     );

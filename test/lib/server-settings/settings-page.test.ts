@@ -6,6 +6,7 @@ import {
   adminGet,
   awaitTestRequest,
   describeWithEnv,
+  expectHtml,
   expectHtmlResponse,
   FLASH_TEST_ID,
   flashCookieHeader,
@@ -18,6 +19,21 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
   afterEach(() => {
     setDemoModeForTest(false);
   });
+
+  const expectSettingsFormFlash = async (
+    path: string,
+    formId: string,
+    flashMessage: string,
+    opts: { contains?: string[]; notContains?: string[] } = {},
+  ): Promise<string> => {
+    const response = await awaitTestRequest(
+      `${path}?form=${formId}&flash=${FLASH_TEST_ID}`,
+      {
+        cookie: `${await testCookie()}; ${flashCookieHeader(flashMessage)}`,
+      },
+    );
+    return expectHtml(response, opts);
+  };
 
   describe("GET /admin/settings", () => {
     testRequiresAuth("/admin/settings");
@@ -45,17 +61,14 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("displays success message on the matching form when form param is provided", async () => {
-      const response = await awaitTestRequest(
-        `/admin/settings?form=settings-business-email&flash=${FLASH_TEST_ID}`,
+      const html = await expectSettingsFormFlash(
+        "/admin/settings",
+        "settings-business-email",
+        "Business email updated",
         {
-          cookie: `${await testCookie()}; ${flashCookieHeader(
-            "Business email updated",
-          )}`,
+          contains: ['id="settings-business-email"', "Business email updated"],
         },
       );
-      const html = await response.text();
-      expect(html).toContain('id="settings-business-email"');
-      expect(html).toContain("Business email updated");
       // The success message should be inside the form, not as a global banner
       const formMatch = html.match(
         /id="settings-business-email"[\s\S]*?<\/form>/,
@@ -65,15 +78,11 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("does not show success on non-matching forms", async () => {
-      const response = await awaitTestRequest(
-        `/admin/settings?form=settings-business-email&flash=${FLASH_TEST_ID}`,
-        {
-          cookie: `${await testCookie()}; ${flashCookieHeader(
-            "Business email updated",
-          )}`,
-        },
+      const html = await expectSettingsFormFlash(
+        "/admin/settings",
+        "settings-business-email",
+        "Business email updated",
       );
-      const html = await response.text();
       // The theme form should not contain the success message
       const themeFormMatch = html.match(/id="settings-theme"[\s\S]*?<\/form>/);
       expect(themeFormMatch).toBeDefined();
@@ -170,15 +179,14 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     });
 
     test("displays success message on the matching form when form param is provided", async () => {
-      const response = await awaitTestRequest(
-        `/admin/settings-advanced?form=settings-show-public-api&flash=${FLASH_TEST_ID}`,
+      await expectSettingsFormFlash(
+        "/admin/settings-advanced",
+        "settings-show-public-api",
+        "API enabled",
         {
-          cookie: `${await testCookie()}; ${flashCookieHeader("API enabled")}`,
+          contains: ['id="settings-show-public-api"', "API enabled"],
         },
       );
-      const html = await response.text();
-      expect(html).toContain('id="settings-show-public-api"');
-      expect(html).toContain("API enabled");
     });
   });
 });

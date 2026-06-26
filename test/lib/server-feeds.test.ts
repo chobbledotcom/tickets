@@ -51,6 +51,21 @@ const expectExcludesClosedRegistration = async (
   expect(body).not.toContain(absentTag);
 };
 
+const expectCalendarFeed = async (
+  request: Request,
+  opts: { contains?: string[]; notContains?: string[] } = {},
+): Promise<void> => {
+  const response = await handleRequest(request);
+  expect(response.headers.get("content-type")).toBe(
+    "text/calendar; charset=utf-8",
+  );
+  await expectHtml(response, {
+    contains: opts.contains,
+    notContains: opts.notContains,
+    status: 200,
+  });
+};
+
 describeWithEnv("feeds", { db: true }, () => {
   describe("GET /feeds/listings.ics", () => {
     test("redirects to admin when public site is disabled", async () => {
@@ -457,16 +472,10 @@ describeWithEnv("calendar attendee feeds", { db: true }, () => {
     // cannot attach an x-csrf-token header, so this safe GET must not demand
     // one — otherwise the feed is unusable from a browser/calendar session.
     const { cookie } = await getTestSession();
-    const response = await handleRequest(
+    await expectCalendarFeed(
       mockRequest("/caldav/events.ics", { headers: { cookie } }),
+      { contains: ["SUMMARY:Cookie Person"] },
     );
-    const body = await response.text();
-
-    expect(response.status).toBe(200);
-    expect(response.headers.get("content-type")).toBe(
-      "text/calendar; charset=utf-8",
-    );
-    expect(body).toContain("SUMMARY:Cookie Person");
   });
 
   test("returns attendee-grouped events for API keys", async () => {
@@ -490,21 +499,16 @@ describeWithEnv("calendar attendee feeds", { db: true }, () => {
       "a@test.com",
     );
 
-    const response = await handleRequest(
-      requestAsApiKey("/caldav/events.ics", apiKey),
-    );
-    const body = await response.text();
-
-    expect(response.status).toBe(200);
-    expect(response.headers.get("content-type")).toBe(
-      "text/calendar; charset=utf-8",
-    );
-    expect(body).toContain("BEGIN:VEVENT");
-    expect(body).toContain("SUMMARY:Alice Example");
-    expect(body).toContain("DESCRIPTION:Summer Show");
-    expect(body).toContain("DTSTART:20260801T093000Z");
-    expect(body).toContain("LOCATION:Main Hall");
-    expect(body).toContain("/admin/attendees/");
+    await expectCalendarFeed(requestAsApiKey("/caldav/events.ics", apiKey), {
+      contains: [
+        "BEGIN:VEVENT",
+        "SUMMARY:Alice Example",
+        "DESCRIPTION:Summer Show",
+        "DTSTART:20260801T093000Z",
+        "LOCATION:Main Hall",
+        "/admin/attendees/",
+      ],
+    });
   });
 
   test("returns listing-grouped events for API keys", async () => {
@@ -527,14 +531,9 @@ describeWithEnv("calendar attendee feeds", { db: true }, () => {
       "b@test.com",
     );
 
-    const response = await handleRequest(
-      requestAsApiKey("/caldav/events.ics", apiKey),
-    );
-    const body = await response.text();
-
-    expect(response.status).toBe(200);
-    expect(body).toContain("SUMMARY:Autumn Show");
-    expect(body).toContain("DESCRIPTION:Bob Example");
+    await expectCalendarFeed(requestAsApiKey("/caldav/events.ics", apiKey), {
+      contains: ["SUMMARY:Autumn Show", "DESCRIPTION:Bob Example"],
+    });
   });
 
   test("omits dateless bookings and falls back to attendee id for blank names", async () => {
@@ -562,14 +561,10 @@ describeWithEnv("calendar attendee feeds", { db: true }, () => {
     );
     await createTestAttendeeDirect(dateless.id, "No Date", "nodate@test.com");
 
-    const response = await handleRequest(
-      requestAsApiKey("/caldav/events.ics", apiKey),
-    );
-    const body = await response.text();
-
-    expect(response.status).toBe(200);
-    expect(body).toContain("SUMMARY:Attendee 1");
-    expect(body).not.toContain("No Date");
+    await expectCalendarFeed(requestAsApiKey("/caldav/events.ics", apiKey), {
+      contains: ["SUMMARY:Attendee 1"],
+      notContains: ["No Date"],
+    });
   });
 
   test("forbids API keys when the private key cannot be derived", async () => {
@@ -647,13 +642,9 @@ describeWithEnv("calendar attendee feeds", { db: true }, () => {
       "h@test.com",
     );
 
-    const response = await handleRequest(
-      requestAsApiKey("/caldav/events.ics", apiKey),
-    );
-    const body = await response.text();
-
-    expect(response.status).toBe(200);
-    expect(body).toContain("Visible Person");
-    expect(body).not.toContain("Hidden Person");
+    await expectCalendarFeed(requestAsApiKey("/caldav/events.ics", apiKey), {
+      contains: ["Visible Person"],
+      notContains: ["Hidden Person"],
+    });
   });
 });
