@@ -23,7 +23,7 @@ import {
   createServicingHold,
   createTestListing,
   createTestServicingEvent,
-  decryptFirstAttendee,
+  decryptFirstServicingAttendee,
   describeWithEnv,
   expectEmptyContactFields,
   expectLogisticsDisabled,
@@ -53,7 +53,7 @@ describeWithEnv("servicing §3 — creation", { db: true }, () => {
     });
     expect(await kindOf(event.id)).toBe(SERVICING_KIND);
 
-    const decrypted = await decryptFirstAttendee(a.id);
+    const decrypted = await decryptFirstServicingAttendee(a.id);
     expect(decrypted?.name).toBe("Annual Inspection");
 
     const aRows = (await bookingRows(a.id)).rows;
@@ -72,7 +72,7 @@ describeWithEnv("servicing §3 — creation", { db: true }, () => {
       bookings: [{ listingId: listing.id, quantity: 1 }],
       name: "Boiler Service",
     } as never);
-    expectEmptyContactFields(await decryptFirstAttendee(listing.id));
+    expectEmptyContactFields(await decryptFirstServicingAttendee(listing.id));
     await expectLogisticsDisabled(event.id);
   });
 
@@ -105,7 +105,7 @@ describeWithEnv("servicing §3 — creation", { db: true }, () => {
 
   test("servicing event stores empty contact fields (only name in the PII blob)", async () => {
     const { listing } = await createServicingHold({ name: "Deep Clean" });
-    const decrypted = await decryptFirstAttendee(listing.id);
+    const decrypted = await decryptFirstServicingAttendee(listing.id);
     expect(decrypted?.name).toBe("Deep Clean");
     expectEmptyContactFields(decrypted);
   });

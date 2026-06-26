@@ -21,7 +21,7 @@ import {
   buildDuplicateServicingInput,
   createDailyListingPair,
   createServicingHold,
-  decryptFirstAttendee,
+  decryptFirstServicingAttendee,
   deleteServicingEvent,
   describeWithEnv,
   duplicateServicingEvent,
@@ -104,7 +104,7 @@ describeWithEnv(
         await tokenIndexOf(original.id),
       );
       expect(await kindOf(copy.id)).toBe(SERVICING_KIND);
-      const decrypted = await decryptFirstAttendee(listing.id);
+      const decrypted = await decryptFirstServicingAttendee(listing.id);
       expect(decrypted?.email).toBe("");
       expect(decrypted?.phone).toBe("");
     });

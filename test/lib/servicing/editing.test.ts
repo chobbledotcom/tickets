@@ -21,7 +21,7 @@ import {
   createDailyListingPair,
   createDailyTestListing,
   createServicingHold,
-  decryptFirstAttendee,
+  decryptFirstServicingAttendee,
   describeWithEnv,
   expectRejects,
   getServicingEvent,
@@ -61,7 +61,7 @@ describeWithEnv("servicing §4 — editing", { db: true }, () => {
     });
     expect((await servicingRowsForListing(a.id))[0]!.quantity).toBe(3);
     expect((await servicingRowsForListing(b.id)).length).toBe(0);
-    const decrypted = await decryptFirstAttendee(a.id);
+    const decrypted = await decryptFirstServicingAttendee(a.id);
     expect(decrypted?.name).toBe("Annual Inspection (revised)");
   });
 

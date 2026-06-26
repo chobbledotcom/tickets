@@ -13,7 +13,7 @@ import {
   adminPost,
   createRealAttendee,
   createServicingHold,
-  decryptFirstAttendee,
+  decryptFirstServicingAttendee,
   describeWithEnv,
   expectEmptyContactFields,
   expectLogisticsDisabled,
@@ -58,7 +58,7 @@ describeWithEnv(
         bookings: [{ listingId: listing.id, quantity: 1 }],
         name: "Boiler Service",
       } as never);
-      expectEmptyContactFields(await decryptFirstAttendee(listing.id));
+      expectEmptyContactFields(await decryptFirstServicingAttendee(listing.id));
     });
 
     test("an attendee cannot be converted into a service event (or vice-versa) via params", async () => {

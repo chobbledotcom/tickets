@@ -4,7 +4,7 @@
  * The canonical patterns repeated across `test/lib/servicing/*.test.ts` — the
  * "create a listing + servicing hold" fixture, the "render an admin page as
  * the logged-in owner" dance, the small DB query helpers (`kindOf`,
- * `tokenIndexOf`, `attendeeExists`, `childRowCount`), the "decrypt the first
+ * `tokenIndexOf`, `childRowCount`), the "decrypt the first servicing
  * attendee row for a listing" projection, the "assert every contact field is
  * empty" assertion, and the e2e "find the servicing link on the page" lookup —
  * live here so each test file asserts behaviour rather than restating setup.
@@ -153,15 +153,6 @@ export const tokenIndexOf = async (id: number): Promise<string | null> => {
   return row?.idx ?? null;
 };
 
-/** True when an attendee row with this id still exists. */
-export const attendeeExists = async (id: number): Promise<boolean> => {
-  const row = await queryOne<{ one: number }>(
-    "SELECT 1 AS one FROM attendees WHERE id = ?",
-    [id],
-  );
-  return row !== null;
-};
-
 /** Count rows in a child table referencing this attendee id. */
 export const childRowCount = async (
   table: string,
@@ -189,10 +180,12 @@ export const servicingRowsForListing = (
     [listingId, SERVICING_KIND],
   );
 
-/** Decrypt the first attendee row booked against `listingId`. Used to assert
- *  on the stored PII shape (name / contact fields) of the listing's first
- *  booking — the shape a servicing event persists. */
-export const decryptFirstAttendee = async (
+/** Decrypt the first servicing-kind attendee row booked against `listingId`.
+ *  Used to assert on the stored PII shape (name / contact fields) of the
+ *  listing's first servicing booking — the shape a servicing event persists.
+ *  (Distinct from db-helpers' `decryptFirstAttendee`, which targets normal
+ *  attendee-kind rows and asserts exactly one.) */
+export const decryptFirstServicingAttendee = async (
   listingId: number,
 ): Promise<Attendee | null> => {
   const { decryptAttendeeOrNull } = await import("#shared/db/attendees.ts");
