@@ -11,10 +11,20 @@ import {
   getTursoApiToken,
   getTursoGroup,
   getTursoOrganization,
+  slugifyForProvider,
 } from "#shared/config.ts";
 import { type ApiResult, fetchText, parseApiError } from "#shared/fetch.ts";
 
 const TURSO_API_BASE = "https://api.turso.tech";
+
+/**
+ * Sanitize a site name into a valid Turso database name.
+ * Rules: 1–63 chars, lowercase letters/numbers/hyphens, no leading/trailing hyphens.
+ */
+export const slugifyForTurso = (name: string): string => {
+  const slug = slugifyForProvider(name, 63);
+  return slug.length > 0 ? slug : "db";
+};
 
 interface CreateTursoDbResponse {
   database: {
@@ -43,12 +53,13 @@ const createDatabaseImpl = async (
 ): Promise<ApiResult<CreateDatabaseResult>> => {
   const org = getTursoOrganization();
   const group = getTursoGroup();
+  const dbSlug = slugifyForTurso(name);
 
   // 1. Create the database
   const createRes = await fetchText(
     `${TURSO_API_BASE}/v1/organizations/${encodeURIComponent(org)}/databases`,
     {
-      body: JSON.stringify({ group, name }),
+      body: JSON.stringify({ group, name: dbSlug }),
       headers: tursoApiHeaders(),
       method: "POST",
     },

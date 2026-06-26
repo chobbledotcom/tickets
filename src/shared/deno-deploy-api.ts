@@ -6,7 +6,11 @@
  * Auth: Authorization: Bearer {DENO_DEPLOY_TOKEN}
  */
 
-import { getDenoDeployOrgId, getDenoDeployToken } from "#shared/config.ts";
+import {
+  getDenoDeployOrgId,
+  getDenoDeployToken,
+  slugifyForProvider,
+} from "#shared/config.ts";
 import { type ApiResult, fetchText, parseApiError } from "#shared/fetch.ts";
 
 const DENO_API_BASE = "https://api.deno.com/v2";
@@ -36,16 +40,10 @@ const denoApiHeaders = (): Record<string, string> => ({
 
 /**
  * Sanitize a site name into a valid Deno Deploy slug.
- * Rules: 3–32 chars, lowercase letters/numbers/hyphens, no underscores,
- * no leading/trailing hyphens.
+ * Rules: 3–32 chars, lowercase letters/numbers/hyphens, no leading/trailing hyphens.
  */
 export const slugifyForDeno = (name: string): string => {
-  const slug = name
-    .toLowerCase()
-    .replace(/[^a-z0-9-]/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 32);
+  const slug = slugifyForProvider(name, 32);
   if (slug.length >= 3) return slug;
   return `${slug}app`.slice(0, 32);
 };

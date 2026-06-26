@@ -184,3 +184,15 @@ export const getTursoOrganization = (): string =>
 
 /** Get the Turso database group from environment. */
 export const getTursoGroup = (): string => requireEnv("TURSO_GROUP");
+
+/**
+ * Sanitize a site name into a valid provider resource slug.
+ * Lowercase letters, numbers, hyphens only; no leading/trailing hyphens.
+ */
+export const slugifyForProvider = (name: string, maxLength: number): string =>
+  name
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, maxLength);

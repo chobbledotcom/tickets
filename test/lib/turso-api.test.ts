@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { tursoApi } from "#shared/turso-api.ts";
+import { slugifyForTurso, tursoApi } from "#shared/turso-api.ts";
 import { describeWithEnv, withMocks } from "#test-utils";
 
 const TURSO_ENV = {
@@ -37,6 +37,23 @@ const successFetch = (dbName = "my-site") =>
 
     return Promise.resolve(new Response("unexpected", { status: 500 }));
   });
+
+test("slugifyForTurso lowercases and replaces non-slug chars with hyphens", () => {
+  expect(slugifyForTurso("My Site")).toBe("my-site");
+  expect(slugifyForTurso("Test_DB 123")).toBe("test-db-123");
+});
+
+test("slugifyForTurso collapses consecutive hyphens and trims leading/trailing", () => {
+  expect(slugifyForTurso("--My--Site--")).toBe("my-site");
+});
+
+test("slugifyForTurso truncates to 63 characters", () => {
+  expect(slugifyForTurso("a".repeat(100))).toBe("a".repeat(63));
+});
+
+test("slugifyForTurso returns db for names that reduce to empty", () => {
+  expect(slugifyForTurso("---")).toBe("db");
+});
 
 describeWithEnv("turso-api", { env: TURSO_ENV }, () => {
   test("createDatabase calls create and token endpoints", async () => {
@@ -127,6 +144,49 @@ describeWithEnv("turso-api", { env: TURSO_ENV }, () => {
       async () => {
         await tursoApi.createDatabase("x");
         expect(createBody).toEqual({ group: "default", name: "x" });
+      },
+    );
+  });
+
+  test("createDatabase slugifies the name before sending to Turso API", async () => {
+    let createBody: unknown;
+
+    await withMocks(
+      () =>
+        stub(
+          globalThis,
+          "fetch",
+          (input: string | URL | Request, init?: RequestInit) => {
+            const url = String(input);
+
+            if (url.includes("/databases") && !url.includes("/auth")) {
+              createBody = JSON.parse(init?.body as string);
+              return Promise.resolve(
+                new Response(
+                  JSON.stringify({
+                    database: {
+                      DbId: "db_slug",
+                      Hostname: "my-site.turso.io",
+                      Name: "my-site",
+                    },
+                  }),
+                  { status: 200 },
+                ),
+              );
+            }
+
+            if (url.includes("/auth/tokens")) {
+              return Promise.resolve(
+                new Response(JSON.stringify({ jwt: "j" }), { status: 200 }),
+              );
+            }
+
+            return Promise.resolve(new Response("unexpected", { status: 500 }));
+          },
+        ),
+      async () => {
+        await tursoApi.createDatabase("My Site");
+        expect(createBody).toEqual({ group: "default", name: "my-site" });
       },
     );
   });
