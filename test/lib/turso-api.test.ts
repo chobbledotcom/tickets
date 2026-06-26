@@ -51,6 +51,12 @@ test("slugifyForTurso truncates to 63 characters", () => {
   expect(slugifyForTurso("a".repeat(100))).toBe("a".repeat(63));
 });
 
+test("slugifyForTurso does not produce trailing hyphen when truncation lands on separator", () => {
+  const result = slugifyForTurso(`${"a".repeat(62)}-b`);
+  expect(result.endsWith("-")).toBe(false);
+  expect(result.length).toBeLessThanOrEqual(63);
+});
+
 test("slugifyForTurso returns db for names that reduce to empty", () => {
   expect(slugifyForTurso("---")).toBe("db");
 });

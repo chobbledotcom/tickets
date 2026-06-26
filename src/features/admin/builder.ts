@@ -139,6 +139,13 @@ const builderPost = createAuthedFormRoute({
       return errorRedirect(BUILDER_PATH, "Turso is not configured");
     }
 
+    if (dbProviderVal === "manual" && !values.db_url) {
+      return errorRedirect(
+        BUILDER_PATH,
+        "Database URL is required when using manual provider",
+      );
+    }
+
     const result = await settings.withCurrentTask("builder", () =>
       builderApi.buildSite({
         dbProvider: dbProviderVal === "manual" ? undefined : dbProvider,

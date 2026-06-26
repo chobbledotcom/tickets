@@ -195,4 +195,5 @@ export const slugifyForProvider = (name: string, maxLength: number): string =>
     .replace(/[^a-z0-9-]/g, "-")
     .replace(/-+/g, "-")
     .replace(/^-+|-+$/g, "")
-    .slice(0, maxLength);
+    .slice(0, maxLength)
+    .replace(/-+$/, "");

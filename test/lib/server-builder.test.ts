@@ -233,6 +233,19 @@ describeWithEnv(
       }
     });
 
+    test("POST /admin/builder returns error when manual provider has no db_url", async () => {
+      const { response } = await adminFormPost("/admin/builder", {
+        db_provider: "manual",
+        site_name: "Manual Site",
+      });
+      expectRedirect(response, "/admin/builder");
+      expectFlash(
+        response,
+        expect.stringContaining("Database URL is required"),
+        false,
+      );
+    });
+
     test("POST /admin/builder returns error when db connection fails with provided URL", async () => {
       await withMocks(
         () =>

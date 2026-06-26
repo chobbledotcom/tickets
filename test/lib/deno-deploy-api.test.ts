@@ -31,6 +31,12 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
     expect(result.length).toBeLessThanOrEqual(32);
   });
 
+  test("slugifyForDeno does not produce trailing hyphen when truncation lands on separator", () => {
+    const result = slugifyForDeno("Tickets - 12345678901234567890123 A");
+    expect(result.endsWith("-")).toBe(false);
+    expect(result.length).toBeLessThanOrEqual(32);
+  });
+
   test("slugifyForDeno pads short slugs to at least 3 chars", () => {
     const result = slugifyForDeno("ab");
     expect(result.length).toBeGreaterThanOrEqual(3);
