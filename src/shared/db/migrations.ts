@@ -15,6 +15,7 @@ import type { Client } from "@libsql/client";
 import { lazyRef } from "#fp";
 import { ensureDefaultAttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import { getDb } from "#shared/db/client.ts";
+import { settings } from "#shared/db/settings.ts";
 import { getEnv } from "#shared/env.ts";
 import { logDebug } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
@@ -618,9 +619,14 @@ const initDbUncached = async (allowMissingSettings: boolean): Promise<void> => {
  * Reset the database by dropping all tables (reverse order for FK safety)
  */
 export const resetDatabase = async (): Promise<void> => {
-  invalidateInitDbCache();
   const client = getDb();
   for (const [name] of [...SCHEMA].reverse()) {
     await client.execute(`DROP TABLE IF EXISTS ${name}`);
   }
+  // Invalidate caches after the drops so concurrent requests that check
+  // initDb before this point don't race to mark the client ready against
+  // a partially-dropped schema.
+  invalidateInitDbCache();
+  settings.invalidateCache();
+  settings.setup.clearCache();
 };
