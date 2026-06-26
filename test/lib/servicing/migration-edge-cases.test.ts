@@ -17,20 +17,13 @@ import {
   createServicingHold,
   createTestListing,
   describeWithEnv,
+  indexExists,
   kindOf,
 } from "#test-utils";
 
 // jscpd:ignore-end
 
 const MIGRATION_ID = "2026-06-24_attendees_kind";
-
-const indexExists = async (name: string): Promise<boolean> => {
-  const result = await getDb().execute({
-    args: [name],
-    sql: "SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = ?",
-  });
-  return result.rows.length > 0;
-};
 
 describeWithEnv(
   "servicing edge cases — migration idempotency",

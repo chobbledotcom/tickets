@@ -68,6 +68,32 @@ const recordBoilerCost = (servicingId: number, listingId: number) =>
     servicingId,
   });
 
+/** Post a £200 customer sale against `listingId` (the income side of a profit
+ *  assertion, so cost/profit can be checked against real revenue). */
+const postCustomerSale = async (listingId: number): Promise<void> => {
+  const { attendee } = await createTestAttendeeDirect(
+    listingId,
+    "Customer",
+    "c@example.com",
+  );
+  const { postListingSale } = await import("#test-utils/ledger.ts");
+  await postListingSale({ attendeeId: attendee.id, gross: 20000, listingId });
+};
+
+/** Assert a cost POST was rejected as a recoverable form error (302 back to the
+ *  event page) and landed no new `service_cost` leg. */
+const expectCostFormError = async (
+  response: Response,
+  servicingId: number,
+  before: number,
+): Promise<void> => {
+  expect(response.status).toBe(302);
+  expect(response.headers.get("location")).toContain(
+    `/admin/servicing/${servicingId}`,
+  );
+  expect((await transfersOfKind("service_cost")).length).toBe(before);
+};
+
 describe("servicing §22 — costAccount id validation (reuses rowAccount)", () => {
   test("costAccount rejects 0/negative/fractional ids (no phantom cost account)", () => {
     for (const bad of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
@@ -111,17 +137,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
   test("profit(L) = income(L) − cost(L) (gross income preserved)", async () => {
     const { listing } = await createServicingHold();
     // £200 income from a real customer booking.
-    const { attendee } = await createTestAttendeeDirect(
-      listing.id,
-      "Customer",
-      "c@example.com",
-    );
-    const { postListingSale } = await import("#test-utils/ledger.ts");
-    await postListingSale({
-      attendeeId: attendee.id,
-      gross: 20000,
-      listingId: listing.id,
-    });
+    await postCustomerSale(listing.id);
     // £90 cost from the service event.
     const { id } = await createServicingHold({ listing: { name: "L" } });
     await expectCostAfterRecording(id, listing.id, 9000, 9000);
@@ -172,17 +188,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
 
   test("listing detail surfaces service costs and profit", async () => {
     const { listing } = await createServicingHold();
-    const { attendee } = await createTestAttendeeDirect(
-      listing.id,
-      "Customer",
-      "c@example.com",
-    );
-    const { postListingSale } = await import("#test-utils/ledger.ts");
-    await postListingSale({
-      attendeeId: attendee.id,
-      gross: 20000,
-      listingId: listing.id,
-    });
+    await postCustomerSale(listing.id);
     const { id } = await createServicingHold({ listing: { name: "L" } });
     await recordBoilerCost(id, listing.id);
 
@@ -330,11 +336,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
         memo: "Bad",
         target_listing_id: String(listing.id),
       });
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain(
-        `/admin/servicing/${id}`,
-      );
-      expect((await transfersOfKind("service_cost")).length).toBe(before);
+      await expectCostFormError(response, id, before);
     }
     expect(await costOf(listing.id)).toBe(0);
   });
@@ -373,11 +375,7 @@ describeWithEnv("servicing §22 — ledger integration", { db: true }, () => {
         `/admin/servicing/${id}/cost/${costId}`,
         { amount },
       );
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain(
-        `/admin/servicing/${id}`,
-      );
-      expect((await transfersOfKind("service_cost")).length).toBe(before);
+      await expectCostFormError(response, id, before);
     }
     // The original £90 cost is untouched — no delta leg landed.
     expect(await costOf(listing.id)).toBe(9000);

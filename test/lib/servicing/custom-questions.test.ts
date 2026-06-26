@@ -60,6 +60,18 @@ const answersFor = (attendeeId: number) =>
     [attendeeId],
   );
 
+/** Listing "L" with a "Boiler model?" question and a servicing hold that already
+ *  answered it — the fixture for the create-saved and edit-loaded answer tests. */
+const listingWithAnsweredHold = async () => {
+  const listing = await createTestListing({ maxAttendees: 10, name: "L" });
+  const { questionId, answerId } = await attachQuestion(listing.id);
+  const { id } = await createServicingHold({
+    listing: { name: "L" },
+    questionAnswers: [{ answerId, questionId }],
+  });
+  return { answerId, id, listing, questionId };
+};
+
 describeWithEnv("servicing §11 — custom questions", { db: true }, () => {
   test("create-mode loader returns the selected listings' questions (no attendee id)", async () => {
     const listing = await createTestListing({ maxAttendees: 10, name: "L" });
@@ -69,12 +81,7 @@ describeWithEnv("servicing §11 — custom questions", { db: true }, () => {
   });
 
   test("answers entered at creation are saved against the new servicing id", async () => {
-    const listing = await createTestListing({ maxAttendees: 10, name: "L" });
-    const { questionId, answerId } = await attachQuestion(listing.id);
-    const { id } = await createServicingHold({
-      listing: { name: "L" },
-      questionAnswers: [{ answerId, questionId }],
-    });
+    const { id, questionId, answerId } = await listingWithAnsweredHold();
     expect(await answersFor(id)).toContainEqual({
       answer_id: answerId,
       question_id: questionId,
@@ -82,12 +89,8 @@ describeWithEnv("servicing §11 — custom questions", { db: true }, () => {
   });
 
   test("editing a servicing event loads and saves its answers", async () => {
-    const listing = await createTestListing({ maxAttendees: 10, name: "L" });
-    const { questionId, answerId } = await attachQuestion(listing.id);
-    const { id } = await createServicingHold({
-      listing: { name: "L" },
-      questionAnswers: [{ answerId, questionId }],
-    });
+    const { id, listing, answerId, questionId } =
+      await listingWithAnsweredHold();
     // Reopen via the edit page: the existing answer renders as a selected input.
     const editBody = await renderAdminPage(`/admin/servicing/${id}`);
     expect(editBody).toContain("Boiler model?");

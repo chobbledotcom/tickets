@@ -32,6 +32,7 @@ import {
   createTestListing,
   createTestServicingEvent,
   describeWithEnv,
+  indexExists,
   kindOf,
 } from "#test-utils";
 
@@ -40,14 +41,6 @@ import {
 const MIGRATION_ID = "2026-06-24_attendees_kind";
 const NOT_NULL_MIGRATION_ID = "2026-06-26_attendees_kind_not_null";
 const attendeesTable = SCHEMA.find(([name]) => name === "attendees")![1];
-
-const indexExists = async (name: string): Promise<boolean> => {
-  const result = await getDb().execute({
-    args: [name],
-    sql: "SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = ?",
-  });
-  return result.rows.length > 0;
-};
 
 const columnDefault = async (): Promise<string | null> => {
   const result = await getDb().execute({

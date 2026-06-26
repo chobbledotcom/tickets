@@ -16,6 +16,16 @@ export const unusedMigrationMember = async (): Promise<never> => {
   throw new Error("unused migration context member called");
 };
 
+/** True when a SQLite index with this name exists in the live test DB. Shared by
+ *  the migration tests so the `sqlite_master` lookup lives in one place. */
+export const indexExists = async (name: string): Promise<boolean> => {
+  const result = await getDb().execute({
+    args: [name],
+    sql: "SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = ?",
+  });
+  return result.rows.length > 0;
+};
+
 const additive = (migration: AdditiveMigration): Migration => ({
   ...migration,
   verify: async () => {},

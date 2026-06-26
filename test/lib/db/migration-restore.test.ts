@@ -16,7 +16,7 @@ import {
   SCHEMA_HASH,
   type SchemaRequirement,
 } from "#shared/db/migrations.ts";
-import { describeWithEnv } from "#test-utils";
+import { describeWithEnv, indexExists } from "#test-utils";
 import {
   downgradeListingDomainToLegacyNames,
   seedPreDropLedgerColumns,
@@ -40,14 +40,6 @@ describeWithEnv("db > migration restore", { db: true, triggers: true }, () => {
       `SELECT name FROM pragma_table_info('${table}')`,
     );
     return new Set(result.rows.map((row) => String(row.name)));
-  };
-
-  const indexExists = async (name: string): Promise<boolean> => {
-    const result = await getDb().execute({
-      args: [name],
-      sql: "SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = ?",
-    });
-    return result.rows.length > 0;
   };
 
   const triggerExists = async (name: string): Promise<boolean> => {

@@ -20,33 +20,53 @@ import {
 
 // jscpd:ignore-end
 
+/** Room A (daily, cap 5) + a 2-qty "Boiler Service" hold on 2099-07-01. */
+const roomAWithBoiler = async () => {
+  const listing = await createDailyTestListing({
+    maxAttendees: 5,
+    name: "Room A",
+  });
+  const { id } = await createTestServicingEvent({
+    bookings: [{ date: "2099-07-01", listingId: listing.id, quantity: 2 }],
+    name: "Boiler Service",
+  });
+  return { id, listing };
+};
+
+/** Room A + Room B (daily, cap 10) + one "Annual Inspection" hold spanning both
+ *  on 2099-07-01 (qty 2 + 1 = 3 total). */
+const twoRoomInspection = async () => {
+  const roomA = await createDailyTestListing({
+    maxAttendees: 10,
+    name: "Room A",
+  });
+  const roomB = await createDailyTestListing({
+    maxAttendees: 10,
+    name: "Room B",
+  });
+  const { id } = await createTestServicingEvent({
+    bookings: [
+      { date: "2099-07-01", listingId: roomA.id, quantity: 2 },
+      { date: "2099-07-01", listingId: roomB.id, quantity: 1 },
+    ],
+    name: "Annual Inspection",
+  });
+  return { id, roomA, roomB };
+};
+
 describeWithEnv(
   "servicing §17 — admin homepage service events table",
   { db: true },
   () => {
     test("the admin home shows an upcoming service events table linking to /admin/servicing/:id", async () => {
-      const listing = await createDailyTestListing({
-        maxAttendees: 5,
-        name: "Room A",
-      });
-      const { id } = await createTestServicingEvent({
-        bookings: [{ date: "2099-07-01", listingId: listing.id, quantity: 2 }],
-        name: "Boiler Service",
-      });
+      const { id } = await roomAWithBoiler();
       const body = await renderAdminPage("/admin/");
       expect(body).toContain("Boiler Service");
       expectServicingLink(body, id);
     });
 
     test("the servicing list shows service events and links to their edit pages", async () => {
-      const listing = await createDailyTestListing({
-        maxAttendees: 5,
-        name: "Room A",
-      });
-      const { id } = await createTestServicingEvent({
-        bookings: [{ date: "2099-07-01", listingId: listing.id, quantity: 2 }],
-        name: "Boiler Service",
-      });
+      const { id } = await roomAWithBoiler();
       const body = await renderAdminPage("/admin/servicing");
       expect(body).toContain("Boiler Service");
       expect(body).toContain("Room A");
@@ -67,21 +87,7 @@ describeWithEnv(
       // the dashboard. Grouping by service event gives one summary per event,
       // with the held listings joined inside the Listings cell and the quantity
       // being the event total.
-      const roomA = await createDailyTestListing({
-        maxAttendees: 10,
-        name: "Room A",
-      });
-      const roomB = await createDailyTestListing({
-        maxAttendees: 10,
-        name: "Room B",
-      });
-      const { id } = await createTestServicingEvent({
-        bookings: [
-          { date: "2099-07-01", listingId: roomA.id, quantity: 2 },
-          { date: "2099-07-01", listingId: roomB.id, quantity: 1 },
-        ],
-        name: "Annual Inspection",
-      });
+      const { id } = await twoRoomInspection();
       const body = await renderAdminPage("/admin/servicing");
       expectServicingLink(body, id);
       expect(body).toContain("Annual Inspection");
@@ -93,21 +99,7 @@ describeWithEnv(
     });
 
     test("the dashboard groups a multi-listing hold into one upcoming entry", async () => {
-      const roomA = await createDailyTestListing({
-        maxAttendees: 10,
-        name: "Room A",
-      });
-      const roomB = await createDailyTestListing({
-        maxAttendees: 10,
-        name: "Room B",
-      });
-      const { id } = await createTestServicingEvent({
-        bookings: [
-          { date: "2099-07-01", listingId: roomA.id, quantity: 2 },
-          { date: "2099-07-01", listingId: roomB.id, quantity: 1 },
-        ],
-        name: "Annual Inspection",
-      });
+      const { id } = await twoRoomInspection();
       const body = await renderAdminPage("/admin/");
       expectServicingLink(body, id);
       expect(body).toContain("Annual Inspection");
@@ -134,14 +126,7 @@ describeWithEnv(
     });
 
     test("the servicing edit page renders saved booking quantities", async () => {
-      const listing = await createDailyTestListing({
-        maxAttendees: 5,
-        name: "Room A",
-      });
-      const { id } = await createTestServicingEvent({
-        bookings: [{ date: "2099-07-01", listingId: listing.id, quantity: 2 }],
-        name: "Boiler Service",
-      });
+      const { id, listing } = await roomAWithBoiler();
       const body = await renderAdminPage(`/admin/servicing/${id}`);
       expect(body).toMatch(
         new RegExp(`name="quantity_${listing.id}"[^>]*value="2"`),
