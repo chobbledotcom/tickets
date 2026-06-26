@@ -94,6 +94,24 @@ describe("payment-helpers", () => {
           .modifiers,
       ).toBe("");
     });
+
+    test("buildMetadata serializes allocations and round-trips them", () => {
+      const allocations = [{ childId: 2, parentId: 1, qty: 1 }];
+      const metadata = buildMetadata({
+        allocations,
+        date: null,
+        email: "a@example.com",
+        items: [{ e: 2, p: 1000, q: 1 }],
+        name: "Alice",
+      });
+      expect(JSON.parse(metadata.allocations!)).toEqual(allocations);
+      expect(
+        JSON.parse(
+          extractSessionMetadata(metadata as unknown as SessionMetadata)
+            .allocations,
+        ),
+      ).toEqual(allocations);
+    });
   });
 
   describe("metadata round-trip: build → validate → extract", () => {

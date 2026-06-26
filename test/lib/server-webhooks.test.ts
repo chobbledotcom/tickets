@@ -39,6 +39,7 @@ import {
   expectHtmlResponse,
   followRedirect,
   getAllActivityLog,
+  makeParent,
   mockRequest,
   mockWebhookRequest,
   setupStripe,
@@ -1610,6 +1611,77 @@ describeWithEnv("server (webhooks)", { db: true }, () => {
         expect(attendees1[0]?.quantity).toBe(2);
         expect(attendees2.length).toBe(1);
         expect(attendees2[0]?.quantity).toBe(1);
+      } finally {
+        mockVerify.restore();
+      }
+    });
+
+    test("webhook with allocations expands child booking to per-parent row (Stage C)", async () => {
+      await setupStripe();
+
+      const { parent, child } = await makeParent({
+        children: [{ maxAttendees: 10, unitPrice: 0 }],
+        parent: { maxAttendees: 10, unitPrice: 1000 },
+      });
+
+      const allocations = [{ childId: child.id, parentId: parent.id, qty: 1 }];
+
+      const { stripePaymentProvider } = await import(
+        "#shared/stripe-provider.ts"
+      );
+      const mockVerify = stub(
+        stripePaymentProvider,
+        "verifyWebhookSignature",
+        () =>
+          Promise.resolve({
+            listing: {
+              data: {
+                object: {
+                  amount_total: 1000,
+                  id: "cs_webhook_alloc",
+                  metadata: signedMeta(
+                    {
+                      allocations: JSON.stringify(allocations),
+                      email: "alloc@example.com",
+                      items: JSON.stringify([
+                        { e: parent.id, p: 1000, q: 1 },
+                        { e: child.id, p: 0, q: 1 },
+                      ]),
+                      name: "Alloc User",
+                    },
+                    1000,
+                  ),
+                  payment_intent: "pi_alloc",
+                  payment_status: "paid",
+                },
+              },
+              id: "evt_alloc",
+              type: "checkout.session.completed",
+            },
+            valid: true,
+          }),
+      );
+
+      try {
+        await assertJson(
+          handleRequest(
+            mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+          ),
+          200,
+          (json) => {
+            expect(json.received).toBe(true);
+            expect(json.processed).toBe(true);
+          },
+        );
+
+        const { getAttendeesRaw } = await import("#shared/db/attendees.ts");
+        const childRows = await getAttendeesRaw(child.id);
+        expect(childRows.length).toBe(1);
+        const parentIdRow = await getDb().execute({
+          args: [childRows[0]!.id, child.id],
+          sql: "SELECT parent_listing_id FROM listing_attendees WHERE attendee_id = ? AND listing_id = ?",
+        });
+        expect(Number(parentIdRow.rows[0]!.parent_listing_id)).toBe(parent.id);
       } finally {
         mockVerify.restore();
       }
