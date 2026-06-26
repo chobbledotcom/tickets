@@ -54,6 +54,10 @@ import {
   hasExpectedActualMismatches,
 } from "#templates/admin/expected-actual.tsx";
 import { ListingGroupSelect } from "#templates/admin/group-select.tsx";
+import {
+  type AccountLedgerData,
+  AccountStatementSection,
+} from "#templates/admin/ledger.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import {
   adminRecalculatePage,
@@ -401,6 +405,12 @@ const ListingIncomeLedgerSection = ({
               amount={signedCurrency(breakdown.grossSales)}
               label={t("listings_table.income_ledger_gross_sales")}
             />
+            {breakdown.externalIncome !== 0 && (
+              <BreakdownRow
+                amount={signedCurrency(breakdown.externalIncome)}
+                label={t("listings_table.income_ledger_external_income")}
+              />
+            )}
             {breakdown.manualAdjustments !== 0 && (
               <BreakdownRow
                 amount={signedCurrency(breakdown.manualAdjustments)}
@@ -425,6 +435,12 @@ const ListingIncomeLedgerSection = ({
               amount={signedCurrency(-breakdown.refunds)}
               label={t("listings_table.income_ledger_refunds")}
             />
+            {breakdown.externalCosts !== 0 && (
+              <BreakdownRow
+                amount={signedCurrency(-breakdown.externalCosts)}
+                label={t("listings_table.income_ledger_external_costs")}
+              />
+            )}
             <BreakdownRow
               amount={formatCurrency(breakdown.netBalance)}
               label={t("listings_table.income_ledger_net_balance")}
@@ -443,6 +459,25 @@ const ListingIncomeLedgerSection = ({
       </p>
     </fieldset>
   </article>
+);
+
+const ListingLedgerSection = ({
+  ledger,
+  listingId,
+}: {
+  ledger: AccountLedgerData;
+  listingId: number;
+}): JSX.Element => (
+  <section id="ledger">
+    <h2>{t("admin.ledger.statement_heading")}</h2>
+    <AccountStatementSection
+      account={ledger.account}
+      fullLedgerHref={`/admin/ledger/${ledger.account.type}/${ledger.account.id}`}
+      lines={ledger.lines}
+      names={ledger.names}
+      returnUrl={`/admin/listing/${listingId}`}
+    />
+  </section>
 );
 
 /** Options for rendering the admin listing detail page */
@@ -474,6 +509,8 @@ export type AdminListingPageOptions = {
    * with the live ledger balance. Omitted only by template callers that don't
    * exercise the section. */
   revenueBreakdown?: ListingRevenueBreakdown;
+  /** Owner-only full revenue-account statement for add/edit/delete controls. */
+  ledger?: AccountLedgerData;
   /** Whether any of the listing's attendees (across all dates) have an email
    * address — gates the owner-only "Email" action. */
   hasEmailableAttendees?: boolean;
@@ -1259,6 +1296,7 @@ export const adminListingPage = ({
   questionData,
   groupContext,
   revenueBreakdown,
+  ledger,
   hasEmailableAttendees = false,
   systemNotes = [],
 }: AdminListingPageOptions): string => {
@@ -1340,6 +1378,9 @@ export const adminListingPage = ({
           breakdown={revenueBreakdown}
           listing={listing}
         />
+      )}
+      {ledger && (
+        <ListingLedgerSection ledger={ledger} listingId={listing.id} />
       )}
       <AttendeeNotesSummary
         names={attendeeNameMap(attendees)}

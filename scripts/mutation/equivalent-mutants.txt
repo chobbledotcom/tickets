@@ -48,6 +48,12 @@ src/shared/accounting/rows.ts:181:58  ?? → ||   # selectById (await …)[0]: T
 # already-ascending array, so swapping the comparator changes nothing.
 src/shared/checkout-pricing.ts:176:16  - → /     # toUnits gives ascending lineIdx; a/b is identity on sorted input
 
+# The ledger listing filter only becomes visible after it is matched against the
+# cached positive listing ids loaded from the DB. Returning a non-positive safe
+# integer here instead of null still falls back to the all-listings view at the
+# later `listings.some((listing) => listing.id === requested)` gate.
+src/features/admin/ledger.ts:187:34  && → ||    # non-positive ids cannot match persisted listing ids, so the route output is unchanged
+
 
 # attendee-form-model: `?? → ||` where the left operand can never be a
 # falsy-but-non-null value, so the two operators always agree.
