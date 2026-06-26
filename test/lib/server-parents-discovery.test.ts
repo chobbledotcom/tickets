@@ -522,7 +522,7 @@ describeWithEnv(
           parent: { name: "MbParent" },
         });
         const plain = await createTestListing({ name: "MbPlain" });
-        const body = await (await adminGet("/admin/")).response.text();
+        const body = await (await adminGet("/admin/")).text();
         expect(body).toContain(`data-multi-booking-slug="${parent.slug}"`);
         expect(body).toContain(`data-multi-booking-slug="${plain.slug}"`);
         expect(body).not.toContain(`data-multi-booking-slug="${child.slug}"`);
@@ -537,7 +537,7 @@ describeWithEnv(
         });
         const body = await (
           await adminGet(`/admin/listing/${child.id}`)
-        ).response.text();
+        ).text();
         expect(body).not.toContain(`/admin/listing/${child.id}/qr`);
         expect(body).not.toContain(`/ticket/${child.slug}/qr`);
         expect(body).toContain(
@@ -558,7 +558,7 @@ describeWithEnv(
         });
         const body = await (
           await adminGet(`/admin/listing/${parent.id}`)
-        ).response.text();
+        ).text();
         expect(body).toContain(`/admin/listing/${parent.id}/qr`);
         // A non-child parent keeps its public URL and both embed snippets, so the
         // suppression is genuinely conditional on being a child.
@@ -573,11 +573,11 @@ describeWithEnv(
           parent: { name: "QrParent" },
         });
         const get = await adminGet(`/admin/listing/${child.id}/qr`);
-        get.response.body?.cancel();
-        expect(get.response.status).toBe(404);
+        get.body?.cancel();
+        expect(get.status).toBe(404);
         const json = await adminGet(`/admin/listing/${child.id}/qr.json`);
-        json.response.body?.cancel();
-        expect(json.response.status).toBe(404);
+        json.body?.cancel();
+        expect(json.status).toBe(404);
       });
 
       test("the public child QR image route 404s", async () => {

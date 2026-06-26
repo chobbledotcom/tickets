@@ -224,7 +224,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     const result = await bookAttendee(parent, { name: "Ada" });
     const attendee = (result as { success: true; attendees: { id: number }[] })
       .attendees[0]!;
-    const { response } = await adminGet(`/admin/attendees/${attendee.id}`);
+    const response = await adminGet(`/admin/attendees/${attendee.id}`);
     const html = await response.text();
     expect(html).toContain(
       "requires one of its child listings to be booked too (Add-on)",
@@ -245,7 +245,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     });
     const attendee = (result as { success: true; attendees: { id: number }[] })
       .attendees[0]!;
-    const { response } = await adminGet(`/admin/attendees/${attendee.id}`);
+    const response = await adminGet(`/admin/attendees/${attendee.id}`);
     const html = await response.text();
     expect(html).not.toContain("requires one of its child listings");
   });
@@ -1002,7 +1002,7 @@ describeWithEnv("server > listing parents", { db: true }, () => {
     await optInAddOnForListings("Child-scoped extra", [child.id, thatPage.id]);
 
     const { adminGet } = await import("#test-utils");
-    const { response } = await adminGet(
+    const response = await adminGet(
       `/admin/listing/${thatPage.id}/deactivate`,
     );
     const body = await response.text();

@@ -124,7 +124,7 @@ describeWithEnv("admin listing-qr route", { db: true }, () => {
       const servable = parentDates.find((d) => childDates.has(d))!;
       const unservable = parentDates.find((d) => !childDates.has(d))!;
 
-      const { response } = await adminGet(`/admin/listing/${parent.id}/qr`);
+      const response = await adminGet(`/admin/listing/${parent.id}/qr`);
       const body = await response.text();
       expect(body).toContain(`value="${servable}"`);
       expect(body).not.toContain(`value="${unservable}"`);

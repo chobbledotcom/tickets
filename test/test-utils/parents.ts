@@ -159,7 +159,7 @@ const adminListingHtml = async (
   suffix: string,
 ): Promise<string> => {
   const { adminGet } = await import("#test-utils/session.ts");
-  const { response } = await adminGet(`/admin/listing/${listingId}${suffix}`);
+  const response = await adminGet(`/admin/listing/${listingId}${suffix}`);
   return response.text();
 };
 

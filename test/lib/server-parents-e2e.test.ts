@@ -298,8 +298,8 @@ describeWithEnv(
       const parentPage = await adminGet(
         `/admin/listing/${parent.id}?date=${date}`,
       );
-      expect(parentPage.response.status).toBe(200);
-      const parentHtml = await parentPage.response.text();
+      expect(parentPage.status).toBe(200);
+      const parentHtml = await parentPage.text();
       expect(parentHtml).toContain("Ada Lovelace");
       expect(parentHtml).toContain('<td class="col-quantity">2</td>');
 
@@ -307,8 +307,8 @@ describeWithEnv(
       const childAPage = await adminGet(
         `/admin/listing/${childA.id}?date=${date}`,
       );
-      expect(childAPage.response.status).toBe(200);
-      const childAHtml = await childAPage.response.text();
+      expect(childAPage.status).toBe(200);
+      const childAHtml = await childAPage.text();
       expect(childAHtml).toContain("Ada Lovelace");
       expect(childAHtml).toContain('<td class="col-quantity">1</td>');
 
@@ -316,8 +316,8 @@ describeWithEnv(
       const childBPage = await adminGet(
         `/admin/listing/${childB.id}?date=${date}`,
       );
-      expect(childBPage.response.status).toBe(200);
-      const childBHtml = await childBPage.response.text();
+      expect(childBPage.status).toBe(200);
+      const childBHtml = await childBPage.text();
       expect(childBHtml).toContain("Ada Lovelace");
       expect(childBHtml).toContain('<td class="col-quantity">1</td>');
     });
@@ -418,8 +418,8 @@ describeWithEnv(
       );
       const attendeeId = (await rawFor(parent.id))[0]!.id;
       const page = await adminGet(`/admin/attendees/${attendeeId}`);
-      expect(page.response.status).toBe(200);
-      const html = await page.response.text();
+      expect(page.status).toBe(200);
+      const html = await page.text();
 
       // Both children are annotated as add-ons chosen under the parent; the
       // parent's own row carries no such annotation.
@@ -455,8 +455,8 @@ describeWithEnv(
       );
       const attendeeId = (await rawFor(standalone.id))[0]!.id;
       const page = await adminGet(`/admin/attendees/${attendeeId}`);
-      expect(page.response.status).toBe(200);
-      const html = await page.response.text();
+      expect(page.status).toBe(200);
+      const html = await page.text();
       expect(html).not.toContain("Add-on chosen under");
     });
 
@@ -475,8 +475,8 @@ describeWithEnv(
 
       const { adminGet } = await import("#test-utils");
       const calendar = await adminGet(`/admin/calendar?date=${date}`);
-      expect(calendar.response.status).toBe(200);
-      const html = await calendar.response.text();
+      expect(calendar.status).toBe(200);
+      const html = await calendar.text();
 
       // The buyer appears, and all three listings (parent + both children) are
       // listed against the parent's booked date because the daily children
