@@ -332,6 +332,7 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
         const fullSha = "0123456789abcdef0123456789abcdef01234567";
         setBuildCommitForTest(fullSha);
         try {
+          await getTestSession(); // ensure session row is in DB before backup
           await recordScriptVersion();
           const zipData = await createBackupZip();
           await uploadRaw(zipData, "restore-pending-commit.zip");
@@ -360,6 +361,7 @@ describeWithEnv("server (admin backup)", { db: true }, () => {
         // oversized), so the message falls back to the plain confirmation.
         setBuildCommitForTest("not-a-real-sha");
         try {
+          await getTestSession(); // ensure session row is in DB before backup
           await recordScriptVersion();
           const zipData = await createBackupZip();
           await uploadRaw(zipData, "restore-pending-badsha.zip");

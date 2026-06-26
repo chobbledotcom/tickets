@@ -15,7 +15,13 @@ import type { Client } from "@libsql/client";
 import { lazyRef } from "#fp";
 import { ensureDefaultAttendeeStatus } from "#shared/db/attendee-statuses.ts";
 import { getDb } from "#shared/db/client.ts";
+import { invalidateGroupsCache } from "#shared/db/groups.ts";
+import { invalidateHolidaysCache } from "#shared/db/holidays.ts";
+import { invalidateListingsCache } from "#shared/db/listings.ts";
+import { invalidateLogisticsAgentsCache } from "#shared/db/logistics-agents.ts";
+import { resetSessionCache } from "#shared/db/sessions.ts";
 import { settings } from "#shared/db/settings.ts";
+import { invalidateUsersCache } from "#shared/db/users.ts";
 import { getEnv } from "#shared/env.ts";
 import { logDebug } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
@@ -620,13 +626,22 @@ const initDbUncached = async (allowMissingSettings: boolean): Promise<void> => {
  */
 export const resetDatabase = async (): Promise<void> => {
   const client = getDb();
-  for (const [name] of [...SCHEMA].reverse()) {
-    await client.execute(`DROP TABLE IF EXISTS ${name}`);
+  try {
+    for (const [name] of [...SCHEMA].reverse()) {
+      await client.execute(`DROP TABLE IF EXISTS ${name}`);
+    }
+  } finally {
+    // Clear all module-level caches — even if a DROP fails partway through,
+    // stale caches must not let subsequent requests bypass not-activated
+    // handling or serve pre-reset data.
+    invalidateInitDbCache();
+    settings.invalidateCache();
+    settings.setup.clearCache();
+    resetSessionCache();
+    invalidateUsersCache();
+    invalidateListingsCache();
+    invalidateHolidaysCache();
+    invalidateGroupsCache();
+    invalidateLogisticsAgentsCache();
   }
-  // Invalidate caches after the drops so concurrent requests that check
-  // initDb before this point don't race to mark the client ready against
-  // a partially-dropped schema.
-  invalidateInitDbCache();
-  settings.invalidateCache();
-  settings.setup.clearCache();
 };
