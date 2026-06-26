@@ -64,13 +64,13 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     });
 
     test("shows empty questions list", async () => {
-      const { response } = await adminGet("/admin/questions");
+      const response = await adminGet("/admin/questions");
       await expectHtmlResponse(response, 200, "Questions");
     });
 
     test("shows questions when present", async () => {
       await createQuestion("Favorite color?");
-      const { response } = await adminGet("/admin/questions");
+      const response = await adminGet("/admin/questions");
       await expectHtmlResponse(response, 200, "Questions", "Favorite color?");
     });
 
@@ -80,7 +80,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const { setQuestionListings } = await import("#shared/db/questions.ts");
       await setQuestionListings(qId, [listing.id]);
 
-      const { response } = await adminGet("/admin/questions");
+      const response = await adminGet("/admin/questions");
       const body = await response.text();
       expect(body).toContain('title="Gala Night"');
     });
@@ -181,13 +181,13 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     });
 
     test("returns 404 for non-existent question", async () => {
-      const { response } = await adminGet("/admin/questions/999");
+      const response = await adminGet("/admin/questions/999");
       expectStatus(404)(response);
     });
 
     test("shows question detail page", async () => {
       const id = await createQuestion("What is your role?");
-      const { response } = await adminGet(`/admin/questions/${id}`);
+      const response = await adminGet(`/admin/questions/${id}`);
       await expectHtmlResponse(response, 200, "What is your role?");
     });
 
@@ -195,7 +195,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const id = await createQuestion("Pick a number");
       await addAnswer(id, "One");
       await addAnswer(id, "Two");
-      const { response } = await adminGet(`/admin/questions/${id}`);
+      const response = await adminGet(`/admin/questions/${id}`);
       await expectHtmlResponse(response, 200, "One", "Two");
     });
   });
@@ -468,7 +468,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       );
       expect((await getQuestionWithAnswers(qId))!.assign_all).toBe(true);
 
-      const { response } = await adminGet("/admin/log");
+      const response = await adminGet("/admin/log");
       const body = await response.text();
       expect(body).toContain("assigned to all listings");
     });
@@ -480,7 +480,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         listing_ids: String(listing.id),
       });
 
-      const { response } = await adminGet("/admin/log");
+      const response = await adminGet("/admin/log");
       const body = await response.text();
       expect(body).toContain("assigned to 1 listing");
       expect(body).not.toContain("assigned to 1 listings");
@@ -490,7 +490,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const qId = await createQuestion("Plural listings log");
       await adminFormPost(`/admin/questions/${qId}/listings`, {});
 
-      const { response } = await adminGet("/admin/log");
+      const response = await adminGet("/admin/log");
       const body = await response.text();
       expect(body).toContain("assigned to 0 listings");
     });
@@ -504,13 +504,13 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     });
 
     test("returns 404 for non-existent question", async () => {
-      const { response } = await adminGet("/admin/questions/999/delete");
+      const response = await adminGet("/admin/questions/999/delete");
       expectStatus(404)(response);
     });
 
     test("shows delete confirmation page", async () => {
       const id = await createQuestion("To be deleted");
-      const { response } = await adminGet(`/admin/questions/${id}/delete`);
+      const response = await adminGet(`/admin/questions/${id}/delete`);
       await expectHtmlResponse(
         response,
         200,
@@ -610,15 +610,13 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     });
 
     test("returns 404 for non-existent question", async () => {
-      const { response } = await adminGet(
-        "/admin/questions/999/answers/1/delete",
-      );
+      const response = await adminGet("/admin/questions/999/answers/1/delete");
       expectStatus(404)(response);
     });
 
     test("returns 404 for non-existent answer", async () => {
       const qId = await createQuestion("Answer 404");
-      const { response } = await adminGet(
+      const response = await adminGet(
         `/admin/questions/${qId}/answers/999/delete`,
       );
       expectStatus(404)(response);
@@ -627,7 +625,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     test("shows answer delete confirmation page", async () => {
       const qId = await createQuestion("Delete answer question");
       const aId = await addAnswer(qId, "Delete this answer");
-      const { response } = await adminGet(
+      const response = await adminGet(
         `/admin/questions/${qId}/answers/${aId}/delete`,
       );
       await expectHtmlResponse(
@@ -749,7 +747,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
     test("returns 404 for a non-existent answer", async () => {
       const qId = await createQuestion("Edit missing answer");
-      const { response } = await adminGet(
+      const response = await adminGet(
         `/admin/questions/${qId}/answers/999/edit`,
       );
       expectStatus(404)(response);
@@ -760,7 +758,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const aId = await addAnswer(qId, "Editable");
       await createAnswerModifier("Surcharge tier");
 
-      const { response } = await adminGet(
+      const response = await adminGet(
         `/admin/questions/${qId}/answers/${aId}/edit`,
       );
       await expectHtmlResponse(
@@ -915,7 +913,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         text: "Logged after",
       });
 
-      const { response } = await adminGet("/admin/log");
+      const response = await adminGet("/admin/log");
       const body = await response.text();
       expect(body).toContain("Logged after");
       expect(body).toContain("updated");
@@ -985,7 +983,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
     test("returns 404 for a non-existent answer", async () => {
       const qId = await createQuestion("Recalc missing");
-      const { response } = await adminGet(
+      const response = await adminGet(
         `/admin/questions/${qId}/answers/999/recalculate`,
       );
       expectStatus(404)(response);
@@ -1002,7 +1000,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       );
       await updateAnswerAggregateValues(aId, { times_selected: 8 });
 
-      const { response } = await adminGet(
+      const response = await adminGet(
         `/admin/questions/${qId}/answers/${aId}/recalculate`,
       );
       const body = await response.text();
@@ -1058,15 +1056,13 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     });
 
     test("returns 404 for non-existent listing", async () => {
-      const { response } = await adminGet("/admin/listing/999/questions");
+      const response = await adminGet("/admin/listing/999/questions");
       expectStatus(404)(response);
     });
 
     test("shows empty state when no questions exist", async () => {
       const listing = await createTestListing({ name: "No Questions Listing" });
-      const { response } = await adminGet(
-        `/admin/listing/${listing.id}/questions`,
-      );
+      const response = await adminGet(`/admin/listing/${listing.id}/questions`);
       await expectHtmlResponse(
         response,
         200,
@@ -1081,9 +1077,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       await addAnswer(qId, "Vegetarian");
       await addAnswer(qId, "Vegan");
 
-      const { response } = await adminGet(
-        `/admin/listing/${listing.id}/questions`,
-      );
+      const response = await adminGet(`/admin/listing/${listing.id}/questions`);
       await expectHtmlResponse(
         response,
         200,
@@ -1100,9 +1094,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const { setListingQuestions } = await import("#shared/db/questions.ts");
       await setListingQuestions(listing.id, [qId]);
 
-      const { response } = await adminGet(
-        `/admin/listing/${listing.id}/questions`,
-      );
+      const response = await adminGet(`/admin/listing/${listing.id}/questions`);
       await expectHtmlResponse(
         response,
         200,
@@ -1225,7 +1217,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         ),
       );
 
-      const { response } = await adminGet("/admin/log");
+      const response = await adminGet("/admin/log");
       const body = await response.text();
       expect(body).toContain("1 question)");
     });
@@ -1240,7 +1232,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       );
       expect(r.status).toBe(302);
 
-      const { response } = await adminGet("/admin/log");
+      const response = await adminGet("/admin/log");
       const body = await response.text();
       expect(body).toContain("0 questions)");
     });
@@ -1249,7 +1241,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
   describe("activity logging", () => {
     test("logs question creation", async () => {
       await createQuestion("Logged Question");
-      const { response } = await adminGet("/admin/log");
+      const response = await adminGet("/admin/log");
       const body = await response.text();
       expect(body).toContain("Logged Question");
       expect(body).toContain("created");
@@ -1261,7 +1253,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         display_type: "radio" as const,
         text: "After Update Q",
       });
-      const { response } = await adminGet("/admin/log");
+      const response = await adminGet("/admin/log");
       const body = await response.text();
       expect(body).toContain("After Update Q");
       expect(body).toContain("updated");
@@ -1272,7 +1264,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       await adminFormPost(`/admin/questions/${id}/delete`, {
         confirm_identifier: "Deleted Question",
       });
-      const { response } = await adminGet("/admin/log");
+      const response = await adminGet("/admin/log");
       const body = await response.text();
       expect(body).toContain("Deleted Question");
       expect(body).toContain("deleted");
@@ -1281,7 +1273,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     test("logs answer addition", async () => {
       const id = await createQuestion("Answer Log Q");
       await addAnswer(id, "Logged Answer");
-      const { response } = await adminGet("/admin/log");
+      const response = await adminGet("/admin/log");
       const body = await response.text();
       expect(body).toContain("Logged Answer");
       expect(body).toContain("added");
@@ -1293,7 +1285,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       await adminFormPost(`/admin/questions/${qId}/answers/${aId}/delete`, {
         confirm_identifier: "Deleted Answer",
       });
-      const { response } = await adminGet("/admin/log");
+      const response = await adminGet("/admin/log");
       const body = await response.text();
       expect(body).toContain("Deleted Answer");
       expect(body).toContain("deleted");
@@ -1316,7 +1308,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       )(response);
 
       // Verify order changed
-      const { response: getResp } = await adminGet(`/admin/questions/${qId}`);
+      const getResp = await adminGet(`/admin/questions/${qId}`);
       const body = await getResp.text();
       const firstIdx = body.indexOf("Second");
       const secondIdx = body.indexOf("First");
@@ -1337,7 +1329,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         "Answer moved",
       )(response);
 
-      const { response: getResp } = await adminGet(`/admin/questions/${qId}`);
+      const getResp = await adminGet(`/admin/questions/${qId}`);
       const body = await getResp.text();
       const betaIdx = body.indexOf("Beta");
       const alphaIdx = body.indexOf("Alpha");
@@ -1377,7 +1369,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       await addAnswer(qId, "Yes");
       await addAnswer(qId, "No");
 
-      const { response } = await adminGet(`/admin/questions/${qId}`);
+      const response = await adminGet(`/admin/questions/${qId}`);
       const body = await response.text();
       // The answers table shows the stored selection total (0 with no bookings).
       expect(body).toContain('<th class="col-quantity">Times Selected</th>');

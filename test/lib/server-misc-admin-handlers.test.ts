@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { ActionHandlerConfig } from "#routes/admin/actions.ts";
 import { FormParams } from "#shared/form-data.ts";
 import {
   createTestListing,
@@ -151,26 +152,31 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       expect(await postResponse.text()).toBe("post:33:posted");
     });
 
-    test("createActionHandler supports custom error mapping", async () => {
+    const runActionHandler = async (
+      config: ActionHandlerConfig,
+      path: string,
+      fields: Record<string, string> = {},
+    ): Promise<Response> => {
       const { createActionHandler } = await import("#routes/admin/actions.ts");
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
+      const handler = createActionHandler(config);
+      return handler(
+        mockFormRequest(path, { csrf_token: csrfToken, ...fields }, cookie),
+      );
+    };
 
-      const handler = createActionHandler({
-        auth: "any" as const,
-        execute: () => Promise.reject(new Error("kaboom")),
-        message: "unused",
-        onError: (error) =>
-          new Response(`mapped:${error.message}`, { status: 418 }),
-        successRedirect: "/admin/attendees/1",
-      });
-
-      const response = await handler(
-        mockFormRequest(
-          "/admin/attendees/1",
-          { csrf_token: csrfToken },
-          cookie,
-        ),
+    test("createActionHandler supports custom error mapping", async () => {
+      const response = await runActionHandler(
+        {
+          auth: "any" as const,
+          execute: () => Promise.reject(new Error("kaboom")),
+          message: "unused",
+          onError: (error) =>
+            new Response(`mapped:${error.message}`, { status: 418 }),
+          successRedirect: "/admin/attendees/1",
+        },
+        "/admin/attendees/1",
       );
 
       expect(response.status).toBe(418);
@@ -178,23 +184,14 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
     });
 
     test("createActionHandler maps non-Error throws to redirect flashes", async () => {
-      const { createActionHandler } = await import("#routes/admin/actions.ts");
-      const cookie = await testCookie();
-      const csrfToken = await testCsrfToken();
-
-      const handler = createActionHandler({
-        auth: "any" as const,
-        execute: () => Promise.reject("plain string failure"),
-        message: "unused",
-        successRedirect: "/admin/attendees/1",
-      });
-
-      const response = await handler(
-        mockFormRequest(
-          "/admin/attendees/1",
-          { csrf_token: csrfToken },
-          cookie,
-        ),
+      const response = await runActionHandler(
+        {
+          auth: "any" as const,
+          execute: () => Promise.reject("plain string failure"),
+          message: "unused",
+          successRedirect: "/admin/attendees/1",
+        },
+        "/admin/attendees/1",
       );
 
       expect(response.status).toBe(302);
@@ -276,20 +273,15 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
     });
 
     test("createActionHandler redacts string secret from activity log", async () => {
-      const { createActionHandler } = await import("#routes/admin/actions.ts");
-      const cookie = await testCookie();
-      const csrfToken = await testCsrfToken();
-
-      const handler = createActionHandler({
-        auth: "any" as const,
-        execute: () => Promise.resolve(),
-        message: "API key sk_test_123 created",
-        redactedSecret: "sk_test_123",
-        successRedirect: "/admin/keys",
-      });
-
-      const response = await handler(
-        mockFormRequest("/admin/keys", { csrf_token: csrfToken }, cookie),
+      const response = await runActionHandler(
+        {
+          auth: "any" as const,
+          execute: () => Promise.resolve(),
+          message: "API key sk_test_123 created",
+          redactedSecret: "sk_test_123",
+          successRedirect: "/admin/keys",
+        },
+        "/admin/keys",
       );
 
       expect(response.status).toBe(302);
@@ -297,25 +289,17 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
     });
 
     test("createActionHandler redacts dynamic secret from activity log", async () => {
-      const { createActionHandler } = await import("#routes/admin/actions.ts");
-      const cookie = await testCookie();
-      const csrfToken = await testCsrfToken();
-
-      const handler = createActionHandler({
-        auth: "any" as const,
-        execute: () => Promise.resolve(),
-        message: "API key created",
-        redactedSecret: (_session, form) =>
-          form.getString("api_key") || undefined,
-        successRedirect: "/admin/keys",
-      });
-
-      const response = await handler(
-        mockFormRequest(
-          "/admin/keys",
-          { api_key: "secret_key_456", csrf_token: csrfToken },
-          cookie,
-        ),
+      const response = await runActionHandler(
+        {
+          auth: "any" as const,
+          execute: () => Promise.resolve(),
+          message: "API key created",
+          redactedSecret: (_session, form) =>
+            form.getString("api_key") || undefined,
+          successRedirect: "/admin/keys",
+        },
+        "/admin/keys",
+        { api_key: "secret_key_456" },
       );
 
       expect(response.status).toBe(302);
@@ -323,24 +307,15 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
     });
 
     test("createActionHandler logs with fixed listingId when configured", async () => {
-      const { createActionHandler } = await import("#routes/admin/actions.ts");
-      const cookie = await testCookie();
-      const csrfToken = await testCsrfToken();
-
-      const handler = createActionHandler({
-        auth: "any" as const,
-        execute: () => Promise.resolve(),
-        listingId: 42,
-        message: "Fixed listing action",
-        successRedirect: "/admin/fixed-listing",
-      });
-
-      const response = await handler(
-        mockFormRequest(
-          "/admin/fixed-listing",
-          { csrf_token: csrfToken },
-          cookie,
-        ),
+      const response = await runActionHandler(
+        {
+          auth: "any" as const,
+          execute: () => Promise.resolve(),
+          listingId: 42,
+          message: "Fixed listing action",
+          successRedirect: "/admin/fixed-listing",
+        },
+        "/admin/fixed-listing",
       );
 
       expect(response.status).toBe(302);
@@ -350,24 +325,17 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
     });
 
     test("createActionHandler computes listingId from submitted form", async () => {
-      const { createActionHandler } = await import("#routes/admin/actions.ts");
-      const cookie = await testCookie();
-      const csrfToken = await testCsrfToken();
-
-      const handler = createActionHandler({
-        auth: "any" as const,
-        execute: () => Promise.resolve(),
-        listingId: (form) => Number.parseInt(form.getString("listing_id"), 10),
-        message: "Computed listing action",
-        successRedirect: "/admin/computed-listing",
-      });
-
-      const response = await handler(
-        mockFormRequest(
-          "/admin/computed-listing",
-          { csrf_token: csrfToken, listing_id: "77" },
-          cookie,
-        ),
+      const response = await runActionHandler(
+        {
+          auth: "any" as const,
+          execute: () => Promise.resolve(),
+          listingId: (form) =>
+            Number.parseInt(form.getString("listing_id"), 10),
+          message: "Computed listing action",
+          successRedirect: "/admin/computed-listing",
+        },
+        "/admin/computed-listing",
+        { listing_id: "77" },
       );
 
       expect(response.status).toBe(302);

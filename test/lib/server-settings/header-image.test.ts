@@ -81,7 +81,7 @@ describeWithEnv("server (header image settings)", { db: true }, () => {
   describe("GET /admin/settings (header image section)", () => {
     test("shows header image section when storage is enabled", async () => {
       await withStorageEnabled(async () => {
-        const { response } = await adminGet("/admin/settings");
+        const response = await adminGet("/admin/settings");
         await expectHtmlResponse(response, 200, "Header Image");
       });
     });
@@ -96,7 +96,7 @@ describeWithEnv("server (header image settings)", { db: true }, () => {
     test("shows remove button and proxy URL when header image is set", async () => {
       await withStorageEnabled(async () => {
         await settings.update.headerImageUrl("existing.jpg");
-        const { response } = await adminGet("/admin/settings");
+        const response = await adminGet("/admin/settings");
         await expectHtmlResponse(
           response,
           200,
@@ -108,7 +108,7 @@ describeWithEnv("server (header image settings)", { db: true }, () => {
 
     test("shows upload button when no header image exists", async () => {
       await withStorageEnabled(async () => {
-        const { response } = await adminGet("/admin/settings");
+        const response = await adminGet("/admin/settings");
         await expectHtmlResponse(response, 200, "Upload Image");
       });
     });

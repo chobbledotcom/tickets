@@ -8,8 +8,8 @@ import {
 } from "#shared/db/settings.ts";
 import { resetEngine } from "#shared/email-renderer.ts";
 import {
+  adminGet,
   assertJson,
-  awaitTestRequest,
   describeWithEnv,
   expectFlash,
   expectHtmlResponse,
@@ -78,9 +78,7 @@ describeWithEnv("admin email templates", { db: true }, () => {
 
   describe("settings page", () => {
     test("shows email template sections", async () => {
-      const response = await awaitTestRequest("/admin/settings-advanced", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/settings-advanced");
       await expectHtmlResponse(
         response,
         200,
@@ -90,18 +88,14 @@ describeWithEnv("admin email templates", { db: true }, () => {
     });
 
     test("shows default templates as placeholders", async () => {
-      const response = await awaitTestRequest("/admin/settings-advanced", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/settings-advanced");
       const html = await response.text();
       expect(html).toContain("Your tickets for");
       expect(html).toContain("New registration");
     });
 
     test("uses 'Leave blank' placeholder for html/text bodies", async () => {
-      const response = await awaitTestRequest("/admin/settings-advanced", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/settings-advanced");
       const html = await response.text();
       expect(html).toContain(
         'placeholder="Leave blank to use default template"',
@@ -109,9 +103,7 @@ describeWithEnv("admin email templates", { db: true }, () => {
     });
 
     test("shows edit default template links for html/text bodies", async () => {
-      const response = await awaitTestRequest("/admin/settings-advanced", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/settings-advanced");
       const html = await response.text();
       expect(html).toContain('data-fill-default="confirmation_html"');
       expect(html).toContain('data-fill-default="confirmation_text"');
@@ -121,9 +113,7 @@ describeWithEnv("admin email templates", { db: true }, () => {
     });
 
     test("includes default templates as data attributes", async () => {
-      const response = await awaitTestRequest("/admin/settings-advanced", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/settings-advanced");
       const html = await response.text();
       expect(html).toContain("data-default-tpl=");
     });

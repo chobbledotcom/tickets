@@ -1,18 +1,17 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { getSessionCookieName } from "#shared/cookies.ts";
 import { listingsTable } from "#shared/db/listings.ts";
 import { setDemoModeForTest } from "#shared/demo.ts";
 import {
   adminFormPost,
+  adminGet,
   assertFormRedirect,
-  awaitTestRequest,
   createTestListing,
   describeWithEnv,
+  expectDatabaseResetRedirect,
   expectFlash,
   expectHtmlResponse,
-  expectRedirectWithFlash,
   invalidateTestDbCache,
   mockFormRequest,
   setupListingAndLogin,
@@ -137,17 +136,11 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       );
 
       // Should redirect to setup page with session cleared
-      expectRedirectWithFlash("/setup/", "Database reset")(response);
-      const sessionCookie = response.headers
-        .getSetCookie()
-        .find((c) => c.startsWith(`${getSessionCookieName()}=`));
-      expect(sessionCookie).toContain("Max-Age=0");
+      expectDatabaseResetRedirect(response);
     });
 
     test("advanced settings page shows reset database section", async () => {
-      const response = await awaitTestRequest("/admin/settings-advanced", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/settings-advanced");
       const html = await expectHtmlResponse(response, 200, "Reset Database");
       expect(html).toContain(
         "The site will be fully reset and all data will be lost.",

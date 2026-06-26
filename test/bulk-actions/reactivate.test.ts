@@ -7,9 +7,19 @@ import {
   createTestGroup,
   createTestListing,
   describeWithEnv,
+  expectHtml,
 } from "#test-utils";
 
 describeWithEnv("Admin bulk actions — reactivate", { db: true }, () => {
+  const createInactiveListGroup = async (name: string) => {
+    const group = await createTestGroup({ name });
+    const a = await createTestListing({ groupId: group.id, name: "A" });
+    const b = await createTestListing({ groupId: group.id, name: "B" });
+    await listingsTable.update(a.id, { active: false });
+    await listingsTable.update(b.id, { active: false });
+    return { a, b, group };
+  };
+
   describe("GET /admin/groups/:id/bulk-actions/reactivate", () => {
     test("renders the reactivate confirmation form with a singular listing count", async () => {
       const group = await createTestGroup({ name: "Solo Off" });
@@ -19,36 +29,31 @@ describeWithEnv("Admin bulk actions — reactivate", { db: true }, () => {
       });
       await listingsTable.update(listing.id, { active: false });
 
-      const { response } = await adminGet(
-        `/admin/groups/${group.id}/bulk-actions/reactivate`,
+      await expectHtml(
+        await adminGet(`/admin/groups/${group.id}/bulk-actions/reactivate`),
+        {
+          contains: [
+            "Reactivate Group",
+            'name="confirm_identifier"',
+            "reactivate 1 listing",
+          ],
+          notContains: ["reactivate 1 listings"],
+          status: 200,
+        },
       );
-      const html = await response.text();
-
-      expect(response.status).toBe(200);
-      expect(html).toContain("Reactivate Group");
-      expect(html).toContain('name="confirm_identifier"');
-      expect(html).toContain("reactivate 1 listing");
-      expect(html).not.toContain("reactivate 1 listings");
     });
 
     test("renders the reactivate form with a plural listing count", async () => {
-      const group = await createTestGroup({ name: "Many Off" });
-      const a = await createTestListing({ groupId: group.id, name: "A" });
-      const b = await createTestListing({ groupId: group.id, name: "B" });
-      await listingsTable.update(a.id, { active: false });
-      await listingsTable.update(b.id, { active: false });
+      const { group } = await createInactiveListGroup("Many Off");
 
-      const { response } = await adminGet(
-        `/admin/groups/${group.id}/bulk-actions/reactivate`,
+      await expectHtml(
+        await adminGet(`/admin/groups/${group.id}/bulk-actions/reactivate`),
+        { contains: ["reactivate 2 listings"], status: 200 },
       );
-      const html = await response.text();
-
-      expect(response.status).toBe(200);
-      expect(html).toContain("reactivate 2 listings");
     });
 
     test("returns 404 when the group does not exist", async () => {
-      const { response } = await adminGet(
+      const response = await adminGet(
         "/admin/groups/999999/bulk-actions/reactivate",
       );
       expect(response.status).toBe(404);
@@ -57,11 +62,7 @@ describeWithEnv("Admin bulk actions — reactivate", { db: true }, () => {
 
   describe("POST /admin/groups/:id/bulk-actions/reactivate", () => {
     test("reactivates every listing in the group when the name is confirmed", async () => {
-      const group = await createTestGroup({ name: "Bring Back" });
-      const a = await createTestListing({ groupId: group.id, name: "A" });
-      const b = await createTestListing({ groupId: group.id, name: "B" });
-      await listingsTable.update(a.id, { active: false });
-      await listingsTable.update(b.id, { active: false });
+      const { group, a, b } = await createInactiveListGroup("Bring Back");
 
       const { response } = await adminFormPost(
         `/admin/groups/${group.id}/bulk-actions/reactivate`,

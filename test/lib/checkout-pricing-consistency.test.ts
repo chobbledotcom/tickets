@@ -106,6 +106,21 @@ const expectConsistent = async (
   expect(web.modifierApplications).toEqual(pub.modifierApplications);
 };
 
+const parkingFixedSurchargeExpectConsistent = async (
+  opts: { ctx?: { visits: number }; overrides?: Partial<CheckoutIntent> } = {},
+): Promise<void> => {
+  await insertModifier({
+    calcKind: "fixed",
+    calcValue: 5,
+    direction: "charge",
+    name: "Parking",
+  });
+  const items = [checkoutItem({ quantity: 2 })];
+  const specs = await resolveModifiers(items);
+  expect(specs).toHaveLength(1);
+  await expectConsistent(items, specs, opts);
+};
+
 describeWithEnv(
   "checkout pricing consistency (public ↔ webhook)",
   { db: true },
@@ -115,16 +130,7 @@ describeWithEnv(
     useSetting({ booking_fee: "0" });
 
     test("a whole-order fixed surcharge re-prices identically", async () => {
-      await insertModifier({
-        calcKind: "fixed",
-        calcValue: 5,
-        direction: "charge",
-        name: "Parking",
-      });
-      const items = [checkoutItem({ quantity: 2 })];
-      const specs = await resolveModifiers(items);
-      expect(specs).toHaveLength(1);
-      await expectConsistent(items, specs);
+      await parkingFixedSurchargeExpectConsistent();
     });
 
     test("a percentage discount keeps its negative value through the round-trip", async () => {
@@ -299,16 +305,7 @@ describeWithEnv(
     });
 
     test("a reservation deposit combined with a modifier re-prices identically", async () => {
-      await insertModifier({
-        calcKind: "fixed",
-        calcValue: 5,
-        direction: "charge",
-        name: "Parking",
-      });
-      const items = [checkoutItem({ quantity: 2 })];
-      const specs = await resolveModifiers(items);
-      expect(specs).toHaveLength(1);
-      await expectConsistent(items, specs, {
+      await parkingFixedSurchargeExpectConsistent({
         overrides: { reservationAmount: "10%" },
       });
     });

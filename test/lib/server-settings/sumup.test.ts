@@ -6,11 +6,10 @@ import { setDemoModeForTest } from "#shared/demo.ts";
 import { sumupApi } from "#shared/sumup.ts";
 import {
   adminFormPost,
+  adminGet,
   assertJson,
-  awaitTestRequest,
   describeWithEnv,
   expectFlash,
-  testCookie,
   testRequiresAuth,
   withMocks,
 } from "#test-utils";
@@ -98,9 +97,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
   describe("settings page (SumUp form)", () => {
     test("shows the not-configured message and hides the test button", async () => {
       await settings.update.paymentProvider("sumup");
-      const response = await awaitTestRequest("/admin/settings", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/settings");
       const html = await response.text();
       expect(html).toContain("No SumUp API key is configured");
       expect(html).not.toContain("sumup-test-btn");
@@ -108,9 +105,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
     test("disables browser autocomplete on the SumUp credential fields", async () => {
       await settings.update.paymentProvider("sumup");
-      const response = await awaitTestRequest("/admin/settings", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/settings");
       const html = await response.text();
       const inputTag = (name: string): string =>
         html.match(new RegExp(`<input[^>]*name="${name}"[^>]*>`))?.[0] ?? "";
@@ -123,9 +118,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         sumup_api_key: "sk_test_configured",
         sumup_merchant_code: "MC_configured",
       });
-      const response = await awaitTestRequest("/admin/settings", {
-        cookie: await testCookie(),
-      });
+      const response = await adminGet("/admin/settings");
       const html = await response.text();
       expect(html).toContain("A SumUp API key is currently configured");
       expect(html).toContain("sumup-test-btn");

@@ -274,15 +274,18 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     return listing;
   };
 
-  test("applies a promo code discount when the correct code is submitted", async () => {
+  const quoteSave10Promo = async (): Promise<string> => {
     const listing = await setupPromoListing();
-
-    const html = await (
+    return (
       await calculate(listing.slug, listing.slug, {
         [`quantity_${listing.id}`]: "1",
         promo_code: "SAVE10",
       })
     ).text();
+  };
+
+  test("applies a promo code discount when the correct code is submitted", async () => {
+    const html = await quoteSave10Promo();
 
     // Discount line shown with modifier name and negative amount.
     expect(html).toContain("10% off");
@@ -293,14 +296,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
   });
 
   test("shows the listing price before modifiers, not the discounted line price", async () => {
-    const listing = await setupPromoListing();
-
-    const html = await (
-      await calculate(listing.slug, listing.slug, {
-        [`quantity_${listing.id}`]: "1",
-        promo_code: "SAVE10",
-      })
-    ).text();
+    const html = await quoteSave10Promo();
 
     // The ticket line is the full £10.00 list price, so the discount isn't
     // baked into it — the modifier is itemised separately on its own row...

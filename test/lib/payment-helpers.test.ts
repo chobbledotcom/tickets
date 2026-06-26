@@ -25,7 +25,7 @@ import {
   isPaymentStatus,
   type SessionMetadata,
 } from "#shared/payments.ts";
-import { describeWithEnv } from "#test-utils";
+import { describeWithEnv, expectThrows } from "#test-utils";
 
 describe("payment-helpers", () => {
   describe("modifier metadata", () => {
@@ -563,10 +563,9 @@ describe("payment-helpers", () => {
         items: longItems,
         name: "John",
       };
-      expect(() => enforceMetadataLimits(metadata, 255)).toThrow(
+      expectThrows(
+        () => enforceMetadataLimits(metadata, 255),
         PaymentUserError,
-      );
-      expect(() => enforceMetadataLimits(metadata, 255)).toThrow(
         /too many listings/i,
       );
     });
@@ -586,10 +585,9 @@ describe("payment-helpers", () => {
         items: '[{"e":1,"q":1,"p":0}]',
         name: "John",
       };
-      expect(() => enforceMetadataLimits(metadata, 255)).toThrow(
+      expectThrows(
+        () => enforceMetadataLimits(metadata, 255),
         PaymentUserError,
-      );
-      expect(() => enforceMetadataLimits(metadata, 255)).toThrow(
         /too many options/i,
       );
     });
@@ -609,10 +607,9 @@ describe("payment-helpers", () => {
         name: "John",
         text_answer_ids: longTextAnswerIds,
       };
-      expect(() => enforceMetadataLimits(metadata, 255)).toThrow(
+      expectThrows(
+        () => enforceMetadataLimits(metadata, 255),
         PaymentUserError,
-      );
-      expect(() => enforceMetadataLimits(metadata, 255)).toThrow(
         /too many options/i,
       );
     });
@@ -627,10 +624,9 @@ describe("payment-helpers", () => {
         modifiers: longModifiers,
         name: "John",
       };
-      expect(() => enforceMetadataLimits(metadata, 255)).toThrow(
+      expectThrows(
+        () => enforceMetadataLimits(metadata, 255),
         PaymentUserError,
-      );
-      expect(() => enforceMetadataLimits(metadata, 255)).toThrow(
         /too many options/i,
       );
     });
@@ -662,10 +658,9 @@ describe("payment-helpers", () => {
         items: '[{"e":1,"q":1,"p":0}]',
         name: "John",
       };
-      expect(() => enforceMetadataLimits(metadata, 255)).toThrow(
+      expectThrows(
+        () => enforceMetadataLimits(metadata, 255),
         PaymentUserError,
-      );
-      expect(() => enforceMetadataLimits(metadata, 255)).toThrow(
         /too much booking detail/i,
       );
     });

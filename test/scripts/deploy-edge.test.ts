@@ -79,6 +79,22 @@ const deployDeps = (
   };
 };
 
+const expectDeployFailsBeforeBuild = async (
+  overrides: Partial<DeployEdgeDeps>,
+): Promise<string[]> => {
+  let buildCalled = false;
+  const { deps, stderr } = deployDeps({
+    ...overrides,
+    runBuildEdge: () => {
+      buildCalled = true;
+      return Promise.resolve({ code: 0, success: true });
+    },
+  });
+  await expect(runDeployEdge(deps)).resolves.toBe(1);
+  expect(buildCalled).toBe(false);
+  return stderr;
+};
+
 describe("deploy-edge argument parsing", () => {
   test("accepts one script ID and trims surrounding whitespace", () => {
     expect(parseScriptIdArg([" 12345 "])).toEqual({
@@ -250,37 +266,17 @@ describe("runDeployEdge", () => {
   });
 
   test("returns usage errors before building", async () => {
-    let buildCalled = false;
-    const { deps, stderr } = deployDeps({
-      args: [],
-      runBuildEdge: () => {
-        buildCalled = true;
-        return Promise.resolve({ code: 0, success: true });
-      },
-    });
-
-    await expect(runDeployEdge(deps)).resolves.toBe(1);
-
+    const stderr = await expectDeployFailsBeforeBuild({ args: [] });
     expect(stderr).toEqual([USAGE]);
-    expect(buildCalled).toBe(false);
   });
 
   test("requires a Bunny access key before building", async () => {
-    let buildCalled = false;
-    const { deps, stderr } = deployDeps({
+    const stderr = await expectDeployFailsBeforeBuild({
       getEnv: envReader({}),
-      runBuildEdge: () => {
-        buildCalled = true;
-        return Promise.resolve({ code: 0, success: true });
-      },
     });
-
-    await expect(runDeployEdge(deps)).resolves.toBe(1);
-
     expect(stderr).toEqual([
       "BUNNY_ACCESS_KEY is required in .env (BUNNY_API_KEY also works).",
     ]);
-    expect(buildCalled).toBe(false);
   });
 
   test("stops when the edge build fails", async () => {
