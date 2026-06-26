@@ -305,6 +305,19 @@ export const expectResultNotFound = <
 export const getHeader = (response: Response, name: string): string =>
   response.headers.get(name)!;
 
+/** Assert `fn` throws an error of `errorClass` and (optionally) whose message
+ *  matches `pattern`. Runs `fn` twice — once per assertion — so only use for
+ *  idempotent predicates (validators, pure checks), not stateful operations. */
+// deno-lint-ignore no-explicit-any
+export const expectThrows = <E extends Error>(
+  fn: () => unknown,
+  errorClass: any,
+  pattern?: RegExp,
+): void => {
+  expect(fn).toThrow(errorClass);
+  if (pattern !== undefined) expect(fn).toThrow(pattern);
+};
+
 export const matchGroup = (
   text: string,
   pattern: RegExp,

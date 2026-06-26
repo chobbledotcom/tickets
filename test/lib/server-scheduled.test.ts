@@ -17,6 +17,7 @@ import { queryOne } from "#shared/db/client.ts";
 import {
   attendeeExists,
   describeWithEnv,
+  expectFetchSilent,
   insertOrphanAttendee,
   mockRequest,
 } from "#test-utils";
@@ -25,20 +26,12 @@ import {
 const scheduled = (method: "GET" | "POST"): Promise<Response> =>
   handleRequest(mockRequest("/scheduled", { method }));
 
-/** Stub fetch as a 200-OK, POST /scheduled, assert `poked` is null and the
- *  stub was never called. Collapses the shared fetch-stub + try/finally
- *  scaffold shared by the "not a builder" and "builder has no sites" tests. */
+/** POST /scheduled and assert `poked` is null and no fetch was made. */
 const expectPostScheduledPokesNothing = async (): Promise<void> => {
-  const fetchStub = stub(globalThis, "fetch", () =>
-    Promise.resolve(new Response("ok")),
-  );
-  try {
+  await expectFetchSilent(async () => {
     const response = await scheduled("POST");
     expect((await response.json()).poked).toBe(null);
-    expect(fetchStub.calls.length).toBe(0);
-  } finally {
-    fetchStub.restore();
-  }
+  });
 };
 
 /** Insert an orphaned attendee created `days` ago (no listing booking). */

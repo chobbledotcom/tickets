@@ -25,7 +25,7 @@ import {
   isPaymentStatus,
   type SessionMetadata,
 } from "#shared/payments.ts";
-import { describeWithEnv } from "#test-utils";
+import { describeWithEnv, expectThrows } from "#test-utils";
 
 describe("payment-helpers", () => {
   describe("modifier metadata", () => {
@@ -554,20 +554,6 @@ describe("payment-helpers", () => {
       expect(enforceMetadataLimits(metadata, 255)).toEqual(metadata);
     });
 
-    /** Assert `enforceMetadataLimits` throws a `PaymentUserError` matching
-     *  `pattern`. Collapses the `expect(…).toThrow(PaymentUserError)` +
-     *  `expect(…).toThrow(pattern)` pair shared across the overflow tests. */
-    const expectLimitsOverflow = (
-      metadata: Record<string, string>,
-      limit: number,
-      pattern: RegExp,
-    ): void => {
-      expect(() => enforceMetadataLimits(metadata, limit)).toThrow(
-        PaymentUserError,
-      );
-      expect(() => enforceMetadataLimits(metadata, limit)).toThrow(pattern);
-    };
-
     test("throws PaymentUserError when items JSON exceeds limit", () => {
       const longItems = JSON.stringify(
         Array.from({ length: 30 }, (_, i) => ({ e: i, p: 100, q: 1 })),
@@ -577,7 +563,11 @@ describe("payment-helpers", () => {
         items: longItems,
         name: "John",
       };
-      expectLimitsOverflow(metadata, 255, /too many listings/i);
+      expectThrows(
+        () => enforceMetadataLimits(metadata, 255),
+        PaymentUserError,
+        /too many listings/i,
+      );
     });
 
     test("throws PaymentUserError when answer_ids exceeds limit", () => {
@@ -595,7 +585,11 @@ describe("payment-helpers", () => {
         items: '[{"e":1,"q":1,"p":0}]',
         name: "John",
       };
-      expectLimitsOverflow(metadata, 255, /too many options/i);
+      expectThrows(
+        () => enforceMetadataLimits(metadata, 255),
+        PaymentUserError,
+        /too many options/i,
+      );
     });
 
     test("throws PaymentUserError when text_answer_ids exceeds limit", () => {
@@ -613,7 +607,11 @@ describe("payment-helpers", () => {
         name: "John",
         text_answer_ids: longTextAnswerIds,
       };
-      expectLimitsOverflow(metadata, 255, /too many options/i);
+      expectThrows(
+        () => enforceMetadataLimits(metadata, 255),
+        PaymentUserError,
+        /too many options/i,
+      );
     });
 
     test("throws PaymentUserError when modifiers exceeds limit", () => {
@@ -626,7 +624,11 @@ describe("payment-helpers", () => {
         modifiers: longModifiers,
         name: "John",
       };
-      expectLimitsOverflow(metadata, 255, /too many options/i);
+      expectThrows(
+        () => enforceMetadataLimits(metadata, 255),
+        PaymentUserError,
+        /too many options/i,
+      );
     });
 
     test("items within Stripe limit (500) but over Square limit (255)", () => {
@@ -656,7 +658,11 @@ describe("payment-helpers", () => {
         items: '[{"e":1,"q":1,"p":0}]',
         name: "John",
       };
-      expectLimitsOverflow(metadata, 255, /too much booking detail/i);
+      expectThrows(
+        () => enforceMetadataLimits(metadata, 255),
+        PaymentUserError,
+        /too much booking detail/i,
+      );
     });
 
     test("passes through a packed `b` within the limit", () => {

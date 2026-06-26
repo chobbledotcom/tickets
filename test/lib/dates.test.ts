@@ -23,7 +23,12 @@ import {
 } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { VALID_DAY_NAMES } from "#templates/fields.ts";
-import { testListing, testWithSetting, useSetting } from "#test-utils";
+import {
+  testHoliday,
+  testListing,
+  testWithSetting,
+  useSetting,
+} from "#test-utils";
 
 const today = () => todayInTz("UTC");
 
@@ -237,14 +242,6 @@ describe("dates", () => {
         minimum_days_before: 0,
       });
 
-    /** A single-day holiday on `date`. */
-    const holidayOn = (date: string) => ({
-      end_date: date,
-      id: 1,
-      name: "H",
-      start_date: date,
-    });
-
     test("returns dates filtered by bookable days", () => {
       const listing = testListing({
         bookable_days: ["Monday"],
@@ -380,7 +377,13 @@ describe("dates", () => {
       // built for a single day so every individually-bookable start appears.
       const holidayDay = addDays(today(), 2);
       const listing = dailyOverrideListing();
-      const holidays = [holidayOn(holidayDay)];
+      const holidays = [
+        testHoliday({
+          end_date: holidayDay,
+          name: "H",
+          start_date: holidayDay,
+        }),
+      ];
       // With the listing's own duration (5), the day+1 start spans the holiday
       // and is excluded; with an override of 1 it is offered.
       expect(getAvailableDates(listing, holidays)).not.toContain(
@@ -397,7 +400,13 @@ describe("dates", () => {
       // the `??` (not `||`) contract: `0 ?? duration_days` keeps the 0.
       const holidayDay = addDays(today(), 2);
       const listing = dailyOverrideListing();
-      const holidays = [holidayOn(holidayDay)];
+      const holidays = [
+        testHoliday({
+          end_date: holidayDay,
+          name: "H",
+          start_date: holidayDay,
+        }),
+      ];
       // Override 0 → 1-day span, so the day+1 start clears the day+2 holiday and
       // is offered. Were 0 mistaken for "absent" it would use duration_days (5),
       // span the holiday, and be excluded.

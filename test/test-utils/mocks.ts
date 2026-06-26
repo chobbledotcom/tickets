@@ -1,3 +1,4 @@
+import { expect } from "@std/expect";
 import { afterEach, beforeEach } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { bracket } from "#fp";
@@ -246,6 +247,30 @@ export const installRecordingFetch = (
       globalThis.fetch = original;
     },
   };
+};
+
+/** Stub `globalThis.fetch` to a 200-OK, run `body`, then assert on the
+ *  recorded calls (default: zero calls were made). Returns the stub's calls
+ *  for custom assertions. Unifies the "stub fetch then assert it wasn't
+ *  called" scaffold from the scheduled-tasks and migration-error tests. */
+export const expectFetchSilent = async (
+  body: () => Promise<void>,
+  assert?: (calls: ReturnType<typeof stub>["calls"]) => void,
+): Promise<void> => {
+  const fetchStub = stub(globalThis, "fetch", () =>
+    Promise.resolve(new Response("ok")),
+  );
+  try {
+    await body();
+    (
+      assert ??
+      ((calls) => {
+        expect(calls.length).toBe(0);
+      })
+    )(fetchStub.calls);
+  } finally {
+    fetchStub.restore();
+  }
 };
 
 /** Run `body` under the standard test zone config with a fetch mock that
