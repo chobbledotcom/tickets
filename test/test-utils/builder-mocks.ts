@@ -2,11 +2,18 @@ import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
 import { builderApi } from "#shared/builder.ts";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
+import { bunnyDbProvider } from "#shared/bunny-db.ts";
+import { denoDeployApi } from "#shared/deno-deploy-api.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 
 type CreateResult = Awaited<ReturnType<typeof bunnyCdnApi.createEdgeScript>>;
 type BunnyResult = Awaited<ReturnType<typeof bunnyCdnApi.publishEdgeScript>>;
-type CreateDbResult = Awaited<ReturnType<typeof builderApi.createDatabase>>;
+type CreateDbResult = Awaited<
+  ReturnType<typeof bunnyDbProvider.createDatabase>
+>;
+type DenoAppResult = Awaited<ReturnType<typeof denoDeployApi.createApp>>;
+type DenoDeployResult = Awaited<ReturnType<typeof denoDeployApi.deployCode>>;
+type DenoEnvResult = Awaited<ReturnType<typeof denoDeployApi.setEnvVars>>;
 
 /** Standard auto-created-database result used across builder tests. */
 export const MOCK_DB_RESULT = {
@@ -80,7 +87,7 @@ interface BuildSiteMockOptions {
  * stubs expose `.calls` for asserting what `buildSite` did.
  */
 export const stubBuildSiteApis = (opts: BuildSiteMockOptions = {}) => ({
-  createDbStub: stub(builderApi, "createDatabase", () =>
+  createDbStub: stub(bunnyDbProvider, "createDatabase", () =>
     Promise.resolve(opts.createDbResult ?? MOCK_DB_RESULT),
   ),
   createStub: stub(bunnyCdnApi, "createEdgeScript", () =>
@@ -140,4 +147,67 @@ export const expectBuildError = (
 ): void => {
   expect(result.ok).toBe(false);
   if (!result.ok) expect(result.error).toContain(substring);
+};
+
+interface DenoBuilderMockOptions {
+  createAppResult?: DenoAppResult;
+  deployResult?: DenoDeployResult;
+  encryptionKey?: string;
+  onOther?: (url: string) => Response;
+  releaseOpts?: ReleaseOptions;
+  setEnvResult?: DenoEnvResult;
+}
+
+/**
+ * Every stub `buildSite` exercises for Deno Deploy hosting: the GitHub release
+ * fetch, the createApp / setEnvVars / deployCode calls, and the
+ * encryption-key generator. Defaults to the happy path; pass overrides to
+ * drive error paths.
+ */
+export const stubDenoBuilderApis = (opts: DenoBuilderMockOptions = {}) => ({
+  createAppStub: stub(denoDeployApi, "createApp", () =>
+    Promise.resolve(
+      opts.createAppResult ?? {
+        appId: "app_abc123",
+        ok: true as const,
+        slug: "tickets-test",
+      },
+    ),
+  ),
+  deployStub: stub(denoDeployApi, "deployCode", () =>
+    Promise.resolve(
+      opts.deployResult ?? {
+        hostname: "https://tickets-test.deno.dev",
+        ok: true as const,
+      },
+    ),
+  ),
+  encKeyStub: stub(
+    builderApi,
+    "generateEncryptionKey",
+    () => opts.encryptionKey ?? "dGVzdGtleQ==",
+  ),
+  fetchStub: stubBuilderFetch(opts.onOther, opts.releaseOpts),
+  setEnvStub: stub(denoDeployApi, "setEnvVars", () =>
+    Promise.resolve(opts.setEnvResult ?? { ok: true as const }),
+  ),
+});
+
+/** Assert `api.createDatabase` returns a 403 error when fetch responds Forbidden. */
+export const testCreateDatabaseReturnsErrorOn403 = async (api: {
+  createDatabase: (name: string) => Promise<{ ok: boolean; error?: string }>;
+}): Promise<void> => {
+  await withMocks(
+    () =>
+      stub(globalThis, "fetch", () =>
+        Promise.resolve(new Response("Forbidden", { status: 403 })),
+      ),
+    async () => {
+      const result = await api.createDatabase("Bad");
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error).toContain("Create database failed (403)");
+      }
+    },
+  );
 };

@@ -9,6 +9,29 @@ const DENO_ENV = {
   DENO_DEPLOY_TOKEN: "test-deno-token",
 };
 
+/** Stub `fetch` to capture the request URL + JSON body and respond with `responseBody`. */
+const captureRequest = (responseBody: unknown) => {
+  const captured: {
+    body: unknown;
+    restore?: () => void;
+    url: string | undefined;
+  } = { body: undefined, url: undefined };
+  return {
+    captured,
+    fetchStub: stub(
+      globalThis,
+      "fetch",
+      (input: string | URL | Request, init?: RequestInit) => {
+        captured.url = String(input);
+        captured.body = JSON.parse(init?.body as string);
+        return Promise.resolve(
+          new Response(JSON.stringify(responseBody), { status: 200 }),
+        );
+      },
+    ),
+  };
+};
+
 describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
   // ── slugifyForDeno ─────────────────────────────────────────────────────────
 
@@ -50,34 +73,17 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
   // ── createApp ──────────────────────────────────────────────────────────────
 
   test("createApp POSTs to /v2/apps with orgId and slug", async () => {
-    let requestBody: unknown;
-    let requestUrl: string | undefined;
-
     await withMocks(
-      () =>
-        stub(
-          globalThis,
-          "fetch",
-          (input: string | URL | Request, init?: RequestInit) => {
-            requestUrl = String(input);
-            requestBody = JSON.parse(init?.body as string);
-            return Promise.resolve(
-              new Response(
-                JSON.stringify({ id: "app_abc123", slug: "my-app" }),
-                { status: 200 },
-              ),
-            );
-          },
-        ),
-      async () => {
+      () => captureRequest({ id: "app_abc123", slug: "my-app" }),
+      async ({ captured }) => {
         const result = await denoDeployApi.createApp("my-app");
         expect(result.ok).toBe(true);
         if (result.ok) {
           expect(result.appId).toBe("app_abc123");
           expect(result.slug).toBe("my-app");
         }
-        expect(requestUrl).toContain("/v2/apps");
-        expect(requestBody).toEqual({ orgId: "test-org-id", slug: "my-app" });
+        expect(captured.url).toContain("/v2/apps");
+        expect(captured.body).toEqual({ orgId: "test-org-id", slug: "my-app" });
       },
     );
   });
@@ -191,29 +197,9 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
   // ── deployCode ─────────────────────────────────────────────────────────────
 
   test("deployCode POSTs assets and config to /deployments endpoint", async () => {
-    let requestUrl: string | undefined;
-    let requestBody: unknown;
-
     await withMocks(
-      () =>
-        stub(
-          globalThis,
-          "fetch",
-          (input: string | URL | Request, init?: RequestInit) => {
-            requestUrl = String(input);
-            requestBody = JSON.parse(init?.body as string);
-            return Promise.resolve(
-              new Response(
-                JSON.stringify({
-                  domains: ["my-app.deno.dev"],
-                  id: "dep_123",
-                }),
-                { status: 200 },
-              ),
-            );
-          },
-        ),
-      async () => {
+      () => captureRequest({ domains: ["my-app.deno.dev"], id: "dep_123" }),
+      async ({ captured }) => {
         const result = await denoDeployApi.deployCode(
           "app_dc",
           "console.log('hello')",
@@ -222,9 +208,9 @@ describeWithEnv("deno-deploy-api", { env: DENO_ENV }, () => {
         if (result.ok) {
           expect(result.hostname).toBe("https://my-app.deno.dev");
         }
-        expect(requestUrl).toContain("/apps/app_dc/deployments");
+        expect(captured.url).toContain("/apps/app_dc/deployments");
         expect(
-          (requestBody as { assets: { "main.ts": { content: string } } })
+          (captured.body as { assets: { "main.ts": { content: string } } })
             .assets["main.ts"].content,
         ).toBe("console.log('hello')");
       },

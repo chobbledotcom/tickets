@@ -10,6 +10,7 @@ import {
   isNewerVersion,
   setBuildTimestampForTest,
 } from "#shared/update.ts";
+import { stubReleaseFetch } from "#test-utils/mocks.ts";
 
 describe("update", () => {
   afterEach(() => {
@@ -62,32 +63,6 @@ describe("update", () => {
     });
   });
 });
-
-const MOCK_RELEASE = {
-  assets: [
-    {
-      browser_download_url:
-        "https://github.com/example/releases/download/v2099-01-01-120000/bunny-script.ts",
-      name: "bunny-script.ts",
-    },
-  ],
-  name: "2099-01-01 - Big Update",
-  published_at: "2099-01-01T12:00:00Z",
-  tag_name: "v2099-01-01-120000",
-};
-
-const stubReleaseFetch = () =>
-  stub(globalThis, "fetch", (input: string | URL | Request) => {
-    const url = String(input);
-    if (url.includes("releases/latest")) {
-      return Promise.resolve(
-        new Response(JSON.stringify(MOCK_RELEASE), { status: 200 }),
-      );
-    }
-    return Promise.resolve(
-      new Response("console.log('code')", { status: 200 }),
-    );
-  });
 
 describe("deployRelease", () => {
   test("downloads an asset URL and deploys to a Bunny script", async () => {

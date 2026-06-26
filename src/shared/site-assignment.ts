@@ -6,8 +6,7 @@
 
 import { sort } from "#fp";
 import { isBuilderEnabled } from "#routes/admin/builder.ts";
-import { builderApi } from "#shared/builder.ts";
-import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
+import { builderApi, resolveHostingProvider } from "#shared/builder.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { hmacHash } from "#shared/crypto/hashing.ts";
 import { generateSecureToken } from "#shared/crypto/utils.ts";
@@ -217,40 +216,15 @@ const pushSiteSecrets = async (
   secrets: { readOnlyFrom?: string; renewalUrl?: string },
 ): Promise<CdnPushResult> => {
   if (!site.hostingId) return { error: "No hostingId", ok: false };
-
-  if (site.hostingProvider === "deno") {
-    const { denoDeployApi } = await import("#shared/deno-deploy-api.ts");
-    const pairs: [string, string][] = [];
-    if (secrets.renewalUrl !== undefined) {
-      pairs.push(["RENEWAL_URL", secrets.renewalUrl]);
-    }
-    if (secrets.readOnlyFrom !== undefined) {
-      pairs.push(["READ_ONLY_FROM", secrets.readOnlyFrom]);
-    }
-    return denoDeployApi.setEnvVars(site.hostingId, pairs);
-  }
-
-  // Bunny path
-  const scriptId = Number(site.hostingId);
-  if (!scriptId) return { error: "No hostingId", ok: false };
-
-  if (secrets.renewalUrl !== undefined) {
-    const r = await bunnyCdnApi.setEdgeScriptSecret(
-      scriptId,
-      "RENEWAL_URL",
-      secrets.renewalUrl,
-    );
-    if (!r.ok) return r;
-  }
-  if (secrets.readOnlyFrom !== undefined) {
-    const r = await bunnyCdnApi.setEdgeScriptSecret(
-      scriptId,
-      "READ_ONLY_FROM",
-      secrets.readOnlyFrom,
-    );
-    if (!r.ok) return r;
-  }
-  return { ok: true };
+  const pairs: [string, string][] = [];
+  if (secrets.renewalUrl !== undefined)
+    pairs.push(["RENEWAL_URL", secrets.renewalUrl]);
+  if (secrets.readOnlyFrom !== undefined)
+    pairs.push(["READ_ONLY_FROM", secrets.readOnlyFrom]);
+  return resolveHostingProvider(site.hostingProvider).setSecrets(
+    site.hostingId,
+    pairs,
+  );
 };
 
 /**

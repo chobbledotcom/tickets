@@ -25,6 +25,7 @@ import type { DbProvider, HostingProvider } from "#shared/db/built-sites.ts";
 import { denoHostingProvider } from "#shared/deno-deploy-api.ts";
 import { getEnv } from "#shared/env.ts";
 import { fetchText } from "#shared/fetch.ts";
+import type { HostingProviderApi } from "#shared/provider-types.ts";
 import { withSiteDb } from "#shared/site-db.ts";
 import { tursoDbProvider } from "#shared/turso-api.ts";
 import { fetchLatestRelease } from "#shared/update.ts";
@@ -221,9 +222,11 @@ const buildSiteOnProvider = async (
     ...buildBaseSecrets(dbCredentials, encryptionKey),
     ...collectHostSecrets(),
   ];
-  const provider =
-    hostingProvider === "deno" ? denoHostingProvider : bunnyHostingProvider;
-  const result = await provider.createSite(fullName, code, secrets);
+  const result = await resolveHostingProvider(hostingProvider).createSite(
+    fullName,
+    code,
+    secrets,
+  );
   if (!result.ok) return result;
   return {
     dbProvider,
@@ -261,6 +264,15 @@ export const buildSite = async (
     input.hostingProvider ?? "bunny",
   );
 };
+
+const HOSTING_PROVIDERS: Record<HostingProvider, HostingProviderApi> = {
+  bunny: bunnyHostingProvider,
+  deno: denoHostingProvider,
+};
+
+export const resolveHostingProvider = (
+  provider: HostingProvider,
+): HostingProviderApi => HOSTING_PROVIDERS[provider];
 
 /** Dispatch database creation to the selected provider. */
 function createDatabase(name: string, provider: DbProvider = "bunny") {

@@ -577,6 +577,7 @@ const deployScriptCodeImpl = async (
 // ---------------------------------------------------------------------------
 
 export const bunnyHostingProvider: HostingProviderApi = {
+  configEnvVar: "BUNNY_API_KEY",
   async createSite(name, code, secrets) {
     const createResult = await bunnyCdnApi.createEdgeScript(name, code);
     if (!createResult.ok) return createResult;
@@ -613,6 +614,8 @@ export const bunnyHostingProvider: HostingProviderApi = {
   },
   async setSecrets(hostingId, secrets) {
     const scriptId = Number(hostingId);
+    if (Number.isNaN(scriptId))
+      return { error: "No hostingId", ok: false as const };
     for (const [name, value] of secrets) {
       const r = await bunnyCdnApi.setEdgeScriptSecret(scriptId, name, value);
       if (!r.ok) return r;

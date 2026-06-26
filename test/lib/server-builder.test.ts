@@ -2,21 +2,14 @@ import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { builderApi } from "#shared/builder.ts";
-import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { getAllBuiltSites } from "#shared/db/built-sites.ts";
 import { ALL_SETTINGS_KEYS, settings } from "#shared/db/settings.ts";
+import {
+  MOCK_DB_RESULT,
+  stubBuildSiteApis,
+} from "#test-utils/builder-mocks.ts";
 
-const MOCK_DB_RESULT = {
-  dbId: "db_auto123",
-  dbToken: "auto-token",
-  dbUrl: "libsql://auto.lite.bunnydb.net",
-  ok: true as const,
-};
-
-/** Stub `testDbConnection` to resolve `ok: true`. The build-error and
- *  task-in-progress tests both pair a per-test `buildSite` stub with this
- *  identical `testDbConnection` stub; hoisting it avoids restating the same
- *  `stub(builderApi, "testDbConnection", …)` line in each. */
+/** Stub `testDbConnection` to resolve `ok: true`. */
 const stubDbOk = () =>
   stub(builderApi, "testDbConnection", () =>
     Promise.resolve({ ok: true as const }),
@@ -40,56 +33,35 @@ import {
 
 /** Stub all Bunny + GitHub APIs for a successful build */
 const stubSuccessfulBuild = () => ({
-  createDbStub: stub(builderApi, "createDatabase", () =>
-    Promise.resolve(MOCK_DB_RESULT),
-  ),
-  createStub: stub(bunnyCdnApi, "createEdgeScript", () =>
-    Promise.resolve({
-      defaultHostname: "https://test-42.b-cdn.net",
-      ok: true as const,
-      pullZoneId: 99,
-      scriptId: 42,
-    }),
-  ),
+  ...stubBuildSiteApis(),
   dbTestStub: stubDbOk(),
-  encKeyStub: stub(builderApi, "generateEncryptionKey", () => "dGVzdGtleQ=="),
-  fetchStub: stub(globalThis, "fetch", (input: string | URL | Request) => {
-    const url = String(input);
-    if (url.includes("releases/latest")) {
-      return Promise.resolve(
-        new Response(
-          JSON.stringify({
-            assets: [
-              {
-                browser_download_url: "https://example.com/script.ts",
-                name: "bunny-script.ts",
-              },
-            ],
-            name: "Test Release",
-            published_at: "2026-01-01T00:00:00Z",
-            tag_name: "v2026-01-01-000000",
-          }),
-          { status: 200 },
-        ),
-      );
-    }
-    if (url.includes("example.com/script.ts")) {
-      return Promise.resolve(
-        new Response("console.log('code')", { status: 200 }),
-      );
-    }
-    return Promise.resolve(new Response("error", { status: 500 }));
-  }),
-  publishStub: stub(bunnyCdnApi, "publishEdgeScript", () =>
-    Promise.resolve({ ok: true as const }),
-  ),
-  secretStub: stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
-    Promise.resolve({ ok: true as const }),
-  ),
-  updatePzStub: stub(bunnyCdnApi, "updatePullZone", () =>
-    Promise.resolve({ ok: true as const }),
-  ),
 });
+
+/** Stub `buildSite` to capture its input and return a success result. */
+const stubBuildAndCapture = () => {
+  const capture: {
+    input: Parameters<typeof builderApi.buildSite>[0] | null;
+    restore?: () => void;
+  } = { input: null };
+  return {
+    buildStub: stub(builderApi, "buildSite", (input) => {
+      capture.input = input;
+      return Promise.resolve({
+        dbProvider: "bunny" as const,
+        dbToken: "tok",
+        dbUrl: "libsql://test.io",
+        defaultHostname: "https://test-42.b-cdn.net",
+        hostingId: "42",
+        hostingProvider: "bunny" as const,
+        ok: true as const,
+      });
+    }),
+    capture,
+    dbTestStub: stub(builderApi, "testDbConnection", () =>
+      Promise.resolve({ ok: true as const }),
+    ),
+  };
+};
 
 describeWithEnv(
   "server (admin builder)",
@@ -419,32 +391,14 @@ describeWithEnv(
     });
 
     test("POST /admin/builder passes deno hosting_provider to buildSite", async () => {
-      let capturedInput: Parameters<typeof builderApi.buildSite>[0] | null =
-        null;
       const restoreEnv = setTestEnv({
         DENO_DEPLOY_ORG_ID: "test-org",
         DENO_DEPLOY_TOKEN: "test-token",
       });
       try {
         await withMocks(
-          () => ({
-            buildStub: stub(builderApi, "buildSite", (input) => {
-              capturedInput = input;
-              return Promise.resolve({
-                dbProvider: "bunny" as const,
-                dbToken: "tok",
-                dbUrl: "libsql://test.io",
-                defaultHostname: "https://app.deno.dev",
-                hostingId: "app_123",
-                hostingProvider: "deno" as const,
-                ok: true as const,
-              });
-            }),
-            dbTestStub: stub(builderApi, "testDbConnection", () =>
-              Promise.resolve({ ok: true as const }),
-            ),
-          }),
-          async () => {
+          () => stubBuildAndCapture(),
+          async ({ capture }) => {
             const { response } = await adminFormPost("/admin/builder", {
               db_token: "tok",
               db_url: "libsql://test.io",
@@ -452,7 +406,7 @@ describeWithEnv(
               site_name: "Deno Site",
             });
             expectRedirect(response, "/admin/builder");
-            expect(capturedInput?.hostingProvider).toBe("deno");
+            expect(capture.input?.hostingProvider).toBe("deno");
           },
         );
       } finally {
@@ -461,8 +415,6 @@ describeWithEnv(
     });
 
     test("POST /admin/builder passes turso db_provider to buildSite", async () => {
-      let capturedInput: Parameters<typeof builderApi.buildSite>[0] | null =
-        null;
       const restoreEnv = setTestEnv({
         TURSO_API_TOKEN: "test-token",
         TURSO_GROUP: "test-group",
@@ -470,24 +422,8 @@ describeWithEnv(
       });
       try {
         await withMocks(
-          () => ({
-            buildStub: stub(builderApi, "buildSite", (input) => {
-              capturedInput = input;
-              return Promise.resolve({
-                dbProvider: "turso" as const,
-                dbToken: "tok",
-                dbUrl: "libsql://test.turso.io",
-                defaultHostname: "https://test-42.b-cdn.net",
-                hostingId: "42",
-                hostingProvider: "bunny" as const,
-                ok: true as const,
-              });
-            }),
-            dbTestStub: stub(builderApi, "testDbConnection", () =>
-              Promise.resolve({ ok: true as const }),
-            ),
-          }),
-          async () => {
+          () => stubBuildAndCapture(),
+          async ({ capture }) => {
             const { response } = await adminFormPost("/admin/builder", {
               db_provider: "turso",
               db_token: "tok",
@@ -495,7 +431,7 @@ describeWithEnv(
               site_name: "Turso Site",
             });
             expectRedirect(response, "/admin/builder");
-            expect(capturedInput?.dbProvider).toBe("turso");
+            expect(capture.input?.dbProvider).toBe("turso");
           },
         );
       } finally {
@@ -504,33 +440,15 @@ describeWithEnv(
     });
 
     test("POST /admin/builder passes undefined dbProvider when db_provider is manual", async () => {
-      let capturedInput: Parameters<typeof builderApi.buildSite>[0] | null =
-        null;
       await withMocks(
-        () => ({
-          buildStub: stub(builderApi, "buildSite", (input) => {
-            capturedInput = input;
-            return Promise.resolve({
-              dbProvider: "bunny" as const,
-              dbToken: "tok",
-              dbUrl: "libsql://auto.io",
-              defaultHostname: "https://test-42.b-cdn.net",
-              hostingId: "42",
-              hostingProvider: "bunny" as const,
-              ok: true as const,
-            });
-          }),
-          dbTestStub: stub(builderApi, "testDbConnection", () =>
-            Promise.resolve({ ok: true as const }),
-          ),
-        }),
-        async () => {
+        () => stubBuildAndCapture(),
+        async ({ capture }) => {
           await adminFormPost("/admin/builder", {
             db_provider: "manual",
             db_url: "libsql://test.io",
             site_name: "Manual DB Site",
           });
-          expect(capturedInput?.dbProvider).toBeUndefined();
+          expect(capture.input?.dbProvider).toBeUndefined();
         },
       );
     });

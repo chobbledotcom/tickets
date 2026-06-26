@@ -38,6 +38,16 @@ const buildSite = (overrides: Partial<BuiltSite> = {}): BuiltSite =>
 const expectedNamesFor = (site: BuiltSite): string[] =>
   expectedSiteSecrets(site).map(([name]) => name);
 
+type DenoSetResult = Awaited<ReturnType<typeof denoDeployApi.setEnvVars>>;
+
+/** Stub denoDeployApi.getEnvVarNames (returns empty) and setEnvVars (defaults to ok). */
+const stubDenoSecrets = (setResult: DenoSetResult = { ok: true as const }) => ({
+  getStub: stub(denoDeployApi, "getEnvVarNames", () =>
+    Promise.resolve({ names: [], ok: true as const }),
+  ),
+  setStub: stub(denoDeployApi, "setEnvVars", () => Promise.resolve(setResult)),
+});
+
 describeWithEnv("hostInfraSecretNames", {}, () => {
   test("keeps only host-level infrastructure credential names", () => {
     expect(
@@ -350,14 +360,7 @@ describeWithEnv(
         hostingProvider: "deno",
       });
       await withMocks(
-        () => ({
-          getStub: stub(denoDeployApi, "getEnvVarNames", () =>
-            Promise.resolve({ names: [], ok: true as const }),
-          ),
-          setStub: stub(denoDeployApi, "setEnvVars", () =>
-            Promise.resolve({ ok: true as const }),
-          ),
-        }),
+        () => stubDenoSecrets(),
         async () => {
           const result = await addMissingSiteSecrets(site);
           expect(result.ok).toBe(true);
@@ -371,17 +374,8 @@ describeWithEnv(
         hostingProvider: "deno",
       });
       await withMocks(
-        () => ({
-          getStub: stub(denoDeployApi, "getEnvVarNames", () =>
-            Promise.resolve({ names: [], ok: true as const }),
-          ),
-          setStub: stub(denoDeployApi, "setEnvVars", () =>
-            Promise.resolve({
-              error: "patch failed (500)",
-              ok: false as const,
-            }),
-          ),
-        }),
+        () =>
+          stubDenoSecrets({ error: "patch failed (500)", ok: false as const }),
         async () => {
           const result = await addMissingSiteSecrets(site);
           expect(result.ok).toBe(false);

@@ -2,9 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { builderApi } from "#shared/builder.ts";
-import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { bunnyDbProvider as bunnyDbApi } from "#shared/bunny-db.ts";
-import { denoDeployApi } from "#shared/deno-deploy-api.ts";
 import { tursoDbProvider as tursoApi } from "#shared/turso-api.ts";
 import { describeWithEnv, withMocks } from "#test-utils";
 import {
@@ -14,6 +12,7 @@ import {
   secretsFrom,
   stubBuilderFetch,
   stubBuildSiteApis,
+  stubDenoBuilderApis,
   withBuildSiteMocks,
 } from "#test-utils/builder-mocks.ts";
 
@@ -261,30 +260,7 @@ describeWithEnv(
 
     test("buildSite succeeds on Deno Deploy hosting", () =>
       withMocks(
-        () => ({
-          createAppStub: stub(denoDeployApi, "createApp", () =>
-            Promise.resolve({
-              appId: "app_abc123",
-              ok: true as const,
-              slug: "tickets-test",
-            }),
-          ),
-          deployStub: stub(denoDeployApi, "deployCode", () =>
-            Promise.resolve({
-              hostname: "https://tickets-test.deno.dev",
-              ok: true as const,
-            }),
-          ),
-          encKeyStub: stub(
-            builderApi,
-            "generateEncryptionKey",
-            () => "dGVzdGtleQ==",
-          ),
-          fetchStub: stubBuilderFetch(),
-          setEnvStub: stub(denoDeployApi, "setEnvVars", () =>
-            Promise.resolve({ ok: true as const }),
-          ),
-        }),
+        () => stubDenoBuilderApis(),
         async ({ deployStub }) => {
           const result = await builderApi.buildSite({
             dbToken: "tok",
@@ -306,20 +282,13 @@ describeWithEnv(
 
     test("buildSite returns error when Deno app creation fails", () =>
       withMocks(
-        () => ({
-          encKeyStub: stub(
-            builderApi,
-            "generateEncryptionKey",
-            () => "dGVzdGtleQ==",
-          ),
-          fetchStub: stubBuilderFetch(),
-          stub: stub(denoDeployApi, "createApp", () =>
-            Promise.resolve({
+        () =>
+          stubDenoBuilderApis({
+            createAppResult: {
               error: "Create app failed (500): Error",
               ok: false as const,
-            }),
-          ),
-        }),
+            },
+          }),
         async () => {
           const result = await builderApi.buildSite({
             dbToken: "tok",
@@ -333,27 +302,10 @@ describeWithEnv(
 
     test("buildSite returns error when Deno setEnvVars fails", () =>
       withMocks(
-        () => ({
-          createAppStub: stub(denoDeployApi, "createApp", () =>
-            Promise.resolve({
-              appId: "app_abc",
-              ok: true as const,
-              slug: "app",
-            }),
-          ),
-          encKeyStub: stub(
-            builderApi,
-            "generateEncryptionKey",
-            () => "dGVzdGtleQ==",
-          ),
-          fetchStub: stubBuilderFetch(),
-          setEnvStub: stub(denoDeployApi, "setEnvVars", () =>
-            Promise.resolve({
-              error: "Set env failed (403)",
-              ok: false as const,
-            }),
-          ),
-        }),
+        () =>
+          stubDenoBuilderApis({
+            setEnvResult: { error: "Set env failed (403)", ok: false as const },
+          }),
         async () => {
           const result = await builderApi.buildSite({
             dbToken: "tok",
@@ -367,30 +319,10 @@ describeWithEnv(
 
     test("buildSite returns error when Deno deployCode fails", () =>
       withMocks(
-        () => ({
-          createAppStub: stub(denoDeployApi, "createApp", () =>
-            Promise.resolve({
-              appId: "app_abc",
-              ok: true as const,
-              slug: "app",
-            }),
-          ),
-          deployStub: stub(denoDeployApi, "deployCode", () =>
-            Promise.resolve({
-              error: "Deploy failed (500)",
-              ok: false as const,
-            }),
-          ),
-          encKeyStub: stub(
-            builderApi,
-            "generateEncryptionKey",
-            () => "dGVzdGtleQ==",
-          ),
-          fetchStub: stubBuilderFetch(),
-          setEnvStub: stub(denoDeployApi, "setEnvVars", () =>
-            Promise.resolve({ ok: true as const }),
-          ),
-        }),
+        () =>
+          stubDenoBuilderApis({
+            deployResult: { error: "Deploy failed (500)", ok: false as const },
+          }),
         async () => {
           const result = await builderApi.buildSite({
             dbToken: "tok",
@@ -443,26 +375,7 @@ describeWithEnv(
     test("buildSite auto-creates turso database when dbProvider is turso", () =>
       withMocks(
         () => ({
-          createStub: stub(bunnyCdnApi, "createEdgeScript", () =>
-            Promise.resolve({
-              defaultHostname: "https://test-42.b-cdn.net",
-              ok: true as const,
-              pullZoneId: 99,
-              scriptId: 42,
-            }),
-          ),
-          encKeyStub: stub(
-            builderApi,
-            "generateEncryptionKey",
-            () => "dGVzdGtleQ==",
-          ),
-          fetchStub: stubBuilderFetch(),
-          publishStub: stub(bunnyCdnApi, "publishEdgeScript", () =>
-            Promise.resolve({ ok: true as const }),
-          ),
-          secretStub: stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
-            Promise.resolve({ ok: true as const }),
-          ),
+          ...stubBuildSiteApis(),
           tursoStub: stub(tursoApi, "createDatabase", () =>
             Promise.resolve({
               dbId: "turso_auto",
@@ -470,9 +383,6 @@ describeWithEnv(
               dbUrl: "libsql://auto.turso.io",
               ok: true as const,
             }),
-          ),
-          updatePzStub: stub(bunnyCdnApi, "updatePullZone", () =>
-            Promise.resolve({ ok: true as const }),
           ),
         }),
         async ({ tursoStub }) => {

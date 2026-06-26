@@ -1,6 +1,7 @@
 import type { ApiResult } from "#shared/fetch.ts";
 
 export interface HostingProviderApi {
+  configEnvVar: string;
   createSite(
     name: string,
     code: string,

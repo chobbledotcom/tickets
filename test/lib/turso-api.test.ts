@@ -6,6 +6,7 @@ import {
   tursoDbProvider as tursoApi,
 } from "#shared/turso-api.ts";
 import { describeWithEnv, withMocks } from "#test-utils";
+import { testCreateDatabaseReturnsErrorOn403 } from "#test-utils/builder-mocks.ts";
 
 const TURSO_ENV = {
   TURSO_API_TOKEN: "test-turso-token",
@@ -13,33 +14,44 @@ const TURSO_ENV = {
   TURSO_ORGANIZATION: "myorg",
 };
 
-const successFetch = (dbName = "my-site") =>
-  stub(globalThis, "fetch", (input: string | URL | Request) => {
-    const url = String(input);
-
-    if (url.includes("/databases") && !url.includes("/auth")) {
-      return Promise.resolve(
-        new Response(
-          JSON.stringify({
-            database: {
-              DbId: "db_turso123",
-              Hostname: `${dbName}.turso.io`,
-              Name: dbName,
-            },
-          }),
-          { status: 200 },
-        ),
-      );
-    }
-
-    if (url.includes("/auth/tokens")) {
-      return Promise.resolve(
-        new Response(JSON.stringify({ jwt: "jwt_abc123" }), { status: 200 }),
-      );
-    }
-
-    return Promise.resolve(new Response("unexpected", { status: 500 }));
-  });
+/**
+ * Stub fetch with standard Turso URL routing: /databases → db JSON, /auth/tokens → JWT.
+ * Pass `onRequest` to capture URL/init for inspection. Returns on unmatched URLs with 500.
+ */
+const stubTursoFetch = (
+  dbName: string,
+  dbId: string,
+  jwt: string,
+  onRequest?: (url: string, init?: RequestInit) => void,
+) =>
+  stub(
+    globalThis,
+    "fetch",
+    (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      onRequest?.(url, init);
+      if (url.includes("/databases") && !url.includes("/auth")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              database: {
+                DbId: dbId,
+                Hostname: `${dbName}.turso.io`,
+                Name: dbName,
+              },
+            }),
+            { status: 200 },
+          ),
+        );
+      }
+      if (url.includes("/auth/tokens")) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ jwt }), { status: 200 }),
+        );
+      }
+      return Promise.resolve(new Response("unexpected", { status: 500 }));
+    },
+  );
 
 test("slugifyForTurso lowercases and replaces non-slug chars with hyphens", () => {
   expect(slugifyForTurso("My Site")).toBe("my-site");
@@ -64,41 +76,23 @@ test("slugifyForTurso returns db for names that reduce to empty", () => {
   expect(slugifyForTurso("---")).toBe("db");
 });
 
+/** Returns a `stubTursoFetch` `onRequest` callback that captures the create-database POST body into `out.body`. */
+const captureCreateBody =
+  (out: { body?: unknown }) => (url: string, init?: RequestInit) => {
+    if (url.includes("/databases") && !url.includes("/auth")) {
+      out.body = JSON.parse(init?.body as string);
+    }
+  };
+
 describeWithEnv("turso-api", { env: TURSO_ENV }, () => {
   test("createDatabase calls create and token endpoints", async () => {
     const fetchCalls: string[] = [];
 
     await withMocks(
       () =>
-        stub(globalThis, "fetch", (input: string | URL | Request) => {
-          const url = String(input);
-          fetchCalls.push(url);
-
-          if (url.includes("/databases") && !url.includes("/auth")) {
-            return Promise.resolve(
-              new Response(
-                JSON.stringify({
-                  database: {
-                    DbId: "db_test",
-                    Hostname: "my-site.turso.io",
-                    Name: "my-site",
-                  },
-                }),
-                { status: 200 },
-              ),
-            );
-          }
-
-          if (url.includes("/auth/tokens")) {
-            return Promise.resolve(
-              new Response(JSON.stringify({ jwt: "jwt_token" }), {
-                status: 200,
-              }),
-            );
-          }
-
-          return Promise.resolve(new Response("unexpected", { status: 500 }));
-        }),
+        stubTursoFetch("my-site", "db_test", "jwt_token", (url) =>
+          fetchCalls.push(url),
+        ),
       async () => {
         const result = await tursoApi.createDatabase("My Site");
 
@@ -115,87 +109,23 @@ describeWithEnv("turso-api", { env: TURSO_ENV }, () => {
   });
 
   test("createDatabase POSTs name and group to the create endpoint", async () => {
-    let createBody: unknown;
-
+    const out: { body?: unknown } = {};
     await withMocks(
-      () =>
-        stub(
-          globalThis,
-          "fetch",
-          (input: string | URL | Request, init?: RequestInit) => {
-            const url = String(input);
-
-            if (url.includes("/databases") && !url.includes("/auth")) {
-              createBody = JSON.parse(init?.body as string);
-              return Promise.resolve(
-                new Response(
-                  JSON.stringify({
-                    database: {
-                      DbId: "db_x",
-                      Hostname: "x.turso.io",
-                      Name: "x",
-                    },
-                  }),
-                  { status: 200 },
-                ),
-              );
-            }
-
-            if (url.includes("/auth/tokens")) {
-              return Promise.resolve(
-                new Response(JSON.stringify({ jwt: "j" }), { status: 200 }),
-              );
-            }
-
-            return Promise.resolve(new Response("unexpected", { status: 500 }));
-          },
-        ),
+      () => stubTursoFetch("x", "db_x", "j", captureCreateBody(out)),
       async () => {
         await tursoApi.createDatabase("x");
-        expect(createBody).toEqual({ group: "default", name: "x" });
+        expect(out.body).toEqual({ group: "default", name: "x" });
       },
     );
   });
 
   test("createDatabase slugifies the name before sending to Turso API", async () => {
-    let createBody: unknown;
-
+    const slug: { body?: unknown } = {};
     await withMocks(
-      () =>
-        stub(
-          globalThis,
-          "fetch",
-          (input: string | URL | Request, init?: RequestInit) => {
-            const url = String(input);
-
-            if (url.includes("/databases") && !url.includes("/auth")) {
-              createBody = JSON.parse(init?.body as string);
-              return Promise.resolve(
-                new Response(
-                  JSON.stringify({
-                    database: {
-                      DbId: "db_slug",
-                      Hostname: "my-site.turso.io",
-                      Name: "my-site",
-                    },
-                  }),
-                  { status: 200 },
-                ),
-              );
-            }
-
-            if (url.includes("/auth/tokens")) {
-              return Promise.resolve(
-                new Response(JSON.stringify({ jwt: "j" }), { status: 200 }),
-              );
-            }
-
-            return Promise.resolve(new Response("unexpected", { status: 500 }));
-          },
-        ),
+      () => stubTursoFetch("my-site", "db_slug", "j", captureCreateBody(slug)),
       async () => {
         await tursoApi.createDatabase("My Site");
-        expect(createBody).toEqual({ group: "default", name: "my-site" });
+        expect(slug.body).toEqual({ group: "default", name: "my-site" });
       },
     );
   });
@@ -205,39 +135,10 @@ describeWithEnv("turso-api", { env: TURSO_ENV }, () => {
 
     await withMocks(
       () =>
-        stub(
-          globalThis,
-          "fetch",
-          (input: string | URL | Request, init?: RequestInit) => {
-            const url = String(input);
-            const auth = (init?.headers as Record<string, string>)
-              ?.Authorization;
-            if (auth) authHeaders.push(auth);
-
-            if (url.includes("/databases") && !url.includes("/auth")) {
-              return Promise.resolve(
-                new Response(
-                  JSON.stringify({
-                    database: {
-                      DbId: "db_h",
-                      Hostname: "h.turso.io",
-                      Name: "h",
-                    },
-                  }),
-                  { status: 200 },
-                ),
-              );
-            }
-
-            if (url.includes("/auth/tokens")) {
-              return Promise.resolve(
-                new Response(JSON.stringify({ jwt: "t" }), { status: 200 }),
-              );
-            }
-
-            return Promise.resolve(new Response("unexpected", { status: 500 }));
-          },
-        ),
+        stubTursoFetch("h", "db_h", "t", (url, init) => {
+          const auth = (init?.headers as Record<string, string>)?.Authorization;
+          if (auth) authHeaders.push(auth);
+        }),
       async () => {
         await tursoApi.createDatabase("h");
         expect(authHeaders.every((h) => h === "Bearer test-turso-token")).toBe(
@@ -253,33 +154,9 @@ describeWithEnv("turso-api", { env: TURSO_ENV }, () => {
 
     await withMocks(
       () =>
-        stub(globalThis, "fetch", (input: string | URL | Request) => {
-          const url = String(input);
-          fetchedUrls.push(url);
-
-          if (url.includes("/databases") && !url.includes("/auth")) {
-            return Promise.resolve(
-              new Response(
-                JSON.stringify({
-                  database: {
-                    DbId: "db_url",
-                    Hostname: "url-db.turso.io",
-                    Name: "url-db",
-                  },
-                }),
-                { status: 200 },
-              ),
-            );
-          }
-
-          if (url.includes("/auth/tokens")) {
-            return Promise.resolve(
-              new Response(JSON.stringify({ jwt: "tok" }), { status: 200 }),
-            );
-          }
-
-          return Promise.resolve(new Response("unexpected", { status: 500 }));
-        }),
+        stubTursoFetch("url-db", "db_url", "tok", (url) =>
+          fetchedUrls.push(url),
+        ),
       async () => {
         await tursoApi.createDatabase("url-db");
         expect(fetchedUrls.some((u) => u.includes("/myorg/"))).toBe(true);
@@ -292,19 +169,7 @@ describeWithEnv("turso-api", { env: TURSO_ENV }, () => {
   });
 
   test("createDatabase returns error when create endpoint fails", async () => {
-    await withMocks(
-      () =>
-        stub(globalThis, "fetch", () =>
-          Promise.resolve(new Response("Forbidden", { status: 403 })),
-        ),
-      async () => {
-        const result = await tursoApi.createDatabase("Bad");
-        expect(result.ok).toBe(false);
-        if (!result.ok) {
-          expect(result.error).toContain("Create database failed (403)");
-        }
-      },
-    );
+    await testCreateDatabaseReturnsErrorOn403(tursoApi);
   });
 
   test("createDatabase returns error when create endpoint fails with JSON error", async () => {
@@ -370,7 +235,7 @@ describeWithEnv("turso-api", { env: TURSO_ENV }, () => {
 
   test("createDatabase constructs libsql:// URL from hostname", async () => {
     await withMocks(
-      () => successFetch("my-app"),
+      () => stubTursoFetch("my-app", "db_turso123", "jwt_abc123"),
       async () => {
         const result = await tursoApi.createDatabase("My App");
         expect(result.ok).toBe(true);

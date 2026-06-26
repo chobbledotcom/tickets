@@ -15,12 +15,13 @@
  * would orphan the site's existing encrypted data.
  */
 
-import { collectHostSecrets, HOST_INFRA_SECRET_KEYS } from "#shared/builder.ts";
-import { bunnyHostingProvider } from "#shared/bunny-cdn.ts";
+import {
+  collectHostSecrets,
+  HOST_INFRA_SECRET_KEYS,
+  resolveHostingProvider,
+} from "#shared/builder.ts";
 import type { BuiltSite } from "#shared/db/built-sites.ts";
-import { denoHostingProvider } from "#shared/deno-deploy-api.ts";
 import { getEnv } from "#shared/env.ts";
-import type { HostingProviderApi } from "#shared/provider-types.ts";
 
 /**
  * The secrets we would copy to a freshly built site, recomputed for an existing
@@ -69,30 +70,15 @@ const secretsPrecondition = (site: BuiltSite): SecretsPrecondition => {
       ok: false,
     };
   }
-  if (site.hostingProvider === "deno") {
-    if (!getEnv("DENO_DEPLOY_TOKEN")) {
-      return {
-        error:
-          "DENO_DEPLOY_TOKEN is not configured on this host, so site secrets can't be read.",
-        ok: false,
-      };
-    }
-  } else {
-    if (!getEnv("BUNNY_API_KEY")) {
-      return {
-        error:
-          "BUNNY_API_KEY is not configured on this host, so site secrets can't be read.",
-        ok: false,
-      };
-    }
+  const { configEnvVar } = resolveHostingProvider(site.hostingProvider);
+  if (!getEnv(configEnvVar)) {
+    return {
+      error: `${configEnvVar} is not configured on this host, so site secrets can't be read.`,
+      ok: false,
+    };
   }
   return { hostingId: site.hostingId, ok: true };
 };
-
-const resolveHostingProvider = (
-  hostingProvider: BuiltSite["hostingProvider"],
-): HostingProviderApi =>
-  hostingProvider === "deno" ? denoHostingProvider : bunnyHostingProvider;
 
 /** Fetch the live secret names for a site, resilient to network/parse errors. */
 const listSecretNames = async (

@@ -190,6 +190,7 @@ const createDenoSiteImpl = async (
 };
 
 export const denoHostingProvider: HostingProviderApi = {
+  configEnvVar: "DENO_DEPLOY_TOKEN",
   createSite: createDenoSiteImpl,
   getSecretNames: (hostingId) => denoDeployApi.getEnvVarNames(hostingId),
   setSecrets: (hostingId, secrets) =>
